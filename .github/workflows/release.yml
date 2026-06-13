@@ -112,5 +112,4 @@ jobs:
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: 'Omnicross ${{ github.event.inputs.version || github.ref_name }}'
           releaseDraft: true
-          releasePrerelease: false
           args: ${{ matrix.args }}
