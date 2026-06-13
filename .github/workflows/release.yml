@@ -46,7 +46,7 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Tauri v2 system dependencies (tray + autostart need libayatana-appindicator).
       - name: Install Linux dependencies
@@ -64,7 +64,7 @@ jobs:
             file wget
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
