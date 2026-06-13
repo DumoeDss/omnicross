@@ -1,0 +1,21 @@
+{
+  "id": "azure-openai",
+  "presetId": "azure-openai",
+  "name": "Azure OpenAI",
+  "apiFormat": "azure-openai",
+  "api_base_url": "",
+  "apiVersion": "2024-08-01-preview",
+  "models": [],
+  "description": "Azure OpenAI Service (requires deployment name as model)",
+  "icon": "azure-openai",
+  "website": "https://azure.microsoft.com/products/ai-services/openai-service",
+  "docsUrl": "https://learn.microsoft.com/azure/ai-services/openai/",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": [
+    "vision"
+  ]
+}

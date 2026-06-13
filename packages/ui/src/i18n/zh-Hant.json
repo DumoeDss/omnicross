@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "正在載入 LLM 設定...",
+    "reset": {
+      "button": "還原預設值",
+      "confirmTitle": "還原預設設定？",
+      "confirmBody": "這將清除您對此提供者的自訂設定，使其重新套用內建的預設值。您的 API 金鑰與已儲存的工作階段不受影響。",
+      "confirmButton": "還原預設值"
+    },
+    "reentryBanner": {
+      "message": "有 {{count}} 個已啟用的提供者需要重新輸入 API 金鑰。請逐一開啟並重新填入金鑰。"
+    },
+    "migrationPack": {
+      "barHint": "使用加密的遷移套件，將提供者金鑰與訂閱權杖移轉至另一台裝置。",
+      "passphrase": "密碼短語",
+      "passphrasePlaceholder": "請輸入密碼短語",
+      "passphraseHint": "請使用至少 8 個字元，建議 12 個或以上。",
+      "confirm": "確認密碼短語",
+      "confirmPlaceholder": "請再次輸入密碼短語",
+      "mismatch": "兩次輸入的密碼短語不一致。",
+      "strength": {
+        "weak": "太短——請使用至少 8 個字元。",
+        "fair": "尚可——12 個或以上字元更安全。",
+        "strong": "密碼短語強度高。"
+      },
+      "export": {
+        "button": "匯出套件",
+        "title": "匯出加密套件",
+        "subtitle": "將提供者金鑰與訂閱權杖加密為可攜式檔案。",
+        "warning": "此檔案包含可解密的機密資訊，請妥善保管——任何人只要同時持有此檔案與密碼短語，即可讀取您的金鑰。密碼短語一旦遺失將無法復原。",
+        "submit": "匯出",
+        "success": "套件匯出成功。",
+        "error": "匯出失敗，請再試一次。"
+      },
+      "import": {
+        "button": "匯入套件",
+        "title": "匯入加密套件",
+        "subtitle": "從已匯出的套件中還原提供者金鑰與訂閱權杖。",
+        "hint": "請輸入匯出套件時使用的密碼短語，然後選擇檔案。",
+        "submit": "匯入",
+        "successTitle": "匯入完成",
+        "summary": "已匯入 {{providerKeys}} 個提供者金鑰、{{poolKeys}} 個金鑰池項目及 {{tokenSets}} 組權杖。",
+        "duplicates": "已略過 {{count}} 個已存在的金鑰池項目。",
+        "skipped": "已略過（無匹配的提供者）：{{names}}",
+        "error": "密碼短語錯誤或套件已損毀，未做任何變更。"
+      }
+    },
+    "searchPlaceholder": "搜尋提供者...",
+    "emptySearch": "找不到符合搜尋條件的提供者。",
+    "emptyList": "尚未設定任何提供者。",
+    "selectPrompt": "選取提供者以檢視詳細資訊",
+    "listStatus": "共 {{count}} 個模型",
+    "noModels": "未設定模型",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "showEnabledOnly": "僅顯示已啟用",
+    "showAll": "顯示所有提供者",
+    "dragHandle": "拖曳以重新排序",
+    "reorderFailed": "儲存提供者排序失敗",
+    "credentials": {
+      "apiKey": "API 金鑰",
+      "apiBaseUrl": "API 基礎 URL"
+    },
+    "filter": {
+      "all": "全部",
+      "chat": "對話",
+      "code": "程式碼"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "選取範本",
+      "skipTemplates": "略過，手動設定",
+      "name": "名稱 *",
+      "providerType": "類型",
+      "apiType": "API 類型",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "標準 OpenAI chat/completions API 格式",
+        "claudecode": "Anthropic Messages API 格式（Claude Code）"
+      },
+      "chatApiFormat": "API 格式",
+      "chatApiFormatDescription": "請選取符合您提供者端點的 API 格式",
+      "apiKey": "API 金鑰",
+      "apiKeyPlaceholder": "sk-... 或 $ENV_VAR",
+      "apiKeyHelper": "可使用 $VAR_NAME 參照環境變數",
+      "apiKeySetPlaceholder": "金鑰已設定——留空則保持不變",
+      "apiKeyReplaceHelper": "金鑰已安全儲存。輸入新值可替換，留空則保持不變。",
+      "testApiKey": "測試 API 金鑰",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "預覽：",
+      "models": "模型",
+      "modelPlaceholder": "模型名稱（如 gpt-4、claude-3-opus）",
+      "transformers": "轉換器",
+      "transformerConfig": "API 轉換器",
+      "transformerConfigDescription": "設定轉換器以適配此提供者的 API 請求／回應格式",
+      "transformerConfigNote": "Daemon 會在請求鏈中將這些轉換器套用於提供者格式轉換器（負責 wire 格式轉換）之後。未知的轉換器名稱將被略過。",
+      "enabled": "已啟用",
+      "apiVersion": "API 版本",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API 版本（如 2024-08-01-preview）",
+      "official": "Anthropic 官方 API",
+      "officialHelper": "若此提供者直接連線至 Anthropic 官方 API，請啟用。反向代理或第三方服務請停用。",
+      "maxConcurrency": "最大並行請求數",
+      "maxConcurrencyHelper": "傳送至此提供者的最大並行 API 請求數。較低的值有助於避免速率限制（429 錯誤）。設定 `-1` 表示不限制。",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "為訂閱制 Coding Plan 使用獨立的 API 端點",
+        "baseUrl": "Coding Plan 基礎 URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API 金鑰（選填）",
+        "apiKeyPlaceholder": "留空則使用提供者的 API 金鑰",
+        "apiKeyHelper": "僅在 Coding Plan 使用不同 API 金鑰時才需要填寫",
+        "tokenPlanHint": "部分提供者（如小米 MiMo）的 Token Plan 金鑰以 `tp-` 開頭——僅供參考，不會強制驗證。"
+      },
+      "selectTypeFirst": "選取提供者類型",
+      "selectTypeFirstDesc": "選取您要新增的提供者類型",
+      "codeProviderNote": "程式碼提供者只需填入 API 金鑰與 URL。模型由 Agent Router 管理。",
+      "buttons": {
+        "cancel": "取消",
+        "submitAdd": "新增提供者",
+        "submitUpdate": "更新提供者",
+        "continue": "繼續",
+        "back": "返回"
+      }
+    },
+    "details": {
+      "noSelection": "選取提供者以檢視詳細資訊",
+      "apiKey": "API 金鑰",
+      "apiUrl": "API URL",
+      "nameLabel": "提供者名稱",
+      "modelsEndpoint": "模型端點",
+      "modelsEndpointHelper": "若提供者開放了自訂的 /models 路徑，可在此覆寫探索端點。",
+      "models": "模型",
+      "transformers": "轉換器",
+      "codeProviderNote": "程式碼提供者（如 Claude Code）不需要設定模型。模型由 Agent Router 自動管理。",
+      "buttons": {
+        "more": "更多設定",
+        "delete": "刪除"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "選取提供者與模型",
+      "noProviders": "目前沒有可用的提供者",
+      "noModels": "尚未設定模型"
+    },
+    "apiKeyPool": {
+      "title": "API 金鑰池",
+      "description": "設定多個 API 金鑰以進行負載平衡。每個工作階段會固定使用一個金鑰以保留提示快取。",
+      "defaultLabel": "預設",
+      "weight": "權重",
+      "noKey": "無金鑰",
+      "labelPlaceholder": "標籤（如 金鑰 #1、正式環境）",
+      "addKey": "新增 API 金鑰",
+      "add": "新增",
+      "empty": "尚未設定其他金鑰。",
+      "statusCoolingDown": "冷卻中 {{time}}",
+      "statusAuthFailed": "驗證失敗 · 已停用",
+      "statusDisabled": "已停用",
+      "statusHealthy": "正常",
+      "agoSeconds": "{{count}} 秒前",
+      "agoMinutes": "{{count}} 分鐘前",
+      "agoHours": "{{count}} 小時前",
+      "agoDays": "{{count}} 天前"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "搜尋模型...",
+      "defaultGroup": "所有模型",
+      "add": "新增模型",
+      "manage": "管理",
+      "empty": "此群組中沒有模型",
+      "enabled": "已啟用",
+      "disabled": "已停用",
+      "filters": {
+        "all": "全部",
+        "vision": "視覺",
+        "reasoning": "推理",
+        "free": "免費",
+        "tools": "工具"
+      },
+      "manualDialog": {
+        "title": "新增模型",
+        "subtitle": "為此提供者新增自訂模型",
+        "modelId": "模型 ID",
+        "modelIdPlaceholder": "gpt-4o、claude-3.5、gemini-2.0-flash 等",
+        "modelIdHelper": "呼叫 API 時使用的精確模型識別碼",
+        "modelName": "顯示名稱",
+        "modelNamePlaceholder": "易識別的顯示名稱（選填）",
+        "modelNameHelper": "顯示於介面中的名稱。留空則使用模型 ID",
+        "group": "群組",
+        "groupPlaceholder": "選取或輸入群組名稱",
+        "submit": "新增",
+        "cancel": "取消",
+        "helper": "請填入提供者 API 所使用的精確模型識別碼。"
+      },
+      "editDialog": {
+        "title": "編輯模型",
+        "subtitle": "修改模型設定",
+        "modelId": "模型 ID",
+        "modelIdPlaceholder": "模型識別碼",
+        "modelIdHelper": "呼叫 API 時使用的模型識別碼",
+        "modelName": "顯示名稱",
+        "modelNamePlaceholder": "易識別的顯示名稱",
+        "modelNameHelper": "顯示於介面中的名稱",
+        "group": "群組",
+        "groupPlaceholder": "選取或輸入群組名稱",
+        "submit": "儲存",
+        "cancel": "取消",
+        "vision": "視覺能力",
+        "visionHint": "此模型是否支援圖片／視覺輸入",
+        "reasoning": "推理模型",
+        "reasoningHint": "此模型是否支援思考／推理模式"
+      },
+      "manageDialog": {
+        "title": "管理模型",
+        "cachedAt": "快取時間 {{date}}（{{source}}）",
+        "refresh": "重新整理",
+        "close": "關閉",
+        "raw": "原始 JSON",
+        "empty": "目前沒有可用的遠端模型。",
+        "error": "載入模型失敗：{{message}}",
+        "addFromCatalog": "新增",
+        "sourceCache": "快取",
+        "sourceNetwork": "即時",
+        "contextLength": "上下文 {{value}} 個 token",
+        "maxTokens": "最多 {{value}} 個 token"
+      },
+      "messages": {
+        "added": "模型已新增。",
+        "updated": "模型已更新。",
+        "removed": "模型已移除。",
+        "duplicate": "模型已存在。",
+        "refreshed": "模型已重新整理",
+        "refreshFailed": "模型重新整理失敗"
+      },
+      "testDialog": {
+        "title": "模型連線測試",
+        "provider": "提供者",
+        "model": "模型",
+        "testing": "測試中...",
+        "success": "測試成功",
+        "successMessage": "模型可正常存取",
+        "failure": "測試失敗",
+        "aiResponse": "AI 回應",
+        "charCount": "{{count}} 個字元",
+        "duration": "耗時 {{time}} 秒",
+        "close": "關閉",
+        "retest": "重新測試",
+        "testButton": "測試模型",
+        "unsupportedFormat": "此提供者格式目前不支援測試。"
+      }
+    },
+    "router": {
+      "title": "路由設定",
+      "description": "為不同情境設定要使用的提供者／模型。",
+      "labels": {
+        "default": "預設",
+        "background": "背景",
+        "think": "思考",
+        "longContext": "長上下文",
+        "webSearch": "網路搜尋",
+        "image": "圖像",
+        "longContextThreshold": "長上下文閾值"
+      },
+      "helper": {
+        "longContextThreshold": "超過此 token 數後切換至長上下文模型。"
+      },
+      "placeholder": {
+        "required": "必填",
+        "optional": "選填"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent 路由",
+      "description": "設定對話模式與程式碼模式之間的雙向路由。",
+      "searchPlaceholder": "搜尋路由...",
+      "noSearchResults": "找不到符合搜尋條件的路由。",
+      "tabs": {
+        "chatToCode": "對話 → 程式碼",
+        "codeToChatPlaceholder": "程式碼 → 對話"
+      },
+      "chatToCode": {
+        "title": "對話轉程式碼路由",
+        "description": "在 Agent／程式碼模式中使用對話提供者",
+        "addRouter": "新增路由",
+        "emptyState": "尚未設定對話→程式碼路由。請新增一個以在程式碼模式中使用對話提供者。",
+        "form": {
+          "name": "路由名稱",
+          "namePlaceholder": "我的對話→程式碼路由",
+          "chatProvider": "對話提供者",
+          "chatProviderPlaceholder": "選取對話提供者",
+          "mode": "模式",
+          "modeSimple": "簡單",
+          "modeAdvanced": "進階",
+          "modeSimpleDesc": "直接傳遞至對話提供者",
+          "modeAdvancedDesc": "設定模型對應與上下文處理",
+          "enabled": "啟用",
+          "save": "儲存路由",
+          "cancel": "取消"
+        },
+        "list": {
+          "provider": "提供者",
+          "mode": "模式",
+          "status": "狀態"
+        },
+        "mappings": {
+          "title": "模型對應",
+          "description": "將對話提供者的模型對應至程式碼提供者的模型",
+          "count": "個對應",
+          "empty": "尚未設定模型對應。請新增對應以將對話模型路由至程式碼提供者。",
+          "addNew": "新增對應",
+          "selectSource": "選取來源模型（對話）",
+          "selectTarget": "選取目標模型（程式碼）",
+          "targetPlaceholder": "輸入 Claude Code 模型名稱",
+          "notSet": "（未設定——點擊選取）",
+          "add": "新增",
+          "edit": "編輯",
+          "done": "完成"
+        },
+        "advanced": {
+          "title": "進階設定",
+          "description": "為不同任務類型設定模型",
+          "helpText": "預設模型為必填。其他模型為選填，若未設定將回退至預設模型。",
+          "default": {
+            "label": "預設",
+            "placeholder": "選取預設模型",
+            "description": "一般任務的主要模型（類似 Claude Sonnet）"
+          },
+          "background": {
+            "label": "背景",
+            "placeholder": "選取背景模型",
+            "description": "背景任務的輕量模型（類似 Claude Haiku）"
+          },
+          "think": {
+            "label": "思考",
+            "placeholder": "選取思考模型",
+            "description": "複雜推理的進階模型（類似 Claude Opus）"
+          },
+          "image": {
+            "label": "圖像",
+            "placeholder": "選取圖像模型",
+            "description": "具備視覺能力的圖像相關任務模型"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "程式碼轉對話路由",
+        "description": "在對話模式中公開 Coding Plan 模型",
+        "addRouter": "新增路由",
+        "emptyState": "尚未設定程式碼→對話路由。請新增一個以在對話模式中公開 Coding Plan 模型。",
+        "form": {
+          "name": "路由名稱",
+          "namePlaceholder": "我的程式碼→對話路由",
+          "codeProvider": "程式碼提供者",
+          "codeProviderPlaceholder": "選取程式碼提供者",
+          "codeProviderHelper": "選取用於轉換的程式碼提供者",
+          "models": "Coding Plan 模型",
+          "modelsHelper": "選取要公開的 Coding Plan 模型",
+          "enabled": "啟用",
+          "save": "儲存路由",
+          "cancel": "取消"
+        },
+        "mappings": {
+          "title": "模型對應",
+          "description": "將程式碼提供者的模型對應至對話提供者的模型以供公開",
+          "count": "個對應",
+          "empty": "尚未設定模型對應。請新增對應以在對話模式中公開程式碼模型。",
+          "addNew": "新增對應",
+          "selectSource": "選取來源模型（程式碼）",
+          "selectTarget": "選取目標模型（對話）",
+          "sourcePlaceholder": "輸入來源模型名稱",
+          "targetPlaceholder": "輸入目標模型名稱",
+          "add": "新增",
+          "edit": "編輯",
+          "done": "完成"
+        }
+      },
+      "transformers": {
+        "title": "轉換器",
+        "description": "設定請求／回應轉換用的轉換器",
+        "noProvider": "請先選取提供者以設定轉換器",
+        "empty": "沒有轉換器",
+        "count": "{{count}} 個轉換器"
+      },
+      "status": {
+        "enabled": "已啟用",
+        "disabled": "已停用"
+      },
+      "messages": {
+        "routerAdded": "路由新增成功",
+        "routerUpdated": "路由更新成功",
+        "routerDeleted": "路由刪除成功",
+        "saveFailed": "儲存路由失敗"
+      }
+    },
+    "presets": {
+      "title": "快速新增提供者",
+      "added": "已新增",
+      "add": "新增",
+      "features": {
+        "search": "搜尋",
+        "vision": "視覺",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "確定要刪除此提供者嗎？"
+    },
+    "errors": {
+      "nameRequired": "提供者名稱為必填",
+      "urlRequired": "API 基礎 URL 為必填",
+      "urlInvalid": "請輸入有效的 URL（如 https://api.example.com）",
+      "saveFailed": "儲存提供者失敗",
+      "deleteFailed": "刪除提供者時發生錯誤，請再試一次。",
+      "toggleFailed": "切換提供者狀態時發生錯誤，請再試一次。"
+    },
+    "openRouter": {
+      "title": "OpenRouter 提供者路由",
+      "description": "設定 OpenRouter 如何將請求路由至不同的提供者。",
+      "sort": "路由策略",
+      "sortTooltip": "選取提供者優先順序。自動模式使用智慧負載平衡。",
+      "order": "提供者優先順序",
+      "orderTooltip": "指定嘗試的提供者順序（如 anthropic、openai、together）。按 Enter 新增。",
+      "orderPlaceholder": "輸入提供者 slug 後按 Enter...",
+      "allowFallbacks": "允許備援",
+      "allowFallbacksTooltip": "啟用後，若主要提供者無法使用，OpenRouter 將嘗試備援提供者。",
+      "requireParameters": "要求支援所有參數",
+      "requireParametersTooltip": "僅路由至支援請求中所有參數的提供者。",
+      "dataCollection": "資料收集原則",
+      "dataCollectionTooltip": "控制是否使用可能儲存或訓練您資料的提供者。",
+      "zdr": "零資料保留",
+      "zdrTooltip": "僅路由至具有零資料保留原則的端點。",
+      "only": "僅允許的提供者",
+      "onlyTooltip": "僅使用這些特定提供者。留空則允許所有提供者。",
+      "onlyPlaceholder": "輸入提供者 slug 後按 Enter...",
+      "ignore": "排除的提供者",
+      "ignoreTooltip": "路由請求時略過這些提供者。",
+      "ignorePlaceholder": "輸入提供者 slug 後按 Enter...",
+      "quantizations": "量化篩選器",
+      "quantizationsTooltip": "僅使用具有特定量化等級的提供者。較低精度可能降低品質但提升速度。",
+      "maxPrice": "最高價格",
+      "maxPriceTooltip": "設定每百萬 token 的最高價格上限。留空表示不限制。",
+      "configured": "已設定"
+    }
+  },
+  "apiMode": {
+    "label": "API 模式",
+    "standard": "標準",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "此方案的金鑰通常以 `{{prefix}}` 開頭。僅供參考，不會強制驗證。",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan 使用獨立 API 金鑰，與標準端點的金鑰不通用。",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan 使用獨立 API 金鑰，與標準端點的金鑰不通用。",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan 僅支援 Anthropic 協定。",
+    "xiaomiTokenPlanRegions": "預設 baseUrl 為 `token-plan-cn.*`，可手動更改為 `token-plan-sgp.*` 或 `token-plan-ams.*`。",
+    "confirmOverwriteTitle": "切換 API 模式？",
+    "confirmOverwriteBody": "您已自訂 API URL 或 API 金鑰。切換模式可覆蓋為新模式的預設值，或保留您的自訂設定僅變更模式標籤。",
+    "overwriteAndSwitch": "覆蓋並切換",
+    "keepCustomizations": "保留自訂設定"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "智譜 GLM",
+    "volcengine": "火山方舟",
+    "dashscope": "阿里雲百煉",
+    "tencent": "騰訊混元",
+    "tencentAnthropic": "騰訊混元 (Token Plan)",
+    "baidu": "百度千帆",
+    "kuaishou": "快手 KwaiKAT",
+    "mthreads": "摩爾線程",
+    "xiaomiMimoOpenai": "小米 MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "小米 MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "取消",
+    "close": "關閉",
+    "copy": "複製",
+    "delete": "刪除",
+    "dismiss": "關閉",
+    "save": "儲存",
+    "optional": "選填",
+    "retry": "重試",
+    "loading": "載入中…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "文件"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Daemon 尚未支援此功能",
+    "discoveryUnsupportedFormat": "此提供者格式目前不支援自動探索模型，請手動新增模型。"
+  },
+  "nav": {
+    "subtitle": "控制台",
+    "providers": "提供者",
+    "apiService": "API 服務",
+    "accounts": "帳號",
+    "codeCli": "Code CLI",
+    "settings": "設定",
+    "usageStats": "用量統計",
+    "pricing": "模型價格"
+  },
+  "apiService": {
+    "title": "API 服務",
+    "description": "設定對外 API 伺服器、各端點的模型路由及命名存取金鑰。",
+    "loading": "正在載入伺服器設定…",
+    "loadError": "無法載入伺服器設定。請確認 Daemon 是否可正常連線。",
+    "enable": {
+      "label": "啟用對外伺服器",
+      "description": "啟動本機 API 伺服器，將外部呼叫者的請求透過您的提供者進行路由。"
+    },
+    "networkBinding": {
+      "label": "允許區域網路存取",
+      "description": "將伺服器繫結至網路介面，而非僅限回環位址。",
+      "warning": "允許區域網路存取將使 API 伺服器對網路中的其他裝置開放。若同時啟用訂閱路由，請求可能消耗您的訂閱配額——除非您信任該網路，否則請保持關閉。"
+    },
+    "status": {
+      "running": "伺服器執行中",
+      "stopped": "伺服器已停止",
+      "runningHint": "對外 API 伺服器正在接受請求。",
+      "stoppedHint": "啟用伺服器以開始接受請求。",
+      "port": "連接埠 {{port}}",
+      "loopback": "回環位址 URL",
+      "lan": "區域網路 URL"
+    },
+    "endpoints": {
+      "title": "端點路由",
+      "description": "為每種 wire 格式選擇路由目標模型。預設模型已整合於此——此伺服器是路由器，而非對話應用程式。"
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "預設模型",
+      "backgroundModel": "背景模型",
+      "visionModel": "視覺模型",
+      "noVisionModel": "無",
+      "backgroundModelIds": "背景模型 ID",
+      "backgroundModelIdsPlaceholder": "以逗號分隔的模型 ID",
+      "modelPlaceholder": "選取模型…",
+      "useSubscription": "使用訂閱",
+      "subscriptionUnsupported": "此端點不支援訂閱路由。"
+    },
+    "keys": {
+      "title": "存取金鑰",
+      "description": "外部呼叫者以 Bearer token 形式傳送的命名金鑰。完整金鑰僅在建立時顯示一次。",
+      "namePlaceholder": "金鑰名稱（如 my-cli）",
+      "create": "建立金鑰",
+      "empty": "尚無存取金鑰。",
+      "enabled": "已啟用",
+      "disabled": "已停用",
+      "revoked": "已撤銷",
+      "toggle": "切換金鑰",
+      "revoke": "撤銷",
+      "revokeConfirmTitle": "撤銷此金鑰？",
+      "revokeConfirmDesc": "撤銷「{{name}}」後，它將立即無法用於驗證。此操作無法復原。",
+      "created": {
+        "title": "金鑰已建立",
+        "warning": "請立即複製此金鑰——它不會再次顯示。請妥善保管。",
+        "copy": "複製",
+        "copied": "已複製",
+        "dismiss": "完成"
+      }
+    }
+  },
+  "accounts": {
+    "title": "帳號與訂閱",
+    "description": "管理伺服器路由所使用的訂閱憑證。權杖在此寫入，但不會回顯。",
+    "loading": "正在載入帳號…",
+    "empty": "目前沒有可用的訂閱提供者。",
+    "signIn": "登入",
+    "oauth": {
+      "title": "登入 {{name}}",
+      "description": "在瀏覽器中開啟登入頁面，授權後將授權碼貼至下方。授權碼僅傳送至 Daemon——簽發的權杖不會回顯。",
+      "openPage": "開啟登入頁面",
+      "codeLabel": "授權碼",
+      "codePlaceholder": "請在此貼上授權碼",
+      "submit": "完成登入"
+    },
+    "codexOauth": {
+      "title": "登入 {{name}}",
+      "description": "在瀏覽器中開啟登入頁面並完成授權。Daemon 會自動擷取結果——在完成前請保持此視窗開啟。權杖不會回顯。",
+      "waiting": "正在等待您在瀏覽器中完成登入……",
+      "failed": "登入失敗，請再試一次。"
+    },
+    "clearProvider": "全部清除",
+    "clearConfirmTitle": "清除 {{name}} 的帳號？",
+    "clearConfirmDesc": "這將移除此提供者儲存的所有憑證。此操作無法復原。",
+    "credential": {
+      "ok": "已設定",
+      "notConfigured": "未設定"
+    },
+    "kind": {
+      "pass-through": "透傳憑證",
+      "oauth-bearer": "OAuth Bearer",
+      "static-bearer": "靜態 Bearer 金鑰"
+    },
+    "reason": {
+      "missing-credential": "未儲存憑證。",
+      "expired": "憑證已過期。",
+      "reauth-required": "需要重新驗證。",
+      "refresh-failed": "權杖更新失敗。",
+      "not-refreshable": "憑證無法更新。",
+      "unknown": "狀態未知。"
+    },
+    "status": {
+      "unconfigured": "未設定",
+      "authorized": "已授權",
+      "configured": "已設定",
+      "expired": "已過期",
+      "error": "錯誤"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "設定權杖",
+      "manual": "手動"
+    },
+    "list": {
+      "empty": "此提供者尚未儲存任何帳號。",
+      "active": "使用中",
+      "expiresAt": "{{value}} 到期",
+      "setActive": "設為使用中",
+      "remove": "移除",
+      "removeConfirmTitle": "移除此帳號？",
+      "removeConfirmDesc": "移除「{{name}}」將刪除其儲存的憑證。此操作無法復原。",
+      "title": "帳號"
+    },
+    "write": {
+      "trigger": "新增憑證",
+      "title": "寫入 {{name}} 憑證",
+      "description": "貼入已取得的權杖資訊。欄位僅限此提供者接受的內容；權杖將被儲存，不會回顯。",
+      "authMethod": "驗證方法",
+      "status": "狀態",
+      "subscriptionLevel": "訂閱等級",
+      "subscriptionLevelNone": "未設定",
+      "submit": "儲存憑證"
+    },
+    "field": {
+      "accessToken": "存取權杖",
+      "refreshToken": "更新權杖",
+      "idToken": "ID 權杖",
+      "apiKey": "API 金鑰",
+      "expiresAt": "到期時間（ISO）",
+      "setupTokenExpiresAt": "設定權杖到期時間（ISO）",
+      "accountId": "帳號 ID",
+      "email": "電子郵件",
+      "organizationId": "組織 ID",
+      "baseUrl": "基礎 URL",
+      "zenBaseUrl": "Zen 基礎 URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "由 Daemon 路由的 Anthropic 訂閱憑證。"
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "由 Daemon 路由的 OpenAI Codex 訂閱憑證。"
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "由 Daemon 路由的 Google Gemini 訂閱憑證。"
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "由 Daemon 路由的靜態 API 金鑰憑證。"
+      }
+    },
+    "authMethodLabel": "授權方式",
+    "authMethodDesc": {
+      "oauth": "透過瀏覽器登入；Daemon 會擷取並儲存權杖。",
+      "manual": "貼入已取得的權杖。它將被儲存，不會回顯。"
+    },
+    "actions": {
+      "authorize": "授權",
+      "enterToken": "輸入權杖",
+      "refresh": "重新整理"
+    },
+    "accounts": {
+      "addAccount": "新增帳號"
+    },
+    "detail": {
+      "authMethod": "授權方式",
+      "subscriptionLevel": "訂閱等級",
+      "expiresAt": "到期時間",
+      "lastRefreshed": "上次更新",
+      "label": "帳號標籤",
+      "labelPlaceholder": "為此帳號命名",
+      "saveLabel": "儲存標籤"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "開啟授權頁面",
+        "desc": "在瀏覽器中開啟登入頁面。"
+      },
+      "step2": {
+        "title": "授權存取",
+        "desc": "登入並核准此提供者的存取權限。"
+      },
+      "step3": {
+        "title": "複製授權碼",
+        "desc": "核准後，頁面將顯示授權碼。"
+      },
+      "step4": {
+        "title": "貼上授權碼",
+        "desc": "將授權碼貼至下方以完成。授權碼僅傳送至 Daemon——簽發的權杖不會顯示。"
+      },
+      "authorize": "完成登入",
+      "showUrl": "顯示授權 URL"
+    },
+    "manual": {
+      "title": "貼上憑證",
+      "description": "貼入已取得的權杖。欄位僅限此提供者接受的內容；權杖將被儲存，不會回顯。",
+      "accessTokenPlaceholder": "貼上存取權杖",
+      "refreshTokenPlaceholder": "貼上更新權杖（選填）",
+      "hint": "權杖將傳送至 Daemon 並加密儲存，不會回顯。"
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "需要 API 金鑰。",
+      "apiKeyPlaceholder": "貼上 API 金鑰",
+      "baseUrlPlaceholder": "https://…（選填）",
+      "zenBaseUrlPlaceholder": "https://…（選填）"
+    },
+    "info": {
+      "title": "關於訂閱帳號",
+      "description": "權杖寫入 Daemon 後用於驗證上游請求。它們以加密方式儲存，不會回顯。移除帳號將刪除其儲存的憑證。"
+    },
+    "rename": {
+      "failed": "無法重新命名帳號。"
+    },
+    "refresh": {
+      "failed": "無法更新權杖。"
+    },
+    "errors": {
+      "requestFailed": "請求失敗，請再試一次。"
+    },
+    "syncWarning": {
+      "external-divergent": "外部 CLI 登入檔案中的憑證比此帳號更新，已儲存的權杖可能無法再重新整理——請立即重新整理或重新登入。",
+      "external-not-rotated": "重新整理失敗，且外部 CLI 中保存的是同一個已過期憑證。請重新登入。",
+      "duplicate-token": "另一個帳號與此帳號共用同一憑證，重新整理任一帳號都會使另一個失效。"
+    },
+    "importExternal": {
+      "detected": "偵測到本機已有 {{name}} CLI 登入。",
+      "hint": "匯入後由本程式負責保鮮：每次重新整理權杖都會同步更新 CLI 登入檔案，終端機裡的 CLI 保持登入不中斷。",
+      "button": "匯入現有 CLI 登入"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "將程式碼 CLI 指向 Daemon 的對外代理。此頁面為唯讀——無需在此進行任何設定。",
+    "copy": "複製",
+    "copied": "已複製",
+    "baseUrl": {
+      "title": "Daemon 基礎 URL",
+      "description": "您的 CLI 所連線的代理位址。",
+      "label": "基礎 URL"
+    },
+    "token": {
+      "title": "驗證",
+      "hint": "管理路由請傳送 'Authorization: Bearer <您的管理權杖>'。管理權杖在 Daemon 中設定（設定檔或環境變數）——此處不會顯示。"
+    },
+    "examples": {
+      "title": "啟動環境範例",
+      "keyNote": "請使用在 API 服務頁面建立的對外存取金鑰——而非管理權杖。",
+      "anthropic": "Anthropic 格式 CLI",
+      "openai": "OpenAI 格式 CLI"
+    },
+    "launchDescription": "在終端機中啟動程式碼 CLI，並指向此 Daemon。Daemon 會注入重新導向的環境變數並為您啟動 CLI。",
+    "refresh": "重新整理",
+    "loading": "正在偵測 CLI…",
+    "cli": {
+      "installed": "已安裝",
+      "notFound": "找不到",
+      "notFoundHint": "此 CLI 不在 Daemon 主機的 PATH 中。請先安裝，然後重新整理。",
+      "install": "安裝",
+      "installing": "安裝中…",
+      "installingHint": "正在 Daemon 主機上安裝，可能需要一點時間。",
+      "launch": "啟動",
+      "launchTitle": "啟動 {{name}}",
+      "launchDescription": "在 Daemon 主機上開啟新的終端機視窗執行此 CLI，並透過 Daemon 代理路由。可選填工作目錄。",
+      "cwdLabel": "工作目錄",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "執行中 · {{provider}} / {{model}}",
+      "stop": "停止"
+    },
+    "manual": {
+      "title": "手動設定",
+      "description": "想自行執行 CLI？請使用這些環境變數將其指向 Daemon。",
+      "show": "顯示",
+      "hide": "隱藏"
+    }
+  },
+  "daemonStatus": {
+    "probing": "正在檢查 Daemon…",
+    "spawning": "正在啟動 Daemon…",
+    "failed": "Daemon 無法啟動",
+    "failedHint": "請確認已安裝 Node.js 且 Daemon 已建置（dist 存在），或將 OMNICROSS_DAEMON_ENTRY 設定為 Daemon 的 cli.js 路徑。"
+  },
+  "settings": {
+    "title": "設定",
+    "description": "桌面應用程式偏好設定。",
+    "desktopOnly": "啟動與系統匣選項僅適用於桌面應用程式。",
+    "startup": {
+      "title": "啟動",
+      "autoLaunch": "登入時自動啟動",
+      "autoLaunchHint": "登入系統時自動啟動 Omnicross。",
+      "startMinimized": "啟動時最小化至系統匣",
+      "startMinimizedHint": "在背景啟動，不開啟視窗。"
+    },
+    "tray": {
+      "title": "系統匣",
+      "minimizeOnClose": "關閉時最小化至系統匣",
+      "minimizeOnCloseHint": "關閉視窗時隱藏至系統匣，而非結束應用程式。"
+    },
+    "language": {
+      "title": "語言",
+      "label": "介面語言"
+    }
+  },
+  "usageStats": {
+    "title": "用量統計",
+    "description": "守護程序處理的請求的 Token 與費用統計。",
+    "rangeToday": "今天",
+    "range7d": "最近 7 天",
+    "range30d": "最近 30 天",
+    "rangeCustom": "自訂",
+    "from": "開始",
+    "to": "結束",
+    "totalCost": "總費用",
+    "cacheSavings": "快取節省",
+    "events": "請求數",
+    "inputTokens": "輸入 Token",
+    "outputTokens": "輸出 Token",
+    "cacheReadTokens": "快取讀取",
+    "cacheWriteTokens": "快取寫入",
+    "reasoningTokens": "推理 Token",
+    "byModel": "依模型",
+    "byApiKey": "依 API 金鑰",
+    "provider": "供應商",
+    "model": "模型",
+    "cost": "費用",
+    "apiKey": "API 金鑰",
+    "unpriced": "無價格",
+    "unpricedHint": "此模型沒有價格條目 — 請在「模型價格」頁面新增。",
+    "unattributed": "未歸屬",
+    "unattributedHint": "未關聯到特定 API 金鑰的請求。在按金鑰歸屬記錄上線之前，這是正常現象。",
+    "empty": "此時間範圍內沒有請求。",
+    "invalidRange": "請選擇有效的日期範圍。"
+  },
+  "pricing": {
+    "title": "模型價格",
+    "description": "用於計算請求費用的每模型 Token 價格（美元 / 每 100 萬 Token）。",
+    "search": "搜尋供應商或模型…",
+    "fetchLatest": "取得最新價格",
+    "fetching": "取得中…",
+    "addEntry": "新增條目",
+    "provider": "供應商",
+    "model": "模型",
+    "inputPrice": "輸入",
+    "outputPrice": "輸出",
+    "cacheReadPrice": "快取讀取",
+    "cacheWritePrice": "快取寫入",
+    "source": "來源",
+    "updated": "更新時間",
+    "userEdited": "已編輯",
+    "edit": "編輯",
+    "deleteTitle": "刪除此價格條目？",
+    "empty": "價格表為空。",
+    "emptyHint": "取得最新價格以填入表格。",
+    "noMatches": "沒有符合的條目。",
+    "saved": "價格條目已儲存。",
+    "saveFailed": "儲存失敗：{{message}}",
+    "deleteFailed": "刪除失敗：{{message}}",
+    "alreadyDeleted": "此條目已不存在。",
+    "fetchApplied": "已從來源更新 {{count}} 個條目。",
+    "fetchFailed": "取得失敗：{{message}}",
+    "requiredId": "必填",
+    "invalidPrice": "請輸入非負數字",
+    "conflictTitle": "解決價格衝突",
+    "conflictHint": "這些條目既被你編輯過，又在來源處發生了變化。請逐列選擇保留你的值（略過）或採用來源值（覆寫）。",
+    "current": "目前",
+    "incoming": "來源值",
+    "overwrite": "覆寫",
+    "skip": "略過",
+    "overwriteAll": "全部覆寫",
+    "skipAll": "全部略過",
+    "applyResolutions": "套用",
+    "resolved": "已覆寫 {{overwritten}} 項，略過 {{skipped}} 項。",
+    "resolvedWithStale": "已覆寫 {{overwritten}} 項，略過 {{skipped}} 項。{{stale}} 項在此期間已被修改，保持不變。",
+    "refreshFailed": "變更已生效，但重新整理列表失敗：{{message}}",
+    "sourceBuiltin": "內建",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "使用者"
+  }
+}

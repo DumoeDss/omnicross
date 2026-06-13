@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "LLM konfiguráció betöltése...",
+    "reset": {
+      "button": "Alapértékek visszaállítása",
+      "confirmTitle": "Visszaállítja az alapértelmezett beállításokat?",
+      "confirmBody": "Ez törli a szolgáltatóhoz tartozó testreszabásait, és visszaállítja a beépített alapértelmezéseket. Az API-kulcs és a mentett munkamenetek megmaradnak.",
+      "confirmButton": "Alapértékek visszaállítása"
+    },
+    "reentryBanner": {
+      "message": "{{count}} engedélyezett szolgáltató(k) esetén újra meg kell adni az API-kulcsot. Nyissa meg mindegyiket, és adja meg újra a kulcsot."
+    },
+    "migrationPack": {
+      "barHint": "Vigye át a szolgáltatói kulcsokat és az előfizetési tokeneket egy másik gépre titkosított csomag segítségével.",
+      "passphrase": "Jelmondat",
+      "passphrasePlaceholder": "Adjon meg egy jelmondatot",
+      "passphraseHint": "Használjon legalább 8 karaktert; 12 vagy több javasolt.",
+      "confirm": "Jelmondat megerősítése",
+      "confirmPlaceholder": "Írja be újra a jelmondatot",
+      "mismatch": "A jelmondatok nem egyeznek.",
+      "strength": {
+        "weak": "Túl rövid — használjon legalább 8 karaktert.",
+        "fair": "Megfelelő — 12 vagy több karakter erősebb.",
+        "strong": "Erős jelmondat."
+      },
+      "export": {
+        "button": "Csomag exportálása",
+        "title": "Titkosított csomag exportálása",
+        "subtitle": "Titkosítsa a szolgáltatói kulcsokat és az előfizetési tokeneket egy hordozható fájlba.",
+        "warning": "Ez a fájl visszafejthető titkokat tartalmaz. Tárolja biztonságosan — bárki, aki rendelkezik a fájllal és a jelmondattal, olvashatja a kulcsait. Az elveszett jelmondat nem állítható vissza.",
+        "submit": "Exportálás",
+        "success": "A csomag sikeresen exportálva.",
+        "error": "Az exportálás sikertelen. Kérjük, próbálja újra."
+      },
+      "import": {
+        "button": "Csomag importálása",
+        "title": "Titkosított csomag importálása",
+        "subtitle": "Állítsa vissza a szolgáltatói kulcsokat és az előfizetési tokeneket egy exportált csomagból.",
+        "hint": "Adja meg a csomag exportálásakor használt jelmondatot, majd válassza ki a fájlt.",
+        "submit": "Importálás",
+        "successTitle": "Importálás befejezve",
+        "summary": "Importálva: {{providerKeys}} szolgáltatói kulcs, {{poolKeys}} pool-kulcs és {{tokenSets}} tokenszett.",
+        "duplicates": "Kihagyva {{count}} már meglévő pool-kulcs.",
+        "skipped": "Kihagyva (nincs egyező szolgáltató): {{names}}",
+        "error": "Helytelen jelmondat vagy sérült csomag. Semmi sem változott."
+      }
+    },
+    "searchPlaceholder": "Szolgáltatók keresése...",
+    "emptySearch": "Nincs a keresésnek megfelelő szolgáltató.",
+    "emptyList": "Nincs konfigurált szolgáltató.",
+    "selectPrompt": "Válasszon egy szolgáltatót a részletek megtekintéséhez",
+    "listStatus": "{{count}} modell",
+    "noModels": "Nincs konfigurált modell",
+    "enabled": "Engedélyezve",
+    "disabled": "Letiltva",
+    "showEnabledOnly": "Csak engedélyezettek megjelenítése",
+    "showAll": "Összes szolgáltató megjelenítése",
+    "dragHandle": "Húzza az átrendezéshez",
+    "reorderFailed": "A szolgáltatók sorrendjét nem sikerült menteni",
+    "credentials": {
+      "apiKey": "API-kulcs",
+      "apiBaseUrl": "API alap URL"
+    },
+    "filter": {
+      "all": "Összes",
+      "chat": "Chat",
+      "code": "Kód"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Sablon kiválasztása",
+      "skipTemplates": "Kihagyás, manuális konfigurálás",
+      "name": "Név *",
+      "providerType": "Típus",
+      "apiType": "API típus",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Szabványos OpenAI chat/completions API formátum",
+        "claudecode": "Anthropic Messages API formátum (Claude Code)"
+      },
+      "chatApiFormat": "API formátum",
+      "chatApiFormatDescription": "Válassza ki a szolgáltató végpontjának megfelelő API formátumot",
+      "apiKey": "API-kulcs",
+      "apiKeyPlaceholder": "sk-... vagy $KÖRNYEZETI_VÁLTOZÓ",
+      "apiKeyHelper": "Használja a $VÁLTOZÓ_NEVE formát a környezeti változókra való hivatkozáshoz",
+      "apiKeySetPlaceholder": "A kulcs be van állítva — hagyja üresen a megtartáshoz",
+      "apiKeyReplaceHelper": "A kulcs biztonságosan tárolva van. Írjon be új értéket a cseréhez, vagy hagyja üresen a megtartáshoz.",
+      "testApiKey": "API-kulcs tesztelése",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Előnézet:",
+      "models": "Modellek",
+      "modelPlaceholder": "Modell neve (pl. gpt-4, claude-3-opus)",
+      "transformers": "Transzformátorok",
+      "transformerConfig": "API transzformátorok",
+      "transformerConfigDescription": "Konfigurálja a transzformátorokat az API kérés/válasz formátumok adaptálásához ennél a szolgáltatónál",
+      "transformerConfigNote": "A daemon ezeket a transzformátorokat a kérési láncban alkalmazza, a szolgáltató formátumtranszformátora után (amely a hálózati formátum konverzióját kezeli). Az ismeretlen transzformátorneveket a rendszer kihagyja.",
+      "enabled": "Engedélyezve",
+      "apiVersion": "API verzió",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API verzió (pl. 2024-08-01-preview)",
+      "official": "Hivatalos Anthropic API",
+      "officialHelper": "Engedélyezze, ha ez a szolgáltató közvetlenül a hivatalos Anthropic API-hoz csatlakozik. Tiltsa le fordított proxyk vagy harmadik féltől származó szolgáltatások esetén.",
+      "maxConcurrency": "Maximális egyidejű kérések",
+      "maxConcurrencyHelper": "A szolgáltatónak küldött egyidejű API kérések maximális száma. Az alacsonyabb értékek segítenek elkerülni a sebességkorlátozást (429-es hibák). Állítsa `-1`-re a korlátlan beállításhoz.",
+      "codingPlan": {
+        "label": "Kódolási terv",
+        "description": "Használjon külön API végpontot az előfizetés alapú kódolási tervekhez",
+        "baseUrl": "Kódolási terv alap URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Kódolási terv API-kulcsa (opcionális)",
+        "apiKeyPlaceholder": "Hagyja üresen a szolgáltató API-kulcsának használatához",
+        "apiKeyHelper": "Csak akkor szükséges, ha a kódolási terv eltérő API-kulcsot használ",
+        "tokenPlanHint": "Egyes szolgáltatók (pl. Xiaomi MiMo) `tp-` előtagú Token Plan kulcsokat bocsátanak ki — csak tájékoztató jellegű, nem kötelező érvényű."
+      },
+      "selectTypeFirst": "Válassza ki a szolgáltató típusát",
+      "selectTypeFirstDesc": "Válassza ki, milyen típusú szolgáltatót szeretne hozzáadni",
+      "codeProviderNote": "A kód-szolgáltatóknak csak API-kulcs és URL szükséges. A modelleket az ügynök-útválasztó kezeli.",
+      "buttons": {
+        "cancel": "Mégse",
+        "submitAdd": "Szolgáltató hozzáadása",
+        "submitUpdate": "Szolgáltató frissítése",
+        "continue": "Folytatás",
+        "back": "Vissza"
+      }
+    },
+    "details": {
+      "noSelection": "Válasszon egy szolgáltatót a részletek megtekintéséhez",
+      "apiKey": "API-kulcs",
+      "apiUrl": "API URL",
+      "nameLabel": "Szolgáltató neve",
+      "modelsEndpoint": "Modellek végpontja",
+      "modelsEndpointHelper": "Felülírja a felderítési végpontot, ha a szolgáltató egyéni /models elérési utat biztosít.",
+      "models": "Modellek",
+      "transformers": "Transzformátorok",
+      "codeProviderNote": "A kód-szolgáltatók (mint a Claude Code) nem igényelnek modellkonfigurációt. A modelleket az ügynök-útválasztó automatikusan kezeli.",
+      "buttons": {
+        "more": "További beállítások",
+        "delete": "Törlés"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Válasszon szolgáltatót és modellt",
+      "noProviders": "Nincs elérhető szolgáltató",
+      "noModels": "Nincs konfigurált modell"
+    },
+    "apiKeyPool": {
+      "title": "API-kulcs pool",
+      "description": "Konfiguráljon több API-kulcsot a terheléselosztáshoz. Minden munkamenet egy kulcshoz van kötve a prompt gyorsítótár megőrzéséhez.",
+      "defaultLabel": "Alapértelmezett",
+      "weight": "Súly",
+      "noKey": "Nincs kulcs",
+      "labelPlaceholder": "Cimke (pl. 1. kulcs, Éles)",
+      "addKey": "API-kulcs hozzáadása",
+      "add": "Hozzáadás",
+      "empty": "Nincsenek további konfigurált kulcsok.",
+      "statusCoolingDown": "Lehűlés {{time}}",
+      "statusAuthFailed": "Hitelesítés sikertelen · letiltva",
+      "statusDisabled": "Letiltva",
+      "statusHealthy": "Megfelelő",
+      "agoSeconds": "{{count}}mp ezelőtt",
+      "agoMinutes": "{{count}}p ezelőtt",
+      "agoHours": "{{count}}ó ezelőtt",
+      "agoDays": "{{count}}n ezelőtt"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Modellek keresése...",
+      "defaultGroup": "Összes modell",
+      "add": "Modell hozzáadása",
+      "manage": "Kezelés",
+      "empty": "Ebben a csoportban nincsenek modellek",
+      "enabled": "Engedélyezve",
+      "disabled": "Letiltva",
+      "filters": {
+        "all": "Összes",
+        "vision": "Látás",
+        "reasoning": "Következtetés",
+        "free": "Ingyenes",
+        "tools": "Eszközök"
+      },
+      "manualDialog": {
+        "title": "Modell hozzáadása",
+        "subtitle": "Egyéni modell hozzáadása ehhez a szolgáltatóhoz",
+        "modelId": "Modell azonosítója",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash stb.",
+        "modelIdHelper": "Az API hívásakor használt pontos modellazonosító",
+        "modelName": "Megjelenített név",
+        "modelNamePlaceholder": "Felhasználóbarát megjelenített név (opcionális)",
+        "modelNameHelper": "A felületen megjelenített opcionális név. Ha üres, a modell azonosítója kerül felhasználásra",
+        "group": "Csoport",
+        "groupPlaceholder": "Válasszon vagy adjon meg egy csoportnevet",
+        "submit": "Hozzáadás",
+        "cancel": "Mégse",
+        "helper": "Adja meg a szolgáltató API által megjelenített pontos modellazonosítót."
+      },
+      "editDialog": {
+        "title": "Modell szerkesztése",
+        "subtitle": "Modellbeállítások módosítása",
+        "modelId": "Modell azonosítója",
+        "modelIdPlaceholder": "Modellazonosító",
+        "modelIdHelper": "Az API hívásakor használt modellazonosító",
+        "modelName": "Megjelenített név",
+        "modelNamePlaceholder": "Felhasználóbarát megjelenített név",
+        "modelNameHelper": "A felületen megjelenített név",
+        "group": "Csoport",
+        "groupPlaceholder": "Válasszon vagy adjon meg egy csoportnevet",
+        "submit": "Mentés",
+        "cancel": "Mégse",
+        "vision": "Látási képesség",
+        "visionHint": "Ez a modell támogatja-e a kép/látás bemenetet",
+        "reasoning": "Gondolkodási modell",
+        "reasoningHint": "Ez a modell támogatja-e a gondolkodási/következtetési módot"
+      },
+      "manageDialog": {
+        "title": "Modellek kezelése",
+        "cachedAt": "Gyorsítótárazva: {{date}} ({{source}})",
+        "refresh": "Frissítés",
+        "close": "Bezárás",
+        "raw": "Nyers JSON",
+        "empty": "Nincsenek elérhető távoli modellek.",
+        "error": "A modellek betöltése sikertelen: {{message}}",
+        "addFromCatalog": "Hozzáadás",
+        "sourceCache": "gyorsítótár",
+        "sourceNetwork": "élő",
+        "contextLength": "Kontextus: {{value}} token",
+        "maxTokens": "Max. {{value}} token"
+      },
+      "messages": {
+        "added": "Modell hozzáadva.",
+        "updated": "Modell frissítve.",
+        "removed": "Modell eltávolítva.",
+        "duplicate": "A modell már létezik.",
+        "refreshed": "Modellek frissítve",
+        "refreshFailed": "A modellek frissítése sikertelen"
+      },
+      "testDialog": {
+        "title": "Modell kapcsolattesztelés",
+        "provider": "Szolgáltató",
+        "model": "Modell",
+        "testing": "Tesztelés...",
+        "success": "Teszt sikeres",
+        "successMessage": "A modell normálisan elérhető",
+        "failure": "Teszt sikertelen",
+        "aiResponse": "AI válasz",
+        "charCount": "{{count}} karakter",
+        "duration": "Időtartam: {{time}}s",
+        "close": "Bezárás",
+        "retest": "Újratesztelés",
+        "testButton": "Modell tesztelése",
+        "unsupportedFormat": "Az ehhez a szolgáltatói formátumhoz tartozó tesztelés még nem támogatott."
+      }
+    },
+    "router": {
+      "title": "Útválasztó konfigurációja",
+      "description": "Konfigurálja, melyik szolgáltatót/modellt használja különböző forgatókönyvekhez.",
+      "labels": {
+        "default": "Alapértelmezett",
+        "background": "háttér",
+        "think": "gondolkodás",
+        "longContext": "Hosszú kontextus",
+        "webSearch": "Webes keresés",
+        "image": "Kép",
+        "longContextThreshold": "Hosszú kontextus küszöbértéke"
+      },
+      "helper": {
+        "longContextThreshold": "A tokenszám, amelynél a hosszú kontextusú modellre vált."
+      },
+      "placeholder": {
+        "required": "Kötelező",
+        "optional": "Opcionális"
+      }
+    },
+    "agentRouter": {
+      "title": "Ügynök-útválasztó",
+      "description": "Konfigurálja a kétirányú útválasztást a Chat és a Kód módok között.",
+      "searchPlaceholder": "Útválasztók keresése...",
+      "noSearchResults": "Nincs a keresésnek megfelelő útválasztó.",
+      "tabs": {
+        "chatToCode": "Chat → Kód",
+        "codeToChatPlaceholder": "Kód → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat–Kód útválasztó",
+        "description": "Chat-szolgáltatók használata ügynök/kódolási módban",
+        "addRouter": "Útválasztó hozzáadása",
+        "emptyState": "Nincsenek konfigurált Chat→Kód útválasztók. Adjon hozzá egyet a chat-szolgáltatók kódolási módban való használatához.",
+        "form": {
+          "name": "Útválasztó neve",
+          "namePlaceholder": "Saját Chat→Kód útválasztó",
+          "chatProvider": "Chat-szolgáltató",
+          "chatProviderPlaceholder": "Válasszon chat-szolgáltatót",
+          "mode": "Mód",
+          "modeSimple": "Egyszerű",
+          "modeAdvanced": "Speciális",
+          "modeSimpleDesc": "Közvetlen átvitel a chat-szolgáltatóhoz",
+          "modeAdvancedDesc": "Modelltérképezés és kontextuskezelés konfigurálása",
+          "enabled": "Engedélyezve",
+          "save": "Útválasztó mentése",
+          "cancel": "Mégse"
+        },
+        "list": {
+          "provider": "Szolgáltató",
+          "mode": "Mód",
+          "status": "Állapot"
+        },
+        "mappings": {
+          "title": "Modelltérképezések",
+          "description": "Chat-szolgáltató modelljei leképezése kód-szolgáltató modelljeire",
+          "count": "térképezés",
+          "empty": "Nincsenek konfigurált modelltérképezések. Adjon hozzá térképezéseket a chat-modellek kód-szolgáltatókhoz való irányításához.",
+          "addNew": "Új térképezés hozzáadása",
+          "selectSource": "Forrásmödell kiválasztása (Chat)",
+          "selectTarget": "Célmodell kiválasztása (Kód)",
+          "targetPlaceholder": "Adja meg a Claude Code modell nevét",
+          "notSet": "(Nincs beállítva — kattintson a kiválasztáshoz)",
+          "add": "Hozzáadás",
+          "edit": "Szerkesztés",
+          "done": "Kész"
+        },
+        "advanced": {
+          "title": "Speciális konfiguráció",
+          "description": "Konfigurálja a modelleket különböző feladattípusokhoz",
+          "helpText": "Az alapértelmezett modell kötelező. A többi modell opcionális, és ha nincs konfigurálva, visszaáll az alapértelmezettre.",
+          "default": {
+            "label": "Alapértelmezett",
+            "placeholder": "Alapértelmezett modell kiválasztása",
+            "description": "Elsődleges modell általános feladatokhoz (hasonló a Claude Sonnethez)"
+          },
+          "background": {
+            "label": "Háttér",
+            "placeholder": "Háttérmodell kiválasztása",
+            "description": "Könnyű modell háttérfeladatokhoz (hasonló a Claude Haiku-hoz)"
+          },
+          "think": {
+            "label": "Gondolkodás",
+            "placeholder": "Gondolkodási modell kiválasztása",
+            "description": "Fejlett modell összetett következtetéshez (hasonló a Claude Opushoz)"
+          },
+          "image": {
+            "label": "Kép",
+            "placeholder": "Képmodell kiválasztása",
+            "description": "Látási képességgel rendelkező modell képekkel kapcsolatos feladatokhoz"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Kód–Chat útválasztó",
+        "description": "Kódolási terv modelljei elérhetővé tétele chat módban",
+        "addRouter": "Útválasztó hozzáadása",
+        "emptyState": "Nincsenek konfigurált Kód→Chat útválasztók. Adjon hozzá egyet a kódolási terv modelljei chat módban való megjelenítéséhez.",
+        "form": {
+          "name": "Útválasztó neve",
+          "namePlaceholder": "Saját Kód→Chat útválasztó",
+          "codeProvider": "Kód-szolgáltató",
+          "codeProviderPlaceholder": "Válasszon kód-szolgáltatót",
+          "codeProviderHelper": "Válassza ki az átalakításhoz használandó kód-szolgáltatót",
+          "models": "Kódolási terv modelljei",
+          "modelsHelper": "Válassza ki, melyik kódolási terv modelljeit tegye elérhetővé",
+          "enabled": "Engedélyezve",
+          "save": "Útválasztó mentése",
+          "cancel": "Mégse"
+        },
+        "mappings": {
+          "title": "Modelltérképezések",
+          "description": "Kód-szolgáltató modelljei leképezése chat-szolgáltató modelljeire megjelenítéshez",
+          "count": "térképezés",
+          "empty": "Nincsenek konfigurált modelltérképezések. Adjon hozzá térképezéseket a kódmodellek chat módban való megjelenítéséhez.",
+          "addNew": "Új térképezés hozzáadása",
+          "selectSource": "Forrásmodell kiválasztása (Kód)",
+          "selectTarget": "Célmodell kiválasztása (Chat)",
+          "sourcePlaceholder": "Adja meg a forrásmodell nevét",
+          "targetPlaceholder": "Adja meg a célmodell nevét",
+          "add": "Hozzáadás",
+          "edit": "Szerkesztés",
+          "done": "Kész"
+        }
+      },
+      "transformers": {
+        "title": "Transzformátorok",
+        "description": "Konfigurálja a transzformátorokat a kérés/válasz konverzióhoz",
+        "noProvider": "Válasszon szolgáltatót a transzformátorok konfigurálásához",
+        "empty": "Nincsenek transzformátorok",
+        "count": "{{count}} transzformátor"
+      },
+      "status": {
+        "enabled": "Engedélyezve",
+        "disabled": "Letiltva"
+      },
+      "messages": {
+        "routerAdded": "Az útválasztó sikeresen hozzáadva",
+        "routerUpdated": "Az útválasztó sikeresen frissítve",
+        "routerDeleted": "Az útválasztó sikeresen törölve",
+        "saveFailed": "Az útválasztó mentése sikertelen"
+      }
+    },
+    "presets": {
+      "title": "Szolgáltató gyors hozzáadása",
+      "added": "Hozzáadva",
+      "add": "Hozzáadás",
+      "features": {
+        "search": "Keresés",
+        "vision": "Látás",
+        "mcp": "MCP",
+        "codingPlan": "Kódolási terv"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Biztosan törli ezt a szolgáltatót?"
+    },
+    "errors": {
+      "nameRequired": "A szolgáltató neve kötelező",
+      "urlRequired": "Az API alap URL kötelező",
+      "urlInvalid": "Adjon meg érvényes URL-t (pl. https://api.example.com)",
+      "saveFailed": "A szolgáltató mentése sikertelen",
+      "deleteFailed": "Hiba a szolgáltató törlésekor. Kérjük, próbálja újra.",
+      "toggleFailed": "Hiba a szolgáltató be-/kikapcsolásakor. Kérjük, próbálja újra."
+    },
+    "openRouter": {
+      "title": "OpenRouter szolgáltatói útválasztás",
+      "description": "Konfigurálja, hogyan irányítódnak a kérések különböző szolgáltatókhoz az OpenRouteren.",
+      "sort": "Útválasztási stratégia",
+      "sortTooltip": "Válassza ki, hogyan rangsorolja a szolgáltatókat. Az automatikus intelligens terheléselosztást használ.",
+      "order": "Szolgáltatói prioritási sorrend",
+      "orderTooltip": "Adja meg a sorrendben kipróbálandó szolgáltatókat (pl. anthropic, openai, together). Nyomja meg az Entert a hozzáadáshoz.",
+      "orderPlaceholder": "Írja be a szolgáltató azonosítóját és nyomja meg az Entert...",
+      "allowFallbacks": "Tartalék lehetőségek engedélyezése",
+      "allowFallbacksTooltip": "Ha engedélyezve van, az OpenRouter tartalék szolgáltatókat próbál meg, ha az elsődleges nem elérhető.",
+      "requireParameters": "Összes paraméter megkövetelése",
+      "requireParametersTooltip": "Csak olyan szolgáltatókhoz irányítson, amelyek a kérés összes paraméterét támogatják.",
+      "dataCollection": "Adatgyűjtési szabályzat",
+      "dataCollectionTooltip": "Szabályozza, hogy használja-e azokat a szolgáltatókat, amelyek tárolhatják vagy betaníthatják az adatait.",
+      "zdr": "Nulla adatmegőrzés",
+      "zdrTooltip": "Csak nulla adatmegőrzési szabályzattal rendelkező végpontokhoz irányítson.",
+      "only": "Csak engedélyezett szolgáltatók",
+      "onlyTooltip": "Csak ezeket a konkrét szolgáltatókat használja. Hagyja üresen az összes engedélyezéséhez.",
+      "onlyPlaceholder": "Írja be a szolgáltató azonosítóját és nyomja meg az Entert...",
+      "ignore": "Figyelmen kívül hagyott szolgáltatók",
+      "ignoreTooltip": "Hagyja ki ezeket a szolgáltatókat a kérések irányításakor.",
+      "ignorePlaceholder": "Írja be a szolgáltató azonosítóját és nyomja meg az Entert...",
+      "quantizations": "Kvantálási szűrő",
+      "quantizationsTooltip": "Csak meghatározott kvantálási szintű szolgáltatókat használjon. Az alacsonyabb pontosság csökkentheti a minőséget, de javíthatja a sebességet.",
+      "maxPrice": "Maximális ár",
+      "maxPriceTooltip": "Állítson be maximális árhatárokat millió tokenenként. Hagyja üresen a korlátlan beállításhoz.",
+      "configured": "Konfigurálva"
+    }
+  },
+  "apiMode": {
+    "label": "API mód",
+    "standard": "Szabványos",
+    "codingPlan": "Kódolási terv",
+    "tokenPlan": "Token terv",
+    "apiKeyPrefixHint": "Az ehhez a tervhez tartozó kulcsok általában `{{prefix}}` előtaggal kezdődnek. Csak tájékoztató — nem kötelező érvényű.",
+    "dashscopeCodingPlanSeparateKey": "A DashScope kódolási terv a szabványos végponttól eltérő API-kulcsot használ.",
+    "baiduCodingPlanSeparateKey": "A Qianfan kódolási terv a szabványos végponttól eltérő API-kulcsot használ.",
+    "tencentTokenPlanAnthropicOnly": "A Tencent Token Plan csak az Anthropic protokollt támogatja.",
+    "xiaomiTokenPlanRegions": "Az alapértelmezett baseUrl: `token-plan-cn.*`. Manuálisan módosítható `token-plan-sgp.*` vagy `token-plan-ams.*` értékre.",
+    "confirmOverwriteTitle": "Váltson API módot?",
+    "confirmOverwriteBody": "Testreszabta az API URL-t vagy az API-kulcsot. A módváltás ezeket az új mód alapértékeivel írja felül — vagy tartsa meg testreszabásait, és csak a mód címkéjét frissítse.",
+    "overwriteAndSwitch": "Felülírás és váltás",
+    "keepCustomizations": "Testreszabások megtartása"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Mégse",
+    "close": "Bezárás",
+    "copy": "Másolás",
+    "delete": "Törlés",
+    "dismiss": "Bezárás",
+    "save": "Mentés",
+    "optional": "opcionális",
+    "retry": "Újra",
+    "loading": "Betöltés…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentáció"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "A daemon még nem támogatja",
+    "discoveryUnsupportedFormat": "A modellfelderítés ehhez a szolgáltatói formátumhoz még nem támogatott. Adja hozzá a modelleket manuálisan."
+  },
+  "nav": {
+    "subtitle": "Vezérlőpult",
+    "providers": "Szolgáltatók",
+    "apiService": "API szolgáltatás",
+    "accounts": "Fiókok",
+    "codeCli": "Code CLI",
+    "settings": "Beállítások",
+    "usageStats": "Használat",
+    "pricing": "Árak"
+  },
+  "apiService": {
+    "title": "API szolgáltatás",
+    "description": "Konfigurálja a kimenő API-kiszolgálót, a végpontonkénti modellútvonalasztást és a névvel ellátott hozzáférési kulcsokat.",
+    "loading": "Kiszolgáló konfiguráció betöltése…",
+    "loadError": "A kiszolgáló konfiguráció betöltése sikertelen. Ellenőrizze, hogy a daemon elérhető-e.",
+    "enable": {
+      "label": "Kimenő kiszolgáló engedélyezése",
+      "description": "Indítsa el a helyi API-kiszolgálót, amely a külső hívókat a szolgáltatókon keresztül irányítja."
+    },
+    "networkBinding": {
+      "label": "LAN-hozzáférés engedélyezése",
+      "description": "Kösse a kiszolgálót a hálózati interfészhez, ne csak a loopback interfészhez.",
+      "warning": "A LAN-hozzáférés a hálózat többi eszközének teszi ki az API-kiszolgálót. Az előfizetési útválasztással kombinálva a kérések felhasználhatják az előfizetési kvótát — tartsa kikapcsolva, ha nem bízik a hálózatban."
+    },
+    "status": {
+      "running": "A kiszolgáló fut",
+      "stopped": "A kiszolgáló leállítva",
+      "runningHint": "A kimenő API-kiszolgáló fogadja a kéréseket.",
+      "stoppedHint": "Engedélyezze a kiszolgálót a kérések fogadásának megkezdéséhez.",
+      "port": "{{port}} port",
+      "loopback": "Loopback URL-ek",
+      "lan": "LAN URL-ek"
+    },
+    "endpoints": {
+      "title": "Végpont-útválasztás",
+      "description": "Válassza ki, melyik modellre irányít az egyes hálózati formátum. Az alapértelmezett modell itt kerül figyelembevételre — a kiszolgáló útválasztó, nem chat-alkalmazás."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Alapértelmezett modell",
+      "backgroundModel": "Háttérmodell",
+      "visionModel": "Látási modell",
+      "noVisionModel": "Nincs",
+      "backgroundModelIds": "Háttérmodellek azonosítói",
+      "backgroundModelIdsPlaceholder": "vesszővel elválasztott modellazonosítók",
+      "modelPlaceholder": "Válasszon modellt…",
+      "useSubscription": "Előfizetés használata",
+      "subscriptionUnsupported": "Az előfizetési útválasztás ehhez a végponthoz nem érhető el."
+    },
+    "keys": {
+      "title": "Hozzáférési kulcsok",
+      "description": "Névvel ellátott kulcsok, amelyeket a külső hívók Bearer tokenként küldenek. A teljes kulcs csak a létrehozáskor jelenik meg.",
+      "namePlaceholder": "Kulcs neve (pl. saját-cli)",
+      "create": "Kulcs létrehozása",
+      "empty": "Még nincsenek hozzáférési kulcsok.",
+      "enabled": "Engedélyezve",
+      "disabled": "Letiltva",
+      "revoked": "Visszavonva",
+      "toggle": "Kulcs be-/kikapcsolása",
+      "revoke": "Visszavonás",
+      "revokeConfirmTitle": "Visszavonja ezt a kulcsot?",
+      "revokeConfirmDesc": "A „{{name}}“ visszavonása azonnal megakadályozza a hitelesítését. Ez a művelet nem vonható vissza.",
+      "created": {
+        "title": "Kulcs létrehozva",
+        "warning": "Másolja le ezt a kulcsot most — nem jelenik meg újra. Tárolja biztonságosan.",
+        "copy": "Másolás",
+        "copied": "Másolva",
+        "dismiss": "Kész"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Fiókok és előfizetések",
+    "description": "Kezelje az előfizetési hitelesítő adatokat, amelyeken keresztül a kiszolgáló irányítja a forgalmat. A tokenek itt kerülnek beírásra, de soha nem jelennek meg újra.",
+    "loading": "Fiókok betöltése…",
+    "empty": "Nincsenek elérhető előfizetési szolgáltatók.",
+    "signIn": "Bejelentkezés",
+    "oauth": {
+      "title": "Bejelentkezés ide: {{name}}",
+      "description": "Nyissa meg a bejelentkezési oldalt a böngészőjében, engedélyezze, majd illessze be az engedélyezési kódot az alábbiakba. A kód csak a daemonhoz kerül — a kiadott token soha nem jelenik meg.",
+      "openPage": "Bejelentkezési oldal megnyitása",
+      "codeLabel": "Engedélyezési kód",
+      "codePlaceholder": "Illessze be a kódot ide",
+      "submit": "Bejelentkezés befejezése"
+    },
+    "codexOauth": {
+      "title": "Bejelentkezés ide: {{name}}",
+      "description": "Nyissa meg a bejelentkezési oldalt a böngészőjében, és engedélyezze. A daemon automatikusan rögzíti az eredményt — tartsa nyitva ezt az oldalt, amíg be nem fejeződik. A token soha nem jelenik meg.",
+      "waiting": "Várakozás a böngészőbeli bejelentkezés befejezésére…",
+      "failed": "A bejelentkezés sikertelen. Kérjük, próbálja újra."
+    },
+    "clearProvider": "Összes törlése",
+    "clearConfirmTitle": "Törli a {{name}} fiókokat?",
+    "clearConfirmDesc": "Ez eltávolítja az összes tárolt hitelesítő adatot ehhez a szolgáltatóhoz. Ez a művelet nem vonható vissza.",
+    "credential": {
+      "ok": "Konfigurálva",
+      "notConfigured": "Nincs konfigurálva"
+    },
+    "kind": {
+      "pass-through": "Átmenő hitelesítő adatok",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Statikus bearer kulcs"
+    },
+    "reason": {
+      "missing-credential": "Nincs tárolt hitelesítő adat.",
+      "expired": "A hitelesítő adat lejárt.",
+      "reauth-required": "Újrahitelesítés szükséges.",
+      "refresh-failed": "A token frissítése sikertelen.",
+      "not-refreshable": "A hitelesítő adat nem frissíthető.",
+      "unknown": "Az állapot ismeretlen."
+    },
+    "status": {
+      "unconfigured": "Nincs konfigurálva",
+      "authorized": "Engedélyezett",
+      "configured": "Konfigurálva",
+      "expired": "Lejárt",
+      "error": "Hiba"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Beállítási token",
+      "manual": "Manuális"
+    },
+    "list": {
+      "empty": "Nincsenek tárolt fiókok ehhez a szolgáltatóhoz.",
+      "active": "Aktív",
+      "expiresAt": "Lejár: {{value}}",
+      "setActive": "Aktívra állítás",
+      "remove": "Eltávolítás",
+      "removeConfirmTitle": "Eltávolítja ezt a fiókot?",
+      "removeConfirmDesc": "A „{{name}}“ eltávolítása törli a tárolt hitelesítő adatot. Ez a művelet nem vonható vissza.",
+      "title": "Fiókok"
+    },
+    "write": {
+      "trigger": "Hitelesítő adat hozzáadása",
+      "title": "{{name}} hitelesítő adat beírása",
+      "description": "Illessze be a már megszerzett token anyagot. A mezők arra korlátozódnak, amit ez a szolgáltató elfogad; a token tárolásra kerül, és soha nem jelenik meg újra.",
+      "authMethod": "Hitelesítési módszer",
+      "status": "Állapot",
+      "subscriptionLevel": "Előfizetési szint",
+      "subscriptionLevelNone": "Nincs beállítva",
+      "submit": "Hitelesítő adat mentése"
+    },
+    "field": {
+      "accessToken": "Hozzáférési token",
+      "refreshToken": "Frissítési token",
+      "idToken": "ID token",
+      "apiKey": "API-kulcs",
+      "expiresAt": "Lejár (ISO)",
+      "setupTokenExpiresAt": "Beállítási token lejárata (ISO)",
+      "accountId": "Fiókazonosító",
+      "email": "E-mail",
+      "organizationId": "Szervezeti azonosító",
+      "baseUrl": "Alap URL",
+      "zenBaseUrl": "Zen alap URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Az Anthropic előfizetési hitelesítő adatai a daemon által irányítva."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Az OpenAI Codex előfizetési hitelesítő adatai a daemon által irányítva."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "A Google Gemini előfizetési hitelesítő adatai a daemon által irányítva."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statikus API-kulcs hitelesítő adatok a daemon által irányítva."
+      }
+    },
+    "authMethodLabel": "Engedélyezési módszer",
+    "authMethodDesc": {
+      "oauth": "Jelentkezzen be a böngészőjén keresztül; a daemon rögzíti és tárolja a tokent.",
+      "manual": "Illessze be a már megszerzett tokent. Tárolásra kerül, és soha nem jelenik meg újra."
+    },
+    "actions": {
+      "authorize": "Engedélyezés",
+      "enterToken": "Token megadása",
+      "refresh": "Frissítés"
+    },
+    "accounts": {
+      "addAccount": "Fiók hozzáadása"
+    },
+    "detail": {
+      "authMethod": "Engedélyezési módszer",
+      "subscriptionLevel": "Előfizetési szint",
+      "expiresAt": "Lejárat",
+      "lastRefreshed": "Utoljára frissítve",
+      "label": "Fiók címkéje",
+      "labelPlaceholder": "Nevezze el ezt a fiókot",
+      "saveLabel": "Címke mentése"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Nyissa meg az engedélyezési oldalt",
+        "desc": "Nyissa meg a bejelentkezési oldalt a böngészőjében."
+      },
+      "step2": {
+        "title": "Engedélyezze a hozzáférést",
+        "desc": "Jelentkezzen be, és hagyja jóvá a szolgáltató hozzáférését."
+      },
+      "step3": {
+        "title": "Másolja le az engedélyezési kódot",
+        "desc": "Az oldal megjeleníti az engedélyezési kódot a jóváhagyás után."
+      },
+      "step4": {
+        "title": "Illessze be a kódot",
+        "desc": "Illessze be az engedélyezési kódot az alábbiakba a befejezéshez. A kód csak a daemonhoz kerül — a kiadott token soha nem jelenik meg."
+      },
+      "authorize": "Bejelentkezés befejezése",
+      "showUrl": "Engedélyezési URL megjelenítése"
+    },
+    "manual": {
+      "title": "Hitelesítő adat beillesztése",
+      "description": "Illessze be a már megszerzett tokent. A mezők arra korlátozódnak, amit ez a szolgáltató elfogad; a token tárolásra kerül, és soha nem jelenik meg újra.",
+      "accessTokenPlaceholder": "Illessze be a hozzáférési tokent",
+      "refreshTokenPlaceholder": "Illessze be a frissítési tokent (opcionális)",
+      "hint": "A token a daemonhoz kerül elküldésre, és titkosítva tárolódik. Soha nem jelenik meg újra."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "Az API-kulcs kötelező.",
+      "apiKeyPlaceholder": "Illessze be az API-kulcsot",
+      "baseUrlPlaceholder": "https://… (opcionális)",
+      "zenBaseUrlPlaceholder": "https://… (opcionális)"
+    },
+    "info": {
+      "title": "Az előfizetési fiókokról",
+      "description": "A tokenek a daemonhoz kerülnek beírásra, és upstream kérések hitelesítéséhez használatosak. Titkosítva tárolódnak, és soha nem jelennek meg újra. Egy fiók eltávolítása törli a tárolt hitelesítő adatot."
+    },
+    "rename": {
+      "failed": "A fiók átnevezése sikertelen."
+    },
+    "refresh": {
+      "failed": "A token frissítése sikertelen."
+    },
+    "errors": {
+      "requestFailed": "A kérés sikertelen. Kérjük, próbálja újra."
+    },
+    "syncWarning": {
+      "external-divergent": "A külső CLI bejelentkezési fájlja újabb hitelesítő adatokat tartalmaz, mint ez a fiók. A tárolt token frissítése leállhat — frissítsen most, vagy jelentkezzen be újra.",
+      "external-not-rotated": "A frissítés nem sikerült, és a külső CLI ugyanazt a lejárt hitelesítő adatot tartalmazza. Jelentkezzen be újra.",
+      "duplicate-token": "Egy másik fiók ugyanezeket a hitelesítő adatokat használja. Bármelyik frissítése kijelentkezteti a másikat."
+    },
+    "importExternal": {
+      "detected": "Ezen a gépen meglévő {{name}} CLI-bejelentkezést találtunk.",
+      "hint": "Importálás után ez az alkalmazás tartja frissen: minden token-frissítéskor a CLI bejelentkezési fájlja is frissül, így a terminálban a CLI bejelentkezve marad.",
+      "button": "Meglévő CLI-bejelentkezés importálása"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Irányítsa a kódolási CLI-t a daemon kimenő proxyjára. Ez az oldal csak olvasható — itt nincs mit konfigurálni.",
+    "copy": "Másolás",
+    "copied": "Másolva",
+    "baseUrl": {
+      "title": "Daemon alap URL",
+      "description": "A proxy-cím, amelyhez a CLI csatlakozik.",
+      "label": "Alap URL"
+    },
+    "token": {
+      "title": "Hitelesítés",
+      "hint": "Az adminisztrátori útvonalakhoz küldje el: 'Authorization: Bearer <admin-tokenje>'. Az adminisztrátori token a daemonban van konfigurálva (konfigurációs fájlja vagy környezete) — itt soha nem jelenik meg."
+    },
+    "examples": {
+      "title": "Példa indítási környezet",
+      "keyNote": "Az API szolgáltatás oldalán létrehozott kimenő hozzáférési kulcsot használja — nem az adminisztrátori tokent.",
+      "anthropic": "Anthropic formátumú CLI",
+      "openai": "OpenAI formátumú CLI"
+    },
+    "launchDescription": "Indítson el egy kódolási CLI-t egy terminálban, amely erre a daemonra mutat. A daemon beinjektálja az átirányítási környezeti változókat, és elindítja a CLI-t az Ön helyett.",
+    "refresh": "Frissítés",
+    "loading": "CLI-k észlelése…",
+    "cli": {
+      "installed": "Telepítve",
+      "notFound": "Nem található",
+      "notFoundHint": "Ez a CLI nem szerepel a daemon gazdagépének PATH-jában. Telepítse, majd frissítsen.",
+      "install": "Telepítés",
+      "installing": "Telepítés…",
+      "installingHint": "Telepítés a daemon gazdagépén — ez eltarthat egy percig.",
+      "launch": "Indítás",
+      "launchTitle": "{{name}} indítása",
+      "launchDescription": "Új terminált nyit a daemon gazdagépén, amelyen ez a CLI fut, a daemon proxyn keresztül irányítva. Válasszon opcionális munkakönyvtárat.",
+      "cwdLabel": "Munkakönyvtár",
+      "cwdPlaceholder": "/elérési/út/a/projekthez",
+      "runningVia": "Fut · {{provider}} / {{model}}",
+      "stop": "Leállítás"
+    },
+    "manual": {
+      "title": "Manuális beállítás",
+      "description": "Inkább maga futtatná a CLI-t? Irányítsa a daemonra ezekkel a környezeti változókkal.",
+      "show": "Megjelenítés",
+      "hide": "Elrejtés"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Daemon ellenőrzése…",
+    "spawning": "Daemon indítása…",
+    "failed": "A daemon nem tudott elindulni",
+    "failedHint": "Győződjön meg arról, hogy a Node.js telepítve van, és a daemon fel van építve (a dist könyvtár létezik), vagy állítsa az OMNICROSS_DAEMON_ENTRY értékét a daemon cli.js fájljára."
+  },
+  "settings": {
+    "title": "Beállítások",
+    "description": "Asztali alkalmazás beállításai.",
+    "desktopOnly": "Az indítási és tálca beállítások csak az asztali alkalmazásban érvényesek.",
+    "startup": {
+      "title": "Indítás",
+      "autoLaunch": "Indítás bejelentkezéskor",
+      "autoLaunchHint": "Az Omnicross automatikus indítása bejelentkezéskor.",
+      "startMinimized": "Minimalizálva indítás a tálcára",
+      "startMinimizedHint": "Indítás a háttérben, az ablak megnyitása nélkül."
+    },
+    "tray": {
+      "title": "Tálca",
+      "minimizeOnClose": "Tálcára minimalizálás bezáráskor",
+      "minimizeOnCloseHint": "Az ablak bezárása kilépés helyett elrejti azt a tálcára."
+    },
+    "language": {
+      "title": "Nyelv",
+      "label": "Kezelőfelület nyelve"
+    }
+  },
+  "usageStats": {
+    "title": "Használati statisztika",
+    "description": "A démon által kiszolgált kérések token- és költségstatisztikái.",
+    "rangeToday": "Ma",
+    "range7d": "Elmúlt 7 nap",
+    "range30d": "Elmúlt 30 nap",
+    "rangeCustom": "Egyéni",
+    "from": "Ettől",
+    "to": "Eddig",
+    "totalCost": "Összköltség",
+    "cacheSavings": "Gyorsítótár-megtakarítás",
+    "events": "Kérések",
+    "inputTokens": "Bemeneti tokenek",
+    "outputTokens": "Kimeneti tokenek",
+    "cacheReadTokens": "Gyorsítótár-olvasás",
+    "cacheWriteTokens": "Gyorsítótár-írás",
+    "reasoningTokens": "Gondolkodási tokenek",
+    "byModel": "Modellenként",
+    "byApiKey": "API-kulcsonként",
+    "provider": "Szolgáltató",
+    "model": "Modell",
+    "cost": "Költség",
+    "apiKey": "API-kulcs",
+    "unpriced": "Ár nélkül",
+    "unpricedHint": "Ehhez a modellhez nincs árbejegyzés — adj hozzá egyet az Árak oldalon.",
+    "unattributed": "Nem hozzárendelt",
+    "unattributedHint": "Konkrét API-kulcshoz nem kapcsolt kérések. Ez normális, amíg a kulcsonkénti hozzárendelés rögzítése el nem indul.",
+    "empty": "Nincs kérés ebben az időszakban.",
+    "invalidRange": "Válassz érvényes dátumtartományt."
+  },
+  "pricing": {
+    "title": "Modellárak",
+    "description": "Modellenkénti tokenárak a kérésköltségek számításához, USD / 1 millió token.",
+    "search": "Szolgáltató vagy modell keresése…",
+    "fetchLatest": "Legfrissebb lekérése",
+    "fetching": "Lekérés…",
+    "addEntry": "Bejegyzés hozzáadása",
+    "provider": "Szolgáltató",
+    "model": "Modell",
+    "inputPrice": "Bemenet",
+    "outputPrice": "Kimenet",
+    "cacheReadPrice": "Gyorsítótár-olvasás",
+    "cacheWritePrice": "Gyorsítótár-írás",
+    "source": "Forrás",
+    "updated": "Frissítve",
+    "userEdited": "szerkesztve",
+    "edit": "Szerkesztés",
+    "deleteTitle": "Törlöd az árbejegyzést?",
+    "empty": "Az ártáblázat üres.",
+    "emptyHint": "Kérd le a legfrissebb árakat a feltöltéséhez.",
+    "noMatches": "Nincs a keresésnek megfelelő bejegyzés.",
+    "saved": "Árbejegyzés mentve.",
+    "saveFailed": "A mentés sikertelen: {{message}}",
+    "deleteFailed": "A törlés sikertelen: {{message}}",
+    "alreadyDeleted": "A bejegyzés már nem létezett.",
+    "fetchApplied": "{{count}} bejegyzés frissítve a forrásból.",
+    "fetchFailed": "A lekérés sikertelen: {{message}}",
+    "requiredId": "Kötelező",
+    "invalidPrice": "Adj meg nemnegatív számot",
+    "conflictTitle": "Árütközések feloldása",
+    "conflictHint": "Ezeket a bejegyzéseket te szerkesztetted, és a forrásban is megváltoztak. Soronként válaszd ki, hogy megtartod a saját értéked (Kihagyás) vagy átveszed az újat (Felülírás).",
+    "current": "Jelenlegi",
+    "incoming": "Bejövő",
+    "overwrite": "Felülírás",
+    "skip": "Kihagyás",
+    "overwriteAll": "Összes felülírása",
+    "skipAll": "Összes kihagyása",
+    "applyResolutions": "Alkalmaz",
+    "resolved": "{{overwritten}} felülírva, {{skipped}} kihagyva.",
+    "resolvedWithStale": "{{overwritten}} felülírva, {{skipped}} kihagyva. {{stale}} időközben megváltozott, és érintetlen maradt.",
+    "refreshFailed": "A módosítás megtörtént, de a lista újratöltése nem sikerült: {{message}}",
+    "sourceBuiltin": "Beépített",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Felhasználó"
+  }
+}

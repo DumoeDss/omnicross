@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Cargando configuración de LLM...",
+    "reset": {
+      "button": "Restaurar valores predeterminados",
+      "confirmTitle": "¿Restaurar la configuración predeterminada?",
+      "confirmBody": "Esto borra tus personalizaciones para este proveedor y vuelve a los valores predeterminados integrados. Tu clave de API y las sesiones guardadas se conservan.",
+      "confirmButton": "Restaurar valores predeterminados"
+    },
+    "reentryBanner": {
+      "message": "{{count}} proveedor(es) habilitado(s) necesita(n) que se vuelva a introducir su clave de API. Abre cada uno y añade su clave de nuevo."
+    },
+    "migrationPack": {
+      "barHint": "Mueve tus claves de proveedor y tokens de suscripción a otro ordenador con un paquete cifrado.",
+      "passphrase": "Contraseña",
+      "passphrasePlaceholder": "Introduce una contraseña",
+      "passphraseHint": "Usa al menos 8 caracteres; se recomiendan 12 o más.",
+      "confirm": "Confirmar contraseña",
+      "confirmPlaceholder": "Vuelve a introducir la contraseña",
+      "mismatch": "Las contraseñas no coinciden.",
+      "strength": {
+        "weak": "Demasiado corta — usa al menos 8 caracteres.",
+        "fair": "Aceptable — 12 o más caracteres es más seguro.",
+        "strong": "Contraseña segura."
+      },
+      "export": {
+        "button": "Exportar paquete",
+        "title": "Exportar paquete cifrado",
+        "subtitle": "Cifra tus claves de proveedor y tokens de suscripción en un archivo portátil.",
+        "warning": "Este archivo contiene secretos descifRables. Guárdalo de forma segura — cualquiera que tenga el archivo y la contraseña puede leer tus claves. Una contraseña perdida no se puede recuperar.",
+        "submit": "Exportar",
+        "success": "Paquete exportado correctamente.",
+        "error": "Error al exportar. Por favor, inténtalo de nuevo."
+      },
+      "import": {
+        "button": "Importar paquete",
+        "title": "Importar paquete cifrado",
+        "subtitle": "Restaura las claves de proveedor y los tokens de suscripción desde un paquete exportado.",
+        "hint": "Introduce la contraseña utilizada al exportar el paquete y, a continuación, elige el archivo.",
+        "submit": "Importar",
+        "successTitle": "Importación completada",
+        "summary": "Se han importado {{providerKeys}} clave(s) de proveedor, {{poolKeys}} clave(s) de grupo y {{tokenSets}} conjunto(s) de tokens.",
+        "duplicates": "Se han omitido {{count}} clave(s) de grupo ya presentes.",
+        "skipped": "Omitido (sin proveedor coincidente): {{names}}",
+        "error": "Contraseña incorrecta o paquete dañado. No se realizaron cambios."
+      }
+    },
+    "searchPlaceholder": "Buscar proveedores...",
+    "emptySearch": "Ningún proveedor coincide con tu búsqueda.",
+    "emptyList": "No hay proveedores configurados.",
+    "selectPrompt": "Selecciona un proveedor para ver los detalles",
+    "listStatus": "{{count}} modelo(s)",
+    "noModels": "No hay modelos configurados",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "showEnabledOnly": "Mostrar solo habilitados",
+    "showAll": "Mostrar todos los proveedores",
+    "dragHandle": "Arrastra para reordenar",
+    "reorderFailed": "Error al guardar el orden de los proveedores",
+    "credentials": {
+      "apiKey": "Clave de API",
+      "apiBaseUrl": "URL base de la API"
+    },
+    "filter": {
+      "all": "Todos",
+      "chat": "Chat",
+      "code": "Código"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Selecciona una plantilla",
+      "skipTemplates": "Omitir, configurar manualmente",
+      "name": "Nombre *",
+      "providerType": "Tipo",
+      "apiType": "Tipo de API",
+      "apiTypeOptions": {
+        "openai": "Completado OpenAI",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Formato estándar de API chat/completions de OpenAI",
+        "claudecode": "Formato de API de mensajes de Anthropic (Claude Code)"
+      },
+      "chatApiFormat": "Formato de API",
+      "chatApiFormatDescription": "Selecciona el formato de API que corresponde al endpoint de tu proveedor",
+      "apiKey": "Clave de API",
+      "apiKeyPlaceholder": "sk-... o $ENV_VAR",
+      "apiKeyHelper": "Usa $VAR_NAME para referenciar variables de entorno",
+      "apiKeySetPlaceholder": "La clave está configurada — déjalo en blanco para conservarla",
+      "apiKeyReplaceHelper": "Hay una clave almacenada de forma segura. Escribe un nuevo valor para reemplazarla o déjalo en blanco para conservarla.",
+      "testApiKey": "Probar clave de API",
+      "apiUrl": "URL de la API *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Vista previa:",
+      "models": "Modelos",
+      "modelPlaceholder": "Nombre del modelo (p. ej., gpt-4, claude-3-opus)",
+      "transformers": "Transformadores",
+      "transformerConfig": "Transformadores de API",
+      "transformerConfigDescription": "Configura transformadores para adaptar los formatos de solicitud/respuesta de la API de este proveedor",
+      "transformerConfigNote": "El daemon aplica estos transformadores en la cadena de solicitudes, después del transformador de formato del proveedor (que gestiona la conversión del formato de red). Los nombres de transformadores desconocidos se omiten.",
+      "enabled": "Habilitado",
+      "apiVersion": "Versión de la API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Versión de la API de Azure OpenAI (p. ej., 2024-08-01-preview)",
+      "official": "API oficial de Anthropic",
+      "officialHelper": "Habilita esta opción si el proveedor se conecta directamente a la API oficial de Anthropic. Desactívala para proxies inversos o servicios de terceros.",
+      "maxConcurrency": "Máximo de solicitudes simultáneas",
+      "maxConcurrencyHelper": "Número máximo de solicitudes de API simultáneas enviadas a este proveedor. Valores más bajos ayudan a evitar la limitación de velocidad (errores 429). Establece `-1` para sin límite.",
+      "codingPlan": {
+        "label": "Plan de codificación",
+        "description": "Usar un endpoint de API independiente para planes de codificación basados en suscripción",
+        "baseUrl": "URL base del plan de codificación",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Clave de API del plan de codificación (opcional)",
+        "apiKeyPlaceholder": "Déjalo vacío para usar la clave de API del proveedor",
+        "apiKeyHelper": "Solo es necesaria si el plan de codificación utiliza una clave de API diferente",
+        "tokenPlanHint": "Algunos proveedores (p. ej., Xiaomi MiMo) emiten claves de Plan de tokens con el prefijo `tp-` — solo informativo, no se aplica."
+      },
+      "selectTypeFirst": "Selecciona el tipo de proveedor",
+      "selectTypeFirstDesc": "Elige qué tipo de proveedor deseas añadir",
+      "codeProviderNote": "Los proveedores de código solo necesitan clave de API y URL. Los modelos son gestionados por el router de agentes.",
+      "buttons": {
+        "cancel": "Cancelar",
+        "submitAdd": "Añadir proveedor",
+        "submitUpdate": "Actualizar proveedor",
+        "continue": "Continuar",
+        "back": "Atrás"
+      }
+    },
+    "details": {
+      "noSelection": "Selecciona un proveedor para ver los detalles",
+      "apiKey": "Clave de API",
+      "apiUrl": "URL de la API",
+      "nameLabel": "Nombre del proveedor",
+      "modelsEndpoint": "Endpoint de modelos",
+      "modelsEndpointHelper": "Anula el endpoint de descubrimiento si el proveedor expone una ruta /models personalizada.",
+      "models": "Modelos",
+      "transformers": "Transformadores",
+      "codeProviderNote": "Los proveedores de código (como Claude Code) no requieren configuración de modelos. Los modelos son gestionados automáticamente por el router de agentes.",
+      "buttons": {
+        "more": "Más ajustes",
+        "delete": "Eliminar"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Selecciona proveedor y modelo",
+      "noProviders": "No hay proveedores disponibles",
+      "noModels": "No hay modelos configurados"
+    },
+    "apiKeyPool": {
+      "title": "Grupo de claves de API",
+      "description": "Configura varias claves de API para el equilibrio de carga. Cada sesión se mantiene en una clave para conservar la caché de prompts.",
+      "defaultLabel": "Predeterminada",
+      "weight": "Peso",
+      "noKey": "Sin clave",
+      "labelPlaceholder": "Etiqueta (p. ej., Clave n.º 1, Producción)",
+      "addKey": "Añadir clave de API",
+      "add": "Añadir",
+      "empty": "No hay claves adicionales configuradas.",
+      "statusCoolingDown": "En enfriamiento {{time}}",
+      "statusAuthFailed": "Autenticación fallida · deshabilitada",
+      "statusDisabled": "Deshabilitada",
+      "statusHealthy": "En buen estado",
+      "agoSeconds": "hace {{count}}s",
+      "agoMinutes": "hace {{count}}m",
+      "agoHours": "hace {{count}}h",
+      "agoDays": "hace {{count}}d"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Buscar modelos...",
+      "defaultGroup": "Todos los modelos",
+      "add": "Añadir modelo",
+      "manage": "Gestionar",
+      "empty": "No hay modelos en este grupo",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado",
+      "filters": {
+        "all": "Todos",
+        "vision": "Visión",
+        "reasoning": "Razonamiento",
+        "free": "Gratuito",
+        "tools": "Herramientas"
+      },
+      "manualDialog": {
+        "title": "Añadir modelo",
+        "subtitle": "Añade un modelo personalizado a este proveedor",
+        "modelId": "ID del modelo",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, etc.",
+        "modelIdHelper": "El identificador exacto del modelo utilizado al llamar a la API",
+        "modelName": "Nombre para mostrar",
+        "modelNamePlaceholder": "Nombre descriptivo (opcional)",
+        "modelNameHelper": "Nombre opcional que se muestra en la interfaz. Si está vacío, se usará el ID del modelo",
+        "group": "Grupo",
+        "groupPlaceholder": "Selecciona o introduce un nombre de grupo",
+        "submit": "Añadir",
+        "cancel": "Cancelar",
+        "helper": "Proporciona el identificador exacto del modelo expuesto por la API del proveedor."
+      },
+      "editDialog": {
+        "title": "Editar modelo",
+        "subtitle": "Modificar la configuración del modelo",
+        "modelId": "ID del modelo",
+        "modelIdPlaceholder": "Identificador del modelo",
+        "modelIdHelper": "El identificador del modelo utilizado al llamar a la API",
+        "modelName": "Nombre para mostrar",
+        "modelNamePlaceholder": "Nombre descriptivo",
+        "modelNameHelper": "Nombre que se muestra en la interfaz",
+        "group": "Grupo",
+        "groupPlaceholder": "Selecciona o introduce un nombre de grupo",
+        "submit": "Guardar",
+        "cancel": "Cancelar",
+        "vision": "Capacidad de visión",
+        "visionHint": "Si este modelo admite entrada de imágenes/visión",
+        "reasoning": "Modelo de razonamiento",
+        "reasoningHint": "Si este modelo admite el modo de razonamiento/pensamiento"
+      },
+      "manageDialog": {
+        "title": "Gestionar modelos",
+        "cachedAt": "En caché el {{date}} ({{source}})",
+        "refresh": "Actualizar",
+        "close": "Cerrar",
+        "raw": "JSON sin procesar",
+        "empty": "No hay modelos remotos disponibles.",
+        "error": "Error al cargar los modelos: {{message}}",
+        "addFromCatalog": "Añadir",
+        "sourceCache": "caché",
+        "sourceNetwork": "en vivo",
+        "contextLength": "Contexto de {{value}} tokens",
+        "maxTokens": "Máx. {{value}} tokens"
+      },
+      "messages": {
+        "added": "Modelo añadido.",
+        "updated": "Modelo actualizado.",
+        "removed": "Modelo eliminado.",
+        "duplicate": "El modelo ya existe.",
+        "refreshed": "Modelos actualizados",
+        "refreshFailed": "Error al actualizar los modelos"
+      },
+      "testDialog": {
+        "title": "Prueba de conectividad del modelo",
+        "provider": "Proveedor",
+        "model": "Modelo",
+        "testing": "Probando...",
+        "success": "Prueba superada",
+        "successMessage": "Se puede acceder al modelo con normalidad",
+        "failure": "Prueba fallida",
+        "aiResponse": "Respuesta de la IA",
+        "charCount": "{{count}} caracteres",
+        "duration": "Duración {{time}}s",
+        "close": "Cerrar",
+        "retest": "Volver a probar",
+        "testButton": "Probar modelo",
+        "unsupportedFormat": "Las pruebas aún no están disponibles para este formato de proveedor."
+      }
+    },
+    "router": {
+      "title": "Configuración del router",
+      "description": "Configura qué proveedor/modelo usar para cada escenario.",
+      "labels": {
+        "default": "Predeterminado",
+        "background": "fondo",
+        "think": "razonamiento",
+        "longContext": "Contexto largo",
+        "webSearch": "Búsqueda web",
+        "image": "Imagen",
+        "longContextThreshold": "Umbral de contexto largo"
+      },
+      "helper": {
+        "longContextThreshold": "Número de tokens a partir del cual se cambia al modelo de contexto largo."
+      },
+      "placeholder": {
+        "required": "Obligatorio",
+        "optional": "Opcional"
+      }
+    },
+    "agentRouter": {
+      "title": "Router de agentes",
+      "description": "Configura el enrutamiento bidireccional entre los modos Chat y Código.",
+      "searchPlaceholder": "Buscar routers...",
+      "noSearchResults": "Ningún router coincide con tu búsqueda.",
+      "tabs": {
+        "chatToCode": "Chat → Código",
+        "codeToChatPlaceholder": "Código → Chat"
+      },
+      "chatToCode": {
+        "title": "Router de Chat a Código",
+        "description": "Usar proveedores de chat en modo agente/codificación",
+        "addRouter": "Añadir router",
+        "emptyState": "No hay routers Chat→Código configurados. Añade uno para usar proveedores de chat en modo de codificación.",
+        "form": {
+          "name": "Nombre del router",
+          "namePlaceholder": "Mi router Chat→Código",
+          "chatProvider": "Proveedor de chat",
+          "chatProviderPlaceholder": "Selecciona un proveedor de chat",
+          "mode": "Modo",
+          "modeSimple": "Simple",
+          "modeAdvanced": "Avanzado",
+          "modeSimpleDesc": "Paso directo al proveedor de chat",
+          "modeAdvancedDesc": "Configurar la asignación de modelos y el manejo del contexto",
+          "enabled": "Habilitado",
+          "save": "Guardar router",
+          "cancel": "Cancelar"
+        },
+        "list": {
+          "provider": "Proveedor",
+          "mode": "Modo",
+          "status": "Estado"
+        },
+        "mappings": {
+          "title": "Asignaciones de modelos",
+          "description": "Asigna modelos del proveedor de Chat a modelos del proveedor de Código",
+          "count": "asignación(es)",
+          "empty": "No hay asignaciones de modelos configuradas. Añade asignaciones para enrutar modelos de chat a proveedores de código.",
+          "addNew": "Añadir nueva asignación",
+          "selectSource": "Selecciona el modelo de origen (Chat)",
+          "selectTarget": "Selecciona el modelo de destino (Código)",
+          "targetPlaceholder": "Introduce el nombre del modelo de Claude Code",
+          "notSet": "(No configurado — haz clic para seleccionar)",
+          "add": "Añadir",
+          "edit": "Editar",
+          "done": "Hecho"
+        },
+        "advanced": {
+          "title": "Configuración avanzada",
+          "description": "Configurar modelos para diferentes tipos de tareas",
+          "helpText": "El modelo predeterminado es obligatorio. Los demás modelos son opcionales y usarán el predeterminado si no están configurados.",
+          "default": {
+            "label": "Predeterminado",
+            "placeholder": "Selecciona el modelo predeterminado",
+            "description": "Modelo principal para tareas generales (similar a Claude Sonnet)"
+          },
+          "background": {
+            "label": "Fondo",
+            "placeholder": "Selecciona el modelo de fondo",
+            "description": "Modelo ligero para tareas en segundo plano (similar a Claude Haiku)"
+          },
+          "think": {
+            "label": "Razonamiento",
+            "placeholder": "Selecciona el modelo de razonamiento",
+            "description": "Modelo avanzado para razonamiento complejo (similar a Claude Opus)"
+          },
+          "image": {
+            "label": "Imagen",
+            "placeholder": "Selecciona el modelo de imagen",
+            "description": "Modelo para tareas relacionadas con imágenes con capacidad de visión"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Router de Código a Chat",
+        "description": "Exponer modelos del Plan de codificación en modo chat",
+        "addRouter": "Añadir router",
+        "emptyState": "No hay routers Código→Chat configurados. Añade uno para exponer modelos del Plan de codificación en modo chat.",
+        "form": {
+          "name": "Nombre del router",
+          "namePlaceholder": "Mi router Código→Chat",
+          "codeProvider": "Proveedor de código",
+          "codeProviderPlaceholder": "Selecciona un proveedor de código",
+          "codeProviderHelper": "Selecciona el proveedor de código a usar para la transformación",
+          "models": "Modelos del plan de codificación",
+          "modelsHelper": "Selecciona los modelos del Plan de codificación que quieres exponer",
+          "enabled": "Habilitado",
+          "save": "Guardar router",
+          "cancel": "Cancelar"
+        },
+        "mappings": {
+          "title": "Asignaciones de modelos",
+          "description": "Asigna modelos del proveedor de Código a modelos del proveedor de Chat para su exposición",
+          "count": "asignación(es)",
+          "empty": "No hay asignaciones de modelos configuradas. Añade asignaciones para exponer modelos de código en modo chat.",
+          "addNew": "Añadir nueva asignación",
+          "selectSource": "Selecciona el modelo de origen (Código)",
+          "selectTarget": "Selecciona el modelo de destino (Chat)",
+          "sourcePlaceholder": "Introduce el nombre del modelo de origen",
+          "targetPlaceholder": "Introduce el nombre del modelo de destino",
+          "add": "Añadir",
+          "edit": "Editar",
+          "done": "Hecho"
+        }
+      },
+      "transformers": {
+        "title": "Transformadores",
+        "description": "Configura transformadores para la conversión de solicitudes/respuestas",
+        "noProvider": "Selecciona un proveedor para configurar los transformadores",
+        "empty": "Sin transformadores",
+        "count": "{{count}} transformador(es)"
+      },
+      "status": {
+        "enabled": "Habilitado",
+        "disabled": "Deshabilitado"
+      },
+      "messages": {
+        "routerAdded": "Router añadido correctamente",
+        "routerUpdated": "Router actualizado correctamente",
+        "routerDeleted": "Router eliminado correctamente",
+        "saveFailed": "Error al guardar el router"
+      }
+    },
+    "presets": {
+      "title": "Añadir proveedor rápidamente",
+      "added": "Añadido",
+      "add": "Añadir",
+      "features": {
+        "search": "Búsqueda",
+        "vision": "Visión",
+        "mcp": "MCP",
+        "codingPlan": "Plan de codificación"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "¿Estás seguro de que quieres eliminar este proveedor?"
+    },
+    "errors": {
+      "nameRequired": "El nombre del proveedor es obligatorio",
+      "urlRequired": "La URL base de la API es obligatoria",
+      "urlInvalid": "Introduce una URL válida (p. ej., https://api.example.com)",
+      "saveFailed": "Error al guardar el proveedor",
+      "deleteFailed": "Error al eliminar el proveedor. Por favor, inténtalo de nuevo.",
+      "toggleFailed": "Error al activar/desactivar el proveedor. Por favor, inténtalo de nuevo."
+    },
+    "openRouter": {
+      "title": "Enrutamiento de proveedores de OpenRouter",
+      "description": "Configura cómo se enrutan las solicitudes a los distintos proveedores en OpenRouter.",
+      "sort": "Estrategia de enrutamiento",
+      "sortTooltip": "Elige cómo priorizar los proveedores. Auto utiliza equilibrio de carga inteligente.",
+      "order": "Orden de prioridad de proveedores",
+      "orderTooltip": "Especifica los proveedores que se intentarán en orden (p. ej., anthropic, openai, together). Pulsa Intro para añadir.",
+      "orderPlaceholder": "Escribe el slug del proveedor y pulsa Intro...",
+      "allowFallbacks": "Permitir alternativas",
+      "allowFallbacksTooltip": "Cuando está habilitado, OpenRouter intentará proveedores de respaldo si el principal no está disponible.",
+      "requireParameters": "Requerir todos los parámetros",
+      "requireParametersTooltip": "Solo enrutar a proveedores que admitan todos los parámetros de tu solicitud.",
+      "dataCollection": "Política de recopilación de datos",
+      "dataCollectionTooltip": "Controla si se usan proveedores que pueden almacenar o entrenar con tus datos.",
+      "zdr": "Retención cero de datos",
+      "zdrTooltip": "Solo enrutar a endpoints con política de retención cero de datos.",
+      "only": "Usar solo estos proveedores",
+      "onlyTooltip": "Usar únicamente estos proveedores específicos. Déjalo vacío para permitir todos los proveedores.",
+      "onlyPlaceholder": "Escribe el slug del proveedor y pulsa Intro...",
+      "ignore": "Ignorar proveedores",
+      "ignoreTooltip": "Omitir estos proveedores al enrutar las solicitudes.",
+      "ignorePlaceholder": "Escribe el slug del proveedor y pulsa Intro...",
+      "quantizations": "Filtro de cuantización",
+      "quantizationsTooltip": "Usar solo proveedores con niveles de cuantización específicos. Una precisión menor puede reducir la calidad pero mejorar la velocidad.",
+      "maxPrice": "Precio máximo",
+      "maxPriceTooltip": "Establece límites de precio máximo por millón de tokens. Déjalo vacío para sin límite.",
+      "configured": "Configurado"
+    }
+  },
+  "apiMode": {
+    "label": "Modo de API",
+    "standard": "Estándar",
+    "codingPlan": "Plan de codificación",
+    "tokenPlan": "Plan de tokens",
+    "apiKeyPrefixHint": "Las claves de este plan suelen comenzar con `{{prefix}}`. Solo orientativo — no se aplica.",
+    "dashscopeCodingPlanSeparateKey": "El Plan de codificación de DashScope utiliza una clave de API independiente del endpoint estándar.",
+    "baiduCodingPlanSeparateKey": "El Plan de codificación de Qianfan utiliza una clave de API independiente del endpoint estándar.",
+    "tencentTokenPlanAnthropicOnly": "El Plan de tokens de Tencent solo es compatible con el protocolo Anthropic.",
+    "xiaomiTokenPlanRegions": "La baseUrl predeterminada es `token-plan-cn.*`. Puedes editarla manualmente a `token-plan-sgp.*` o `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "¿Cambiar el modo de API?",
+    "confirmOverwriteBody": "Has personalizado la URL de la API o la clave de API. Cambiar de modo las sobreescribirá con los valores predeterminados del nuevo modo — o conserva tus personalizaciones y solo actualiza la etiqueta del modo.",
+    "overwriteAndSwitch": "Sobreescribir y cambiar",
+    "keepCustomizations": "Conservar personalizaciones"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Plan de tokens)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "copy": "Copiar",
+    "delete": "Eliminar",
+    "dismiss": "Descartar",
+    "save": "Guardar",
+    "optional": "opcional",
+    "retry": "Reintentar",
+    "loading": "Cargando…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Documentación"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Aún no compatible con el daemon",
+    "discoveryUnsupportedFormat": "El descubrimiento de modelos aún no está disponible para este formato de proveedor. Añade los modelos manualmente."
+  },
+  "nav": {
+    "subtitle": "Panel de control",
+    "providers": "Proveedores",
+    "apiService": "Servicio de API",
+    "accounts": "Cuentas",
+    "codeCli": "CLI de código",
+    "settings": "Ajustes",
+    "usageStats": "Uso",
+    "pricing": "Precios"
+  },
+  "apiService": {
+    "title": "Servicio de API",
+    "description": "Configura el servidor de API saliente, el enrutamiento de modelos por endpoint y las claves de acceso nombradas.",
+    "loading": "Cargando configuración del servidor…",
+    "loadError": "No se pudo cargar la configuración del servidor. Comprueba que el daemon sea accesible.",
+    "enable": {
+      "label": "Habilitar servidor saliente",
+      "description": "Inicia el servidor de API local que enruta las llamadas externas a través de tus proveedores."
+    },
+    "networkBinding": {
+      "label": "Permitir acceso por red local",
+      "description": "Vincula el servidor a tu interfaz de red en lugar de solo a la interfaz de bucle local.",
+      "warning": "El acceso por red local expone el servidor de API a otros dispositivos de tu red. Combinado con el enrutamiento de suscripciones, las solicitudes pueden consumir tu cuota de suscripción — mantén esto desactivado a menos que confíes en la red."
+    },
+    "status": {
+      "running": "Servidor en ejecución",
+      "stopped": "Servidor detenido",
+      "runningHint": "El servidor de API saliente está aceptando solicitudes.",
+      "stoppedHint": "Habilita el servidor para comenzar a aceptar solicitudes.",
+      "port": "puerto {{port}}",
+      "loopback": "URLs de bucle local",
+      "lan": "URLs de red local"
+    },
+    "endpoints": {
+      "title": "Enrutamiento de endpoints",
+      "description": "Elige el modelo al que enruta cada formato de red. El modelo predeterminado se incluye aquí — el servidor es un router, no una aplicación de chat."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "Chat de OpenAI",
+        "responses": "Respuestas de OpenAI",
+        "messages": "Mensajes de Anthropic",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Modelo predeterminado",
+      "backgroundModel": "Modelo de fondo",
+      "visionModel": "Modelo de visión",
+      "noVisionModel": "Ninguno",
+      "backgroundModelIds": "IDs de modelos de fondo",
+      "backgroundModelIdsPlaceholder": "IDs de modelos separados por comas",
+      "modelPlaceholder": "Selecciona un modelo…",
+      "useSubscription": "Usar suscripción",
+      "subscriptionUnsupported": "El enrutamiento por suscripción no está disponible para este endpoint."
+    },
+    "keys": {
+      "title": "Claves de acceso",
+      "description": "Claves nombradas que los clientes externos envían como token Bearer. La clave completa solo se muestra una vez al crearla.",
+      "namePlaceholder": "Nombre de la clave (p. ej., mi-cli)",
+      "create": "Crear clave",
+      "empty": "Aún no hay claves de acceso.",
+      "enabled": "Habilitada",
+      "disabled": "Deshabilitada",
+      "revoked": "Revocada",
+      "toggle": "Activar/desactivar clave",
+      "revoke": "Revocar",
+      "revokeConfirmTitle": "¿Revocar esta clave?",
+      "revokeConfirmDesc": "Revocar \"{{name}}\" detiene inmediatamente su capacidad de autenticación. Esta acción no se puede deshacer.",
+      "created": {
+        "title": "Clave creada",
+        "warning": "Copia esta clave ahora — no se volverá a mostrar. Guárdala de forma segura.",
+        "copy": "Copiar",
+        "copied": "Copiada",
+        "dismiss": "Listo"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Cuentas y suscripciones",
+    "description": "Gestiona las credenciales de suscripción a través de las cuales enruta el servidor. Los tokens se escriben aquí pero nunca se vuelven a mostrar.",
+    "loading": "Cargando cuentas…",
+    "empty": "No hay proveedores de suscripción disponibles.",
+    "signIn": "Iniciar sesión",
+    "oauth": {
+      "title": "Iniciar sesión en {{name}}",
+      "description": "Abre la página de inicio de sesión en tu navegador, autoriza y pega el código de autorización a continuación. El código solo se envía al daemon — el token generado nunca se muestra.",
+      "openPage": "Abrir página de inicio de sesión",
+      "codeLabel": "Código de autorización",
+      "codePlaceholder": "Pega el código aquí",
+      "submit": "Completar inicio de sesión"
+    },
+    "codexOauth": {
+      "title": "Iniciar sesión en {{name}}",
+      "description": "Abre la página de inicio de sesión en tu navegador y autoriza. El daemon captura el resultado automáticamente — mantén esta ventana abierta hasta que se complete. El token nunca se muestra.",
+      "waiting": "Esperando a que completes el inicio de sesión en tu navegador…",
+      "failed": "Error al iniciar sesión. Por favor, inténtalo de nuevo."
+    },
+    "clearProvider": "Borrar todo",
+    "clearConfirmTitle": "¿Borrar las cuentas de {{name}}?",
+    "clearConfirmDesc": "Esto elimina todas las credenciales almacenadas para este proveedor. Esta acción no se puede deshacer.",
+    "credential": {
+      "ok": "Configurada",
+      "notConfigured": "No configurada"
+    },
+    "kind": {
+      "pass-through": "Credenciales de paso directo",
+      "oauth-bearer": "Bearer OAuth",
+      "static-bearer": "Clave bearer estática"
+    },
+    "reason": {
+      "missing-credential": "No hay credenciales almacenadas.",
+      "expired": "La credencial ha caducado.",
+      "reauth-required": "Se requiere reautenticación.",
+      "refresh-failed": "Error al renovar el token.",
+      "not-refreshable": "La credencial no se puede renovar.",
+      "unknown": "Estado desconocido."
+    },
+    "status": {
+      "unconfigured": "Sin configurar",
+      "authorized": "Autorizada",
+      "configured": "Configurada",
+      "expired": "Caducada",
+      "error": "Error"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Token de configuración",
+      "manual": "Manual"
+    },
+    "list": {
+      "empty": "No hay cuentas almacenadas para este proveedor.",
+      "active": "Activa",
+      "expiresAt": "Caduca {{value}}",
+      "setActive": "Establecer como activa",
+      "remove": "Eliminar",
+      "removeConfirmTitle": "¿Eliminar esta cuenta?",
+      "removeConfirmDesc": "Eliminar \"{{name}}\" borra su credencial almacenada. Esta acción no se puede deshacer.",
+      "title": "Cuentas"
+    },
+    "write": {
+      "trigger": "Añadir credencial",
+      "title": "Escribir credencial de {{name}}",
+      "description": "Pega el material del token ya obtenido. Los campos están limitados a lo que acepta este proveedor; el token se almacena y nunca se vuelve a mostrar.",
+      "authMethod": "Método de autenticación",
+      "status": "Estado",
+      "subscriptionLevel": "Nivel de suscripción",
+      "subscriptionLevelNone": "Sin definir",
+      "submit": "Guardar credencial"
+    },
+    "field": {
+      "accessToken": "Token de acceso",
+      "refreshToken": "Token de actualización",
+      "idToken": "Token de ID",
+      "apiKey": "Clave de API",
+      "expiresAt": "Caduca en (ISO)",
+      "setupTokenExpiresAt": "El token de configuración caduca en (ISO)",
+      "accountId": "ID de cuenta",
+      "email": "Correo electrónico",
+      "organizationId": "ID de organización",
+      "baseUrl": "URL base",
+      "zenBaseUrl": "URL base de Zen"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Credenciales de suscripción de Anthropic enrutadas por el daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Credenciales de suscripción de OpenAI Codex enrutadas por el daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Credenciales de suscripción de Google Gemini enrutadas por el daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Credenciales de clave de API estática enrutadas por el daemon."
+      }
+    },
+    "authMethodLabel": "Método de autorización",
+    "authMethodDesc": {
+      "oauth": "Inicia sesión a través de tu navegador; el daemon captura y almacena el token.",
+      "manual": "Pega un token ya obtenido. Se almacena y nunca se vuelve a mostrar."
+    },
+    "actions": {
+      "authorize": "Autorizar",
+      "enterToken": "Introducir token",
+      "refresh": "Actualizar"
+    },
+    "accounts": {
+      "addAccount": "Añadir cuenta"
+    },
+    "detail": {
+      "authMethod": "Método de autorización",
+      "subscriptionLevel": "Nivel de suscripción",
+      "expiresAt": "Caduca",
+      "lastRefreshed": "Última actualización",
+      "label": "Etiqueta de cuenta",
+      "labelPlaceholder": "Nombra esta cuenta",
+      "saveLabel": "Guardar etiqueta"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Abre la página de autorización",
+        "desc": "Abre la página de inicio de sesión en tu navegador."
+      },
+      "step2": {
+        "title": "Autoriza el acceso",
+        "desc": "Inicia sesión y aprueba el acceso para el proveedor."
+      },
+      "step3": {
+        "title": "Copia el código de autorización",
+        "desc": "La página muestra un código de autorización tras tu aprobación."
+      },
+      "step4": {
+        "title": "Pega el código",
+        "desc": "Pega el código de autorización a continuación para finalizar. El código solo se envía al daemon — el token generado nunca se muestra."
+      },
+      "authorize": "Completar inicio de sesión",
+      "showUrl": "Mostrar URL de autorización"
+    },
+    "manual": {
+      "title": "Pegar credencial",
+      "description": "Pega un token ya obtenido. Los campos están limitados a lo que acepta este proveedor; el token se almacena y nunca se vuelve a mostrar.",
+      "accessTokenPlaceholder": "Pega el token de acceso",
+      "refreshTokenPlaceholder": "Pega el token de actualización (opcional)",
+      "hint": "El token se envía al daemon y se almacena cifrado. Nunca se vuelve a mostrar."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "Se requiere una clave de API.",
+      "apiKeyPlaceholder": "Pega la clave de API",
+      "baseUrlPlaceholder": "https://… (opcional)",
+      "zenBaseUrlPlaceholder": "https://… (opcional)"
+    },
+    "info": {
+      "title": "Acerca de las cuentas de suscripción",
+      "description": "Los tokens se escriben en el daemon y se usan para autenticar las solicitudes de destino. Se almacenan cifrados y nunca se vuelven a mostrar. Eliminar una cuenta borra su credencial almacenada."
+    },
+    "rename": {
+      "failed": "No se pudo cambiar el nombre de la cuenta."
+    },
+    "refresh": {
+      "failed": "No se pudo actualizar el token."
+    },
+    "errors": {
+      "requestFailed": "La solicitud falló. Por favor, inténtalo de nuevo."
+    },
+    "syncWarning": {
+      "external-divergent": "El archivo de inicio de sesión de la CLI externa contiene credenciales más recientes que esta cuenta. El token guardado podría dejar de renovarse: renueva ahora o vuelve a iniciar sesión.",
+      "external-not-rotated": "La renovación falló y la CLI externa contiene las mismas credenciales caducadas. Vuelve a iniciar sesión.",
+      "duplicate-token": "Otra cuenta comparte estas credenciales. Renovar cualquiera de las dos invalidará la otra."
+    },
+    "importExternal": {
+      "detected": "Se encontró una sesión de CLI de {{name}} existente en esta máquina.",
+      "hint": "Tras la importación, esta aplicación la mantiene actualizada: en cada renovación del token también se actualiza el archivo de sesión de la CLI, de modo que la CLI del terminal sigue conectada.",
+      "button": "Importar sesión de CLI existente"
+    }
+  },
+  "codeCli": {
+    "title": "CLI de código",
+    "description": "Apunta una CLI de codificación al proxy saliente del daemon. Esta página es de solo lectura — no hay nada que configurar aquí.",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "baseUrl": {
+      "title": "URL base del daemon",
+      "description": "La dirección del proxy a la que se conecta tu CLI.",
+      "label": "URL base"
+    },
+    "token": {
+      "title": "Autenticación",
+      "hint": "Envía 'Authorization: Bearer <tu-token-de-administración>' para las rutas de administración. El token de administración se configura en el daemon (su archivo de configuración o entorno) — nunca se muestra aquí."
+    },
+    "examples": {
+      "title": "Entorno de lanzamiento de ejemplo",
+      "keyNote": "Usa una clave de acceso saliente creada en la página del Servicio de API — no el token de administración.",
+      "anthropic": "CLI en formato Anthropic",
+      "openai": "CLI en formato OpenAI"
+    },
+    "launchDescription": "Lanza una CLI de codificación en un terminal apuntada a este daemon. El daemon inyecta el entorno de redirección e inicia la CLI automáticamente.",
+    "refresh": "Actualizar",
+    "loading": "Detectando CLIs…",
+    "cli": {
+      "installed": "Instalada",
+      "notFound": "No encontrada",
+      "notFoundHint": "Esta CLI no está en el PATH del host del daemon. Instálala y luego actualiza.",
+      "install": "Instalar",
+      "installing": "Instalando…",
+      "installingHint": "Instalando en el host del daemon — esto puede tardar un momento.",
+      "launch": "Lanzar",
+      "launchTitle": "Lanzar {{name}}",
+      "launchDescription": "Abre un nuevo terminal en el host del daemon ejecutando esta CLI, enrutada a través del proxy del daemon. Elige un directorio de trabajo opcional.",
+      "cwdLabel": "Directorio de trabajo",
+      "cwdPlaceholder": "/ruta/a/tu/proyecto",
+      "runningVia": "En ejecución · {{provider}} / {{model}}",
+      "stop": "Detener"
+    },
+    "manual": {
+      "title": "Configuración manual",
+      "description": "¿Prefieres ejecutar la CLI tú mismo? Apúntala al daemon con estas variables de entorno.",
+      "show": "Mostrar",
+      "hide": "Ocultar"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Comprobando si el daemon está disponible…",
+    "spawning": "Iniciando el daemon…",
+    "failed": "El daemon no ha podido iniciarse",
+    "failedHint": "Asegúrate de que Node.js está instalado y el daemon está compilado (dist presente), o establece OMNICROSS_DAEMON_ENTRY en el cli.js del daemon."
+  },
+  "settings": {
+    "title": "Ajustes",
+    "description": "Preferencias de la aplicación de escritorio.",
+    "desktopOnly": "Las opciones de inicio y bandeja solo se aplican en la aplicación de escritorio.",
+    "startup": {
+      "title": "Inicio",
+      "autoLaunch": "Iniciar al arrancar",
+      "autoLaunchHint": "Inicia Omnicross automáticamente cuando inicias sesión.",
+      "startMinimized": "Iniciar minimizado en la bandeja",
+      "startMinimizedHint": "Lanza en segundo plano sin abrir la ventana."
+    },
+    "tray": {
+      "title": "Bandeja del sistema",
+      "minimizeOnClose": "Minimizar a la bandeja al cerrar",
+      "minimizeOnCloseHint": "Cerrar la ventana la oculta en la bandeja en lugar de salir."
+    },
+    "language": {
+      "title": "Idioma",
+      "label": "Idioma de la interfaz"
+    }
+  },
+  "usageStats": {
+    "title": "Estadísticas de uso",
+    "description": "Estadísticas de tokens y costes de las solicitudes atendidas por el daemon.",
+    "rangeToday": "Hoy",
+    "range7d": "Últimos 7 días",
+    "range30d": "Últimos 30 días",
+    "rangeCustom": "Personalizado",
+    "from": "Desde",
+    "to": "Hasta",
+    "totalCost": "Coste total",
+    "cacheSavings": "Ahorro por caché",
+    "events": "Solicitudes",
+    "inputTokens": "Tokens de entrada",
+    "outputTokens": "Tokens de salida",
+    "cacheReadTokens": "Lectura de caché",
+    "cacheWriteTokens": "Escritura de caché",
+    "reasoningTokens": "Tokens de razonamiento",
+    "byModel": "Por modelo",
+    "byApiKey": "Por clave API",
+    "provider": "Proveedor",
+    "model": "Modelo",
+    "cost": "Coste",
+    "apiKey": "Clave API",
+    "unpriced": "Sin precio",
+    "unpricedHint": "No existe una entrada de precio para este modelo — agrégala en la página de Precios.",
+    "unattributed": "Sin atribuir",
+    "unattributedHint": "Solicitudes no vinculadas a una clave API concreta. Es lo esperado hasta que se registre la atribución por clave.",
+    "empty": "No hay solicitudes en este rango.",
+    "invalidRange": "Selecciona un rango de fechas válido."
+  },
+  "pricing": {
+    "title": "Precios de modelos",
+    "description": "Precios de tokens por modelo usados para calcular el coste de las solicitudes, en USD por millón de tokens.",
+    "search": "Buscar proveedor o modelo…",
+    "fetchLatest": "Obtener los últimos",
+    "fetching": "Obteniendo…",
+    "addEntry": "Añadir entrada",
+    "provider": "Proveedor",
+    "model": "Modelo",
+    "inputPrice": "Entrada",
+    "outputPrice": "Salida",
+    "cacheReadPrice": "Lectura de caché",
+    "cacheWritePrice": "Escritura de caché",
+    "source": "Fuente",
+    "updated": "Actualizado",
+    "userEdited": "editado",
+    "edit": "Editar",
+    "deleteTitle": "¿Eliminar esta entrada de precio?",
+    "empty": "La tabla de precios está vacía.",
+    "emptyHint": "Obtén los últimos precios para llenarla.",
+    "noMatches": "Ninguna entrada coincide con tu búsqueda.",
+    "saved": "Entrada de precio guardada.",
+    "saveFailed": "Error al guardar: {{message}}",
+    "deleteFailed": "Error al eliminar: {{message}}",
+    "alreadyDeleted": "La entrada ya no existía.",
+    "fetchApplied": "Se actualizaron {{count}} entradas desde la fuente.",
+    "fetchFailed": "Error al obtener: {{message}}",
+    "requiredId": "Obligatorio",
+    "invalidPrice": "Introduce un número no negativo",
+    "conflictTitle": "Resolver conflictos de precios",
+    "conflictHint": "Estas entradas fueron editadas por ti y también cambiaron en la fuente. Elige por fila si conservar tu valor (Omitir) o tomar el entrante (Sobrescribir).",
+    "current": "Actual",
+    "incoming": "Entrante",
+    "overwrite": "Sobrescribir",
+    "skip": "Omitir",
+    "overwriteAll": "Sobrescribir todo",
+    "skipAll": "Omitir todo",
+    "applyResolutions": "Aplicar",
+    "resolved": "{{overwritten}} sobrescritas, {{skipped}} omitidas.",
+    "resolvedWithStale": "{{overwritten}} sobrescritas, {{skipped}} omitidas. {{stale}} cambiaron mientras tanto y quedaron intactas.",
+    "refreshFailed": "El cambio se aplicó, pero no se pudo recargar la lista: {{message}}",
+    "sourceBuiltin": "Integrado",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Usuario"
+  }
+}

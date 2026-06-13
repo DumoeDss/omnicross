@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "LLM 설정을 불러오는 중...",
+    "reset": {
+      "button": "기본값 복원",
+      "confirmTitle": "기본 설정으로 복원하시겠습니까?",
+      "confirmBody": "이 프로바이더에 대한 사용자 지정 설정이 삭제되고 기본값으로 돌아갑니다. API 키와 저장된 세션은 유지됩니다.",
+      "confirmButton": "기본값 복원"
+    },
+    "reentryBanner": {
+      "message": "활성화된 프로바이더 {{count}}개에 API 키를 다시 입력해야 합니다. 각 프로바이더를 열고 키를 다시 입력하세요."
+    },
+    "migrationPack": {
+      "barHint": "암호화된 팩을 사용하여 프로바이더 키와 구독 토큰을 다른 기기로 이전합니다.",
+      "passphrase": "암호",
+      "passphrasePlaceholder": "암호를 입력하세요",
+      "passphraseHint": "8자 이상을 사용하세요. 12자 이상을 권장합니다.",
+      "confirm": "암호 확인",
+      "confirmPlaceholder": "암호를 다시 입력하세요",
+      "mismatch": "암호가 일치하지 않습니다.",
+      "strength": {
+        "weak": "너무 짧습니다 — 8자 이상을 사용하세요.",
+        "fair": "적절합니다 — 12자 이상이면 더 안전합니다.",
+        "strong": "강력한 암호입니다."
+      },
+      "export": {
+        "button": "팩 내보내기",
+        "title": "암호화된 팩 내보내기",
+        "subtitle": "프로바이더 키와 구독 토큰을 이식 가능한 파일로 암호화합니다.",
+        "warning": "이 파일에는 복호화 가능한 비밀 정보가 포함되어 있습니다. 안전하게 보관하세요 — 파일과 암호를 모두 가진 사람은 키를 읽을 수 있습니다. 암호를 분실하면 복구할 수 없습니다.",
+        "submit": "내보내기",
+        "success": "팩을 성공적으로 내보냈습니다.",
+        "error": "내보내기에 실패했습니다. 다시 시도하세요."
+      },
+      "import": {
+        "button": "팩 가져오기",
+        "title": "암호화된 팩 가져오기",
+        "subtitle": "내보낸 팩에서 프로바이더 키와 구독 토큰을 복원합니다.",
+        "hint": "팩을 내보낼 때 사용한 암호를 입력한 후 파일을 선택하세요.",
+        "submit": "가져오기",
+        "successTitle": "가져오기 완료",
+        "summary": "프로바이더 키 {{providerKeys}}개, 풀 키 {{poolKeys}}개, 토큰 세트 {{tokenSets}}개를 가져왔습니다.",
+        "duplicates": "이미 존재하는 풀 키 {{count}}개를 건너뛰었습니다.",
+        "skipped": "건너뜀 (일치하는 프로바이더 없음): {{names}}",
+        "error": "암호가 틀렸거나 팩이 손상되었습니다. 변경된 내용이 없습니다."
+      }
+    },
+    "searchPlaceholder": "프로바이더 검색...",
+    "emptySearch": "검색 조건에 맞는 프로바이더가 없습니다.",
+    "emptyList": "설정된 프로바이더가 없습니다.",
+    "selectPrompt": "프로바이더를 선택하여 세부 정보를 확인하세요",
+    "listStatus": "모델 {{count}}개",
+    "noModels": "설정된 모델이 없습니다",
+    "enabled": "활성화",
+    "disabled": "비활성화",
+    "showEnabledOnly": "활성화된 항목만 표시",
+    "showAll": "모든 프로바이더 표시",
+    "dragHandle": "드래그하여 순서 변경",
+    "reorderFailed": "프로바이더 순서 저장에 실패했습니다",
+    "credentials": {
+      "apiKey": "API 키",
+      "apiBaseUrl": "API 기본 URL"
+    },
+    "filter": {
+      "all": "전체",
+      "chat": "채팅",
+      "code": "코드"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "템플릿 선택",
+      "skipTemplates": "건너뛰고 직접 설정",
+      "name": "이름 *",
+      "providerType": "유형",
+      "apiType": "API 유형",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "표준 OpenAI chat/completions API 형식",
+        "claudecode": "Anthropic Messages API 형식 (Claude Code)"
+      },
+      "chatApiFormat": "API 형식",
+      "chatApiFormatDescription": "프로바이더 엔드포인트에 맞는 API 형식을 선택하세요",
+      "apiKey": "API 키",
+      "apiKeyPlaceholder": "sk-... 또는 $ENV_VAR",
+      "apiKeyHelper": "$VAR_NAME을 사용하여 환경 변수를 참조할 수 있습니다",
+      "apiKeySetPlaceholder": "키가 설정되어 있습니다 — 변경하지 않으려면 빈칸으로 두세요",
+      "apiKeyReplaceHelper": "키가 안전하게 저장되어 있습니다. 새 값을 입력하면 교체됩니다. 빈칸으로 두면 변경되지 않습니다.",
+      "testApiKey": "API 키 테스트",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "미리보기:",
+      "models": "모델",
+      "modelPlaceholder": "모델 이름 (예: gpt-4, claude-3-opus)",
+      "transformers": "트랜스포머",
+      "transformerConfig": "API 트랜스포머",
+      "transformerConfigDescription": "이 프로바이더의 API 요청/응답 형식을 변환하는 트랜스포머를 설정합니다",
+      "transformerConfigNote": "데몬은 요청 체인에서 프로바이더의 형식 트랜스포머(wire 형식 변환 담당) 이후에 이 트랜스포머들을 적용합니다. 알 수 없는 트랜스포머 이름은 건너뜁니다.",
+      "enabled": "활성화",
+      "apiVersion": "API 버전",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API 버전 (예: 2024-08-01-preview)",
+      "official": "Anthropic 공식 API",
+      "officialHelper": "이 프로바이더가 Anthropic 공식 API에 직접 연결하는 경우 활성화하세요. 리버스 프록시나 서드파티 서비스의 경우 비활성화하세요.",
+      "maxConcurrency": "최대 동시 요청 수",
+      "maxConcurrencyHelper": "이 프로바이더로 전송하는 최대 동시 API 요청 수입니다. 값을 낮추면 속도 제한(429 오류)을 방지하는 데 도움이 됩니다. `-1`로 설정하면 제한이 없습니다.",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "구독 기반 Coding Plan에 별도의 API 엔드포인트를 사용합니다",
+        "baseUrl": "Coding Plan 기본 URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API 키 (선택 사항)",
+        "apiKeyPlaceholder": "비워두면 프로바이더의 API 키를 사용합니다",
+        "apiKeyHelper": "Coding Plan이 다른 API 키를 사용하는 경우에만 필요합니다",
+        "tokenPlanHint": "일부 프로바이더(예: Xiaomi MiMo)는 `tp-` 접두사를 가진 Token Plan 키를 발급합니다 — 참고 정보이며 강제 적용되지 않습니다."
+      },
+      "selectTypeFirst": "프로바이더 유형 선택",
+      "selectTypeFirstDesc": "추가할 프로바이더 유형을 선택하세요",
+      "codeProviderNote": "코드 프로바이더는 API 키와 URL만 필요합니다. 모델은 Agent Router가 관리합니다.",
+      "buttons": {
+        "cancel": "취소",
+        "submitAdd": "프로바이더 추가",
+        "submitUpdate": "프로바이더 업데이트",
+        "continue": "계속",
+        "back": "뒤로"
+      }
+    },
+    "details": {
+      "noSelection": "프로바이더를 선택하여 세부 정보를 확인하세요",
+      "apiKey": "API 키",
+      "apiUrl": "API URL",
+      "nameLabel": "프로바이더 이름",
+      "modelsEndpoint": "모델 엔드포인트",
+      "modelsEndpointHelper": "프로바이더가 커스텀 /models 경로를 제공하는 경우 여기서 재정의할 수 있습니다.",
+      "models": "모델",
+      "transformers": "트랜스포머",
+      "codeProviderNote": "코드 프로바이더(Claude Code 등)는 모델 설정이 필요 없습니다. 모델은 Agent Router가 자동으로 관리합니다.",
+      "buttons": {
+        "more": "추가 설정",
+        "delete": "삭제"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "프로바이더와 모델 선택",
+      "noProviders": "사용 가능한 프로바이더가 없습니다",
+      "noModels": "설정된 모델이 없습니다"
+    },
+    "apiKeyPool": {
+      "title": "API 키 풀",
+      "description": "로드 밸런싱을 위해 여러 API 키를 설정합니다. 프롬프트 캐시를 유지하기 위해 각 세션은 하나의 키에 고정됩니다.",
+      "defaultLabel": "기본",
+      "weight": "가중치",
+      "noKey": "키 없음",
+      "labelPlaceholder": "레이블 (예: 키 #1, 프로덕션)",
+      "addKey": "API 키 추가",
+      "add": "추가",
+      "empty": "추가 키가 설정되어 있지 않습니다.",
+      "statusCoolingDown": "쿨다운 중 {{time}}",
+      "statusAuthFailed": "인증 실패 · 비활성화됨",
+      "statusDisabled": "비활성화됨",
+      "statusHealthy": "정상",
+      "agoSeconds": "{{count}}초 전",
+      "agoMinutes": "{{count}}분 전",
+      "agoHours": "{{count}}시간 전",
+      "agoDays": "{{count}}일 전"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "모델 검색...",
+      "defaultGroup": "전체 모델",
+      "add": "모델 추가",
+      "manage": "관리",
+      "empty": "이 그룹에 모델이 없습니다",
+      "enabled": "활성화",
+      "disabled": "비활성화",
+      "filters": {
+        "all": "전체",
+        "vision": "비전",
+        "reasoning": "추론",
+        "free": "무료",
+        "tools": "도구"
+      },
+      "manualDialog": {
+        "title": "모델 추가",
+        "subtitle": "이 프로바이더에 커스텀 모델을 추가합니다",
+        "modelId": "모델 ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash 등",
+        "modelIdHelper": "API 호출 시 사용하는 정확한 모델 식별자",
+        "modelName": "표시 이름",
+        "modelNamePlaceholder": "친숙한 표시 이름 (선택 사항)",
+        "modelNameHelper": "UI에 표시되는 이름입니다. 비워두면 모델 ID가 사용됩니다",
+        "group": "그룹",
+        "groupPlaceholder": "그룹 이름을 선택하거나 입력하세요",
+        "submit": "추가",
+        "cancel": "취소",
+        "helper": "프로바이더 API에서 제공하는 정확한 모델 식별자를 입력하세요."
+      },
+      "editDialog": {
+        "title": "모델 편집",
+        "subtitle": "모델 설정 수정",
+        "modelId": "모델 ID",
+        "modelIdPlaceholder": "모델 식별자",
+        "modelIdHelper": "API 호출 시 사용하는 모델 식별자",
+        "modelName": "표시 이름",
+        "modelNamePlaceholder": "친숙한 표시 이름",
+        "modelNameHelper": "UI에 표시되는 이름",
+        "group": "그룹",
+        "groupPlaceholder": "그룹 이름을 선택하거나 입력하세요",
+        "submit": "저장",
+        "cancel": "취소",
+        "vision": "비전 기능",
+        "visionHint": "이 모델이 이미지/비전 입력을 지원하는지 여부",
+        "reasoning": "추론 모델",
+        "reasoningHint": "이 모델이 사고/추론 모드를 지원하는지 여부"
+      },
+      "manageDialog": {
+        "title": "모델 관리",
+        "cachedAt": "{{date}} 캐시됨 ({{source}})",
+        "refresh": "새로고침",
+        "close": "닫기",
+        "raw": "Raw JSON",
+        "empty": "사용 가능한 원격 모델이 없습니다.",
+        "error": "모델 로드에 실패했습니다: {{message}}",
+        "addFromCatalog": "추가",
+        "sourceCache": "캐시",
+        "sourceNetwork": "실시간",
+        "contextLength": "컨텍스트 {{value}} 토큰",
+        "maxTokens": "최대 {{value}} 토큰"
+      },
+      "messages": {
+        "added": "모델이 추가되었습니다.",
+        "updated": "모델이 업데이트되었습니다.",
+        "removed": "모델이 제거되었습니다.",
+        "duplicate": "이미 존재하는 모델입니다.",
+        "refreshed": "모델이 새로고침되었습니다",
+        "refreshFailed": "모델 새로고침에 실패했습니다"
+      },
+      "testDialog": {
+        "title": "모델 연결 테스트",
+        "provider": "프로바이더",
+        "model": "모델",
+        "testing": "테스트 중...",
+        "success": "테스트 성공",
+        "successMessage": "모델에 정상적으로 접근할 수 있습니다",
+        "failure": "테스트 실패",
+        "aiResponse": "AI 응답",
+        "charCount": "{{count}}자",
+        "duration": "소요 시간 {{time}}초",
+        "close": "닫기",
+        "retest": "다시 테스트",
+        "testButton": "모델 테스트",
+        "unsupportedFormat": "이 프로바이더 형식은 아직 테스트를 지원하지 않습니다."
+      }
+    },
+    "router": {
+      "title": "라우터 설정",
+      "description": "상황별로 사용할 프로바이더/모델을 설정합니다.",
+      "labels": {
+        "default": "기본",
+        "background": "백그라운드",
+        "think": "추론",
+        "longContext": "긴 컨텍스트",
+        "webSearch": "웹 검색",
+        "image": "이미지",
+        "longContextThreshold": "긴 컨텍스트 임계값"
+      },
+      "helper": {
+        "longContextThreshold": "긴 컨텍스트 모델로 전환하기 전 토큰 수입니다."
+      },
+      "placeholder": {
+        "required": "필수",
+        "optional": "선택 사항"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent 라우터",
+      "description": "채팅 모드와 코드 모드 간의 양방향 라우팅을 설정합니다.",
+      "searchPlaceholder": "라우터 검색...",
+      "noSearchResults": "검색 조건에 맞는 라우터가 없습니다.",
+      "tabs": {
+        "chatToCode": "채팅 → 코드",
+        "codeToChatPlaceholder": "코드 → 채팅"
+      },
+      "chatToCode": {
+        "title": "채팅 → 코드 라우터",
+        "description": "에이전트/코딩 모드에서 채팅 프로바이더를 사용합니다",
+        "addRouter": "라우터 추가",
+        "emptyState": "채팅→코드 라우터가 설정되어 있지 않습니다. 코딩 모드에서 채팅 프로바이더를 사용하려면 추가하세요.",
+        "form": {
+          "name": "라우터 이름",
+          "namePlaceholder": "나의 채팅→코드 라우터",
+          "chatProvider": "채팅 프로바이더",
+          "chatProviderPlaceholder": "채팅 프로바이더를 선택하세요",
+          "mode": "모드",
+          "modeSimple": "단순",
+          "modeAdvanced": "고급",
+          "modeSimpleDesc": "채팅 프로바이더로 직접 전달",
+          "modeAdvancedDesc": "모델 매핑 및 컨텍스트 처리 설정",
+          "enabled": "활성화",
+          "save": "라우터 저장",
+          "cancel": "취소"
+        },
+        "list": {
+          "provider": "프로바이더",
+          "mode": "모드",
+          "status": "상태"
+        },
+        "mappings": {
+          "title": "모델 매핑",
+          "description": "채팅 프로바이더 모델을 코드 프로바이더 모델에 매핑합니다",
+          "count": "개 매핑",
+          "empty": "모델 매핑이 설정되어 있지 않습니다. 채팅 모델을 코드 프로바이더에 라우팅하려면 매핑을 추가하세요.",
+          "addNew": "새 매핑 추가",
+          "selectSource": "소스 모델 선택 (채팅)",
+          "selectTarget": "대상 모델 선택 (코드)",
+          "targetPlaceholder": "Claude Code 모델 이름을 입력하세요",
+          "notSet": "(미설정 - 클릭하여 선택)",
+          "add": "추가",
+          "edit": "편집",
+          "done": "완료"
+        },
+        "advanced": {
+          "title": "고급 설정",
+          "description": "작업 유형별로 모델을 설정합니다",
+          "helpText": "기본 모델은 필수입니다. 다른 모델은 선택 사항이며 설정하지 않으면 기본 모델로 대체됩니다.",
+          "default": {
+            "label": "기본",
+            "placeholder": "기본 모델을 선택하세요",
+            "description": "일반 작업을 위한 기본 모델 (Claude Sonnet 유사)"
+          },
+          "background": {
+            "label": "백그라운드",
+            "placeholder": "백그라운드 모델을 선택하세요",
+            "description": "백그라운드 작업을 위한 경량 모델 (Claude Haiku 유사)"
+          },
+          "think": {
+            "label": "추론",
+            "placeholder": "추론 모델을 선택하세요",
+            "description": "복잡한 추론을 위한 고급 모델 (Claude Opus 유사)"
+          },
+          "image": {
+            "label": "이미지",
+            "placeholder": "이미지 모델을 선택하세요",
+            "description": "비전 기능이 있는 이미지 관련 작업 모델"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "코드 → 채팅 라우터",
+        "description": "채팅 모드에서 Coding Plan 모델을 노출합니다",
+        "addRouter": "라우터 추가",
+        "emptyState": "코드→채팅 라우터가 설정되어 있지 않습니다. 채팅 모드에서 Coding Plan 모델을 노출하려면 추가하세요.",
+        "form": {
+          "name": "라우터 이름",
+          "namePlaceholder": "나의 코드→채팅 라우터",
+          "codeProvider": "코드 프로바이더",
+          "codeProviderPlaceholder": "코드 프로바이더를 선택하세요",
+          "codeProviderHelper": "변환에 사용할 코드 프로바이더를 선택하세요",
+          "models": "Coding Plan 모델",
+          "modelsHelper": "노출할 Coding Plan 모델을 선택하세요",
+          "enabled": "활성화",
+          "save": "라우터 저장",
+          "cancel": "취소"
+        },
+        "mappings": {
+          "title": "모델 매핑",
+          "description": "코드 프로바이더 모델을 채팅 프로바이더 모델에 매핑하여 노출합니다",
+          "count": "개 매핑",
+          "empty": "모델 매핑이 설정되어 있지 않습니다. 채팅 모드에서 코드 모델을 노출하려면 매핑을 추가하세요.",
+          "addNew": "새 매핑 추가",
+          "selectSource": "소스 모델 선택 (코드)",
+          "selectTarget": "대상 모델 선택 (채팅)",
+          "sourcePlaceholder": "소스 모델 이름을 입력하세요",
+          "targetPlaceholder": "대상 모델 이름을 입력하세요",
+          "add": "추가",
+          "edit": "편집",
+          "done": "완료"
+        }
+      },
+      "transformers": {
+        "title": "트랜스포머",
+        "description": "요청/응답 변환을 위한 트랜스포머를 설정합니다",
+        "noProvider": "트랜스포머를 설정하려면 프로바이더를 선택하세요",
+        "empty": "트랜스포머가 없습니다",
+        "count": "{{count}}개 트랜스포머"
+      },
+      "status": {
+        "enabled": "활성화",
+        "disabled": "비활성화"
+      },
+      "messages": {
+        "routerAdded": "라우터가 추가되었습니다",
+        "routerUpdated": "라우터가 업데이트되었습니다",
+        "routerDeleted": "라우터가 삭제되었습니다",
+        "saveFailed": "라우터 저장에 실패했습니다"
+      }
+    },
+    "presets": {
+      "title": "프로바이더 빠른 추가",
+      "added": "추가됨",
+      "add": "추가",
+      "features": {
+        "search": "검색",
+        "vision": "비전",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "이 프로바이더를 삭제하시겠습니까?"
+    },
+    "errors": {
+      "nameRequired": "프로바이더 이름은 필수입니다",
+      "urlRequired": "API 기본 URL은 필수입니다",
+      "urlInvalid": "유효한 URL을 입력하세요 (예: https://api.example.com)",
+      "saveFailed": "프로바이더 저장에 실패했습니다",
+      "deleteFailed": "프로바이더 삭제 중 오류가 발생했습니다. 다시 시도하세요.",
+      "toggleFailed": "프로바이더 전환 중 오류가 발생했습니다. 다시 시도하세요."
+    },
+    "openRouter": {
+      "title": "OpenRouter 프로바이더 라우팅",
+      "description": "OpenRouter에서 요청을 다른 프로바이더로 라우팅하는 방법을 설정합니다.",
+      "sort": "라우팅 전략",
+      "sortTooltip": "프로바이더 우선순위를 선택합니다. 자동은 지능형 로드 밸런싱을 사용합니다.",
+      "order": "프로바이더 우선순위",
+      "orderTooltip": "시도할 프로바이더 순서를 지정합니다 (예: anthropic, openai, together). Enter 키를 눌러 추가하세요.",
+      "orderPlaceholder": "프로바이더 슬러그를 입력하고 Enter를 누르세요...",
+      "allowFallbacks": "폴백 허용",
+      "allowFallbacksTooltip": "활성화하면 기본 프로바이더를 사용할 수 없을 때 OpenRouter가 백업 프로바이더를 시도합니다.",
+      "requireParameters": "모든 매개변수 요구",
+      "requireParametersTooltip": "요청의 모든 매개변수를 지원하는 프로바이더에만 라우팅합니다.",
+      "dataCollection": "데이터 수집 정책",
+      "dataCollectionTooltip": "데이터를 저장하거나 학습에 사용할 수 있는 프로바이더 사용 여부를 제어합니다.",
+      "zdr": "제로 데이터 보존",
+      "zdrTooltip": "제로 데이터 보존 정책이 적용된 엔드포인트에만 라우팅합니다.",
+      "only": "허용할 프로바이더만",
+      "onlyTooltip": "이 특정 프로바이더만 사용합니다. 비워두면 모든 프로바이더를 허용합니다.",
+      "onlyPlaceholder": "프로바이더 슬러그를 입력하고 Enter를 누르세요...",
+      "ignore": "제외할 프로바이더",
+      "ignoreTooltip": "요청 라우팅 시 이 프로바이더들을 건너뜁니다.",
+      "ignorePlaceholder": "프로바이더 슬러그를 입력하고 Enter를 누르세요...",
+      "quantizations": "양자화 필터",
+      "quantizationsTooltip": "특정 양자화 수준의 프로바이더만 사용합니다. 정밀도가 낮으면 품질이 저하될 수 있지만 속도가 향상됩니다.",
+      "maxPrice": "최고 가격",
+      "maxPriceTooltip": "백만 토큰당 최고 가격 한도를 설정합니다. 제한 없이 사용하려면 비워두세요.",
+      "configured": "설정됨"
+    }
+  },
+  "apiMode": {
+    "label": "API 모드",
+    "standard": "기본",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "이 플랜의 키는 보통 `{{prefix}}`로 시작합니다. 참고용이며 강제 적용되지 않습니다.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan은 기본 엔드포인트와 별도의 API 키를 사용합니다.",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan은 기본 엔드포인트와 별도의 API 키를 사용합니다.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan은 Anthropic 프로토콜 전용입니다.",
+    "xiaomiTokenPlanRegions": "기본 baseUrl은 `token-plan-cn.*`입니다. `token-plan-sgp.*` 또는 `token-plan-ams.*`로 직접 변경할 수 있습니다.",
+    "confirmOverwriteTitle": "API 모드를 전환하시겠습니까?",
+    "confirmOverwriteBody": "API URL 또는 API 키가 사용자 지정되어 있습니다. 모드를 전환하면 새 모드의 기본값으로 덮어쓰거나, 사용자 지정은 유지하고 모드 레이블만 변경할 수 있습니다.",
+    "overwriteAndSwitch": "덮어쓰고 전환",
+    "keepCustomizations": "사용자 지정 유지"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "취소",
+    "close": "닫기",
+    "copy": "복사",
+    "delete": "삭제",
+    "dismiss": "닫기",
+    "save": "저장",
+    "optional": "선택 사항",
+    "retry": "다시 시도",
+    "loading": "불러오는 중…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "문서"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "데몬에서 아직 지원하지 않습니다",
+    "discoveryUnsupportedFormat": "이 프로바이더 형식은 모델 자동 검색을 지원하지 않습니다. 모델을 직접 추가하세요."
+  },
+  "nav": {
+    "subtitle": "제어판",
+    "providers": "프로바이더",
+    "apiService": "API 서비스",
+    "accounts": "계정",
+    "codeCli": "Code CLI",
+    "settings": "설정",
+    "usageStats": "사용량",
+    "pricing": "가격"
+  },
+  "apiService": {
+    "title": "API 서비스",
+    "description": "아웃바운드 API 서버, 엔드포인트별 모델 라우팅, 명명된 액세스 키를 설정합니다.",
+    "loading": "서버 설정을 불러오는 중…",
+    "loadError": "서버 설정을 불러올 수 없습니다. 데몬에 연결할 수 있는지 확인하세요.",
+    "enable": {
+      "label": "아웃바운드 서버 활성화",
+      "description": "외부 호출자의 요청을 프로바이더를 통해 라우팅하는 로컬 API 서버를 시작합니다."
+    },
+    "networkBinding": {
+      "label": "LAN 접근 허용",
+      "description": "서버를 루프백 전용이 아닌 네트워크 인터페이스에 바인딩합니다.",
+      "warning": "LAN 접근을 허용하면 API 서버가 네트워크의 다른 기기에 노출됩니다. 구독 라우팅과 함께 사용하면 요청이 구독 할당량을 소비할 수 있습니다 — 네트워크를 신뢰할 수 없다면 비활성화 상태로 유지하세요."
+    },
+    "status": {
+      "running": "서버 실행 중",
+      "stopped": "서버 중지됨",
+      "runningHint": "아웃바운드 API 서버가 요청을 수락하고 있습니다.",
+      "stoppedHint": "서버를 활성화하면 요청 수락이 시작됩니다.",
+      "port": "포트 {{port}}",
+      "loopback": "루프백 URL",
+      "lan": "LAN URL"
+    },
+    "endpoints": {
+      "title": "엔드포인트 라우팅",
+      "description": "각 와이어 형식이 라우팅할 모델을 선택합니다. 기본 모델이 여기에 통합됩니다 — 이 서버는 라우터이며 채팅 앱이 아닙니다."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "기본 모델",
+      "backgroundModel": "백그라운드 모델",
+      "visionModel": "비전 모델",
+      "noVisionModel": "없음",
+      "backgroundModelIds": "백그라운드 모델 ID",
+      "backgroundModelIdsPlaceholder": "쉼표로 구분된 모델 ID",
+      "modelPlaceholder": "모델 선택…",
+      "useSubscription": "구독 사용",
+      "subscriptionUnsupported": "이 엔드포인트는 구독 라우팅을 지원하지 않습니다."
+    },
+    "keys": {
+      "title": "액세스 키",
+      "description": "외부 호출자가 Bearer 토큰으로 전송하는 명명된 키입니다. 전체 키는 생성 시 한 번만 표시됩니다.",
+      "namePlaceholder": "키 이름 (예: my-cli)",
+      "create": "키 생성",
+      "empty": "액세스 키가 없습니다.",
+      "enabled": "활성화",
+      "disabled": "비활성화",
+      "revoked": "취소됨",
+      "toggle": "키 전환",
+      "revoke": "취소",
+      "revokeConfirmTitle": "이 키를 취소하시겠습니까?",
+      "revokeConfirmDesc": "\"{{name}}\"을 취소하면 즉시 인증에 사용할 수 없게 됩니다. 이 작업은 되돌릴 수 없습니다.",
+      "created": {
+        "title": "키가 생성되었습니다",
+        "warning": "지금 이 키를 복사하세요 — 다시 표시되지 않습니다. 안전한 곳에 보관하세요.",
+        "copy": "복사",
+        "copied": "복사됨",
+        "dismiss": "완료"
+      }
+    }
+  },
+  "accounts": {
+    "title": "계정 및 구독",
+    "description": "서버가 라우팅에 사용하는 구독 자격 증명을 관리합니다. 토큰은 여기에 기록되지만 다시 표시되지 않습니다.",
+    "loading": "계정을 불러오는 중…",
+    "empty": "사용 가능한 구독 프로바이더가 없습니다.",
+    "signIn": "로그인",
+    "oauth": {
+      "title": "{{name}}에 로그인",
+      "description": "브라우저에서 로그인 페이지를 열고 승인한 후 인증 코드를 아래에 붙여넣으세요. 코드는 데몬에만 전달됩니다 — 발급된 토큰은 표시되지 않습니다.",
+      "openPage": "로그인 페이지 열기",
+      "codeLabel": "인증 코드",
+      "codePlaceholder": "여기에 코드를 붙여넣으세요",
+      "submit": "로그인 완료"
+    },
+    "codexOauth": {
+      "title": "{{name}}에 로그인",
+      "description": "브라우저에서 로그인 페이지를 열고 승인하세요. 데몬이 자동으로 결과를 캡처합니다 — 완료될 때까지 이 창을 열어 두세요. 토큰은 표시되지 않습니다.",
+      "waiting": "브라우저에서 로그인이 완료되기를 기다리는 중…",
+      "failed": "로그인에 실패했습니다. 다시 시도하세요."
+    },
+    "clearProvider": "모두 지우기",
+    "clearConfirmTitle": "{{name}} 계정을 지우시겠습니까?",
+    "clearConfirmDesc": "이 프로바이더에 저장된 모든 자격 증명이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "credential": {
+      "ok": "설정됨",
+      "notConfigured": "설정되지 않음"
+    },
+    "kind": {
+      "pass-through": "패스스루 자격 증명",
+      "oauth-bearer": "OAuth Bearer",
+      "static-bearer": "정적 Bearer 키"
+    },
+    "reason": {
+      "missing-credential": "저장된 자격 증명이 없습니다.",
+      "expired": "자격 증명이 만료되었습니다.",
+      "reauth-required": "재인증이 필요합니다.",
+      "refresh-failed": "토큰 갱신에 실패했습니다.",
+      "not-refreshable": "자격 증명을 갱신할 수 없습니다.",
+      "unknown": "상태를 알 수 없습니다."
+    },
+    "status": {
+      "unconfigured": "설정되지 않음",
+      "authorized": "승인됨",
+      "configured": "설정됨",
+      "expired": "만료됨",
+      "error": "오류"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "설정 토큰",
+      "manual": "수동"
+    },
+    "list": {
+      "empty": "이 프로바이더에 저장된 계정이 없습니다.",
+      "active": "활성",
+      "expiresAt": "{{value}}에 만료",
+      "setActive": "활성으로 설정",
+      "remove": "제거",
+      "removeConfirmTitle": "이 계정을 제거하시겠습니까?",
+      "removeConfirmDesc": "\"{{name}}\"을 제거하면 저장된 자격 증명이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+      "title": "계정"
+    },
+    "write": {
+      "trigger": "자격 증명 추가",
+      "title": "{{name}} 자격 증명 저장",
+      "description": "이미 획득한 토큰을 붙여넣으세요. 필드는 이 프로바이더가 허용하는 항목으로 제한됩니다. 토큰은 저장되며 다시 표시되지 않습니다.",
+      "authMethod": "인증 방법",
+      "status": "상태",
+      "subscriptionLevel": "구독 수준",
+      "subscriptionLevelNone": "설정되지 않음",
+      "submit": "자격 증명 저장"
+    },
+    "field": {
+      "accessToken": "액세스 토큰",
+      "refreshToken": "리프레시 토큰",
+      "idToken": "ID 토큰",
+      "apiKey": "API 키",
+      "expiresAt": "만료 시간 (ISO)",
+      "setupTokenExpiresAt": "설정 토큰 만료 시간 (ISO)",
+      "accountId": "계정 ID",
+      "email": "이메일",
+      "organizationId": "조직 ID",
+      "baseUrl": "기본 URL",
+      "zenBaseUrl": "Zen 기본 URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "데몬이 라우팅하는 Anthropic 구독 자격 증명입니다."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "데몬이 라우팅하는 OpenAI Codex 구독 자격 증명입니다."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "데몬이 라우팅하는 Google Gemini 구독 자격 증명입니다."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "데몬이 라우팅하는 정적 API 키 자격 증명입니다."
+      }
+    },
+    "authMethodLabel": "인증 방법",
+    "authMethodDesc": {
+      "oauth": "브라우저를 통해 로그인합니다. 데몬이 토큰을 캡처하고 저장합니다.",
+      "manual": "이미 획득한 토큰을 붙여넣습니다. 저장되며 다시 표시되지 않습니다."
+    },
+    "actions": {
+      "authorize": "승인",
+      "enterToken": "토큰 입력",
+      "refresh": "갱신"
+    },
+    "accounts": {
+      "addAccount": "계정 추가"
+    },
+    "detail": {
+      "authMethod": "인증 방법",
+      "subscriptionLevel": "구독 수준",
+      "expiresAt": "만료",
+      "lastRefreshed": "마지막 갱신",
+      "label": "계정 레이블",
+      "labelPlaceholder": "계정 이름 지정",
+      "saveLabel": "레이블 저장"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "승인 페이지 열기",
+        "desc": "브라우저에서 로그인 페이지를 여세요."
+      },
+      "step2": {
+        "title": "접근 승인",
+        "desc": "로그인하고 프로바이더에 대한 접근을 승인하세요."
+      },
+      "step3": {
+        "title": "인증 코드 복사",
+        "desc": "승인 후 페이지에 인증 코드가 표시됩니다."
+      },
+      "step4": {
+        "title": "코드 붙여넣기",
+        "desc": "완료하려면 아래에 인증 코드를 붙여넣으세요. 코드는 데몬에만 전달됩니다 — 발급된 토큰은 표시되지 않습니다."
+      },
+      "authorize": "로그인 완료",
+      "showUrl": "승인 URL 표시"
+    },
+    "manual": {
+      "title": "자격 증명 붙여넣기",
+      "description": "이미 획득한 토큰을 붙여넣으세요. 필드는 이 프로바이더가 허용하는 항목으로 제한됩니다. 토큰은 저장되며 다시 표시되지 않습니다.",
+      "accessTokenPlaceholder": "액세스 토큰을 붙여넣으세요",
+      "refreshTokenPlaceholder": "리프레시 토큰을 붙여넣으세요 (선택 사항)",
+      "hint": "토큰은 데몬으로 전송되어 암호화하여 저장됩니다. 다시 표시되지 않습니다."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "API 키가 필요합니다.",
+      "apiKeyPlaceholder": "API 키를 붙여넣으세요",
+      "baseUrlPlaceholder": "https://… (선택 사항)",
+      "zenBaseUrlPlaceholder": "https://… (선택 사항)"
+    },
+    "info": {
+      "title": "구독 계정 정보",
+      "description": "토큰은 데몬에 기록되어 업스트림 요청 인증에 사용됩니다. 암호화되어 저장되며 다시 표시되지 않습니다. 계정을 제거하면 저장된 자격 증명이 삭제됩니다."
+    },
+    "rename": {
+      "failed": "계정 이름을 변경할 수 없습니다."
+    },
+    "refresh": {
+      "failed": "토큰을 갱신할 수 없습니다."
+    },
+    "errors": {
+      "requestFailed": "요청에 실패했습니다. 다시 시도하세요."
+    },
+    "syncWarning": {
+      "external-divergent": "외부 CLI 로그인 파일에 이 계정보다 최신 자격 증명이 있습니다. 저장된 토큰이 더 이상 갱신되지 않을 수 있습니다. 지금 갱신하거나 다시 로그인하세요.",
+      "external-not-rotated": "갱신에 실패했으며 외부 CLI에도 동일한 만료된 자격 증명만 있습니다. 다시 로그인하세요.",
+      "duplicate-token": "다른 계정이 이 자격 증명을 공유하고 있습니다. 어느 한쪽을 갱신하면 다른 쪽이 무효화됩니다."
+    },
+    "importExternal": {
+      "detected": "이 컴퓨터에서 기존 {{name}} CLI 로그인을 발견했습니다.",
+      "hint": "가져온 후에는 이 앱이 갱신을 관리합니다. 토큰을 갱신할 때마다 CLI 로그인 파일도 함께 업데이트되어 터미널의 CLI가 로그인 상태를 유지합니다.",
+      "button": "기존 CLI 로그인 가져오기"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "코딩 CLI를 데몬의 아웃바운드 프록시에 연결합니다. 이 페이지는 읽기 전용입니다 — 여기서 설정할 내용이 없습니다.",
+    "copy": "복사",
+    "copied": "복사됨",
+    "baseUrl": {
+      "title": "데몬 기본 URL",
+      "description": "CLI가 연결하는 프록시 주소입니다.",
+      "label": "기본 URL"
+    },
+    "token": {
+      "title": "인증",
+      "hint": "관리자 경로에는 'Authorization: Bearer <관리자 토큰>'을 전송하세요. 관리자 토큰은 데몬(설정 파일 또는 환경 변수)에서 설정됩니다 — 여기서는 표시되지 않습니다."
+    },
+    "examples": {
+      "title": "실행 환경 예시",
+      "keyNote": "API 서비스 페이지에서 생성한 아웃바운드 액세스 키를 사용하세요 — 관리자 토큰이 아닙니다.",
+      "anthropic": "Anthropic 형식 CLI",
+      "openai": "OpenAI 형식 CLI"
+    },
+    "launchDescription": "터미널에서 코딩 CLI를 실행하고 이 데몬에 연결합니다. 데몬이 리디렉션 환경 변수를 주입하고 CLI를 시작합니다.",
+    "refresh": "새로고침",
+    "loading": "CLI 감지 중…",
+    "cli": {
+      "installed": "설치됨",
+      "notFound": "찾을 수 없음",
+      "notFoundHint": "이 CLI가 데몬 호스트의 PATH에 없습니다. 설치 후 새로고침하세요.",
+      "install": "설치",
+      "installing": "설치 중…",
+      "installingHint": "데몬 호스트에 설치 중입니다 — 잠시 시간이 걸릴 수 있습니다.",
+      "launch": "실행",
+      "launchTitle": "{{name}} 실행",
+      "launchDescription": "데몬 호스트에서 새 터미널을 열고 이 CLI를 데몬 프록시를 통해 실행합니다. 선택적으로 작업 디렉토리를 지정하세요.",
+      "cwdLabel": "작업 디렉토리",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "실행 중 · {{provider}} / {{model}}",
+      "stop": "중지"
+    },
+    "manual": {
+      "title": "수동 설정",
+      "description": "직접 CLI를 실행하시겠습니까? 이 환경 변수를 사용하여 데몬에 연결하세요.",
+      "show": "표시",
+      "hide": "숨기기"
+    }
+  },
+  "daemonStatus": {
+    "probing": "데몬 확인 중…",
+    "spawning": "데몬 시작 중…",
+    "failed": "데몬을 시작할 수 없습니다",
+    "failedHint": "Node.js가 설치되어 있고 데몬이 빌드되었는지(dist 존재) 확인하거나, OMNICROSS_DAEMON_ENTRY를 데몬의 cli.js 경로로 설정하세요."
+  },
+  "settings": {
+    "title": "설정",
+    "description": "데스크톱 앱 환경 설정입니다.",
+    "desktopOnly": "시작 및 트레이 옵션은 데스크톱 앱에서만 적용됩니다.",
+    "startup": {
+      "title": "시작",
+      "autoLaunch": "로그인 시 실행",
+      "autoLaunchHint": "로그인 시 Omnicross를 자동으로 시작합니다.",
+      "startMinimized": "트레이에 최소화하여 시작",
+      "startMinimizedHint": "창을 열지 않고 백그라운드에서 실행합니다."
+    },
+    "tray": {
+      "title": "트레이",
+      "minimizeOnClose": "닫을 때 트레이로 최소화",
+      "minimizeOnCloseHint": "창을 닫으면 종료하지 않고 트레이로 숨깁니다."
+    },
+    "language": {
+      "title": "언어",
+      "label": "인터페이스 언어"
+    }
+  },
+  "usageStats": {
+    "title": "사용량 통계",
+    "description": "데몬이 처리한 요청의 토큰 및 비용 통계입니다.",
+    "rangeToday": "오늘",
+    "range7d": "최근 7일",
+    "range30d": "최근 30일",
+    "rangeCustom": "사용자 지정",
+    "from": "시작",
+    "to": "종료",
+    "totalCost": "총 비용",
+    "cacheSavings": "캐시 절감액",
+    "events": "요청 수",
+    "inputTokens": "입력 토큰",
+    "outputTokens": "출력 토큰",
+    "cacheReadTokens": "캐시 읽기",
+    "cacheWriteTokens": "캐시 쓰기",
+    "reasoningTokens": "추론 토큰",
+    "byModel": "모델별",
+    "byApiKey": "API 키별",
+    "provider": "공급자",
+    "model": "모델",
+    "cost": "비용",
+    "apiKey": "API 키",
+    "unpriced": "가격 없음",
+    "unpricedHint": "이 모델에 대한 가격 항목이 없습니다. 가격 페이지에서 추가하세요.",
+    "unattributed": "미지정",
+    "unattributedHint": "특정 API 키에 연결되지 않은 요청입니다. 키별 기록이 도입되기 전까지는 정상적인 상태입니다.",
+    "empty": "이 기간에 요청이 없습니다.",
+    "invalidRange": "유효한 날짜 범위를 선택하세요."
+  },
+  "pricing": {
+    "title": "모델 가격",
+    "description": "요청 비용 계산에 사용되는 모델별 토큰 가격(100만 토큰당 USD)입니다.",
+    "search": "공급자 또는 모델 검색…",
+    "fetchLatest": "최신 가격 가져오기",
+    "fetching": "가져오는 중…",
+    "addEntry": "항목 추가",
+    "provider": "공급자",
+    "model": "모델",
+    "inputPrice": "입력",
+    "outputPrice": "출력",
+    "cacheReadPrice": "캐시 읽기",
+    "cacheWritePrice": "캐시 쓰기",
+    "source": "출처",
+    "updated": "업데이트",
+    "userEdited": "편집됨",
+    "edit": "편집",
+    "deleteTitle": "이 가격 항목을 삭제할까요?",
+    "empty": "가격 표가 비어 있습니다.",
+    "emptyHint": "최신 가격을 가져와 표를 채우세요.",
+    "noMatches": "검색과 일치하는 항목이 없습니다.",
+    "saved": "가격 항목이 저장되었습니다.",
+    "saveFailed": "저장 실패: {{message}}",
+    "deleteFailed": "삭제 실패: {{message}}",
+    "alreadyDeleted": "항목이 이미 없습니다.",
+    "fetchApplied": "출처에서 {{count}}개 항목을 업데이트했습니다.",
+    "fetchFailed": "가져오기 실패: {{message}}",
+    "requiredId": "필수",
+    "invalidPrice": "0 이상의 숫자를 입력하세요",
+    "conflictTitle": "가격 충돌 해결",
+    "conflictHint": "이 항목들은 사용자가 편집했으며 출처에서도 변경되었습니다. 행마다 내 값을 유지(건너뛰기)할지 출처 값을 적용(덮어쓰기)할지 선택하세요.",
+    "current": "현재",
+    "incoming": "수신 값",
+    "overwrite": "덮어쓰기",
+    "skip": "건너뛰기",
+    "overwriteAll": "모두 덮어쓰기",
+    "skipAll": "모두 건너뛰기",
+    "applyResolutions": "적용",
+    "resolved": "{{overwritten}}개 덮어씀, {{skipped}}개 건너뜀.",
+    "resolvedWithStale": "{{overwritten}}개 덮어씀, {{skipped}}개 건너뜀. {{stale}}개는 그 사이에 변경되어 그대로 두었습니다.",
+    "refreshFailed": "변경 사항은 적용되었지만 목록을 다시 불러오지 못했습니다: {{message}}",
+    "sourceBuiltin": "기본 제공",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "사용자"
+  }
+}

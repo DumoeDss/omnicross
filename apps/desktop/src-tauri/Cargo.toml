@@ -1,0 +1,36 @@
+[package]
+name = "omnicross-app"
+version = "0.1.0"
+description = "Omnicross desktop control panel"
+authors = ["Sayo"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "omnicross_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-http = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# System locale probe for the first-run default language (fallback English).
+sys-locale = "0.3"
+# Loopback-only HTTP probe for the daemon admin port. No TLS needed (plain
+# http://127.0.0.1:8766), so default features (which pull native-tls) are off;
+# the blocking client gives us a simple bounded-timeout probe off the main thread.
+reqwest = { version = "0.12", default-features = false, features = ["blocking"] }
+
+[target.'cfg(unix)'.dependencies]
+# Process-group kill for spawned children on Unix (kill(-pgid, ...)).
+libc = "0.2"
+
+[features]
+# By default Tauri runs in production mode (uses the bundled frontendDist).
+# The `custom-protocol` feature is enabled by `tauri build`.
+custom-protocol = ["tauri/custom-protocol"]

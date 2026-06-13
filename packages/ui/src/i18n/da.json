@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Indlæser LLM-konfiguration...",
+    "reset": {
+      "button": "Gendan standardindstillinger",
+      "confirmTitle": "Gendan standardindstillinger?",
+      "confirmBody": "Dette rydder dine tilpasninger for denne udbyder, så den igen følger de indbyggede standarder. Din API-nøgle og gemte sessioner bevares.",
+      "confirmButton": "Gendan standardindstillinger"
+    },
+    "reentryBanner": {
+      "message": "{{count}} aktiv(e) udbyder(e) skal have deres API-nøgle genindtastet. Åbn hver enkelt og tilføj nøglen igen."
+    },
+    "migrationPack": {
+      "barHint": "Flyt dine udbydernøgler og abonnementstokens til en anden maskine med en krypteret pakke.",
+      "passphrase": "Adgangssætning",
+      "passphrasePlaceholder": "Indtast en adgangssætning",
+      "passphraseHint": "Brug mindst 8 tegn; 12 eller flere anbefales.",
+      "confirm": "Bekræft adgangssætning",
+      "confirmPlaceholder": "Gentag adgangssætningen",
+      "mismatch": "Adgangssætningerne stemmer ikke overens.",
+      "strength": {
+        "weak": "For kort — brug mindst 8 tegn.",
+        "fair": "OK — 12 eller flere tegn er stærkere.",
+        "strong": "Stærk adgangssætning."
+      },
+      "export": {
+        "button": "Eksportér pakke",
+        "title": "Eksportér krypteret pakke",
+        "subtitle": "Kryptér dine udbydernøgler og abonnementstokens til en bærbar fil.",
+        "warning": "Denne fil indeholder dekrypterbare hemmeligheder. Hold den sikker — enhver med filen og adgangssætningen kan læse dine nøgler. En tabt adgangssætning kan ikke gendannes.",
+        "submit": "Eksportér",
+        "success": "Pakke eksporteret.",
+        "error": "Eksporten mislykkedes. Prøv venligst igen."
+      },
+      "import": {
+        "button": "Importér pakke",
+        "title": "Importér krypteret pakke",
+        "subtitle": "Gendan udbydernøgler og abonnementstokens fra en eksporteret pakke.",
+        "hint": "Indtast adgangssætningen, der blev brugt ved eksport, og vælg derefter filen.",
+        "submit": "Importér",
+        "successTitle": "Import fuldført",
+        "summary": "Importerede {{providerKeys}} udbydernøgle(r), {{poolKeys}} puljenøgle(r) og {{tokenSets}} tokensæt.",
+        "duplicates": "Sprang {{count}} puljenøgle(r) over, da de allerede fandtes.",
+        "skipped": "Sprunget over (ingen matchende udbyder): {{names}}",
+        "error": "Forkert adgangssætning eller beskadiget pakke. Intet blev ændret."
+      }
+    },
+    "searchPlaceholder": "Søg efter udbydere...",
+    "emptySearch": "Ingen udbydere matcher din søgning.",
+    "emptyList": "Ingen udbydere konfigureret.",
+    "selectPrompt": "Vælg en udbyder for at se detaljer",
+    "listStatus": "{{count}} model(ler)",
+    "noModels": "Ingen modeller konfigureret",
+    "enabled": "Aktiveret",
+    "disabled": "Deaktiveret",
+    "showEnabledOnly": "Vis kun aktiverede",
+    "showAll": "Vis alle udbydere",
+    "dragHandle": "Træk for at omsortere",
+    "reorderFailed": "Kunne ikke gemme udbydernes rækkefølge",
+    "credentials": {
+      "apiKey": "API-nøgle",
+      "apiBaseUrl": "API-basis-URL"
+    },
+    "filter": {
+      "all": "Alle",
+      "chat": "Chat",
+      "code": "Kode"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Vælg en skabelon",
+      "skipTemplates": "Spring over, konfigurér manuelt",
+      "name": "Navn *",
+      "providerType": "Type",
+      "apiType": "API-type",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standard OpenAI chat/completions API-format",
+        "claudecode": "Anthropic Messages API-format (Claude Code)"
+      },
+      "chatApiFormat": "API-format",
+      "chatApiFormatDescription": "Vælg det API-format, der svarer til din udbyders endpoint",
+      "apiKey": "API-nøgle",
+      "apiKeyPlaceholder": "sk-... eller $ENV_VAR",
+      "apiKeyHelper": "Brug $VAR_NAVN til at referere til miljøvariabler",
+      "apiKeySetPlaceholder": "Nøgle er indstillet — lad stå tomt for at beholde den",
+      "apiKeyReplaceHelper": "En nøgle er gemt sikkert. Skriv en ny værdi for at erstatte den, eller lad stå tomt for at beholde den.",
+      "testApiKey": "Test API-nøgle",
+      "apiUrl": "API-URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Forhåndsvisning:",
+      "models": "Modeller",
+      "modelPlaceholder": "Modelnavn (f.eks. gpt-4, claude-3-opus)",
+      "transformers": "Transformere",
+      "transformerConfig": "API-transformere",
+      "transformerConfigDescription": "Konfigurér transformere til at tilpasse API-anmodnings-/svarformater for denne udbyder",
+      "transformerConfigNote": "Dæmonen anvender disse transformere i anmodningskæden, efter udbyderens formattransformer (som håndterer wire-formatkonverteringen). Ukendte transformernavne springes over.",
+      "enabled": "Aktiveret",
+      "apiVersion": "API-version",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API-version (f.eks. 2024-08-01-preview)",
+      "official": "Officiel Anthropic API",
+      "officialHelper": "Aktivér, hvis denne udbyder opretter direkte forbindelse til den officielle Anthropic API. Deaktivér for reverse proxies eller tredjepartstjenester.",
+      "maxConcurrency": "Maks. samtidige anmodninger",
+      "maxConcurrencyHelper": "Maksimalt antal samtidige API-anmodninger sendt til denne udbyder. Lavere værdier hjælper med at undgå hastighedsbegrænsning (429-fejl). Sæt `-1` for ingen grænse.",
+      "codingPlan": {
+        "label": "Kodningsplan",
+        "description": "Brug et separat API-endpoint til abonnementsbaserede kodningsplaner",
+        "baseUrl": "Kodningsplan basis-URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Kodningsplan API-nøgle (valgfri)",
+        "apiKeyPlaceholder": "Lad stå tomt for at bruge udbyderens API-nøgle",
+        "apiKeyHelper": "Kun nødvendigt, hvis kodningsplanen bruger en anden API-nøgle",
+        "tokenPlanHint": "Nogle udbydere (f.eks. Xiaomi MiMo) udsteder Token Plan-nøgler med præfikset `tp-` — kun vejledende, ikke håndhævet."
+      },
+      "selectTypeFirst": "Vælg udbydervtype",
+      "selectTypeFirstDesc": "Vælg hvilken type udbyder du vil tilføje",
+      "codeProviderNote": "Kodeudbydere kræver kun API-nøgle og URL. Modeller administreres af Agent Router.",
+      "buttons": {
+        "cancel": "Annullér",
+        "submitAdd": "Tilføj udbyder",
+        "submitUpdate": "Opdatér udbyder",
+        "continue": "Fortsæt",
+        "back": "Tilbage"
+      }
+    },
+    "details": {
+      "noSelection": "Vælg en udbyder for at se detaljer",
+      "apiKey": "API-nøgle",
+      "apiUrl": "API-URL",
+      "nameLabel": "Udbydernavn",
+      "modelsEndpoint": "Modeller-endpoint",
+      "modelsEndpointHelper": "Tilsidesæt opdagelsesendpointet, hvis udbyderen eksponerer en brugerdefineret /models-sti.",
+      "models": "Modeller",
+      "transformers": "Transformere",
+      "codeProviderNote": "Kodeudbydere (som Claude Code) kræver ikke modelkonfiguration. Modeller administreres automatisk af Agent Router.",
+      "buttons": {
+        "more": "Flere indstillinger",
+        "delete": "Slet"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Vælg udbyder og model",
+      "noProviders": "Ingen udbydere tilgængelige",
+      "noModels": "Ingen modeller konfigureret"
+    },
+    "apiKeyPool": {
+      "title": "API-nøglepulje",
+      "description": "Konfigurér flere API-nøgler til belastningsfordeling. Hver session holder sig til én nøgle for at bevare prompt-cachen.",
+      "defaultLabel": "Standard",
+      "weight": "Vægt",
+      "noKey": "Ingen nøgle",
+      "labelPlaceholder": "Etiket (f.eks. Nøgle #1, Produktion)",
+      "addKey": "Tilføj API-nøgle",
+      "add": "Tilføj",
+      "empty": "Ingen ekstra nøgler konfigureret.",
+      "statusCoolingDown": "Nedkøling {{time}}",
+      "statusAuthFailed": "Godkendelse mislykkedes · deaktiveret",
+      "statusDisabled": "Deaktiveret",
+      "statusHealthy": "Fungerer",
+      "agoSeconds": "{{count}}s siden",
+      "agoMinutes": "{{count}}m siden",
+      "agoHours": "{{count}}t siden",
+      "agoDays": "{{count}}d siden"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Søg efter modeller...",
+      "defaultGroup": "Alle modeller",
+      "add": "Tilføj model",
+      "manage": "Administrér",
+      "empty": "Ingen modeller i denne gruppe",
+      "enabled": "Aktiveret",
+      "disabled": "Deaktiveret",
+      "filters": {
+        "all": "Alle",
+        "vision": "Vision",
+        "reasoning": "Ræsonnering",
+        "free": "Gratis",
+        "tools": "Værktøjer"
+      },
+      "manualDialog": {
+        "title": "Tilføj model",
+        "subtitle": "Tilføj en brugerdefineret model til denne udbyder",
+        "modelId": "Model-ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, osv.",
+        "modelIdHelper": "Den præcise modelidentifikator, der bruges ved kald til API'en",
+        "modelName": "Visningsnavn",
+        "modelNamePlaceholder": "Brugervenligt visningsnavn (valgfrit)",
+        "modelNameHelper": "Valgfrit navn vist i grænsefladen. Hvis tomt bruges Model-ID",
+        "group": "Gruppe",
+        "groupPlaceholder": "Vælg eller indtast et gruppenavn",
+        "submit": "Tilføj",
+        "cancel": "Annullér",
+        "helper": "Angiv den præcise modelidentifikator, der eksponeres af udbyderens API."
+      },
+      "editDialog": {
+        "title": "Redigér model",
+        "subtitle": "Ændr modelindstillinger",
+        "modelId": "Model-ID",
+        "modelIdPlaceholder": "Modelidentifikator",
+        "modelIdHelper": "Den modelidentifikator, der bruges ved kald til API'en",
+        "modelName": "Visningsnavn",
+        "modelNamePlaceholder": "Brugervenligt visningsnavn",
+        "modelNameHelper": "Navn vist i grænsefladen",
+        "group": "Gruppe",
+        "groupPlaceholder": "Vælg eller indtast et gruppenavn",
+        "submit": "Gem",
+        "cancel": "Annullér",
+        "vision": "Visionkapacitet",
+        "visionHint": "Om denne model understøtter billede-/visioninput",
+        "reasoning": "Ræsonneringsmodel",
+        "reasoningHint": "Om denne model understøtter tænke-/ræsonneringstilstand"
+      },
+      "manageDialog": {
+        "title": "Administrér modeller",
+        "cachedAt": "Cachet den {{date}} ({{source}})",
+        "refresh": "Opdatér",
+        "close": "Luk",
+        "raw": "Rå JSON",
+        "empty": "Ingen eksterne modeller tilgængelige.",
+        "error": "Kunne ikke indlæse modeller: {{message}}",
+        "addFromCatalog": "Tilføj",
+        "sourceCache": "cache",
+        "sourceNetwork": "live",
+        "contextLength": "Kontekst {{value}} tokens",
+        "maxTokens": "Maks. {{value}} tokens"
+      },
+      "messages": {
+        "added": "Model tilføjet.",
+        "updated": "Model opdateret.",
+        "removed": "Model fjernet.",
+        "duplicate": "Model findes allerede.",
+        "refreshed": "Modeller opdateret",
+        "refreshFailed": "Opdatering af modeller mislykkedes"
+      },
+      "testDialog": {
+        "title": "Forbindelsestest for model",
+        "provider": "Udbyder",
+        "model": "Model",
+        "testing": "Tester...",
+        "success": "Test lykkedes",
+        "successMessage": "Modellen er tilgængelig og fungerer normalt",
+        "failure": "Test mislykkedes",
+        "aiResponse": "AI-svar",
+        "charCount": "{{count}} tegn",
+        "duration": "Varighed {{time}}s",
+        "close": "Luk",
+        "retest": "Test igen",
+        "testButton": "Test model",
+        "unsupportedFormat": "Test understøttes endnu ikke for dette udbydervformat."
+      }
+    },
+    "router": {
+      "title": "Router-konfiguration",
+      "description": "Konfigurér hvilken udbyder/model der bruges til forskellige scenarier.",
+      "labels": {
+        "default": "Standard",
+        "background": "baggrund",
+        "think": "tænkning",
+        "longContext": "Lang kontekst",
+        "webSearch": "Websøgning",
+        "image": "Billede",
+        "longContextThreshold": "Grænse for lang kontekst"
+      },
+      "helper": {
+        "longContextThreshold": "Antal tokens, inden der skiftes til lang-kontekst-modellen."
+      },
+      "placeholder": {
+        "required": "Påkrævet",
+        "optional": "Valgfrit"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Konfigurér tovejsrouting mellem Chat- og Kodetilstand.",
+      "searchPlaceholder": "Søg efter routere...",
+      "noSearchResults": "Ingen routere matcher din søgning.",
+      "tabs": {
+        "chatToCode": "Chat → Kode",
+        "codeToChatPlaceholder": "Kode → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat-til-Kode-router",
+        "description": "Brug chatudbydere i agent-/kodetilstand",
+        "addRouter": "Tilføj router",
+        "emptyState": "Ingen Chat→Kode-routere konfigureret. Tilføj én for at bruge chatudbydere i kodetilstand.",
+        "form": {
+          "name": "Routernavn",
+          "namePlaceholder": "Min Chat→Kode-router",
+          "chatProvider": "Chatudbyder",
+          "chatProviderPlaceholder": "Vælg en chatudbyder",
+          "mode": "Tilstand",
+          "modeSimple": "Simpel",
+          "modeAdvanced": "Avanceret",
+          "modeSimpleDesc": "Direkte videregivelse til chatudbyder",
+          "modeAdvancedDesc": "Konfigurér modeltilknytning og konteksthåndtering",
+          "enabled": "Aktiveret",
+          "save": "Gem router",
+          "cancel": "Annullér"
+        },
+        "list": {
+          "provider": "Udbyder",
+          "mode": "Tilstand",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Modeltilknytninger",
+          "description": "Tilknyt chatudbyderes modeller til kodeudbyderes modeller",
+          "count": "tilknytning(er)",
+          "empty": "Ingen modeltilknytninger konfigureret. Tilføj tilknytninger for at route chatmodeller til kodeudbydere.",
+          "addNew": "Tilføj ny tilknytning",
+          "selectSource": "Vælg kildemodel (Chat)",
+          "selectTarget": "Vælg målmodel (Kode)",
+          "targetPlaceholder": "Indtast Claude Code-modelnavn",
+          "notSet": "(Ikke indstillet — klik for at vælge)",
+          "add": "Tilføj",
+          "edit": "Redigér",
+          "done": "Færdig"
+        },
+        "advanced": {
+          "title": "Avanceret konfiguration",
+          "description": "Konfigurér modeller til forskellige opgavetyper",
+          "helpText": "Standardmodel er påkrævet. Andre modeller er valgfrie og falder tilbage til standard, hvis de ikke er konfigureret.",
+          "default": {
+            "label": "Standard",
+            "placeholder": "Vælg standardmodel",
+            "description": "Primær model til generelle opgaver (svarende til Claude Sonnet)"
+          },
+          "background": {
+            "label": "Baggrund",
+            "placeholder": "Vælg baggrundsmodel",
+            "description": "Letvægtsmodel til baggrundsopgaver (svarende til Claude Haiku)"
+          },
+          "think": {
+            "label": "Tænkning",
+            "placeholder": "Vælg tænkningsmodel",
+            "description": "Avanceret model til kompleks ræsonnering (svarende til Claude Opus)"
+          },
+          "image": {
+            "label": "Billede",
+            "placeholder": "Vælg billedmodel",
+            "description": "Model til billedrelaterede opgaver med visionkapacitet"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Kode-til-Chat-router",
+        "description": "Eksponér kodningsplanmodeller i chattilstand",
+        "addRouter": "Tilføj router",
+        "emptyState": "Ingen Kode→Chat-routere konfigureret. Tilføj én for at eksponere kodningsplanmodeller i chattilstand.",
+        "form": {
+          "name": "Routernavn",
+          "namePlaceholder": "Min Kode→Chat-router",
+          "codeProvider": "Kodeudbyder",
+          "codeProviderPlaceholder": "Vælg en kodeudbyder",
+          "codeProviderHelper": "Vælg den kodeudbyder, der skal bruges til transformation",
+          "models": "Kodningsplanmodeller",
+          "modelsHelper": "Vælg hvilke kodningsplanmodeller der skal eksponeres",
+          "enabled": "Aktiveret",
+          "save": "Gem router",
+          "cancel": "Annullér"
+        },
+        "mappings": {
+          "title": "Modeltilknytninger",
+          "description": "Tilknyt kodeudbyderes modeller til chatudbyderes modeller til eksponering",
+          "count": "tilknytning(er)",
+          "empty": "Ingen modeltilknytninger konfigureret. Tilføj tilknytninger for at eksponere kodemodeller i chattilstand.",
+          "addNew": "Tilføj ny tilknytning",
+          "selectSource": "Vælg kildemodel (Kode)",
+          "selectTarget": "Vælg målmodel (Chat)",
+          "sourcePlaceholder": "Indtast kildemodelnavn",
+          "targetPlaceholder": "Indtast målmodelnavn",
+          "add": "Tilføj",
+          "edit": "Redigér",
+          "done": "Færdig"
+        }
+      },
+      "transformers": {
+        "title": "Transformere",
+        "description": "Konfigurér transformere til anmodnings-/svarkonvertering",
+        "noProvider": "Vælg en udbyder for at konfigurere transformere",
+        "empty": "Ingen transformere",
+        "count": "{{count}} transformer(e)"
+      },
+      "status": {
+        "enabled": "Aktiveret",
+        "disabled": "Deaktiveret"
+      },
+      "messages": {
+        "routerAdded": "Router tilføjet",
+        "routerUpdated": "Router opdateret",
+        "routerDeleted": "Router slettet",
+        "saveFailed": "Kunne ikke gemme router"
+      }
+    },
+    "presets": {
+      "title": "Tilføj udbyder hurtigt",
+      "added": "Tilføjet",
+      "add": "Tilføj",
+      "features": {
+        "search": "Søgning",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Kodningsplan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Er du sikker på, at du vil slette denne udbyder?"
+    },
+    "errors": {
+      "nameRequired": "Udbydernavn er påkrævet",
+      "urlRequired": "API-basis-URL er påkrævet",
+      "urlInvalid": "Indtast en gyldig URL (f.eks. https://api.example.com)",
+      "saveFailed": "Kunne ikke gemme udbyder",
+      "deleteFailed": "Fejl ved sletning af udbyder. Prøv venligst igen.",
+      "toggleFailed": "Fejl ved aktivering/deaktivering af udbyder. Prøv venligst igen."
+    },
+    "openRouter": {
+      "title": "OpenRouter-udbyder-routing",
+      "description": "Konfigurér, hvordan anmodninger routes til forskellige udbydere på OpenRouter.",
+      "sort": "Routingstrategi",
+      "sortTooltip": "Vælg, hvordan udbydere prioriteres. Auto bruger intelligent belastningsfordeling.",
+      "order": "Prioritetsrækkefølge for udbydere",
+      "orderTooltip": "Angiv udbydere, der skal forsøges i rækkefølge (f.eks. anthropic, openai, together). Tryk Enter for at tilføje.",
+      "orderPlaceholder": "Skriv udbyder-slug og tryk Enter...",
+      "allowFallbacks": "Tillad fallbacks",
+      "allowFallbacksTooltip": "Når aktiveret, vil OpenRouter forsøge reserveudbydere, hvis den primære ikke er tilgængelig.",
+      "requireParameters": "Kræv alle parametre",
+      "requireParametersTooltip": "Route kun til udbydere, der understøtter alle parametre i din anmodning.",
+      "dataCollection": "Politik for dataindsamling",
+      "dataCollectionTooltip": "Kontrollér, om udbydere, der muligvis gemmer eller træner på dine data, bruges.",
+      "zdr": "Nul dataopbevaring",
+      "zdrTooltip": "Route kun til endpoints med politik for nul dataopbevaring.",
+      "only": "Tillad kun udbydere",
+      "onlyTooltip": "Brug kun disse specifikke udbydere. Lad stå tomt for at tillade alle udbydere.",
+      "onlyPlaceholder": "Skriv udbyder-slug og tryk Enter...",
+      "ignore": "Ignorér udbydere",
+      "ignoreTooltip": "Spring disse udbydere over ved routing af anmodninger.",
+      "ignorePlaceholder": "Skriv udbyder-slug og tryk Enter...",
+      "quantizations": "Kvantiseringsfilter",
+      "quantizationsTooltip": "Brug kun udbydere med specifikke kvantiseringsniveauer. Lavere præcision kan reducere kvalitet men forbedre hastighed.",
+      "maxPrice": "Maksimumspris",
+      "maxPriceTooltip": "Indstil maksimale prisgrænser per million tokens. Lad stå tomt for ingen grænse.",
+      "configured": "Konfigureret"
+    }
+  },
+  "apiMode": {
+    "label": "API-tilstand",
+    "standard": "Standard",
+    "codingPlan": "Kodningsplan",
+    "tokenPlan": "Tokenplan",
+    "apiKeyPrefixHint": "Nøgler til denne plan begynder typisk med `{{prefix}}`. Kun vejledende — ikke håndhævet.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Kodningsplan bruger en separat API-nøgle fra standard-endpointet.",
+    "baiduCodingPlanSeparateKey": "Qianfan Kodningsplan bruger en separat API-nøgle fra standard-endpointet.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Tokenplan er kun Anthropic-protokol.",
+    "xiaomiTokenPlanRegions": "Standard baseUrl er `token-plan-cn.*`. Du kan redigere den manuelt til `token-plan-sgp.*` eller `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Skift API-tilstand?",
+    "confirmOverwriteBody": "Du har tilpasset API-URL'en eller API-nøglen. Skift af tilstand overskriver dem med den nye tilstands standarder — eller behold dine tilpasninger og opdatér kun tilstandsetiketten.",
+    "overwriteAndSwitch": "Overskriv og skift",
+    "keepCustomizations": "Behold tilpasninger"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Tokenplan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Annullér",
+    "close": "Luk",
+    "copy": "Kopiér",
+    "delete": "Slet",
+    "dismiss": "Afvis",
+    "save": "Gem",
+    "optional": "valgfrit",
+    "retry": "Prøv igen",
+    "loading": "Indlæser…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentation"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Ikke understøttet af dæmonen endnu",
+    "discoveryUnsupportedFormat": "Modelregistrering understøttes endnu ikke for dette udbydervformat. Tilføj modeller manuelt."
+  },
+  "nav": {
+    "subtitle": "Kontrolpanel",
+    "providers": "Udbydere",
+    "apiService": "API-tjeneste",
+    "accounts": "Konti",
+    "codeCli": "Code CLI",
+    "settings": "Indstillinger",
+    "usageStats": "Forbrug",
+    "pricing": "Priser"
+  },
+  "apiService": {
+    "title": "API-tjeneste",
+    "description": "Konfigurér den udgående API-server, modelrouting per endpoint og navngivne adgangsnøgler.",
+    "loading": "Indlæser serverkonfiguration…",
+    "loadError": "Serverkonfigurationen kunne ikke indlæses. Kontrollér at dæmonen er tilgængelig.",
+    "enable": {
+      "label": "Aktivér udgående server",
+      "description": "Start den lokale API-server, der router eksterne kald gennem dine udbydere."
+    },
+    "networkBinding": {
+      "label": "Tillad LAN-adgang",
+      "description": "Bind serveren til din netværksgrænseflade i stedet for kun loopback.",
+      "warning": "LAN-adgang eksponerer API-serveren for andre enheder på dit netværk. Kombineret med abonnementsrouting kan anmodninger forbruge din abonnementskvote — hold dette deaktiveret, medmindre du stoler på netværket."
+    },
+    "status": {
+      "running": "Server kører",
+      "stopped": "Server stoppet",
+      "runningHint": "Den udgående API-server accepterer anmodninger.",
+      "stoppedHint": "Aktivér serveren for at begynde at acceptere anmodninger.",
+      "port": "port {{port}}",
+      "loopback": "Loopback-URL'er",
+      "lan": "LAN-URL'er"
+    },
+    "endpoints": {
+      "title": "Endpoint-routing",
+      "description": "Vælg den model, som hvert wire-format router til. Standardmodellen indstilles her — serveren er en router, ikke en chatapplikation."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Standardmodel",
+      "backgroundModel": "Baggrundsmodel",
+      "visionModel": "Visionmodel",
+      "noVisionModel": "Ingen",
+      "backgroundModelIds": "Baggrundsmodel-ID'er",
+      "backgroundModelIdsPlaceholder": "kommaseparerede model-ID'er",
+      "modelPlaceholder": "Vælg en model…",
+      "useSubscription": "Brug abonnement",
+      "subscriptionUnsupported": "Abonnementsrouting er ikke tilgængeligt for dette endpoint."
+    },
+    "keys": {
+      "title": "Adgangsnøgler",
+      "description": "Navngivne nøgler, som eksterne kaldere sender som Bearer-token. Den fulde nøgle vises kun én gang ved oprettelse.",
+      "namePlaceholder": "Nøglenavn (f.eks. min-cli)",
+      "create": "Opret nøgle",
+      "empty": "Ingen adgangsnøgler endnu.",
+      "enabled": "Aktiveret",
+      "disabled": "Deaktiveret",
+      "revoked": "Tilbagekaldt",
+      "toggle": "Slå nøgle til/fra",
+      "revoke": "Tilbagekald",
+      "revokeConfirmTitle": "Tilbagekald denne nøgle?",
+      "revokeConfirmDesc": "Tilbagekaldelse af \"{{name}}\" stopper straks dens godkendelse. Dette kan ikke fortrydes.",
+      "created": {
+        "title": "Nøgle oprettet",
+        "warning": "Kopiér denne nøgle nu — den vises ikke igen. Opbevar den sikkert.",
+        "copy": "Kopiér",
+        "copied": "Kopieret",
+        "dismiss": "Færdig"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Konti og abonnementer",
+    "description": "Administrér de abonnementskredentialer, som serveren router igennem. Tokens skrives her, men vises aldrig igen.",
+    "loading": "Indlæser konti…",
+    "empty": "Ingen abonnementsudbydere er tilgængelige.",
+    "signIn": "Log ind",
+    "oauth": {
+      "title": "Log ind på {{name}}",
+      "description": "Åbn login-siden i din browser, autorisér, og indsæt derefter autorisationskoden nedenfor. Koden sendes kun til dæmonen — det oprettede token vises aldrig.",
+      "openPage": "Åbn login-side",
+      "codeLabel": "Autorisationskode",
+      "codePlaceholder": "Indsæt koden her",
+      "submit": "Fuldfør login"
+    },
+    "codexOauth": {
+      "title": "Log ind på {{name}}",
+      "description": "Åbn login-siden i din browser og autorisér. Dæmonen registrerer resultatet automatisk — hold dette åbent, indtil det er fuldført. Tokenet vises aldrig.",
+      "waiting": "Venter på, at du fuldfører login i din browser…",
+      "failed": "Login mislykkedes. Prøv venligst igen."
+    },
+    "clearProvider": "Ryd alle",
+    "clearConfirmTitle": "Ryd {{name}}-konti?",
+    "clearConfirmDesc": "Dette fjerner alle gemte kredentialer for denne udbyder. Dette kan ikke fortrydes.",
+    "credential": {
+      "ok": "Konfigureret",
+      "notConfigured": "Ikke konfigureret"
+    },
+    "kind": {
+      "pass-through": "Videregivne kredentialer",
+      "oauth-bearer": "OAuth-bearer",
+      "static-bearer": "Statisk bearer-nøgle"
+    },
+    "reason": {
+      "missing-credential": "Ingen credential gemt.",
+      "expired": "Credential udløbet.",
+      "reauth-required": "Gengodkendelse påkrævet.",
+      "refresh-failed": "Tokenfornyet mislykkedes.",
+      "not-refreshable": "Credential kan ikke fornyes.",
+      "unknown": "Status ukendt."
+    },
+    "status": {
+      "unconfigured": "Ikke konfigureret",
+      "authorized": "Autoriseret",
+      "configured": "Konfigureret",
+      "expired": "Udløbet",
+      "error": "Fejl"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Opsætningstoken",
+      "manual": "Manuel"
+    },
+    "list": {
+      "empty": "Ingen konti gemt for denne udbyder.",
+      "active": "Aktiv",
+      "expiresAt": "Udløber {{value}}",
+      "setActive": "Sæt som aktiv",
+      "remove": "Fjern",
+      "removeConfirmTitle": "Fjern denne konto?",
+      "removeConfirmDesc": "Fjernelse af \"{{name}}\" sletter den gemte credential. Dette kan ikke fortrydes.",
+      "title": "Konti"
+    },
+    "write": {
+      "trigger": "Tilføj credential",
+      "title": "Skriv {{name}}-credential",
+      "description": "Indsæt allerede indhentet tokenmateriale. Felter er begrænset til hvad denne udbyder accepterer; tokenet gemmes og vises aldrig igen.",
+      "authMethod": "Godkendelsesmetode",
+      "status": "Status",
+      "subscriptionLevel": "Abonnementsniveau",
+      "subscriptionLevelNone": "Ikke indstillet",
+      "submit": "Gem credential"
+    },
+    "field": {
+      "accessToken": "Adgangstoken",
+      "refreshToken": "Opdateringstoken",
+      "idToken": "ID-token",
+      "apiKey": "API-nøgle",
+      "expiresAt": "Udløber (ISO)",
+      "setupTokenExpiresAt": "Opsætningstoken udløber (ISO)",
+      "accountId": "Konto-ID",
+      "email": "E-mail",
+      "organizationId": "Organisations-ID",
+      "baseUrl": "Basis-URL",
+      "zenBaseUrl": "Zen basis-URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic-abonnementskredentialer routet af dæmonen."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex-abonnementskredentialer routet af dæmonen."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini-abonnementskredentialer routet af dæmonen."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statiske API-nøglekredentialer routet af dæmonen."
+      }
+    },
+    "authMethodLabel": "Autorisationsmetode",
+    "authMethodDesc": {
+      "oauth": "Log ind via din browser; dæmonen registrerer og gemmer tokenet.",
+      "manual": "Indsæt et allerede indhentet token. Det gemmes og vises aldrig igen."
+    },
+    "actions": {
+      "authorize": "Autorisér",
+      "enterToken": "Indtast token",
+      "refresh": "Opdatér"
+    },
+    "accounts": {
+      "addAccount": "Tilføj konto"
+    },
+    "detail": {
+      "authMethod": "Autorisationsmetode",
+      "subscriptionLevel": "Abonnementsniveau",
+      "expiresAt": "Udløber",
+      "lastRefreshed": "Sidst opdateret",
+      "label": "Kontoetiket",
+      "labelPlaceholder": "Navngiv denne konto",
+      "saveLabel": "Gem etiket"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Åbn autorisationssiden",
+        "desc": "Åbn login-siden i din browser."
+      },
+      "step2": {
+        "title": "Autorisér adgang",
+        "desc": "Log ind og godkend adgang for udbyderen."
+      },
+      "step3": {
+        "title": "Kopiér autorisationskoden",
+        "desc": "Siden viser en autorisationskode, når du godkender."
+      },
+      "step4": {
+        "title": "Indsæt koden",
+        "desc": "Indsæt autorisationskoden nedenfor for at afslutte. Koden sendes kun til dæmonen — det oprettede token vises aldrig."
+      },
+      "authorize": "Fuldfør login",
+      "showUrl": "Vis autorisations-URL"
+    },
+    "manual": {
+      "title": "Indsæt credential",
+      "description": "Indsæt et allerede indhentet token. Felter er begrænset til hvad denne udbyder accepterer; tokenet gemmes og vises aldrig igen.",
+      "accessTokenPlaceholder": "Indsæt adgangstokenet",
+      "refreshTokenPlaceholder": "Indsæt opdateringstokenet (valgfrit)",
+      "hint": "Tokenet sendes til dæmonen og gemmes krypteret. Det vises aldrig igen."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "En API-nøgle er påkrævet.",
+      "apiKeyPlaceholder": "Indsæt API-nøglen",
+      "baseUrlPlaceholder": "https://… (valgfrit)",
+      "zenBaseUrlPlaceholder": "https://… (valgfrit)"
+    },
+    "info": {
+      "title": "Om abonnementskonti",
+      "description": "Tokens skrives til dæmonen og bruges til at godkende upstream-anmodninger. De gemmes krypteret og vises aldrig igen. Fjernelse af en konto sletter den gemte credential."
+    },
+    "rename": {
+      "failed": "Kontoen kunne ikke omdøbes."
+    },
+    "refresh": {
+      "failed": "Tokenet kunne ikke opdateres."
+    },
+    "errors": {
+      "requestFailed": "Anmodningen mislykkedes. Prøv venligst igen."
+    },
+    "syncWarning": {
+      "external-divergent": "Den eksterne CLI-loginfil indeholder nyere legitimationsoplysninger end denne konto. Det gemte token kan muligvis ikke længere opdateres — opdater nu, eller log ind igen.",
+      "external-not-rotated": "Opdateringen mislykkedes, og den eksterne CLI indeholder de samme udløbne legitimationsoplysninger. Log ind igen.",
+      "duplicate-token": "En anden konto deler disse legitimationsoplysninger. Opdatering af den ene logger den anden ud."
+    },
+    "importExternal": {
+      "detected": "Der blev fundet et eksisterende {{name}}-CLI-login på denne maskine.",
+      "hint": "Efter importen holder denne app det opdateret: ved hver tokenopdatering opdateres CLI-loginfilen også, så CLI’en i terminalen forbliver logget ind.",
+      "button": "Importér eksisterende CLI-login"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Peg en kodnings-CLI mod dæmonens udgående proxy. Denne side er skrivebeskyttet — der er intet at konfigurere her.",
+    "copy": "Kopiér",
+    "copied": "Kopieret",
+    "baseUrl": {
+      "title": "Dæmon basis-URL",
+      "description": "Den proxyadresse, din CLI opretter forbindelse til.",
+      "label": "Basis-URL"
+    },
+    "token": {
+      "title": "Godkendelse",
+      "hint": "Send 'Authorization: Bearer <dit-admintoken>' for administratorruter. Admintokenet konfigureres i dæmonen (dens konfigurationsfil eller miljø) — det vises aldrig her."
+    },
+    "examples": {
+      "title": "Eksempel på startmiljø",
+      "keyNote": "Brug en udgående adgangsnøgle oprettet på API-tjenestesiden — ikke admintokenet.",
+      "anthropic": "Anthropic-format CLI",
+      "openai": "OpenAI-format CLI"
+    },
+    "launchDescription": "Start en kodnings-CLI i en terminal, peget mod denne dæmon. Dæmonen injicerer omledirningsmiljøet og starter CLI'en for dig.",
+    "refresh": "Opdatér",
+    "loading": "Registrerer CLI'er…",
+    "cli": {
+      "installed": "Installeret",
+      "notFound": "Ikke fundet",
+      "notFoundHint": "Denne CLI er ikke på dæmonværtens PATH. Installér den og opdatér.",
+      "install": "Installér",
+      "installing": "Installerer…",
+      "installingHint": "Installerer på dæmonværten — dette kan tage et øjeblik.",
+      "launch": "Start",
+      "launchTitle": "Start {{name}}",
+      "launchDescription": "Åbner en ny terminal på dæmonværten, der kører denne CLI, routet gennem dæmonproxyen. Vælg en valgfri arbejdsmappe.",
+      "cwdLabel": "Arbejdsmappe",
+      "cwdPlaceholder": "/sti/til/dit/projekt",
+      "runningVia": "Kører · {{provider}} / {{model}}",
+      "stop": "Stop"
+    },
+    "manual": {
+      "title": "Manuel opsætning",
+      "description": "Foretrækker du at køre CLI'en selv? Peg den mod dæmonen med disse miljøvariabler.",
+      "show": "Vis",
+      "hide": "Skjul"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Kontrollerer for dæmon…",
+    "spawning": "Starter dæmon…",
+    "failed": "Dæmonen kunne ikke starte",
+    "failedHint": "Sørg for at Node.js er installeret og dæmonen er bygget (dist til stede), eller sæt OMNICROSS_DAEMON_ENTRY til dæmonens cli.js."
+  },
+  "settings": {
+    "title": "Indstillinger",
+    "description": "Præferencer for desktopapplicationen.",
+    "desktopOnly": "Opstart- og systembakkemuligheder gælder kun i desktopapplicationen.",
+    "startup": {
+      "title": "Opstart",
+      "autoLaunch": "Start ved login",
+      "autoLaunchHint": "Start Omnicross automatisk, når du logger ind.",
+      "startMinimized": "Start minimeret til systembakke",
+      "startMinimizedHint": "Start i baggrunden uden at åbne vinduet."
+    },
+    "tray": {
+      "title": "Systembakke",
+      "minimizeOnClose": "Minimér til systembakke ved lukning",
+      "minimizeOnCloseHint": "Lukning af vinduet skjuler det i systembakken i stedet for at afslutte."
+    },
+    "language": {
+      "title": "Sprog",
+      "label": "Grænsefladesprog"
+    }
+  },
+  "usageStats": {
+    "title": "Forbrugsstatistik",
+    "description": "Token- og omkostningsstatistik for forespørgsler håndteret af dæmonen.",
+    "rangeToday": "I dag",
+    "range7d": "Seneste 7 dage",
+    "range30d": "Seneste 30 dage",
+    "rangeCustom": "Tilpasset",
+    "from": "Fra",
+    "to": "Til",
+    "totalCost": "Samlet omkostning",
+    "cacheSavings": "Cache-besparelse",
+    "events": "Forespørgsler",
+    "inputTokens": "Input-tokens",
+    "outputTokens": "Output-tokens",
+    "cacheReadTokens": "Cache-læsning",
+    "cacheWriteTokens": "Cache-skrivning",
+    "reasoningTokens": "Ræsonnement-tokens",
+    "byModel": "Pr. model",
+    "byApiKey": "Pr. API-nøgle",
+    "provider": "Udbyder",
+    "model": "Model",
+    "cost": "Omkostning",
+    "apiKey": "API-nøgle",
+    "unpriced": "Uden pris",
+    "unpricedHint": "Der findes ingen prispost for denne model — tilføj en på siden Priser.",
+    "unattributed": "Ikke tildelt",
+    "unattributedHint": "Forespørgsler, der ikke er knyttet til en bestemt API-nøgle. Dette er forventet, indtil tildeling pr. nøgle registreres.",
+    "empty": "Ingen forespørgsler i dette interval.",
+    "invalidRange": "Vælg et gyldigt datointerval."
+  },
+  "pricing": {
+    "title": "Modelpriser",
+    "description": "Tokenpriser pr. model til omkostningsberegning, i USD pr. million tokens.",
+    "search": "Søg efter udbyder eller model…",
+    "fetchLatest": "Hent seneste",
+    "fetching": "Henter…",
+    "addEntry": "Tilføj post",
+    "provider": "Udbyder",
+    "model": "Model",
+    "inputPrice": "Input",
+    "outputPrice": "Output",
+    "cacheReadPrice": "Cache-læsning",
+    "cacheWritePrice": "Cache-skrivning",
+    "source": "Kilde",
+    "updated": "Opdateret",
+    "userEdited": "redigeret",
+    "edit": "Rediger",
+    "deleteTitle": "Slet prisposten?",
+    "empty": "Pristabellen er tom.",
+    "emptyHint": "Hent de seneste priser for at udfylde den.",
+    "noMatches": "Ingen poster matcher din søgning.",
+    "saved": "Prispost gemt.",
+    "saveFailed": "Gem mislykkedes: {{message}}",
+    "deleteFailed": "Sletning mislykkedes: {{message}}",
+    "alreadyDeleted": "Posten fandtes ikke længere.",
+    "fetchApplied": "{{count}} poster opdateret fra kilden.",
+    "fetchFailed": "Hentning mislykkedes: {{message}}",
+    "requiredId": "Påkrævet",
+    "invalidPrice": "Indtast et ikke-negativt tal",
+    "conflictTitle": "Løs priskonflikter",
+    "conflictHint": "Disse poster er redigeret af dig og har også ændret sig i kilden. Vælg pr. række, om du vil beholde din værdi (Spring over) eller tage den indkommende (Overskriv).",
+    "current": "Aktuel",
+    "incoming": "Indkommende",
+    "overwrite": "Overskriv",
+    "skip": "Spring over",
+    "overwriteAll": "Overskriv alle",
+    "skipAll": "Spring alle over",
+    "applyResolutions": "Anvend",
+    "resolved": "{{overwritten}} overskrevet, {{skipped}} sprunget over.",
+    "resolvedWithStale": "{{overwritten}} overskrevet, {{skipped}} sprunget over. {{stale}} blev ændret i mellemtiden og forblev urørte.",
+    "refreshFailed": "Ændringen blev anvendt, men genindlæsning af listen mislykkedes: {{message}}",
+    "sourceBuiltin": "Indbygget",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Bruger"
+  }
+}

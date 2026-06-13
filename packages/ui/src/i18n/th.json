@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "กำลังโหลดการตั้งค่า LLM...",
+    "reset": {
+      "button": "คืนค่าเริ่มต้น",
+      "confirmTitle": "คืนค่าการตั้งค่าเริ่มต้น?",
+      "confirmBody": "การดำเนินการนี้จะล้างการปรับแต่งของคุณสำหรับผู้ให้บริการนี้ และกลับไปใช้ค่าเริ่มต้นที่ติดตั้งมา API key และเซสชันที่บันทึกไว้จะยังคงอยู่",
+      "confirmButton": "คืนค่าเริ่มต้น"
+    },
+    "reentryBanner": {
+      "message": "ผู้ให้บริการที่เปิดใช้งาน {{count}} รายการต้องกรอก API key ใหม่อีกครั้ง กรุณาเปิดแต่ละรายการและเพิ่ม key อีกครั้ง"
+    },
+    "migrationPack": {
+      "barHint": "ย้าย provider key และ subscription token ของคุณไปยังเครื่องอื่นด้วยแพ็กเข้ารหัส",
+      "passphrase": "รหัสผ่าน",
+      "passphrasePlaceholder": "ใส่รหัสผ่าน",
+      "passphraseHint": "ใช้อย่างน้อย 8 ตัวอักษร แนะนำให้ใช้ 12 ตัวขึ้นไป",
+      "confirm": "ยืนยันรหัสผ่าน",
+      "confirmPlaceholder": "ใส่รหัสผ่านอีกครั้ง",
+      "mismatch": "รหัสผ่านไม่ตรงกัน",
+      "strength": {
+        "weak": "สั้นเกินไป — ใช้อย่างน้อย 8 ตัวอักษร",
+        "fair": "พอใช้ได้ — 12 ตัวขึ้นไปจะปลอดภัยกว่า",
+        "strong": "รหัสผ่านแข็งแกร่ง"
+      },
+      "export": {
+        "button": "ส่งออกแพ็ก",
+        "title": "ส่งออกแพ็กเข้ารหัส",
+        "subtitle": "เข้ารหัส provider key และ subscription token ของคุณเป็นไฟล์พกพา",
+        "warning": "ไฟล์นี้มีข้อมูลลับที่สามารถถอดรหัสได้ เก็บรักษาให้ปลอดภัย — ผู้ใดที่มีไฟล์และรหัสผ่านสามารถอ่าน key ของคุณได้ หากลืมรหัสผ่านจะไม่สามารถกู้คืนได้",
+        "submit": "ส่งออก",
+        "success": "ส่งออกแพ็กสำเร็จ",
+        "error": "การส่งออกล้มเหลว กรุณาลองใหม่อีกครั้ง"
+      },
+      "import": {
+        "button": "นำเข้าแพ็ก",
+        "title": "นำเข้าแพ็กเข้ารหัส",
+        "subtitle": "กู้คืน provider key และ subscription token จากแพ็กที่ส่งออกไว้",
+        "hint": "ใส่รหัสผ่านที่ใช้ตอนส่งออกแพ็ก จากนั้นเลือกไฟล์",
+        "submit": "นำเข้า",
+        "successTitle": "นำเข้าสำเร็จ",
+        "summary": "นำเข้า provider key {{providerKeys}} รายการ, pool key {{poolKeys}} รายการ และ token set {{tokenSets}} รายการ",
+        "duplicates": "ข้าม pool key {{count}} รายการที่มีอยู่แล้ว",
+        "skipped": "ข้าม (ไม่พบ provider ที่ตรงกัน): {{names}}",
+        "error": "รหัสผ่านไม่ถูกต้องหรือแพ็กเสียหาย ไม่มีการเปลี่ยนแปลงใดๆ"
+      }
+    },
+    "searchPlaceholder": "ค้นหาผู้ให้บริการ...",
+    "emptySearch": "ไม่พบผู้ให้บริการที่ตรงกับการค้นหา",
+    "emptyList": "ยังไม่มีผู้ให้บริการที่ตั้งค่าไว้",
+    "selectPrompt": "เลือกผู้ให้บริการเพื่อดูรายละเอียด",
+    "listStatus": "{{count}} โมเดล",
+    "noModels": "ยังไม่มีโมเดลที่ตั้งค่าไว้",
+    "enabled": "เปิดใช้งาน",
+    "disabled": "ปิดใช้งาน",
+    "showEnabledOnly": "แสดงเฉพาะที่เปิดใช้งาน",
+    "showAll": "แสดงผู้ให้บริการทั้งหมด",
+    "dragHandle": "ลากเพื่อจัดเรียง",
+    "reorderFailed": "บันทึกลำดับผู้ให้บริการไม่สำเร็จ",
+    "credentials": {
+      "apiKey": "API Key",
+      "apiBaseUrl": "API Base URL"
+    },
+    "filter": {
+      "all": "ทั้งหมด",
+      "chat": "แชท",
+      "code": "โค้ด"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "เลือกเทมเพลต",
+      "skipTemplates": "ข้าม ตั้งค่าเอง",
+      "name": "ชื่อ *",
+      "providerType": "ประเภท",
+      "apiType": "ประเภท API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "รูปแบบ API มาตรฐาน OpenAI chat/completions",
+        "claudecode": "รูปแบบ Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "รูปแบบ API",
+      "chatApiFormatDescription": "เลือกรูปแบบ API ที่ตรงกับ endpoint ของผู้ให้บริการ",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-... หรือ $ENV_VAR",
+      "apiKeyHelper": "ใช้ $VAR_NAME เพื่ออ้างอิงตัวแปรสภาพแวดล้อม",
+      "apiKeySetPlaceholder": "ตั้ง key ไว้แล้ว — เว้นว่างเพื่อคงไว้",
+      "apiKeyReplaceHelper": "มี key ถูกเก็บไว้อย่างปลอดภัย พิมพ์ค่าใหม่เพื่อแทนที่ หรือเว้นว่างเพื่อคงไว้",
+      "testApiKey": "ทดสอบ API Key",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "ตัวอย่าง:",
+      "models": "โมเดล",
+      "modelPlaceholder": "ชื่อโมเดล (เช่น gpt-4, claude-3-opus)",
+      "transformers": "Transformers",
+      "transformerConfig": "API Transformers",
+      "transformerConfigDescription": "ตั้งค่า transformer เพื่อปรับรูปแบบ API request/response สำหรับผู้ให้บริการนี้",
+      "transformerConfigNote": "daemon จะใช้ transformer เหล่านี้ในลำดับ request หลังจาก format transformer ของผู้ให้บริการ (ที่จัดการการแปลง wire-format) ชื่อ transformer ที่ไม่รู้จักจะถูกข้าม",
+      "enabled": "เปิดใช้งาน",
+      "apiVersion": "เวอร์ชัน API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "เวอร์ชัน Azure OpenAI API (เช่น 2024-08-01-preview)",
+      "official": "Anthropic API อย่างเป็นทางการ",
+      "officialHelper": "เปิดใช้หากผู้ให้บริการนี้เชื่อมต่อโดยตรงกับ Anthropic API อย่างเป็นทางการ ปิดสำหรับ reverse proxy หรือบริการของบุคคลที่สาม",
+      "maxConcurrency": "จำนวน Request พร้อมกันสูงสุด",
+      "maxConcurrencyHelper": "จำนวน API request สูงสุดที่ส่งไปยังผู้ให้บริการนี้พร้อมกัน ค่าต่ำกว่าช่วยหลีกเลี่ยง rate limiting (ข้อผิดพลาด 429) ตั้ง `-1` เพื่อไม่จำกัด",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "ใช้ API endpoint แยกต่างหากสำหรับ coding plan แบบ subscription",
+        "baseUrl": "Coding Plan Base URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API Key (ไม่บังคับ)",
+        "apiKeyPlaceholder": "เว้นว่างเพื่อใช้ API key ของผู้ให้บริการ",
+        "apiKeyHelper": "จำเป็นเฉพาะเมื่อ coding plan ใช้ API key ที่แตกต่างออกไป",
+        "tokenPlanHint": "ผู้ให้บริการบางราย (เช่น Xiaomi MiMo) ออก Token Plan key ที่มีคำนำหน้า `tp-` — เป็นข้อมูลอ้างอิงเท่านั้น ไม่มีการบังคับใช้"
+      },
+      "selectTypeFirst": "เลือกประเภทผู้ให้บริการ",
+      "selectTypeFirstDesc": "เลือกประเภทผู้ให้บริการที่ต้องการเพิ่ม",
+      "codeProviderNote": "Code provider ต้องการเพียง API Key และ URL โมเดลถูกจัดการโดย Agent Router",
+      "buttons": {
+        "cancel": "ยกเลิก",
+        "submitAdd": "เพิ่มผู้ให้บริการ",
+        "submitUpdate": "อัปเดตผู้ให้บริการ",
+        "continue": "ถัดไป",
+        "back": "ย้อนกลับ"
+      }
+    },
+    "details": {
+      "noSelection": "เลือกผู้ให้บริการเพื่อดูรายละเอียด",
+      "apiKey": "API Key",
+      "apiUrl": "API URL",
+      "nameLabel": "ชื่อผู้ให้บริการ",
+      "modelsEndpoint": "Models Endpoint",
+      "modelsEndpointHelper": "แทนที่ endpoint การค้นพบหากผู้ให้บริการเปิดเผย path /models แบบกำหนดเอง",
+      "models": "โมเดล",
+      "transformers": "Transformers",
+      "codeProviderNote": "Code provider (เช่น Claude Code) ไม่จำเป็นต้องตั้งค่าโมเดล โมเดลถูกจัดการโดยอัตโนมัติผ่าน Agent Router",
+      "buttons": {
+        "more": "การตั้งค่าเพิ่มเติม",
+        "delete": "ลบ"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "เลือกผู้ให้บริการและโมเดล",
+      "noProviders": "ไม่มีผู้ให้บริการ",
+      "noModels": "ยังไม่มีโมเดลที่ตั้งค่าไว้"
+    },
+    "apiKeyPool": {
+      "title": "API Key Pool",
+      "description": "ตั้งค่า API key หลายรายการสำหรับ load balancing แต่ละเซสชันจะยึดกับ key เดิมเพื่อรักษา prompt cache",
+      "defaultLabel": "ค่าเริ่มต้น",
+      "weight": "น้ำหนัก",
+      "noKey": "ไม่มี key",
+      "labelPlaceholder": "ป้ายกำกับ (เช่น Key #1, Production)",
+      "addKey": "เพิ่ม API Key",
+      "add": "เพิ่ม",
+      "empty": "ยังไม่มี key เพิ่มเติมที่ตั้งค่าไว้",
+      "statusCoolingDown": "กำลังพัก {{time}}",
+      "statusAuthFailed": "การยืนยันตัวตนล้มเหลว · ปิดใช้งาน",
+      "statusDisabled": "ปิดใช้งาน",
+      "statusHealthy": "ปกติ",
+      "agoSeconds": "{{count}} วินาทีที่แล้ว",
+      "agoMinutes": "{{count}} นาทีที่แล้ว",
+      "agoHours": "{{count}} ชั่วโมงที่แล้ว",
+      "agoDays": "{{count}} วันที่แล้ว"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "ค้นหาโมเดล...",
+      "defaultGroup": "โมเดลทั้งหมด",
+      "add": "เพิ่มโมเดล",
+      "manage": "จัดการ",
+      "empty": "ไม่มีโมเดลในกลุ่มนี้",
+      "enabled": "เปิดใช้งาน",
+      "disabled": "ปิดใช้งาน",
+      "filters": {
+        "all": "ทั้งหมด",
+        "vision": "Vision",
+        "reasoning": "Reasoning",
+        "free": "ฟรี",
+        "tools": "Tools"
+      },
+      "manualDialog": {
+        "title": "เพิ่มโมเดล",
+        "subtitle": "เพิ่มโมเดลแบบกำหนดเองสำหรับผู้ให้บริการนี้",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash ฯลฯ",
+        "modelIdHelper": "ตัวระบุโมเดลที่แน่ชัดที่ใช้เมื่อเรียก API",
+        "modelName": "ชื่อที่แสดง",
+        "modelNamePlaceholder": "ชื่อที่แสดงในหน้าจอ (ไม่บังคับ)",
+        "modelNameHelper": "ชื่อเสริมที่แสดงในหน้าจอ หากเว้นว่างจะใช้ Model ID",
+        "group": "กลุ่ม",
+        "groupPlaceholder": "เลือกหรือพิมพ์ชื่อกลุ่ม",
+        "submit": "เพิ่ม",
+        "cancel": "ยกเลิก",
+        "helper": "ระบุตัวระบุโมเดลที่แน่ชัดที่ผู้ให้บริการ API เปิดเผย"
+      },
+      "editDialog": {
+        "title": "แก้ไขโมเดล",
+        "subtitle": "แก้ไขการตั้งค่าโมเดล",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "ตัวระบุโมเดล",
+        "modelIdHelper": "ตัวระบุโมเดลที่ใช้เมื่อเรียก API",
+        "modelName": "ชื่อที่แสดง",
+        "modelNamePlaceholder": "ชื่อที่แสดงในหน้าจอ",
+        "modelNameHelper": "ชื่อที่แสดงในหน้าจอ",
+        "group": "กลุ่ม",
+        "groupPlaceholder": "เลือกหรือพิมพ์ชื่อกลุ่ม",
+        "submit": "บันทึก",
+        "cancel": "ยกเลิก",
+        "vision": "ความสามารถ Vision",
+        "visionHint": "โมเดลนี้รองรับการรับรูปภาพหรือไม่",
+        "reasoning": "โมเดล Thinking",
+        "reasoningHint": "โมเดลนี้รองรับโหมด thinking/reasoning หรือไม่"
+      },
+      "manageDialog": {
+        "title": "จัดการโมเดล",
+        "cachedAt": "แคชเมื่อ {{date}} ({{source}})",
+        "refresh": "รีเฟรช",
+        "close": "ปิด",
+        "raw": "Raw JSON",
+        "empty": "ไม่มีโมเดลระยะไกล",
+        "error": "โหลดโมเดลไม่สำเร็จ: {{message}}",
+        "addFromCatalog": "เพิ่ม",
+        "sourceCache": "แคช",
+        "sourceNetwork": "สด",
+        "contextLength": "Context {{value}} token",
+        "maxTokens": "สูงสุด {{value}} token"
+      },
+      "messages": {
+        "added": "เพิ่มโมเดลแล้ว",
+        "updated": "อัปเดตโมเดลแล้ว",
+        "removed": "ลบโมเดลแล้ว",
+        "duplicate": "มีโมเดลนี้อยู่แล้ว",
+        "refreshed": "รีเฟรชโมเดลแล้ว",
+        "refreshFailed": "รีเฟรชโมเดลไม่สำเร็จ"
+      },
+      "testDialog": {
+        "title": "ทดสอบการเชื่อมต่อโมเดล",
+        "provider": "ผู้ให้บริการ",
+        "model": "โมเดล",
+        "testing": "กำลังทดสอบ...",
+        "success": "ทดสอบสำเร็จ",
+        "successMessage": "สามารถเข้าถึงโมเดลได้ปกติ",
+        "failure": "ทดสอบไม่สำเร็จ",
+        "aiResponse": "การตอบสนองของ AI",
+        "charCount": "{{count}} ตัวอักษร",
+        "duration": "ใช้เวลา {{time}} วินาที",
+        "close": "ปิด",
+        "retest": "ทดสอบใหม่",
+        "testButton": "ทดสอบโมเดล",
+        "unsupportedFormat": "ยังไม่รองรับการทดสอบสำหรับรูปแบบผู้ให้บริการนี้"
+      }
+    },
+    "router": {
+      "title": "การตั้งค่า Router",
+      "description": "ตั้งค่าผู้ให้บริการ/โมเดลที่ใช้สำหรับแต่ละสถานการณ์",
+      "labels": {
+        "default": "ค่าเริ่มต้น",
+        "background": "พื้นหลัง",
+        "think": "คิด",
+        "longContext": "Context ยาว",
+        "webSearch": "ค้นหาเว็บ",
+        "image": "รูปภาพ",
+        "longContextThreshold": "เกณฑ์ Context ยาว"
+      },
+      "helper": {
+        "longContextThreshold": "จำนวน token ก่อนเปลี่ยนไปใช้โมเดล long-context"
+      },
+      "placeholder": {
+        "required": "จำเป็น",
+        "optional": "ไม่บังคับ"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "ตั้งค่าการ routing แบบสองทิศทางระหว่างโหมดแชทและโค้ด",
+      "searchPlaceholder": "ค้นหา router...",
+      "noSearchResults": "ไม่พบ router ที่ตรงกับการค้นหา",
+      "tabs": {
+        "chatToCode": "แชท → โค้ด",
+        "codeToChatPlaceholder": "โค้ด → แชท"
+      },
+      "chatToCode": {
+        "title": "Chat to Code Router",
+        "description": "ใช้ chat provider ในโหมด agent/coding",
+        "addRouter": "เพิ่ม Router",
+        "emptyState": "ยังไม่มี Chat→Code router เพิ่มรายการเพื่อใช้ chat provider ในโหมด coding",
+        "form": {
+          "name": "ชื่อ Router",
+          "namePlaceholder": "My Chat→Code Router",
+          "chatProvider": "Chat Provider",
+          "chatProviderPlaceholder": "เลือก chat provider",
+          "mode": "โหมด",
+          "modeSimple": "แบบง่าย",
+          "modeAdvanced": "ขั้นสูง",
+          "modeSimpleDesc": "ส่งต่อตรงไปยัง chat provider",
+          "modeAdvancedDesc": "ตั้งค่า model mapping และการจัดการ context",
+          "enabled": "เปิดใช้งาน",
+          "save": "บันทึก Router",
+          "cancel": "ยกเลิก"
+        },
+        "list": {
+          "provider": "ผู้ให้บริการ",
+          "mode": "โหมด",
+          "status": "สถานะ"
+        },
+        "mappings": {
+          "title": "การจับคู่โมเดล",
+          "description": "จับคู่โมเดลของ Chat provider กับโมเดลของ Code provider",
+          "count": "การจับคู่",
+          "empty": "ยังไม่มีการจับคู่โมเดล เพิ่มการจับคู่เพื่อ route chat model ไปยัง code provider",
+          "addNew": "เพิ่มการจับคู่ใหม่",
+          "selectSource": "เลือกโมเดลต้นทาง (แชท)",
+          "selectTarget": "เลือกโมเดลปลายทาง (โค้ด)",
+          "targetPlaceholder": "ใส่ชื่อโมเดล Claude Code",
+          "notSet": "(ยังไม่ได้ตั้งค่า — คลิกเพื่อเลือก)",
+          "add": "เพิ่ม",
+          "edit": "แก้ไข",
+          "done": "เสร็จสิ้น"
+        },
+        "advanced": {
+          "title": "การตั้งค่าขั้นสูง",
+          "description": "ตั้งค่าโมเดลสำหรับแต่ละประเภทงาน",
+          "helpText": "โมเดลเริ่มต้นจำเป็นต้องตั้งค่า โมเดลอื่นเป็นตัวเลือกและจะใช้โมเดลเริ่มต้นหากไม่ได้ตั้งค่า",
+          "default": {
+            "label": "ค่าเริ่มต้น",
+            "placeholder": "เลือกโมเดลเริ่มต้น",
+            "description": "โมเดลหลักสำหรับงานทั่วไป (คล้าย Claude Sonnet)"
+          },
+          "background": {
+            "label": "พื้นหลัง",
+            "placeholder": "เลือกโมเดลพื้นหลัง",
+            "description": "โมเดลเบาสำหรับงานพื้นหลัง (คล้าย Claude Haiku)"
+          },
+          "think": {
+            "label": "คิด",
+            "placeholder": "เลือกโมเดล think",
+            "description": "โมเดลขั้นสูงสำหรับการใช้เหตุผลซับซ้อน (คล้าย Claude Opus)"
+          },
+          "image": {
+            "label": "รูปภาพ",
+            "placeholder": "เลือกโมเดลรูปภาพ",
+            "description": "โมเดลสำหรับงานที่เกี่ยวกับรูปภาพที่มีความสามารถ vision"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Code to Chat Router",
+        "description": "เปิดเผยโมเดล Coding Plan ในโหมดแชท",
+        "addRouter": "เพิ่ม Router",
+        "emptyState": "ยังไม่มี Code→Chat router เพิ่มรายการเพื่อเปิดเผยโมเดล Coding Plan ในโหมดแชท",
+        "form": {
+          "name": "ชื่อ Router",
+          "namePlaceholder": "My Code→Chat Router",
+          "codeProvider": "Code Provider",
+          "codeProviderPlaceholder": "เลือก code provider",
+          "codeProviderHelper": "เลือก Code provider ที่ใช้สำหรับการแปลง",
+          "models": "โมเดล Coding Plan",
+          "modelsHelper": "เลือกโมเดล Coding Plan ที่ต้องการเปิดเผย",
+          "enabled": "เปิดใช้งาน",
+          "save": "บันทึก Router",
+          "cancel": "ยกเลิก"
+        },
+        "mappings": {
+          "title": "การจับคู่โมเดล",
+          "description": "จับคู่โมเดลของ Code provider กับโมเดลของ Chat provider เพื่อเปิดเผย",
+          "count": "การจับคู่",
+          "empty": "ยังไม่มีการจับคู่โมเดล เพิ่มการจับคู่เพื่อเปิดเผยโมเดล Code ในโหมดแชท",
+          "addNew": "เพิ่มการจับคู่ใหม่",
+          "selectSource": "เลือกโมเดลต้นทาง (โค้ด)",
+          "selectTarget": "เลือกโมเดลปลายทาง (แชท)",
+          "sourcePlaceholder": "ใส่ชื่อโมเดลต้นทาง",
+          "targetPlaceholder": "ใส่ชื่อโมเดลปลายทาง",
+          "add": "เพิ่ม",
+          "edit": "แก้ไข",
+          "done": "เสร็จสิ้น"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "ตั้งค่า transformer สำหรับการแปลง request/response",
+        "noProvider": "เลือกผู้ให้บริการเพื่อตั้งค่า transformer",
+        "empty": "ไม่มี transformer",
+        "count": "{{count}} transformer"
+      },
+      "status": {
+        "enabled": "เปิดใช้งาน",
+        "disabled": "ปิดใช้งาน"
+      },
+      "messages": {
+        "routerAdded": "เพิ่ม router สำเร็จ",
+        "routerUpdated": "อัปเดต router สำเร็จ",
+        "routerDeleted": "ลบ router สำเร็จ",
+        "saveFailed": "บันทึก router ไม่สำเร็จ"
+      }
+    },
+    "presets": {
+      "title": "เพิ่มผู้ให้บริการด่วน",
+      "added": "เพิ่มแล้ว",
+      "add": "เพิ่ม",
+      "features": {
+        "search": "ค้นหา",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "คุณแน่ใจหรือไม่ว่าต้องการลบผู้ให้บริการนี้?"
+    },
+    "errors": {
+      "nameRequired": "กรุณาระบุชื่อผู้ให้บริการ",
+      "urlRequired": "กรุณาระบุ API Base URL",
+      "urlInvalid": "กรุณาใส่ URL ที่ถูกต้อง (เช่น https://api.example.com)",
+      "saveFailed": "บันทึกผู้ให้บริการไม่สำเร็จ",
+      "deleteFailed": "ลบผู้ให้บริการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "toggleFailed": "เปลี่ยนสถานะผู้ให้บริการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+    },
+    "openRouter": {
+      "title": "การ Routing ของ OpenRouter Provider",
+      "description": "ตั้งค่าวิธี route request ไปยังผู้ให้บริการต่างๆ บน OpenRouter",
+      "sort": "กลยุทธ์การ Routing",
+      "sortTooltip": "เลือกวิธีจัดลำดับความสำคัญของผู้ให้บริการ Auto ใช้ load balancing อัจฉริยะ",
+      "order": "ลำดับความสำคัญของผู้ให้บริการ",
+      "orderTooltip": "ระบุผู้ให้บริการที่ต้องการลองตามลำดับ (เช่น anthropic, openai, together) กด Enter เพื่อเพิ่ม",
+      "orderPlaceholder": "พิมพ์ slug ผู้ให้บริการและกด Enter...",
+      "allowFallbacks": "อนุญาต Fallback",
+      "allowFallbacksTooltip": "เมื่อเปิดใช้งาน OpenRouter จะลองใช้ผู้ให้บริการสำรองหากผู้ให้บริการหลักไม่พร้อมใช้งาน",
+      "requireParameters": "บังคับใช้พารามิเตอร์ทั้งหมด",
+      "requireParametersTooltip": "Route เฉพาะไปยังผู้ให้บริการที่รองรับพารามิเตอร์ทั้งหมดใน request ของคุณ",
+      "dataCollection": "นโยบายการเก็บข้อมูล",
+      "dataCollectionTooltip": "ควบคุมการใช้ผู้ให้บริการที่อาจเก็บหรือฝึกโมเดลบนข้อมูลของคุณ",
+      "zdr": "Zero Data Retention",
+      "zdrTooltip": "Route เฉพาะไปยัง endpoint ที่มีนโยบาย Zero Data Retention",
+      "only": "อนุญาตเฉพาะผู้ให้บริการ",
+      "onlyTooltip": "ใช้เฉพาะผู้ให้บริการที่ระบุ เว้นว่างเพื่ออนุญาตทั้งหมด",
+      "onlyPlaceholder": "พิมพ์ slug ผู้ให้บริการและกด Enter...",
+      "ignore": "ข้ามผู้ให้บริการ",
+      "ignoreTooltip": "ข้ามผู้ให้บริการเหล่านี้เมื่อ route request",
+      "ignorePlaceholder": "พิมพ์ slug ผู้ให้บริการและกด Enter...",
+      "quantizations": "ตัวกรอง Quantization",
+      "quantizationsTooltip": "ใช้เฉพาะผู้ให้บริการที่มีระดับ quantization ที่กำหนด ความแม่นยำต่ำกว่าอาจลดคุณภาพแต่เพิ่มความเร็ว",
+      "maxPrice": "ราคาสูงสุด",
+      "maxPriceTooltip": "ตั้งราคาสูงสุดต่อล้าน token เว้นว่างเพื่อไม่จำกัด",
+      "configured": "ตั้งค่าแล้ว"
+    }
+  },
+  "apiMode": {
+    "label": "โหมด API",
+    "standard": "มาตรฐาน",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "Key สำหรับแผนนี้มักขึ้นต้นด้วย `{{prefix}}` เป็นเพียงคำแนะนำ ไม่มีการบังคับใช้",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan ใช้ API key แยกต่างหากจาก endpoint มาตรฐาน",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan ใช้ API key แยกต่างหากจาก endpoint มาตรฐาน",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan รองรับเฉพาะโปรโตคอล Anthropic",
+    "xiaomiTokenPlanRegions": "baseUrl เริ่มต้นคือ `token-plan-cn.*` คุณสามารถแก้ไขเป็น `token-plan-sgp.*` หรือ `token-plan-ams.*` ได้",
+    "confirmOverwriteTitle": "เปลี่ยนโหมด API?",
+    "confirmOverwriteBody": "คุณได้ปรับแต่ง API URL หรือ API Key แล้ว การเปลี่ยนโหมดจะเขียนทับด้วยค่าเริ่มต้นของโหมดใหม่ — หรือคงการปรับแต่งไว้และอัปเดตเฉพาะป้ายกำกับโหมด",
+    "overwriteAndSwitch": "เขียนทับและเปลี่ยน",
+    "keepCustomizations": "คงการปรับแต่งไว้"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "ยกเลิก",
+    "close": "ปิด",
+    "copy": "คัดลอก",
+    "delete": "ลบ",
+    "dismiss": "ปิด",
+    "save": "บันทึก",
+    "optional": "ไม่บังคับ",
+    "retry": "ลองใหม่",
+    "loading": "กำลังโหลด…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "เอกสาร"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "daemon ยังไม่รองรับฟีเจอร์นี้",
+    "discoveryUnsupportedFormat": "ยังไม่รองรับการค้นพบโมเดลสำหรับรูปแบบผู้ให้บริการนี้ กรุณาเพิ่มโมเดลด้วยตนเอง"
+  },
+  "nav": {
+    "subtitle": "แผงควบคุม",
+    "providers": "ผู้ให้บริการ",
+    "apiService": "บริการ API",
+    "accounts": "บัญชี",
+    "codeCli": "Code CLI",
+    "settings": "การตั้งค่า",
+    "usageStats": "การใช้งาน",
+    "pricing": "ราคา"
+  },
+  "apiService": {
+    "title": "บริการ API",
+    "description": "ตั้งค่าเซิร์ฟเวอร์ API ขาออก การ routing โมเดลแต่ละ endpoint และ access key ที่ตั้งชื่อ",
+    "loading": "กำลังโหลดการตั้งค่าเซิร์ฟเวอร์…",
+    "loadError": "โหลดการตั้งค่าเซิร์ฟเวอร์ไม่สำเร็จ กรุณาตรวจสอบว่า daemon เข้าถึงได้",
+    "enable": {
+      "label": "เปิดใช้งานเซิร์ฟเวอร์ขาออก",
+      "description": "เริ่ม API เซิร์ฟเวอร์ภายในที่ route ผู้โทรภายนอกผ่านผู้ให้บริการของคุณ"
+    },
+    "networkBinding": {
+      "label": "อนุญาตการเข้าถึง LAN",
+      "description": "ผูก server กับ network interface แทน loopback เท่านั้น",
+      "warning": "การเข้าถึง LAN เปิดเผย API server ให้อุปกรณ์อื่นในเครือข่ายของคุณ เมื่อรวมกับ subscription routing request อาจใช้โควต้า subscription ของคุณ — ปิดไว้หากไม่ไว้วางใจเครือข่าย"
+    },
+    "status": {
+      "running": "เซิร์ฟเวอร์ทำงาน",
+      "stopped": "เซิร์ฟเวอร์หยุดทำงาน",
+      "runningHint": "API เซิร์ฟเวอร์ขาออกกำลังรับ request",
+      "stoppedHint": "เปิดใช้งานเซิร์ฟเวอร์เพื่อเริ่มรับ request",
+      "port": "พอร์ต {{port}}",
+      "loopback": "Loopback URL",
+      "lan": "LAN URL"
+    },
+    "endpoints": {
+      "title": "การ routing ของ Endpoint",
+      "description": "เลือกโมเดลที่แต่ละ wire format route ไป โมเดลเริ่มต้นจะรวมอยู่ที่นี่ — server คือ router ไม่ใช่แอปแชท"
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "โมเดลเริ่มต้น",
+      "backgroundModel": "โมเดลพื้นหลัง",
+      "visionModel": "โมเดล Vision",
+      "noVisionModel": "ไม่มี",
+      "backgroundModelIds": "ID โมเดลพื้นหลัง",
+      "backgroundModelIdsPlaceholder": "ID โมเดลคั่นด้วยจุลภาค",
+      "modelPlaceholder": "เลือกโมเดล…",
+      "useSubscription": "ใช้ subscription",
+      "subscriptionUnsupported": "ยังไม่รองรับ subscription routing สำหรับ endpoint นี้"
+    },
+    "keys": {
+      "title": "Access key",
+      "description": "Key ที่ตั้งชื่อให้ผู้โทรภายนอกส่งเป็น Bearer token key เต็มจะแสดงเพียงครั้งเดียวเมื่อสร้าง",
+      "namePlaceholder": "ชื่อ key (เช่น my-cli)",
+      "create": "สร้าง key",
+      "empty": "ยังไม่มี access key",
+      "enabled": "เปิดใช้งาน",
+      "disabled": "ปิดใช้งาน",
+      "revoked": "ถูกเพิกถอน",
+      "toggle": "สลับ key",
+      "revoke": "เพิกถอน",
+      "revokeConfirmTitle": "เพิกถอน key นี้?",
+      "revokeConfirmDesc": "การเพิกถอน \"{{name}}\" จะหยุดการยืนยันตัวตนทันที ไม่สามารถยกเลิกการดำเนินการนี้ได้",
+      "created": {
+        "title": "สร้าง key แล้ว",
+        "warning": "คัดลอก key นี้ทันที — จะไม่แสดงอีกครั้ง เก็บรักษาให้ปลอดภัย",
+        "copy": "คัดลอก",
+        "copied": "คัดลอกแล้ว",
+        "dismiss": "เสร็จสิ้น"
+      }
+    }
+  },
+  "accounts": {
+    "title": "บัญชีและ Subscription",
+    "description": "จัดการ subscription credential ที่เซิร์ฟเวอร์ route ผ่าน Token จะถูกเขียนที่นี่แต่จะไม่แสดงกลับมา",
+    "loading": "กำลังโหลดบัญชี…",
+    "empty": "ไม่มี subscription provider ที่พร้อมใช้งาน",
+    "signIn": "เข้าสู่ระบบ",
+    "oauth": {
+      "title": "เข้าสู่ระบบ {{name}}",
+      "description": "เปิดหน้าเข้าสู่ระบบในเบราว์เซอร์ อนุญาต จากนั้นวาง authorization code ด้านล่าง code จะส่งถึง daemon เท่านั้น — token ที่สร้างจะไม่ถูกแสดง",
+      "openPage": "เปิดหน้าเข้าสู่ระบบ",
+      "codeLabel": "Authorization code",
+      "codePlaceholder": "วาง code ที่นี่",
+      "submit": "ยืนยันการเข้าสู่ระบบ"
+    },
+    "codexOauth": {
+      "title": "เข้าสู่ระบบ {{name}}",
+      "description": "เปิดหน้าเข้าสู่ระบบในเบราว์เซอร์และอนุญาต daemon จะรับผลลัพธ์โดยอัตโนมัติ — เปิดหน้านี้ไว้จนกว่าจะเสร็จสิ้น token จะไม่ถูกแสดง",
+      "waiting": "กำลังรอให้คุณเข้าสู่ระบบในเบราว์เซอร์…",
+      "failed": "การเข้าสู่ระบบล้มเหลว กรุณาลองใหม่อีกครั้ง"
+    },
+    "clearProvider": "ล้างทั้งหมด",
+    "clearConfirmTitle": "ล้างบัญชี {{name}}?",
+    "clearConfirmDesc": "การดำเนินการนี้จะลบ credential ทั้งหมดที่เก็บไว้สำหรับผู้ให้บริการนี้ ไม่สามารถยกเลิกได้",
+    "credential": {
+      "ok": "ตั้งค่าแล้ว",
+      "notConfigured": "ยังไม่ได้ตั้งค่า"
+    },
+    "kind": {
+      "pass-through": "Pass-through credentials",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Static bearer key"
+    },
+    "reason": {
+      "missing-credential": "ไม่มี credential ที่เก็บไว้",
+      "expired": "Credential หมดอายุแล้ว",
+      "reauth-required": "จำเป็นต้องยืนยันตัวตนใหม่",
+      "refresh-failed": "การรีเฟรช token ล้มเหลว",
+      "not-refreshable": "Credential ไม่สามารถรีเฟรชได้",
+      "unknown": "สถานะไม่ทราบ"
+    },
+    "status": {
+      "unconfigured": "ยังไม่ได้ตั้งค่า",
+      "authorized": "ได้รับอนุญาต",
+      "configured": "ตั้งค่าแล้ว",
+      "expired": "หมดอายุ",
+      "error": "ข้อผิดพลาด"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Setup token",
+      "manual": "ด้วยตนเอง"
+    },
+    "list": {
+      "empty": "ไม่มีบัญชีที่เก็บไว้สำหรับผู้ให้บริการนี้",
+      "active": "ใช้งานอยู่",
+      "expiresAt": "หมดอายุ {{value}}",
+      "setActive": "ตั้งเป็นใช้งาน",
+      "remove": "ลบ",
+      "removeConfirmTitle": "ลบบัญชีนี้?",
+      "removeConfirmDesc": "การลบ \"{{name}}\" จะลบ credential ที่เก็บไว้ ไม่สามารถยกเลิกได้",
+      "title": "บัญชี"
+    },
+    "write": {
+      "trigger": "เพิ่ม credential",
+      "title": "เขียน credential ของ {{name}}",
+      "description": "วาง token material ที่ได้รับมาแล้ว ฟิลด์จำกัดเฉพาะที่ผู้ให้บริการรับ token จะถูกเก็บไว้และไม่แสดงกลับมา",
+      "authMethod": "วิธีการยืนยันตัวตน",
+      "status": "สถานะ",
+      "subscriptionLevel": "ระดับ subscription",
+      "subscriptionLevelNone": "ไม่ได้ตั้งค่า",
+      "submit": "บันทึก credential"
+    },
+    "field": {
+      "accessToken": "Access token",
+      "refreshToken": "Refresh token",
+      "idToken": "ID token",
+      "apiKey": "API key",
+      "expiresAt": "หมดอายุเมื่อ (ISO)",
+      "setupTokenExpiresAt": "Setup token หมดอายุเมื่อ (ISO)",
+      "accountId": "Account ID",
+      "email": "อีเมล",
+      "organizationId": "Organization ID",
+      "baseUrl": "Base URL",
+      "zenBaseUrl": "Zen base URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic subscription credential ที่ route ผ่าน daemon"
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex subscription credential ที่ route ผ่าน daemon"
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini subscription credential ที่ route ผ่าน daemon"
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Static API-key credential ที่ route ผ่าน daemon"
+      }
+    },
+    "authMethodLabel": "วิธีการยืนยันตัวตน",
+    "authMethodDesc": {
+      "oauth": "เข้าสู่ระบบผ่านเบราว์เซอร์ daemon จะรับและเก็บ token",
+      "manual": "วาง token ที่ได้รับมาแล้ว จะถูกเก็บไว้และไม่แสดงกลับมา"
+    },
+    "actions": {
+      "authorize": "อนุญาต",
+      "enterToken": "ใส่ token",
+      "refresh": "รีเฟรช"
+    },
+    "accounts": {
+      "addAccount": "เพิ่มบัญชี"
+    },
+    "detail": {
+      "authMethod": "วิธีการยืนยันตัวตน",
+      "subscriptionLevel": "ระดับ subscription",
+      "expiresAt": "หมดอายุ",
+      "lastRefreshed": "รีเฟรชล่าสุด",
+      "label": "ป้ายกำกับบัญชี",
+      "labelPlaceholder": "ตั้งชื่อบัญชีนี้",
+      "saveLabel": "บันทึกป้ายกำกับ"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "เปิดหน้าการอนุญาต",
+        "desc": "เปิดหน้าเข้าสู่ระบบในเบราว์เซอร์ของคุณ"
+      },
+      "step2": {
+        "title": "อนุญาตการเข้าถึง",
+        "desc": "เข้าสู่ระบบและอนุมัติการเข้าถึงสำหรับผู้ให้บริการ"
+      },
+      "step3": {
+        "title": "คัดลอก authorization code",
+        "desc": "หน้าจอจะแสดง authorization code หลังจากที่คุณอนุมัติ"
+      },
+      "step4": {
+        "title": "วาง code",
+        "desc": "วาง authorization code ด้านล่างเพื่อเสร็จสิ้น code จะส่งถึง daemon เท่านั้น — token ที่สร้างจะไม่ถูกแสดง"
+      },
+      "authorize": "ยืนยันการเข้าสู่ระบบ",
+      "showUrl": "แสดง URL การอนุญาต"
+    },
+    "manual": {
+      "title": "วาง credential",
+      "description": "วาง token ที่ได้รับมาแล้ว ฟิลด์จำกัดเฉพาะที่ผู้ให้บริการรับ token จะถูกเก็บไว้และไม่แสดงกลับมา",
+      "accessTokenPlaceholder": "วาง access token",
+      "refreshTokenPlaceholder": "วาง refresh token (ไม่บังคับ)",
+      "hint": "Token จะถูกส่งถึง daemon และเก็บไว้อย่างเข้ารหัส จะไม่แสดงกลับมา"
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "จำเป็นต้องใส่ API key",
+      "apiKeyPlaceholder": "วาง API key",
+      "baseUrlPlaceholder": "https://… (ไม่บังคับ)",
+      "zenBaseUrlPlaceholder": "https://… (ไม่บังคับ)"
+    },
+    "info": {
+      "title": "เกี่ยวกับ subscription account",
+      "description": "Token จะถูกเขียนไปยัง daemon และใช้เพื่อยืนยันตัวตนกับ upstream request จะถูกเก็บไว้อย่างเข้ารหัสและไม่แสดงกลับมา การลบบัญชีจะลบ credential ที่เก็บไว้"
+    },
+    "rename": {
+      "failed": "ไม่สามารถเปลี่ยนชื่อบัญชีได้"
+    },
+    "refresh": {
+      "failed": "ไม่สามารถรีเฟรช token ได้"
+    },
+    "errors": {
+      "requestFailed": "Request ล้มเหลว กรุณาลองใหม่อีกครั้ง"
+    },
+    "syncWarning": {
+      "external-divergent": "ไฟล์เข้าสู่ระบบของ CLI ภายนอกมีข้อมูลรับรองที่ใหม่กว่าบัญชีนี้ โทเค็นที่บันทึกไว้อาจหยุดรีเฟรช — รีเฟรชตอนนี้หรือเข้าสู่ระบบอีกครั้ง",
+      "external-not-rotated": "การรีเฟรชล้มเหลว และ CLI ภายนอกมีข้อมูลรับรองที่หมดอายุเดียวกัน โปรดเข้าสู่ระบบอีกครั้ง",
+      "duplicate-token": "บัญชีอื่นใช้ข้อมูลรับรองนี้ร่วมกัน การรีเฟรชบัญชีใดบัญชีหนึ่งจะทำให้อีกบัญชีถูกออกจากระบบ"
+    },
+    "importExternal": {
+      "detected": "พบการเข้าสู่ระบบ CLI ของ {{name}} ที่มีอยู่บนเครื่องนี้",
+      "hint": "หลังนำเข้า แอปนี้จะคอยอัปเดตให้: ทุกครั้งที่รีเฟรชโทเค็น ไฟล์เข้าสู่ระบบของ CLI จะถูกอัปเดตด้วย ทำให้ CLI ในเทอร์มินัลยังคงเข้าสู่ระบบอยู่",
+      "button": "นำเข้าการเข้าสู่ระบบ CLI ที่มีอยู่"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "เชื่อมต่อ coding CLI กับ outbound proxy ของ daemon หน้านี้เป็นแบบอ่านอย่างเดียว — ไม่มีการตั้งค่าที่นี่",
+    "copy": "คัดลอก",
+    "copied": "คัดลอกแล้ว",
+    "baseUrl": {
+      "title": "Daemon base URL",
+      "description": "ที่อยู่ proxy ที่ CLI ของคุณเชื่อมต่อ",
+      "label": "Base URL"
+    },
+    "token": {
+      "title": "การยืนยันตัวตน",
+      "hint": "ส่ง 'Authorization: Bearer <your-admin-token>' สำหรับ admin route Admin token ถูกตั้งค่าใน daemon (ไฟล์ config หรือ environment) — จะไม่แสดงที่นี่"
+    },
+    "examples": {
+      "title": "ตัวอย่าง launch environment",
+      "keyNote": "ใช้ outbound access key ที่สร้างในหน้า API Service — ไม่ใช่ admin token",
+      "anthropic": "CLI รูปแบบ Anthropic",
+      "openai": "CLI รูปแบบ OpenAI"
+    },
+    "launchDescription": "เปิด coding CLI ในเทอร์มินัล โดยชี้ไปที่ daemon นี้ daemon จะฉีด env redirect และเริ่ม CLI ให้คุณ",
+    "refresh": "รีเฟรช",
+    "loading": "กำลังตรวจสอบ CLI…",
+    "cli": {
+      "installed": "ติดตั้งแล้ว",
+      "notFound": "ไม่พบ",
+      "notFoundHint": "CLI นี้ไม่อยู่ใน PATH ของ daemon host ติดตั้งก่อนแล้วรีเฟรช",
+      "install": "ติดตั้ง",
+      "installing": "กำลังติดตั้ง…",
+      "installingHint": "กำลังติดตั้งบน daemon host — อาจใช้เวลาสักครู่",
+      "launch": "เปิด",
+      "launchTitle": "เปิด {{name}}",
+      "launchDescription": "เปิดเทอร์มินัลใหม่บน daemon host ที่รัน CLI นี้ route ผ่าน daemon proxy เลือก working directory เสริม",
+      "cwdLabel": "Working directory",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "กำลังทำงาน · {{provider}} / {{model}}",
+      "stop": "หยุด"
+    },
+    "manual": {
+      "title": "ตั้งค่าด้วยตนเอง",
+      "description": "ต้องการรัน CLI เอง? ชี้ไปที่ daemon ด้วยตัวแปร env เหล่านี้",
+      "show": "แสดง",
+      "hide": "ซ่อน"
+    }
+  },
+  "daemonStatus": {
+    "probing": "กำลังตรวจสอบ daemon…",
+    "spawning": "กำลังเริ่ม daemon…",
+    "failed": "ไม่สามารถเริ่ม daemon ได้",
+    "failedHint": "ตรวจสอบว่าติดตั้ง Node.js แล้วและ daemon ถูก build แล้ว (มีโฟลเดอร์ dist) หรือตั้งค่า OMNICROSS_DAEMON_ENTRY ชี้ไปที่ cli.js ของ daemon"
+  },
+  "settings": {
+    "title": "การตั้งค่า",
+    "description": "การตั้งค่าแอป desktop",
+    "desktopOnly": "ตัวเลือก Startup และ Tray ใช้ได้เฉพาะในแอป desktop",
+    "startup": {
+      "title": "Startup",
+      "autoLaunch": "เปิดเมื่อล็อกอิน",
+      "autoLaunchHint": "เริ่ม Omnicross อัตโนมัติเมื่อคุณลงชื่อเข้าใช้",
+      "startMinimized": "เริ่มแบบย่อในถาด",
+      "startMinimizedHint": "เปิดในพื้นหลังโดยไม่เปิดหน้าต่าง"
+    },
+    "tray": {
+      "title": "Tray",
+      "minimizeOnClose": "ย่อลงถาดเมื่อปิด",
+      "minimizeOnCloseHint": "การปิดหน้าต่างจะซ่อนไว้ในถาดแทนการออกจากโปรแกรม"
+    },
+    "language": {
+      "title": "ภาษา",
+      "label": "ภาษาของหน้าจอ"
+    }
+  },
+  "usageStats": {
+    "title": "สถิติการใช้งาน",
+    "description": "สถิติโทเคนและค่าใช้จ่ายของคำขอที่เดมอนให้บริการ",
+    "rangeToday": "วันนี้",
+    "range7d": "7 วันที่ผ่านมา",
+    "range30d": "30 วันที่ผ่านมา",
+    "rangeCustom": "กำหนดเอง",
+    "from": "จาก",
+    "to": "ถึง",
+    "totalCost": "ค่าใช้จ่ายรวม",
+    "cacheSavings": "ประหยัดจากแคช",
+    "events": "คำขอ",
+    "inputTokens": "โทเคนอินพุต",
+    "outputTokens": "โทเคนเอาต์พุต",
+    "cacheReadTokens": "อ่านแคช",
+    "cacheWriteTokens": "เขียนแคช",
+    "reasoningTokens": "โทเคนการคิดวิเคราะห์",
+    "byModel": "ตามโมเดล",
+    "byApiKey": "ตามคีย์ API",
+    "provider": "ผู้ให้บริการ",
+    "model": "โมเดล",
+    "cost": "ค่าใช้จ่าย",
+    "apiKey": "คีย์ API",
+    "unpriced": "ไม่มีราคา",
+    "unpricedHint": "ไม่มีรายการราคาสำหรับโมเดลนี้ — เพิ่มได้ที่หน้าราคา",
+    "unattributed": "ไม่ระบุที่มา",
+    "unattributedHint": "คำขอที่ไม่เชื่อมโยงกับคีย์ API ใดโดยเฉพาะ ถือเป็นเรื่องปกติจนกว่าจะมีการบันทึกที่มาตามคีย์",
+    "empty": "ไม่มีคำขอในช่วงนี้",
+    "invalidRange": "เลือกช่วงวันที่ที่ถูกต้อง"
+  },
+  "pricing": {
+    "title": "ราคาโมเดล",
+    "description": "ราคาโทเคนต่อโมเดลที่ใช้คำนวณค่าใช้จ่ายของคำขอ หน่วยเป็น USD ต่อ 1 ล้านโทเคน",
+    "search": "ค้นหาผู้ให้บริการหรือโมเดล…",
+    "fetchLatest": "ดึงข้อมูลล่าสุด",
+    "fetching": "กำลังดึง…",
+    "addEntry": "เพิ่มรายการ",
+    "provider": "ผู้ให้บริการ",
+    "model": "โมเดล",
+    "inputPrice": "อินพุต",
+    "outputPrice": "เอาต์พุต",
+    "cacheReadPrice": "อ่านแคช",
+    "cacheWritePrice": "เขียนแคช",
+    "source": "แหล่งที่มา",
+    "updated": "อัปเดตเมื่อ",
+    "userEdited": "แก้ไขแล้ว",
+    "edit": "แก้ไข",
+    "deleteTitle": "ลบรายการราคานี้?",
+    "empty": "ตารางราคาว่างเปล่า",
+    "emptyHint": "ดึงราคาล่าสุดเพื่อเติมข้อมูล",
+    "noMatches": "ไม่มีรายการที่ตรงกับการค้นหา",
+    "saved": "บันทึกรายการราคาแล้ว",
+    "saveFailed": "บันทึกล้มเหลว: {{message}}",
+    "deleteFailed": "ลบล้มเหลว: {{message}}",
+    "alreadyDeleted": "รายการถูกลบไปแล้ว",
+    "fetchApplied": "อัปเดต {{count}} รายการจากแหล่งที่มา",
+    "fetchFailed": "ดึงข้อมูลล้มเหลว: {{message}}",
+    "requiredId": "จำเป็น",
+    "invalidPrice": "กรอกตัวเลขที่ไม่ติดลบ",
+    "conflictTitle": "แก้ไขข้อขัดแย้งของราคา",
+    "conflictHint": "รายการเหล่านี้ถูกคุณแก้ไขและมีการเปลี่ยนแปลงที่แหล่งที่มาด้วย เลือกทีละแถวว่าจะเก็บค่าของคุณ (ข้าม) หรือใช้ค่าที่เข้ามา (เขียนทับ)",
+    "current": "ปัจจุบัน",
+    "incoming": "ที่เข้ามา",
+    "overwrite": "เขียนทับ",
+    "skip": "ข้าม",
+    "overwriteAll": "เขียนทับทั้งหมด",
+    "skipAll": "ข้ามทั้งหมด",
+    "applyResolutions": "นำไปใช้",
+    "resolved": "เขียนทับ {{overwritten}} รายการ ข้าม {{skipped}} รายการ",
+    "resolvedWithStale": "เขียนทับ {{overwritten}} รายการ ข้าม {{skipped}} รายการ มี {{stale}} รายการถูกแก้ไขระหว่างนั้นและไม่ถูกแตะต้อง",
+    "refreshFailed": "นำการเปลี่ยนแปลงไปใช้แล้ว แต่โหลดรายการใหม่ไม่สำเร็จ: {{message}}",
+    "sourceBuiltin": "ในตัว",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "ผู้ใช้"
+  }
+}

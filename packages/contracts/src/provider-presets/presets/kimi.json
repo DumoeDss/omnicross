@@ -1,0 +1,63 @@
+{
+  "id": "kimi",
+  "presetId": "kimi",
+  "name": "Kimi (Moonshot)",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.moonshot.ai/v1",
+  "codingPlanBaseUrl": "https://api.kimi.com/coding/v1",
+  "models": [
+    "kimi-k2.6",
+    "kimi-k2.5",
+    "kimi-k2-thinking"
+  ],
+  "modelConfigs": [
+    {
+      "id": "kimi-k2.6",
+      "name": "Kimi K2.6",
+      "enabled": true
+    },
+    {
+      "id": "kimi-k2.5",
+      "name": "Kimi K2.5",
+      "enabled": true
+    },
+    {
+      "id": "kimi-k2-thinking",
+      "name": "Kimi K2 Thinking",
+      "enabled": false
+    }
+  ],
+  "description": "Moonshot AI - Kimi大模型",
+  "icon": "kimi",
+  "website": "https://www.kimi.com",
+  "docsUrl": "https://platform.moonshot.ai/docs",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "vision",
+    "search"
+  ],
+  "searchConfig": {
+    "type": "builtin-tool",
+    "toolDefinition": {
+      "type": "builtin_function",
+      "function": {
+        "name": "web_search"
+      }
+    },
+    "conflictsWithFC": false,
+    "applicableModels": null
+  },
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://api.moonshot.ai/v1"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://api.kimi.com/coding/v1"
+    }
+  ]
+}

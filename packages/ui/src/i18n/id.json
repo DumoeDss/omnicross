@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Memuat konfigurasi LLM...",
+    "reset": {
+      "button": "Pulihkan default",
+      "confirmTitle": "Pulihkan pengaturan default?",
+      "confirmBody": "Ini akan menghapus kustomisasi Anda untuk penyedia ini sehingga kembali ke default bawaan. API key dan sesi yang tersimpan tetap dipertahankan.",
+      "confirmButton": "Pulihkan default"
+    },
+    "reentryBanner": {
+      "message": "{{count}} penyedia yang aktif perlu memasukkan ulang API key-nya. Buka masing-masing dan tambahkan key-nya kembali."
+    },
+    "migrationPack": {
+      "barHint": "Pindahkan provider key dan subscription token Anda ke mesin lain dengan paket terenkripsi.",
+      "passphrase": "Kata sandi",
+      "passphrasePlaceholder": "Masukkan kata sandi",
+      "passphraseHint": "Gunakan minimal 8 karakter; disarankan 12 karakter atau lebih.",
+      "confirm": "Konfirmasi kata sandi",
+      "confirmPlaceholder": "Masukkan ulang kata sandi",
+      "mismatch": "Kata sandi tidak cocok.",
+      "strength": {
+        "weak": "Terlalu pendek — gunakan minimal 8 karakter.",
+        "fair": "Cukup — 12 karakter atau lebih lebih aman.",
+        "strong": "Kata sandi kuat."
+      },
+      "export": {
+        "button": "Ekspor paket",
+        "title": "Ekspor paket terenkripsi",
+        "subtitle": "Enkripsi provider key dan subscription token Anda ke dalam file portabel.",
+        "warning": "File ini berisi rahasia yang dapat didekripsi. Simpan dengan aman — siapa pun yang memiliki file dan kata sandi dapat membaca key Anda. Kata sandi yang hilang tidak dapat dipulihkan.",
+        "submit": "Ekspor",
+        "success": "Paket berhasil diekspor.",
+        "error": "Ekspor gagal. Silakan coba lagi."
+      },
+      "import": {
+        "button": "Impor paket",
+        "title": "Impor paket terenkripsi",
+        "subtitle": "Pulihkan provider key dan subscription token dari paket yang diekspor.",
+        "hint": "Masukkan kata sandi yang digunakan saat mengekspor paket, lalu pilih file.",
+        "submit": "Impor",
+        "successTitle": "Impor selesai",
+        "summary": "Berhasil mengimpor {{providerKeys}} provider key, {{poolKeys}} pool key, dan {{tokenSets}} token set.",
+        "duplicates": "Melewati {{count}} pool key yang sudah ada.",
+        "skipped": "Dilewati (tidak ada penyedia yang cocok): {{names}}",
+        "error": "Kata sandi salah atau paket rusak. Tidak ada yang diubah."
+      }
+    },
+    "searchPlaceholder": "Cari penyedia...",
+    "emptySearch": "Tidak ada penyedia yang sesuai dengan pencarian Anda.",
+    "emptyList": "Belum ada penyedia yang dikonfigurasi.",
+    "selectPrompt": "Pilih penyedia untuk melihat detail",
+    "listStatus": "{{count}} model",
+    "noModels": "Belum ada model yang dikonfigurasi",
+    "enabled": "Aktif",
+    "disabled": "Nonaktif",
+    "showEnabledOnly": "Tampilkan yang aktif saja",
+    "showAll": "Tampilkan semua penyedia",
+    "dragHandle": "Seret untuk mengurutkan ulang",
+    "reorderFailed": "Gagal menyimpan urutan penyedia",
+    "credentials": {
+      "apiKey": "API Key",
+      "apiBaseUrl": "API Base URL"
+    },
+    "filter": {
+      "all": "Semua",
+      "chat": "Chat",
+      "code": "Code"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Pilih Template",
+      "skipTemplates": "Lewati, konfigurasi manual",
+      "name": "Nama *",
+      "providerType": "Tipe",
+      "apiType": "Tipe API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Format API OpenAI chat/completions standar",
+        "claudecode": "Format Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "Format API",
+      "chatApiFormatDescription": "Pilih format API yang sesuai dengan endpoint penyedia Anda",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-... atau $ENV_VAR",
+      "apiKeyHelper": "Gunakan $VAR_NAME untuk mereferensikan variabel lingkungan",
+      "apiKeySetPlaceholder": "Key sudah diatur — kosongkan untuk tetap menggunakannya",
+      "apiKeyReplaceHelper": "Key tersimpan dengan aman. Ketik nilai baru untuk menggantinya, atau kosongkan untuk tetap menggunakannya.",
+      "testApiKey": "Uji API Key",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Pratinjau:",
+      "models": "Model",
+      "modelPlaceholder": "Nama model (mis. gpt-4, claude-3-opus)",
+      "transformers": "Transformers",
+      "transformerConfig": "API Transformers",
+      "transformerConfigDescription": "Konfigurasikan transformer untuk menyesuaikan format API request/response untuk penyedia ini",
+      "transformerConfigNote": "Daemon menerapkan transformer ini dalam rantai request, setelah format transformer penyedia (yang menangani konversi wire-format). Nama transformer yang tidak dikenal akan dilewati.",
+      "enabled": "Aktif",
+      "apiVersion": "Versi API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Versi Azure OpenAI API (mis. 2024-08-01-preview)",
+      "official": "Anthropic API Resmi",
+      "officialHelper": "Aktifkan jika penyedia ini terhubung langsung ke Anthropic API resmi. Nonaktifkan untuk reverse proxy atau layanan pihak ketiga.",
+      "maxConcurrency": "Maks Permintaan Bersamaan",
+      "maxConcurrencyHelper": "Jumlah maksimum API request yang dikirim secara bersamaan ke penyedia ini. Nilai lebih rendah membantu menghindari rate limiting (error 429). Atur `-1` untuk tidak ada batas.",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "Gunakan endpoint API terpisah untuk coding plan berbasis subscription",
+        "baseUrl": "Coding Plan Base URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API Key (opsional)",
+        "apiKeyPlaceholder": "Kosongkan untuk menggunakan API key penyedia",
+        "apiKeyHelper": "Hanya diperlukan jika coding plan menggunakan API key yang berbeda",
+        "tokenPlanHint": "Beberapa penyedia (mis. Xiaomi MiMo) menerbitkan Token Plan key dengan awalan `tp-` — hanya informasi, tidak diberlakukan."
+      },
+      "selectTypeFirst": "Pilih Tipe Penyedia",
+      "selectTypeFirstDesc": "Pilih tipe penyedia yang ingin Anda tambahkan",
+      "codeProviderNote": "Code provider hanya memerlukan API Key dan URL. Model dikelola oleh Agent Router.",
+      "buttons": {
+        "cancel": "Batal",
+        "submitAdd": "Tambah Penyedia",
+        "submitUpdate": "Perbarui Penyedia",
+        "continue": "Lanjutkan",
+        "back": "Kembali"
+      }
+    },
+    "details": {
+      "noSelection": "Pilih penyedia untuk melihat detail",
+      "apiKey": "API Key",
+      "apiUrl": "API URL",
+      "nameLabel": "Nama Penyedia",
+      "modelsEndpoint": "Models Endpoint",
+      "modelsEndpointHelper": "Timpa endpoint discovery jika penyedia menyediakan path /models kustom.",
+      "models": "Model",
+      "transformers": "Transformers",
+      "codeProviderNote": "Code provider (seperti Claude Code) tidak memerlukan konfigurasi model. Model dikelola secara otomatis oleh Agent Router.",
+      "buttons": {
+        "more": "Pengaturan Lainnya",
+        "delete": "Hapus"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Pilih penyedia dan model",
+      "noProviders": "Tidak ada penyedia",
+      "noModels": "Belum ada model yang dikonfigurasi"
+    },
+    "apiKeyPool": {
+      "title": "API Key Pool",
+      "description": "Konfigurasikan beberapa API key untuk load balancing. Setiap sesi terikat pada satu key untuk menjaga prompt cache.",
+      "defaultLabel": "Default",
+      "weight": "Bobot",
+      "noKey": "Tidak ada key",
+      "labelPlaceholder": "Label (mis. Key #1, Production)",
+      "addKey": "Tambah API Key",
+      "add": "Tambah",
+      "empty": "Belum ada key tambahan yang dikonfigurasi.",
+      "statusCoolingDown": "Mendingin {{time}}",
+      "statusAuthFailed": "Autentikasi gagal · dinonaktifkan",
+      "statusDisabled": "Nonaktif",
+      "statusHealthy": "Sehat",
+      "agoSeconds": "{{count}} detik lalu",
+      "agoMinutes": "{{count}} menit lalu",
+      "agoHours": "{{count}} jam lalu",
+      "agoDays": "{{count}} hari lalu"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Cari model...",
+      "defaultGroup": "Semua Model",
+      "add": "Tambah Model",
+      "manage": "Kelola",
+      "empty": "Tidak ada model dalam grup ini",
+      "enabled": "Aktif",
+      "disabled": "Nonaktif",
+      "filters": {
+        "all": "Semua",
+        "vision": "Vision",
+        "reasoning": "Reasoning",
+        "free": "Gratis",
+        "tools": "Tools"
+      },
+      "manualDialog": {
+        "title": "Tambah Model",
+        "subtitle": "Tambahkan model kustom ke penyedia ini",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, dll.",
+        "modelIdHelper": "Identifikator model yang tepat yang digunakan saat memanggil API",
+        "modelName": "Nama Tampilan",
+        "modelNamePlaceholder": "Nama tampilan yang ramah (opsional)",
+        "modelNameHelper": "Nama opsional yang ditampilkan di antarmuka. Jika kosong, Model ID akan digunakan",
+        "group": "Grup",
+        "groupPlaceholder": "Pilih atau masukkan nama grup",
+        "submit": "Tambah",
+        "cancel": "Batal",
+        "helper": "Berikan identifikator model yang tepat yang disediakan oleh API penyedia."
+      },
+      "editDialog": {
+        "title": "Edit Model",
+        "subtitle": "Ubah pengaturan model",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "Identifikator model",
+        "modelIdHelper": "Identifikator model yang digunakan saat memanggil API",
+        "modelName": "Nama Tampilan",
+        "modelNamePlaceholder": "Nama tampilan yang ramah",
+        "modelNameHelper": "Nama yang ditampilkan di antarmuka",
+        "group": "Grup",
+        "groupPlaceholder": "Pilih atau masukkan nama grup",
+        "submit": "Simpan",
+        "cancel": "Batal",
+        "vision": "Kemampuan Vision",
+        "visionHint": "Apakah model ini mendukung input gambar/vision",
+        "reasoning": "Model Thinking",
+        "reasoningHint": "Apakah model ini mendukung mode thinking/reasoning"
+      },
+      "manageDialog": {
+        "title": "Kelola Model",
+        "cachedAt": "Di-cache pada {{date}} ({{source}})",
+        "refresh": "Segarkan",
+        "close": "Tutup",
+        "raw": "Raw JSON",
+        "empty": "Tidak ada model jarak jauh yang tersedia.",
+        "error": "Gagal memuat model: {{message}}",
+        "addFromCatalog": "Tambah",
+        "sourceCache": "cache",
+        "sourceNetwork": "langsung",
+        "contextLength": "Konteks {{value}} token",
+        "maxTokens": "Maks {{value}} token"
+      },
+      "messages": {
+        "added": "Model ditambahkan.",
+        "updated": "Model diperbarui.",
+        "removed": "Model dihapus.",
+        "duplicate": "Model sudah ada.",
+        "refreshed": "Model disegarkan",
+        "refreshFailed": "Gagal menyegarkan model"
+      },
+      "testDialog": {
+        "title": "Uji Konektivitas Model",
+        "provider": "Penyedia",
+        "model": "Model",
+        "testing": "Menguji...",
+        "success": "Uji Berhasil",
+        "successMessage": "Model dapat diakses dengan normal",
+        "failure": "Uji Gagal",
+        "aiResponse": "Respons AI",
+        "charCount": "{{count}} karakter",
+        "duration": "Durasi {{time}} detik",
+        "close": "Tutup",
+        "retest": "Uji ulang",
+        "testButton": "Uji model",
+        "unsupportedFormat": "Pengujian belum didukung untuk format penyedia ini."
+      }
+    },
+    "router": {
+      "title": "Konfigurasi Router",
+      "description": "Konfigurasikan penyedia/model yang digunakan untuk berbagai skenario.",
+      "labels": {
+        "default": "Default",
+        "background": "Latar belakang",
+        "think": "Berpikir",
+        "longContext": "Konteks Panjang",
+        "webSearch": "Pencarian Web",
+        "image": "Gambar",
+        "longContextThreshold": "Ambang Konteks Panjang"
+      },
+      "helper": {
+        "longContextThreshold": "Jumlah token sebelum beralih ke model konteks panjang."
+      },
+      "placeholder": {
+        "required": "Wajib",
+        "optional": "Opsional"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Konfigurasikan routing dua arah antara mode Chat dan Code.",
+      "searchPlaceholder": "Cari router...",
+      "noSearchResults": "Tidak ada router yang sesuai dengan pencarian Anda.",
+      "tabs": {
+        "chatToCode": "Chat → Code",
+        "codeToChatPlaceholder": "Code → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat to Code Router",
+        "description": "Gunakan chat provider dalam mode agent/coding",
+        "addRouter": "Tambah Router",
+        "emptyState": "Belum ada Chat→Code router. Tambahkan satu untuk menggunakan chat provider dalam mode coding.",
+        "form": {
+          "name": "Nama Router",
+          "namePlaceholder": "My Chat→Code Router",
+          "chatProvider": "Chat Provider",
+          "chatProviderPlaceholder": "Pilih chat provider",
+          "mode": "Mode",
+          "modeSimple": "Sederhana",
+          "modeAdvanced": "Lanjutan",
+          "modeSimpleDesc": "Terusan langsung ke chat provider",
+          "modeAdvancedDesc": "Konfigurasikan pemetaan model dan penanganan konteks",
+          "enabled": "Aktif",
+          "save": "Simpan Router",
+          "cancel": "Batal"
+        },
+        "list": {
+          "provider": "Penyedia",
+          "mode": "Mode",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Pemetaan Model",
+          "description": "Petakan model Chat provider ke model Code provider",
+          "count": "pemetaan",
+          "empty": "Belum ada pemetaan model. Tambahkan pemetaan untuk mengarahkan chat model ke code provider.",
+          "addNew": "Tambah Pemetaan Baru",
+          "selectSource": "Pilih model sumber (Chat)",
+          "selectTarget": "Pilih model tujuan (Code)",
+          "targetPlaceholder": "Masukkan nama model Claude Code",
+          "notSet": "(Belum diatur — klik untuk memilih)",
+          "add": "Tambah",
+          "edit": "Edit",
+          "done": "Selesai"
+        },
+        "advanced": {
+          "title": "Konfigurasi Lanjutan",
+          "description": "Konfigurasikan model untuk berbagai jenis tugas",
+          "helpText": "Model default wajib diisi. Model lainnya opsional dan akan kembali ke default jika tidak dikonfigurasi.",
+          "default": {
+            "label": "Default",
+            "placeholder": "Pilih model default",
+            "description": "Model utama untuk tugas umum (mirip Claude Sonnet)"
+          },
+          "background": {
+            "label": "Latar belakang",
+            "placeholder": "Pilih model latar belakang",
+            "description": "Model ringan untuk tugas latar belakang (mirip Claude Haiku)"
+          },
+          "think": {
+            "label": "Berpikir",
+            "placeholder": "Pilih model think",
+            "description": "Model canggih untuk penalaran kompleks (mirip Claude Opus)"
+          },
+          "image": {
+            "label": "Gambar",
+            "placeholder": "Pilih model gambar",
+            "description": "Model untuk tugas terkait gambar dengan kemampuan vision"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Code to Chat Router",
+        "description": "Tampilkan model Coding Plan dalam mode chat",
+        "addRouter": "Tambah Router",
+        "emptyState": "Belum ada Code→Chat router. Tambahkan satu untuk menampilkan model Coding Plan dalam mode chat.",
+        "form": {
+          "name": "Nama Router",
+          "namePlaceholder": "My Code→Chat Router",
+          "codeProvider": "Code Provider",
+          "codeProviderPlaceholder": "Pilih code provider",
+          "codeProviderHelper": "Pilih Code provider yang digunakan untuk transformasi",
+          "models": "Model Coding Plan",
+          "modelsHelper": "Pilih model Coding Plan yang ingin ditampilkan",
+          "enabled": "Aktif",
+          "save": "Simpan Router",
+          "cancel": "Batal"
+        },
+        "mappings": {
+          "title": "Pemetaan Model",
+          "description": "Petakan model Code provider ke model Chat provider untuk ditampilkan",
+          "count": "pemetaan",
+          "empty": "Belum ada pemetaan model. Tambahkan pemetaan untuk menampilkan model Code dalam mode chat.",
+          "addNew": "Tambah Pemetaan Baru",
+          "selectSource": "Pilih model sumber (Code)",
+          "selectTarget": "Pilih model tujuan (Chat)",
+          "sourcePlaceholder": "Masukkan nama model sumber",
+          "targetPlaceholder": "Masukkan nama model tujuan",
+          "add": "Tambah",
+          "edit": "Edit",
+          "done": "Selesai"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "Konfigurasikan transformer untuk konversi request/response",
+        "noProvider": "Pilih penyedia untuk mengonfigurasi transformer",
+        "empty": "Tidak ada transformer",
+        "count": "{{count}} transformer"
+      },
+      "status": {
+        "enabled": "Aktif",
+        "disabled": "Nonaktif"
+      },
+      "messages": {
+        "routerAdded": "Router berhasil ditambahkan",
+        "routerUpdated": "Router berhasil diperbarui",
+        "routerDeleted": "Router berhasil dihapus",
+        "saveFailed": "Gagal menyimpan router"
+      }
+    },
+    "presets": {
+      "title": "Tambah Penyedia Cepat",
+      "added": "Ditambahkan",
+      "add": "Tambah",
+      "features": {
+        "search": "Pencarian",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Apakah Anda yakin ingin menghapus penyedia ini?"
+    },
+    "errors": {
+      "nameRequired": "Nama penyedia wajib diisi",
+      "urlRequired": "API Base URL wajib diisi",
+      "urlInvalid": "Masukkan URL yang valid (mis. https://api.example.com)",
+      "saveFailed": "Gagal menyimpan penyedia",
+      "deleteFailed": "Gagal menghapus penyedia. Silakan coba lagi.",
+      "toggleFailed": "Gagal mengubah status penyedia. Silakan coba lagi."
+    },
+    "openRouter": {
+      "title": "Routing Penyedia OpenRouter",
+      "description": "Konfigurasikan cara request diarahkan ke penyedia berbeda di OpenRouter.",
+      "sort": "Strategi Routing",
+      "sortTooltip": "Pilih cara memprioritaskan penyedia. Auto menggunakan load balancing cerdas.",
+      "order": "Urutan Prioritas Penyedia",
+      "orderTooltip": "Tentukan penyedia yang dicoba secara berurutan (mis. anthropic, openai, together). Tekan Enter untuk menambahkan.",
+      "orderPlaceholder": "Ketik slug penyedia dan tekan Enter...",
+      "allowFallbacks": "Izinkan Fallback",
+      "allowFallbacksTooltip": "Ketika diaktifkan, OpenRouter akan mencoba penyedia cadangan jika penyedia utama tidak tersedia.",
+      "requireParameters": "Wajibkan Semua Parameter",
+      "requireParametersTooltip": "Hanya arahkan ke penyedia yang mendukung semua parameter dalam request Anda.",
+      "dataCollection": "Kebijakan Pengumpulan Data",
+      "dataCollectionTooltip": "Kendalikan apakah akan menggunakan penyedia yang mungkin menyimpan atau melatih data Anda.",
+      "zdr": "Zero Data Retention",
+      "zdrTooltip": "Hanya arahkan ke endpoint dengan kebijakan Zero Data Retention.",
+      "only": "Hanya Izinkan Penyedia",
+      "onlyTooltip": "Hanya gunakan penyedia tertentu ini. Kosongkan untuk mengizinkan semua penyedia.",
+      "onlyPlaceholder": "Ketik slug penyedia dan tekan Enter...",
+      "ignore": "Abaikan Penyedia",
+      "ignoreTooltip": "Lewati penyedia ini saat mengarahkan request.",
+      "ignorePlaceholder": "Ketik slug penyedia dan tekan Enter...",
+      "quantizations": "Filter Quantization",
+      "quantizationsTooltip": "Hanya gunakan penyedia dengan tingkat quantization tertentu. Presisi lebih rendah mungkin mengurangi kualitas tetapi meningkatkan kecepatan.",
+      "maxPrice": "Harga Maksimum",
+      "maxPriceTooltip": "Tetapkan batas harga maksimum per juta token. Kosongkan untuk tidak ada batas.",
+      "configured": "Dikonfigurasi"
+    }
+  },
+  "apiMode": {
+    "label": "Mode API",
+    "standard": "Standar",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "Key untuk paket ini biasanya diawali dengan `{{prefix}}`. Hanya petunjuk — tidak diberlakukan.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan menggunakan API key terpisah dari endpoint standar.",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan menggunakan API key terpisah dari endpoint standar.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan hanya mendukung protokol Anthropic.",
+    "xiaomiTokenPlanRegions": "baseUrl default adalah `token-plan-cn.*`. Anda dapat mengeditnya secara manual ke `token-plan-sgp.*` atau `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Ganti mode API?",
+    "confirmOverwriteBody": "Anda telah menyesuaikan API URL atau API Key. Mengganti mode akan menimpanya dengan default mode baru — atau pertahankan kustomisasi Anda dan hanya perbarui label mode.",
+    "overwriteAndSwitch": "Timpa dan ganti",
+    "keepCustomizations": "Pertahankan kustomisasi"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Batal",
+    "close": "Tutup",
+    "copy": "Salin",
+    "delete": "Hapus",
+    "dismiss": "Tutup",
+    "save": "Simpan",
+    "optional": "opsional",
+    "retry": "Coba lagi",
+    "loading": "Memuat…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentasi"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Belum didukung oleh daemon",
+    "discoveryUnsupportedFormat": "Penemuan model belum didukung untuk format penyedia ini. Tambahkan model secara manual."
+  },
+  "nav": {
+    "subtitle": "Panel Kontrol",
+    "providers": "Penyedia",
+    "apiService": "Layanan API",
+    "accounts": "Akun",
+    "codeCli": "Code CLI",
+    "settings": "Pengaturan",
+    "usageStats": "Penggunaan",
+    "pricing": "Harga"
+  },
+  "apiService": {
+    "title": "Layanan API",
+    "description": "Konfigurasikan server API keluar, routing model per endpoint, dan access key bernama.",
+    "loading": "Memuat konfigurasi server…",
+    "loadError": "Tidak dapat memuat konfigurasi server. Periksa apakah daemon dapat dijangkau.",
+    "enable": {
+      "label": "Aktifkan server keluar",
+      "description": "Mulai server API lokal yang mengarahkan pemanggil eksternal melalui penyedia Anda."
+    },
+    "networkBinding": {
+      "label": "Izinkan akses LAN",
+      "description": "Ikat server ke antarmuka jaringan Anda, bukan hanya loopback.",
+      "warning": "Akses LAN mengekspos server API ke perangkat lain di jaringan Anda. Dikombinasikan dengan subscription routing, permintaan dapat mengonsumsi kuota subscription Anda — nonaktifkan kecuali Anda mempercayai jaringan."
+    },
+    "status": {
+      "running": "Server berjalan",
+      "stopped": "Server berhenti",
+      "runningHint": "Server API keluar sedang menerima permintaan.",
+      "stoppedHint": "Aktifkan server untuk mulai menerima permintaan.",
+      "port": "port {{port}}",
+      "loopback": "URL Loopback",
+      "lan": "URL LAN"
+    },
+    "endpoints": {
+      "title": "Routing endpoint",
+      "description": "Pilih model yang dituju oleh setiap format wire. Model default diintegrasikan di sini — server adalah router, bukan aplikasi chat."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Model default",
+      "backgroundModel": "Model latar belakang",
+      "visionModel": "Model vision",
+      "noVisionModel": "Tidak ada",
+      "backgroundModelIds": "ID model latar belakang",
+      "backgroundModelIdsPlaceholder": "ID model dipisahkan koma",
+      "modelPlaceholder": "Pilih model…",
+      "useSubscription": "Gunakan subscription",
+      "subscriptionUnsupported": "Routing subscription tidak tersedia untuk endpoint ini."
+    },
+    "keys": {
+      "title": "Access key",
+      "description": "Key bernama yang dikirim pemanggil eksternal sebagai Bearer token. Key lengkap hanya ditampilkan sekali saat dibuat.",
+      "namePlaceholder": "Nama key (mis. my-cli)",
+      "create": "Buat key",
+      "empty": "Belum ada access key.",
+      "enabled": "Aktif",
+      "disabled": "Nonaktif",
+      "revoked": "Dicabut",
+      "toggle": "Aktifkan/nonaktifkan key",
+      "revoke": "Cabut",
+      "revokeConfirmTitle": "Cabut key ini?",
+      "revokeConfirmDesc": "Mencabut \"{{name}}\" segera menghentikan autentikasinya. Tindakan ini tidak dapat dibatalkan.",
+      "created": {
+        "title": "Key dibuat",
+        "warning": "Salin key ini sekarang — tidak akan ditampilkan lagi. Simpan dengan aman.",
+        "copy": "Salin",
+        "copied": "Disalin",
+        "dismiss": "Selesai"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Akun & Subscription",
+    "description": "Kelola kredensial subscription yang dirutekan oleh server. Token ditulis di sini tetapi tidak pernah ditampilkan kembali.",
+    "loading": "Memuat akun…",
+    "empty": "Tidak ada subscription provider yang tersedia.",
+    "signIn": "Masuk",
+    "oauth": {
+      "title": "Masuk ke {{name}}",
+      "description": "Buka halaman masuk di browser Anda, otorisasi, lalu tempel authorization code di bawah ini. Code hanya dikirim ke daemon — token yang dihasilkan tidak pernah ditampilkan.",
+      "openPage": "Buka halaman masuk",
+      "codeLabel": "Authorization code",
+      "codePlaceholder": "Tempel code di sini",
+      "submit": "Selesaikan masuk"
+    },
+    "codexOauth": {
+      "title": "Masuk ke {{name}}",
+      "description": "Buka halaman masuk di browser Anda dan otorisasi. Daemon akan menangkap hasilnya secara otomatis — biarkan halaman ini terbuka hingga selesai. Token tidak pernah ditampilkan.",
+      "waiting": "Menunggu Anda menyelesaikan masuk di browser…",
+      "failed": "Masuk gagal. Silakan coba lagi."
+    },
+    "clearProvider": "Hapus semua",
+    "clearConfirmTitle": "Hapus akun {{name}}?",
+    "clearConfirmDesc": "Ini menghapus setiap kredensial yang tersimpan untuk penyedia ini. Tindakan ini tidak dapat dibatalkan.",
+    "credential": {
+      "ok": "Dikonfigurasi",
+      "notConfigured": "Belum dikonfigurasi"
+    },
+    "kind": {
+      "pass-through": "Pass-through credentials",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Static bearer key"
+    },
+    "reason": {
+      "missing-credential": "Tidak ada kredensial tersimpan.",
+      "expired": "Kredensial kedaluwarsa.",
+      "reauth-required": "Diperlukan autentikasi ulang.",
+      "refresh-failed": "Pembaruan token gagal.",
+      "not-refreshable": "Kredensial tidak dapat diperbarui.",
+      "unknown": "Status tidak diketahui."
+    },
+    "status": {
+      "unconfigured": "Belum dikonfigurasi",
+      "authorized": "Diotorisasi",
+      "configured": "Dikonfigurasi",
+      "expired": "Kedaluwarsa",
+      "error": "Kesalahan"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Setup token",
+      "manual": "Manual"
+    },
+    "list": {
+      "empty": "Tidak ada akun tersimpan untuk penyedia ini.",
+      "active": "Aktif",
+      "expiresAt": "Kedaluwarsa {{value}}",
+      "setActive": "Jadikan aktif",
+      "remove": "Hapus",
+      "removeConfirmTitle": "Hapus akun ini?",
+      "removeConfirmDesc": "Menghapus \"{{name}}\" akan menghapus kredensial tersimpannya. Tindakan ini tidak dapat dibatalkan.",
+      "title": "Akun"
+    },
+    "write": {
+      "trigger": "Tambah kredensial",
+      "title": "Tulis kredensial {{name}}",
+      "description": "Tempel materi token yang sudah diperoleh. Kolom dibatasi sesuai yang diterima penyedia ini; token disimpan, tidak pernah ditampilkan kembali.",
+      "authMethod": "Metode autentikasi",
+      "status": "Status",
+      "subscriptionLevel": "Level subscription",
+      "subscriptionLevelNone": "Tidak diatur",
+      "submit": "Simpan kredensial"
+    },
+    "field": {
+      "accessToken": "Access token",
+      "refreshToken": "Refresh token",
+      "idToken": "ID token",
+      "apiKey": "API key",
+      "expiresAt": "Kedaluwarsa pada (ISO)",
+      "setupTokenExpiresAt": "Setup token kedaluwarsa pada (ISO)",
+      "accountId": "Account ID",
+      "email": "Email",
+      "organizationId": "Organization ID",
+      "baseUrl": "Base URL",
+      "zenBaseUrl": "Zen base URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Kredensial subscription Anthropic yang dirutekan oleh daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Kredensial subscription OpenAI Codex yang dirutekan oleh daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Kredensial subscription Google Gemini yang dirutekan oleh daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Kredensial API-key statis yang dirutekan oleh daemon."
+      }
+    },
+    "authMethodLabel": "Metode otorisasi",
+    "authMethodDesc": {
+      "oauth": "Masuk melalui browser; daemon menangkap dan menyimpan token.",
+      "manual": "Tempel token yang sudah diperoleh. Token disimpan, tidak pernah ditampilkan kembali."
+    },
+    "actions": {
+      "authorize": "Otorisasi",
+      "enterToken": "Masukkan token",
+      "refresh": "Segarkan"
+    },
+    "accounts": {
+      "addAccount": "Tambah akun"
+    },
+    "detail": {
+      "authMethod": "Metode otorisasi",
+      "subscriptionLevel": "Level subscription",
+      "expiresAt": "Kedaluwarsa",
+      "lastRefreshed": "Terakhir diperbarui",
+      "label": "Label akun",
+      "labelPlaceholder": "Beri nama akun ini",
+      "saveLabel": "Simpan label"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Buka halaman otorisasi",
+        "desc": "Buka halaman masuk di browser Anda."
+      },
+      "step2": {
+        "title": "Otorisasi akses",
+        "desc": "Masuk dan setujui akses untuk penyedia."
+      },
+      "step3": {
+        "title": "Salin authorization code",
+        "desc": "Halaman menampilkan authorization code setelah Anda menyetujui."
+      },
+      "step4": {
+        "title": "Tempel code",
+        "desc": "Tempel authorization code di bawah untuk menyelesaikan. Code hanya dikirim ke daemon — token yang dihasilkan tidak pernah ditampilkan."
+      },
+      "authorize": "Selesaikan masuk",
+      "showUrl": "Tampilkan URL otorisasi"
+    },
+    "manual": {
+      "title": "Tempel kredensial",
+      "description": "Tempel token yang sudah diperoleh. Kolom dibatasi sesuai yang diterima penyedia ini; token disimpan, tidak pernah ditampilkan kembali.",
+      "accessTokenPlaceholder": "Tempel access token",
+      "refreshTokenPlaceholder": "Tempel refresh token (opsional)",
+      "hint": "Token dikirim ke daemon dan disimpan terenkripsi. Token tidak pernah ditampilkan kembali."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "API key wajib diisi.",
+      "apiKeyPlaceholder": "Tempel API key",
+      "baseUrlPlaceholder": "https://… (opsional)",
+      "zenBaseUrlPlaceholder": "https://… (opsional)"
+    },
+    "info": {
+      "title": "Tentang akun subscription",
+      "description": "Token ditulis ke daemon dan digunakan untuk mengautentikasi permintaan upstream. Token disimpan terenkripsi dan tidak pernah ditampilkan kembali. Menghapus akun akan menghapus kredensial tersimpannya."
+    },
+    "rename": {
+      "failed": "Tidak dapat mengganti nama akun."
+    },
+    "refresh": {
+      "failed": "Tidak dapat memperbarui token."
+    },
+    "errors": {
+      "requestFailed": "Permintaan gagal. Silakan coba lagi."
+    },
+    "syncWarning": {
+      "external-divergent": "File login CLI eksternal berisi kredensial yang lebih baru daripada akun ini. Token yang tersimpan mungkin berhenti diperbarui — perbarui sekarang atau masuk lagi.",
+      "external-not-rotated": "Pembaruan gagal dan CLI eksternal berisi kredensial kedaluwarsa yang sama. Silakan masuk lagi.",
+      "duplicate-token": "Akun lain menggunakan kredensial yang sama. Memperbarui salah satu akan mengeluarkan yang lain."
+    },
+    "importExternal": {
+      "detected": "Login CLI {{name}} yang sudah ada ditemukan di mesin ini.",
+      "hint": "Setelah diimpor, aplikasi ini menjaganya tetap segar: setiap kali token diperbarui, file login CLI juga diperbarui, sehingga CLI di terminal tetap masuk.",
+      "button": "Impor login CLI yang ada"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Arahkan coding CLI ke outbound proxy daemon. Halaman ini hanya baca — tidak ada yang perlu dikonfigurasi di sini.",
+    "copy": "Salin",
+    "copied": "Disalin",
+    "baseUrl": {
+      "title": "Daemon base URL",
+      "description": "Alamat proxy yang terhubung dengan CLI Anda.",
+      "label": "Base URL"
+    },
+    "token": {
+      "title": "Autentikasi",
+      "hint": "Kirim 'Authorization: Bearer <your-admin-token>' untuk route admin. Admin token dikonfigurasi dalam daemon (file konfigurasi atau lingkungan) — tidak ditampilkan di sini."
+    },
+    "examples": {
+      "title": "Contoh lingkungan peluncuran",
+      "keyNote": "Gunakan outbound access key yang dibuat di halaman API Service — bukan admin token.",
+      "anthropic": "CLI format Anthropic",
+      "openai": "CLI format OpenAI"
+    },
+    "launchDescription": "Luncurkan coding CLI di terminal, diarahkan ke daemon ini. Daemon menyuntikkan env redirect dan memulai CLI untuk Anda.",
+    "refresh": "Segarkan",
+    "loading": "Mendeteksi CLI…",
+    "cli": {
+      "installed": "Terinstal",
+      "notFound": "Tidak ditemukan",
+      "notFoundHint": "CLI ini tidak ada di PATH host daemon. Instal terlebih dahulu, lalu segarkan.",
+      "install": "Instal",
+      "installing": "Menginstal…",
+      "installingHint": "Menginstal di host daemon — ini mungkin butuh sebentar.",
+      "launch": "Luncurkan",
+      "launchTitle": "Luncurkan {{name}}",
+      "launchDescription": "Membuka terminal baru di host daemon yang menjalankan CLI ini, dirutekan melalui daemon proxy. Pilih direktori kerja opsional.",
+      "cwdLabel": "Direktori kerja",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "Berjalan · {{provider}} / {{model}}",
+      "stop": "Hentikan"
+    },
+    "manual": {
+      "title": "Pengaturan manual",
+      "description": "Ingin menjalankan CLI sendiri? Arahkan ke daemon dengan variabel lingkungan ini.",
+      "show": "Tampilkan",
+      "hide": "Sembunyikan"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Memeriksa daemon…",
+    "spawning": "Memulai daemon…",
+    "failed": "Daemon tidak dapat dimulai",
+    "failedHint": "Pastikan Node.js terinstal dan daemon sudah di-build (dist tersedia), atau atur OMNICROSS_DAEMON_ENTRY ke cli.js daemon."
+  },
+  "settings": {
+    "title": "Pengaturan",
+    "description": "Preferensi aplikasi desktop.",
+    "desktopOnly": "Opsi Startup dan Tray hanya berlaku di aplikasi desktop.",
+    "startup": {
+      "title": "Startup",
+      "autoLaunch": "Luncurkan saat login",
+      "autoLaunchHint": "Mulai Omnicross secara otomatis saat Anda masuk.",
+      "startMinimized": "Mulai diminimalkan ke tray",
+      "startMinimizedHint": "Jalankan di latar belakang tanpa membuka jendela."
+    },
+    "tray": {
+      "title": "Tray",
+      "minimizeOnClose": "Minimalkan ke tray saat ditutup",
+      "minimizeOnCloseHint": "Menutup jendela akan menyembunyikannya ke tray, bukan keluar dari aplikasi."
+    },
+    "language": {
+      "title": "Bahasa",
+      "label": "Bahasa antarmuka"
+    }
+  },
+  "usageStats": {
+    "title": "Statistik penggunaan",
+    "description": "Statistik token dan biaya untuk permintaan yang dilayani daemon.",
+    "rangeToday": "Hari ini",
+    "range7d": "7 hari terakhir",
+    "range30d": "30 hari terakhir",
+    "rangeCustom": "Kustom",
+    "from": "Dari",
+    "to": "Sampai",
+    "totalCost": "Total biaya",
+    "cacheSavings": "Penghematan cache",
+    "events": "Permintaan",
+    "inputTokens": "Token masukan",
+    "outputTokens": "Token keluaran",
+    "cacheReadTokens": "Baca cache",
+    "cacheWriteTokens": "Tulis cache",
+    "reasoningTokens": "Token penalaran",
+    "byModel": "Per model",
+    "byApiKey": "Per kunci API",
+    "provider": "Penyedia",
+    "model": "Model",
+    "cost": "Biaya",
+    "apiKey": "Kunci API",
+    "unpriced": "Tanpa harga",
+    "unpricedHint": "Tidak ada entri harga untuk model ini — tambahkan di halaman Harga.",
+    "unattributed": "Tidak teratribusi",
+    "unattributedHint": "Permintaan yang tidak terkait dengan kunci API tertentu. Ini normal sampai atribusi per kunci mulai dicatat.",
+    "empty": "Tidak ada permintaan dalam rentang ini.",
+    "invalidRange": "Pilih rentang tanggal yang valid."
+  },
+  "pricing": {
+    "title": "Harga model",
+    "description": "Harga token per model untuk menghitung biaya permintaan, dalam USD per 1 juta token.",
+    "search": "Cari penyedia atau model…",
+    "fetchLatest": "Ambil terbaru",
+    "fetching": "Mengambil…",
+    "addEntry": "Tambah entri",
+    "provider": "Penyedia",
+    "model": "Model",
+    "inputPrice": "Masukan",
+    "outputPrice": "Keluaran",
+    "cacheReadPrice": "Baca cache",
+    "cacheWritePrice": "Tulis cache",
+    "source": "Sumber",
+    "updated": "Diperbarui",
+    "userEdited": "diedit",
+    "edit": "Edit",
+    "deleteTitle": "Hapus entri harga ini?",
+    "empty": "Tabel harga kosong.",
+    "emptyHint": "Ambil harga terbaru untuk mengisinya.",
+    "noMatches": "Tidak ada entri yang cocok dengan pencarian.",
+    "saved": "Entri harga disimpan.",
+    "saveFailed": "Gagal menyimpan: {{message}}",
+    "deleteFailed": "Gagal menghapus: {{message}}",
+    "alreadyDeleted": "Entri sudah tidak ada.",
+    "fetchApplied": "{{count}} entri diperbarui dari sumber.",
+    "fetchFailed": "Gagal mengambil: {{message}}",
+    "requiredId": "Wajib",
+    "invalidPrice": "Masukkan angka non-negatif",
+    "conflictTitle": "Selesaikan konflik harga",
+    "conflictHint": "Entri ini telah Anda edit dan juga berubah di sumber. Pilih per baris untuk mempertahankan nilai Anda (Lewati) atau mengambil yang baru (Timpa).",
+    "current": "Saat ini",
+    "incoming": "Masuk",
+    "overwrite": "Timpa",
+    "skip": "Lewati",
+    "overwriteAll": "Timpa semua",
+    "skipAll": "Lewati semua",
+    "applyResolutions": "Terapkan",
+    "resolved": "{{overwritten}} ditimpa, {{skipped}} dilewati.",
+    "resolvedWithStale": "{{overwritten}} ditimpa, {{skipped}} dilewati. {{stale}} berubah sementara itu dan dibiarkan utuh.",
+    "refreshFailed": "Perubahan telah diterapkan, tetapi gagal memuat ulang daftar: {{message}}",
+    "sourceBuiltin": "Bawaan",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Pengguna"
+  }
+}

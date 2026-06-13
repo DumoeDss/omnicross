@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "LLM yapılandırması yükleniyor...",
+    "reset": {
+      "button": "Varsayılanları geri yükle",
+      "confirmTitle": "Varsayılan ayarlar geri yüklensin mi?",
+      "confirmBody": "Bu işlem, bu sağlayıcı için özelleştirmelerinizi temizler ve yerleşik varsayılanlara geri döner. API anahtarınız ve kaydedilen oturumlarınız korunur.",
+      "confirmButton": "Varsayılanları geri yükle"
+    },
+    "reentryBanner": {
+      "message": "{{count}} etkin sağlayıcının API anahtarının yeniden girilmesi gerekiyor. Her birini açıp anahtarı tekrar ekleyin."
+    },
+    "migrationPack": {
+      "barHint": "Sağlayıcı anahtarlarınızı ve abonelik tokenlarınızı şifreli bir paket ile başka bir makineye taşıyın.",
+      "passphrase": "Parola",
+      "passphrasePlaceholder": "Bir parola girin",
+      "passphraseHint": "En az 8 karakter kullanın; 12 veya daha fazlası önerilir.",
+      "confirm": "Parolayı onayla",
+      "confirmPlaceholder": "Parolayı yeniden girin",
+      "mismatch": "Parolalar eşleşmiyor.",
+      "strength": {
+        "weak": "Çok kısa — en az 8 karakter kullanın.",
+        "fair": "Yeterli — 12 veya daha fazla karakter daha güvenli.",
+        "strong": "Güçlü parola."
+      },
+      "export": {
+        "button": "Paketi dışa aktar",
+        "title": "Şifreli paketi dışa aktar",
+        "subtitle": "Sağlayıcı anahtarlarınızı ve abonelik tokenlarınızı taşınabilir bir dosyaya şifreleyin.",
+        "warning": "Bu dosya çözülebilir gizli bilgiler içerir. Güvende tutun — dosya ve parolaya sahip herkes anahtarlarınızı okuyabilir. Kaybedilen parola kurtarılamaz.",
+        "submit": "Dışa Aktar",
+        "success": "Paket başarıyla dışa aktarıldı.",
+        "error": "Dışa aktarma başarısız. Lütfen tekrar deneyin."
+      },
+      "import": {
+        "button": "Paketi içe aktar",
+        "title": "Şifreli paketi içe aktar",
+        "subtitle": "Dışa aktarılan paketten sağlayıcı anahtarlarını ve abonelik tokenlarını geri yükleyin.",
+        "hint": "Paketin dışa aktarılmasında kullanılan parolayı girin, ardından dosyayı seçin.",
+        "submit": "İçe Aktar",
+        "successTitle": "İçe aktarma tamamlandı",
+        "summary": "{{providerKeys}} sağlayıcı anahtarı, {{poolKeys}} havuz anahtarı ve {{tokenSets}} token seti içe aktarıldı.",
+        "duplicates": "Zaten mevcut olan {{count}} havuz anahtarı atlandı.",
+        "skipped": "Atlandı (eşleşen sağlayıcı yok): {{names}}",
+        "error": "Yanlış parola veya bozuk paket. Hiçbir şey değiştirilmedi."
+      }
+    },
+    "searchPlaceholder": "Sağlayıcıları ara...",
+    "emptySearch": "Aramanızla eşleşen sağlayıcı yok.",
+    "emptyList": "Yapılandırılmış sağlayıcı yok.",
+    "selectPrompt": "Ayrıntıları görüntülemek için bir sağlayıcı seçin",
+    "listStatus": "{{count}} model",
+    "noModels": "Yapılandırılmış model yok",
+    "enabled": "Etkin",
+    "disabled": "Devre dışı",
+    "showEnabledOnly": "Yalnızca etkinleri göster",
+    "showAll": "Tüm sağlayıcıları göster",
+    "dragHandle": "Yeniden sıralamak için sürükleyin",
+    "reorderFailed": "Sağlayıcı sırası kaydedilemedi",
+    "credentials": {
+      "apiKey": "API Anahtarı",
+      "apiBaseUrl": "API Temel URL'si"
+    },
+    "filter": {
+      "all": "Tümü",
+      "chat": "Sohbet",
+      "code": "Kod"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Şablon Seçin",
+      "skipTemplates": "Atla, manuel yapılandır",
+      "name": "Ad *",
+      "providerType": "Tür",
+      "apiType": "API Türü",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standart OpenAI chat/completions API formatı",
+        "claudecode": "Anthropic Messages API formatı (Claude Code)"
+      },
+      "chatApiFormat": "API Formatı",
+      "chatApiFormatDescription": "Sağlayıcınızın endpoint'iyle eşleşen API formatını seçin",
+      "apiKey": "API Anahtarı",
+      "apiKeyPlaceholder": "sk-... veya $ENV_VAR",
+      "apiKeyHelper": "Ortam değişkenlerine başvurmak için $VAR_NAME kullanın",
+      "apiKeySetPlaceholder": "Anahtar ayarlandı — korumak için boş bırakın",
+      "apiKeyReplaceHelper": "Bir anahtar güvenli şekilde saklandı. Değiştirmek için yeni bir değer yazın veya korumak için boş bırakın.",
+      "testApiKey": "API Anahtarını Test Et",
+      "apiUrl": "API URL'si *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Önizleme:",
+      "models": "Modeller",
+      "modelPlaceholder": "Model adı (örn. gpt-4, claude-3-opus)",
+      "transformers": "Dönüştürücüler",
+      "transformerConfig": "API Dönüştürücüleri",
+      "transformerConfigDescription": "Bu sağlayıcı için API istek/yanıt formatlarını uyarlamak üzere dönüştürücüleri yapılandırın",
+      "transformerConfigNote": "Daemon, bu dönüştürücüleri istek zincirinde, sağlayıcının format dönüştürücüsünden (wire-format dönüşümünü yönetir) sonra uygular. Bilinmeyen dönüştürücü adları atlanır.",
+      "enabled": "Etkin",
+      "apiVersion": "API Sürümü",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API sürümü (örn. 2024-08-01-preview)",
+      "official": "Resmi Anthropic API",
+      "officialHelper": "Bu sağlayıcı doğrudan resmi Anthropic API'ye bağlanıyorsa etkinleştirin. Ters proxy'ler veya üçüncü taraf hizmetler için devre dışı bırakın.",
+      "maxConcurrency": "Maks Eş Zamanlı İstek",
+      "maxConcurrencyHelper": "Bu sağlayıcıya gönderilen maksimum eş zamanlı API isteği sayısı. Düşük değerler hız sınırlamalarından (429 hatası) kaçınmaya yardımcı olur. Sınır yok için `-1` ayarlayın.",
+      "codingPlan": {
+        "label": "Kodlama Planı",
+        "description": "Abonelik tabanlı kodlama planları için ayrı bir API endpoint'i kullanın",
+        "baseUrl": "Kodlama Planı Temel URL'si",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Kodlama Planı API Anahtarı (isteğe bağlı)",
+        "apiKeyPlaceholder": "Sağlayıcının API anahtarını kullanmak için boş bırakın",
+        "apiKeyHelper": "Yalnızca kodlama planı farklı bir API anahtarı kullanıyorsa gereklidir",
+        "tokenPlanHint": "Bazı sağlayıcılar (örn. Xiaomi MiMo) `tp-` önekiyle Token Plan anahtarları verir — yalnızca bilgilendirme amaçlı, zorunlu değil."
+      },
+      "selectTypeFirst": "Sağlayıcı Türünü Seçin",
+      "selectTypeFirstDesc": "Eklemek istediğiniz sağlayıcı türünü seçin",
+      "codeProviderNote": "Kod sağlayıcıları yalnızca API Anahtarı ve URL gerektirir. Modeller Agent Router tarafından yönetilir.",
+      "buttons": {
+        "cancel": "İptal",
+        "submitAdd": "Sağlayıcı Ekle",
+        "submitUpdate": "Sağlayıcıyı Güncelle",
+        "continue": "Devam",
+        "back": "Geri"
+      }
+    },
+    "details": {
+      "noSelection": "Ayrıntıları görüntülemek için bir sağlayıcı seçin",
+      "apiKey": "API Anahtarı",
+      "apiUrl": "API URL'si",
+      "nameLabel": "Sağlayıcı Adı",
+      "modelsEndpoint": "Modeller Endpoint'i",
+      "modelsEndpointHelper": "Sağlayıcı özel bir /models yolu sunuyorsa keşif endpoint'ini geçersiz kılın.",
+      "models": "Modeller",
+      "transformers": "Dönüştürücüler",
+      "codeProviderNote": "Kod sağlayıcıları (Claude Code gibi) model yapılandırması gerektirmez. Modeller Agent Router tarafından otomatik olarak yönetilir.",
+      "buttons": {
+        "more": "Daha Fazla Ayar",
+        "delete": "Sil"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Sağlayıcı ve model seçin",
+      "noProviders": "Kullanılabilir sağlayıcı yok",
+      "noModels": "Yapılandırılmış model yok"
+    },
+    "apiKeyPool": {
+      "title": "API Anahtarı Havuzu",
+      "description": "Yük dengeleme için birden fazla API anahtarı yapılandırın. Her oturum, istem önbelleğini korumak için bir anahtara bağlı kalır.",
+      "defaultLabel": "Varsayılan",
+      "weight": "Ağırlık",
+      "noKey": "Anahtar yok",
+      "labelPlaceholder": "Etiket (örn. Anahtar #1, Üretim)",
+      "addKey": "API Anahtarı Ekle",
+      "add": "Ekle",
+      "empty": "Ek anahtar yapılandırılmamış.",
+      "statusCoolingDown": "Soğuyor {{time}}",
+      "statusAuthFailed": "Kimlik doğrulama başarısız · devre dışı",
+      "statusDisabled": "Devre Dışı",
+      "statusHealthy": "Sağlıklı",
+      "agoSeconds": "{{count}}s önce",
+      "agoMinutes": "{{count}}d önce",
+      "agoHours": "{{count}}s önce",
+      "agoDays": "{{count}}g önce"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Modelleri ara...",
+      "defaultGroup": "Tüm Modeller",
+      "add": "Model Ekle",
+      "manage": "Yönet",
+      "empty": "Bu grupta model yok",
+      "enabled": "Etkin",
+      "disabled": "Devre dışı",
+      "filters": {
+        "all": "Tümü",
+        "vision": "Görsel",
+        "reasoning": "Akıl Yürütme",
+        "free": "Ücretsiz",
+        "tools": "Araçlar"
+      },
+      "manualDialog": {
+        "title": "Model Ekle",
+        "subtitle": "Bu sağlayıcıya özel model ekleyin",
+        "modelId": "Model Kimliği",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash vb.",
+        "modelIdHelper": "API çağrılırken kullanılan tam model tanımlayıcısı",
+        "modelName": "Görünen Ad",
+        "modelNamePlaceholder": "Kolay görünen ad (isteğe bağlı)",
+        "modelNameHelper": "Arayüzde gösterilen isteğe bağlı ad. Boşsa Model Kimliği kullanılır",
+        "group": "Grup",
+        "groupPlaceholder": "Bir grup adı seçin veya girin",
+        "submit": "Ekle",
+        "cancel": "İptal",
+        "helper": "Sağlayıcı API'si tarafından sunulan tam model tanımlayıcısını girin."
+      },
+      "editDialog": {
+        "title": "Modeli Düzenle",
+        "subtitle": "Model ayarlarını değiştir",
+        "modelId": "Model Kimliği",
+        "modelIdPlaceholder": "Model tanımlayıcısı",
+        "modelIdHelper": "API çağrılırken kullanılan model tanımlayıcısı",
+        "modelName": "Görünen Ad",
+        "modelNamePlaceholder": "Kolay görünen ad",
+        "modelNameHelper": "Arayüzde gösterilen ad",
+        "group": "Grup",
+        "groupPlaceholder": "Bir grup adı seçin veya girin",
+        "submit": "Kaydet",
+        "cancel": "İptal",
+        "vision": "Görsel Yetenek",
+        "visionHint": "Bu modelin görüntü/görsel girişi destekleyip desteklemediği",
+        "reasoning": "Düşünme Modeli",
+        "reasoningHint": "Bu modelin düşünme/akıl yürütme modunu destekleyip desteklemediği"
+      },
+      "manageDialog": {
+        "title": "Modelleri Yönet",
+        "cachedAt": "{{date}} tarihinde önbelleğe alındı ({{source}})",
+        "refresh": "Yenile",
+        "close": "Kapat",
+        "raw": "Ham JSON",
+        "empty": "Uzak model mevcut değil.",
+        "error": "Modeller yüklenemedi: {{message}}",
+        "addFromCatalog": "Ekle",
+        "sourceCache": "önbellek",
+        "sourceNetwork": "canlı",
+        "contextLength": "Bağlam {{value}} token",
+        "maxTokens": "Maks {{value}} token"
+      },
+      "messages": {
+        "added": "Model eklendi.",
+        "updated": "Model güncellendi.",
+        "removed": "Model kaldırıldı.",
+        "duplicate": "Model zaten mevcut.",
+        "refreshed": "Modeller yenilendi",
+        "refreshFailed": "Modeller yenilenemedi"
+      },
+      "testDialog": {
+        "title": "Model Bağlantı Testi",
+        "provider": "Sağlayıcı",
+        "model": "Model",
+        "testing": "Test ediliyor...",
+        "success": "Test Başarılı",
+        "successMessage": "Modele normal şekilde erişilebiliyor",
+        "failure": "Test Başarısız",
+        "aiResponse": "AI Yanıtı",
+        "charCount": "{{count}} karakter",
+        "duration": "Süre {{time}}s",
+        "close": "Kapat",
+        "retest": "Yeniden Test Et",
+        "testButton": "Modeli test et",
+        "unsupportedFormat": "Bu sağlayıcı formatı için test henüz desteklenmiyor."
+      }
+    },
+    "router": {
+      "title": "Router Yapılandırması",
+      "description": "Farklı senaryolarda kullanılacak sağlayıcı/modeli yapılandırın.",
+      "labels": {
+        "default": "Varsayılan",
+        "background": "arka plan",
+        "think": "düşünme",
+        "longContext": "Uzun Bağlam",
+        "webSearch": "Web Arama",
+        "image": "Görüntü",
+        "longContextThreshold": "Uzun Bağlam Eşiği"
+      },
+      "helper": {
+        "longContextThreshold": "Uzun bağlam modeline geçmeden önce token sayısı."
+      },
+      "placeholder": {
+        "required": "Zorunlu",
+        "optional": "İsteğe bağlı"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Sohbet ve Kod modları arasında çift yönlü yönlendirmeyi yapılandırın.",
+      "searchPlaceholder": "Router'ları ara...",
+      "noSearchResults": "Aramanızla eşleşen router yok.",
+      "tabs": {
+        "chatToCode": "Sohbet → Kod",
+        "codeToChatPlaceholder": "Kod → Sohbet"
+      },
+      "chatToCode": {
+        "title": "Sohbet'ten Koda Router",
+        "description": "Ajan/kodlama modunda sohbet sağlayıcılarını kullanın",
+        "addRouter": "Router Ekle",
+        "emptyState": "Sohbet→Kod router'ı yapılandırılmamış. Kodlama modunda sohbet sağlayıcılarını kullanmak için bir tane ekleyin.",
+        "form": {
+          "name": "Router Adı",
+          "namePlaceholder": "Sohbet→Kod Router'ım",
+          "chatProvider": "Sohbet Sağlayıcısı",
+          "chatProviderPlaceholder": "Bir sohbet sağlayıcısı seçin",
+          "mode": "Mod",
+          "modeSimple": "Basit",
+          "modeAdvanced": "Gelişmiş",
+          "modeSimpleDesc": "Sohbet sağlayıcısına doğrudan iletim",
+          "modeAdvancedDesc": "Model eşlemesini ve bağlam işlemeyi yapılandırın",
+          "enabled": "Etkin",
+          "save": "Router'ı Kaydet",
+          "cancel": "İptal"
+        },
+        "list": {
+          "provider": "Sağlayıcı",
+          "mode": "Mod",
+          "status": "Durum"
+        },
+        "mappings": {
+          "title": "Model Eşlemeleri",
+          "description": "Sohbet sağlayıcısı modellerini Kod sağlayıcısı modelleriyle eşleyin",
+          "count": "eşleme",
+          "empty": "Model eşlemesi yapılandırılmamış. Sohbet modellerini kod sağlayıcılarına yönlendirmek için eşleme ekleyin.",
+          "addNew": "Yeni Eşleme Ekle",
+          "selectSource": "Kaynak modeli seçin (Sohbet)",
+          "selectTarget": "Hedef modeli seçin (Kod)",
+          "targetPlaceholder": "Claude Code model adını girin",
+          "notSet": "(Ayarlanmadı - seçmek için tıklayın)",
+          "add": "Ekle",
+          "edit": "Düzenle",
+          "done": "Tamam"
+        },
+        "advanced": {
+          "title": "Gelişmiş Yapılandırma",
+          "description": "Farklı görev türleri için modelleri yapılandırın",
+          "helpText": "Varsayılan model zorunludur. Diğer modeller isteğe bağlıdır ve yapılandırılmamışsa varsayılana geri döner.",
+          "default": {
+            "label": "Varsayılan",
+            "placeholder": "Varsayılan modeli seçin",
+            "description": "Genel görevler için birincil model (Claude Sonnet'e benzer)"
+          },
+          "background": {
+            "label": "Arka Plan",
+            "placeholder": "Arka plan modelini seçin",
+            "description": "Arka plan görevleri için hafif model (Claude Haiku'ya benzer)"
+          },
+          "think": {
+            "label": "Düşünme",
+            "placeholder": "Düşünme modelini seçin",
+            "description": "Karmaşık akıl yürütme için gelişmiş model (Claude Opus'a benzer)"
+          },
+          "image": {
+            "label": "Görüntü",
+            "placeholder": "Görüntü modelini seçin",
+            "description": "Görsel yeteneğiyle görüntü ile ilgili görevler için model"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Koddan Sohbete Router",
+        "description": "Kodlama Planı modellerini sohbet modunda göster",
+        "addRouter": "Router Ekle",
+        "emptyState": "Kod→Sohbet router'ı yapılandırılmamış. Kodlama Planı modellerini sohbet modunda göstermek için bir tane ekleyin.",
+        "form": {
+          "name": "Router Adı",
+          "namePlaceholder": "Kod→Sohbet Router'ım",
+          "codeProvider": "Kod Sağlayıcısı",
+          "codeProviderPlaceholder": "Bir kod sağlayıcısı seçin",
+          "codeProviderHelper": "Dönüşüm için kullanılacak Kod sağlayıcısını seçin",
+          "models": "Kodlama Planı Modelleri",
+          "modelsHelper": "Gösterilecek Kodlama Planı modellerini seçin",
+          "enabled": "Etkin",
+          "save": "Router'ı Kaydet",
+          "cancel": "İptal"
+        },
+        "mappings": {
+          "title": "Model Eşlemeleri",
+          "description": "Kod sağlayıcısı modellerini göstermek için Sohbet sağlayıcısı modelleriyle eşleyin",
+          "count": "eşleme",
+          "empty": "Model eşlemesi yapılandırılmamış. Kod modellerini sohbet modunda göstermek için eşleme ekleyin.",
+          "addNew": "Yeni Eşleme Ekle",
+          "selectSource": "Kaynak modeli seçin (Kod)",
+          "selectTarget": "Hedef modeli seçin (Sohbet)",
+          "sourcePlaceholder": "Kaynak model adını girin",
+          "targetPlaceholder": "Hedef model adını girin",
+          "add": "Ekle",
+          "edit": "Düzenle",
+          "done": "Tamam"
+        }
+      },
+      "transformers": {
+        "title": "Dönüştürücüler",
+        "description": "İstek/yanıt dönüşümü için dönüştürücüleri yapılandırın",
+        "noProvider": "Dönüştürücüleri yapılandırmak için bir sağlayıcı seçin",
+        "empty": "Dönüştürücü yok",
+        "count": "{{count}} dönüştürücü"
+      },
+      "status": {
+        "enabled": "Etkin",
+        "disabled": "Devre dışı"
+      },
+      "messages": {
+        "routerAdded": "Router başarıyla eklendi",
+        "routerUpdated": "Router başarıyla güncellendi",
+        "routerDeleted": "Router başarıyla silindi",
+        "saveFailed": "Router kaydedilemedi"
+      }
+    },
+    "presets": {
+      "title": "Hızlı Sağlayıcı Ekle",
+      "added": "Eklendi",
+      "add": "Ekle",
+      "features": {
+        "search": "Arama",
+        "vision": "Görsel",
+        "mcp": "MCP",
+        "codingPlan": "Kodlama Planı"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Bu sağlayıcıyı silmek istediğinizden emin misiniz?"
+    },
+    "errors": {
+      "nameRequired": "Sağlayıcı adı zorunludur",
+      "urlRequired": "API Temel URL'si zorunludur",
+      "urlInvalid": "Lütfen geçerli bir URL girin (örn. https://api.example.com)",
+      "saveFailed": "Sağlayıcı kaydedilemedi",
+      "deleteFailed": "Sağlayıcı silinirken hata oluştu. Lütfen tekrar deneyin.",
+      "toggleFailed": "Sağlayıcı durumu değiştirilirken hata oluştu. Lütfen tekrar deneyin."
+    },
+    "openRouter": {
+      "title": "OpenRouter Sağlayıcı Yönlendirmesi",
+      "description": "İsteklerin OpenRouter'daki farklı sağlayıcılara nasıl yönlendirileceğini yapılandırın.",
+      "sort": "Yönlendirme Stratejisi",
+      "sortTooltip": "Sağlayıcıların nasıl önceliklendirileceğini seçin. Otomatik, akıllı yük dengeleme kullanır.",
+      "order": "Sağlayıcı Öncelik Sırası",
+      "orderTooltip": "Sırayla denenecek sağlayıcıları belirtin (örn. anthropic, openai, together). Eklemek için Enter'a basın.",
+      "orderPlaceholder": "Sağlayıcı slug'ını yazıp Enter'a basın...",
+      "allowFallbacks": "Yedeklere İzin Ver",
+      "allowFallbacksTooltip": "Etkinleştirildiğinde, birincil sağlayıcı kullanılamıyorsa OpenRouter yedek sağlayıcıları dener.",
+      "requireParameters": "Tüm Parametreleri Zorunlu Kıl",
+      "requireParametersTooltip": "Yalnızca isteklerinizdeki tüm parametreleri destekleyen sağlayıcılara yönlendir.",
+      "dataCollection": "Veri Toplama Politikası",
+      "dataCollectionTooltip": "Verilerinizi saklayabilecek veya üzerinde eğitim yapabilecek sağlayıcıların kullanılıp kullanılmayacağını kontrol edin.",
+      "zdr": "Sıfır Veri Saklama",
+      "zdrTooltip": "Yalnızca Sıfır Veri Saklama politikasına sahip endpoint'lere yönlendir.",
+      "only": "Yalnızca Bu Sağlayıcılara İzin Ver",
+      "onlyTooltip": "Yalnızca bu belirli sağlayıcıları kullanın. Tüm sağlayıcılara izin vermek için boş bırakın.",
+      "onlyPlaceholder": "Sağlayıcı slug'ını yazıp Enter'a basın...",
+      "ignore": "Sağlayıcıları Yoksay",
+      "ignoreTooltip": "İstekleri yönlendirirken bu sağlayıcıları atlayın.",
+      "ignorePlaceholder": "Sağlayıcı slug'ını yazıp Enter'a basın...",
+      "quantizations": "Niceleme Filtresi",
+      "quantizationsTooltip": "Yalnızca belirli niceleme düzeylerine sahip sağlayıcıları kullanın. Daha düşük hassasiyet kaliteyi düşürebilir ancak hızı artırabilir.",
+      "maxPrice": "Maksimum Fiyat",
+      "maxPriceTooltip": "Milyon token başına maksimum fiyat sınırlarını ayarlayın. Sınır yok için boş bırakın.",
+      "configured": "Yapılandırıldı"
+    }
+  },
+  "apiMode": {
+    "label": "API Modu",
+    "standard": "Standart",
+    "codingPlan": "Kodlama Planı",
+    "tokenPlan": "Token Planı",
+    "apiKeyPrefixHint": "Bu plan için anahtarlar genellikle `{{prefix}}` ile başlar. Yalnızca ipucu — zorunlu değil.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Kodlama Planı, standart endpoint'ten ayrı bir API anahtarı kullanır.",
+    "baiduCodingPlanSeparateKey": "Qianfan Kodlama Planı, standart endpoint'ten ayrı bir API anahtarı kullanır.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Planı yalnızca Anthropic protokolüdür.",
+    "xiaomiTokenPlanRegions": "Varsayılan baseUrl `token-plan-cn.*`'dir. Manuel olarak `token-plan-sgp.*` veya `token-plan-ams.*` olarak düzenleyebilirsiniz.",
+    "confirmOverwriteTitle": "API modu değiştirilsin mi?",
+    "confirmOverwriteBody": "API URL'sini veya API Anahtarını özelleştirdiniz. Mod değiştirildiğinde bunların üzerine yeni modun varsayılanları yazılır — veya özelleştirmelerinizi koruyarak yalnızca mod etiketini güncelleyin.",
+    "overwriteAndSwitch": "Üzerine yaz ve değiştir",
+    "keepCustomizations": "Özelleştirmeleri koru"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Planı)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "İptal",
+    "close": "Kapat",
+    "copy": "Kopyala",
+    "delete": "Sil",
+    "dismiss": "Kapat",
+    "save": "Kaydet",
+    "optional": "isteğe bağlı",
+    "retry": "Yeniden dene",
+    "loading": "Yükleniyor…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Belgeler"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Daemon tarafından henüz desteklenmiyor",
+    "discoveryUnsupportedFormat": "Bu sağlayıcı formatı için model keşfi henüz desteklenmiyor. Modelleri manuel olarak ekleyin."
+  },
+  "nav": {
+    "subtitle": "Kontrol Paneli",
+    "providers": "Sağlayıcılar",
+    "apiService": "API Hizmeti",
+    "accounts": "Hesaplar",
+    "codeCli": "Code CLI",
+    "settings": "Ayarlar",
+    "usageStats": "Kullanım",
+    "pricing": "Fiyatlar"
+  },
+  "apiService": {
+    "title": "API Hizmeti",
+    "description": "Giden API sunucusunu, endpoint bazında model yönlendirmesini ve adlandırılmış erişim anahtarlarını yapılandırın.",
+    "loading": "Sunucu yapılandırması yükleniyor…",
+    "loadError": "Sunucu yapılandırması yüklenemedi. Daemon'a erişilebildiğinden emin olun.",
+    "enable": {
+      "label": "Giden sunucuyu etkinleştir",
+      "description": "Harici çağrıcıları sağlayıcılarınız aracılığıyla yönlendiren yerel API sunucusunu başlatın."
+    },
+    "networkBinding": {
+      "label": "LAN erişimine izin ver",
+      "description": "Sunucuyu yalnızca geri döngü yerine ağ arayüzünüze bağlayın.",
+      "warning": "LAN erişimi, API sunucusunu ağınızdaki diğer cihazlara açar. Abonelik yönlendirmesiyle birleştiğinde, istekler abonelik kotanızı tüketebilir — ağa güvenmiyorsanız bunu kapalı tutun."
+    },
+    "status": {
+      "running": "Sunucu çalışıyor",
+      "stopped": "Sunucu durduruldu",
+      "runningHint": "Giden API sunucusu istekleri kabul ediyor.",
+      "stoppedHint": "İstekleri kabul etmeye başlamak için sunucuyu etkinleştirin.",
+      "port": "port {{port}}",
+      "loopback": "Geri Döngü URL'leri",
+      "lan": "LAN URL'leri"
+    },
+    "endpoints": {
+      "title": "Endpoint yönlendirmesi",
+      "description": "Her wire formatının yönlendireceği modeli seçin. Varsayılan model burada belirlenir — sunucu bir router'dır, sohbet uygulaması değil."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Sohbet",
+        "responses": "OpenAI Yanıtları",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Varsayılan model",
+      "backgroundModel": "Arka plan modeli",
+      "visionModel": "Görsel model",
+      "noVisionModel": "Yok",
+      "backgroundModelIds": "Arka plan model kimlikleri",
+      "backgroundModelIdsPlaceholder": "virgülle ayrılmış model kimlikleri",
+      "modelPlaceholder": "Bir model seçin…",
+      "useSubscription": "Abonelik kullan",
+      "subscriptionUnsupported": "Bu endpoint için abonelik yönlendirmesi mevcut değil."
+    },
+    "keys": {
+      "title": "Erişim anahtarları",
+      "description": "Harici çağrıcıların Bearer token olarak gönderdiği adlandırılmış anahtarlar. Tam anahtar yalnızca oluşturulurken bir kez gösterilir.",
+      "namePlaceholder": "Anahtar adı (örn. my-cli)",
+      "create": "Anahtar oluştur",
+      "empty": "Henüz erişim anahtarı yok.",
+      "enabled": "Etkin",
+      "disabled": "Devre dışı",
+      "revoked": "İptal edildi",
+      "toggle": "Anahtarı aç/kapat",
+      "revoke": "İptal et",
+      "revokeConfirmTitle": "Bu anahtar iptal edilsin mi?",
+      "revokeConfirmDesc": "\"{{name}}\" iptal edildiğinde kimlik doğrulaması hemen durur. Bu işlem geri alınamaz.",
+      "created": {
+        "title": "Anahtar oluşturuldu",
+        "warning": "Bu anahtarı şimdi kopyalayın — bir daha gösterilmeyecek. Güvenli bir yerde saklayın.",
+        "copy": "Kopyala",
+        "copied": "Kopyalandı",
+        "dismiss": "Tamam"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Hesaplar ve Abonelikler",
+    "description": "Sunucunun üzerinden yönlendirdiği abonelik kimlik bilgilerini yönetin. Tokenlar buraya yazılır ancak hiçbir zaman geri görüntülenmez.",
+    "loading": "Hesaplar yükleniyor…",
+    "empty": "Kullanılabilir abonelik sağlayıcısı yok.",
+    "signIn": "Giriş yap",
+    "oauth": {
+      "title": "{{name}}'e giriş yap",
+      "description": "Tarayıcınızda giriş sayfasını açın, yetkilendirin, ardından yetkilendirme kodunu aşağıya yapıştırın. Kod yalnızca daemon'a iletilir — oluşturulan token hiçbir zaman gösterilmez.",
+      "openPage": "Giriş sayfasını aç",
+      "codeLabel": "Yetkilendirme kodu",
+      "codePlaceholder": "Kodu buraya yapıştırın",
+      "submit": "Girişi tamamla"
+    },
+    "codexOauth": {
+      "title": "{{name}}'e giriş yap",
+      "description": "Tarayıcınızda giriş sayfasını açın ve yetkilendirin. Daemon sonucu otomatik olarak yakalar — tamamlanana kadar bu sayfayı açık tutun. Token hiçbir zaman gösterilmez.",
+      "waiting": "Tarayıcınızda girişi tamamlamanızı bekliyoruz…",
+      "failed": "Giriş başarısız. Lütfen tekrar deneyin."
+    },
+    "clearProvider": "Tümünü temizle",
+    "clearConfirmTitle": "{{name}} hesapları temizlensin mi?",
+    "clearConfirmDesc": "Bu işlem, bu sağlayıcı için depolanan tüm kimlik bilgilerini kaldırır. Bu işlem geri alınamaz.",
+    "credential": {
+      "ok": "Yapılandırıldı",
+      "notConfigured": "Yapılandırılmadı"
+    },
+    "kind": {
+      "pass-through": "Geçiş kimlik bilgileri",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Statik bearer anahtarı"
+    },
+    "reason": {
+      "missing-credential": "Kimlik bilgisi saklanmamış.",
+      "expired": "Kimlik bilgisi süresi doldu.",
+      "reauth-required": "Yeniden kimlik doğrulama gerekli.",
+      "refresh-failed": "Token yenileme başarısız.",
+      "not-refreshable": "Kimlik bilgisi yenilenemiyor.",
+      "unknown": "Durum bilinmiyor."
+    },
+    "status": {
+      "unconfigured": "Yapılandırılmadı",
+      "authorized": "Yetkilendirildi",
+      "configured": "Yapılandırıldı",
+      "expired": "Süresi doldu",
+      "error": "Hata"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Kurulum token'ı",
+      "manual": "Manuel"
+    },
+    "list": {
+      "empty": "Bu sağlayıcı için kayıtlı hesap yok.",
+      "active": "Aktif",
+      "expiresAt": "{{value}} tarihinde sona eriyor",
+      "setActive": "Aktif olarak ayarla",
+      "remove": "Kaldır",
+      "removeConfirmTitle": "Bu hesap kaldırılsın mı?",
+      "removeConfirmDesc": "\"{{name}}\" kaldırıldığında saklanan kimlik bilgisi silinir. Bu işlem geri alınamaz.",
+      "title": "Hesaplar"
+    },
+    "write": {
+      "trigger": "Kimlik bilgisi ekle",
+      "title": "{{name}} kimlik bilgisini yaz",
+      "description": "Önceden edinilmiş token materyalini yapıştırın. Alanlar bu sağlayıcının kabul ettiğiyle sınırlıdır; token saklanır, geri görüntülenmez.",
+      "authMethod": "Kimlik doğrulama yöntemi",
+      "status": "Durum",
+      "subscriptionLevel": "Abonelik düzeyi",
+      "subscriptionLevelNone": "Ayarlanmadı",
+      "submit": "Kimlik bilgisini kaydet"
+    },
+    "field": {
+      "accessToken": "Erişim token'ı",
+      "refreshToken": "Yenileme token'ı",
+      "idToken": "Kimlik token'ı",
+      "apiKey": "API anahtarı",
+      "expiresAt": "Sona erme tarihi (ISO)",
+      "setupTokenExpiresAt": "Kurulum token'ı sona erme tarihi (ISO)",
+      "accountId": "Hesap Kimliği",
+      "email": "E-posta",
+      "organizationId": "Kuruluş Kimliği",
+      "baseUrl": "Temel URL",
+      "zenBaseUrl": "Zen temel URL'si"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Daemon tarafından yönlendirilen Anthropic abonelik kimlik bilgileri."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Daemon tarafından yönlendirilen OpenAI Codex abonelik kimlik bilgileri."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Daemon tarafından yönlendirilen Google Gemini abonelik kimlik bilgileri."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Daemon tarafından yönlendirilen statik API anahtarı kimlik bilgileri."
+      }
+    },
+    "authMethodLabel": "Yetkilendirme yöntemi",
+    "authMethodDesc": {
+      "oauth": "Tarayıcınız üzerinden giriş yapın; daemon token'ı yakalar ve saklar.",
+      "manual": "Önceden edinilmiş token'ı yapıştırın. Saklanır, hiçbir zaman görüntülenmez."
+    },
+    "actions": {
+      "authorize": "Yetkilendir",
+      "enterToken": "Token gir",
+      "refresh": "Yenile"
+    },
+    "accounts": {
+      "addAccount": "Hesap ekle"
+    },
+    "detail": {
+      "authMethod": "Yetkilendirme yöntemi",
+      "subscriptionLevel": "Abonelik düzeyi",
+      "expiresAt": "Sona erme",
+      "lastRefreshed": "Son yenileme",
+      "label": "Hesap etiketi",
+      "labelPlaceholder": "Bu hesabı adlandırın",
+      "saveLabel": "Etiketi kaydet"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Yetkilendirme sayfasını açın",
+        "desc": "Tarayıcınızda giriş sayfasını açın."
+      },
+      "step2": {
+        "title": "Erişimi yetkilendirin",
+        "desc": "Giriş yapın ve sağlayıcı için erişimi onaylayın."
+      },
+      "step3": {
+        "title": "Yetkilendirme kodunu kopyalayın",
+        "desc": "Onaylamanızın ardından sayfa bir yetkilendirme kodu gösterir."
+      },
+      "step4": {
+        "title": "Kodu yapıştırın",
+        "desc": "Tamamlamak için yetkilendirme kodunu aşağıya yapıştırın. Kod yalnızca daemon'a iletilir — oluşturulan token hiçbir zaman gösterilmez."
+      },
+      "authorize": "Girişi tamamla",
+      "showUrl": "Yetkilendirme URL'sini göster"
+    },
+    "manual": {
+      "title": "Kimlik bilgisi yapıştır",
+      "description": "Önceden edinilmiş token'ı yapıştırın. Alanlar bu sağlayıcının kabul ettiğiyle sınırlıdır; token saklanır, geri görüntülenmez.",
+      "accessTokenPlaceholder": "Erişim token'ını yapıştırın",
+      "refreshTokenPlaceholder": "Yenileme token'ını yapıştırın (isteğe bağlı)",
+      "hint": "Token, daemon'a gönderilir ve şifreli olarak saklanır. Hiçbir zaman geri görüntülenmez."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "API anahtarı zorunludur.",
+      "apiKeyPlaceholder": "API anahtarını yapıştırın",
+      "baseUrlPlaceholder": "https://… (isteğe bağlı)",
+      "zenBaseUrlPlaceholder": "https://… (isteğe bağlı)"
+    },
+    "info": {
+      "title": "Abonelik hesapları hakkında",
+      "description": "Tokenlar daemon'a yazılır ve yukarı akış isteklerini doğrulamak için kullanılır. Şifreli olarak saklanır ve hiçbir zaman geri görüntülenmez. Bir hesabın kaldırılması, saklanan kimlik bilgisini siler."
+    },
+    "rename": {
+      "failed": "Hesap yeniden adlandırılamadı."
+    },
+    "refresh": {
+      "failed": "Token yenilenemedi."
+    },
+    "errors": {
+      "requestFailed": "İstek başarısız. Lütfen tekrar deneyin."
+    },
+    "syncWarning": {
+      "external-divergent": "Harici CLI oturum açma dosyası bu hesaptan daha yeni kimlik bilgileri içeriyor. Kayıtlı belirteç yenilenemeyebilir — şimdi yenileyin veya yeniden oturum açın.",
+      "external-not-rotated": "Yenileme başarısız oldu ve harici CLI aynı süresi dolmuş kimlik bilgilerini içeriyor. Lütfen yeniden oturum açın.",
+      "duplicate-token": "Başka bir hesap bu kimlik bilgilerini paylaşıyor. Birini yenilemek diğerinin oturumunu kapatır."
+    },
+    "importExternal": {
+      "detected": "Bu makinede mevcut bir {{name}} CLI oturumu bulundu.",
+      "hint": "İçe aktardıktan sonra bu uygulama onu güncel tutar: her belirteç yenilemesinde CLI oturum dosyası da güncellenir, böylece terminaldeki CLI oturumu açık kalır.",
+      "button": "Mevcut CLI oturumunu içe aktar"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Bir kodlama CLI'ını daemon'un giden proxy'sine yönlendirin. Bu sayfa salt okunur — burada yapılandırılacak bir şey yok.",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
+    "baseUrl": {
+      "title": "Daemon temel URL'si",
+      "description": "CLI'ınızın bağlandığı proxy adresi.",
+      "label": "Temel URL"
+    },
+    "token": {
+      "title": "Kimlik Doğrulama",
+      "hint": "Yönetici rotaları için 'Authorization: Bearer <your-admin-token>' gönderin. Yönetici token'ı daemon'da (yapılandırma dosyası veya ortam) yapılandırılır — burada hiçbir zaman gösterilmez."
+    },
+    "examples": {
+      "title": "Örnek başlatma ortamı",
+      "keyNote": "API Hizmeti sayfasında oluşturulan giden erişim anahtarını kullanın — yönetici token'ını değil.",
+      "anthropic": "Anthropic formatlı CLI",
+      "openai": "OpenAI formatlı CLI"
+    },
+    "launchDescription": "Bu daemon'a yönlendirilmiş bir kodlama CLI'ını terminalde başlatın. Daemon, yönlendirme ortamını enjekte eder ve CLI'ı sizin için başlatır.",
+    "refresh": "Yenile",
+    "loading": "CLI'lar algılanıyor…",
+    "cli": {
+      "installed": "Yüklü",
+      "notFound": "Bulunamadı",
+      "notFoundHint": "Bu CLI, daemon ana makinesinin PATH'inde yok. Yükleyin, ardından yenileyin.",
+      "install": "Yükle",
+      "installing": "Yükleniyor…",
+      "installingHint": "Daemon ana makinesine yükleniyor — bu bir dakika sürebilir.",
+      "launch": "Başlat",
+      "launchTitle": "{{name}}'i Başlat",
+      "launchDescription": "Daemon proxy'si üzerinden yönlendirilen bu CLI'ı çalıştıran daemon ana makinesinde yeni bir terminal açar. İsteğe bağlı çalışma dizini seçin.",
+      "cwdLabel": "Çalışma dizini",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "Çalışıyor · {{provider}} / {{model}}",
+      "stop": "Durdur"
+    },
+    "manual": {
+      "title": "Manuel kurulum",
+      "description": "CLI'ı kendiniz mi çalıştırmak istiyorsunuz? Bu ortam değişkenleriyle daemon'a yönlendirin.",
+      "show": "Göster",
+      "hide": "Gizle"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Daemon aranıyor…",
+    "spawning": "Daemon başlatılıyor…",
+    "failed": "Daemon başlatılamadı",
+    "failedHint": "Node.js'nin yüklü olduğundan ve daemon'un derlendiğinden (dist mevcut) emin olun ya da OMNICROSS_DAEMON_ENTRY'yi daemon'un cli.js dosyasına ayarlayın."
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "description": "Masaüstü uygulaması tercihleri.",
+    "desktopOnly": "Başlangıç ve sistem tepsisi seçenekleri yalnızca masaüstü uygulamasında geçerlidir.",
+    "startup": {
+      "title": "Başlangıç",
+      "autoLaunch": "Oturum açıldığında başlat",
+      "autoLaunchHint": "Oturum açtığınızda Omnicross'u otomatik olarak başlatın.",
+      "startMinimized": "Sistem tepsisine küçültülmüş başlat",
+      "startMinimizedHint": "Pencereyi açmadan arka planda başlatın."
+    },
+    "tray": {
+      "title": "Sistem Tepsisi",
+      "minimizeOnClose": "Kapatıldığında sistem tepsisine küçült",
+      "minimizeOnCloseHint": "Pencere kapatıldığında çıkmak yerine sistem tepsisine gizlenir."
+    },
+    "language": {
+      "title": "Dil",
+      "label": "Arayüz dili"
+    }
+  },
+  "usageStats": {
+    "title": "Kullanım istatistikleri",
+    "description": "Daemon tarafından sunulan isteklerin token ve maliyet istatistikleri.",
+    "rangeToday": "Bugün",
+    "range7d": "Son 7 gün",
+    "range30d": "Son 30 gün",
+    "rangeCustom": "Özel",
+    "from": "Başlangıç",
+    "to": "Bitiş",
+    "totalCost": "Toplam maliyet",
+    "cacheSavings": "Önbellek tasarrufu",
+    "events": "İstekler",
+    "inputTokens": "Girdi tokenları",
+    "outputTokens": "Çıktı tokenları",
+    "cacheReadTokens": "Önbellek okuma",
+    "cacheWriteTokens": "Önbellek yazma",
+    "reasoningTokens": "Akıl yürütme tokenları",
+    "byModel": "Modele göre",
+    "byApiKey": "API anahtarına göre",
+    "provider": "Sağlayıcı",
+    "model": "Model",
+    "cost": "Maliyet",
+    "apiKey": "API anahtarı",
+    "unpriced": "Fiyatsız",
+    "unpricedHint": "Bu model için fiyat kaydı yok — Fiyatlar sayfasından ekleyin.",
+    "unattributed": "Atanmamış",
+    "unattributedHint": "Belirli bir API anahtarına bağlı olmayan istekler. Anahtar bazlı atama kaydedilene kadar bu beklenen durumdur.",
+    "empty": "Bu aralıkta istek yok.",
+    "invalidRange": "Geçerli bir tarih aralığı seçin."
+  },
+  "pricing": {
+    "title": "Model fiyatları",
+    "description": "İstek maliyetlerini hesaplamak için kullanılan model başına token fiyatları, 1 milyon token başına USD.",
+    "search": "Sağlayıcı veya model ara…",
+    "fetchLatest": "En yenileri getir",
+    "fetching": "Getiriliyor…",
+    "addEntry": "Kayıt ekle",
+    "provider": "Sağlayıcı",
+    "model": "Model",
+    "inputPrice": "Girdi",
+    "outputPrice": "Çıktı",
+    "cacheReadPrice": "Önbellek okuma",
+    "cacheWritePrice": "Önbellek yazma",
+    "source": "Kaynak",
+    "updated": "Güncellendi",
+    "userEdited": "düzenlendi",
+    "edit": "Düzenle",
+    "deleteTitle": "Fiyat kaydı silinsin mi?",
+    "empty": "Fiyat tablosu boş.",
+    "emptyHint": "Doldurmak için en yeni fiyatları getirin.",
+    "noMatches": "Aramanızla eşleşen kayıt yok.",
+    "saved": "Fiyat kaydı kaydedildi.",
+    "saveFailed": "Kaydetme başarısız: {{message}}",
+    "deleteFailed": "Silme başarısız: {{message}}",
+    "alreadyDeleted": "Kayıt zaten yoktu.",
+    "fetchApplied": "Kaynaktan {{count}} kayıt güncellendi.",
+    "fetchFailed": "Getirme başarısız: {{message}}",
+    "requiredId": "Zorunlu",
+    "invalidPrice": "Negatif olmayan bir sayı girin",
+    "conflictTitle": "Fiyat çakışmalarını çöz",
+    "conflictHint": "Bu kayıtlar sizin tarafınızdan düzenlendi ve kaynakta da değişti. Her satır için kendi değerinizi koruyup korumayacağınızı (Atla) veya geleni alacağınızı (Üzerine yaz) seçin.",
+    "current": "Mevcut",
+    "incoming": "Gelen",
+    "overwrite": "Üzerine yaz",
+    "skip": "Atla",
+    "overwriteAll": "Tümünün üzerine yaz",
+    "skipAll": "Tümünü atla",
+    "applyResolutions": "Uygula",
+    "resolved": "{{overwritten}} üzerine yazıldı, {{skipped}} atlandı.",
+    "resolvedWithStale": "{{overwritten}} üzerine yazıldı, {{skipped}} atlandı. {{stale}} bu sırada değişti ve dokunulmadan bırakıldı.",
+    "refreshFailed": "Değişiklik uygulandı ancak liste yeniden yüklenemedi: {{message}}",
+    "sourceBuiltin": "Yerleşik",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Kullanıcı"
+  }
+}

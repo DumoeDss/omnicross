@@ -1,0 +1,45 @@
+@omnicross/subscriptions — THIRD-PARTY NOTICES
+==============================================
+
+This package contains the subscription-as-provider block (auth strategies,
+account service, provider registry, dispatcher, OpenCodeGo routing). Some routing
+shapes and configuration-data values were adapted,
+clean-room, from the following third-party works. Those repositories are NOT
+vendored into this tree; only original TypeScript that mirrors their routing
+shape / config-data values lives here (see the in-code provenance comments).
+
+--------------------------------------------------------------------------------
+1. claude-relay-service  (MIT License) — routing shape only
+--------------------------------------------------------------------------------
+
+The Codex (ChatGPT OAuth) upstream routing shape — the
+`https://chatgpt.com/backend-api/codex/responses` endpoint dispatch in
+`src/SubscriptionProviderRegistry.ts` — mirrors the route shape of
+`claude-relay-service` (`src/routes/openaiRoutes.js`). Routing shape only; the
+TypeScript is original, and the upstream repository is not vendored.
+
+    https://github.com/Wei-Shaw/claude-relay-service
+    Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+2. oc-go-cc  (OpenCodeGo CC) — model-map + routing-shape / config-data
+--------------------------------------------------------------------------------
+
+The OpenCodeGo routing-shape, scenario router, model-map defaults, endpoint
+shapes, and Anthropic-shape `x-api-key` fallback in
+`src/opencodego/{defaults,endpoints,model-shape,ScenarioRouter}.ts` and
+`src/auth/StaticBearerAuthStrategy.ts` are clean-room ports of the model-map and
+routing shape from `oc-go-cc` (`internal/router/model_router.go`,
+`internal/client/opencode.go`, `configs/config.example.json`). Configuration
+data + routing shape only; the TypeScript is original, and the upstream
+repository is not vendored.
+
+--------------------------------------------------------------------------------
+3. js-tiktoken  (MIT License)
+--------------------------------------------------------------------------------
+
+`src/opencodego/token-count.ts` lazily imports `js-tiktoken` (cl100k_base
+encoding) to estimate input-token counts for OpenCodeGo scenario routing.
+
+    https://github.com/dqbd/tiktoken
+    Licensed under the MIT License.

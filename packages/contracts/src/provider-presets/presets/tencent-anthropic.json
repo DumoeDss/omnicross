@@ -1,0 +1,76 @@
+{
+  "id": "tencent-anthropic",
+  "presetId": "tencent",
+  "name": "腾讯云混元 (Token Plan)",
+  "nameKey": "presetName.tencentAnthropic",
+  "apiFormat": "anthropic",
+  "api_base_url": "https://api.lkeap.cloud.tencent.com/plan/anthropic/v1/messages",
+  "transformer": {
+    "use": [
+      "anthropic"
+    ]
+  },
+  "models": [
+    "tc-code-latest",
+    "hunyuan-2.0-instruct",
+    "hunyuan-turbos",
+    "glm-5",
+    "kimi-k2.5",
+    "minimax-m2.5"
+  ],
+  "modelConfigs": [
+    {
+      "id": "tc-code-latest",
+      "name": "Auto",
+      "enabled": true
+    },
+    {
+      "id": "hunyuan-2.0-instruct",
+      "name": "混元 2.0 Instruct",
+      "enabled": true
+    },
+    {
+      "id": "hunyuan-turbos",
+      "name": "混元 TurboS",
+      "enabled": true
+    },
+    {
+      "id": "glm-5",
+      "name": "GLM-5",
+      "enabled": true
+    },
+    {
+      "id": "kimi-k2.5",
+      "name": "Kimi K2.5",
+      "enabled": true
+    },
+    {
+      "id": "minimax-m2.5",
+      "name": "MiniMax M2.5",
+      "enabled": true
+    }
+  ],
+  "description": "腾讯云混元 (Anthropic 兼容) — 含 Token Plan + Coding Plan；适合 Claude Code 工具链",
+  "icon": "tencent",
+  "website": "https://cloud.tencent.com",
+  "docsUrl": "https://cloud.tencent.com/document/product/1772/128947",
+  "isSystem": true,
+  "features": [
+    "coding-plan"
+  ],
+  "apiModes": [
+    {
+      "id": "token-plan",
+      "label": "apiMode.tokenPlan",
+      "baseUrl": "https://api.lkeap.cloud.tencent.com/plan/anthropic/v1/messages",
+      "apiKeyPrefix": "sk-tp-",
+      "note": "apiMode.tencentTokenPlanAnthropicOnly"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/anthropic",
+      "apiKeyPrefix": "sk-sp-"
+    }
+  ]
+}

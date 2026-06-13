@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "正在加载 LLM 配置...",
+    "reset": {
+      "button": "恢复默认",
+      "confirmTitle": "恢复默认设置？",
+      "confirmBody": "这将清除你对该提供商的自定义修改，使其重新跟随内置默认值。你的 API 密钥和已保存的会话不会受影响。",
+      "confirmButton": "恢复默认"
+    },
+    "reentryBanner": {
+      "message": "有 {{count}} 个已启用的提供商需要重新填写 API 密钥。请逐个打开并重新填入密钥。"
+    },
+    "migrationPack": {
+      "barHint": "用加密迁移包将提供商密钥和订阅令牌迁移到另一台设备。",
+      "passphrase": "口令",
+      "passphrasePlaceholder": "请输入口令",
+      "passphraseHint": "至少 8 个字符，建议 12 个或以上。",
+      "confirm": "确认口令",
+      "confirmPlaceholder": "再次输入口令",
+      "mismatch": "两次输入的口令不一致。",
+      "strength": {
+        "weak": "太短——请至少使用 8 个字符。",
+        "fair": "可以——12 个或以上字符更安全。",
+        "strong": "口令强度高。"
+      },
+      "export": {
+        "button": "导出迁移包",
+        "title": "导出加密迁移包",
+        "subtitle": "将提供商密钥和订阅令牌加密为一个可携带的文件。",
+        "warning": "此文件包含可解密的机密，请妥善保管——任何人只要同时拥有此文件和口令，就能读取你的密钥。口令一旦丢失将无法恢复。",
+        "submit": "导出",
+        "success": "迁移包已成功导出。",
+        "error": "导出失败，请重试。"
+      },
+      "import": {
+        "button": "导入迁移包",
+        "title": "导入加密迁移包",
+        "subtitle": "从导出的迁移包中恢复提供商密钥和订阅令牌。",
+        "hint": "请输入导出迁移包时使用的口令，然后选择文件。",
+        "submit": "导入",
+        "successTitle": "导入完成",
+        "summary": "已导入 {{providerKeys}} 个提供商密钥、{{poolKeys}} 个密钥池条目和 {{tokenSets}} 组令牌。",
+        "duplicates": "已跳过 {{count}} 个已存在的密钥池条目。",
+        "skipped": "已跳过（无匹配的提供商）：{{names}}",
+        "error": "口令错误或迁移包已损坏，未做任何更改。"
+      }
+    },
+    "searchPlaceholder": "搜索提供商...",
+    "emptySearch": "没有符合搜索条件的提供商。",
+    "emptyList": "尚未配置提供商。",
+    "selectPrompt": "选择一个提供商以查看详情",
+    "listStatus": "共 {{count}} 个模型",
+    "noModels": "未配置模型",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "showEnabledOnly": "仅显示已启用",
+    "showAll": "显示全部",
+    "dragHandle": "拖拽调整顺序",
+    "reorderFailed": "保存排序失败",
+    "credentials": {
+      "apiKey": "API Key",
+      "apiBaseUrl": "API 地址"
+    },
+    "filter": {
+      "all": "全部",
+      "chat": "对话",
+      "code": "代码"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "选择模板",
+      "skipTemplates": "跳过，手动配置",
+      "name": "名称 *",
+      "providerType": "类型",
+      "apiType": "API 类型",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "遵循 OpenAI Chat/Completions API 格式",
+        "claudecode": "Anthropic Messages API 格式（Claude Code）"
+      },
+      "chatApiFormat": "API 格式",
+      "chatApiFormatDescription": "选择与您提供商端点匹配的 API 格式",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-... 或 $ENV_VAR",
+      "apiKeyHelper": "可使用 $VAR_NAME 引用环境变量",
+      "apiKeySetPlaceholder": "密钥已设置 — 留空则保持不变",
+      "apiKeyReplaceHelper": "密钥已安全存储。输入新值可替换，留空则保持不变。",
+      "testApiKey": "测试 API Key",
+      "apiUrl": "API 地址 *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "预览：",
+      "models": "模型列表",
+      "modelPlaceholder": "模型名称（如 gpt-4、claude-3-opus）",
+      "transformers": "Transformers",
+      "transformerConfig": "API 转换器",
+      "transformerConfigDescription": "配置转换器以适配此提供商的 API 请求/响应格式",
+      "transformerConfigNote": "守护进程会在请求链中应用这些转换器，位于提供商格式转换器（负责线路格式转换）之后。未知的转换器名称会被跳过。",
+      "enabled": "已启用",
+      "apiVersion": "API 版本",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI 的 API 版本号（如 2024-08-01-preview）",
+      "official": "Anthropic 官方 API",
+      "officialHelper": "如果该提供商直接连接 Anthropic 官方 API，请启用。反向代理或第三方服务请禁用。",
+      "maxConcurrency": "最大并发请求数",
+      "maxConcurrencyHelper": "向该提供商发送的最大并发 API 请求数。较低的值有助于避免速率限制（429 错误）。填 `-1` 表示不限制。",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "使用订阅制 Coding Plan 的独立 API 地址",
+        "baseUrl": "Coding Plan 接口地址",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API 密钥（可选）",
+        "apiKeyPlaceholder": "留空则使用提供商的 API 密钥",
+        "apiKeyHelper": "仅当 Coding Plan 使用不同的 API 密钥时才需要",
+        "tokenPlanHint": "部分提供商（如小米 MiMo）的 Token Plan 密钥以 `tp-` 开头 —— 仅为提示，不会强制校验。"
+      },
+      "selectTypeFirst": "选择提供商类型",
+      "selectTypeFirstDesc": "选择您要添加的提供商类型",
+      "codeProviderNote": "Code 提供商只需要 API Key 和 URL。模型由 Agent Router 管理。",
+      "buttons": {
+        "cancel": "取消",
+        "submitAdd": "添加提供商",
+        "submitUpdate": "更新提供商",
+        "continue": "继续",
+        "back": "返回"
+      }
+    },
+    "details": {
+      "noSelection": "选择一个提供商查看详情",
+      "apiKey": "API Key",
+      "apiUrl": "API 地址",
+      "nameLabel": "提供商名称",
+      "modelsEndpoint": "模型列表接口",
+      "modelsEndpointHelper": "若服务端提供自定义 /models 路径，可在这里覆盖。",
+      "models": "模型",
+      "transformers": "Transformers",
+      "codeProviderNote": "代码类型提供商（如 Claude Code）无需配置模型。模型由 Agent 路由自动管理。",
+      "buttons": {
+        "more": "更多设置",
+        "delete": "删除"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "选择提供商和模型",
+      "noProviders": "暂无可用提供商",
+      "noModels": "暂无已配置模型"
+    },
+    "apiKeyPool": {
+      "title": "API Key 池",
+      "description": "配置多个 API Key 实现负载均衡。每个会话绑定一个 Key 以保留 Prompt Cache。",
+      "defaultLabel": "默认",
+      "weight": "权重",
+      "noKey": "无密钥",
+      "labelPlaceholder": "标签（如 Key #1、生产环境）",
+      "addKey": "添加 API Key",
+      "add": "添加",
+      "empty": "未配置额外的 Key。",
+      "statusCoolingDown": "限流冷却 {{time}}",
+      "statusAuthFailed": "鉴权失败 · 已禁用",
+      "statusDisabled": "已禁用",
+      "statusHealthy": "正常",
+      "agoSeconds": "{{count}} 秒前",
+      "agoMinutes": "{{count}} 分钟前",
+      "agoHours": "{{count}} 小时前",
+      "agoDays": "{{count}} 天前"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "搜索模型...",
+      "defaultGroup": "全部模型",
+      "add": "添加模型",
+      "manage": "管理",
+      "empty": "该分组暂无模型",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "filters": {
+        "all": "全部",
+        "vision": "视觉",
+        "reasoning": "推理",
+        "free": "免费",
+        "tools": "工具"
+      },
+      "manualDialog": {
+        "title": "添加模型",
+        "subtitle": "为此提供商添加自定义模型",
+        "modelId": "模型 ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash 等",
+        "modelIdHelper": "调用 API 时使用的精确模型标识符",
+        "modelName": "展示名称",
+        "modelNamePlaceholder": "友好的展示名称（可选）",
+        "modelNameHelper": "在界面中显示的名称，留空则使用模型 ID",
+        "group": "分组",
+        "groupPlaceholder": "选择或输入分组名称",
+        "submit": "添加",
+        "cancel": "取消",
+        "helper": "请填写提供商 API 返回的模型标识。"
+      },
+      "editDialog": {
+        "title": "编辑模型",
+        "subtitle": "修改模型设置",
+        "modelId": "模型 ID",
+        "modelIdPlaceholder": "模型标识符",
+        "modelIdHelper": "调用 API 时使用的模型标识符",
+        "modelName": "展示名称",
+        "modelNamePlaceholder": "友好的展示名称",
+        "modelNameHelper": "在界面中显示的名称",
+        "group": "分组",
+        "groupPlaceholder": "选择或输入分组名称",
+        "submit": "保存",
+        "cancel": "取消",
+        "vision": "视觉能力",
+        "visionHint": "此模型是否支持图片/视觉输入",
+        "reasoning": "思考模型",
+        "reasoningHint": "此模型是否支持思考/推理模式"
+      },
+      "manageDialog": {
+        "title": "模型管理",
+        "cachedAt": "缓存时间 {{date}}（{{source}}）",
+        "refresh": "刷新",
+        "close": "关闭",
+        "raw": "原始 JSON",
+        "empty": "暂无可用模型。",
+        "error": "加载失败：{{message}}",
+        "addFromCatalog": "添加",
+        "sourceCache": "缓存",
+        "sourceNetwork": "实时",
+        "contextLength": "上下文 {{value}} Token",
+        "maxTokens": "输出上限 {{value}} Token"
+      },
+      "messages": {
+        "added": "模型已添加。",
+        "updated": "模型已更新。",
+        "removed": "模型已移除。",
+        "duplicate": "模型已存在。",
+        "refreshed": "模型已刷新",
+        "refreshFailed": "模型刷新失败"
+      },
+      "testDialog": {
+        "title": "模型连通性测试",
+        "provider": "提供商",
+        "model": "测试模型",
+        "testing": "正在测试...",
+        "success": "测试成功",
+        "successMessage": "模型可以正常访问",
+        "failure": "测试失败",
+        "aiResponse": "AI 响应",
+        "charCount": "{{count}} 字符",
+        "duration": "耗时 {{time}}s",
+        "close": "关闭",
+        "retest": "重新测试",
+        "testButton": "测试模型",
+        "unsupportedFormat": "暂不支持测试该提供商格式。"
+      }
+    },
+    "router": {
+      "title": "路由配置",
+      "description": "为不同场景配置使用的提供商/模型。",
+      "labels": {
+        "default": "默认",
+        "background": "后台",
+        "think": "思考",
+        "longContext": "长上下文",
+        "webSearch": "联网搜索",
+        "image": "图像",
+        "longContextThreshold": "长上下文阈值"
+      },
+      "helper": {
+        "longContextThreshold": "超过该 token 数后自动切换到长上下文模型。"
+      },
+      "placeholder": {
+        "required": "必填",
+        "optional": "可选"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent 路由",
+      "description": "配置聊天模式与代码模式之间的双向路由。",
+      "searchPlaceholder": "搜索路由...",
+      "noSearchResults": "没有匹配的路由。",
+      "tabs": {
+        "chatToCode": "聊天 → 代码",
+        "codeToChatPlaceholder": "代码 → 聊天"
+      },
+      "chatToCode": {
+        "title": "聊天转代码路由",
+        "description": "在 Agent/代码模式中使用聊天提供商",
+        "addRouter": "添加路由",
+        "emptyState": "尚未配置聊天→代码路由。添加一个以在代码模式中使用聊天提供商。",
+        "form": {
+          "name": "路由名称",
+          "namePlaceholder": "我的聊天→代码路由",
+          "chatProvider": "聊天提供商",
+          "chatProviderPlaceholder": "选择聊天提供商",
+          "mode": "模式",
+          "modeSimple": "简单",
+          "modeAdvanced": "高级",
+          "modeSimpleDesc": "直接转发到聊天提供商",
+          "modeAdvancedDesc": "配置模型映射和上下文处理",
+          "enabled": "启用",
+          "save": "保存路由",
+          "cancel": "取消"
+        },
+        "list": {
+          "provider": "提供商",
+          "mode": "模式",
+          "status": "状态"
+        },
+        "mappings": {
+          "title": "模型映射",
+          "description": "将聊天提供商模型映射到代码提供商模型",
+          "count": "个映射",
+          "empty": "尚未配置模型映射。添加映射以将聊天模型路由到代码提供商。",
+          "addNew": "添加新映射",
+          "selectSource": "选择源模型（聊天）",
+          "selectTarget": "选择目标模型（代码）",
+          "targetPlaceholder": "输入 Claude Code 模型名称",
+          "notSet": "（未设置 - 点击选择）",
+          "add": "添加",
+          "edit": "编辑",
+          "done": "完成"
+        },
+        "advanced": {
+          "title": "高级配置",
+          "description": "为不同任务类型配置模型",
+          "helpText": "默认模型为必填项。其他模型为可选，如未配置将回退到默认模型。",
+          "default": {
+            "label": "默认",
+            "placeholder": "选择默认模型",
+            "description": "通用任务的主要模型（类似 Claude Sonnet）"
+          },
+          "background": {
+            "label": "后台",
+            "placeholder": "选择后台模型",
+            "description": "后台任务的轻量模型（类似 Claude Haiku）"
+          },
+          "think": {
+            "label": "思考",
+            "placeholder": "选择思考模型",
+            "description": "复杂推理的高级模型（类似 Claude Opus）"
+          },
+          "image": {
+            "label": "图像",
+            "placeholder": "选择图像模型",
+            "description": "具有视觉能力的图像相关任务模型"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "代码转聊天路由",
+        "description": "在聊天模式中暴露 Coding Plan 模型",
+        "addRouter": "添加路由",
+        "emptyState": "尚未配置代码→聊天路由。添加一个以在聊天模式中暴露 Coding Plan 模型。",
+        "form": {
+          "name": "路由名称",
+          "namePlaceholder": "我的代码→聊天路由",
+          "codeProvider": "代码提供商",
+          "codeProviderPlaceholder": "选择代码提供商",
+          "codeProviderHelper": "选择用于转换的代码提供商",
+          "models": "Coding Plan 模型",
+          "modelsHelper": "选择要暴露的 Coding Plan 模型",
+          "enabled": "启用",
+          "save": "保存路由",
+          "cancel": "取消"
+        },
+        "mappings": {
+          "title": "模型映射",
+          "description": "将代码提供商模型映射到聊天提供商模型以供暴露",
+          "count": "个映射",
+          "empty": "尚未配置模型映射。添加映射以在聊天模式中暴露代码模型。",
+          "addNew": "添加新映射",
+          "selectSource": "选择源模型（代码）",
+          "selectTarget": "选择目标模型（聊天）",
+          "sourcePlaceholder": "输入源模型名称",
+          "targetPlaceholder": "输入目标模型名称",
+          "add": "添加",
+          "edit": "编辑",
+          "done": "完成"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "配置请求/响应转换器",
+        "noProvider": "请先选择一个提供商来配置转换器",
+        "empty": "无转换器",
+        "count": "{{count}} 个转换器"
+      },
+      "status": {
+        "enabled": "已启用",
+        "disabled": "已禁用"
+      },
+      "messages": {
+        "routerAdded": "路由添加成功",
+        "routerUpdated": "路由更新成功",
+        "routerDeleted": "路由删除成功",
+        "saveFailed": "保存路由失败"
+      }
+    },
+    "presets": {
+      "title": "快速添加提供商",
+      "added": "已添加",
+      "add": "添加",
+      "features": {
+        "search": "搜索",
+        "vision": "视觉",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "确定要删除该提供商吗？"
+    },
+    "errors": {
+      "nameRequired": "提供商名称不能为空",
+      "urlRequired": "API 地址不能为空",
+      "urlInvalid": "请输入有效的 URL 地址（例如 https://api.example.com）",
+      "saveFailed": "保存提供商失败",
+      "deleteFailed": "删除提供商失败，请重试。",
+      "toggleFailed": "切换提供商状态失败，请重试。"
+    },
+    "openRouter": {
+      "title": "OpenRouter 提供商路由",
+      "description": "配置 OpenRouter 如何将请求路由到不同的提供商。",
+      "sort": "路由策略",
+      "sortTooltip": "选择提供商优先级。自动模式使用智能负载均衡。",
+      "order": "提供商优先顺序",
+      "orderTooltip": "指定尝试的提供商顺序（如 anthropic、openai、together）。按回车添加。",
+      "orderPlaceholder": "输入提供商标识并按回车...",
+      "allowFallbacks": "允许回退",
+      "allowFallbacksTooltip": "启用后，如果主提供商不可用，OpenRouter 会尝试备用提供商。",
+      "requireParameters": "要求支持所有参数",
+      "requireParametersTooltip": "仅路由到支持请求中所有参数的提供商。",
+      "dataCollection": "数据收集策略",
+      "dataCollectionTooltip": "控制是否使用可能存储或训练数据的提供商。",
+      "zdr": "零数据保留",
+      "zdrTooltip": "仅路由到具有零数据保留策略的端点。",
+      "only": "仅允许的提供商",
+      "onlyTooltip": "仅使用这些特定提供商。留空则允许所有提供商。",
+      "onlyPlaceholder": "输入提供商标识并按回车...",
+      "ignore": "忽略的提供商",
+      "ignoreTooltip": "路由请求时跳过这些提供商。",
+      "ignorePlaceholder": "输入提供商标识并按回车...",
+      "quantizations": "量化过滤",
+      "quantizationsTooltip": "仅使用具有特定量化级别的提供商。较低精度可能降低质量但提高速度。",
+      "maxPrice": "最高价格",
+      "maxPriceTooltip": "设置每百万 token 的最高价格限制。留空表示无限制。",
+      "configured": "已配置"
+    }
+  },
+  "apiMode": {
+    "label": "API 模式",
+    "standard": "按量付费",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "该 plan 的 API Key 通常以 `{{prefix}}` 开头。仅为提示，不强制校验。",
+    "dashscopeCodingPlanSeparateKey": "百炼 Coding Plan 使用独立 API Key（与按量付费端点的 Key 不通用）。",
+    "baiduCodingPlanSeparateKey": "千帆 Coding Plan 使用独立 API Key（与按量付费端点的 Key 不通用）。",
+    "tencentTokenPlanAnthropicOnly": "腾讯云 Token Plan 仅支持 Anthropic 协议。",
+    "xiaomiTokenPlanRegions": "默认 baseUrl 是 `token-plan-cn.*`，可手动改为 `token-plan-sgp.*` 或 `token-plan-ams.*`。",
+    "confirmOverwriteTitle": "切换 API 模式？",
+    "confirmOverwriteBody": "你修改过 API URL 或 API Key。切换模式可以覆盖为新模式的默认值，或保留你的自定义只切换模式标签。",
+    "overwriteAndSwitch": "覆盖并切换",
+    "keepCustomizations": "保留自定义"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "智谱 GLM",
+    "volcengine": "火山方舟",
+    "dashscope": "阿里云百炼",
+    "tencent": "腾讯云混元",
+    "tencentAnthropic": "腾讯云混元 (Token Plan)",
+    "baidu": "百度千帆",
+    "kuaishou": "快手 KwaiKAT",
+    "mthreads": "摩尔线程",
+    "xiaomiMimoOpenai": "小米 MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "小米 MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "取消",
+    "close": "关闭",
+    "copy": "复制",
+    "delete": "删除",
+    "dismiss": "忽略",
+    "save": "保存",
+    "optional": "可选",
+    "retry": "重试",
+    "loading": "加载中…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "文档"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "守护进程暂不支持此项",
+    "discoveryUnsupportedFormat": "当前提供商格式暂不支持模型发现，请手动添加模型。"
+  },
+  "nav": {
+    "subtitle": "控制面板",
+    "providers": "提供商",
+    "apiService": "API 服务",
+    "accounts": "账户",
+    "codeCli": "Code CLI",
+    "settings": "设置",
+    "usageStats": "用量统计",
+    "pricing": "模型价格"
+  },
+  "apiService": {
+    "title": "API 服务",
+    "description": "配置对外 API 服务器、各端点的模型路由以及命名访问密钥。",
+    "loading": "正在加载服务器配置…",
+    "loadError": "无法加载服务器配置。请检查守护进程是否可达。",
+    "enable": {
+      "label": "启用对外服务器",
+      "description": "启动本地 API 服务器，将外部调用方的请求经由你的提供商路由。"
+    },
+    "networkBinding": {
+      "label": "允许局域网访问",
+      "description": "将服务器绑定到网络接口，而不仅限于回环地址。",
+      "warning": "局域网访问会把 API 服务器暴露给网络中的其他设备。若同时启用订阅路由，请求可能消耗你的订阅额度——除非你信任该网络，否则请保持关闭。"
+    },
+    "status": {
+      "running": "服务器运行中",
+      "stopped": "服务器已停止",
+      "runningHint": "对外 API 服务器正在接收请求。",
+      "stoppedHint": "启用服务器以开始接收请求。",
+      "port": "端口 {{port}}",
+      "loopback": "回环地址",
+      "lan": "局域网地址"
+    },
+    "endpoints": {
+      "title": "端点路由",
+      "description": "为每种线路格式选择路由到的模型。默认模型已并入此处——该服务器是路由器，而非聊天应用。"
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "默认模型",
+      "backgroundModel": "后台模型",
+      "visionModel": "视觉模型",
+      "noVisionModel": "无",
+      "backgroundModelIds": "后台模型 ID",
+      "backgroundModelIdsPlaceholder": "以逗号分隔的模型 id",
+      "modelPlaceholder": "选择模型…",
+      "useSubscription": "使用订阅",
+      "subscriptionUnsupported": "此端点不支持订阅路由。"
+    },
+    "keys": {
+      "title": "访问密钥",
+      "description": "外部调用方作为 Bearer 令牌发送的命名密钥。完整密钥仅在创建时显示一次。",
+      "namePlaceholder": "密钥名称（如 my-cli）",
+      "create": "创建密钥",
+      "empty": "尚无访问密钥。",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "revoked": "已吊销",
+      "toggle": "切换密钥",
+      "revoke": "吊销",
+      "revokeConfirmTitle": "吊销此密钥？",
+      "revokeConfirmDesc": "吊销“{{name}}”后它将立即无法用于认证。此操作不可撤销。",
+      "created": {
+        "title": "密钥已创建",
+        "warning": "请立即复制此密钥——它不会再次显示。请妥善保存。",
+        "copy": "复制",
+        "copied": "已复制",
+        "dismiss": "完成"
+      }
+    }
+  },
+  "accounts": {
+    "title": "账户与订阅",
+    "description": "管理服务器路由所使用的订阅凭据。令牌在此写入，但绝不会回显。",
+    "loading": "正在加载账户…",
+    "empty": "暂无可用的订阅提供商。",
+    "signIn": "登录",
+    "oauth": {
+      "title": "登录 {{name}}",
+      "description": "在浏览器中打开登录页面，授权后将授权码粘贴到下方。授权码仅传入守护进程——签发的令牌不会回显。",
+      "openPage": "打开登录页面",
+      "codeLabel": "授权码",
+      "codePlaceholder": "在此粘贴授权码",
+      "submit": "完成登录"
+    },
+    "codexOauth": {
+      "title": "登录 {{name}}",
+      "description": "在浏览器中打开登录页面并授权。守护进程会自动捕获结果——请在完成前保持此窗口打开。令牌不会回显。",
+      "waiting": "正在等待你在浏览器中完成登录……",
+      "failed": "登录失败，请重试。"
+    },
+    "clearProvider": "全部清除",
+    "clearConfirmTitle": "清除 {{name}} 的账户？",
+    "clearConfirmDesc": "这将移除该提供商存储的全部凭据。此操作不可撤销。",
+    "credential": {
+      "ok": "已配置",
+      "notConfigured": "未配置"
+    },
+    "kind": {
+      "pass-through": "透传凭据",
+      "oauth-bearer": "OAuth Bearer",
+      "static-bearer": "静态 Bearer 密钥"
+    },
+    "reason": {
+      "missing-credential": "未存储凭据。",
+      "expired": "凭据已过期。",
+      "reauth-required": "需要重新认证。",
+      "refresh-failed": "令牌刷新失败。",
+      "not-refreshable": "凭据不可刷新。",
+      "unknown": "状态未知。"
+    },
+    "status": {
+      "unconfigured": "未配置",
+      "authorized": "已授权",
+      "configured": "已配置",
+      "expired": "已过期",
+      "error": "错误"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Setup 令牌",
+      "manual": "手动"
+    },
+    "list": {
+      "empty": "该提供商尚未存储任何账户。",
+      "active": "活动",
+      "expiresAt": "{{value}} 过期",
+      "setActive": "设为活动",
+      "remove": "移除",
+      "removeConfirmTitle": "移除此账户？",
+      "removeConfirmDesc": "移除“{{name}}”将删除其存储的凭据。此操作不可撤销。",
+      "title": "账户"
+    },
+    "write": {
+      "trigger": "添加凭据",
+      "title": "写入 {{name}} 凭据",
+      "description": "粘贴已获取的令牌信息。字段仅限该提供商接受的内容；令牌将被存储，绝不回显。",
+      "authMethod": "认证方式",
+      "status": "状态",
+      "subscriptionLevel": "订阅等级",
+      "subscriptionLevelNone": "未设置",
+      "submit": "保存凭据"
+    },
+    "field": {
+      "accessToken": "Access Token",
+      "refreshToken": "Refresh Token",
+      "idToken": "ID Token",
+      "apiKey": "API 密钥",
+      "expiresAt": "过期时间（ISO）",
+      "setupTokenExpiresAt": "Setup 令牌过期时间（ISO）",
+      "accountId": "账户 ID",
+      "email": "邮箱",
+      "organizationId": "组织 ID",
+      "baseUrl": "基础 URL",
+      "zenBaseUrl": "Zen 基础 URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "由守护进程路由的 Anthropic 订阅凭据。"
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "由守护进程路由的 OpenAI Codex 订阅凭据。"
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "由守护进程路由的 Google Gemini 订阅凭据。"
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "由守护进程路由的静态 API 密钥凭据。"
+      }
+    },
+    "authMethodLabel": "授权方式",
+    "authMethodDesc": {
+      "oauth": "通过浏览器登录；守护进程会捕获并存储令牌。",
+      "manual": "粘贴已获取的令牌。它将被存储，绝不回显。"
+    },
+    "actions": {
+      "authorize": "授权",
+      "enterToken": "输入令牌",
+      "refresh": "刷新"
+    },
+    "accounts": {
+      "addAccount": "添加账户"
+    },
+    "detail": {
+      "authMethod": "授权方式",
+      "subscriptionLevel": "订阅等级",
+      "expiresAt": "过期时间",
+      "lastRefreshed": "上次刷新",
+      "label": "账户标签",
+      "labelPlaceholder": "为该账户命名",
+      "saveLabel": "保存标签"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "打开授权页面",
+        "desc": "在浏览器中打开登录页面。"
+      },
+      "step2": {
+        "title": "授权访问",
+        "desc": "登录并批准该提供商的访问权限。"
+      },
+      "step3": {
+        "title": "复制授权码",
+        "desc": "批准后页面会显示一个授权码。"
+      },
+      "step4": {
+        "title": "粘贴授权码",
+        "desc": "将授权码粘贴到下方以完成。授权码仅传入守护进程——签发的令牌不会显示。"
+      },
+      "authorize": "完成登录",
+      "showUrl": "显示授权 URL"
+    },
+    "manual": {
+      "title": "粘贴凭据",
+      "description": "粘贴已获取的令牌。字段仅限该提供商接受的内容；令牌将被存储，绝不回显。",
+      "accessTokenPlaceholder": "粘贴 Access Token",
+      "refreshTokenPlaceholder": "粘贴 Refresh Token（可选）",
+      "hint": "令牌将发送至守护进程并加密存储，绝不回显。"
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "需要 API 密钥。",
+      "apiKeyPlaceholder": "粘贴 API 密钥",
+      "baseUrlPlaceholder": "https://……（可选）",
+      "zenBaseUrlPlaceholder": "https://……（可选）"
+    },
+    "info": {
+      "title": "关于订阅账户",
+      "description": "令牌写入守护进程并用于对上游请求进行认证。它们以加密形式存储，绝不回显。移除账户会删除其存储的凭据。"
+    },
+    "rename": {
+      "failed": "无法重命名账户。"
+    },
+    "refresh": {
+      "failed": "无法刷新令牌。"
+    },
+    "errors": {
+      "requestFailed": "请求失败，请重试。"
+    },
+    "syncWarning": {
+      "external-divergent": "外部 CLI 登录文件中的凭据比此账号更新，已存储的令牌可能无法再刷新——请立即刷新或重新登录。",
+      "external-not-rotated": "刷新失败，且外部 CLI 中保存的是同一个已过期凭据。请重新登录。",
+      "duplicate-token": "另一个账号与此账号共用同一凭据，刷新任意一个都会使另一个失效。"
+    },
+    "importExternal": {
+      "detected": "检测到本机已有 {{name}} CLI 登录。",
+      "hint": "导入后由本程序负责保鲜：每次刷新令牌都会同步更新 CLI 登录文件，终端里的 CLI 保持登录不掉线。",
+      "button": "导入现有 CLI 登录"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "将编码 CLI 指向守护进程的对外代理。此页面为只读——无需在此配置任何内容。",
+    "copy": "复制",
+    "copied": "已复制",
+    "baseUrl": {
+      "title": "守护进程基础 URL",
+      "description": "你的 CLI 连接的代理地址。",
+      "label": "基础 URL"
+    },
+    "token": {
+      "title": "认证",
+      "hint": "对管理路由请发送 'Authorization: Bearer <你的管理令牌>'。管理令牌在守护进程中配置（其配置文件或环境变量）——此处绝不显示。"
+    },
+    "examples": {
+      "title": "示例启动环境",
+      "keyNote": "请使用在 API 服务页面创建的对外访问密钥——而非管理令牌。",
+      "anthropic": "Anthropic 格式 CLI",
+      "openai": "OpenAI 格式 CLI"
+    },
+    "launchDescription": "在终端中启动编码 CLI，并指向此守护进程。守护进程会注入重定向环境变量并为你启动 CLI。",
+    "refresh": "刷新",
+    "loading": "正在检测 CLI……",
+    "cli": {
+      "installed": "已安装",
+      "notFound": "未找到",
+      "notFoundHint": "该 CLI 不在守护进程主机的 PATH 上。请先安装，然后刷新。",
+      "install": "安装",
+      "installing": "安装中…",
+      "installingHint": "正在守护进程主机上安装，可能需要一分钟。",
+      "launch": "启动",
+      "launchTitle": "启动 {{name}}",
+      "launchDescription": "在守护进程主机上打开一个新终端运行该 CLI，并经由守护进程代理路由。可选填工作目录。",
+      "cwdLabel": "工作目录",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "运行中 · {{provider}} / {{model}}",
+      "stop": "停止"
+    },
+    "manual": {
+      "title": "手动设置",
+      "description": "想自己运行 CLI？用这些环境变量把它指向守护进程。",
+      "show": "展开",
+      "hide": "收起"
+    }
+  },
+  "daemonStatus": {
+    "probing": "正在检测守护进程…",
+    "spawning": "正在启动守护进程…",
+    "failed": "守护进程启动失败",
+    "failedHint": "请确认已安装 Node.js 且守护进程已构建（dist 存在），或将 OMNICROSS_DAEMON_ENTRY 设为守护进程的 cli.js 路径。"
+  },
+  "settings": {
+    "title": "设置",
+    "description": "桌面应用偏好设置。",
+    "desktopOnly": "开机启动与托盘选项仅在桌面应用中生效。",
+    "startup": {
+      "title": "启动",
+      "autoLaunch": "开机启动",
+      "autoLaunchHint": "登录系统时自动启动 Omnicross。",
+      "startMinimized": "启动时最小化到托盘",
+      "startMinimizedHint": "在后台启动，不打开窗口。"
+    },
+    "tray": {
+      "title": "托盘",
+      "minimizeOnClose": "关闭时最小化到托盘",
+      "minimizeOnCloseHint": "关闭窗口时隐藏到托盘，而不是退出应用。"
+    },
+    "language": {
+      "title": "语言",
+      "label": "界面语言"
+    }
+  },
+  "usageStats": {
+    "title": "用量统计",
+    "description": "守护进程处理的请求的 Token 与费用统计。",
+    "rangeToday": "今天",
+    "range7d": "最近 7 天",
+    "range30d": "最近 30 天",
+    "rangeCustom": "自定义",
+    "from": "开始",
+    "to": "结束",
+    "totalCost": "总费用",
+    "cacheSavings": "缓存节省",
+    "events": "请求数",
+    "inputTokens": "输入 Token",
+    "outputTokens": "输出 Token",
+    "cacheReadTokens": "缓存读取",
+    "cacheWriteTokens": "缓存写入",
+    "reasoningTokens": "推理 Token",
+    "byModel": "按模型",
+    "byApiKey": "按 API 密钥",
+    "provider": "提供商",
+    "model": "模型",
+    "cost": "费用",
+    "apiKey": "API 密钥",
+    "unpriced": "无价格",
+    "unpricedHint": "该模型没有价格条目 — 请在“模型价格”页面添加。",
+    "unattributed": "未归属",
+    "unattributedHint": "未关联到具体 API 密钥的请求。在按密钥归属记录上线之前，这是正常现象。",
+    "empty": "该时间范围内没有请求。",
+    "invalidRange": "请选择有效的日期范围。"
+  },
+  "pricing": {
+    "title": "模型价格",
+    "description": "用于计算请求费用的每模型 Token 价格（美元 / 每 100 万 Token）。",
+    "search": "搜索提供商或模型…",
+    "fetchLatest": "获取最新价格",
+    "fetching": "获取中…",
+    "addEntry": "添加条目",
+    "provider": "提供商",
+    "model": "模型",
+    "inputPrice": "输入",
+    "outputPrice": "输出",
+    "cacheReadPrice": "缓存读取",
+    "cacheWritePrice": "缓存写入",
+    "source": "来源",
+    "updated": "更新时间",
+    "userEdited": "已编辑",
+    "edit": "编辑",
+    "deleteTitle": "删除该价格条目？",
+    "empty": "价格表为空。",
+    "emptyHint": "获取最新价格以填充表格。",
+    "noMatches": "没有匹配的条目。",
+    "saved": "价格条目已保存。",
+    "saveFailed": "保存失败：{{message}}",
+    "deleteFailed": "删除失败：{{message}}",
+    "alreadyDeleted": "该条目已不存在。",
+    "fetchApplied": "已从来源更新 {{count}} 个条目。",
+    "fetchFailed": "获取失败：{{message}}",
+    "requiredId": "必填",
+    "invalidPrice": "请输入非负数字",
+    "conflictTitle": "解决价格冲突",
+    "conflictHint": "这些条目既被你编辑过，又在来源处发生了变化。请逐行选择保留你的值（跳过）或采用来源值（覆盖）。",
+    "current": "当前",
+    "incoming": "来源值",
+    "overwrite": "覆盖",
+    "skip": "跳过",
+    "overwriteAll": "全部覆盖",
+    "skipAll": "全部跳过",
+    "applyResolutions": "应用",
+    "resolved": "已覆盖 {{overwritten}} 项，跳过 {{skipped}} 项。",
+    "resolvedWithStale": "已覆盖 {{overwritten}} 项，跳过 {{skipped}} 项。{{stale}} 项在此期间已被修改，保持不变。",
+    "refreshFailed": "更改已生效，但刷新列表失败：{{message}}",
+    "sourceBuiltin": "内置",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "用户"
+  }
+}

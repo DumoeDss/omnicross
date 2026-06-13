@@ -1,0 +1,26 @@
+{
+  "id": "mthreads",
+  "presetId": "mthreads",
+  "name": "摩尔线程",
+  "nameKey": "presetName.mthreads",
+  "apiFormat": "openai",
+  "api_base_url": "",
+  "models": [
+    "glm-4.7"
+  ],
+  "modelConfigs": [
+    {
+      "id": "glm-4.7",
+      "name": "GLM-4.7",
+      "enabled": true
+    }
+  ],
+  "description": "摩尔线程 AI Coding Plan (国产芯片)",
+  "icon": "mthreads",
+  "website": "https://code.mthreads.com",
+  "docsUrl": "https://docs.mthreads.com/kuaecloud/kuaecloud-doc-online/coding_plan/plan_overview",
+  "isSystem": true,
+  "features": [
+    "coding-plan"
+  ]
+}

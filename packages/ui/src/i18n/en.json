@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Loading LLM configuration...",
+    "reset": {
+      "button": "Restore defaults",
+      "confirmTitle": "Restore default settings?",
+      "confirmBody": "This clears your customizations for this provider so it follows the built-in defaults again. Your API key and saved sessions are kept.",
+      "confirmButton": "Restore defaults"
+    },
+    "reentryBanner": {
+      "message": "{{count}} enabled provider(s) need their API key re-entered. Open each one and add its key again."
+    },
+    "migrationPack": {
+      "barHint": "Move your provider keys and subscription tokens to another machine with an encrypted pack.",
+      "passphrase": "Passphrase",
+      "passphrasePlaceholder": "Enter a passphrase",
+      "passphraseHint": "Use at least 8 characters; 12 or more is recommended.",
+      "confirm": "Confirm passphrase",
+      "confirmPlaceholder": "Re-enter the passphrase",
+      "mismatch": "Passphrases do not match.",
+      "strength": {
+        "weak": "Too short — use at least 8 characters.",
+        "fair": "OK — 12 or more characters is stronger.",
+        "strong": "Strong passphrase."
+      },
+      "export": {
+        "button": "Export pack",
+        "title": "Export encrypted pack",
+        "subtitle": "Encrypt your provider keys and subscription tokens into a portable file.",
+        "warning": "This file contains decryptable secrets. Keep it safe — anyone with the file and the passphrase can read your keys. A lost passphrase cannot be recovered.",
+        "submit": "Export",
+        "success": "Pack exported successfully.",
+        "error": "Export failed. Please try again."
+      },
+      "import": {
+        "button": "Import pack",
+        "title": "Import encrypted pack",
+        "subtitle": "Restore provider keys and subscription tokens from an exported pack.",
+        "hint": "Enter the passphrase used when the pack was exported, then choose the file.",
+        "submit": "Import",
+        "successTitle": "Import complete",
+        "summary": "Imported {{providerKeys}} provider key(s), {{poolKeys}} pool key(s), and {{tokenSets}} token set(s).",
+        "duplicates": "Skipped {{count}} pool key(s) already present.",
+        "skipped": "Skipped (no matching provider): {{names}}",
+        "error": "Wrong passphrase or corrupted pack. Nothing was changed."
+      }
+    },
+    "searchPlaceholder": "Search providers...",
+    "emptySearch": "No providers match your search.",
+    "emptyList": "No providers configured.",
+    "selectPrompt": "Select a provider to view details",
+    "listStatus": "{{count}} model(s)",
+    "noModels": "No models configured",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "showEnabledOnly": "Show enabled only",
+    "showAll": "Show all providers",
+    "dragHandle": "Drag to reorder",
+    "reorderFailed": "Failed to save provider order",
+    "credentials": {
+      "apiKey": "API Key",
+      "apiBaseUrl": "API Base URL"
+    },
+    "filter": {
+      "all": "All",
+      "chat": "Chat",
+      "code": "Code"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Select a Template",
+      "skipTemplates": "Skip, configure manually",
+      "name": "Name *",
+      "providerType": "Type",
+      "apiType": "API Type",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standard OpenAI chat/completions API format",
+        "claudecode": "Anthropic Messages API format (Claude Code)"
+      },
+      "chatApiFormat": "API Format",
+      "chatApiFormatDescription": "Select the API format that matches your provider's endpoint",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-... or $ENV_VAR",
+      "apiKeyHelper": "Use $VAR_NAME to reference environment variables",
+      "apiKeySetPlaceholder": "Key is set — leave blank to keep it",
+      "apiKeyReplaceHelper": "A key is stored securely. Type a new value to replace it, or leave blank to keep it.",
+      "testApiKey": "Test API Key",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Preview:",
+      "models": "Models",
+      "modelPlaceholder": "Model name (e.g., gpt-4, claude-3-opus)",
+      "transformers": "Transformers",
+      "transformerConfig": "API Transformers",
+      "transformerConfigDescription": "Configure transformers to adapt API request/response formats for this provider",
+      "transformerConfigNote": "The daemon applies these transformers in the request chain, after the provider's format transformer (which handles the wire-format conversion). Unknown transformer names are skipped.",
+      "enabled": "Enabled",
+      "apiVersion": "API Version",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API version (e.g., 2024-08-01-preview)",
+      "official": "Official Anthropic API",
+      "officialHelper": "Enable if this provider connects directly to the official Anthropic API. Disable for reverse proxies or third-party services.",
+      "maxConcurrency": "Max Concurrent Requests",
+      "maxConcurrencyHelper": "Maximum number of concurrent API requests sent to this provider. Lower values help avoid rate limiting (429 errors). Set `-1` for no limit.",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "Use a separate API endpoint for subscription-based coding plans",
+        "baseUrl": "Coding Plan Base URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API Key (optional)",
+        "apiKeyPlaceholder": "Leave empty to use provider's API key",
+        "apiKeyHelper": "Only required if the coding plan uses a different API key",
+        "tokenPlanHint": "Some providers (e.g. Xiaomi MiMo) issue Token Plan keys with a `tp-` prefix — informational only, not enforced."
+      },
+      "selectTypeFirst": "Select Provider Type",
+      "selectTypeFirstDesc": "Choose what type of provider you want to add",
+      "codeProviderNote": "Code providers only need API Key and URL. Models are managed by the Agent Router.",
+      "buttons": {
+        "cancel": "Cancel",
+        "submitAdd": "Add Provider",
+        "submitUpdate": "Update Provider",
+        "continue": "Continue",
+        "back": "Back"
+      }
+    },
+    "details": {
+      "noSelection": "Select a provider to view details",
+      "apiKey": "API Key",
+      "apiUrl": "API URL",
+      "nameLabel": "Provider Name",
+      "modelsEndpoint": "Models Endpoint",
+      "modelsEndpointHelper": "Override the discovery endpoint if the provider exposes a custom /models path.",
+      "models": "Models",
+      "transformers": "Transformers",
+      "codeProviderNote": "Code providers (like Claude Code) do not require model configuration. Models are automatically managed by the Agent Router.",
+      "buttons": {
+        "more": "More Settings",
+        "delete": "Delete"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Select provider and model",
+      "noProviders": "No providers available",
+      "noModels": "No models configured"
+    },
+    "apiKeyPool": {
+      "title": "API Key Pool",
+      "description": "Configure multiple API keys for load balancing. Each session sticks to one key to preserve prompt cache.",
+      "defaultLabel": "Default",
+      "weight": "Weight",
+      "noKey": "No key",
+      "labelPlaceholder": "Label (e.g., Key #1, Production)",
+      "addKey": "Add API Key",
+      "add": "Add",
+      "empty": "No additional keys configured.",
+      "statusCoolingDown": "Cooling down {{time}}",
+      "statusAuthFailed": "Auth failed · disabled",
+      "statusDisabled": "Disabled",
+      "statusHealthy": "Healthy",
+      "agoSeconds": "{{count}}s ago",
+      "agoMinutes": "{{count}}m ago",
+      "agoHours": "{{count}}h ago",
+      "agoDays": "{{count}}d ago"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Search models...",
+      "defaultGroup": "All Models",
+      "add": "Add Model",
+      "manage": "Manage",
+      "empty": "No models in this group",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "filters": {
+        "all": "All",
+        "vision": "Vision",
+        "reasoning": "Reasoning",
+        "free": "Free",
+        "tools": "Tools"
+      },
+      "manualDialog": {
+        "title": "Add Model",
+        "subtitle": "Add a custom model to this provider",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, etc.",
+        "modelIdHelper": "The exact model identifier used when calling the API",
+        "modelName": "Display Name",
+        "modelNamePlaceholder": "Friendly display name (optional)",
+        "modelNameHelper": "Optional name shown in the UI. If empty, Model ID will be used",
+        "group": "Group",
+        "groupPlaceholder": "Select or enter a group name",
+        "submit": "Add",
+        "cancel": "Cancel",
+        "helper": "Provide the exact model identifier exposed by the provider API."
+      },
+      "editDialog": {
+        "title": "Edit Model",
+        "subtitle": "Modify model settings",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "Model identifier",
+        "modelIdHelper": "The model identifier used when calling the API",
+        "modelName": "Display Name",
+        "modelNamePlaceholder": "Friendly display name",
+        "modelNameHelper": "Name shown in the UI",
+        "group": "Group",
+        "groupPlaceholder": "Select or enter a group name",
+        "submit": "Save",
+        "cancel": "Cancel",
+        "vision": "Vision Capability",
+        "visionHint": "Whether this model supports image/vision input",
+        "reasoning": "Thinking Model",
+        "reasoningHint": "Whether this model supports thinking/reasoning mode"
+      },
+      "manageDialog": {
+        "title": "Manage Models",
+        "cachedAt": "Cached at {{date}} ({{source}})",
+        "refresh": "Refresh",
+        "close": "Close",
+        "raw": "Raw JSON",
+        "empty": "No remote models available.",
+        "error": "Failed to load models: {{message}}",
+        "addFromCatalog": "Add",
+        "sourceCache": "cache",
+        "sourceNetwork": "live",
+        "contextLength": "Context {{value}} tokens",
+        "maxTokens": "Max {{value}} tokens"
+      },
+      "messages": {
+        "added": "Model added.",
+        "updated": "Model updated.",
+        "removed": "Model removed.",
+        "duplicate": "Model already exists.",
+        "refreshed": "Models refreshed",
+        "refreshFailed": "Failed to refresh models"
+      },
+      "testDialog": {
+        "title": "Model Connectivity Test",
+        "provider": "Provider",
+        "model": "Model",
+        "testing": "Testing...",
+        "success": "Test Successful",
+        "successMessage": "Model can be accessed normally",
+        "failure": "Test Failed",
+        "aiResponse": "AI Response",
+        "charCount": "{{count}} chars",
+        "duration": "Duration {{time}}s",
+        "close": "Close",
+        "retest": "Re-test",
+        "testButton": "Test model",
+        "unsupportedFormat": "Testing isn't supported for this provider format yet."
+      }
+    },
+    "router": {
+      "title": "Router Configuration",
+      "description": "Configure which provider/model to use for different scenarios.",
+      "labels": {
+        "default": "Default",
+        "background": "background",
+        "think": "think",
+        "longContext": "Long Context",
+        "webSearch": "Web Search",
+        "image": "Image",
+        "longContextThreshold": "Long Context Threshold"
+      },
+      "helper": {
+        "longContextThreshold": "Token count before switching to the long-context model."
+      },
+      "placeholder": {
+        "required": "Required",
+        "optional": "Optional"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Configure bidirectional routing between Chat and Code modes.",
+      "searchPlaceholder": "Search routers...",
+      "noSearchResults": "No routers match your search.",
+      "tabs": {
+        "chatToCode": "Chat → Code",
+        "codeToChatPlaceholder": "Code → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat to Code Router",
+        "description": "Use chat providers in agent/coding mode",
+        "addRouter": "Add Router",
+        "emptyState": "No Chat→Code routers configured. Add one to use chat providers in coding mode.",
+        "form": {
+          "name": "Router Name",
+          "namePlaceholder": "My Chat→Code Router",
+          "chatProvider": "Chat Provider",
+          "chatProviderPlaceholder": "Select a chat provider",
+          "mode": "Mode",
+          "modeSimple": "Simple",
+          "modeAdvanced": "Advanced",
+          "modeSimpleDesc": "Direct pass-through to chat provider",
+          "modeAdvancedDesc": "Configure model mapping and context handling",
+          "enabled": "Enabled",
+          "save": "Save Router",
+          "cancel": "Cancel"
+        },
+        "list": {
+          "provider": "Provider",
+          "mode": "Mode",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Model Mappings",
+          "description": "Map Chat provider models to Code provider models",
+          "count": "mapping(s)",
+          "empty": "No model mappings configured. Add mappings to route chat models to code providers.",
+          "addNew": "Add New Mapping",
+          "selectSource": "Select source model (Chat)",
+          "selectTarget": "Select target model (Code)",
+          "targetPlaceholder": "Enter Claude Code model name",
+          "notSet": "(Not set - click to select)",
+          "add": "Add",
+          "edit": "Edit",
+          "done": "Done"
+        },
+        "advanced": {
+          "title": "Advanced Configuration",
+          "description": "Configure models for different task types",
+          "helpText": "Default model is required. Other models are optional and will fall back to default if not configured.",
+          "default": {
+            "label": "Default",
+            "placeholder": "Select default model",
+            "description": "Primary model for general tasks (similar to Claude Sonnet)"
+          },
+          "background": {
+            "label": "Background",
+            "placeholder": "Select background model",
+            "description": "Lightweight model for background tasks (similar to Claude Haiku)"
+          },
+          "think": {
+            "label": "Think",
+            "placeholder": "Select think model",
+            "description": "Advanced model for complex reasoning (similar to Claude Opus)"
+          },
+          "image": {
+            "label": "Image",
+            "placeholder": "Select image model",
+            "description": "Model for image-related tasks with vision capability"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Code to Chat Router",
+        "description": "Expose Coding Plan models in chat mode",
+        "addRouter": "Add Router",
+        "emptyState": "No Code→Chat routers configured. Add one to expose Coding Plan models in chat mode.",
+        "form": {
+          "name": "Router Name",
+          "namePlaceholder": "My Code→Chat Router",
+          "codeProvider": "Code Provider",
+          "codeProviderPlaceholder": "Select a code provider",
+          "codeProviderHelper": "Select the Code provider to use for transformation",
+          "models": "Coding Plan Models",
+          "modelsHelper": "Select which Coding Plan models to expose",
+          "enabled": "Enabled",
+          "save": "Save Router",
+          "cancel": "Cancel"
+        },
+        "mappings": {
+          "title": "Model Mappings",
+          "description": "Map Code provider models to Chat provider models for exposure",
+          "count": "mapping(s)",
+          "empty": "No model mappings configured. Add mappings to expose Code models in chat mode.",
+          "addNew": "Add New Mapping",
+          "selectSource": "Select source model (Code)",
+          "selectTarget": "Select target model (Chat)",
+          "sourcePlaceholder": "Enter source model name",
+          "targetPlaceholder": "Enter target model name",
+          "add": "Add",
+          "edit": "Edit",
+          "done": "Done"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "Configure transformers for request/response conversion",
+        "noProvider": "Select a provider to configure transformers",
+        "empty": "No transformers",
+        "count": "{{count}} transformer(s)"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "messages": {
+        "routerAdded": "Router added successfully",
+        "routerUpdated": "Router updated successfully",
+        "routerDeleted": "Router deleted successfully",
+        "saveFailed": "Failed to save router"
+      }
+    },
+    "presets": {
+      "title": "Quick Add Provider",
+      "added": "Added",
+      "add": "Add",
+      "features": {
+        "search": "Search",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Are you sure you want to delete this provider?"
+    },
+    "errors": {
+      "nameRequired": "Provider name is required",
+      "urlRequired": "API Base URL is required",
+      "urlInvalid": "Please enter a valid URL (e.g., https://api.example.com)",
+      "saveFailed": "Failed to save provider",
+      "deleteFailed": "Error deleting provider. Please try again.",
+      "toggleFailed": "Error toggling provider. Please try again."
+    },
+    "openRouter": {
+      "title": "OpenRouter Provider Routing",
+      "description": "Configure how requests are routed to different providers on OpenRouter.",
+      "sort": "Routing Strategy",
+      "sortTooltip": "Choose how to prioritize providers. Auto uses intelligent load balancing.",
+      "order": "Provider Priority Order",
+      "orderTooltip": "Specify providers to try in order (e.g., anthropic, openai, together). Press Enter to add.",
+      "orderPlaceholder": "Type provider slug and press Enter...",
+      "allowFallbacks": "Allow Fallbacks",
+      "allowFallbacksTooltip": "When enabled, OpenRouter will try backup providers if the primary is unavailable.",
+      "requireParameters": "Require All Parameters",
+      "requireParametersTooltip": "Only route to providers that support all parameters in your request.",
+      "dataCollection": "Data Collection Policy",
+      "dataCollectionTooltip": "Control whether to use providers that may store or train on your data.",
+      "zdr": "Zero Data Retention",
+      "zdrTooltip": "Only route to endpoints with Zero Data Retention policy.",
+      "only": "Only Allow Providers",
+      "onlyTooltip": "Only use these specific providers. Leave empty to allow all providers.",
+      "onlyPlaceholder": "Type provider slug and press Enter...",
+      "ignore": "Ignore Providers",
+      "ignoreTooltip": "Skip these providers when routing requests.",
+      "ignorePlaceholder": "Type provider slug and press Enter...",
+      "quantizations": "Quantization Filter",
+      "quantizationsTooltip": "Only use providers with specific quantization levels. Lower precision may reduce quality but improve speed.",
+      "maxPrice": "Maximum Price",
+      "maxPriceTooltip": "Set maximum price limits per million tokens. Leave empty for no limit.",
+      "configured": "Configured"
+    }
+  },
+  "apiMode": {
+    "label": "API Mode",
+    "standard": "Standard",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "Keys for this plan typically begin with `{{prefix}}`. Hint only — not enforced.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan uses a separate API key from the standard endpoint.",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan uses a separate API key from the standard endpoint.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan is Anthropic-protocol only.",
+    "xiaomiTokenPlanRegions": "Default baseUrl is `token-plan-cn.*`. You can manually edit it to `token-plan-sgp.*` or `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Switch API mode?",
+    "confirmOverwriteBody": "You have customized the API URL or API Key. Switching modes will overwrite them with the new mode's defaults — or keep your customizations and only update the mode label.",
+    "overwriteAndSwitch": "Overwrite and switch",
+    "keepCustomizations": "Keep customizations"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "copy": "Copy",
+    "delete": "Delete",
+    "dismiss": "Dismiss",
+    "save": "Save",
+    "optional": "optional",
+    "retry": "Retry",
+    "loading": "Loading…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Docs"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Not yet supported by the daemon",
+    "discoveryUnsupportedFormat": "Model discovery is not supported for this provider format yet. Add models manually."
+  },
+  "nav": {
+    "subtitle": "Control Panel",
+    "providers": "Providers",
+    "apiService": "API Service",
+    "accounts": "Accounts",
+    "codeCli": "Code CLI",
+    "settings": "Settings",
+    "usageStats": "Usage",
+    "pricing": "Pricing"
+  },
+  "apiService": {
+    "title": "API Service",
+    "description": "Configure the outbound API server, per-endpoint model routing, and named access keys.",
+    "loading": "Loading server configuration…",
+    "loadError": "Could not load the server configuration. Check that the daemon is reachable.",
+    "enable": {
+      "label": "Enable outbound server",
+      "description": "Start the local API server that routes external callers through your providers."
+    },
+    "networkBinding": {
+      "label": "Allow LAN access",
+      "description": "Bind the server to your network interface instead of loopback only.",
+      "warning": "LAN access exposes the API server to other devices on your network. Combined with subscription routing, requests can consume your subscription quota — keep this off unless you trust the network."
+    },
+    "status": {
+      "running": "Server running",
+      "stopped": "Server stopped",
+      "runningHint": "The outbound API server is accepting requests.",
+      "stoppedHint": "Enable the server to start accepting requests.",
+      "port": "port {{port}}",
+      "loopback": "Loopback URLs",
+      "lan": "LAN URLs"
+    },
+    "endpoints": {
+      "title": "Endpoint routing",
+      "description": "Pick the model each wire format routes to. The default model folds in here — the server is a router, not a chat app."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Default model",
+      "backgroundModel": "Background model",
+      "visionModel": "Vision model",
+      "noVisionModel": "None",
+      "backgroundModelIds": "Background model IDs",
+      "backgroundModelIdsPlaceholder": "comma-separated model ids",
+      "modelPlaceholder": "Select a model…",
+      "useSubscription": "Use subscription",
+      "subscriptionUnsupported": "Subscription routing is not available for this endpoint."
+    },
+    "keys": {
+      "title": "Access keys",
+      "description": "Named keys external callers send as a Bearer token. The full key is shown only once at creation.",
+      "namePlaceholder": "Key name (e.g. my-cli)",
+      "create": "Create key",
+      "empty": "No access keys yet.",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "revoked": "Revoked",
+      "toggle": "Toggle key",
+      "revoke": "Revoke",
+      "revokeConfirmTitle": "Revoke this key?",
+      "revokeConfirmDesc": "Revoking \"{{name}}\" immediately stops it from authenticating. This cannot be undone.",
+      "created": {
+        "title": "Key created",
+        "warning": "Copy this key now — it will not be shown again. Store it securely.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "dismiss": "Done"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Accounts & Subscriptions",
+    "description": "Manage the subscription credentials the server routes through. Tokens are written here but never displayed back.",
+    "loading": "Loading accounts…",
+    "empty": "No subscription providers are available.",
+    "signIn": "Sign in",
+    "oauth": {
+      "title": "Sign in to {{name}}",
+      "description": "Open the sign-in page in your browser, authorize, then paste the authorization code below. The code crosses to the daemon only — the minted token is never shown.",
+      "openPage": "Open sign-in page",
+      "codeLabel": "Authorization code",
+      "codePlaceholder": "Paste the code here",
+      "submit": "Complete sign-in"
+    },
+    "codexOauth": {
+      "title": "Sign in to {{name}}",
+      "description": "Open the sign-in page in your browser and authorize. The daemon captures the result automatically — keep this open until it completes. The token is never shown.",
+      "waiting": "Waiting for you to complete sign-in in your browser…",
+      "failed": "Sign-in failed. Please try again."
+    },
+    "clearProvider": "Clear all",
+    "clearConfirmTitle": "Clear {{name}} accounts?",
+    "clearConfirmDesc": "This removes every stored credential for this provider. This cannot be undone.",
+    "credential": {
+      "ok": "Configured",
+      "notConfigured": "Not configured"
+    },
+    "kind": {
+      "pass-through": "Pass-through credentials",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Static bearer key"
+    },
+    "reason": {
+      "missing-credential": "No credential stored.",
+      "expired": "Credential expired.",
+      "reauth-required": "Re-authentication required.",
+      "refresh-failed": "Token refresh failed.",
+      "not-refreshable": "Credential is not refreshable.",
+      "unknown": "Status unknown."
+    },
+    "status": {
+      "unconfigured": "Unconfigured",
+      "authorized": "Authorized",
+      "configured": "Configured",
+      "expired": "Expired",
+      "error": "Error"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Setup token",
+      "manual": "Manual"
+    },
+    "list": {
+      "empty": "No accounts stored for this provider.",
+      "active": "Active",
+      "expiresAt": "Expires {{value}}",
+      "setActive": "Set active",
+      "remove": "Remove",
+      "removeConfirmTitle": "Remove this account?",
+      "removeConfirmDesc": "Removing \"{{name}}\" deletes its stored credential. This cannot be undone.",
+      "title": "Accounts"
+    },
+    "write": {
+      "trigger": "Add credential",
+      "title": "Write {{name}} credential",
+      "description": "Paste already-obtained token material. Fields are limited to what this provider accepts; the token is stored, never shown back.",
+      "authMethod": "Auth method",
+      "status": "Status",
+      "subscriptionLevel": "Subscription level",
+      "subscriptionLevelNone": "Not set",
+      "submit": "Save credential"
+    },
+    "field": {
+      "accessToken": "Access token",
+      "refreshToken": "Refresh token",
+      "idToken": "ID token",
+      "apiKey": "API key",
+      "expiresAt": "Expires at (ISO)",
+      "setupTokenExpiresAt": "Setup token expires at (ISO)",
+      "accountId": "Account ID",
+      "email": "Email",
+      "organizationId": "Organization ID",
+      "baseUrl": "Base URL",
+      "zenBaseUrl": "Zen base URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic subscription credentials routed by the daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex subscription credentials routed by the daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini subscription credentials routed by the daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Static API-key credentials routed by the daemon."
+      }
+    },
+    "authMethodLabel": "Authorization method",
+    "authMethodDesc": {
+      "oauth": "Sign in through your browser; the daemon captures and stores the token.",
+      "manual": "Paste an already-obtained token. It is stored, never displayed back."
+    },
+    "actions": {
+      "authorize": "Authorize",
+      "enterToken": "Enter token",
+      "refresh": "Refresh"
+    },
+    "accounts": {
+      "addAccount": "Add account"
+    },
+    "detail": {
+      "authMethod": "Authorization method",
+      "subscriptionLevel": "Subscription level",
+      "expiresAt": "Expires",
+      "lastRefreshed": "Last refreshed",
+      "label": "Account label",
+      "labelPlaceholder": "Name this account",
+      "saveLabel": "Save label"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Open the authorization page",
+        "desc": "Open the sign-in page in your browser."
+      },
+      "step2": {
+        "title": "Authorize access",
+        "desc": "Sign in and approve access for the provider."
+      },
+      "step3": {
+        "title": "Copy the authorization code",
+        "desc": "The page shows an authorization code after you approve."
+      },
+      "step4": {
+        "title": "Paste the code",
+        "desc": "Paste the authorization code below to finish. The code crosses to the daemon only — the minted token is never shown."
+      },
+      "authorize": "Complete sign-in",
+      "showUrl": "Show authorization URL"
+    },
+    "manual": {
+      "title": "Paste credential",
+      "description": "Paste an already-obtained token. Fields are limited to what this provider accepts; the token is stored, never shown back.",
+      "accessTokenPlaceholder": "Paste the access token",
+      "refreshTokenPlaceholder": "Paste the refresh token (optional)",
+      "hint": "The token is sent to the daemon and stored encrypted. It is never displayed back."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "An API key is required.",
+      "apiKeyPlaceholder": "Paste the API key",
+      "baseUrlPlaceholder": "https://… (optional)",
+      "zenBaseUrlPlaceholder": "https://… (optional)"
+    },
+    "info": {
+      "title": "About subscription accounts",
+      "description": "Tokens are written to the daemon and used to authenticate upstream requests. They are stored encrypted and never displayed back. Removing an account deletes its stored credential."
+    },
+    "rename": {
+      "failed": "Couldn't rename the account."
+    },
+    "refresh": {
+      "failed": "Couldn't refresh the token."
+    },
+    "errors": {
+      "requestFailed": "Request failed. Please try again."
+    },
+    "syncWarning": {
+      "external-divergent": "The external CLI login file holds a newer credential than this account. The stored token may stop refreshing — refresh now or sign in again.",
+      "external-not-rotated": "Refresh failed, and the external CLI holds the same expired credential. Please sign in again.",
+      "duplicate-token": "Another account shares this credential. Refreshing either account will sign the other out."
+    },
+    "importExternal": {
+      "detected": "An existing {{name}} CLI login was found on this machine.",
+      "hint": "Importing takes over keeping it fresh: after each token refresh the CLI login file is updated too, so the terminal CLI stays signed in.",
+      "button": "Import existing CLI login"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Point a coding CLI at the daemon's outbound proxy. This page is read-only — there is nothing to configure here.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "baseUrl": {
+      "title": "Daemon base URL",
+      "description": "The proxy address your CLI connects to.",
+      "label": "Base URL"
+    },
+    "token": {
+      "title": "Authentication",
+      "hint": "Send 'Authorization: Bearer <your-admin-token>' for admin routes. The admin token is configured in the daemon (its config file or environment) — it is never shown here."
+    },
+    "examples": {
+      "title": "Example launch environment",
+      "keyNote": "Use an outbound access key created on the API Service page — not the admin token.",
+      "anthropic": "Anthropic-format CLI",
+      "openai": "OpenAI-format CLI"
+    },
+    "launchDescription": "Launch a coding CLI in a terminal, pointed at this daemon. The daemon injects the redirect env and starts the CLI for you.",
+    "refresh": "Refresh",
+    "loading": "Detecting CLIs…",
+    "cli": {
+      "installed": "Installed",
+      "notFound": "Not found",
+      "notFoundHint": "This CLI isn't on the daemon host's PATH. Install it, then refresh.",
+      "install": "Install",
+      "installing": "Installing…",
+      "installingHint": "Installing on the daemon host — this can take a minute.",
+      "launch": "Launch",
+      "launchTitle": "Launch {{name}}",
+      "launchDescription": "Opens a new terminal on the daemon host running this CLI, routed through the daemon proxy. Pick an optional working directory.",
+      "cwdLabel": "Working directory",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "Running · {{provider}} / {{model}}",
+      "stop": "Stop"
+    },
+    "manual": {
+      "title": "Manual setup",
+      "description": "Prefer to run the CLI yourself? Point it at the daemon with these env vars.",
+      "show": "Show",
+      "hide": "Hide"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Checking for the daemon…",
+    "spawning": "Starting the daemon…",
+    "failed": "The daemon could not start",
+    "failedHint": "Ensure Node.js is installed and the daemon is built (dist present), or set OMNICROSS_DAEMON_ENTRY to the daemon's cli.js."
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Desktop app preferences.",
+    "desktopOnly": "Startup and tray options apply only in the desktop app.",
+    "startup": {
+      "title": "Startup",
+      "autoLaunch": "Launch at login",
+      "autoLaunchHint": "Start Omnicross automatically when you sign in.",
+      "startMinimized": "Start minimized to tray",
+      "startMinimizedHint": "Launch in the background without opening the window."
+    },
+    "tray": {
+      "title": "Tray",
+      "minimizeOnClose": "Minimize to tray on close",
+      "minimizeOnCloseHint": "Closing the window hides it to the tray instead of quitting."
+    },
+    "language": {
+      "title": "Language",
+      "label": "Interface language"
+    }
+  },
+  "usageStats": {
+    "title": "Usage Statistics",
+    "description": "Token and cost statistics for requests served by the daemon.",
+    "rangeToday": "Today",
+    "range7d": "Last 7 days",
+    "range30d": "Last 30 days",
+    "rangeCustom": "Custom",
+    "from": "From",
+    "to": "To",
+    "totalCost": "Total cost",
+    "cacheSavings": "Cache savings",
+    "events": "Requests",
+    "inputTokens": "Input tokens",
+    "outputTokens": "Output tokens",
+    "cacheReadTokens": "Cache read",
+    "cacheWriteTokens": "Cache write",
+    "reasoningTokens": "Reasoning tokens",
+    "byModel": "By model",
+    "byApiKey": "By API key",
+    "provider": "Provider",
+    "model": "Model",
+    "cost": "Cost",
+    "apiKey": "API key",
+    "unpriced": "Unpriced",
+    "unpricedHint": "No pricing entry exists for this model — add one on the Pricing page.",
+    "unattributed": "Unattributed",
+    "unattributedHint": "Requests not linked to a specific API key. This is expected until per-key attribution is recorded.",
+    "empty": "No requests in this range.",
+    "invalidRange": "Select a valid date range."
+  },
+  "pricing": {
+    "title": "Model Pricing",
+    "description": "Per-model token prices used to compute request costs, in USD per 1M tokens.",
+    "search": "Search provider or model…",
+    "fetchLatest": "Fetch latest",
+    "fetching": "Fetching…",
+    "addEntry": "Add entry",
+    "provider": "Provider",
+    "model": "Model",
+    "inputPrice": "Input",
+    "outputPrice": "Output",
+    "cacheReadPrice": "Cache read",
+    "cacheWritePrice": "Cache write",
+    "source": "Source",
+    "updated": "Updated",
+    "userEdited": "edited",
+    "edit": "Edit",
+    "deleteTitle": "Delete pricing entry?",
+    "empty": "The pricing table is empty.",
+    "emptyHint": "Fetch the latest prices to populate it.",
+    "noMatches": "No entries match your search.",
+    "saved": "Pricing entry saved.",
+    "saveFailed": "Save failed: {{message}}",
+    "deleteFailed": "Delete failed: {{message}}",
+    "alreadyDeleted": "The entry was already gone.",
+    "fetchApplied": "Updated {{count}} entries from the source.",
+    "fetchFailed": "Fetch failed: {{message}}",
+    "requiredId": "Required",
+    "invalidPrice": "Enter a non-negative number",
+    "conflictTitle": "Resolve pricing conflicts",
+    "conflictHint": "These entries were edited by you and also changed at the source. Choose per row whether to keep your value (Skip) or take the incoming one (Overwrite).",
+    "current": "Current",
+    "incoming": "Incoming",
+    "overwrite": "Overwrite",
+    "skip": "Skip",
+    "overwriteAll": "Overwrite all",
+    "skipAll": "Skip all",
+    "applyResolutions": "Apply",
+    "resolved": "{{overwritten}} overwritten, {{skipped}} skipped.",
+    "resolvedWithStale": "{{overwritten}} overwritten, {{skipped}} skipped. {{stale}} changed meanwhile and were left untouched.",
+    "refreshFailed": "The change was applied, but reloading the list failed: {{message}}",
+    "sourceBuiltin": "Built-in",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "User"
+  }
+}

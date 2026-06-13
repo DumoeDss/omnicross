@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Načítání konfigurace LLM...",
+    "reset": {
+      "button": "Obnovit výchozí nastavení",
+      "confirmTitle": "Obnovit výchozí nastavení?",
+      "confirmBody": "Tímto vymažete svá přizpůsobení pro tohoto poskytovatele a vrátíte se na vestavěné výchozí hodnoty. Váš klíč API a uložené relace zůstanou zachovány.",
+      "confirmButton": "Obnovit výchozí nastavení"
+    },
+    "reentryBanner": {
+      "message": "{{count}} povolený(-ch) poskytovatel(é) vyžaduje opětovné zadání klíče API. Otevřete každého z nich a znovu zadejte klíč."
+    },
+    "migrationPack": {
+      "barHint": "Přesuňte klíče poskytovatele a tokeny předplatného na jiný počítač pomocí šifrovaného balíčku.",
+      "passphrase": "Přístupová fráze",
+      "passphrasePlaceholder": "Zadejte přístupovou frázi",
+      "passphraseHint": "Použijte alespoň 8 znaků; doporučujeme 12 nebo více.",
+      "confirm": "Potvrdit přístupovou frázi",
+      "confirmPlaceholder": "Zadejte přístupovou frázi znovu",
+      "mismatch": "Přístupové fráze se neshodují.",
+      "strength": {
+        "weak": "Příliš krátká — použijte alespoň 8 znaků.",
+        "fair": "Dobrá — 12 nebo více znaků je silnější.",
+        "strong": "Silná přístupová fráze."
+      },
+      "export": {
+        "button": "Exportovat balíček",
+        "title": "Exportovat šifrovaný balíček",
+        "subtitle": "Zašifrujte klíče poskytovatele a tokeny předplatného do přenosného souboru.",
+        "warning": "Tento soubor obsahuje dešifrovatelná tajemství. Uchovávejte ho bezpečně — kdokoli s tímto souborem a přístupovou frází může přečíst vaše klíče. Ztracenou přístupovou frázi nelze obnovit.",
+        "submit": "Exportovat",
+        "success": "Balíček byl úspěšně exportován.",
+        "error": "Export se nezdařil. Zkuste to prosím znovu."
+      },
+      "import": {
+        "button": "Importovat balíček",
+        "title": "Importovat šifrovaný balíček",
+        "subtitle": "Obnovte klíče poskytovatele a tokeny předplatného z exportovaného balíčku.",
+        "hint": "Zadejte přístupovou frázi použitou při exportu balíčku a poté vyberte soubor.",
+        "submit": "Importovat",
+        "successTitle": "Import dokončen",
+        "summary": "Importováno {{providerKeys}} klíč(ů) poskytovatele, {{poolKeys}} klíč(ů) fondu a {{tokenSets}} sada(-y) tokenů.",
+        "duplicates": "Přeskočeno {{count}} klíč(ů) fondu, které již existují.",
+        "skipped": "Přeskočeno (žádný odpovídající poskytovatel): {{names}}",
+        "error": "Nesprávná přístupová fráze nebo poškozený balíček. Nic nebylo změněno."
+      }
+    },
+    "searchPlaceholder": "Hledat poskytovatele...",
+    "emptySearch": "Žádní poskytovatelé neodpovídají vašemu hledání.",
+    "emptyList": "Žádní poskytovatelé nejsou nakonfigurováni.",
+    "selectPrompt": "Vyberte poskytovatele pro zobrazení podrobností",
+    "listStatus": "{{count}} model(ů)",
+    "noModels": "Žádné modely nejsou nakonfigurovány",
+    "enabled": "Povoleno",
+    "disabled": "Zakázáno",
+    "showEnabledOnly": "Zobrazit pouze povolené",
+    "showAll": "Zobrazit všechny poskytovatele",
+    "dragHandle": "Přetáhnout pro změnu pořadí",
+    "reorderFailed": "Nepodařilo se uložit pořadí poskytovatelů",
+    "credentials": {
+      "apiKey": "Klíč API",
+      "apiBaseUrl": "Základní URL API"
+    },
+    "filter": {
+      "all": "Vše",
+      "chat": "Chat",
+      "code": "Kód"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Vyberte šablonu",
+      "skipTemplates": "Přeskočit, konfigurovat ručně",
+      "name": "Název *",
+      "providerType": "Typ",
+      "apiType": "Typ API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standardní formát API chat/completions OpenAI",
+        "claudecode": "Formát Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "Formát API",
+      "chatApiFormatDescription": "Vyberte formát API odpovídající koncovému bodu vašeho poskytovatele",
+      "apiKey": "Klíč API",
+      "apiKeyPlaceholder": "sk-... nebo $PROMĚNNÁ_PROSTŘEDÍ",
+      "apiKeyHelper": "Použijte $NÁZEV_PROMĚNNÉ pro odkaz na proměnné prostředí",
+      "apiKeySetPlaceholder": "Klíč je nastaven — ponechte prázdné pro zachování",
+      "apiKeyReplaceHelper": "Klíč je bezpečně uložen. Zadejte novou hodnotu pro jeho nahrazení, nebo ponechte prázdné pro zachování.",
+      "testApiKey": "Testovat klíč API",
+      "apiUrl": "URL API *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Náhled:",
+      "models": "Modely",
+      "modelPlaceholder": "Název modelu (např. gpt-4, claude-3-opus)",
+      "transformers": "Transforméry",
+      "transformerConfig": "Transforméry API",
+      "transformerConfigDescription": "Nakonfigurujte transforméry pro přizpůsobení formátů požadavků/odpovědí API pro tohoto poskytovatele",
+      "transformerConfigNote": "Daemon aplikuje tyto transforméry v řetězci požadavků, po transforméru formátu poskytovatele (který zpracovává konverzi drátového formátu). Neznámé názvy transformérů jsou přeskočeny.",
+      "enabled": "Povoleno",
+      "apiVersion": "Verze API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Verze Azure OpenAI API (např. 2024-08-01-preview)",
+      "official": "Oficiální Anthropic API",
+      "officialHelper": "Povolte, pokud se tento poskytovatel připojuje přímo k oficiálnímu Anthropic API. Zakažte pro reverzní proxy nebo služby třetích stran.",
+      "maxConcurrency": "Max. souběžných požadavků",
+      "maxConcurrencyHelper": "Maximální počet souběžných požadavků API odesílaných tomuto poskytovateli. Nižší hodnoty pomáhají předejít omezení rychlosti (chyby 429). Nastavte `-1` pro neomezený počet.",
+      "codingPlan": {
+        "label": "Plán kódování",
+        "description": "Použijte samostatný koncový bod API pro plány kódování na základě předplatného",
+        "baseUrl": "Základní URL plánu kódování",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Klíč API plánu kódování (volitelný)",
+        "apiKeyPlaceholder": "Ponechte prázdné pro použití klíče API poskytovatele",
+        "apiKeyHelper": "Vyžadováno pouze pokud plán kódování používá jiný klíč API",
+        "tokenPlanHint": "Někteří poskytovatelé (např. Xiaomi MiMo) vydávají klíče Token Plan s předponou `tp-` — pouze informativní, není vynucováno."
+      },
+      "selectTypeFirst": "Vyberte typ poskytovatele",
+      "selectTypeFirstDesc": "Zvolte, jaký typ poskytovatele chcete přidat",
+      "codeProviderNote": "Poskytovatelé kódu potřebují pouze klíč API a URL. Modely jsou spravovány směrovačem agentů.",
+      "buttons": {
+        "cancel": "Zrušit",
+        "submitAdd": "Přidat poskytovatele",
+        "submitUpdate": "Aktualizovat poskytovatele",
+        "continue": "Pokračovat",
+        "back": "Zpět"
+      }
+    },
+    "details": {
+      "noSelection": "Vyberte poskytovatele pro zobrazení podrobností",
+      "apiKey": "Klíč API",
+      "apiUrl": "URL API",
+      "nameLabel": "Název poskytovatele",
+      "modelsEndpoint": "Koncový bod modelů",
+      "modelsEndpointHelper": "Přepište koncový bod zjišťování, pokud poskytovatel zpřístupňuje vlastní cestu /models.",
+      "models": "Modely",
+      "transformers": "Transforméry",
+      "codeProviderNote": "Poskytovatelé kódu (jako Claude Code) nevyžadují konfiguraci modelů. Modely jsou automaticky spravovány směrovačem agentů.",
+      "buttons": {
+        "more": "Další nastavení",
+        "delete": "Smazat"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Vyberte poskytovatele a model",
+      "noProviders": "Žádní poskytovatelé nejsou k dispozici",
+      "noModels": "Žádné modely nejsou nakonfigurovány"
+    },
+    "apiKeyPool": {
+      "title": "Fond klíčů API",
+      "description": "Nakonfigurujte více klíčů API pro vyvažování zátěže. Každá relace lpí na jednom klíči pro zachování mezipaměti promptů.",
+      "defaultLabel": "Výchozí",
+      "weight": "Váha",
+      "noKey": "Žádný klíč",
+      "labelPlaceholder": "Popisek (např. Klíč č. 1, Produkce)",
+      "addKey": "Přidat klíč API",
+      "add": "Přidat",
+      "empty": "Žádné další klíče nejsou nakonfigurovány.",
+      "statusCoolingDown": "Ochlazování {{time}}",
+      "statusAuthFailed": "Ověřování se nezdařilo · zakázáno",
+      "statusDisabled": "Zakázáno",
+      "statusHealthy": "V pořádku",
+      "agoSeconds": "před {{count}}s",
+      "agoMinutes": "před {{count}}m",
+      "agoHours": "před {{count}}h",
+      "agoDays": "před {{count}}d"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Hledat modely...",
+      "defaultGroup": "Všechny modely",
+      "add": "Přidat model",
+      "manage": "Spravovat",
+      "empty": "V této skupině nejsou žádné modely",
+      "enabled": "Povoleno",
+      "disabled": "Zakázáno",
+      "filters": {
+        "all": "Vše",
+        "vision": "Vidění",
+        "reasoning": "Uvažování",
+        "free": "Zdarma",
+        "tools": "Nástroje"
+      },
+      "manualDialog": {
+        "title": "Přidat model",
+        "subtitle": "Přidat vlastní model k tomuto poskytovateli",
+        "modelId": "ID modelu",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash atd.",
+        "modelIdHelper": "Přesný identifikátor modelu používaný při volání API",
+        "modelName": "Zobrazovaný název",
+        "modelNamePlaceholder": "Přátelský zobrazovaný název (volitelný)",
+        "modelNameHelper": "Volitelný název zobrazený v rozhraní. Pokud je prázdný, použije se ID modelu",
+        "group": "Skupina",
+        "groupPlaceholder": "Vyberte nebo zadejte název skupiny",
+        "submit": "Přidat",
+        "cancel": "Zrušit",
+        "helper": "Zadejte přesný identifikátor modelu zpřístupněný API poskytovatele."
+      },
+      "editDialog": {
+        "title": "Upravit model",
+        "subtitle": "Změnit nastavení modelu",
+        "modelId": "ID modelu",
+        "modelIdPlaceholder": "Identifikátor modelu",
+        "modelIdHelper": "Identifikátor modelu používaný při volání API",
+        "modelName": "Zobrazovaný název",
+        "modelNamePlaceholder": "Přátelský zobrazovaný název",
+        "modelNameHelper": "Název zobrazený v rozhraní",
+        "group": "Skupina",
+        "groupPlaceholder": "Vyberte nebo zadejte název skupiny",
+        "submit": "Uložit",
+        "cancel": "Zrušit",
+        "vision": "Schopnost vidění",
+        "visionHint": "Zda tento model podporuje vstup obrázků/vidění",
+        "reasoning": "Model uvažování",
+        "reasoningHint": "Zda tento model podporuje režim uvažování/myšlení"
+      },
+      "manageDialog": {
+        "title": "Spravovat modely",
+        "cachedAt": "Uloženo v mezipaměti {{date}} ({{source}})",
+        "refresh": "Obnovit",
+        "close": "Zavřít",
+        "raw": "Surový JSON",
+        "empty": "Žádné vzdálené modely nejsou k dispozici.",
+        "error": "Nepodařilo se načíst modely: {{message}}",
+        "addFromCatalog": "Přidat",
+        "sourceCache": "mezipaměť",
+        "sourceNetwork": "živě",
+        "contextLength": "Kontext {{value}} tokenů",
+        "maxTokens": "Max. {{value}} tokenů"
+      },
+      "messages": {
+        "added": "Model přidán.",
+        "updated": "Model aktualizován.",
+        "removed": "Model odebrán.",
+        "duplicate": "Model již existuje.",
+        "refreshed": "Modely obnoveny",
+        "refreshFailed": "Nepodařilo se obnovit modely"
+      },
+      "testDialog": {
+        "title": "Test připojení modelu",
+        "provider": "Poskytovatel",
+        "model": "Model",
+        "testing": "Testování...",
+        "success": "Test úspěšný",
+        "successMessage": "Model je dostupný a funkční",
+        "failure": "Test se nezdařil",
+        "aiResponse": "Odpověď AI",
+        "charCount": "{{count}} znaků",
+        "duration": "Doba trvání {{time}}s",
+        "close": "Zavřít",
+        "retest": "Otestovat znovu",
+        "testButton": "Testovat model",
+        "unsupportedFormat": "Testování pro tento formát poskytovatele zatím není podporováno."
+      }
+    },
+    "router": {
+      "title": "Konfigurace směrovače",
+      "description": "Nakonfigurujte, který poskytovatel/model použít pro různé scénáře.",
+      "labels": {
+        "default": "Výchozí",
+        "background": "na pozadí",
+        "think": "uvažování",
+        "longContext": "Dlouhý kontext",
+        "webSearch": "Webové vyhledávání",
+        "image": "Obrázek",
+        "longContextThreshold": "Práh dlouhého kontextu"
+      },
+      "helper": {
+        "longContextThreshold": "Počet tokenů, po kterém se přepne na model s dlouhým kontextem."
+      },
+      "placeholder": {
+        "required": "Povinné",
+        "optional": "Volitelné"
+      }
+    },
+    "agentRouter": {
+      "title": "Směrovač agentů",
+      "description": "Nakonfigurujte obousměrné směrování mezi režimy Chat a Kód.",
+      "searchPlaceholder": "Hledat směrovače...",
+      "noSearchResults": "Žádné směrovače neodpovídají vašemu hledání.",
+      "tabs": {
+        "chatToCode": "Chat → Kód",
+        "codeToChatPlaceholder": "Kód → Chat"
+      },
+      "chatToCode": {
+        "title": "Směrovač Chat na Kód",
+        "description": "Používejte poskytovatele chatu v režimu agenta/kódování",
+        "addRouter": "Přidat směrovač",
+        "emptyState": "Žádné směrovače Chat→Kód nejsou nakonfigurovány. Přidejte jeden pro použití poskytovatelů chatu v režimu kódování.",
+        "form": {
+          "name": "Název směrovače",
+          "namePlaceholder": "Můj směrovač Chat→Kód",
+          "chatProvider": "Poskytovatel chatu",
+          "chatProviderPlaceholder": "Vyberte poskytovatele chatu",
+          "mode": "Režim",
+          "modeSimple": "Jednoduchý",
+          "modeAdvanced": "Pokročilý",
+          "modeSimpleDesc": "Přímý průchod k poskytovateli chatu",
+          "modeAdvancedDesc": "Konfigurace mapování modelů a zpracování kontextu",
+          "enabled": "Povoleno",
+          "save": "Uložit směrovač",
+          "cancel": "Zrušit"
+        },
+        "list": {
+          "provider": "Poskytovatel",
+          "mode": "Režim",
+          "status": "Stav"
+        },
+        "mappings": {
+          "title": "Mapování modelů",
+          "description": "Mapujte modely poskytovatele chatu na modely poskytovatele kódu",
+          "count": "mapování",
+          "empty": "Žádná mapování modelů nejsou nakonfigurována. Přidejte mapování pro směrování chat modelů k poskytovatelům kódu.",
+          "addNew": "Přidat nové mapování",
+          "selectSource": "Vyberte zdrojový model (Chat)",
+          "selectTarget": "Vyberte cílový model (Kód)",
+          "targetPlaceholder": "Zadejte název modelu Claude Code",
+          "notSet": "(Nenastaveno — klikněte pro výběr)",
+          "add": "Přidat",
+          "edit": "Upravit",
+          "done": "Hotovo"
+        },
+        "advanced": {
+          "title": "Pokročilá konfigurace",
+          "description": "Nakonfigurujte modely pro různé typy úloh",
+          "helpText": "Výchozí model je povinný. Ostatní modely jsou volitelné a v případě nekonfigurace se vrátí k výchozímu.",
+          "default": {
+            "label": "Výchozí",
+            "placeholder": "Vyberte výchozí model",
+            "description": "Primární model pro obecné úlohy (podobný Claude Sonnet)"
+          },
+          "background": {
+            "label": "Pozadí",
+            "placeholder": "Vyberte model na pozadí",
+            "description": "Odlehčený model pro úlohy na pozadí (podobný Claude Haiku)"
+          },
+          "think": {
+            "label": "Uvažování",
+            "placeholder": "Vyberte model uvažování",
+            "description": "Pokročilý model pro komplexní uvažování (podobný Claude Opus)"
+          },
+          "image": {
+            "label": "Obrázek",
+            "placeholder": "Vyberte model obrázků",
+            "description": "Model pro úlohy související s obrázky se schopností vidění"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Směrovač Kód na Chat",
+        "description": "Zpřístupněte modely plánu kódování v režimu chatu",
+        "addRouter": "Přidat směrovač",
+        "emptyState": "Žádné směrovače Kód→Chat nejsou nakonfigurovány. Přidejte jeden pro zpřístupnění modelů plánu kódování v režimu chatu.",
+        "form": {
+          "name": "Název směrovače",
+          "namePlaceholder": "Můj směrovač Kód→Chat",
+          "codeProvider": "Poskytovatel kódu",
+          "codeProviderPlaceholder": "Vyberte poskytovatele kódu",
+          "codeProviderHelper": "Vyberte poskytovatele kódu pro použití při transformaci",
+          "models": "Modely plánu kódování",
+          "modelsHelper": "Vyberte, které modely plánu kódování zpřístupnit",
+          "enabled": "Povoleno",
+          "save": "Uložit směrovač",
+          "cancel": "Zrušit"
+        },
+        "mappings": {
+          "title": "Mapování modelů",
+          "description": "Mapujte modely poskytovatele kódu na modely poskytovatele chatu pro zpřístupnění",
+          "count": "mapování",
+          "empty": "Žádná mapování modelů nejsou nakonfigurována. Přidejte mapování pro zpřístupnění modelů kódu v režimu chatu.",
+          "addNew": "Přidat nové mapování",
+          "selectSource": "Vyberte zdrojový model (Kód)",
+          "selectTarget": "Vyberte cílový model (Chat)",
+          "sourcePlaceholder": "Zadejte název zdrojového modelu",
+          "targetPlaceholder": "Zadejte název cílového modelu",
+          "add": "Přidat",
+          "edit": "Upravit",
+          "done": "Hotovo"
+        }
+      },
+      "transformers": {
+        "title": "Transforméry",
+        "description": "Nakonfigurujte transforméry pro konverzi požadavků/odpovědí",
+        "noProvider": "Vyberte poskytovatele pro konfiguraci transformérů",
+        "empty": "Žádné transforméry",
+        "count": "{{count}} transformér(ů)"
+      },
+      "status": {
+        "enabled": "Povoleno",
+        "disabled": "Zakázáno"
+      },
+      "messages": {
+        "routerAdded": "Směrovač byl úspěšně přidán",
+        "routerUpdated": "Směrovač byl úspěšně aktualizován",
+        "routerDeleted": "Směrovač byl úspěšně odstraněn",
+        "saveFailed": "Nepodařilo se uložit směrovač"
+      }
+    },
+    "presets": {
+      "title": "Rychlé přidání poskytovatele",
+      "added": "Přidáno",
+      "add": "Přidat",
+      "features": {
+        "search": "Vyhledávání",
+        "vision": "Vidění",
+        "mcp": "MCP",
+        "codingPlan": "Plán kódování"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Opravdu chcete smazat tohoto poskytovatele?"
+    },
+    "errors": {
+      "nameRequired": "Název poskytovatele je povinný",
+      "urlRequired": "Základní URL API je povinná",
+      "urlInvalid": "Zadejte platnou URL (např. https://api.example.com)",
+      "saveFailed": "Nepodařilo se uložit poskytovatele",
+      "deleteFailed": "Chyba při mazání poskytovatele. Zkuste to prosím znovu.",
+      "toggleFailed": "Chyba při přepínání poskytovatele. Zkuste to prosím znovu."
+    },
+    "openRouter": {
+      "title": "Směrování poskytovatelů OpenRouter",
+      "description": "Nakonfigurujte, jak jsou požadavky směrovány k různým poskytovatelům v OpenRouter.",
+      "sort": "Strategie směrování",
+      "sortTooltip": "Zvolte způsob prioritizace poskytovatelů. Auto používá inteligentní vyvažování zátěže.",
+      "order": "Pořadí priorit poskytovatelů",
+      "orderTooltip": "Určete poskytovatele, kteří mají být vyzkoušeni v pořadí (např. anthropic, openai, together). Stiskněte Enter pro přidání.",
+      "orderPlaceholder": "Zadejte identifikátor poskytovatele a stiskněte Enter...",
+      "allowFallbacks": "Povolit záložní možnosti",
+      "allowFallbacksTooltip": "Pokud je povoleno, OpenRouter vyzkouší záložní poskytovatele, pokud je primární nedostupný.",
+      "requireParameters": "Vyžadovat všechny parametry",
+      "requireParametersTooltip": "Směrovat pouze k poskytovatelům, kteří podporují všechny parametry v požadavku.",
+      "dataCollection": "Zásady sběru dat",
+      "dataCollectionTooltip": "Kontrolujte, zda používat poskytovatele, kteří mohou ukládat nebo trénovat na vašich datech.",
+      "zdr": "Nulové uchovávání dat",
+      "zdrTooltip": "Směrovat pouze ke koncovým bodům s politikou nulového uchovávání dat.",
+      "only": "Povolení poskytovatelé",
+      "onlyTooltip": "Používejte pouze tyto konkrétní poskytovatele. Ponechte prázdné pro povolení všech.",
+      "onlyPlaceholder": "Zadejte identifikátor poskytovatele a stiskněte Enter...",
+      "ignore": "Ignorovaní poskytovatelé",
+      "ignoreTooltip": "Přeskočte tyto poskytovatele při směrování požadavků.",
+      "ignorePlaceholder": "Zadejte identifikátor poskytovatele a stiskněte Enter...",
+      "quantizations": "Filtr kvantizace",
+      "quantizationsTooltip": "Používejte pouze poskytovatele s konkrétními úrovněmi kvantizace. Nižší přesnost může snížit kvalitu, ale zvýšit rychlost.",
+      "maxPrice": "Maximální cena",
+      "maxPriceTooltip": "Nastavte maximální cenové limity za milion tokenů. Ponechte prázdné pro neomezené.",
+      "configured": "Nakonfigurováno"
+    }
+  },
+  "apiMode": {
+    "label": "Režim API",
+    "standard": "Standardní",
+    "codingPlan": "Plán kódování",
+    "tokenPlan": "Plán tokenů",
+    "apiKeyPrefixHint": "Klíče pro tento plán obvykle začínají na `{{prefix}}`. Pouze informativní — není vynucováno.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan používá samostatný klíč API od standardního koncového bodu.",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan používá samostatný klíč API od standardního koncového bodu.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan podporuje pouze protokol Anthropic.",
+    "xiaomiTokenPlanRegions": "Výchozí baseUrl je `token-plan-cn.*`. Můžete ho ručně upravit na `token-plan-sgp.*` nebo `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Přepnout režim API?",
+    "confirmOverwriteBody": "Přizpůsobili jste URL API nebo klíč API. Přepnutím režimů je přepíšete výchozími hodnotami nového režimu — nebo zachovejte svá přizpůsobení a aktualizujte pouze popisek režimu.",
+    "overwriteAndSwitch": "Přepsat a přepnout",
+    "keepCustomizations": "Zachovat přizpůsobení"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Zrušit",
+    "close": "Zavřít",
+    "copy": "Kopírovat",
+    "delete": "Smazat",
+    "dismiss": "Zavřít",
+    "save": "Uložit",
+    "optional": "volitelné",
+    "retry": "Zkusit znovu",
+    "loading": "Načítání…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentace"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Daemon to zatím nepodporuje",
+    "discoveryUnsupportedFormat": "Zjišťování modelů pro tento formát poskytovatele zatím není podporováno. Přidejte modely ručně."
+  },
+  "nav": {
+    "subtitle": "Ovládací panel",
+    "providers": "Poskytovatelé",
+    "apiService": "Služba API",
+    "accounts": "Účty",
+    "codeCli": "Code CLI",
+    "settings": "Nastavení",
+    "usageStats": "Využití",
+    "pricing": "Ceník"
+  },
+  "apiService": {
+    "title": "Služba API",
+    "description": "Nakonfigurujte odchozí API server, směrování modelů pro každý koncový bod a pojmenované přístupové klíče.",
+    "loading": "Načítání konfigurace serveru…",
+    "loadError": "Nepodařilo se načíst konfiguraci serveru. Zkontrolujte, zda je daemon dostupný.",
+    "enable": {
+      "label": "Povolit odchozí server",
+      "description": "Spusťte lokální API server, který směruje externí klienty přes vaše poskytovatele."
+    },
+    "networkBinding": {
+      "label": "Povolit přístup z LAN",
+      "description": "Svažte server se síťovým rozhraním místo pouze se smyčkovým rozhraním.",
+      "warning": "Přístup z LAN vystavuje API server ostatním zařízením v síti. V kombinaci se směrováním předplatného mohou požadavky spotřebovávat váš limit předplatného — tuto možnost vypněte, pokud síti nedůvěřujete."
+    },
+    "status": {
+      "running": "Server běží",
+      "stopped": "Server zastaven",
+      "runningHint": "Odchozí API server přijímá požadavky.",
+      "stoppedHint": "Povolte server pro začátek přijímání požadavků.",
+      "port": "port {{port}}",
+      "loopback": "URL smyčkového rozhraní",
+      "lan": "URL LAN"
+    },
+    "endpoints": {
+      "title": "Směrování koncových bodů",
+      "description": "Vyberte model, na který každý drátový formát směruje. Výchozí model je zde zahrnut — server je směrovač, nikoli chatovací aplikace."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Výchozí model",
+      "backgroundModel": "Model na pozadí",
+      "visionModel": "Model vidění",
+      "noVisionModel": "Žádný",
+      "backgroundModelIds": "ID modelů na pozadí",
+      "backgroundModelIdsPlaceholder": "ID modelů oddělená čárkou",
+      "modelPlaceholder": "Vyberte model…",
+      "useSubscription": "Použít předplatné",
+      "subscriptionUnsupported": "Směrování předplatného není pro tento koncový bod dostupné."
+    },
+    "keys": {
+      "title": "Přístupové klíče",
+      "description": "Pojmenované klíče, které externí klienti odesílají jako Bearer token. Celý klíč je zobrazen pouze jednou při vytvoření.",
+      "namePlaceholder": "Název klíče (např. moje-cli)",
+      "create": "Vytvořit klíč",
+      "empty": "Zatím žádné přístupové klíče.",
+      "enabled": "Povoleno",
+      "disabled": "Zakázáno",
+      "revoked": "Odvoláno",
+      "toggle": "Přepnout klíč",
+      "revoke": "Odvolat",
+      "revokeConfirmTitle": "Odvolat tento klíč?",
+      "revokeConfirmDesc": "Odvoláním „{{name}}“ okamžitě zastavíte jeho ověřování. Tuto akci nelze vrátit zpět.",
+      "created": {
+        "title": "Klíč vytvořen",
+        "warning": "Zkopírujte tento klíč nyní — nebude znovu zobrazen. Uchovávejte ho bezpečně.",
+        "copy": "Kopírovat",
+        "copied": "Zkopírováno",
+        "dismiss": "Hotovo"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Účty a předplatná",
+    "description": "Spravujte přihlašovací údaje předplatného, přes které server směruje provoz. Tokeny jsou zde zapsány, ale nikdy znovu zobrazeny.",
+    "loading": "Načítání účtů…",
+    "empty": "Žádní poskytovatelé předplatného nejsou k dispozici.",
+    "signIn": "Přihlásit se",
+    "oauth": {
+      "title": "Přihlásit se do {{name}}",
+      "description": "Otevřete přihlašovací stránku v prohlížeči, autorizujte a poté vložte autorizační kód níže. Kód přechází pouze k daemonu — vydaný token není nikdy zobrazen.",
+      "openPage": "Otevřít přihlašovací stránku",
+      "codeLabel": "Autorizační kód",
+      "codePlaceholder": "Vložte kód sem",
+      "submit": "Dokončit přihlášení"
+    },
+    "codexOauth": {
+      "title": "Přihlásit se do {{name}}",
+      "description": "Otevřete přihlašovací stránku v prohlížeči a autorizujte. Daemon výsledek automaticky zachytí — ponechte tuto stránku otevřenou, dokud se proces nedokončí. Token není nikdy zobrazen.",
+      "waiting": "Čekání na dokončení přihlášení v prohlížeči…",
+      "failed": "Přihlášení se nezdařilo. Zkuste to prosím znovu."
+    },
+    "clearProvider": "Vymazat vše",
+    "clearConfirmTitle": "Vymazat účty {{name}}?",
+    "clearConfirmDesc": "Tímto odstraníte všechny uložené přihlašovací údaje pro tohoto poskytovatele. Tuto akci nelze vrátit zpět.",
+    "credential": {
+      "ok": "Nakonfigurováno",
+      "notConfigured": "Nenakonfigurováno"
+    },
+    "kind": {
+      "pass-through": "Průchozí přihlašovací údaje",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Statický bearer klíč"
+    },
+    "reason": {
+      "missing-credential": "Žádné uložené přihlašovací údaje.",
+      "expired": "Přihlašovací údaje vypršely.",
+      "reauth-required": "Vyžadováno opětovné ověření.",
+      "refresh-failed": "Obnovení tokenu se nezdařilo.",
+      "not-refreshable": "Přihlašovací údaje nelze obnovit.",
+      "unknown": "Stav neznámý."
+    },
+    "status": {
+      "unconfigured": "Nenakonfigurováno",
+      "authorized": "Autorizováno",
+      "configured": "Nakonfigurováno",
+      "expired": "Vypršelo",
+      "error": "Chyba"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Nastavovací token",
+      "manual": "Ručně"
+    },
+    "list": {
+      "empty": "Pro tohoto poskytovatele nejsou uloženy žádné účty.",
+      "active": "Aktivní",
+      "expiresAt": "Vyprší {{value}}",
+      "setActive": "Nastavit jako aktivní",
+      "remove": "Odebrat",
+      "removeConfirmTitle": "Odebrat tento účet?",
+      "removeConfirmDesc": "Odebrání „{{name}}“ odstraní uložené přihlašovací údaje. Tuto akci nelze vrátit zpět.",
+      "title": "Účty"
+    },
+    "write": {
+      "trigger": "Přidat přihlašovací údaje",
+      "title": "Zapsat přihlašovací údaje {{name}}",
+      "description": "Vložte již získaný token. Pole jsou omezena na to, co tento poskytovatel přijímá; token je uložen a nikdy znovu zobrazen.",
+      "authMethod": "Metoda ověřování",
+      "status": "Stav",
+      "subscriptionLevel": "Úroveň předplatného",
+      "subscriptionLevelNone": "Nenastaveno",
+      "submit": "Uložit přihlašovací údaje"
+    },
+    "field": {
+      "accessToken": "Přístupový token",
+      "refreshToken": "Obnovovací token",
+      "idToken": "ID token",
+      "apiKey": "Klíč API",
+      "expiresAt": "Vyprší (ISO)",
+      "setupTokenExpiresAt": "Nastavovací token vyprší (ISO)",
+      "accountId": "ID účtu",
+      "email": "E-mail",
+      "organizationId": "ID organizace",
+      "baseUrl": "Základní URL",
+      "zenBaseUrl": "Zen základní URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Přihlašovací údaje předplatného Anthropic směrované daemonem."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Přihlašovací údaje předplatného OpenAI Codex směrované daemonem."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Přihlašovací údaje předplatného Google Gemini směrované daemonem."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statické přihlašovací údaje klíče API směrované daemonem."
+      }
+    },
+    "authMethodLabel": "Metoda autorizace",
+    "authMethodDesc": {
+      "oauth": "Přihlaste se přes prohlížeč; daemon token zachytí a uloží.",
+      "manual": "Vložte již získaný token. Je uložen a nikdy znovu nezobrazován."
+    },
+    "actions": {
+      "authorize": "Autorizovat",
+      "enterToken": "Zadat token",
+      "refresh": "Obnovit"
+    },
+    "accounts": {
+      "addAccount": "Přidat účet"
+    },
+    "detail": {
+      "authMethod": "Metoda autorizace",
+      "subscriptionLevel": "Úroveň předplatného",
+      "expiresAt": "Vyprší",
+      "lastRefreshed": "Naposledy obnoveno",
+      "label": "Popisek účtu",
+      "labelPlaceholder": "Pojmenujte tento účet",
+      "saveLabel": "Uložit popisek"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Otevřete stránku autorizace",
+        "desc": "Otevřete přihlašovací stránku v prohlížeči."
+      },
+      "step2": {
+        "title": "Autorizujte přístup",
+        "desc": "Přihlaste se a schvalte přístup pro poskytovatele."
+      },
+      "step3": {
+        "title": "Zkopírujte autorizační kód",
+        "desc": "Stránka zobrazí autorizační kód po schválení."
+      },
+      "step4": {
+        "title": "Vložte kód",
+        "desc": "Vložte autorizační kód níže pro dokončení. Kód přechází pouze k daemonu — vydaný token není nikdy zobrazen."
+      },
+      "authorize": "Dokončit přihlášení",
+      "showUrl": "Zobrazit URL autorizace"
+    },
+    "manual": {
+      "title": "Vložit přihlašovací údaje",
+      "description": "Vložte již získaný token. Pole jsou omezena na to, co tento poskytovatel přijímá; token je uložen a nikdy znovu zobrazen.",
+      "accessTokenPlaceholder": "Vložte přístupový token",
+      "refreshTokenPlaceholder": "Vložte obnovovací token (volitelný)",
+      "hint": "Token je odeslán daemonu a uložen v zašifrované podobě. Nikdy není znovu zobrazen."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "Klíč API je povinný.",
+      "apiKeyPlaceholder": "Vložte klíč API",
+      "baseUrlPlaceholder": "https://… (volitelné)",
+      "zenBaseUrlPlaceholder": "https://… (volitelné)"
+    },
+    "info": {
+      "title": "O účtech předplatného",
+      "description": "Tokeny jsou zapsány do daemona a používány k ověřování upstream požadavků. Jsou uloženy v zašifrované podobě a nikdy znovu nezobrazovány. Odebrání účtu odstraní jeho uložené přihlašovací údaje."
+    },
+    "rename": {
+      "failed": "Přejmenování účtu se nezdařilo."
+    },
+    "refresh": {
+      "failed": "Obnovení tokenu se nezdařilo."
+    },
+    "errors": {
+      "requestFailed": "Požadavek se nezdařil. Zkuste to prosím znovu."
+    },
+    "syncWarning": {
+      "external-divergent": "Přihlašovací soubor externího CLI obsahuje novější přihlašovací údaje než tento účet. Uložený token se možná přestane obnovovat — obnovte jej nyní nebo se znovu přihlaste.",
+      "external-not-rotated": "Obnovení selhalo a externí CLI obsahuje stejné prošlé přihlašovací údaje. Přihlaste se znovu.",
+      "duplicate-token": "Jiný účet sdílí tyto přihlašovací údaje. Obnovení jednoho z nich odhlásí druhý."
+    },
+    "importExternal": {
+      "detected": "Na tomto počítači bylo nalezeno existující přihlášení CLI {{name}}.",
+      "hint": "Po importu jej tato aplikace udržuje aktuální: při každém obnovení tokenu se aktualizuje i přihlašovací soubor CLI, takže CLI v terminálu zůstává přihlášené.",
+      "button": "Importovat existující přihlášení CLI"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Nasměrujte kódovací CLI na odchozí proxy daemona. Tato stránka je pouze ke čtení — není zde co konfigurovat.",
+    "copy": "Kopírovat",
+    "copied": "Zkopírováno",
+    "baseUrl": {
+      "title": "Základní URL daemona",
+      "description": "Adresa proxy, ke které se vaše CLI připojuje.",
+      "label": "Základní URL"
+    },
+    "token": {
+      "title": "Ověřování",
+      "hint": "Pro administrátorské trasy odešlete 'Authorization: Bearer <váš-admin-token>'. Administrátorský token je konfigurován v daemonu (jeho konfigurační soubor nebo prostředí) — zde není nikdy zobrazen."
+    },
+    "examples": {
+      "title": "Příklad spouštěcího prostředí",
+      "keyNote": "Použijte odchozí přístupový klíč vytvořený na stránce Služba API — nikoli administrátorský token.",
+      "anthropic": "CLI ve formátu Anthropic",
+      "openai": "CLI ve formátu OpenAI"
+    },
+    "launchDescription": "Spusťte kódovací CLI v terminálu nasměrované na tohoto daemona. Daemon vloží přesměrování prostředí a spustí CLI za vás.",
+    "refresh": "Obnovit",
+    "loading": "Zjišťování CLI…",
+    "cli": {
+      "installed": "Nainstalováno",
+      "notFound": "Nenalezeno",
+      "notFoundHint": "Toto CLI není v PATH hostitele daemona. Nainstalujte ho a poté obnovte.",
+      "install": "Nainstalovat",
+      "installing": "Instalování…",
+      "installingHint": "Instalování na hostiteli daemona — může to chvíli trvat.",
+      "launch": "Spustit",
+      "launchTitle": "Spustit {{name}}",
+      "launchDescription": "Otevře nový terminál na hostiteli daemona se spuštěným tímto CLI, směrovaným přes proxy daemona. Vyberte volitelný pracovní adresář.",
+      "cwdLabel": "Pracovní adresář",
+      "cwdPlaceholder": "/cesta/k/vašemu/projektu",
+      "runningVia": "Běží · {{provider}} / {{model}}",
+      "stop": "Zastavit"
+    },
+    "manual": {
+      "title": "Ruční nastavení",
+      "description": "Preferujete spuštění CLI sami? Nasměrujte ho na daemon pomocí těchto proměnných prostředí.",
+      "show": "Zobrazit",
+      "hide": "Skrýt"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Kontrola daemona…",
+    "spawning": "Spouštění daemona…",
+    "failed": "Daemon se nepodařilo spustit",
+    "failedHint": "Ujistěte se, že je nainstalován Node.js a daemon je sestaven (přítomný adresář dist), nebo nastavte OMNICROSS_DAEMON_ENTRY na cli.js daemona."
+  },
+  "settings": {
+    "title": "Nastavení",
+    "description": "Předvolby desktopové aplikace.",
+    "desktopOnly": "Možnosti spouštění a systémové lišty platí pouze v desktopové aplikaci.",
+    "startup": {
+      "title": "Spouštění",
+      "autoLaunch": "Spustit při přihlášení",
+      "autoLaunchHint": "Spouštět Omnicross automaticky při přihlášení.",
+      "startMinimized": "Spustit minimalizováno do systémové lišty",
+      "startMinimizedHint": "Spustit na pozadí bez otevření okna."
+    },
+    "tray": {
+      "title": "Systémová lišta",
+      "minimizeOnClose": "Minimalizovat do systémové lišty při zavření",
+      "minimizeOnCloseHint": "Zavřením okna ho skryjete do systémové lišty místo ukončení."
+    },
+    "language": {
+      "title": "Jazyk",
+      "label": "Jazyk rozhraní"
+    }
+  },
+  "usageStats": {
+    "title": "Statistiky využití",
+    "description": "Statistiky tokenů a nákladů požadavků obsloužených démonem.",
+    "rangeToday": "Dnes",
+    "range7d": "Posledních 7 dní",
+    "range30d": "Posledních 30 dní",
+    "rangeCustom": "Vlastní",
+    "from": "Od",
+    "to": "Do",
+    "totalCost": "Celkové náklady",
+    "cacheSavings": "Úspora cache",
+    "events": "Požadavky",
+    "inputTokens": "Vstupní tokeny",
+    "outputTokens": "Výstupní tokeny",
+    "cacheReadTokens": "Čtení cache",
+    "cacheWriteTokens": "Zápis cache",
+    "reasoningTokens": "Tokeny uvažování",
+    "byModel": "Podle modelu",
+    "byApiKey": "Podle API klíče",
+    "provider": "Poskytovatel",
+    "model": "Model",
+    "cost": "Náklady",
+    "apiKey": "API klíč",
+    "unpriced": "Bez ceny",
+    "unpricedHint": "Pro tento model neexistuje cenový záznam — přidejte ho na stránce Ceník.",
+    "unattributed": "Nepřiřazeno",
+    "unattributedHint": "Požadavky nespojené s konkrétním API klíčem. To je normální, dokud se přiřazení podle klíčů nezaznamenává.",
+    "empty": "V tomto rozsahu nejsou žádné požadavky.",
+    "invalidRange": "Vyberte platný rozsah dat."
+  },
+  "pricing": {
+    "title": "Ceník modelů",
+    "description": "Ceny tokenů podle modelu pro výpočet nákladů požadavků, v USD za 1 mil. tokenů.",
+    "search": "Hledat poskytovatele nebo model…",
+    "fetchLatest": "Načíst nejnovější",
+    "fetching": "Načítání…",
+    "addEntry": "Přidat záznam",
+    "provider": "Poskytovatel",
+    "model": "Model",
+    "inputPrice": "Vstup",
+    "outputPrice": "Výstup",
+    "cacheReadPrice": "Čtení cache",
+    "cacheWritePrice": "Zápis cache",
+    "source": "Zdroj",
+    "updated": "Aktualizováno",
+    "userEdited": "upraveno",
+    "edit": "Upravit",
+    "deleteTitle": "Smazat cenový záznam?",
+    "empty": "Ceník je prázdný.",
+    "emptyHint": "Načtěte nejnovější ceny pro jeho naplnění.",
+    "noMatches": "Hledání neodpovídají žádné záznamy.",
+    "saved": "Cenový záznam uložen.",
+    "saveFailed": "Uložení selhalo: {{message}}",
+    "deleteFailed": "Smazání selhalo: {{message}}",
+    "alreadyDeleted": "Záznam už neexistoval.",
+    "fetchApplied": "Aktualizováno {{count}} záznamů ze zdroje.",
+    "fetchFailed": "Načtení selhalo: {{message}}",
+    "requiredId": "Povinné",
+    "invalidPrice": "Zadejte nezáporné číslo",
+    "conflictTitle": "Vyřešit cenové konflikty",
+    "conflictHint": "Tyto záznamy jste upravili a zároveň se změnily ve zdroji. U každého řádku zvolte, zda ponechat svou hodnotu (Přeskočit), nebo převzít novou (Přepsat).",
+    "current": "Aktuální",
+    "incoming": "Příchozí",
+    "overwrite": "Přepsat",
+    "skip": "Přeskočit",
+    "overwriteAll": "Přepsat vše",
+    "skipAll": "Přeskočit vše",
+    "applyResolutions": "Použít",
+    "resolved": "Přepsáno: {{overwritten}}, přeskočeno: {{skipped}}.",
+    "resolvedWithStale": "Přepsáno: {{overwritten}}, přeskočeno: {{skipped}}. {{stale}} se mezitím změnily a zůstaly nedotčené.",
+    "refreshFailed": "Změna byla použita, ale opětovné načtení seznamu se nezdařilo: {{message}}",
+    "sourceBuiltin": "Vestavěné",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Uživatel"
+  }
+}

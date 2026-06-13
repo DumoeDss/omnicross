@@ -1,0 +1,38 @@
+{
+  "name": "omnicross",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Omnicross — a standalone LLM provider-routing / subscription / CLI-launcher serving core.",
+  "license": "MIT",
+  "author": "Sayo (https://github.com/Dumoedss)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dumoedss/omnicross.git"
+  },
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @omnicross/contracts && npm run build -w @omnicross/core && npm run build -w @omnicross/subscriptions && npm run build -w @omnicross/cli-launcher && npm run build -w @omnicross/daemon && npm run build -w @omnicross/ui",
+    "test": "vitest run",
+    "build:daemon": "npm run build -w @omnicross/contracts && npm run build -w @omnicross/core && npm run build -w @omnicross/subscriptions && npm run build -w @omnicross/cli-launcher && npm run build -w @omnicross/daemon",
+    "typecheck": "npm run typecheck -w @omnicross/contracts && npm run typecheck -w @omnicross/core && npm run typecheck -w @omnicross/subscriptions && npm run typecheck -w @omnicross/cli-launcher && npm run typecheck -w @omnicross/daemon && npm run typecheck -w @omnicross/ui",
+    "clean": "node -e \"const{rmSync}=require('node:fs');for(const p of ['packages/contracts/dist','packages/core/dist','packages/subscriptions/dist','packages/cli-launcher/dist','packages/daemon/dist','packages/ui/dist'])rmSync(p,{recursive:true,force:true})\"",
+    "dev": "node scripts/dev.mjs",
+    "dev:app": "npm run dev -w omnicross-desktop",
+    "build:app": "npm run build -w omnicross-desktop"
+  },
+  "devDependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@types/jsdom": "^28.0.0",
+    "@types/node": "^22.7.4",
+    "@types/turndown": "^5.0.6",
+    "jsdom": "^24.1.3",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.3",
+    "vitest": "^4.0.7"
+  }
+}

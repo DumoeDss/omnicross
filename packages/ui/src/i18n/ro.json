@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Se încarcă configurația LLM...",
+    "reset": {
+      "button": "Restaurare implicite",
+      "confirmTitle": "Restaurați setările implicite?",
+      "confirmBody": "Aceasta șterge personalizările tale pentru acest furnizor și revine la valorile implicite încorporate. Cheia API și sesiunile salvate sunt păstrate.",
+      "confirmButton": "Restaurare implicite"
+    },
+    "reentryBanner": {
+      "message": "{{count}} furnizor(i) activ(i) necesită reintroducerea cheii API. Deschide fiecare și adaugă cheia din nou."
+    },
+    "migrationPack": {
+      "barHint": "Mută cheile furnizorilor și tokenurile de abonament pe alt dispozitiv cu un pachet criptat.",
+      "passphrase": "Frază de acces",
+      "passphrasePlaceholder": "Introduceți fraza de acces",
+      "passphraseHint": "Folosiți cel puțin 8 caractere; se recomandă 12 sau mai multe.",
+      "confirm": "Confirmare frază de acces",
+      "confirmPlaceholder": "Reintroduceți fraza de acces",
+      "mismatch": "Frazele de acces nu coincid.",
+      "strength": {
+        "weak": "Prea scurtă — folosiți cel puțin 8 caractere.",
+        "fair": "Acceptabilă — 12 sau mai multe caractere este mai sigur.",
+        "strong": "Frază de acces puternică."
+      },
+      "export": {
+        "button": "Exportă pachetul",
+        "title": "Exportă pachet criptat",
+        "subtitle": "Criptați cheile furnizorilor și tokenurile de abonament într-un fișier portabil.",
+        "warning": "Acest fișier conține secrete decriptabile. Păstrați-l în siguranță — oricine are fișierul și fraza de acces vă poate citi cheile. O frază de acces pierdută nu poate fi recuperată.",
+        "submit": "Exportă",
+        "success": "Pachetul a fost exportat cu succes.",
+        "error": "Exportul a eșuat. Vă rugăm să încercați din nou."
+      },
+      "import": {
+        "button": "Importă pachetul",
+        "title": "Importă pachet criptat",
+        "subtitle": "Restaurați cheile furnizorilor și tokenurile de abonament dintr-un pachet exportat.",
+        "hint": "Introduceți fraza de acces folosită la exportul pachetului, apoi alegeți fișierul.",
+        "submit": "Importă",
+        "successTitle": "Import finalizat",
+        "summary": "Au fost importate {{providerKeys}} cheie/chei furnizor, {{poolKeys}} cheie/chei pool și {{tokenSets}} set(uri) de tokenuri.",
+        "duplicates": "S-au omis {{count}} cheie/chei pool deja existente.",
+        "skipped": "Omis (furnizor incompatibil): {{names}}",
+        "error": "Frază de acces greșită sau pachet corupt. Nu s-a modificat nimic."
+      }
+    },
+    "searchPlaceholder": "Caută furnizori...",
+    "emptySearch": "Niciun furnizor nu corespunde căutării.",
+    "emptyList": "Niciun furnizor configurat.",
+    "selectPrompt": "Selectați un furnizor pentru a vedea detaliile",
+    "listStatus": "{{count}} model(e)",
+    "noModels": "Niciun model configurat",
+    "enabled": "Activat",
+    "disabled": "Dezactivat",
+    "showEnabledOnly": "Afișează doar activele",
+    "showAll": "Afișează toți furnizorii",
+    "dragHandle": "Trageți pentru a reordona",
+    "reorderFailed": "Salvarea ordinii furnizorilor a eșuat",
+    "credentials": {
+      "apiKey": "Cheie API",
+      "apiBaseUrl": "URL de bază API"
+    },
+    "filter": {
+      "all": "Toate",
+      "chat": "Chat",
+      "code": "Cod"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Selectați un șablon",
+      "skipTemplates": "Omiteți, configurați manual",
+      "name": "Nume *",
+      "providerType": "Tip",
+      "apiType": "Tip API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Format API standard OpenAI chat/completions",
+        "claudecode": "Format Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "Format API",
+      "chatApiFormatDescription": "Selectați formatul API care corespunde endpoint-ului furnizorului dvs.",
+      "apiKey": "Cheie API",
+      "apiKeyPlaceholder": "sk-... sau $ENV_VAR",
+      "apiKeyHelper": "Folosiți $VAR_NAME pentru a referenția variabile de mediu",
+      "apiKeySetPlaceholder": "Cheia este setată — lăsați gol pentru a o păstra",
+      "apiKeyReplaceHelper": "O cheie este stocată în siguranță. Introduceți o valoare nouă pentru a o înlocui, sau lăsați gol pentru a o păstra.",
+      "testApiKey": "Testează cheia API",
+      "apiUrl": "URL API *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Previzualizare:",
+      "models": "Modele",
+      "modelPlaceholder": "Numele modelului (ex.: gpt-4, claude-3-opus)",
+      "transformers": "Transformatoare",
+      "transformerConfig": "Transformatoare API",
+      "transformerConfigDescription": "Configurați transformatoare pentru adaptarea formatelor de cerere/răspuns API pentru acest furnizor",
+      "transformerConfigNote": "Daemon-ul aplică aceste transformatoare în lanțul de cereri, după transformatorul de format al furnizorului (care gestionează conversia formatului wire). Numele de transformatoare necunoscute sunt ignorate.",
+      "enabled": "Activat",
+      "apiVersion": "Versiune API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Versiunea Azure OpenAI API (ex.: 2024-08-01-preview)",
+      "official": "API oficial Anthropic",
+      "officialHelper": "Activați dacă acest furnizor se conectează direct la API-ul oficial Anthropic. Dezactivați pentru proxy-uri inverse sau servicii terțe.",
+      "maxConcurrency": "Număr maxim de cereri concurente",
+      "maxConcurrencyHelper": "Numărul maxim de cereri API concurente trimise acestui furnizor. Valorile mai mici ajută la evitarea limitării ratei (erori 429). Setați `-1` pentru nicio limită.",
+      "codingPlan": {
+        "label": "Plan de programare",
+        "description": "Utilizați un endpoint API separat pentru planurile de programare bazate pe abonament",
+        "baseUrl": "URL de bază plan programare",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Cheie API plan programare (opțional)",
+        "apiKeyPlaceholder": "Lăsați gol pentru a utiliza cheia API a furnizorului",
+        "apiKeyHelper": "Necesară doar dacă planul de programare folosește o altă cheie API",
+        "tokenPlanHint": "Unii furnizori (ex.: Xiaomi MiMo) emit chei Token Plan cu prefixul `tp-` — informativ, nu impus."
+      },
+      "selectTypeFirst": "Selectați tipul furnizorului",
+      "selectTypeFirstDesc": "Alegeți tipul de furnizor pe care doriți să îl adăugați",
+      "codeProviderNote": "Furnizorii de cod necesită doar cheie API și URL. Modelele sunt gestionate de Agent Router.",
+      "buttons": {
+        "cancel": "Anulare",
+        "submitAdd": "Adaugă furnizor",
+        "submitUpdate": "Actualizează furnizor",
+        "continue": "Continuare",
+        "back": "Înapoi"
+      }
+    },
+    "details": {
+      "noSelection": "Selectați un furnizor pentru a vedea detaliile",
+      "apiKey": "Cheie API",
+      "apiUrl": "URL API",
+      "nameLabel": "Nume furnizor",
+      "modelsEndpoint": "Endpoint modele",
+      "modelsEndpointHelper": "Înlocuiți endpoint-ul de descoperire dacă furnizorul expune un path /models personalizat.",
+      "models": "Modele",
+      "transformers": "Transformatoare",
+      "codeProviderNote": "Furnizorii de cod (precum Claude Code) nu necesită configurarea modelelor. Modelele sunt gestionate automat de Agent Router.",
+      "buttons": {
+        "more": "Mai multe setări",
+        "delete": "Ștergere"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Selectați furnizorul și modelul",
+      "noProviders": "Niciun furnizor disponibil",
+      "noModels": "Niciun model configurat"
+    },
+    "apiKeyPool": {
+      "title": "Pool de chei API",
+      "description": "Configurați mai multe chei API pentru echilibrarea sarcinii. Fiecare sesiune rămâne la o singură cheie pentru a păstra memoria cache a prompturilor.",
+      "defaultLabel": "Implicit",
+      "weight": "Pondere",
+      "noKey": "Nicio cheie",
+      "labelPlaceholder": "Etichetă (ex.: Cheia #1, Producție)",
+      "addKey": "Adaugă cheie API",
+      "add": "Adaugă",
+      "empty": "Nicio cheie suplimentară configurată.",
+      "statusCoolingDown": "Perioadă de răcire {{time}}",
+      "statusAuthFailed": "Autentificare eșuată · dezactivat",
+      "statusDisabled": "Dezactivat",
+      "statusHealthy": "Funcțional",
+      "agoSeconds": "acum {{count}}s",
+      "agoMinutes": "acum {{count}}m",
+      "agoHours": "acum {{count}}h",
+      "agoDays": "acum {{count}}z"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Caută modele...",
+      "defaultGroup": "Toate modelele",
+      "add": "Adaugă model",
+      "manage": "Gestionare",
+      "empty": "Niciun model în acest grup",
+      "enabled": "Activat",
+      "disabled": "Dezactivat",
+      "filters": {
+        "all": "Toate",
+        "vision": "Viziune",
+        "reasoning": "Raționament",
+        "free": "Gratuit",
+        "tools": "Instrumente"
+      },
+      "manualDialog": {
+        "title": "Adaugă model",
+        "subtitle": "Adăugați un model personalizat acestui furnizor",
+        "modelId": "ID model",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash etc.",
+        "modelIdHelper": "Identificatorul exact al modelului folosit la apelarea API-ului",
+        "modelName": "Nume afișat",
+        "modelNamePlaceholder": "Nume afișat prietenos (opțional)",
+        "modelNameHelper": "Nume opțional afișat în interfață. Dacă este gol, se va folosi ID-ul modelului",
+        "group": "Grup",
+        "groupPlaceholder": "Selectați sau introduceți un nume de grup",
+        "submit": "Adaugă",
+        "cancel": "Anulare",
+        "helper": "Furnizați identificatorul exact al modelului expus de API-ul furnizorului."
+      },
+      "editDialog": {
+        "title": "Editare model",
+        "subtitle": "Modificați setările modelului",
+        "modelId": "ID model",
+        "modelIdPlaceholder": "Identificator model",
+        "modelIdHelper": "Identificatorul modelului folosit la apelarea API-ului",
+        "modelName": "Nume afișat",
+        "modelNamePlaceholder": "Nume afișat prietenos",
+        "modelNameHelper": "Numele afișat în interfață",
+        "group": "Grup",
+        "groupPlaceholder": "Selectați sau introduceți un nume de grup",
+        "submit": "Salvare",
+        "cancel": "Anulare",
+        "vision": "Capacitate de viziune",
+        "visionHint": "Dacă modelul suportă input imagine/viziune",
+        "reasoning": "Model de raționament",
+        "reasoningHint": "Dacă modelul suportă modul de gândire/raționament"
+      },
+      "manageDialog": {
+        "title": "Gestionare modele",
+        "cachedAt": "Stocat în cache la {{date}} ({{source}})",
+        "refresh": "Reîmprospătare",
+        "close": "Închidere",
+        "raw": "JSON brut",
+        "empty": "Niciun model remote disponibil.",
+        "error": "Încărcarea modelelor a eșuat: {{message}}",
+        "addFromCatalog": "Adaugă",
+        "sourceCache": "cache",
+        "sourceNetwork": "live",
+        "contextLength": "Context {{value}} tokenuri",
+        "maxTokens": "Max {{value}} tokenuri"
+      },
+      "messages": {
+        "added": "Model adăugat.",
+        "updated": "Model actualizat.",
+        "removed": "Model eliminat.",
+        "duplicate": "Modelul există deja.",
+        "refreshed": "Modele reîmprospătate",
+        "refreshFailed": "Reîmprospătarea modelelor a eșuat"
+      },
+      "testDialog": {
+        "title": "Test conectivitate model",
+        "provider": "Furnizor",
+        "model": "Model",
+        "testing": "Se testează...",
+        "success": "Test reușit",
+        "successMessage": "Modelul este accesibil normal",
+        "failure": "Test eșuat",
+        "aiResponse": "Răspuns AI",
+        "charCount": "{{count}} caractere",
+        "duration": "Durată {{time}}s",
+        "close": "Închidere",
+        "retest": "Retestare",
+        "testButton": "Testează modelul",
+        "unsupportedFormat": "Testarea nu este suportată încă pentru acest format de furnizor."
+      }
+    },
+    "router": {
+      "title": "Configurare router",
+      "description": "Configurați furnizorul/modelul utilizat pentru diferite scenarii.",
+      "labels": {
+        "default": "Implicit",
+        "background": "fundal",
+        "think": "gândire",
+        "longContext": "Context lung",
+        "webSearch": "Căutare web",
+        "image": "Imagine",
+        "longContextThreshold": "Prag context lung"
+      },
+      "helper": {
+        "longContextThreshold": "Numărul de tokenuri înainte de comutarea la modelul cu context lung."
+      },
+      "placeholder": {
+        "required": "Obligatoriu",
+        "optional": "Opțional"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Configurați rutarea bidirecțională între modurile Chat și Cod.",
+      "searchPlaceholder": "Caută routere...",
+      "noSearchResults": "Niciun router nu corespunde căutării.",
+      "tabs": {
+        "chatToCode": "Chat → Cod",
+        "codeToChatPlaceholder": "Cod → Chat"
+      },
+      "chatToCode": {
+        "title": "Router Chat → Cod",
+        "description": "Utilizați furnizori de chat în modul agent/programare",
+        "addRouter": "Adaugă router",
+        "emptyState": "Niciun router Chat→Cod configurat. Adăugați unul pentru a utiliza furnizori de chat în modul programare.",
+        "form": {
+          "name": "Nume router",
+          "namePlaceholder": "Routerul meu Chat→Cod",
+          "chatProvider": "Furnizor chat",
+          "chatProviderPlaceholder": "Selectați un furnizor chat",
+          "mode": "Mod",
+          "modeSimple": "Simplu",
+          "modeAdvanced": "Avansat",
+          "modeSimpleDesc": "Redirecționare directă către furnizorul chat",
+          "modeAdvancedDesc": "Configurați maparea modelelor și gestionarea contextului",
+          "enabled": "Activat",
+          "save": "Salvare router",
+          "cancel": "Anulare"
+        },
+        "list": {
+          "provider": "Furnizor",
+          "mode": "Mod",
+          "status": "Stare"
+        },
+        "mappings": {
+          "title": "Mapări modele",
+          "description": "Mapați modelele furnizorului chat la modelele furnizorului de cod",
+          "count": "mapare(ări)",
+          "empty": "Nicio mapare de modele configurată. Adăugați mapări pentru a ruta modelele chat către furnizori de cod.",
+          "addNew": "Adaugă mapare nouă",
+          "selectSource": "Selectați modelul sursă (Chat)",
+          "selectTarget": "Selectați modelul țintă (Cod)",
+          "targetPlaceholder": "Introduceți numele modelului Claude Code",
+          "notSet": "(Nesetat - faceți clic pentru a selecta)",
+          "add": "Adaugă",
+          "edit": "Editare",
+          "done": "Gata"
+        },
+        "advanced": {
+          "title": "Configurare avansată",
+          "description": "Configurați modele pentru diferite tipuri de sarcini",
+          "helpText": "Modelul implicit este obligatoriu. Celelalte modele sunt opționale și vor reveni la implicit dacă nu sunt configurate.",
+          "default": {
+            "label": "Implicit",
+            "placeholder": "Selectați modelul implicit",
+            "description": "Modelul principal pentru sarcini generale (similar cu Claude Sonnet)"
+          },
+          "background": {
+            "label": "Fundal",
+            "placeholder": "Selectați modelul de fundal",
+            "description": "Model ușor pentru sarcini de fundal (similar cu Claude Haiku)"
+          },
+          "think": {
+            "label": "Gândire",
+            "placeholder": "Selectați modelul de gândire",
+            "description": "Model avansat pentru raționament complex (similar cu Claude Opus)"
+          },
+          "image": {
+            "label": "Imagine",
+            "placeholder": "Selectați modelul de imagine",
+            "description": "Model pentru sarcini legate de imagini cu capacitate de viziune"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Router Cod → Chat",
+        "description": "Expuneți modelele din planul de programare în modul chat",
+        "addRouter": "Adaugă router",
+        "emptyState": "Niciun router Cod→Chat configurat. Adăugați unul pentru a expune modelele din planul de programare în modul chat.",
+        "form": {
+          "name": "Nume router",
+          "namePlaceholder": "Routerul meu Cod→Chat",
+          "codeProvider": "Furnizor cod",
+          "codeProviderPlaceholder": "Selectați un furnizor de cod",
+          "codeProviderHelper": "Selectați furnizorul de cod utilizat pentru transformare",
+          "models": "Modele plan programare",
+          "modelsHelper": "Selectați modelele din planul de programare pe care doriți să le expuneți",
+          "enabled": "Activat",
+          "save": "Salvare router",
+          "cancel": "Anulare"
+        },
+        "mappings": {
+          "title": "Mapări modele",
+          "description": "Mapați modelele furnizorului de cod la modelele furnizorului chat pentru expunere",
+          "count": "mapare(ări)",
+          "empty": "Nicio mapare de modele configurată. Adăugați mapări pentru a expune modelele de cod în modul chat.",
+          "addNew": "Adaugă mapare nouă",
+          "selectSource": "Selectați modelul sursă (Cod)",
+          "selectTarget": "Selectați modelul țintă (Chat)",
+          "sourcePlaceholder": "Introduceți numele modelului sursă",
+          "targetPlaceholder": "Introduceți numele modelului țintă",
+          "add": "Adaugă",
+          "edit": "Editare",
+          "done": "Gata"
+        }
+      },
+      "transformers": {
+        "title": "Transformatoare",
+        "description": "Configurați transformatoare pentru conversia cererilor/răspunsurilor",
+        "noProvider": "Selectați un furnizor pentru a configura transformatoarele",
+        "empty": "Niciun transformator",
+        "count": "{{count}} transformator(oare)"
+      },
+      "status": {
+        "enabled": "Activat",
+        "disabled": "Dezactivat"
+      },
+      "messages": {
+        "routerAdded": "Routerul a fost adăugat cu succes",
+        "routerUpdated": "Routerul a fost actualizat cu succes",
+        "routerDeleted": "Routerul a fost șters cu succes",
+        "saveFailed": "Salvarea routerului a eșuat"
+      }
+    },
+    "presets": {
+      "title": "Adaugă furnizor rapid",
+      "added": "Adăugat",
+      "add": "Adaugă",
+      "features": {
+        "search": "Căutare",
+        "vision": "Viziune",
+        "mcp": "MCP",
+        "codingPlan": "Plan programare"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Sigur doriți să ștergeți acest furnizor?"
+    },
+    "errors": {
+      "nameRequired": "Numele furnizorului este obligatoriu",
+      "urlRequired": "URL-ul de bază API este obligatoriu",
+      "urlInvalid": "Introduceți un URL valid (ex.: https://api.example.com)",
+      "saveFailed": "Salvarea furnizorului a eșuat",
+      "deleteFailed": "Eroare la ștergerea furnizorului. Vă rugăm să încercați din nou.",
+      "toggleFailed": "Eroare la comutarea furnizorului. Vă rugăm să încercați din nou."
+    },
+    "openRouter": {
+      "title": "Rutare furnizor OpenRouter",
+      "description": "Configurați modul în care cererile sunt rutate către diferiți furnizori pe OpenRouter.",
+      "sort": "Strategie de rutare",
+      "sortTooltip": "Alegeți cum să prioritizați furnizorii. Auto folosește echilibrarea inteligentă a sarcinii.",
+      "order": "Ordinea priorității furnizorilor",
+      "orderTooltip": "Specificați furnizorii de încercat în ordine (ex.: anthropic, openai, together). Apăsați Enter pentru a adăuga.",
+      "orderPlaceholder": "Introduceți slug-ul furnizorului și apăsați Enter...",
+      "allowFallbacks": "Permite rezerve",
+      "allowFallbacksTooltip": "Când este activat, OpenRouter va încerca furnizori de rezervă dacă cel principal nu este disponibil.",
+      "requireParameters": "Necesită toți parametrii",
+      "requireParametersTooltip": "Rutați doar către furnizori care suportă toți parametrii din cererea dvs.",
+      "dataCollection": "Politică de colectare date",
+      "dataCollectionTooltip": "Controlați dacă să utilizați furnizori care pot stoca sau antrena pe datele dvs.",
+      "zdr": "Zero retenție date",
+      "zdrTooltip": "Rutați doar către endpoint-uri cu politică Zero Data Retention.",
+      "only": "Permite doar anumiți furnizori",
+      "onlyTooltip": "Utilizați doar acești furnizori specifici. Lăsați gol pentru a permite toți furnizorii.",
+      "onlyPlaceholder": "Introduceți slug-ul furnizorului și apăsați Enter...",
+      "ignore": "Ignoră furnizori",
+      "ignoreTooltip": "Săriți peste acești furnizori la rutarea cererilor.",
+      "ignorePlaceholder": "Introduceți slug-ul furnizorului și apăsați Enter...",
+      "quantizations": "Filtru cuantizare",
+      "quantizationsTooltip": "Utilizați doar furnizori cu niveluri specifice de cuantizare. Precizia mai mică poate reduce calitatea, dar îmbunătățește viteza.",
+      "maxPrice": "Preț maxim",
+      "maxPriceTooltip": "Setați limite maxime de preț per milion de tokenuri. Lăsați gol pentru nicio limită.",
+      "configured": "Configurat"
+    }
+  },
+  "apiMode": {
+    "label": "Mod API",
+    "standard": "Standard",
+    "codingPlan": "Plan programare",
+    "tokenPlan": "Plan tokenuri",
+    "apiKeyPrefixHint": "Cheile pentru acest plan încep de obicei cu `{{prefix}}`. Doar indicativ — nu este impus.",
+    "dashscopeCodingPlanSeparateKey": "Planul de programare DashScope folosește o cheie API separată față de endpoint-ul standard.",
+    "baiduCodingPlanSeparateKey": "Planul de programare Qianfan folosește o cheie API separată față de endpoint-ul standard.",
+    "tencentTokenPlanAnthropicOnly": "Planul de tokenuri Tencent este exclusiv protocolul Anthropic.",
+    "xiaomiTokenPlanRegions": "URL-ul de bază implicit este `token-plan-cn.*`. Îl puteți edita manual la `token-plan-sgp.*` sau `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Schimbați modul API?",
+    "confirmOverwriteBody": "Ați personalizat URL-ul API sau cheia API. Schimbarea modului le va suprascrie cu valorile implicite ale noului mod — sau puteți păstra personalizările și actualiza doar eticheta modului.",
+    "overwriteAndSwitch": "Suprascriere și schimbare",
+    "keepCustomizations": "Păstrare personalizări"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Plan tokenuri)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Anulare",
+    "close": "Închidere",
+    "copy": "Copiere",
+    "delete": "Ștergere",
+    "dismiss": "Respingere",
+    "save": "Salvare",
+    "optional": "opțional",
+    "retry": "Reîncearcă",
+    "loading": "Se încarcă…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Documentație"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Nesuportat încă de daemon",
+    "discoveryUnsupportedFormat": "Descoperirea modelelor nu este suportată pentru acest format de furnizor. Adăugați modele manual."
+  },
+  "nav": {
+    "subtitle": "Panou de control",
+    "providers": "Furnizori",
+    "apiService": "Serviciu API",
+    "accounts": "Conturi",
+    "codeCli": "CLI programare",
+    "settings": "Setări",
+    "usageStats": "Utilizare",
+    "pricing": "Prețuri"
+  },
+  "apiService": {
+    "title": "Serviciu API",
+    "description": "Configurați serverul API de ieșire, rutarea modelelor per endpoint și cheile de acces cu nume.",
+    "loading": "Se încarcă configurația serverului…",
+    "loadError": "Configurația serverului nu a putut fi încărcată. Verificați dacă daemon-ul este accesibil.",
+    "enable": {
+      "label": "Activează serverul de ieșire",
+      "description": "Porniți serverul API local care rutează apelatorii externi prin furnizorii dvs."
+    },
+    "networkBinding": {
+      "label": "Permite acces LAN",
+      "description": "Legați serverul la interfața de rețea în loc de loopback.",
+      "warning": "Accesul LAN expune serverul API altor dispozitive din rețea. Combinat cu rutarea abonamentului, cererile pot consuma cota abonamentului — lăsați dezactivat dacă nu aveți încredere în rețea."
+    },
+    "status": {
+      "running": "Server activ",
+      "stopped": "Server oprit",
+      "runningHint": "Serverul API de ieșire acceptă cereri.",
+      "stoppedHint": "Activați serverul pentru a începe acceptarea cererilor.",
+      "port": "port {{port}}",
+      "loopback": "URL-uri loopback",
+      "lan": "URL-uri LAN"
+    },
+    "endpoints": {
+      "title": "Rutare endpoint-uri",
+      "description": "Alegeți modelul la care este rutat fiecare format wire. Modelul implicit se integrează aici — serverul este un router, nu o aplicație de chat."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Model implicit",
+      "backgroundModel": "Model de fundal",
+      "visionModel": "Model de viziune",
+      "noVisionModel": "Niciunul",
+      "backgroundModelIds": "ID-uri model de fundal",
+      "backgroundModelIdsPlaceholder": "id-uri modele separate prin virgulă",
+      "modelPlaceholder": "Selectați un model…",
+      "useSubscription": "Folosiți abonament",
+      "subscriptionUnsupported": "Rutarea prin abonament nu este disponibilă pentru acest endpoint."
+    },
+    "keys": {
+      "title": "Chei de acces",
+      "description": "Chei cu nume trimise de apelatorii externi ca token Bearer. Cheia completă este afișată o singură dată la creare.",
+      "namePlaceholder": "Numele cheii (ex.: cli-ul-meu)",
+      "create": "Creare cheie",
+      "empty": "Nicio cheie de acces încă.",
+      "enabled": "Activat",
+      "disabled": "Dezactivat",
+      "revoked": "Revocat",
+      "toggle": "Comutare cheie",
+      "revoke": "Revocare",
+      "revokeConfirmTitle": "Revocați această cheie?",
+      "revokeConfirmDesc": "Revocarea \"{{name}}\" oprește imediat autentificarea. Această acțiune nu poate fi anulată.",
+      "created": {
+        "title": "Cheie creată",
+        "warning": "Copiați această cheie acum — nu va mai fi afișată. Stocați-o în siguranță.",
+        "copy": "Copiere",
+        "copied": "Copiat",
+        "dismiss": "Gata"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Conturi și abonamente",
+    "description": "Gestionați acreditările de abonament prin care serverul rutează. Tokenurile sunt scrise aici, dar nu sunt afișate înapoi.",
+    "loading": "Se încarcă conturile…",
+    "empty": "Niciun furnizor de abonament disponibil.",
+    "signIn": "Autentificare",
+    "oauth": {
+      "title": "Autentificare în {{name}}",
+      "description": "Deschideți pagina de autentificare în browser, autorizați, apoi lipiți codul de autorizare mai jos. Codul ajunge doar la daemon — tokenul emis nu este afișat niciodată.",
+      "openPage": "Deschide pagina de autentificare",
+      "codeLabel": "Cod de autorizare",
+      "codePlaceholder": "Lipiți codul aici",
+      "submit": "Finalizare autentificare"
+    },
+    "codexOauth": {
+      "title": "Autentificare în {{name}}",
+      "description": "Deschideți pagina de autentificare în browser și autorizați. Daemon-ul captează rezultatul automat — lăsați această fereastră deschisă până la finalizare. Tokenul nu este afișat niciodată.",
+      "waiting": "Se așteaptă finalizarea autentificării în browser…",
+      "failed": "Autentificarea a eșuat. Vă rugăm să încercați din nou."
+    },
+    "clearProvider": "Șterge tot",
+    "clearConfirmTitle": "Ștergeți conturile {{name}}?",
+    "clearConfirmDesc": "Aceasta elimină toate acreditările stocate pentru acest furnizor. Această acțiune nu poate fi anulată.",
+    "credential": {
+      "ok": "Configurat",
+      "notConfigured": "Neconfigurat"
+    },
+    "kind": {
+      "pass-through": "Acreditări pass-through",
+      "oauth-bearer": "Bearer OAuth",
+      "static-bearer": "Cheie Bearer statică"
+    },
+    "reason": {
+      "missing-credential": "Nicio acreditare stocată.",
+      "expired": "Acreditarea a expirat.",
+      "reauth-required": "Reautentificare necesară.",
+      "refresh-failed": "Reîmprospătarea tokenului a eșuat.",
+      "not-refreshable": "Acreditarea nu poate fi reîmprospătată.",
+      "unknown": "Stare necunoscută."
+    },
+    "status": {
+      "unconfigured": "Neconfigurat",
+      "authorized": "Autorizat",
+      "configured": "Configurat",
+      "expired": "Expirat",
+      "error": "Eroare"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Token de configurare",
+      "manual": "Manual"
+    },
+    "list": {
+      "empty": "Niciun cont stocat pentru acest furnizor.",
+      "active": "Activ",
+      "expiresAt": "Expiră {{value}}",
+      "setActive": "Setează ca activ",
+      "remove": "Eliminare",
+      "removeConfirmTitle": "Eliminați acest cont?",
+      "removeConfirmDesc": "Eliminarea \"{{name}}\" șterge acreditarea stocată. Această acțiune nu poate fi anulată.",
+      "title": "Conturi"
+    },
+    "write": {
+      "trigger": "Adaugă acreditare",
+      "title": "Scrie acreditare {{name}}",
+      "description": "Lipiți materialul de token deja obținut. Câmpurile sunt limitate la ce acceptă acest furnizor; tokenul este stocat, nu este afișat înapoi.",
+      "authMethod": "Metodă de autentificare",
+      "status": "Stare",
+      "subscriptionLevel": "Nivel abonament",
+      "subscriptionLevelNone": "Nesetat",
+      "submit": "Salvare acreditare"
+    },
+    "field": {
+      "accessToken": "Token de acces",
+      "refreshToken": "Token de reîmprospătare",
+      "idToken": "Token de identitate",
+      "apiKey": "Cheie API",
+      "expiresAt": "Expiră la (ISO)",
+      "setupTokenExpiresAt": "Tokenul de configurare expiră la (ISO)",
+      "accountId": "ID cont",
+      "email": "E-mail",
+      "organizationId": "ID organizație",
+      "baseUrl": "URL de bază",
+      "zenBaseUrl": "URL de bază Zen"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Acreditări de abonament Anthropic rutate de daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Acreditări de abonament OpenAI Codex rutate de daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Acreditări de abonament Google Gemini rutate de daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Acreditări cu cheie API statică rutate de daemon."
+      }
+    },
+    "authMethodLabel": "Metodă de autorizare",
+    "authMethodDesc": {
+      "oauth": "Autentificați-vă prin browser; daemon-ul captează și stochează tokenul.",
+      "manual": "Lipiți un token deja obținut. Este stocat, nu este afișat înapoi."
+    },
+    "actions": {
+      "authorize": "Autorizare",
+      "enterToken": "Introduceți tokenul",
+      "refresh": "Reîmprospătare"
+    },
+    "accounts": {
+      "addAccount": "Adaugă cont"
+    },
+    "detail": {
+      "authMethod": "Metodă de autorizare",
+      "subscriptionLevel": "Nivel abonament",
+      "expiresAt": "Expiră",
+      "lastRefreshed": "Ultima reîmprospătare",
+      "label": "Etichetă cont",
+      "labelPlaceholder": "Denumiți acest cont",
+      "saveLabel": "Salvare etichetă"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Deschideți pagina de autorizare",
+        "desc": "Deschideți pagina de autentificare în browser."
+      },
+      "step2": {
+        "title": "Autorizați accesul",
+        "desc": "Autentificați-vă și aprobați accesul pentru furnizor."
+      },
+      "step3": {
+        "title": "Copiați codul de autorizare",
+        "desc": "Pagina afișează un cod de autorizare după aprobare."
+      },
+      "step4": {
+        "title": "Lipiți codul",
+        "desc": "Lipiți codul de autorizare mai jos pentru a finaliza. Codul ajunge doar la daemon — tokenul emis nu este afișat niciodată."
+      },
+      "authorize": "Finalizare autentificare",
+      "showUrl": "Afișează URL de autorizare"
+    },
+    "manual": {
+      "title": "Lipire acreditare",
+      "description": "Lipiți un token deja obținut. Câmpurile sunt limitate la ce acceptă acest furnizor; tokenul este stocat, nu este afișat înapoi.",
+      "accessTokenPlaceholder": "Lipiți tokenul de acces",
+      "refreshTokenPlaceholder": "Lipiți tokenul de reîmprospătare (opțional)",
+      "hint": "Tokenul este trimis la daemon și stocat criptat. Nu este afișat înapoi."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "O cheie API este necesară.",
+      "apiKeyPlaceholder": "Lipiți cheia API",
+      "baseUrlPlaceholder": "https://… (opțional)",
+      "zenBaseUrlPlaceholder": "https://… (opțional)"
+    },
+    "info": {
+      "title": "Despre conturile de abonament",
+      "description": "Tokenurile sunt scrise în daemon și folosite pentru autentificarea cererilor upstream. Sunt stocate criptat și nu sunt afișate înapoi. Eliminarea unui cont șterge acreditarea stocată."
+    },
+    "rename": {
+      "failed": "Redenumirea contului a eșuat."
+    },
+    "refresh": {
+      "failed": "Reîmprospătarea tokenului a eșuat."
+    },
+    "errors": {
+      "requestFailed": "Cererea a eșuat. Vă rugăm să încercați din nou."
+    },
+    "syncWarning": {
+      "external-divergent": "Fișierul de autentificare al CLI-ului extern conține acreditări mai noi decât acest cont. Tokenul stocat ar putea să nu se mai reîmprospăteze — reîmprospătați acum sau autentificați-vă din nou.",
+      "external-not-rotated": "Reîmprospătarea a eșuat, iar CLI-ul extern conține aceleași acreditări expirate. Autentificați-vă din nou.",
+      "duplicate-token": "Un alt cont folosește aceleași acreditări. Reîmprospătarea unuia îl va deconecta pe celălalt."
+    },
+    "importExternal": {
+      "detected": "A fost găsită o autentificare CLI {{name}} existentă pe această mașină.",
+      "hint": "După import, această aplicație o menține actualizată: la fiecare reîmprospătare a tokenului se actualizează și fișierul de autentificare al CLI-ului, astfel încât CLI-ul din terminal rămâne conectat.",
+      "button": "Importă autentificarea CLI existentă"
+    }
+  },
+  "codeCli": {
+    "title": "CLI programare",
+    "description": "Îndreptați un CLI de programare către proxy-ul de ieșire al daemon-ului. Această pagină este doar pentru citire — nu există nimic de configurat aici.",
+    "copy": "Copiere",
+    "copied": "Copiat",
+    "baseUrl": {
+      "title": "URL de bază daemon",
+      "description": "Adresa proxy la care se conectează CLI-ul dvs.",
+      "label": "URL de bază"
+    },
+    "token": {
+      "title": "Autentificare",
+      "hint": "Trimiteți 'Authorization: Bearer <tokenul-admin>' pentru rutele de administrare. Tokenul admin este configurat în daemon (fișierul de configurare sau variabile de mediu) — nu este afișat aici."
+    },
+    "examples": {
+      "title": "Exemplu de mediu de lansare",
+      "keyNote": "Folosiți o cheie de acces de ieșire creată pe pagina Serviciu API — nu tokenul admin.",
+      "anthropic": "CLI format Anthropic",
+      "openai": "CLI format OpenAI"
+    },
+    "launchDescription": "Lansați un CLI de programare într-un terminal, îndreptat către acest daemon. Daemon-ul injectează env-ul de redirecționare și pornește CLI-ul pentru dvs.",
+    "refresh": "Reîmprospătare",
+    "loading": "Se detectează CLI-urile…",
+    "cli": {
+      "installed": "Instalat",
+      "notFound": "Negăsit",
+      "notFoundHint": "Acest CLI nu se află în PATH-ul gazdei daemon. Instalați-l, apoi reîmprospătați.",
+      "install": "Instalare",
+      "installing": "Se instalează…",
+      "installingHint": "Se instalează pe gazda daemon — poate dura un minut.",
+      "launch": "Lansare",
+      "launchTitle": "Lansare {{name}}",
+      "launchDescription": "Deschide un terminal nou pe gazda daemon care rulează acest CLI, rutat prin proxy-ul daemon. Alegeți un director de lucru opțional.",
+      "cwdLabel": "Director de lucru",
+      "cwdPlaceholder": "/cale/catre/proiect",
+      "runningVia": "Rulează · {{provider}} / {{model}}",
+      "stop": "Oprire"
+    },
+    "manual": {
+      "title": "Configurare manuală",
+      "description": "Preferați să rulați CLI-ul singur? Îndreptați-l către daemon cu aceste variabile de mediu.",
+      "show": "Afișare",
+      "hide": "Ascundere"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Se verifică daemon-ul…",
+    "spawning": "Se pornește daemon-ul…",
+    "failed": "Daemon-ul nu a putut porni",
+    "failedHint": "Asigurați-vă că Node.js este instalat și daemon-ul este compilat (dist prezent), sau setați OMNICROSS_DAEMON_ENTRY la calea cli.js a daemon-ului."
+  },
+  "settings": {
+    "title": "Setări",
+    "description": "Preferințe aplicație desktop.",
+    "desktopOnly": "Opțiunile de pornire și tavă se aplică doar în aplicația desktop.",
+    "startup": {
+      "title": "Pornire",
+      "autoLaunch": "Lansare la autentificare",
+      "autoLaunchHint": "Porniți Omnicross automat când vă autentificați.",
+      "startMinimized": "Porniți minimizat în tavă",
+      "startMinimizedHint": "Lansați în fundal fără a deschide fereastra."
+    },
+    "tray": {
+      "title": "Tavă sistem",
+      "minimizeOnClose": "Minimizați în tavă la închidere",
+      "minimizeOnCloseHint": "Închiderea ferestrei o ascunde în tavă în loc să închidă aplicația."
+    },
+    "language": {
+      "title": "Limbă",
+      "label": "Limba interfeței"
+    }
+  },
+  "usageStats": {
+    "title": "Statistici de utilizare",
+    "description": "Statistici de tokeni și costuri pentru cererile servite de daemon.",
+    "rangeToday": "Astăzi",
+    "range7d": "Ultimele 7 zile",
+    "range30d": "Ultimele 30 de zile",
+    "rangeCustom": "Personalizat",
+    "from": "De la",
+    "to": "Până la",
+    "totalCost": "Cost total",
+    "cacheSavings": "Economii cache",
+    "events": "Cereri",
+    "inputTokens": "Tokeni de intrare",
+    "outputTokens": "Tokeni de ieșire",
+    "cacheReadTokens": "Citire cache",
+    "cacheWriteTokens": "Scriere cache",
+    "reasoningTokens": "Tokeni de raționament",
+    "byModel": "Pe model",
+    "byApiKey": "Pe cheie API",
+    "provider": "Furnizor",
+    "model": "Model",
+    "cost": "Cost",
+    "apiKey": "Cheie API",
+    "unpriced": "Fără preț",
+    "unpricedHint": "Nu există o intrare de preț pentru acest model — adaugă una pe pagina Prețuri.",
+    "unattributed": "Neatribuit",
+    "unattributedHint": "Cereri nelegate de o cheie API anume. Este normal până când atribuirea per cheie este înregistrată.",
+    "empty": "Nicio cerere în acest interval.",
+    "invalidRange": "Selectează un interval de date valid."
+  },
+  "pricing": {
+    "title": "Prețurile modelelor",
+    "description": "Prețurile tokenilor per model folosite la calculul costului cererilor, în USD per milion de tokeni.",
+    "search": "Caută furnizor sau model…",
+    "fetchLatest": "Preia cele mai noi",
+    "fetching": "Se preia…",
+    "addEntry": "Adaugă intrare",
+    "provider": "Furnizor",
+    "model": "Model",
+    "inputPrice": "Intrare",
+    "outputPrice": "Ieșire",
+    "cacheReadPrice": "Citire cache",
+    "cacheWritePrice": "Scriere cache",
+    "source": "Sursă",
+    "updated": "Actualizat",
+    "userEdited": "editat",
+    "edit": "Editează",
+    "deleteTitle": "Ștergi intrarea de preț?",
+    "empty": "Tabelul de prețuri este gol.",
+    "emptyHint": "Preia cele mai noi prețuri pentru a-l popula.",
+    "noMatches": "Nicio intrare nu corespunde căutării.",
+    "saved": "Intrarea de preț a fost salvată.",
+    "saveFailed": "Salvarea a eșuat: {{message}}",
+    "deleteFailed": "Ștergerea a eșuat: {{message}}",
+    "alreadyDeleted": "Intrarea nu mai exista.",
+    "fetchApplied": "{{count}} intrări actualizate din sursă.",
+    "fetchFailed": "Preluarea a eșuat: {{message}}",
+    "requiredId": "Obligatoriu",
+    "invalidPrice": "Introdu un număr nenegativ",
+    "conflictTitle": "Rezolvă conflictele de preț",
+    "conflictHint": "Aceste intrări au fost editate de tine și s-au schimbat și la sursă. Alege pe fiecare rând dacă păstrezi valoarea ta (Omite) sau o preiei pe cea nouă (Suprascrie).",
+    "current": "Curent",
+    "incoming": "Primit",
+    "overwrite": "Suprascrie",
+    "skip": "Omite",
+    "overwriteAll": "Suprascrie tot",
+    "skipAll": "Omite tot",
+    "applyResolutions": "Aplică",
+    "resolved": "{{overwritten}} suprascrise, {{skipped}} omise.",
+    "resolvedWithStale": "{{overwritten}} suprascrise, {{skipped}} omise. {{stale}} s-au schimbat între timp și au rămas neatinse.",
+    "refreshFailed": "Modificarea a fost aplicată, dar reîncărcarea listei a eșuat: {{message}}",
+    "sourceBuiltin": "Încorporat",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Utilizator"
+  }
+}

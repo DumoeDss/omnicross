@@ -1,0 +1,68 @@
+{
+  "id": "baidu",
+  "presetId": "baidu",
+  "name": "百度千帆",
+  "nameKey": "presetName.baidu",
+  "apiFormat": "openai",
+  "api_base_url": "https://qianfan.baidubce.com/v2",
+  "codingPlanBaseUrl": "https://qianfan.baidubce.com/v2/coding",
+  "codingPlanSeparateKey": true,
+  "models": [
+    "qianfan-code-latest",
+    "ernie-4.5",
+    "ernie-3.5"
+  ],
+  "modelConfigs": [
+    {
+      "id": "qianfan-code-latest",
+      "name": "Auto (千帆)",
+      "enabled": true
+    },
+    {
+      "id": "ernie-4.5",
+      "name": "ERNIE 4.5",
+      "enabled": true
+    },
+    {
+      "id": "ernie-3.5",
+      "name": "ERNIE 3.5",
+      "enabled": true
+    }
+  ],
+  "description": "百度千帆大模型平台",
+  "icon": "baidu",
+  "website": "https://cloud.baidu.com",
+  "docsUrl": "https://cloud.baidu.com/doc/qianfan/s/imlg0beiu",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "vision",
+    "search",
+    "mcp-search"
+  ],
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://qianfan.baidubce.com/v2"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://qianfan.baidubce.com/v2/coding",
+      "note": "apiMode.baiduCodingPlanSeparateKey"
+    }
+  ],
+  "searchConfig": {
+    "type": "model-param",
+    "paramName": "web_search",
+    "paramValue": {
+      "enable": true,
+      "enable_citation": true
+    },
+    "applicableModels": [
+      "ernie-4.5",
+      "ernie-3.5"
+    ]
+  }
+}

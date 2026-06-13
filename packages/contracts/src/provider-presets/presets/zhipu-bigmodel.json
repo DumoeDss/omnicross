@@ -1,0 +1,99 @@
+{
+  "id": "zhipu-bigmodel",
+  "presetId": "zhipu",
+  "name": "智谱 GLM",
+  "nameKey": "presetName.zhipuBigmodel",
+  "apiFormat": "openai",
+  "api_base_url": "https://open.bigmodel.cn/api/paas/v4",
+  "codingPlanBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+  "modelsEndpoint": "https://open.bigmodel.cn/api/paas/v4/models",
+  "models": [
+    "glm-5",
+    "glm-5.1",
+    "glm-4.5-air",
+    "glm-4.6v",
+    "glm-4.7"
+  ],
+  "modelConfigs": [
+    {
+      "id": "glm-5",
+      "name": "GLM-5",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 200000,
+      "maxTokens": 128000,
+      "functionCall": true
+    },
+    {
+      "id": "glm-5.1",
+      "name": "GLM-5.1",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 200000,
+      "maxTokens": 128000,
+      "functionCall": true
+    },
+    {
+      "id": "glm-4.5-air",
+      "name": "GLM-4.5 Air",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 128000,
+      "maxTokens": 32768,
+      "functionCall": true
+    },
+    {
+      "id": "glm-4.6v",
+      "name": "GLM-4.6V",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 128000,
+      "maxTokens": 32768,
+      "vision": true,
+      "functionCall": true
+    },
+    {
+      "id": "glm-4.7",
+      "name": "GLM-4.7",
+      "enabled": true,
+      "category": "code",
+      "contextLength": 200000,
+      "maxTokens": 128000,
+      "functionCall": true
+    }
+  ],
+  "description": "智谱AI大模型开放平台 (bigmodel.cn 国内端点)",
+  "icon": "zhipu",
+  "website": "https://bigmodel.cn",
+  "docsUrl": "https://docs.bigmodel.cn",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "vision",
+    "mcp-search",
+    "mcp-vision"
+  ],
+  "searchConfig": {
+    "type": "builtin-tool",
+    "toolDefinition": {
+      "type": "web_search",
+      "web_search": {
+        "enable": true
+      }
+    },
+    "conflictsWithFC": false,
+    "applicableModels": null
+  },
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4"
+    }
+  ]
+}

@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Laster LLM-konfigurasjon...",
+    "reset": {
+      "button": "Gjenopprett standardinnstillinger",
+      "confirmTitle": "Gjenopprett standardinnstillinger?",
+      "confirmBody": "Dette fjerner tilpasningene dine for denne leverandøren slik at den følger de innebygde standardene igjen. API-nøkkelen din og lagrede sesjoner beholdes.",
+      "confirmButton": "Gjenopprett standardinnstillinger"
+    },
+    "reentryBanner": {
+      "message": "{{count}} aktivert(e) leverandør(er) trenger at API-nøkkelen angis på nytt. Åpne hver enkelt og legg til nøkkelen igjen."
+    },
+    "migrationPack": {
+      "barHint": "Flytt leverandørnøklene og abonnementstokenene dine til en annen maskin med en kryptert pakke.",
+      "passphrase": "Passfrase",
+      "passphrasePlaceholder": "Skriv inn en passfrase",
+      "passphraseHint": "Bruk minst 8 tegn; 12 eller flere anbefales.",
+      "confirm": "Bekreft passfrase",
+      "confirmPlaceholder": "Skriv inn passfransen på nytt",
+      "mismatch": "Passfrasene stemmer ikke overens.",
+      "strength": {
+        "weak": "For kort — bruk minst 8 tegn.",
+        "fair": "OK — 12 eller flere tegn er sterkere.",
+        "strong": "Sterk passfrase."
+      },
+      "export": {
+        "button": "Eksporter pakke",
+        "title": "Eksporter kryptert pakke",
+        "subtitle": "Krypter leverandørnøklene og abonnementstokenene dine til en portabel fil.",
+        "warning": "Denne filen inneholder dekrypterbare hemmeligheter. Oppbevar den trygt — alle med filen og passfransen kan lese nøklene dine. En mistet passfrase kan ikke gjenopprettes.",
+        "submit": "Eksporter",
+        "success": "Pakken ble eksportert.",
+        "error": "Eksporten mislyktes. Prøv igjen."
+      },
+      "import": {
+        "button": "Importer pakke",
+        "title": "Importer kryptert pakke",
+        "subtitle": "Gjenopprett leverandørnøkler og abonnementtoken fra en eksportert pakke.",
+        "hint": "Skriv inn passfransen som ble brukt da pakken ble eksportert, og velg deretter filen.",
+        "submit": "Importer",
+        "successTitle": "Import fullført",
+        "summary": "Importerte {{providerKeys}} leverandørnøkkel/nøkler, {{poolKeys}} poolnøkkel/nøkler og {{tokenSets}} tokensett.",
+        "duplicates": "Hoppet over {{count}} poolnøkkel/nøkler som allerede finnes.",
+        "skipped": "Hoppet over (ingen samsvarende leverandør): {{names}}",
+        "error": "Feil passfrase eller skadet pakke. Ingenting ble endret."
+      }
+    },
+    "searchPlaceholder": "Søk leverandører...",
+    "emptySearch": "Ingen leverandører samsvarer med søket ditt.",
+    "emptyList": "Ingen leverandører konfigurert.",
+    "selectPrompt": "Velg en leverandør for å se detaljer",
+    "listStatus": "{{count}} modell(er)",
+    "noModels": "Ingen modeller konfigurert",
+    "enabled": "Aktivert",
+    "disabled": "Deaktivert",
+    "showEnabledOnly": "Vis kun aktiverte",
+    "showAll": "Vis alle leverandører",
+    "dragHandle": "Dra for å endre rekkefølge",
+    "reorderFailed": "Kunne ikke lagre leverandørrekkefølgen",
+    "credentials": {
+      "apiKey": "API-nøkkel",
+      "apiBaseUrl": "API-basis-URL"
+    },
+    "filter": {
+      "all": "Alle",
+      "chat": "Chat",
+      "code": "Kode"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Velg en mal",
+      "skipTemplates": "Hopp over, konfigurer manuelt",
+      "name": "Navn *",
+      "providerType": "Type",
+      "apiType": "API-type",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standard OpenAI chat/completions API-format",
+        "claudecode": "Anthropic Messages API-format (Claude Code)"
+      },
+      "chatApiFormat": "API-format",
+      "chatApiFormatDescription": "Velg API-formatet som samsvarer med leverandørens endepunkt",
+      "apiKey": "API-nøkkel",
+      "apiKeyPlaceholder": "sk-... eller $ENV_VAR",
+      "apiKeyHelper": "Bruk $VAR_NAME for å referere til miljøvariabler",
+      "apiKeySetPlaceholder": "Nøkkel er angitt — la stå tomt for å beholde den",
+      "apiKeyReplaceHelper": "En nøkkel er lagret sikkert. Skriv en ny verdi for å erstatte den, eller la stå tomt for å beholde den.",
+      "testApiKey": "Test API-nøkkel",
+      "apiUrl": "API-URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Forhåndsvisning:",
+      "models": "Modeller",
+      "modelPlaceholder": "Modellnavn (f.eks. gpt-4, claude-3-opus)",
+      "transformers": "Transformatorer",
+      "transformerConfig": "API-transformatorer",
+      "transformerConfigDescription": "Konfigurer transformatorer for å tilpasse API-forespørsel-/svarformater for denne leverandøren",
+      "transformerConfigNote": "Daemonen bruker disse transformatorene i forespørselskjeden, etter leverandørens formatransformator (som håndterer konverteringen av trådformatet). Ukjente transformatornavn hoppes over.",
+      "enabled": "Aktivert",
+      "apiVersion": "API-versjon",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API-versjon (f.eks. 2024-08-01-preview)",
+      "official": "Offisielt Anthropic API",
+      "officialHelper": "Aktiver hvis denne leverandøren kobler direkte til det offisielle Anthropic API. Deaktiver for omvendte proxyer eller tredjepartstjenester.",
+      "maxConcurrency": "Maks samtidige forespørsler",
+      "maxConcurrencyHelper": "Maksimalt antall samtidige API-forespørsler sendt til denne leverandøren. Lavere verdier hjelper med å unngå hastighetsbegrensning (429-feil). Angi `-1` for ingen grense.",
+      "codingPlan": {
+        "label": "Kodingsplan",
+        "description": "Bruk et separat API-endepunkt for abonnementsbaserte kodingsplaner",
+        "baseUrl": "Kodingsplanens basis-URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Kodingsplanens API-nøkkel (valgfritt)",
+        "apiKeyPlaceholder": "La stå tomt for å bruke leverandørens API-nøkkel",
+        "apiKeyHelper": "Kreves kun hvis kodingsplanen bruker en annen API-nøkkel",
+        "tokenPlanHint": "Noen leverandører (f.eks. Xiaomi MiMo) utsteder Token Plan-nøkler med prefiks `tp-` — kun informativt, ikke håndhevet."
+      },
+      "selectTypeFirst": "Velg leverandørtype",
+      "selectTypeFirstDesc": "Velg hvilken type leverandør du vil legge til",
+      "codeProviderNote": "Kodeleverandører trenger bare API-nøkkel og URL. Modeller administreres av agentruteren.",
+      "buttons": {
+        "cancel": "Avbryt",
+        "submitAdd": "Legg til leverandør",
+        "submitUpdate": "Oppdater leverandør",
+        "continue": "Fortsett",
+        "back": "Tilbake"
+      }
+    },
+    "details": {
+      "noSelection": "Velg en leverandør for å se detaljer",
+      "apiKey": "API-nøkkel",
+      "apiUrl": "API-URL",
+      "nameLabel": "Leverandørnavn",
+      "modelsEndpoint": "Modellendepunkt",
+      "modelsEndpointHelper": "Overstyr oppdagelsesendepunktet hvis leverandøren eksponerer en egendefinert /models-sti.",
+      "models": "Modeller",
+      "transformers": "Transformatorer",
+      "codeProviderNote": "Kodeleverandører (som Claude Code) krever ikke modellkonfigurasjon. Modeller administreres automatisk av agentruteren.",
+      "buttons": {
+        "more": "Flere innstillinger",
+        "delete": "Slett"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Velg leverandør og modell",
+      "noProviders": "Ingen leverandører tilgjengelig",
+      "noModels": "Ingen modeller konfigurert"
+    },
+    "apiKeyPool": {
+      "title": "API-nøkkelpool",
+      "description": "Konfigurer flere API-nøkler for lastbalansering. Hver sesjon holder seg til én nøkkel for å bevare promptbufferen.",
+      "defaultLabel": "Standard",
+      "weight": "Vekt",
+      "noKey": "Ingen nøkkel",
+      "labelPlaceholder": "Etikett (f.eks. Nøkkel #1, Produksjon)",
+      "addKey": "Legg til API-nøkkel",
+      "add": "Legg til",
+      "empty": "Ingen ekstra nøkler konfigurert.",
+      "statusCoolingDown": "Nedkjøling {{time}}",
+      "statusAuthFailed": "Autentisering mislyktes · deaktivert",
+      "statusDisabled": "Deaktivert",
+      "statusHealthy": "Sunn",
+      "agoSeconds": "{{count}}s siden",
+      "agoMinutes": "{{count}}m siden",
+      "agoHours": "{{count}}t siden",
+      "agoDays": "{{count}}d siden"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Søk modeller...",
+      "defaultGroup": "Alle modeller",
+      "add": "Legg til modell",
+      "manage": "Administrer",
+      "empty": "Ingen modeller i denne gruppen",
+      "enabled": "Aktivert",
+      "disabled": "Deaktivert",
+      "filters": {
+        "all": "Alle",
+        "vision": "Visjon",
+        "reasoning": "Resonnering",
+        "free": "Gratis",
+        "tools": "Verktøy"
+      },
+      "manualDialog": {
+        "title": "Legg til modell",
+        "subtitle": "Legg til en egendefinert modell til denne leverandøren",
+        "modelId": "Modell-ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, osv.",
+        "modelIdHelper": "Den nøyaktige modellidentifikatoren som brukes ved kall til API-et",
+        "modelName": "Visningsnavn",
+        "modelNamePlaceholder": "Vennlig visningsnavn (valgfritt)",
+        "modelNameHelper": "Valgfritt navn vist i grensesnittet. Hvis tomt brukes Modell-ID",
+        "group": "Gruppe",
+        "groupPlaceholder": "Velg eller skriv inn et gruppenavn",
+        "submit": "Legg til",
+        "cancel": "Avbryt",
+        "helper": "Oppgi den nøyaktige modellidentifikatoren eksponert av leverandørens API."
+      },
+      "editDialog": {
+        "title": "Rediger modell",
+        "subtitle": "Endre modellinnstillinger",
+        "modelId": "Modell-ID",
+        "modelIdPlaceholder": "Modellidentifikator",
+        "modelIdHelper": "Modellidentifikatoren som brukes ved kall til API-et",
+        "modelName": "Visningsnavn",
+        "modelNamePlaceholder": "Vennlig visningsnavn",
+        "modelNameHelper": "Navn vist i grensesnittet",
+        "group": "Gruppe",
+        "groupPlaceholder": "Velg eller skriv inn et gruppenavn",
+        "submit": "Lagre",
+        "cancel": "Avbryt",
+        "vision": "Visjonsfunksjon",
+        "visionHint": "Om denne modellen støtter bilde-/visjonsinput",
+        "reasoning": "Tenkende modell",
+        "reasoningHint": "Om denne modellen støtter tenke-/resonneringsmodus"
+      },
+      "manageDialog": {
+        "title": "Administrer modeller",
+        "cachedAt": "Bufret {{date}} ({{source}})",
+        "refresh": "Oppdater",
+        "close": "Lukk",
+        "raw": "Rå JSON",
+        "empty": "Ingen eksterne modeller tilgjengelig.",
+        "error": "Kunne ikke laste modeller: {{message}}",
+        "addFromCatalog": "Legg til",
+        "sourceCache": "buffer",
+        "sourceNetwork": "live",
+        "contextLength": "Kontekst {{value}} tokens",
+        "maxTokens": "Maks {{value}} tokens"
+      },
+      "messages": {
+        "added": "Modell lagt til.",
+        "updated": "Modell oppdatert.",
+        "removed": "Modell fjernet.",
+        "duplicate": "Modellen finnes allerede.",
+        "refreshed": "Modeller oppdatert",
+        "refreshFailed": "Kunne ikke oppdatere modeller"
+      },
+      "testDialog": {
+        "title": "Tilkoblingstest for modell",
+        "provider": "Leverandør",
+        "model": "Modell",
+        "testing": "Tester...",
+        "success": "Test vellykket",
+        "successMessage": "Modellen kan nås normalt",
+        "failure": "Test mislyktes",
+        "aiResponse": "AI-svar",
+        "charCount": "{{count}} tegn",
+        "duration": "Varighet {{time}}s",
+        "close": "Lukk",
+        "retest": "Test på nytt",
+        "testButton": "Test modell",
+        "unsupportedFormat": "Testing støttes ikke ennå for dette leverandørformatet."
+      }
+    },
+    "router": {
+      "title": "Ruterkonfigurasjon",
+      "description": "Konfigurer hvilken leverandør/modell som skal brukes for ulike scenarier.",
+      "labels": {
+        "default": "Standard",
+        "background": "bakgrunn",
+        "think": "tenke",
+        "longContext": "Lang kontekst",
+        "webSearch": "Nettsøk",
+        "image": "Bilde",
+        "longContextThreshold": "Terskel for lang kontekst"
+      },
+      "helper": {
+        "longContextThreshold": "Antall tokens før bytte til modellen med lang kontekst."
+      },
+      "placeholder": {
+        "required": "Obligatorisk",
+        "optional": "Valgfritt"
+      }
+    },
+    "agentRouter": {
+      "title": "Agentruter",
+      "description": "Konfigurer toveis ruting mellom chat- og kodemodus.",
+      "searchPlaceholder": "Søk rutere...",
+      "noSearchResults": "Ingen rutere samsvarer med søket ditt.",
+      "tabs": {
+        "chatToCode": "Chat → Kode",
+        "codeToChatPlaceholder": "Kode → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat til kode-ruter",
+        "description": "Bruk chatleverandører i agent-/kodingsmodus",
+        "addRouter": "Legg til ruter",
+        "emptyState": "Ingen Chat→Kode-rutere konfigurert. Legg til en for å bruke chatleverandører i kodingsmodus.",
+        "form": {
+          "name": "Ruternavn",
+          "namePlaceholder": "Min Chat→Kode-ruter",
+          "chatProvider": "Chatleverandør",
+          "chatProviderPlaceholder": "Velg en chatleverandør",
+          "mode": "Modus",
+          "modeSimple": "Enkel",
+          "modeAdvanced": "Avansert",
+          "modeSimpleDesc": "Direkte gjennomstrømning til chatleverandør",
+          "modeAdvancedDesc": "Konfigurer modellmapping og konteksthåndtering",
+          "enabled": "Aktivert",
+          "save": "Lagre ruter",
+          "cancel": "Avbryt"
+        },
+        "list": {
+          "provider": "Leverandør",
+          "mode": "Modus",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Modellmappinger",
+          "description": "Koble chatleverandørmodeller til kodeleverandørmodeller",
+          "count": "mapping(er)",
+          "empty": "Ingen modellmappinger konfigurert. Legg til mappinger for å rute chatmodeller til kodeleverandører.",
+          "addNew": "Legg til ny mapping",
+          "selectSource": "Velg kildemodell (Chat)",
+          "selectTarget": "Velg målmodell (Kode)",
+          "targetPlaceholder": "Skriv inn Claude Code-modellnavn",
+          "notSet": "(Ikke angitt — klikk for å velge)",
+          "add": "Legg til",
+          "edit": "Rediger",
+          "done": "Ferdig"
+        },
+        "advanced": {
+          "title": "Avansert konfigurasjon",
+          "description": "Konfigurer modeller for ulike oppgavetyper",
+          "helpText": "Standardmodell er obligatorisk. Andre modeller er valgfrie og faller tilbake til standard hvis ikke konfigurert.",
+          "default": {
+            "label": "Standard",
+            "placeholder": "Velg standardmodell",
+            "description": "Primærmodell for generelle oppgaver (lignende Claude Sonnet)"
+          },
+          "background": {
+            "label": "Bakgrunn",
+            "placeholder": "Velg bakgrunnsmodell",
+            "description": "Lett modell for bakgrunnsoppgaver (lignende Claude Haiku)"
+          },
+          "think": {
+            "label": "Tenke",
+            "placeholder": "Velg tenkende modell",
+            "description": "Avansert modell for kompleks resonnering (lignende Claude Opus)"
+          },
+          "image": {
+            "label": "Bilde",
+            "placeholder": "Velg bildemodell",
+            "description": "Modell for bilderelaterte oppgaver med visjonsfunksjon"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Kode til chat-ruter",
+        "description": "Eksponer kodingsplanmodeller i chatmodus",
+        "addRouter": "Legg til ruter",
+        "emptyState": "Ingen Kode→Chat-rutere konfigurert. Legg til en for å eksponere kodingsplanmodeller i chatmodus.",
+        "form": {
+          "name": "Ruternavn",
+          "namePlaceholder": "Min Kode→Chat-ruter",
+          "codeProvider": "Kodeleverandør",
+          "codeProviderPlaceholder": "Velg en kodeleverandør",
+          "codeProviderHelper": "Velg kodeleverandøren som skal brukes til transformasjon",
+          "models": "Kodingsplanmodeller",
+          "modelsHelper": "Velg hvilke kodingsplanmodeller som skal eksponeres",
+          "enabled": "Aktivert",
+          "save": "Lagre ruter",
+          "cancel": "Avbryt"
+        },
+        "mappings": {
+          "title": "Modellmappinger",
+          "description": "Koble kodeleverandørmodeller til chatleverandørmodeller for eksponering",
+          "count": "mapping(er)",
+          "empty": "Ingen modellmappinger konfigurert. Legg til mappinger for å eksponere kodemodeller i chatmodus.",
+          "addNew": "Legg til ny mapping",
+          "selectSource": "Velg kildemodell (Kode)",
+          "selectTarget": "Velg målmodell (Chat)",
+          "sourcePlaceholder": "Skriv inn kildemodellnavn",
+          "targetPlaceholder": "Skriv inn målmodellnavn",
+          "add": "Legg til",
+          "edit": "Rediger",
+          "done": "Ferdig"
+        }
+      },
+      "transformers": {
+        "title": "Transformatorer",
+        "description": "Konfigurer transformatorer for forespørsel-/svarkonvertering",
+        "noProvider": "Velg en leverandør for å konfigurere transformatorer",
+        "empty": "Ingen transformatorer",
+        "count": "{{count}} transformator(er)"
+      },
+      "status": {
+        "enabled": "Aktivert",
+        "disabled": "Deaktivert"
+      },
+      "messages": {
+        "routerAdded": "Ruter lagt til",
+        "routerUpdated": "Ruter oppdatert",
+        "routerDeleted": "Ruter slettet",
+        "saveFailed": "Kunne ikke lagre ruteren"
+      }
+    },
+    "presets": {
+      "title": "Legg til leverandør raskt",
+      "added": "Lagt til",
+      "add": "Legg til",
+      "features": {
+        "search": "Søk",
+        "vision": "Visjon",
+        "mcp": "MCP",
+        "codingPlan": "Kodingsplan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Er du sikker på at du vil slette denne leverandøren?"
+    },
+    "errors": {
+      "nameRequired": "Leverandørnavn er påkrevd",
+      "urlRequired": "API-basis-URL er påkrevd",
+      "urlInvalid": "Skriv inn en gyldig URL (f.eks. https://api.example.com)",
+      "saveFailed": "Kunne ikke lagre leverandøren",
+      "deleteFailed": "Feil ved sletting av leverandør. Prøv igjen.",
+      "toggleFailed": "Feil ved aktivering/deaktivering av leverandør. Prøv igjen."
+    },
+    "openRouter": {
+      "title": "OpenRouter-leverandørruting",
+      "description": "Konfigurer hvordan forespørsler rutes til ulike leverandører på OpenRouter.",
+      "sort": "Rutingstrategi",
+      "sortTooltip": "Velg hvordan leverandører skal prioriteres. Auto bruker intelligent lastbalansering.",
+      "order": "Leverandørprioriteringsrekkefølge",
+      "orderTooltip": "Angi leverandører å prøve i rekkefølge (f.eks. anthropic, openai, together). Trykk Enter for å legge til.",
+      "orderPlaceholder": "Skriv leverandørens slug og trykk Enter...",
+      "allowFallbacks": "Tillat reserveløsninger",
+      "allowFallbacksTooltip": "Når aktivert vil OpenRouter prøve reserveleverandører hvis den primære er utilgjengelig.",
+      "requireParameters": "Krev alle parametere",
+      "requireParametersTooltip": "Rut bare til leverandører som støtter alle parametere i forespørselen din.",
+      "dataCollection": "Datainnsamlingspolicy",
+      "dataCollectionTooltip": "Kontroller om leverandører som kan lagre eller trene på dataene dine skal brukes.",
+      "zdr": "Null datalagring",
+      "zdrTooltip": "Rut bare til endepunkter med policy for null datalagring.",
+      "only": "Tillat bare leverandører",
+      "onlyTooltip": "Bruk bare disse spesifikke leverandørene. La stå tomt for å tillate alle leverandører.",
+      "onlyPlaceholder": "Skriv leverandørens slug og trykk Enter...",
+      "ignore": "Ignorer leverandører",
+      "ignoreTooltip": "Hopp over disse leverandørene ved ruting av forespørsler.",
+      "ignorePlaceholder": "Skriv leverandørens slug og trykk Enter...",
+      "quantizations": "Kvantiseringsfilter",
+      "quantizationsTooltip": "Bruk bare leverandører med spesifikke kvantiseringsnivåer. Lavere presisjon kan redusere kvaliteten, men forbedre hastigheten.",
+      "maxPrice": "Maksimalpris",
+      "maxPriceTooltip": "Angi maksimale prisgrenser per million tokens. La stå tomt for ingen grense.",
+      "configured": "Konfigurert"
+    }
+  },
+  "apiMode": {
+    "label": "API-modus",
+    "standard": "Standard",
+    "codingPlan": "Kodingsplan",
+    "tokenPlan": "Tokenplan",
+    "apiKeyPrefixHint": "Nøkler for denne planen begynner vanligvis med `{{prefix}}`. Kun informativt — ikke håndhevet.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Kodingsplan bruker en separat API-nøkkel fra standardendepunktet.",
+    "baiduCodingPlanSeparateKey": "Qianfan Kodingsplan bruker en separat API-nøkkel fra standardendepunktet.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Tokenplan er kun Anthropic-protokoll.",
+    "xiaomiTokenPlanRegions": "Standard baseUrl er `token-plan-cn.*`. Du kan redigere den manuelt til `token-plan-sgp.*` eller `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Bytte API-modus?",
+    "confirmOverwriteBody": "Du har tilpasset API-URL-en eller API-nøkkelen. Bytting av modus vil overskrive dem med den nye modusens standardverdier — eller behold tilpasningene dine og oppdater bare modusetiketten.",
+    "overwriteAndSwitch": "Overskriv og bytt",
+    "keepCustomizations": "Behold tilpasninger"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Tokenplan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Avbryt",
+    "close": "Lukk",
+    "copy": "Kopier",
+    "delete": "Slett",
+    "dismiss": "Avvis",
+    "save": "Lagre",
+    "optional": "valgfritt",
+    "retry": "Prøv igjen",
+    "loading": "Laster…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentasjon"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Støttes ikke ennå av daemonen",
+    "discoveryUnsupportedFormat": "Modelloppdagelse støttes ikke ennå for dette leverandørformatet. Legg til modeller manuelt."
+  },
+  "nav": {
+    "subtitle": "Kontrollpanel",
+    "providers": "Leverandører",
+    "apiService": "API-tjeneste",
+    "accounts": "Kontoer",
+    "codeCli": "Kode-CLI",
+    "settings": "Innstillinger",
+    "usageStats": "Bruk",
+    "pricing": "Priser"
+  },
+  "apiService": {
+    "title": "API-tjeneste",
+    "description": "Konfigurer den utgående API-serveren, modellruting per endepunkt og navngitte tilgangsnøkler.",
+    "loading": "Laster serverkonfigurasjon…",
+    "loadError": "Kunne ikke laste serverkonfigurasjonen. Kontroller at daemonen er nåbar.",
+    "enable": {
+      "label": "Aktiver utgående server",
+      "description": "Start den lokale API-serveren som ruter eksterne anrop gjennom leverandørene dine."
+    },
+    "networkBinding": {
+      "label": "Tillat LAN-tilgang",
+      "description": "Bind serveren til nettverksgrensesnittet ditt i stedet for kun loopback.",
+      "warning": "LAN-tilgang eksponerer API-serveren for andre enheter i nettverket ditt. Kombinert med abonnementsruting kan forespørsler forbruke abonnementskvoten din — hold dette av med mindre du stoler på nettverket."
+    },
+    "status": {
+      "running": "Server kjører",
+      "stopped": "Server stoppet",
+      "runningHint": "Den utgående API-serveren tar imot forespørsler.",
+      "stoppedHint": "Aktiver serveren for å begynne å ta imot forespørsler.",
+      "port": "port {{port}}",
+      "loopback": "Loopback-URL-er",
+      "lan": "LAN-URL-er"
+    },
+    "endpoints": {
+      "title": "Endepunktruting",
+      "description": "Velg modellen hvert trådformat rutes til. Standardmodellen inngår her — serveren er en ruter, ikke en chat-app."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Standardmodell",
+      "backgroundModel": "Bakgrunnsmodell",
+      "visionModel": "Visjonsmodell",
+      "noVisionModel": "Ingen",
+      "backgroundModelIds": "Bakgrunnsmodell-ID-er",
+      "backgroundModelIdsPlaceholder": "kommaseparerte modell-ID-er",
+      "modelPlaceholder": "Velg en modell…",
+      "useSubscription": "Bruk abonnement",
+      "subscriptionUnsupported": "Abonnementsruting er ikke tilgjengelig for dette endepunktet."
+    },
+    "keys": {
+      "title": "Tilgangsnøkler",
+      "description": "Navngitte nøkler som eksterne anropere sender som en Bearer-token. Den fullstendige nøkkelen vises bare én gang ved opprettelse.",
+      "namePlaceholder": "Nøkkelnavn (f.eks. mitt-cli)",
+      "create": "Opprett nøkkel",
+      "empty": "Ingen tilgangsnøkler ennå.",
+      "enabled": "Aktivert",
+      "disabled": "Deaktivert",
+      "revoked": "Tilbakekalt",
+      "toggle": "Slå av/på nøkkel",
+      "revoke": "Tilbakekall",
+      "revokeConfirmTitle": "Tilbakekalle denne nøkkelen?",
+      "revokeConfirmDesc": "Tilbakekalling av \"{{name}}\" stopper umiddelbart autentisering. Dette kan ikke angres.",
+      "created": {
+        "title": "Nøkkel opprettet",
+        "warning": "Kopier denne nøkkelen nå — den vil ikke vises igjen. Oppbevar den trygt.",
+        "copy": "Kopier",
+        "copied": "Kopiert",
+        "dismiss": "Ferdig"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Kontoer og abonnementer",
+    "description": "Administrer abonnementslegitimasjonen serveren ruter gjennom. Tokens skrives her, men vises aldri tilbake.",
+    "loading": "Laster kontoer…",
+    "empty": "Ingen abonnementsleverandører er tilgjengelige.",
+    "signIn": "Logg inn",
+    "oauth": {
+      "title": "Logg inn på {{name}}",
+      "description": "Åpne innloggingssiden i nettleseren din, autoriser, og lim deretter inn autorisasjonskoden nedenfor. Koden sendes kun til daemonen — det pregede tokenet vises aldri.",
+      "openPage": "Åpne innloggingsside",
+      "codeLabel": "Autorisasjonskode",
+      "codePlaceholder": "Lim inn koden her",
+      "submit": "Fullfør innlogging"
+    },
+    "codexOauth": {
+      "title": "Logg inn på {{name}}",
+      "description": "Åpne innloggingssiden i nettleseren din og autoriser. Daemonen fanger opp resultatet automatisk — hold denne åpen til det er fullført. Tokenet vises aldri.",
+      "waiting": "Venter på at du fullfører innloggingen i nettleseren din…",
+      "failed": "Innlogging mislyktes. Prøv igjen."
+    },
+    "clearProvider": "Fjern alle",
+    "clearConfirmTitle": "Fjern {{name}}-kontoer?",
+    "clearConfirmDesc": "Dette fjerner alle lagrede legitimasjoner for denne leverandøren. Dette kan ikke angres.",
+    "credential": {
+      "ok": "Konfigurert",
+      "notConfigured": "Ikke konfigurert"
+    },
+    "kind": {
+      "pass-through": "Gjennomstrømningslegitimasjon",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Statisk bearer-nøkkel"
+    },
+    "reason": {
+      "missing-credential": "Ingen legitimasjon lagret.",
+      "expired": "Legitimasjonen har utløpt.",
+      "reauth-required": "Re-autentisering kreves.",
+      "refresh-failed": "Tokenoppdatering mislyktes.",
+      "not-refreshable": "Legitimasjonen kan ikke oppdateres.",
+      "unknown": "Status ukjent."
+    },
+    "status": {
+      "unconfigured": "Ukonfigurert",
+      "authorized": "Autorisert",
+      "configured": "Konfigurert",
+      "expired": "Utløpt",
+      "error": "Feil"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Oppsetttoken",
+      "manual": "Manuell"
+    },
+    "list": {
+      "empty": "Ingen kontoer lagret for denne leverandøren.",
+      "active": "Aktiv",
+      "expiresAt": "Utløper {{value}}",
+      "setActive": "Angi som aktiv",
+      "remove": "Fjern",
+      "removeConfirmTitle": "Fjerne denne kontoen?",
+      "removeConfirmDesc": "Fjerning av \"{{name}}\" sletter den lagrede legitimasjonen. Dette kan ikke angres.",
+      "title": "Kontoer"
+    },
+    "write": {
+      "trigger": "Legg til legitimasjon",
+      "title": "Skriv {{name}}-legitimasjon",
+      "description": "Lim inn allerede innhentet tokenmateriale. Feltene er begrenset til hva denne leverandøren aksepterer; tokenet lagres, vises aldri tilbake.",
+      "authMethod": "Autentiseringsmetode",
+      "status": "Status",
+      "subscriptionLevel": "Abonnementsnivå",
+      "subscriptionLevelNone": "Ikke angitt",
+      "submit": "Lagre legitimasjon"
+    },
+    "field": {
+      "accessToken": "Tilgangstoken",
+      "refreshToken": "Oppdateringstoken",
+      "idToken": "ID-token",
+      "apiKey": "API-nøkkel",
+      "expiresAt": "Utløper (ISO)",
+      "setupTokenExpiresAt": "Oppsetttoken utløper (ISO)",
+      "accountId": "Konto-ID",
+      "email": "E-post",
+      "organizationId": "Organisasjons-ID",
+      "baseUrl": "Basis-URL",
+      "zenBaseUrl": "Zen basis-URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic-abonnementslegitimasjon rutet av daemonen."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex-abonnementslegitimasjon rutet av daemonen."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini-abonnementslegitimasjon rutet av daemonen."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statisk API-nøkkellegitimasjon rutet av daemonen."
+      }
+    },
+    "authMethodLabel": "Autorisasjonsmetode",
+    "authMethodDesc": {
+      "oauth": "Logg inn via nettleseren; daemonen fanger opp og lagrer tokenet.",
+      "manual": "Lim inn et allerede innhentet token. Det lagres, vises aldri tilbake."
+    },
+    "actions": {
+      "authorize": "Autoriser",
+      "enterToken": "Skriv inn token",
+      "refresh": "Oppdater"
+    },
+    "accounts": {
+      "addAccount": "Legg til konto"
+    },
+    "detail": {
+      "authMethod": "Autorisasjonsmetode",
+      "subscriptionLevel": "Abonnementsnivå",
+      "expiresAt": "Utløper",
+      "lastRefreshed": "Sist oppdatert",
+      "label": "Kontoetikett",
+      "labelPlaceholder": "Gi denne kontoen et navn",
+      "saveLabel": "Lagre etikett"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Åpne autorisasjonssiden",
+        "desc": "Åpne innloggingssiden i nettleseren din."
+      },
+      "step2": {
+        "title": "Autoriser tilgang",
+        "desc": "Logg inn og godkjenn tilgang for leverandøren."
+      },
+      "step3": {
+        "title": "Kopier autorisasjonskoden",
+        "desc": "Siden viser en autorisasjonskode etter at du godkjenner."
+      },
+      "step4": {
+        "title": "Lim inn koden",
+        "desc": "Lim inn autorisasjonskoden nedenfor for å fullføre. Koden sendes kun til daemonen — det pregede tokenet vises aldri."
+      },
+      "authorize": "Fullfør innlogging",
+      "showUrl": "Vis autorisasjons-URL"
+    },
+    "manual": {
+      "title": "Lim inn legitimasjon",
+      "description": "Lim inn et allerede innhentet token. Feltene er begrenset til hva denne leverandøren aksepterer; tokenet lagres, vises aldri tilbake.",
+      "accessTokenPlaceholder": "Lim inn tilgangstokenet",
+      "refreshTokenPlaceholder": "Lim inn oppdateringstokenet (valgfritt)",
+      "hint": "Tokenet sendes til daemonen og lagres kryptert. Det vises aldri tilbake."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "En API-nøkkel er påkrevd.",
+      "apiKeyPlaceholder": "Lim inn API-nøkkelen",
+      "baseUrlPlaceholder": "https://… (valgfritt)",
+      "zenBaseUrlPlaceholder": "https://… (valgfritt)"
+    },
+    "info": {
+      "title": "Om abonnementskontoer",
+      "description": "Tokens skrives til daemonen og brukes til å autentisere oppstrømsforespørsler. De lagres kryptert og vises aldri tilbake. Fjerning av en konto sletter den lagrede legitimasjonen."
+    },
+    "rename": {
+      "failed": "Kunne ikke gi nytt navn til kontoen."
+    },
+    "refresh": {
+      "failed": "Kunne ikke oppdatere tokenet."
+    },
+    "errors": {
+      "requestFailed": "Forespørselen mislyktes. Prøv igjen."
+    },
+    "syncWarning": {
+      "external-divergent": "Den eksterne CLI-påloggingsfilen inneholder nyere legitimasjon enn denne kontoen. Det lagrede tokenet kan slutte å fornyes — forny nå eller logg inn på nytt.",
+      "external-not-rotated": "Fornyelsen mislyktes, og den eksterne CLI-en inneholder den samme utløpte legitimasjonen. Logg inn på nytt.",
+      "duplicate-token": "En annen konto deler denne legitimasjonen. Fornyelse av den ene logger den andre ut."
+    },
+    "importExternal": {
+      "detected": "En eksisterende {{name}}-CLI-pålogging ble funnet på denne maskinen.",
+      "hint": "Etter importen holder denne appen den oppdatert: ved hver tokenfornyelse oppdateres også CLI-påloggingsfilen, slik at CLI-en i terminalen forblir pålogget.",
+      "button": "Importer eksisterende CLI-pålogging"
+    }
+  },
+  "codeCli": {
+    "title": "Kode-CLI",
+    "description": "Pek et kodnings-CLI mot daemonens utgående proxy. Denne siden er skrivebeskyttet — det er ingenting å konfigurere her.",
+    "copy": "Kopier",
+    "copied": "Kopiert",
+    "baseUrl": {
+      "title": "Daemonens basis-URL",
+      "description": "Proxyadressen CLI-et ditt kobler til.",
+      "label": "Basis-URL"
+    },
+    "token": {
+      "title": "Autentisering",
+      "hint": "Send 'Authorization: Bearer <din-admin-token>' for adminruter. Admin-tokenet konfigureres i daemonen (konfigurasjonsfilen eller miljøet) — det vises aldri her."
+    },
+    "examples": {
+      "title": "Eksempel på startmiljø",
+      "keyNote": "Bruk en utgående tilgangsnøkkel opprettet på API-tjenestesiden — ikke admin-tokenet.",
+      "anthropic": "Anthropic-format CLI",
+      "openai": "OpenAI-format CLI"
+    },
+    "launchDescription": "Start et kodnings-CLI i en terminal, pekt mot denne daemonen. Daemonen injiserer omdirigeringsmiljøet og starter CLI-et for deg.",
+    "refresh": "Oppdater",
+    "loading": "Oppdager CLI-er…",
+    "cli": {
+      "installed": "Installert",
+      "notFound": "Ikke funnet",
+      "notFoundHint": "Dette CLI-et finnes ikke i daemonvertens PATH. Installer det, og oppdater deretter.",
+      "install": "Installer",
+      "installing": "Installerer…",
+      "installingHint": "Installerer på daemonverten — dette kan ta et minutt.",
+      "launch": "Start",
+      "launchTitle": "Start {{name}}",
+      "launchDescription": "Åpner en ny terminal på daemonverten som kjører dette CLI-et, rutet gjennom daemonproxyen. Velg en valgfri arbeidsmappe.",
+      "cwdLabel": "Arbeidsmappe",
+      "cwdPlaceholder": "/sti/til/prosjektet/ditt",
+      "runningVia": "Kjører · {{provider}} / {{model}}",
+      "stop": "Stopp"
+    },
+    "manual": {
+      "title": "Manuelt oppsett",
+      "description": "Foretrekker du å kjøre CLI-et selv? Pek det mot daemonen med disse miljøvariablene.",
+      "show": "Vis",
+      "hide": "Skjul"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Søker etter daemonen…",
+    "spawning": "Starter daemonen…",
+    "failed": "Daemonen kunne ikke starte",
+    "failedHint": "Kontroller at Node.js er installert og at daemonen er bygget (dist til stede), eller angi OMNICROSS_DAEMON_ENTRY til daemonens cli.js."
+  },
+  "settings": {
+    "title": "Innstillinger",
+    "description": "Preferanser for skrivebordsprogrammet.",
+    "desktopOnly": "Start- og systemstatusfeltalternativer gjelder bare i skrivebordsprogrammet.",
+    "startup": {
+      "title": "Oppstart",
+      "autoLaunch": "Start ved innlogging",
+      "autoLaunchHint": "Start Omnicross automatisk når du logger inn.",
+      "startMinimized": "Start minimert til systemstatusfeltet",
+      "startMinimizedHint": "Start i bakgrunnen uten å åpne vinduet."
+    },
+    "tray": {
+      "title": "Systemstatusfelt",
+      "minimizeOnClose": "Minimer til systemstatusfeltet ved lukking",
+      "minimizeOnCloseHint": "Lukking av vinduet skjuler det i systemstatusfeltet i stedet for å avslutte."
+    },
+    "language": {
+      "title": "Språk",
+      "label": "Grensesnittspråk"
+    }
+  },
+  "usageStats": {
+    "title": "Bruksstatistikk",
+    "description": "Token- og kostnadsstatistikk for forespørsler håndtert av daemonen.",
+    "rangeToday": "I dag",
+    "range7d": "Siste 7 dager",
+    "range30d": "Siste 30 dager",
+    "rangeCustom": "Egendefinert",
+    "from": "Fra",
+    "to": "Til",
+    "totalCost": "Total kostnad",
+    "cacheSavings": "Cache-besparelse",
+    "events": "Forespørsler",
+    "inputTokens": "Inndata-token",
+    "outputTokens": "Utdata-token",
+    "cacheReadTokens": "Cache-lesing",
+    "cacheWriteTokens": "Cache-skriving",
+    "reasoningTokens": "Resonnering-token",
+    "byModel": "Per modell",
+    "byApiKey": "Per API-nøkkel",
+    "provider": "Leverandør",
+    "model": "Modell",
+    "cost": "Kostnad",
+    "apiKey": "API-nøkkel",
+    "unpriced": "Uten pris",
+    "unpricedHint": "Det finnes ingen prisoppføring for denne modellen — legg til en på Priser-siden.",
+    "unattributed": "Ikke tilordnet",
+    "unattributedHint": "Forespørsler som ikke er knyttet til en bestemt API-nøkkel. Dette er forventet til tilordning per nøkkel registreres.",
+    "empty": "Ingen forespørsler i dette intervallet.",
+    "invalidRange": "Velg et gyldig datointervall."
+  },
+  "pricing": {
+    "title": "Modellpriser",
+    "description": "Tokenpriser per modell for kostnadsberegning, i USD per million token.",
+    "search": "Søk etter leverandør eller modell…",
+    "fetchLatest": "Hent siste",
+    "fetching": "Henter…",
+    "addEntry": "Legg til oppføring",
+    "provider": "Leverandør",
+    "model": "Modell",
+    "inputPrice": "Inndata",
+    "outputPrice": "Utdata",
+    "cacheReadPrice": "Cache-lesing",
+    "cacheWritePrice": "Cache-skriving",
+    "source": "Kilde",
+    "updated": "Oppdatert",
+    "userEdited": "redigert",
+    "edit": "Rediger",
+    "deleteTitle": "Slette prisoppføringen?",
+    "empty": "Pristabellen er tom.",
+    "emptyHint": "Hent de nyeste prisene for å fylle den.",
+    "noMatches": "Ingen oppføringer samsvarer med søket.",
+    "saved": "Prisoppføring lagret.",
+    "saveFailed": "Lagring mislyktes: {{message}}",
+    "deleteFailed": "Sletting mislyktes: {{message}}",
+    "alreadyDeleted": "Oppføringen fantes ikke lenger.",
+    "fetchApplied": "{{count}} oppføringer oppdatert fra kilden.",
+    "fetchFailed": "Henting mislyktes: {{message}}",
+    "requiredId": "Påkrevd",
+    "invalidPrice": "Angi et ikke-negativt tall",
+    "conflictTitle": "Løs priskonflikter",
+    "conflictHint": "Disse oppføringene er redigert av deg og har også endret seg i kilden. Velg per rad om du vil beholde din verdi (Hopp over) eller ta den innkommende (Overskriv).",
+    "current": "Gjeldende",
+    "incoming": "Innkommende",
+    "overwrite": "Overskriv",
+    "skip": "Hopp over",
+    "overwriteAll": "Overskriv alle",
+    "skipAll": "Hopp over alle",
+    "applyResolutions": "Bruk",
+    "resolved": "{{overwritten}} overskrevet, {{skipped}} hoppet over.",
+    "resolvedWithStale": "{{overwritten}} overskrevet, {{skipped}} hoppet over. {{stale}} ble endret i mellomtiden og forble urørt.",
+    "refreshFailed": "Endringen ble tatt i bruk, men kunne ikke laste listen på nytt: {{message}}",
+    "sourceBuiltin": "Innebygd",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Bruker"
+  }
+}

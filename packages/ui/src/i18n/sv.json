@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Läser in LLM-konfiguration...",
+    "reset": {
+      "button": "Återställ standardvärden",
+      "confirmTitle": "Återställ standardinställningar?",
+      "confirmBody": "Detta rensar dina anpassningar för den här leverantören så att den följer de inbyggda standardvärdena igen. Din API-nyckel och sparade sessioner behålls.",
+      "confirmButton": "Återställ standardvärden"
+    },
+    "reentryBanner": {
+      "message": "{{count}} aktiverad/aktiverade leverantör(er) behöver sin API-nyckel angiven på nytt. Öppna varje leverantör och lägg till nyckeln igen."
+    },
+    "migrationPack": {
+      "barHint": "Flytta dina leverantörnycklar och prenumerationstoken till en annan dator med ett krypterat paket.",
+      "passphrase": "Lösenfras",
+      "passphrasePlaceholder": "Ange en lösenfras",
+      "passphraseHint": "Använd minst 8 tecken; 12 eller fler rekommenderas.",
+      "confirm": "Bekräfta lösenfras",
+      "confirmPlaceholder": "Ange lösenfransen igen",
+      "mismatch": "Lösenfraserna stämmer inte överens.",
+      "strength": {
+        "weak": "För kort — använd minst 8 tecken.",
+        "fair": "OK — 12 eller fler tecken är starkare.",
+        "strong": "Stark lösenfras."
+      },
+      "export": {
+        "button": "Exportera paket",
+        "title": "Exportera krypterat paket",
+        "subtitle": "Kryptera dina leverantörnycklar och prenumerationstoken till en portabel fil.",
+        "warning": "Den här filen innehåller dekrypterbara hemligheter. Förvara den säkert — alla med filen och lösenfransen kan läsa dina nycklar. En förlorad lösenfras kan inte återställas.",
+        "submit": "Exportera",
+        "success": "Paketet exporterades.",
+        "error": "Exporten misslyckades. Försök igen."
+      },
+      "import": {
+        "button": "Importera paket",
+        "title": "Importera krypterat paket",
+        "subtitle": "Återställ leverantörnycklar och prenumerationstoken från ett exporterat paket.",
+        "hint": "Ange lösenfransen som användes när paketet exporterades och välj sedan filen.",
+        "submit": "Importera",
+        "successTitle": "Import klar",
+        "summary": "Importerade {{providerKeys}} leverantörnyckel/nycklar, {{poolKeys}} poolnyckel/nycklar och {{tokenSets}} tokenuppsättning/uppsättningar.",
+        "duplicates": "Hoppade över {{count}} poolnyckel/nycklar som redan finns.",
+        "skipped": "Hoppade över (ingen matchande leverantör): {{names}}",
+        "error": "Fel lösenfras eller skadat paket. Ingenting ändrades."
+      }
+    },
+    "searchPlaceholder": "Sök leverantörer...",
+    "emptySearch": "Inga leverantörer matchar din sökning.",
+    "emptyList": "Inga leverantörer konfigurerade.",
+    "selectPrompt": "Välj en leverantör för att visa detaljer",
+    "listStatus": "{{count}} modell(er)",
+    "noModels": "Inga modeller konfigurerade",
+    "enabled": "Aktiverad",
+    "disabled": "Inaktiverad",
+    "showEnabledOnly": "Visa endast aktiverade",
+    "showAll": "Visa alla leverantörer",
+    "dragHandle": "Dra för att ändra ordning",
+    "reorderFailed": "Det gick inte att spara leverantörsordningen",
+    "credentials": {
+      "apiKey": "API-nyckel",
+      "apiBaseUrl": "API-bas-URL"
+    },
+    "filter": {
+      "all": "Alla",
+      "chat": "Chatt",
+      "code": "Kod"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Välj en mall",
+      "skipTemplates": "Hoppa över, konfigurera manuellt",
+      "name": "Namn *",
+      "providerType": "Typ",
+      "apiType": "API-typ",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standardformat för OpenAI chat/completions API",
+        "claudecode": "Anthropic Messages API-format (Claude Code)"
+      },
+      "chatApiFormat": "API-format",
+      "chatApiFormatDescription": "Välj det API-format som matchar leverantörens slutpunkt",
+      "apiKey": "API-nyckel",
+      "apiKeyPlaceholder": "sk-... eller $ENV_VAR",
+      "apiKeyHelper": "Använd $VAR_NAME för att referera till miljövariabler",
+      "apiKeySetPlaceholder": "Nyckel är angiven — lämna tomt för att behålla den",
+      "apiKeyReplaceHelper": "En nyckel är lagrad säkert. Skriv ett nytt värde för att ersätta den, eller lämna tomt för att behålla den.",
+      "testApiKey": "Testa API-nyckel",
+      "apiUrl": "API-URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Förhandsgranskning:",
+      "models": "Modeller",
+      "modelPlaceholder": "Modellnamn (t.ex. gpt-4, claude-3-opus)",
+      "transformers": "Transformatorer",
+      "transformerConfig": "API-transformatorer",
+      "transformerConfigDescription": "Konfigurera transformatorer för att anpassa API-förfrågnings-/svarsformat för den här leverantören",
+      "transformerConfigNote": "Daemonen tillämpar dessa transformatorer i förfrågningskedjan, efter leverantörens formatransformator (som hanterar konverteringen av trådformatet). Okända transformatornamn hoppas över.",
+      "enabled": "Aktiverad",
+      "apiVersion": "API-version",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API-version (t.ex. 2024-08-01-preview)",
+      "official": "Officiellt Anthropic API",
+      "officialHelper": "Aktivera om den här leverantören ansluter direkt till det officiella Anthropic API. Inaktivera för omvända proxyer eller tjänster från tredje part.",
+      "maxConcurrency": "Max samtidiga förfrågningar",
+      "maxConcurrencyHelper": "Maximalt antal samtidiga API-förfrågningar som skickas till den här leverantören. Lägre värden hjälper till att undvika hastighetsbegränsning (429-fel). Ange `-1` för ingen begränsning.",
+      "codingPlan": {
+        "label": "Kodningsplan",
+        "description": "Använd en separat API-slutpunkt för prenumerationsbaserade kodningsplaner",
+        "baseUrl": "Kodningsplanens bas-URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Kodningsplanens API-nyckel (valfritt)",
+        "apiKeyPlaceholder": "Lämna tomt för att använda leverantörens API-nyckel",
+        "apiKeyHelper": "Krävs bara om kodningsplanen använder en annan API-nyckel",
+        "tokenPlanHint": "Vissa leverantörer (t.ex. Xiaomi MiMo) utfärdar Token Plan-nycklar med prefixet `tp-` — informativt, inte obligatoriskt."
+      },
+      "selectTypeFirst": "Välj leverantörstyp",
+      "selectTypeFirstDesc": "Välj vilken typ av leverantör du vill lägga till",
+      "codeProviderNote": "Kodleverantörer behöver bara API-nyckel och URL. Modeller hanteras av agentrouter.",
+      "buttons": {
+        "cancel": "Avbryt",
+        "submitAdd": "Lägg till leverantör",
+        "submitUpdate": "Uppdatera leverantör",
+        "continue": "Fortsätt",
+        "back": "Tillbaka"
+      }
+    },
+    "details": {
+      "noSelection": "Välj en leverantör för att visa detaljer",
+      "apiKey": "API-nyckel",
+      "apiUrl": "API-URL",
+      "nameLabel": "Leverantörnamn",
+      "modelsEndpoint": "Modellslutpunkt",
+      "modelsEndpointHelper": "Åsidosätt identifieringsslutpunkten om leverantören exponerar en anpassad /models-sökväg.",
+      "models": "Modeller",
+      "transformers": "Transformatorer",
+      "codeProviderNote": "Kodleverantörer (som Claude Code) kräver inte modellkonfiguration. Modeller hanteras automatiskt av agentrouter.",
+      "buttons": {
+        "more": "Fler inställningar",
+        "delete": "Ta bort"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Välj leverantör och modell",
+      "noProviders": "Inga leverantörer tillgängliga",
+      "noModels": "Inga modeller konfigurerade"
+    },
+    "apiKeyPool": {
+      "title": "API-nyckelpool",
+      "description": "Konfigurera flera API-nycklar för lastbalansering. Varje session håller sig till en nyckel för att bevara promptcachen.",
+      "defaultLabel": "Standard",
+      "weight": "Vikt",
+      "noKey": "Ingen nyckel",
+      "labelPlaceholder": "Etikett (t.ex. Nyckel #1, Produktion)",
+      "addKey": "Lägg till API-nyckel",
+      "add": "Lägg till",
+      "empty": "Inga extra nycklar konfigurerade.",
+      "statusCoolingDown": "Nedkylning {{time}}",
+      "statusAuthFailed": "Autentisering misslyckades · inaktiverad",
+      "statusDisabled": "Inaktiverad",
+      "statusHealthy": "Felfri",
+      "agoSeconds": "{{count}}s sedan",
+      "agoMinutes": "{{count}}m sedan",
+      "agoHours": "{{count}}h sedan",
+      "agoDays": "{{count}}d sedan"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Sök modeller...",
+      "defaultGroup": "Alla modeller",
+      "add": "Lägg till modell",
+      "manage": "Hantera",
+      "empty": "Inga modeller i den här gruppen",
+      "enabled": "Aktiverad",
+      "disabled": "Inaktiverad",
+      "filters": {
+        "all": "Alla",
+        "vision": "Vision",
+        "reasoning": "Resonemang",
+        "free": "Gratis",
+        "tools": "Verktyg"
+      },
+      "manualDialog": {
+        "title": "Lägg till modell",
+        "subtitle": "Lägg till en anpassad modell till den här leverantören",
+        "modelId": "Modell-ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, osv.",
+        "modelIdHelper": "Den exakta modellidentifieraren som används vid anrop av API:et",
+        "modelName": "Visningsnamn",
+        "modelNamePlaceholder": "Vänligt visningsnamn (valfritt)",
+        "modelNameHelper": "Valfritt namn som visas i gränssnittet. Om tomt används Modell-ID",
+        "group": "Grupp",
+        "groupPlaceholder": "Välj eller ange ett gruppnamn",
+        "submit": "Lägg till",
+        "cancel": "Avbryt",
+        "helper": "Ange den exakta modellidentifieraren som exponeras av leverantörens API."
+      },
+      "editDialog": {
+        "title": "Redigera modell",
+        "subtitle": "Ändra modellinställningar",
+        "modelId": "Modell-ID",
+        "modelIdPlaceholder": "Modellidentifierare",
+        "modelIdHelper": "Modellidentifieraren som används vid anrop av API:et",
+        "modelName": "Visningsnamn",
+        "modelNamePlaceholder": "Vänligt visningsnamn",
+        "modelNameHelper": "Namn som visas i gränssnittet",
+        "group": "Grupp",
+        "groupPlaceholder": "Välj eller ange ett gruppnamn",
+        "submit": "Spara",
+        "cancel": "Avbryt",
+        "vision": "Visionsfunktion",
+        "visionHint": "Om den här modellen stöder bild-/visionsinmatning",
+        "reasoning": "Tänkandemodell",
+        "reasoningHint": "Om den här modellen stöder tänkande/resonemang"
+      },
+      "manageDialog": {
+        "title": "Hantera modeller",
+        "cachedAt": "Cachad {{date}} ({{source}})",
+        "refresh": "Uppdatera",
+        "close": "Stäng",
+        "raw": "Rå JSON",
+        "empty": "Inga fjärrmodeller tillgängliga.",
+        "error": "Det gick inte att läsa in modeller: {{message}}",
+        "addFromCatalog": "Lägg till",
+        "sourceCache": "cache",
+        "sourceNetwork": "live",
+        "contextLength": "Kontext {{value}} token",
+        "maxTokens": "Max {{value}} token"
+      },
+      "messages": {
+        "added": "Modell tillagd.",
+        "updated": "Modell uppdaterad.",
+        "removed": "Modell borttagen.",
+        "duplicate": "Modellen finns redan.",
+        "refreshed": "Modeller uppdaterade",
+        "refreshFailed": "Det gick inte att uppdatera modeller"
+      },
+      "testDialog": {
+        "title": "Anslutningstest för modell",
+        "provider": "Leverantör",
+        "model": "Modell",
+        "testing": "Testar...",
+        "success": "Test lyckat",
+        "successMessage": "Modellen kan nås normalt",
+        "failure": "Test misslyckades",
+        "aiResponse": "AI-svar",
+        "charCount": "{{count}} tecken",
+        "duration": "Varaktighet {{time}}s",
+        "close": "Stäng",
+        "retest": "Testa igen",
+        "testButton": "Testa modell",
+        "unsupportedFormat": "Testning stöds inte ännu för det här leverantörformatet."
+      }
+    },
+    "router": {
+      "title": "Routerkonfiguration",
+      "description": "Konfigurera vilken leverantör/modell som ska användas för olika scenarier.",
+      "labels": {
+        "default": "Standard",
+        "background": "bakgrund",
+        "think": "tänka",
+        "longContext": "Lång kontext",
+        "webSearch": "Webbsökning",
+        "image": "Bild",
+        "longContextThreshold": "Tröskel för lång kontext"
+      },
+      "helper": {
+        "longContextThreshold": "Antal token innan byte till modellen med lång kontext."
+      },
+      "placeholder": {
+        "required": "Obligatorisk",
+        "optional": "Valfri"
+      }
+    },
+    "agentRouter": {
+      "title": "Agentrouter",
+      "description": "Konfigurera dubbelriktad routing mellan chatt- och kodläge.",
+      "searchPlaceholder": "Sök routrar...",
+      "noSearchResults": "Inga routrar matchar din sökning.",
+      "tabs": {
+        "chatToCode": "Chatt → Kod",
+        "codeToChatPlaceholder": "Kod → Chatt"
+      },
+      "chatToCode": {
+        "title": "Chatt till kod-router",
+        "description": "Använd chattleverantörer i agent-/kodningsläge",
+        "addRouter": "Lägg till router",
+        "emptyState": "Inga Chatt→Kod-routrar konfigurerade. Lägg till en för att använda chattleverantörer i kodningsläge.",
+        "form": {
+          "name": "Routernamn",
+          "namePlaceholder": "Min Chatt→Kod-router",
+          "chatProvider": "Chattleverantör",
+          "chatProviderPlaceholder": "Välj en chattleverantör",
+          "mode": "Läge",
+          "modeSimple": "Enkelt",
+          "modeAdvanced": "Avancerat",
+          "modeSimpleDesc": "Direktgenomströmning till chattleverantör",
+          "modeAdvancedDesc": "Konfigurera modellmappning och kontexthantering",
+          "enabled": "Aktiverad",
+          "save": "Spara router",
+          "cancel": "Avbryt"
+        },
+        "list": {
+          "provider": "Leverantör",
+          "mode": "Läge",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Modellmappningar",
+          "description": "Mappa chattleverantörmodeller till kodleverantörmodeller",
+          "count": "mappning(ar)",
+          "empty": "Inga modellmappningar konfigurerade. Lägg till mappningar för att routa chattmodeller till kodleverantörer.",
+          "addNew": "Lägg till ny mappning",
+          "selectSource": "Välj källmodell (Chatt)",
+          "selectTarget": "Välj målmodell (Kod)",
+          "targetPlaceholder": "Ange Claude Code-modellnamn",
+          "notSet": "(Ej angiven — klicka för att välja)",
+          "add": "Lägg till",
+          "edit": "Redigera",
+          "done": "Klar"
+        },
+        "advanced": {
+          "title": "Avancerad konfiguration",
+          "description": "Konfigurera modeller för olika uppgiftstyper",
+          "helpText": "Standardmodell krävs. Övriga modeller är valfria och återgår till standard om de inte är konfigurerade.",
+          "default": {
+            "label": "Standard",
+            "placeholder": "Välj standardmodell",
+            "description": "Primär modell för allmänna uppgifter (liknande Claude Sonnet)"
+          },
+          "background": {
+            "label": "Bakgrund",
+            "placeholder": "Välj bakgrundsmodell",
+            "description": "Lättviktsmodell för bakgrundsuppgifter (liknande Claude Haiku)"
+          },
+          "think": {
+            "label": "Tänka",
+            "placeholder": "Välj tänkandemodell",
+            "description": "Avancerad modell för komplexa resonemang (liknande Claude Opus)"
+          },
+          "image": {
+            "label": "Bild",
+            "placeholder": "Välj bildmodell",
+            "description": "Modell för bildrelaterade uppgifter med visionsfunktion"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Kod till chatt-router",
+        "description": "Exponera kodningsplanmodeller i chattläge",
+        "addRouter": "Lägg till router",
+        "emptyState": "Inga Kod→Chatt-routrar konfigurerade. Lägg till en för att exponera kodningsplanmodeller i chattläge.",
+        "form": {
+          "name": "Routernamn",
+          "namePlaceholder": "Min Kod→Chatt-router",
+          "codeProvider": "Kodleverantör",
+          "codeProviderPlaceholder": "Välj en kodleverantör",
+          "codeProviderHelper": "Välj kodleverantören som ska användas för transformation",
+          "models": "Kodningsplanmodeller",
+          "modelsHelper": "Välj vilka kodningsplanmodeller som ska exponeras",
+          "enabled": "Aktiverad",
+          "save": "Spara router",
+          "cancel": "Avbryt"
+        },
+        "mappings": {
+          "title": "Modellmappningar",
+          "description": "Mappa kodleverantörmodeller till chattleverantörmodeller för exponering",
+          "count": "mappning(ar)",
+          "empty": "Inga modellmappningar konfigurerade. Lägg till mappningar för att exponera kodmodeller i chattläge.",
+          "addNew": "Lägg till ny mappning",
+          "selectSource": "Välj källmodell (Kod)",
+          "selectTarget": "Välj målmodell (Chatt)",
+          "sourcePlaceholder": "Ange källmodellnamn",
+          "targetPlaceholder": "Ange målmodellnamn",
+          "add": "Lägg till",
+          "edit": "Redigera",
+          "done": "Klar"
+        }
+      },
+      "transformers": {
+        "title": "Transformatorer",
+        "description": "Konfigurera transformatorer för konvertering av förfrågningar/svar",
+        "noProvider": "Välj en leverantör för att konfigurera transformatorer",
+        "empty": "Inga transformatorer",
+        "count": "{{count}} transformator(er)"
+      },
+      "status": {
+        "enabled": "Aktiverad",
+        "disabled": "Inaktiverad"
+      },
+      "messages": {
+        "routerAdded": "Router tillagd",
+        "routerUpdated": "Router uppdaterad",
+        "routerDeleted": "Router borttagen",
+        "saveFailed": "Det gick inte att spara routern"
+      }
+    },
+    "presets": {
+      "title": "Snabblägg till leverantör",
+      "added": "Tillagd",
+      "add": "Lägg till",
+      "features": {
+        "search": "Sökning",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Kodningsplan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Är du säker på att du vill ta bort den här leverantören?"
+    },
+    "errors": {
+      "nameRequired": "Leverantörnamn krävs",
+      "urlRequired": "API-bas-URL krävs",
+      "urlInvalid": "Ange en giltig URL (t.ex. https://api.example.com)",
+      "saveFailed": "Det gick inte att spara leverantören",
+      "deleteFailed": "Fel vid borttagning av leverantör. Försök igen.",
+      "toggleFailed": "Fel vid aktivering/inaktivering av leverantör. Försök igen."
+    },
+    "openRouter": {
+      "title": "OpenRouter-leverantörsrouting",
+      "description": "Konfigurera hur förfrågningar routas till olika leverantörer på OpenRouter.",
+      "sort": "Routingstrategi",
+      "sortTooltip": "Välj hur leverantörer ska prioriteras. Auto använder intelligent lastbalansering.",
+      "order": "Leverantörsprioriteringsordning",
+      "orderTooltip": "Ange leverantörer att prova i ordning (t.ex. anthropic, openai, together). Tryck Enter för att lägga till.",
+      "orderPlaceholder": "Skriv leverantörens slug och tryck Enter...",
+      "allowFallbacks": "Tillåt reservalternativ",
+      "allowFallbacksTooltip": "När aktiverat försöker OpenRouter med reservleverantörer om den primära är otillgänglig.",
+      "requireParameters": "Kräv alla parametrar",
+      "requireParametersTooltip": "Routa bara till leverantörer som stöder alla parametrar i din förfrågan.",
+      "dataCollection": "Datainsamlingspolicy",
+      "dataCollectionTooltip": "Styr om leverantörer som kan lagra eller träna på dina data ska användas.",
+      "zdr": "Noll datalagring",
+      "zdrTooltip": "Routa bara till slutpunkter med policy för noll datalagring.",
+      "only": "Tillåt bara leverantörer",
+      "onlyTooltip": "Använd bara dessa specifika leverantörer. Lämna tomt för att tillåta alla leverantörer.",
+      "onlyPlaceholder": "Skriv leverantörens slug och tryck Enter...",
+      "ignore": "Ignorera leverantörer",
+      "ignoreTooltip": "Hoppa över dessa leverantörer vid routing av förfrågningar.",
+      "ignorePlaceholder": "Skriv leverantörens slug och tryck Enter...",
+      "quantizations": "Kvantiseringsfilter",
+      "quantizationsTooltip": "Använd bara leverantörer med specifika kvantiseringsnivåer. Lägre precision kan minska kvaliteten men förbättra hastigheten.",
+      "maxPrice": "Maximalt pris",
+      "maxPriceTooltip": "Ange maximala prisgränser per miljon token. Lämna tomt för ingen gräns.",
+      "configured": "Konfigurerad"
+    }
+  },
+  "apiMode": {
+    "label": "API-läge",
+    "standard": "Standard",
+    "codingPlan": "Kodningsplan",
+    "tokenPlan": "Tokenplan",
+    "apiKeyPrefixHint": "Nycklar för den här planen börjar vanligtvis med `{{prefix}}`. Endast information — inte obligatoriskt.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Kodningsplan använder en separat API-nyckel från standardslutpunkten.",
+    "baiduCodingPlanSeparateKey": "Qianfan Kodningsplan använder en separat API-nyckel från standardslutpunkten.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Tokenplan är endast Anthropic-protokoll.",
+    "xiaomiTokenPlanRegions": "Standard baseUrl är `token-plan-cn.*`. Du kan redigera det manuellt till `token-plan-sgp.*` eller `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Byta API-läge?",
+    "confirmOverwriteBody": "Du har anpassat API-URL:en eller API-nyckeln. Byte av läge skriver över dem med det nya lägets standardvärden — eller behåll dina anpassningar och uppdatera bara lägeetiketten.",
+    "overwriteAndSwitch": "Skriv över och byt",
+    "keepCustomizations": "Behåll anpassningar"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Tokenplan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Avbryt",
+    "close": "Stäng",
+    "copy": "Kopiera",
+    "delete": "Ta bort",
+    "dismiss": "Avfärda",
+    "save": "Spara",
+    "optional": "valfritt",
+    "retry": "Försök igen",
+    "loading": "Läser in…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentation"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Stöds inte ännu av daemonen",
+    "discoveryUnsupportedFormat": "Modellupptäckning stöds inte ännu för det här leverantörformatet. Lägg till modeller manuellt."
+  },
+  "nav": {
+    "subtitle": "Kontrollpanel",
+    "providers": "Leverantörer",
+    "apiService": "API-tjänst",
+    "accounts": "Konton",
+    "codeCli": "Kod-CLI",
+    "settings": "Inställningar",
+    "usageStats": "Användning",
+    "pricing": "Priser"
+  },
+  "apiService": {
+    "title": "API-tjänst",
+    "description": "Konfigurera den utgående API-servern, modellrouting per slutpunkt och namngivna åtkomstnycklar.",
+    "loading": "Läser in serverkonfiguration…",
+    "loadError": "Det gick inte att läsa in serverkonfigurationen. Kontrollera att daemonen är nåbar.",
+    "enable": {
+      "label": "Aktivera utgående server",
+      "description": "Starta den lokala API-servern som routar externa anrop genom dina leverantörer."
+    },
+    "networkBinding": {
+      "label": "Tillåt LAN-åtkomst",
+      "description": "Bind servern till ditt nätverksgränssnitt istället för bara loopback.",
+      "warning": "LAN-åtkomst exponerar API-servern för andra enheter i ditt nätverk. I kombination med prenumerationsrouting kan förfrågningar förbruka din prenumerationskvot — håll detta av om du inte litar på nätverket."
+    },
+    "status": {
+      "running": "Server körs",
+      "stopped": "Server stoppad",
+      "runningHint": "Den utgående API-servern tar emot förfrågningar.",
+      "stoppedHint": "Aktivera servern för att börja ta emot förfrågningar.",
+      "port": "port {{port}}",
+      "loopback": "Loopback-URL:er",
+      "lan": "LAN-URL:er"
+    },
+    "endpoints": {
+      "title": "Slutpunktsrouting",
+      "description": "Välj modell för varje trådformat. Standardmodellen ingår här — servern är en router, inte en chattapp."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Standardmodell",
+      "backgroundModel": "Bakgrundsmodell",
+      "visionModel": "Visionsmodell",
+      "noVisionModel": "Ingen",
+      "backgroundModelIds": "Bakgrundsmodell-ID:n",
+      "backgroundModelIdsPlaceholder": "kommaseparerade modell-ID:n",
+      "modelPlaceholder": "Välj en modell…",
+      "useSubscription": "Använd prenumeration",
+      "subscriptionUnsupported": "Prenumerationsrouting är inte tillgänglig för den här slutpunkten."
+    },
+    "keys": {
+      "title": "Åtkomstnycklar",
+      "description": "Namngivna nycklar som externa anropare skickar som en Bearer-token. Den fullständiga nyckeln visas bara en gång vid skapandet.",
+      "namePlaceholder": "Nyckelnamn (t.ex. mitt-cli)",
+      "create": "Skapa nyckel",
+      "empty": "Inga åtkomstnycklar ännu.",
+      "enabled": "Aktiverad",
+      "disabled": "Inaktiverad",
+      "revoked": "Återkallad",
+      "toggle": "Växla nyckel",
+      "revoke": "Återkalla",
+      "revokeConfirmTitle": "Återkalla den här nyckeln?",
+      "revokeConfirmDesc": "Återkallande av \"{{name}}\" stoppar omedelbart autentisering. Detta kan inte ångras.",
+      "created": {
+        "title": "Nyckel skapad",
+        "warning": "Kopiera den här nyckeln nu — den visas inte igen. Förvara den säkert.",
+        "copy": "Kopiera",
+        "copied": "Kopierad",
+        "dismiss": "Klar"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Konton och prenumerationer",
+    "description": "Hantera prenumerationsuppgifterna som servern routar genom. Token skrivs här men visas aldrig tillbaka.",
+    "loading": "Läser in konton…",
+    "empty": "Inga prenumerationsleverantörer är tillgängliga.",
+    "signIn": "Logga in",
+    "oauth": {
+      "title": "Logga in på {{name}}",
+      "description": "Öppna inloggningssidan i din webbläsare, auktorisera och klistra sedan in auktoriseringskoden nedan. Koden skickas bara till daemonen — den präglade token visas aldrig.",
+      "openPage": "Öppna inloggningssida",
+      "codeLabel": "Auktoriseringskod",
+      "codePlaceholder": "Klistra in koden här",
+      "submit": "Slutför inloggning"
+    },
+    "codexOauth": {
+      "title": "Logga in på {{name}}",
+      "description": "Öppna inloggningssidan i din webbläsare och auktorisera. Daemonen fångar resultatet automatiskt — håll den här öppen tills det är klart. Token visas aldrig.",
+      "waiting": "Väntar på att du ska slutföra inloggningen i din webbläsare…",
+      "failed": "Inloggning misslyckades. Försök igen."
+    },
+    "clearProvider": "Rensa alla",
+    "clearConfirmTitle": "Rensa {{name}}-konton?",
+    "clearConfirmDesc": "Detta tar bort alla lagrade uppgifter för den här leverantören. Detta kan inte ångras.",
+    "credential": {
+      "ok": "Konfigurerad",
+      "notConfigured": "Inte konfigurerad"
+    },
+    "kind": {
+      "pass-through": "Genomströmningsuppgifter",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Statisk bearer-nyckel"
+    },
+    "reason": {
+      "missing-credential": "Ingen uppgift lagrad.",
+      "expired": "Uppgiften har gått ut.",
+      "reauth-required": "Omautentisering krävs.",
+      "refresh-failed": "Tokenuppdatering misslyckades.",
+      "not-refreshable": "Uppgiften kan inte uppdateras.",
+      "unknown": "Status okänd."
+    },
+    "status": {
+      "unconfigured": "Okonfigurerad",
+      "authorized": "Auktoriserad",
+      "configured": "Konfigurerad",
+      "expired": "Utgången",
+      "error": "Fel"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Installationstoken",
+      "manual": "Manuell"
+    },
+    "list": {
+      "empty": "Inga konton lagrade för den här leverantören.",
+      "active": "Aktiv",
+      "expiresAt": "Går ut {{value}}",
+      "setActive": "Ange som aktiv",
+      "remove": "Ta bort",
+      "removeConfirmTitle": "Ta bort det här kontot?",
+      "removeConfirmDesc": "Borttagning av \"{{name}}\" raderar dess lagrade uppgifter. Detta kan inte ångras.",
+      "title": "Konton"
+    },
+    "write": {
+      "trigger": "Lägg till uppgift",
+      "title": "Ange {{name}}-uppgifter",
+      "description": "Klistra in redan erhållet token-material. Fälten är begränsade till vad den här leverantören accepterar; token lagras, visas aldrig tillbaka.",
+      "authMethod": "Autentiseringsmetod",
+      "status": "Status",
+      "subscriptionLevel": "Prenumerationsnivå",
+      "subscriptionLevelNone": "Inte angiven",
+      "submit": "Spara uppgifter"
+    },
+    "field": {
+      "accessToken": "Åtkomsttoken",
+      "refreshToken": "Uppdateringstoken",
+      "idToken": "ID-token",
+      "apiKey": "API-nyckel",
+      "expiresAt": "Går ut (ISO)",
+      "setupTokenExpiresAt": "Installationstoken går ut (ISO)",
+      "accountId": "Konto-ID",
+      "email": "E-post",
+      "organizationId": "Organisations-ID",
+      "baseUrl": "Bas-URL",
+      "zenBaseUrl": "Zen bas-URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic-prenumerationsuppgifter routade av daemonen."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex-prenumerationsuppgifter routade av daemonen."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini-prenumerationsuppgifter routade av daemonen."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statiska API-nyckeluppgifter routade av daemonen."
+      }
+    },
+    "authMethodLabel": "Auktoriseringsmetod",
+    "authMethodDesc": {
+      "oauth": "Logga in via webbläsaren; daemonen fångar och lagrar token.",
+      "manual": "Klistra in en redan erhållen token. Den lagras, visas aldrig tillbaka."
+    },
+    "actions": {
+      "authorize": "Auktorisera",
+      "enterToken": "Ange token",
+      "refresh": "Uppdatera"
+    },
+    "accounts": {
+      "addAccount": "Lägg till konto"
+    },
+    "detail": {
+      "authMethod": "Auktoriseringsmetod",
+      "subscriptionLevel": "Prenumerationsnivå",
+      "expiresAt": "Går ut",
+      "lastRefreshed": "Senast uppdaterad",
+      "label": "Kontoetikett",
+      "labelPlaceholder": "Ge det här kontot ett namn",
+      "saveLabel": "Spara etikett"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Öppna auktoriseringssidan",
+        "desc": "Öppna inloggningssidan i din webbläsare."
+      },
+      "step2": {
+        "title": "Auktorisera åtkomst",
+        "desc": "Logga in och godkänn åtkomst för leverantören."
+      },
+      "step3": {
+        "title": "Kopiera auktoriseringskoden",
+        "desc": "Sidan visar en auktoriseringskod när du godkänner."
+      },
+      "step4": {
+        "title": "Klistra in koden",
+        "desc": "Klistra in auktoriseringskoden nedan för att slutföra. Koden skickas bara till daemonen — den präglade token visas aldrig."
+      },
+      "authorize": "Slutför inloggning",
+      "showUrl": "Visa auktoriserings-URL"
+    },
+    "manual": {
+      "title": "Klistra in uppgifter",
+      "description": "Klistra in en redan erhållen token. Fälten är begränsade till vad den här leverantören accepterar; token lagras, visas aldrig tillbaka.",
+      "accessTokenPlaceholder": "Klistra in åtkomsttoken",
+      "refreshTokenPlaceholder": "Klistra in uppdateringstoken (valfritt)",
+      "hint": "Token skickas till daemonen och lagras krypterat. Den visas aldrig tillbaka."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "En API-nyckel krävs.",
+      "apiKeyPlaceholder": "Klistra in API-nyckeln",
+      "baseUrlPlaceholder": "https://… (valfritt)",
+      "zenBaseUrlPlaceholder": "https://… (valfritt)"
+    },
+    "info": {
+      "title": "Om prenumerationskonton",
+      "description": "Token skrivs till daemonen och används för att autentisera uppströmsförfrågningar. De lagras krypterat och visas aldrig tillbaka. Borttagning av ett konto raderar dess lagrade uppgifter."
+    },
+    "rename": {
+      "failed": "Det gick inte att byta namn på kontot."
+    },
+    "refresh": {
+      "failed": "Det gick inte att uppdatera token."
+    },
+    "errors": {
+      "requestFailed": "Förfrågan misslyckades. Försök igen."
+    },
+    "syncWarning": {
+      "external-divergent": "Den externa CLI-inloggningsfilen innehåller nyare autentiseringsuppgifter än det här kontot. Den sparade token kanske inte längre kan uppdateras — uppdatera nu eller logga in igen.",
+      "external-not-rotated": "Uppdateringen misslyckades och den externa CLI:n innehåller samma utgångna autentiseringsuppgifter. Logga in igen.",
+      "duplicate-token": "Ett annat konto delar dessa autentiseringsuppgifter. Att uppdatera det ena loggar ut det andra."
+    },
+    "importExternal": {
+      "detected": "En befintlig {{name}}-CLI-inloggning hittades på den här datorn.",
+      "hint": "Efter importen håller den här appen den uppdaterad: vid varje tokenuppdatering uppdateras även CLI-inloggningsfilen, så CLI:n i terminalen förblir inloggad.",
+      "button": "Importera befintlig CLI-inloggning"
+    }
+  },
+  "codeCli": {
+    "title": "Kod-CLI",
+    "description": "Peka ett kodnings-CLI mot daemonens utgående proxy. Den här sidan är skrivskyddad — det finns inget att konfigurera här.",
+    "copy": "Kopiera",
+    "copied": "Kopierad",
+    "baseUrl": {
+      "title": "Daemonens bas-URL",
+      "description": "Proxyadressen som ditt CLI ansluter till.",
+      "label": "Bas-URL"
+    },
+    "token": {
+      "title": "Autentisering",
+      "hint": "Skicka 'Authorization: Bearer <din-admin-token>' för adminrutter. Admin-token konfigureras i daemonen (dess konfigurationsfil eller miljö) — den visas aldrig här."
+    },
+    "examples": {
+      "title": "Exempelstartmiljö",
+      "keyNote": "Använd en utgående åtkomstnyckel skapad på API-tjänstsidan — inte admin-token.",
+      "anthropic": "Anthropic-format CLI",
+      "openai": "OpenAI-format CLI"
+    },
+    "launchDescription": "Starta ett kodnings-CLI i en terminal, pekat mot den här daemonen. Daemonen injicerar omdirigeringsmiljön och startar CLI:t åt dig.",
+    "refresh": "Uppdatera",
+    "loading": "Identifierar CLI:er…",
+    "cli": {
+      "installed": "Installerad",
+      "notFound": "Hittades inte",
+      "notFoundHint": "Det här CLI:t finns inte i daemonvärdens PATH. Installera det och uppdatera sedan.",
+      "install": "Installera",
+      "installing": "Installerar…",
+      "installingHint": "Installerar på daemonvärden — det kan ta en minut.",
+      "launch": "Starta",
+      "launchTitle": "Starta {{name}}",
+      "launchDescription": "Öppnar en ny terminal på daemonvärden som kör detta CLI, routed via daemonproxy. Välj en valfri arbetskatalog.",
+      "cwdLabel": "Arbetskatalog",
+      "cwdPlaceholder": "/sökväg/till/ditt/projekt",
+      "runningVia": "Körs · {{provider}} / {{model}}",
+      "stop": "Stoppa"
+    },
+    "manual": {
+      "title": "Manuell inställning",
+      "description": "Föredrar du att köra CLI:t själv? Peka det mot daemonen med dessa miljövariabler.",
+      "show": "Visa",
+      "hide": "Dölj"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Söker efter daemonen…",
+    "spawning": "Startar daemonen…",
+    "failed": "Daemonen kunde inte starta",
+    "failedHint": "Kontrollera att Node.js är installerat och att daemonen är byggd (dist finns), eller ange OMNICROSS_DAEMON_ENTRY till daemonens cli.js."
+  },
+  "settings": {
+    "title": "Inställningar",
+    "description": "Skrivbordsprogramsinställningar.",
+    "desktopOnly": "Start- och fältikonsalternativ gäller bara i skrivbordsappen.",
+    "startup": {
+      "title": "Start",
+      "autoLaunch": "Starta vid inloggning",
+      "autoLaunchHint": "Starta Omnicross automatiskt när du loggar in.",
+      "startMinimized": "Starta minimerad i fältet",
+      "startMinimizedHint": "Starta i bakgrunden utan att öppna fönstret."
+    },
+    "tray": {
+      "title": "Fältikon",
+      "minimizeOnClose": "Minimera till fältet vid stängning",
+      "minimizeOnCloseHint": "Stängning av fönstret döljer det i fältet istället för att avsluta."
+    },
+    "language": {
+      "title": "Språk",
+      "label": "Gränssnittsspråk"
+    }
+  },
+  "usageStats": {
+    "title": "Användningsstatistik",
+    "description": "Token- och kostnadsstatistik för förfrågningar som demonen hanterat.",
+    "rangeToday": "Idag",
+    "range7d": "Senaste 7 dagarna",
+    "range30d": "Senaste 30 dagarna",
+    "rangeCustom": "Anpassad",
+    "from": "Från",
+    "to": "Till",
+    "totalCost": "Total kostnad",
+    "cacheSavings": "Cachebesparing",
+    "events": "Förfrågningar",
+    "inputTokens": "Indatatoken",
+    "outputTokens": "Utdatatoken",
+    "cacheReadTokens": "Cacheläsning",
+    "cacheWriteTokens": "Cacheskrivning",
+    "reasoningTokens": "Resonemangstoken",
+    "byModel": "Per modell",
+    "byApiKey": "Per API-nyckel",
+    "provider": "Leverantör",
+    "model": "Modell",
+    "cost": "Kostnad",
+    "apiKey": "API-nyckel",
+    "unpriced": "Utan pris",
+    "unpricedHint": "Det finns ingen prispost för denna modell — lägg till en på sidan Priser.",
+    "unattributed": "Ej tilldelad",
+    "unattributedHint": "Förfrågningar som inte är kopplade till en specifik API-nyckel. Detta är förväntat tills tilldelning per nyckel registreras.",
+    "empty": "Inga förfrågningar i detta intervall.",
+    "invalidRange": "Välj ett giltigt datumintervall."
+  },
+  "pricing": {
+    "title": "Modellpriser",
+    "description": "Tokenpriser per modell för kostnadsberäkning, i USD per miljon token.",
+    "search": "Sök leverantör eller modell…",
+    "fetchLatest": "Hämta senaste",
+    "fetching": "Hämtar…",
+    "addEntry": "Lägg till post",
+    "provider": "Leverantör",
+    "model": "Modell",
+    "inputPrice": "Indata",
+    "outputPrice": "Utdata",
+    "cacheReadPrice": "Cacheläsning",
+    "cacheWritePrice": "Cacheskrivning",
+    "source": "Källa",
+    "updated": "Uppdaterad",
+    "userEdited": "redigerad",
+    "edit": "Redigera",
+    "deleteTitle": "Ta bort prisposten?",
+    "empty": "Pristabellen är tom.",
+    "emptyHint": "Hämta de senaste priserna för att fylla den.",
+    "noMatches": "Inga poster matchar din sökning.",
+    "saved": "Prisposten sparades.",
+    "saveFailed": "Det gick inte att spara: {{message}}",
+    "deleteFailed": "Det gick inte att ta bort: {{message}}",
+    "alreadyDeleted": "Posten fanns inte längre.",
+    "fetchApplied": "{{count}} poster uppdaterades från källan.",
+    "fetchFailed": "Hämtningen misslyckades: {{message}}",
+    "requiredId": "Obligatoriskt",
+    "invalidPrice": "Ange ett icke-negativt tal",
+    "conflictTitle": "Lös prislkonflikter",
+    "conflictHint": "Dessa poster har redigerats av dig och ändrats i källan. Välj per rad om du vill behålla ditt värde (Hoppa över) eller ta det inkommande (Skriv över).",
+    "current": "Aktuellt",
+    "incoming": "Inkommande",
+    "overwrite": "Skriv över",
+    "skip": "Hoppa över",
+    "overwriteAll": "Skriv över alla",
+    "skipAll": "Hoppa över alla",
+    "applyResolutions": "Tillämpa",
+    "resolved": "{{overwritten}} överskrivna, {{skipped}} överhoppade.",
+    "resolvedWithStale": "{{overwritten}} överskrivna, {{skipped}} överhoppade. {{stale}} ändrades under tiden och lämnades orörda.",
+    "refreshFailed": "Ändringen tillämpades, men det gick inte att läsa om listan: {{message}}",
+    "sourceBuiltin": "Inbyggd",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Användare"
+  }
+}

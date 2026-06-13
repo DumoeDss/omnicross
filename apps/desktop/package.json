@@ -1,0 +1,16 @@
+{
+  "name": "omnicross-desktop",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Omnicross desktop shell — a Tauri v2 wrapper around the omnicross-ui frontend.",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "npm --prefix ../.. run build:daemon && tauri dev",
+    "build": "npm run stage-daemon && tauri build",
+    "stage-daemon": "node scripts/build-daemon-runtime.mjs && node scripts/stage-node.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

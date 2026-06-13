@@ -1,0 +1,66 @@
+{
+  "id": "xiaomi-mimo",
+  "presetId": "xiaomi-mimo",
+  "name": "小米 MiMo (OpenAI)",
+  "nameKey": "presetName.xiaomiMimoOpenai",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.xiaomimimo.com/v1",
+  "codingPlanBaseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
+  "models": [
+    "mimo-v2.5",
+    "mimo-v2.5-pro",
+    "mimo-v2-pro",
+    "mimo-v2-flash",
+    "mimo-v2-omni"
+  ],
+  "modelConfigs": [
+    {
+      "id": "mimo-v2.5",
+      "name": "MiMo V2.5",
+      "enabled": true
+    },
+    {
+      "id": "mimo-v2.5-pro",
+      "name": "MiMo V2.5 Pro",
+      "enabled": true
+    },
+    {
+      "id": "mimo-v2-pro",
+      "name": "MiMo V2 Pro",
+      "enabled": true
+    },
+    {
+      "id": "mimo-v2-flash",
+      "name": "MiMo V2 Flash",
+      "enabled": true
+    },
+    {
+      "id": "mimo-v2-omni",
+      "name": "MiMo V2 Omni",
+      "enabled": true
+    }
+  ],
+  "description": "小米 MiMo (OpenAI 兼容) — 适合通用 OpenAI 工具链；订阅 Token Plan 后启用 coding plan，海外用户可手动改 baseUrl 为 token-plan-sgp.* / token-plan-ams.*。",
+  "icon": "xiaomi",
+  "website": "https://xiaomimimo.com",
+  "docsUrl": "https://platform.xiaomimimo.com/",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "vision"
+  ],
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://api.xiaomimimo.com/v1"
+    },
+    {
+      "id": "token-plan",
+      "label": "apiMode.tokenPlan",
+      "baseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
+      "apiKeyPrefix": "tp-",
+      "note": "apiMode.xiaomiTokenPlanRegions"
+    }
+  ]
+}

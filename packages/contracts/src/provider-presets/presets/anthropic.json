@@ -1,0 +1,79 @@
+{
+  "id": "anthropic",
+  "presetId": "anthropic",
+  "name": "Anthropic",
+  "apiFormat": "anthropic",
+  "apiType": "anthropic",
+  "api_base_url": "https://api.anthropic.com/v1/messages",
+  "modelsEndpoint": "https://api.anthropic.com/v1/models",
+  "models": [
+    "claude-opus-4-7",
+    "claude-opus-4-7[1m]",
+    "claude-sonnet-4-6",
+    "claude-sonnet-4-6[1m]",
+    "claude-opus-4-6",
+    "claude-opus-4-6[1m]",
+    "claude-haiku-4-5"
+  ],
+  "modelConfigs": [
+    {
+      "id": "claude-opus-4-7",
+      "name": "Claude Opus 4.7",
+      "enabled": true
+    },
+    {
+      "id": "claude-opus-4-7[1m]",
+      "name": "Claude Opus 4.7 (1M)",
+      "enabled": false
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6",
+      "enabled": true
+    },
+    {
+      "id": "claude-sonnet-4-6[1m]",
+      "name": "Claude Sonnet 4.6 (1M)",
+      "enabled": false
+    },
+    {
+      "id": "claude-opus-4-6",
+      "name": "Claude Opus 4.6",
+      "enabled": true
+    },
+    {
+      "id": "claude-opus-4-6[1m]",
+      "name": "Claude Opus 4.6 (1M)",
+      "enabled": false
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "name": "Claude Haiku 4.5",
+      "enabled": true
+    }
+  ],
+  "transformer": {
+    "use": [
+      "anthropic"
+    ]
+  },
+  "description": "Claude模型官方API (Anthropic Messages格式)",
+  "icon": "anthropic",
+  "website": "https://anthropic.com",
+  "docsUrl": "https://docs.anthropic.com",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 65536
+  },
+  "isSystem": true,
+  "isOfficial": true,
+  "features": [
+    "vision",
+    "search",
+    "reasoning"
+  ],
+  "searchConfig": {
+    "type": "sdk-native",
+    "applicableModels": null
+  }
+}

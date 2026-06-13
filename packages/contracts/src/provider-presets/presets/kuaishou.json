@@ -1,0 +1,45 @@
+{
+  "id": "kuaishou",
+  "presetId": "kuaishou",
+  "name": "快手 KwaiKAT",
+  "nameKey": "presetName.kuaishou",
+  "apiFormat": "openai",
+  "api_base_url": "https://wanqing.streamlakeapi.com/api/gateway/v1",
+  "codingPlanBaseUrl": "https://wanqing.streamlakeapi.com/api/gateway/coding/v1",
+  "models": [
+    "kat-coder-pro-v1",
+    "kat-coder-air-v1"
+  ],
+  "modelConfigs": [
+    {
+      "id": "kat-coder-pro-v1",
+      "name": "KAT-Coder Pro",
+      "enabled": true
+    },
+    {
+      "id": "kat-coder-air-v1",
+      "name": "KAT-Coder Air (免费)",
+      "enabled": true
+    }
+  ],
+  "description": "快手 StreamLake 大模型平台",
+  "icon": "kuaishou",
+  "website": "https://streamlake.com",
+  "docsUrl": "https://www.streamlake.com/document/WANQING/me6ymdjrqv8lp4iq0o9",
+  "isSystem": true,
+  "features": [
+    "coding-plan"
+  ],
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/v1"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://wanqing.streamlakeapi.com/api/gateway/coding/v1"
+    }
+  ]
+}

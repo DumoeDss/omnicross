@@ -1,0 +1,116 @@
+name: Release
+
+# Build the Tauri desktop app for every OS and attach the installers to a
+# GitHub Release whenever a version tag (e.g. v0.1.3) is pushed.
+#
+#   git tag v0.1.3
+#   git push origin v0.1.3
+#
+# The release is created as a DRAFT — review the artifacts, then hit Publish.
+# To cut a release straight from the Actions tab without tagging, use the
+# manual trigger and pass the version.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build (e.g. v0.1.3)'
+        required: true
+
+jobs:
+  build:
+    permissions:
+      contents: write # needed to create the release + upload assets
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS universal binary (Apple Silicon + Intel) → single .dmg
+          - platform: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            node-target: darwin-universal # lipo a fat node to match the universal app
+            args: '--target universal-apple-darwin --bundles app,dmg'
+          # Linux → .AppImage, .deb, .rpm
+          - platform: ubuntu-22.04
+            rust-targets: ''
+            node-target: ''
+            args: '--bundles appimage,deb,rpm'
+          # Windows → NSIS setup .exe + .msi
+          - platform: windows-latest
+            rust-targets: ''
+            node-target: ''
+            args: '--bundles nsis,msi'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri v2 system dependencies (tray + autostart need libayatana-appindicator).
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf \
+            build-essential \
+            file wget
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      # Filenames embed tauri.conf.json's `version`; drive it from the tag so the
+      # installers always match the release (vX.Y.Z → X.Y.Z).
+      - name: Sync app version from tag
+        shell: bash
+        run: |
+          REF="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${REF#v}"
+          node -e "const fs=require('fs');const p='apps/desktop/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
+          echo "App version set to ${VERSION}"
+
+      # Stage the self-contained daemon runtime (npm-packs all @omnicross/*
+      # packages + production-installs them into src-tauri/daemon-runtime/) AND
+      # download a private Node binary into daemon-runtime/runtime/ so end users
+      # need nothing installed. Also builds the packages first if dist/ is missing.
+      - name: Stage daemon runtime + bundled node
+        run: npm run stage-daemon -w omnicross-desktop
+        env:
+          OMNICROSS_NODE_TARGET: ${{ matrix.node-target }}
+
+      # Builds the UI (beforeBuildCommand), compiles the Rust shell, bundles the
+      # installers, then creates/updates the release and uploads the artifacts.
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          releaseName: 'Omnicross ${{ github.event.inputs.version || github.ref_name }}'
+          releaseDraft: true
+          releasePrerelease: false
+          args: ${{ matrix.args }}

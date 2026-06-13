@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Ladataan LLM-asetuksia...",
+    "reset": {
+      "button": "Palauta oletusasetukset",
+      "confirmTitle": "Palautetaanko oletusasetukset?",
+      "confirmBody": "Tämä poistaa tämän palveluntarjoajan mukautuksesi, jotta se noudattaa sisäänrakennettuja oletusasetuksia jälleen. API-avaimesi ja tallennetut istuntosi säilytetään.",
+      "confirmButton": "Palauta oletusasetukset"
+    },
+    "reentryBanner": {
+      "message": "{{count}} käytössä oleva palveluntarjoaja tarvitsee API-avaimen uudelleensyöttämistä. Avaa jokainen ja lisää avain uudelleen."
+    },
+    "migrationPack": {
+      "barHint": "Siirrä palveluntarjoaja-avaimesi ja tilaustoken toiselle koneelle salatulla paketilla.",
+      "passphrase": "Salasana",
+      "passphrasePlaceholder": "Kirjoita salasana",
+      "passphraseHint": "Käytä vähintään 8 merkkiä; 12 tai enemmän on suositeltavaa.",
+      "confirm": "Vahvista salasana",
+      "confirmPlaceholder": "Kirjoita salasana uudelleen",
+      "mismatch": "Salasanat eivät täsmää.",
+      "strength": {
+        "weak": "Liian lyhyt — käytä vähintään 8 merkkiä.",
+        "fair": "OK — 12 tai enemmän merkkiä on vahvempi.",
+        "strong": "Vahva salasana."
+      },
+      "export": {
+        "button": "Vie paketti",
+        "title": "Vie salattu paketti",
+        "subtitle": "Salaa palveluntarjoaja-avaimesi ja tilaustokenisi siirrettävään tiedostoon.",
+        "warning": "Tämä tiedosto sisältää purettavia salaisuuksia. Säilytä se turvallisesti — kuka tahansa tiedoston ja salasanan hallussapitäjä voi lukea avaimesi. Hukattua salasanaa ei voi palauttaa.",
+        "submit": "Vie",
+        "success": "Paketti viety onnistuneesti.",
+        "error": "Vienti epäonnistui. Yritä uudelleen."
+      },
+      "import": {
+        "button": "Tuo paketti",
+        "title": "Tuo salattu paketti",
+        "subtitle": "Palauta palveluntarjoaja-avaimet ja tilaustokenit viedystä paketista.",
+        "hint": "Kirjoita paketin viennissä käytetty salasana ja valitse sitten tiedosto.",
+        "submit": "Tuo",
+        "successTitle": "Tuonti valmis",
+        "summary": "Tuotiin {{providerKeys}} palveluntarjoaja-avain(ta), {{poolKeys}} pool-avain(ta) ja {{tokenSets}} tokenikokoelma(a).",
+        "duplicates": "Ohitettiin {{count}} jo olemassa oleva pool-avain.",
+        "skipped": "Ohitettu (ei vastaavaa palveluntarjoajaa): {{names}}",
+        "error": "Väärä salasana tai vioittunut paketti. Mitään ei muutettu."
+      }
+    },
+    "searchPlaceholder": "Hae palveluntarjoajia...",
+    "emptySearch": "Mikään palveluntarjoaja ei vastaa hakuasi.",
+    "emptyList": "Ei palveluntarjoajia määritetty.",
+    "selectPrompt": "Valitse palveluntarjoaja nähdäksesi tiedot",
+    "listStatus": "{{count}} malli(a)",
+    "noModels": "Ei malleja määritetty",
+    "enabled": "Käytössä",
+    "disabled": "Pois käytöstä",
+    "showEnabledOnly": "Näytä vain käytössä olevat",
+    "showAll": "Näytä kaikki palveluntarjoajat",
+    "dragHandle": "Vedä järjestyksen muuttamiseksi",
+    "reorderFailed": "Palveluntarjoajajärjestyksen tallentaminen epäonnistui",
+    "credentials": {
+      "apiKey": "API-avain",
+      "apiBaseUrl": "API-perus-URL"
+    },
+    "filter": {
+      "all": "Kaikki",
+      "chat": "Chat",
+      "code": "Koodi"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Valitse malli",
+      "skipTemplates": "Ohita, määritä manuaalisesti",
+      "name": "Nimi *",
+      "providerType": "Tyyppi",
+      "apiType": "API-tyyppi",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "OpenAI chat/completions API:n vakiomuoto",
+        "claudecode": "Anthropic Messages API -muoto (Claude Code)"
+      },
+      "chatApiFormat": "API-muoto",
+      "chatApiFormatDescription": "Valitse palveluntarjoajan päätepistettä vastaava API-muoto",
+      "apiKey": "API-avain",
+      "apiKeyPlaceholder": "sk-... tai $ENV_VAR",
+      "apiKeyHelper": "Käytä $VAR_NAME viitaamaan ympäristömuuttujiin",
+      "apiKeySetPlaceholder": "Avain on asetettu — jätä tyhjäksi säilyttääksesi sen",
+      "apiKeyReplaceHelper": "Avain on tallennettu turvallisesti. Kirjoita uusi arvo korvataksesi sen tai jätä tyhjäksi säilyttääksesi sen.",
+      "testApiKey": "Testaa API-avain",
+      "apiUrl": "API-URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Esikatselu:",
+      "models": "Mallit",
+      "modelPlaceholder": "Mallin nimi (esim. gpt-4, claude-3-opus)",
+      "transformers": "Muuntimet",
+      "transformerConfig": "API-muuntimet",
+      "transformerConfigDescription": "Määritä muuntimet mukauttamaan API-pyyntö-/vastausmuotoja tälle palveluntarjoajalle",
+      "transformerConfigNote": "Demoni soveltaa näitä muuntimia pyyntöketjussa palveluntarjoajan formattimuuntimen jälkeen (joka käsittelee johtotasolla tapahtuvan muuntamisen). Tuntemattomat muunninnimet ohitetaan.",
+      "enabled": "Käytössä",
+      "apiVersion": "API-versio",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API -versio (esim. 2024-08-01-preview)",
+      "official": "Virallinen Anthropic API",
+      "officialHelper": "Ota käyttöön, jos tämä palveluntarjoaja yhdistää suoraan viralliseen Anthropic API:iin. Poista käytöstä käänteisiä välityspalvelimia tai kolmannen osapuolen palveluja varten.",
+      "maxConcurrency": "Maksimaalinen samanaikaisuus",
+      "maxConcurrencyHelper": "Tähän palveluntarjoajaan lähetettävien samanaikaisten API-pyyntöjen enimmäismäärä. Alhaisemmat arvot auttavat välttämään nopeusrajoitusta (429-virheitä). Aseta `-1` ei rajoitusta varten.",
+      "codingPlan": {
+        "label": "Koodaussuunnitelma",
+        "description": "Käytä erillistä API-päätepistettä tilauspohjaisille koodaussuunnitelmille",
+        "baseUrl": "Koodaussuunnitelman perus-URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Koodaussuunnitelman API-avain (valinnainen)",
+        "apiKeyPlaceholder": "Jätä tyhjäksi käyttääksesi palveluntarjoajan API-avainta",
+        "apiKeyHelper": "Vaaditaan vain, jos koodaussuunnitelma käyttää eri API-avainta",
+        "tokenPlanHint": "Jotkin palveluntarjoajat (esim. Xiaomi MiMo) myöntävät Token Plan -avaimia `tp-`-etuliitteellä — vain tiedoksi, ei pakollinen."
+      },
+      "selectTypeFirst": "Valitse palveluntarjoajatyyppi",
+      "selectTypeFirstDesc": "Valitse minkä tyyppinen palveluntarjoaja haluat lisätä",
+      "codeProviderNote": "Koodipalveluntarjoajat tarvitsevat vain API-avaimen ja URL-osoitteen. Malleja hallinnoi agenttireititin.",
+      "buttons": {
+        "cancel": "Peruuta",
+        "submitAdd": "Lisää palveluntarjoaja",
+        "submitUpdate": "Päivitä palveluntarjoaja",
+        "continue": "Jatka",
+        "back": "Takaisin"
+      }
+    },
+    "details": {
+      "noSelection": "Valitse palveluntarjoaja nähdäksesi tiedot",
+      "apiKey": "API-avain",
+      "apiUrl": "API-URL",
+      "nameLabel": "Palveluntarjoajan nimi",
+      "modelsEndpoint": "Mallipäätepiste",
+      "modelsEndpointHelper": "Korvaa etsintäpäätepiste, jos palveluntarjoaja paljastaa mukautetun /models-polun.",
+      "models": "Mallit",
+      "transformers": "Muuntimet",
+      "codeProviderNote": "Koodipalveluntarjoajat (kuten Claude Code) eivät vaadi mallikonfiguraatiota. Malleja hallinnoi automaattisesti agenttireititin.",
+      "buttons": {
+        "more": "Lisää asetuksia",
+        "delete": "Poista"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Valitse palveluntarjoaja ja malli",
+      "noProviders": "Ei palveluntarjoajia saatavilla",
+      "noModels": "Ei malleja määritetty"
+    },
+    "apiKeyPool": {
+      "title": "API-avainallas",
+      "description": "Määritä useita API-avaimia kuormantasausta varten. Jokainen istunto pysyy yhdessä avaimessa kehotusvälimuistin säilyttämiseksi.",
+      "defaultLabel": "Oletus",
+      "weight": "Paino",
+      "noKey": "Ei avainta",
+      "labelPlaceholder": "Tunniste (esim. Avain #1, Tuotanto)",
+      "addKey": "Lisää API-avain",
+      "add": "Lisää",
+      "empty": "Ei lisäavaimia määritetty.",
+      "statusCoolingDown": "Jäähtyminen {{time}}",
+      "statusAuthFailed": "Todennus epäonnistui · poistettu käytöstä",
+      "statusDisabled": "Pois käytöstä",
+      "statusHealthy": "Kunnossa",
+      "agoSeconds": "{{count}}s sitten",
+      "agoMinutes": "{{count}}min sitten",
+      "agoHours": "{{count}}t sitten",
+      "agoDays": "{{count}}pv sitten"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Hae malleja...",
+      "defaultGroup": "Kaikki mallit",
+      "add": "Lisää malli",
+      "manage": "Hallinnoi",
+      "empty": "Ei malleja tässä ryhmässä",
+      "enabled": "Käytössä",
+      "disabled": "Pois käytöstä",
+      "filters": {
+        "all": "Kaikki",
+        "vision": "Visio",
+        "reasoning": "Päättely",
+        "free": "Ilmainen",
+        "tools": "Työkalut"
+      },
+      "manualDialog": {
+        "title": "Lisää malli",
+        "subtitle": "Lisää mukautettu malli tähän palveluntarjoajaan",
+        "modelId": "Mallin tunnus",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, jne.",
+        "modelIdHelper": "Tarkka mallitunniste, jota käytetään API-kutsuja tehdessä",
+        "modelName": "Näyttönimi",
+        "modelNamePlaceholder": "Ystävällinen näyttönimi (valinnainen)",
+        "modelNameHelper": "Valinnainen käyttöliittymässä näkyvä nimi. Jos tyhjä, käytetään mallin tunnusta",
+        "group": "Ryhmä",
+        "groupPlaceholder": "Valitse tai kirjoita ryhmän nimi",
+        "submit": "Lisää",
+        "cancel": "Peruuta",
+        "helper": "Anna palveluntarjoajan API:n paljastama tarkka mallitunniste."
+      },
+      "editDialog": {
+        "title": "Muokkaa mallia",
+        "subtitle": "Muuta mallin asetuksia",
+        "modelId": "Mallin tunnus",
+        "modelIdPlaceholder": "Mallitunniste",
+        "modelIdHelper": "Mallitunniste, jota käytetään API-kutsuja tehdessä",
+        "modelName": "Näyttönimi",
+        "modelNamePlaceholder": "Ystävällinen näyttönimi",
+        "modelNameHelper": "Käyttöliittymässä näkyvä nimi",
+        "group": "Ryhmä",
+        "groupPlaceholder": "Valitse tai kirjoita ryhmän nimi",
+        "submit": "Tallenna",
+        "cancel": "Peruuta",
+        "vision": "Visio-ominaisuus",
+        "visionHint": "Tukeeko tämä malli kuva-/visionsyötettä",
+        "reasoning": "Päättelymalli",
+        "reasoningHint": "Tukeeko tämä malli ajattelu-/päättelytilaa"
+      },
+      "manageDialog": {
+        "title": "Hallinnoi malleja",
+        "cachedAt": "Välimuistissa {{date}} ({{source}})",
+        "refresh": "Päivitä",
+        "close": "Sulje",
+        "raw": "Raaaka JSON",
+        "empty": "Ei etämalleja saatavilla.",
+        "error": "Mallien lataaminen epäonnistui: {{message}}",
+        "addFromCatalog": "Lisää",
+        "sourceCache": "välimuisti",
+        "sourceNetwork": "live",
+        "contextLength": "Konteksti {{value}} tokenia",
+        "maxTokens": "Maks {{value}} tokenia"
+      },
+      "messages": {
+        "added": "Malli lisätty.",
+        "updated": "Malli päivitetty.",
+        "removed": "Malli poistettu.",
+        "duplicate": "Malli on jo olemassa.",
+        "refreshed": "Mallit päivitetty",
+        "refreshFailed": "Mallien päivittäminen epäonnistui"
+      },
+      "testDialog": {
+        "title": "Mallin yhteystesti",
+        "provider": "Palveluntarjoaja",
+        "model": "Malli",
+        "testing": "Testataan...",
+        "success": "Testi onnistui",
+        "successMessage": "Malliin pääsee normaalisti",
+        "failure": "Testi epäonnistui",
+        "aiResponse": "Tekoälyvastaus",
+        "charCount": "{{count}} merkkiä",
+        "duration": "Kesto {{time}}s",
+        "close": "Sulje",
+        "retest": "Testaa uudelleen",
+        "testButton": "Testaa malli",
+        "unsupportedFormat": "Testaus ei vielä tue tätä palveluntarjoajamuotoa."
+      }
+    },
+    "router": {
+      "title": "Reitittimen asetukset",
+      "description": "Määritä, mitä palveluntarjoajaa/mallia käytetään eri tilanteissa.",
+      "labels": {
+        "default": "Oletus",
+        "background": "tausta",
+        "think": "ajattelu",
+        "longContext": "Pitkä konteksti",
+        "webSearch": "Verkkohaku",
+        "image": "Kuva",
+        "longContextThreshold": "Pitkän kontekstin kynnysarvo"
+      },
+      "helper": {
+        "longContextThreshold": "Tokenien määrä ennen vaihtamista pitkän kontekstin malliin."
+      },
+      "placeholder": {
+        "required": "Pakollinen",
+        "optional": "Valinnainen"
+      }
+    },
+    "agentRouter": {
+      "title": "Agenttireititin",
+      "description": "Määritä kaksisuuntainen reititys chat- ja kooditilan välillä.",
+      "searchPlaceholder": "Hae reitittimia...",
+      "noSearchResults": "Mikään reititin ei vastaa hakuasi.",
+      "tabs": {
+        "chatToCode": "Chat → Koodi",
+        "codeToChatPlaceholder": "Koodi → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat koodiksi -reititin",
+        "description": "Käytä chat-palveluntarjoajia agentti-/koodaustilassa",
+        "addRouter": "Lisää reititin",
+        "emptyState": "Ei Chat→Koodi-reitittimia määritetty. Lisää yksi käyttääksesi chat-palveluntarjoajia koodaustilassa.",
+        "form": {
+          "name": "Reitittimen nimi",
+          "namePlaceholder": "Oma Chat→Koodi-reititin",
+          "chatProvider": "Chat-palveluntarjoaja",
+          "chatProviderPlaceholder": "Valitse chat-palveluntarjoaja",
+          "mode": "Tila",
+          "modeSimple": "Yksinkertainen",
+          "modeAdvanced": "Edistynyt",
+          "modeSimpleDesc": "Suora läpivienti chat-palveluntarjoajalle",
+          "modeAdvancedDesc": "Määritä mallimappaukset ja kontekstinkäsittely",
+          "enabled": "Käytössä",
+          "save": "Tallenna reititin",
+          "cancel": "Peruuta"
+        },
+        "list": {
+          "provider": "Palveluntarjoaja",
+          "mode": "Tila",
+          "status": "Tila"
+        },
+        "mappings": {
+          "title": "Mallimappaykset",
+          "description": "Kartoita chat-palveluntarjoajan mallit koodipalveluntarjoajan malleihin",
+          "count": "mappausta",
+          "empty": "Ei mallimappayksia määritetty. Lisää mappayksia reitittääksesi chat-malleja koodipalveluntarjoajille.",
+          "addNew": "Lisää uusi mappaus",
+          "selectSource": "Valitse lähdemalli (Chat)",
+          "selectTarget": "Valitse kohdemalli (Koodi)",
+          "targetPlaceholder": "Kirjoita Claude Code -mallin nimi",
+          "notSet": "(Ei asetettu — napsauta valitaksesi)",
+          "add": "Lisää",
+          "edit": "Muokkaa",
+          "done": "Valmis"
+        },
+        "advanced": {
+          "title": "Edistynyt asetukset",
+          "description": "Määritä mallit eri tehtävätyypeille",
+          "helpText": "Oletusmallia vaaditaan. Muut mallit ovat valinnaisia ja palautuvat oletukseen, jos niitä ei ole määritetty.",
+          "default": {
+            "label": "Oletus",
+            "placeholder": "Valitse oletusmalli",
+            "description": "Ensisijainen malli yleisiin tehtäviin (vastaava kuin Claude Sonnet)"
+          },
+          "background": {
+            "label": "Tausta",
+            "placeholder": "Valitse taustamallin",
+            "description": "Kevyt malli taustatöitä varten (vastaava kuin Claude Haiku)"
+          },
+          "think": {
+            "label": "Ajattelu",
+            "placeholder": "Valitse ajattelumalli",
+            "description": "Edistynyt malli monimutkaiseen päättelyyn (vastaava kuin Claude Opus)"
+          },
+          "image": {
+            "label": "Kuva",
+            "placeholder": "Valitse kuvamalli",
+            "description": "Malli kuvaan liittyville tehtäville visio-ominaisuudella"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Koodi chatiksi -reititin",
+        "description": "Paljasta koodaussuunnitelmamalleja chat-tilassa",
+        "addRouter": "Lisää reititin",
+        "emptyState": "Ei Koodi→Chat-reitittimia määritetty. Lisää yksi paljastaaksesi koodaussuunnitelmamalleja chat-tilassa.",
+        "form": {
+          "name": "Reitittimen nimi",
+          "namePlaceholder": "Oma Koodi→Chat-reititin",
+          "codeProvider": "Koodipalveluntarjoaja",
+          "codeProviderPlaceholder": "Valitse koodipalveluntarjoaja",
+          "codeProviderHelper": "Valitse muunnokseen käytettävä koodipalveluntarjoaja",
+          "models": "Koodaussuunnitelmamallit",
+          "modelsHelper": "Valitse paljastettavat koodaussuunnitelmamallit",
+          "enabled": "Käytössä",
+          "save": "Tallenna reititin",
+          "cancel": "Peruuta"
+        },
+        "mappings": {
+          "title": "Mallimappaykset",
+          "description": "Kartoita koodipalveluntarjoajan mallit chat-palveluntarjoajan malleihin paljastamista varten",
+          "count": "mappausta",
+          "empty": "Ei mallimappayksia määritetty. Lisää mappayksia paljastaaksesi koodimalleja chat-tilassa.",
+          "addNew": "Lisää uusi mappaus",
+          "selectSource": "Valitse lähdemalli (Koodi)",
+          "selectTarget": "Valitse kohdemalli (Chat)",
+          "sourcePlaceholder": "Kirjoita lähdemallin nimi",
+          "targetPlaceholder": "Kirjoita kohdemallin nimi",
+          "add": "Lisää",
+          "edit": "Muokkaa",
+          "done": "Valmis"
+        }
+      },
+      "transformers": {
+        "title": "Muuntimet",
+        "description": "Määritä muuntimet pyyntö-/vastausmuunnosta varten",
+        "noProvider": "Valitse palveluntarjoaja muuntimien määrittämiseksi",
+        "empty": "Ei muuntimia",
+        "count": "{{count}} muunnin(ta)"
+      },
+      "status": {
+        "enabled": "Käytössä",
+        "disabled": "Pois käytöstä"
+      },
+      "messages": {
+        "routerAdded": "Reititin lisätty",
+        "routerUpdated": "Reititin päivitetty",
+        "routerDeleted": "Reititin poistettu",
+        "saveFailed": "Reitittimen tallentaminen epäonnistui"
+      }
+    },
+    "presets": {
+      "title": "Lisää palveluntarjoaja nopeasti",
+      "added": "Lisätty",
+      "add": "Lisää",
+      "features": {
+        "search": "Haku",
+        "vision": "Visio",
+        "mcp": "MCP",
+        "codingPlan": "Koodaussuunnitelma"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Haluatko varmasti poistaa tämän palveluntarjoajan?"
+    },
+    "errors": {
+      "nameRequired": "Palveluntarjoajan nimi on pakollinen",
+      "urlRequired": "API-perus-URL on pakollinen",
+      "urlInvalid": "Kirjoita kelvollinen URL-osoite (esim. https://api.example.com)",
+      "saveFailed": "Palveluntarjoajan tallentaminen epäonnistui",
+      "deleteFailed": "Virhe palveluntarjoajan poistamisessa. Yritä uudelleen.",
+      "toggleFailed": "Virhe palveluntarjoajan käyttöönottamisessa/poistamisessa käytöstä. Yritä uudelleen."
+    },
+    "openRouter": {
+      "title": "OpenRouter-palveluntarjoajareititys",
+      "description": "Määritä, miten pyynnöt reititetään eri palveluntarjoajille OpenRouterissa.",
+      "sort": "Reititystrategia",
+      "sortTooltip": "Valitse, miten palveluntarjoajat priorisoidaan. Auto käyttää älykkäätä kuormantasausta.",
+      "order": "Palveluntarjoajan prioriteettijärjestys",
+      "orderTooltip": "Määritä kokeiltavat palveluntarjoajat järjestyksessä (esim. anthropic, openai, together). Paina Enter lisätäksesi.",
+      "orderPlaceholder": "Kirjoita palveluntarjoajan slug ja paina Enter...",
+      "allowFallbacks": "Salli varavaihtoehdot",
+      "allowFallbacksTooltip": "Kun käytössä, OpenRouter kokeilee varapalveluntarjoajia, jos ensisijainen ei ole käytettävissä.",
+      "requireParameters": "Vaadi kaikki parametrit",
+      "requireParametersTooltip": "Reititä vain palveluntarjoajille, jotka tukevat kaikkia pyyntösi parametreja.",
+      "dataCollection": "Tiedonkeruukäytäntö",
+      "dataCollectionTooltip": "Hallinnoi, käytetäänkö palveluntarjoajia, jotka voivat tallentaa tai kouluttaa tietojesi perusteella.",
+      "zdr": "Nollatietojen säilytys",
+      "zdrTooltip": "Reititä vain päätepisteisiin, joilla on nollatietojen säilytyskäytäntö.",
+      "only": "Salli vain palveluntarjoajat",
+      "onlyTooltip": "Käytä vain näitä tiettyjä palveluntarjoajia. Jätä tyhjäksi salliaksesi kaikki palveluntarjoajat.",
+      "onlyPlaceholder": "Kirjoita palveluntarjoajan slug ja paina Enter...",
+      "ignore": "Ohita palveluntarjoajat",
+      "ignoreTooltip": "Ohita nämä palveluntarjoajat pyyntöjä reitittäessä.",
+      "ignorePlaceholder": "Kirjoita palveluntarjoajan slug ja paina Enter...",
+      "quantizations": "Kvantisoinnin suodatin",
+      "quantizationsTooltip": "Käytä vain palveluntarjoajia, joilla on tietyt kvantisoinnin tasot. Alhaisempi tarkkuus voi heikentää laatua, mutta parantaa nopeutta.",
+      "maxPrice": "Enimmäishinta",
+      "maxPriceTooltip": "Aseta enimmäishintarajat miljoonaa tokenia kohden. Jätä tyhjäksi, jos ei rajoitusta.",
+      "configured": "Määritetty"
+    }
+  },
+  "apiMode": {
+    "label": "API-tila",
+    "standard": "Vakio",
+    "codingPlan": "Koodaussuunnitelma",
+    "tokenPlan": "Tokenisuunnitelma",
+    "apiKeyPrefixHint": "Tämän suunnitelman avaimet alkavat yleensä `{{prefix}}`-etuliitteellä. Vain tiedoksi — ei pakollinen.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Koodaussuunnitelma käyttää erillistä API-avainta vakiopäätepistestä.",
+    "baiduCodingPlanSeparateKey": "Qianfan Koodaussuunnitelma käyttää erillistä API-avainta vakiopäätepistestä.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Tokenisuunnitelma on vain Anthropic-protokollan mukainen.",
+    "xiaomiTokenPlanRegions": "Oletusarvoinen baseUrl on `token-plan-cn.*`. Voit muokata sen manuaalisesti muotoon `token-plan-sgp.*` tai `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Vaihdetaanko API-tilaa?",
+    "confirmOverwriteBody": "Olet mukauttanut API-URL-osoitteen tai API-avaimen. Tilan vaihtaminen korvaa ne uuden tilan oletusarvoilla — tai pidä mukautuksesi ja päivitä vain tilatunniste.",
+    "overwriteAndSwitch": "Korvaa ja vaihda",
+    "keepCustomizations": "Pidä mukautukset"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Tokenisuunnitelma)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Peruuta",
+    "close": "Sulje",
+    "copy": "Kopioi",
+    "delete": "Poista",
+    "dismiss": "Hylkää",
+    "save": "Tallenna",
+    "optional": "valinnainen",
+    "retry": "Yritä uudelleen",
+    "loading": "Ladataan…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentaatio"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Demoni ei vielä tue tätä",
+    "discoveryUnsupportedFormat": "Mallien etsintä ei vielä tue tätä palveluntarjoajamuotoa. Lisää mallit manuaalisesti."
+  },
+  "nav": {
+    "subtitle": "Ohjauspaneeli",
+    "providers": "Palveluntarjoajat",
+    "apiService": "API-palvelu",
+    "accounts": "Tilit",
+    "codeCli": "Koodi-CLI",
+    "settings": "Asetukset",
+    "usageStats": "Käyttö",
+    "pricing": "Hinnat"
+  },
+  "apiService": {
+    "title": "API-palvelu",
+    "description": "Määritä lähtevä API-palvelin, mallireititys päätepistettä kohden ja nimetyt käyttöavaimet.",
+    "loading": "Ladataan palvelinasetuksia…",
+    "loadError": "Palvelinasetuksia ei voitu ladata. Tarkista, että demoni on käytettävissä.",
+    "enable": {
+      "label": "Ota käyttöön lähtevä palvelin",
+      "description": "Käynnistä paikallinen API-palvelin, joka reitittää ulkoiset kutsut palveluntarjoajiesi kautta."
+    },
+    "networkBinding": {
+      "label": "Salli LAN-käyttö",
+      "description": "Sido palvelin verkkokäyttöliittymääsi vain loopbackin sijaan.",
+      "warning": "LAN-käyttö paljastaa API-palvelimen muille laitteillesi verkossasi. Yhdistettynä tilausreititykseen pyynnöt voivat kuluttaa tilauskvoottiasi — pidä tämä pois käytöstä, ellei luota verkkoon."
+    },
+    "status": {
+      "running": "Palvelin käynnissä",
+      "stopped": "Palvelin pysäytetty",
+      "runningHint": "Lähtevä API-palvelin vastaanottaa pyyntöjä.",
+      "stoppedHint": "Ota palvelin käyttöön aloittaaksesi pyyntöjen vastaanottamisen.",
+      "port": "portti {{port}}",
+      "loopback": "Loopback-URL-osoitteet",
+      "lan": "LAN-URL-osoitteet"
+    },
+    "endpoints": {
+      "title": "Päätepistereititys",
+      "description": "Valitse malli, johon kukin johtotason muoto reititetään. Oletusmalli sisältyy tähän — palvelin on reititin, ei chat-sovellus."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Oletusmalli",
+      "backgroundModel": "Taustamallin",
+      "visionModel": "Visiomalli",
+      "noVisionModel": "Ei mitään",
+      "backgroundModelIds": "Taustamallin tunnukset",
+      "backgroundModelIdsPlaceholder": "pilkuilla erotetut mallitunnukset",
+      "modelPlaceholder": "Valitse malli…",
+      "useSubscription": "Käytä tilausta",
+      "subscriptionUnsupported": "Tilausreititys ei ole käytettävissä tässä päätepisteessä."
+    },
+    "keys": {
+      "title": "Käyttöavaimet",
+      "description": "Nimetyt avaimet, jotka ulkoiset kutsujat lähettävät Bearer-tokenina. Koko avain näytetään vain kerran luomisen yhteydessä.",
+      "namePlaceholder": "Avaimen nimi (esim. oma-cli)",
+      "create": "Luo avain",
+      "empty": "Ei käyttöavaimia vielä.",
+      "enabled": "Käytössä",
+      "disabled": "Pois käytöstä",
+      "revoked": "Peruutettu",
+      "toggle": "Vaihda avaimen tila",
+      "revoke": "Peruuta",
+      "revokeConfirmTitle": "Peruutetaanko tämä avain?",
+      "revokeConfirmDesc": "\"{{name}}\"-avaimen peruuttaminen estää todentamisen välittömästi. Tätä ei voi kumota.",
+      "created": {
+        "title": "Avain luotu",
+        "warning": "Kopioi tämä avain nyt — sitä ei näytetä uudelleen. Säilytä se turvallisesti.",
+        "copy": "Kopioi",
+        "copied": "Kopioitu",
+        "dismiss": "Valmis"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Tilit ja tilaukset",
+    "description": "Hallinnoi tilausten tunnistietoja, joiden kautta palvelin reitittää. Tokenit kirjoitetaan tänne, mutta niitä ei koskaan näytetä takaisin.",
+    "loading": "Ladataan tilejä…",
+    "empty": "Tilauspalveluntarjoajia ei ole käytettävissä.",
+    "signIn": "Kirjaudu sisään",
+    "oauth": {
+      "title": "Kirjaudu sisään {{name}}",
+      "description": "Avaa kirjautumissivu selaimessasi, valtuuta ja liitä sitten valtuutuskoodi alle. Koodi siirretään vain demonille — luotua tokenia ei koskaan näytetä.",
+      "openPage": "Avaa kirjautumissivu",
+      "codeLabel": "Valtuutuskoodi",
+      "codePlaceholder": "Liitä koodi tähän",
+      "submit": "Viimeistele kirjautuminen"
+    },
+    "codexOauth": {
+      "title": "Kirjaudu sisään {{name}}",
+      "description": "Avaa kirjautumissivu selaimessasi ja valtuuta. Demoni kaappaa tuloksen automaattisesti — pidä tämä auki, kunnes se on valmis. Tokenia ei koskaan näytetä.",
+      "waiting": "Odotetaan, että viimeistelet kirjautumisen selaimessasi…",
+      "failed": "Kirjautuminen epäonnistui. Yritä uudelleen."
+    },
+    "clearProvider": "Tyhjennä kaikki",
+    "clearConfirmTitle": "Tyhjennetäänkö {{name}}-tilit?",
+    "clearConfirmDesc": "Tämä poistaa kaikki tallennetut tunnistiedot tältä palveluntarjoajalta. Tätä ei voi kumota.",
+    "credential": {
+      "ok": "Määritetty",
+      "notConfigured": "Ei määritetty"
+    },
+    "kind": {
+      "pass-through": "Läpivistitunnistiedot",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Staattinen bearer-avain"
+    },
+    "reason": {
+      "missing-credential": "Tunnistietoja ei tallennettu.",
+      "expired": "Tunnistieto on vanhentunut.",
+      "reauth-required": "Uudelleentodentaminen vaaditaan.",
+      "refresh-failed": "Tokenin päivittäminen epäonnistui.",
+      "not-refreshable": "Tunnistietoa ei voi päivittää.",
+      "unknown": "Tila tuntematon."
+    },
+    "status": {
+      "unconfigured": "Ei määritetty",
+      "authorized": "Valtuutettu",
+      "configured": "Määritetty",
+      "expired": "Vanhentunut",
+      "error": "Virhe"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Asennustoken",
+      "manual": "Manuaalinen"
+    },
+    "list": {
+      "empty": "Ei tilejä tallennettu tälle palveluntarjoajalle.",
+      "active": "Aktiivinen",
+      "expiresAt": "Vanhenee {{value}}",
+      "setActive": "Aseta aktiiviseksi",
+      "remove": "Poista",
+      "removeConfirmTitle": "Poistetaanko tämä tili?",
+      "removeConfirmDesc": "\"{{name}}\"-tilin poistaminen poistaa sen tallennetut tunnistiedot. Tätä ei voi kumota.",
+      "title": "Tilit"
+    },
+    "write": {
+      "trigger": "Lisää tunnistieto",
+      "title": "Kirjoita {{name}}-tunnistieto",
+      "description": "Liitä jo hankittu tokeniaines. Kentät on rajoitettu siihen, mitä tämä palveluntarjoaja hyväksyy; token tallennetaan, eikä sitä koskaan näytetä takaisin.",
+      "authMethod": "Todennusmenetelmä",
+      "status": "Tila",
+      "subscriptionLevel": "Tilaustaso",
+      "subscriptionLevelNone": "Ei asetettu",
+      "submit": "Tallenna tunnistieto"
+    },
+    "field": {
+      "accessToken": "Käyttötoken",
+      "refreshToken": "Päivitystoken",
+      "idToken": "ID-token",
+      "apiKey": "API-avain",
+      "expiresAt": "Vanhenee (ISO)",
+      "setupTokenExpiresAt": "Asennustoken vanhenee (ISO)",
+      "accountId": "Tilin tunnus",
+      "email": "Sähköposti",
+      "organizationId": "Organisaation tunnus",
+      "baseUrl": "Perus-URL",
+      "zenBaseUrl": "Zen-perus-URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropicin tilaustunnistiedot, joita demoni reitittää."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codexin tilaustunnistiedot, joita demoni reitittää."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Geminin tilaustunnistiedot, joita demoni reitittää."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Staattiset API-avaintunnistiedot, joita demoni reitittää."
+      }
+    },
+    "authMethodLabel": "Valtuutusmenetelmä",
+    "authMethodDesc": {
+      "oauth": "Kirjaudu sisään selaimen kautta; demoni kaappaa ja tallentaa tokenin.",
+      "manual": "Liitä jo hankittu token. Se tallennetaan, eikä sitä koskaan näytetä takaisin."
+    },
+    "actions": {
+      "authorize": "Valtuuta",
+      "enterToken": "Syötä token",
+      "refresh": "Päivitä"
+    },
+    "accounts": {
+      "addAccount": "Lisää tili"
+    },
+    "detail": {
+      "authMethod": "Valtuutusmenetelmä",
+      "subscriptionLevel": "Tilaustaso",
+      "expiresAt": "Vanhenee",
+      "lastRefreshed": "Viimeksi päivitetty",
+      "label": "Tilin tunniste",
+      "labelPlaceholder": "Anna tälle tilille nimi",
+      "saveLabel": "Tallenna tunniste"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Avaa valtuutussivu",
+        "desc": "Avaa kirjautumissivu selaimessasi."
+      },
+      "step2": {
+        "title": "Valtuuta käyttö",
+        "desc": "Kirjaudu sisään ja hyväksy käyttö palveluntarjoajalle."
+      },
+      "step3": {
+        "title": "Kopioi valtuutuskoodi",
+        "desc": "Sivu näyttää valtuutuskoodin hyväksymisen jälkeen."
+      },
+      "step4": {
+        "title": "Liitä koodi",
+        "desc": "Liitä valtuutuskoodi alle viimeistelläksesi. Koodi siirretään vain demonille — luotua tokenia ei koskaan näytetä."
+      },
+      "authorize": "Viimeistele kirjautuminen",
+      "showUrl": "Näytä valtuutus-URL"
+    },
+    "manual": {
+      "title": "Liitä tunnistieto",
+      "description": "Liitä jo hankittu token. Kentät on rajoitettu siihen, mitä tämä palveluntarjoaja hyväksyy; token tallennetaan, eikä sitä koskaan näytetä takaisin.",
+      "accessTokenPlaceholder": "Liitä käyttötoken",
+      "refreshTokenPlaceholder": "Liitä päivitystoken (valinnainen)",
+      "hint": "Token lähetetään demonille ja tallennetaan salattuna. Sitä ei koskaan näytetä takaisin."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "API-avain on pakollinen.",
+      "apiKeyPlaceholder": "Liitä API-avain",
+      "baseUrlPlaceholder": "https://… (valinnainen)",
+      "zenBaseUrlPlaceholder": "https://… (valinnainen)"
+    },
+    "info": {
+      "title": "Tietoa tilaustileistä",
+      "description": "Tokenit kirjoitetaan demonille ja niitä käytetään ylävirran pyyntöjen todentamiseen. Ne tallennetaan salattuna eikä niitä koskaan näytetä takaisin. Tilin poistaminen poistaa sen tallennetut tunnistiedot."
+    },
+    "rename": {
+      "failed": "Tilin nimeä ei voitu muuttaa."
+    },
+    "refresh": {
+      "failed": "Tokenia ei voitu päivittää."
+    },
+    "errors": {
+      "requestFailed": "Pyyntö epäonnistui. Yritä uudelleen."
+    },
+    "syncWarning": {
+      "external-divergent": "Ulkoisen CLI:n kirjautumistiedosto sisältää uudemmat tunnistetiedot kuin tämä tili. Tallennettu token ei ehkä enää päivity — päivitä nyt tai kirjaudu uudelleen.",
+      "external-not-rotated": "Päivitys epäonnistui, ja ulkoinen CLI sisältää samat vanhentuneet tunnistetiedot. Kirjaudu uudelleen.",
+      "duplicate-token": "Toinen tili käyttää samoja tunnistetietoja. Jommankumman päivittäminen kirjaa toisen ulos."
+    },
+    "importExternal": {
+      "detected": "Tältä koneelta löytyi olemassa oleva {{name}} CLI -kirjautuminen.",
+      "hint": "Tuonnin jälkeen tämä sovellus pitää sen ajan tasalla: jokaisen tokenin päivityksen yhteydessä myös CLI:n kirjautumistiedosto päivitetään, joten terminaalin CLI pysyy kirjautuneena.",
+      "button": "Tuo olemassa oleva CLI-kirjautuminen"
+    }
+  },
+  "codeCli": {
+    "title": "Koodi-CLI",
+    "description": "Osoita koodaus-CLI demonin lähtevään välityspalvelimeen. Tämä sivu on vain luku — tässä ei ole mitään määritettävää.",
+    "copy": "Kopioi",
+    "copied": "Kopioitu",
+    "baseUrl": {
+      "title": "Demonin perus-URL",
+      "description": "Välityspalvelimen osoite, johon CLI:si yhdistää.",
+      "label": "Perus-URL"
+    },
+    "token": {
+      "title": "Todennus",
+      "hint": "Lähetä 'Authorization: Bearer <oma-admin-token>' admin-reitteille. Admin-token määritetään demonissa (sen asetustiedostossa tai ympäristössä) — sitä ei koskaan näytetä tässä."
+    },
+    "examples": {
+      "title": "Esimerkki käynnistysympäristöstä",
+      "keyNote": "Käytä API-palvelusivulla luotua lähtevää käyttöavainta — ei admin-tokenia.",
+      "anthropic": "Anthropic-muotoinen CLI",
+      "openai": "OpenAI-muotoinen CLI"
+    },
+    "launchDescription": "Käynnistä koodaus-CLI päätteessä, osoitettuna tähän demoniin. Demoni lisää ohjausympäristömuuttujat ja käynnistää CLI:n puolestasi.",
+    "refresh": "Päivitä",
+    "loading": "Havaitaan CLI:tä…",
+    "cli": {
+      "installed": "Asennettu",
+      "notFound": "Ei löydy",
+      "notFoundHint": "Tämä CLI ei ole demonin isäntäkoneen PATH:ssa. Asenna se ja päivitä sitten.",
+      "install": "Asenna",
+      "installing": "Asennetaan…",
+      "installingHint": "Asennetaan demonin isäntäkoneelle — tämä voi kestää hetken.",
+      "launch": "Käynnistä",
+      "launchTitle": "Käynnistä {{name}}",
+      "launchDescription": "Avaa uuden päätteen demonin isäntäkoneella, jossa tämä CLI on käynnissä demonivälityspalvelimen kautta. Valitse valinnainen työhakemisto.",
+      "cwdLabel": "Työhakemisto",
+      "cwdPlaceholder": "/polku/projektillesi",
+      "runningVia": "Käynnissä · {{provider}} / {{model}}",
+      "stop": "Pysäytä"
+    },
+    "manual": {
+      "title": "Manuaalinen asetus",
+      "description": "Haluatko mieluummin ajaa CLI:n itse? Osoita se demoniin näillä ympäristömuuttujilla.",
+      "show": "Näytä",
+      "hide": "Piilota"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Etsitään demonia…",
+    "spawning": "Käynnistetään demonia…",
+    "failed": "Demoni ei käynnistynyt",
+    "failedHint": "Varmista, että Node.js on asennettu ja demoni on rakennettu (dist-hakemisto on olemassa), tai aseta OMNICROSS_DAEMON_ENTRY demonin cli.js-tiedostoon."
+  },
+  "settings": {
+    "title": "Asetukset",
+    "description": "Työpöytäsovelluksen asetukset.",
+    "desktopOnly": "Käynnistys- ja ilmoitusalueen asetukset koskevat vain työpöytäsovellusta.",
+    "startup": {
+      "title": "Käynnistys",
+      "autoLaunch": "Käynnistä kirjautuessa",
+      "autoLaunchHint": "Käynnistä Omnicross automaattisesti, kun kirjaudut sisään.",
+      "startMinimized": "Käynnistä minimoituna ilmoitusalueelle",
+      "startMinimizedHint": "Käynnistä taustalla avaamatta ikkunaa."
+    },
+    "tray": {
+      "title": "Ilmoitusalue",
+      "minimizeOnClose": "Minimoi ilmoitusalueelle suljettaessa",
+      "minimizeOnCloseHint": "Ikkunan sulkeminen piilottaa sen ilmoitusalueelle ohjelman sulkemisen sijaan."
+    },
+    "language": {
+      "title": "Kieli",
+      "label": "Käyttöliittymän kieli"
+    }
+  },
+  "usageStats": {
+    "title": "Käyttötilastot",
+    "description": "Daemonin palvelemien pyyntöjen token- ja kustannustilastot.",
+    "rangeToday": "Tänään",
+    "range7d": "Viimeiset 7 päivää",
+    "range30d": "Viimeiset 30 päivää",
+    "rangeCustom": "Mukautettu",
+    "from": "Alkaen",
+    "to": "Asti",
+    "totalCost": "Kokonaiskustannus",
+    "cacheSavings": "Välimuistisäästö",
+    "events": "Pyynnöt",
+    "inputTokens": "Syöte-tokenit",
+    "outputTokens": "Tulos-tokenit",
+    "cacheReadTokens": "Välimuistin luku",
+    "cacheWriteTokens": "Välimuistin kirjoitus",
+    "reasoningTokens": "Päättely-tokenit",
+    "byModel": "Malleittain",
+    "byApiKey": "API-avaimittain",
+    "provider": "Palveluntarjoaja",
+    "model": "Malli",
+    "cost": "Kustannus",
+    "apiKey": "API-avain",
+    "unpriced": "Hinnoittelematon",
+    "unpricedHint": "Tälle mallille ei ole hintamerkintää — lisää se Hinnat-sivulla.",
+    "unattributed": "Kohdistamaton",
+    "unattributedHint": "Pyynnöt, joita ei ole liitetty tiettyyn API-avaimeen. Tämä on odotettua, kunnes avainkohtainen kohdistus tallennetaan.",
+    "empty": "Ei pyyntöjä tällä aikavälillä.",
+    "invalidRange": "Valitse kelvollinen päivämääräväli."
+  },
+  "pricing": {
+    "title": "Mallien hinnat",
+    "description": "Mallikohtaiset token-hinnat pyyntökustannusten laskentaan, USD / miljoona tokenia.",
+    "search": "Hae palveluntarjoajaa tai mallia…",
+    "fetchLatest": "Hae uusimmat",
+    "fetching": "Haetaan…",
+    "addEntry": "Lisää merkintä",
+    "provider": "Palveluntarjoaja",
+    "model": "Malli",
+    "inputPrice": "Syöte",
+    "outputPrice": "Tulos",
+    "cacheReadPrice": "Välimuistin luku",
+    "cacheWritePrice": "Välimuistin kirjoitus",
+    "source": "Lähde",
+    "updated": "Päivitetty",
+    "userEdited": "muokattu",
+    "edit": "Muokkaa",
+    "deleteTitle": "Poistetaanko hintamerkintä?",
+    "empty": "Hintataulukko on tyhjä.",
+    "emptyHint": "Hae uusimmat hinnat täyttääksesi sen.",
+    "noMatches": "Mikään merkintä ei vastaa hakua.",
+    "saved": "Hintamerkintä tallennettu.",
+    "saveFailed": "Tallennus epäonnistui: {{message}}",
+    "deleteFailed": "Poisto epäonnistui: {{message}}",
+    "alreadyDeleted": "Merkintää ei enää ollut.",
+    "fetchApplied": "{{count}} merkintää päivitetty lähteestä.",
+    "fetchFailed": "Haku epäonnistui: {{message}}",
+    "requiredId": "Pakollinen",
+    "invalidPrice": "Anna ei-negatiivinen luku",
+    "conflictTitle": "Ratkaise hintaristiriidat",
+    "conflictHint": "Olet muokannut näitä merkintöjä, ja ne ovat muuttuneet myös lähteessä. Valitse riveittäin, säilytetäänkö oma arvosi (Ohita) vai otetaanko uusi (Korvaa).",
+    "current": "Nykyinen",
+    "incoming": "Saapuva",
+    "overwrite": "Korvaa",
+    "skip": "Ohita",
+    "overwriteAll": "Korvaa kaikki",
+    "skipAll": "Ohita kaikki",
+    "applyResolutions": "Käytä",
+    "resolved": "{{overwritten}} korvattu, {{skipped}} ohitettu.",
+    "resolvedWithStale": "{{overwritten}} korvattu, {{skipped}} ohitettu. {{stale}} muuttui sillä välin ja jäi koskemattomaksi.",
+    "refreshFailed": "Muutos otettiin käyttöön, mutta luettelon uudelleenlataus epäonnistui: {{message}}",
+    "sourceBuiltin": "Sisäänrakennettu",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Käyttäjä"
+  }
+}

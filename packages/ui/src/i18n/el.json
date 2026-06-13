@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Φόρτωση ρυθμίσεων LLM...",
+    "reset": {
+      "button": "Επαναφορά προεπιλογών",
+      "confirmTitle": "Επαναφορά προεπιλεγμένων ρυθμίσεων;",
+      "confirmBody": "Αυτό διαγράφει τις προσαρμογές σας για αυτόν τον provider και επαναφέρει τις ενσωματωμένες προεπιλογές. Το API key και οι αποθηκευμένες συνεδρίες διατηρούνται.",
+      "confirmButton": "Επαναφορά προεπιλογών"
+    },
+    "reentryBanner": {
+      "message": "{{count}} ενεργός/ενεργοί provider(s) χρειάζονται εκ νέου εισαγωγή του API key τους. Ανοίξτε καθέναν και προσθέστε ξανά το key."
+    },
+    "migrationPack": {
+      "barHint": "Μεταφέρετε τα keys provider και τα subscription tokens σε άλλο υπολογιστή με ένα κρυπτογραφημένο πακέτο.",
+      "passphrase": "Φράση πρόσβασης",
+      "passphrasePlaceholder": "Εισάγετε φράση πρόσβασης",
+      "passphraseHint": "Χρησιμοποιήστε τουλάχιστον 8 χαρακτήρες· συνιστώνται 12 ή περισσότεροι.",
+      "confirm": "Επιβεβαίωση φράσης πρόσβασης",
+      "confirmPlaceholder": "Εισάγετε ξανά τη φράση πρόσβασης",
+      "mismatch": "Οι φράσεις πρόσβασης δεν ταιριάζουν.",
+      "strength": {
+        "weak": "Πολύ σύντομη — χρησιμοποιήστε τουλάχιστον 8 χαρακτήρες.",
+        "fair": "Εντάξει — 12 ή περισσότεροι χαρακτήρες είναι πιο ασφαλείς.",
+        "strong": "Ισχυρή φράση πρόσβασης."
+      },
+      "export": {
+        "button": "Εξαγωγή πακέτου",
+        "title": "Εξαγωγή κρυπτογραφημένου πακέτου",
+        "subtitle": "Κρυπτογραφήστε τα keys provider και τα subscription tokens σε φορητό αρχείο.",
+        "warning": "Αυτό το αρχείο περιέχει αποκρυπτογραφήσιμα μυστικά. Φυλάξτε το με ασφάλεια — όποιος έχει το αρχείο και τη φράση πρόσβασης μπορεί να διαβάσει τα keys σας. Η απώλεια της φράσης πρόσβασης δεν μπορεί να ανακτηθεί.",
+        "submit": "Εξαγωγή",
+        "success": "Το πακέτο εξήχθη επιτυχώς.",
+        "error": "Η εξαγωγή απέτυχε. Δοκιμάστε ξανά."
+      },
+      "import": {
+        "button": "Εισαγωγή πακέτου",
+        "title": "Εισαγωγή κρυπτογραφημένου πακέτου",
+        "subtitle": "Επαναφέρετε keys provider και subscription tokens από εξαγόμενο πακέτο.",
+        "hint": "Εισάγετε τη φράση πρόσβασης που χρησιμοποιήθηκε κατά την εξαγωγή και επιλέξτε το αρχείο.",
+        "submit": "Εισαγωγή",
+        "successTitle": "Η εισαγωγή ολοκληρώθηκε",
+        "summary": "Εισήχθησαν {{providerKeys}} provider key(s), {{poolKeys}} pool key(s) και {{tokenSets}} token set(s).",
+        "duplicates": "Παραλείφθηκαν {{count}} pool key(s) που υπήρχαν ήδη.",
+        "skipped": "Παραλείφθηκαν (δεν βρέθηκε αντίστοιχος provider): {{names}}",
+        "error": "Λανθασμένη φράση πρόσβασης ή κατεστραμμένο πακέτο. Δεν έγινε καμία αλλαγή."
+      }
+    },
+    "searchPlaceholder": "Αναζήτηση providers...",
+    "emptySearch": "Κανένας provider δεν ταιριάζει με την αναζήτησή σας.",
+    "emptyList": "Δεν έχουν ρυθμιστεί providers.",
+    "selectPrompt": "Επιλέξτε έναν provider για προβολή λεπτομερειών",
+    "listStatus": "{{count}} μοντέλο/α",
+    "noModels": "Δεν έχουν ρυθμιστεί μοντέλα",
+    "enabled": "Ενεργός",
+    "disabled": "Ανενεργός",
+    "showEnabledOnly": "Εμφάνιση μόνο ενεργών",
+    "showAll": "Εμφάνιση όλων των providers",
+    "dragHandle": "Σύρετε για αναδιάταξη",
+    "reorderFailed": "Αποτυχία αποθήκευσης σειράς providers",
+    "credentials": {
+      "apiKey": "API Key",
+      "apiBaseUrl": "Βασικό API URL"
+    },
+    "filter": {
+      "all": "Όλα",
+      "chat": "Chat",
+      "code": "Κώδικας"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Επιλέξτε πρότυπο",
+      "skipTemplates": "Παράλειψη, χειροκίνητη ρύθμιση",
+      "name": "Όνομα *",
+      "providerType": "Τύπος",
+      "apiType": "Τύπος API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Τυπική μορφή API chat/completions OpenAI",
+        "claudecode": "Μορφή Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "Μορφή API",
+      "chatApiFormatDescription": "Επιλέξτε τη μορφή API που αντιστοιχεί στο endpoint του provider σας",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-... ή $ENV_VAR",
+      "apiKeyHelper": "Χρησιμοποιήστε $VAR_NAME για αναφορά σε μεταβλητές περιβάλλοντος",
+      "apiKeySetPlaceholder": "Το key έχει οριστεί — αφήστε κενό για να το διατηρήσετε",
+      "apiKeyReplaceHelper": "Ένα key είναι αποθηκευμένο με ασφάλεια. Πληκτρολογήστε νέα τιμή για αντικατάσταση, ή αφήστε κενό για να το διατηρήσετε.",
+      "testApiKey": "Δοκιμή API Key",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Προεπισκόπηση:",
+      "models": "Μοντέλα",
+      "modelPlaceholder": "Όνομα μοντέλου (π.χ. gpt-4, claude-3-opus)",
+      "transformers": "Transformers",
+      "transformerConfig": "API Transformers",
+      "transformerConfigDescription": "Ρυθμίστε transformers για προσαρμογή μορφών αίτησης/απόκρισης API για αυτόν τον provider",
+      "transformerConfigNote": "Το daemon εφαρμόζει αυτούς τους transformers στην αλυσίδα αίτησης, μετά τον transformer μορφής του provider (που χειρίζεται τη μετατροπή wire-format). Άγνωστα ονόματα transformer παραλείπονται.",
+      "enabled": "Ενεργός",
+      "apiVersion": "Έκδοση API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Έκδοση Azure OpenAI API (π.χ. 2024-08-01-preview)",
+      "official": "Επίσημο Anthropic API",
+      "officialHelper": "Ενεργοποιήστε αν αυτός ο provider συνδέεται απευθείας στο επίσημο Anthropic API. Απενεργοποιήστε για reverse proxies ή υπηρεσίες τρίτων.",
+      "maxConcurrency": "Μέγιστες Ταυτόχρονες Αιτήσεις",
+      "maxConcurrencyHelper": "Μέγιστος αριθμός ταυτόχρονων αιτήσεων API προς αυτόν τον provider. Χαμηλότερες τιμές βοηθούν στην αποφυγή rate limiting (σφάλματα 429). Ορίστε `-1` για χωρίς όριο.",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "Χρήση ξεχωριστού API endpoint για subscription-based coding plans",
+        "baseUrl": "Βασικό URL Coding Plan",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "API Key Coding Plan (προαιρετικό)",
+        "apiKeyPlaceholder": "Αφήστε κενό για χρήση του API key του provider",
+        "apiKeyHelper": "Απαιτείται μόνο αν το coding plan χρησιμοποιεί διαφορετικό API key",
+        "tokenPlanHint": "Ορισμένοι providers (π.χ. Xiaomi MiMo) εκδίδουν Token Plan keys με πρόθεμα `tp-` — μόνο για πληροφόρηση, δεν επιβάλλεται."
+      },
+      "selectTypeFirst": "Επιλογή τύπου provider",
+      "selectTypeFirstDesc": "Επιλέξτε τον τύπο provider που θέλετε να προσθέσετε",
+      "codeProviderNote": "Οι code providers χρειάζονται μόνο API Key και URL. Τα μοντέλα διαχειρίζονται από τον Agent Router.",
+      "buttons": {
+        "cancel": "Ακύρωση",
+        "submitAdd": "Προσθήκη Provider",
+        "submitUpdate": "Ενημέρωση Provider",
+        "continue": "Συνέχεια",
+        "back": "Πίσω"
+      }
+    },
+    "details": {
+      "noSelection": "Επιλέξτε έναν provider για προβολή λεπτομερειών",
+      "apiKey": "API Key",
+      "apiUrl": "API URL",
+      "nameLabel": "Όνομα Provider",
+      "modelsEndpoint": "Endpoint Μοντέλων",
+      "modelsEndpointHelper": "Αντικαταστήστε το endpoint ανακάλυψης αν ο provider εκθέτει προσαρμοσμένο μονοπάτι /models.",
+      "models": "Μοντέλα",
+      "transformers": "Transformers",
+      "codeProviderNote": "Οι code providers (όπως το Claude Code) δεν απαιτούν ρύθμιση μοντέλων. Τα μοντέλα διαχειρίζονται αυτόματα από τον Agent Router.",
+      "buttons": {
+        "more": "Περισσότερες Ρυθμίσεις",
+        "delete": "Διαγραφή"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Επιλέξτε provider και μοντέλο",
+      "noProviders": "Δεν υπάρχουν διαθέσιμοι providers",
+      "noModels": "Δεν έχουν ρυθμιστεί μοντέλα"
+    },
+    "apiKeyPool": {
+      "title": "Δεξαμενή API Key",
+      "description": "Ρυθμίστε πολλαπλά API keys για εξισορρόπηση φορτίου. Κάθε συνεδρία χρησιμοποιεί ένα key για διατήρηση της prompt cache.",
+      "defaultLabel": "Προεπιλογή",
+      "weight": "Βάρος",
+      "noKey": "Χωρίς key",
+      "labelPlaceholder": "Ετικέτα (π.χ. Key #1, Παραγωγή)",
+      "addKey": "Προσθήκη API Key",
+      "add": "Προσθήκη",
+      "empty": "Δεν έχουν ρυθμιστεί πρόσθετα keys.",
+      "statusCoolingDown": "Ανάκαμψη {{time}}",
+      "statusAuthFailed": "Αποτυχία ελέγχου ταυτότητας · ανενεργό",
+      "statusDisabled": "Ανενεργό",
+      "statusHealthy": "Λειτουργικό",
+      "agoSeconds": "πριν {{count}}δ",
+      "agoMinutes": "πριν {{count}}λ",
+      "agoHours": "πριν {{count}}ω",
+      "agoDays": "πριν {{count}}η"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Αναζήτηση μοντέλων...",
+      "defaultGroup": "Όλα τα Μοντέλα",
+      "add": "Προσθήκη Μοντέλου",
+      "manage": "Διαχείριση",
+      "empty": "Δεν υπάρχουν μοντέλα σε αυτή την ομάδα",
+      "enabled": "Ενεργό",
+      "disabled": "Ανενεργό",
+      "filters": {
+        "all": "Όλα",
+        "vision": "Vision",
+        "reasoning": "Reasoning",
+        "free": "Δωρεάν",
+        "tools": "Εργαλεία"
+      },
+      "manualDialog": {
+        "title": "Προσθήκη Μοντέλου",
+        "subtitle": "Προσθέστε προσαρμοσμένο μοντέλο σε αυτόν τον provider",
+        "modelId": "ID Μοντέλου",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash κ.λπ.",
+        "modelIdHelper": "Το ακριβές αναγνωριστικό μοντέλου που χρησιμοποιείται κατά την κλήση του API",
+        "modelName": "Εμφανιζόμενο Όνομα",
+        "modelNamePlaceholder": "Φιλικό εμφανιζόμενο όνομα (προαιρετικό)",
+        "modelNameHelper": "Προαιρετικό όνομα που εμφανίζεται στο UI. Αν είναι κενό, θα χρησιμοποιηθεί το ID Μοντέλου",
+        "group": "Ομάδα",
+        "groupPlaceholder": "Επιλέξτε ή εισάγετε όνομα ομάδας",
+        "submit": "Προσθήκη",
+        "cancel": "Ακύρωση",
+        "helper": "Δώστε το ακριβές αναγνωριστικό μοντέλου που εκθέτει το API του provider."
+      },
+      "editDialog": {
+        "title": "Επεξεργασία Μοντέλου",
+        "subtitle": "Τροποποίηση ρυθμίσεων μοντέλου",
+        "modelId": "ID Μοντέλου",
+        "modelIdPlaceholder": "Αναγνωριστικό μοντέλου",
+        "modelIdHelper": "Το αναγνωριστικό μοντέλου που χρησιμοποιείται κατά την κλήση του API",
+        "modelName": "Εμφανιζόμενο Όνομα",
+        "modelNamePlaceholder": "Φιλικό εμφανιζόμενο όνομα",
+        "modelNameHelper": "Όνομα που εμφανίζεται στο UI",
+        "group": "Ομάδα",
+        "groupPlaceholder": "Επιλέξτε ή εισάγετε όνομα ομάδας",
+        "submit": "Αποθήκευση",
+        "cancel": "Ακύρωση",
+        "vision": "Δυνατότητα Vision",
+        "visionHint": "Αν αυτό το μοντέλο υποστηρίζει εισαγωγή εικόνας/vision",
+        "reasoning": "Μοντέλο Σκέψης",
+        "reasoningHint": "Αν αυτό το μοντέλο υποστηρίζει λειτουργία thinking/reasoning"
+      },
+      "manageDialog": {
+        "title": "Διαχείριση Μοντέλων",
+        "cachedAt": "Αποθηκεύτηκε στην κρυφή μνήμη στις {{date}} ({{source}})",
+        "refresh": "Ανανέωση",
+        "close": "Κλείσιμο",
+        "raw": "Raw JSON",
+        "empty": "Δεν υπάρχουν διαθέσιμα απομακρυσμένα μοντέλα.",
+        "error": "Αποτυχία φόρτωσης μοντέλων: {{message}}",
+        "addFromCatalog": "Προσθήκη",
+        "sourceCache": "κρυφή μνήμη",
+        "sourceNetwork": "ζωντανό",
+        "contextLength": "Πλαίσιο {{value}} tokens",
+        "maxTokens": "Μέγιστο {{value}} tokens"
+      },
+      "messages": {
+        "added": "Το μοντέλο προστέθηκε.",
+        "updated": "Το μοντέλο ενημερώθηκε.",
+        "removed": "Το μοντέλο αφαιρέθηκε.",
+        "duplicate": "Το μοντέλο υπάρχει ήδη.",
+        "refreshed": "Τα μοντέλα ανανεώθηκαν",
+        "refreshFailed": "Αποτυχία ανανέωσης μοντέλων"
+      },
+      "testDialog": {
+        "title": "Δοκιμή Συνδεσιμότητας Μοντέλου",
+        "provider": "Provider",
+        "model": "Μοντέλο",
+        "testing": "Δοκιμή...",
+        "success": "Η Δοκιμή Πέτυχε",
+        "successMessage": "Το μοντέλο είναι προσβάσιμο κανονικά",
+        "failure": "Η Δοκιμή Απέτυχε",
+        "aiResponse": "Απόκριση AI",
+        "charCount": "{{count}} χαρακτήρες",
+        "duration": "Διάρκεια {{time}}δλ",
+        "close": "Κλείσιμο",
+        "retest": "Επανάληψη δοκιμής",
+        "testButton": "Δοκιμή μοντέλου",
+        "unsupportedFormat": "Η δοκιμή δεν υποστηρίζεται ακόμα για αυτή τη μορφή provider."
+      }
+    },
+    "router": {
+      "title": "Ρύθμιση Router",
+      "description": "Ρυθμίστε ποιον provider/μοντέλο να χρησιμοποιείτε για διαφορετικά σενάρια.",
+      "labels": {
+        "default": "Προεπιλογή",
+        "background": "παρασκήνιο",
+        "think": "σκέψη",
+        "longContext": "Μεγάλο Πλαίσιο",
+        "webSearch": "Αναζήτηση Ιστού",
+        "image": "Εικόνα",
+        "longContextThreshold": "Όριο Μεγάλου Πλαισίου"
+      },
+      "helper": {
+        "longContextThreshold": "Αριθμός tokens πριν την εναλλαγή στο μοντέλο μεγάλου πλαισίου."
+      },
+      "placeholder": {
+        "required": "Απαιτείται",
+        "optional": "Προαιρετικό"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Ρυθμίστε αμφίδρομη δρομολόγηση μεταξύ λειτουργιών Chat και Κώδικα.",
+      "searchPlaceholder": "Αναζήτηση routers...",
+      "noSearchResults": "Κανένας router δεν ταιριάζει με την αναζήτησή σας.",
+      "tabs": {
+        "chatToCode": "Chat → Κώδικας",
+        "codeToChatPlaceholder": "Κώδικας → Chat"
+      },
+      "chatToCode": {
+        "title": "Router Chat προς Κώδικα",
+        "description": "Χρήση chat providers σε λειτουργία agent/κωδικοποίησης",
+        "addRouter": "Προσθήκη Router",
+        "emptyState": "Δεν έχουν ρυθμιστεί routers Chat→Κώδικα. Προσθέστε έναν για χρήση chat providers σε λειτουργία κωδικοποίησης.",
+        "form": {
+          "name": "Όνομα Router",
+          "namePlaceholder": "Ο Router Chat→Κώδικα μου",
+          "chatProvider": "Chat Provider",
+          "chatProviderPlaceholder": "Επιλέξτε chat provider",
+          "mode": "Λειτουργία",
+          "modeSimple": "Απλή",
+          "modeAdvanced": "Προχωρημένη",
+          "modeSimpleDesc": "Άμεση διαβίβαση στον chat provider",
+          "modeAdvancedDesc": "Ρύθμιση αντιστοίχισης μοντέλων και διαχείρισης πλαισίου",
+          "enabled": "Ενεργός",
+          "save": "Αποθήκευση Router",
+          "cancel": "Ακύρωση"
+        },
+        "list": {
+          "provider": "Provider",
+          "mode": "Λειτουργία",
+          "status": "Κατάσταση"
+        },
+        "mappings": {
+          "title": "Αντιστοιχίσεις Μοντέλων",
+          "description": "Αντιστοιχίστε μοντέλα chat provider σε μοντέλα code provider",
+          "count": "αντιστοίχιση/εις",
+          "empty": "Δεν έχουν ρυθμιστεί αντιστοιχίσεις μοντέλων. Προσθέστε αντιστοιχίσεις για δρομολόγηση chat μοντέλων σε code providers.",
+          "addNew": "Προσθήκη Νέας Αντιστοίχισης",
+          "selectSource": "Επιλογή μοντέλου πηγής (Chat)",
+          "selectTarget": "Επιλογή μοντέλου προορισμού (Κώδικας)",
+          "targetPlaceholder": "Εισάγετε όνομα μοντέλου Claude Code",
+          "notSet": "(Δεν έχει οριστεί - κάντε κλικ για επιλογή)",
+          "add": "Προσθήκη",
+          "edit": "Επεξεργασία",
+          "done": "Τέλος"
+        },
+        "advanced": {
+          "title": "Προχωρημένη Ρύθμιση",
+          "description": "Ρυθμίστε μοντέλα για διαφορετικούς τύπους εργασιών",
+          "helpText": "Το προεπιλεγμένο μοντέλο είναι απαραίτητο. Τα υπόλοιπα μοντέλα είναι προαιρετικά και θα χρησιμοποιούν την προεπιλογή αν δεν οριστούν.",
+          "default": {
+            "label": "Προεπιλογή",
+            "placeholder": "Επιλέξτε προεπιλεγμένο μοντέλο",
+            "description": "Κύριο μοντέλο για γενικές εργασίες (παρόμοιο με Claude Sonnet)"
+          },
+          "background": {
+            "label": "Παρασκήνιο",
+            "placeholder": "Επιλέξτε μοντέλο παρασκηνίου",
+            "description": "Ελαφρύ μοντέλο για εργασίες παρασκηνίου (παρόμοιο με Claude Haiku)"
+          },
+          "think": {
+            "label": "Σκέψη",
+            "placeholder": "Επιλέξτε μοντέλο σκέψης",
+            "description": "Προχωρημένο μοντέλο για σύνθετη συλλογιστική (παρόμοιο με Claude Opus)"
+          },
+          "image": {
+            "label": "Εικόνα",
+            "placeholder": "Επιλέξτε μοντέλο εικόνας",
+            "description": "Μοντέλο για εργασίες με εικόνες με δυνατότητα vision"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Router Κώδικα προς Chat",
+        "description": "Εκθέτει μοντέλα Coding Plan σε λειτουργία chat",
+        "addRouter": "Προσθήκη Router",
+        "emptyState": "Δεν έχουν ρυθμιστεί routers Κώδικας→Chat. Προσθέστε έναν για έκθεση μοντέλων Coding Plan σε λειτουργία chat.",
+        "form": {
+          "name": "Όνομα Router",
+          "namePlaceholder": "Ο Router Κώδικας→Chat μου",
+          "codeProvider": "Code Provider",
+          "codeProviderPlaceholder": "Επιλέξτε code provider",
+          "codeProviderHelper": "Επιλέξτε τον Code provider για χρήση στη μετατροπή",
+          "models": "Μοντέλα Coding Plan",
+          "modelsHelper": "Επιλέξτε ποια μοντέλα Coding Plan θα εκτεθούν",
+          "enabled": "Ενεργός",
+          "save": "Αποθήκευση Router",
+          "cancel": "Ακύρωση"
+        },
+        "mappings": {
+          "title": "Αντιστοιχίσεις Μοντέλων",
+          "description": "Αντιστοιχίστε μοντέλα code provider σε μοντέλα chat provider για έκθεση",
+          "count": "αντιστοίχιση/εις",
+          "empty": "Δεν έχουν ρυθμιστεί αντιστοιχίσεις μοντέλων. Προσθέστε αντιστοιχίσεις για έκθεση μοντέλων Code σε λειτουργία chat.",
+          "addNew": "Προσθήκη Νέας Αντιστοίχισης",
+          "selectSource": "Επιλογή μοντέλου πηγής (Κώδικας)",
+          "selectTarget": "Επιλογή μοντέλου προορισμού (Chat)",
+          "sourcePlaceholder": "Εισάγετε όνομα μοντέλου πηγής",
+          "targetPlaceholder": "Εισάγετε όνομα μοντέλου προορισμού",
+          "add": "Προσθήκη",
+          "edit": "Επεξεργασία",
+          "done": "Τέλος"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "Ρυθμίστε transformers για μετατροπή αίτησης/απόκρισης",
+        "noProvider": "Επιλέξτε provider για ρύθμιση transformers",
+        "empty": "Δεν υπάρχουν transformers",
+        "count": "{{count}} transformer(s)"
+      },
+      "status": {
+        "enabled": "Ενεργός",
+        "disabled": "Ανενεργός"
+      },
+      "messages": {
+        "routerAdded": "Ο router προστέθηκε επιτυχώς",
+        "routerUpdated": "Ο router ενημερώθηκε επιτυχώς",
+        "routerDeleted": "Ο router διαγράφηκε επιτυχώς",
+        "saveFailed": "Αποτυχία αποθήκευσης router"
+      }
+    },
+    "presets": {
+      "title": "Γρήγορη Προσθήκη Provider",
+      "added": "Προστέθηκε",
+      "add": "Προσθήκη",
+      "features": {
+        "search": "Αναζήτηση",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον provider;"
+    },
+    "errors": {
+      "nameRequired": "Απαιτείται όνομα provider",
+      "urlRequired": "Απαιτείται βασικό API URL",
+      "urlInvalid": "Εισάγετε έγκυρο URL (π.χ. https://api.example.com)",
+      "saveFailed": "Αποτυχία αποθήκευσης provider",
+      "deleteFailed": "Σφάλμα κατά τη διαγραφή provider. Δοκιμάστε ξανά.",
+      "toggleFailed": "Σφάλμα κατά την εναλλαγή provider. Δοκιμάστε ξανά."
+    },
+    "openRouter": {
+      "title": "Δρομολόγηση Provider OpenRouter",
+      "description": "Ρυθμίστε τον τρόπο δρομολόγησης αιτήσεων σε διαφορετικούς providers στο OpenRouter.",
+      "sort": "Στρατηγική Δρομολόγησης",
+      "sortTooltip": "Επιλέξτε τον τρόπο ιεράρχησης providers. Το Auto χρησιμοποιεί ευφυή εξισορρόπηση φορτίου.",
+      "order": "Σειρά Προτεραιότητας Provider",
+      "orderTooltip": "Καθορίστε providers για δοκιμή με σειρά (π.χ. anthropic, openai, together). Πατήστε Enter για προσθήκη.",
+      "orderPlaceholder": "Πληκτρολογήστε slug provider και πατήστε Enter...",
+      "allowFallbacks": "Να επιτρέπονται τα Fallbacks",
+      "allowFallbacksTooltip": "Όταν είναι ενεργό, το OpenRouter θα δοκιμάζει εφεδρικούς providers αν ο κύριος δεν είναι διαθέσιμος.",
+      "requireParameters": "Να απαιτούνται Όλες οι Παράμετροι",
+      "requireParametersTooltip": "Δρομολόγηση μόνο σε providers που υποστηρίζουν όλες τις παραμέτρους της αίτησης.",
+      "dataCollection": "Πολιτική Συλλογής Δεδομένων",
+      "dataCollectionTooltip": "Ελέγξτε αν θα χρησιμοποιούνται providers που ενδέχεται να αποθηκεύουν ή να εκπαιδεύουν βάσει των δεδομένων σας.",
+      "zdr": "Μηδενική Διατήρηση Δεδομένων",
+      "zdrTooltip": "Δρομολόγηση μόνο σε endpoints με πολιτική Zero Data Retention.",
+      "only": "Να επιτρέπονται Μόνο οι Providers",
+      "onlyTooltip": "Χρήση μόνο αυτών των συγκεκριμένων providers. Αφήστε κενό για να επιτρέπονται όλοι.",
+      "onlyPlaceholder": "Πληκτρολογήστε slug provider και πατήστε Enter...",
+      "ignore": "Αγνόηση Providers",
+      "ignoreTooltip": "Παράλειψη αυτών των providers κατά τη δρομολόγηση αιτήσεων.",
+      "ignorePlaceholder": "Πληκτρολογήστε slug provider και πατήστε Enter...",
+      "quantizations": "Φίλτρο Quantization",
+      "quantizationsTooltip": "Χρήση μόνο providers με συγκεκριμένα επίπεδα quantization. Χαμηλότερη ακρίβεια μπορεί να μειώσει την ποιότητα αλλά να βελτιώσει την ταχύτητα.",
+      "maxPrice": "Μέγιστη Τιμή",
+      "maxPriceTooltip": "Ορίστε ανώτατα όρια τιμής ανά εκατομμύριο tokens. Αφήστε κενό για χωρίς όριο.",
+      "configured": "Ρυθμισμένο"
+    }
+  },
+  "apiMode": {
+    "label": "Λειτουργία API",
+    "standard": "Τυπική",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "Τα keys για αυτό το πλάνο συνήθως ξεκινούν με `{{prefix}}`. Μόνο για πληροφόρηση — δεν επιβάλλεται.",
+    "dashscopeCodingPlanSeparateKey": "Το DashScope Coding Plan χρησιμοποιεί ξεχωριστό API key από το τυπικό endpoint.",
+    "baiduCodingPlanSeparateKey": "Το Qianfan Coding Plan χρησιμοποιεί ξεχωριστό API key από το τυπικό endpoint.",
+    "tencentTokenPlanAnthropicOnly": "Το Tencent Token Plan είναι μόνο για πρωτόκολλο Anthropic.",
+    "xiaomiTokenPlanRegions": "Το προεπιλεγμένο baseUrl είναι `token-plan-cn.*`. Μπορείτε να το επεξεργαστείτε χειροκίνητα σε `token-plan-sgp.*` ή `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Εναλλαγή λειτουργίας API;",
+    "confirmOverwriteBody": "Έχετε προσαρμόσει το API URL ή το API Key. Η εναλλαγή λειτουργίας θα τα αντικαταστήσει με τις προεπιλογές της νέας λειτουργίας — ή μπορείτε να διατηρήσετε τις προσαρμογές σας και να ενημερωθεί μόνο η ετικέτα λειτουργίας.",
+    "overwriteAndSwitch": "Αντικατάσταση και εναλλαγή",
+    "keepCustomizations": "Διατήρηση προσαρμογών"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Ακύρωση",
+    "close": "Κλείσιμο",
+    "copy": "Αντιγραφή",
+    "delete": "Διαγραφή",
+    "dismiss": "Απόρριψη",
+    "save": "Αποθήκευση",
+    "optional": "προαιρετικό",
+    "retry": "Επανάληψη",
+    "loading": "Φόρτωση…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Τεκμηρίωση"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Δεν υποστηρίζεται ακόμα από το daemon",
+    "discoveryUnsupportedFormat": "Η ανακάλυψη μοντέλων δεν υποστηρίζεται ακόμα για αυτή τη μορφή provider. Προσθέστε μοντέλα χειροκίνητα."
+  },
+  "nav": {
+    "subtitle": "Πίνακας Ελέγχου",
+    "providers": "Providers",
+    "apiService": "Υπηρεσία API",
+    "accounts": "Λογαριασμοί",
+    "codeCli": "Code CLI",
+    "settings": "Ρυθμίσεις",
+    "usageStats": "Χρήση",
+    "pricing": "Τιμές"
+  },
+  "apiService": {
+    "title": "Υπηρεσία API",
+    "description": "Ρυθμίστε τον εξερχόμενο διακομιστή API, τη δρομολόγηση μοντέλων ανά endpoint και τα ονομαστικά access keys.",
+    "loading": "Φόρτωση ρύθμισης διακομιστή…",
+    "loadError": "Αδυναμία φόρτωσης ρύθμισης διακομιστή. Βεβαιωθείτε ότι το daemon είναι προσβάσιμο.",
+    "enable": {
+      "label": "Ενεργοποίηση εξερχόμενου διακομιστή",
+      "description": "Εκκινήστε τον τοπικό διακομιστή API που δρομολογεί εξωτερικές κλήσεις μέσω των providers σας."
+    },
+    "networkBinding": {
+      "label": "Να επιτρέπεται πρόσβαση LAN",
+      "description": "Συνδέστε τον διακομιστή στη διεπαφή δικτύου σας αντί μόνο στο loopback.",
+      "warning": "Η πρόσβαση LAN εκθέτει τον διακομιστή API σε άλλες συσκευές του δικτύου σας. Σε συνδυασμό με δρομολόγηση subscription, τα αιτήματα μπορούν να καταναλώσουν την ποσόστωσή σας — κρατήστε το απενεργοποιημένο αν δεν εμπιστεύεστε το δίκτυο."
+    },
+    "status": {
+      "running": "Ο διακομιστής εκτελείται",
+      "stopped": "Ο διακομιστής έχει σταματήσει",
+      "runningHint": "Ο εξερχόμενος διακομιστής API δέχεται αιτήματα.",
+      "stoppedHint": "Ενεργοποιήστε τον διακομιστή για να αρχίσει να δέχεται αιτήματα.",
+      "port": "θύρα {{port}}",
+      "loopback": "URLs Loopback",
+      "lan": "URLs LAN"
+    },
+    "endpoints": {
+      "title": "Δρομολόγηση endpoint",
+      "description": "Επιλέξτε το μοντέλο στο οποίο δρομολογεί κάθε μορφή wire. Το προεπιλεγμένο μοντέλο ενσωματώνεται εδώ — ο διακομιστής είναι router, όχι εφαρμογή chat."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Προεπιλεγμένο μοντέλο",
+      "backgroundModel": "Μοντέλο παρασκηνίου",
+      "visionModel": "Μοντέλο vision",
+      "noVisionModel": "Κανένα",
+      "backgroundModelIds": "IDs μοντέλων παρασκηνίου",
+      "backgroundModelIdsPlaceholder": "IDs μοντέλων διαχωρισμένα με κόμμα",
+      "modelPlaceholder": "Επιλέξτε μοντέλο…",
+      "useSubscription": "Χρήση subscription",
+      "subscriptionUnsupported": "Η δρομολόγηση subscription δεν είναι διαθέσιμη για αυτό το endpoint."
+    },
+    "keys": {
+      "title": "Access keys",
+      "description": "Ονομαστικά keys που οι εξωτερικοί καλούντες στέλνουν ως Bearer token. Το πλήρες key εμφανίζεται μόνο μία φορά κατά τη δημιουργία.",
+      "namePlaceholder": "Όνομα key (π.χ. my-cli)",
+      "create": "Δημιουργία key",
+      "empty": "Δεν υπάρχουν access keys ακόμα.",
+      "enabled": "Ενεργό",
+      "disabled": "Ανενεργό",
+      "revoked": "Ανακλήθηκε",
+      "toggle": "Εναλλαγή key",
+      "revoke": "Ανάκληση",
+      "revokeConfirmTitle": "Ανάκληση αυτού του key;",
+      "revokeConfirmDesc": "Η ανάκληση του «{{name}}» σταματά αμέσως τον έλεγχο ταυτότητάς του. Δεν μπορεί να αναιρεθεί.",
+      "created": {
+        "title": "Το key δημιουργήθηκε",
+        "warning": "Αντιγράψτε αυτό το key τώρα — δεν θα εμφανιστεί ξανά. Φυλάξτε το με ασφάλεια.",
+        "copy": "Αντιγραφή",
+        "copied": "Αντιγράφηκε",
+        "dismiss": "Τέλος"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Λογαριασμοί & Subscriptions",
+    "description": "Διαχειριστείτε τα διαπιστευτήρια subscription μέσω των οποίων δρομολογεί ο διακομιστής. Τα tokens καταχωρίζονται εδώ αλλά δεν εμφανίζονται ποτέ ξανά.",
+    "loading": "Φόρτωση λογαριασμών…",
+    "empty": "Δεν υπάρχουν διαθέσιμοι providers subscription.",
+    "signIn": "Σύνδεση",
+    "oauth": {
+      "title": "Σύνδεση στο {{name}}",
+      "description": "Ανοίξτε τη σελίδα σύνδεσης στο πρόγραμμα περιήγησής σας, εξουσιοδοτήστε και επικολλήστε τον κωδικό εξουσιοδότησης παρακάτω. Ο κωδικός μεταδίδεται μόνο στο daemon — το παραγόμενο token δεν εμφανίζεται ποτέ.",
+      "openPage": "Άνοιγμα σελίδας σύνδεσης",
+      "codeLabel": "Κωδικός εξουσιοδότησης",
+      "codePlaceholder": "Επικολλήστε τον κωδικό εδώ",
+      "submit": "Ολοκλήρωση σύνδεσης"
+    },
+    "codexOauth": {
+      "title": "Σύνδεση στο {{name}}",
+      "description": "Ανοίξτε τη σελίδα σύνδεσης στο πρόγραμμα περιήγησής σας και εξουσιοδοτήστε. Το daemon καταγράφει αυτόματα το αποτέλεσμα — κρατήστε αυτό ανοιχτό μέχρι να ολοκληρωθεί. Το token δεν εμφανίζεται ποτέ.",
+      "waiting": "Αναμονή ολοκλήρωσης σύνδεσης στο πρόγραμμα περιήγησής σας…",
+      "failed": "Η σύνδεση απέτυχε. Δοκιμάστε ξανά."
+    },
+    "clearProvider": "Εκκαθάριση όλων",
+    "clearConfirmTitle": "Εκκαθάριση λογαριασμών {{name}};",
+    "clearConfirmDesc": "Αυτό αφαιρεί κάθε αποθηκευμένο διαπιστευτήριο για αυτόν τον provider. Δεν μπορεί να αναιρεθεί.",
+    "credential": {
+      "ok": "Ρυθμισμένο",
+      "notConfigured": "Δεν έχει ρυθμιστεί"
+    },
+    "kind": {
+      "pass-through": "Διαπιστευτήρια pass-through",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Στατικό bearer key"
+    },
+    "reason": {
+      "missing-credential": "Δεν υπάρχει αποθηκευμένο διαπιστευτήριο.",
+      "expired": "Το διαπιστευτήριο έχει λήξει.",
+      "reauth-required": "Απαιτείται επανέλεγχος ταυτότητας.",
+      "refresh-failed": "Αποτυχία ανανέωσης token.",
+      "not-refreshable": "Το διαπιστευτήριο δεν μπορεί να ανανεωθεί.",
+      "unknown": "Άγνωστη κατάσταση."
+    },
+    "status": {
+      "unconfigured": "Μη ρυθμισμένο",
+      "authorized": "Εξουσιοδοτημένο",
+      "configured": "Ρυθμισμένο",
+      "expired": "Έχει λήξει",
+      "error": "Σφάλμα"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Token ρύθμισης",
+      "manual": "Χειροκίνητα"
+    },
+    "list": {
+      "empty": "Δεν υπάρχουν αποθηκευμένοι λογαριασμοί για αυτόν τον provider.",
+      "active": "Ενεργός",
+      "expiresAt": "Λήγει {{value}}",
+      "setActive": "Ορισμός ως ενεργός",
+      "remove": "Αφαίρεση",
+      "removeConfirmTitle": "Αφαίρεση αυτού του λογαριασμού;",
+      "removeConfirmDesc": "Η αφαίρεση του «{{name}}» διαγράφει το αποθηκευμένο διαπιστευτήριό του. Δεν μπορεί να αναιρεθεί.",
+      "title": "Λογαριασμοί"
+    },
+    "write": {
+      "trigger": "Προσθήκη διαπιστευτηρίου",
+      "title": "Καταχώριση διαπιστευτηρίου {{name}}",
+      "description": "Επικολλήστε ήδη αποκτηθέν υλικό token. Τα πεδία περιορίζονται σε αυτά που αποδέχεται αυτός ο provider· το token αποθηκεύεται, δεν εμφανίζεται ποτέ ξανά.",
+      "authMethod": "Μέθοδος ελέγχου ταυτότητας",
+      "status": "Κατάσταση",
+      "subscriptionLevel": "Επίπεδο subscription",
+      "subscriptionLevelNone": "Δεν έχει οριστεί",
+      "submit": "Αποθήκευση διαπιστευτηρίου"
+    },
+    "field": {
+      "accessToken": "Access token",
+      "refreshToken": "Refresh token",
+      "idToken": "ID token",
+      "apiKey": "API key",
+      "expiresAt": "Λήγει στις (ISO)",
+      "setupTokenExpiresAt": "Το setup token λήγει στις (ISO)",
+      "accountId": "ID Λογαριασμού",
+      "email": "Email",
+      "organizationId": "ID Οργανισμού",
+      "baseUrl": "Βασικό URL",
+      "zenBaseUrl": "Βασικό URL Zen"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Διαπιστευτήρια subscription Anthropic που δρομολογούνται από το daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Διαπιστευτήρια subscription OpenAI Codex που δρομολογούνται από το daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Διαπιστευτήρια subscription Google Gemini που δρομολογούνται από το daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Στατικά διαπιστευτήρια API-key που δρομολογούνται από το daemon."
+      }
+    },
+    "authMethodLabel": "Μέθοδος εξουσιοδότησης",
+    "authMethodDesc": {
+      "oauth": "Σύνδεση μέσω προγράμματος περιήγησης· το daemon καταγράφει και αποθηκεύει το token.",
+      "manual": "Επικολλήστε ήδη αποκτηθέν token. Αποθηκεύεται, δεν εμφανίζεται ποτέ ξανά."
+    },
+    "actions": {
+      "authorize": "Εξουσιοδότηση",
+      "enterToken": "Εισαγωγή token",
+      "refresh": "Ανανέωση"
+    },
+    "accounts": {
+      "addAccount": "Προσθήκη λογαριασμού"
+    },
+    "detail": {
+      "authMethod": "Μέθοδος εξουσιοδότησης",
+      "subscriptionLevel": "Επίπεδο subscription",
+      "expiresAt": "Λήγει",
+      "lastRefreshed": "Τελευταία ανανέωση",
+      "label": "Ετικέτα λογαριασμού",
+      "labelPlaceholder": "Δώστε όνομα στον λογαριασμό",
+      "saveLabel": "Αποθήκευση ετικέτας"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Άνοιγμα σελίδας εξουσιοδότησης",
+        "desc": "Ανοίξτε τη σελίδα σύνδεσης στο πρόγραμμα περιήγησής σας."
+      },
+      "step2": {
+        "title": "Εξουσιοδότηση πρόσβασης",
+        "desc": "Συνδεθείτε και εγκρίνετε την πρόσβαση για τον provider."
+      },
+      "step3": {
+        "title": "Αντιγραφή κωδικού εξουσιοδότησης",
+        "desc": "Η σελίδα εμφανίζει κωδικό εξουσιοδότησης αφού εγκρίνετε."
+      },
+      "step4": {
+        "title": "Επικόλληση κωδικού",
+        "desc": "Επικολλήστε τον κωδικό εξουσιοδότησης παρακάτω για να ολοκληρώσετε. Ο κωδικός μεταδίδεται μόνο στο daemon — το παραγόμενο token δεν εμφανίζεται ποτέ."
+      },
+      "authorize": "Ολοκλήρωση σύνδεσης",
+      "showUrl": "Εμφάνιση URL εξουσιοδότησης"
+    },
+    "manual": {
+      "title": "Επικόλληση διαπιστευτηρίου",
+      "description": "Επικολλήστε ήδη αποκτηθέν token. Τα πεδία περιορίζονται σε αυτά που αποδέχεται αυτός ο provider· το token αποθηκεύεται, δεν εμφανίζεται ποτέ ξανά.",
+      "accessTokenPlaceholder": "Επικολλήστε το access token",
+      "refreshTokenPlaceholder": "Επικολλήστε το refresh token (προαιρετικό)",
+      "hint": "Το token αποστέλλεται στο daemon και αποθηκεύεται κρυπτογραφημένο. Δεν εμφανίζεται ποτέ ξανά."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "Απαιτείται API key.",
+      "apiKeyPlaceholder": "Επικολλήστε το API key",
+      "baseUrlPlaceholder": "https://… (προαιρετικό)",
+      "zenBaseUrlPlaceholder": "https://… (προαιρετικό)"
+    },
+    "info": {
+      "title": "Σχετικά με τους λογαριασμούς subscription",
+      "description": "Τα tokens καταχωρίζονται στο daemon και χρησιμοποιούνται για έλεγχο ταυτότητας σε upstream αιτήματα. Αποθηκεύονται κρυπτογραφημένα και δεν εμφανίζονται ποτέ ξανά. Η αφαίρεση λογαριασμού διαγράφει το αποθηκευμένο διαπιστευτήριό του."
+    },
+    "rename": {
+      "failed": "Αδυναμία μετονομασίας του λογαριασμού."
+    },
+    "refresh": {
+      "failed": "Αδυναμία ανανέωσης του token."
+    },
+    "errors": {
+      "requestFailed": "Το αίτημα απέτυχε. Δοκιμάστε ξανά."
+    },
+    "syncWarning": {
+      "external-divergent": "Το αρχείο σύνδεσης του εξωτερικού CLI περιέχει νεότερα διαπιστευτήρια από αυτόν τον λογαριασμό. Το αποθηκευμένο token ίσως σταματήσει να ανανεώνεται — ανανεώστε τώρα ή συνδεθείτε ξανά.",
+      "external-not-rotated": "Η ανανέωση απέτυχε και το εξωτερικό CLI περιέχει τα ίδια ληγμένα διαπιστευτήρια. Συνδεθείτε ξανά.",
+      "duplicate-token": "Ένας άλλος λογαριασμός μοιράζεται αυτά τα διαπιστευτήρια. Η ανανέωση του ενός θα αποσυνδέσει τον άλλον."
+    },
+    "importExternal": {
+      "detected": "Βρέθηκε υπάρχουσα σύνδεση CLI {{name}} σε αυτό το μηχάνημα.",
+      "hint": "Μετά την εισαγωγή, αυτή η εφαρμογή τη διατηρεί ενημερωμένη: σε κάθε ανανέωση του token ενημερώνεται και το αρχείο σύνδεσης του CLI, ώστε το CLI στο τερματικό να παραμένει συνδεδεμένο.",
+      "button": "Εισαγωγή υπάρχουσας σύνδεσης CLI"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Ρυθμίστε ένα coding CLI να χρησιμοποιεί τον εξερχόμενο proxy του daemon. Αυτή η σελίδα είναι μόνο ανάγνωσης — δεν υπάρχει τίποτα να ρυθμίσετε εδώ.",
+    "copy": "Αντιγραφή",
+    "copied": "Αντιγράφηκε",
+    "baseUrl": {
+      "title": "Βασικό URL Daemon",
+      "description": "Η διεύθυνση proxy στην οποία συνδέεται το CLI σας.",
+      "label": "Βασικό URL"
+    },
+    "token": {
+      "title": "Έλεγχος ταυτότητας",
+      "hint": "Στείλτε 'Authorization: Bearer <your-admin-token>' για διαδρομές διαχειριστή. Το admin token ρυθμίζεται στο daemon (αρχείο ρυθμίσεων ή περιβάλλον) — δεν εμφανίζεται εδώ."
+    },
+    "examples": {
+      "title": "Παράδειγμα περιβάλλοντος εκκίνησης",
+      "keyNote": "Χρησιμοποιήστε outbound access key δημιουργημένο στη σελίδα Υπηρεσία API — όχι το admin token.",
+      "anthropic": "CLI μορφής Anthropic",
+      "openai": "CLI μορφής OpenAI"
+    },
+    "launchDescription": "Εκκινήστε ένα coding CLI σε τερματικό, ρυθμισμένο σε αυτό το daemon. Το daemon εισάγει το env ανακατεύθυνσης και εκκινεί το CLI για εσάς.",
+    "refresh": "Ανανέωση",
+    "loading": "Ανίχνευση CLIs…",
+    "cli": {
+      "installed": "Εγκατεστημένο",
+      "notFound": "Δεν βρέθηκε",
+      "notFoundHint": "Αυτό το CLI δεν βρίσκεται στο PATH του κεντρικού υπολογιστή daemon. Εγκαταστήστε το και ανανεώστε.",
+      "install": "Εγκατάσταση",
+      "installing": "Εγκατάσταση…",
+      "installingHint": "Εγκατάσταση στον κεντρικό υπολογιστή daemon — μπορεί να χρειαστεί λίγο.",
+      "launch": "Εκκίνηση",
+      "launchTitle": "Εκκίνηση {{name}}",
+      "launchDescription": "Ανοίγει νέο τερματικό στον κεντρικό υπολογιστή daemon εκτελώντας αυτό το CLI, δρομολογημένο μέσω του proxy daemon. Επιλέξτε προαιρετικό κατάλογο εργασίας.",
+      "cwdLabel": "Κατάλογος εργασίας",
+      "cwdPlaceholder": "/διαδρομή/προς/το/έργο/σας",
+      "runningVia": "Εκτελείται · {{provider}} / {{model}}",
+      "stop": "Διακοπή"
+    },
+    "manual": {
+      "title": "Χειροκίνητη ρύθμιση",
+      "description": "Προτιμάτε να εκτελείτε το CLI μόνοι σας; Ρυθμίστε το να χρησιμοποιεί το daemon με αυτές τις μεταβλητές περιβάλλοντος.",
+      "show": "Εμφάνιση",
+      "hide": "Απόκρυψη"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Έλεγχος για το daemon…",
+    "spawning": "Εκκίνηση daemon…",
+    "failed": "Το daemon δεν μπόρεσε να εκκινήσει",
+    "failedHint": "Βεβαιωθείτε ότι το Node.js είναι εγκατεστημένο και το daemon έχει γίνει build (dist παρόν), ή ορίστε OMNICROSS_DAEMON_ENTRY στο cli.js του daemon."
+  },
+  "settings": {
+    "title": "Ρυθμίσεις",
+    "description": "Προτιμήσεις εφαρμογής επιφάνειας εργασίας.",
+    "desktopOnly": "Οι επιλογές εκκίνησης και δίσκου συστήματος ισχύουν μόνο στην εφαρμογή επιφάνειας εργασίας.",
+    "startup": {
+      "title": "Εκκίνηση",
+      "autoLaunch": "Εκκίνηση κατά τη σύνδεση",
+      "autoLaunchHint": "Εκκίνηση του Omnicross αυτόματα όταν συνδέεστε.",
+      "startMinimized": "Εκκίνηση ελαχιστοποιημένο στο δίσκο συστήματος",
+      "startMinimizedHint": "Εκκίνηση στο παρασκήνιο χωρίς άνοιγμα παραθύρου."
+    },
+    "tray": {
+      "title": "Δίσκος συστήματος",
+      "minimizeOnClose": "Ελαχιστοποίηση στο δίσκο κατά το κλείσιμο",
+      "minimizeOnCloseHint": "Το κλείσιμο του παραθύρου το αποκρύπτει στο δίσκο αντί να τερματίζει."
+    },
+    "language": {
+      "title": "Γλώσσα",
+      "label": "Γλώσσα διεπαφής"
+    }
+  },
+  "usageStats": {
+    "title": "Στατιστικά χρήσης",
+    "description": "Στατιστικά token και κόστους για τα αιτήματα που εξυπηρετεί ο δαίμονας.",
+    "rangeToday": "Σήμερα",
+    "range7d": "Τελευταίες 7 ημέρες",
+    "range30d": "Τελευταίες 30 ημέρες",
+    "rangeCustom": "Προσαρμοσμένο",
+    "from": "Από",
+    "to": "Έως",
+    "totalCost": "Συνολικό κόστος",
+    "cacheSavings": "Εξοικονόμηση cache",
+    "events": "Αιτήματα",
+    "inputTokens": "Token εισόδου",
+    "outputTokens": "Token εξόδου",
+    "cacheReadTokens": "Ανάγνωση cache",
+    "cacheWriteTokens": "Εγγραφή cache",
+    "reasoningTokens": "Token συλλογισμού",
+    "byModel": "Ανά μοντέλο",
+    "byApiKey": "Ανά κλειδί API",
+    "provider": "Πάροχος",
+    "model": "Μοντέλο",
+    "cost": "Κόστος",
+    "apiKey": "Κλειδί API",
+    "unpriced": "Χωρίς τιμή",
+    "unpricedHint": "Δεν υπάρχει καταχώρηση τιμής για αυτό το μοντέλο — προσθέστε μία στη σελίδα Τιμές.",
+    "unattributed": "Μη αποδιδόμενα",
+    "unattributedHint": "Αιτήματα που δεν συνδέονται με συγκεκριμένο κλειδί API. Αυτό είναι αναμενόμενο μέχρι να καταγράφεται η απόδοση ανά κλειδί.",
+    "empty": "Κανένα αίτημα σε αυτό το διάστημα.",
+    "invalidRange": "Επιλέξτε έγκυρο εύρος ημερομηνιών."
+  },
+  "pricing": {
+    "title": "Τιμές μοντέλων",
+    "description": "Τιμές token ανά μοντέλο για τον υπολογισμό του κόστους αιτημάτων, σε USD ανά 1 εκατ. token.",
+    "search": "Αναζήτηση παρόχου ή μοντέλου…",
+    "fetchLatest": "Λήψη πιο πρόσφατων",
+    "fetching": "Λήψη…",
+    "addEntry": "Προσθήκη καταχώρησης",
+    "provider": "Πάροχος",
+    "model": "Μοντέλο",
+    "inputPrice": "Είσοδος",
+    "outputPrice": "Έξοδος",
+    "cacheReadPrice": "Ανάγνωση cache",
+    "cacheWritePrice": "Εγγραφή cache",
+    "source": "Πηγή",
+    "updated": "Ενημερώθηκε",
+    "userEdited": "επεξεργασμένο",
+    "edit": "Επεξεργασία",
+    "deleteTitle": "Διαγραφή της καταχώρησης τιμής;",
+    "empty": "Ο πίνακας τιμών είναι κενός.",
+    "emptyHint": "Λάβετε τις πιο πρόσφατες τιμές για να τον γεμίσετε.",
+    "noMatches": "Καμία καταχώρηση δεν ταιριάζει με την αναζήτηση.",
+    "saved": "Η καταχώρηση τιμής αποθηκεύτηκε.",
+    "saveFailed": "Η αποθήκευση απέτυχε: {{message}}",
+    "deleteFailed": "Η διαγραφή απέτυχε: {{message}}",
+    "alreadyDeleted": "Η καταχώρηση δεν υπήρχε πια.",
+    "fetchApplied": "Ενημερώθηκαν {{count}} καταχωρήσεις από την πηγή.",
+    "fetchFailed": "Η λήψη απέτυχε: {{message}}",
+    "requiredId": "Απαιτείται",
+    "invalidPrice": "Εισαγάγετε μη αρνητικό αριθμό",
+    "conflictTitle": "Επίλυση συγκρούσεων τιμών",
+    "conflictHint": "Αυτές οι καταχωρήσεις επεξεργάστηκαν από εσάς και άλλαξαν επίσης στην πηγή. Επιλέξτε ανά γραμμή αν θα κρατήσετε την τιμή σας (Παράλειψη) ή θα πάρετε τη νέα (Αντικατάσταση).",
+    "current": "Τρέχουσα",
+    "incoming": "Εισερχόμενη",
+    "overwrite": "Αντικατάσταση",
+    "skip": "Παράλειψη",
+    "overwriteAll": "Αντικατάσταση όλων",
+    "skipAll": "Παράλειψη όλων",
+    "applyResolutions": "Εφαρμογή",
+    "resolved": "{{overwritten}} αντικαταστάθηκαν, {{skipped}} παραλείφθηκαν.",
+    "resolvedWithStale": "{{overwritten}} αντικαταστάθηκαν, {{skipped}} παραλείφθηκαν. {{stale}} άλλαξαν στο μεταξύ και έμειναν ανέγγιχτες.",
+    "refreshFailed": "Η αλλαγή εφαρμόστηκε, αλλά η επαναφόρτωση της λίστας απέτυχε: {{message}}",
+    "sourceBuiltin": "Ενσωματωμένο",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Χρήστης"
+  }
+}

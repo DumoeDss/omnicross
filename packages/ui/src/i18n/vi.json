@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "Đang tải cấu hình LLM...",
+    "reset": {
+      "button": "Khôi phục mặc định",
+      "confirmTitle": "Khôi phục cài đặt mặc định?",
+      "confirmBody": "Thao tác này sẽ xóa các tùy chỉnh của bạn cho nhà cung cấp này và quay về mặc định tích hợp sẵn. API key và phiên đã lưu vẫn được giữ nguyên.",
+      "confirmButton": "Khôi phục mặc định"
+    },
+    "reentryBanner": {
+      "message": "{{count}} nhà cung cấp đang bật cần nhập lại API key. Hãy mở từng nhà cung cấp và thêm key vào."
+    },
+    "migrationPack": {
+      "barHint": "Chuyển provider key và subscription token của bạn sang máy khác bằng gói mã hóa.",
+      "passphrase": "Cụm mật khẩu",
+      "passphrasePlaceholder": "Nhập cụm mật khẩu",
+      "passphraseHint": "Dùng ít nhất 8 ký tự; khuyến nghị 12 ký tự trở lên.",
+      "confirm": "Xác nhận cụm mật khẩu",
+      "confirmPlaceholder": "Nhập lại cụm mật khẩu",
+      "mismatch": "Cụm mật khẩu không khớp.",
+      "strength": {
+        "weak": "Quá ngắn — dùng ít nhất 8 ký tự.",
+        "fair": "Ổn — 12 ký tự trở lên sẽ mạnh hơn.",
+        "strong": "Cụm mật khẩu mạnh."
+      },
+      "export": {
+        "button": "Xuất gói",
+        "title": "Xuất gói mã hóa",
+        "subtitle": "Mã hóa provider key và subscription token của bạn thành một tệp di động.",
+        "warning": "Tệp này chứa dữ liệu bí mật có thể giải mã. Hãy bảo quản cẩn thận — bất kỳ ai có tệp và cụm mật khẩu đều có thể đọc key của bạn. Cụm mật khẩu bị mất không thể khôi phục.",
+        "submit": "Xuất",
+        "success": "Xuất gói thành công.",
+        "error": "Xuất thất bại. Vui lòng thử lại."
+      },
+      "import": {
+        "button": "Nhập gói",
+        "title": "Nhập gói mã hóa",
+        "subtitle": "Khôi phục provider key và subscription token từ gói đã xuất.",
+        "hint": "Nhập cụm mật khẩu đã dùng khi xuất gói, rồi chọn tệp.",
+        "submit": "Nhập",
+        "successTitle": "Nhập hoàn tất",
+        "summary": "Đã nhập {{providerKeys}} provider key, {{poolKeys}} pool key và {{tokenSets}} token set.",
+        "duplicates": "Bỏ qua {{count}} pool key đã tồn tại.",
+        "skipped": "Bỏ qua (không tìm thấy nhà cung cấp phù hợp): {{names}}",
+        "error": "Sai cụm mật khẩu hoặc gói bị hỏng. Không có gì thay đổi."
+      }
+    },
+    "searchPlaceholder": "Tìm kiếm nhà cung cấp...",
+    "emptySearch": "Không tìm thấy nhà cung cấp nào phù hợp.",
+    "emptyList": "Chưa có nhà cung cấp nào được cấu hình.",
+    "selectPrompt": "Chọn nhà cung cấp để xem chi tiết",
+    "listStatus": "{{count}} mô hình",
+    "noModels": "Chưa có mô hình nào được cấu hình",
+    "enabled": "Đã bật",
+    "disabled": "Đã tắt",
+    "showEnabledOnly": "Chỉ hiển thị đang bật",
+    "showAll": "Hiển thị tất cả nhà cung cấp",
+    "dragHandle": "Kéo để sắp xếp lại",
+    "reorderFailed": "Không thể lưu thứ tự nhà cung cấp",
+    "credentials": {
+      "apiKey": "API Key",
+      "apiBaseUrl": "API Base URL"
+    },
+    "filter": {
+      "all": "Tất cả",
+      "chat": "Chat",
+      "code": "Code"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Chọn mẫu",
+      "skipTemplates": "Bỏ qua, tự cấu hình",
+      "name": "Tên *",
+      "providerType": "Loại",
+      "apiType": "Loại API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Định dạng API OpenAI chat/completions chuẩn",
+        "claudecode": "Định dạng Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "Định dạng API",
+      "chatApiFormatDescription": "Chọn định dạng API phù hợp với endpoint của nhà cung cấp",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-... hoặc $ENV_VAR",
+      "apiKeyHelper": "Dùng $VAR_NAME để tham chiếu biến môi trường",
+      "apiKeySetPlaceholder": "Đã đặt key — để trống để giữ nguyên",
+      "apiKeyReplaceHelper": "Đã có key được lưu an toàn. Nhập giá trị mới để thay thế, hoặc để trống để giữ nguyên.",
+      "testApiKey": "Kiểm tra API Key",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Xem trước:",
+      "models": "Mô hình",
+      "modelPlaceholder": "Tên mô hình (VD: gpt-4, claude-3-opus)",
+      "transformers": "Transformers",
+      "transformerConfig": "API Transformers",
+      "transformerConfigDescription": "Cấu hình transformer để điều chỉnh định dạng API request/response cho nhà cung cấp này",
+      "transformerConfigNote": "Daemon áp dụng các transformer này trong chuỗi request, sau format transformer của nhà cung cấp (xử lý chuyển đổi wire-format). Tên transformer không nhận dạng được sẽ bị bỏ qua.",
+      "enabled": "Đã bật",
+      "apiVersion": "Phiên bản API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Phiên bản Azure OpenAI API (VD: 2024-08-01-preview)",
+      "official": "Anthropic API chính thức",
+      "officialHelper": "Bật nếu nhà cung cấp này kết nối trực tiếp với Anthropic API chính thức. Tắt cho reverse proxy hoặc dịch vụ bên thứ ba.",
+      "maxConcurrency": "Số yêu cầu đồng thời tối đa",
+      "maxConcurrencyHelper": "Số lượng API request tối đa gửi đồng thời đến nhà cung cấp này. Giá trị thấp hơn giúp tránh rate limiting (lỗi 429). Đặt `-1` để không giới hạn.",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "Dùng endpoint API riêng cho coding plan theo subscription",
+        "baseUrl": "Coding Plan Base URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API Key (tùy chọn)",
+        "apiKeyPlaceholder": "Để trống để dùng API key của nhà cung cấp",
+        "apiKeyHelper": "Chỉ cần khi coding plan dùng API key khác",
+        "tokenPlanHint": "Một số nhà cung cấp (VD: Xiaomi MiMo) cấp Token Plan key với tiền tố `tp-` — chỉ để tham khảo, không bắt buộc."
+      },
+      "selectTypeFirst": "Chọn loại nhà cung cấp",
+      "selectTypeFirstDesc": "Chọn loại nhà cung cấp bạn muốn thêm",
+      "codeProviderNote": "Code provider chỉ cần API Key và URL. Mô hình được quản lý bởi Agent Router.",
+      "buttons": {
+        "cancel": "Hủy",
+        "submitAdd": "Thêm nhà cung cấp",
+        "submitUpdate": "Cập nhật nhà cung cấp",
+        "continue": "Tiếp tục",
+        "back": "Quay lại"
+      }
+    },
+    "details": {
+      "noSelection": "Chọn nhà cung cấp để xem chi tiết",
+      "apiKey": "API Key",
+      "apiUrl": "API URL",
+      "nameLabel": "Tên nhà cung cấp",
+      "modelsEndpoint": "Models Endpoint",
+      "modelsEndpointHelper": "Ghi đè endpoint khám phá nếu nhà cung cấp cung cấp path /models tùy chỉnh.",
+      "models": "Mô hình",
+      "transformers": "Transformers",
+      "codeProviderNote": "Code provider (như Claude Code) không cần cấu hình mô hình. Mô hình được quản lý tự động bởi Agent Router.",
+      "buttons": {
+        "more": "Cài đặt thêm",
+        "delete": "Xóa"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Chọn nhà cung cấp và mô hình",
+      "noProviders": "Không có nhà cung cấp",
+      "noModels": "Chưa có mô hình nào được cấu hình"
+    },
+    "apiKeyPool": {
+      "title": "API Key Pool",
+      "description": "Cấu hình nhiều API key để load balancing. Mỗi phiên gắn với một key để duy trì prompt cache.",
+      "defaultLabel": "Mặc định",
+      "weight": "Trọng số",
+      "noKey": "Không có key",
+      "labelPlaceholder": "Nhãn (VD: Key #1, Production)",
+      "addKey": "Thêm API Key",
+      "add": "Thêm",
+      "empty": "Chưa có key bổ sung nào được cấu hình.",
+      "statusCoolingDown": "Đang nghỉ {{time}}",
+      "statusAuthFailed": "Xác thực thất bại · đã tắt",
+      "statusDisabled": "Đã tắt",
+      "statusHealthy": "Hoạt động tốt",
+      "agoSeconds": "{{count}} giây trước",
+      "agoMinutes": "{{count}} phút trước",
+      "agoHours": "{{count}} giờ trước",
+      "agoDays": "{{count}} ngày trước"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Tìm kiếm mô hình...",
+      "defaultGroup": "Tất cả mô hình",
+      "add": "Thêm mô hình",
+      "manage": "Quản lý",
+      "empty": "Không có mô hình nào trong nhóm này",
+      "enabled": "Đã bật",
+      "disabled": "Đã tắt",
+      "filters": {
+        "all": "Tất cả",
+        "vision": "Vision",
+        "reasoning": "Reasoning",
+        "free": "Miễn phí",
+        "tools": "Tools"
+      },
+      "manualDialog": {
+        "title": "Thêm mô hình",
+        "subtitle": "Thêm mô hình tùy chỉnh cho nhà cung cấp này",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, v.v.",
+        "modelIdHelper": "Mã định danh mô hình chính xác dùng khi gọi API",
+        "modelName": "Tên hiển thị",
+        "modelNamePlaceholder": "Tên hiển thị thân thiện (tùy chọn)",
+        "modelNameHelper": "Tên tùy chọn hiển thị trong giao diện. Nếu để trống sẽ dùng Model ID",
+        "group": "Nhóm",
+        "groupPlaceholder": "Chọn hoặc nhập tên nhóm",
+        "submit": "Thêm",
+        "cancel": "Hủy",
+        "helper": "Cung cấp mã định danh mô hình chính xác mà API nhà cung cấp cung cấp."
+      },
+      "editDialog": {
+        "title": "Chỉnh sửa mô hình",
+        "subtitle": "Sửa đổi cài đặt mô hình",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "Mã định danh mô hình",
+        "modelIdHelper": "Mã định danh mô hình dùng khi gọi API",
+        "modelName": "Tên hiển thị",
+        "modelNamePlaceholder": "Tên hiển thị thân thiện",
+        "modelNameHelper": "Tên hiển thị trong giao diện",
+        "group": "Nhóm",
+        "groupPlaceholder": "Chọn hoặc nhập tên nhóm",
+        "submit": "Lưu",
+        "cancel": "Hủy",
+        "vision": "Khả năng Vision",
+        "visionHint": "Mô hình này có hỗ trợ đầu vào hình ảnh/vision không",
+        "reasoning": "Mô hình Thinking",
+        "reasoningHint": "Mô hình này có hỗ trợ chế độ thinking/reasoning không"
+      },
+      "manageDialog": {
+        "title": "Quản lý mô hình",
+        "cachedAt": "Đã cache lúc {{date}} ({{source}})",
+        "refresh": "Làm mới",
+        "close": "Đóng",
+        "raw": "Raw JSON",
+        "empty": "Không có mô hình từ xa.",
+        "error": "Tải mô hình thất bại: {{message}}",
+        "addFromCatalog": "Thêm",
+        "sourceCache": "cache",
+        "sourceNetwork": "trực tiếp",
+        "contextLength": "Context {{value}} token",
+        "maxTokens": "Tối đa {{value}} token"
+      },
+      "messages": {
+        "added": "Đã thêm mô hình.",
+        "updated": "Đã cập nhật mô hình.",
+        "removed": "Đã xóa mô hình.",
+        "duplicate": "Mô hình đã tồn tại.",
+        "refreshed": "Đã làm mới mô hình",
+        "refreshFailed": "Làm mới mô hình thất bại"
+      },
+      "testDialog": {
+        "title": "Kiểm tra kết nối mô hình",
+        "provider": "Nhà cung cấp",
+        "model": "Mô hình",
+        "testing": "Đang kiểm tra...",
+        "success": "Kiểm tra thành công",
+        "successMessage": "Mô hình có thể truy cập bình thường",
+        "failure": "Kiểm tra thất bại",
+        "aiResponse": "Phản hồi AI",
+        "charCount": "{{count}} ký tự",
+        "duration": "Thời gian {{time}} giây",
+        "close": "Đóng",
+        "retest": "Kiểm tra lại",
+        "testButton": "Kiểm tra mô hình",
+        "unsupportedFormat": "Chưa hỗ trợ kiểm tra cho định dạng nhà cung cấp này."
+      }
+    },
+    "router": {
+      "title": "Cấu hình Router",
+      "description": "Cấu hình nhà cung cấp/mô hình dùng cho từng tình huống.",
+      "labels": {
+        "default": "Mặc định",
+        "background": "Nền",
+        "think": "Suy nghĩ",
+        "longContext": "Context dài",
+        "webSearch": "Tìm kiếm web",
+        "image": "Hình ảnh",
+        "longContextThreshold": "Ngưỡng context dài"
+      },
+      "helper": {
+        "longContextThreshold": "Số lượng token trước khi chuyển sang mô hình long-context."
+      },
+      "placeholder": {
+        "required": "Bắt buộc",
+        "optional": "Tùy chọn"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Cấu hình định tuyến hai chiều giữa chế độ Chat và Code.",
+      "searchPlaceholder": "Tìm kiếm router...",
+      "noSearchResults": "Không tìm thấy router nào phù hợp.",
+      "tabs": {
+        "chatToCode": "Chat → Code",
+        "codeToChatPlaceholder": "Code → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat to Code Router",
+        "description": "Dùng chat provider trong chế độ agent/coding",
+        "addRouter": "Thêm Router",
+        "emptyState": "Chưa có Chat→Code router. Thêm một router để dùng chat provider trong chế độ coding.",
+        "form": {
+          "name": "Tên Router",
+          "namePlaceholder": "My Chat→Code Router",
+          "chatProvider": "Chat Provider",
+          "chatProviderPlaceholder": "Chọn chat provider",
+          "mode": "Chế độ",
+          "modeSimple": "Đơn giản",
+          "modeAdvanced": "Nâng cao",
+          "modeSimpleDesc": "Chuyển thẳng đến chat provider",
+          "modeAdvancedDesc": "Cấu hình ánh xạ mô hình và xử lý context",
+          "enabled": "Đã bật",
+          "save": "Lưu Router",
+          "cancel": "Hủy"
+        },
+        "list": {
+          "provider": "Nhà cung cấp",
+          "mode": "Chế độ",
+          "status": "Trạng thái"
+        },
+        "mappings": {
+          "title": "Ánh xạ mô hình",
+          "description": "Ánh xạ mô hình Chat provider sang mô hình Code provider",
+          "count": "ánh xạ",
+          "empty": "Chưa có ánh xạ mô hình. Thêm ánh xạ để định tuyến chat model đến code provider.",
+          "addNew": "Thêm ánh xạ mới",
+          "selectSource": "Chọn mô hình nguồn (Chat)",
+          "selectTarget": "Chọn mô hình đích (Code)",
+          "targetPlaceholder": "Nhập tên mô hình Claude Code",
+          "notSet": "(Chưa đặt — nhấp để chọn)",
+          "add": "Thêm",
+          "edit": "Sửa",
+          "done": "Xong"
+        },
+        "advanced": {
+          "title": "Cấu hình nâng cao",
+          "description": "Cấu hình mô hình cho từng loại tác vụ",
+          "helpText": "Mô hình mặc định là bắt buộc. Các mô hình khác là tùy chọn và sẽ dùng mặc định nếu không được cấu hình.",
+          "default": {
+            "label": "Mặc định",
+            "placeholder": "Chọn mô hình mặc định",
+            "description": "Mô hình chính cho tác vụ thông thường (tương tự Claude Sonnet)"
+          },
+          "background": {
+            "label": "Nền",
+            "placeholder": "Chọn mô hình nền",
+            "description": "Mô hình nhẹ cho tác vụ nền (tương tự Claude Haiku)"
+          },
+          "think": {
+            "label": "Suy nghĩ",
+            "placeholder": "Chọn mô hình think",
+            "description": "Mô hình nâng cao cho lập luận phức tạp (tương tự Claude Opus)"
+          },
+          "image": {
+            "label": "Hình ảnh",
+            "placeholder": "Chọn mô hình hình ảnh",
+            "description": "Mô hình cho tác vụ liên quan đến hình ảnh với khả năng vision"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Code to Chat Router",
+        "description": "Hiển thị mô hình Coding Plan trong chế độ chat",
+        "addRouter": "Thêm Router",
+        "emptyState": "Chưa có Code→Chat router. Thêm một router để hiển thị mô hình Coding Plan trong chế độ chat.",
+        "form": {
+          "name": "Tên Router",
+          "namePlaceholder": "My Code→Chat Router",
+          "codeProvider": "Code Provider",
+          "codeProviderPlaceholder": "Chọn code provider",
+          "codeProviderHelper": "Chọn Code provider dùng để chuyển đổi",
+          "models": "Mô hình Coding Plan",
+          "modelsHelper": "Chọn mô hình Coding Plan muốn hiển thị",
+          "enabled": "Đã bật",
+          "save": "Lưu Router",
+          "cancel": "Hủy"
+        },
+        "mappings": {
+          "title": "Ánh xạ mô hình",
+          "description": "Ánh xạ mô hình Code provider sang mô hình Chat provider để hiển thị",
+          "count": "ánh xạ",
+          "empty": "Chưa có ánh xạ mô hình. Thêm ánh xạ để hiển thị mô hình Code trong chế độ chat.",
+          "addNew": "Thêm ánh xạ mới",
+          "selectSource": "Chọn mô hình nguồn (Code)",
+          "selectTarget": "Chọn mô hình đích (Chat)",
+          "sourcePlaceholder": "Nhập tên mô hình nguồn",
+          "targetPlaceholder": "Nhập tên mô hình đích",
+          "add": "Thêm",
+          "edit": "Sửa",
+          "done": "Xong"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "Cấu hình transformer để chuyển đổi request/response",
+        "noProvider": "Chọn nhà cung cấp để cấu hình transformer",
+        "empty": "Không có transformer",
+        "count": "{{count}} transformer"
+      },
+      "status": {
+        "enabled": "Đã bật",
+        "disabled": "Đã tắt"
+      },
+      "messages": {
+        "routerAdded": "Đã thêm router thành công",
+        "routerUpdated": "Đã cập nhật router thành công",
+        "routerDeleted": "Đã xóa router thành công",
+        "saveFailed": "Lưu router thất bại"
+      }
+    },
+    "presets": {
+      "title": "Thêm nhà cung cấp nhanh",
+      "added": "Đã thêm",
+      "add": "Thêm",
+      "features": {
+        "search": "Tìm kiếm",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Bạn có chắc muốn xóa nhà cung cấp này không?"
+    },
+    "errors": {
+      "nameRequired": "Tên nhà cung cấp là bắt buộc",
+      "urlRequired": "API Base URL là bắt buộc",
+      "urlInvalid": "Vui lòng nhập URL hợp lệ (VD: https://api.example.com)",
+      "saveFailed": "Lưu nhà cung cấp thất bại",
+      "deleteFailed": "Lỗi khi xóa nhà cung cấp. Vui lòng thử lại.",
+      "toggleFailed": "Lỗi khi thay đổi trạng thái nhà cung cấp. Vui lòng thử lại."
+    },
+    "openRouter": {
+      "title": "Định tuyến OpenRouter Provider",
+      "description": "Cấu hình cách định tuyến request đến các nhà cung cấp khác nhau trên OpenRouter.",
+      "sort": "Chiến lược định tuyến",
+      "sortTooltip": "Chọn cách ưu tiên nhà cung cấp. Auto dùng load balancing thông minh.",
+      "order": "Thứ tự ưu tiên nhà cung cấp",
+      "orderTooltip": "Chỉ định nhà cung cấp cần thử theo thứ tự (VD: anthropic, openai, together). Nhấn Enter để thêm.",
+      "orderPlaceholder": "Nhập slug nhà cung cấp và nhấn Enter...",
+      "allowFallbacks": "Cho phép Fallback",
+      "allowFallbacksTooltip": "Khi bật, OpenRouter sẽ thử nhà cung cấp dự phòng nếu nhà cung cấp chính không khả dụng.",
+      "requireParameters": "Yêu cầu tất cả tham số",
+      "requireParametersTooltip": "Chỉ định tuyến đến nhà cung cấp hỗ trợ tất cả tham số trong request của bạn.",
+      "dataCollection": "Chính sách thu thập dữ liệu",
+      "dataCollectionTooltip": "Kiểm soát việc dùng nhà cung cấp có thể lưu hoặc huấn luyện trên dữ liệu của bạn.",
+      "zdr": "Zero Data Retention",
+      "zdrTooltip": "Chỉ định tuyến đến endpoint có chính sách Zero Data Retention.",
+      "only": "Chỉ cho phép nhà cung cấp",
+      "onlyTooltip": "Chỉ dùng các nhà cung cấp cụ thể này. Để trống để cho phép tất cả.",
+      "onlyPlaceholder": "Nhập slug nhà cung cấp và nhấn Enter...",
+      "ignore": "Bỏ qua nhà cung cấp",
+      "ignoreTooltip": "Bỏ qua các nhà cung cấp này khi định tuyến request.",
+      "ignorePlaceholder": "Nhập slug nhà cung cấp và nhấn Enter...",
+      "quantizations": "Bộ lọc Quantization",
+      "quantizationsTooltip": "Chỉ dùng nhà cung cấp có mức quantization cụ thể. Độ chính xác thấp hơn có thể giảm chất lượng nhưng tăng tốc độ.",
+      "maxPrice": "Giá tối đa",
+      "maxPriceTooltip": "Đặt giới hạn giá tối đa trên mỗi triệu token. Để trống để không giới hạn.",
+      "configured": "Đã cấu hình"
+    }
+  },
+  "apiMode": {
+    "label": "Chế độ API",
+    "standard": "Chuẩn",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "Key cho gói này thường bắt đầu bằng `{{prefix}}`. Chỉ để gợi ý — không bắt buộc.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan dùng API key riêng biệt với endpoint chuẩn.",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan dùng API key riêng biệt với endpoint chuẩn.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan chỉ hỗ trợ giao thức Anthropic.",
+    "xiaomiTokenPlanRegions": "baseUrl mặc định là `token-plan-cn.*`. Bạn có thể chỉnh thủ công thành `token-plan-sgp.*` hoặc `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "Chuyển chế độ API?",
+    "confirmOverwriteBody": "Bạn đã tùy chỉnh API URL hoặc API Key. Chuyển chế độ sẽ ghi đè bằng giá trị mặc định của chế độ mới — hoặc giữ nguyên tùy chỉnh và chỉ cập nhật nhãn chế độ.",
+    "overwriteAndSwitch": "Ghi đè và chuyển",
+    "keepCustomizations": "Giữ nguyên tùy chỉnh"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Hủy",
+    "close": "Đóng",
+    "copy": "Sao chép",
+    "delete": "Xóa",
+    "dismiss": "Bỏ qua",
+    "save": "Lưu",
+    "optional": "tùy chọn",
+    "retry": "Thử lại",
+    "loading": "Đang tải…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Tài liệu"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Daemon chưa hỗ trợ tính năng này",
+    "discoveryUnsupportedFormat": "Chưa hỗ trợ khám phá mô hình cho định dạng nhà cung cấp này. Hãy thêm mô hình thủ công."
+  },
+  "nav": {
+    "subtitle": "Bảng điều khiển",
+    "providers": "Nhà cung cấp",
+    "apiService": "Dịch vụ API",
+    "accounts": "Tài khoản",
+    "codeCli": "Code CLI",
+    "settings": "Cài đặt",
+    "usageStats": "Sử dụng",
+    "pricing": "Bảng giá"
+  },
+  "apiService": {
+    "title": "Dịch vụ API",
+    "description": "Cấu hình máy chủ API đầu ra, định tuyến mô hình theo endpoint và access key được đặt tên.",
+    "loading": "Đang tải cấu hình máy chủ…",
+    "loadError": "Không thể tải cấu hình máy chủ. Kiểm tra xem daemon có thể truy cập không.",
+    "enable": {
+      "label": "Bật máy chủ đầu ra",
+      "description": "Khởi động API server nội bộ định tuyến người gọi bên ngoài qua các nhà cung cấp của bạn."
+    },
+    "networkBinding": {
+      "label": "Cho phép truy cập LAN",
+      "description": "Gắn máy chủ vào giao diện mạng thay vì chỉ loopback.",
+      "warning": "Truy cập LAN sẽ để lộ API server cho các thiết bị khác trên mạng của bạn. Khi kết hợp với định tuyến subscription, các request có thể tiêu thụ hạn ngạch subscription — hãy tắt trừ khi bạn tin tưởng mạng."
+    },
+    "status": {
+      "running": "Máy chủ đang chạy",
+      "stopped": "Máy chủ đã dừng",
+      "runningHint": "API server đầu ra đang chấp nhận request.",
+      "stoppedHint": "Bật máy chủ để bắt đầu chấp nhận request.",
+      "port": "cổng {{port}}",
+      "loopback": "URL Loopback",
+      "lan": "URL LAN"
+    },
+    "endpoints": {
+      "title": "Định tuyến Endpoint",
+      "description": "Chọn mô hình mà mỗi wire format định tuyến đến. Mô hình mặc định được tích hợp ở đây — máy chủ là router, không phải ứng dụng chat."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Mô hình mặc định",
+      "backgroundModel": "Mô hình nền",
+      "visionModel": "Mô hình Vision",
+      "noVisionModel": "Không có",
+      "backgroundModelIds": "ID mô hình nền",
+      "backgroundModelIdsPlaceholder": "ID mô hình cách nhau bằng dấu phẩy",
+      "modelPlaceholder": "Chọn mô hình…",
+      "useSubscription": "Dùng subscription",
+      "subscriptionUnsupported": "Định tuyến subscription không khả dụng cho endpoint này."
+    },
+    "keys": {
+      "title": "Access key",
+      "description": "Key được đặt tên để người gọi bên ngoài gửi dưới dạng Bearer token. Key đầy đủ chỉ hiển thị một lần khi tạo.",
+      "namePlaceholder": "Tên key (VD: my-cli)",
+      "create": "Tạo key",
+      "empty": "Chưa có access key nào.",
+      "enabled": "Đã bật",
+      "disabled": "Đã tắt",
+      "revoked": "Đã thu hồi",
+      "toggle": "Bật/tắt key",
+      "revoke": "Thu hồi",
+      "revokeConfirmTitle": "Thu hồi key này?",
+      "revokeConfirmDesc": "Thu hồi \"{{name}}\" sẽ ngay lập tức ngừng xác thực. Không thể hoàn tác.",
+      "created": {
+        "title": "Đã tạo key",
+        "warning": "Sao chép key này ngay — sẽ không hiển thị lại. Hãy lưu trữ an toàn.",
+        "copy": "Sao chép",
+        "copied": "Đã sao chép",
+        "dismiss": "Xong"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Tài khoản & Subscription",
+    "description": "Quản lý thông tin xác thực subscription mà máy chủ định tuyến qua. Token được ghi ở đây nhưng không bao giờ hiển thị lại.",
+    "loading": "Đang tải tài khoản…",
+    "empty": "Không có subscription provider nào khả dụng.",
+    "signIn": "Đăng nhập",
+    "oauth": {
+      "title": "Đăng nhập vào {{name}}",
+      "description": "Mở trang đăng nhập trong trình duyệt, ủy quyền, rồi dán authorization code bên dưới. Code chỉ được gửi đến daemon — token được tạo ra sẽ không hiển thị.",
+      "openPage": "Mở trang đăng nhập",
+      "codeLabel": "Authorization code",
+      "codePlaceholder": "Dán code vào đây",
+      "submit": "Hoàn tất đăng nhập"
+    },
+    "codexOauth": {
+      "title": "Đăng nhập vào {{name}}",
+      "description": "Mở trang đăng nhập trong trình duyệt và ủy quyền. Daemon sẽ tự động nhận kết quả — giữ trang này mở cho đến khi hoàn tất. Token sẽ không được hiển thị.",
+      "waiting": "Đang chờ bạn hoàn tất đăng nhập trên trình duyệt…",
+      "failed": "Đăng nhập thất bại. Vui lòng thử lại."
+    },
+    "clearProvider": "Xóa tất cả",
+    "clearConfirmTitle": "Xóa tài khoản {{name}}?",
+    "clearConfirmDesc": "Thao tác này xóa mọi thông tin xác thực đã lưu cho nhà cung cấp này. Không thể hoàn tác.",
+    "credential": {
+      "ok": "Đã cấu hình",
+      "notConfigured": "Chưa cấu hình"
+    },
+    "kind": {
+      "pass-through": "Pass-through credentials",
+      "oauth-bearer": "OAuth bearer",
+      "static-bearer": "Static bearer key"
+    },
+    "reason": {
+      "missing-credential": "Không có thông tin xác thực đã lưu.",
+      "expired": "Thông tin xác thực đã hết hạn.",
+      "reauth-required": "Cần xác thực lại.",
+      "refresh-failed": "Làm mới token thất bại.",
+      "not-refreshable": "Thông tin xác thực không thể làm mới.",
+      "unknown": "Trạng thái không xác định."
+    },
+    "status": {
+      "unconfigured": "Chưa cấu hình",
+      "authorized": "Đã ủy quyền",
+      "configured": "Đã cấu hình",
+      "expired": "Đã hết hạn",
+      "error": "Lỗi"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Setup token",
+      "manual": "Thủ công"
+    },
+    "list": {
+      "empty": "Không có tài khoản nào được lưu cho nhà cung cấp này.",
+      "active": "Đang hoạt động",
+      "expiresAt": "Hết hạn {{value}}",
+      "setActive": "Đặt làm hoạt động",
+      "remove": "Xóa",
+      "removeConfirmTitle": "Xóa tài khoản này?",
+      "removeConfirmDesc": "Xóa \"{{name}}\" sẽ xóa thông tin xác thực đã lưu. Không thể hoàn tác.",
+      "title": "Tài khoản"
+    },
+    "write": {
+      "trigger": "Thêm thông tin xác thực",
+      "title": "Ghi thông tin xác thực {{name}}",
+      "description": "Dán token material đã có sẵn. Các trường bị giới hạn ở những gì nhà cung cấp chấp nhận; token được lưu trữ, không hiển thị lại.",
+      "authMethod": "Phương thức xác thực",
+      "status": "Trạng thái",
+      "subscriptionLevel": "Cấp subscription",
+      "subscriptionLevelNone": "Chưa đặt",
+      "submit": "Lưu thông tin xác thực"
+    },
+    "field": {
+      "accessToken": "Access token",
+      "refreshToken": "Refresh token",
+      "idToken": "ID token",
+      "apiKey": "API key",
+      "expiresAt": "Hết hạn lúc (ISO)",
+      "setupTokenExpiresAt": "Setup token hết hạn lúc (ISO)",
+      "accountId": "Account ID",
+      "email": "Email",
+      "organizationId": "Organization ID",
+      "baseUrl": "Base URL",
+      "zenBaseUrl": "Zen base URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Thông tin xác thực subscription Anthropic được định tuyến qua daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "Thông tin xác thực subscription OpenAI Codex được định tuyến qua daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Thông tin xác thực subscription Google Gemini được định tuyến qua daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Thông tin xác thực API-key tĩnh được định tuyến qua daemon."
+      }
+    },
+    "authMethodLabel": "Phương thức ủy quyền",
+    "authMethodDesc": {
+      "oauth": "Đăng nhập qua trình duyệt; daemon nhận và lưu trữ token.",
+      "manual": "Dán token đã có sẵn. Token được lưu trữ, không hiển thị lại."
+    },
+    "actions": {
+      "authorize": "Ủy quyền",
+      "enterToken": "Nhập token",
+      "refresh": "Làm mới"
+    },
+    "accounts": {
+      "addAccount": "Thêm tài khoản"
+    },
+    "detail": {
+      "authMethod": "Phương thức ủy quyền",
+      "subscriptionLevel": "Cấp subscription",
+      "expiresAt": "Hết hạn",
+      "lastRefreshed": "Làm mới lần cuối",
+      "label": "Nhãn tài khoản",
+      "labelPlaceholder": "Đặt tên tài khoản này",
+      "saveLabel": "Lưu nhãn"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Mở trang ủy quyền",
+        "desc": "Mở trang đăng nhập trong trình duyệt của bạn."
+      },
+      "step2": {
+        "title": "Ủy quyền truy cập",
+        "desc": "Đăng nhập và phê duyệt quyền truy cập cho nhà cung cấp."
+      },
+      "step3": {
+        "title": "Sao chép authorization code",
+        "desc": "Trang sẽ hiển thị authorization code sau khi bạn phê duyệt."
+      },
+      "step4": {
+        "title": "Dán code",
+        "desc": "Dán authorization code bên dưới để hoàn tất. Code chỉ được gửi đến daemon — token được tạo ra sẽ không hiển thị."
+      },
+      "authorize": "Hoàn tất đăng nhập",
+      "showUrl": "Hiển thị URL ủy quyền"
+    },
+    "manual": {
+      "title": "Dán thông tin xác thực",
+      "description": "Dán token đã có sẵn. Các trường bị giới hạn ở những gì nhà cung cấp chấp nhận; token được lưu trữ, không hiển thị lại.",
+      "accessTokenPlaceholder": "Dán access token",
+      "refreshTokenPlaceholder": "Dán refresh token (tùy chọn)",
+      "hint": "Token được gửi đến daemon và lưu trữ mã hóa. Sẽ không hiển thị lại."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "API key là bắt buộc.",
+      "apiKeyPlaceholder": "Dán API key",
+      "baseUrlPlaceholder": "https://… (tùy chọn)",
+      "zenBaseUrlPlaceholder": "https://… (tùy chọn)"
+    },
+    "info": {
+      "title": "Về tài khoản subscription",
+      "description": "Token được ghi vào daemon và dùng để xác thực các request upstream. Chúng được lưu trữ mã hóa và không hiển thị lại. Xóa tài khoản sẽ xóa thông tin xác thực đã lưu."
+    },
+    "rename": {
+      "failed": "Không thể đổi tên tài khoản."
+    },
+    "refresh": {
+      "failed": "Không thể làm mới token."
+    },
+    "errors": {
+      "requestFailed": "Yêu cầu thất bại. Vui lòng thử lại."
+    },
+    "syncWarning": {
+      "external-divergent": "Tệp đăng nhập của CLI bên ngoài chứa thông tin xác thực mới hơn tài khoản này. Token đã lưu có thể không làm mới được nữa — hãy làm mới ngay hoặc đăng nhập lại.",
+      "external-not-rotated": "Làm mới thất bại và CLI bên ngoài chứa cùng thông tin xác thực đã hết hạn. Vui lòng đăng nhập lại.",
+      "duplicate-token": "Một tài khoản khác đang dùng chung thông tin xác thực này. Làm mới một trong hai sẽ khiến tài khoản còn lại bị đăng xuất."
+    },
+    "importExternal": {
+      "detected": "Đã tìm thấy phiên đăng nhập CLI {{name}} hiện có trên máy này.",
+      "hint": "Sau khi nhập, ứng dụng này sẽ giữ cho nó luôn mới: mỗi lần làm mới token, tệp đăng nhập của CLI cũng được cập nhật, nên CLI trong terminal vẫn đăng nhập.",
+      "button": "Nhập phiên đăng nhập CLI hiện có"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Kết nối coding CLI với outbound proxy của daemon. Trang này chỉ đọc — không có gì để cấu hình ở đây.",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép",
+    "baseUrl": {
+      "title": "Daemon base URL",
+      "description": "Địa chỉ proxy mà CLI của bạn kết nối đến.",
+      "label": "Base URL"
+    },
+    "token": {
+      "title": "Xác thực",
+      "hint": "Gửi 'Authorization: Bearer <your-admin-token>' cho các route admin. Admin token được cấu hình trong daemon (tệp config hoặc môi trường) — không hiển thị ở đây."
+    },
+    "examples": {
+      "title": "Ví dụ môi trường khởi chạy",
+      "keyNote": "Dùng outbound access key được tạo trên trang API Service — không phải admin token.",
+      "anthropic": "CLI định dạng Anthropic",
+      "openai": "CLI định dạng OpenAI"
+    },
+    "launchDescription": "Khởi chạy coding CLI trong terminal, trỏ đến daemon này. Daemon sẽ tự động thêm biến môi trường redirect và khởi động CLI cho bạn.",
+    "refresh": "Làm mới",
+    "loading": "Đang phát hiện CLI…",
+    "cli": {
+      "installed": "Đã cài đặt",
+      "notFound": "Không tìm thấy",
+      "notFoundHint": "CLI này không có trong PATH của daemon host. Hãy cài đặt rồi làm mới.",
+      "install": "Cài đặt",
+      "installing": "Đang cài đặt…",
+      "installingHint": "Đang cài đặt trên daemon host — có thể mất vài phút.",
+      "launch": "Khởi chạy",
+      "launchTitle": "Khởi chạy {{name}}",
+      "launchDescription": "Mở terminal mới trên daemon host chạy CLI này, định tuyến qua daemon proxy. Chọn thư mục làm việc tùy chọn.",
+      "cwdLabel": "Thư mục làm việc",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "Đang chạy · {{provider}} / {{model}}",
+      "stop": "Dừng"
+    },
+    "manual": {
+      "title": "Cài đặt thủ công",
+      "description": "Muốn tự chạy CLI? Trỏ đến daemon với các biến môi trường này.",
+      "show": "Hiện",
+      "hide": "Ẩn"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Đang kiểm tra daemon…",
+    "spawning": "Đang khởi động daemon…",
+    "failed": "Không thể khởi động daemon",
+    "failedHint": "Đảm bảo Node.js đã được cài đặt và daemon đã được build (có thư mục dist), hoặc đặt OMNICROSS_DAEMON_ENTRY trỏ đến cli.js của daemon."
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "description": "Tùy chọn ứng dụng desktop.",
+    "desktopOnly": "Tùy chọn Startup và Tray chỉ áp dụng trong ứng dụng desktop.",
+    "startup": {
+      "title": "Khởi động",
+      "autoLaunch": "Khởi chạy khi đăng nhập",
+      "autoLaunchHint": "Tự động khởi động Omnicross khi bạn đăng nhập.",
+      "startMinimized": "Khởi động thu nhỏ vào khay",
+      "startMinimizedHint": "Chạy ngầm mà không mở cửa sổ."
+    },
+    "tray": {
+      "title": "Khay hệ thống",
+      "minimizeOnClose": "Thu nhỏ vào khay khi đóng",
+      "minimizeOnCloseHint": "Đóng cửa sổ sẽ ẩn vào khay thay vì thoát chương trình."
+    },
+    "language": {
+      "title": "Ngôn ngữ",
+      "label": "Ngôn ngữ giao diện"
+    }
+  },
+  "usageStats": {
+    "title": "Thống kê sử dụng",
+    "description": "Thống kê token và chi phí của các yêu cầu do daemon phục vụ.",
+    "rangeToday": "Hôm nay",
+    "range7d": "7 ngày qua",
+    "range30d": "30 ngày qua",
+    "rangeCustom": "Tùy chỉnh",
+    "from": "Từ",
+    "to": "Đến",
+    "totalCost": "Tổng chi phí",
+    "cacheSavings": "Tiết kiệm nhờ bộ nhớ đệm",
+    "events": "Yêu cầu",
+    "inputTokens": "Token đầu vào",
+    "outputTokens": "Token đầu ra",
+    "cacheReadTokens": "Đọc bộ nhớ đệm",
+    "cacheWriteTokens": "Ghi bộ nhớ đệm",
+    "reasoningTokens": "Token suy luận",
+    "byModel": "Theo mô hình",
+    "byApiKey": "Theo khóa API",
+    "provider": "Nhà cung cấp",
+    "model": "Mô hình",
+    "cost": "Chi phí",
+    "apiKey": "Khóa API",
+    "unpriced": "Chưa có giá",
+    "unpricedHint": "Chưa có mục giá cho mô hình này — hãy thêm ở trang Bảng giá.",
+    "unattributed": "Chưa gán",
+    "unattributedHint": "Các yêu cầu không gắn với khóa API cụ thể. Điều này là bình thường cho đến khi việc gán theo khóa được ghi nhận.",
+    "empty": "Không có yêu cầu nào trong khoảng này.",
+    "invalidRange": "Chọn khoảng ngày hợp lệ."
+  },
+  "pricing": {
+    "title": "Giá mô hình",
+    "description": "Giá token theo mô hình dùng để tính chi phí yêu cầu, tính bằng USD trên 1 triệu token.",
+    "search": "Tìm nhà cung cấp hoặc mô hình…",
+    "fetchLatest": "Lấy mới nhất",
+    "fetching": "Đang lấy…",
+    "addEntry": "Thêm mục",
+    "provider": "Nhà cung cấp",
+    "model": "Mô hình",
+    "inputPrice": "Đầu vào",
+    "outputPrice": "Đầu ra",
+    "cacheReadPrice": "Đọc bộ nhớ đệm",
+    "cacheWritePrice": "Ghi bộ nhớ đệm",
+    "source": "Nguồn",
+    "updated": "Cập nhật",
+    "userEdited": "đã sửa",
+    "edit": "Sửa",
+    "deleteTitle": "Xóa mục giá này?",
+    "empty": "Bảng giá đang trống.",
+    "emptyHint": "Lấy giá mới nhất để điền bảng.",
+    "noMatches": "Không có mục nào khớp với tìm kiếm.",
+    "saved": "Đã lưu mục giá.",
+    "saveFailed": "Lưu thất bại: {{message}}",
+    "deleteFailed": "Xóa thất bại: {{message}}",
+    "alreadyDeleted": "Mục này đã không còn.",
+    "fetchApplied": "Đã cập nhật {{count}} mục từ nguồn.",
+    "fetchFailed": "Lấy thất bại: {{message}}",
+    "requiredId": "Bắt buộc",
+    "invalidPrice": "Nhập số không âm",
+    "conflictTitle": "Giải quyết xung đột giá",
+    "conflictHint": "Các mục này do bạn chỉnh sửa và cũng thay đổi ở nguồn. Chọn theo từng hàng: giữ giá trị của bạn (Bỏ qua) hoặc lấy giá trị mới (Ghi đè).",
+    "current": "Hiện tại",
+    "incoming": "Mới đến",
+    "overwrite": "Ghi đè",
+    "skip": "Bỏ qua",
+    "overwriteAll": "Ghi đè tất cả",
+    "skipAll": "Bỏ qua tất cả",
+    "applyResolutions": "Áp dụng",
+    "resolved": "Đã ghi đè {{overwritten}}, bỏ qua {{skipped}}.",
+    "resolvedWithStale": "Đã ghi đè {{overwritten}}, bỏ qua {{skipped}}. {{stale}} đã thay đổi trong lúc đó và được giữ nguyên.",
+    "refreshFailed": "Đã áp dụng thay đổi, nhưng tải lại danh sách thất bại: {{message}}",
+    "sourceBuiltin": "Tích hợp sẵn",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Người dùng"
+  }
+}

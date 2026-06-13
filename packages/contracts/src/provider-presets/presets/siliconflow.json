@@ -1,0 +1,48 @@
+{
+  "id": "siliconflow",
+  "presetId": "siliconflow",
+  "name": "SiliconFlow",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.siliconflow.com/v1",
+  "modelsEndpoint": "https://api.siliconflow.com/v1/models",
+  "models": [
+    "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "deepseek-ai/DeepSeek-V3",
+    "zai-org/GLM-4.7"
+  ],
+  "modelConfigs": [
+    {
+      "id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "name": "Qwen2.5 Coder 32B",
+      "enabled": true
+    },
+    {
+      "id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "name": "Qwen2.5 Coder 7B",
+      "enabled": true
+    },
+    {
+      "id": "deepseek-ai/DeepSeek-V3",
+      "name": "DeepSeek V3 (聚合)",
+      "enabled": true
+    },
+    {
+      "id": "zai-org/GLM-4.7",
+      "name": "GLM-4.7 (聚合)",
+      "enabled": true
+    }
+  ],
+  "description": "硅基流动 - 多模型聚合推理平台",
+  "icon": "silicon",
+  "website": "https://www.siliconflow.com",
+  "docsUrl": "https://docs.siliconflow.com",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": [
+    "vision"
+  ]
+}

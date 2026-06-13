@@ -1,0 +1,22 @@
+{
+  "id": "ollama",
+  "presetId": "ollama",
+  "name": "Ollama",
+  "apiFormat": "openai",
+  "api_base_url": "http://localhost:11434/v1",
+  "modelsEndpoint": "http://localhost:11434/v1/models",
+  "models": [],
+  "modelConfigs": [],
+  "description": "Ollama — 本地大模型推理（API key 可留空或填任意占位符）",
+  "icon": "ollama",
+  "website": "https://ollama.com",
+  "docsUrl": "https://github.com/ollama/ollama/blob/main/docs/openai.md",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": [
+    "local"
+  ]
+}

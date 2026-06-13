@@ -1,0 +1,40 @@
+{
+  "id": "mistral",
+  "presetId": "mistral",
+  "name": "Mistral",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.mistral.ai/v1",
+  "modelsEndpoint": "https://api.mistral.ai/v1/models",
+  "models": [
+    "mistral-large-latest",
+    "codestral-latest",
+    "mistral-medium-latest"
+  ],
+  "modelConfigs": [
+    {
+      "id": "mistral-large-latest",
+      "name": "Mistral Large",
+      "enabled": true
+    },
+    {
+      "id": "codestral-latest",
+      "name": "Codestral",
+      "enabled": true
+    },
+    {
+      "id": "mistral-medium-latest",
+      "name": "Mistral Medium",
+      "enabled": true
+    }
+  ],
+  "description": "Mistral La Plateforme — 法国大模型",
+  "icon": "mistral",
+  "website": "https://mistral.ai",
+  "docsUrl": "https://docs.mistral.ai",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": []
+}

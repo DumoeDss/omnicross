@@ -1,0 +1,56 @@
+{
+  "id": "cerebras",
+  "presetId": "cerebras",
+  "name": "Cerebras",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.cerebras.ai/v1",
+  "models": [
+    "llama-3.3-70b",
+    "qwen-3-coder-480b",
+    "qwen-3-32b"
+  ],
+  "modelConfigs": [
+    {
+      "id": "llama-3.3-70b",
+      "name": "Llama 3.3 70B",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 131072,
+      "maxTokens": 8192,
+      "functionCall": true
+    },
+    {
+      "id": "qwen-3-coder-480b",
+      "name": "Qwen3 Coder 480B",
+      "enabled": true,
+      "category": "code",
+      "contextLength": 131072,
+      "maxTokens": 8192,
+      "functionCall": true
+    },
+    {
+      "id": "qwen-3-32b",
+      "name": "Qwen3 32B",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 131072,
+      "maxTokens": 8192,
+      "functionCall": true
+    }
+  ],
+  "transformer": {
+    "use": [
+      "cerebras"
+    ]
+  },
+  "description": "Cerebras Inference — 晶圆级芯片高速推理",
+  "icon": "cerebras",
+  "website": "https://cerebras.ai",
+  "docsUrl": "https://inference-docs.cerebras.ai",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": []
+}

@@ -1,0 +1,58 @@
+{
+  "name": "@omnicross/cli-launcher",
+  "version": "0.1.2",
+  "description": "Omnicross CLI-launcher — the ProcessSupervisor subprocess-lifecycle mechanism + per-CLI proxy-env wiring.",
+  "license": "MIT",
+  "author": "Sayo (https://github.com/Dumoedss)",
+  "homepage": "https://github.com/Dumoedss/omnicross#readme",
+  "keywords": [
+    "omnicross",
+    "cli",
+    "process-supervisor",
+    "subprocess",
+    "proxy"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dumoedss/omnicross.git",
+    "directory": "packages/cli-launcher"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js",
+      "require": "./dist/*.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
+  },
+  "dependencies": {
+    "@omnicross/core": "^0.1.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "npm:@karinjs/node-pty@^1.1.3"
+  }
+}

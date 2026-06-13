@@ -1,0 +1,72 @@
+{
+  "id": "tencent",
+  "presetId": "tencent",
+  "name": "腾讯云混元",
+  "nameKey": "presetName.tencent",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.lkeap.cloud.tencent.com/v1",
+  "codingPlanBaseUrl": "https://api.lkeap.cloud.tencent.com/coding/v3",
+  "codingPlanSeparateKey": true,
+  "models": [
+    "tc-code-latest",
+    "hunyuan-2.0-instruct",
+    "hunyuan-turbos",
+    "glm-5",
+    "kimi-k2.5",
+    "minimax-m2.5"
+  ],
+  "modelConfigs": [
+    {
+      "id": "tc-code-latest",
+      "name": "Auto",
+      "enabled": true
+    },
+    {
+      "id": "hunyuan-2.0-instruct",
+      "name": "混元 2.0 Instruct",
+      "enabled": true
+    },
+    {
+      "id": "hunyuan-turbos",
+      "name": "混元 TurboS",
+      "enabled": true
+    },
+    {
+      "id": "glm-5",
+      "name": "GLM-5",
+      "enabled": true
+    },
+    {
+      "id": "kimi-k2.5",
+      "name": "Kimi K2.5",
+      "enabled": true
+    },
+    {
+      "id": "minimax-m2.5",
+      "name": "MiniMax M2.5",
+      "enabled": true
+    }
+  ],
+  "description": "腾讯云大模型平台 (OpenAI 兼容) — 含 Coding Plan；Token Plan 仅 Anthropic 协议，请使用 tencent-anthropic preset",
+  "icon": "tencent",
+  "website": "https://cloud.tencent.com",
+  "docsUrl": "https://cloud.tencent.com/document/product/1772/128947",
+  "isSystem": true,
+  "features": [
+    "coding-plan"
+  ],
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://api.lkeap.cloud.tencent.com/v1",
+      "apiKeyPrefix": "sk-"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://api.lkeap.cloud.tencent.com/coding/v3",
+      "apiKeyPrefix": "sk-sp-"
+    }
+  ]
+}

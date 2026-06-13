@@ -1,0 +1,385 @@
+/**
+ * bootstrap.ts — `buildDaemon` wires `@omnicross/core`'s `ProviderProxy` +
+ * `OutboundApiServer` STANDALONE (design D6).
+ *
+ * A DB-backed embedder wires the same `@omnicross/core` surface differently;
+ * this standalone wiring makes SUBSTITUTIONS (file-backed ports replace
+ * DB-backed ones) and SUBTRACTIONS:
+ *  - no `CompletionService` (the BYO proxy path doesn't need it),
+ *  - no `anthropicIngressHandlerFactory` (→ `/v1/messages` returns 502 by core's
+ *    existing contract — no daemon code needed).
+ * (`apiKeyPool` and `usageRecorder` are NO LONGER subtracted: the pool is wired
+ * for multi-key load balancing, and the usage recorder is wired over the
+ * file-backed pricing/usage stores so every served request is cost-stamped and
+ * persisted to `usage-events.jsonl`.)
+ *
+ * `getProviderProxy` / `getOutboundApiServer` are module singletons, so the boot
+ * smoke test calls `__resetProviderProxyForTests` / `__resetOutboundApiServerForTests`
+ * (re-exported here) in `beforeEach`.
+ *
+ * @module @omnicross/daemon/bootstrap
+ */
+
+import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
+import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
+import {
+  __resetOutboundApiServerForTests,
+  getOutboundApiServer,
+  type OutboundApiServer,
+} from '@omnicross/core/outbound-api';
+import { setSubscriptionRegistryForOutbound } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
+import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
+import {
+  __resetProviderProxyForTests,
+  getProviderProxy,
+  type ProviderProxy,
+} from '@omnicross/core/provider-proxy';
+import { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
+import {
+  type FetchLike,
+  setSubscriptionAccountService,
+  setSubscriptionProviderRegistry,
+  SubscriptionAccountService,
+  SubscriptionProviderRegistry,
+} from '@omnicross/subscriptions';
+
+import { type CodexLoopbackFn, CodexOAuthSessionStore } from './admin/accountsCodexOAuth';
+import { AdminServer } from './admin/AdminServer';
+import type { CommandRunner, PathProbe, TerminalOpener } from './admin/cliLaunch';
+import { OAuthSessionStore } from './admin/oauthSessions';
+import { awaitLoopbackCode } from './commands/loopbackCallback';
+import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
+import { AutoDisableStore } from './pool/autoDisableStore';
+import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
+import { resolveEnvKey } from './pool/resolveEnvKey';
+import { defaultPricingPath, defaultUsageEventsPath } from './commands/paths';
+import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
+import { ConsoleLogger } from './ports/ConsoleLogger';
+import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
+import { JsonlUsageEventStore } from './ports/JsonlUsageEventStore';
+import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
+import { JsonPricingStore } from './ports/JsonPricingStore';
+import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
+import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
+import { TokenRefreshScheduler } from './TokenRefreshScheduler';
+
+/** On-disk locations the file-backed ports persist to. */
+export interface DaemonPaths {
+  /** The config.json path (provider catalog + persisted `server` field). */
+  configPath: string;
+  /** The named-key json store path (sibling of config.json by convention). */
+  keysPath: string;
+  /** The subscription `tokens.json` store path (sibling of config.json by convention). */
+  tokensPath: string;
+  /**
+   * OPTIONAL `--master-key-file` override for the at-rest master key (secrets
+   * design D3). Absent → the default `~/.omnicross/master.key`. The
+   * `OMNICROSS_MASTER_KEY` env still beats this when set.
+   */
+  masterKeyFilePath?: string;
+  /**
+   * TEST SEAM (optional, app-parity-2 child 5): override the codex loopback listener
+   * so tests need not bind `127.0.0.1:1455`. Absent → the real `awaitLoopbackCode`.
+   */
+  codexAwaitLoopback?: CodexLoopbackFn;
+  /**
+   * TEST SEAM (optional): override the OAuth token-exchange fetch so tests need not
+   * hit a real token endpoint. Absent → the global `fetch`.
+   */
+  oauthExchangeFetch?: FetchLike;
+  /**
+   * TEST SEAM (optional): override the Code CLI external-terminal opener so tests
+   * never spawn a window. Absent → the real `defaultTerminalOpener`.
+   */
+  cliTerminalOpener?: TerminalOpener;
+  /**
+   * TEST SEAM (optional): override the Code CLI PATH probe so tests can fake an
+   * installed CLI. Absent → the real PATH scan.
+   */
+  cliPathProbe?: PathProbe;
+  /**
+   * TEST SEAM (optional): override the Code CLI install command runner so tests
+   * never invoke a real package manager. Absent → the real `exec`-based runner.
+   */
+  cliCommandRunner?: CommandRunner;
+}
+
+/** The constructed daemon handles the CLI commands operate on. */
+export interface Daemon {
+  readonly logger: ConsoleLogger;
+  readonly llmConfig: ConfigFileProviderConfigSource;
+  readonly keyDb: JsonOutboundKeyDb;
+  readonly settingsStore: JsonApiServerSettingsStore;
+  readonly providerProxy: ProviderProxy;
+  readonly outboundApiServer: OutboundApiServer;
+  /**
+   * Multi-key load balancer. Wired into the proxy deps slot
+   * AND exposed here so the admin read-only key-health view can
+   * read `getKeyHealth`. NOTE: outbound failover does NOT fire on
+   * the daemon's null-session outbound path — v1 is cold-standby + observable.
+   */
+  readonly apiKeyPool: ApiKeyPoolService;
+  /** In-memory 401/403 auto-disable store (design D5; read by the admin view). */
+  readonly autoDisableStore: AutoDisableStore;
+  /** File-backed subscription credential store (reads `tokens.json`). */
+  readonly credentialStore: JsonSubscriptionCredentialStore;
+  /** Subscription dispatch-profile registry (mirrored into core's outbound slot). */
+  readonly subscriptionRegistry: SubscriptionProviderRegistry;
+  /** Subscription account service (token-free `listAll`) — now exposed for the
+   *  admin dashboard's read-only accounts panel (RT3). */
+  readonly subscriptionAccounts: SubscriptionAccountService;
+  /** File-backed pricing table (`pricing.json`; concrete for the admin DELETE). */
+  readonly pricingStore: JsonPricingStore;
+  /** Pricing engine (cost calc + source refresh + conflict resolution). */
+  readonly pricingEngine: PricingEngine;
+  /** Usage recorder over `usage-events.jsonl` — also the admin stats query facade. */
+  readonly usageRecorder: UsageRecorder;
+  /** The localhost admin/dashboard HTTP listener (RT3). Started by `start.ts`. */
+  readonly adminServer: AdminServer;
+  /**
+   * Proactive background OAuth refresh sweep (external-cli-sync). NOT started
+   * here — `start.ts` arms it for the resident daemon; the short-lived `launch`
+   * boot leaves it off (the lazy strategy refresh covers a single session) but
+   * still disposes it in cleanup.
+   */
+  readonly tokenRefreshScheduler: TokenRefreshScheduler;
+}
+
+/**
+ * Construct the standalone daemon from a loaded config + on-disk paths. Does NOT
+ * start the listeners — the `start` command awaits `providerProxy.start()` then
+ * `outboundApiServer.applyConfig(...)`.
+ */
+export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
+  const logger = new ConsoleLogger();
+
+  // At-rest encryption wiring (secrets design D3/D5/D7). Build the shared
+  // `SecretBox` with a LAZY master-key resolver (env → keyfile → auto-gen 0600)
+  // and inject it into BOTH config-load/save and the pool key accessor (the same
+  // instance) so every read/write seam decrypts/encrypts through one box. The
+  // credential store gets the box via its constructor below. The key is resolved
+  // (and a keyfile auto-generated) ONLY on the first encrypt/decrypt — so a pure
+  // legacy-PLAINTEXT boot with no master key present never materializes a keyfile
+  // (design D3 "首次需要时"). Calling `setSecretBox` HERE (before the catalog
+  // source is built) guarantees the live `loadConfig` calls the admin API +
+  // `start` make are decrypting — see the re-decrypt of the passed-in `config`
+  // next, which is idempotent (and key-touch-free) when it was already plaintext.
+  const secretBox = new SecretBox(() => resolveMasterKey({ keyFilePath: paths.masterKeyFilePath }));
+  setSecretBox(secretBox);
+  setPoolSecretBox(secretBox);
+  // The passed-in `config` may have been loaded before the box existed (e.g.
+  // `start` calls `loadConfig` first). Re-normalize it through the box so the
+  // catalog source holds DECRYPTED rows (its `getProvider` puts `row.apiKey`
+  // straight into the outbound `LLMProvider.api_key`, bypassing the pool
+  // accessor). `decryptConfigSecrets` is idempotent on already-plaintext values.
+  const decryptedConfig = decryptConfigSecrets(config, secretBox);
+
+  const llmConfig = new ConfigFileProviderConfigSource(decryptedConfig);
+  const keyDb = new JsonOutboundKeyDb(paths.keysPath);
+  const settingsStore = new JsonApiServerSettingsStore(paths.configPath);
+
+  // Subscription wiring. The file-backed credential store feeds the account
+  // service (which builds all
+  // four auth strategies) + the provider registry. `setSubscriptionProviderRegistry`
+  // internally mirrors the registry into `@omnicross/core`'s outbound subscription
+  // slot (`setSubscriptionRegistryForOutbound`) — that single call is the entire
+  // route-resolution wiring for `/v1/responses` subscription dispatch. Placed
+  // after `llmConfig` (TransformerService ready) so boot stays deterministic.
+  const credentialStore = new JsonSubscriptionCredentialStore(paths.tokensPath, secretBox);
+  const subscriptionAccounts = new SubscriptionAccountService(credentialStore);
+  setSubscriptionAccountService(subscriptionAccounts);
+  const subscriptionRegistry = new SubscriptionProviderRegistry(
+    subscriptionAccounts,
+    credentialStore,
+  );
+  setSubscriptionProviderRegistry(subscriptionRegistry); // → mirrors into core's outbound slot
+
+  // Wire the shared host-clean Gemini Code-Assist project resolver from core
+  // into the core port (the same module singleton any embedder wires). The gemini
+  // subscription responses path then resolves the PAID-tier Cloud AI Companion
+  // project id; a free-tier account still resolves `undefined` (no behavior
+  // change for accounts without a paid project). The resolver caches the
+  // handshake result per access token, so this is a one-time round-trip per
+  // account read lazily at request time.
+  setGeminiCodeAssistResolver(getGeminiCodeAssistProjectResolver());
+
+  // Multi-key API-key pool. Constructed BEFORE the proxy because
+  // `getProviderProxy` only honors `deps` on its FIRST (construction) call and
+  // ignores them afterward (module singleton), so the pool must occupy the
+  // `apiKeyPool` slot at that first call.
+  //  - `loadKeys` reads the LIVE provider row via `llmConfig.getProviderRow`
+  //    (hot-reload visible after `invalidateCache`) and synthesizes the
+  //    `ApiKeyEntry[]` per design D1 (multi-key / single-key 1-key fallback).
+  //  - `resolveEnvKey` is the daemon's single `$ENV` resolver (design D6).
+  //  - `disableKey`/`markAutoDisabled` write the IN-MEMORY auto-disable store
+  //    (design D5 — NOT config.json; no write amplification, no child-3 schema
+  //    collision). `loadKeys` reads it back to flip a disabled key off.
+  // Design D2 caveat: the daemon's outbound path resolves with sessionId=null,
+  // so core's `LlmConfigProviderAuth.onResult` short-circuits — failover does
+  // NOT fire on outbound traffic. v1 ships the pool as cold-standby +
+  // observable (admin health view + CLI); a separate core-side knife
+  // (`omnicross-daemon-parity-poolseam`) makes it hot.
+  const autoDisableStore = new AutoDisableStore();
+  const apiKeyPool = new ApiKeyPoolService(
+    createPoolKeysLoader((id) => llmConfig.getProviderRow(id), autoDisableStore),
+    resolveEnvKey,
+    logger,
+    async (keyId: string) => {
+      autoDisableStore.markAutoDisabled(keyId, 0, Date.now());
+      return true;
+    },
+    async (keyId: string, status: number, at: number) => {
+      autoDisableStore.markAutoDisabled(keyId, status, at);
+    },
+  );
+
+  // Usage/pricing wiring (file-backed stores, siblings of config.json):
+  // JsonPricingStore → PricingEngine → JsonlUsageEventStore (its `unpriced`
+  // lookup resolves through the ENGINE so wildcard/model-alias fallbacks
+  // apply) → UsageRecorder. The recorder occupies the proxy's existing
+  // `usageRecorder` deps slot, so all four ingress taps cost-stamp + persist
+  // every served request. Recording is fire-and-forget (deferred; errors
+  // logged) — the serving hot path gains no latency or failure modes. Files
+  // are created lazily on first write; boot needs neither to exist.
+  const pricingStore = new JsonPricingStore(defaultPricingPath(paths.configPath));
+  const pricingEngine = new PricingEngine(pricingStore, logger);
+  const usageEventStore = new JsonlUsageEventStore(
+    defaultUsageEventsPath(paths.configPath),
+    async (providerId, model) => (await pricingEngine.getEntry(providerId, model)) !== null,
+  );
+  const usageRecorder = new UsageRecorder(usageEventStore, pricingEngine, logger);
+
+  // Resident ProviderProxy — pool wired into the `apiKeyPool` deps slot, the
+  // usage recorder into `usageRecorder`. NO Anthropic factory. (Reads the
+  // subscription slot lazily at request time, so this call is otherwise
+  // unchanged.)
+  const providerProxy = getProviderProxy({ llmConfig, apiKeyPool, usageRecorder });
+
+  // Hot-reload × keyCache (design D4): flush the pool's keyCache after every
+  // `reload(...)` so the next `loadKeys` reads the swapped catalog. The port
+  // never imports `ApiKeyPoolService` — it only holds this no-type-coupling hook.
+  llmConfig.setReloadHook(() => apiKeyPool.invalidateCache());
+
+  // Outbound API server — shares the proxy's route map + deps (one conversion
+  // stack), authenticated by named keys from the file-backed key store.
+  const outboundApiServer = getOutboundApiServer({
+    db: keyDb,
+    llmConfig,
+    providerProxy,
+    proxyDeps: providerProxy.getDeps(),
+  });
+
+  // Admin dashboard listener (RT3) — a SEPARATE node:http server over the live
+  // daemon handles. Instance-scoped on the Daemon (not a module singleton); the
+  // `start` command starts it (honoring the LAN fail-closed gate), tests stop it
+  // in afterEach. `getAdminConfig` resolves defaults from the loaded config.
+  const adminServer = new AdminServer({
+    configPath: paths.configPath,
+    llmConfig,
+    keyDb,
+    settingsStore,
+    outboundApiServer,
+    subscriptionAccounts,
+    // Least-authority token WRITER (design D4) — the concrete credential store
+    // exposes `writeProviderTokens` / `clearProvider` as daemon-only methods (NOT
+    // on the `SubscriptionCredentialStore` port). The admin API sees ONLY these two
+    // mutators through the `SubscriptionTokenWriter` shape, never a token read.
+    subscriptionTokenWriter: credentialStore,
+    // Read-only pool-health view (key-pool design D7): the admin API reads
+    // `getKeyHealth` (cooldown) + the in-memory auto-disable store; the key
+    // values themselves NEVER leave (masked via `maskProviderApiKey`).
+    apiKeyPool,
+    autoDisableStore,
+    // Interactive OAuth login over admin HTTP (app-parity child 4, design
+    // D1/D2-a). The in-memory pending-session store (NEVER serialized), the
+    // injected token-exchange fetch (global `fetch` here; mocked in tests), and a
+    // NARROW `{ appendProviderAccount }` handle from the concrete credential store
+    // (NOT widening the least-authority writer — no token-returning read reachable).
+    oauthSessions: new OAuthSessionStore(),
+    // Real global fetch by default; a test seam (`paths.oauthExchangeFetch`) can
+    // inject a mock so no real token endpoint is hit.
+    oauthExchangeFetch: paths.oauthExchangeFetch ?? ((url, init) => fetch(url, init)),
+    subscriptionAccountAppender: credentialStore,
+    // Codex interactive OAuth (app-parity-2 child 5) — the async loopback flow store
+    // + the one-shot 127.0.0.1:1455 listener. Token captured + persisted daemon-side;
+    // the app polls the token-free status. A test seam (`paths.codexAwaitLoopback`)
+    // can inject a mock so no real port is bound.
+    codexSessions: new CodexOAuthSessionStore(),
+    codexAwaitLoopback: paths.codexAwaitLoopback ?? ((state, timeoutMs) => awaitLoopbackCode(state, timeoutMs)),
+    // Migration pack (app-parity child 6, design D2/D3) — the concrete credential
+    // store provides BOTH the full DECRYPTED read (`getFullConfig`, export) and
+    // the multi-account append (`appendProviderAccount`, import re-encrypts at-
+    // rest). Confined to the export/import handlers; never reached by a GET.
+    migrationCredentialStore: credentialStore,
+    // Code CLI launch (dashboard parity): the external-terminal opener + PATH probe
+    // default to the real implementations; tests inject spies so no window spawns.
+    cliTerminalOpener: paths.cliTerminalOpener,
+    cliPathProbe: paths.cliPathProbe,
+    cliCommandRunner: paths.cliCommandRunner,
+    // Usage/pricing admin surface (usage-pricing child): stats queries go
+    // through the recorder facade, pricing mutations through the engine, and
+    // the row DELETE through the concrete store (delete is store-local — the
+    // core port stays frozen). None of these can reach key material.
+    usageRecorder,
+    pricingEngine,
+    pricingStore,
+    // Use the DECRYPTED config so `admin.token` (if stored as `enc:`) is the
+    // plaintext bearer the AdminServer's constant-time compare expects (D4).
+    getAdminConfig: () => resolveAdminConfig(decryptedConfig.admin),
+  });
+
+  // Background token-refresh sweep (external-cli-sync) — constructed armed-off;
+  // `start.ts` calls `.start()` on the resident daemon.
+  const tokenRefreshScheduler = new TokenRefreshScheduler(credentialStore, logger);
+
+  return {
+    logger,
+    llmConfig,
+    keyDb,
+    settingsStore,
+    providerProxy,
+    outboundApiServer,
+    apiKeyPool,
+    autoDisableStore,
+    credentialStore,
+    subscriptionRegistry,
+    subscriptionAccounts,
+    pricingStore,
+    pricingEngine,
+    usageRecorder,
+    adminServer,
+    tokenRefreshScheduler,
+  };
+}
+
+/** Reset the core singletons (tests / teardown only). Re-exported for the suite.
+ *
+ * Also clears BOTH subscription singletons (design D4). This is mandatory: the
+ * `setSubscriptionProviderRegistry` setter mirrors into core's outbound slot, so
+ * without it a prior test's registry would leak into a BYO-only boot and
+ * mis-route. We clear the core outbound slot directly via
+ * `setSubscriptionRegistryForOutbound(null)` (which accepts `null`), and null
+ * the `@omnicross/subscriptions` module singletons through their setters (the
+ * setters assign verbatim — passing `null` is a no-throw runtime clear; the
+ * `as never` keeps the call within the package's non-nullable type without
+ * modifying its behavior). It also nulls the core Gemini Code-Assist resolver
+ * slot so a wired resolver does not leak across boots.
+ *
+ * NOTE: the `AdminServer` is INSTANCE-scoped on the returned `Daemon` (not a
+ * module singleton), so it needs no reset here — the test stops it in `afterEach`
+ * via `daemon.adminServer.stop()`. */
+export function resetDaemonSingletonsForTests(): void {
+  __resetProviderProxyForTests();
+  __resetOutboundApiServerForTests();
+  setSubscriptionRegistryForOutbound(null);
+  setSubscriptionProviderRegistry(null as never);
+  setSubscriptionAccountService(null as never);
+  // Clear the Gemini Code-Assist resolver slot so a wired resolver from a prior
+  // boot does not leak into a fresh (e.g. BYO-only) boot-smoke test.
+  setGeminiCodeAssistResolver(null);
+  // Clear the module-level at-rest SecretBox in BOTH config.ts and the pool key
+  // accessor so a prior boot's box does not leak into a legacy/no-box test
+  // (which expects plaintext passthrough). The next `buildDaemon` re-injects.
+  setSecretBox(null);
+  setPoolSecretBox(null);
+}

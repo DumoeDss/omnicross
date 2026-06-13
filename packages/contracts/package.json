@@ -1,0 +1,126 @@
+{
+  "name": "@omnicross/contracts",
+  "version": "0.1.2",
+  "description": "Dependency-light, host-agnostic contract types + runtime-value helpers shared by the @omnicross/* packages.",
+  "license": "MIT",
+  "author": "Sayo (https://github.com/Dumoedss)",
+  "homepage": "https://github.com/Dumoedss/omnicross#readme",
+  "keywords": [
+    "omnicross",
+    "llm",
+    "openai",
+    "anthropic",
+    "gemini",
+    "types",
+    "contracts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dumoedss/omnicross.git",
+    "directory": "packages/contracts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./account-tokens-types": {
+      "types": "./dist/account-tokens-types.d.ts",
+      "import": "./dist/account-tokens-types.js",
+      "require": "./dist/account-tokens-types.cjs"
+    },
+    "./canonical-models": {
+      "types": "./dist/canonical-models.d.ts",
+      "import": "./dist/canonical-models.js",
+      "require": "./dist/canonical-models.cjs"
+    },
+    "./completion-types": {
+      "types": "./dist/completion-types.d.ts",
+      "import": "./dist/completion-types.js",
+      "require": "./dist/completion-types.cjs"
+    },
+    "./endpoint-resolver": {
+      "types": "./dist/endpoint-resolver.d.ts",
+      "import": "./dist/endpoint-resolver.js",
+      "require": "./dist/endpoint-resolver.cjs"
+    },
+    "./extended-context": {
+      "types": "./dist/extended-context.d.ts",
+      "import": "./dist/extended-context.js",
+      "require": "./dist/extended-context.cjs"
+    },
+    "./llm-config": {
+      "types": "./dist/llm-config.d.ts",
+      "import": "./dist/llm-config.js",
+      "require": "./dist/llm-config.cjs"
+    },
+    "./mcp-types": {
+      "types": "./dist/mcp-types.d.ts",
+      "import": "./dist/mcp-types.js",
+      "require": "./dist/mcp-types.cjs"
+    },
+    "./message-blocks": {
+      "types": "./dist/message-blocks.d.ts",
+      "import": "./dist/message-blocks.js",
+      "require": "./dist/message-blocks.cjs"
+    },
+    "./pricing-types": {
+      "types": "./dist/pricing-types.d.ts",
+      "import": "./dist/pricing-types.js",
+      "require": "./dist/pricing-types.cjs"
+    },
+    "./provider-presets": {
+      "types": "./dist/provider-presets/index.d.ts",
+      "import": "./dist/provider-presets/index.js",
+      "require": "./dist/provider-presets/index.cjs"
+    },
+    "./subscription-types": {
+      "types": "./dist/subscription-types.d.ts",
+      "import": "./dist/subscription-types.js",
+      "require": "./dist/subscription-types.cjs"
+    },
+    "./thinking-config": {
+      "types": "./dist/thinking-config.d.ts",
+      "import": "./dist/thinking-config.js",
+      "require": "./dist/thinking-config.cjs"
+    },
+    "./usage-stats-types": {
+      "types": "./dist/usage-stats-types.d.ts",
+      "import": "./dist/usage-stats-types.js",
+      "require": "./dist/usage-stats-types.cjs"
+    },
+    "./usage-types": {
+      "types": "./dist/usage-types.d.ts",
+      "import": "./dist/usage-types.js",
+      "require": "./dist/usage-types.cjs"
+    },
+    "./websearch-types": {
+      "types": "./dist/websearch-types.d.ts",
+      "import": "./dist/websearch-types.js",
+      "require": "./dist/websearch-types.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "id": "minimax",
+  "presetId": "minimax",
+  "name": "MiniMax",
+  "apiFormat": "anthropic",
+  "api_base_url": "https://api.minimaxi.com/anthropic",
+  "transformer": {
+    "use": [
+      "anthropic"
+    ]
+  },
+  "models": [
+    "MiniMax-M2.5",
+    "MiniMax-M2.5-highspeed",
+    "MiniMax-M2.1",
+    "MiniMax-M2.1-highspeed"
+  ],
+  "modelConfigs": [
+    {
+      "id": "MiniMax-M2.5",
+      "name": "MiniMax M2.5",
+      "enabled": true
+    },
+    {
+      "id": "MiniMax-M2.5-highspeed",
+      "name": "MiniMax M2.5 极速版",
+      "enabled": true
+    },
+    {
+      "id": "MiniMax-M2.1",
+      "name": "MiniMax M2.1",
+      "enabled": true
+    },
+    {
+      "id": "MiniMax-M2.1-highspeed",
+      "name": "MiniMax M2.1 极速版",
+      "enabled": true
+    }
+  ],
+  "description": "MiniMax大模型平台",
+  "icon": "minimax",
+  "website": "https://platform.minimaxi.com",
+  "docsUrl": "https://platform.minimaxi.com/docs",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "mcp-search",
+    "mcp-vision"
+  ],
+  "searchConfig": {
+    "type": "mcp",
+    "mcpServerId": "minimax-search",
+    "applicableModels": null
+  }
+}

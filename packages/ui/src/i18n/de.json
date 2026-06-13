@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "LLM-Konfiguration wird geladen...",
+    "reset": {
+      "button": "Standardwerte wiederherstellen",
+      "confirmTitle": "Standardeinstellungen wiederherstellen?",
+      "confirmBody": "Dies löscht Ihre Anpassungen für diesen Anbieter, sodass wieder die integrierten Standardwerte gelten. Ihr API-Key und gespeicherte Sitzungen bleiben erhalten.",
+      "confirmButton": "Standardwerte wiederherstellen"
+    },
+    "reentryBanner": {
+      "message": "{{count}} aktivierter/aktivierte Anbieter benötigt/benötigen eine erneute Eingabe des API-Keys. Öffnen Sie jeden Anbieter und geben Sie den Key erneut ein."
+    },
+    "migrationPack": {
+      "barHint": "Übertragen Sie Ihre Anbieter-Keys und Abonnement-Tokens mit einem verschlüsselten Paket auf einen anderen Computer.",
+      "passphrase": "Passphrase",
+      "passphrasePlaceholder": "Passphrase eingeben",
+      "passphraseHint": "Verwenden Sie mindestens 8 Zeichen; 12 oder mehr werden empfohlen.",
+      "confirm": "Passphrase bestätigen",
+      "confirmPlaceholder": "Passphrase erneut eingeben",
+      "mismatch": "Die Passphrases stimmen nicht überein.",
+      "strength": {
+        "weak": "Zu kurz — verwenden Sie mindestens 8 Zeichen.",
+        "fair": "Akzeptabel — 12 oder mehr Zeichen sind sicherer.",
+        "strong": "Starke Passphrase."
+      },
+      "export": {
+        "button": "Paket exportieren",
+        "title": "Verschlüsseltes Paket exportieren",
+        "subtitle": "Verschlüsseln Sie Ihre Anbieter-Keys und Abonnement-Tokens in einer portablen Datei.",
+        "warning": "Diese Datei enthält entschlüsselbare Geheimnisse. Bewahren Sie sie sicher auf — jeder mit der Datei und der Passphrase kann Ihre Keys lesen. Eine verlorene Passphrase kann nicht wiederhergestellt werden.",
+        "submit": "Exportieren",
+        "success": "Paket erfolgreich exportiert.",
+        "error": "Export fehlgeschlagen. Bitte versuchen Sie es erneut."
+      },
+      "import": {
+        "button": "Paket importieren",
+        "title": "Verschlüsseltes Paket importieren",
+        "subtitle": "Stellen Sie Anbieter-Keys und Abonnement-Tokens aus einem exportierten Paket wieder her.",
+        "hint": "Geben Sie die beim Export verwendete Passphrase ein und wählen Sie dann die Datei.",
+        "submit": "Importieren",
+        "successTitle": "Import abgeschlossen",
+        "summary": "{{providerKeys}} Anbieter-Key(s), {{poolKeys}} Pool-Key(s) und {{tokenSets}} Token-Set(s) importiert.",
+        "duplicates": "{{count}} bereits vorhandene(r) Pool-Key(s) übersprungen.",
+        "skipped": "Übersprungen (kein passender Anbieter): {{names}}",
+        "error": "Falsche Passphrase oder beschädigtes Paket. Es wurden keine Änderungen vorgenommen."
+      }
+    },
+    "searchPlaceholder": "Anbieter suchen...",
+    "emptySearch": "Keine Anbieter entsprechen Ihrer Suche.",
+    "emptyList": "Keine Anbieter konfiguriert.",
+    "selectPrompt": "Wählen Sie einen Anbieter aus, um Details anzuzeigen",
+    "listStatus": "{{count}} Modell(e)",
+    "noModels": "Keine Modelle konfiguriert",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "showEnabledOnly": "Nur aktivierte anzeigen",
+    "showAll": "Alle Anbieter anzeigen",
+    "dragHandle": "Ziehen zum Neuanordnen",
+    "reorderFailed": "Anbieterreihenfolge konnte nicht gespeichert werden",
+    "credentials": {
+      "apiKey": "API-Key",
+      "apiBaseUrl": "API-Basis-URL"
+    },
+    "filter": {
+      "all": "Alle",
+      "chat": "Chat",
+      "code": "Code"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Vorlage auswählen",
+      "skipTemplates": "Überspringen, manuell konfigurieren",
+      "name": "Name *",
+      "providerType": "Typ",
+      "apiType": "API-Typ",
+      "apiTypeOptions": {
+        "openai": "OpenAI-Vervollständigung",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standard-OpenAI-Chat/Completions-API-Format",
+        "claudecode": "Anthropic Messages API-Format (Claude Code)"
+      },
+      "chatApiFormat": "API-Format",
+      "chatApiFormatDescription": "Wählen Sie das API-Format, das zum Endpunkt Ihres Anbieters passt",
+      "apiKey": "API-Key",
+      "apiKeyPlaceholder": "sk-... oder $ENV_VAR",
+      "apiKeyHelper": "Verwenden Sie $VAR_NAME, um auf Umgebungsvariablen zu verweisen",
+      "apiKeySetPlaceholder": "Key ist gesetzt — leer lassen, um ihn beizubehalten",
+      "apiKeyReplaceHelper": "Ein Key ist sicher gespeichert. Geben Sie einen neuen Wert ein, um ihn zu ersetzen, oder lassen Sie das Feld leer, um ihn zu behalten.",
+      "testApiKey": "API-Key testen",
+      "apiUrl": "API-URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Vorschau:",
+      "models": "Modelle",
+      "modelPlaceholder": "Modellname (z. B. gpt-4, claude-3-opus)",
+      "transformers": "Transformer",
+      "transformerConfig": "API-Transformer",
+      "transformerConfigDescription": "Konfigurieren Sie Transformer, um API-Anfrage-/Antwortformate für diesen Anbieter anzupassen",
+      "transformerConfigNote": "Der Daemon wendet diese Transformer in der Anfragekette an, nach dem Format-Transformer des Anbieters (der die Wire-Format-Konvertierung übernimmt). Unbekannte Transformer-Namen werden übersprungen.",
+      "enabled": "Aktiviert",
+      "apiVersion": "API-Version",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API-Version (z. B. 2024-08-01-preview)",
+      "official": "Offizielle Anthropic API",
+      "officialHelper": "Aktivieren, wenn dieser Anbieter direkt mit der offiziellen Anthropic API verbunden ist. Deaktivieren für Reverse Proxys oder Drittanbieterdienste.",
+      "maxConcurrency": "Max. gleichzeitige Anfragen",
+      "maxConcurrencyHelper": "Maximale Anzahl gleichzeitiger API-Anfragen an diesen Anbieter. Niedrigere Werte helfen, Rate-Limiting zu vermeiden (429-Fehler). Setzen Sie `-1` für kein Limit.",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "Separaten API-Endpunkt für abonnementbasierte Coding Plans verwenden",
+        "baseUrl": "Coding Plan Basis-URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API-Key (optional)",
+        "apiKeyPlaceholder": "Leer lassen, um den API-Key des Anbieters zu verwenden",
+        "apiKeyHelper": "Nur erforderlich, wenn der Coding Plan einen anderen API-Key verwendet",
+        "tokenPlanHint": "Einige Anbieter (z. B. Xiaomi MiMo) stellen Token Plan Keys mit dem Präfix `tp-` aus — nur informativ, wird nicht erzwungen."
+      },
+      "selectTypeFirst": "Anbietertyp auswählen",
+      "selectTypeFirstDesc": "Wählen Sie, welchen Anbietertyp Sie hinzufügen möchten",
+      "codeProviderNote": "Code-Anbieter benötigen nur API-Key und URL. Modelle werden vom Agent Router verwaltet.",
+      "buttons": {
+        "cancel": "Abbrechen",
+        "submitAdd": "Anbieter hinzufügen",
+        "submitUpdate": "Anbieter aktualisieren",
+        "continue": "Weiter",
+        "back": "Zurück"
+      }
+    },
+    "details": {
+      "noSelection": "Wählen Sie einen Anbieter aus, um Details anzuzeigen",
+      "apiKey": "API-Key",
+      "apiUrl": "API-URL",
+      "nameLabel": "Anbietername",
+      "modelsEndpoint": "Modell-Endpunkt",
+      "modelsEndpointHelper": "Überschreiben Sie den Discovery-Endpunkt, wenn der Anbieter einen benutzerdefinierten /models-Pfad bereitstellt.",
+      "models": "Modelle",
+      "transformers": "Transformer",
+      "codeProviderNote": "Code-Anbieter (wie Claude Code) erfordern keine Modellkonfiguration. Modelle werden automatisch vom Agent Router verwaltet.",
+      "buttons": {
+        "more": "Weitere Einstellungen",
+        "delete": "Löschen"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Anbieter und Modell auswählen",
+      "noProviders": "Keine Anbieter verfügbar",
+      "noModels": "Keine Modelle konfiguriert"
+    },
+    "apiKeyPool": {
+      "title": "API-Key-Pool",
+      "description": "Konfigurieren Sie mehrere API-Keys für den Lastausgleich. Jede Sitzung bleibt einem Key zugeordnet, um den Prompt-Cache zu erhalten.",
+      "defaultLabel": "Standard",
+      "weight": "Gewichtung",
+      "noKey": "Kein Key",
+      "labelPlaceholder": "Bezeichnung (z. B. Key #1, Produktion)",
+      "addKey": "API-Key hinzufügen",
+      "add": "Hinzufügen",
+      "empty": "Keine zusätzlichen Keys konfiguriert.",
+      "statusCoolingDown": "Abkühlphase {{time}}",
+      "statusAuthFailed": "Authentifizierung fehlgeschlagen · deaktiviert",
+      "statusDisabled": "Deaktiviert",
+      "statusHealthy": "Betriebsbereit",
+      "agoSeconds": "vor {{count}}s",
+      "agoMinutes": "vor {{count}}min",
+      "agoHours": "vor {{count}}h",
+      "agoDays": "vor {{count}}T"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Modelle suchen...",
+      "defaultGroup": "Alle Modelle",
+      "add": "Modell hinzufügen",
+      "manage": "Verwalten",
+      "empty": "Keine Modelle in dieser Gruppe",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert",
+      "filters": {
+        "all": "Alle",
+        "vision": "Vision",
+        "reasoning": "Reasoning",
+        "free": "Kostenlos",
+        "tools": "Tools"
+      },
+      "manualDialog": {
+        "title": "Modell hinzufügen",
+        "subtitle": "Benutzerdefiniertes Modell zu diesem Anbieter hinzufügen",
+        "modelId": "Modell-ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash usw.",
+        "modelIdHelper": "Der genaue Modellbezeichner, der beim API-Aufruf verwendet wird",
+        "modelName": "Anzeigename",
+        "modelNamePlaceholder": "Benutzerfreundlicher Anzeigename (optional)",
+        "modelNameHelper": "Optionaler Name, der in der Oberfläche angezeigt wird. Wenn leer, wird die Modell-ID verwendet",
+        "group": "Gruppe",
+        "groupPlaceholder": "Gruppenname auswählen oder eingeben",
+        "submit": "Hinzufügen",
+        "cancel": "Abbrechen",
+        "helper": "Geben Sie den genauen Modellbezeichner an, der von der Anbieter-API bereitgestellt wird."
+      },
+      "editDialog": {
+        "title": "Modell bearbeiten",
+        "subtitle": "Modelleinstellungen ändern",
+        "modelId": "Modell-ID",
+        "modelIdPlaceholder": "Modellbezeichner",
+        "modelIdHelper": "Der Modellbezeichner, der beim API-Aufruf verwendet wird",
+        "modelName": "Anzeigename",
+        "modelNamePlaceholder": "Benutzerfreundlicher Anzeigename",
+        "modelNameHelper": "In der Oberfläche angezeigter Name",
+        "group": "Gruppe",
+        "groupPlaceholder": "Gruppenname auswählen oder eingeben",
+        "submit": "Speichern",
+        "cancel": "Abbrechen",
+        "vision": "Vision-Fähigkeit",
+        "visionHint": "Gibt an, ob dieses Modell Bild-/Vision-Eingaben unterstützt",
+        "reasoning": "Reasoning-Modell",
+        "reasoningHint": "Gibt an, ob dieses Modell den Denk-/Reasoning-Modus unterstützt"
+      },
+      "manageDialog": {
+        "title": "Modelle verwalten",
+        "cachedAt": "Gecacht am {{date}} ({{source}})",
+        "refresh": "Aktualisieren",
+        "close": "Schließen",
+        "raw": "Raw JSON",
+        "empty": "Keine Remote-Modelle verfügbar.",
+        "error": "Modelle konnten nicht geladen werden: {{message}}",
+        "addFromCatalog": "Hinzufügen",
+        "sourceCache": "Cache",
+        "sourceNetwork": "Live",
+        "contextLength": "Kontext {{value}} Token",
+        "maxTokens": "Max. {{value}} Token"
+      },
+      "messages": {
+        "added": "Modell hinzugefügt.",
+        "updated": "Modell aktualisiert.",
+        "removed": "Modell entfernt.",
+        "duplicate": "Modell existiert bereits.",
+        "refreshed": "Modelle aktualisiert",
+        "refreshFailed": "Modelle konnten nicht aktualisiert werden"
+      },
+      "testDialog": {
+        "title": "Modell-Konnektivitätstest",
+        "provider": "Anbieter",
+        "model": "Modell",
+        "testing": "Test läuft...",
+        "success": "Test erfolgreich",
+        "successMessage": "Modell ist normal erreichbar",
+        "failure": "Test fehlgeschlagen",
+        "aiResponse": "KI-Antwort",
+        "charCount": "{{count}} Zeichen",
+        "duration": "Dauer {{time}}s",
+        "close": "Schließen",
+        "retest": "Erneut testen",
+        "testButton": "Modell testen",
+        "unsupportedFormat": "Tests werden für dieses Anbieterformat noch nicht unterstützt."
+      }
+    },
+    "router": {
+      "title": "Router-Konfiguration",
+      "description": "Konfigurieren Sie, welcher Anbieter/welches Modell für verschiedene Szenarien verwendet wird.",
+      "labels": {
+        "default": "Standard",
+        "background": "Hintergrund",
+        "think": "Denken",
+        "longContext": "Langer Kontext",
+        "webSearch": "Websuche",
+        "image": "Bild",
+        "longContextThreshold": "Schwellenwert für langen Kontext"
+      },
+      "helper": {
+        "longContextThreshold": "Token-Anzahl, bevor zum Langkontext-Modell gewechselt wird."
+      },
+      "placeholder": {
+        "required": "Erforderlich",
+        "optional": "Optional"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Konfigurieren Sie das bidirektionale Routing zwischen Chat- und Code-Modus.",
+      "searchPlaceholder": "Router suchen...",
+      "noSearchResults": "Keine Router entsprechen Ihrer Suche.",
+      "tabs": {
+        "chatToCode": "Chat → Code",
+        "codeToChatPlaceholder": "Code → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat-zu-Code-Router",
+        "description": "Chat-Anbieter im Agenten-/Codiermodus verwenden",
+        "addRouter": "Router hinzufügen",
+        "emptyState": "Keine Chat→Code-Router konfiguriert. Fügen Sie einen hinzu, um Chat-Anbieter im Codiermodus zu verwenden.",
+        "form": {
+          "name": "Router-Name",
+          "namePlaceholder": "Mein Chat→Code-Router",
+          "chatProvider": "Chat-Anbieter",
+          "chatProviderPlaceholder": "Chat-Anbieter auswählen",
+          "mode": "Modus",
+          "modeSimple": "Einfach",
+          "modeAdvanced": "Erweitert",
+          "modeSimpleDesc": "Direkter Durchlauf zum Chat-Anbieter",
+          "modeAdvancedDesc": "Modell-Mapping und Kontextbehandlung konfigurieren",
+          "enabled": "Aktiviert",
+          "save": "Router speichern",
+          "cancel": "Abbrechen"
+        },
+        "list": {
+          "provider": "Anbieter",
+          "mode": "Modus",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Modell-Mappings",
+          "description": "Chat-Anbietermodelle auf Code-Anbietermodelle abbilden",
+          "count": "Mapping(s)",
+          "empty": "Keine Modell-Mappings konfiguriert. Fügen Sie Mappings hinzu, um Chat-Modelle zu Code-Anbietern zu routen.",
+          "addNew": "Neues Mapping hinzufügen",
+          "selectSource": "Quellmodell auswählen (Chat)",
+          "selectTarget": "Zielmodell auswählen (Code)",
+          "targetPlaceholder": "Claude Code Modellnamen eingeben",
+          "notSet": "(Nicht gesetzt – zum Auswählen klicken)",
+          "add": "Hinzufügen",
+          "edit": "Bearbeiten",
+          "done": "Fertig"
+        },
+        "advanced": {
+          "title": "Erweiterte Konfiguration",
+          "description": "Modelle für verschiedene Aufgabentypen konfigurieren",
+          "helpText": "Das Standardmodell ist erforderlich. Andere Modelle sind optional und fallen auf das Standardmodell zurück, wenn sie nicht konfiguriert sind.",
+          "default": {
+            "label": "Standard",
+            "placeholder": "Standardmodell auswählen",
+            "description": "Hauptmodell für allgemeine Aufgaben (ähnlich wie Claude Sonnet)"
+          },
+          "background": {
+            "label": "Hintergrund",
+            "placeholder": "Hintergrundmodell auswählen",
+            "description": "Leichtes Modell für Hintergrundaufgaben (ähnlich wie Claude Haiku)"
+          },
+          "think": {
+            "label": "Denken",
+            "placeholder": "Denkmodell auswählen",
+            "description": "Erweitertes Modell für komplexes Reasoning (ähnlich wie Claude Opus)"
+          },
+          "image": {
+            "label": "Bild",
+            "placeholder": "Bildmodell auswählen",
+            "description": "Modell für bildbasierte Aufgaben mit Vision-Fähigkeit"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Code-zu-Chat-Router",
+        "description": "Coding Plan Modelle im Chat-Modus bereitstellen",
+        "addRouter": "Router hinzufügen",
+        "emptyState": "Keine Code→Chat-Router konfiguriert. Fügen Sie einen hinzu, um Coding Plan Modelle im Chat-Modus bereitzustellen.",
+        "form": {
+          "name": "Router-Name",
+          "namePlaceholder": "Mein Code→Chat-Router",
+          "codeProvider": "Code-Anbieter",
+          "codeProviderPlaceholder": "Code-Anbieter auswählen",
+          "codeProviderHelper": "Wählen Sie den Code-Anbieter für die Transformation",
+          "models": "Coding Plan Modelle",
+          "modelsHelper": "Wählen Sie, welche Coding Plan Modelle bereitgestellt werden sollen",
+          "enabled": "Aktiviert",
+          "save": "Router speichern",
+          "cancel": "Abbrechen"
+        },
+        "mappings": {
+          "title": "Modell-Mappings",
+          "description": "Code-Anbietermodelle auf Chat-Anbietermodelle abbilden, um sie bereitzustellen",
+          "count": "Mapping(s)",
+          "empty": "Keine Modell-Mappings konfiguriert. Fügen Sie Mappings hinzu, um Code-Modelle im Chat-Modus bereitzustellen.",
+          "addNew": "Neues Mapping hinzufügen",
+          "selectSource": "Quellmodell auswählen (Code)",
+          "selectTarget": "Zielmodell auswählen (Chat)",
+          "sourcePlaceholder": "Quellmodellnamen eingeben",
+          "targetPlaceholder": "Zielmodellnamen eingeben",
+          "add": "Hinzufügen",
+          "edit": "Bearbeiten",
+          "done": "Fertig"
+        }
+      },
+      "transformers": {
+        "title": "Transformer",
+        "description": "Transformer für die Anfrage-/Antwortkonvertierung konfigurieren",
+        "noProvider": "Wählen Sie einen Anbieter, um Transformer zu konfigurieren",
+        "empty": "Keine Transformer",
+        "count": "{{count}} Transformer"
+      },
+      "status": {
+        "enabled": "Aktiviert",
+        "disabled": "Deaktiviert"
+      },
+      "messages": {
+        "routerAdded": "Router erfolgreich hinzugefügt",
+        "routerUpdated": "Router erfolgreich aktualisiert",
+        "routerDeleted": "Router erfolgreich gelöscht",
+        "saveFailed": "Router konnte nicht gespeichert werden"
+      }
+    },
+    "presets": {
+      "title": "Anbieter schnell hinzufügen",
+      "added": "Hinzugefügt",
+      "add": "Hinzufügen",
+      "features": {
+        "search": "Suche",
+        "vision": "Vision",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Möchten Sie diesen Anbieter wirklich löschen?"
+    },
+    "errors": {
+      "nameRequired": "Anbietername ist erforderlich",
+      "urlRequired": "API-Basis-URL ist erforderlich",
+      "urlInvalid": "Bitte geben Sie eine gültige URL ein (z. B. https://api.example.com)",
+      "saveFailed": "Anbieter konnte nicht gespeichert werden",
+      "deleteFailed": "Fehler beim Löschen des Anbieters. Bitte versuchen Sie es erneut.",
+      "toggleFailed": "Fehler beim Aktivieren/Deaktivieren des Anbieters. Bitte versuchen Sie es erneut."
+    },
+    "openRouter": {
+      "title": "OpenRouter-Anbieter-Routing",
+      "description": "Konfigurieren Sie, wie Anfragen zu verschiedenen Anbietern auf OpenRouter geleitet werden.",
+      "sort": "Routing-Strategie",
+      "sortTooltip": "Wählen Sie, wie Anbieter priorisiert werden. Automatisch verwendet intelligenten Lastausgleich.",
+      "order": "Anbieter-Prioritätsreihenfolge",
+      "orderTooltip": "Geben Sie Anbieter in der Reihenfolge an, in der sie versucht werden sollen (z. B. anthropic, openai, together). Drücken Sie Enter zum Hinzufügen.",
+      "orderPlaceholder": "Anbieter-Slug eingeben und Enter drücken...",
+      "allowFallbacks": "Fallbacks erlauben",
+      "allowFallbacksTooltip": "Wenn aktiviert, versucht OpenRouter Backup-Anbieter, wenn der primäre nicht verfügbar ist.",
+      "requireParameters": "Alle Parameter erfordern",
+      "requireParametersTooltip": "Nur zu Anbietern routen, die alle Parameter in Ihrer Anfrage unterstützen.",
+      "dataCollection": "Datenerfassungsrichtlinie",
+      "dataCollectionTooltip": "Steuern Sie, ob Anbieter verwendet werden, die Ihre Daten möglicherweise speichern oder für Training verwenden.",
+      "zdr": "Zero Data Retention",
+      "zdrTooltip": "Nur zu Endpunkten mit Zero Data Retention Richtlinie routen.",
+      "only": "Nur diese Anbieter erlauben",
+      "onlyTooltip": "Nur diese spezifischen Anbieter verwenden. Leer lassen, um alle Anbieter zu erlauben.",
+      "onlyPlaceholder": "Anbieter-Slug eingeben und Enter drücken...",
+      "ignore": "Anbieter ignorieren",
+      "ignoreTooltip": "Diese Anbieter beim Routing von Anfragen überspringen.",
+      "ignorePlaceholder": "Anbieter-Slug eingeben und Enter drücken...",
+      "quantizations": "Quantisierungsfilter",
+      "quantizationsTooltip": "Nur Anbieter mit bestimmten Quantisierungsstufen verwenden. Geringere Präzision kann die Qualität verringern, aber die Geschwindigkeit verbessern.",
+      "maxPrice": "Höchstpreis",
+      "maxPriceTooltip": "Maximale Preisgrenzen pro Million Token festlegen. Leer lassen für kein Limit.",
+      "configured": "Konfiguriert"
+    }
+  },
+  "apiMode": {
+    "label": "API-Modus",
+    "standard": "Standard",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "Keys für diesen Plan beginnen typischerweise mit `{{prefix}}`. Nur ein Hinweis — wird nicht erzwungen.",
+    "dashscopeCodingPlanSeparateKey": "Der DashScope Coding Plan verwendet einen separaten API-Key vom Standard-Endpunkt.",
+    "baiduCodingPlanSeparateKey": "Der Qianfan Coding Plan verwendet einen separaten API-Key vom Standard-Endpunkt.",
+    "tencentTokenPlanAnthropicOnly": "Der Tencent Token Plan ist ausschließlich mit dem Anthropic-Protokoll kompatibel.",
+    "xiaomiTokenPlanRegions": "Die Standard-Basis-URL ist `token-plan-cn.*`. Sie können sie manuell auf `token-plan-sgp.*` oder `token-plan-ams.*` ändern.",
+    "confirmOverwriteTitle": "API-Modus wechseln?",
+    "confirmOverwriteBody": "Sie haben die API-URL oder den API-Key angepasst. Das Wechseln des Modus überschreibt diese mit den Standardwerten des neuen Modus — oder behalten Sie Ihre Anpassungen bei und aktualisieren Sie nur die Modusbezeichnung.",
+    "overwriteAndSwitch": "Überschreiben und wechseln",
+    "keepCustomizations": "Anpassungen beibehalten"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "copy": "Kopieren",
+    "delete": "Löschen",
+    "dismiss": "Schließen",
+    "save": "Speichern",
+    "optional": "optional",
+    "retry": "Erneut versuchen",
+    "loading": "Wird geladen…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Dokumentation"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Vom Daemon noch nicht unterstützt",
+    "discoveryUnsupportedFormat": "Die Modellerkennung wird für dieses Anbieterformat noch nicht unterstützt. Fügen Sie Modelle manuell hinzu."
+  },
+  "nav": {
+    "subtitle": "Systemsteuerung",
+    "providers": "Anbieter",
+    "apiService": "API-Dienst",
+    "accounts": "Konten",
+    "codeCli": "Code CLI",
+    "settings": "Einstellungen",
+    "usageStats": "Nutzung",
+    "pricing": "Preise"
+  },
+  "apiService": {
+    "title": "API-Dienst",
+    "description": "Konfigurieren Sie den ausgehenden API-Server, das endpunktbasierte Modell-Routing und benannte Zugriffsschlüssel.",
+    "loading": "Serverkonfiguration wird geladen…",
+    "loadError": "Die Serverkonfiguration konnte nicht geladen werden. Stellen Sie sicher, dass der Daemon erreichbar ist.",
+    "enable": {
+      "label": "Ausgehenden Server aktivieren",
+      "description": "Starten Sie den lokalen API-Server, der externe Aufrufer durch Ihre Anbieter leitet."
+    },
+    "networkBinding": {
+      "label": "LAN-Zugriff erlauben",
+      "description": "Server an die Netzwerkschnittstelle binden statt nur an Loopback.",
+      "warning": "LAN-Zugriff macht den API-Server für andere Geräte in Ihrem Netzwerk zugänglich. In Kombination mit Abonnement-Routing können Anfragen Ihr Abonnementkontingent verbrauchen — lassen Sie dies deaktiviert, es sei denn, Sie vertrauen dem Netzwerk."
+    },
+    "status": {
+      "running": "Server läuft",
+      "stopped": "Server gestoppt",
+      "runningHint": "Der ausgehende API-Server nimmt Anfragen entgegen.",
+      "stoppedHint": "Aktivieren Sie den Server, um Anfragen entgegennehmen zu können.",
+      "port": "Port {{port}}",
+      "loopback": "Loopback-URLs",
+      "lan": "LAN-URLs"
+    },
+    "endpoints": {
+      "title": "Endpunkt-Routing",
+      "description": "Wählen Sie das Modell, zu dem jedes Wire-Format geroutet wird. Das Standardmodell wird hier festgelegt — der Server ist ein Router, keine Chat-App."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Standardmodell",
+      "backgroundModel": "Hintergrundmodell",
+      "visionModel": "Vision-Modell",
+      "noVisionModel": "Keines",
+      "backgroundModelIds": "Hintergrundmodell-IDs",
+      "backgroundModelIdsPlaceholder": "Kommagetrennte Modell-IDs",
+      "modelPlaceholder": "Modell auswählen…",
+      "useSubscription": "Abonnement verwenden",
+      "subscriptionUnsupported": "Abonnement-Routing ist für diesen Endpunkt nicht verfügbar."
+    },
+    "keys": {
+      "title": "Zugriffsschlüssel",
+      "description": "Benannte Schlüssel, die externe Aufrufer als Bearer-Token senden. Der vollständige Schlüssel wird nur einmal bei der Erstellung angezeigt.",
+      "namePlaceholder": "Schlüsselname (z. B. mein-cli)",
+      "create": "Schlüssel erstellen",
+      "empty": "Noch keine Zugriffsschlüssel vorhanden.",
+      "enabled": "Aktiviert",
+      "disabled": "Deaktiviert",
+      "revoked": "Widerrufen",
+      "toggle": "Schlüssel umschalten",
+      "revoke": "Widerrufen",
+      "revokeConfirmTitle": "Diesen Schlüssel widerrufen?",
+      "revokeConfirmDesc": "Das Widerrufen von \"{{name}}\" verhindert sofort die Authentifizierung damit. Dies kann nicht rückgängig gemacht werden.",
+      "created": {
+        "title": "Schlüssel erstellt",
+        "warning": "Kopieren Sie diesen Schlüssel jetzt — er wird nicht erneut angezeigt. Bewahren Sie ihn sicher auf.",
+        "copy": "Kopieren",
+        "copied": "Kopiert",
+        "dismiss": "Fertig"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Konten & Abonnements",
+    "description": "Verwalten Sie die Abonnement-Anmeldeinformationen, durch die der Server leitet. Tokens werden hier geschrieben, aber nie angezeigt.",
+    "loading": "Konten werden geladen…",
+    "empty": "Keine Abonnement-Anbieter verfügbar.",
+    "signIn": "Anmelden",
+    "oauth": {
+      "title": "Bei {{name}} anmelden",
+      "description": "Öffnen Sie die Anmeldeseite in Ihrem Browser, autorisieren Sie, und fügen Sie dann den Autorisierungscode unten ein. Der Code wird nur an den Daemon übermittelt — das erstellte Token wird nie angezeigt.",
+      "openPage": "Anmeldeseite öffnen",
+      "codeLabel": "Autorisierungscode",
+      "codePlaceholder": "Code hier einfügen",
+      "submit": "Anmeldung abschließen"
+    },
+    "codexOauth": {
+      "title": "Bei {{name}} anmelden",
+      "description": "Öffnen Sie die Anmeldeseite in Ihrem Browser und autorisieren Sie. Der Daemon erfasst das Ergebnis automatisch — lassen Sie dieses Fenster geöffnet, bis der Vorgang abgeschlossen ist. Das Token wird nie angezeigt.",
+      "waiting": "Warten auf den Abschluss der Anmeldung im Browser…",
+      "failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut."
+    },
+    "clearProvider": "Alle löschen",
+    "clearConfirmTitle": "{{name}}-Konten löschen?",
+    "clearConfirmDesc": "Dadurch werden alle gespeicherten Anmeldeinformationen für diesen Anbieter entfernt. Dies kann nicht rückgängig gemacht werden.",
+    "credential": {
+      "ok": "Konfiguriert",
+      "notConfigured": "Nicht konfiguriert"
+    },
+    "kind": {
+      "pass-through": "Pass-through-Anmeldeinformationen",
+      "oauth-bearer": "OAuth Bearer",
+      "static-bearer": "Statischer Bearer-Schlüssel"
+    },
+    "reason": {
+      "missing-credential": "Keine Anmeldeinformationen gespeichert.",
+      "expired": "Anmeldeinformationen abgelaufen.",
+      "reauth-required": "Erneute Authentifizierung erforderlich.",
+      "refresh-failed": "Token-Aktualisierung fehlgeschlagen.",
+      "not-refreshable": "Anmeldeinformationen können nicht aktualisiert werden.",
+      "unknown": "Status unbekannt."
+    },
+    "status": {
+      "unconfigured": "Nicht konfiguriert",
+      "authorized": "Autorisiert",
+      "configured": "Konfiguriert",
+      "expired": "Abgelaufen",
+      "error": "Fehler"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Setup-Token",
+      "manual": "Manuell"
+    },
+    "list": {
+      "empty": "Keine Konten für diesen Anbieter gespeichert.",
+      "active": "Aktiv",
+      "expiresAt": "Läuft ab am {{value}}",
+      "setActive": "Als aktiv festlegen",
+      "remove": "Entfernen",
+      "removeConfirmTitle": "Dieses Konto entfernen?",
+      "removeConfirmDesc": "Das Entfernen von \"{{name}}\" löscht die gespeicherten Anmeldeinformationen. Dies kann nicht rückgängig gemacht werden.",
+      "title": "Konten"
+    },
+    "write": {
+      "trigger": "Anmeldeinformation hinzufügen",
+      "title": "{{name}}-Anmeldeinformation schreiben",
+      "description": "Fügen Sie ein bereits erhaltenes Token ein. Die Felder sind auf das beschränkt, was dieser Anbieter akzeptiert; das Token wird gespeichert, nie zurück angezeigt.",
+      "authMethod": "Authentifizierungsmethode",
+      "status": "Status",
+      "subscriptionLevel": "Abonnementstufe",
+      "subscriptionLevelNone": "Nicht festgelegt",
+      "submit": "Anmeldeinformation speichern"
+    },
+    "field": {
+      "accessToken": "Zugriffstoken",
+      "refreshToken": "Aktualisierungstoken",
+      "idToken": "ID-Token",
+      "apiKey": "API-Key",
+      "expiresAt": "Läuft ab am (ISO)",
+      "setupTokenExpiresAt": "Setup-Token läuft ab am (ISO)",
+      "accountId": "Konto-ID",
+      "email": "E-Mail",
+      "organizationId": "Organisations-ID",
+      "baseUrl": "Basis-URL",
+      "zenBaseUrl": "Zen-Basis-URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic-Abonnement-Anmeldeinformationen, die vom Daemon geleitet werden."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex Abonnement-Anmeldeinformationen, die vom Daemon geleitet werden."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini Abonnement-Anmeldeinformationen, die vom Daemon geleitet werden."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statische API-Key-Anmeldeinformationen, die vom Daemon geleitet werden."
+      }
+    },
+    "authMethodLabel": "Autorisierungsmethode",
+    "authMethodDesc": {
+      "oauth": "Melden Sie sich über Ihren Browser an; der Daemon erfasst und speichert das Token.",
+      "manual": "Fügen Sie ein bereits erhaltenes Token ein. Es wird gespeichert, nie zurück angezeigt."
+    },
+    "actions": {
+      "authorize": "Autorisieren",
+      "enterToken": "Token eingeben",
+      "refresh": "Aktualisieren"
+    },
+    "accounts": {
+      "addAccount": "Konto hinzufügen"
+    },
+    "detail": {
+      "authMethod": "Autorisierungsmethode",
+      "subscriptionLevel": "Abonnementstufe",
+      "expiresAt": "Läuft ab",
+      "lastRefreshed": "Zuletzt aktualisiert",
+      "label": "Kontobezeichnung",
+      "labelPlaceholder": "Diesem Konto einen Namen geben",
+      "saveLabel": "Bezeichnung speichern"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "Autorisierungsseite öffnen",
+        "desc": "Öffnen Sie die Anmeldeseite in Ihrem Browser."
+      },
+      "step2": {
+        "title": "Zugriff autorisieren",
+        "desc": "Melden Sie sich an und genehmigen Sie den Zugriff für den Anbieter."
+      },
+      "step3": {
+        "title": "Autorisierungscode kopieren",
+        "desc": "Die Seite zeigt nach der Genehmigung einen Autorisierungscode an."
+      },
+      "step4": {
+        "title": "Code einfügen",
+        "desc": "Fügen Sie den Autorisierungscode unten ein, um den Vorgang abzuschließen. Der Code wird nur an den Daemon übermittelt — das erstellte Token wird nie angezeigt."
+      },
+      "authorize": "Anmeldung abschließen",
+      "showUrl": "Autorisierungs-URL anzeigen"
+    },
+    "manual": {
+      "title": "Anmeldeinformation einfügen",
+      "description": "Fügen Sie ein bereits erhaltenes Token ein. Die Felder sind auf das beschränkt, was dieser Anbieter akzeptiert; das Token wird gespeichert, nie zurück angezeigt.",
+      "accessTokenPlaceholder": "Zugriffstoken einfügen",
+      "refreshTokenPlaceholder": "Aktualisierungstoken einfügen (optional)",
+      "hint": "Das Token wird an den Daemon gesendet und verschlüsselt gespeichert. Es wird nie zurück angezeigt."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "Ein API-Key ist erforderlich.",
+      "apiKeyPlaceholder": "API-Key einfügen",
+      "baseUrlPlaceholder": "https://… (optional)",
+      "zenBaseUrlPlaceholder": "https://… (optional)"
+    },
+    "info": {
+      "title": "Über Abonnementkonten",
+      "description": "Tokens werden in den Daemon geschrieben und zur Authentifizierung von Upstream-Anfragen verwendet. Sie werden verschlüsselt gespeichert und nie zurück angezeigt. Das Entfernen eines Kontos löscht die gespeicherten Anmeldeinformationen."
+    },
+    "rename": {
+      "failed": "Konto konnte nicht umbenannt werden."
+    },
+    "refresh": {
+      "failed": "Token konnte nicht aktualisiert werden."
+    },
+    "errors": {
+      "requestFailed": "Anfrage fehlgeschlagen. Bitte versuchen Sie es erneut."
+    },
+    "syncWarning": {
+      "external-divergent": "Die externe CLI-Anmeldedatei enthält neuere Zugangsdaten als dieses Konto. Das gespeicherte Token kann sich möglicherweise nicht mehr aktualisieren — jetzt aktualisieren oder neu anmelden.",
+      "external-not-rotated": "Aktualisierung fehlgeschlagen, und die externe CLI enthält dieselben abgelaufenen Zugangsdaten. Bitte erneut anmelden.",
+      "duplicate-token": "Ein anderes Konto verwendet dieselben Zugangsdaten. Das Aktualisieren eines Kontos meldet das andere ab."
+    },
+    "importExternal": {
+      "detected": "Auf diesem Rechner wurde eine vorhandene {{name}}-CLI-Anmeldung gefunden.",
+      "hint": "Nach dem Import hält diese App sie aktuell: Bei jeder Token-Aktualisierung wird auch die CLI-Anmeldedatei aktualisiert, sodass die CLI im Terminal angemeldet bleibt.",
+      "button": "Vorhandene CLI-Anmeldung importieren"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Richten Sie eine Coding-CLI auf den ausgehenden Proxy des Daemons. Diese Seite ist schreibgeschützt — hier ist nichts zu konfigurieren.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "baseUrl": {
+      "title": "Daemon-Basis-URL",
+      "description": "Die Proxy-Adresse, mit der sich Ihr CLI verbindet.",
+      "label": "Basis-URL"
+    },
+    "token": {
+      "title": "Authentifizierung",
+      "hint": "Senden Sie 'Authorization: Bearer <Ihr-Admin-Token>' für Admin-Routen. Das Admin-Token wird im Daemon konfiguriert (in der Konfigurationsdatei oder Umgebung) — es wird hier nie angezeigt."
+    },
+    "examples": {
+      "title": "Beispiel-Startumgebung",
+      "keyNote": "Verwenden Sie einen ausgehenden Zugriffsschlüssel, der auf der Seite API-Dienst erstellt wurde — nicht das Admin-Token.",
+      "anthropic": "CLI im Anthropic-Format",
+      "openai": "CLI im OpenAI-Format"
+    },
+    "launchDescription": "Starten Sie eine Coding-CLI in einem Terminal, das auf diesen Daemon zeigt. Der Daemon injiziert die Umleitungsumgebung und startet die CLI für Sie.",
+    "refresh": "Aktualisieren",
+    "loading": "CLIs werden erkannt…",
+    "cli": {
+      "installed": "Installiert",
+      "notFound": "Nicht gefunden",
+      "notFoundHint": "Diese CLI ist nicht im PATH des Daemon-Hosts. Installieren Sie sie und aktualisieren Sie dann.",
+      "install": "Installieren",
+      "installing": "Wird installiert…",
+      "installingHint": "Installation auf dem Daemon-Host — das kann eine Minute dauern.",
+      "launch": "Starten",
+      "launchTitle": "{{name}} starten",
+      "launchDescription": "Öffnet ein neues Terminal auf dem Daemon-Host, das diese CLI ausführt und über den Daemon-Proxy geleitet wird. Wählen Sie ein optionales Arbeitsverzeichnis.",
+      "cwdLabel": "Arbeitsverzeichnis",
+      "cwdPlaceholder": "/Pfad/zu/Ihrem/Projekt",
+      "runningVia": "Läuft · {{provider}} / {{model}}",
+      "stop": "Beenden"
+    },
+    "manual": {
+      "title": "Manuelle Einrichtung",
+      "description": "Bevorzugen Sie es, die CLI selbst auszuführen? Richten Sie sie mit diesen Umgebungsvariablen auf den Daemon.",
+      "show": "Anzeigen",
+      "hide": "Ausblenden"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Daemon wird gesucht…",
+    "spawning": "Daemon wird gestartet…",
+    "failed": "Der Daemon konnte nicht gestartet werden",
+    "failedHint": "Stellen Sie sicher, dass Node.js installiert ist und der Daemon erstellt wurde (dist vorhanden), oder setzen Sie OMNICROSS_DAEMON_ENTRY auf die cli.js des Daemons."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "description": "Desktop-App-Einstellungen.",
+    "desktopOnly": "Start- und Infobereichsoptionen gelten nur in der Desktop-App.",
+    "startup": {
+      "title": "Autostart",
+      "autoLaunch": "Bei Anmeldung starten",
+      "autoLaunchHint": "Omnicross automatisch starten, wenn Sie sich anmelden.",
+      "startMinimized": "Minimiert im Infobereich starten",
+      "startMinimizedHint": "Im Hintergrund starten, ohne das Fenster zu öffnen."
+    },
+    "tray": {
+      "title": "Infobereich",
+      "minimizeOnClose": "Beim Schließen in den Infobereich minimieren",
+      "minimizeOnCloseHint": "Das Schließen des Fensters blendet es in den Infobereich ein, anstatt die App zu beenden."
+    },
+    "language": {
+      "title": "Sprache",
+      "label": "Oberflächensprache"
+    }
+  },
+  "usageStats": {
+    "title": "Nutzungsstatistik",
+    "description": "Token- und Kostenstatistik der vom Daemon bedienten Anfragen.",
+    "rangeToday": "Heute",
+    "range7d": "Letzte 7 Tage",
+    "range30d": "Letzte 30 Tage",
+    "rangeCustom": "Benutzerdefiniert",
+    "from": "Von",
+    "to": "Bis",
+    "totalCost": "Gesamtkosten",
+    "cacheSavings": "Cache-Ersparnis",
+    "events": "Anfragen",
+    "inputTokens": "Eingabe-Token",
+    "outputTokens": "Ausgabe-Token",
+    "cacheReadTokens": "Cache-Lesen",
+    "cacheWriteTokens": "Cache-Schreiben",
+    "reasoningTokens": "Reasoning-Token",
+    "byModel": "Nach Modell",
+    "byApiKey": "Nach API-Schlüssel",
+    "provider": "Anbieter",
+    "model": "Modell",
+    "cost": "Kosten",
+    "apiKey": "API-Schlüssel",
+    "unpriced": "Ohne Preis",
+    "unpricedHint": "Für dieses Modell existiert kein Preiseintrag — auf der Preise-Seite hinzufügen.",
+    "unattributed": "Nicht zugeordnet",
+    "unattributedHint": "Anfragen ohne Zuordnung zu einem bestimmten API-Schlüssel. Bis die Zuordnung pro Schlüssel erfasst wird, ist das normal.",
+    "empty": "Keine Anfragen in diesem Zeitraum.",
+    "invalidRange": "Bitte einen gültigen Datumsbereich wählen."
+  },
+  "pricing": {
+    "title": "Modellpreise",
+    "description": "Token-Preise pro Modell zur Kostenberechnung, in USD pro 1 Mio. Token.",
+    "search": "Anbieter oder Modell suchen…",
+    "fetchLatest": "Neueste abrufen",
+    "fetching": "Wird abgerufen…",
+    "addEntry": "Eintrag hinzufügen",
+    "provider": "Anbieter",
+    "model": "Modell",
+    "inputPrice": "Eingabe",
+    "outputPrice": "Ausgabe",
+    "cacheReadPrice": "Cache-Lesen",
+    "cacheWritePrice": "Cache-Schreiben",
+    "source": "Quelle",
+    "updated": "Aktualisiert",
+    "userEdited": "bearbeitet",
+    "edit": "Bearbeiten",
+    "deleteTitle": "Preiseintrag löschen?",
+    "empty": "Die Preistabelle ist leer.",
+    "emptyHint": "Neueste Preise abrufen, um sie zu füllen.",
+    "noMatches": "Keine Einträge entsprechen der Suche.",
+    "saved": "Preiseintrag gespeichert.",
+    "saveFailed": "Speichern fehlgeschlagen: {{message}}",
+    "deleteFailed": "Löschen fehlgeschlagen: {{message}}",
+    "alreadyDeleted": "Der Eintrag war bereits entfernt.",
+    "fetchApplied": "{{count}} Einträge aus der Quelle aktualisiert.",
+    "fetchFailed": "Abruf fehlgeschlagen: {{message}}",
+    "requiredId": "Erforderlich",
+    "invalidPrice": "Bitte eine nicht negative Zahl eingeben",
+    "conflictTitle": "Preiskonflikte lösen",
+    "conflictHint": "Diese Einträge wurden von Ihnen bearbeitet und haben sich zugleich in der Quelle geändert. Wählen Sie pro Zeile, ob Ihr Wert erhalten bleibt (Überspringen) oder der neue übernommen wird (Überschreiben).",
+    "current": "Aktuell",
+    "incoming": "Eingehend",
+    "overwrite": "Überschreiben",
+    "skip": "Überspringen",
+    "overwriteAll": "Alle überschreiben",
+    "skipAll": "Alle überspringen",
+    "applyResolutions": "Anwenden",
+    "resolved": "{{overwritten}} überschrieben, {{skipped}} übersprungen.",
+    "resolvedWithStale": "{{overwritten}} überschrieben, {{skipped}} übersprungen. {{stale}} wurden zwischenzeitlich geändert und blieben unberührt.",
+    "refreshFailed": "Die Änderung wurde übernommen, aber das Neuladen der Liste ist fehlgeschlagen: {{message}}",
+    "sourceBuiltin": "Integriert",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Benutzer"
+  }
+}

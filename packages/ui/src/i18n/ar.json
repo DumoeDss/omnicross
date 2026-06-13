@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "جارٍ تحميل إعدادات نموذج اللغة...",
+    "reset": {
+      "button": "استعادة الافتراضيات",
+      "confirmTitle": "استعادة الإعدادات الافتراضية؟",
+      "confirmBody": "سيؤدي هذا إلى مسح تخصيصاتك لهذا الموفر وإعادته إلى الإعدادات الافتراضية المضمّنة. سيتم الاحتفاظ بمفتاح API والجلسات المحفوظة.",
+      "confirmButton": "استعادة الافتراضيات"
+    },
+    "reentryBanner": {
+      "message": "{{count}} موفر (موفرات) مُفعَّل يحتاج إلى إعادة إدخال مفتاح API. افتح كلًا منها وأضف مفتاحه مجددًا."
+    },
+    "migrationPack": {
+      "barHint": "انقل مفاتيح الموفر ورموز الاشتراك إلى جهاز آخر باستخدام حزمة مشفرة.",
+      "passphrase": "عبارة المرور",
+      "passphrasePlaceholder": "أدخل عبارة المرور",
+      "passphraseHint": "استخدم 8 أحرف على الأقل؛ يُنصح بـ 12 حرفًا أو أكثر.",
+      "confirm": "تأكيد عبارة المرور",
+      "confirmPlaceholder": "أعد إدخال عبارة المرور",
+      "mismatch": "عبارتا المرور غير متطابقتين.",
+      "strength": {
+        "weak": "قصيرة جدًا — استخدم 8 أحرف على الأقل.",
+        "fair": "مقبولة — 12 حرفًا أو أكثر أكثر أمانًا.",
+        "strong": "عبارة مرور قوية."
+      },
+      "export": {
+        "button": "تصدير الحزمة",
+        "title": "تصدير حزمة مشفرة",
+        "subtitle": "تشفير مفاتيح الموفر ورموز الاشتراك في ملف قابل للنقل.",
+        "warning": "يحتوي هذا الملف على أسرار قابلة للفك. احتفظ به في مكان آمن — يمكن لأي شخص لديه الملف وعبارة المرور قراءة مفاتيحك. لا يمكن استرداد عبارة المرور في حال فقدانها.",
+        "submit": "تصدير",
+        "success": "تم تصدير الحزمة بنجاح.",
+        "error": "فشل التصدير. يرجى المحاولة مجددًا."
+      },
+      "import": {
+        "button": "استيراد الحزمة",
+        "title": "استيراد حزمة مشفرة",
+        "subtitle": "استعادة مفاتيح الموفر ورموز الاشتراك من حزمة مصدَّرة.",
+        "hint": "أدخل عبارة المرور المستخدمة عند تصدير الحزمة، ثم اختر الملف.",
+        "submit": "استيراد",
+        "successTitle": "اكتمل الاستيراد",
+        "summary": "تم استيراد {{providerKeys}} مفتاح (مفاتيح) موفر، و{{poolKeys}} مفتاح (مفاتيح) مجموعة، و{{tokenSets}} مجموعة (مجموعات) رموز.",
+        "duplicates": "تم تخطي {{count}} مفتاح (مفاتيح) مجموعة موجود بالفعل.",
+        "skipped": "تم التخطي (لا يوجد موفر مطابق): {{names}}",
+        "error": "عبارة مرور خاطئة أو حزمة تالفة. لم يتم تغيير أي شيء."
+      }
+    },
+    "searchPlaceholder": "البحث عن الموفرين...",
+    "emptySearch": "لا يوجد موفرون يطابقون بحثك.",
+    "emptyList": "لا يوجد موفرون مُهيَّأون.",
+    "selectPrompt": "اختر موفرًا لعرض التفاصيل",
+    "listStatus": "{{count}} نموذج (نماذج)",
+    "noModels": "لا توجد نماذج مُهيَّأة",
+    "enabled": "مُفعَّل",
+    "disabled": "مُعطَّل",
+    "showEnabledOnly": "إظهار المُفعَّلة فقط",
+    "showAll": "إظهار جميع الموفرين",
+    "dragHandle": "اسحب لإعادة الترتيب",
+    "reorderFailed": "فشل حفظ ترتيب الموفرين",
+    "credentials": {
+      "apiKey": "مفتاح API",
+      "apiBaseUrl": "عنوان URL الأساسي لـ API"
+    },
+    "filter": {
+      "all": "الكل",
+      "chat": "محادثة",
+      "code": "برمجة"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "اختر قالبًا",
+      "skipTemplates": "تخطي، تهيئة يدوية",
+      "name": "الاسم *",
+      "providerType": "النوع",
+      "apiType": "نوع API",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "تنسيق API القياسي للمحادثة/الإكمال من OpenAI",
+        "claudecode": "تنسيق Anthropic Messages API (Claude Code)"
+      },
+      "chatApiFormat": "تنسيق API",
+      "chatApiFormatDescription": "اختر تنسيق API الذي يتوافق مع نقطة نهاية موفرك",
+      "apiKey": "مفتاح API",
+      "apiKeyPlaceholder": "sk-... أو $ENV_VAR",
+      "apiKeyHelper": "استخدم $VAR_NAME للإشارة إلى متغيرات البيئة",
+      "apiKeySetPlaceholder": "تم تعيين المفتاح — اتركه فارغًا للاحتفاظ به",
+      "apiKeyReplaceHelper": "يوجد مفتاح محفوظ بشكل آمن. اكتب قيمة جديدة لاستبداله، أو اتركه فارغًا للاحتفاظ به.",
+      "testApiKey": "اختبار مفتاح API",
+      "apiUrl": "عنوان URL لـ API *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "معاينة:",
+      "models": "النماذج",
+      "modelPlaceholder": "اسم النموذج (مثال: gpt-4، claude-3-opus)",
+      "transformers": "المحوِّلات",
+      "transformerConfig": "محوِّلات API",
+      "transformerConfigDescription": "تهيئة المحوِّلات لتكييف تنسيقات طلب/استجابة API لهذا الموفر",
+      "transformerConfigNote": "يطبّق Daemon هذه المحوِّلات في سلسلة الطلب، بعد محوِّل تنسيق الموفر (الذي يتولى تحويل التنسيق السلكي). يتم تخطي أسماء المحوِّلات غير المعروفة.",
+      "enabled": "مُفعَّل",
+      "apiVersion": "إصدار API",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "إصدار Azure OpenAI API (مثال: 2024-08-01-preview)",
+      "official": "Anthropic API الرسمي",
+      "officialHelper": "فعّل إذا كان هذا الموفر يتصل مباشرةً بـ Anthropic API الرسمي. عطّل للوكلاء العكسيين أو الخدمات التابعة لجهات خارجية.",
+      "maxConcurrency": "الحد الأقصى للطلبات المتزامنة",
+      "maxConcurrencyHelper": "الحد الأقصى لعدد طلبات API المتزامنة المرسلة إلى هذا الموفر. القيم المنخفضة تساعد على تجنب تحديد المعدل (أخطاء 429). اضبط `-1` لإزالة الحد.",
+      "codingPlan": {
+        "label": "خطة البرمجة",
+        "description": "استخدام نقطة نهاية API منفصلة لخطط البرمجة المبنية على الاشتراك",
+        "baseUrl": "عنوان URL الأساسي لخطة البرمجة",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "مفتاح API لخطة البرمجة (اختياري)",
+        "apiKeyPlaceholder": "اتركه فارغًا لاستخدام مفتاح API الخاص بالموفر",
+        "apiKeyHelper": "مطلوب فقط إذا كانت خطة البرمجة تستخدم مفتاح API مختلفًا",
+        "tokenPlanHint": "بعض الموفرين (مثل Xiaomi MiMo) يُصدرون مفاتيح Token Plan بادئتها `tp-` — للمعلومات فقط، غير مُطبَّق."
+      },
+      "selectTypeFirst": "اختر نوع الموفر",
+      "selectTypeFirstDesc": "اختر نوع الموفر الذي تريد إضافته",
+      "codeProviderNote": "موفرو البرمجة يحتاجون فقط إلى مفتاح API وعنوان URL. تتم إدارة النماذج بواسطة موجِّه الوكيل.",
+      "buttons": {
+        "cancel": "إلغاء",
+        "submitAdd": "إضافة موفر",
+        "submitUpdate": "تحديث الموفر",
+        "continue": "متابعة",
+        "back": "رجوع"
+      }
+    },
+    "details": {
+      "noSelection": "اختر موفرًا لعرض التفاصيل",
+      "apiKey": "مفتاح API",
+      "apiUrl": "عنوان URL لـ API",
+      "nameLabel": "اسم الموفر",
+      "modelsEndpoint": "نقطة نهاية النماذج",
+      "modelsEndpointHelper": "تجاوز نقطة نهاية الاكتشاف إذا كان الموفر يعرض مسار /models مخصصًا.",
+      "models": "النماذج",
+      "transformers": "المحوِّلات",
+      "codeProviderNote": "موفرو البرمجة (مثل Claude Code) لا يحتاجون إلى تهيئة النماذج. يتم إدارة النماذج تلقائيًا بواسطة موجِّه الوكيل.",
+      "buttons": {
+        "more": "إعدادات إضافية",
+        "delete": "حذف"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "اختر الموفر والنموذج",
+      "noProviders": "لا يوجد موفرون متاحون",
+      "noModels": "لا توجد نماذج مُهيَّأة"
+    },
+    "apiKeyPool": {
+      "title": "مجموعة مفاتيح API",
+      "description": "تهيئة مفاتيح API متعددة لموازنة التحميل. تلتزم كل جلسة بمفتاح واحد للحفاظ على ذاكرة التخزين المؤقت للمطالبات.",
+      "defaultLabel": "افتراضي",
+      "weight": "الوزن",
+      "noKey": "لا يوجد مفتاح",
+      "labelPlaceholder": "التسمية (مثال: المفتاح #1، الإنتاج)",
+      "addKey": "إضافة مفتاح API",
+      "add": "إضافة",
+      "empty": "لا توجد مفاتيح إضافية مُهيَّأة.",
+      "statusCoolingDown": "في فترة التهدئة {{time}}",
+      "statusAuthFailed": "فشل المصادقة · مُعطَّل",
+      "statusDisabled": "مُعطَّل",
+      "statusHealthy": "سليم",
+      "agoSeconds": "منذ {{count}} ثانية",
+      "agoMinutes": "منذ {{count}} دقيقة",
+      "agoHours": "منذ {{count}} ساعة",
+      "agoDays": "منذ {{count}} يوم"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "البحث عن النماذج...",
+      "defaultGroup": "جميع النماذج",
+      "add": "إضافة نموذج",
+      "manage": "إدارة",
+      "empty": "لا توجد نماذج في هذه المجموعة",
+      "enabled": "مُفعَّل",
+      "disabled": "مُعطَّل",
+      "filters": {
+        "all": "الكل",
+        "vision": "رؤية",
+        "reasoning": "استدلال",
+        "free": "مجاني",
+        "tools": "أدوات"
+      },
+      "manualDialog": {
+        "title": "إضافة نموذج",
+        "subtitle": "إضافة نموذج مخصص لهذا الموفر",
+        "modelId": "معرّف النموذج",
+        "modelIdPlaceholder": "gpt-4o، claude-3.5، gemini-2.0-flash، إلخ.",
+        "modelIdHelper": "معرّف النموذج الدقيق المستخدم عند استدعاء API",
+        "modelName": "الاسم المعروض",
+        "modelNamePlaceholder": "اسم عرض ودّي (اختياري)",
+        "modelNameHelper": "اسم اختياري يظهر في واجهة المستخدم. إذا تُرك فارغًا، سيُستخدم معرّف النموذج",
+        "group": "المجموعة",
+        "groupPlaceholder": "اختر أو أدخل اسم مجموعة",
+        "submit": "إضافة",
+        "cancel": "إلغاء",
+        "helper": "أدخل معرّف النموذج الدقيق الذي يعرضه API الخاص بالموفر."
+      },
+      "editDialog": {
+        "title": "تعديل النموذج",
+        "subtitle": "تعديل إعدادات النموذج",
+        "modelId": "معرّف النموذج",
+        "modelIdPlaceholder": "معرّف النموذج",
+        "modelIdHelper": "معرّف النموذج المستخدم عند استدعاء API",
+        "modelName": "الاسم المعروض",
+        "modelNamePlaceholder": "اسم عرض ودّي",
+        "modelNameHelper": "الاسم المعروض في واجهة المستخدم",
+        "group": "المجموعة",
+        "groupPlaceholder": "اختر أو أدخل اسم مجموعة",
+        "submit": "حفظ",
+        "cancel": "إلغاء",
+        "vision": "قدرة الرؤية",
+        "visionHint": "ما إذا كان النموذج يدعم إدخال الصور/الرؤية",
+        "reasoning": "نموذج التفكير",
+        "reasoningHint": "ما إذا كان النموذج يدعم وضع التفكير/الاستدلال"
+      },
+      "manageDialog": {
+        "title": "إدارة النماذج",
+        "cachedAt": "مخزّن مؤقتًا في {{date}} ({{source}})",
+        "refresh": "تحديث",
+        "close": "إغلاق",
+        "raw": "JSON خام",
+        "empty": "لا توجد نماذج بعيدة متاحة.",
+        "error": "فشل تحميل النماذج: {{message}}",
+        "addFromCatalog": "إضافة",
+        "sourceCache": "ذاكرة التخزين المؤقت",
+        "sourceNetwork": "مباشر",
+        "contextLength": "سياق {{value}} رمز",
+        "maxTokens": "الحد الأقصى {{value}} رمز"
+      },
+      "messages": {
+        "added": "تمت إضافة النموذج.",
+        "updated": "تم تحديث النموذج.",
+        "removed": "تمت إزالة النموذج.",
+        "duplicate": "النموذج موجود بالفعل.",
+        "refreshed": "تم تحديث النماذج",
+        "refreshFailed": "فشل تحديث النماذج"
+      },
+      "testDialog": {
+        "title": "اختبار اتصال النموذج",
+        "provider": "الموفر",
+        "model": "النموذج",
+        "testing": "جارٍ الاختبار...",
+        "success": "نجح الاختبار",
+        "successMessage": "يمكن الوصول إلى النموذج بشكل طبيعي",
+        "failure": "فشل الاختبار",
+        "aiResponse": "استجابة الذكاء الاصطناعي",
+        "charCount": "{{count}} حرف",
+        "duration": "المدة {{time}} ثانية",
+        "close": "إغلاق",
+        "retest": "إعادة الاختبار",
+        "testButton": "اختبار النموذج",
+        "unsupportedFormat": "الاختبار غير مدعوم لتنسيق هذا الموفر بعد."
+      }
+    },
+    "router": {
+      "title": "إعداد الموجِّه",
+      "description": "تهيئة الموفر/النموذج المستخدم لسيناريوهات مختلفة.",
+      "labels": {
+        "default": "افتراضي",
+        "background": "خلفية",
+        "think": "تفكير",
+        "longContext": "سياق طويل",
+        "webSearch": "بحث ويب",
+        "image": "صورة",
+        "longContextThreshold": "حد السياق الطويل"
+      },
+      "helper": {
+        "longContextThreshold": "عدد الرموز قبل التبديل إلى نموذج السياق الطويل."
+      },
+      "placeholder": {
+        "required": "مطلوب",
+        "optional": "اختياري"
+      }
+    },
+    "agentRouter": {
+      "title": "موجِّه الوكيل",
+      "description": "تهيئة التوجيه ثنائي الاتجاه بين وضعي المحادثة والبرمجة.",
+      "searchPlaceholder": "البحث عن الموجِّهات...",
+      "noSearchResults": "لا توجد موجِّهات تطابق بحثك.",
+      "tabs": {
+        "chatToCode": "محادثة ← برمجة",
+        "codeToChatPlaceholder": "برمجة ← محادثة"
+      },
+      "chatToCode": {
+        "title": "موجِّه المحادثة إلى البرمجة",
+        "description": "استخدام موفري المحادثة في وضع الوكيل/البرمجة",
+        "addRouter": "إضافة موجِّه",
+        "emptyState": "لا توجد موجِّهات من محادثة إلى برمجة. أضف واحدًا لاستخدام موفري المحادثة في وضع البرمجة.",
+        "form": {
+          "name": "اسم الموجِّه",
+          "namePlaceholder": "موجِّهي من محادثة إلى برمجة",
+          "chatProvider": "موفر المحادثة",
+          "chatProviderPlaceholder": "اختر موفر محادثة",
+          "mode": "الوضع",
+          "modeSimple": "بسيط",
+          "modeAdvanced": "متقدم",
+          "modeSimpleDesc": "تمرير مباشر إلى موفر المحادثة",
+          "modeAdvancedDesc": "تهيئة تعيين النماذج ومعالجة السياق",
+          "enabled": "مُفعَّل",
+          "save": "حفظ الموجِّه",
+          "cancel": "إلغاء"
+        },
+        "list": {
+          "provider": "الموفر",
+          "mode": "الوضع",
+          "status": "الحالة"
+        },
+        "mappings": {
+          "title": "تعيينات النماذج",
+          "description": "تعيين نماذج موفر المحادثة إلى نماذج موفر البرمجة",
+          "count": "تعيين (تعيينات)",
+          "empty": "لا توجد تعيينات نماذج. أضف تعيينات لتوجيه نماذج المحادثة إلى موفري البرمجة.",
+          "addNew": "إضافة تعيين جديد",
+          "selectSource": "اختر النموذج المصدر (محادثة)",
+          "selectTarget": "اختر النموذج الهدف (برمجة)",
+          "targetPlaceholder": "أدخل اسم نموذج Claude Code",
+          "notSet": "(غير مضبوط - انقر للاختيار)",
+          "add": "إضافة",
+          "edit": "تعديل",
+          "done": "تم"
+        },
+        "advanced": {
+          "title": "الإعداد المتقدم",
+          "description": "تهيئة النماذج لأنواع مختلفة من المهام",
+          "helpText": "النموذج الافتراضي مطلوب. النماذج الأخرى اختيارية وستعود إلى الافتراضي إذا لم تُهيَّأ.",
+          "default": {
+            "label": "افتراضي",
+            "placeholder": "اختر النموذج الافتراضي",
+            "description": "النموذج الأساسي للمهام العامة (مشابه لـ Claude Sonnet)"
+          },
+          "background": {
+            "label": "خلفية",
+            "placeholder": "اختر نموذج الخلفية",
+            "description": "نموذج خفيف للمهام الخلفية (مشابه لـ Claude Haiku)"
+          },
+          "think": {
+            "label": "تفكير",
+            "placeholder": "اختر نموذج التفكير",
+            "description": "نموذج متقدم للاستدلال المعقد (مشابه لـ Claude Opus)"
+          },
+          "image": {
+            "label": "صورة",
+            "placeholder": "اختر نموذج الصور",
+            "description": "نموذج للمهام المتعلقة بالصور بقدرة الرؤية"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "موجِّه البرمجة إلى المحادثة",
+        "description": "عرض نماذج خطة البرمجة في وضع المحادثة",
+        "addRouter": "إضافة موجِّه",
+        "emptyState": "لا توجد موجِّهات من برمجة إلى محادثة. أضف واحدًا لعرض نماذج خطة البرمجة في وضع المحادثة.",
+        "form": {
+          "name": "اسم الموجِّه",
+          "namePlaceholder": "موجِّهي من برمجة إلى محادثة",
+          "codeProvider": "موفر البرمجة",
+          "codeProviderPlaceholder": "اختر موفر برمجة",
+          "codeProviderHelper": "اختر موفر البرمجة المستخدم للتحويل",
+          "models": "نماذج خطة البرمجة",
+          "modelsHelper": "اختر نماذج خطة البرمجة التي تريد عرضها",
+          "enabled": "مُفعَّل",
+          "save": "حفظ الموجِّه",
+          "cancel": "إلغاء"
+        },
+        "mappings": {
+          "title": "تعيينات النماذج",
+          "description": "تعيين نماذج موفر البرمجة إلى نماذج موفر المحادثة للعرض",
+          "count": "تعيين (تعيينات)",
+          "empty": "لا توجد تعيينات نماذج. أضف تعيينات لعرض نماذج البرمجة في وضع المحادثة.",
+          "addNew": "إضافة تعيين جديد",
+          "selectSource": "اختر النموذج المصدر (برمجة)",
+          "selectTarget": "اختر النموذج الهدف (محادثة)",
+          "sourcePlaceholder": "أدخل اسم النموذج المصدر",
+          "targetPlaceholder": "أدخل اسم النموذج الهدف",
+          "add": "إضافة",
+          "edit": "تعديل",
+          "done": "تم"
+        }
+      },
+      "transformers": {
+        "title": "المحوِّلات",
+        "description": "تهيئة المحوِّلات لتحويل الطلبات والاستجابات",
+        "noProvider": "اختر موفرًا لتهيئة المحوِّلات",
+        "empty": "لا توجد محوِّلات",
+        "count": "{{count}} محوِّل (محوِّلات)"
+      },
+      "status": {
+        "enabled": "مُفعَّل",
+        "disabled": "مُعطَّل"
+      },
+      "messages": {
+        "routerAdded": "تمت إضافة الموجِّه بنجاح",
+        "routerUpdated": "تم تحديث الموجِّه بنجاح",
+        "routerDeleted": "تم حذف الموجِّه بنجاح",
+        "saveFailed": "فشل حفظ الموجِّه"
+      }
+    },
+    "presets": {
+      "title": "إضافة موفر سريعة",
+      "added": "تمت الإضافة",
+      "add": "إضافة",
+      "features": {
+        "search": "بحث",
+        "vision": "رؤية",
+        "mcp": "MCP",
+        "codingPlan": "خطة البرمجة"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "هل أنت متأكد من حذف هذا الموفر؟"
+    },
+    "errors": {
+      "nameRequired": "اسم الموفر مطلوب",
+      "urlRequired": "عنوان URL الأساسي لـ API مطلوب",
+      "urlInvalid": "يرجى إدخال عنوان URL صحيح (مثال: https://api.example.com)",
+      "saveFailed": "فشل حفظ الموفر",
+      "deleteFailed": "خطأ في حذف الموفر. يرجى المحاولة مجددًا.",
+      "toggleFailed": "خطأ في تبديل حالة الموفر. يرجى المحاولة مجددًا."
+    },
+    "openRouter": {
+      "title": "توجيه موفر OpenRouter",
+      "description": "تهيئة كيفية توجيه الطلبات إلى موفرين مختلفين على OpenRouter.",
+      "sort": "استراتيجية التوجيه",
+      "sortTooltip": "اختر كيفية تحديد أولوية الموفرين. يستخدم الوضع التلقائي موازنة تحميل ذكية.",
+      "order": "ترتيب أولوية الموفر",
+      "orderTooltip": "حدد الموفرين المراد تجربتهم بالترتيب (مثال: anthropic، openai، together). اضغط Enter للإضافة.",
+      "orderPlaceholder": "اكتب معرّف الموفر واضغط Enter...",
+      "allowFallbacks": "السماح بالاحتياط",
+      "allowFallbacksTooltip": "عند التفعيل، سيجرب OpenRouter موفرين احتياطيين إذا كان الأساسي غير متاح.",
+      "requireParameters": "طلب جميع المعاملات",
+      "requireParametersTooltip": "التوجيه فقط إلى الموفرين الذين يدعمون جميع المعاملات في طلبك.",
+      "dataCollection": "سياسة جمع البيانات",
+      "dataCollectionTooltip": "تحكم في ما إذا كنت تستخدم موفرين قد يخزنون بياناتك أو يتدربون عليها.",
+      "zdr": "صفر احتفاظ بالبيانات",
+      "zdrTooltip": "التوجيه فقط إلى نقاط نهاية ذات سياسة صفر احتفاظ بالبيانات.",
+      "only": "السماح بموفرين محددين فقط",
+      "onlyTooltip": "استخدام هؤلاء الموفرين المحددين فقط. اتركه فارغًا للسماح بجميع الموفرين.",
+      "onlyPlaceholder": "اكتب معرّف الموفر واضغط Enter...",
+      "ignore": "تجاهل الموفرين",
+      "ignoreTooltip": "تخطي هؤلاء الموفرين عند توجيه الطلبات.",
+      "ignorePlaceholder": "اكتب معرّف الموفر واضغط Enter...",
+      "quantizations": "فلتر الضغط الكمي",
+      "quantizationsTooltip": "استخدام موفرين بمستويات ضغط كمي محددة فقط. الدقة المنخفضة قد تقلل الجودة لكن تحسّن السرعة.",
+      "maxPrice": "السعر الأقصى",
+      "maxPriceTooltip": "تعيين حدود سعر أقصى لكل مليون رمز. اتركه فارغًا لعدم تحديد سقف.",
+      "configured": "مُهيَّأ"
+    }
+  },
+  "apiMode": {
+    "label": "وضع API",
+    "standard": "قياسي",
+    "codingPlan": "خطة البرمجة",
+    "tokenPlan": "خطة الرموز",
+    "apiKeyPrefixHint": "تبدأ مفاتيح هذه الخطة عادةً بـ `{{prefix}}`. تلميح فقط — غير مُطبَّق.",
+    "dashscopeCodingPlanSeparateKey": "تستخدم خطة برمجة DashScope مفتاح API منفصلًا عن نقطة النهاية القياسية.",
+    "baiduCodingPlanSeparateKey": "تستخدم خطة برمجة Qianfan مفتاح API منفصلًا عن نقطة النهاية القياسية.",
+    "tencentTokenPlanAnthropicOnly": "خطة رموز Tencent تعمل ببروتوكول Anthropic فقط.",
+    "xiaomiTokenPlanRegions": "عنوان URL الأساسي الافتراضي هو `token-plan-cn.*`. يمكنك تعديله يدويًا إلى `token-plan-sgp.*` أو `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "تبديل وضع API؟",
+    "confirmOverwriteBody": "لقد خصصت عنوان URL لـ API أو مفتاح API. سيؤدي تبديل الأوضاع إلى الكتابة فوقهما بالإعدادات الافتراضية للوضع الجديد — أو يمكنك الاحتفاظ بتخصيصاتك وتحديث تسمية الوضع فقط.",
+    "overwriteAndSwitch": "الكتابة فوق والتبديل",
+    "keepCustomizations": "الاحتفاظ بالتخصيصات"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (خطة الرموز)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "copy": "نسخ",
+    "delete": "حذف",
+    "dismiss": "رفض",
+    "save": "حفظ",
+    "optional": "اختياري",
+    "retry": "إعادة المحاولة",
+    "loading": "جارٍ التحميل…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "الوثائق"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "غير مدعوم بعد من قِبَل Daemon",
+    "discoveryUnsupportedFormat": "اكتشاف النماذج غير مدعوم لتنسيق هذا الموفر بعد. أضف النماذج يدويًا."
+  },
+  "nav": {
+    "subtitle": "لوحة التحكم",
+    "providers": "الموفرون",
+    "apiService": "خدمة API",
+    "accounts": "الحسابات",
+    "codeCli": "واجهة سطر أوامر البرمجة",
+    "settings": "الإعدادات",
+    "usageStats": "الاستخدام",
+    "pricing": "الأسعار"
+  },
+  "apiService": {
+    "title": "خدمة API",
+    "description": "تهيئة خادم API الصادر، وتوجيه النماذج لكل نقطة نهاية، ومفاتيح الوصول المسماة.",
+    "loading": "جارٍ تحميل إعداد الخادم…",
+    "loadError": "تعذّر تحميل إعداد الخادم. تحقق من إمكانية الوصول إلى Daemon.",
+    "enable": {
+      "label": "تفعيل الخادم الصادر",
+      "description": "تشغيل خادم API المحلي الذي يوجّه المتصلين الخارجيين عبر موفريك."
+    },
+    "networkBinding": {
+      "label": "السماح بوصول الشبكة المحلية",
+      "description": "ربط الخادم بواجهة الشبكة بدلًا من الاسترجاع المحلي فقط.",
+      "warning": "يُعرّض وصول الشبكة المحلية خادم API لأجهزة أخرى على شبكتك. مقترنًا بتوجيه الاشتراك، يمكن للطلبات استهلاك حصة اشتراكك — أبقِه معطّلًا ما لم تثق بالشبكة."
+    },
+    "status": {
+      "running": "الخادم يعمل",
+      "stopped": "الخادم متوقف",
+      "runningHint": "خادم API الصادر يقبل الطلبات.",
+      "stoppedHint": "فعّل الخادم لبدء قبول الطلبات.",
+      "port": "المنفذ {{port}}",
+      "loopback": "عناوين URL الاسترجاع المحلي",
+      "lan": "عناوين URL الشبكة المحلية"
+    },
+    "endpoints": {
+      "title": "توجيه نقاط النهاية",
+      "description": "اختر النموذج الذي يوجّه إليه كل تنسيق سلكي. النموذج الافتراضي يندمج هنا — الخادم موجِّه وليس تطبيق محادثة."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "النموذج الافتراضي",
+      "backgroundModel": "نموذج الخلفية",
+      "visionModel": "نموذج الرؤية",
+      "noVisionModel": "لا يوجد",
+      "backgroundModelIds": "معرّفات نموذج الخلفية",
+      "backgroundModelIdsPlaceholder": "معرّفات نماذج مفصولة بفواصل",
+      "modelPlaceholder": "اختر نموذجًا…",
+      "useSubscription": "استخدام الاشتراك",
+      "subscriptionUnsupported": "توجيه الاشتراك غير متاح لهذه النقطة."
+    },
+    "keys": {
+      "title": "مفاتيح الوصول",
+      "description": "مفاتيح مسماة يرسلها المتصلون الخارجيون كرمز Bearer. يظهر المفتاح الكامل مرة واحدة فقط عند الإنشاء.",
+      "namePlaceholder": "اسم المفتاح (مثال: واجهتي-سطر-أوامر)",
+      "create": "إنشاء مفتاح",
+      "empty": "لا توجد مفاتيح وصول بعد.",
+      "enabled": "مُفعَّل",
+      "disabled": "مُعطَّل",
+      "revoked": "مُلغى",
+      "toggle": "تبديل المفتاح",
+      "revoke": "إلغاء",
+      "revokeConfirmTitle": "إلغاء هذا المفتاح؟",
+      "revokeConfirmDesc": "إلغاء \"{{name}}\" يوقف مصادقته فورًا. لا يمكن التراجع عن هذا.",
+      "created": {
+        "title": "تم إنشاء المفتاح",
+        "warning": "انسخ هذا المفتاح الآن — لن يُعرض مجددًا. احفظه في مكان آمن.",
+        "copy": "نسخ",
+        "copied": "تم النسخ",
+        "dismiss": "تم"
+      }
+    }
+  },
+  "accounts": {
+    "title": "الحسابات والاشتراكات",
+    "description": "إدارة بيانات اعتماد الاشتراك التي يوجِّه من خلالها الخادم. تُكتب الرموز هنا ولا تُعرض مجددًا.",
+    "loading": "جارٍ تحميل الحسابات…",
+    "empty": "لا يوجد موفرو اشتراك متاحون.",
+    "signIn": "تسجيل الدخول",
+    "oauth": {
+      "title": "تسجيل الدخول إلى {{name}}",
+      "description": "افتح صفحة تسجيل الدخول في متصفحك، وامنح الإذن، ثم الصق رمز التفويض أدناه. يُرسل الرمز إلى Daemon فقط — الرمز المُنشأ لا يُعرض أبدًا.",
+      "openPage": "فتح صفحة تسجيل الدخول",
+      "codeLabel": "رمز التفويض",
+      "codePlaceholder": "الصق الرمز هنا",
+      "submit": "إتمام تسجيل الدخول"
+    },
+    "codexOauth": {
+      "title": "تسجيل الدخول إلى {{name}}",
+      "description": "افتح صفحة تسجيل الدخول في متصفحك وامنح الإذن. يلتقط Daemon النتيجة تلقائيًا — أبقِ هذه النافذة مفتوحة حتى الاكتمال. لا يُعرض الرمز أبدًا.",
+      "waiting": "في انتظار إتمام تسجيل الدخول في متصفحك…",
+      "failed": "فشل تسجيل الدخول. يرجى المحاولة مجددًا."
+    },
+    "clearProvider": "مسح الكل",
+    "clearConfirmTitle": "مسح حسابات {{name}}؟",
+    "clearConfirmDesc": "سيؤدي هذا إلى إزالة جميع بيانات الاعتماد المخزنة لهذا الموفر. لا يمكن التراجع عن هذا.",
+    "credential": {
+      "ok": "مُهيَّأ",
+      "notConfigured": "غير مُهيَّأ"
+    },
+    "kind": {
+      "pass-through": "بيانات اعتماد مرور مباشر",
+      "oauth-bearer": "Bearer من OAuth",
+      "static-bearer": "مفتاح Bearer ثابت"
+    },
+    "reason": {
+      "missing-credential": "لا توجد بيانات اعتماد مخزنة.",
+      "expired": "انتهت صلاحية بيانات الاعتماد.",
+      "reauth-required": "إعادة المصادقة مطلوبة.",
+      "refresh-failed": "فشل تحديث الرمز.",
+      "not-refreshable": "بيانات الاعتماد غير قابلة للتحديث.",
+      "unknown": "الحالة غير معروفة."
+    },
+    "status": {
+      "unconfigured": "غير مُهيَّأ",
+      "authorized": "مُصرَّح به",
+      "configured": "مُهيَّأ",
+      "expired": "منتهي الصلاحية",
+      "error": "خطأ"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "رمز الإعداد",
+      "manual": "يدوي"
+    },
+    "list": {
+      "empty": "لا توجد حسابات مخزنة لهذا الموفر.",
+      "active": "نشط",
+      "expiresAt": "ينتهي {{value}}",
+      "setActive": "تعيين كنشط",
+      "remove": "إزالة",
+      "removeConfirmTitle": "إزالة هذا الحساب؟",
+      "removeConfirmDesc": "إزالة \"{{name}}\" يحذف بيانات اعتماده المخزنة. لا يمكن التراجع عن هذا.",
+      "title": "الحسابات"
+    },
+    "write": {
+      "trigger": "إضافة بيانات اعتماد",
+      "title": "كتابة بيانات اعتماد {{name}}",
+      "description": "الصق مواد الرمز التي تم الحصول عليها مسبقًا. الحقول محدودة بما يقبله هذا الموفر؛ يُخزَّن الرمز ولا يُعرض مجددًا.",
+      "authMethod": "طريقة المصادقة",
+      "status": "الحالة",
+      "subscriptionLevel": "مستوى الاشتراك",
+      "subscriptionLevelNone": "غير مضبوط",
+      "submit": "حفظ بيانات الاعتماد"
+    },
+    "field": {
+      "accessToken": "رمز الوصول",
+      "refreshToken": "رمز التحديث",
+      "idToken": "رمز الهوية",
+      "apiKey": "مفتاح API",
+      "expiresAt": "ينتهي في (ISO)",
+      "setupTokenExpiresAt": "رمز الإعداد ينتهي في (ISO)",
+      "accountId": "معرّف الحساب",
+      "email": "البريد الإلكتروني",
+      "organizationId": "معرّف المؤسسة",
+      "baseUrl": "عنوان URL الأساسي",
+      "zenBaseUrl": "عنوان URL الأساسي لـ Zen"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "بيانات اعتماد اشتراك Anthropic التي يوجّهها Daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "بيانات اعتماد اشتراك OpenAI Codex التي يوجّهها Daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "بيانات اعتماد اشتراك Google Gemini التي يوجّهها Daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "بيانات اعتماد مفتاح API ثابتة يوجّهها Daemon."
+      }
+    },
+    "authMethodLabel": "طريقة التفويض",
+    "authMethodDesc": {
+      "oauth": "تسجيل الدخول عبر متصفحك؛ يلتقط Daemon الرمز ويخزّنه.",
+      "manual": "الصق رمزًا تم الحصول عليه مسبقًا. يُخزَّن ولا يُعرض مجددًا."
+    },
+    "actions": {
+      "authorize": "تفويض",
+      "enterToken": "إدخال الرمز",
+      "refresh": "تحديث"
+    },
+    "accounts": {
+      "addAccount": "إضافة حساب"
+    },
+    "detail": {
+      "authMethod": "طريقة التفويض",
+      "subscriptionLevel": "مستوى الاشتراك",
+      "expiresAt": "ينتهي",
+      "lastRefreshed": "آخر تحديث",
+      "label": "تسمية الحساب",
+      "labelPlaceholder": "أعطِ هذا الحساب اسمًا",
+      "saveLabel": "حفظ التسمية"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "فتح صفحة التفويض",
+        "desc": "افتح صفحة تسجيل الدخول في متصفحك."
+      },
+      "step2": {
+        "title": "منح الوصول",
+        "desc": "سجّل الدخول وامنح الوصول للموفر."
+      },
+      "step3": {
+        "title": "نسخ رمز التفويض",
+        "desc": "تعرض الصفحة رمز تفويض بعد الموافقة."
+      },
+      "step4": {
+        "title": "لصق الرمز",
+        "desc": "الصق رمز التفويض أدناه للإتمام. يُرسل الرمز إلى Daemon فقط — الرمز المُنشأ لا يُعرض أبدًا."
+      },
+      "authorize": "إتمام تسجيل الدخول",
+      "showUrl": "إظهار عنوان URL للتفويض"
+    },
+    "manual": {
+      "title": "لصق بيانات الاعتماد",
+      "description": "الصق رمزًا تم الحصول عليه مسبقًا. الحقول محدودة بما يقبله هذا الموفر؛ يُخزَّن الرمز ولا يُعرض مجددًا.",
+      "accessTokenPlaceholder": "الصق رمز الوصول",
+      "refreshTokenPlaceholder": "الصق رمز التحديث (اختياري)",
+      "hint": "يُرسَل الرمز إلى Daemon ويُخزَّن مشفرًا. لا يُعرض مجددًا."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "مفتاح API مطلوب.",
+      "apiKeyPlaceholder": "الصق مفتاح API",
+      "baseUrlPlaceholder": "https://… (اختياري)",
+      "zenBaseUrlPlaceholder": "https://… (اختياري)"
+    },
+    "info": {
+      "title": "حول حسابات الاشتراك",
+      "description": "تُكتب الرموز إلى Daemon وتُستخدم لمصادقة الطلبات المتجهة للخارج. تُخزَّن مشفرة ولا تُعرض مجددًا. إزالة الحساب تحذف بيانات اعتماده المخزنة."
+    },
+    "rename": {
+      "failed": "تعذّر إعادة تسمية الحساب."
+    },
+    "refresh": {
+      "failed": "تعذّر تحديث الرمز."
+    },
+    "errors": {
+      "requestFailed": "فشل الطلب. يرجى المحاولة مجددًا."
+    },
+    "syncWarning": {
+      "external-divergent": "يحتوي ملف تسجيل الدخول الخاص بـ CLI الخارجي على بيانات اعتماد أحدث من هذا الحساب. قد يتوقف الرمز المخزَّن عن التحديث — حدِّث الآن أو سجِّل الدخول مجددًا.",
+      "external-not-rotated": "فشل التحديث، ويحتوي CLI الخارجي على بيانات الاعتماد المنتهية الصلاحية نفسها. يُرجى تسجيل الدخول مجددًا.",
+      "duplicate-token": "حساب آخر يشارك بيانات الاعتماد هذه. تحديث أي منهما سيؤدي إلى تسجيل خروج الآخر."
+    },
+    "importExternal": {
+      "detected": "تم العثور على تسجيل دخول CLI لـ {{name}} موجود على هذا الجهاز.",
+      "hint": "بعد الاستيراد، يحافظ هذا التطبيق على تحديثه: عند كل تحديث للرمز يتم أيضًا تحديث ملف تسجيل دخول CLI، فيبقى CLI في الطرفية مسجلاً للدخول.",
+      "button": "استيراد تسجيل دخول CLI الحالي"
+    }
+  },
+  "codeCli": {
+    "title": "واجهة سطر أوامر البرمجة",
+    "description": "توجيه واجهة سطر أوامر البرمجة إلى الوكيل الوسيط لـ Daemon. هذه الصفحة للقراءة فقط — لا يوجد شيء للتهيئة هنا.",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "baseUrl": {
+      "title": "عنوان URL الأساسي لـ Daemon",
+      "description": "عنوان الوكيل الوسيط الذي تتصل به واجهة سطر الأوامر.",
+      "label": "عنوان URL الأساسي"
+    },
+    "token": {
+      "title": "المصادقة",
+      "hint": "أرسل 'Authorization: Bearer <رمز-الإدارة>' للمسارات الإدارية. يُهيَّأ رمز الإدارة في Daemon (ملف الإعداد أو بيئة التشغيل) — لا يُعرض هنا."
+    },
+    "examples": {
+      "title": "مثال على بيئة التشغيل",
+      "keyNote": "استخدم مفتاح وصول صادر تم إنشاؤه في صفحة خدمة API — وليس رمز الإدارة.",
+      "anthropic": "واجهة سطر أوامر بتنسيق Anthropic",
+      "openai": "واجهة سطر أوامر بتنسيق OpenAI"
+    },
+    "launchDescription": "تشغيل واجهة سطر أوامر البرمجة في طرفية، موجَّهة إلى هذا Daemon. يُدخل Daemon بيئة إعادة التوجيه ويشغّل واجهة سطر الأوامر نيابةً عنك.",
+    "refresh": "تحديث",
+    "loading": "جارٍ الكشف عن واجهات سطر الأوامر…",
+    "cli": {
+      "installed": "مُثبَّت",
+      "notFound": "غير موجود",
+      "notFoundHint": "واجهة سطر الأوامر هذه ليست في PATH الخاص بمضيف Daemon. ثبّتها ثم حدّث.",
+      "install": "تثبيت",
+      "installing": "جارٍ التثبيت…",
+      "installingHint": "جارٍ التثبيت على مضيف Daemon — قد يستغرق ذلك دقيقة.",
+      "launch": "تشغيل",
+      "launchTitle": "تشغيل {{name}}",
+      "launchDescription": "يفتح طرفية جديدة على مضيف Daemon تشغّل واجهة سطر الأوامر هذه، موجَّهة عبر وكيل Daemon الوسيط. اختر دليل عمل اختياري.",
+      "cwdLabel": "دليل العمل",
+      "cwdPlaceholder": "/مسار/مشروعك",
+      "runningVia": "يعمل · {{provider}} / {{model}}",
+      "stop": "إيقاف"
+    },
+    "manual": {
+      "title": "الإعداد اليدوي",
+      "description": "تفضّل تشغيل واجهة سطر الأوامر بنفسك؟ وجّهها إلى Daemon باستخدام متغيرات البيئة هذه.",
+      "show": "إظهار",
+      "hide": "إخفاء"
+    }
+  },
+  "daemonStatus": {
+    "probing": "جارٍ التحقق من Daemon…",
+    "spawning": "جارٍ تشغيل Daemon…",
+    "failed": "تعذّر تشغيل Daemon",
+    "failedHint": "تأكد من تثبيت Node.js وبناء Daemon (وجود dist)، أو اضبط OMNICROSS_DAEMON_ENTRY على مسار cli.js الخاص بـ Daemon."
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "تفضيلات تطبيق سطح المكتب.",
+    "desktopOnly": "خيارات بدء التشغيل وشريط المهام تنطبق فقط على تطبيق سطح المكتب.",
+    "startup": {
+      "title": "بدء التشغيل",
+      "autoLaunch": "التشغيل عند تسجيل الدخول",
+      "autoLaunchHint": "تشغيل Omnicross تلقائيًا عند تسجيل دخولك.",
+      "startMinimized": "البدء مصغّرًا إلى شريط المهام",
+      "startMinimizedHint": "التشغيل في الخلفية دون فتح النافذة."
+    },
+    "tray": {
+      "title": "شريط المهام",
+      "minimizeOnClose": "التصغير إلى شريط المهام عند الإغلاق",
+      "minimizeOnCloseHint": "إغلاق النافذة يخفيها إلى شريط المهام بدلًا من الإنهاء."
+    },
+    "language": {
+      "title": "اللغة",
+      "label": "لغة الواجهة"
+    }
+  },
+  "usageStats": {
+    "title": "إحصاءات الاستخدام",
+    "description": "إحصاءات الرموز والتكاليف للطلبات التي خدمها البرنامج الخفي.",
+    "rangeToday": "اليوم",
+    "range7d": "آخر 7 أيام",
+    "range30d": "آخر 30 يومًا",
+    "rangeCustom": "مخصص",
+    "from": "من",
+    "to": "إلى",
+    "totalCost": "التكلفة الإجمالية",
+    "cacheSavings": "توفير الذاكرة المؤقتة",
+    "events": "الطلبات",
+    "inputTokens": "رموز الإدخال",
+    "outputTokens": "رموز الإخراج",
+    "cacheReadTokens": "قراءة الذاكرة المؤقتة",
+    "cacheWriteTokens": "كتابة الذاكرة المؤقتة",
+    "reasoningTokens": "رموز الاستدلال",
+    "byModel": "حسب النموذج",
+    "byApiKey": "حسب مفتاح API",
+    "provider": "المزوّد",
+    "model": "النموذج",
+    "cost": "التكلفة",
+    "apiKey": "مفتاح API",
+    "unpriced": "بدون سعر",
+    "unpricedHint": "لا يوجد إدخال سعر لهذا النموذج — أضِفه في صفحة الأسعار.",
+    "unattributed": "غير منسوب",
+    "unattributedHint": "طلبات غير مرتبطة بمفتاح API محدد. هذا متوقع حتى يبدأ تسجيل النسبة لكل مفتاح.",
+    "empty": "لا توجد طلبات في هذا النطاق.",
+    "invalidRange": "اختر نطاق تواريخ صالحًا."
+  },
+  "pricing": {
+    "title": "أسعار النماذج",
+    "description": "أسعار الرموز لكل نموذج المستخدمة لحساب تكاليف الطلبات، بالدولار الأمريكي لكل مليون رمز.",
+    "search": "ابحث عن مزوّد أو نموذج…",
+    "fetchLatest": "جلب الأحدث",
+    "fetching": "جارٍ الجلب…",
+    "addEntry": "إضافة إدخال",
+    "provider": "المزوّد",
+    "model": "النموذج",
+    "inputPrice": "الإدخال",
+    "outputPrice": "الإخراج",
+    "cacheReadPrice": "قراءة الذاكرة المؤقتة",
+    "cacheWritePrice": "كتابة الذاكرة المؤقتة",
+    "source": "المصدر",
+    "updated": "آخر تحديث",
+    "userEdited": "معدّل",
+    "edit": "تعديل",
+    "deleteTitle": "حذف إدخال السعر؟",
+    "empty": "جدول الأسعار فارغ.",
+    "emptyHint": "اجلب أحدث الأسعار لملئه.",
+    "noMatches": "لا توجد إدخالات مطابقة لبحثك.",
+    "saved": "تم حفظ إدخال السعر.",
+    "saveFailed": "فشل الحفظ: {{message}}",
+    "deleteFailed": "فشل الحذف: {{message}}",
+    "alreadyDeleted": "الإدخال لم يعد موجودًا.",
+    "fetchApplied": "تم تحديث {{count}} إدخالًا من المصدر.",
+    "fetchFailed": "فشل الجلب: {{message}}",
+    "requiredId": "مطلوب",
+    "invalidPrice": "أدخل رقمًا غير سالب",
+    "conflictTitle": "حل تعارضات الأسعار",
+    "conflictHint": "هذه الإدخالات عدّلتها أنت وتغيّرت أيضًا في المصدر. اختر لكل صف الاحتفاظ بقيمتك (تخطّي) أو اعتماد القيمة الواردة (استبدال).",
+    "current": "الحالي",
+    "incoming": "الوارد",
+    "overwrite": "استبدال",
+    "skip": "تخطّي",
+    "overwriteAll": "استبدال الكل",
+    "skipAll": "تخطّي الكل",
+    "applyResolutions": "تطبيق",
+    "resolved": "تم استبدال {{overwritten}} وتخطّي {{skipped}}.",
+    "resolvedWithStale": "تم استبدال {{overwritten}} وتخطّي {{skipped}}. تغيّر {{stale}} في هذه الأثناء وتُرك دون تغيير.",
+    "refreshFailed": "تم تطبيق التغيير، لكن فشلت إعادة تحميل القائمة: {{message}}",
+    "sourceBuiltin": "مدمج",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "المستخدم"
+  }
+}

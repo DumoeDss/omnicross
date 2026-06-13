@@ -1,0 +1,56 @@
+{
+  "id": "groq",
+  "presetId": "groq",
+  "name": "Groq",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.groq.com/openai/v1",
+  "models": [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768"
+  ],
+  "modelConfigs": [
+    {
+      "id": "llama-3.3-70b-versatile",
+      "name": "Llama 3.3 70B Versatile",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 131072,
+      "maxTokens": 32768,
+      "functionCall": true
+    },
+    {
+      "id": "llama-3.1-8b-instant",
+      "name": "Llama 3.1 8B Instant",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 131072,
+      "maxTokens": 8192,
+      "functionCall": true
+    },
+    {
+      "id": "mixtral-8x7b-32768",
+      "name": "Mixtral 8x7B",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 32768,
+      "maxTokens": 32768,
+      "functionCall": true
+    }
+  ],
+  "transformer": {
+    "use": [
+      "groq"
+    ]
+  },
+  "description": "Groq — 高速 LPU 推理",
+  "icon": "groq",
+  "website": "https://groq.com",
+  "docsUrl": "https://console.groq.com/docs",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": []
+}

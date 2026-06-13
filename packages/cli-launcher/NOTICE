@@ -1,0 +1,38 @@
+@omnicross/cli-launcher — THIRD-PARTY NOTICES
+=============================================
+
+This package contains the CLI-launcher mechanism — the ProcessSupervisor
+subprocess-lifecycle block (`supervisor`, the `getProcessSupervisor` singleton,
+`types`, `run-registry`, `child-adapter`, `kill-tree`, `pty-adapter`). It manages
+CLI-tool subprocesses with dual timeouts (overall +
+no-output watchdog), scope-based cancellation, cross-platform process-tree kill,
+and a child-process / PTY adapter pair.
+
+--------------------------------------------------------------------------------
+1. ProcessSupervisor — clean-room provenance
+--------------------------------------------------------------------------------
+
+The ProcessSupervisor is an ORIGINAL, clean-room reimplementation informed by an
+architecture study of the OpenClaw process-supervisor concept. It DIVERGES from
+upstream and was written from scratch — nothing was copied verbatim:
+
+  - the exited-record cap is `MAX_EXITED = 500` (upstream uses 2000);
+  - there is NO 4000ms force-kill timer (cancellation goes straight to SIGKILL,
+    and the kill-tree applies its own SIGTERM-then-SIGKILL grace on Unix);
+  - the file split (supervisor / run-registry / child-adapter / pty-adapter /
+    kill-tree / types) is this project's own decomposition.
+
+The TypeScript in this package is original. No upstream repository is vendored
+into this tree, and the package carries no GPL bleed.
+
+--------------------------------------------------------------------------------
+2. node-pty  (MIT License)
+--------------------------------------------------------------------------------
+
+`src/pty-adapter.ts` lazily `require('node-pty')` (resolved via root's
+`npm:@karinjs/node-pty` alias) to spawn pseudo-terminal-backed CLI subprocesses
+when a backend requests PTY mode. node-pty is loaded as a native dependency at
+runtime; it is not bundled into this source.
+
+    https://github.com/microsoft/node-pty
+    Licensed under the MIT License.

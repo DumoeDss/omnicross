@@ -1,0 +1,53 @@
+{
+  "id": "gemini",
+  "presetId": "gemini",
+  "name": "Google Gemini",
+  "apiFormat": "google",
+  "apiType": "google",
+  "api_base_url": "https://generativelanguage.googleapis.com/v1beta/models/",
+  "modelsEndpoint": "https://generativelanguage.googleapis.com/v1beta/models",
+  "models": [
+    "gemini-3-flash",
+    "gemini-3.1-pro"
+  ],
+  "modelConfigs": [
+    {
+      "id": "gemini-3-flash",
+      "name": "Gemini 3 Flash",
+      "enabled": true
+    },
+    {
+      "id": "gemini-3.1-pro",
+      "name": "Gemini 3.1 Pro",
+      "enabled": true
+    }
+  ],
+  "transformer": {
+    "use": [
+      "gemini"
+    ]
+  },
+  "description": "Google的多模态AI模型",
+  "icon": "gemini",
+  "website": "https://ai.google.dev",
+  "docsUrl": "https://ai.google.dev/docs",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "topP": 0.95,
+    "maxTokens": 65536
+  },
+  "isSystem": true,
+  "features": [
+    "vision",
+    "search",
+    "reasoning"
+  ],
+  "searchConfig": {
+    "type": "builtin-tool",
+    "toolDefinition": {
+      "google_search": {}
+    },
+    "conflictsWithFC": false,
+    "applicableModels": null
+  }
+}

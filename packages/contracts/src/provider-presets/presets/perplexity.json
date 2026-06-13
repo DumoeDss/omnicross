@@ -1,0 +1,41 @@
+{
+  "id": "perplexity",
+  "presetId": "perplexity",
+  "name": "Perplexity",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.perplexity.ai",
+  "models": [
+    "sonar",
+    "sonar-pro",
+    "sonar-reasoning-pro"
+  ],
+  "modelConfigs": [
+    {
+      "id": "sonar",
+      "name": "Sonar",
+      "enabled": true
+    },
+    {
+      "id": "sonar-pro",
+      "name": "Sonar Pro",
+      "enabled": true
+    },
+    {
+      "id": "sonar-reasoning-pro",
+      "name": "Sonar Reasoning Pro",
+      "enabled": true
+    }
+  ],
+  "description": "Perplexity Sonar — 搜索增强推理",
+  "icon": "perplexity",
+  "website": "https://perplexity.ai",
+  "docsUrl": "https://docs.perplexity.ai",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": [
+    "search"
+  ]
+}

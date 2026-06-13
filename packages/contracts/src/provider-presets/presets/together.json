@@ -1,0 +1,40 @@
+{
+  "id": "together",
+  "presetId": "together",
+  "name": "Together AI",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.together.xyz/v1",
+  "modelsEndpoint": "https://api.together.xyz/v1/models",
+  "models": [
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "deepseek-ai/DeepSeek-V3"
+  ],
+  "modelConfigs": [
+    {
+      "id": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "name": "Llama 3.3 70B Turbo",
+      "enabled": true
+    },
+    {
+      "id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "name": "Qwen2.5 Coder 32B",
+      "enabled": true
+    },
+    {
+      "id": "deepseek-ai/DeepSeek-V3",
+      "name": "DeepSeek V3",
+      "enabled": true
+    }
+  ],
+  "description": "Together AI — 开源模型聚合推理",
+  "icon": "together",
+  "website": "https://together.ai",
+  "docsUrl": "https://docs.together.ai",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": []
+}

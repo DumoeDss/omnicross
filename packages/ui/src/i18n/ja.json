@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "LLM 設定を読み込み中...",
+    "reset": {
+      "button": "デフォルトに戻す",
+      "confirmTitle": "デフォルト設定に戻しますか？",
+      "confirmBody": "このプロバイダーへのカスタマイズがクリアされ、組み込みのデフォルト設定に戻ります。API キーと保存済みセッションはそのまま保持されます。",
+      "confirmButton": "デフォルトに戻す"
+    },
+    "reentryBanner": {
+      "message": "{{count}} 個の有効なプロバイダーで API キーの再入力が必要です。各プロバイダーを開いてキーを再入力してください。"
+    },
+    "migrationPack": {
+      "barHint": "暗号化されたパックを使用して、プロバイダーキーとサブスクリプショントークンを別のマシンに移行します。",
+      "passphrase": "パスフレーズ",
+      "passphrasePlaceholder": "パスフレーズを入力",
+      "passphraseHint": "8 文字以上を使用してください。12 文字以上を推奨します。",
+      "confirm": "パスフレーズの確認",
+      "confirmPlaceholder": "パスフレーズを再入力",
+      "mismatch": "パスフレーズが一致しません。",
+      "strength": {
+        "weak": "短すぎます — 8 文字以上を使用してください。",
+        "fair": "OK — 12 文字以上がより安全です。",
+        "strong": "強いパスフレーズです。"
+      },
+      "export": {
+        "button": "パックをエクスポート",
+        "title": "暗号化パックをエクスポート",
+        "subtitle": "プロバイダーキーとサブスクリプショントークンをポータブルファイルに暗号化します。",
+        "warning": "このファイルには復号可能な機密情報が含まれています。大切に保管してください — ファイルとパスフレーズがあれば誰でもキーを読み取れます。パスフレーズを紛失した場合は復旧できません。",
+        "submit": "エクスポート",
+        "success": "パックのエクスポートに成功しました。",
+        "error": "エクスポートに失敗しました。もう一度お試しください。"
+      },
+      "import": {
+        "button": "パックをインポート",
+        "title": "暗号化パックをインポート",
+        "subtitle": "エクスポートしたパックからプロバイダーキーとサブスクリプショントークンを復元します。",
+        "hint": "パックのエクスポート時に使用したパスフレーズを入力し、ファイルを選択してください。",
+        "submit": "インポート",
+        "successTitle": "インポート完了",
+        "summary": "プロバイダーキー {{providerKeys}} 件、プールキー {{poolKeys}} 件、トークンセット {{tokenSets}} 件をインポートしました。",
+        "duplicates": "すでに存在するプールキー {{count}} 件をスキップしました。",
+        "skipped": "スキップ（一致するプロバイダーなし）: {{names}}",
+        "error": "パスフレーズが間違っているか、パックが破損しています。変更は行われませんでした。"
+      }
+    },
+    "searchPlaceholder": "プロバイダーを検索...",
+    "emptySearch": "検索条件に一致するプロバイダーがありません。",
+    "emptyList": "プロバイダーが設定されていません。",
+    "selectPrompt": "プロバイダーを選択して詳細を表示",
+    "listStatus": "{{count}} 件のモデル",
+    "noModels": "モデルが設定されていません",
+    "enabled": "有効",
+    "disabled": "無効",
+    "showEnabledOnly": "有効のみ表示",
+    "showAll": "すべてのプロバイダーを表示",
+    "dragHandle": "ドラッグして並び替え",
+    "reorderFailed": "プロバイダーの順序を保存できませんでした",
+    "credentials": {
+      "apiKey": "API キー",
+      "apiBaseUrl": "API ベース URL"
+    },
+    "filter": {
+      "all": "すべて",
+      "chat": "チャット",
+      "code": "コード"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "テンプレートを選択",
+      "skipTemplates": "スキップして手動設定",
+      "name": "名前 *",
+      "providerType": "タイプ",
+      "apiType": "API タイプ",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "標準的な OpenAI chat/completions API 形式",
+        "claudecode": "Anthropic Messages API 形式（Claude Code）"
+      },
+      "chatApiFormat": "API フォーマット",
+      "chatApiFormatDescription": "プロバイダーのエンドポイントに合った API フォーマットを選択してください",
+      "apiKey": "API キー",
+      "apiKeyPlaceholder": "sk-... または $ENV_VAR",
+      "apiKeyHelper": "$VAR_NAME を使って環境変数を参照できます",
+      "apiKeySetPlaceholder": "キーは設定済みです — 変更しない場合は空欄のままにしてください",
+      "apiKeyReplaceHelper": "キーは安全に保存されています。新しい値を入力すると置き換えられます。空欄のままにすると変更されません。",
+      "testApiKey": "API キーをテスト",
+      "apiUrl": "API URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "プレビュー:",
+      "models": "モデル",
+      "modelPlaceholder": "モデル名（例: gpt-4、claude-3-opus）",
+      "transformers": "トランスフォーマー",
+      "transformerConfig": "API トランスフォーマー",
+      "transformerConfigDescription": "このプロバイダーの API リクエスト/レスポンス形式を変換するトランスフォーマーを設定します",
+      "transformerConfigNote": "デーモンはリクエストチェーン内でこれらのトランスフォーマーをプロバイダーのフォーマットトランスフォーマー（wire フォーマット変換を担当）の後に適用します。不明なトランスフォーマー名はスキップされます。",
+      "enabled": "有効",
+      "apiVersion": "API バージョン",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI の API バージョン（例: 2024-08-01-preview）",
+      "official": "Anthropic 公式 API",
+      "officialHelper": "このプロバイダーが Anthropic 公式 API に直接接続する場合は有効にしてください。リバースプロキシやサードパーティサービスの場合は無効にしてください。",
+      "maxConcurrency": "最大同時リクエスト数",
+      "maxConcurrencyHelper": "このプロバイダーへの最大同時 API リクエスト数。低い値にするとレート制限（429 エラー）を回避しやすくなります。`-1` を設定すると無制限になります。",
+      "codingPlan": {
+        "label": "Coding Plan",
+        "description": "サブスクリプション型 Coding Plan に専用 API エンドポイントを使用します",
+        "baseUrl": "Coding Plan ベース URL",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "Coding Plan API キー（任意）",
+        "apiKeyPlaceholder": "空欄にするとプロバイダーの API キーを使用します",
+        "apiKeyHelper": "Coding Plan が別の API キーを使用する場合のみ必要です",
+        "tokenPlanHint": "一部のプロバイダー（例: Xiaomi MiMo）は `tp-` で始まる Token Plan キーを発行しています — 参考情報のみで、強制ではありません。"
+      },
+      "selectTypeFirst": "プロバイダータイプを選択",
+      "selectTypeFirstDesc": "追加するプロバイダーのタイプを選択してください",
+      "codeProviderNote": "Code プロバイダーは API キーと URL のみ必要です。モデルは Agent Router が管理します。",
+      "buttons": {
+        "cancel": "キャンセル",
+        "submitAdd": "プロバイダーを追加",
+        "submitUpdate": "プロバイダーを更新",
+        "continue": "続行",
+        "back": "戻る"
+      }
+    },
+    "details": {
+      "noSelection": "プロバイダーを選択して詳細を表示",
+      "apiKey": "API キー",
+      "apiUrl": "API URL",
+      "nameLabel": "プロバイダー名",
+      "modelsEndpoint": "モデルエンドポイント",
+      "modelsEndpointHelper": "プロバイダーがカスタムの /models パスを提供している場合、ここで上書きできます。",
+      "models": "モデル",
+      "transformers": "トランスフォーマー",
+      "codeProviderNote": "Code プロバイダー（Claude Code など）はモデル設定が不要です。モデルは Agent Router によって自動的に管理されます。",
+      "buttons": {
+        "more": "詳細設定",
+        "delete": "削除"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "プロバイダーとモデルを選択",
+      "noProviders": "利用可能なプロバイダーがありません",
+      "noModels": "設定済みのモデルがありません"
+    },
+    "apiKeyPool": {
+      "title": "API キープール",
+      "description": "負荷分散のために複数の API キーを設定します。プロンプトキャッシュを維持するため、各セッションは 1 つのキーに固定されます。",
+      "defaultLabel": "デフォルト",
+      "weight": "重み",
+      "noKey": "キーなし",
+      "labelPlaceholder": "ラベル（例: キー #1、本番環境）",
+      "addKey": "API キーを追加",
+      "add": "追加",
+      "empty": "追加のキーが設定されていません。",
+      "statusCoolingDown": "クールダウン中 {{time}}",
+      "statusAuthFailed": "認証失敗 · 無効",
+      "statusDisabled": "無効",
+      "statusHealthy": "正常",
+      "agoSeconds": "{{count}} 秒前",
+      "agoMinutes": "{{count}} 分前",
+      "agoHours": "{{count}} 時間前",
+      "agoDays": "{{count}} 日前"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "モデルを検索...",
+      "defaultGroup": "すべてのモデル",
+      "add": "モデルを追加",
+      "manage": "管理",
+      "empty": "このグループにモデルがありません",
+      "enabled": "有効",
+      "disabled": "無効",
+      "filters": {
+        "all": "すべて",
+        "vision": "ビジョン",
+        "reasoning": "推論",
+        "free": "無料",
+        "tools": "ツール"
+      },
+      "manualDialog": {
+        "title": "モデルを追加",
+        "subtitle": "このプロバイダーにカスタムモデルを追加します",
+        "modelId": "モデル ID",
+        "modelIdPlaceholder": "gpt-4o、claude-3.5、gemini-2.0-flash など",
+        "modelIdHelper": "API 呼び出し時に使用する正確なモデル識別子",
+        "modelName": "表示名",
+        "modelNamePlaceholder": "わかりやすい表示名（任意）",
+        "modelNameHelper": "UI に表示される名前。空欄の場合はモデル ID が使用されます",
+        "group": "グループ",
+        "groupPlaceholder": "グループ名を選択または入力",
+        "submit": "追加",
+        "cancel": "キャンセル",
+        "helper": "プロバイダー API が返す正確なモデル識別子を入力してください。"
+      },
+      "editDialog": {
+        "title": "モデルを編集",
+        "subtitle": "モデル設定を変更",
+        "modelId": "モデル ID",
+        "modelIdPlaceholder": "モデル識別子",
+        "modelIdHelper": "API 呼び出し時に使用するモデル識別子",
+        "modelName": "表示名",
+        "modelNamePlaceholder": "わかりやすい表示名",
+        "modelNameHelper": "UI に表示される名前",
+        "group": "グループ",
+        "groupPlaceholder": "グループ名を選択または入力",
+        "submit": "保存",
+        "cancel": "キャンセル",
+        "vision": "ビジョン機能",
+        "visionHint": "このモデルが画像/ビジョン入力に対応しているかどうか",
+        "reasoning": "思考モデル",
+        "reasoningHint": "このモデルが思考/推論モードに対応しているかどうか"
+      },
+      "manageDialog": {
+        "title": "モデルを管理",
+        "cachedAt": "{{date}} にキャッシュ済み（{{source}}）",
+        "refresh": "更新",
+        "close": "閉じる",
+        "raw": "Raw JSON",
+        "empty": "リモートモデルが利用できません。",
+        "error": "モデルの読み込みに失敗しました: {{message}}",
+        "addFromCatalog": "追加",
+        "sourceCache": "キャッシュ",
+        "sourceNetwork": "ライブ",
+        "contextLength": "コンテキスト {{value}} トークン",
+        "maxTokens": "最大 {{value}} トークン"
+      },
+      "messages": {
+        "added": "モデルを追加しました。",
+        "updated": "モデルを更新しました。",
+        "removed": "モデルを削除しました。",
+        "duplicate": "モデルはすでに存在します。",
+        "refreshed": "モデルを更新しました",
+        "refreshFailed": "モデルの更新に失敗しました"
+      },
+      "testDialog": {
+        "title": "モデル接続テスト",
+        "provider": "プロバイダー",
+        "model": "モデル",
+        "testing": "テスト中...",
+        "success": "テスト成功",
+        "successMessage": "モデルに正常にアクセスできます",
+        "failure": "テスト失敗",
+        "aiResponse": "AI レスポンス",
+        "charCount": "{{count}} 文字",
+        "duration": "所要時間 {{time}} 秒",
+        "close": "閉じる",
+        "retest": "再テスト",
+        "testButton": "モデルをテスト",
+        "unsupportedFormat": "このプロバイダー形式のテストはまだサポートされていません。"
+      }
+    },
+    "router": {
+      "title": "ルーター設定",
+      "description": "シナリオごとに使用するプロバイダー/モデルを設定します。",
+      "labels": {
+        "default": "デフォルト",
+        "background": "バックグラウンド",
+        "think": "思考",
+        "longContext": "長いコンテキスト",
+        "webSearch": "Web 検索",
+        "image": "画像",
+        "longContextThreshold": "長いコンテキストのしきい値"
+      },
+      "helper": {
+        "longContextThreshold": "長いコンテキストモデルに切り替えるトークン数。"
+      },
+      "placeholder": {
+        "required": "必須",
+        "optional": "任意"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent ルーター",
+      "description": "チャットモードとコードモード間の双方向ルーティングを設定します。",
+      "searchPlaceholder": "ルーターを検索...",
+      "noSearchResults": "検索条件に一致するルーターがありません。",
+      "tabs": {
+        "chatToCode": "チャット → コード",
+        "codeToChatPlaceholder": "コード → チャット"
+      },
+      "chatToCode": {
+        "title": "チャット → コード ルーター",
+        "description": "Agent/コーディングモードでチャットプロバイダーを使用します",
+        "addRouter": "ルーターを追加",
+        "emptyState": "チャット→コードルーターが設定されていません。コーディングモードでチャットプロバイダーを使用するには追加してください。",
+        "form": {
+          "name": "ルーター名",
+          "namePlaceholder": "マイ チャット→コード ルーター",
+          "chatProvider": "チャットプロバイダー",
+          "chatProviderPlaceholder": "チャットプロバイダーを選択",
+          "mode": "モード",
+          "modeSimple": "シンプル",
+          "modeAdvanced": "詳細",
+          "modeSimpleDesc": "チャットプロバイダーに直接パススルー",
+          "modeAdvancedDesc": "モデルマッピングとコンテキスト処理を設定",
+          "enabled": "有効",
+          "save": "ルーターを保存",
+          "cancel": "キャンセル"
+        },
+        "list": {
+          "provider": "プロバイダー",
+          "mode": "モード",
+          "status": "ステータス"
+        },
+        "mappings": {
+          "title": "モデルマッピング",
+          "description": "チャットプロバイダーのモデルをコードプロバイダーのモデルにマッピングします",
+          "count": "件のマッピング",
+          "empty": "モデルマッピングが設定されていません。チャットモデルをコードプロバイダーにルーティングするにはマッピングを追加してください。",
+          "addNew": "マッピングを追加",
+          "selectSource": "ソースモデルを選択（チャット）",
+          "selectTarget": "ターゲットモデルを選択（コード）",
+          "targetPlaceholder": "Claude Code モデル名を入力",
+          "notSet": "（未設定 - クリックして選択）",
+          "add": "追加",
+          "edit": "編集",
+          "done": "完了"
+        },
+        "advanced": {
+          "title": "詳細設定",
+          "description": "タスクタイプごとにモデルを設定します",
+          "helpText": "デフォルトモデルは必須です。その他のモデルは任意で、設定しない場合はデフォルトにフォールバックします。",
+          "default": {
+            "label": "デフォルト",
+            "placeholder": "デフォルトモデルを選択",
+            "description": "一般タスク向けの主要モデル（Claude Sonnet 相当）"
+          },
+          "background": {
+            "label": "バックグラウンド",
+            "placeholder": "バックグラウンドモデルを選択",
+            "description": "バックグラウンドタスク向けの軽量モデル（Claude Haiku 相当）"
+          },
+          "think": {
+            "label": "思考",
+            "placeholder": "思考モデルを選択",
+            "description": "複雑な推論向けの高度なモデル（Claude Opus 相当）"
+          },
+          "image": {
+            "label": "画像",
+            "placeholder": "画像モデルを選択",
+            "description": "ビジョン機能を持つ画像関連タスク向けモデル"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "コード → チャット ルーター",
+        "description": "チャットモードで Coding Plan モデルを公開します",
+        "addRouter": "ルーターを追加",
+        "emptyState": "コード→チャットルーターが設定されていません。チャットモードで Coding Plan モデルを公開するには追加してください。",
+        "form": {
+          "name": "ルーター名",
+          "namePlaceholder": "マイ コード→チャット ルーター",
+          "codeProvider": "コードプロバイダー",
+          "codeProviderPlaceholder": "コードプロバイダーを選択",
+          "codeProviderHelper": "変換に使用するコードプロバイダーを選択",
+          "models": "Coding Plan モデル",
+          "modelsHelper": "公開する Coding Plan モデルを選択",
+          "enabled": "有効",
+          "save": "ルーターを保存",
+          "cancel": "キャンセル"
+        },
+        "mappings": {
+          "title": "モデルマッピング",
+          "description": "コードプロバイダーのモデルをチャットプロバイダーのモデルにマッピングして公開します",
+          "count": "件のマッピング",
+          "empty": "モデルマッピングが設定されていません。チャットモードでコードモデルを公開するにはマッピングを追加してください。",
+          "addNew": "マッピングを追加",
+          "selectSource": "ソースモデルを選択（コード）",
+          "selectTarget": "ターゲットモデルを選択（チャット）",
+          "sourcePlaceholder": "ソースモデル名を入力",
+          "targetPlaceholder": "ターゲットモデル名を入力",
+          "add": "追加",
+          "edit": "編集",
+          "done": "完了"
+        }
+      },
+      "transformers": {
+        "title": "トランスフォーマー",
+        "description": "リクエスト/レスポンス変換用のトランスフォーマーを設定します",
+        "noProvider": "トランスフォーマーを設定するにはプロバイダーを選択してください",
+        "empty": "トランスフォーマーがありません",
+        "count": "{{count}} 件のトランスフォーマー"
+      },
+      "status": {
+        "enabled": "有効",
+        "disabled": "無効"
+      },
+      "messages": {
+        "routerAdded": "ルーターを追加しました",
+        "routerUpdated": "ルーターを更新しました",
+        "routerDeleted": "ルーターを削除しました",
+        "saveFailed": "ルーターの保存に失敗しました"
+      }
+    },
+    "presets": {
+      "title": "プロバイダーをすぐに追加",
+      "added": "追加済み",
+      "add": "追加",
+      "features": {
+        "search": "検索",
+        "vision": "ビジョン",
+        "mcp": "MCP",
+        "codingPlan": "Coding Plan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "このプロバイダーを削除してもよいですか？"
+    },
+    "errors": {
+      "nameRequired": "プロバイダー名は必須です",
+      "urlRequired": "API ベース URL は必須です",
+      "urlInvalid": "有効な URL を入力してください（例: https://api.example.com）",
+      "saveFailed": "プロバイダーの保存に失敗しました",
+      "deleteFailed": "プロバイダーの削除に失敗しました。もう一度お試しください。",
+      "toggleFailed": "プロバイダーの切り替えに失敗しました。もう一度お試しください。"
+    },
+    "openRouter": {
+      "title": "OpenRouter プロバイダールーティング",
+      "description": "OpenRouter でのリクエストのプロバイダーへのルーティング方法を設定します。",
+      "sort": "ルーティング戦略",
+      "sortTooltip": "プロバイダーの優先順位を選択します。自動はインテリジェントな負荷分散を使用します。",
+      "order": "プロバイダー優先順位",
+      "orderTooltip": "試行するプロバイダーの順序を指定します（例: anthropic、openai、together）。Enter キーで追加します。",
+      "orderPlaceholder": "プロバイダーのスラッグを入力して Enter...",
+      "allowFallbacks": "フォールバックを許可",
+      "allowFallbacksTooltip": "有効にすると、プライマリが利用できない場合に OpenRouter がバックアッププロバイダーを試みます。",
+      "requireParameters": "すべてのパラメーターを要求",
+      "requireParametersTooltip": "リクエスト内のすべてのパラメーターをサポートするプロバイダーにのみルーティングします。",
+      "dataCollection": "データ収集ポリシー",
+      "dataCollectionTooltip": "データを保存またはトレーニングに使用する可能性のあるプロバイダーを使用するかどうかを制御します。",
+      "zdr": "ゼロデータ保持",
+      "zdrTooltip": "ゼロデータ保持ポリシーのエンドポイントにのみルーティングします。",
+      "only": "許可するプロバイダーのみ",
+      "onlyTooltip": "これらの特定のプロバイダーのみを使用します。空欄にするとすべてのプロバイダーを許可します。",
+      "onlyPlaceholder": "プロバイダーのスラッグを入力して Enter...",
+      "ignore": "除外するプロバイダー",
+      "ignoreTooltip": "リクエストのルーティング時にこれらのプロバイダーをスキップします。",
+      "ignorePlaceholder": "プロバイダーのスラッグを入力して Enter...",
+      "quantizations": "量子化フィルター",
+      "quantizationsTooltip": "特定の量子化レベルのプロバイダーのみを使用します。精度が低いと品質が下がる場合がありますが、速度が向上します。",
+      "maxPrice": "最高価格",
+      "maxPriceTooltip": "100 万トークンあたりの最高価格制限を設定します。制限なしの場合は空欄にしてください。",
+      "configured": "設定済み"
+    }
+  },
+  "apiMode": {
+    "label": "API モード",
+    "standard": "スタンダード",
+    "codingPlan": "Coding Plan",
+    "tokenPlan": "Token Plan",
+    "apiKeyPrefixHint": "このプランのキーは通常 `{{prefix}}` で始まります。参考情報のみで、強制ではありません。",
+    "dashscopeCodingPlanSeparateKey": "DashScope Coding Plan はスタンダードエンドポイントとは別の API キーを使用します。",
+    "baiduCodingPlanSeparateKey": "Qianfan Coding Plan はスタンダードエンドポイントとは別の API キーを使用します。",
+    "tencentTokenPlanAnthropicOnly": "Tencent Token Plan は Anthropic プロトコルのみ対応しています。",
+    "xiaomiTokenPlanRegions": "デフォルトの baseUrl は `token-plan-cn.*` です。`token-plan-sgp.*` または `token-plan-ams.*` に手動で変更することもできます。",
+    "confirmOverwriteTitle": "API モードを切り替えますか？",
+    "confirmOverwriteBody": "API URL または API キーをカスタマイズしています。モードを切り替えると新しいモードのデフォルト値で上書きされるか、カスタマイズを維持してモードラベルのみ更新されます。",
+    "overwriteAndSwitch": "上書きして切り替え",
+    "keepCustomizations": "カスタマイズを維持"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "copy": "コピー",
+    "delete": "削除",
+    "dismiss": "閉じる",
+    "save": "保存",
+    "optional": "任意",
+    "retry": "再試行",
+    "loading": "読み込み中…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "ドキュメント"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "デーモンではまだサポートされていません",
+    "discoveryUnsupportedFormat": "このプロバイダー形式ではモデルの自動検出がサポートされていません。モデルを手動で追加してください。"
+  },
+  "nav": {
+    "subtitle": "コントロールパネル",
+    "providers": "プロバイダー",
+    "apiService": "API サービス",
+    "accounts": "アカウント",
+    "codeCli": "Code CLI",
+    "settings": "設定",
+    "usageStats": "使用状況",
+    "pricing": "料金"
+  },
+  "apiService": {
+    "title": "API サービス",
+    "description": "アウトバウンド API サーバー、エンドポイントごとのモデルルーティング、および名前付きアクセスキーを設定します。",
+    "loading": "サーバー設定を読み込み中…",
+    "loadError": "サーバー設定を読み込めませんでした。デーモンに到達できるか確認してください。",
+    "enable": {
+      "label": "アウトバウンドサーバーを有効化",
+      "description": "外部の呼び出し元からのリクエストをプロバイダー経由でルーティングするローカル API サーバーを起動します。"
+    },
+    "networkBinding": {
+      "label": "LAN アクセスを許可",
+      "description": "サーバーをループバックのみでなくネットワークインターフェイスにバインドします。",
+      "warning": "LAN アクセスを有効にすると、API サーバーがネットワーク上の他のデバイスにさらされます。サブスクリプションルーティングと組み合わせると、リクエストがサブスクリプションのクォータを消費する可能性があります — ネットワークを信頼できない場合はオフのままにしてください。"
+    },
+    "status": {
+      "running": "サーバー稼働中",
+      "stopped": "サーバー停止中",
+      "runningHint": "アウトバウンド API サーバーがリクエストを受け付けています。",
+      "stoppedHint": "サーバーを有効にするとリクエストの受け付けが始まります。",
+      "port": "ポート {{port}}",
+      "loopback": "ループバック URL",
+      "lan": "LAN URL"
+    },
+    "endpoints": {
+      "title": "エンドポイントルーティング",
+      "description": "各ワイヤー形式がルーティングするモデルを選択します。デフォルトモデルはここに組み込まれています — このサーバーはルーターであり、チャットアプリではありません。"
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "デフォルトモデル",
+      "backgroundModel": "バックグラウンドモデル",
+      "visionModel": "ビジョンモデル",
+      "noVisionModel": "なし",
+      "backgroundModelIds": "バックグラウンドモデル ID",
+      "backgroundModelIdsPlaceholder": "カンマ区切りのモデル ID",
+      "modelPlaceholder": "モデルを選択…",
+      "useSubscription": "サブスクリプションを使用",
+      "subscriptionUnsupported": "このエンドポイントではサブスクリプションルーティングを利用できません。"
+    },
+    "keys": {
+      "title": "アクセスキー",
+      "description": "外部の呼び出し元が Bearer トークンとして送信する名前付きキーです。完全なキーは作成時に一度だけ表示されます。",
+      "namePlaceholder": "キー名（例: my-cli）",
+      "create": "キーを作成",
+      "empty": "アクセスキーがまだありません。",
+      "enabled": "有効",
+      "disabled": "無効",
+      "revoked": "失効済み",
+      "toggle": "キーを切り替え",
+      "revoke": "失効",
+      "revokeConfirmTitle": "このキーを失効させますか？",
+      "revokeConfirmDesc": "「{{name}}」を失効させると、すぐに認証に使用できなくなります。この操作は元に戻せません。",
+      "created": {
+        "title": "キーを作成しました",
+        "warning": "このキーを今すぐコピーしてください — 再表示されません。安全な場所に保管してください。",
+        "copy": "コピー",
+        "copied": "コピーしました",
+        "dismiss": "完了"
+      }
+    }
+  },
+  "accounts": {
+    "title": "アカウントとサブスクリプション",
+    "description": "サーバーがルーティングに使用するサブスクリプション認証情報を管理します。トークンはここに書き込まれますが、表示されることはありません。",
+    "loading": "アカウントを読み込み中…",
+    "empty": "利用可能なサブスクリプションプロバイダーがありません。",
+    "signIn": "サインイン",
+    "oauth": {
+      "title": "{{name}} にサインイン",
+      "description": "ブラウザでサインインページを開いて認証し、認証コードを以下に貼り付けてください。コードはデーモンにのみ送信されます — 発行されたトークンは表示されません。",
+      "openPage": "サインインページを開く",
+      "codeLabel": "認証コード",
+      "codePlaceholder": "ここにコードを貼り付け",
+      "submit": "サインインを完了"
+    },
+    "codexOauth": {
+      "title": "{{name}} にサインイン",
+      "description": "ブラウザでサインインページを開いて認証してください。デーモンが自動的に結果を取得します — 完了するまでこのページを開いたままにしてください。トークンは表示されません。",
+      "waiting": "ブラウザでのサインインが完了するのを待っています…",
+      "failed": "サインインに失敗しました。もう一度お試しください。"
+    },
+    "clearProvider": "すべてクリア",
+    "clearConfirmTitle": "{{name}} のアカウントをクリアしますか？",
+    "clearConfirmDesc": "このプロバイダーに保存されているすべての認証情報が削除されます。この操作は元に戻せません。",
+    "credential": {
+      "ok": "設定済み",
+      "notConfigured": "未設定"
+    },
+    "kind": {
+      "pass-through": "パススルー認証情報",
+      "oauth-bearer": "OAuth Bearer",
+      "static-bearer": "静的 Bearer キー"
+    },
+    "reason": {
+      "missing-credential": "認証情報が保存されていません。",
+      "expired": "認証情報が期限切れです。",
+      "reauth-required": "再認証が必要です。",
+      "refresh-failed": "トークンの更新に失敗しました。",
+      "not-refreshable": "認証情報は更新できません。",
+      "unknown": "状態が不明です。"
+    },
+    "status": {
+      "unconfigured": "未設定",
+      "authorized": "認証済み",
+      "configured": "設定済み",
+      "expired": "期限切れ",
+      "error": "エラー"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "セットアップトークン",
+      "manual": "手動"
+    },
+    "list": {
+      "empty": "このプロバイダーにはアカウントが保存されていません。",
+      "active": "アクティブ",
+      "expiresAt": "{{value}} に期限切れ",
+      "setActive": "アクティブに設定",
+      "remove": "削除",
+      "removeConfirmTitle": "このアカウントを削除しますか？",
+      "removeConfirmDesc": "「{{name}}」を削除すると、保存された認証情報が削除されます。この操作は元に戻せません。",
+      "title": "アカウント"
+    },
+    "write": {
+      "trigger": "認証情報を追加",
+      "title": "{{name}} の認証情報を書き込む",
+      "description": "取得済みのトークンを貼り付けてください。フィールドはこのプロバイダーが受け付ける内容に限定されています。トークンは保存され、表示されることはありません。",
+      "authMethod": "認証方法",
+      "status": "ステータス",
+      "subscriptionLevel": "サブスクリプションレベル",
+      "subscriptionLevelNone": "未設定",
+      "submit": "認証情報を保存"
+    },
+    "field": {
+      "accessToken": "アクセストークン",
+      "refreshToken": "リフレッシュトークン",
+      "idToken": "ID トークン",
+      "apiKey": "API キー",
+      "expiresAt": "有効期限（ISO）",
+      "setupTokenExpiresAt": "セットアップトークンの有効期限（ISO）",
+      "accountId": "アカウント ID",
+      "email": "メールアドレス",
+      "organizationId": "組織 ID",
+      "baseUrl": "ベース URL",
+      "zenBaseUrl": "Zen ベース URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "デーモンによってルーティングされる Anthropic サブスクリプション認証情報。"
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "デーモンによってルーティングされる OpenAI Codex サブスクリプション認証情報。"
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "デーモンによってルーティングされる Google Gemini サブスクリプション認証情報。"
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "デーモンによってルーティングされる静的 API キー認証情報。"
+      }
+    },
+    "authMethodLabel": "認証方法",
+    "authMethodDesc": {
+      "oauth": "ブラウザからサインイン。デーモンがトークンを取得して保存します。",
+      "manual": "取得済みのトークンを貼り付けます。保存され、表示されることはありません。"
+    },
+    "actions": {
+      "authorize": "認証",
+      "enterToken": "トークンを入力",
+      "refresh": "更新"
+    },
+    "accounts": {
+      "addAccount": "アカウントを追加"
+    },
+    "detail": {
+      "authMethod": "認証方法",
+      "subscriptionLevel": "サブスクリプションレベル",
+      "expiresAt": "有効期限",
+      "lastRefreshed": "最終更新",
+      "label": "アカウントラベル",
+      "labelPlaceholder": "アカウント名を入力",
+      "saveLabel": "ラベルを保存"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "認証ページを開く",
+        "desc": "ブラウザでサインインページを開いてください。"
+      },
+      "step2": {
+        "title": "アクセスを認証",
+        "desc": "サインインしてプロバイダーへのアクセスを承認してください。"
+      },
+      "step3": {
+        "title": "認証コードをコピー",
+        "desc": "承認後、ページに認証コードが表示されます。"
+      },
+      "step4": {
+        "title": "コードを貼り付け",
+        "desc": "認証コードを以下に貼り付けて完了してください。コードはデーモンにのみ送信されます — 発行されたトークンは表示されません。"
+      },
+      "authorize": "サインインを完了",
+      "showUrl": "認証 URL を表示"
+    },
+    "manual": {
+      "title": "認証情報を貼り付け",
+      "description": "取得済みのトークンを貼り付けてください。フィールドはこのプロバイダーが受け付ける内容に限定されています。トークンは保存され、表示されることはありません。",
+      "accessTokenPlaceholder": "アクセストークンを貼り付け",
+      "refreshTokenPlaceholder": "リフレッシュトークンを貼り付け（任意）",
+      "hint": "トークンはデーモンに送信されて暗号化して保存されます。表示されることはありません。"
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "API キーが必要です。",
+      "apiKeyPlaceholder": "API キーを貼り付け",
+      "baseUrlPlaceholder": "https://…（任意）",
+      "zenBaseUrlPlaceholder": "https://…（任意）"
+    },
+    "info": {
+      "title": "サブスクリプションアカウントについて",
+      "description": "トークンはデーモンに書き込まれ、上流リクエストの認証に使用されます。暗号化されて保存され、表示されることはありません。アカウントを削除すると、保存された認証情報が削除されます。"
+    },
+    "rename": {
+      "failed": "アカウント名を変更できませんでした。"
+    },
+    "refresh": {
+      "failed": "トークンを更新できませんでした。"
+    },
+    "errors": {
+      "requestFailed": "リクエストに失敗しました。もう一度お試しください。"
+    },
+    "syncWarning": {
+      "external-divergent": "外部 CLI のログインファイルには、このアカウントより新しい資格情報があります。保存済みトークンは更新できなくなる可能性があります。今すぐ更新するか、再ログインしてください。",
+      "external-not-rotated": "更新に失敗し、外部 CLI にも同じ期限切れの資格情報しかありません。再ログインしてください。",
+      "duplicate-token": "別のアカウントがこの資格情報を共有しています。どちらかを更新すると、もう一方が無効になります。"
+    },
+    "importExternal": {
+      "detected": "このマシンに既存の {{name}} CLI ログインが見つかりました。",
+      "hint": "インポート後は本アプリが更新を管理します。トークンを更新するたびに CLI のログインファイルも更新され、ターミナルの CLI はログイン状態を維持します。",
+      "button": "既存の CLI ログインをインポート"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "コーディング CLI をデーモンのアウトバウンドプロキシに向けます。このページは読み取り専用です — ここでは設定するものはありません。",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "baseUrl": {
+      "title": "デーモンベース URL",
+      "description": "CLI が接続するプロキシアドレス。",
+      "label": "ベース URL"
+    },
+    "token": {
+      "title": "認証",
+      "hint": "管理ルートには 'Authorization: Bearer <管理トークン>' を送信してください。管理トークンはデーモン（設定ファイルまたは環境変数）で設定されています — ここには表示されません。"
+    },
+    "examples": {
+      "title": "起動環境の例",
+      "keyNote": "API サービスページで作成したアウトバウンドアクセスキーを使用してください — 管理トークンではありません。",
+      "anthropic": "Anthropic 形式 CLI",
+      "openai": "OpenAI 形式 CLI"
+    },
+    "launchDescription": "ターミナルでコーディング CLI を起動し、このデーモンに向けます。デーモンがリダイレクト環境変数を注入し、CLI を起動します。",
+    "refresh": "更新",
+    "loading": "CLI を検出中…",
+    "cli": {
+      "installed": "インストール済み",
+      "notFound": "見つかりません",
+      "notFoundHint": "この CLI はデーモンホストの PATH にありません。インストールしてから更新してください。",
+      "install": "インストール",
+      "installing": "インストール中…",
+      "installingHint": "デーモンホストにインストール中です — しばらく時間がかかる場合があります。",
+      "launch": "起動",
+      "launchTitle": "{{name}} を起動",
+      "launchDescription": "デーモンホストで新しいターミナルを開き、この CLI をデーモンプロキシ経由で実行します。作業ディレクトリを任意で指定できます。",
+      "cwdLabel": "作業ディレクトリ",
+      "cwdPlaceholder": "/path/to/your/project",
+      "runningVia": "実行中 · {{provider}} / {{model}}",
+      "stop": "停止"
+    },
+    "manual": {
+      "title": "手動セットアップ",
+      "description": "CLI を自分で実行する場合は、これらの環境変数を使ってデーモンに向けてください。",
+      "show": "表示",
+      "hide": "非表示"
+    }
+  },
+  "daemonStatus": {
+    "probing": "デーモンを確認中…",
+    "spawning": "デーモンを起動中…",
+    "failed": "デーモンを起動できませんでした",
+    "failedHint": "Node.js がインストールされてデーモンがビルドされているか（dist が存在するか）を確認してください。または OMNICROSS_DAEMON_ENTRY にデーモンの cli.js のパスを設定してください。"
+  },
+  "settings": {
+    "title": "設定",
+    "description": "デスクトップアプリの環境設定。",
+    "desktopOnly": "起動時とトレイのオプションはデスクトップアプリでのみ適用されます。",
+    "startup": {
+      "title": "起動",
+      "autoLaunch": "ログイン時に起動",
+      "autoLaunchHint": "サインイン時に Omnicross を自動的に起動します。",
+      "startMinimized": "トレイに最小化して起動",
+      "startMinimizedHint": "ウィンドウを開かずにバックグラウンドで起動します。"
+    },
+    "tray": {
+      "title": "トレイ",
+      "minimizeOnClose": "閉じるときにトレイに最小化",
+      "minimizeOnCloseHint": "ウィンドウを閉じると、終了せずにトレイに隠れます。"
+    },
+    "language": {
+      "title": "言語",
+      "label": "インターフェイス言語"
+    }
+  },
+  "usageStats": {
+    "title": "使用状況の統計",
+    "description": "デーモンが処理したリクエストのトークンとコストの統計。",
+    "rangeToday": "今日",
+    "range7d": "過去 7 日間",
+    "range30d": "過去 30 日間",
+    "rangeCustom": "カスタム",
+    "from": "開始",
+    "to": "終了",
+    "totalCost": "合計コスト",
+    "cacheSavings": "キャッシュ節約額",
+    "events": "リクエスト数",
+    "inputTokens": "入力トークン",
+    "outputTokens": "出力トークン",
+    "cacheReadTokens": "キャッシュ読み取り",
+    "cacheWriteTokens": "キャッシュ書き込み",
+    "reasoningTokens": "推論トークン",
+    "byModel": "モデル別",
+    "byApiKey": "API キー別",
+    "provider": "プロバイダー",
+    "model": "モデル",
+    "cost": "コスト",
+    "apiKey": "API キー",
+    "unpriced": "価格未設定",
+    "unpricedHint": "このモデルの料金エントリがありません。「料金」ページで追加してください。",
+    "unattributed": "未割り当て",
+    "unattributedHint": "特定の API キーに紐付いていないリクエストです。キー単位の記録が有効になるまでは正常な状態です。",
+    "empty": "この期間にリクエストはありません。",
+    "invalidRange": "有効な日付範囲を選択してください。"
+  },
+  "pricing": {
+    "title": "モデル料金",
+    "description": "リクエストコストの計算に使うモデル別トークン価格（100 万トークンあたり米ドル）。",
+    "search": "プロバイダーまたはモデルを検索…",
+    "fetchLatest": "最新を取得",
+    "fetching": "取得中…",
+    "addEntry": "エントリを追加",
+    "provider": "プロバイダー",
+    "model": "モデル",
+    "inputPrice": "入力",
+    "outputPrice": "出力",
+    "cacheReadPrice": "キャッシュ読み取り",
+    "cacheWritePrice": "キャッシュ書き込み",
+    "source": "ソース",
+    "updated": "更新日時",
+    "userEdited": "編集済み",
+    "edit": "編集",
+    "deleteTitle": "この料金エントリを削除しますか？",
+    "empty": "料金テーブルは空です。",
+    "emptyHint": "最新の価格を取得して表を埋めてください。",
+    "noMatches": "検索に一致するエントリがありません。",
+    "saved": "料金エントリを保存しました。",
+    "saveFailed": "保存に失敗しました：{{message}}",
+    "deleteFailed": "削除に失敗しました：{{message}}",
+    "alreadyDeleted": "このエントリは既に存在しません。",
+    "fetchApplied": "ソースから {{count}} 件のエントリを更新しました。",
+    "fetchFailed": "取得に失敗しました：{{message}}",
+    "requiredId": "必須",
+    "invalidPrice": "0 以上の数値を入力してください",
+    "conflictTitle": "料金の競合を解決",
+    "conflictHint": "これらのエントリはあなたが編集しており、ソース側でも変更されています。行ごとに自分の値を保持（スキップ）するか、ソースの値を採用（上書き）するかを選択してください。",
+    "current": "現在",
+    "incoming": "ソース値",
+    "overwrite": "上書き",
+    "skip": "スキップ",
+    "overwriteAll": "すべて上書き",
+    "skipAll": "すべてスキップ",
+    "applyResolutions": "適用",
+    "resolved": "{{overwritten}} 件を上書き、{{skipped}} 件をスキップしました。",
+    "resolvedWithStale": "{{overwritten}} 件を上書き、{{skipped}} 件をスキップしました。{{stale}} 件はその間に変更されたため、そのまま残しています。",
+    "refreshFailed": "変更は適用されましたが、リストの再読み込みに失敗しました：{{message}}",
+    "sourceBuiltin": "組み込み",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "ユーザー"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "name": "@omnicross/daemon",
+  "version": "0.1.2",
+  "description": "Omnicross standalone daemon — the bare-Node embedder of @omnicross/core with an admin HTTP API + dashboard.",
+  "license": "MIT",
+  "author": "Sayo (https://github.com/Dumoedss)",
+  "homepage": "https://github.com/Dumoedss/omnicross#readme",
+  "keywords": [
+    "omnicross",
+    "llm",
+    "daemon",
+    "proxy",
+    "openai",
+    "anthropic",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dumoedss/omnicross.git",
+    "directory": "packages/daemon"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js",
+      "require": "./dist/*.cjs"
+    }
+  },
+  "bin": {
+    "omnicross": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
+  },
+  "dependencies": {
+    "@omnicross/contracts": "^0.1.0",
+    "@omnicross/core": "^0.1.0",
+    "@omnicross/subscriptions": "^0.1.0",
+    "@omnicross/cli-launcher": "^0.1.0",
+    "@omnicross/ui": "^0.1.0"
+  }
+}

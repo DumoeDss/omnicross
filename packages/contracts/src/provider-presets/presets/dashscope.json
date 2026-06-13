@@ -1,0 +1,72 @@
+{
+  "id": "dashscope",
+  "presetId": "dashscope",
+  "name": "阿里云百炼",
+  "nameKey": "presetName.dashscope",
+  "apiFormat": "openai",
+  "api_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "codingPlanBaseUrl": "https://coding.dashscope.aliyuncs.com/compatible-mode/v1",
+  "codingPlanSeparateKey": true,
+  "modelsEndpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+  "models": [
+    "qwen3-max",
+    "qwen3.5-plus",
+    "qwen-turbo",
+    "qwen3-coder-plus"
+  ],
+  "modelConfigs": [
+    {
+      "id": "qwen3-max",
+      "name": "Qwen3 Max",
+      "enabled": true
+    },
+    {
+      "id": "qwen3.5-plus",
+      "name": "Qwen3.5 Plus",
+      "enabled": true
+    },
+    {
+      "id": "qwen-turbo",
+      "name": "Qwen Turbo",
+      "enabled": true
+    },
+    {
+      "id": "qwen3-coder-plus",
+      "name": "Qwen3 Coder Plus",
+      "enabled": true
+    }
+  ],
+  "description": "阿里云百炼大模型平台 (DashScope)",
+  "icon": "dashscope",
+  "website": "https://www.aliyun.com/product/bailian",
+  "docsUrl": "https://help.aliyun.com/zh/model-studio/",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "vision",
+    "search"
+  ],
+  "searchConfig": {
+    "type": "model-param",
+    "paramName": "enable_search",
+    "paramValue": true,
+    "applicableModels": [
+      "qwen3-max",
+      "qwen3.5-plus",
+      "qwen-turbo"
+    ]
+  },
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://coding.dashscope.aliyuncs.com/compatible-mode/v1",
+      "note": "apiMode.dashscopeCodingPlanSeparateKey"
+    }
+  ]
+}

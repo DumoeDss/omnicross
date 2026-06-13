@@ -1,0 +1,80 @@
+{
+  "id": "volcengine",
+  "presetId": "volcengine",
+  "name": "火山方舟",
+  "nameKey": "presetName.volcengine",
+  "apiFormat": "openai",
+  "api_base_url": "https://ark.cn-beijing.volces.com/api/v3",
+  "codingPlanBaseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+  "models": [
+    "ark-code-latest",
+    "doubao-seed-2.0-code",
+    "doubao-seed-2.0-lite",
+    "glm-4.7",
+    "deepseek-v3.2",
+    "kimi-k2.5"
+  ],
+  "modelConfigs": [
+    {
+      "id": "ark-code-latest",
+      "name": "Auto (智能路由)",
+      "enabled": true
+    },
+    {
+      "id": "doubao-seed-2.0-code",
+      "name": "豆包 Seed 2.0 Code",
+      "enabled": true
+    },
+    {
+      "id": "doubao-seed-2.0-lite",
+      "name": "豆包 Seed 2.0 Lite",
+      "enabled": true
+    },
+    {
+      "id": "glm-4.7",
+      "name": "GLM-4.7",
+      "enabled": true
+    },
+    {
+      "id": "deepseek-v3.2",
+      "name": "DeepSeek V3.2",
+      "enabled": true
+    },
+    {
+      "id": "kimi-k2.5",
+      "name": "Kimi K2.5",
+      "enabled": true
+    }
+  ],
+  "description": "字节跳动火山方舟大模型平台",
+  "icon": "volcengine",
+  "website": "https://www.volcengine.com",
+  "docsUrl": "https://www.volcengine.com/docs/82379/1330626",
+  "isSystem": true,
+  "features": [
+    "coding-plan",
+    "vision",
+    "search",
+    "auto-routing"
+  ],
+  "searchConfig": {
+    "type": "model-param",
+    "paramName": "web_search",
+    "paramValue": {
+      "enable": true
+    },
+    "applicableModels": null
+  },
+  "apiModes": [
+    {
+      "id": "standard",
+      "label": "apiMode.standard",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3"
+    },
+    {
+      "id": "coding-plan",
+      "label": "apiMode.codingPlan",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3"
+    }
+  ]
+}

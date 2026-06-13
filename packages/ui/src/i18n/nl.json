@@ -1,0 +1,911 @@
+{
+  "providerSettings": {
+    "loading": "LLM-configuratie laden...",
+    "reset": {
+      "button": "Standaardwaarden herstellen",
+      "confirmTitle": "Standaardinstellingen herstellen?",
+      "confirmBody": "Dit verwijdert uw aanpassingen voor deze provider, zodat hij de ingebouwde standaardwaarden weer volgt. Uw API-sleutel en opgeslagen sessies blijven bewaard.",
+      "confirmButton": "Standaardwaarden herstellen"
+    },
+    "reentryBanner": {
+      "message": "{{count}} actieve provider(s) hebben hun API-sleutel opnieuw nodig. Open elk item en voeg de sleutel opnieuw toe."
+    },
+    "migrationPack": {
+      "barHint": "Verplaats uw providersleutels en abonnementstokens naar een andere machine met een versleuteld pakket.",
+      "passphrase": "Wachtwoordzin",
+      "passphrasePlaceholder": "Voer een wachtwoordzin in",
+      "passphraseHint": "Gebruik minimaal 8 tekens; 12 of meer wordt aanbevolen.",
+      "confirm": "Wachtwoordzin bevestigen",
+      "confirmPlaceholder": "Voer de wachtwoordzin opnieuw in",
+      "mismatch": "Wachtwoordzinnen komen niet overeen.",
+      "strength": {
+        "weak": "Te kort — gebruik minimaal 8 tekens.",
+        "fair": "Redelijk — 12 of meer tekens is sterker.",
+        "strong": "Sterke wachtwoordzin."
+      },
+      "export": {
+        "button": "Pakket exporteren",
+        "title": "Versleuteld pakket exporteren",
+        "subtitle": "Versleutel uw providersleutels en abonnementstokens in een overdraagbaar bestand.",
+        "warning": "Dit bestand bevat ontsleutelbare geheimen. Bewaar het veilig — iedereen met het bestand en de wachtwoordzin kan uw sleutels lezen. Een verloren wachtwoordzin kan niet worden hersteld.",
+        "submit": "Exporteren",
+        "success": "Pakket succesvol geëxporteerd.",
+        "error": "Export mislukt. Probeer het opnieuw."
+      },
+      "import": {
+        "button": "Pakket importeren",
+        "title": "Versleuteld pakket importeren",
+        "subtitle": "Herstel providersleutels en abonnementstokens uit een geëxporteerd pakket.",
+        "hint": "Voer de wachtwoordzin in die bij het exporteren is gebruikt en kies het bestand.",
+        "submit": "Importeren",
+        "successTitle": "Import voltooid",
+        "summary": "{{providerKeys}} providersleutel(s), {{poolKeys}} poolsleutel(s) en {{tokenSets}} tokenset(s) geïmporteerd.",
+        "duplicates": "{{count}} poolsleutel(s) overgeslagen die al aanwezig waren.",
+        "skipped": "Overgeslagen (geen overeenkomende provider): {{names}}",
+        "error": "Verkeerde wachtwoordzin of beschadigd pakket. Er is niets gewijzigd."
+      }
+    },
+    "searchPlaceholder": "Providers zoeken...",
+    "emptySearch": "Geen providers komen overeen met uw zoekopdracht.",
+    "emptyList": "Geen providers geconfigureerd.",
+    "selectPrompt": "Selecteer een provider om details te bekijken",
+    "listStatus": "{{count}} model(len)",
+    "noModels": "Geen modellen geconfigureerd",
+    "enabled": "Ingeschakeld",
+    "disabled": "Uitgeschakeld",
+    "showEnabledOnly": "Alleen ingeschakelde tonen",
+    "showAll": "Alle providers tonen",
+    "dragHandle": "Slepen om te herordenen",
+    "reorderFailed": "Volgorde van providers opslaan mislukt",
+    "credentials": {
+      "apiKey": "API-sleutel",
+      "apiBaseUrl": "Basis-URL van API"
+    },
+    "filter": {
+      "all": "Alle",
+      "chat": "Chat",
+      "code": "Code"
+    },
+    "tags": {
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "gemini": "Google Gemini",
+      "claudeCode": "Claude Code",
+      "grok": "Grok",
+      "azureOpenai": "Azure OpenAI",
+      "openaiResponse": "OpenAI Responses"
+    },
+    "form": {
+      "templateLabel": "Selecteer een sjabloon",
+      "skipTemplates": "Overslaan, handmatig configureren",
+      "name": "Naam *",
+      "providerType": "Type",
+      "apiType": "API-type",
+      "apiTypeOptions": {
+        "openai": "OpenAI Completion",
+        "claudecode": "Claude Code"
+      },
+      "apiTypeDescription": {
+        "openai": "Standaard OpenAI chat/completions API-formaat",
+        "claudecode": "Anthropic Messages API-formaat (Claude Code)"
+      },
+      "chatApiFormat": "API-formaat",
+      "chatApiFormatDescription": "Selecteer het API-formaat dat overeenkomt met het endpoint van uw provider",
+      "apiKey": "API-sleutel",
+      "apiKeyPlaceholder": "sk-... of $ENV_VAR",
+      "apiKeyHelper": "Gebruik $VAR_NAAM om naar omgevingsvariabelen te verwijzen",
+      "apiKeySetPlaceholder": "Sleutel is ingesteld — laat leeg om te bewaren",
+      "apiKeyReplaceHelper": "Er is een sleutel veilig opgeslagen. Typ een nieuwe waarde om hem te vervangen of laat leeg om te bewaren.",
+      "testApiKey": "API-sleutel testen",
+      "apiUrl": "API-URL *",
+      "apiUrlPlaceholder": "https://api.example.com/v1/chat/completions",
+      "apiUrlPreview": "Voorbeeld:",
+      "models": "Modellen",
+      "modelPlaceholder": "Modelnaam (bijv. gpt-4, claude-3-opus)",
+      "transformers": "Transformers",
+      "transformerConfig": "API-transformers",
+      "transformerConfigDescription": "Configureer transformers om API-aanvraag-/responsformaten aan te passen voor deze provider",
+      "transformerConfigNote": "De daemon past deze transformers toe in de aanvraagketen, na de formaattransformer van de provider (die de wire-formaatconversie afhandelt). Onbekende transformernamen worden overgeslagen.",
+      "enabled": "Ingeschakeld",
+      "apiVersion": "API-versie",
+      "apiVersionPlaceholder": "2024-08-01-preview",
+      "apiVersionHelper": "Azure OpenAI API-versie (bijv. 2024-08-01-preview)",
+      "official": "Officiële Anthropic API",
+      "officialHelper": "Inschakelen als deze provider rechtstreeks verbinding maakt met de officiële Anthropic API. Uitschakelen voor reverse proxies of diensten van derden.",
+      "maxConcurrency": "Max. gelijktijdige aanvragen",
+      "maxConcurrencyHelper": "Maximaal aantal gelijktijdige API-aanvragen naar deze provider. Lagere waarden helpen tariefbeperking (429-fouten) te voorkomen. Stel `-1` in voor geen limiet.",
+      "codingPlan": {
+        "label": "Codeerplan",
+        "description": "Gebruik een apart API-endpoint voor op abonnement gebaseerde codeerplannen",
+        "baseUrl": "Basis-URL van codeerplan",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKey": "API-sleutel van codeerplan (optioneel)",
+        "apiKeyPlaceholder": "Leeg laten om API-sleutel van provider te gebruiken",
+        "apiKeyHelper": "Alleen vereist als het codeerplan een andere API-sleutel gebruikt",
+        "tokenPlanHint": "Sommige providers (bijv. Xiaomi MiMo) geven Token Plan-sleutels uit met een `tp-`-voorvoegsel — alleen informatief, niet afgedwongen."
+      },
+      "selectTypeFirst": "Selecteer providertype",
+      "selectTypeFirstDesc": "Kies welk type provider u wilt toevoegen",
+      "codeProviderNote": "Codeproviders hebben alleen een API-sleutel en URL nodig. Modellen worden beheerd door de Agent Router.",
+      "buttons": {
+        "cancel": "Annuleren",
+        "submitAdd": "Provider toevoegen",
+        "submitUpdate": "Provider bijwerken",
+        "continue": "Doorgaan",
+        "back": "Terug"
+      }
+    },
+    "details": {
+      "noSelection": "Selecteer een provider om details te bekijken",
+      "apiKey": "API-sleutel",
+      "apiUrl": "API-URL",
+      "nameLabel": "Providernaam",
+      "modelsEndpoint": "Modellen-endpoint",
+      "modelsEndpointHelper": "Overschrijf het discovery-endpoint als de provider een aangepast /models-pad blootstelt.",
+      "models": "Modellen",
+      "transformers": "Transformers",
+      "codeProviderNote": "Codeproviders (zoals Claude Code) hebben geen modelconfiguratie nodig. Modellen worden automatisch beheerd door de Agent Router.",
+      "buttons": {
+        "more": "Meer instellingen",
+        "delete": "Verwijderen"
+      }
+    },
+    "providerModelSelector": {
+      "placeholder": "Selecteer provider en model",
+      "noProviders": "Geen providers beschikbaar",
+      "noModels": "Geen modellen geconfigureerd"
+    },
+    "apiKeyPool": {
+      "title": "API-sleutelpool",
+      "description": "Configureer meerdere API-sleutels voor taakverdeling. Elke sessie gebruikt één sleutel om de promptcache te bewaren.",
+      "defaultLabel": "Standaard",
+      "weight": "Gewicht",
+      "noKey": "Geen sleutel",
+      "labelPlaceholder": "Label (bijv. Sleutel #1, Productie)",
+      "addKey": "API-sleutel toevoegen",
+      "add": "Toevoegen",
+      "empty": "Geen extra sleutels geconfigureerd.",
+      "statusCoolingDown": "Afkoelen {{time}}",
+      "statusAuthFailed": "Authenticatie mislukt · uitgeschakeld",
+      "statusDisabled": "Uitgeschakeld",
+      "statusHealthy": "Gezond",
+      "agoSeconds": "{{count}}s geleden",
+      "agoMinutes": "{{count}}m geleden",
+      "agoHours": "{{count}}u geleden",
+      "agoDays": "{{count}}d geleden"
+    },
+    "modelsManager": {
+      "searchPlaceholder": "Modellen zoeken...",
+      "defaultGroup": "Alle modellen",
+      "add": "Model toevoegen",
+      "manage": "Beheren",
+      "empty": "Geen modellen in deze groep",
+      "enabled": "Ingeschakeld",
+      "disabled": "Uitgeschakeld",
+      "filters": {
+        "all": "Alle",
+        "vision": "Visie",
+        "reasoning": "Redeneren",
+        "free": "Gratis",
+        "tools": "Tools"
+      },
+      "manualDialog": {
+        "title": "Model toevoegen",
+        "subtitle": "Een aangepast model toevoegen aan deze provider",
+        "modelId": "Model-ID",
+        "modelIdPlaceholder": "gpt-4o, claude-3.5, gemini-2.0-flash, enz.",
+        "modelIdHelper": "De exacte modelidentificatie die wordt gebruikt bij het aanroepen van de API",
+        "modelName": "Weergavenaam",
+        "modelNamePlaceholder": "Gebruiksvriendelijke weergavenaam (optioneel)",
+        "modelNameHelper": "Optionele naam weergegeven in de interface. Als leeg, wordt Model-ID gebruikt",
+        "group": "Groep",
+        "groupPlaceholder": "Selecteer of voer een groepsnaam in",
+        "submit": "Toevoegen",
+        "cancel": "Annuleren",
+        "helper": "Geef de exacte modelidentificatie op die door de provider-API wordt blootgesteld."
+      },
+      "editDialog": {
+        "title": "Model bewerken",
+        "subtitle": "Modelinstellingen aanpassen",
+        "modelId": "Model-ID",
+        "modelIdPlaceholder": "Modelidentificatie",
+        "modelIdHelper": "De modelidentificatie die wordt gebruikt bij het aanroepen van de API",
+        "modelName": "Weergavenaam",
+        "modelNamePlaceholder": "Gebruiksvriendelijke weergavenaam",
+        "modelNameHelper": "Naam weergegeven in de interface",
+        "group": "Groep",
+        "groupPlaceholder": "Selecteer of voer een groepsnaam in",
+        "submit": "Opslaan",
+        "cancel": "Annuleren",
+        "vision": "Visiecapaciteit",
+        "visionHint": "Of dit model afbeeldings-/visie-invoer ondersteunt",
+        "reasoning": "Redeneermodel",
+        "reasoningHint": "Of dit model denk-/redeneermodus ondersteunt"
+      },
+      "manageDialog": {
+        "title": "Modellen beheren",
+        "cachedAt": "Gecached op {{date}} ({{source}})",
+        "refresh": "Vernieuwen",
+        "close": "Sluiten",
+        "raw": "Ruwe JSON",
+        "empty": "Geen externe modellen beschikbaar.",
+        "error": "Modellen laden mislukt: {{message}}",
+        "addFromCatalog": "Toevoegen",
+        "sourceCache": "cache",
+        "sourceNetwork": "live",
+        "contextLength": "Context {{value}} tokens",
+        "maxTokens": "Max. {{value}} tokens"
+      },
+      "messages": {
+        "added": "Model toegevoegd.",
+        "updated": "Model bijgewerkt.",
+        "removed": "Model verwijderd.",
+        "duplicate": "Model bestaat al.",
+        "refreshed": "Modellen vernieuwd",
+        "refreshFailed": "Modellen vernieuwen mislukt"
+      },
+      "testDialog": {
+        "title": "Connectiviteitstest model",
+        "provider": "Provider",
+        "model": "Model",
+        "testing": "Testen...",
+        "success": "Test geslaagd",
+        "successMessage": "Model is normaal toegankelijk",
+        "failure": "Test mislukt",
+        "aiResponse": "AI-antwoord",
+        "charCount": "{{count}} tekens",
+        "duration": "Duur {{time}}s",
+        "close": "Sluiten",
+        "retest": "Opnieuw testen",
+        "testButton": "Model testen",
+        "unsupportedFormat": "Testen wordt nog niet ondersteund voor dit providerformaat."
+      }
+    },
+    "router": {
+      "title": "Routerconfiguratie",
+      "description": "Configureer welke provider/welk model voor verschillende scenario's wordt gebruikt.",
+      "labels": {
+        "default": "Standaard",
+        "background": "achtergrond",
+        "think": "denken",
+        "longContext": "Lange context",
+        "webSearch": "Webzoeken",
+        "image": "Afbeelding",
+        "longContextThreshold": "Drempel lange context"
+      },
+      "helper": {
+        "longContextThreshold": "Aantal tokens voordat er wordt overgeschakeld naar het lange-contextmodel."
+      },
+      "placeholder": {
+        "required": "Vereist",
+        "optional": "Optioneel"
+      }
+    },
+    "agentRouter": {
+      "title": "Agent Router",
+      "description": "Configureer bidirectionele routering tussen Chat- en Codemodus.",
+      "searchPlaceholder": "Routers zoeken...",
+      "noSearchResults": "Geen routers komen overeen met uw zoekopdracht.",
+      "tabs": {
+        "chatToCode": "Chat → Code",
+        "codeToChatPlaceholder": "Code → Chat"
+      },
+      "chatToCode": {
+        "title": "Chat-naar-Code-router",
+        "description": "Chatproviders gebruiken in agent-/coderingsmodus",
+        "addRouter": "Router toevoegen",
+        "emptyState": "Geen Chat→Code-routers geconfigureerd. Voeg er een toe om chatproviders in coderingsmodus te gebruiken.",
+        "form": {
+          "name": "Routernaam",
+          "namePlaceholder": "Mijn Chat→Code-router",
+          "chatProvider": "Chatprovider",
+          "chatProviderPlaceholder": "Selecteer een chatprovider",
+          "mode": "Modus",
+          "modeSimple": "Eenvoudig",
+          "modeAdvanced": "Geavanceerd",
+          "modeSimpleDesc": "Directe doorvoer naar chatprovider",
+          "modeAdvancedDesc": "Modeltoewijzing en contextverwerking configureren",
+          "enabled": "Ingeschakeld",
+          "save": "Router opslaan",
+          "cancel": "Annuleren"
+        },
+        "list": {
+          "provider": "Provider",
+          "mode": "Modus",
+          "status": "Status"
+        },
+        "mappings": {
+          "title": "Modeltoewijzingen",
+          "description": "Chatprovidermodellen toewijzen aan codeprovidermodellen",
+          "count": "toewijzing(en)",
+          "empty": "Geen modeltoewijzingen geconfigureerd. Voeg toewijzingen toe om chatmodellen naar codeproviders te routeren.",
+          "addNew": "Nieuwe toewijzing toevoegen",
+          "selectSource": "Bronmodel selecteren (Chat)",
+          "selectTarget": "Doelmodel selecteren (Code)",
+          "targetPlaceholder": "Claude Code-modelnaam invoeren",
+          "notSet": "(Niet ingesteld — klik om te selecteren)",
+          "add": "Toevoegen",
+          "edit": "Bewerken",
+          "done": "Klaar"
+        },
+        "advanced": {
+          "title": "Geavanceerde configuratie",
+          "description": "Modellen configureren voor verschillende taaktypen",
+          "helpText": "Standaardmodel is vereist. Andere modellen zijn optioneel en vallen terug op standaard als niet geconfigureerd.",
+          "default": {
+            "label": "Standaard",
+            "placeholder": "Standaardmodel selecteren",
+            "description": "Primair model voor algemene taken (vergelijkbaar met Claude Sonnet)"
+          },
+          "background": {
+            "label": "Achtergrond",
+            "placeholder": "Achtergrondmodel selecteren",
+            "description": "Lichtgewicht model voor achtergrondtaken (vergelijkbaar met Claude Haiku)"
+          },
+          "think": {
+            "label": "Denken",
+            "placeholder": "Denkmodel selecteren",
+            "description": "Geavanceerd model voor complexe redenering (vergelijkbaar met Claude Opus)"
+          },
+          "image": {
+            "label": "Afbeelding",
+            "placeholder": "Afbeeldingsmodel selecteren",
+            "description": "Model voor afbeeldingsgerelateerde taken met visiecapaciteit"
+          }
+        }
+      },
+      "codeToChat": {
+        "title": "Code-naar-Chat-router",
+        "description": "Codeerplanmodellen blootstellen in chatmodus",
+        "addRouter": "Router toevoegen",
+        "emptyState": "Geen Code→Chat-routers geconfigureerd. Voeg er een toe om codeerplanmodellen in chatmodus bloot te stellen.",
+        "form": {
+          "name": "Routernaam",
+          "namePlaceholder": "Mijn Code→Chat-router",
+          "codeProvider": "Codeprovider",
+          "codeProviderPlaceholder": "Selecteer een codeprovider",
+          "codeProviderHelper": "Selecteer de codeprovider voor transformatie",
+          "models": "Codeerplanmodellen",
+          "modelsHelper": "Selecteer welke codeerplanmodellen worden blootgesteld",
+          "enabled": "Ingeschakeld",
+          "save": "Router opslaan",
+          "cancel": "Annuleren"
+        },
+        "mappings": {
+          "title": "Modeltoewijzingen",
+          "description": "Codeprovidermodellen toewijzen aan chatprovidermodellen voor blootstelling",
+          "count": "toewijzing(en)",
+          "empty": "Geen modeltoewijzingen geconfigureerd. Voeg toewijzingen toe om codemodellen in chatmodus bloot te stellen.",
+          "addNew": "Nieuwe toewijzing toevoegen",
+          "selectSource": "Bronmodel selecteren (Code)",
+          "selectTarget": "Doelmodel selecteren (Chat)",
+          "sourcePlaceholder": "Bronmodelnaam invoeren",
+          "targetPlaceholder": "Doelmodelnaam invoeren",
+          "add": "Toevoegen",
+          "edit": "Bewerken",
+          "done": "Klaar"
+        }
+      },
+      "transformers": {
+        "title": "Transformers",
+        "description": "Transformers configureren voor aanvraag-/responsconversie",
+        "noProvider": "Selecteer een provider om transformers te configureren",
+        "empty": "Geen transformers",
+        "count": "{{count}} transformer(s)"
+      },
+      "status": {
+        "enabled": "Ingeschakeld",
+        "disabled": "Uitgeschakeld"
+      },
+      "messages": {
+        "routerAdded": "Router succesvol toegevoegd",
+        "routerUpdated": "Router succesvol bijgewerkt",
+        "routerDeleted": "Router succesvol verwijderd",
+        "saveFailed": "Router opslaan mislukt"
+      }
+    },
+    "presets": {
+      "title": "Provider snel toevoegen",
+      "added": "Toegevoegd",
+      "add": "Toevoegen",
+      "features": {
+        "search": "Zoeken",
+        "vision": "Visie",
+        "mcp": "MCP",
+        "codingPlan": "Codeerplan"
+      }
+    },
+    "alerts": {
+      "deleteConfirm": "Weet u zeker dat u deze provider wilt verwijderen?"
+    },
+    "errors": {
+      "nameRequired": "Providernaam is vereist",
+      "urlRequired": "Basis-URL van API is vereist",
+      "urlInvalid": "Voer een geldige URL in (bijv. https://api.example.com)",
+      "saveFailed": "Provider opslaan mislukt",
+      "deleteFailed": "Fout bij verwijderen van provider. Probeer het opnieuw.",
+      "toggleFailed": "Fout bij in-/uitschakelen van provider. Probeer het opnieuw."
+    },
+    "openRouter": {
+      "title": "OpenRouter-providerroutering",
+      "description": "Configureer hoe aanvragen worden gerouteerd naar verschillende providers op OpenRouter.",
+      "sort": "Routeringsstrategie",
+      "sortTooltip": "Kies hoe providers worden geprioriteerd. Automatisch gebruikt intelligente taakverdeling.",
+      "order": "Volgorde van providerprioriteit",
+      "orderTooltip": "Geef providers op die in volgorde worden geprobeerd (bijv. anthropic, openai, together). Druk op Enter om toe te voegen.",
+      "orderPlaceholder": "Typ de provider-slug en druk op Enter...",
+      "allowFallbacks": "Fallbacks toestaan",
+      "allowFallbacksTooltip": "Wanneer ingeschakeld, probeert OpenRouter reserveproviders als de primaire niet beschikbaar is.",
+      "requireParameters": "Alle parameters vereisen",
+      "requireParametersTooltip": "Alleen routeren naar providers die alle parameters in uw aanvraag ondersteunen.",
+      "dataCollection": "Beleid gegevensverzameling",
+      "dataCollectionTooltip": "Bepaal of providers worden gebruikt die uw gegevens mogelijk opslaan of hierop trainen.",
+      "zdr": "Nul gegevensbewaring",
+      "zdrTooltip": "Alleen routeren naar endpoints met beleid voor nul gegevensbewaring.",
+      "only": "Alleen providers toestaan",
+      "onlyTooltip": "Gebruik alleen deze specifieke providers. Laat leeg om alle providers toe te staan.",
+      "onlyPlaceholder": "Typ de provider-slug en druk op Enter...",
+      "ignore": "Providers negeren",
+      "ignoreTooltip": "Sla deze providers over bij het routeren van aanvragen.",
+      "ignorePlaceholder": "Typ de provider-slug en druk op Enter...",
+      "quantizations": "Kwantisatiefilter",
+      "quantizationsTooltip": "Gebruik alleen providers met specifieke kwantisatieniveaus. Lagere precisie kan de kwaliteit verminderen maar de snelheid verbeteren.",
+      "maxPrice": "Maximumprijs",
+      "maxPriceTooltip": "Stel maximale prijslimieten per miljoen tokens in. Laat leeg voor geen limiet.",
+      "configured": "Geconfigureerd"
+    }
+  },
+  "apiMode": {
+    "label": "API-modus",
+    "standard": "Standaard",
+    "codingPlan": "Codeerplan",
+    "tokenPlan": "Tokenplan",
+    "apiKeyPrefixHint": "Sleutels voor dit plan beginnen doorgaans met `{{prefix}}`. Alleen indicatief — niet afgedwongen.",
+    "dashscopeCodingPlanSeparateKey": "DashScope Codeerplan gebruikt een aparte API-sleutel van het standaard-endpoint.",
+    "baiduCodingPlanSeparateKey": "Qianfan Codeerplan gebruikt een aparte API-sleutel van het standaard-endpoint.",
+    "tencentTokenPlanAnthropicOnly": "Tencent Tokenplan is alleen Anthropic-protocol.",
+    "xiaomiTokenPlanRegions": "Standaard baseUrl is `token-plan-cn.*`. U kunt het handmatig bewerken naar `token-plan-sgp.*` of `token-plan-ams.*`.",
+    "confirmOverwriteTitle": "API-modus wisselen?",
+    "confirmOverwriteBody": "U heeft de API-URL of API-sleutel aangepast. Wisselen van modus overschrijft ze met de standaardwaarden van de nieuwe modus — of bewaar uw aanpassingen en update alleen het modusLabel.",
+    "overwriteAndSwitch": "Overschrijven en wisselen",
+    "keepCustomizations": "Aanpassingen bewaren"
+  },
+  "presetName": {
+    "zhipu": "z.ai",
+    "zhipuBigmodel": "Zhipu GLM",
+    "volcengine": "Volcengine Ark",
+    "dashscope": "Alibaba DashScope",
+    "tencent": "Tencent Hunyuan",
+    "tencentAnthropic": "Tencent Hunyuan (Tokenplan)",
+    "baidu": "Baidu Qianfan",
+    "kuaishou": "Kuaishou KwaiKAT",
+    "mthreads": "Moore Threads",
+    "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
+  },
+  "common": {
+    "cancel": "Annuleren",
+    "close": "Sluiten",
+    "copy": "Kopiëren",
+    "delete": "Verwijderen",
+    "dismiss": "Sluiten",
+    "save": "Opslaan",
+    "optional": "optioneel",
+    "retry": "Opnieuw proberen",
+    "loading": "Laden…"
+  },
+  "mediaSettings": {
+    "common": {
+      "learnMore": "Documentatie"
+    }
+  },
+  "appLocal": {
+    "notSupportedByDaemon": "Nog niet ondersteund door de daemon",
+    "discoveryUnsupportedFormat": "Modeldetectie wordt nog niet ondersteund voor dit providerformaat. Voeg modellen handmatig toe."
+  },
+  "nav": {
+    "subtitle": "Configuratiescherm",
+    "providers": "Providers",
+    "apiService": "API-service",
+    "accounts": "Accounts",
+    "codeCli": "Code CLI",
+    "settings": "Instellingen",
+    "usageStats": "Gebruik",
+    "pricing": "Prijzen"
+  },
+  "apiService": {
+    "title": "API-service",
+    "description": "Configureer de uitgaande API-server, modelroutering per endpoint en benoemde toegangssleutels.",
+    "loading": "Serverconfiguratie laden…",
+    "loadError": "Serverconfiguratie kon niet worden geladen. Controleer of de daemon bereikbaar is.",
+    "enable": {
+      "label": "Uitgaande server inschakelen",
+      "description": "De lokale API-server starten die externe aanroepen via uw providers routeert."
+    },
+    "networkBinding": {
+      "label": "LAN-toegang toestaan",
+      "description": "De server binden aan uw netwerkinterface in plaats van alleen loopback.",
+      "warning": "LAN-toegang stelt de API-server bloot aan andere apparaten op uw netwerk. In combinatie met abonnementsroutering kunnen aanvragen uw abonnementsquotum verbruiken — schakel dit uit tenzij u het netwerk vertrouwt."
+    },
+    "status": {
+      "running": "Server actief",
+      "stopped": "Server gestopt",
+      "runningHint": "De uitgaande API-server accepteert aanvragen.",
+      "stoppedHint": "Schakel de server in om aanvragen te accepteren.",
+      "port": "poort {{port}}",
+      "loopback": "Loopback-URL's",
+      "lan": "LAN-URL's"
+    },
+    "endpoints": {
+      "title": "Endpointroutering",
+      "description": "Kies het model waarnaar elk wire-formaat routeert. Het standaardmodel wordt hier ingesteld — de server is een router, geen chatapplicatie."
+    },
+    "endpoint": {
+      "name": {
+        "chat": "OpenAI Chat",
+        "responses": "OpenAI Responses",
+        "messages": "Anthropic Messages",
+        "gemini": "Gemini"
+      },
+      "defaultModel": "Standaardmodel",
+      "backgroundModel": "Achtergrondmodel",
+      "visionModel": "Visiemodel",
+      "noVisionModel": "Geen",
+      "backgroundModelIds": "Achtergrondmodel-ID's",
+      "backgroundModelIdsPlaceholder": "door komma's gescheiden model-ID's",
+      "modelPlaceholder": "Selecteer een model…",
+      "useSubscription": "Abonnement gebruiken",
+      "subscriptionUnsupported": "Abonnementsroutering is niet beschikbaar voor dit endpoint."
+    },
+    "keys": {
+      "title": "Toegangssleutels",
+      "description": "Benoemde sleutels die externe aanroepers als Bearer-token sturen. De volledige sleutel wordt slechts eenmaal getoond bij aanmaak.",
+      "namePlaceholder": "Sleutelnaam (bijv. mijn-cli)",
+      "create": "Sleutel aanmaken",
+      "empty": "Nog geen toegangssleutels.",
+      "enabled": "Ingeschakeld",
+      "disabled": "Uitgeschakeld",
+      "revoked": "Ingetrokken",
+      "toggle": "Sleutel in-/uitschakelen",
+      "revoke": "Intrekken",
+      "revokeConfirmTitle": "Deze sleutel intrekken?",
+      "revokeConfirmDesc": "Het intrekken van \"{{name}}\" stopt de authenticatie onmiddellijk. Dit kan niet ongedaan worden gemaakt.",
+      "created": {
+        "title": "Sleutel aangemaakt",
+        "warning": "Kopieer deze sleutel nu — hij wordt niet opnieuw getoond. Bewaar hem veilig.",
+        "copy": "Kopiëren",
+        "copied": "Gekopieerd",
+        "dismiss": "Klaar"
+      }
+    }
+  },
+  "accounts": {
+    "title": "Accounts en abonnementen",
+    "description": "Beheer de abonnementsreferenties waardoorheen de server routeert. Tokens worden hier geschreven maar nooit teruggetoond.",
+    "loading": "Accounts laden…",
+    "empty": "Geen abonnementsproviders beschikbaar.",
+    "signIn": "Aanmelden",
+    "oauth": {
+      "title": "Aanmelden bij {{name}}",
+      "description": "Open de aanmeldingspagina in uw browser, autoriseer en plak de autorisatiecode hieronder. De code gaat alleen naar de daemon — het aangemaakte token wordt nooit getoond.",
+      "openPage": "Aanmeldingspagina openen",
+      "codeLabel": "Autorisatiecode",
+      "codePlaceholder": "Plak de code hier",
+      "submit": "Aanmelden voltooien"
+    },
+    "codexOauth": {
+      "title": "Aanmelden bij {{name}}",
+      "description": "Open de aanmeldingspagina in uw browser en autoriseer. De daemon legt het resultaat automatisch vast — houd dit open tot het voltooid is. Het token wordt nooit getoond.",
+      "waiting": "Wachten tot u aanmelden in uw browser voltooit…",
+      "failed": "Aanmelden mislukt. Probeer het opnieuw."
+    },
+    "clearProvider": "Alles wissen",
+    "clearConfirmTitle": "{{name}}-accounts wissen?",
+    "clearConfirmDesc": "Dit verwijdert alle opgeslagen referenties voor deze provider. Dit kan niet ongedaan worden gemaakt.",
+    "credential": {
+      "ok": "Geconfigureerd",
+      "notConfigured": "Niet geconfigureerd"
+    },
+    "kind": {
+      "pass-through": "Doorvoereferenties",
+      "oauth-bearer": "OAuth-bearer",
+      "static-bearer": "Statische bearer-sleutel"
+    },
+    "reason": {
+      "missing-credential": "Geen referentie opgeslagen.",
+      "expired": "Referentie verlopen.",
+      "reauth-required": "Herauthenticatie vereist.",
+      "refresh-failed": "Token vernieuwen mislukt.",
+      "not-refreshable": "Referentie kan niet worden vernieuwd.",
+      "unknown": "Status onbekend."
+    },
+    "status": {
+      "unconfigured": "Niet geconfigureerd",
+      "authorized": "Geautoriseerd",
+      "configured": "Geconfigureerd",
+      "expired": "Verlopen",
+      "error": "Fout"
+    },
+    "authMethod": {
+      "oauth": "OAuth",
+      "setup_token": "Installatietoken",
+      "manual": "Handmatig"
+    },
+    "list": {
+      "empty": "Geen accounts opgeslagen voor deze provider.",
+      "active": "Actief",
+      "expiresAt": "Verloopt {{value}}",
+      "setActive": "Actief instellen",
+      "remove": "Verwijderen",
+      "removeConfirmTitle": "Dit account verwijderen?",
+      "removeConfirmDesc": "Het verwijderen van \"{{name}}\" verwijdert de opgeslagen referentie. Dit kan niet ongedaan worden gemaakt.",
+      "title": "Accounts"
+    },
+    "write": {
+      "trigger": "Referentie toevoegen",
+      "title": "{{name}}-referentie schrijven",
+      "description": "Plak reeds verkregen tokenmateriaal. Velden zijn beperkt tot wat deze provider accepteert; het token wordt opgeslagen, nooit teruggetoond.",
+      "authMethod": "Authenticatiemethode",
+      "status": "Status",
+      "subscriptionLevel": "Abonnementsniveau",
+      "subscriptionLevelNone": "Niet ingesteld",
+      "submit": "Referentie opslaan"
+    },
+    "field": {
+      "accessToken": "Toegangstoken",
+      "refreshToken": "Vernieuwingstoken",
+      "idToken": "ID-token",
+      "apiKey": "API-sleutel",
+      "expiresAt": "Verloopt op (ISO)",
+      "setupTokenExpiresAt": "Installatietoken verloopt op (ISO)",
+      "accountId": "Account-ID",
+      "email": "E-mailadres",
+      "organizationId": "Organisatie-ID",
+      "baseUrl": "Basis-URL",
+      "zenBaseUrl": "Zen basis-URL"
+    },
+    "provider": {
+      "claude": {
+        "title": "Claude",
+        "description": "Anthropic-abonnementsreferenties gerouteerd door de daemon."
+      },
+      "codex": {
+        "title": "Codex",
+        "description": "OpenAI Codex-abonnementsreferenties gerouteerd door de daemon."
+      },
+      "gemini": {
+        "title": "Gemini",
+        "description": "Google Gemini-abonnementsreferenties gerouteerd door de daemon."
+      },
+      "opencodego": {
+        "title": "OpenCodeGo",
+        "description": "Statische API-sleutelreferenties gerouteerd door de daemon."
+      }
+    },
+    "authMethodLabel": "Autorisatiemethode",
+    "authMethodDesc": {
+      "oauth": "Meld u aan via uw browser; de daemon legt het token vast en slaat het op.",
+      "manual": "Plak een reeds verkregen token. Het wordt opgeslagen, nooit teruggetoond."
+    },
+    "actions": {
+      "authorize": "Autoriseren",
+      "enterToken": "Token invoeren",
+      "refresh": "Vernieuwen"
+    },
+    "accounts": {
+      "addAccount": "Account toevoegen"
+    },
+    "detail": {
+      "authMethod": "Autorisatiemethode",
+      "subscriptionLevel": "Abonnementsniveau",
+      "expiresAt": "Verloopt",
+      "lastRefreshed": "Laatst vernieuwd",
+      "label": "Accountlabel",
+      "labelPlaceholder": "Geef dit account een naam",
+      "saveLabel": "Label opslaan"
+    },
+    "oauthFlow": {
+      "step1": {
+        "title": "De autorisatiepagina openen",
+        "desc": "Open de aanmeldingspagina in uw browser."
+      },
+      "step2": {
+        "title": "Toegang autoriseren",
+        "desc": "Meld u aan en keur toegang goed voor de provider."
+      },
+      "step3": {
+        "title": "De autorisatiecode kopiëren",
+        "desc": "De pagina toont een autorisatiecode nadat u goedkeuring geeft."
+      },
+      "step4": {
+        "title": "De code plakken",
+        "desc": "Plak de autorisatiecode hieronder om te voltooien. De code gaat alleen naar de daemon — het aangemaakte token wordt nooit getoond."
+      },
+      "authorize": "Aanmelden voltooien",
+      "showUrl": "Autorisatie-URL tonen"
+    },
+    "manual": {
+      "title": "Referentie plakken",
+      "description": "Plak een reeds verkregen token. Velden zijn beperkt tot wat deze provider accepteert; het token wordt opgeslagen, nooit teruggetoond.",
+      "accessTokenPlaceholder": "Plak het toegangstoken",
+      "refreshTokenPlaceholder": "Plak het vernieuwingstoken (optioneel)",
+      "hint": "Het token wordt naar de daemon gestuurd en versleuteld opgeslagen. Het wordt nooit teruggetoond."
+    },
+    "openCodeGo": {
+      "apiKeyRequired": "Een API-sleutel is vereist.",
+      "apiKeyPlaceholder": "Plak de API-sleutel",
+      "baseUrlPlaceholder": "https://… (optioneel)",
+      "zenBaseUrlPlaceholder": "https://… (optioneel)"
+    },
+    "info": {
+      "title": "Over abonnementsaccounts",
+      "description": "Tokens worden naar de daemon geschreven en gebruikt om upstream-aanvragen te authenticeren. Ze worden versleuteld opgeslagen en nooit teruggetoond. Het verwijderen van een account verwijdert de opgeslagen referentie."
+    },
+    "rename": {
+      "failed": "Account kon niet worden hernoemd."
+    },
+    "refresh": {
+      "failed": "Token kon niet worden vernieuwd."
+    },
+    "errors": {
+      "requestFailed": "Aanvraag mislukt. Probeer het opnieuw."
+    },
+    "syncWarning": {
+      "external-divergent": "Het externe CLI-aanmeldbestand bevat nieuwere referenties dan dit account. Het opgeslagen token kan mogelijk niet meer worden vernieuwd — vernieuw nu of meld u opnieuw aan.",
+      "external-not-rotated": "Vernieuwen is mislukt en de externe CLI bevat dezelfde verlopen referenties. Meld u opnieuw aan.",
+      "duplicate-token": "Een ander account deelt deze referenties. Het vernieuwen van het ene account meldt het andere af."
+    },
+    "importExternal": {
+      "detected": "Er is een bestaande {{name}}-CLI-aanmelding gevonden op deze machine.",
+      "hint": "Na het importeren houdt deze app deze actueel: bij elke tokenvernieuwing wordt ook het CLI-aanmeldbestand bijgewerkt, zodat de CLI in de terminal aangemeld blijft.",
+      "button": "Bestaande CLI-aanmelding importeren"
+    }
+  },
+  "codeCli": {
+    "title": "Code CLI",
+    "description": "Wijs een codeer-CLI naar de uitgaande proxy van de daemon. Deze pagina is alleen-lezen — er is niets te configureren.",
+    "copy": "Kopiëren",
+    "copied": "Gekopieerd",
+    "baseUrl": {
+      "title": "Daemon basis-URL",
+      "description": "Het proxyadres waarmee uw CLI verbinding maakt.",
+      "label": "Basis-URL"
+    },
+    "token": {
+      "title": "Authenticatie",
+      "hint": "Stuur 'Authorization: Bearer <uw-beheertoken>' voor beheerdersroutes. Het beheertoken wordt geconfigureerd in de daemon (configuratiebestand of omgeving) — het wordt hier nooit getoond."
+    },
+    "examples": {
+      "title": "Voorbeeldstartomgeving",
+      "keyNote": "Gebruik een uitgaande toegangssleutel die is aangemaakt op de API-servicepagina — niet het beheertoken.",
+      "anthropic": "Anthropic-formaat CLI",
+      "openai": "OpenAI-formaat CLI"
+    },
+    "launchDescription": "Start een codeer-CLI in een terminal, gericht op deze daemon. De daemon injecteert de omleidingsomgeving en start de CLI voor u.",
+    "refresh": "Vernieuwen",
+    "loading": "CLI's detecteren…",
+    "cli": {
+      "installed": "Geïnstalleerd",
+      "notFound": "Niet gevonden",
+      "notFoundHint": "Deze CLI staat niet op het PATH van de daemonhost. Installeer het en vernieuw.",
+      "install": "Installeren",
+      "installing": "Installeren…",
+      "installingHint": "Installeren op de daemonhost — dit kan even duren.",
+      "launch": "Starten",
+      "launchTitle": "{{name}} starten",
+      "launchDescription": "Opent een nieuwe terminal op de daemonhost waarop deze CLI wordt uitgevoerd, gerouteerd via de daemonproxy. Kies een optionele werkmap.",
+      "cwdLabel": "Werkmap",
+      "cwdPlaceholder": "/pad/naar/uw/project",
+      "runningVia": "Actief · {{provider}} / {{model}}",
+      "stop": "Stoppen"
+    },
+    "manual": {
+      "title": "Handmatige installatie",
+      "description": "Wilt u de CLI zelf uitvoeren? Wijs hem naar de daemon met deze omgevingsvariabelen.",
+      "show": "Tonen",
+      "hide": "Verbergen"
+    }
+  },
+  "daemonStatus": {
+    "probing": "Daemon controleren…",
+    "spawning": "Daemon starten…",
+    "failed": "De daemon kon niet worden gestart",
+    "failedHint": "Zorg ervoor dat Node.js is geïnstalleerd en de daemon is gebouwd (dist aanwezig), of stel OMNICROSS_DAEMON_ENTRY in op de cli.js van de daemon."
+  },
+  "settings": {
+    "title": "Instellingen",
+    "description": "Voorkeuren voor desktopapplicatie.",
+    "desktopOnly": "Opstartopties en systeemvakopties zijn alleen van toepassing in de desktopapplicatie.",
+    "startup": {
+      "title": "Opstarten",
+      "autoLaunch": "Starten bij aanmelden",
+      "autoLaunchHint": "Omnicross automatisch starten wanneer u aanmeldt.",
+      "startMinimized": "Geminimaliseerd opstarten naar systeemvak",
+      "startMinimizedHint": "Starten op de achtergrond zonder het venster te openen."
+    },
+    "tray": {
+      "title": "Systeemvak",
+      "minimizeOnClose": "Minimaliseren naar systeemvak bij sluiten",
+      "minimizeOnCloseHint": "Het venster sluiten verbergt het naar het systeemvak in plaats van af te sluiten."
+    },
+    "language": {
+      "title": "Taal",
+      "label": "Interfacetaal"
+    }
+  },
+  "usageStats": {
+    "title": "Gebruiksstatistieken",
+    "description": "Token- en kostenstatistieken van door de daemon afgehandelde verzoeken.",
+    "rangeToday": "Vandaag",
+    "range7d": "Laatste 7 dagen",
+    "range30d": "Laatste 30 dagen",
+    "rangeCustom": "Aangepast",
+    "from": "Van",
+    "to": "Tot",
+    "totalCost": "Totale kosten",
+    "cacheSavings": "Cachebesparing",
+    "events": "Verzoeken",
+    "inputTokens": "Invoertokens",
+    "outputTokens": "Uitvoertokens",
+    "cacheReadTokens": "Cache lezen",
+    "cacheWriteTokens": "Cache schrijven",
+    "reasoningTokens": "Redeneertokens",
+    "byModel": "Per model",
+    "byApiKey": "Per API-sleutel",
+    "provider": "Provider",
+    "model": "Model",
+    "cost": "Kosten",
+    "apiKey": "API-sleutel",
+    "unpriced": "Zonder prijs",
+    "unpricedHint": "Er bestaat geen prijsvermelding voor dit model — voeg er een toe op de Prijzen-pagina.",
+    "unattributed": "Niet toegewezen",
+    "unattributedHint": "Verzoeken die niet aan een specifieke API-sleutel zijn gekoppeld. Dit is normaal totdat toewijzing per sleutel wordt vastgelegd.",
+    "empty": "Geen verzoeken in dit bereik.",
+    "invalidRange": "Selecteer een geldig datumbereik."
+  },
+  "pricing": {
+    "title": "Modelprijzen",
+    "description": "Tokenprijzen per model voor het berekenen van verzoekkosten, in USD per miljoen tokens.",
+    "search": "Zoek provider of model…",
+    "fetchLatest": "Nieuwste ophalen",
+    "fetching": "Ophalen…",
+    "addEntry": "Vermelding toevoegen",
+    "provider": "Provider",
+    "model": "Model",
+    "inputPrice": "Invoer",
+    "outputPrice": "Uitvoer",
+    "cacheReadPrice": "Cache lezen",
+    "cacheWritePrice": "Cache schrijven",
+    "source": "Bron",
+    "updated": "Bijgewerkt",
+    "userEdited": "bewerkt",
+    "edit": "Bewerken",
+    "deleteTitle": "Prijsvermelding verwijderen?",
+    "empty": "De prijstabel is leeg.",
+    "emptyHint": "Haal de nieuwste prijzen op om de tabel te vullen.",
+    "noMatches": "Geen vermeldingen komen overeen met je zoekopdracht.",
+    "saved": "Prijsvermelding opgeslagen.",
+    "saveFailed": "Opslaan mislukt: {{message}}",
+    "deleteFailed": "Verwijderen mislukt: {{message}}",
+    "alreadyDeleted": "De vermelding bestond al niet meer.",
+    "fetchApplied": "{{count}} vermeldingen bijgewerkt vanaf de bron.",
+    "fetchFailed": "Ophalen mislukt: {{message}}",
+    "requiredId": "Verplicht",
+    "invalidPrice": "Voer een niet-negatief getal in",
+    "conflictTitle": "Prijsconflicten oplossen",
+    "conflictHint": "Deze vermeldingen zijn door jou bewerkt en ook in de bron gewijzigd. Kies per rij of je jouw waarde behoudt (Overslaan) of de nieuwe overneemt (Overschrijven).",
+    "current": "Huidig",
+    "incoming": "Inkomend",
+    "overwrite": "Overschrijven",
+    "skip": "Overslaan",
+    "overwriteAll": "Alles overschrijven",
+    "skipAll": "Alles overslaan",
+    "applyResolutions": "Toepassen",
+    "resolved": "{{overwritten}} overschreven, {{skipped}} overgeslagen.",
+    "resolvedWithStale": "{{overwritten}} overschreven, {{skipped}} overgeslagen. {{stale}} zijn ondertussen gewijzigd en bleven onaangeroerd.",
+    "refreshFailed": "De wijziging is toegepast, maar het herladen van de lijst is mislukt: {{message}}",
+    "sourceBuiltin": "Ingebouwd",
+    "sourceLitellm": "LiteLLM",
+    "sourceUser": "Gebruiker"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "id": "gemini-vertex",
+  "presetId": "gemini",
+  "name": "Google Gemini (Vertex AI)",
+  "apiFormat": "google",
+  "apiType": "google",
+  "api_base_url": "https://us-central1-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/us-central1/publishers/google",
+  "models": [
+    "gemini-3-flash",
+    "gemini-3.1-pro"
+  ],
+  "modelConfigs": [
+    {
+      "id": "gemini-3-flash",
+      "name": "Gemini 3 Flash",
+      "enabled": true
+    },
+    {
+      "id": "gemini-3.1-pro",
+      "name": "Gemini 3.1 Pro",
+      "enabled": true
+    }
+  ],
+  "transformer": {
+    "use": [
+      "gemini"
+    ]
+  },
+  "description": "Gemini via Google Cloud Vertex AI — replace YOUR_PROJECT_ID + region in the URL, paste an OAuth2 access token in the API key field.",
+  "icon": "gemini",
+  "website": "https://cloud.google.com/vertex-ai",
+  "docsUrl": "https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "topP": 0.95,
+    "maxTokens": 65536
+  },
+  "isSystem": true,
+  "features": [
+    "vision",
+    "search",
+    "reasoning"
+  ],
+  "searchConfig": {
+    "type": "builtin-tool",
+    "toolDefinition": {
+      "google_search": {}
+    },
+    "conflictsWithFC": false,
+    "applicableModels": null
+  }
+}

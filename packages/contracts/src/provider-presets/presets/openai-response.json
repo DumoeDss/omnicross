@@ -1,0 +1,77 @@
+{
+  "id": "openai-response",
+  "presetId": "openai-response",
+  "name": "OpenAI (Responses API)",
+  "apiFormat": "openai-response",
+  "api_base_url": "https://api.openai.com",
+  "models": [
+    "gpt-5.5",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.3-codex",
+    "gpt-5.2",
+    "o3",
+    "o4-mini",
+    "gpt-4.1"
+  ],
+  "modelConfigs": [
+    {
+      "id": "gpt-5.5",
+      "name": "GPT-5.5",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5.4",
+      "name": "GPT-5.4",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "name": "GPT-5.4 Mini",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5.3-codex",
+      "name": "GPT-5.3 Codex",
+      "enabled": true
+    },
+    {
+      "id": "gpt-5.2",
+      "name": "GPT-5.2",
+      "enabled": true
+    },
+    {
+      "id": "o3",
+      "name": "o3",
+      "enabled": true
+    },
+    {
+      "id": "o4-mini",
+      "name": "o4 Mini",
+      "enabled": true
+    },
+    {
+      "id": "gpt-4.1",
+      "name": "GPT-4.1",
+      "enabled": true
+    }
+  ],
+  "transformer": {
+    "use": [
+      "openai-response"
+    ]
+  },
+  "description": "OpenAI Responses API (/v1/responses endpoint)",
+  "icon": "openai",
+  "website": "https://openai.com",
+  "docsUrl": "https://platform.openai.com/docs/api-reference/responses",
+  "defaultSettings": {
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "isSystem": true,
+  "features": [
+    "vision",
+    "reasoning"
+  ]
+}
