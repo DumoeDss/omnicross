@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross` menerima permintaan LLM masuk — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini, dan lain-lain — menentukan **pembekal, akaun, dan kunci** mana yang harus menjawabnya (kunci API anda sendiri, kumpulan berbilang kunci, atau identiti OAuth langganan), menjalankannya melalui saluran transformer + pengesahan, dan memproksi ke hulu — mengekod semula respons ke dalam format wayar yang diminta oleh pemanggil.
+**omnicross menguasai semua aplikasi AI dan CLI pengekodan dari satu tempat — dengan langganan atau API Key sedia ada anda.**
+
+Arahkan Claude Code, Codex, Gemini CLI — atau mana-mana aplikasi yang bercakap API OpenAI / Anthropic / Gemini — ke omnicross, dan ia akan menghala setiap permintaan kepada pembekal dan model yang anda pilih. Apa yang boleh anda lakukan:
+
+- jalankan menggunakan **log masuk langganan Claude / ChatGPT / Gemini**, mengelak API Key berbayar-per-penggunaan;
+- kumpulkan banyak API Key dengan giliran dan failover automatik;
+- benarkan alat yang hanya bercakap satu format API memanggil model yang bercakap format lain — omnicross menterjemah permintaan dan respons pada masa nyata.
+
+Semua ini diurus dalam GUI aplikasi desktop — tanpa perlu mengedit fail konfigurasi secara manual.
 
 Ia dihantar dalam beberapa bentuk:
 

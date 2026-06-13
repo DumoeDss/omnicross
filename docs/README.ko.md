@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross`는 인바운드 LLM 요청 — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini 등 — 을 받아 **어떤 제공업체, 계정, 키**가 응답해야 하는지(직접 보유한 API 키, 다중 키 풀, 또는 구독 OAuth 아이덴티티)를 파악한 후, 트랜스포머 + 인증 파이프라인을 통과시켜 업스트림으로 프록시하고 — 응답을 호출자가 요청한 와이어 형식으로 다시 인코딩하여 반환합니다.
+**omnicross는 기존 구독이나 API Key 하나로 모든 AI 앱과 코딩 CLI를 한 곳에서 운용합니다.**
+
+Claude Code, Codex, Gemini CLI — 또는 OpenAI / Anthropic / Gemini API를 사용하는 어떤 앱이든 — 을 omnicross에 연결하면, 각 요청을 사용자가 선택한 제공업체와 모델로 라우팅합니다. 할 수 있는 것:
+
+- **Claude / ChatGPT / Gemini 구독 로그인**으로 실행하여 종량제 API Key 없이 사용;
+- 여러 API Key를 **키 풀**로 묶어 자동 순환 및 페일오버;
+- 한 가지 API 형식만 지원하는 도구로도 다른 형식의 모델을 호출 — omnicross가 요청과 응답을 실시간으로 변환.
+
+이 모든 것을 데스크톱 GUI에서 관리 — 설정 파일을 직접 편집할 필요 없음.
 
 몇 가지 형태로 제공됩니다:
 

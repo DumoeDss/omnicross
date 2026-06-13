@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross` preia o cerere LLM de intrare — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini și altele — determină **ce furnizor, cont și cheie** ar trebui să îi răspundă (propriile tale chei API, un pool multi-cheie sau o identitate OAuth de abonament), o trece printr-un pipeline de transformare și autentificare și o intermediază în amonte — recodificând răspunsul în oricare format de protocol a solicitat apelantul.
+**omnicross alimentează toate aplicațiile AI și CLI-urile de programare dintr-un singur loc — cu abonamentele sau cheile API existente.**
+
+Îndreaptă Claude Code, Codex, Gemini CLI — sau orice aplicație care vorbește API-ul OpenAI / Anthropic / Gemini — spre omnicross, și acesta rutează fiecare cerere către furnizorul și modelul ales de tine. Ce poți face:
+
+- rulezi pe baza unui **abonament Claude / ChatGPT / Gemini**, fără chei API cu plată per utilizare;
+- grupezi mai multe chei API într-un pool cu rotație automată și failover;
+- lași un instrument care vorbește doar un singur format de API să apeleze un model care vorbește un alt format — omnicross traduce cererea și răspunsul din mers.
+
+Toate acestea gestionate printr-un GUI desktop — fără editare manuală a fișierelor de configurare.
 
 Este disponibil în câteva forme:
 

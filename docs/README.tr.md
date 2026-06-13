@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross`, gelen bir LLM isteğini — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini ve daha fazlası — alır; **hangi sağlayıcının, hesabın ve anahtarın** bu isteğe yanıt vermesi gerektiğini belirler (kendi API anahtarlarınız, çok anahtarlı bir havuz veya bir abonelik OAuth kimliği), isteği bir dönüştürücü + kimlik doğrulama hattından geçirir ve üst akıma proxy'ler — ardından yanıtı, arayanın talep ettiği tel formatına yeniden kodlayarak geri iletir.
+**omnicross, mevcut abonelikleriniz veya API anahtarlarınızla tüm AI uygulamalarını ve kodlama CLI'larını tek bir yerden besler.**
+
+Claude Code, Codex, Gemini CLI — ya da OpenAI / Anthropic / Gemini API konuşan herhangi bir uygulama — omnicross'a yönlendirin; her isteği seçtiğiniz sağlayıcıya ve modele yönlendirir. Yapabilecekleriniz:
+
+- ölçülü API anahtarlarını atlayarak **Claude / ChatGPT / Gemini abonelik girişiyle** çalıştırın;
+- birden fazla API anahtarını otomatik rotasyon ve yük devretmeyle havuzlayın;
+- yalnızca tek bir API formatı konuşan bir aracın, başka bir format konuşan modeli çağırmasını sağlayın — omnicross isteği ve yanıtı anında dönüştürür.
+
+Tüm bunlar bir masaüstü GUI'sinde yönetilir — config dosyalarını elle düzenlemenize gerek yoktur.
 
 Birkaç farklı biçimde sunulur:
 

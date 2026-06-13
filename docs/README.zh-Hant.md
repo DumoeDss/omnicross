@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross` 接收一個入站 LLM 請求——OpenAI `/v1/chat/completions`、Anthropic `/v1/messages`、Gemini 等——判斷應由**哪個提供商、哪個帳號、哪個金鑰**來回應（你自己的 API 金鑰、多金鑰池，或訂閱 OAuth 身份），讓它穿過轉換器 + 驗證管線，再代理轉發到上游，並把回應**重新編碼回呼叫方所要求的協定格式**。
+**omnicross 讓你從同一個地方驅動所有 AI 應用程式和程式碼 CLI——使用你現有的訂閱或 API Key。**
+
+把 Claude Code、Codex、Gemini CLI——或任何走 OpenAI / Anthropic / Gemini 接口的應用程式——指向 omnicross，它就把每個請求路由到你選定的提供商和模型。你能做的事：
+
+- 直接用 **Claude / ChatGPT / Gemini 的訂閱登入**來跑，省掉按量計費的 API Key；
+- 把多個 API Key 組成金鑰池，自動輪換、失敗自動切換；
+- 讓一個只會說某一種接口的工具，照樣呼叫說別家接口的模型——omnicross 即時幫你把請求和回應互轉。
+
+這些全在一個桌面應用程式的圖形介面裡搞定，不用手改設定檔。
 
 它有幾種使用形態：
 

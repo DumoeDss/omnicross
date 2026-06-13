@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross` přijme příchozí LLM požadavek — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini a další — zjistí, **který poskytovatel, účet a klíč** by jej měl vyřídit (vaše vlastní API klíče, fond více klíčů nebo přihlašovací identita předplatného OAuth), provede jej transformačním a autentizačním kanálem a přesměruje ho na upstream — přičemž odpověď zpětně překóduje do drátového formátu, jaký volající požadoval.
+**omnicross pohání každou aplikaci AI a programovací CLI z jednoho místa — s vašimi stávajícími předplatnými nebo API klíči.**
+
+Nasměrujte Claude Code, Codex, Gemini CLI — nebo jakoukoli aplikaci, která mluví API OpenAI / Anthropic / Gemini — na omnicross a ten každý požadavek přesměruje na poskytovatele a model, který si vyberete. Co můžete dělat:
+
+- běžet na **přihlašovacím předplatném Claude / ChatGPT / Gemini**, bez průběžně účtovaných API klíčů;
+- sdružit více API klíčů do fondu klíčů s automatickým střídáním a přepnutím při selhání;
+- nechat nástroj, který mluví pouze jedním formátem API, volat model, který mluví jiným — omnicross přeloží požadavek i odpověď za běhu.
+
+To vše spravováno v grafickém rozhraní desktopové aplikace — bez ručního editování konfiguračních souborů.
 
 Je dostupný v několika podobách:
 

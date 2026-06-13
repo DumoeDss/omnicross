@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross` vastaanottaa saapuvan LLM-pyynnön — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini ja muut — selvittää **minkä palveluntarjoajan, tilin ja avaimen** tulisi vastata siihen (omat API-avaimesi, moniavainpooli tai tilauksen OAuth-identiteetti), ajaa sen muuntaja- ja todennusputkilinjan läpi, ja välittää sen ylävirtaan — koodaten vastauksen uudelleen siihen protokollamuotoon, jonka kutsuja pyysi.
+**omnicross hoitaa kaikki AI-sovellukset ja koodaus-CLI:t yhdestä paikasta — olemassa olevilla tilauksillasi tai API-avaimillasi.**
+
+Osoita Claude Code, Codex, Gemini CLI — tai mikä tahansa sovellus, joka puhuu OpenAI / Anthropic / Gemini -ohjelmointirajapintaa — omnicrossiin, ja se reitittää jokaisen pyynnön valitsemallesi palveluntarjoajalle ja mallille. Mitä voit tehdä:
+
+- käyttää **Claude / ChatGPT / Gemini -tilauskirjautumista** ajoympäristönä, ohittaen mittaroidut API Key -avaimet;
+- poolata useita API Key -avaimia automaattisella kierrätyksellä ja vikasiirrolla;
+- antaa vain yhtä ohjelmointirajapintamuotoa puhuvan työkalun kutsua toisen palveluntarjoajan mallia — omnicross kääntää pyynnön ja vastauksen lennossa.
+
+Kaikki tämä hallitaan työpöytäsovelluksen graafisesta käyttöliittymästä — ei käsin muokattavia konfigurointitiedostoja.
 
 Se toimitetaan muutamassa muodossa:
 

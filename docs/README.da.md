@@ -12,7 +12,15 @@
 
 ---
 
-`omnicross` modtager en indgående LLM-anmodning — OpenAI `/v1/chat/completions`, Anthropic `/v1/messages`, Gemini og flere — finder ud af **hvilken udbyder, konto og nøgle** der skal besvare den (dine egne API-nøgler, en multi-nøgle-pulje eller en abonnements-OAuth-identitet), sender den igennem en transformer- og auth-pipeline og proxyer den videre til upstream — og re-enkoder svaret tilbage til det trådformat, som kalderen anmodede om.
+**omnicross driver alle dine AI-apps og kodnings-CLI'er fra ét sted — med dine eksisterende abonnementer eller API-nøgler.**
+
+Peg Claude Code, Codex, Gemini CLI — eller enhver app, der taler OpenAI / Anthropic / Gemini API — mod omnicross, og den ruter hver anmodning til den udbyder og model, du vælger. Det kan du gøre:
+
+- køre på et **Claude / ChatGPT / Gemini-abonnementslogin** og springe forbrugsbaserede API-nøgler over;
+- samle mange API-nøgler i en nøglepulje med automatisk rotation og failover;
+- lade et værktøj, der kun taler ét API-format, kalde en model, der taler et andet — omnicross oversætter anmodningen og svaret i realtid.
+
+Alt sammen styret i en desktop-GUI — ingen manuel redigering af konfigurationsfiler.
 
 Det leveres i flere former:
 
