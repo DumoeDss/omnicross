@@ -22,7 +22,11 @@ export function getProviderHeaders(provider: LLMProvider, apiKey: string): Recor
     case 'anthropic':
       headers = {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        // Third-party Anthropic-Messages relays often gate on a Bearer token
+        // rather than x-api-key; `provider.useBearer` opts into that.
+        ...(provider.useBearer
+          ? { Authorization: `Bearer ${apiKey}` }
+          : { 'x-api-key': apiKey }),
         'anthropic-version': '2025-01-10', // Required for extended thinking feature
       };
       break;

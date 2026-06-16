@@ -179,6 +179,14 @@ export interface LLMProvider {
   modelGroups?: ModelGroup[];
   modelsEndpoint?: string;
   enabled: boolean;
+  /**
+   * For `apiFormat: 'anthropic'` providers, authenticate with
+   * `Authorization: Bearer <apiKey>` instead of the default `x-api-key` header.
+   * Set this for third-party Anthropic-Messages relays that gate on a Bearer
+   * token (the native/base header path; the transformer path uses the
+   * `UseBearer` transformer option independently).
+   */
+  useBearer?: boolean;
   transformer?: TransformerConfig;
   rerouterEnabled?: boolean;
   icon?: string;
