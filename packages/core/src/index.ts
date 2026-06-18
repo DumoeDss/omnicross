@@ -23,7 +23,13 @@ export type {
 } from './tool-types'
 
 // ── OpenRouter helpers (relocated from the host config-service) ──────────────
-export { isOpenRouterProvider, OPENROUTER_APP_HEADERS } from './openrouter'
+export {
+  getOpenRouterAppIdentity,
+  isOpenRouterProvider,
+  OPENROUTER_APP_HEADERS,
+  setOpenRouterAppIdentity,
+} from './openrouter'
+export type { OpenRouterAppIdentity } from './openrouter'
 
 // ── Host ports (core-owned interfaces the host implements) ───────────────────
 export type {

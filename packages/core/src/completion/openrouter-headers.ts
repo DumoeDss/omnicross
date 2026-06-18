@@ -2,20 +2,16 @@
  * OpenRouter request header / endpoint helpers.
  *
  * Shared by the multimodal subsystems (image / music / video / asr / tts) that
- * route through OpenRouter. The LLM side has its own header path via
- * `header-builder.ts` + `OPENROUTER_APP_HEADERS`; this helper exists so media
- * services don't need to depend on the LLM provider type.
+ * route through OpenRouter. The app-attribution headers (`HTTP-Referer` /
+ * `X-Title`) come from the single shared `OPENROUTER_APP_HEADERS` identity in
+ * `../openrouter` — the SAME source the LLM `header-builder` path uses — so a
+ * host embedder's boot-time `setOpenRouterAppIdentity` override is honored here
+ * too. This helper exists so media services don't need the LLM provider type.
  */
+
+import { OPENROUTER_APP_HEADERS } from '../openrouter';
 
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
-
-/**
- * Default HTTP-Referer / X-Title for every OpenRouter request the serving core
- * makes. OpenRouter uses these for app-stats attribution. A host embedder may
- * override the values it sends; these are the package defaults.
- */
-export const OPENROUTER_HTTP_REFERER = 'https://omnicross.dev';
-export const OPENROUTER_X_TITLE = 'Omnicross';
 
 export interface OpenRouterCredentialFields {
   apiKey?: string;
@@ -32,7 +28,9 @@ export interface OpenRouterHeaderOptions {
 /**
  * Build the standard OpenRouter request header set from a credential record.
  * Throws when `apiKey` is missing — every OpenRouter request requires one.
- * `HTTP-Referer` and `X-Title` are always hard-coded; not user-configurable.
+ * `HTTP-Referer` and `X-Title` come from the shared app-attribution identity
+ * (`OPENROUTER_APP_HEADERS`), overridable once at host boot via
+ * `setOpenRouterAppIdentity`.
  */
 export function buildOpenRouterHeaders(
   credentials: OpenRouterCredentialFields,
@@ -45,8 +43,7 @@ export function buildOpenRouterHeaders(
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey}`,
-    'HTTP-Referer': OPENROUTER_HTTP_REFERER,
-    'X-Title': OPENROUTER_X_TITLE,
+    ...OPENROUTER_APP_HEADERS,
   };
 
   if (options.contentType !== false) {
