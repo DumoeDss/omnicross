@@ -1,20 +1,25 @@
 /**
  * routeResolver — turn an endpoint's `EndpointRoutingConfig` + the detected
- * request role into a `RouteContext` for the shared `provider-proxy` dispatch
- * (`outbound-api-server`, design D2).
+ * request KIND (messages/responses) or ROLE (chat/gemini) into a `RouteContext`
+ * for the shared `provider-proxy` dispatch (`outbound-api-server`, design D1/D2).
  *
  * Steps:
- *  1. Pick the model for the role (vision → default fallback when `visionModel`
- *     is unset; vision is optional).
+ *  1. Pick the model ref: by model KIND for the kind-mapped endpoints
+ *     (`messages`/`responses`) via `modelMap[detectModelKind(...)]` with a
+ *     serving-owned fallback (messages: first configured of `sonnet → opus →
+ *     haiku → fable`; responses: `codex`); by ROLE (default/background) for the
+ *     role-based endpoints (`chat`/`gemini`). Vision was removed.
  *  2. Parse the chosen `"providerId,modelId"` ref.
  *  3. Gate by `useSubscription`: OFF → only BYO-key providers are eligible
  *     (subscription-backed providers excluded); ON → subscription-backed
  *     providers are eligible.
  *  4. Resolve the provider (BYO via the `ProviderConfigSource`; subscription via the
  *     subscription registry) and build the `RouteContext` exactly as the
- *     internal callers do.
- *  5. Return a clear `503`-style error when the role's required model is unset,
- *     the provider is unavailable, or the subscription gate excludes it.
+ *     internal callers do. For kind-mapped endpoints STAMP `route.requestedModel`
+ *     with the client's ORIGINAL requested id so the response `model` can be
+ *     passed through unchanged (the resident proxy leaves this unset).
+ *  5. Return a clear `503`-style error when the required model is unset, the
+ *     provider is unavailable, or the subscription gate excludes it.
  *
  * @module outbound-api/routeResolver
  */
@@ -27,10 +32,17 @@ import type {
   TargetProviderFormat,
 } from '../provider-proxy';
 
+import { detectModelKind, isKindMappedEndpoint } from './kindDetection';
 import { getSubscriptionRegistryForOutbound } from './subscriptionRegistryPort';
 // Shared SSOT for subscription-id classification + per-endpoint support (m1/M1).
 import { endpointSupportsSubscription, isSubscriptionProviderId } from './subscriptionSupport';
-import type { EndpointRoutingConfig, RequestRole } from './types';
+import type {
+  EndpointRoutingConfig,
+  KindMappedEndpoint,
+  MessagesModelKind,
+  ModelKind,
+  RequestRole,
+} from './types';
 
 export { isSubscriptionProviderId } from './subscriptionSupport';
 
@@ -57,55 +69,119 @@ export function parseModelRef(
   return { providerId, modelId };
 }
 
-/** Pick the role's configured model ref (with the vision→default fallback). */
+/**
+ * Serving-owned fallback order for a `messages` request whose id carries no
+ * recognizable kind token (a custom/unknown model). Prefers `sonnet` (the
+ * sensible general default), then `opus`, `haiku`, `fable`. Under the startup
+ * gate every declared kind is configured, so this effectively handles ONLY the
+ * no-kind case at runtime. Note this differs from the declared-kinds order in
+ * {@link ENDPOINT_MODEL_KINDS} on purpose.
+ */
+const MESSAGES_FALLBACK_ORDER: readonly MessagesModelKind[] = ['sonnet', 'opus', 'haiku', 'fable'];
+
+/** A ref counts as configured only when it is a non-empty trimmed string. */
+function isNonBlankRef(ref: unknown): ref is string {
+  return typeof ref === 'string' && ref.trim() !== '';
+}
+
+/** Pick the role's configured model ref (`chat`/`gemini`; vision removed). */
 function pickModelRefForRole(
   config: EndpointRoutingConfig,
   role: RequestRole,
 ): { ref: string | undefined; effectiveRole: RequestRole } {
-  if (role === 'vision') {
-    if (config.visionModel && config.visionModel.trim()) {
-      return { ref: config.visionModel, effectiveRole: 'vision' };
-    }
-    // Vision content but no vision model → fall back to default.
-    return { ref: config.defaultModel, effectiveRole: 'default' };
-  }
   if (role === 'background') {
     return { ref: config.backgroundModel, effectiveRole: 'background' };
   }
   return { ref: config.defaultModel, effectiveRole: 'default' };
 }
 
+/**
+ * Pick the model ref for a kind-mapped endpoint (`messages`/`responses`) via
+ * `modelMap[detectModelKind(...)]` with the serving-owned fallback (design D1):
+ *  - `messages`: use the detected kind's ref; when the id has NO kind (or that
+ *    kind's ref is blank) fall back to the first NON-BLANK of
+ *    {@link MESSAGES_FALLBACK_ORDER}; none configured → `undefined`.
+ *  - `responses`: use the detected kind's ref (`codex`/`mini`); when blank fall
+ *    back to `modelMap['codex']`; blank → `undefined`.
+ * `kind` reports the detected kind (or `'unmapped'` when none) for the 503 msg.
+ */
+function pickModelRefForKind(
+  config: EndpointRoutingConfig,
+  endpoint: KindMappedEndpoint,
+  requestedModel: string | undefined,
+): { ref: string | undefined; kind: ModelKind | 'unmapped' } {
+  const map = config.modelMap ?? {};
+  const detected = detectModelKind(endpoint, requestedModel);
+  const kind: ModelKind | 'unmapped' = detected ?? 'unmapped';
+
+  if (detected && isNonBlankRef(map[detected])) {
+    return { ref: map[detected], kind: detected };
+  }
+
+  if (endpoint === 'messages') {
+    for (const k of MESSAGES_FALLBACK_ORDER) {
+      if (isNonBlankRef(map[k])) return { ref: map[k], kind };
+    }
+    return { ref: undefined, kind };
+  }
+
+  // responses: fall back to the primary `codex` kind.
+  if (isNonBlankRef(map['codex'])) return { ref: map['codex'], kind };
+  return { ref: undefined, kind };
+}
+
 /** Resolve a route for one authenticated outbound request. */
 export async function resolveRoute(args: {
   config: EndpointRoutingConfig;
-  role: RequestRole;
+  /** Role for the role-based endpoints (`chat`/`gemini`); ignored (optional) for kind-mapped ones. */
+  role?: RequestRole;
   ingressFormat: IngressFormat;
   llmConfig: ProviderConfigSource;
   sessionId?: string | null;
+  /**
+   * The client's ORIGINAL requested model id. For kind-mapped endpoints it
+   * selects the model KIND AND is stamped onto `route.requestedModel` so the
+   * response `model` passes through unchanged. Ignored for role-based endpoints.
+   */
+  requestedModel?: string;
 }): Promise<RouteResolveResult> {
-  const { config, role, ingressFormat, llmConfig } = args;
+  const { config, ingressFormat, llmConfig } = args;
   const sessionId = args.sessionId ?? null;
+  // Local const so the aliased type-guard narrows `endpoint` to `KindMappedEndpoint`.
+  const endpoint = config.endpoint;
+  const kindMapped = isKindMappedEndpoint(endpoint);
+  // Stamp the passthrough id for kind-mapped endpoints ONLY (the resident proxy
+  // route-minting path never sets `requestedModel`, so internal traffic is never
+  // rewritten).
+  const requestedModel = kindMapped ? args.requestedModel : undefined;
 
-  const { ref, effectiveRole } = pickModelRefForRole(config, role);
+  // Pick the model ref: by KIND (messages/responses) or by ROLE (chat/gemini).
+  let ref: string | undefined;
+  let effectiveRole: RequestRole = 'default';
+  let noModelMessage: string;
+  let malformedMessage: (r: string) => string;
+  if (kindMapped) {
+    const picked = pickModelRefForKind(config, endpoint, args.requestedModel);
+    ref = picked.ref;
+    noModelMessage = `endpoint '${config.endpoint}' has no model configured for kind '${picked.kind}'`;
+    malformedMessage = (r) =>
+      `endpoint '${config.endpoint}' model ref for kind '${picked.kind}' is malformed: '${r}'`;
+  } else {
+    const picked = pickModelRefForRole(config, args.role ?? 'default');
+    ref = picked.ref;
+    effectiveRole = picked.effectiveRole;
+    noModelMessage = `endpoint '${config.endpoint}' has no ${effectiveRole} model configured`;
+    malformedMessage = (r) =>
+      `endpoint '${config.endpoint}' ${effectiveRole} model ref is malformed: '${r}'`;
+  }
+
   if (!ref || !ref.trim()) {
-    return {
-      ok: false,
-      error: {
-        status: 503,
-        message: `endpoint '${config.endpoint}' has no ${effectiveRole} model configured`,
-      },
-    };
+    return { ok: false, error: { status: 503, message: noModelMessage } };
   }
 
   const parsed = parseModelRef(ref);
   if (!parsed) {
-    return {
-      ok: false,
-      error: {
-        status: 503,
-        message: `endpoint '${config.endpoint}' ${effectiveRole} model ref is malformed: '${ref}'`,
-      },
-    };
+    return { ok: false, error: { status: 503, message: malformedMessage(ref) } };
   }
 
   const { providerId, modelId } = parsed;
@@ -128,6 +204,7 @@ export async function resolveRoute(args: {
         ingressFormat,
         sessionId,
         effectiveRole,
+        requestedModel,
       });
     }
     return {
@@ -164,6 +241,8 @@ export async function resolveRoute(args: {
     ingressFormat,
     authMode: 'byo',
     providerId,
+    // Passthrough gate: the client's ORIGINAL requested id (kind-mapped only).
+    requestedModel,
     anthropicSdkHints,
   };
 
@@ -197,8 +276,11 @@ async function resolveSubscriptionRoute(args: {
   ingressFormat: IngressFormat;
   sessionId: string | null;
   effectiveRole: RequestRole;
+  /** The client's ORIGINAL requested id (kind-mapped endpoints only). */
+  requestedModel: string | undefined;
 }): Promise<RouteResolveResult> {
   const { config, providerId, modelId, ingressFormat, sessionId, effectiveRole } = args;
+  const { requestedModel } = args;
 
   // Gate 1: per-endpoint opt-in.
   if (!config.useSubscription) {
@@ -263,6 +345,8 @@ async function resolveSubscriptionRoute(args: {
     ingressFormat,
     authMode: 'subscription',
     providerId,
+    // Passthrough gate: the client's ORIGINAL requested id (kind-mapped only).
+    requestedModel,
     // Anthropic delegation carries the dispatch profile inside
     // `anthropicSdkHints.subscriptionProfile`. The Responses ingress reads the
     // TOP-LEVEL `route.subscriptionProfile`, and so does the built-in

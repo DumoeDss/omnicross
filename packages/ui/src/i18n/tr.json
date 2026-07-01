@@ -549,13 +549,22 @@
       },
       "defaultModel": "Varsayılan model",
       "backgroundModel": "Arka plan modeli",
-      "visionModel": "Görsel model",
-      "noVisionModel": "Yok",
       "backgroundModelIds": "Arka plan model kimlikleri",
       "backgroundModelIdsPlaceholder": "virgülle ayrılmış model kimlikleri",
       "modelPlaceholder": "Bir model seçin…",
       "useSubscription": "Abonelik kullan",
-      "subscriptionUnsupported": "Bu endpoint için abonelik yönlendirmesi mevcut değil."
+      "subscriptionUnsupported": "Bu endpoint için abonelik yönlendirmesi mevcut değil.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Erişim anahtarları",

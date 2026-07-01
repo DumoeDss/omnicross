@@ -549,13 +549,22 @@
       },
       "defaultModel": "Model implicit",
       "backgroundModel": "Model de fundal",
-      "visionModel": "Model de viziune",
-      "noVisionModel": "Niciunul",
       "backgroundModelIds": "ID-uri model de fundal",
       "backgroundModelIdsPlaceholder": "id-uri modele separate prin virgulă",
       "modelPlaceholder": "Selectați un model…",
       "useSubscription": "Folosiți abonament",
-      "subscriptionUnsupported": "Rutarea prin abonament nu este disponibilă pentru acest endpoint."
+      "subscriptionUnsupported": "Rutarea prin abonament nu este disponibilă pentru acest endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Chei de acces",

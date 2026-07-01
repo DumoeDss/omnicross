@@ -549,13 +549,22 @@
       },
       "defaultModel": "Modello predefinito",
       "backgroundModel": "Modello sfondo",
-      "visionModel": "Modello Vision",
-      "noVisionModel": "Nessuno",
       "backgroundModelIds": "ID modelli sfondo",
       "backgroundModelIdsPlaceholder": "ID modelli separati da virgola",
       "modelPlaceholder": "Seleziona un modello…",
       "useSubscription": "Usa abbonamento",
-      "subscriptionUnsupported": "Il routing per abbonamento non è disponibile per questo endpoint."
+      "subscriptionUnsupported": "Il routing per abbonamento non è disponibile per questo endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Chiavi di accesso",

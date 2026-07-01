@@ -23,30 +23,63 @@ export type OutboundEndpoint = 'chat' | 'responses' | 'messages' | 'gemini';
 /** A `"providerId,modelId"` model reference (mirrors `RouterConfig` vocab). */
 export type ModelRef = string;
 
-/** The detected request role; precedence vision > background > default. */
-export type RequestRole = 'vision' | 'background' | 'default';
+/** The detected request role; precedence background > default. */
+export type RequestRole = 'background' | 'default';
+
+/**
+ * SSOT of the canonical model KINDS per kind-mapped endpoint.
+ *
+ * The `messages` (Claude Code) and `responses` (Codex) endpoints route by model
+ * KIND rather than role: the user configures one upstream ref per kind, and an
+ * incoming versioned client id (`claude-opus-4-8-2026xxxx`) is classified to its
+ * kind (`opus`) so CLI upgrades need no reconfig. `chat`/`gemini` are NOT in this
+ * map — they keep the role-based (`default`/`background`) config.
+ */
+export const ENDPOINT_MODEL_KINDS = {
+  messages: ['fable', 'opus', 'sonnet', 'haiku'],
+  responses: ['codex', 'mini'],
+} as const;
+
+/** The endpoints that route by model kind (`messages` | `responses`). */
+export type KindMappedEndpoint = keyof typeof ENDPOINT_MODEL_KINDS;
+/** Claude Code (`messages`) kinds. */
+export type MessagesModelKind = (typeof ENDPOINT_MODEL_KINDS)['messages'][number];
+/** Codex (`responses`) kinds. */
+export type ResponsesModelKind = (typeof ENDPOINT_MODEL_KINDS)['responses'][number];
+/** Any canonical model kind across the kind-mapped endpoints. */
+export type ModelKind = MessagesModelKind | ResponsesModelKind;
 
 /**
  * Per-endpoint routing config. Persisted independently of the global
  * "默认模型" settings tab; survives restart.
+ *
+ * The shape is HETEROGENEOUS by endpoint class:
+ *  - kind-mapped (`messages`/`responses`): `modelMap` (kind → ref) is authoritative;
+ *    `defaultModel`/`backgroundModel`/`backgroundModelIds` are unused.
+ *  - role-based (`chat`/`gemini`): `defaultModel`/`backgroundModel` (+ optional
+ *    `backgroundModelIds`) are authoritative; `modelMap` is unused.
  */
 export interface EndpointRoutingConfig {
   /** Which of the four endpoints this block configures. */
   endpoint: OutboundEndpoint;
-  /** REQUIRED — model for normal (non-vision, non-background) requests. */
-  defaultModel: ModelRef;
-  /** REQUIRED — model for background/probe/small-task requests. */
-  backgroundModel: ModelRef;
-  /** OPTIONAL — model for requests carrying image/vision content. */
-  visionModel?: ModelRef;
+  /**
+   * Kind-mapped endpoints (`messages`/`responses`): model KIND → `"providerId,modelId"`.
+   * Keys are the endpoint's declared {@link ENDPOINT_MODEL_KINDS}.
+   */
+  modelMap?: Record<string, ModelRef>;
+  /** Role-based endpoints (`chat`/`gemini`): model for normal requests. */
+  defaultModel?: ModelRef;
+  /** Role-based endpoints (`chat`/`gemini`): model for background/probe requests. */
+  backgroundModel?: ModelRef;
   /** Gates subscription-vs-BYO provider selection. Default FALSE. */
   useSubscription: boolean;
   /**
-   * OPTIONAL per-endpoint "background model id" override list (human decision
-   * after the proposal). When set, an incoming requested model id appearing in
-   * this list is classified as the BACKGROUND role; otherwise the registry
-   * small/haiku-class signal is the baseline. Empty/unset → registry signal
-   * only. Compared against the requested model id (bare or `providerId,modelId`).
+   * OPTIONAL per-endpoint "background model id" override list (role-based
+   * `chat`/`gemini` only, human decision after the proposal). When set, an
+   * incoming requested model id appearing in this list is classified as the
+   * BACKGROUND role; otherwise the registry small/haiku-class signal is the
+   * baseline. Empty/unset → registry signal only. Compared against the requested
+   * model id (bare or `providerId,modelId`).
    */
   backgroundModelIds?: string[];
 }

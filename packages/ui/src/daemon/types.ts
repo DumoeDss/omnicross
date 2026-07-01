@@ -33,6 +33,7 @@ import type {
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
+  OutboundModelConfigError,
 } from './types-server';
 
 export type * from './types-server';
@@ -42,6 +43,13 @@ export type * from './types-accounts';
 export interface MutationResult {
   success: boolean;
   message?: string;
+  /**
+   * Present ONLY when a `/server` enable PUT was rejected because a kind-mapped
+   * endpoint is missing required model mappings (`incomplete-model-config`). The
+   * page surfaces this as the "service can't start" prompt; the partial config is
+   * still persisted daemon-side. Absent on ordinary success/failure.
+   */
+  missing?: OutboundModelConfigError[];
 }
 
 // ── Daemon wire DTOs ────────────────────────────────────────────────────────────

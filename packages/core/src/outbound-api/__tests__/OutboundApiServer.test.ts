@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { formatUrls, OutboundApiServer } from '../OutboundApiServer';
+import { formatUrls, OutboundApiConfigError, OutboundApiServer } from '../OutboundApiServer';
 import type { EndpointRoutingConfig, OutboundApiDeps } from '../types';
 
 /** Minimal deps — no request will be dispatched in these lifecycle tests. */
@@ -16,10 +16,20 @@ const deps = {
   proxyDeps: {} as OutboundApiDeps['proxyDeps'],
 } as OutboundApiDeps;
 
+// COMPLETE kind maps for the kind-mapped endpoints so the startup gate (design
+// D6) is satisfied and the lifecycle tests can bind; chat/gemini stay role-based.
 const endpoints: EndpointRoutingConfig[] = [
   { endpoint: 'chat', defaultModel: 'p,m', backgroundModel: 'p,m', useSubscription: false },
-  { endpoint: 'responses', defaultModel: 'p,m', backgroundModel: 'p,m', useSubscription: false },
-  { endpoint: 'messages', defaultModel: 'p,m', backgroundModel: 'p,m', useSubscription: false },
+  {
+    endpoint: 'responses',
+    modelMap: { codex: 'p,m', mini: 'p,m' },
+    useSubscription: false,
+  },
+  {
+    endpoint: 'messages',
+    modelMap: { fable: 'p,m', opus: 'p,m', sonnet: 'p,m', haiku: 'p,m' },
+    useSubscription: false,
+  },
   { endpoint: 'gemini', defaultModel: 'p,m', backgroundModel: 'p,m', useSubscription: false },
 ];
 
@@ -68,6 +78,86 @@ describe('OutboundApiServer', () => {
     await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
     expect(server.getStatus().running).toBe(true);
     await server.applyConfig({ enabled: false, networkBinding: false, endpoints, port: 0 });
+    expect(server.getStatus().running).toBe(false);
+  });
+});
+
+describe('OutboundApiServer — startup gate (design D6)', () => {
+  // A messages endpoint missing `haiku` + a responses endpoint missing `mini`.
+  const incompleteEndpoints: EndpointRoutingConfig[] = [
+    { endpoint: 'chat', defaultModel: 'p,m', backgroundModel: 'p,m', useSubscription: false },
+    { endpoint: 'responses', modelMap: { codex: 'p,m' }, useSubscription: false },
+    {
+      endpoint: 'messages',
+      modelMap: { fable: 'p,m', opus: 'p,m', sonnet: 'p,m' },
+      useSubscription: false,
+    },
+    { endpoint: 'gemini', defaultModel: 'p,m', backgroundModel: 'p,m', useSubscription: false },
+  ];
+
+  it('enable with an incomplete kind map → throws OutboundApiConfigError, server not running', async () => {
+    server = new OutboundApiServer(deps);
+    await expect(
+      server.applyConfig({ enabled: true, networkBinding: false, endpoints: incompleteEndpoints, port: 0 }),
+    ).rejects.toBeInstanceOf(OutboundApiConfigError);
+    expect(server.getStatus().running).toBe(false);
+  });
+
+  it('the thrown error carries the per-endpoint missing kinds', async () => {
+    server = new OutboundApiServer(deps);
+    let caught: unknown;
+    try {
+      await server.applyConfig({ enabled: true, networkBinding: false, endpoints: incompleteEndpoints, port: 0 });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(OutboundApiConfigError);
+    const missing = (caught as OutboundApiConfigError).missing;
+    // Endpoint order follows ENDPOINT_MODEL_KINDS (messages before responses).
+    expect(missing).toEqual([
+      { endpoint: 'messages', missingKinds: ['haiku'] },
+      { endpoint: 'responses', missingKinds: ['mini'] },
+    ]);
+  });
+
+  it('enable with COMPLETE maps binds normally', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    expect(server.getStatus().running).toBe(true);
+  });
+
+  it('a RUNNING server that receives an enabled+incomplete config tears down (stops serving)', async () => {
+    server = new OutboundApiServer(deps);
+    // Bind with a complete config first.
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    expect(server.getStatus().running).toBe(true);
+    // A re-apply that leaves it enabled but incomplete must THROW and STOP the
+    // live listener (live state matches the "cannot start" the UI shows).
+    await expect(
+      server.applyConfig({ enabled: true, networkBinding: false, endpoints: incompleteEndpoints, port: 0 }),
+    ).rejects.toBeInstanceOf(OutboundApiConfigError);
+    expect(server.getStatus().running).toBe(false);
+  });
+
+  it('boot with an incomplete config stays stopped when the caller catches the throw', async () => {
+    // Mirrors the boot enable path: try/catch → log → leave the server stopped.
+    server = new OutboundApiServer(deps);
+    let bootError: OutboundApiConfigError | null = null;
+    try {
+      await server.applyConfig({ enabled: true, networkBinding: false, endpoints: incompleteEndpoints, port: 0 });
+    } catch (err) {
+      if (err instanceof OutboundApiConfigError) bootError = err;
+      else throw err;
+    }
+    expect(bootError).not.toBeNull();
+    expect(server.getStatus().running).toBe(false);
+  });
+
+  it('a DISABLED server with an incomplete config does NOT throw (gate only on enable)', async () => {
+    server = new OutboundApiServer(deps);
+    await expect(
+      server.applyConfig({ enabled: false, networkBinding: false, endpoints: incompleteEndpoints, port: 0 }),
+    ).resolves.toBeUndefined();
     expect(server.getStatus().running).toBe(false);
   });
 });

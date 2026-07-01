@@ -549,13 +549,22 @@
       },
       "defaultModel": "Modèle par défaut",
       "backgroundModel": "Modèle d'arrière-plan",
-      "visionModel": "Modèle Vision",
-      "noVisionModel": "Aucun",
       "backgroundModelIds": "IDs des modèles d'arrière-plan",
       "backgroundModelIdsPlaceholder": "IDs de modèles séparés par des virgules",
       "modelPlaceholder": "Sélectionner un modèle…",
       "useSubscription": "Utiliser l'abonnement",
-      "subscriptionUnsupported": "Le routage par abonnement n'est pas disponible pour cet endpoint."
+      "subscriptionUnsupported": "Le routage par abonnement n'est pas disponible pour cet endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Clés d'accès",

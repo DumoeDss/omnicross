@@ -549,13 +549,22 @@
       },
       "defaultModel": "默认模型",
       "backgroundModel": "后台模型",
-      "visionModel": "视觉模型",
-      "noVisionModel": "无",
       "backgroundModelIds": "后台模型 ID",
       "backgroundModelIdsPlaceholder": "以逗号分隔的模型 id",
       "modelPlaceholder": "选择模型…",
       "useSubscription": "使用订阅",
-      "subscriptionUnsupported": "此端点不支持订阅路由。"
+      "subscriptionUnsupported": "此端点不支持订阅路由。",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "按模型种类映射",
+      "cannotStart": "接口服务无法启动：缺少模型映射配置",
+      "missingKind": "必填"
     },
     "keys": {
       "title": "访问密钥",

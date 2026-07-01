@@ -549,13 +549,22 @@
       },
       "defaultModel": "โมเดลเริ่มต้น",
       "backgroundModel": "โมเดลพื้นหลัง",
-      "visionModel": "โมเดล Vision",
-      "noVisionModel": "ไม่มี",
       "backgroundModelIds": "ID โมเดลพื้นหลัง",
       "backgroundModelIdsPlaceholder": "ID โมเดลคั่นด้วยจุลภาค",
       "modelPlaceholder": "เลือกโมเดล…",
       "useSubscription": "ใช้ subscription",
-      "subscriptionUnsupported": "ยังไม่รองรับ subscription routing สำหรับ endpoint นี้"
+      "subscriptionUnsupported": "ยังไม่รองรับ subscription routing สำหรับ endpoint นี้",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Access key",

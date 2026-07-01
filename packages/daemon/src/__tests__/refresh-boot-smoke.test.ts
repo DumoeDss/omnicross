@@ -120,7 +120,8 @@ function writeConfig(configPath: string): void {
           networkBinding: false,
           port: 0,
           endpoints: [
-            { endpoint: 'responses', defaultModel: 'codex,gpt-5-codex', backgroundModel: 'codex,gpt-5-codex', useSubscription: true },
+            { endpoint: 'responses', modelMap: { codex: 'codex,gpt-5-codex', mini: 'codex,gpt-5-codex' }, useSubscription: true },
+            { endpoint: 'messages', modelMap: { fable: 'codex,gpt-5-codex', opus: 'codex,gpt-5-codex', sonnet: 'codex,gpt-5-codex', haiku: 'codex,gpt-5-codex' }, useSubscription: false },
           ],
         },
       },

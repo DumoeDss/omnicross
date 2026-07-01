@@ -26,9 +26,10 @@ import { serializeError } from '@omnicross/core/serializeError';
 
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
+import { isKindMappedEndpoint } from './kindDetection';
 import { verifyPresentedKey } from './outboundApiKeyAuth';
 import type { OutboundRateLimiter } from './outboundRateLimiter';
-import { detectRequestRole, endpointToIngressFormat } from './roleDetection';
+import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
 import { resolveRoute } from './routeResolver';
 import type { EndpointRoutingConfig, OutboundApiDeps, OutboundEndpoint } from './types';
 
@@ -180,24 +181,39 @@ export async function handleOutboundRequest(
     if (urlModel) parsedBody['model'] = urlModel;
   }
 
-  const role = detectRequestRole(ingressFormat, parsedBody, {
-    backgroundModelIds: endpointConfig.backgroundModelIds,
-  });
-  const resolved = await resolveRoute({
-    config: endpointConfig,
-    role,
-    ingressFormat,
-    llmConfig: deps.llmConfig,
-    // pool-seam (omnicross-daemon-parity-poolseam, design D1/D2(a)): synthesize a
-    // STABLE per-verified-key sessionId so the BYO ingress can seed a pool session
-    // binding and 429/529/401/403 failover actually fires. Synthesize ONLY when
-    // the pool is wired — pool-null embedders/tests keep `route.sessionId === null`
-    // (byte-identical to pre-seam). The `outbound:` prefix is namespace-isolated
-    // from real chat-session ids; `verified.id` is a small operator-controlled set,
-    // so `sessionBindings` stays bounded (one binding per named key, not per
-    // request — `sessionBindings` has no TTL).
-    sessionId: deps.proxyDeps.apiKeyPool ? `outbound:${verified.id}` : null,
-  });
+  // pool-seam (omnicross-daemon-parity-poolseam, design D1/D2(a)): synthesize a
+  // STABLE per-verified-key sessionId so the BYO ingress can seed a pool session
+  // binding and 429/529/401/403 failover actually fires. Synthesize ONLY when
+  // the pool is wired — pool-null embedders/tests keep `route.sessionId === null`
+  // (byte-identical to pre-seam). The `outbound:` prefix is namespace-isolated
+  // from real chat-session ids; `verified.id` is a small operator-controlled set,
+  // so `sessionBindings` stays bounded (one binding per named key, not per
+  // request — `sessionBindings` has no TTL).
+  const sessionId = deps.proxyDeps.apiKeyPool ? `outbound:${verified.id}` : null;
+
+  // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
+  // (`messages`/`responses`) route by model KIND and carry the client's original
+  // requested id through to the response `model` passthrough; the role-based
+  // endpoints (`chat`/`gemini`) keep detecting default/background.
+  const resolved = isKindMappedEndpoint(endpoint)
+    ? await resolveRoute({
+        config: endpointConfig,
+        ingressFormat,
+        llmConfig: deps.llmConfig,
+        sessionId,
+        // Capture the ORIGINAL requested id BEFORE any downstream swap; this both
+        // selects the kind AND is stamped onto `route.requestedModel`.
+        requestedModel: extractRequestedModel(ingressFormat, parsedBody),
+      })
+    : await resolveRoute({
+        config: endpointConfig,
+        role: detectRequestRole(ingressFormat, parsedBody, {
+          backgroundModelIds: endpointConfig.backgroundModelIds,
+        }),
+        ingressFormat,
+        llmConfig: deps.llmConfig,
+        sessionId,
+      });
   if (!resolved.ok) {
     writeJsonError(res, resolved.error.status, resolved.error.message);
     return;

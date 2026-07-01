@@ -549,13 +549,22 @@
       },
       "defaultModel": "Модель по умолчанию",
       "backgroundModel": "Фоновая модель",
-      "visionModel": "Модель зрения",
-      "noVisionModel": "Нет",
       "backgroundModelIds": "Идентификаторы фоновых моделей",
       "backgroundModelIdsPlaceholder": "идентификаторы моделей через запятую",
       "modelPlaceholder": "Выберите модель…",
       "useSubscription": "Использовать подписку",
-      "subscriptionUnsupported": "Маршрутизация по подписке недоступна для этой конечной точки."
+      "subscriptionUnsupported": "Маршрутизация по подписке недоступна для этой конечной точки.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Ключи доступа",

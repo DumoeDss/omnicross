@@ -549,13 +549,22 @@
       },
       "defaultModel": "기본 모델",
       "backgroundModel": "백그라운드 모델",
-      "visionModel": "비전 모델",
-      "noVisionModel": "없음",
       "backgroundModelIds": "백그라운드 모델 ID",
       "backgroundModelIdsPlaceholder": "쉼표로 구분된 모델 ID",
       "modelPlaceholder": "모델 선택…",
       "useSubscription": "구독 사용",
-      "subscriptionUnsupported": "이 엔드포인트는 구독 라우팅을 지원하지 않습니다."
+      "subscriptionUnsupported": "이 엔드포인트는 구독 라우팅을 지원하지 않습니다.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "액세스 키",

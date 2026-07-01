@@ -549,13 +549,22 @@
       },
       "defaultModel": "Alapértelmezett modell",
       "backgroundModel": "Háttérmodell",
-      "visionModel": "Látási modell",
-      "noVisionModel": "Nincs",
       "backgroundModelIds": "Háttérmodellek azonosítói",
       "backgroundModelIdsPlaceholder": "vesszővel elválasztott modellazonosítók",
       "modelPlaceholder": "Válasszon modellt…",
       "useSubscription": "Előfizetés használata",
-      "subscriptionUnsupported": "Az előfizetési útválasztás ehhez a végponthoz nem érhető el."
+      "subscriptionUnsupported": "Az előfizetési útválasztás ehhez a végponthoz nem érhető el.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Hozzáférési kulcsok",

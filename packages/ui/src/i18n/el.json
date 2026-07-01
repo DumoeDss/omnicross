@@ -549,13 +549,22 @@
       },
       "defaultModel": "Προεπιλεγμένο μοντέλο",
       "backgroundModel": "Μοντέλο παρασκηνίου",
-      "visionModel": "Μοντέλο vision",
-      "noVisionModel": "Κανένα",
       "backgroundModelIds": "IDs μοντέλων παρασκηνίου",
       "backgroundModelIdsPlaceholder": "IDs μοντέλων διαχωρισμένα με κόμμα",
       "modelPlaceholder": "Επιλέξτε μοντέλο…",
       "useSubscription": "Χρήση subscription",
-      "subscriptionUnsupported": "Η δρομολόγηση subscription δεν είναι διαθέσιμη για αυτό το endpoint."
+      "subscriptionUnsupported": "Η δρομολόγηση subscription δεν είναι διαθέσιμη για αυτό το endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Access keys",

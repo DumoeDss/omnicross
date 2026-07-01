@@ -549,13 +549,22 @@
       },
       "defaultModel": "Model lalai",
       "backgroundModel": "Model latar belakang",
-      "visionModel": "Model penglihatan",
-      "noVisionModel": "Tiada",
       "backgroundModelIds": "ID model latar belakang",
       "backgroundModelIdsPlaceholder": "id model dipisahkan koma",
       "modelPlaceholder": "Pilih model…",
       "useSubscription": "Gunakan langganan",
-      "subscriptionUnsupported": "Penghalaan langganan tidak tersedia untuk endpoint ini."
+      "subscriptionUnsupported": "Penghalaan langganan tidak tersedia untuk endpoint ini.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Kunci akses",

@@ -112,7 +112,12 @@ export async function handleAnthropicMessagesByo(
         ? await runPipelineWithSubscriptionRetry(anthropicBody, rawBody, plan, route, deps)
         : await runPipelineWithPoolReporting(anthropicBody, rawBody, plan, options);
 
-    const bodyText = await relayResponse(res, providerResponse.response, isStream);
+    // Passthrough (design D4): rewrite the response `model` back to the client's
+    // ORIGINAL requested id (`route.requestedModel`) so Claude Code sees
+    // `claude-opus-4-8-…` rather than the upstream provider model. `undefined`
+    // for internal / delegated traffic ⇒ byte-identical. Usage accounting STAYS
+    // on the upstream `plan.resolvedModel`.
+    const bodyText = await relayResponse(res, providerResponse.response, isStream, route.requestedModel);
     if (bodyText && deps.usageRecorder) {
       recordAnthropicNonStreamUsage(deps.usageRecorder, bodyText, {
         sessionId: route.sessionId,
@@ -216,7 +221,7 @@ async function buildByoPlan(
  * `runPipelineWithPoolReporting`, so ApiKeyPool failover is preserved.
  */
 async function runSameFormatFetch(
-  rawBody: string,
+  bodyToSend: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions,
   keyOverride?: string,
@@ -253,8 +258,34 @@ async function runSameFormatFetch(
 
   const url = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);
-  const response = await fetch(url, { method: 'POST', headers, body: rawBody });
+  const response = await fetch(url, { method: 'POST', headers, body: bodyToSend });
   return { response, rawStatus: response.status };
+}
+
+/**
+ * The verbatim same-format request body (design D5 / research §5.4). A
+ * third-party `anthropic`-wire upstream must receive the RESOLVED provider model,
+ * not the client's original id. When the route mapped the client model to a
+ * DIFFERENT provider model, POST the re-serialized `anthropicBody` (whose `model`
+ * is already `plan.resolvedModel`); otherwise keep the raw client bytes VERBATIM
+ * so true Anthropic pass-through (incl. internal resident-proxy same-format
+ * traffic, where the model is unchanged) stays byte-identical. The JSON
+ * round-trip preserves Anthropic server-tool `type` fields (this is NOT the
+ * unified pivot), so no field stripping occurs.
+ */
+function resolveSameFormatBody(
+  anthropicBody: Record<string, unknown>,
+  rawBody: string,
+  plan: AnthropicCallPlan,
+): string {
+  let originalModel: string | undefined;
+  try {
+    const m = (JSON.parse(rawBody) as Record<string, unknown>).model;
+    originalModel = typeof m === 'string' ? m : undefined;
+  } catch {
+    originalModel = undefined;
+  }
+  return plan.resolvedModel !== originalModel ? JSON.stringify(anthropicBody) : rawBody;
 }
 
 /**
@@ -273,11 +304,17 @@ async function runPipelineWithPoolReporting(
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions,
 ): Promise<{ response: Response; rawStatus: number | null }> {
+  // D5: on the verbatim same-format path, POST the resolved provider model when
+  // the route remapped it (else the raw client bytes verbatim). Computed once so
+  // an ApiKeyPool rebind retry re-sends the identical body.
+  const sameFormatBody = plan.sameFormat
+    ? resolveSameFormatBody(anthropicBody, rawBody, plan)
+    : rawBody;
   const runOnce = (
     keyOverride?: string,
   ): Promise<{ response: Response; rawStatus: number | null }> =>
     plan.sameFormat
-      ? runSameFormatFetch(rawBody, plan, options, keyOverride)
+      ? runSameFormatFetch(sameFormatBody, plan, options, keyOverride)
       : runPipeline(anthropicBody, plan);
 
   const first = await runOnce();

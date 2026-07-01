@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { EndpointRoutingCard } from './EndpointRoutingCard';
+import { missingKindsByEndpoint } from './endpointKinds';
 import { useApiService } from './hooks/useApiService';
 import { KeyManagementSection } from './KeyManagementSection';
 import { ServerStatusBanner } from './ServerStatusBanner';
@@ -66,6 +67,31 @@ export function ApiServicePage() {
                   {error}
                 </p>
               ) : null}
+
+              {(() => {
+                // Client-side "service can't start" prompt: when the server is
+                // enabled but a kind-mapped endpoint is missing required
+                // mappings, the daemon's startup gate refuses to bind. Mirror
+                // that here (identifying each endpoint + its missing kinds).
+                const incomplete = missingKindsByEndpoint(config.endpoints);
+                if (!config.enabled || incomplete.length === 0) return null;
+                return (
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <div className="space-y-1">
+                      <p className="font-medium">{t('apiService.endpoint.cannotStart')}</p>
+                      <ul className="space-y-0.5">
+                        {incomplete.map((e) => (
+                          <li key={e.endpoint}>
+                            {t(`apiService.endpoint.name.${e.endpoint}`)}:{' '}
+                            {e.missingKinds.map((k) => t(`apiService.endpoint.kind.${k}`)).join(', ')}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 <SettingRow

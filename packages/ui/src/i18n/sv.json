@@ -549,13 +549,22 @@
       },
       "defaultModel": "Standardmodell",
       "backgroundModel": "Bakgrundsmodell",
-      "visionModel": "Visionsmodell",
-      "noVisionModel": "Ingen",
       "backgroundModelIds": "Bakgrundsmodell-ID:n",
       "backgroundModelIdsPlaceholder": "kommaseparerade modell-ID:n",
       "modelPlaceholder": "Välj en modell…",
       "useSubscription": "Använd prenumeration",
-      "subscriptionUnsupported": "Prenumerationsrouting är inte tillgänglig för den här slutpunkten."
+      "subscriptionUnsupported": "Prenumerationsrouting är inte tillgänglig för den här slutpunkten.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Åtkomstnycklar",

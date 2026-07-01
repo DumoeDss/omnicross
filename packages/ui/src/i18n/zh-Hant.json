@@ -549,13 +549,22 @@
       },
       "defaultModel": "預設模型",
       "backgroundModel": "背景模型",
-      "visionModel": "視覺模型",
-      "noVisionModel": "無",
       "backgroundModelIds": "背景模型 ID",
       "backgroundModelIdsPlaceholder": "以逗號分隔的模型 ID",
       "modelPlaceholder": "選取模型…",
       "useSubscription": "使用訂閱",
-      "subscriptionUnsupported": "此端點不支援訂閱路由。"
+      "subscriptionUnsupported": "此端點不支援訂閱路由。",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "按模型種類映射",
+      "cannotStart": "接口服務無法啟動：缺少模型映射配置",
+      "missingKind": "必填"
     },
     "keys": {
       "title": "存取金鑰",

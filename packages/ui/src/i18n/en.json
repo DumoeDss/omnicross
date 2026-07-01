@@ -549,13 +549,22 @@
       },
       "defaultModel": "Default model",
       "backgroundModel": "Background model",
-      "visionModel": "Vision model",
-      "noVisionModel": "None",
       "backgroundModelIds": "Background model IDs",
       "backgroundModelIdsPlaceholder": "comma-separated model ids",
       "modelPlaceholder": "Select a model…",
       "useSubscription": "Use subscription",
-      "subscriptionUnsupported": "Subscription routing is not available for this endpoint."
+      "subscriptionUnsupported": "Subscription routing is not available for this endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Access keys",

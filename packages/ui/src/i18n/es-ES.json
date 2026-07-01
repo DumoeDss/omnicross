@@ -549,13 +549,22 @@
       },
       "defaultModel": "Modelo predeterminado",
       "backgroundModel": "Modelo de fondo",
-      "visionModel": "Modelo de visión",
-      "noVisionModel": "Ninguno",
       "backgroundModelIds": "IDs de modelos de fondo",
       "backgroundModelIdsPlaceholder": "IDs de modelos separados por comas",
       "modelPlaceholder": "Selecciona un modelo…",
       "useSubscription": "Usar suscripción",
-      "subscriptionUnsupported": "El enrutamiento por suscripción no está disponible para este endpoint."
+      "subscriptionUnsupported": "El enrutamiento por suscripción no está disponible para este endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Claves de acceso",

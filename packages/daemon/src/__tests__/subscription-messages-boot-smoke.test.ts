@@ -197,9 +197,14 @@ function writeConfig(configPath: string, defaultModel: string, useSubscription: 
           endpoints: [
             {
               endpoint: 'messages',
-              defaultModel,
-              backgroundModel: defaultModel,
+              modelMap: { fable: defaultModel, opus: defaultModel, sonnet: defaultModel, haiku: defaultModel },
               useSubscription,
+            },
+            {
+              // responses needs a complete kind map too (strict startup gate).
+              endpoint: 'responses',
+              modelMap: { codex: defaultModel, mini: defaultModel },
+              useSubscription: false,
             },
           ],
         },

@@ -549,13 +549,22 @@
       },
       "defaultModel": "Model domyślny",
       "backgroundModel": "Model tła",
-      "visionModel": "Model widzenia",
-      "noVisionModel": "Brak",
       "backgroundModelIds": "ID modeli tła",
       "backgroundModelIdsPlaceholder": "ID modeli oddzielone przecinkami",
       "modelPlaceholder": "Wybierz model…",
       "useSubscription": "Używaj subskrypcji",
-      "subscriptionUnsupported": "Routing subskrypcji nie jest dostępny dla tego punktu końcowego."
+      "subscriptionUnsupported": "Routing subskrypcji nie jest dostępny dla tego punktu końcowego.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Klucze dostępu",

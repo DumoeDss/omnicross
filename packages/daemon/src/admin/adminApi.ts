@@ -19,6 +19,8 @@ import http from 'node:http';
 
 import {
   createNamedKey,
+  type EndpointModelConfigError,
+  isKindMappedEndpoint,
   loadServerConfig,
   mergeServerConfig,
   type OutboundApiKeyInfo,
@@ -27,6 +29,7 @@ import {
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   saveServerConfig,
+  validateServerModelConfig,
 } from '@omnicross/core/outbound-api';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { FetchLike } from '@omnicross/subscriptions';
@@ -1461,16 +1464,66 @@ async function handleServer(
     const patch = (await readJsonBody(req)) as Partial<OutboundApiServerConfig>;
     const current = await loadServerConfig(deps.settingsStore);
     const merged = mergeServerConfig(current, patch);
+    // Always persist the (partial) config so the editor retains the user's
+    // in-progress mappings even when the config can't yet start the listener.
     await saveServerConfig(deps.settingsStore, merged);
-    await deps.outboundApiServer.applyConfig({
-      enabled: merged.enabled,
-      networkBinding: merged.networkBinding,
-      endpoints: merged.endpoints,
-      port: merged.port,
-    });
+
+    // Startup gate (model-kind-mapping): when enabling with an incomplete
+    // kind map, refuse to bind and return an actionable envelope (HTTP 200 so
+    // the client reads `error.missing`; a 4xx would collapse to a bare message).
+    // The core validator is the SSOT; catching serving's config error below is
+    // defense-in-depth (the pre-check normally makes it unreachable).
+    if (merged.enabled) {
+      const missing = validateServerModelConfig(merged);
+      if (missing.length > 0) {
+        // The persisted config is now incomplete, so the outbound server must not
+        // keep serving a STALE mapping: if a previous (valid) config left the
+        // listener bound, tear it down so live state matches the "cannot start"
+        // the UI shows (honors 未配置→无法启动接口服务). stop() is idempotent.
+        if (deps.outboundApiServer.getStatus().running) {
+          await deps.outboundApiServer.stop();
+        }
+        return writeJson(res, 200, {
+          server: merged,
+          error: { code: 'incomplete-model-config', missing },
+        });
+      }
+    }
+
+    try {
+      await deps.outboundApiServer.applyConfig({
+        enabled: merged.enabled,
+        networkBinding: merged.networkBinding,
+        endpoints: merged.endpoints,
+        port: merged.port,
+      });
+    } catch (err) {
+      // Defense-in-depth: if serving still throws an incomplete-config error
+      // (duck-typed to avoid coupling to serving's concrete error class), surface
+      // the same envelope instead of a 500. Other failures propagate as before.
+      const missing = incompleteConfigMissing(err);
+      if (missing) {
+        return writeJson(res, 200, {
+          server: merged,
+          error: { code: 'incomplete-model-config', missing },
+        });
+      }
+      throw err;
+    }
     return writeJson(res, 200, { server: merged });
   }
   return writeJsonError(res, 405, `method ${method} not allowed on server`);
+}
+
+/**
+ * Duck-typed guard for serving's incomplete-config throw (`OutboundApiConfigError`
+ * carries `missing: EndpointModelConfigError[]`). Structural on purpose — the
+ * surface stays independent of serving's concrete error class.
+ */
+function incompleteConfigMissing(err: unknown): EndpointModelConfigError[] | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const missing = (err as { missing?: unknown }).missing;
+  return Array.isArray(missing) ? (missing as EndpointModelConfigError[]) : null;
 }
 
 // ── Accounts (token-free GET status + secret-IN-never-OUT write) ───────────────
@@ -1707,11 +1760,17 @@ async function handleStatus(
   if (method !== 'GET') return writeJsonError(res, 405, `method ${method} not allowed on status`);
   const status = deps.outboundApiServer.getStatus();
   const serverConfig = await loadServerConfig(deps.settingsStore);
-  const endpoints = serverConfig.endpoints.map((e) => ({
-    endpoint: e.endpoint,
-    model: e.defaultModel,
-    useSubscription: e.useSubscription,
-  }));
+  // Class-aware read-only projection: kind-mapped endpoints (`messages`/
+  // `responses`) summarize their per-kind `modelMap` (they no longer carry a
+  // single `defaultModel`); role-based endpoints (`chat`/`gemini`) project the
+  // `defaultModel`. The editable surface still drives off GET /server. The
+  // kind-mapped set is read from core's `isKindMappedEndpoint` (SSOT over
+  // `ENDPOINT_MODEL_KINDS`) — no daemon-side hand-mirror.
+  const endpoints = serverConfig.endpoints.map((e) =>
+    isKindMappedEndpoint(e.endpoint)
+      ? { endpoint: e.endpoint, kinds: e.modelMap ?? {}, useSubscription: e.useSubscription }
+      : { endpoint: e.endpoint, model: e.defaultModel ?? '', useSubscription: e.useSubscription },
+  );
   return writeJson(res, 200, { ...status, endpoints });
 }
 

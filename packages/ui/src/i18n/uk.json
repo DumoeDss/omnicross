@@ -549,13 +549,22 @@
       },
       "defaultModel": "Модель за замовчуванням",
       "backgroundModel": "Фонова модель",
-      "visionModel": "Модель зору",
-      "noVisionModel": "Немає",
       "backgroundModelIds": "Ідентифікатори фонових моделей",
       "backgroundModelIdsPlaceholder": "ідентифікатори моделей через кому",
       "modelPlaceholder": "Виберіть модель…",
       "useSubscription": "Використовувати підписку",
-      "subscriptionUnsupported": "Маршрутизація за підпискою недоступна для цієї кінцевої точки."
+      "subscriptionUnsupported": "Маршрутизація за підпискою недоступна для цієї кінцевої точки.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Ключі доступу",

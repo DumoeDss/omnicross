@@ -549,13 +549,22 @@
       },
       "defaultModel": "Model default",
       "backgroundModel": "Model latar belakang",
-      "visionModel": "Model vision",
-      "noVisionModel": "Tidak ada",
       "backgroundModelIds": "ID model latar belakang",
       "backgroundModelIdsPlaceholder": "ID model dipisahkan koma",
       "modelPlaceholder": "Pilih model…",
       "useSubscription": "Gunakan subscription",
-      "subscriptionUnsupported": "Routing subscription tidak tersedia untuk endpoint ini."
+      "subscriptionUnsupported": "Routing subscription tidak tersedia untuk endpoint ini.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Access key",

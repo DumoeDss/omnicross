@@ -549,13 +549,22 @@
       },
       "defaultModel": "Mô hình mặc định",
       "backgroundModel": "Mô hình nền",
-      "visionModel": "Mô hình Vision",
-      "noVisionModel": "Không có",
       "backgroundModelIds": "ID mô hình nền",
       "backgroundModelIdsPlaceholder": "ID mô hình cách nhau bằng dấu phẩy",
       "modelPlaceholder": "Chọn mô hình…",
       "useSubscription": "Dùng subscription",
-      "subscriptionUnsupported": "Định tuyến subscription không khả dụng cho endpoint này."
+      "subscriptionUnsupported": "Định tuyến subscription không khả dụng cho endpoint này.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Access key",

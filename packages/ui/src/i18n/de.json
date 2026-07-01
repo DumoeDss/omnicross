@@ -549,13 +549,22 @@
       },
       "defaultModel": "Standardmodell",
       "backgroundModel": "Hintergrundmodell",
-      "visionModel": "Vision-Modell",
-      "noVisionModel": "Keines",
       "backgroundModelIds": "Hintergrundmodell-IDs",
       "backgroundModelIdsPlaceholder": "Kommagetrennte Modell-IDs",
       "modelPlaceholder": "Modell auswählen…",
       "useSubscription": "Abonnement verwenden",
-      "subscriptionUnsupported": "Abonnement-Routing ist für diesen Endpunkt nicht verfügbar."
+      "subscriptionUnsupported": "Abonnement-Routing ist für diesen Endpunkt nicht verfügbar.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Zugriffsschlüssel",

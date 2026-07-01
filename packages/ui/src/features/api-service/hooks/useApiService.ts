@@ -5,10 +5,16 @@
  * + `GET /keys` on mount, exposes the mutations wired to `agent.apiService`, and
  * holds the one-time `plaintextOnce` create-key reveal state.
  *
- * Edits drive off the `config` (`EndpointRoutingConfig.defaultModel`), never off
- * `status.endpoints[].model` (read-only projection). After any successful write
- * the hook re-reads BOTH config + status so the editable surface and the live
- * banner stay consistent (the PUT returns only `{ server }`).
+ * Edits drive off the `config` (kind-mapped endpoints' `modelMap`; role-based
+ * endpoints' `defaultModel`/`backgroundModel`), never off the read-only
+ * `status.endpoints[]` projection. After any successful write the hook re-reads
+ * BOTH config + status so the editable surface and the live banner stay
+ * consistent (the PUT returns only `{ server }`).
+ *
+ * An `incomplete-model-config` enable is a special non-success: the daemon
+ * persists the partial config but refuses to start. The hook still refreshes so
+ * the page's client-side "service can't start" banner reflects the persisted
+ * state, and suppresses the raw error box (the banner is the actionable surface).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -17,6 +23,7 @@ import { agent } from '@/shared/agent';
 
 import type {
   EndpointRoutingConfig,
+  MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
@@ -105,12 +112,19 @@ export function useApiService(): UseApiServiceResult {
 
   // Run a mutation, surface its failure honestly, then re-read config + status.
   const runWrite = useCallback(
-    async (op: () => Promise<{ success: boolean; message?: string }>) => {
+    async (op: () => Promise<MutationResult>) => {
       setBusy(true);
       setError(null);
       try {
         const result = await op();
         if (!result.success) {
+          // An incomplete-model-config enable persisted a partial config but did
+          // not start the listener — refresh so the client-side "can't start"
+          // banner (derived from `config`) lights up, and skip the raw error box.
+          if (result.missing) {
+            await refreshAll();
+            return false;
+          }
           setError(result.message ?? 'request failed');
           return false;
         }

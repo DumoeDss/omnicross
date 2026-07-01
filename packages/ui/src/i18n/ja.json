@@ -549,13 +549,22 @@
       },
       "defaultModel": "デフォルトモデル",
       "backgroundModel": "バックグラウンドモデル",
-      "visionModel": "ビジョンモデル",
-      "noVisionModel": "なし",
       "backgroundModelIds": "バックグラウンドモデル ID",
       "backgroundModelIdsPlaceholder": "カンマ区切りのモデル ID",
       "modelPlaceholder": "モデルを選択…",
       "useSubscription": "サブスクリプションを使用",
-      "subscriptionUnsupported": "このエンドポイントではサブスクリプションルーティングを利用できません。"
+      "subscriptionUnsupported": "このエンドポイントではサブスクリプションルーティングを利用できません。",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "種類ごとのモデルマッピング",
+      "cannotStart": "サービスを開始できません：モデルマッピングが未設定です",
+      "missingKind": "必須"
     },
     "keys": {
       "title": "アクセスキー",

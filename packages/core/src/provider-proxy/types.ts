@@ -346,6 +346,15 @@ export interface RouteContext {
   readonly targetProviderFormat: TargetProviderFormat;
   /** Resolved provider model the upstream request targets. */
   readonly model: string;
+  /**
+   * The client's ORIGINAL requested model id, for RESPONSE `model` passthrough
+   * on the kind-mapped outbound endpoints (`messages`/`responses`). Stamped ONLY
+   * by the outbound `resolveRoute` for those endpoints; the resident-proxy route
+   * minting path leaves it `undefined`, so internal completions are never
+   * rewritten (the two kind-mapped ingresses pass it as `relayResponse`'s
+   * `rewriteModel` — undefined ⇒ byte-identical passthrough).
+   */
+  readonly requestedModel?: string;
   /** Wire format this route's ingress decodes. */
   readonly ingressFormat: IngressFormat;
   /** Re-auth mode (BYO key vs subscription OAuth). */

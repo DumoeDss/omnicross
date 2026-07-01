@@ -549,13 +549,22 @@
       },
       "defaultModel": "Modelo predefinido",
       "backgroundModel": "Modelo de segundo plano",
-      "visionModel": "Modelo de visão",
-      "noVisionModel": "Nenhum",
       "backgroundModelIds": "IDs do modelo de segundo plano",
       "backgroundModelIdsPlaceholder": "IDs de modelos separados por vírgula",
       "modelPlaceholder": "Seleccionar um modelo…",
       "useSubscription": "Utilizar subscrição",
-      "subscriptionUnsupported": "O encaminhamento por subscrição não está disponível para este endpoint."
+      "subscriptionUnsupported": "O encaminhamento por subscrição não está disponível para este endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Chaves de acesso",

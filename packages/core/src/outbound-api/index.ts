@@ -48,11 +48,24 @@ export {
   OUTBOUND_API_SERVER_CONFIG_KEY,
   saveServerConfig,
 } from './apiServerConfig';
+export {
+  detectModelKind,
+  type EndpointModelConfigError,
+  isKindMappedEndpoint,
+  modelKindsForEndpoint,
+  validateEndpointModelConfig,
+  validateServerModelConfig,
+} from './kindDetection';
 export { createNamedKey, hashKey, verifyPresentedKey } from './outboundApiKeyAuth';
 export type {
   ApplyConfigInput,
 } from './OutboundApiServer';
-export { DEFAULT_OUTBOUND_PORT, formatUrls,OutboundApiServer } from './OutboundApiServer';
+export {
+  DEFAULT_OUTBOUND_PORT,
+  formatUrls,
+  OutboundApiConfigError,
+  OutboundApiServer,
+} from './OutboundApiServer';
 export { OutboundRateLimiter } from './outboundRateLimiter';
 export { detectRequestRole, endpointToIngressFormat } from './roleDetection';
 export { isSubscriptionProviderId, resolveRoute } from './routeResolver';
@@ -60,8 +73,12 @@ export {
   endpointSupportsSubscription,
   SUBSCRIPTION_PROVIDER_IDS,
 } from './subscriptionSupport';
+export { ENDPOINT_MODEL_KINDS } from './types';
 export type {
   EndpointRoutingConfig,
+  KindMappedEndpoint,
+  MessagesModelKind,
+  ModelKind,
   OutboundApiDeps,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -72,4 +89,5 @@ export type {
   OutboundKeyDb,
   OutboundKeyDbRow,
   RequestRole,
+  ResponsesModelKind,
 } from './types';

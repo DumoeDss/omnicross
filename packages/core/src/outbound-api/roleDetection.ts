@@ -1,19 +1,17 @@
 /**
- * roleDetection — classify an outbound request's ROLE (vision / background /
- * default) so the route resolver can pick the endpoint's model for that role
+ * roleDetection — classify an outbound request's ROLE (background / default) so
+ * the route resolver can pick the endpoint's model for that role
  * (`outbound-api-server`, design D2).
  *
- * Precedence: vision > background > default.
- *  - vision      — the body carries image/vision content parts (per-format
- *                  detection). The route resolver applies the vision→default
- *                  fallback when the endpoint has no vision model.
+ * Applies to the role-based endpoints (`chat`/`gemini`) only; the kind-mapped
+ * endpoints (`messages`/`responses`) classify by model KIND in `kindDetection`.
+ *
+ * Precedence: background > default.
  *  - background  — the requested model id is in the endpoint's optional
  *                  background-model-id override list (human decision after the
  *                  proposal), OR the registry small/haiku-class name signal
  *                  matches (Claude Code's haiku probe sends exactly this).
  *  - default     — everything else.
- *
- * Each ingress's body shape is handled here in ONE place.
  *
  * @module outbound-api/roleDetection
  */
@@ -45,8 +43,11 @@ const BACKGROUND_TIER_TOKENS = new Set([
   '8b',
 ]);
 
-/** Split a normalized model id into matchable tokens. */
-function modelTokens(normalizedId: string): string[] {
+/**
+ * Split a normalized model id into matchable tokens. Exported so `kindDetection`
+ * reuses the exact same tokenizer (`/[-._:/\s]+/`) instead of re-declaring it.
+ */
+export function modelTokens(normalizedId: string): string[] {
   return normalizedId.split(/[-._:/\s]+/).filter(Boolean);
 }
 
@@ -73,98 +74,17 @@ export function extractRequestedModel(
   return typeof model === 'string' && model ? model : undefined;
 }
 
-/** True when an Anthropic Messages body carries image content. */
-function anthropicHasVision(body: Record<string, unknown>): boolean {
-  const messages = body['messages'];
-  if (!Array.isArray(messages)) return false;
-  for (const msg of messages) {
-    const content = (msg as { content?: unknown })?.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if ((part as { type?: string })?.type === 'image') return true;
-    }
-  }
-  return false;
-}
-
-/** True when an OpenAI Chat Completions body carries `image_url` content. */
-function openaiChatHasVision(body: Record<string, unknown>): boolean {
-  const messages = body['messages'];
-  if (!Array.isArray(messages)) return false;
-  for (const msg of messages) {
-    const content = (msg as { content?: unknown })?.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if ((part as { type?: string })?.type === 'image_url') return true;
-    }
-  }
-  return false;
-}
-
-/** True when an OpenAI Responses body carries `input_image` items. */
-function openaiResponsesHasVision(body: Record<string, unknown>): boolean {
-  const input = body['input'];
-  if (!Array.isArray(input)) return false;
-  for (const item of input) {
-    const content = (item as { content?: unknown })?.content;
-    if (Array.isArray(content)) {
-      for (const part of content) {
-        if ((part as { type?: string })?.type === 'input_image') return true;
-      }
-    }
-    if ((item as { type?: string })?.type === 'input_image') return true;
-  }
-  return false;
-}
-
-/** True when a Gemini generateContent body carries inline/file image data. */
-function geminiHasVision(body: Record<string, unknown>): boolean {
-  const contents = body['contents'];
-  if (!Array.isArray(contents)) return false;
-  for (const content of contents) {
-    const parts = (content as { parts?: unknown })?.parts;
-    if (!Array.isArray(parts)) continue;
-    for (const part of parts) {
-      const p = part as { inline_data?: unknown; inlineData?: unknown; file_data?: unknown; fileData?: unknown };
-      if (p?.inline_data || p?.inlineData || p?.file_data || p?.fileData) return true;
-    }
-  }
-  return false;
-}
-
-/** Per-format vision-content detection. */
-export function hasVisionContent(
-  ingressFormat: IngressFormat,
-  body: Record<string, unknown>,
-): boolean {
-  switch (ingressFormat) {
-    case 'anthropic-messages':
-      return anthropicHasVision(body);
-    case 'openai-chat':
-      return openaiChatHasVision(body);
-    case 'openai-responses':
-      return openaiResponsesHasVision(body);
-    case 'gemini-generatecontent':
-      return geminiHasVision(body);
-    default:
-      return false;
-  }
-}
-
 /**
  * Detect the request's role. `backgroundModelIds` is the endpoint's optional
  * override list: when an incoming requested model id matches an entry there, the
  * request is BACKGROUND regardless of the name signal; otherwise the registry
- * small/haiku-class name signal is the baseline. Precedence vision > background
- * > default.
+ * small/haiku-class name signal is the baseline. Precedence background > default.
  */
 export function detectRequestRole(
   ingressFormat: IngressFormat,
   body: Record<string, unknown>,
   options?: { backgroundModelIds?: string[] },
 ): RequestRole {
-  if (hasVisionContent(ingressFormat, body)) return 'vision';
-
   const requestedModel = extractRequestedModel(ingressFormat, body);
   if (requestedModel) {
     const overrides = options?.backgroundModelIds;

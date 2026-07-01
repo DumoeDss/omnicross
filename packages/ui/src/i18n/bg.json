@@ -549,13 +549,22 @@
       },
       "defaultModel": "Модел по подразбиране",
       "backgroundModel": "Фонов модел",
-      "visionModel": "Визуален модел",
-      "noVisionModel": "Няма",
       "backgroundModelIds": "Идентификатори на фонови модели",
       "backgroundModelIdsPlaceholder": "идентификатори на модели, разделени със запетая",
       "modelPlaceholder": "Изберете модел…",
       "useSubscription": "Използвай абонамент",
-      "subscriptionUnsupported": "Маршрутизацията на абонамент не е налична за тази крайна точка."
+      "subscriptionUnsupported": "Маршрутизацията на абонамент не е налична за тази крайна точка.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Ключове за достъп",

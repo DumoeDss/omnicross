@@ -549,13 +549,22 @@
       },
       "defaultModel": "Modelo padrão",
       "backgroundModel": "Modelo de plano de fundo",
-      "visionModel": "Modelo de visão",
-      "noVisionModel": "Nenhum",
       "backgroundModelIds": "IDs de modelos de plano de fundo",
       "backgroundModelIdsPlaceholder": "IDs de modelos separados por vírgula",
       "modelPlaceholder": "Selecione um modelo…",
       "useSubscription": "Usar assinatura",
-      "subscriptionUnsupported": "O roteamento por assinatura não está disponível para este endpoint."
+      "subscriptionUnsupported": "O roteamento por assinatura não está disponível para este endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Chaves de acesso",

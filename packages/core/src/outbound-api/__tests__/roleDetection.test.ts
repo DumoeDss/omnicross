@@ -1,44 +1,12 @@
 /**
- * Unit tests for request-role detection (`outbound-api-server` task 8.9).
- * Covers vision content per format, background/small-tier, the per-endpoint
- * background-model-id override, and the vision > background > default precedence.
+ * Unit tests for request-role detection (`outbound-api-server`).
+ * Covers background/small-tier detection, the per-endpoint background-model-id
+ * override, and the background > default precedence. Vision was removed with the
+ * model-kind-mapping reshape (kind-mapped endpoints classify in kindDetection).
  */
 import { describe, expect, it } from 'vitest';
 
 import { detectRequestRole, endpointToIngressFormat, isBackgroundTierModel } from '../roleDetection';
-
-describe('detectRequestRole — vision per format', () => {
-  it('Anthropic image content → vision', () => {
-    const body = {
-      model: 'claude-opus-4',
-      messages: [{ role: 'user', content: [{ type: 'image' }, { type: 'text', text: 'hi' }] }],
-    };
-    expect(detectRequestRole('anthropic-messages', body)).toBe('vision');
-  });
-
-  it('OpenAI Chat image_url content → vision', () => {
-    const body = {
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'x' } }] }],
-    };
-    expect(detectRequestRole('openai-chat', body)).toBe('vision');
-  });
-
-  it('OpenAI Responses input_image content → vision', () => {
-    const body = {
-      model: 'gpt-4o',
-      input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'x' }] }],
-    };
-    expect(detectRequestRole('openai-responses', body)).toBe('vision');
-  });
-
-  it('Gemini inline_data / file_data → vision', () => {
-    const inline = { model: 'gemini-2.5-pro', contents: [{ parts: [{ inline_data: { data: 'x' } }] }] };
-    const file = { model: 'gemini-2.5-pro', contents: [{ parts: [{ file_data: { fileUri: 'x' } }] }] };
-    expect(detectRequestRole('gemini-generatecontent', inline)).toBe('vision');
-    expect(detectRequestRole('gemini-generatecontent', file)).toBe('vision');
-  });
-});
 
 describe('detectRequestRole — background tier', () => {
   it('haiku / mini / flash / 8b model ids → background (token-boundary match)', () => {
@@ -60,7 +28,7 @@ describe('detectRequestRole — background tier', () => {
     expect(isBackgroundTierModel('flash-labs/big-model-pro')).toBe(false);
   });
 
-  it('a small-tier requested model → background (no vision)', () => {
+  it('a small-tier requested model → background', () => {
     const body = { model: 'claude-3-5-haiku', messages: [{ role: 'user', content: 'probe' }] };
     expect(detectRequestRole('anthropic-messages', body)).toBe('background');
   });
@@ -81,17 +49,17 @@ describe('detectRequestRole — background tier', () => {
   });
 });
 
-describe('detectRequestRole — precedence + default', () => {
-  it('vision wins over a background model id', () => {
-    const body = {
-      model: 'claude-3-5-haiku',
-      messages: [{ role: 'user', content: [{ type: 'image' }] }],
-    };
-    expect(detectRequestRole('anthropic-messages', body)).toBe('vision');
-  });
-
+describe('detectRequestRole — default', () => {
   it('plain request → default', () => {
     const body = { model: 'claude-opus-4', messages: [{ role: 'user', content: 'hello' }] };
+    expect(detectRequestRole('anthropic-messages', body)).toBe('default');
+  });
+
+  it('image content no longer forces a special role (vision removed) → default', () => {
+    const body = {
+      model: 'claude-opus-4',
+      messages: [{ role: 'user', content: [{ type: 'image' }, { type: 'text', text: 'hi' }] }],
+    };
     expect(detectRequestRole('anthropic-messages', body)).toBe('default');
   });
 });

@@ -143,8 +143,18 @@ beforeEach(async () => {
               // factory-less BYO path (omnicross-anthropic-byo-ingress), which
               // serves the request (200) instead of the old deferred 502.
               endpoint: 'messages',
-              defaultModel: 'mock,mock-model',
-              backgroundModel: 'mock,mock-model',
+              modelMap: {
+                fable: 'mock,mock-model',
+                opus: 'mock,mock-model',
+                sonnet: 'mock,mock-model',
+                haiku: 'mock,mock-model',
+              },
+              useSubscription: false,
+            },
+            {
+              // responses needs a complete kind map too (strict startup gate).
+              endpoint: 'responses',
+              modelMap: { codex: 'mock,mock-model', mini: 'mock,mock-model' },
               useSubscription: false,
             },
           ],

@@ -549,13 +549,22 @@
       },
       "defaultModel": "Výchozí model",
       "backgroundModel": "Model na pozadí",
-      "visionModel": "Model vidění",
-      "noVisionModel": "Žádný",
       "backgroundModelIds": "ID modelů na pozadí",
       "backgroundModelIdsPlaceholder": "ID modelů oddělená čárkou",
       "modelPlaceholder": "Vyberte model…",
       "useSubscription": "Použít předplatné",
-      "subscriptionUnsupported": "Směrování předplatného není pro tento koncový bod dostupné."
+      "subscriptionUnsupported": "Směrování předplatného není pro tento koncový bod dostupné.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Přístupové klíče",

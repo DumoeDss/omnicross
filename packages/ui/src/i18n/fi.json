@@ -549,13 +549,22 @@
       },
       "defaultModel": "Oletusmalli",
       "backgroundModel": "Taustamallin",
-      "visionModel": "Visiomalli",
-      "noVisionModel": "Ei mitään",
       "backgroundModelIds": "Taustamallin tunnukset",
       "backgroundModelIdsPlaceholder": "pilkuilla erotetut mallitunnukset",
       "modelPlaceholder": "Valitse malli…",
       "useSubscription": "Käytä tilausta",
-      "subscriptionUnsupported": "Tilausreititys ei ole käytettävissä tässä päätepisteessä."
+      "subscriptionUnsupported": "Tilausreititys ei ole käytettävissä tässä päätepisteessä.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Käyttöavaimet",

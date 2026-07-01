@@ -107,7 +107,8 @@ function writeConfig(configPath: string): void {
           networkBinding: false,
           port: 0,
           endpoints: [
-            { endpoint: 'messages', defaultModel: 'claude,claude-sonnet-4-5', backgroundModel: 'claude,claude-sonnet-4-5', useSubscription: true },
+            { endpoint: 'messages', modelMap: { fable: 'claude,claude-sonnet-4-5', opus: 'claude,claude-sonnet-4-5', sonnet: 'claude,claude-sonnet-4-5', haiku: 'claude,claude-sonnet-4-5' }, useSubscription: true },
+            { endpoint: 'responses', modelMap: { codex: 'claude,claude-sonnet-4-5', mini: 'claude,claude-sonnet-4-5' }, useSubscription: false },
           ],
         },
         admin: { port: 0 },

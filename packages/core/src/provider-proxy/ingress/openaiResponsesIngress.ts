@@ -106,7 +106,11 @@ export async function handleOpenAIResponsesRequest(
         ? await runPipelineWithSubscriptionRetry(responsesBody, plan)
         : await runPipelineWithPoolReporting(responsesBody, plan);
 
-    const bodyText = await relayResponse(res, providerResponse.response, isStream);
+    // Passthrough (design D4): rewrite the response `model` back to the client's
+    // ORIGINAL requested id (`route.requestedModel`) so Codex sees `gpt-5-codex-…`
+    // rather than the upstream provider model. `undefined` for internal traffic
+    // ⇒ byte-identical. Usage accounting STAYS on the upstream `resolvedModel`.
+    const bodyText = await relayResponse(res, providerResponse.response, isStream, route.requestedModel);
     if (bodyText && deps.usageRecorder) {
       recordResponsesNonStreamUsage(deps.usageRecorder, bodyText, {
         sessionId: route.sessionId,

@@ -17,20 +17,42 @@ export type ModelRef = string;
 
 /**
  * Per-endpoint routing config (the editable shape from `GET /server`).
- * `defaultModel`/`backgroundModel`/`visionModel` are `"providerId,modelId"` refs.
+ *
+ * HETEROGENEOUS by endpoint class (mirrors mkm-core's `EndpointRoutingConfig` —
+ * PINNED to `@omnicross/core/outbound-api`; update here in lockstep):
+ *  - kind-mapped (`messages`/`responses`): `modelMap` (kind → `"providerId,modelId"`)
+ *    is authoritative; `defaultModel`/`backgroundModel` are unused.
+ *  - role-based (`chat`/`gemini`): `defaultModel`/`backgroundModel` (+ optional
+ *    `backgroundModelIds`) are authoritative; `modelMap` is unused.
+ *
+ * The legacy `visionModel` field is REMOVED (model-kind-mapping).
  */
 export interface EndpointRoutingConfig {
   endpoint: OutboundEndpointId;
-  /** Model for normal (non-vision, non-background) requests. */
-  defaultModel: ModelRef;
-  /** Model for background/probe/small-task requests. */
-  backgroundModel: ModelRef;
-  /** Optional model for requests carrying image/vision content. */
-  visionModel?: ModelRef;
+  /**
+   * Kind-mapped endpoints (`messages`/`responses`): model KIND → `"providerId,modelId"`.
+   * Keys are the endpoint's declared kinds (see `ENDPOINT_MODEL_KINDS`).
+   */
+  modelMap?: Record<string, ModelRef>;
+  /** Role-based endpoints (`chat`/`gemini`): model for normal requests. */
+  defaultModel?: ModelRef;
+  /** Role-based endpoints (`chat`/`gemini`): model for background/probe requests. */
+  backgroundModel?: ModelRef;
   /** Gates subscription-vs-BYO provider selection. Default false. */
   useSubscription: boolean;
-  /** Optional per-endpoint background-model id override list. */
+  /** Optional per-endpoint background-model id override list (role-based only). */
   backgroundModelIds?: string[];
+}
+
+/**
+ * One incomplete kind-mapped endpoint and the kinds it is missing — mirrors
+ * mkm-core's `EndpointModelConfigError`. Returned by the daemon's enable PUT when
+ * a kind-mapped endpoint lacks required mappings (the "service can't start"
+ * envelope, `{ error: { code: 'incomplete-model-config', missing } }`).
+ */
+export interface OutboundModelConfigError {
+  endpoint: OutboundEndpointId;
+  missingKinds: string[];
 }
 
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
@@ -52,12 +74,17 @@ export interface OutboundFormatUrls {
 }
 
 /**
- * The status `endpoints` projection (READ-ONLY). NOTE the field is `model`, not
- * `defaultModel` — edits must drive off `GET /server`, never this projection.
+ * The status `endpoints` projection (READ-ONLY). Class-aware — kind-mapped
+ * endpoints (`messages`/`responses`) carry a `kinds` summary of their `modelMap`;
+ * role-based endpoints (`chat`/`gemini`) carry a single `model` (the
+ * `defaultModel`). Edits must drive off `GET /server`, never this projection.
  */
 export interface OutboundStatusEndpoint {
   endpoint: OutboundEndpointId;
-  model: ModelRef;
+  /** Role-based (`chat`/`gemini`) projected default model. */
+  model?: ModelRef;
+  /** Kind-mapped (`messages`/`responses`) kind → ref summary. */
+  kinds?: Record<string, ModelRef>;
   useSubscription: boolean;
 }
 

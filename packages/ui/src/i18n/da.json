@@ -549,13 +549,22 @@
       },
       "defaultModel": "Standardmodel",
       "backgroundModel": "Baggrundsmodel",
-      "visionModel": "Visionmodel",
-      "noVisionModel": "Ingen",
       "backgroundModelIds": "Baggrundsmodel-ID'er",
       "backgroundModelIdsPlaceholder": "kommaseparerede model-ID'er",
       "modelPlaceholder": "Vælg en model…",
       "useSubscription": "Brug abonnement",
-      "subscriptionUnsupported": "Abonnementsrouting er ikke tilgængeligt for dette endpoint."
+      "subscriptionUnsupported": "Abonnementsrouting er ikke tilgængeligt for dette endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Adgangsnøgler",

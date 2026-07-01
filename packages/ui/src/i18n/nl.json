@@ -549,13 +549,22 @@
       },
       "defaultModel": "Standaardmodel",
       "backgroundModel": "Achtergrondmodel",
-      "visionModel": "Visiemodel",
-      "noVisionModel": "Geen",
       "backgroundModelIds": "Achtergrondmodel-ID's",
       "backgroundModelIdsPlaceholder": "door komma's gescheiden model-ID's",
       "modelPlaceholder": "Selecteer een model…",
       "useSubscription": "Abonnement gebruiken",
-      "subscriptionUnsupported": "Abonnementsroutering is niet beschikbaar voor dit endpoint."
+      "subscriptionUnsupported": "Abonnementsroutering is niet beschikbaar voor dit endpoint.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "Toegangssleutels",

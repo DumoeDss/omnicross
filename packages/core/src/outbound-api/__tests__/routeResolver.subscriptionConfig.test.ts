@@ -39,11 +39,12 @@ function fakeProfile(providerId: string): SubscriptionDispatchProfile {
   };
 }
 
-function messagesConfig(defaultModel: string): EndpointRoutingConfig {
+function messagesConfig(ref: string): EndpointRoutingConfig {
   return {
     endpoint: 'messages',
-    defaultModel,
-    backgroundModel: defaultModel,
+    // `messages` is now KIND-mapped: map every kind to the subscription ref so
+    // resolution (no requestedModel → messages fallback) reaches it.
+    modelMap: { fable: ref, opus: ref, sonnet: ref, haiku: ref },
     useSubscription: true,
   };
 }

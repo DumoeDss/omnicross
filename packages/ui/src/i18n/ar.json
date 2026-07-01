@@ -549,13 +549,22 @@
       },
       "defaultModel": "النموذج الافتراضي",
       "backgroundModel": "نموذج الخلفية",
-      "visionModel": "نموذج الرؤية",
-      "noVisionModel": "لا يوجد",
       "backgroundModelIds": "معرّفات نموذج الخلفية",
       "backgroundModelIdsPlaceholder": "معرّفات نماذج مفصولة بفواصل",
       "modelPlaceholder": "اختر نموذجًا…",
       "useSubscription": "استخدام الاشتراك",
-      "subscriptionUnsupported": "توجيه الاشتراك غير متاح لهذه النقطة."
+      "subscriptionUnsupported": "توجيه الاشتراك غير متاح لهذه النقطة.",
+      "kind": {
+        "fable": "Fable",
+        "opus": "Opus",
+        "sonnet": "Sonnet",
+        "haiku": "Haiku",
+        "codex": "Codex",
+        "mini": "Mini"
+      },
+      "kindMapLabel": "Model mapping by kind",
+      "cannotStart": "Service can't start: missing model mappings",
+      "missingKind": "Required"
     },
     "keys": {
       "title": "مفاتيح الوصول",

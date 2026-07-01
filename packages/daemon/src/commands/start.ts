@@ -12,7 +12,7 @@
 
 import { parseArgs } from 'node:util';
 
-import { loadServerConfig } from '@omnicross/core/outbound-api';
+import { loadServerConfig, OutboundApiConfigError } from '@omnicross/core/outbound-api';
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
@@ -60,12 +60,26 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   await daemon.providerProxy.start();
 
   const serverConfig = await loadServerConfig(daemon.settingsStore);
-  await daemon.outboundApiServer.applyConfig({
-    enabled: true,
-    networkBinding: serverConfig.networkBinding,
-    endpoints: serverConfig.endpoints,
-    port: serverConfig.port,
-  });
+  // Startup gate (model-kind-mapping): if the persisted config enables the
+  // outbound server but a kind-mapped endpoint (messages/responses) is missing
+  // required mappings, `applyConfig` throws `OutboundApiConfigError` and does not
+  // bind. Catch it so the daemon boots with the outbound server STOPPED (the rest
+  // of the daemon — admin API, provider proxy — still comes up) instead of
+  // crashing; the operator fixes the mappings and re-enables via the admin API.
+  try {
+    await daemon.outboundApiServer.applyConfig({
+      enabled: true,
+      networkBinding: serverConfig.networkBinding,
+      endpoints: serverConfig.endpoints,
+      port: serverConfig.port,
+    });
+  } catch (err) {
+    if (err instanceof OutboundApiConfigError) {
+      console.warn(`[outbound] not started — incomplete model configuration: ${err.message}`);
+    } else {
+      throw err;
+    }
+  }
 
   // Admin dashboard (RT3) — always-on by default; opt out via `--no-dashboard`
   // or `admin.enabled:false`. `adminServer.start()` honors the LAN fail-closed
