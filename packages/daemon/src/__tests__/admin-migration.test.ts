@@ -87,7 +87,7 @@ function writeConfig(path: string, providers: ProviderRow[]): void {
       networkBinding: false,
       port: 0,
       endpoints: [
-        { endpoint: 'chat', defaultModel: 'src,mock-model', backgroundModel: 'src,mock-model', useSubscription: false },
+        { endpoint: 'chat', models: ['src,mock-model'], useSubscription: false },
         // messages/responses need complete kind maps or the startup gate refuses to bind.
         { endpoint: 'responses', modelMap: { codex: 'src,mock-model', mini: 'src,mock-model' }, useSubscription: false },
         {

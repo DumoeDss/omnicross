@@ -22,7 +22,9 @@ export type ModelRef = string;
  * PINNED to `@omnicross/core/outbound-api`; update here in lockstep):
  *  - kind-mapped (`messages`/`responses`): `modelMap` (kind → `"providerId,modelId"`)
  *    is authoritative; `defaultModel`/`backgroundModel` are unused.
- *  - role-based (`chat`/`gemini`): `defaultModel`/`backgroundModel` (+ optional
+ *  - list-mapped (`chat`): `models` (a list of refs) is authoritative — the
+ *    refs' modelIds are the names `GET /v1/models` advertises.
+ *  - role-based (`gemini`): `defaultModel`/`backgroundModel` (+ optional
  *    `backgroundModelIds`) are authoritative; `modelMap` is unused.
  *
  * The legacy `visionModel` field is REMOVED (model-kind-mapping).
@@ -34,9 +36,11 @@ export interface EndpointRoutingConfig {
    * Keys are the endpoint's declared kinds (see `ENDPOINT_MODEL_KINDS`).
    */
   modelMap?: Record<string, ModelRef>;
-  /** Role-based endpoints (`chat`/`gemini`): model for normal requests. */
+  /** List-mapped endpoint (`chat`): the refs this endpoint serves. */
+  models?: ModelRef[];
+  /** Role-based endpoint (`gemini`): model for normal requests. */
   defaultModel?: ModelRef;
-  /** Role-based endpoints (`chat`/`gemini`): model for background/probe requests. */
+  /** Role-based endpoint (`gemini`): model for background/probe requests. */
   backgroundModel?: ModelRef;
   /** Gates subscription-vs-BYO provider selection. Default false. */
   useSubscription: boolean;
@@ -81,10 +85,12 @@ export interface OutboundFormatUrls {
  */
 export interface OutboundStatusEndpoint {
   endpoint: OutboundEndpointId;
-  /** Role-based (`chat`/`gemini`) projected default model. */
+  /** Role-based (`gemini`) projected default model. */
   model?: ModelRef;
   /** Kind-mapped (`messages`/`responses`) kind → ref summary. */
   kinds?: Record<string, ModelRef>;
+  /** List-mapped (`chat`) configured model refs. */
+  models?: ModelRef[];
   useSubscription: boolean;
 }
 

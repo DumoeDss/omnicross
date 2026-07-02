@@ -35,13 +35,23 @@ describe('defaultServerConfig — endpoint-aware blanks', () => {
     expect(responses.modelMap).toEqual({ codex: '', mini: '' });
   });
 
-  it('role-based endpoints carry blank default/background and no modelMap', () => {
+  it('the list-mapped chat endpoint carries an empty models list only', () => {
     const config = defaultServerConfig();
     const chat = endpoint(config, 'chat');
-    expect(chat.defaultModel).toBe('');
-    expect(chat.backgroundModel).toBe('');
+    expect(chat.models).toEqual([]);
+    expect(chat).not.toHaveProperty('defaultModel');
+    expect(chat).not.toHaveProperty('backgroundModel');
     expect(chat).not.toHaveProperty('modelMap');
     expect(chat).not.toHaveProperty('visionModel');
+  });
+
+  it('the role-based gemini endpoint carries blank default/background and no modelMap', () => {
+    const config = defaultServerConfig();
+    const gemini = endpoint(config, 'gemini');
+    expect(gemini.defaultModel).toBe('');
+    expect(gemini.backgroundModel).toBe('');
+    expect(gemini).not.toHaveProperty('modelMap');
+    expect(gemini).not.toHaveProperty('visionModel');
   });
 
   it('is disabled, loopback, four endpoints', () => {
@@ -94,11 +104,11 @@ describe('normalizeServerConfig — no migration', () => {
     expect(messages.modelMap).not.toHaveProperty('bogus');
   });
 
-  it('drops modelMap and keeps default/background (+ array backgroundModelIds) on a role-based endpoint', () => {
+  it('drops modelMap and keeps default/background (+ array backgroundModelIds) on the role-based gemini endpoint', () => {
     const raw = {
       endpoints: [
         {
-          endpoint: 'chat',
+          endpoint: 'gemini',
           defaultModel: 'p,default',
           backgroundModel: 'p,bg',
           backgroundModelIds: ['p,small'],
@@ -109,11 +119,33 @@ describe('normalizeServerConfig — no migration', () => {
       ],
     } as unknown as Partial<OutboundApiServerConfig>;
 
+    const gemini = endpoint(normalizeServerConfig(raw), 'gemini');
+    expect(gemini.defaultModel).toBe('p,default');
+    expect(gemini.backgroundModel).toBe('p,bg');
+    expect(gemini.backgroundModelIds).toEqual(['p,small']);
+    expect(gemini).not.toHaveProperty('modelMap');
+  });
+
+  it('chat keeps only string list entries and drops legacy role fields (no migration)', () => {
+    const raw = {
+      endpoints: [
+        {
+          endpoint: 'chat',
+          models: ['p,gpt-4o', '', 42, 'p,glm-4.7'],
+          // legacy role-based fields must be DROPPED (no remap into the list)
+          defaultModel: 'p,default',
+          backgroundModel: 'p,bg',
+          backgroundModelIds: ['p,small'],
+          useSubscription: false,
+        },
+      ],
+    } as unknown as Partial<OutboundApiServerConfig>;
+
     const chat = endpoint(normalizeServerConfig(raw), 'chat');
-    expect(chat.defaultModel).toBe('p,default');
-    expect(chat.backgroundModel).toBe('p,bg');
-    expect(chat.backgroundModelIds).toEqual(['p,small']);
-    expect(chat).not.toHaveProperty('modelMap');
+    expect(chat.models).toEqual(['p,gpt-4o', 'p,glm-4.7']);
+    expect(chat).not.toHaveProperty('defaultModel');
+    expect(chat).not.toHaveProperty('backgroundModel');
+    expect(chat).not.toHaveProperty('backgroundModelIds');
   });
 
   it('missing/blank raw → full default shape', () => {
@@ -135,7 +167,8 @@ describe('mergeServerConfig', () => {
       sonnet: '',
       haiku: '',
     });
-    expect(endpoint(merged, 'chat').defaultModel).toBe('');
+    expect(endpoint(merged, 'chat').models).toEqual([]);
+    expect(endpoint(merged, 'gemini').defaultModel).toBe('');
   });
 
   it('patched endpoints are re-normalized (legacy fields dropped)', () => {

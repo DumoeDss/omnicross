@@ -132,8 +132,7 @@ beforeEach(async () => {
           endpoints: [
             {
               endpoint: 'chat',
-              defaultModel: 'mock,mock-model',
-              backgroundModel: 'mock,mock-model',
+              models: ['mock,mock-model'],
               useSubscription: false,
             },
             {

@@ -116,7 +116,8 @@ function makeDeps(opts: {
 
 const config = {
   endpoints: [
-    { endpoint: 'chat' as const, defaultModel: 'openai,gpt-4o', backgroundModel: 'openai,gpt-4o-mini', useSubscription: false },
+    // chat is LIST-mapped: the request's `model` must be one of these refs' modelIds.
+    { endpoint: 'chat' as const, models: ['openai,gpt-4o', 'openai,gpt-4o-mini'], useSubscription: false },
   ],
 };
 
@@ -196,6 +197,32 @@ describe('handleOutboundRequest — auth', () => {
     await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, limiter);
     expect(res.statusCode).toBe(429);
     expect(res.headers['Retry-After']).toBeDefined();
+  });
+
+  it('GET /v1/models returns the chat model list (OpenAI shape) after auth', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
+    const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/models', method: 'GET' });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { object: string; data: Array<{ id: string; object: string }> };
+    expect(body.object).toBe('list');
+    expect(body.data.map((m) => m.id)).toEqual(['gpt-4o', 'gpt-4o-mini']);
+    expect(body.data.every((m) => m.object === 'model')).toBe(true);
+    // No route minted for the discovery request.
+    expect(routeMap.size()).toBe(0);
+  });
+
+  it('GET /v1/models still requires a valid API key', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => null), routeMap });
+    const req = new MockReq({ headers: {}, url: '/v1/models', method: 'GET' });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    expect(res.statusCode).toBe(401);
   });
 
   it('404 on an unrecognized path (after a valid key)', async () => {

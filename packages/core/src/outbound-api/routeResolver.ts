@@ -41,6 +41,7 @@ import type {
   KindMappedEndpoint,
   MessagesModelKind,
   ModelKind,
+  ModelRef,
   RequestRole,
 } from './types';
 
@@ -84,7 +85,29 @@ function isNonBlankRef(ref: unknown): ref is string {
   return typeof ref === 'string' && ref.trim() !== '';
 }
 
-/** Pick the role's configured model ref (`chat`/`gemini`; vision removed). */
+/**
+ * Pick the model ref for the LIST-mapped `chat` endpoint: the client requests
+ * one of the configured refs' modelIds directly (the same names `GET /v1/models`
+ * advertises). Exact modelId match first, then case-insensitive. No requested
+ * model, or a model not in the list → `undefined` (per-request 404).
+ */
+export function pickModelRefFromList(
+  models: ModelRef[] | undefined,
+  requestedModel: string | undefined,
+): ModelRef | undefined {
+  if (!requestedModel || !models || models.length === 0) return undefined;
+  const wanted = requestedModel.trim();
+  let ciHit: ModelRef | undefined;
+  for (const ref of models) {
+    const parsed = parseModelRef(ref);
+    if (!parsed) continue;
+    if (parsed.modelId === wanted) return ref;
+    if (!ciHit && parsed.modelId.toLowerCase() === wanted.toLowerCase()) ciHit = ref;
+  }
+  return ciHit;
+}
+
+/** Pick the role's configured model ref (`gemini`; vision removed). */
 function pickModelRefForRole(
   config: EndpointRoutingConfig,
   role: RequestRole,
@@ -155,9 +178,11 @@ export async function resolveRoute(args: {
   // rewritten).
   const requestedModel = kindMapped ? args.requestedModel : undefined;
 
-  // Pick the model ref: by KIND (messages/responses) or by ROLE (chat/gemini).
+  // Pick the model ref: by KIND (messages/responses), by LIST (chat), or by
+  // ROLE (gemini).
   let ref: string | undefined;
   let effectiveRole: RequestRole = 'default';
+  let noModelStatus = 503;
   let noModelMessage: string;
   let malformedMessage: (r: string) => string;
   if (kindMapped) {
@@ -166,6 +191,14 @@ export async function resolveRoute(args: {
     noModelMessage = `endpoint '${config.endpoint}' has no model configured for kind '${picked.kind}'`;
     malformedMessage = (r) =>
       `endpoint '${config.endpoint}' model ref for kind '${picked.kind}' is malformed: '${r}'`;
+  } else if (endpoint === 'chat') {
+    ref = pickModelRefFromList(config.models, args.requestedModel);
+    // A model outside the advertised list is a client error, not a config one.
+    noModelStatus = 404;
+    noModelMessage = args.requestedModel
+      ? `model '${args.requestedModel}' is not in the endpoint's model list (see GET /v1/models)`
+      : `request has no 'model'; pick one from GET /v1/models`;
+    malformedMessage = (r) => `endpoint 'chat' model ref is malformed: '${r}'`;
   } else {
     const picked = pickModelRefForRole(config, args.role ?? 'default');
     ref = picked.ref;
@@ -176,7 +209,7 @@ export async function resolveRoute(args: {
   }
 
   if (!ref || !ref.trim()) {
-    return { ok: false, error: { status: 503, message: noModelMessage } };
+    return { ok: false, error: { status: noModelStatus, message: noModelMessage } };
   }
 
   const parsed = parseModelRef(ref);

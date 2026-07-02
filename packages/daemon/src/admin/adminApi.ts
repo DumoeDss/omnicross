@@ -1766,11 +1766,15 @@ async function handleStatus(
   // `defaultModel`. The editable surface still drives off GET /server. The
   // kind-mapped set is read from core's `isKindMappedEndpoint` (SSOT over
   // `ENDPOINT_MODEL_KINDS`) — no daemon-side hand-mirror.
-  const endpoints = serverConfig.endpoints.map((e) =>
-    isKindMappedEndpoint(e.endpoint)
-      ? { endpoint: e.endpoint, kinds: e.modelMap ?? {}, useSubscription: e.useSubscription }
-      : { endpoint: e.endpoint, model: e.defaultModel ?? '', useSubscription: e.useSubscription },
-  );
+  const endpoints = serverConfig.endpoints.map((e) => {
+    if (isKindMappedEndpoint(e.endpoint)) {
+      return { endpoint: e.endpoint, kinds: e.modelMap ?? {}, useSubscription: e.useSubscription };
+    }
+    if (e.endpoint === 'chat') {
+      return { endpoint: e.endpoint, models: e.models ?? [], useSubscription: e.useSubscription };
+    }
+    return { endpoint: e.endpoint, model: e.defaultModel ?? '', useSubscription: e.useSubscription };
+  });
   return writeJson(res, 200, { ...status, endpoints });
 }
 

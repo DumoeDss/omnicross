@@ -68,7 +68,7 @@ export {
 } from './OutboundApiServer';
 export { OutboundRateLimiter } from './outboundRateLimiter';
 export { detectRequestRole, endpointToIngressFormat } from './roleDetection';
-export { isSubscriptionProviderId, resolveRoute } from './routeResolver';
+export { isSubscriptionProviderId, parseModelRef, pickModelRefFromList, resolveRoute } from './routeResolver';
 export {
   endpointSupportsSubscription,
   SUBSCRIPTION_PROVIDER_IDS,

@@ -564,7 +564,11 @@
       },
       "kindMapLabel": "Model mapping by kind",
       "cannotStart": "Service can't start: missing model mappings",
-      "missingKind": "Required"
+      "missingKind": "Required",
+      "modelListLabel": "Model list",
+      "modelListEmpty": "No models configured — this endpoint is unused until you add one.",
+      "addModelPlaceholder": "Add a model...",
+      "removeModel": "Remove"
     },
     "keys": {
       "title": "Toegangssleutels",

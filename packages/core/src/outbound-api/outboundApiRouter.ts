@@ -30,7 +30,7 @@ import { isKindMappedEndpoint } from './kindDetection';
 import { verifyPresentedKey } from './outboundApiKeyAuth';
 import type { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
-import { resolveRoute } from './routeResolver';
+import { parseModelRef, resolveRoute } from './routeResolver';
 import type { EndpointRoutingConfig, OutboundApiDeps, OutboundEndpoint } from './types';
 
 /** Per-request config the listener supplies (read live, no restart). */
@@ -98,6 +98,29 @@ export function extractGeminiModelFromUrl(url: string | undefined): string | und
   return m ? decodeURIComponent(m[1]) : undefined;
 }
 
+/** True for `GET <base>/models` (the OpenAI model-list discovery route). */
+export function isModelsListRequest(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
+  return path.endsWith('/models');
+}
+
+/**
+ * Serve the chat endpoint's configured model list in the OpenAI `GET /v1/models`
+ * shape. The advertised `id` is each ref's modelId — exactly the name
+ * `pickModelRefFromList` matches on the request path. An unconfigured chat
+ * endpoint serves an empty list (valid shape; the endpoint is simply unused).
+ */
+function writeChatModelsList(res: http.ServerResponse, config: OutboundRequestConfig): void {
+  const chat = config.endpoints.find((e) => e.endpoint === 'chat');
+  const data = (chat?.models ?? [])
+    .map((ref) => parseModelRef(ref))
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .map((p) => ({ id: p.modelId, object: 'model', owned_by: 'omnicross' }));
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ object: 'list', data }));
+}
+
 /** Read the full request body as a string (used to detect the role). */
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -149,7 +172,13 @@ export async function handleOutboundRequest(
     return;
   }
 
-  // 3. ENDPOINT SELECT.
+  // 3. ENDPOINT SELECT. `GET <base>/models` serves the chat endpoint's
+  // configured model list (OpenAI list shape) so generic OpenAI clients can
+  // discover the names to request — handled before the POST-only selection.
+  if (req.method === 'GET' && isModelsListRequest(req.url)) {
+    writeChatModelsList(res, config);
+    return;
+  }
   const endpoint = selectEndpoint(req.method, req.url);
   if (!endpoint) {
     writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
@@ -193,27 +222,30 @@ export async function handleOutboundRequest(
 
   // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
   // (`messages`/`responses`) route by model KIND and carry the client's original
-  // requested id through to the response `model` passthrough; the role-based
-  // endpoints (`chat`/`gemini`) keep detecting default/background.
-  const resolved = isKindMappedEndpoint(endpoint)
-    ? await resolveRoute({
-        config: endpointConfig,
-        ingressFormat,
-        llmConfig: deps.llmConfig,
-        sessionId,
-        // Capture the ORIGINAL requested id BEFORE any downstream swap; this both
-        // selects the kind AND is stamped onto `route.requestedModel`.
-        requestedModel: extractRequestedModel(ingressFormat, parsedBody),
-      })
-    : await resolveRoute({
-        config: endpointConfig,
-        role: detectRequestRole(ingressFormat, parsedBody, {
-          backgroundModelIds: endpointConfig.backgroundModelIds,
-        }),
-        ingressFormat,
-        llmConfig: deps.llmConfig,
-        sessionId,
-      });
+  // requested id through to the response `model` passthrough; the list-mapped
+  // `chat` endpoint matches the requested id against its configured model list;
+  // the role-based `gemini` endpoint keeps detecting default/background.
+  const resolved =
+    isKindMappedEndpoint(endpoint) || endpoint === 'chat'
+      ? await resolveRoute({
+          config: endpointConfig,
+          ingressFormat,
+          llmConfig: deps.llmConfig,
+          sessionId,
+          // Capture the ORIGINAL requested id BEFORE any downstream swap; for
+          // kind-mapped endpoints it selects the kind AND is stamped onto
+          // `route.requestedModel`; for chat it is matched against the list.
+          requestedModel: extractRequestedModel(ingressFormat, parsedBody),
+        })
+      : await resolveRoute({
+          config: endpointConfig,
+          role: detectRequestRole(ingressFormat, parsedBody, {
+            backgroundModelIds: endpointConfig.backgroundModelIds,
+          }),
+          ingressFormat,
+          llmConfig: deps.llmConfig,
+          sessionId,
+        });
   if (!resolved.ok) {
     writeJsonError(res, resolved.error.status, resolved.error.message);
     return;

@@ -55,9 +55,12 @@ export type ModelKind = MessagesModelKind | ResponsesModelKind;
  *
  * The shape is HETEROGENEOUS by endpoint class:
  *  - kind-mapped (`messages`/`responses`): `modelMap` (kind → ref) is authoritative;
- *    `defaultModel`/`backgroundModel`/`backgroundModelIds` are unused.
- *  - role-based (`chat`/`gemini`): `defaultModel`/`backgroundModel` (+ optional
- *    `backgroundModelIds`) are authoritative; `modelMap` is unused.
+ *    everything else is unused.
+ *  - list-mapped (`chat`): `models` (a list of refs) is authoritative — the
+ *    client requests one of the listed modelIds directly (`GET /v1/models`
+ *    serves the list); no default/background roles.
+ *  - role-based (`gemini`): `defaultModel`/`backgroundModel` (+ optional
+ *    `backgroundModelIds`) are authoritative.
  */
 export interface EndpointRoutingConfig {
   /** Which of the four endpoints this block configures. */
@@ -67,19 +70,25 @@ export interface EndpointRoutingConfig {
    * Keys are the endpoint's declared {@link ENDPOINT_MODEL_KINDS}.
    */
   modelMap?: Record<string, ModelRef>;
-  /** Role-based endpoints (`chat`/`gemini`): model for normal requests. */
+  /**
+   * List-mapped endpoint (`chat`): the `"providerId,modelId"` refs this endpoint
+   * serves. The ref's modelId is the model name the client requests and the name
+   * `GET /v1/models` advertises; a request whose `model` is not in the list is
+   * rejected per-request (404-style). Empty ⇒ endpoint unused.
+   */
+  models?: ModelRef[];
+  /** Role-based endpoint (`gemini`): model for normal requests. */
   defaultModel?: ModelRef;
-  /** Role-based endpoints (`chat`/`gemini`): model for background/probe requests. */
+  /** Role-based endpoint (`gemini`): model for background/probe requests. */
   backgroundModel?: ModelRef;
   /** Gates subscription-vs-BYO provider selection. Default FALSE. */
   useSubscription: boolean;
   /**
-   * OPTIONAL per-endpoint "background model id" override list (role-based
-   * `chat`/`gemini` only, human decision after the proposal). When set, an
-   * incoming requested model id appearing in this list is classified as the
-   * BACKGROUND role; otherwise the registry small/haiku-class signal is the
-   * baseline. Empty/unset → registry signal only. Compared against the requested
-   * model id (bare or `providerId,modelId`).
+   * OPTIONAL "background model id" override list (role-based `gemini` only).
+   * When set, an incoming requested model id appearing in this list is
+   * classified as the BACKGROUND role; otherwise the registry small/haiku-class
+   * signal is the baseline. Empty/unset → registry signal only. Compared against
+   * the requested model id (bare or `providerId,modelId`).
    */
   backgroundModelIds?: string[];
 }

@@ -51,6 +51,9 @@ function defaultEndpointConfig(endpoint: OutboundEndpoint): EndpointRoutingConfi
   if (isKindMappedEndpoint(endpoint)) {
     return { endpoint, modelMap: blankModelMap(endpoint), useSubscription: false };
   }
+  if (endpoint === 'chat') {
+    return { endpoint, models: [], useSubscription: false };
+  }
   return {
     endpoint,
     defaultModel: '',
@@ -66,7 +69,9 @@ function defaultEndpointConfig(endpoint: OutboundEndpoint): EndpointRoutingConfi
  *    (unknown kind keys dropped, missing kinds filled `''`, non-string values
  *    coerced to `''`); drop `defaultModel`/`backgroundModel`/`visionModel`/
  *    `backgroundModelIds`.
- *  - role-based (`chat`/`gemini`): keep `defaultModel`/`backgroundModel` (coerce
+ *  - list-mapped (`chat`): keep `models` (string entries only, blanks dropped);
+ *    drop `defaultModel`/`backgroundModel`/`backgroundModelIds`/`modelMap`.
+ *  - role-based (`gemini`): keep `defaultModel`/`backgroundModel` (coerce
  *    non-string → `''`) and `backgroundModelIds` when it is an array; drop
  *    `modelMap`/`visionModel`.
  */
@@ -84,6 +89,12 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
       modelMap[kind] = typeof v === 'string' ? v : '';
     }
     return { endpoint, modelMap, useSubscription };
+  }
+  if (endpoint === 'chat') {
+    const models = Array.isArray(e.models)
+      ? e.models.filter((m): m is string => typeof m === 'string' && m.trim() !== '')
+      : [];
+    return { endpoint, models, useSubscription };
   }
   const config: EndpointRoutingConfig = {
     endpoint,

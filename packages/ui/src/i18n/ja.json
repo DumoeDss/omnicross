@@ -564,7 +564,11 @@
       },
       "kindMapLabel": "種類ごとのモデルマッピング",
       "cannotStart": "サービスを開始できません：モデルマッピングが未設定です",
-      "missingKind": "必須"
+      "missingKind": "必須",
+      "modelListLabel": "モデルリスト",
+      "modelListEmpty": "モデルが未設定です——追加するまでこのエンドポイントは使用されません。",
+      "addModelPlaceholder": "モデルを追加...",
+      "removeModel": "削除"
     },
     "keys": {
       "title": "アクセスキー",

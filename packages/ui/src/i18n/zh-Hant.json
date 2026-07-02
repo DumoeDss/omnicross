@@ -564,7 +564,11 @@
       },
       "kindMapLabel": "按模型種類映射",
       "cannotStart": "接口服務無法啟動：缺少模型映射配置",
-      "missingKind": "必填"
+      "missingKind": "必填",
+      "modelListLabel": "模型清單",
+      "modelListEmpty": "未設定模型——新增模型後此端點才可用。",
+      "addModelPlaceholder": "新增模型...",
+      "removeModel": "移除"
     },
     "keys": {
       "title": "存取金鑰",

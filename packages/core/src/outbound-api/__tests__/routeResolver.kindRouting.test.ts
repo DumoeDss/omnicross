@@ -169,9 +169,9 @@ describe('resolveRoute — responses KIND routing', () => {
   });
 });
 
-describe('resolveRoute — role-based endpoints (chat/gemini, vision removed)', () => {
-  const chat: EndpointRoutingConfig = {
-    endpoint: 'chat',
+describe('resolveRoute — role-based endpoint (gemini, vision removed)', () => {
+  const gemini: EndpointRoutingConfig = {
+    endpoint: 'gemini',
     defaultModel: 'pd,md',
     backgroundModel: 'pb,mb',
     useSubscription: false,
@@ -179,9 +179,9 @@ describe('resolveRoute — role-based endpoints (chat/gemini, vision removed)', 
 
   it('background role → backgroundModel', async () => {
     const result = await resolveRoute({
-      config: chat,
+      config: gemini,
       role: 'background',
-      ingressFormat: 'openai-chat',
+      ingressFormat: 'gemini-generatecontent',
       llmConfig,
     });
     expect(result.ok).toBe(true);
@@ -192,24 +192,24 @@ describe('resolveRoute — role-based endpoints (chat/gemini, vision removed)', 
 
   it('default role (and omitted role) → defaultModel', async () => {
     const withRole = await resolveRoute({
-      config: chat,
+      config: gemini,
       role: 'default',
-      ingressFormat: 'openai-chat',
+      ingressFormat: 'gemini-generatecontent',
       llmConfig,
     });
-    const omitted = await resolveRoute({ config: chat, ingressFormat: 'openai-chat', llmConfig });
+    const omitted = await resolveRoute({ config: gemini, ingressFormat: 'gemini-generatecontent', llmConfig });
     expect(withRole.ok && withRole.route.providerId).toBe('pd');
     expect(omitted.ok && omitted.route.providerId).toBe('pd');
   });
 
   it('role-based route does NOT stamp requestedModel (passthrough gate is kind-only)', async () => {
     const result = await resolveRoute({
-      config: chat,
+      config: gemini,
       role: 'default',
-      ingressFormat: 'openai-chat',
+      ingressFormat: 'gemini-generatecontent',
       llmConfig,
-      // Even if a caller passes requestedModel, chat must not stamp it.
-      requestedModel: 'gpt-4o',
+      // Even if a caller passes requestedModel, gemini must not stamp it.
+      requestedModel: 'gemini-pro',
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -218,13 +218,72 @@ describe('resolveRoute — role-based endpoints (chat/gemini, vision removed)', 
 
   it('missing default model → 503 (no vision branch)', async () => {
     const result = await resolveRoute({
-      config: { endpoint: 'chat', defaultModel: '', backgroundModel: '', useSubscription: false },
+      config: { endpoint: 'gemini', defaultModel: '', backgroundModel: '', useSubscription: false },
       role: 'default',
-      ingressFormat: 'openai-chat',
+      ingressFormat: 'gemini-generatecontent',
       llmConfig,
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.message).toContain('no default model configured');
+  });
+});
+
+describe('resolveRoute — list-mapped endpoint (chat)', () => {
+  const chat: EndpointRoutingConfig = {
+    endpoint: 'chat',
+    models: ['pa,gpt-4o', 'pb,glm-4.7'],
+    useSubscription: false,
+  };
+
+  it('requested model in the list → routes to that ref', async () => {
+    const result = await resolveRoute({
+      config: chat,
+      ingressFormat: 'openai-chat',
+      llmConfig,
+      requestedModel: 'glm-4.7',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.route.providerId).toBe('pb');
+    expect(result.route.model).toBe('glm-4.7');
+  });
+
+  it('case-insensitive match on the modelId', async () => {
+    const result = await resolveRoute({
+      config: chat,
+      ingressFormat: 'openai-chat',
+      llmConfig,
+      requestedModel: 'GPT-4o',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.route.providerId).toBe('pa');
+    expect(result.route.model).toBe('gpt-4o');
+  });
+
+  it('requested model NOT in the list → 404 pointing at GET /v1/models', async () => {
+    const result = await resolveRoute({
+      config: chat,
+      ingressFormat: 'openai-chat',
+      llmConfig,
+      requestedModel: 'unknown-model',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(404);
+    expect(result.error.message).toContain('GET /v1/models');
+  });
+
+  it('empty list → 404 (endpoint unused)', async () => {
+    const result = await resolveRoute({
+      config: { endpoint: 'chat', models: [], useSubscription: false },
+      ingressFormat: 'openai-chat',
+      llmConfig,
+      requestedModel: 'gpt-4o',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.status).toBe(404);
   });
 });

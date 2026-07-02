@@ -6,7 +6,10 @@
  *    KIND (messages: fable/opus/sonnet/haiku; responses: codex/mini), each
  *    writing `modelMap[kind]`. A blank required kind is flagged inline ("service
  *    can't start until it is mapped").
- *  - role-based (`chat`/`gemini`): a `defaultModel` + `backgroundModel` picker
+ *  - list-mapped (`chat`): a MODEL LIST editor — the configured refs' modelIds
+ *    are the names `GET /v1/models` advertises and clients request directly;
+ *    no default/background roles.
+ *  - role-based (`gemini`): a `defaultModel` + `backgroundModel` picker
  *    plus the `backgroundModelIds` override.
  *
  * The legacy vision picker is REMOVED. Model pickers are populated from the
@@ -84,7 +87,47 @@ export function EndpointRoutingCard({ endpoint, modelOptions, busy, onChange }: 
         <p className="text-xs text-muted-foreground">{t('apiService.endpoint.subscriptionUnsupported')}</p>
       ) : null}
 
-      {isKindMappedEndpoint(endpointId) ? (
+      {endpointId === 'chat' ? (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            {t('apiService.endpoint.modelListLabel')}
+          </label>
+          {(endpoint.models ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('apiService.endpoint.modelListEmpty')}</p>
+          ) : (
+            <ul className="space-y-1">
+              {(endpoint.models ?? []).map((ref) => (
+                <li key={ref} className="flex items-center justify-between gap-2 rounded border border-border/50 px-2 py-1">
+                  <span className="text-xs text-foreground truncate">
+                    {requiredOptions.find((o) => o.value === ref)?.label ?? ref}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[11px] text-muted-foreground hover:text-destructive shrink-0"
+                    disabled={busy}
+                    onClick={() =>
+                      onChange({ ...endpoint, models: (endpoint.models ?? []).filter((m) => m !== ref) })
+                    }
+                  >
+                    {t('apiService.endpoint.removeModel')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Select
+            value=""
+            options={requiredOptions.filter((o) => !(endpoint.models ?? []).includes(o.value))}
+            placeholder={t('apiService.endpoint.addModelPlaceholder')}
+            disabled={busy}
+            onChange={(ref) => {
+              if (!ref || (endpoint.models ?? []).includes(ref)) return;
+              onChange({ ...endpoint, models: [...(endpoint.models ?? []), ref] });
+            }}
+            size="sm"
+          />
+        </div>
+      ) : isKindMappedEndpoint(endpointId) ? (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">
             {t('apiService.endpoint.kindMapLabel')}

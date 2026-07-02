@@ -57,6 +57,7 @@ let daemon: Daemon;
 interface EndpointBlock {
   endpoint: string;
   modelMap?: Record<string, string>;
+  models?: string[];
   defaultModel?: string;
   backgroundModel?: string;
   useSubscription: boolean;
@@ -101,7 +102,7 @@ async function bootDaemon(endpoints: EndpointBlock[]): Promise<void> {
  */
 function incompleteEndpoints(): EndpointBlock[] {
   return [
-    { endpoint: 'chat', defaultModel: 'a,mock-model', backgroundModel: 'a,mock-model', useSubscription: false },
+    { endpoint: 'chat', models: ['a,mock-model'], useSubscription: false },
     { endpoint: 'responses', modelMap: { codex: 'a,mock-model', mini: '' }, useSubscription: false },
     {
       endpoint: 'messages',
@@ -115,7 +116,7 @@ function incompleteEndpoints(): EndpointBlock[] {
 /** The four endpoints fully mapped (every kind set). */
 function completeEndpoints(): EndpointBlock[] {
   return [
-    { endpoint: 'chat', defaultModel: 'a,mock-model', backgroundModel: 'a,mock-model', useSubscription: false },
+    { endpoint: 'chat', models: ['a,mock-model'], useSubscription: false },
     { endpoint: 'responses', modelMap: { codex: 'a,mock-model', mini: 'a,mock-model' }, useSubscription: false },
     {
       endpoint: 'messages',
@@ -141,6 +142,7 @@ interface StatusEndpoint {
   endpoint: string;
   model?: string;
   kinds?: Record<string, string>;
+  models?: string[];
   useSubscription: boolean;
 }
 
@@ -165,7 +167,8 @@ describe('GET /status class-aware endpoint projection', () => {
     expect(responses.kinds).toEqual({ codex: 'a,mock-model', mini: 'a,mock-model' });
 
     const chat = endpoints.find((e) => e.endpoint === 'chat')!;
-    expect(chat.model).toBe('a,mock-model');
+    expect(chat.models).toEqual(['a,mock-model']);
+    expect(chat.model).toBeUndefined();
     expect(chat.kinds).toBeUndefined();
 
     const gemini = endpoints.find((e) => e.endpoint === 'gemini')!;
