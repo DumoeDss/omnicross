@@ -93,14 +93,19 @@ async function bootDaemon(endpoints: EndpointBlock[]): Promise<void> {
   adminBase = daemon.adminServer.getStatus().url as string;
 }
 
-/** The four endpoints with messages/responses UNMAPPED (incomplete). */
+/**
+ * The four endpoints with messages/responses PARTIALLY mapped (some kinds set,
+ * some blank) — the config-mistake shape the startup gate blocks. (A FULLY
+ * blank kind map means "endpoint unused" and does NOT block — see the
+ * partial-config test below.)
+ */
 function incompleteEndpoints(): EndpointBlock[] {
   return [
     { endpoint: 'chat', defaultModel: 'a,mock-model', backgroundModel: 'a,mock-model', useSubscription: false },
-    { endpoint: 'responses', modelMap: { codex: '', mini: '' }, useSubscription: false },
+    { endpoint: 'responses', modelMap: { codex: 'a,mock-model', mini: '' }, useSubscription: false },
     {
       endpoint: 'messages',
-      modelMap: { fable: '', opus: '', sonnet: '', haiku: '' },
+      modelMap: { fable: '', opus: '', sonnet: 'a,mock-model', haiku: '' },
       useSubscription: false,
     },
     { endpoint: 'gemini', defaultModel: 'a,mock-model', backgroundModel: 'a,mock-model', useSubscription: false },
@@ -183,8 +188,8 @@ describe('PUT /server startup gate (incomplete kind map)', () => {
     expect(body.error?.code).toBe('incomplete-model-config');
 
     const byEndpoint = new Map(body.error!.missing.map((m) => [m.endpoint, m.missingKinds]));
-    expect(byEndpoint.get('messages')).toEqual(['fable', 'opus', 'sonnet', 'haiku']);
-    expect(byEndpoint.get('responses')).toEqual(['codex', 'mini']);
+    expect(byEndpoint.get('messages')).toEqual(['fable', 'opus', 'haiku']);
+    expect(byEndpoint.get('responses')).toEqual(['mini']);
 
     // Partial config retained (enabled:true persisted) …
     expect(body.server.enabled).toBe(true);
@@ -221,10 +226,11 @@ describe('PUT /server startup gate (incomplete kind map)', () => {
     const running = await adminFetch('GET', '/admin/api/status');
     expect((running.json as { running: boolean }).running).toBe(true);
 
-    // Now reconfigure `messages` to a BLANK kind map while still enabled.
+    // Now reconfigure `messages` to a PARTIAL kind map (a config mistake — a
+    // fully-blank map would mean "unused" and is allowed) while still enabled.
     const incompleteMessages: EndpointBlock[] = completeEndpoints().map((e) =>
       e.endpoint === 'messages'
-        ? { endpoint: 'messages', modelMap: { fable: '', opus: '', sonnet: '', haiku: '' }, useSubscription: false }
+        ? { endpoint: 'messages', modelMap: { fable: '', opus: 'a,mock-model', sonnet: '', haiku: '' }, useSubscription: false }
         : e,
     );
     const put = await adminFetch('PUT', '/admin/api/server', { enabled: true, endpoints: incompleteMessages });
@@ -237,5 +243,24 @@ describe('PUT /server startup gate (incomplete kind map)', () => {
     // "cannot start" the UI shows (no stale mapping served).
     const after = await adminFetch('GET', '/admin/api/status');
     expect((after.json as { running: boolean }).running).toBe(false);
+  });
+
+  it('one endpoint fully configured + the other fully blank → binds (unused endpoint allowed)', async () => {
+    // The operator uses ONLY Claude Code (messages configured); Codex
+    // (responses) is entirely unmapped → treated as unused, the server still
+    // starts, and responses requests 503 per-request.
+    const messagesOnly: EndpointBlock[] = completeEndpoints().map((e) =>
+      e.endpoint === 'responses'
+        ? { endpoint: 'responses', modelMap: { codex: '', mini: '' }, useSubscription: false }
+        : e,
+    );
+    await bootDaemon(messagesOnly);
+
+    const put = await adminFetch('PUT', '/admin/api/server', { enabled: true });
+    expect(put.status).toBe(200);
+    expect((put.json as { error?: unknown }).error).toBeUndefined();
+
+    const status = await adminFetch('GET', '/admin/api/status');
+    expect((status.json as { running: boolean }).running).toBe(true);
   });
 });

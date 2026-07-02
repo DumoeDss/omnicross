@@ -104,13 +104,15 @@ export interface EndpointModelConfigError {
 }
 
 /**
- * Server-level completeness (STRICT default): every kind-mapped endpoint must
- * have ALL of its declared kinds configured with a non-blank ref. Returns one
- * entry per incomplete endpoint (an absent endpoint entry counts as fully
- * missing); an empty result ⇒ the config satisfies the startup gate.
+ * Server-level completeness, PER-ENDPOINT: a kind-mapped endpoint whose
+ * declared kinds are ALL blank/absent counts as UNCONFIGURED — the operator
+ * simply doesn't use that endpoint, so it does NOT block startup (its requests
+ * 503 per-request instead). Only a PARTIALLY configured endpoint (some kinds
+ * set, some blank — a real config mistake that would silently misroute) is
+ * returned as an error. Empty result ⇒ the config satisfies the startup gate.
  *
- * Serving consumes this for the gate ENFORCEMENT; it MAY relax to an
- * "in-use only" policy by composing {@link validateEndpointModelConfig} itself.
+ * Serving consumes this for the gate ENFORCEMENT; it MAY tighten to an
+ * all-endpoints-strict policy by composing {@link validateEndpointModelConfig}.
  */
 export function validateServerModelConfig(
   config: OutboundApiServerConfig,
@@ -118,10 +120,12 @@ export function validateServerModelConfig(
   const errors: EndpointModelConfigError[] = [];
   for (const endpoint of Object.keys(ENDPOINT_MODEL_KINDS) as KindMappedEndpoint[]) {
     const ep = config.endpoints.find((e) => e.endpoint === endpoint);
-    const missingKinds = ep
-      ? validateEndpointModelConfig(ep)
-      : [...modelKindsForEndpoint(endpoint)];
-    if (missingKinds.length > 0) errors.push({ endpoint, missingKinds });
+    const declared = modelKindsForEndpoint(endpoint);
+    const missingKinds = ep ? validateEndpointModelConfig(ep) : [...declared];
+    // Fully blank ⇒ endpoint unused ⇒ not a startup error.
+    if (missingKinds.length > 0 && missingKinds.length < declared.length) {
+      errors.push({ endpoint, missingKinds });
+    }
   }
   return errors;
 }

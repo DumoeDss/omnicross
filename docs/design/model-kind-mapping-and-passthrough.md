@@ -247,7 +247,7 @@ export interface EndpointRoutingConfig {
 > **BREAKING（按既定决策"不做迁移"）**：本次将 outbound-api-server 的每端点配置从"角色制（default/background/vision）"改为"模型种制"。**不做旧配置迁移**——升级后 `messages`/`responses` 端点的旧 `defaultModel`/`backgroundModel` 会被丢弃、`visionModel` 移除，`modelMap` 从空开始。
 
 对已有运营者的影响：
-- 升级后若 outbound server 处于启用态，但 `messages`（fable/opus/sonnet/haiku）或 `responses`（codex/mini）的模型种映射未配置完整，**服务器会拒绝绑定该端口**（daemon boot 侧被 try/catch 兜住，非致命——其余 daemon 正常启动，仅 outbound 不绑定），并在 admin UI 顶部提示"接口服务无法启动：缺少模型映射配置"。
+- 闸门按**端点粒度**：某端点的模型种**全部为空 = 视为未启用该端点**（服务器照常启动，该端点请求返回 503——比如只配了 Claude Code 没配 Codex，Claude Code 照常可用）；只有**部分配置**（配了一些种、漏了一些）才算配置错误。升级后若 outbound server 处于启用态且某端点处于部分配置状态，**服务器会拒绝绑定该端口**（daemon boot 侧被 try/catch 兜住，非致命——其余 daemon 正常启动，仅 outbound 不绑定），并在 admin UI 顶部提示"接口服务无法启动：缺少模型映射配置"。
 - 运营者需在 admin 面板重新为这两个端点各模型种选择 `providerId,modelId`，保存后服务器方可绑定。
 - `chat`/`gemini` 端点仍为 default/background（仅移除了 vision 字段），不受种制影响。
 

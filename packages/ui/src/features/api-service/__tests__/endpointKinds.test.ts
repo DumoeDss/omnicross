@@ -94,6 +94,14 @@ describe('missingKindsByEndpoint', () => {
     ]);
   });
 
+  it('treats a fully-blank kind-mapped endpoint as UNUSED (no banner)', () => {
+    const endpoints: EndpointRoutingConfig[] = [
+      { endpoint: 'messages', modelMap: { fable: 'a,b', opus: 'a,b', sonnet: 'a,b', haiku: 'a,b' }, useSubscription: false },
+      { endpoint: 'responses', modelMap: { codex: '', mini: '' }, useSubscription: false },
+    ];
+    expect(missingKindsByEndpoint(endpoints)).toEqual([]);
+  });
+
   it('is empty when all kind-mapped endpoints are fully configured', () => {
     const endpoints: EndpointRoutingConfig[] = [
       { endpoint: 'messages', modelMap: { fable: 'a,b', opus: 'a,b', sonnet: 'a,b', haiku: 'a,b' }, useSubscription: false },

@@ -76,8 +76,10 @@ export interface EndpointMissingKinds {
 /**
  * Per-endpoint missing-kind summary across a whole server config — the
  * client-side mirror of mkm-core's `validateServerModelConfig`, used to render
- * the "service can't start: missing model mappings" banner. Returns one entry
- * per kind-mapped endpoint that has any blank required kind; empty ⇒ complete.
+ * the "service can't start: missing model mappings" banner. An endpoint whose
+ * declared kinds are ALL blank counts as UNCONFIGURED (the operator doesn't use
+ * it — allowed; requests 503 per-request), so only PARTIALLY configured
+ * endpoints are returned; empty ⇒ the gate is satisfied.
  */
 export function missingKindsByEndpoint(
   endpoints: EndpointRoutingConfig[],
@@ -86,7 +88,11 @@ export function missingKindsByEndpoint(
   for (const ep of endpoints) {
     if (!isKindMappedEndpoint(ep.endpoint)) continue;
     const missingKinds = missingKindsForEndpoint(ep);
-    if (missingKinds.length > 0) out.push({ endpoint: ep.endpoint, missingKinds });
+    const declared = modelKindsForEndpoint(ep.endpoint);
+    // Fully blank ⇒ endpoint unused ⇒ not a startup error.
+    if (missingKinds.length > 0 && missingKinds.length < declared.length) {
+      out.push({ endpoint: ep.endpoint, missingKinds });
+    }
   }
   return out;
 }

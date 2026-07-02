@@ -147,7 +147,7 @@ describe('validateEndpointModelConfig', () => {
   });
 });
 
-describe('validateServerModelConfig (strict default)', () => {
+describe('validateServerModelConfig (per-endpoint: fully-blank = unused, partial = error)', () => {
   const serverConfig = (
     endpoints: EndpointRoutingConfig[],
   ): OutboundApiServerConfig => ({
@@ -187,10 +187,16 @@ describe('validateServerModelConfig (strict default)', () => {
     ).toEqual([{ endpoint: 'responses', missingKinds: ['mini'] }]);
   });
 
-  it('an absent kind-mapped endpoint counts as fully missing', () => {
-    // Only responses present → messages entirely unconfigured.
-    expect(validateServerModelConfig(serverConfig([completeResponses]))).toEqual([
-      { endpoint: 'messages', missingKinds: ['fable', 'opus', 'sonnet', 'haiku'] },
-    ]);
+  it('a fully-unconfigured kind-mapped endpoint is UNUSED, not an error', () => {
+    // Only responses configured → messages entirely blank ⇒ operator doesn't
+    // use it; the server may start (messages requests 503 per-request).
+    expect(validateServerModelConfig(serverConfig([completeResponses]))).toEqual([]);
+  });
+
+  it('a partially configured messages endpoint is still an error', () => {
+    const partialMessages = messagesConfig({ fable: '', opus: ref, sonnet: '', haiku: '' });
+    expect(
+      validateServerModelConfig(serverConfig([partialMessages, completeResponses])),
+    ).toEqual([{ endpoint: 'messages', missingKinds: ['fable', 'sonnet', 'haiku'] }]);
   });
 });
