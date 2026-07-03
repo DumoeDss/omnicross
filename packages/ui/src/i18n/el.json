@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Ρυθμίσεις",
     "usageStats": "Χρήση",
-    "pricing": "Τιμές"
+    "pricing": "Τιμές",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Υπηρεσία API",
@@ -874,7 +875,29 @@
     "unattributed": "Μη αποδιδόμενα",
     "unattributedHint": "Αιτήματα που δεν συνδέονται με συγκεκριμένο κλειδί API. Αυτό είναι αναμενόμενο μέχρι να καταγράφεται η απόδοση ανά κλειδί.",
     "empty": "Κανένα αίτημα σε αυτό το διάστημα.",
-    "invalidRange": "Επιλέξτε έγκυρο εύρος ημερομηνιών."
+    "invalidRange": "Επιλέξτε έγκυρο εύρος ημερομηνιών.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Τιμές μοντέλων",

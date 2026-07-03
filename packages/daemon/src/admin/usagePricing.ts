@@ -26,7 +26,7 @@ import type {
   PricingConflictDecision,
   PricingEntryInput,
 } from '@omnicross/contracts/pricing-types';
-import type { UsageDateRange } from '@omnicross/contracts/usage-stats-types';
+import type { UsageDateRange, UsageTimeBucket } from '@omnicross/contracts/usage-stats-types';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 
 import { type DaemonConfig, loadConfig } from '../config';
@@ -75,6 +75,21 @@ function parseRange(query: URLSearchParams): UsageDateRange | UsagePricingResult
 const isRange = (v: UsageDateRange | UsagePricingResult): v is UsageDateRange =>
   (v as UsageDateRange).startTs !== undefined && !('status' in v);
 
+/**
+ * Upper-bound millis per bucket (shortest possible span) — used ONLY to project
+ * a pathological-range guard COUNT, never for actual bucketing (the store walks
+ * real local boundaries). `month` uses 28 days so the projection never
+ * UNDER-counts (a short month would otherwise let a bigger range slip the cap).
+ */
+const BUCKET_SPAN_MS: Record<UsageTimeBucket, number> = {
+  hour: 3_600_000,
+  day: 86_400_000,
+  month: 28 * 86_400_000,
+};
+
+/** C1 guard: reject a range that would project more than this many buckets. */
+const MAX_TIMESERIES_BUCKETS = 2000;
+
 // ── Usage stats ───────────────────────────────────────────────────────────────
 
 /** `GET /admin/api/usage/totals|by-model|by-api-key?startTs&endTs` */
@@ -91,6 +106,29 @@ export async function handleUsageGet(
       return { status: 200, body: await deps.usageRecorder.getTotals(range) };
     case 'by-model':
       return { status: 200, body: await deps.usageRecorder.getByModel(range) };
+    case 'timeseries': {
+      const bucket = query.get('bucket');
+      if (bucket !== 'hour' && bucket !== 'day' && bucket !== 'month') {
+        return err(400, "bucket must be one of 'hour', 'day', 'month'");
+      }
+      // C1 guard: clamp `endTs` to now (a future endTs would zero-fill empty
+      // buckets forever) and reject a range that projects a pathological bucket
+      // count. The projection uses the shortest-possible bucket span so it never
+      // under-counts; an EMPTY range (`startTs >= endTs`) skips the cap and the
+      // store returns `[]`.
+      const now = Date.now();
+      const clamped: UsageDateRange = { startTs: range.startTs, endTs: Math.min(range.endTs, now) };
+      if (clamped.startTs < clamped.endTs) {
+        const projected = Math.ceil((clamped.endTs - clamped.startTs) / BUCKET_SPAN_MS[bucket]) + 1;
+        if (projected > MAX_TIMESERIES_BUCKETS) {
+          return err(
+            400,
+            `requested range projects ~${projected} '${bucket}' buckets (max ${MAX_TIMESERIES_BUCKETS}); narrow the range or use a coarser bucket`,
+          );
+        }
+      }
+      return { status: 200, body: await deps.usageRecorder.getTimeSeries(clamped, bucket) };
+    }
     case 'by-api-key': {
       const rows = await deps.usageRecorder.getByApiKey(range);
       const labels = poolKeyLabels(loadConfig(deps.configPath));

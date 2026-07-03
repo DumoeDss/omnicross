@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Impostazioni",
     "usageStats": "Utilizzo",
-    "pricing": "Prezzi"
+    "pricing": "Prezzi",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Servizio API",
@@ -874,7 +875,29 @@
     "unattributed": "Non attribuito",
     "unattributedHint": "Richieste non collegate a una chiave API specifica. È normale finché l’attribuzione per chiave non viene registrata.",
     "empty": "Nessuna richiesta in questo intervallo.",
-    "invalidRange": "Seleziona un intervallo di date valido."
+    "invalidRange": "Seleziona un intervallo di date valido.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Prezzi dei modelli",

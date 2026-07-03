@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Настройки",
     "usageStats": "Използване",
-    "pricing": "Цени"
+    "pricing": "Цени",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "API услуга",
@@ -874,7 +875,29 @@
     "unattributed": "Неприписани",
     "unattributedHint": "Заявки, несвързани с конкретен API ключ. Това е нормално, докато приписването по ключ не се записва.",
     "empty": "Няма заявки в този период.",
-    "invalidRange": "Изберете валиден период от дати."
+    "invalidRange": "Изберете валиден период от дати.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Цени на моделите",

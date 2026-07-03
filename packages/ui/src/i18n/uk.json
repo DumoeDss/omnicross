@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Налаштування",
     "usageStats": "Використання",
-    "pricing": "Ціни"
+    "pricing": "Ціни",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "API-сервіс",
@@ -874,7 +875,29 @@
     "unattributed": "Без привʼязки",
     "unattributedHint": "Запити, не повʼязані з конкретним API-ключем. Це нормально, доки привʼязка за ключами не записується.",
     "empty": "Немає запитів за цей період.",
-    "invalidRange": "Виберіть коректний діапазон дат."
+    "invalidRange": "Виберіть коректний діапазон дат.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Ціни моделей",

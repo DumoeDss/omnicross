@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItemDef[] = [
   { id: 'api-service', icon: ServerCog, labelKey: 'nav.apiService' },
   { id: 'accounts', icon: Users, labelKey: 'nav.accounts' },
   { id: 'code-cli', icon: Terminal, labelKey: 'nav.codeCli' },
-  { id: 'usage-stats', icon: BarChart3, labelKey: 'nav.usageStats' },
+  { id: 'usage-stats', icon: BarChart3, labelKey: 'nav.dashboard' },
   { id: 'pricing', icon: CircleDollarSign, labelKey: 'nav.pricing' },
   { id: 'settings', icon: Settings, labelKey: 'nav.settings' },
 ];

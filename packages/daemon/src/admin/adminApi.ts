@@ -82,6 +82,7 @@ import {
   type PathProbe,
   type TerminalOpener,
 } from './cliLaunch';
+import { handleDashboard } from './dashboard';
 import { handleExport, handleImport, type MigrationDeps } from './adminMigration';
 import type { MigrationCredentialStore } from '../migration/migration';
 import type { OAuthSessionStore } from './oauthSessions';
@@ -385,6 +386,8 @@ export async function handleAdminApi(
         return await handleMigrationImport(req, res, method, deps);
       case 'usage':
         return await handleUsage(req, res, method, rest, deps);
+      case 'dashboard':
+        return await handleDashboardRoute(res, method, deps);
       case 'pricing':
         return await handlePricing(req, res, method, rest, deps);
       default:
@@ -418,6 +421,21 @@ async function handleUsage(
 ): Promise<void> {
   if (method !== 'GET') return writeJsonError(res, 405, `method ${method} not allowed on usage`);
   return writeResult(res, await handleUsageGet(rest[0], requestQuery(req), deps));
+}
+
+/**
+ * `GET /admin/api/dashboard` → the read-only `DashboardSummary` aggregate.
+ * GET-only (405 otherwise). `AdminApiDeps` structurally satisfies the focused
+ * `DashboardDeps` — no deps widening.
+ */
+async function handleDashboardRoute(
+  res: http.ServerResponse,
+  method: string,
+  deps: AdminApiDeps,
+): Promise<void> {
+  if (method !== 'GET') return writeJsonError(res, 405, `method ${method} not allowed on dashboard`);
+  const result = await handleDashboard(deps);
+  return writeJson(res, result.status, result.body);
 }
 
 /** `/admin/api/pricing` (GET/PUT/DELETE) + `/fetch-latest` + `/resolve-conflicts`. */

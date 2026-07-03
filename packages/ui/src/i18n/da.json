@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Indstillinger",
     "usageStats": "Forbrug",
-    "pricing": "Priser"
+    "pricing": "Priser",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "API-tjeneste",
@@ -874,7 +875,29 @@
     "unattributed": "Ikke tildelt",
     "unattributedHint": "Forespørgsler, der ikke er knyttet til en bestemt API-nøgle. Dette er forventet, indtil tildeling pr. nøgle registreres.",
     "empty": "Ingen forespørgsler i dette interval.",
-    "invalidRange": "Vælg et gyldigt datointerval."
+    "invalidRange": "Vælg et gyldigt datointerval.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Modelpriser",

@@ -511,7 +511,8 @@
     "codeCli": "CLI de código",
     "settings": "Configuración",
     "usageStats": "Uso",
-    "pricing": "Precios"
+    "pricing": "Precios",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Servicio de API",
@@ -874,7 +875,29 @@
     "unattributed": "Sin atribuir",
     "unattributedHint": "Solicitudes no vinculadas a una clave API concreta. Es lo esperado hasta que se registre la atribución por clave.",
     "empty": "No hay solicitudes en este rango.",
-    "invalidRange": "Selecciona un rango de fechas válido."
+    "invalidRange": "Selecciona un rango de fechas válido.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Precios de modelos",

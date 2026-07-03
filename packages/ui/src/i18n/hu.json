@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Beállítások",
     "usageStats": "Használat",
-    "pricing": "Árak"
+    "pricing": "Árak",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "API szolgáltatás",
@@ -874,7 +875,29 @@
     "unattributed": "Nem hozzárendelt",
     "unattributedHint": "Konkrét API-kulcshoz nem kapcsolt kérések. Ez normális, amíg a kulcsonkénti hozzárendelés rögzítése el nem indul.",
     "empty": "Nincs kérés ebben az időszakban.",
-    "invalidRange": "Válassz érvényes dátumtartományt."
+    "invalidRange": "Válassz érvényes dátumtartományt.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Modellárak",

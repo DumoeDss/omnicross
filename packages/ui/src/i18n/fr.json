@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Paramètres",
     "usageStats": "Utilisation",
-    "pricing": "Tarifs"
+    "pricing": "Tarifs",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Service API",
@@ -874,7 +875,29 @@
     "unattributed": "Non attribué",
     "unattributedHint": "Requêtes non liées à une clé API précise. C'est normal tant que l'attribution par clé n'est pas enregistrée.",
     "empty": "Aucune requête sur cette période.",
-    "invalidRange": "Sélectionnez une plage de dates valide."
+    "invalidRange": "Sélectionnez une plage de dates valide.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Tarifs des modèles",

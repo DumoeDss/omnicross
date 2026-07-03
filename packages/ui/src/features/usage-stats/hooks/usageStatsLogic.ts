@@ -12,6 +12,7 @@ import type {
   ApiKeyUsageRow,
   ModelUsageRow,
   UsageDateRange,
+  UsageTimeBucket,
   UsageTotals,
 } from '../../../daemon/types-usage-pricing';
 
@@ -100,6 +101,49 @@ export function partitionApiKeyRows(rows: ApiKeyUsageRow[]): {
 /** Sort model rows by cost descending (default by-model view order). */
 export function sortByCostDesc(rows: ModelUsageRow[]): ModelUsageRow[] {
   return [...rows].sort((a, b) => b.costUsd - a.costUsd);
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Pick the trend bucket granularity for a range span (office-hours D4):
+ * span ≤ 2 days → `hour`, ≤ 62 days → `day`, else `month`. The span is the
+ * exclusive `[startTs, endTs)` width; a null/inverted span falls back to
+ * `day`.
+ */
+export function autoBucketForRange(range: UsageDateRange): UsageTimeBucket {
+  const span = range.endTs - range.startTs;
+  if (span <= 2 * DAY_MS) return 'hour';
+  if (span <= 62 * DAY_MS) return 'day';
+  return 'month';
+}
+
+/** One doughnut slice: a model's cost and its fraction of the total cost. */
+export interface ModelShare {
+  providerId: string;
+  model: string;
+  costUsd: number;
+  /** Fraction in [0, 1]; falls back to input+output token share when total cost is 0. */
+  share: number;
+}
+
+/**
+ * Cost-share fraction per model for the distribution doughnut, sorted by cost
+ * descending. When the total cost is 0 (e.g. only unpriced models) the share
+ * falls back to each model's input+output token proportion so the doughnut
+ * still reads; if there are no tokens either, every share is 0.
+ */
+export function modelShares(rows: ModelUsageRow[]): ModelShare[] {
+  const sorted = sortByCostDesc(rows);
+  const totalCost = sorted.reduce((sum, r) => sum + r.costUsd, 0);
+  const tokensOf = (r: ModelUsageRow) => r.inputTokens + r.outputTokens;
+  const totalTokens = sorted.reduce((sum, r) => sum + tokensOf(r), 0);
+  return sorted.map((r) => {
+    let share = 0;
+    if (totalCost > 0) share = r.costUsd / totalCost;
+    else if (totalTokens > 0) share = tokensOf(r) / totalTokens;
+    return { providerId: r.providerId, model: r.model, costUsd: r.costUsd, share };
+  });
 }
 
 /** Locale-aware grouped-thousands integer formatting for token counts. */

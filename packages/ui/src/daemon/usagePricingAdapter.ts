@@ -13,6 +13,7 @@ import { adminClient } from './adminClient';
 
 import type {
   ApiKeyUsageRow,
+  DashboardSummary,
   ModelUsageRow,
   PricingConflictResolutionInput,
   PricingEntry,
@@ -20,6 +21,8 @@ import type {
   PricingFetchLatestResult,
   PricingResolutionResult,
   UsageDateRange,
+  UsageTimeBucket,
+  UsageTimeSeriesBucket,
   UsageTotals,
 } from './types-usage-pricing';
 
@@ -45,6 +48,24 @@ export function getUsageByModel(range: UsageDateRange): Promise<ModelUsageRow[]>
 /** `GET /usage/by-api-key` — bare `ApiKeyUsageRow[]`. */
 export function getUsageByApiKey(range: UsageDateRange): Promise<ApiKeyUsageRow[]> {
   return adminClient.get<ApiKeyUsageRow[]>(`/usage/by-api-key${rangeQuery(range)}`);
+}
+
+/** `GET /usage/timeseries?startTs&endTs&bucket` — bare `UsageTimeSeriesBucket[]`. */
+export function getUsageTimeSeries(
+  range: UsageDateRange,
+  bucket: UsageTimeBucket,
+): Promise<UsageTimeSeriesBucket[]> {
+  const qs = new URLSearchParams({
+    startTs: String(range.startTs),
+    endTs: String(range.endTs),
+    bucket,
+  });
+  return adminClient.get<UsageTimeSeriesBucket[]>(`/usage/timeseries?${qs.toString()}`);
+}
+
+/** `GET /dashboard` — bare `DashboardSummary`. */
+export function getDashboardSummary(): Promise<DashboardSummary> {
+  return adminClient.get<DashboardSummary>('/dashboard');
 }
 
 /** `GET /pricing` — unwraps the `{ entries }` envelope. */

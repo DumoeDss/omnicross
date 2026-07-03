@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "설정",
     "usageStats": "사용량",
-    "pricing": "가격"
+    "pricing": "가격",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "API 서비스",
@@ -874,7 +875,29 @@
     "unattributed": "미지정",
     "unattributedHint": "특정 API 키에 연결되지 않은 요청입니다. 키별 기록이 도입되기 전까지는 정상적인 상태입니다.",
     "empty": "이 기간에 요청이 없습니다.",
-    "invalidRange": "유효한 날짜 범위를 선택하세요."
+    "invalidRange": "유효한 날짜 범위를 선택하세요.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "모델 가격",

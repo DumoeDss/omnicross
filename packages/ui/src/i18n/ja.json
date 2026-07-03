@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "設定",
     "usageStats": "使用状況",
-    "pricing": "料金"
+    "pricing": "料金",
+    "dashboard": "ダッシュボード"
   },
   "apiService": {
     "title": "API サービス",
@@ -874,7 +875,29 @@
     "unattributed": "未割り当て",
     "unattributedHint": "特定の API キーに紐付いていないリクエストです。キー単位の記録が有効になるまでは正常な状態です。",
     "empty": "この期間にリクエストはありません。",
-    "invalidRange": "有効な日付範囲を選択してください。"
+    "invalidRange": "有効な日付範囲を選択してください。",
+    "dashboardTitle": "ダッシュボード",
+    "dashboardDescription": "デーモンが処理したリクエストの概要、モデル分布、使用傾向。",
+    "today": "今日",
+    "allTime": "全期間",
+    "providers": "プロバイダー",
+    "outboundKeys": "送信キー",
+    "accounts": "アカウント",
+    "server": "サーバー",
+    "serverRunning": "稼働中",
+    "serverStopped": "停止",
+    "port": "ポート",
+    "uptime": "稼働時間",
+    "requests": "リクエスト",
+    "enabledOfTotal": "有効 / 合計",
+    "activeOfTotal": "有効 / 合計",
+    "modelDistribution": "モデル分布",
+    "usageTrend": "使用傾向",
+    "granularity": "粒度",
+    "hour": "時",
+    "day": "日",
+    "month": "月",
+    "other": "その他"
   },
   "pricing": {
     "title": "モデル料金",

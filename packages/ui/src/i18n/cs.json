@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Nastavení",
     "usageStats": "Využití",
-    "pricing": "Ceník"
+    "pricing": "Ceník",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Služba API",
@@ -874,7 +875,29 @@
     "unattributed": "Nepřiřazeno",
     "unattributedHint": "Požadavky nespojené s konkrétním API klíčem. To je normální, dokud se přiřazení podle klíčů nezaznamenává.",
     "empty": "V tomto rozsahu nejsou žádné požadavky.",
-    "invalidRange": "Vyberte platný rozsah dat."
+    "invalidRange": "Vyberte platný rozsah dat.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Ceník modelů",

@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "设置",
     "usageStats": "用量统计",
-    "pricing": "模型价格"
+    "pricing": "模型价格",
+    "dashboard": "仪表板"
   },
   "apiService": {
     "title": "API 服务",
@@ -874,7 +875,29 @@
     "unattributed": "未归属",
     "unattributedHint": "未关联到具体 API 密钥的请求。在按密钥归属记录上线之前，这是正常现象。",
     "empty": "该时间范围内没有请求。",
-    "invalidRange": "请选择有效的日期范围。"
+    "invalidRange": "请选择有效的日期范围。",
+    "dashboardTitle": "仪表板",
+    "dashboardDescription": "守护进程处理请求的总览、模型分布与使用趋势。",
+    "today": "今日",
+    "allTime": "全部时间",
+    "providers": "提供方",
+    "outboundKeys": "出站密钥",
+    "accounts": "账户",
+    "server": "服务器",
+    "serverRunning": "运行中",
+    "serverStopped": "已停止",
+    "port": "端口",
+    "uptime": "运行时长",
+    "requests": "请求",
+    "enabledOfTotal": "已启用 / 总数",
+    "activeOfTotal": "活跃 / 总数",
+    "modelDistribution": "模型分布",
+    "usageTrend": "使用趋势",
+    "granularity": "粒度",
+    "hour": "小时",
+    "day": "天",
+    "month": "月",
+    "other": "其他"
   },
   "pricing": {
     "title": "模型价格",

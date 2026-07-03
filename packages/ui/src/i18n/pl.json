@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Ustawienia",
     "usageStats": "Użycie",
-    "pricing": "Cennik"
+    "pricing": "Cennik",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Usługa API",
@@ -874,7 +875,29 @@
     "unattributed": "Nieprzypisane",
     "unattributedHint": "Żądania niepowiązane z konkretnym kluczem API. To normalne, dopóki przypisanie per klucz nie jest rejestrowane.",
     "empty": "Brak żądań w tym zakresie.",
-    "invalidRange": "Wybierz prawidłowy zakres dat."
+    "invalidRange": "Wybierz prawidłowy zakres dat.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Cennik modeli",

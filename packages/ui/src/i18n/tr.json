@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Ayarlar",
     "usageStats": "Kullanım",
-    "pricing": "Fiyatlar"
+    "pricing": "Fiyatlar",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "API Hizmeti",
@@ -874,7 +875,29 @@
     "unattributed": "Atanmamış",
     "unattributedHint": "Belirli bir API anahtarına bağlı olmayan istekler. Anahtar bazlı atama kaydedilene kadar bu beklenen durumdur.",
     "empty": "Bu aralıkta istek yok.",
-    "invalidRange": "Geçerli bir tarih aralığı seçin."
+    "invalidRange": "Geçerli bir tarih aralığı seçin.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Model fiyatları",

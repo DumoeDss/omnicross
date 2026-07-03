@@ -15,14 +15,21 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { ByApiKeyTable } from './components/ByApiKeyTable';
 import { ByModelTable } from './components/ByModelTable';
+import { DashboardOverview } from './components/DashboardOverview';
 import { DateRangePicker } from './components/DateRangePicker';
+import { ModelDistributionChart } from './components/ModelDistributionChart';
 import { TotalsSummary } from './components/TotalsSummary';
+import { UsageTrendChart } from './components/UsageTrendChart';
+import { useDashboardSummary } from './hooks/useDashboardSummary';
 import { useUsageStats } from './hooks/useUsageStats';
+import { useUsageTrend } from './hooks/useUsageTrend';
 
 export function UsageStatsPage() {
   const t = useTranslation();
   const stats = useUsageStats();
   const { loading, error, data, range } = stats;
+  const dashboard = useDashboardSummary();
+  const trend = useUsageTrend(range);
 
   const hasEvents = (data?.totals.eventCount ?? 0) > 0;
 
@@ -37,8 +44,8 @@ export function UsageStatsPage() {
                 <BarChart3 className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold text-foreground">{t('usageStats.title')}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{t('usageStats.description')}</p>
+                <h2 className="text-base font-semibold text-foreground">{t('usageStats.dashboardTitle')}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{t('usageStats.dashboardDescription')}</p>
                 <div className="mt-3">
                   <DateRangePicker
                     preset={stats.preset}
@@ -53,7 +60,30 @@ export function UsageStatsPage() {
             </div>
           </section>
 
-          {/* Error banner with retry */}
+          {/* Overview cards — own loading/error so a summary failure doesn't
+              blank the range-driven views below. */}
+          <DashboardOverview
+            summary={dashboard.summary}
+            loading={dashboard.loading}
+            error={dashboard.error}
+            onReload={dashboard.reload}
+          />
+
+          {/* Distribution + trend charts — side-by-side on wide viewports; each
+              carries its own empty/loading/error state. */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ModelDistributionChart rows={data?.byModel ?? []} />
+            <UsageTrendChart
+              series={trend.series}
+              bucket={trend.bucket}
+              onBucketChange={trend.setBucket}
+              loading={trend.loading}
+              error={trend.error}
+              onReload={trend.reload}
+            />
+          </div>
+
+          {/* Error banner with retry (tables) */}
           {error ? (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/60 bg-destructive/10 px-4 py-3">
               <p className="text-sm text-destructive">{error}</p>

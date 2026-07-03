@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "設定",
     "usageStats": "用量統計",
-    "pricing": "模型價格"
+    "pricing": "模型價格",
+    "dashboard": "儀表板"
   },
   "apiService": {
     "title": "API 服務",
@@ -874,7 +875,29 @@
     "unattributed": "未歸屬",
     "unattributedHint": "未關聯到特定 API 金鑰的請求。在按金鑰歸屬記錄上線之前，這是正常現象。",
     "empty": "此時間範圍內沒有請求。",
-    "invalidRange": "請選擇有效的日期範圍。"
+    "invalidRange": "請選擇有效的日期範圍。",
+    "dashboardTitle": "儀表板",
+    "dashboardDescription": "常駐程式處理請求的總覽、模型分佈與使用趨勢。",
+    "today": "今日",
+    "allTime": "全部時間",
+    "providers": "提供方",
+    "outboundKeys": "出站金鑰",
+    "accounts": "帳戶",
+    "server": "伺服器",
+    "serverRunning": "執行中",
+    "serverStopped": "已停止",
+    "port": "連接埠",
+    "uptime": "執行時間",
+    "requests": "請求",
+    "enabledOfTotal": "已啟用 / 總數",
+    "activeOfTotal": "使用中 / 總數",
+    "modelDistribution": "模型分佈",
+    "usageTrend": "使用趨勢",
+    "granularity": "粒度",
+    "hour": "小時",
+    "day": "天",
+    "month": "月",
+    "other": "其他"
   },
   "pricing": {
     "title": "模型價格",

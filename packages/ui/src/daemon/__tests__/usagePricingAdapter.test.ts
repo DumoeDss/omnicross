@@ -19,9 +19,11 @@ import { adminClient } from '../adminClient';
 import {
   deletePricing,
   fetchLatestPricing,
+  getDashboardSummary,
   getPricing,
   getUsageByApiKey,
   getUsageByModel,
+  getUsageTimeSeries,
   getUsageTotals,
   resolvePricingConflicts,
   upsertPricing,
@@ -63,6 +65,24 @@ describe('usage queries', () => {
     expect(mocked.get).toHaveBeenCalledWith('/usage/by-model?startTs=5&endTs=6');
     await getUsageByApiKey({ startTs: 5, endTs: 6 });
     expect(mocked.get).toHaveBeenCalledWith('/usage/by-api-key?startTs=5&endTs=6');
+  });
+
+  it('getUsageTimeSeries builds ?startTs&endTs&bucket and returns the bare array', async () => {
+    const buckets = [
+      { bucketStartTs: 1000, label: '2026-07-04', requests: 2, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0.1 },
+    ];
+    mocked.get.mockResolvedValueOnce(buckets);
+    const result = await getUsageTimeSeries({ startTs: 1000, endTs: 2000 }, 'day');
+    expect(mocked.get).toHaveBeenCalledWith('/usage/timeseries?startTs=1000&endTs=2000&bucket=day');
+    expect(result).toBe(buckets);
+  });
+
+  it('getDashboardSummary hits /dashboard and returns the bare object', async () => {
+    const summary = { generatedAt: 42 };
+    mocked.get.mockResolvedValueOnce(summary);
+    const result = await getDashboardSummary();
+    expect(mocked.get).toHaveBeenCalledWith('/dashboard');
+    expect(result).toBe(summary);
   });
 });
 

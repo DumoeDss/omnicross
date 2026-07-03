@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Pengaturan",
     "usageStats": "Penggunaan",
-    "pricing": "Harga"
+    "pricing": "Harga",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Layanan API",
@@ -874,7 +875,29 @@
     "unattributed": "Tidak teratribusi",
     "unattributedHint": "Permintaan yang tidak terkait dengan kunci API tertentu. Ini normal sampai atribusi per kunci mulai dicatat.",
     "empty": "Tidak ada permintaan dalam rentang ini.",
-    "invalidRange": "Pilih rentang tanggal yang valid."
+    "invalidRange": "Pilih rentang tanggal yang valid.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Harga model",

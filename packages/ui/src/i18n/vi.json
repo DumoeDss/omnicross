@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "Cài đặt",
     "usageStats": "Sử dụng",
-    "pricing": "Bảng giá"
+    "pricing": "Bảng giá",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "Dịch vụ API",
@@ -874,7 +875,29 @@
     "unattributed": "Chưa gán",
     "unattributedHint": "Các yêu cầu không gắn với khóa API cụ thể. Điều này là bình thường cho đến khi việc gán theo khóa được ghi nhận.",
     "empty": "Không có yêu cầu nào trong khoảng này.",
-    "invalidRange": "Chọn khoảng ngày hợp lệ."
+    "invalidRange": "Chọn khoảng ngày hợp lệ.",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "Giá mô hình",

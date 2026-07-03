@@ -59,6 +59,47 @@ export interface ApiKeyUsageRow {
   costUsd: number;
 }
 
+/** Time-bucket granularity for the usage trend (`GET /usage/timeseries`). */
+export type UsageTimeBucket = 'hour' | 'day' | 'month';
+
+/**
+ * One zero-fillable bucket of the usage trend (`GET /usage/timeseries`).
+ *
+ * Mirrors `@omnicross/contracts` `UsageTimeSeriesBucket` — keep the field
+ * names in lockstep with the daemon wire shape. `bucketStartTs` is the
+ * unix-millis of the LOCAL-time bucket boundary; `label` is the daemon's
+ * locale-agnostic label (`MM-DD HH:00` / `YYYY-MM-DD` / `YYYY-MM`). The DTO
+ * deliberately omits reasoning/cache-savings (the trend plots only these five).
+ */
+export interface UsageTimeSeriesBucket {
+  bucketStartTs: number;
+  label: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUsd: number;
+}
+
+/**
+ * Dashboard overview summary (`GET /admin/api/dashboard`). Secret-free —
+ * counts, booleans, port, and timestamps only. Mirrors the daemon's
+ * `DashboardSummary`; keep in lockstep with the wire shape.
+ */
+export interface DashboardSummary {
+  /** Local-midnight → now. */
+  today: UsageTotals;
+  /** All-time (startTs 0 → now). */
+  total: UsageTotals;
+  providers: { total: number; enabled: number };
+  outboundKeys: { total: number; active: number };
+  accounts: { total: number; byProvider: Record<string, number> };
+  server: { running: boolean; port: number; uptimeMs: number };
+  /** unix-millis when the summary was generated. */
+  generatedAt: number;
+}
+
 /** Where a pricing entry came from. */
 export type PricingSource = 'builtin' | 'litellm' | 'user';
 

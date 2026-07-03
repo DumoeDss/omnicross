@@ -511,7 +511,8 @@
     "codeCli": "Code CLI",
     "settings": "การตั้งค่า",
     "usageStats": "การใช้งาน",
-    "pricing": "ราคา"
+    "pricing": "ราคา",
+    "dashboard": "Dashboard"
   },
   "apiService": {
     "title": "บริการ API",
@@ -874,7 +875,29 @@
     "unattributed": "ไม่ระบุที่มา",
     "unattributedHint": "คำขอที่ไม่เชื่อมโยงกับคีย์ API ใดโดยเฉพาะ ถือเป็นเรื่องปกติจนกว่าจะมีการบันทึกที่มาตามคีย์",
     "empty": "ไม่มีคำขอในช่วงนี้",
-    "invalidRange": "เลือกช่วงวันที่ที่ถูกต้อง"
+    "invalidRange": "เลือกช่วงวันที่ที่ถูกต้อง",
+    "dashboardTitle": "Dashboard",
+    "dashboardDescription": "Overview, model distribution, and usage trends for requests served by the daemon.",
+    "today": "Today",
+    "allTime": "All time",
+    "providers": "Providers",
+    "outboundKeys": "Outbound keys",
+    "accounts": "Accounts",
+    "server": "Server",
+    "serverRunning": "Running",
+    "serverStopped": "Stopped",
+    "port": "Port",
+    "uptime": "Uptime",
+    "requests": "requests",
+    "enabledOfTotal": "Enabled / total",
+    "activeOfTotal": "Active / total",
+    "modelDistribution": "Model distribution",
+    "usageTrend": "Usage trend",
+    "granularity": "Granularity",
+    "hour": "Hour",
+    "day": "Day",
+    "month": "Month",
+    "other": "Other"
   },
   "pricing": {
     "title": "ราคาโมเดล",
