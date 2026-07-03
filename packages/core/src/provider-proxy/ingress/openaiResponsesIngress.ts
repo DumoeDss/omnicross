@@ -116,6 +116,7 @@ export async function handleOpenAIResponsesRequest(
         sessionId: route.sessionId,
         providerId: route.providerId ?? 'codex',
         model: resolvedModel,
+        apiKeyId: route.apiKeyId ?? null,
       });
     }
   } catch (err) {

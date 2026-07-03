@@ -123,6 +123,7 @@ export async function handleAnthropicMessagesByo(
         sessionId: route.sessionId,
         providerId: route.providerId ?? 'anthropic',
         model: plan.resolvedModel,
+        apiKeyId: route.apiKeyId ?? null,
       });
     }
   } catch (err) {

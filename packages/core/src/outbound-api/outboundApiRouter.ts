@@ -236,6 +236,8 @@ export async function handleOutboundRequest(
           // kind-mapped endpoints it selects the kind AND is stamped onto
           // `route.requestedModel`; for chat it is matched against the list.
           requestedModel: extractRequestedModel(ingressFormat, parsedBody),
+          // Attribution: stamp the verified named-key id onto the route.
+          apiKeyId: verified.id,
         })
       : await resolveRoute({
           config: endpointConfig,
@@ -245,6 +247,8 @@ export async function handleOutboundRequest(
           ingressFormat,
           llmConfig: deps.llmConfig,
           sessionId,
+          // Attribution: stamp the verified named-key id onto the route.
+          apiKeyId: verified.id,
         });
   if (!resolved.ok) {
     writeJsonError(res, resolved.error.status, resolved.error.message);

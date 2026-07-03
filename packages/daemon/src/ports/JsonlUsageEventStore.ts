@@ -30,6 +30,8 @@ import type {
   UsageDateRange,
   UsageEventInput,
   UsageEventRecord,
+  UsageTimeBucket,
+  UsageTimeSeriesBucket,
   UsageTotals,
 } from '@omnicross/contracts/usage-stats-types';
 import type { UsageEventStore } from '@omnicross/core';
@@ -143,6 +145,41 @@ export class JsonlUsageEventStore implements UsageEventStore {
     return Array.from(groups.values());
   }
 
+  /**
+   * Time-series aggregation over LOCAL-time bucket boundaries. Every bucket in
+   * `[floor(startTs), endTs)` is present (empty ones zero-filled), ascending by
+   * `bucketStartTs`; an empty range (`startTs >= endTs`) returns `[]`. Reuses
+   * `readRows` so malformed lines are skipped and only in-range rows contribute.
+   */
+  async getTimeSeries(range: UsageDateRange, bucket: UsageTimeBucket): Promise<UsageTimeSeriesBucket[]> {
+    if (range.startTs >= range.endTs) return [];
+    const buckets = new Map<number, UsageTimeSeriesBucket>();
+    // Enumerate LOCAL boundaries via the Date constructor (month-length/DST safe).
+    for (let b = floorToBucket(range.startTs, bucket); b < range.endTs; b = nextBoundary(b, bucket)) {
+      buckets.set(b, {
+        bucketStartTs: b,
+        label: bucketLabel(b, bucket),
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        costUsd: 0,
+      });
+    }
+    for (const row of this.readRows(range)) {
+      const g = buckets.get(floorToBucket(row.ts, bucket));
+      if (!g) continue; // defensive — every in-range row floors into an enumerated bucket
+      g.requests += 1;
+      g.inputTokens += row.inputTokens;
+      g.outputTokens += row.outputTokens;
+      g.cacheReadTokens += row.cacheReadTokens;
+      g.cacheCreationTokens += row.cacheCreationTokens;
+      g.costUsd += row.costUsd;
+    }
+    return Array.from(buckets.values());
+  }
+
   async getMessagesForSession(sessionId: string): Promise<MessageUsageRow[]> {
     return this.readAllRows()
       .filter((r) => r.sessionId === sessionId)
@@ -216,6 +253,56 @@ export class JsonlUsageEventStore implements UsageEventStore {
       }
     }
     return rows;
+  }
+}
+
+// ── Time-series bucketing (pure, LOCAL-time boundaries) ─────────────────────────
+
+/** Floor `ts` to its LOCAL bucket boundary by zeroing the sub-bucket Date parts. */
+function floorToBucket(ts: number, bucket: UsageTimeBucket): number {
+  const d = new Date(ts);
+  switch (bucket) {
+    case 'hour':
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime();
+    case 'day':
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    case 'month':
+      return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+  }
+}
+
+/**
+ * Advance one bucket via the `Date` constructor (NOT millis arithmetic) so
+ * month lengths and DST transitions are handled correctly. `ts` is assumed to
+ * already be a bucket boundary.
+ */
+function nextBoundary(ts: number, bucket: UsageTimeBucket): number {
+  const d = new Date(ts);
+  switch (bucket) {
+    case 'hour':
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() + 1).getTime();
+    case 'day':
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+    case 'month':
+      return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  }
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** Frozen locale-agnostic label from LOCAL parts: hour `MM-DD HH:00`, day `YYYY-MM-DD`, month `YYYY-MM`. */
+function bucketLabel(bucketStartTs: number, bucket: UsageTimeBucket): string {
+  const d = new Date(bucketStartTs);
+  const y = d.getFullYear();
+  const mo = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  switch (bucket) {
+    case 'hour':
+      return `${mo}-${day} ${pad2(d.getHours())}:00`;
+    case 'day':
+      return `${y}-${mo}-${day}`;
+    case 'month':
+      return `${y}-${mo}`;
   }
 }
 

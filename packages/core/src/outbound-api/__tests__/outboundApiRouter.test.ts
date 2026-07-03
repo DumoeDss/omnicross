@@ -319,3 +319,46 @@ describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1
     expect(sessionId).toBeNull();
   });
 });
+
+describe('handleOutboundRequest — apiKeyId attribution (udash-attrib D5)', () => {
+  it('minted route carries the verified named-key id; an internal route leaves it undefined', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const addSpy = vi.spyOn(routeMap, 'addRoute');
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow, id: 'oak_42' })), routeMap });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/chat/completions',
+      body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] }),
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      config,
+      new OutboundRateLimiter(),
+    );
+    errSpy.mockRestore();
+
+    expect(addSpy).toHaveBeenCalledTimes(1);
+    const minted = addSpy.mock.calls[0][0] as { apiKeyId?: string };
+    // Outbound route → attributed to the verified key id.
+    expect(minted.apiKeyId).toBe('oak_42');
+
+    // A resident-proxy route is minted WITHOUT resolveRoute (host `addRoute`),
+    // so `apiKeyId` is undefined → the taps read `route.apiKeyId ?? null` = null.
+    const internalToken = routeMap.addRoute({
+      sessionId: null,
+      targetProviderFormat: 'anthropic',
+      model: 'm',
+      ingressFormat: 'anthropic-messages',
+      authMode: 'byo',
+      providerId: 'anthropic',
+    });
+    const internal = routeMap.lookup(internalToken);
+    expect(internal?.apiKeyId).toBeUndefined();
+    expect(internal?.apiKeyId ?? null).toBeNull();
+  });
+});

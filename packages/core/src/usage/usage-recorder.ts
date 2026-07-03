@@ -16,6 +16,8 @@ import type {
   SessionCacheStats,
   UsageDateRange,
   UsageEventInput,
+  UsageTimeBucket,
+  UsageTimeSeriesBucket,
   UsageTotals,
 } from '@omnicross/contracts/usage-stats-types';
 import type { UsageEngineOrigin, UsageTokens } from '@omnicross/contracts/usage-types';
@@ -134,6 +136,10 @@ export class UsageRecorder {
 
   getByApiKey(range: UsageDateRange): Promise<ApiKeyUsageRow[]> {
     return this.store.getByApiKey(range);
+  }
+
+  getTimeSeries(range: UsageDateRange, bucket: UsageTimeBucket): Promise<UsageTimeSeriesBucket[]> {
+    return this.store.getTimeSeries(range, bucket);
   }
 
   getMessagesForSession(sessionId: string): Promise<MessageUsageRow[]> {

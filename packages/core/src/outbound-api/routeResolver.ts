@@ -167,6 +167,13 @@ export async function resolveRoute(args: {
    * response `model` passes through unchanged. Ignored for role-based endpoints.
    */
   requestedModel?: string;
+  /**
+   * The verified named-key id (`verified.id`). Stamped onto EVERY outbound
+   * endpoint's route (not gated on kind — attribution is orthogonal to the
+   * passthrough-rewrite gate), BYO + subscription. Absent for the resident
+   * proxy's internal route minting, so internal usage records `apiKeyId: null`.
+   */
+  apiKeyId?: string;
 }): Promise<RouteResolveResult> {
   const { config, ingressFormat, llmConfig } = args;
   const sessionId = args.sessionId ?? null;
@@ -238,6 +245,7 @@ export async function resolveRoute(args: {
         sessionId,
         effectiveRole,
         requestedModel,
+        apiKeyId: args.apiKeyId,
       });
     }
     return {
@@ -263,7 +271,7 @@ export async function resolveRoute(args: {
       apiKey: resolveApiKey(provider.api_key),
       isOfficialProvider,
       passThrough: false,
-      attribution: { sessionId, apiKeyId: null },
+      attribution: { sessionId, apiKeyId: args.apiKeyId ?? null },
     };
   }
 
@@ -276,6 +284,8 @@ export async function resolveRoute(args: {
     providerId,
     // Passthrough gate: the client's ORIGINAL requested id (kind-mapped only).
     requestedModel,
+    // Usage attribution: the verified named-key id (undefined for internal traffic).
+    apiKeyId: args.apiKeyId,
     anthropicSdkHints,
   };
 
@@ -311,9 +321,11 @@ async function resolveSubscriptionRoute(args: {
   effectiveRole: RequestRole;
   /** The client's ORIGINAL requested id (kind-mapped endpoints only). */
   requestedModel: string | undefined;
+  /** The verified named-key id, threaded from `resolveRoute` for attribution. */
+  apiKeyId: string | undefined;
 }): Promise<RouteResolveResult> {
   const { config, providerId, modelId, ingressFormat, sessionId, effectiveRole } = args;
-  const { requestedModel } = args;
+  const { requestedModel, apiKeyId } = args;
 
   // Gate 1: per-endpoint opt-in.
   if (!config.useSubscription) {
@@ -357,7 +369,7 @@ async function resolveSubscriptionRoute(args: {
     isOfficialProvider: false,
     passThrough: false,
     subscriptionProfile: profile,
-    attribution: { sessionId, apiKeyId: null },
+    attribution: { sessionId, apiKeyId: apiKeyId ?? null },
   };
 
   // D-SEAM: pre-resolve the per-account OpenCodeGo config ONCE here (the route
@@ -380,6 +392,8 @@ async function resolveSubscriptionRoute(args: {
     providerId,
     // Passthrough gate: the client's ORIGINAL requested id (kind-mapped only).
     requestedModel,
+    // Usage attribution: the verified named-key id (undefined for internal traffic).
+    apiKeyId,
     // Anthropic delegation carries the dispatch profile inside
     // `anthropicSdkHints.subscriptionProfile`. The Responses ingress reads the
     // TOP-LEVEL `route.subscriptionProfile`, and so does the built-in

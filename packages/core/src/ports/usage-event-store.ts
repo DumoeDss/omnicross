@@ -15,6 +15,8 @@ import type {
   SessionCacheStats,
   UsageDateRange,
   UsageEventInput,
+  UsageTimeBucket,
+  UsageTimeSeriesBucket,
   UsageTotals,
 } from '@omnicross/contracts/usage-stats-types';
 
@@ -27,6 +29,13 @@ export interface UsageEventStore {
   getByModel(range: UsageDateRange): Promise<ModelUsageRow[]>;
   /** Per-API-key breakdown over a date range. */
   getByApiKey(range: UsageDateRange): Promise<ApiKeyUsageRow[]>;
+  /**
+   * Time-series aggregation over `range`, bucketed at `bucket` granularity using
+   * the store host's LOCAL-time boundaries. EVERY bucket in the range is
+   * returned (empty ones zero-filled), ascending by `bucketStartTs`; an empty
+   * range (`startTs >= endTs`) returns `[]`.
+   */
+  getTimeSeries(range: UsageDateRange, bucket: UsageTimeBucket): Promise<UsageTimeSeriesBucket[]>;
   /** Message-level rows for one session. */
   getMessagesForSession(sessionId: string): Promise<MessageUsageRow[]>;
   /** Cumulative cache hit/miss stats for one session. */

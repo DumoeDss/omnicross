@@ -26,6 +26,7 @@ interface GeminiUsageAttribution {
   readonly sessionId: string | null;
   readonly providerId: string;
   readonly model: string;
+  readonly apiKeyId: string | null;
 }
 
 /** Read token counts from a Gemini `usageMetadata` object (cache + thoughts aware). */
@@ -72,7 +73,7 @@ export function recordGeminiNonStreamUsage(
       sessionId: attribution.sessionId,
       providerId: attribution.providerId,
       model: attribution.model,
-      apiKeyId: null,
+      apiKeyId: attribution.apiKeyId,
       engineOrigin: 'codex-ingress',
       usage: tapped,
       rawUsage: parsed.usageMetadata,

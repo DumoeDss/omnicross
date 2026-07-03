@@ -164,6 +164,7 @@ export async function handleGeminiGenerateContentRequest(
         sessionId: route.sessionId,
         providerId: route.providerId ?? 'gemini',
         model: resolvedModel,
+        apiKeyId: route.apiKeyId ?? null,
       });
     }
   } catch (err) {

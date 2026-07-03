@@ -27,6 +27,7 @@ interface AnthropicUsageAttribution {
   readonly sessionId: string | null;
   readonly providerId: string;
   readonly model: string;
+  readonly apiKeyId: string | null;
 }
 
 /** Read token counts from an Anthropic `usage` object (cache-aware). */
@@ -77,7 +78,7 @@ export function recordAnthropicNonStreamUsage(
       sessionId: attribution.sessionId,
       providerId: attribution.providerId,
       model: attribution.model,
-      apiKeyId: null,
+      apiKeyId: attribution.apiKeyId,
       engineOrigin: 'codex-ingress',
       usage: tapped,
       rawUsage: parsed.usage,

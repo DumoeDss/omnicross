@@ -74,6 +74,29 @@ export interface UsageTotals {
   eventCount: number;
 }
 
+/** Granularity for a usage time-series query. `week` is NOT a bucket — a "week" view is a `day` bucket over a 7-day range. */
+export type UsageTimeBucket = 'hour' | 'day' | 'month';
+
+/**
+ * One bucket of a usage time-series (trend chart). Buckets are query-time
+ * aggregations over the daemon's LOCAL-time boundaries and every bucket in the
+ * requested range is present (empty buckets are zero-filled), ascending by
+ * `bucketStartTs`.
+ */
+export interface UsageTimeSeriesBucket {
+  /** Unix-millis of the LOCAL-time bucket boundary (hour start / local midnight / local 1st-of-month). */
+  bucketStartTs: number;
+  /** Frozen locale-agnostic label from LOCAL parts: hour `MM-DD HH:00`, day `YYYY-MM-DD`, month `YYYY-MM`. */
+  label: string;
+  /** Event count in the bucket (0 for a zero-filled bucket). */
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUsd: number;
+}
+
 /** One row of the per-model breakdown. */
 export interface ModelUsageRow {
   providerId: string;

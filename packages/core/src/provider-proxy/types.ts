@@ -355,6 +355,14 @@ export interface RouteContext {
    * `rewriteModel` — undefined ⇒ byte-identical passthrough).
    */
   readonly requestedModel?: string;
+  /**
+   * The outbound named-key id (`verified.id`) this request authenticated with,
+   * for usage attribution (the ByApiKey view). Stamped ONLY by the outbound
+   * `resolveRoute`; the resident-proxy route-minting path leaves it `undefined`,
+   * so internal completions record `apiKeyId: null` (the taps read
+   * `route.apiKeyId ?? null`), exactly as before.
+   */
+  readonly apiKeyId?: string;
   /** Wire format this route's ingress decodes. */
   readonly ingressFormat: IngressFormat;
   /** Re-auth mode (BYO key vs subscription OAuth). */

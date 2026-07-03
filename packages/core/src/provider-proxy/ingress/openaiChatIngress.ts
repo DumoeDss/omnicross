@@ -119,6 +119,7 @@ export async function handleOpenAIChatRequest(
         sessionId: route.sessionId,
         providerId: route.providerId ?? 'openai',
         model: resolvedModel,
+        apiKeyId: route.apiKeyId ?? null,
       });
     }
   } catch (err) {
