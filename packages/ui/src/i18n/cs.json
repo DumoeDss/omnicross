@@ -868,6 +868,11 @@
       "hint": "Po importu jej tato aplikace udržuje aktuální: při každém obnovení tokenu se aktualizuje i přihlašovací soubor CLI, takže CLI v terminálu zůstává přihlášené.",
       "button": "Importovat existující přihlášení CLI"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

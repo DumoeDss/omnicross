@@ -77,6 +77,12 @@ export interface SubscriptionAccountSanitized {
    *  allow-list (skip-only) or an object logical→actual map. Absent ⇒ all models,
    *  no remap. Secret-free (model ids only). */
   supportedModels?: string[] | Record<string, string>;
+  /** COARSE client-fingerprint captured-status (subscription-client-fingerprint #7):
+   *  whether this account has a frozen client identity. Present only when replay is
+   *  enabled (claude only). Boolean ONLY — the raw captured headers never leave. */
+  identityCaptured?: boolean;
+  /** ISO instant the fingerprint identity was frozen / last refreshed. */
+  identityCapturedAt?: string;
 }
 
 /**

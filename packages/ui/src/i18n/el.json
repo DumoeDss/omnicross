@@ -868,6 +868,11 @@
       "hint": "Μετά την εισαγωγή, αυτή η εφαρμογή τη διατηρεί ενημερωμένη: σε κάθε ανανέωση του token ενημερώνεται και το αρχείο σύνδεσης του CLI, ώστε το CLI στο τερματικό να παραμένει συνδεδεμένο.",
       "button": "Εισαγωγή υπάρχουσας σύνδεσης CLI"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

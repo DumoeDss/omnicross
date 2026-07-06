@@ -868,6 +868,11 @@
       "hint": "Tuonnin jälkeen tämä sovellus pitää sen ajan tasalla: jokaisen tokenin päivityksen yhteydessä myös CLI:n kirjautumistiedosto päivitetään, joten terminaalin CLI pysyy kirjautuneena.",
       "button": "Tuo olemassa oleva CLI-kirjautuminen"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

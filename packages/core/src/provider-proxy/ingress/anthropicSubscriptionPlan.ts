@@ -48,6 +48,8 @@ import type {
   RequestConfig,
   ResolvedTransformerChain,
 } from '../../transformer';
+import { applyFingerprint } from '../identity/fingerprintHeaders';
+import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import { collectMatchText, deriveSubscriptionSessionKey } from '../matchText';
 import type {
   ProviderProxyDeps,
@@ -66,6 +68,15 @@ export interface AnthropicByoOptions {
   /** The caller's request-side `anthropic-beta` header value, forwarded/merged
    *  onto the outbound request on the same-format fast path (LEAD OQ1). */
   readonly callerAnthropicBeta?: string | null;
+  /**
+   * The caller's WHITELISTED client-fingerprint headers (x-stainless-* / UA /
+   * anthropic-beta / x-app / CC headers — NEVER auth/cookie), extracted at the
+   * ingress (subscription-client-fingerprint #7). Consumed ONLY on the claude
+   * same-format subscription relay, and ONLY when the fingerprint flag is enabled:
+   * captured (first-seen freeze) for the selected account then replayed. Absent /
+   * flag-off ⇒ the outbound headers stay byte-identical.
+   */
+  readonly callerIdentity?: Record<string, string>;
 }
 
 /**
@@ -422,6 +433,7 @@ async function runSubscriptionSameFormatFetch(
   rawBody: string,
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void,
+  options: AnthropicByoOptions = {},
 ): Promise<{ response: Response; rawStatus: number | null }> {
   // upstream-proxy: capture the effective account (per-account proxy override).
   // subscription-account-model-map (D3): capture the selected account's ACTUAL
@@ -439,6 +451,23 @@ async function runSubscriptionSameFormatFetch(
       reportSelection?.(accountId, isActive, remapped);
     },
   });
+  // subscription-client-fingerprint #7: AFTER `applyHeaders` reported the selected
+  // account (accountId known) and BEFORE `fetchUpstream` (#3 proxy), merge the
+  // frozen per-account client identity into `headers`. Scoped to the CLAUDE
+  // subscription (the risk-control target; claude is always this same-format
+  // path — non-claude subscriptions are out of scope). `applyFingerprint` is a
+  // strict no-op when the flag is disabled (default) or the account is unknown ⇒
+  // outbound headers stay BYTE-IDENTICAL. It NEVER overwrites auth/content-type
+  // and NEVER fabricates a stainless value.
+  if (plan.isSubscription && plan.transformerProvider.name === 'claude') {
+    applyFingerprint(
+      getSharedIdentityStore(),
+      headers,
+      plan.transformerProvider.name,
+      proxyAccountId,
+      options.callerIdentity,
+    );
+  }
   // Rewrite `body.model` ONLY when a per-account remap was reported AND the remap
   // applies to this plan's provider (claude — model-INDEPENDENT upstream URL; see
   // `outboundRemapApplies`). Otherwise the body is forwarded BYTE-FOR-BYTE (map-less
@@ -509,6 +538,7 @@ async function runSubscriptionAttemptWith401Retry(
   anthropicBody: Record<string, unknown>,
   relayBody: string,
   plan: AnthropicCallPlan,
+  options: AnthropicByoOptions = {},
 ): Promise<{ response: Response; rawStatus: number | null }> {
   // Per-request capture (subscription-account-health, D5): the strategy reports
   // the EFFECTIVE account id it resolved so we mark THAT account's health against
@@ -519,7 +549,7 @@ async function runSubscriptionAttemptWith401Retry(
   };
   const runOnce = (): Promise<{ response: Response; rawStatus: number | null }> =>
     plan.sameFormat
-      ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection)
+      ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection, options)
       : runPipeline(anthropicBody, plan, reportSelection);
 
   const first = await runOnce();
@@ -649,9 +679,10 @@ async function runSubscriptionAttemptOutcome(
   anthropicBody: Record<string, unknown>,
   relayBody: string,
   plan: AnthropicCallPlan,
+  options: AnthropicByoOptions = {},
 ): Promise<SubscriptionAttemptOutcome> {
   try {
-    return { kind: 'result', result: await runSubscriptionAttemptWith401Retry(anthropicBody, relayBody, plan) };
+    return { kind: 'result', result: await runSubscriptionAttemptWith401Retry(anthropicBody, relayBody, plan, options) };
   } catch (error) {
     return { kind: 'thrown', error };
   }
@@ -699,6 +730,7 @@ export async function runPipelineWithSubscriptionRetry(
   initialPlan: AnthropicCallPlan,
   route: RouteContext,
   deps: ProviderProxyDeps,
+  options: AnthropicByoOptions = {},
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const profile = route.subscriptionProfile;
   const scenario = initialPlan.scenario;
@@ -708,7 +740,7 @@ export async function runPipelineWithSubscriptionRetry(
   // path, the parsed `anthropicBody` on the transformer path). No breaker gating
   // and `recordModelOutcome` is unset on those profiles → a pure no-op record.
   if (!profile?.nextFallback || scenario === undefined) {
-    const loneOutcome = await runSubscriptionAttemptOutcome(anthropicBody, rawBody, initialPlan);
+    const loneOutcome = await runSubscriptionAttemptOutcome(anthropicBody, rawBody, initialPlan, options);
     recordBreakerOutcome(profile, initialPlan.resolvedModel, outcomeStatus(loneOutcome));
     return settleOutcome(loneOutcome);
   }
@@ -753,7 +785,7 @@ export async function runPipelineWithSubscriptionRetry(
 
   // First real attempt (the mapped primary, the gated first-admitting fallback,
   // or the failed-open primary). Record its outcome to the breaker.
-  let outcome = await runSubscriptionAttemptOutcome(firstBodyObj, firstRelayBody, plan);
+  let outcome = await runSubscriptionAttemptOutcome(firstBodyObj, firstRelayBody, plan, options);
   recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
   if (!attempted.includes(plan.resolvedModel)) attempted.push(plan.resolvedModel);
 
@@ -790,7 +822,7 @@ export async function runPipelineWithSubscriptionRetry(
 
     plan = nextPlan;
     attempted.push(next.modelId);
-    outcome = await runSubscriptionAttemptOutcome(fallbackBodyObj, fallbackRelayBody, plan);
+    outcome = await runSubscriptionAttemptOutcome(fallbackBodyObj, fallbackRelayBody, plan, options);
     recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
   }
 

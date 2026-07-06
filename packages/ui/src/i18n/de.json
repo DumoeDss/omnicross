@@ -868,6 +868,11 @@
       "hint": "Nach dem Import hält diese App sie aktuell: Bei jeder Token-Aktualisierung wird auch die CLI-Anmeldedatei aktualisiert, sodass die CLI im Terminal angemeldet bleibt.",
       "button": "Vorhandene CLI-Anmeldung importieren"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

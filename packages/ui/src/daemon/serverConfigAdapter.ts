@@ -351,5 +351,21 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return { total: 0, delivered: 0, pending: 0 };
       }
     },
+
+    async updateFingerprintConfig(
+      fingerprint: OutboundApiServerConfig['fingerprint'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // subscription-client-fingerprint #7: send the FULL segment; the daemon
+        // validates + normalizes it. `undefined` resets to defaults (disabled).
+        // Carries no secret. A change takes effect on daemon restart.
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          fingerprint: fingerprint ?? { enabled: false },
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update fingerprint configuration');
+      }
+    },
   };
 }

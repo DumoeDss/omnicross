@@ -19,6 +19,7 @@ import { applyAuditConfig } from '../audit/auditRuntime';
 import { applyBillingConfig } from '../billing/billingRuntime';
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
+import { applyFingerprintConfig } from '../identity/identityRuntime';
 import { applyWebhookConfig } from '../webhook/webhookRuntime';
 
 import { defaultKeysPath, defaultTokensPath } from './paths';
@@ -143,6 +144,14 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // runs one catch-up sweep at boot for events that failed to deliver while down).
   // Absent/disabled ⇒ no sink ⇒ `publishBillingEvent` is a no-op (zero regression).
   applyBillingConfig(serverConfig.billing);
+
+  // Client fingerprint (subscription-client-fingerprint #7): `configure` the shared
+  // identity store from the persisted `fingerprint` segment, and — ONLY when
+  // enabled — seed it from each account's persisted `identity` (so a claude
+  // account's replayed identity survives restart) + wire the write-through
+  // persistence port. Absent/disabled ⇒ store stays disabled + no port ⇒ capture
+  // /replay is a strict no-op (byte-identical outbound headers).
+  await applyFingerprintConfig(serverConfig.fingerprint, daemon.credentialStore);
 
   const status = daemon.outboundApiServer.getStatus();
   console.info('omnicross daemon is running.');

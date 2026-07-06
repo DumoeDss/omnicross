@@ -42,6 +42,8 @@ export default defineConfig({
     'ports/usage-event-store': 'src/ports/usage-event-store.ts',
     'ports/web-search-backend': 'src/ports/web-search-backend.ts',
     'provider-proxy': 'src/provider-proxy/index.ts',
+    'provider-proxy/identity/SubscriptionIdentityStore': 'src/provider-proxy/identity/SubscriptionIdentityStore.ts',
+    'provider-proxy/identity/fingerprintHeaders': 'src/provider-proxy/identity/fingerprintHeaders.ts',
     'provider-proxy/ingress/providerProxyShared': 'src/provider-proxy/ingress/providerProxyShared.ts',
     'provider-proxy/matchText': 'src/provider-proxy/matchText.ts',
     'provider-proxy/ProviderProxy': 'src/provider-proxy/ProviderProxy.ts',

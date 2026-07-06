@@ -868,6 +868,11 @@
       "hint": "Dopo l'importazione, questa app lo mantiene aggiornato: a ogni rinnovo del token viene aggiornato anche il file di accesso della CLI, così la CLI del terminale resta connessa.",
       "button": "Importa accesso CLI esistente"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

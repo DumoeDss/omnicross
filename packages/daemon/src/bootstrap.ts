@@ -36,6 +36,7 @@ import {
 import { setSubscriptionRegistryForOutbound } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
+import { __resetSharedIdentityStoreForTests } from '@omnicross/core/provider-proxy/identity/SubscriptionIdentityStore';
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import {
   __resetProviderProxyForTests,
@@ -642,6 +643,9 @@ export function resetDaemonSingletonsForTests(): void {
   // Clear the billing runtime slot (publisher + retry sweeper + core capture/sink)
   // so a prior boot's publisher does not leak the core billing sink into a fresh boot.
   resetBillingRuntimeForTests();
+  // Clear the shared client-fingerprint identity store so a prior boot's captured
+  // identities / enabled flag / persistence port do not leak into a fresh boot.
+  __resetSharedIdentityStoreForTests();
 }
 
 /**

@@ -868,6 +868,11 @@
       "hint": "Po zaimportowaniu ta aplikacja dba o jego aktualność: przy każdym odświeżeniu tokenu aktualizowany jest też plik logowania CLI, więc CLI w terminalu pozostaje zalogowane.",
       "button": "Importuj istniejące logowanie CLI"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

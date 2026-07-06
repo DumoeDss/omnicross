@@ -719,6 +719,21 @@
         "colLatency": "延遲"
       }
     },
+    "fingerprint": {
+      "title": "用戶端指紋",
+      "description": "在中轉的 Claude 訂閱流量上呈現穩定、真實的每帳號用戶端身分，使其與真正的 Claude Code 用戶端難以區分。指紋標頭（x-stainless-*、user-agent、anthropic-beta）從真實用戶端請求中擷取、依帳號凍結並重播——絕不偽造。預設關閉；關閉時出站標頭保持不變。重新啟動後生效。",
+      "enable": {
+        "label": "啟用指紋重播",
+        "description": "總開關。關閉時不擷取也不重播任何標頭（零回歸）。"
+      },
+      "ua": {
+        "label": "User-Agent 基準",
+        "description": "選填。僅套用於尚無擷取身分的帳號（絕不偽造 stainless 標頭）。留空則在擷取到真實用戶端前傳送目前的標頭。",
+        "placeholder": "例如 claude-cli/1.0.0"
+      },
+      "save": "儲存指紋設定",
+      "restartHint": "重新啟動守護行程後生效。"
+    },
     "billing": {
       "title": "計費事件串流",
       "description": "為每個計費請求向外部消費方（計量服務、資料倉儲或計費平台）發出結構化計費事件。持久優先：每個事件在投遞前先寫入本機帳本，因此投遞失敗絕不會遺失計費記錄。預設關閉；發布絕不影響中轉延遲。",
@@ -972,6 +987,11 @@
       "detected": "偵測到本機已有 {{name}} CLI 登入。",
       "hint": "匯入後由本程式負責保鮮：每次重新整理權杖都會同步更新 CLI 登入檔案，終端機裡的 CLI 保持登入不中斷。",
       "button": "匯入現有 CLI 登入"
+    },
+    "fingerprint": {
+      "captured": "已擷取指紋",
+      "notCaptured": "尚無指紋",
+      "capturedAt": "已於 {{time}} 擷取用戶端指紋"
     },
     "health": {
       "rate_limited": "已限流",

@@ -868,6 +868,11 @@
       "hint": "Après l'import, cette application la maintient à jour : à chaque rafraîchissement du jeton, le fichier de connexion de la CLI est aussi mis à jour, et la CLI du terminal reste connectée.",
       "button": "Importer la connexion CLI existante"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

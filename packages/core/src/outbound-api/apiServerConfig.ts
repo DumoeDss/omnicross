@@ -33,6 +33,7 @@ import type {
   AccountProbeConfig,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
+  FingerprintConfig,
   ModelPrefixTargets,
   ModelRef,
   OutboundApiServerConfig,
@@ -165,6 +166,28 @@ export function normalizeBilling(
   // carry any non-empty string verbatim; the secret box normalizes downstream.
   if (typeof b?.secret === 'string' && b.secret.length > 0) config.secret = b.secret;
   return config;
+}
+
+/**
+ * Frozen defaults for the client-fingerprint segment (SSOT,
+ * subscription-client-fingerprint #7). Default OFF ⇒ no capture/replay ⇒
+ * byte-identical outbound headers.
+ */
+export const DEFAULT_FINGERPRINT: FingerprintConfig = { enabled: false };
+
+/**
+ * Fill the client-fingerprint segment to the frozen defaults. Lenient like the
+ * other segment normalizers: `enabled` coerces to a boolean (default false); `ua`
+ * is carried only when a non-empty trimmed string (a blank/absent baseline stays
+ * absent). Default (off) ⇒ zero regression. Carries NO secret.
+ */
+export function normalizeFingerprint(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): FingerprintConfig {
+  const f = raw?.fingerprint;
+  const out: FingerprintConfig = { enabled: f?.enabled === true };
+  if (typeof f?.ua === 'string' && f.ua.trim().length > 0) out.ua = f.ua.trim();
+  return out;
 }
 
 /** Valid structured proxy types. */
@@ -467,6 +490,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     accountProbe: normalizeAccountProbe(undefined),
     audit: normalizeAudit(undefined),
     billing: normalizeBilling(undefined),
+    fingerprint: normalizeFingerprint(undefined),
   };
 }
 
@@ -500,6 +524,7 @@ export function normalizeServerConfig(
     accountProbe: normalizeAccountProbe(raw),
     audit: normalizeAudit(raw),
     billing: normalizeBilling(raw),
+    fingerprint: normalizeFingerprint(raw),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -550,5 +575,8 @@ export function mergeServerConfig(
     // Webhook is layer-replaced too (a PUT carrying `webhook` swaps the whole
     // segment; omitting it keeps the current one). `undefined` on both ⇒ absent.
     webhook: patch.webhook ?? current.webhook,
+    // Fingerprint is always-filled (normalizeFingerprint synthesizes a default);
+    // a PUT carrying it replaces the segment, else the current one is kept.
+    fingerprint: patch.fingerprint ?? current.fingerprint,
   });
 }

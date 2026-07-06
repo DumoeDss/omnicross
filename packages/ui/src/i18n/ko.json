@@ -868,6 +868,11 @@
       "hint": "가져온 후에는 이 앱이 갱신을 관리합니다. 토큰을 갱신할 때마다 CLI 로그인 파일도 함께 업데이트되어 터미널의 CLI가 로그인 상태를 유지합니다.",
       "button": "기존 CLI 로그인 가져오기"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

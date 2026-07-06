@@ -18,6 +18,7 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { AuditSection } from './AuditSection';
 import { BillingSection } from './BillingSection';
+import { FingerprintSection } from './FingerprintSection';
 import { EndpointRoutingCard } from './EndpointRoutingCard';
 import { missingKindsByEndpoint } from './endpointKinds';
 import { useApiService } from './hooks/useApiService';
@@ -56,6 +57,7 @@ export function ApiServicePage() {
     queryAudit,
     updateBillingConfig,
     queryBillingStatus,
+    updateFingerprintConfig,
     queueStatus,
   } = useApiService();
 
@@ -170,6 +172,8 @@ export function ApiServicePage() {
                 onUpdate={updateBillingConfig}
                 onQueryStatus={queryBillingStatus}
               />
+
+              <FingerprintSection config={config} busy={busy} onUpdate={updateFingerprintConfig} />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>

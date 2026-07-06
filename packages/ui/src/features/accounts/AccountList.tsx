@@ -194,6 +194,29 @@ export function AccountList({
                       {t(`accounts.health.${acc.health}`)}
                     </span>
                   ) : null}
+                  {/* subscription-client-fingerprint #7: coarse captured indicator
+                      (present only when replay is enabled — claude only). Boolean
+                      status only; the raw captured headers never reach the UI. */}
+                  {acc.identityCaptured !== undefined ? (
+                    <span
+                      className={
+                        acc.identityCaptured
+                          ? 'shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-600 dark:text-emerald-500'
+                          : 'shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground'
+                      }
+                      title={
+                        acc.identityCaptured && acc.identityCapturedAt
+                          ? t('accounts.fingerprint.capturedAt', {
+                              time: new Date(acc.identityCapturedAt).toLocaleString(),
+                            })
+                          : undefined
+                      }
+                    >
+                      {acc.identityCaptured
+                        ? t('accounts.fingerprint.captured')
+                        : t('accounts.fingerprint.notCaptured')}
+                    </span>
+                  ) : null}
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
                   {showRefresh ? (

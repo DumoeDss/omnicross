@@ -719,6 +719,21 @@
         "colLatency": "延迟"
       }
     },
+    "fingerprint": {
+      "title": "客户端指纹",
+      "description": "在中转的 Claude 订阅流量上呈现稳定、真实的每账号客户端身份，使其与真正的 Claude Code 客户端难以区分。指纹请求头（x-stainless-*、user-agent、anthropic-beta）从真实客户端请求中捕获、按账号冻结并重放——绝不伪造。默认关闭；关闭时出站请求头保持不变。重启后生效。",
+      "enable": {
+        "label": "启用指纹重放",
+        "description": "总开关。关闭时不捕获也不重放任何请求头（零回归）。"
+      },
+      "ua": {
+        "label": "User-Agent 基线",
+        "description": "可选。仅应用于尚无捕获身份的账号（绝不伪造 stainless 头）。留空则在捕获到真实客户端前发送当前请求头。",
+        "placeholder": "例如 claude-cli/1.0.0"
+      },
+      "save": "保存指纹设置",
+      "restartHint": "重启守护进程后生效。"
+    },
     "billing": {
       "title": "计费事件流",
       "description": "为每个计费请求向外部消费方（计量服务、数据仓库或计费平台）发出结构化计费事件。持久优先：每个事件在投递前先写入本地账本，因此投递失败绝不会丢失计费记录。默认关闭；发布绝不影响中转延迟。",
@@ -972,6 +987,11 @@
       "detected": "检测到本机已有 {{name}} CLI 登录。",
       "hint": "导入后由本程序负责保鲜：每次刷新令牌都会同步更新 CLI 登录文件，终端里的 CLI 保持登录不掉线。",
       "button": "导入现有 CLI 登录"
+    },
+    "fingerprint": {
+      "captured": "已捕获指纹",
+      "notCaptured": "尚无指纹",
+      "capturedAt": "已于 {{time}} 捕获客户端指纹"
     },
     "health": {
       "rate_limited": "已限流",

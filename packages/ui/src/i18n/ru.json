@@ -868,6 +868,11 @@
       "hint": "После импорта это приложение поддерживает его актуальность: при каждом обновлении токена файл входа CLI тоже обновляется, и CLI в терминале остаётся авторизованной.",
       "button": "Импортировать существующий вход CLI"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

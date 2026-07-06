@@ -868,6 +868,11 @@
       "hint": "Após a importação, esta aplicação mantém-no atualizado: a cada renovação do token, o ficheiro de início de sessão da CLI também é atualizado, e a CLI do terminal mantém a sessão.",
       "button": "Importar início de sessão de CLI existente"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

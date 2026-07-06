@@ -48,6 +48,8 @@
 
 import type http from 'node:http';
 
+import { captureCallerIdentity } from '../identity/fingerprintHeaders';
+import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 
 import { handleAnthropicMessagesByo } from './anthropicMessagesByo';
@@ -93,7 +95,15 @@ export async function handleAnthropicMessagesRequest(
     const rawBody = await readBody(req);
     const callerBetaRaw = req.headers['anthropic-beta'];
     const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-    await handleAnthropicMessagesByo(res, rawBody, route, deps, { callerAnthropicBeta });
+    // subscription-client-fingerprint #7: capture the caller's WHITELISTED
+    // fingerprint headers here (the same seam that already reads `anthropic-beta`)
+    // and thread them to the relay. Auth/cookie are never captured (the whitelist
+    // excludes them). GATED on the flag (`captureCallerIdentity`) — skipped entirely
+    // when replay is disabled (no wasted extraction on the default/BYO path); the
+    // relay's own claude-scoped gate is unchanged, so behavior when enabled is
+    // identical.
+    const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
+    await handleAnthropicMessagesByo(res, rawBody, route, deps, { callerAnthropicBeta, callerIdentity });
     return;
   }
 

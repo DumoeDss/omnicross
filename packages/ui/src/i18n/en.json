@@ -719,6 +719,21 @@
         "colLatency": "Latency"
       }
     },
+    "fingerprint": {
+      "title": "Client fingerprint",
+      "description": "Present a stable, real per-account client identity on relayed Claude subscription traffic so it blends with a genuine Claude Code client. Fingerprint headers (x-stainless-*, user-agent, anthropic-beta) are captured from real client requests, frozen per account, and replayed — never fabricated. Off by default; when off, outbound headers are unchanged. Takes effect on restart.",
+      "enable": {
+        "label": "Enable fingerprint replay",
+        "description": "Master switch. When off, no headers are captured or replayed (zero regression)."
+      },
+      "ua": {
+        "label": "User-Agent baseline",
+        "description": "Optional. Applied only to an account with no captured identity yet (never a fabricated stainless header). Leave blank to send today's headers until a real client is captured.",
+        "placeholder": "e.g. claude-cli/1.0.0"
+      },
+      "save": "Save fingerprint settings",
+      "restartHint": "Takes effect on daemon restart."
+    },
     "billing": {
       "title": "Billing event stream",
       "description": "Emit a structured billing event per billable request for an external consumer (a metering service, data warehouse, or billing platform). Durable-first: each event is written to a local ledger before delivery, so a failed POST never loses a billing record. Off by default; publishing never affects relay latency.",
@@ -972,6 +987,11 @@
       "detected": "An existing {{name}} CLI login was found on this machine.",
       "hint": "Importing takes over keeping it fresh: after each token refresh the CLI login file is updated too, so the terminal CLI stays signed in.",
       "button": "Import existing CLI login"
+    },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "health": {
       "rate_limited": "Rate-limited",

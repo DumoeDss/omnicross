@@ -170,6 +170,14 @@ export interface BillingConfig {
   maxRetryAgeMs: number;
 }
 
+/** The `server.fingerprint` segment (subscription-client-fingerprint #7). */
+export interface FingerprintConfig {
+  /** Master switch; false/absent ⇒ no capture/replay ⇒ byte-identical outbound. */
+  enabled: boolean;
+  /** Operator UA baseline for un-captured accounts (never a fabricated stainless). */
+  ua?: string;
+}
+
 /** Aggregate delivery status from `GET /admin/api/billing-status` (billing-event-stream). */
 export interface BillingDeliveryStatus {
   total: number;
@@ -229,6 +237,12 @@ export interface OutboundApiServerConfig {
    * `normalizeServerConfig` always fills it (enabled:false).
    */
   billing?: BillingConfig;
+  /**
+   * Client fingerprint (subscription-client-fingerprint #7). OPTIONAL — absent on
+   * a pre-upgrade daemon. Carries no secret. `normalizeServerConfig` always fills
+   * it (enabled:false). A change takes effect on daemon restart.
+   */
+  fingerprint?: FingerprintConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

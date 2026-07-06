@@ -209,6 +209,24 @@ export interface AccountProbeConfig {
 }
 
 /**
+ * Client-fingerprint segment (subscription-client-fingerprint #7). Opt-in,
+ * default OFF: when disabled the claude-subscription outbound headers are
+ * byte-identical to before this change (content-type + the OAuth bearer only).
+ * When enabled, real client fingerprint headers are captured per account, frozen,
+ * and replayed on outbound so relayed traffic presents a stable, REAL per-account
+ * client identity. `ua` is an OPTIONAL operator UA baseline applied ONLY when an
+ * account has no captured identity yet (never a fabricated stainless value).
+ * Persisted + read at daemon boot (like `accountHealth`; a change takes effect on
+ * restart). Carries NO secret.
+ */
+export interface FingerprintConfig {
+  /** Master switch; default false ⇒ no capture/replay ⇒ byte-identical outbound. */
+  enabled: boolean;
+  /** Operator UA baseline for un-captured accounts (piece 4). Absent ⇒ none. */
+  ua?: string;
+}
+
+/**
  * Layered upstream-proxy segment (upstream-proxy). Global + per-provider proxy
  * config for outbound EGRESS to upstreams (NOT the inbound listener). Resolved
  * with precedence account > provider > global > env; the per-account layer lives
@@ -294,6 +312,14 @@ export interface OutboundApiServerConfig {
    * rest + masked in admin).
    */
   billing?: BillingConfig;
+  /**
+   * Client-fingerprint segment (subscription-client-fingerprint #7). Optional in
+   * the persisted shape; `normalizeServerConfig` always fills it with the frozen
+   * defaults (enabled:false). Read at daemon boot to `configure` + seed + wire
+   * persistence on the shared identity store; a change takes effect on restart.
+   * Default-off ⇒ no capture/replay ⇒ byte-identical outbound headers.
+   */
+  fingerprint?: FingerprintConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */

@@ -52,6 +52,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import type {
+  AccountClientIdentity,
   AccountTokensConfig,
   ClaudeTokenConfig,
   CodexTokenConfig,
@@ -66,6 +67,7 @@ import type {
 } from '@omnicross/contracts/subscription-types';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
+import { getSharedIdentityStore } from '@omnicross/core/provider-proxy/identity/SubscriptionIdentityStore';
 
 import { preserveProxyConfigSecret } from '../proxy/sanitizeProxy';
 import {
@@ -210,6 +212,11 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   async listSanitizedAccounts(): Promise<Record<string, SubscriptionAccountSanitized[]>> {
     const config = this.readConfig();
     const health = getSharedAccountHealth();
+    // subscription-client-fingerprint #7 (D7): surface a COARSE per-account
+    // captured-status ONLY when replay is enabled — fingerprint is claude-only, so
+    // the indicator is attached to claude accounts only. NEVER the raw headers.
+    const identityStore = getSharedIdentityStore();
+    const fingerprintOn = identityStore.isEnabled();
     const now = Date.now();
     const out: Record<string, SubscriptionAccountSanitized[]> = {};
     for (const provider of ['claude', 'codex', 'gemini', 'opencodego'] as const) {
@@ -222,6 +229,13 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
         account.health = status.state;
         account.cooldownUntil =
           status.cooldownUntil !== undefined ? new Date(status.cooldownUntil).toISOString() : undefined;
+        // Coarse fingerprint captured-status (boolean + timestamp ONLY).
+        if (fingerprintOn && provider === 'claude') {
+          account.identityCaptured = identityStore.hasIdentity(provider, account.id);
+          const capturedAt = identityStore.capturedAt(provider, account.id);
+          account.identityCapturedAt =
+            capturedAt !== undefined ? new Date(capturedAt).toISOString() : undefined;
+        }
       }
       out[provider] = this.attachSyncWarnings(config, provider, sanitized);
     }
@@ -520,6 +534,25 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   ): Promise<void> {
     const config = this.readConfig();
     const result = accountMulti.setAccountLastUsed(config, providerId, accountId, iso);
+    if (!result.ok) return;
+    this.persist({ ...config, updatedAt: new Date().toISOString() });
+  }
+
+  /**
+   * Best-effort write-through of a per-account client `identity`
+   * (subscription-client-fingerprint #7, P2). Entry-metadata only (NON-secret
+   * whitelisted fingerprint headers; the token mirror is untouched); a no-op for
+   * an unknown id. Called by the identity store's persistence port on a first-seen
+   * freeze / TTL refresh, so it stays infrequent. Never throws to the caller — the
+   * store's port wrapper swallows a rejection so the relay hot path is unaffected.
+   */
+  async setAccountIdentity(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    identity: AccountClientIdentity,
+  ): Promise<void> {
+    const config = this.readConfig();
+    const result = accountMulti.setAccountIdentity(config, providerId, accountId, identity);
     if (!result.ok) return;
     this.persist({ ...config, updatedAt: new Date().toISOString() });
   }

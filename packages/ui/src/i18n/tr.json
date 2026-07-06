@@ -868,6 +868,11 @@
       "hint": "İçe aktardıktan sonra bu uygulama onu güncel tutar: her belirteç yenilemesinde CLI oturum dosyası da güncellenir, böylece terminaldeki CLI oturumu açık kalır.",
       "button": "Mevcut CLI oturumunu içe aktar"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

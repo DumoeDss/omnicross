@@ -868,6 +868,11 @@
       "hint": "După import, această aplicație o menține actualizată: la fiecare reîmprospătare a tokenului se actualizează și fișierul de autentificare al CLI-ului, astfel încât CLI-ul din terminal rămâne conectat.",
       "button": "Importă autentificarea CLI existentă"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

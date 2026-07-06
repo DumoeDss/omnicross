@@ -288,6 +288,14 @@ export interface AgentApiServiceApi {
    * billing-event-stream). Secret-free total/delivered/pending counts.
    */
   queryBillingStatus(): Promise<BillingDeliveryStatus>;
+  /**
+   * Persist the client-fingerprint segment (`PUT /server` with `{ fingerprint }`,
+   * subscription-client-fingerprint #7). Pass `undefined` to reset to defaults
+   * (disabled). Carries no secret. A change takes effect on daemon restart.
+   */
+  updateFingerprintConfig(
+    fingerprint: OutboundApiServerConfig['fingerprint'] | undefined,
+  ): Promise<MutationResult>;
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;

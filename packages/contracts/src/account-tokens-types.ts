@@ -34,6 +34,25 @@ export type ProxyConfig =
     };
 
 /**
+ * Persisted per-account client identity (subscription-client-fingerprint #7, P2).
+ * The frozen fingerprint headers a real Claude Code client sent for this account,
+ * captured + replayed so relayed traffic presents a stable identity across
+ * restarts. NON-secret metadata: it holds ONLY whitelisted fingerprint headers
+ * (`x-stainless-*` / user-agent / anthropic-beta / x-app / CC headers) — NEVER
+ * `authorization` / `x-api-key` / `cookie` (excluded at capture AND at
+ * store-normalize). Additive + OPTIONAL — an existing `tokens.json` without it
+ * parses unchanged (the account re-captures from a real client). Because it is
+ * non-secret it lives on the entry OUTSIDE the encrypted `tokens` block and is
+ * not walked by the secrets encryptor.
+ */
+export type AccountClientIdentity = {
+  /** The frozen fingerprint headers (lowercased keys; token/secret excluded). */
+  headers: Record<string, string>;
+  /** Epoch ms of the freeze / last TTL refresh. */
+  capturedAt: number;
+};
+
+/**
  * Authorization method (general)
  */
 export type AuthMethod = 'oauth' | 'manual';
@@ -179,6 +198,15 @@ export type SubscriptionAccountEntry<TConfig> = {
    * not skip.
    */
   supportedModels?: string[] | Record<string, string>;
+  /**
+   * Persisted per-account client fingerprint identity (subscription-client-
+   * fingerprint #7, P2). OPTIONAL, additive, NON-secret metadata (kept OUTSIDE the
+   * encrypted `tokens` block) — an existing `tokens.json` without it parses
+   * unchanged. Written through by the daemon on a first-seen freeze / TTL refresh;
+   * seeded back into the in-memory identity store at boot so a claude account's
+   * replayed identity survives restart.
+   */
+  identity?: AccountClientIdentity;
   /** The provider's existing token config, verbatim. */
   tokens: TConfig;
 };
@@ -282,6 +310,20 @@ export type SubscriptionAccountSanitized = {
    * map. Absent ⇒ the account supports every model with no remap.
    */
   supportedModels?: string[] | Record<string, string>;
+  /**
+   * COARSE client-fingerprint status (subscription-client-fingerprint #7, D7) —
+   * whether THIS account has a captured/frozen client identity in the in-memory
+   * store. Present only when fingerprint replay is ENABLED (else absent ⇒ the UI
+   * shows nothing). Secret-free by construction: it is a BOOLEAN only — the raw
+   * captured headers are NEVER surfaced here (nor in any admin view).
+   */
+  identityCaptured?: boolean;
+  /**
+   * ISO instant this account's fingerprint identity was frozen / last TTL-refreshed
+   * (subscription-client-fingerprint #7, D7). Present only alongside
+   * `identityCaptured === true`. Coarse timestamp only — never the headers.
+   */
+  identityCapturedAt?: string;
 };
 
 /**

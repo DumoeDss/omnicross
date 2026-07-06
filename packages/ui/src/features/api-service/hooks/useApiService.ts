@@ -79,6 +79,9 @@ export interface UseApiServiceResult {
   }) => Promise<AuditRecord[]>;
   updateBillingConfig: (billing: OutboundApiServerConfig['billing'] | undefined) => Promise<void>;
   queryBillingStatus: () => Promise<BillingDeliveryStatus>;
+  updateFingerprintConfig: (
+    fingerprint: OutboundApiServerConfig['fingerprint'] | undefined,
+  ) => Promise<void>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -324,6 +327,13 @@ export function useApiService(): UseApiServiceResult {
   // Read-only delivery status (reads, mutates nothing) — the indicator renders inline.
   const queryBillingStatus = useCallback(() => agent.apiService.queryBillingStatus(), []);
 
+  const updateFingerprintConfig = useCallback(
+    async (fingerprint: OutboundApiServerConfig['fingerprint'] | undefined) => {
+      await runWrite(() => agent.apiService.updateFingerprintConfig(fingerprint));
+    },
+    [runWrite],
+  );
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
 
@@ -354,5 +364,6 @@ export function useApiService(): UseApiServiceResult {
     queryAudit,
     updateBillingConfig,
     queryBillingStatus,
+    updateFingerprintConfig,
   };
 }

@@ -14,6 +14,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  AccountClientIdentity,
   AccountTokensConfig,
   ClaudeTokenConfig,
   CodexTokenConfig,
@@ -451,6 +452,35 @@ export function setAccountLastUsed(
     config,
     p,
     accounts.map((a) => (a.id === id ? { ...a, lastUsedAt: iso } : a)),
+  );
+  return { ok: true };
+}
+
+/**
+ * Set (or CLEAR, with `undefined`) one account's persisted client `identity` by id
+ * (subscription-client-fingerprint #7, P2). Entry-metadata only, NON-secret (only
+ * whitelisted fingerprint headers) — the token mirror is unaffected, so no
+ * `deriveMirror`. Rejects an unknown id.
+ */
+export function setAccountIdentity(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+  identity: AccountClientIdentity | undefined,
+): { ok: boolean } {
+  const accounts = getAccounts(config, p);
+  if (!accounts.some((a) => a.id === id)) return { ok: false };
+  setAccounts(
+    config,
+    p,
+    accounts.map((a) => {
+      if (a.id !== id) return a;
+      if (identity === undefined) {
+        const { identity: _drop, ...rest } = a;
+        return rest;
+      }
+      return { ...a, identity };
+    }),
   );
   return { ok: true };
 }

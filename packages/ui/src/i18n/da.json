@@ -868,6 +868,11 @@
       "hint": "Efter importen holder denne app det opdateret: ved hver tokenopdatering opdateres CLI-loginfilen også, så CLI’en i terminalen forbliver logget ind.",
       "button": "Importér eksisterende CLI-login"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

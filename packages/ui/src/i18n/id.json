@@ -868,6 +868,11 @@
       "hint": "Setelah diimpor, aplikasi ini menjaganya tetap segar: setiap kali token diperbarui, file login CLI juga diperbarui, sehingga CLI di terminal tetap masuk.",
       "button": "Impor login CLI yang ada"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

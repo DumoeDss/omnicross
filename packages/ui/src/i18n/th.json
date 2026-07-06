@@ -868,6 +868,11 @@
       "hint": "หลังนำเข้า แอปนี้จะคอยอัปเดตให้: ทุกครั้งที่รีเฟรชโทเค็น ไฟล์เข้าสู่ระบบของ CLI จะถูกอัปเดตด้วย ทำให้ CLI ในเทอร์มินัลยังคงเข้าสู่ระบบอยู่",
       "button": "นำเข้าการเข้าสู่ระบบ CLI ที่มีอยู่"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

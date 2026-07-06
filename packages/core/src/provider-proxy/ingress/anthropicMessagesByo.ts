@@ -111,7 +111,7 @@ export async function handleAnthropicMessagesByo(
 
     const providerResponse =
       route.authMode === 'subscription'
-        ? await runPipelineWithSubscriptionRetry(anthropicBody, rawBody, plan, route, deps)
+        ? await runPipelineWithSubscriptionRetry(anthropicBody, rawBody, plan, route, deps, options)
         : await runPipelineWithPoolReporting(anthropicBody, rawBody, plan, options);
 
     // Passthrough (design D4): rewrite the response `model` back to the client's

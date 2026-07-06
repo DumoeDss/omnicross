@@ -868,6 +868,11 @@
       "hint": "بعد الاستيراد، يحافظ هذا التطبيق على تحديثه: عند كل تحديث للرمز يتم أيضًا تحديث ملف تسجيل دخول CLI، فيبقى CLI في الطرفية مسجلاً للدخول.",
       "button": "استيراد تسجيل دخول CLI الحالي"
     },
+    "fingerprint": {
+      "captured": "Fingerprint captured",
+      "notCaptured": "No fingerprint yet",
+      "capturedAt": "Client fingerprint captured at {{time}}"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",
