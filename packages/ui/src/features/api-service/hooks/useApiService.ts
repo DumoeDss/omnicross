@@ -17,7 +17,7 @@
  * state, and suppresses the raw error box (the banner is the actionable surface).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { agent } from '@/shared/agent';
 
@@ -28,6 +28,7 @@ import type {
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
+  OutboundQueueStatus,
 } from '@/daemon/types';
 import type { LLMProvider } from '@shared/llm-config';
 
@@ -47,6 +48,8 @@ export interface UseApiServiceResult {
   error: string | null;
   /** The one-time create-key reveal; cleared via `dismissCreatedKey`. */
   createdKey: OutboundApiKeyCreated | null;
+  /** Live queue activity (`status.queueStatus`), or undefined when idle/absent. */
+  queueStatus: OutboundQueueStatus | undefined;
   dismissCreatedKey: () => void;
   setEnabled: (enabled: boolean) => Promise<void>;
   setNetworkBinding: (networkBinding: boolean) => Promise<void>;
@@ -54,6 +57,11 @@ export interface UseApiServiceResult {
   createKey: (name: string) => Promise<boolean>;
   revokeKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
+  setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
+  updateQueueConfig: (patch: {
+    userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
+    concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
+  }) => Promise<void>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -76,6 +84,10 @@ export function useApiService(): UseApiServiceResult {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdKey, setCreatedKey] = useState<OutboundApiKeyCreated | null>(null);
+
+  // Latest `busy` for the poll timer to read without re-arming the interval.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
 
   const refreshAll = useCallback(async () => {
     const [cfg, st, ks] = await Promise.all([
@@ -108,6 +120,22 @@ export function useApiService(): UseApiServiceResult {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Lightweight status-only poll (10s) so the queue-status readout reflects live
+  // activity without a manual refresh. Only `status` is re-read (not config/keys),
+  // and a poll is skipped while a write is in flight so it never clobbers an
+  // in-progress mutation's own refresh. Runs only while the page is mounted.
+  useEffect(() => {
+    const POLL_MS = 10_000;
+    const id = window.setInterval(() => {
+      if (busyRef.current) return;
+      void agent.apiService.getStatus().then((st) => {
+        // Guard against a write landing between the fetch and the resolve.
+        if (!busyRef.current && st) setStatus(st);
+      });
+    }, POLL_MS);
+    return () => window.clearInterval(id);
   }, []);
 
   // Run a mutation, surface its failure honestly, then re-read config + status.
@@ -199,6 +227,28 @@ export function useApiService(): UseApiServiceResult {
     }
   }, []);
 
+  const setKeyMaxConcurrency = useCallback(async (id: string, maxConcurrency: number | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.setKeyMaxConcurrency(id, maxConcurrency);
+      if (!result.success) setError(result.message ?? 'request failed');
+      setKeys(await agent.apiService.listKeys());
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const updateQueueConfig = useCallback(
+    async (patch: {
+      userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
+      concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
+    }) => {
+      await runWrite(() => agent.apiService.updateQueueConfig(patch));
+    },
+    [runWrite],
+  );
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
 
@@ -211,6 +261,7 @@ export function useApiService(): UseApiServiceResult {
     busy,
     error,
     createdKey,
+    queueStatus: status?.queueStatus,
     dismissCreatedKey,
     setEnabled,
     setNetworkBinding,
@@ -218,5 +269,7 @@ export function useApiService(): UseApiServiceResult {
     createKey,
     revokeKey,
     setKeyEnabled,
+    setKeyMaxConcurrency,
+    updateQueueConfig,
   };
 }

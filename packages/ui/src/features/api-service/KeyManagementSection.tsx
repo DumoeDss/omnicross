@@ -28,7 +28,70 @@ interface KeyManagementSectionProps {
   onCreate: (name: string) => Promise<boolean>;
   onRevoke: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
+  onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
   onDismissCreated: () => void;
+}
+
+/**
+ * Per-key concurrency ceiling input. Empty string OR a non-positive value →
+ * `null` (unlimited) — matching the §2 contract where absent/0 = unlimited —
+ * following `ProviderForm.tsx`'s `Number.isFinite(parsed) ? parsed : …` idiom
+ * (here the clear value is `null` because the key endpoint's clear contract is
+ * `null`). A valid positive value is clamped to the endpoint's 1..1000 range
+ * locally so an out-of-range entry never round-trips to a daemon 400. Commits on
+ * blur / Enter only when the resolved value differs from the stored one.
+ */
+function KeyConcurrencyInput({
+  value,
+  busy,
+  onCommit,
+}: {
+  value: number | undefined;
+  busy: boolean;
+  onCommit: (maxConcurrency: number | null) => void;
+}) {
+  const t = useTranslation();
+  const [draft, setDraft] = useState(value != null ? String(value) : '');
+
+  // Re-seed the draft when the persisted value changes (e.g. after a refresh).
+  React.useEffect(() => {
+    setDraft(value != null ? String(value) : '');
+  }, [value]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    const parsed = parseInt(trimmed, 10);
+    // Empty or non-positive → null (unlimited, §2); otherwise clamp to 1..1000.
+    const next =
+      trimmed !== '' && Number.isFinite(parsed) && parsed > 0
+        ? Math.min(1000, Math.max(1, parsed))
+        : null;
+    // Re-seed the draft to the resolved value so a clamped/cleared entry never
+    // lingers in the box on the no-op path (mirrors NumberField).
+    setDraft(next != null ? String(next) : '');
+    if (next === (value ?? null)) return;
+    onCommit(next);
+  };
+
+  return (
+    <Input
+      type="number"
+      min={1}
+      max={1000}
+      density="compact"
+      className="w-16 text-center"
+      value={draft}
+      disabled={busy}
+      placeholder={t('apiService.queue.key.placeholder')}
+      aria-label={t('apiService.queue.key.label')}
+      title={t('apiService.queue.key.label')}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+    />
+  );
 }
 
 /** The one-time plaintext reveal — shown once, never re-fetchable. */
@@ -76,6 +139,7 @@ export function KeyManagementSection({
   onCreate,
   onRevoke,
   onToggle,
+  onSetMaxConcurrency,
   onDismissCreated,
 }: KeyManagementSectionProps) {
   const t = useTranslation();
@@ -140,6 +204,18 @@ export function KeyManagementSection({
                 </div>
                 <code className="text-xs text-muted-foreground">{k.keyPrefix}…</code>
               </div>
+              {!k.revoked ? (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {t('apiService.queue.key.label')}
+                  </span>
+                  <KeyConcurrencyInput
+                    value={k.maxConcurrency}
+                    busy={busy}
+                    onCommit={(next) => void onSetMaxConcurrency(k.id, next)}
+                  />
+                </div>
+              ) : null}
               {!k.revoked ? (
                 <Switch
                   checked={k.enabled}

@@ -20,6 +20,8 @@ import { EndpointRoutingCard } from './EndpointRoutingCard';
 import { missingKindsByEndpoint } from './endpointKinds';
 import { useApiService } from './hooks/useApiService';
 import { KeyManagementSection } from './KeyManagementSection';
+import { QueueStatusView } from './QueueStatusView';
+import { RequestQueueSection } from './RequestQueueSection';
 import { ServerStatusBanner } from './ServerStatusBanner';
 
 export function ApiServicePage() {
@@ -40,6 +42,9 @@ export function ApiServicePage() {
     createKey,
     revokeKey,
     setKeyEnabled,
+    setKeyMaxConcurrency,
+    updateQueueConfig,
+    queueStatus,
   } = useApiService();
 
   return (
@@ -61,6 +66,8 @@ export function ApiServicePage() {
           ) : (
             <>
               <ServerStatusBanner status={status} />
+
+              <QueueStatusView queueStatus={queueStatus} />
 
               {error ? (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -132,8 +139,11 @@ export function ApiServicePage() {
                 onCreate={createKey}
                 onRevoke={revokeKey}
                 onToggle={setKeyEnabled}
+                onSetMaxConcurrency={setKeyMaxConcurrency}
                 onDismissCreated={dismissCreatedKey}
               />
+
+              <RequestQueueSection config={config} busy={busy} onUpdate={updateQueueConfig} />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>

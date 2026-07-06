@@ -212,6 +212,21 @@ export interface AgentApiServiceApi {
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
   updateEndpoint(endpoint: EndpointRoutingConfig): Promise<MutationResult>;
+  /**
+   * Set a key's outbound concurrency ceiling (`POST /keys/:id/max-concurrency`).
+   * `null` clears the ceiling → unlimited. Mirrors `setKeyEnabled`'s `{ ok }`
+   * handling (`ok:false` → "key not found").
+   */
+  setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
+  /**
+   * Persist one or both queue-config segments (`PUT /server`), reusing the
+   * `applyServerPut` cache-refresh + `incomplete-model-config` envelope handling.
+   * Send only the changed segment(s).
+   */
+  updateQueueConfig(patch: {
+    userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
+    concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
+  }): Promise<MutationResult>;
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;

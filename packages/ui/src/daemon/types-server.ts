@@ -59,12 +59,42 @@ export interface OutboundModelConfigError {
   missingKinds: string[];
 }
 
+/**
+ * Per-account serial queue config (`userMessageQueue`) — mirrored from
+ * `planning-context.md` §COMMITTED interfaces §1 (omnicross-user-queue-concurrency).
+ * OPTIONAL so a pre-upgrade daemon response still type-checks; the queue card
+ * falls back to the frozen defaults `{ enabled:false, delayMs:200, waitTimeoutMs:60000 }`.
+ * Valid ranges: `delayMs` 0..10000, `waitTimeoutMs` 1000..300000.
+ */
+export interface OutboundUserMessageQueueConfig {
+  enabled: boolean;
+  delayMs: number;
+  waitTimeoutMs: number;
+}
+
+/**
+ * Per-key concurrency queue config (`concurrencyQueue`) — mirrored from
+ * `planning-context.md` §COMMITTED §1. Frozen defaults
+ * `{ maxQueueSizeFactor:2, minQueueSize:4, waitTimeoutMs:60000 }`. Each key's max
+ * queue depth = `max(limit * maxQueueSizeFactor, minQueueSize)`. Valid ranges:
+ * `maxQueueSizeFactor` 1..10, `minQueueSize` 1..100, `waitTimeoutMs` 1000..300000.
+ */
+export interface OutboundConcurrencyQueueConfig {
+  maxQueueSizeFactor: number;
+  minQueueSize: number;
+  waitTimeoutMs: number;
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;
   networkBinding: boolean;
   endpoints: EndpointRoutingConfig[];
   port?: number;
+  /** Per-account serial queue (OPTIONAL — absent on a pre-upgrade daemon). */
+  userMessageQueue?: OutboundUserMessageQueueConfig;
+  /** Per-key concurrency queue (OPTIONAL — absent on a pre-upgrade daemon). */
+  concurrencyQueue?: OutboundConcurrencyQueueConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────
@@ -94,6 +124,18 @@ export interface OutboundStatusEndpoint {
   useSubscription: boolean;
 }
 
+/**
+ * Live queue-status snapshot (planning-context §COMMITTED §4). Each array carries
+ * ONLY entries with current activity (empty array = nothing queued). Absent
+ * entirely when the server is not running or the daemon is pre-upgrade.
+ */
+export interface OutboundQueueStatus {
+  /** Per-provider serial-queue state (only providers with a holder/waiters). */
+  serial: Array<{ providerId: string; holding: boolean; waiting: number }>;
+  /** Per-key concurrency-gate state (only keys with active/waiting requests). */
+  concurrency: Array<{ apiKeyId: string; active: number; waiting: number }>;
+}
+
 /** Live status snapshot (`GET /admin/api/status`). */
 export interface OutboundApiServerStatus {
   running: boolean;
@@ -105,6 +147,12 @@ export interface OutboundApiServerStatus {
   lanFormats: OutboundFormatUrls | null;
   /** Read-only per-endpoint projection (see `OutboundStatusEndpoint`). */
   endpoints: OutboundStatusEndpoint[];
+  /**
+   * Live queue activity (planning-context §COMMITTED §4). OPTIONAL — the daemon
+   * spreads it into `GET /status` only when the server is running; a pre-upgrade
+   * daemon omits it and the status view stays silent.
+   */
+  queueStatus?: OutboundQueueStatus;
 }
 
 // ── Named keys (GET/POST /admin/api/keys + revoke/enabled) ────────────────────
@@ -118,6 +166,12 @@ export interface OutboundApiKeyInfo {
   createdAt: number;
   lastUsedAt: number | null;
   revoked: boolean;
+  /**
+   * Per-key outbound concurrency ceiling (planning-context §COMMITTED §2). Absent
+   * or 0 = unlimited (the concurrency gate is bypassed for this key). OPTIONAL so a
+   * pre-upgrade daemon response type-checks.
+   */
+  maxConcurrency?: number;
 }
 
 /**

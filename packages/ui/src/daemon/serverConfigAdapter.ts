@@ -190,5 +190,33 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return fail(err, 'failed to update key state');
       }
     },
+
+    async setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; maxConcurrency?: number | null }>(
+          `/keys/${encodeURIComponent(id)}/max-concurrency`,
+          { maxConcurrency },
+        );
+        if (!data.ok) return { success: false, message: 'key not found' };
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update key concurrency limit');
+      }
+    },
+
+    async updateQueueConfig(patch: {
+      userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
+      concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
+    }): Promise<MutationResult> {
+      try {
+        // The server PUT accepts a partial patch and merges it, so the queue
+        // segment(s) ride the existing merge path (unlike `endpoints`, these are
+        // whole-object scalars — no full-array rebuild needed).
+        const data = await adminClient.put<ServerPutResponse>('/server', patch);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update queue configuration');
+      }
+    },
   };
 }

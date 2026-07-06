@@ -591,6 +591,54 @@
         "copied": "已复制",
         "dismiss": "完成"
       }
+    },
+    "queue": {
+      "title": "请求队列",
+      "description": "平滑突发流量：按账号串行处理用户消息，并限制每个密钥的并发请求。",
+      "serial": {
+        "title": "串行消息队列",
+        "description": "每个订阅账号一次只处理一条真实用户消息（FIFO）。默认关闭。",
+        "enable": {
+          "label": "启用串行队列",
+          "description": "将重叠的用户消息排队，而不是并行发送。"
+        },
+        "delayMs": {
+          "label": "消息间隔（毫秒）",
+          "helper": "每条消息后、下一条出队前的停顿。范围 0–10000。"
+        },
+        "waitTimeoutMs": {
+          "label": "队列等待超时（毫秒）",
+          "helper": "排队消息超过此时长则放弃。范围 1000–300000。"
+        }
+      },
+      "concurrency": {
+        "title": "并发队列",
+        "description": "当密钥达到并发上限时，多余请求会在有界队列中等待，而不是直接失败。",
+        "maxQueueSizeFactor": {
+          "label": "队列容量系数",
+          "helper": "最大排队数 = 密钥上限 × 此系数。范围 1–10。"
+        },
+        "minQueueSize": {
+          "label": "最小队列容量",
+          "helper": "每密钥队列深度的下限。范围 1–100。"
+        },
+        "waitTimeoutMs": {
+          "label": "队列等待超时（毫秒）",
+          "helper": "等待请求超过此时长则放弃。范围 1000–300000。"
+        }
+      },
+      "key": {
+        "label": "上限",
+        "placeholder": "∞"
+      },
+      "status": {
+        "title": "队列活动",
+        "serial": "串行队列",
+        "concurrency": "并发",
+        "holding": "处理中",
+        "active": "{{count}} 个进行中",
+        "waiting": "{{count}} 个等待"
+      }
     }
   },
   "accounts": {

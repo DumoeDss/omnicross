@@ -591,6 +591,54 @@
         "copied": "已複製",
         "dismiss": "完成"
       }
+    },
+    "queue": {
+      "title": "請求佇列",
+      "description": "平滑突發流量：依帳號串行處理使用者訊息，並限制每個金鑰的並發請求。",
+      "serial": {
+        "title": "串行訊息佇列",
+        "description": "每個訂閱帳號一次只處理一條真實使用者訊息（FIFO）。預設關閉。",
+        "enable": {
+          "label": "啟用串行佇列",
+          "description": "將重疊的使用者訊息排隊，而非並行發送。"
+        },
+        "delayMs": {
+          "label": "訊息間隔（毫秒）",
+          "helper": "每條訊息後、下一條出佇列前的停頓。範圍 0–10000。"
+        },
+        "waitTimeoutMs": {
+          "label": "佇列等待逾時（毫秒）",
+          "helper": "排隊訊息超過此時長則放棄。範圍 1000–300000。"
+        }
+      },
+      "concurrency": {
+        "title": "並發佇列",
+        "description": "當金鑰達到並發上限時，多餘請求會在有界佇列中等待，而非直接失敗。",
+        "maxQueueSizeFactor": {
+          "label": "佇列容量係數",
+          "helper": "最大排隊數 = 金鑰上限 × 此係數。範圍 1–10。"
+        },
+        "minQueueSize": {
+          "label": "最小佇列容量",
+          "helper": "每金鑰佇列深度的下限。範圍 1–100。"
+        },
+        "waitTimeoutMs": {
+          "label": "佇列等待逾時（毫秒）",
+          "helper": "等待請求超過此時長則放棄。範圍 1000–300000。"
+        }
+      },
+      "key": {
+        "label": "上限",
+        "placeholder": "∞"
+      },
+      "status": {
+        "title": "佇列活動",
+        "serial": "串行佇列",
+        "concurrency": "並發",
+        "holding": "處理中",
+        "active": "{{count}} 個進行中",
+        "waiting": "{{count}} 個等待"
+      }
     }
   },
   "accounts": {

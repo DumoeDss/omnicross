@@ -591,6 +591,54 @@
         "copied": "Másolva",
         "dismiss": "Kész"
       }
+    },
+    "queue": {
+      "title": "Request queue",
+      "description": "Smooth bursty traffic: serialize a user’s messages per account and cap concurrent requests per key.",
+      "serial": {
+        "title": "Serial message queue",
+        "description": "Process one real user message at a time per subscription account (FIFO). Off by default.",
+        "enable": {
+          "label": "Enable serial queue",
+          "description": "Queue overlapping user messages instead of sending them in parallel."
+        },
+        "delayMs": {
+          "label": "Delay between messages (ms)",
+          "helper": "Pause after each message before the next dequeues. Range 0–10000."
+        },
+        "waitTimeoutMs": {
+          "label": "Queue wait timeout (ms)",
+          "helper": "Give up a queued message after this long. Range 1000–300000."
+        }
+      },
+      "concurrency": {
+        "title": "Concurrency queue",
+        "description": "When a key hits its concurrency limit, extra requests wait in a bounded queue instead of failing outright.",
+        "maxQueueSizeFactor": {
+          "label": "Queue size factor",
+          "helper": "Max queued × the key limit. Range 1–10."
+        },
+        "minQueueSize": {
+          "label": "Min queue size",
+          "helper": "Floor for the per-key queue depth. Range 1–100."
+        },
+        "waitTimeoutMs": {
+          "label": "Queue wait timeout (ms)",
+          "helper": "Give up a waiting request after this long. Range 1000–300000."
+        }
+      },
+      "key": {
+        "label": "Limit",
+        "placeholder": "∞"
+      },
+      "status": {
+        "title": "Queue activity",
+        "serial": "Serial queue",
+        "concurrency": "Concurrency",
+        "holding": "holding",
+        "active": "{{count}} active",
+        "waiting": "{{count}} waiting"
+      }
     }
   },
   "accounts": {
