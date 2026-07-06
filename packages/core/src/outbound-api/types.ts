@@ -143,6 +143,33 @@ export interface AccountHealthConfig {
 }
 
 /**
+ * Scheduled account-probe segment (subscription-account-probe, #8 health-cron).
+ * The active complement to #2's passive health machine: a cheap, staggered,
+ * default-OFF background probe that discovers a dead/expired account BEFORE real
+ * traffic does. Persisted + range-clamped like `accountHealth`; consumed by the
+ * daemon `AccountHealthProbeScheduler` (an `unref()`ed interval — omnicross has
+ * no cron dep). ALL knobs are load-safety valves:
+ *  - `enabled`          default **false** (zero regression — no probes, no /health
+ *                       boolean, byte-identical when off).
+ *  - `intervalMs`       default **900000** (15 min), valid `60000..86400000`.
+ *  - `onlyMultiAccount` default **true** — probe only providers with ≥2 accounts
+ *                       (where #2 health-gating actually matters; a single-account
+ *                       provider is never probed — #2 keeps it schedulable anyway).
+ *  - `timeoutMs`        default **5000** per upstream probe, valid `1000..60000`.
+ *  - `historySize`      default **10** rolling per-account records, valid `1..200`.
+ *  - `staggerMs`        default **500** gap between consecutive probes, valid
+ *                       `0..60000` (so N accounts never fire N simultaneous GETs).
+ */
+export interface AccountProbeConfig {
+  enabled: boolean;
+  intervalMs: number;
+  onlyMultiAccount: boolean;
+  timeoutMs: number;
+  historySize: number;
+  staggerMs: number;
+}
+
+/**
  * Layered upstream-proxy segment (upstream-proxy). Global + per-provider proxy
  * config for outbound EGRESS to upstreams (NOT the inbound listener). Resolved
  * with precedence account > provider > global > env; the per-account layer lives
@@ -185,6 +212,13 @@ export interface OutboundApiServerConfig {
    * the shared health tracker at daemon boot (change takes effect on restart).
    */
   accountHealth?: AccountHealthConfig;
+  /**
+   * Scheduled account-probe segment (subscription-account-probe #8). Optional in
+   * the persisted shape; `normalizeServerConfig` always fills it with the frozen
+   * defaults (enabled:false). Read by the daemon `AccountHealthProbeScheduler` at
+   * boot; a change takes effect on restart. Default-off ⇒ no scheduler runs.
+   */
+  accountProbe?: AccountProbeConfig;
   /**
    * Layered upstream-proxy segment (upstream-proxy). Optional; when absent no
    * global/provider proxy applies (direct egress). `normalizeServerConfig` drops

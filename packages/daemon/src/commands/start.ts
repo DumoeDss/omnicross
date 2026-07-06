@@ -111,6 +111,15 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // + nudge a fresh token so a recovered account resumes instantly.
   daemon.accountHealthSweeper.start();
 
+  // Scheduled ACTIVE account-health probe (subscription-account-probe #8): apply
+  // the persisted `accountProbe` segment, then start ONLY when enabled (default
+  // OFF ⇒ `start()` is a no-op ⇒ zero regression). A cheap, staggered, multi-
+  // account-only background GET discovers a dead account before real traffic.
+  if (serverConfig.accountProbe) {
+    daemon.accountHealthProbeScheduler.configure(serverConfig.accountProbe);
+  }
+  daemon.accountHealthProbeScheduler.start();
+
   const status = daemon.outboundApiServer.getStatus();
   console.info('omnicross daemon is running.');
   if (dashboardUrl) console.info(`  dashboard : ${dashboardUrl}`);

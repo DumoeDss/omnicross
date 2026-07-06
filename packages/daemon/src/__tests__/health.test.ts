@@ -77,6 +77,37 @@ describe('buildHealthReport', () => {
     expect(report.checks.config).toBe(false);
   });
 
+  it('account-probe boolean: absent thunk ⇒ key omitted (byte-identical, zero regression)', () => {
+    const report = buildHealthReport(healthyDeps());
+    expect(report.checks).not.toHaveProperty('subscriptionAccountsHealthy');
+  });
+
+  it('account-probe boolean: undefined (disabled) ⇒ key omitted', () => {
+    const report = buildHealthReport(healthyDeps({ subscriptionAccountsHealthy: () => undefined }));
+    expect(report.checks).not.toHaveProperty('subscriptionAccountsHealthy');
+  });
+
+  it('account-probe boolean: enabled ⇒ informational (added to checks; never moves status)', () => {
+    const unhealthy = buildHealthReport(healthyDeps({ subscriptionAccountsHealthy: () => false }));
+    expect(unhealthy.checks.subscriptionAccountsHealthy).toBe(false);
+    expect(unhealthy.status).toBe('ok'); // informational — an unhealthy account does NOT fail /health
+
+    const healthy = buildHealthReport(healthyDeps({ subscriptionAccountsHealthy: () => true }));
+    expect(healthy.checks.subscriptionAccountsHealthy).toBe(true);
+  });
+
+  it('account-probe boolean: a throwing thunk collapses to false (never crashes)', () => {
+    const report = buildHealthReport(
+      healthyDeps({
+        subscriptionAccountsHealthy: () => {
+          throw new Error('boom');
+        },
+      }),
+    );
+    expect(report.checks.subscriptionAccountsHealthy).toBe(false);
+    expect(report.status).toBe('ok');
+  });
+
   it('SECRET SCAN — the serialized report contains no secret-looking string', () => {
     // Even a hostile version string must not smuggle a token; the report carries
     // only coarse booleans + version + process stats — never a token/email/path.

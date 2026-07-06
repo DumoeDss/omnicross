@@ -34,6 +34,15 @@ export interface HealthReportDeps {
   outboundServerRunning: () => boolean;
   /** Non-critical: the admin listener is running. */
   adminServerRunning: () => boolean;
+  /**
+   * OPTIONAL coarse account-probe signal (subscription-account-probe #8, design
+   * D5). Returns `true` when no PROBED account is currently unhealthy, `false`
+   * when one is, or `undefined` when probing is DISABLED (→ the check is OMITTED,
+   * keeping the `/health` body byte-identical when the feature is off).
+   * INFORMATIONAL: it never affects `status` (a marked account is an operational
+   * signal, not a daemon-readiness failure). Account-anonymous — no ids/counts.
+   */
+  subscriptionAccountsHealthy?: () => boolean | undefined;
   /** TEST SEAM: process memory snapshot (defaults to `process.memoryUsage`). */
   memoryUsage?: () => NodeJS.MemoryUsage;
   /** TEST SEAM: process uptime seconds (defaults to `process.uptime`). */
@@ -69,6 +78,20 @@ export function buildHealthReport(deps: HealthReportDeps): HealthReport {
     outboundServer: safeBool(deps.outboundServerRunning),
     adminServer: safeBool(deps.adminServerRunning),
   };
+
+  // INFORMATIONAL account-probe signal (#8) — added ONLY when probing is enabled
+  // (the thunk returns a boolean; `undefined` = disabled → key omitted, so the
+  // default-off body stays byte-identical). Not a CRITICAL/READINESS key, so it
+  // never moves `status`. A throwing thunk collapses to `false` (never crash).
+  if (deps.subscriptionAccountsHealthy) {
+    let probeHealthy: boolean | undefined;
+    try {
+      probeHealthy = deps.subscriptionAccountsHealthy();
+    } catch {
+      probeHealthy = false;
+    }
+    if (probeHealthy !== undefined) checks.subscriptionAccountsHealthy = probeHealthy;
+  }
 
   const criticalOk = CRITICAL_CHECKS.every((k) => checks[k]);
   const readinessOk = READINESS_CHECKS.every((k) => checks[k]);

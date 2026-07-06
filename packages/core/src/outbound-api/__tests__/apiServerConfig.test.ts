@@ -7,10 +7,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_ACCOUNT_PROBE,
   DEFAULT_CONCURRENCY_QUEUE,
   DEFAULT_USER_MESSAGE_QUEUE,
   defaultServerConfig,
   mergeServerConfig,
+  normalizeAccountProbe,
   normalizeServerConfig,
 } from '../apiServerConfig';
 import type { EndpointRoutingConfig, OutboundApiServerConfig, OutboundEndpoint } from '../types';
@@ -187,5 +189,50 @@ describe('mergeServerConfig', () => {
     const messages = endpoint(merged, 'messages');
     expect(messages.modelMap).toEqual({ fable: '', opus: 'p,opus', sonnet: '', haiku: '' });
     expect(messages).not.toHaveProperty('visionModel');
+  });
+
+  it('carries the accountProbe segment through a patch', () => {
+    const current = defaultServerConfig();
+    const merged = mergeServerConfig(current, {
+      accountProbe: { ...DEFAULT_ACCOUNT_PROBE, enabled: true, intervalMs: 120_000 },
+    });
+    expect(merged.accountProbe).toEqual({ ...DEFAULT_ACCOUNT_PROBE, enabled: true, intervalMs: 120_000 });
+  });
+});
+
+describe('normalizeAccountProbe (subscription-account-probe #8)', () => {
+  it('defaults OFF with the frozen conservative cadence', () => {
+    expect(normalizeAccountProbe(undefined)).toEqual(DEFAULT_ACCOUNT_PROBE);
+    expect(defaultServerConfig().accountProbe).toEqual(DEFAULT_ACCOUNT_PROBE);
+    expect(DEFAULT_ACCOUNT_PROBE.enabled).toBe(false);
+  });
+
+  it('clamps out-of-range knobs to their bounds', () => {
+    const probe = normalizeAccountProbe({
+      accountProbe: {
+        enabled: true,
+        intervalMs: 1, // below 60_000 floor
+        onlyMultiAccount: false,
+        timeoutMs: 999_999, // above 60_000 ceiling
+        historySize: 0, // below 1 floor
+        staggerMs: -5, // below 0 floor
+      },
+    });
+    expect(probe).toEqual({
+      enabled: true,
+      intervalMs: 60_000,
+      onlyMultiAccount: false,
+      timeoutMs: 60_000,
+      historySize: 1,
+      staggerMs: 0,
+    });
+  });
+
+  it('onlyMultiAccount defaults true; enabled coerces to a strict boolean', () => {
+    const probe = normalizeAccountProbe({
+      accountProbe: { enabled: 'yes' } as unknown as (typeof DEFAULT_ACCOUNT_PROBE),
+    });
+    expect(probe.enabled).toBe(false); // non-true ⇒ false
+    expect(probe.onlyMultiAccount).toBe(true); // absent ⇒ true
   });
 });

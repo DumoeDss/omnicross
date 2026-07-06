@@ -33,8 +33,10 @@ import {
 } from '@omnicross/contracts/health-logging-types';
 import type { Logger } from '@omnicross/core';
 
+import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ResolvedAdminConfig } from '../config';
 
+import { handleAccountProbes } from './accountProbesApi';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
 import { DAEMON_VERSION } from './version';
@@ -58,6 +60,14 @@ export interface AdminServerDeps extends AdminApiDeps {
    * level / format / file sink.
    */
   logger: Logger;
+  /**
+   * OPTIONAL per-account probe-history reader (subscription-account-probe #8,
+   * design D5). When wired (bootstrap → the `AccountHealthProbeScheduler`), the
+   * AUTHED `GET /admin/api/account-probes` returns per-account probe history.
+   * Absent ⇒ the route serves an empty list (byte-safe for embedders/tests that
+   * do not wire it). Read-only + secret-free (ids + status labels, no tokens).
+   */
+  probeHistoryReader?: AccountProbeHistoryReader;
 }
 
 /** A live status snapshot for the admin listener. */
@@ -192,6 +202,18 @@ export class AdminServer {
     if ((req.method === 'GET' || req.method === 'HEAD') && (path === '/' || path === '/admin')) {
       res.writeHead(302, { Location: '/ui/' });
       res.end();
+      return;
+    }
+
+    // AUTHED per-account probe history (subscription-account-probe #8) — routed
+    // HERE (not through `adminApi.ts`, which is at its line cap) so it honors the
+    // auth gate above yet keeps that router untouched. Detailed (names account
+    // ids) → admin-only, unlike the coarse `/health` boolean.
+    if (
+      path === '/admin/api/account-probes' &&
+      (req.method === 'GET' || req.method === 'HEAD')
+    ) {
+      handleAccountProbes(res, this.deps.probeHistoryReader);
       return;
     }
 

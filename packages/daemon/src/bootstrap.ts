@@ -27,6 +27,7 @@ import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiC
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
 import {
   __resetOutboundApiServerForTests,
+  DEFAULT_ACCOUNT_PROBE,
   getOutboundApiServer,
   type OutboundApiServer,
 } from '@omnicross/core/outbound-api';
@@ -69,6 +70,7 @@ import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
 import { JsonPricingStore } from './ports/JsonPricingStore';
 import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
 import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstreamProxyResolver';
+import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
@@ -160,6 +162,13 @@ export interface Daemon {
    * cleanup. Correctness never depends on it (health self-heals lazily on read).
    */
   readonly accountHealthSweeper: AccountHealthSweeper;
+  /**
+   * Scheduled ACTIVE account-health probe (subscription-account-probe #8).
+   * Constructed armed-off with default config (`enabled:false`); `start.ts`
+   * `configure(...)`s it from the persisted `accountProbe` segment and starts it
+   * ONLY when enabled. Disposed in cleanup.
+   */
+  readonly accountHealthProbeScheduler: AccountHealthProbeScheduler;
 }
 
 /**
@@ -313,6 +322,19 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // never imports `ApiKeyPoolService` — it only holds this no-type-coupling hook.
   llmConfig.setReloadHook(() => apiKeyPool.invalidateCache());
 
+  // Scheduled account-health probe (subscription-account-probe #8) — the ACTIVE
+  // complement to the passive #2 tracker. Constructed armed-off with the frozen
+  // defaults (enabled:false); the async `start.ts` path `configure(...)`s it from
+  // the persisted `accountProbe` segment and `start()`s it ONLY when enabled.
+  // It reads token state via the credential store (#1), probes through the
+  // proxy-aware `fetchUpstream` (#3), and feeds outcomes to the shared #2 tracker.
+  const accountHealthProbeScheduler = new AccountHealthProbeScheduler(
+    credentialStore,
+    getSharedAccountHealth(),
+    logger,
+    DEFAULT_ACCOUNT_PROBE,
+  );
+
   // Shared `/health` report builder (daemon-health-endpoint, D1/D3). ONE closure
   // over the live handles, wired into BOTH the outbound server (below, before
   // key-auth) and the admin server (below, before the auth gate). Coarse +
@@ -330,6 +352,13 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
       credentialStoreReadable: () => isTokensStoreReadable(paths.tokensPath),
       outboundServerRunning: () => outboundApiServer.getStatus().running,
       adminServerRunning: () => adminServer.getStatus().running,
+      // Coarse, account-anonymous probe signal (#8, D5) — added to `checks` ONLY
+      // when probing is ENABLED; disabled ⇒ `undefined` ⇒ key omitted ⇒ the
+      // `/health` body stays byte-identical (zero regression).
+      subscriptionAccountsHealthy: () =>
+        accountHealthProbeScheduler.enabled
+          ? accountHealthProbeScheduler.probedAccountsHealthy()
+          : undefined,
     });
 
   // Outbound API server — shares the proxy's route map + deps (one conversion
@@ -416,6 +445,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // configurable-logging: the admin listener's lifecycle lines route through
     // the injected logger.
     logger,
+    // subscription-account-probe #8: the AUTHED `GET /admin/api/account-probes`
+    // reads per-account probe history from the scheduler (secret-free — ids +
+    // status labels only). Routed in `AdminServer` (not `adminApi.ts`).
+    probeHistoryReader: accountHealthProbeScheduler,
   });
 
   // Background token-refresh sweep (external-cli-sync) — constructed armed-off;
@@ -450,6 +483,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     adminServer,
     tokenRefreshScheduler,
     accountHealthSweeper,
+    accountHealthProbeScheduler,
   };
 }
 

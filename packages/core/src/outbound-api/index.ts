@@ -41,11 +41,13 @@ export function __resetOutboundApiServerForTests(): void {
 
 export {
   type ApiServerSettingsStore,
+  DEFAULT_ACCOUNT_PROBE,
   DEFAULT_CONCURRENCY_QUEUE,
   DEFAULT_USER_MESSAGE_QUEUE,
   defaultServerConfig,
   loadServerConfig,
   mergeServerConfig,
+  normalizeAccountProbe,
   normalizeProxyConfig,
   normalizeProxySegment,
   normalizeQueueSegments,
@@ -125,6 +127,7 @@ export {
 } from './subscriptionSupport';
 export { ENDPOINT_MODEL_KINDS } from './types';
 export type {
+  AccountProbeConfig,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   KindMappedEndpoint,

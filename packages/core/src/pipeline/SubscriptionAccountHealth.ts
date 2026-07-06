@@ -285,6 +285,29 @@ export class SubscriptionAccountHealth {
   }
 
   /**
+   * Clear ONLY the auth/transient unavailability mark (`tempUnavailableUntil`) —
+   * the narrow healing a background PROBE is allowed to do (subscription-account-
+   * probe #8, review M1). A probe 2xx from the lightweight `GET /v1/models` attests
+   * the TOKEN works (so a final-401 / plain-403 / 5xx transient may be healed), but
+   * it does NOT prove the traffic endpoint's rate-limit / overload has recovered —
+   * so it MUST NOT touch `rateLimitEndAt` / `overloadUntil` (those clear only on the
+   * upstream's authoritative reset, or a REAL-traffic 2xx). `blocked` (a ban) is
+   * never cleared here. Distinct from `recordUpstreamOutcome`'s 2xx path, which is
+   * UNCHANGED and still clears rate + transient together because it IS traffic.
+   * Returns whether a transient mark was actually cleared. Does NOT emit a recovery
+   * signal (a probe is internal maintenance; the account is schedulable-on-read).
+   */
+  clearTransientMark(providerId: string, accountId: string): boolean {
+    const key = this.key(providerId, accountId);
+    const record = this.records.get(key);
+    if (!record || record.tempUnavailableUntil === undefined) return false;
+    delete record.tempUnavailableUntil;
+    if (isRecordEmpty(record)) this.records.delete(key);
+    else this.records.set(key, record);
+    return true;
+  }
+
+  /**
    * Proactively surface accounts that transitioned unhealthy → schedulable since
    * the last sweep (design D6). Clears their expired timers, emits a recovery
    * signal for each through `onRecovered`, and returns the list. A `blocked`

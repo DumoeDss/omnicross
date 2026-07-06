@@ -192,6 +192,56 @@ describe('resolveResetSeconds — per-provider (OQ2)', () => {
   });
 });
 
+describe('SubscriptionAccountHealth — clearTransientMark() (probe #8, M1)', () => {
+  it('clears ONLY the auth-transient mark, leaving a rate-limit cooldown intact', () => {
+    const { health } = makeTracker();
+    // A real-traffic 429-with-reset (rate-limit) AND a final-401 (transient).
+    health.recordUpstreamOutcome(P, A, { status: 429, resetHeaderSeconds: 2000 });
+    health.recordUpstreamOutcome(P, A, { status: 401 });
+    expect(health.isSchedulable(P, A)).toBe(false);
+
+    const cleared = health.clearTransientMark(P, A);
+    expect(cleared).toBe(true);
+    // Rate-limit survives (a probe can't attest the traffic endpoint recovered).
+    expect(health.isSchedulable(P, A)).toBe(false);
+    expect(health.getStatus(P, A).state).toBe('rate_limited');
+    expect(health.getStatus(P, A).cooldownUntil).toBe(2000 * 1000);
+  });
+
+  it('does not clear a 529 overload cooldown', () => {
+    const { health } = makeTracker();
+    health.recordUpstreamOutcome(P, A, { status: 529 });
+    health.clearTransientMark(P, A);
+    expect(health.getStatus(P, A).state).toBe('overloaded');
+  });
+
+  it('never clears a permanent ban (blocked)', () => {
+    const { health } = makeTracker();
+    health.recordUpstreamOutcome(P, A, { status: 403, bodyText: 'This organization has been disabled.' });
+    expect(health.clearTransientMark(P, A)).toBe(false); // nothing transient to clear
+    expect(health.getStatus(P, A).state).toBe('blocked');
+  });
+
+  it('is a no-op (returns false) on a healthy or transient-free account', () => {
+    const { health } = makeTracker();
+    expect(health.clearTransientMark(P, A)).toBe(false);
+    health.recordUpstreamOutcome(P, A, { status: 401 });
+    expect(health.clearTransientMark(P, A)).toBe(true);
+    expect(health.isSchedulable(P, A)).toBe(true); // transient healed
+    expect(health.clearTransientMark(P, A)).toBe(false); // already clear
+  });
+
+  it('real-traffic 2xx still clears rate + transient together (UNCHANGED)', () => {
+    const { health } = makeTracker();
+    health.recordUpstreamOutcome(P, A, { status: 429, resetHeaderSeconds: 2000 });
+    expect(health.isSchedulable(P, A)).toBe(false);
+    // A genuine served-endpoint 2xx (NOT a probe) clears the rate-limit — the
+    // frozen #2 behavior the probe path deliberately does NOT share.
+    health.recordUpstreamOutcome(P, A, { status: 200 });
+    expect(health.isSchedulable(P, A)).toBe(true);
+  });
+});
+
 describe('SubscriptionAccountHealth — configure()', () => {
   it('retunes the live overload behavior', () => {
     const { health } = makeTracker({ overloadEnabled: false });

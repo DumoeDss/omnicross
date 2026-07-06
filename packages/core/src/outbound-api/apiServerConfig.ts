@@ -21,6 +21,7 @@ import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
 import type {
   AccountHealthConfig,
+  AccountProbeConfig,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   ModelRef,
@@ -73,6 +74,38 @@ export function normalizeAccountHealth(
       3_600_000,
       DEFAULT_ACCOUNT_HEALTH.overloadCooldownMs,
     ),
+  };
+}
+
+/**
+ * Frozen defaults for the scheduled account-probe segment (SSOT,
+ * subscription-account-probe #8). Default OFF (zero regression); a 15-min cadence,
+ * multi-account-only, short timeout, small rolling history, staggered — every knob
+ * a load-safety valve (see `AccountProbeConfig`).
+ */
+export const DEFAULT_ACCOUNT_PROBE: AccountProbeConfig = {
+  enabled: false,
+  intervalMs: 15 * 60_000,
+  onlyMultiAccount: true,
+  timeoutMs: 5_000,
+  historySize: 10,
+  staggerMs: 500,
+};
+
+/** Fill + range-CLAMP the account-probe segment to the frozen defaults. */
+export function normalizeAccountProbe(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): AccountProbeConfig {
+  const ap = raw?.accountProbe;
+  return {
+    enabled: ap?.enabled === true,
+    intervalMs: clampNumber(ap?.intervalMs, 60_000, 86_400_000, DEFAULT_ACCOUNT_PROBE.intervalMs),
+    onlyMultiAccount: ap?.onlyMultiAccount !== false,
+    timeoutMs: clampNumber(ap?.timeoutMs, 1_000, 60_000, DEFAULT_ACCOUNT_PROBE.timeoutMs),
+    historySize: Math.trunc(
+      clampNumber(ap?.historySize, 1, 200, DEFAULT_ACCOUNT_PROBE.historySize),
+    ),
+    staggerMs: clampNumber(ap?.staggerMs, 0, 60_000, DEFAULT_ACCOUNT_PROBE.staggerMs),
   };
 }
 
@@ -284,6 +317,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(undefined),
+    accountProbe: normalizeAccountProbe(undefined),
   };
 }
 
@@ -314,6 +348,7 @@ export function normalizeServerConfig(
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(raw),
+    accountProbe: normalizeAccountProbe(raw),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -352,6 +387,7 @@ export function mergeServerConfig(
     userMessageQueue: patch.userMessageQueue ?? current.userMessageQueue,
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
     accountHealth: patch.accountHealth ?? current.accountHealth,
+    accountProbe: patch.accountProbe ?? current.accountProbe,
     // Proxy is layer-replaced (not deep-merged): a PUT carrying `proxy` swaps the
     // whole segment; omitting it keeps the current one. `undefined` on both ⇒ absent.
     proxy: patch.proxy ?? current.proxy,

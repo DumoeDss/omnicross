@@ -194,6 +194,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
     daemon.accountHealthSweeper.dispose();
+    daemon.accountHealthProbeScheduler.dispose();
     throw err;
   }
 
@@ -210,6 +211,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
     daemon.accountHealthSweeper.dispose();
+    daemon.accountHealthProbeScheduler.dispose();
     throw err;
   }
 
@@ -235,6 +237,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
     daemon.accountHealthSweeper.dispose();
+    daemon.accountHealthProbeScheduler.dispose();
   }
 }
 

@@ -166,6 +166,42 @@ describe('/health on the admin server (unauthenticated)', () => {
   });
 });
 
+describe('/admin/api/account-probes (authed per-account history, #8)', () => {
+  it('requires the admin token (401 without it)', async () => {
+    const res = await fetch(`${adminBase}/admin/api/account-probes`);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns an empty list by default (probing off), with the bearer', async () => {
+    const res = await fetch(`${adminBase}/admin/api/account-probes`, {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { accounts: unknown[] };
+    expect(body.accounts).toEqual([]);
+  });
+
+  it('returns per-account records after a probe, leaking no seeded secret', async () => {
+    // Seed one record directly (codex is local-tier Phase 1 → no upstream call).
+    await daemon.accountHealthProbeScheduler.probeAccount('codex', 'legacy-codex');
+    const res = await fetch(`${adminBase}/admin/api/account-probes`, {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const body = JSON.parse(text) as {
+      accounts: Array<{ providerId: string; accountId: string; records: Array<{ ok: boolean; tier: string }> }>;
+    };
+    const codex = body.accounts.find((a) => a.providerId === 'codex' && a.accountId === 'legacy-codex');
+    expect(codex).toBeDefined();
+    expect(codex!.records.length).toBeGreaterThanOrEqual(1);
+    expect(codex!.records[0].tier).toBe('local');
+    // Secret-free: the history names account ids but never a token.
+    expect(text).not.toContain(SENTINEL_SUB_ACCESS_TOKEN);
+    expect(text).not.toContain(SENTINEL_SUB_REFRESH_TOKEN);
+  });
+});
+
 describe('/health on the outbound traffic server (bypasses key-auth)', () => {
   it('returns 200 with NO API key', async () => {
     // Sanity: a normal outbound request with no key is 401.
