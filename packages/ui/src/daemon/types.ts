@@ -29,6 +29,7 @@ import type {
 } from './types-accounts';
 import type {
   AuditRecord,
+  BillingDeliveryStatus,
   EndpointRoutingConfig,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -276,6 +277,17 @@ export interface AgentApiServiceApi {
     to?: number;
     limit?: number;
   }): Promise<AuditRecord[]>;
+  /**
+   * Persist the billing segment (`PUT /server` with `{ billing }`,
+   * billing-event-stream). Pass `undefined` to reset to defaults (disabled). The
+   * daemon preserves the write-only HMAC secret when the patch masks/omits it.
+   */
+  updateBillingConfig(billing: OutboundApiServerConfig['billing'] | undefined): Promise<MutationResult>;
+  /**
+   * Read the billing delivery status (`GET /admin/api/billing-status`,
+   * billing-event-stream). Secret-free total/delivered/pending counts.
+   */
+  queryBillingStatus(): Promise<BillingDeliveryStatus>;
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;

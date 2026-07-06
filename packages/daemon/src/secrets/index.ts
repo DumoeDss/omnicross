@@ -17,10 +17,12 @@ export type { ResolveMasterKeyOptions } from './masterKey';
 export { defaultMasterKeyPath, MASTER_KEY_ENV, resolveMasterKey } from './masterKey';
 export { SecretBox } from './SecretBox';
 export {
+  decryptBillingSegment,
   decryptConfigSecrets,
   decryptProxySegment,
   decryptTokens,
   decryptWebhookSegment,
+  encryptBillingSegment,
   encryptConfigSecrets,
   encryptProxySegment,
   encryptTokens,

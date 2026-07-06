@@ -23,6 +23,7 @@ import { agent } from '@/shared/agent';
 
 import type {
   AuditRecord,
+  BillingDeliveryStatus,
   EndpointRoutingConfig,
   MutationResult,
   OutboundApiKeyCreated,
@@ -76,6 +77,8 @@ export interface UseApiServiceResult {
     to?: number;
     limit?: number;
   }) => Promise<AuditRecord[]>;
+  updateBillingConfig: (billing: OutboundApiServerConfig['billing'] | undefined) => Promise<void>;
+  queryBillingStatus: () => Promise<BillingDeliveryStatus>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -311,6 +314,16 @@ export function useApiService(): UseApiServiceResult {
     [],
   );
 
+  const updateBillingConfig = useCallback(
+    async (billing: OutboundApiServerConfig['billing'] | undefined) => {
+      await runWrite(() => agent.apiService.updateBillingConfig(billing));
+    },
+    [runWrite],
+  );
+
+  // Read-only delivery status (reads, mutates nothing) — the indicator renders inline.
+  const queryBillingStatus = useCallback(() => agent.apiService.queryBillingStatus(), []);
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
 
@@ -339,5 +352,7 @@ export function useApiService(): UseApiServiceResult {
     testWebhook,
     updateAuditConfig,
     queryAudit,
+    updateBillingConfig,
+    queryBillingStatus,
   };
 }

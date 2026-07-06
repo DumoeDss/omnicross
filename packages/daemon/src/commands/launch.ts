@@ -196,6 +196,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     daemon.accountHealthSweeper.dispose();
     daemon.accountHealthProbeScheduler.dispose();
     daemon.auditPruneSweeper.dispose();
+    daemon.billingRetrySweeper.dispose();
     throw err;
   }
 
@@ -214,6 +215,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     daemon.accountHealthSweeper.dispose();
     daemon.accountHealthProbeScheduler.dispose();
     daemon.auditPruneSweeper.dispose();
+    daemon.billingRetrySweeper.dispose();
     throw err;
   }
 
@@ -241,6 +243,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     daemon.accountHealthSweeper.dispose();
     daemon.accountHealthProbeScheduler.dispose();
     daemon.auditPruneSweeper.dispose();
+    daemon.billingRetrySweeper.dispose();
   }
 }
 

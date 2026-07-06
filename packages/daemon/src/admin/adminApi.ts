@@ -90,6 +90,11 @@ import {
   type TerminalOpener,
 } from './cliLaunch';
 import { validateAuditSegment } from './auditConfigBody';
+import {
+  preserveBillingSecret,
+  redactBillingConfig,
+  validateBillingSegment,
+} from './billingConfigBody';
 import { handleDashboard } from './dashboard';
 import { parseKeyPolicyBody } from './keyPolicyBody';
 import {
@@ -98,6 +103,7 @@ import {
   validateWebhookSegment,
 } from './webhookConfigBody';
 import { applyAuditConfig } from '../audit/auditRuntime';
+import { applyBillingConfig } from '../billing/billingRuntime';
 import { applyWebhookConfig } from '../webhook/webhookRuntime';
 import { handleExport, handleImport, type MigrationDeps } from './adminMigration';
 import type { MigrationCredentialStore } from '../migration/migration';
@@ -1630,6 +1636,8 @@ async function handleServer(
     let server = config;
     if (config.proxy) server = { ...server, proxy: redactOutboundProxy(config.proxy) };
     if (config.webhook) server = { ...server, webhook: redactWebhookConfig(config.webhook) };
+    // billing-event-stream: mask the HMAC secret in the GET view — never leak plaintext.
+    if (config.billing) server = { ...server, billing: redactBillingConfig(config.billing) };
     return writeJson(res, 200, { server });
   }
   if (method === 'PUT') {
@@ -1653,6 +1661,11 @@ async function handleServer(
     if (auditErrors.length > 0) {
       return writeJsonError(res, 400, `invalid audit config: ${auditErrors.join('; ')}`);
     }
+    // billing-event-stream: strict validation of a present billing segment.
+    const billingErrors = validateBillingSegment(patch);
+    if (billingErrors.length > 0) {
+      return writeJsonError(res, 400, `invalid billing config: ${billingErrors.join('; ')}`);
+    }
     const current = await loadServerConfig(deps.settingsStore);
     // upstream-proxy + webhook-notifications: the admin GET masks the proxy
     // passwords + webhook secrets, so an incoming PUT that edits other fields omits
@@ -1664,6 +1677,10 @@ async function handleServer(
     }
     if (patch.webhook) {
       effectivePatch = { ...effectivePatch, webhook: preserveWebhookSecrets(patch.webhook, current.webhook) };
+    }
+    // billing-event-stream: preserve the write-only HMAC secret when a PUT masks it.
+    if (patch.billing) {
+      effectivePatch = { ...effectivePatch, billing: preserveBillingSecret(patch.billing, current.billing) };
     }
     const merged = mergeServerConfig(current, effectivePatch);
     // Always persist the (partial) config so the editor retains the user's
@@ -1681,6 +1698,9 @@ async function handleServer(
     // (un)registers the core capture config + sink and arms/disarms the TTL prune
     // without a restart. The `audit` segment carries no secret.
     applyAuditConfig(merged.audit);
+    // billing-event-stream: hot-reload the live billing wiring (sink + capture
+    // gate + retry sweep). The merged config carries the DECRYPTED HMAC secret.
+    applyBillingConfig(merged.billing);
 
     // Startup gate (model-kind-mapping): when enabling with an incomplete
     // kind map, refuse to bind and return an actionable envelope (HTTP 200 so

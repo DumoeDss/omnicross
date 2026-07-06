@@ -42,6 +42,13 @@ export function defaultAuditDir(configPath: string): string {
   return join(dirname(configPath), 'audit');
 }
 
+/** Resolve the `billing/` directory (date-rotated billing-event ledger + delivery
+ *  markers) that sits alongside a given config.json path (billing-event-stream,
+ *  design D2). The ledger is a financial record — NEVER auto-pruned. */
+export function defaultBillingDir(configPath: string): string {
+  return join(dirname(configPath), 'billing');
+}
+
 /**
  * Build a `SecretBox` for an OFFLINE CLI write (secrets design D3/D6) with a
  * LAZY master-key resolver (env → keyfile → auto-gen 0600). The key is only

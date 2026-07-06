@@ -38,6 +38,7 @@ import type { ResolvedAdminConfig } from '../config';
 
 import { handleAccountProbes } from './accountProbesApi';
 import { type AuditQueryReader, handleAuditQuery } from './auditQueryApi';
+import { type BillingStatusReader, handleBillingStatus } from './billingStatusApi';
 import { handleWebhookTest } from './webhookTestApi';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
@@ -78,6 +79,12 @@ export interface AdminServerDeps extends AdminApiDeps {
    * unauthenticated, NEVER on `/health`.
    */
   auditReader?: AuditQueryReader;
+  /**
+   * OPTIONAL billing delivery-status reader (billing-event-stream, design D5).
+   * When wired (bootstrap → the ledger dir), the AUTHED `GET /admin/api/billing-status`
+   * returns secret-free total/delivered/pending counts. Absent ⇒ zeroed counts.
+   */
+  billingStatusReader?: BillingStatusReader;
 }
 
 /** A live status snapshot for the admin listener. */
@@ -232,6 +239,14 @@ export class AdminServer {
     // carry IP/UA + possibly bodies → admin-only; NEVER unauth, NEVER on `/health`.
     if (path === '/admin/api/audit' && (req.method === 'GET' || req.method === 'HEAD')) {
       handleAuditQuery(req, res, this.deps.auditReader);
+      return;
+    }
+
+    // AUTHED billing delivery status (billing-event-stream, design D5) — routed
+    // HERE (not through `adminApi.ts`, at its line cap) so it honors the auth gate
+    // above. Secret-free counts only; no event payload, no secret.
+    if (path === '/admin/api/billing-status' && (req.method === 'GET' || req.method === 'HEAD')) {
+      handleBillingStatus(res, this.deps.billingStatusReader);
       return;
     }
 

@@ -45,6 +45,11 @@
       "import": "./dist/audit-types.js",
       "require": "./dist/audit-types.cjs"
     },
+    "./billing-types": {
+      "types": "./dist/billing-types.d.ts",
+      "import": "./dist/billing-types.js",
+      "require": "./dist/billing-types.cjs"
+    },
     "./canonical-models": {
       "types": "./dist/canonical-models.d.ts",
       "import": "./dist/canonical-models.js",

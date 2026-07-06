@@ -719,6 +719,37 @@
         "colLatency": "延迟"
       }
     },
+    "billing": {
+      "title": "计费事件流",
+      "description": "为每个计费请求向外部消费方（计量服务、数据仓库或计费平台）发出结构化计费事件。持久优先：每个事件在投递前先写入本地账本，因此投递失败绝不会丢失计费记录。默认关闭；发布绝不影响中转延迟。",
+      "enable": {
+        "label": "启用计费流",
+        "description": "总开关。关闭时不发布任何内容（零回归）。"
+      },
+      "endpoint": {
+        "label": "投递端点",
+        "description": "每个事件的 POST 目标。留空为仅账本模式——事件持久记录，由外部读取器直接消费账本。",
+        "placeholder": "https://example.com/billing"
+      },
+      "secret": {
+        "label": "HMAC 密钥",
+        "description": "可选签名密钥。设置后，每个 POST 携带 X-Omnicross-Billing-Signature 头。加密存储并脱敏；仅用于签名，绝不出现在事件负载中。",
+        "placeholder": "签名密钥（只写）"
+      },
+      "maxRetryAge": {
+        "label": "最长重试时长（小时）",
+        "description": "未投递事件在此时长内持续重试，超时后保留在账本中用于对账——绝不删除。"
+      },
+      "save": "保存计费设置",
+      "status": {
+        "title": "投递状态",
+        "refresh": "刷新",
+        "hint": "刷新以加载账本的投递计数。",
+        "total": "总计",
+        "delivered": "已投递",
+        "pending": "待投递"
+      }
+    },
     "webhook": {
       "title": "Webhook 通知",
       "description": "将运行事件（账号恢复/异常、密钥配额、服务器错误）带外投递到某个 URL。投递为即发即忘，绝不影响中转延迟。",

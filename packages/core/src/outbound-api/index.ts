@@ -49,6 +49,7 @@ export {
   mergeServerConfig,
   normalizeAccountProbe,
   normalizeAudit,
+  normalizeBilling,
   normalizePrefixTargets,
   normalizeProxyConfig,
   normalizeProxySegment,
@@ -67,6 +68,10 @@ export {
   type AuditCaptureContext,
   beginAuditCapture,
 } from './auditCapture';
+export {
+  type BillingCaptureContext,
+  beginBillingCapture,
+} from './billingCapture';
 export {
   classifyModelPrefix,
   type ModelPrefixKind,

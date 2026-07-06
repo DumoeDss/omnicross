@@ -16,6 +16,7 @@ import { loadServerConfig, OutboundApiConfigError } from '@omnicross/core/outbou
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import { applyAuditConfig } from '../audit/auditRuntime';
+import { applyBillingConfig } from '../billing/billingRuntime';
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
 import { applyWebhookConfig } from '../webhook/webhookRuntime';
@@ -135,6 +136,13 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // runs one prune at boot). Absent/disabled ⇒ no sink ⇒ the capture hook is a
   // no-op (zero regression).
   applyAuditConfig(serverConfig.audit);
+
+  // Billing event stream (billing-event-stream): register the core billing sink +
+  // capture gate and arm the bounded retry sweep ONLY when the persisted `billing`
+  // segment is enabled (`applyBillingConfig` configures + starts the sweeper, which
+  // runs one catch-up sweep at boot for events that failed to deliver while down).
+  // Absent/disabled ⇒ no sink ⇒ `publishBillingEvent` is a no-op (zero regression).
+  applyBillingConfig(serverConfig.billing);
 
   const status = daemon.outboundApiServer.getStatus();
   console.info('omnicross daemon is running.');

@@ -29,6 +29,7 @@
  */
 
 import type { AccountTokensConfig, ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { BillingConfig } from '@omnicross/contracts/billing-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 import type { OutboundProxyConfig } from '@omnicross/core';
 
@@ -126,6 +127,28 @@ export function decryptWebhookSegment(webhook: WebhookConfig, box: SecretBox): W
   return transformWebhookSegment(webhook, (v) => box.decryptMaybe(v));
 }
 
+/**
+ * Apply a transform to a `BillingConfig` segment (billing-event-stream): the HMAC
+ * `secret` is the only secret. A `$ENV`/already-`enc:` value is left untouched by
+ * the box (idempotent). Pure — returns a new object only when a secret is present.
+ */
+function transformBillingSegment(billing: BillingConfig, fn: ValueTransform): BillingConfig {
+  if (typeof billing.secret === 'string' && billing.secret.length > 0) {
+    return { ...billing, secret: fn(billing.secret) };
+  }
+  return billing;
+}
+
+/** Encrypt-on-write the billing HMAC secret (settings-store path). */
+export function encryptBillingSegment(billing: BillingConfig, box: SecretBox): BillingConfig {
+  return transformBillingSegment(billing, (v) => box.encryptMaybe(v));
+}
+
+/** Decrypt-on-read the billing HMAC secret (settings-store path). */
+export function decryptBillingSegment(billing: BillingConfig, box: SecretBox): BillingConfig {
+  return transformBillingSegment(billing, (v) => box.decryptMaybe(v));
+}
+
 /** Apply a transform to one provider row's secret fields (pure; new object). */
 function transformProvider(
   provider: DaemonConfig['providers'][number],
@@ -164,16 +187,19 @@ function transformConfigSecrets(cfg: DaemonConfig, fn: ValueTransform): DaemonCo
   if (cfg.admin && typeof cfg.admin.token === 'string' && cfg.admin.token.length > 0) {
     next.admin = { ...cfg.admin, token: fn(cfg.admin.token) };
   }
-  // upstream-proxy + webhook-notifications: the global/per-provider proxy
-  // passwords AND each webhook destination `secret` on `server` are secrets too.
+  // upstream-proxy + webhook-notifications + billing-event-stream: the
+  // global/per-provider proxy passwords, each webhook destination `secret`, AND
+  // the billing HMAC `secret` on `server` are secrets too.
   const proxy = cfg.server?.proxy;
   const webhook = cfg.server?.webhook;
-  if (cfg.server && (proxy?.global || proxy?.byProvider || webhook)) {
+  const billing = cfg.server?.billing;
+  if (cfg.server && (proxy?.global || proxy?.byProvider || webhook || billing?.secret)) {
     next.server = { ...cfg.server };
     if (proxy && (proxy.global || proxy.byProvider)) {
       next.server.proxy = transformOutboundProxy(proxy, fn);
     }
     if (webhook) next.server.webhook = transformWebhookSegment(webhook, fn);
+    if (billing?.secret) next.server.billing = transformBillingSegment(billing, fn);
   }
   return next;
 }

@@ -719,6 +719,37 @@
         "colLatency": "延遲"
       }
     },
+    "billing": {
+      "title": "計費事件串流",
+      "description": "為每個計費請求向外部消費方（計量服務、資料倉儲或計費平台）發出結構化計費事件。持久優先：每個事件在投遞前先寫入本機帳本，因此投遞失敗絕不會遺失計費記錄。預設關閉；發布絕不影響中轉延遲。",
+      "enable": {
+        "label": "啟用計費串流",
+        "description": "總開關。關閉時不發布任何內容（零回歸）。"
+      },
+      "endpoint": {
+        "label": "投遞端點",
+        "description": "每個事件的 POST 目標。留空為僅帳本模式——事件持久記錄，由外部讀取器直接消費帳本。",
+        "placeholder": "https://example.com/billing"
+      },
+      "secret": {
+        "label": "HMAC 密鑰",
+        "description": "選用的簽章密鑰。設定後，每個 POST 攜帶 X-Omnicross-Billing-Signature 標頭。加密儲存並遮罩；僅用於簽章，絕不出現在事件負載中。",
+        "placeholder": "簽章密鑰（唯寫）"
+      },
+      "maxRetryAge": {
+        "label": "最長重試時長（小時）",
+        "description": "未投遞事件在此時長內持續重試，逾時後保留在帳本中用於對帳——絕不刪除。"
+      },
+      "save": "儲存計費設定",
+      "status": {
+        "title": "投遞狀態",
+        "refresh": "重新整理",
+        "hint": "重新整理以載入帳本的投遞計數。",
+        "total": "總計",
+        "delivered": "已投遞",
+        "pending": "待投遞"
+      }
+    },
     "webhook": {
       "title": "Webhook 通知",
       "description": "將運行事件（帳號恢復/異常、金鑰配額、伺服器錯誤）帶外投遞到某個 URL。投遞為即發即忘，絕不影響中轉延遲。",

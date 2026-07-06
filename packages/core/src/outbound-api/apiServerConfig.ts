@@ -17,6 +17,7 @@
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import { type AuditConfig, DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
+import { type BillingConfig, DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
 import {
   WEBHOOK_DESTINATION_TYPES,
   WEBHOOK_EVENT_KINDS,
@@ -140,6 +141,30 @@ export function normalizeAudit(
     ),
     trustForwardedFor: a?.trustForwardedFor === true,
   };
+}
+
+/**
+ * Fill + range-CLAMP the billing segment to the frozen defaults
+ * (billing-event-stream, design D6). Lenient like `normalizeAudit`: `enabled`
+ * coerces to a boolean (default false); `endpoint`/`secret` are carried only when
+ * non-empty strings (a blank/absent `endpoint` ⇒ ledger-only mode); `maxRetryAgeMs`
+ * clamps to `[60_000, 30 days]`. Default (off) ⇒ no publish ⇒ zero regression.
+ */
+export function normalizeBilling(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): BillingConfig {
+  const b = raw?.billing;
+  const config: BillingConfig = {
+    enabled: b?.enabled === true,
+    maxRetryAgeMs: Math.trunc(
+      clampNumber(b?.maxRetryAgeMs, 60_000, 2_592_000_000, DEFAULT_BILLING_CONFIG.maxRetryAgeMs),
+    ),
+  };
+  if (typeof b?.endpoint === 'string' && b.endpoint.trim()) config.endpoint = b.endpoint.trim();
+  // The secret may be an `enc:`/`$ENV` envelope at load (the box decrypts after) —
+  // carry any non-empty string verbatim; the secret box normalizes downstream.
+  if (typeof b?.secret === 'string' && b.secret.length > 0) config.secret = b.secret;
+  return config;
 }
 
 /** Valid structured proxy types. */
@@ -441,6 +466,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     accountHealth: normalizeAccountHealth(undefined),
     accountProbe: normalizeAccountProbe(undefined),
     audit: normalizeAudit(undefined),
+    billing: normalizeBilling(undefined),
   };
 }
 
@@ -473,6 +499,7 @@ export function normalizeServerConfig(
     accountHealth: normalizeAccountHealth(raw),
     accountProbe: normalizeAccountProbe(raw),
     audit: normalizeAudit(raw),
+    billing: normalizeBilling(raw),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -516,6 +543,7 @@ export function mergeServerConfig(
     accountHealth: patch.accountHealth ?? current.accountHealth,
     accountProbe: patch.accountProbe ?? current.accountProbe,
     audit: patch.audit ?? current.audit,
+    billing: patch.billing ?? current.billing,
     // Proxy is layer-replaced (not deep-merged): a PUT carrying `proxy` swaps the
     // whole segment; omitting it keeps the current one. `undefined` on both ⇒ absent.
     proxy: patch.proxy ?? current.proxy,

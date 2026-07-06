@@ -719,6 +719,37 @@
         "colLatency": "Latency"
       }
     },
+    "billing": {
+      "title": "Billing event stream",
+      "description": "Emit a structured billing event per billable request for an external consumer (a metering service, data warehouse, or billing platform). Durable-first: each event is written to a local ledger before delivery, so a failed POST never loses a billing record. Off by default; publishing never affects relay latency.",
+      "enable": {
+        "label": "Enable billing stream",
+        "description": "Master switch. When off, nothing is published (zero regression)."
+      },
+      "endpoint": {
+        "label": "Delivery endpoint",
+        "description": "POST target for each event. Leave blank for ledger-only mode — events are durably recorded and an external tailer consumes the ledger directly.",
+        "placeholder": "https://example.com/billing"
+      },
+      "secret": {
+        "label": "HMAC secret",
+        "description": "Optional signing key. When set, each POST carries an X-Omnicross-Billing-Signature header. Stored encrypted and masked; it only signs and never travels in the event payload.",
+        "placeholder": "Signing secret (write-only)"
+      },
+      "maxRetryAge": {
+        "label": "Max retry age (hours)",
+        "description": "Undelivered events are retried up to this age, then retained in the ledger for reconciliation — never deleted."
+      },
+      "save": "Save billing settings",
+      "status": {
+        "title": "Delivery status",
+        "refresh": "Refresh",
+        "hint": "Refresh to load the ledger's delivery counts.",
+        "total": "Total",
+        "delivered": "Delivered",
+        "pending": "Pending"
+      }
+    },
     "webhook": {
       "title": "Webhook notifications",
       "description": "Deliver operational events (account recovery/anomaly, key quota, server errors) to a URL out-of-band. Delivery is fire-and-forget and never affects relay latency.",

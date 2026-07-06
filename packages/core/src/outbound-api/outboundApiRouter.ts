@@ -29,6 +29,7 @@ import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { beginAuditCapture } from './auditCapture';
+import { beginBillingCapture } from './billingCapture';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
@@ -247,6 +248,14 @@ export async function handleOutboundRequest(
   // model / provider / body / error) as it progresses. NEVER captures headers.
   const audit = beginAuditCapture(req, res, now);
 
+  // BILLING (billing-event-stream, design D4). Gated inside `beginBillingCapture`
+  // on the core billing-config slot: billing-disabled ⇒ `null` (one slot read, no
+  // work, zero regression). When enabled it registers a `res.close` listener that
+  // emits a metered-fact event fire-and-forget at response end — but ONLY for a
+  // BILLABLE request (one that produced usage), reusing the already-computed cost.
+  // The handler enriches it (keyId / model / provider / authMode) as it progresses.
+  const billing = beginBillingCapture(req, res, now);
+
   // 1. AUTH — external named API key (enforced on every request incl. loopback).
   // Reason-bearing (outbound-key-policy): an expired / not-yet-valid key is a
   // 401 (OQ1), same status as a missing/disabled/revoked key. First use of an
@@ -263,6 +272,7 @@ export async function handleOutboundRequest(
   }
   const verified = verification.key;
   if (audit) audit.keyId = verified.id;
+  if (billing) billing.keyId = verified.id;
 
   // 2. RATE LIMIT — per-key window when the key configures one (else 60/60s).
   const decision = rateLimiter.check(verified.id, now, verified.rateLimit);
@@ -446,6 +456,13 @@ export async function handleOutboundRequest(
     if (audit) {
       audit.model = resolved.route.model;
       audit.provider = resolved.route.providerId;
+    }
+    // BILLING: stamp the RESOLVED model + provider + the re-auth mode the request
+    // billed under (byo vs subscription) onto the metered-fact context.
+    if (billing) {
+      billing.model = resolved.route.model;
+      billing.provider = resolved.route.providerId;
+      billing.authMode = resolved.route.authMode;
     }
 
     // 4a. MODEL RESTRICTION (outbound-key-policy #6, design D3/D4). Runs ONLY when

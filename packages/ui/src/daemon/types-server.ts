@@ -158,6 +158,25 @@ export interface AuditConfig {
   trustForwardedFor: boolean;
 }
 
+/** The `server.billing` segment (billing-event-stream) — mirrors the daemon `BillingConfig`. */
+export interface BillingConfig {
+  /** Master switch; false/absent ⇒ no publish (zero regression). */
+  enabled: boolean;
+  /** POST target for built-in delivery; absent ⇒ ledger-only mode (append, no push). */
+  endpoint?: string;
+  /** HMAC signing key — a SECRET (masked on GET). */
+  secret?: string;
+  /** Stop re-POSTing an undelivered event after this age (ms). */
+  maxRetryAgeMs: number;
+}
+
+/** Aggregate delivery status from `GET /admin/api/billing-status` (billing-event-stream). */
+export interface BillingDeliveryStatus {
+  total: number;
+  delivered: number;
+  pending: number;
+}
+
 /** One audit record returned by `GET /admin/api/audit` (request-audit-log). */
 export interface AuditRecord {
   id: string;
@@ -204,6 +223,12 @@ export interface OutboundApiServerConfig {
    * Carries no secret. `normalizeServerConfig` always fills it (enabled:false).
    */
   audit?: AuditConfig;
+  /**
+   * Billing event stream (billing-event-stream). OPTIONAL — absent on a
+   * pre-upgrade daemon. The HMAC secret is masked on GET.
+   * `normalizeServerConfig` always fills it (enabled:false).
+   */
+  billing?: BillingConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

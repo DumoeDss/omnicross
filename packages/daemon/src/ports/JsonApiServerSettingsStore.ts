@@ -21,8 +21,10 @@ import type { ApiServerSettingsStore, OutboundApiServerConfig, OutboundProxyConf
 import { OUTBOUND_API_SERVER_CONFIG_KEY } from '@omnicross/core/outbound-api';
 
 import {
+  decryptBillingSegment,
   decryptProxySegment,
   decryptWebhookSegment,
+  encryptBillingSegment,
   encryptProxySegment,
   encryptWebhookSegment,
   type SecretBox,
@@ -62,21 +64,23 @@ export class JsonApiServerSettingsStore implements ApiServerSettingsStore {
     writeFileSync(this.configPath, JSON.stringify(file, null, 2) + '\n', 'utf8');
   }
 
-  /** Encrypt the proxy passwords + webhook secrets before persisting (no-op without a box). */
+  /** Encrypt the proxy passwords + webhook + billing secrets before persisting (no-op without a box). */
   private encryptSecrets(config: OutboundApiServerConfig): OutboundApiServerConfig {
     if (!this.box) return config;
     let out = config;
     if (out?.proxy) out = { ...out, proxy: encryptProxySegment(out.proxy, this.box) as OutboundProxyConfig };
     if (out?.webhook) out = { ...out, webhook: encryptWebhookSegment(out.webhook, this.box) };
+    if (out?.billing) out = { ...out, billing: encryptBillingSegment(out.billing, this.box) };
     return out;
   }
 
-  /** Decrypt the proxy passwords + webhook secrets on read (no-op without a box). */
+  /** Decrypt the proxy passwords + webhook + billing secrets on read (no-op without a box). */
   private decryptSecrets(config: OutboundApiServerConfig): OutboundApiServerConfig {
     if (!this.box) return config;
     let out = config;
     if (out?.proxy) out = { ...out, proxy: decryptProxySegment(out.proxy, this.box) as OutboundProxyConfig };
     if (out?.webhook) out = { ...out, webhook: decryptWebhookSegment(out.webhook, this.box) };
+    if (out?.billing) out = { ...out, billing: decryptBillingSegment(out.billing, this.box) };
     return out;
   }
 

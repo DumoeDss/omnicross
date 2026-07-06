@@ -26,6 +26,7 @@ export default defineConfig({
     'outbound-api/subscriptionRegistryPort': 'src/outbound-api/subscriptionRegistryPort.ts',
     'outbound-api/types': 'src/outbound-api/types.ts',
     'pipeline/auditSink': 'src/pipeline/auditSink.ts',
+    'pipeline/billingEmit': 'src/pipeline/billingEmit.ts',
     'pipeline/AuthSource': 'src/pipeline/AuthSource.ts',
     'pipeline/executeProviderCall': 'src/pipeline/executeProviderCall.ts',
     'pipeline/LlmConfigProviderAuth': 'src/pipeline/LlmConfigProviderAuth.ts',

@@ -23,6 +23,7 @@
 import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
 
 import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
+import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
 import type { Logger } from '@omnicross/core';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
@@ -62,7 +63,12 @@ import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
 import { AutoDisableStore } from './pool/autoDisableStore';
 import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
 import { resolveEnvKey } from './pool/resolveEnvKey';
-import { defaultAuditDir, defaultPricingPath, defaultUsageEventsPath } from './commands/paths';
+import {
+  defaultAuditDir,
+  defaultBillingDir,
+  defaultPricingPath,
+  defaultUsageEventsPath,
+} from './commands/paths';
 import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
 import { ConfigurableLogger } from './ports/ConfigurableLogger';
 import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
@@ -77,6 +83,10 @@ import { AuditPruneSweeper } from './audit/AuditPruneSweeper';
 import { readAuditRecords } from './audit/auditReader';
 import { resetAuditRuntimeForTests, setAuditRuntime } from './audit/auditRuntime';
 import { AuditWriter } from './audit/AuditWriter';
+import { BillingPublisher } from './billing/BillingPublisher';
+import { readBillingStatus } from './billing/billingReader';
+import { resetBillingRuntimeForTests, setBillingRuntime } from './billing/billingRuntime';
+import { BillingRetrySweeper } from './billing/BillingRetrySweeper';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
 import { WebhookDispatcher } from './webhook/WebhookDispatcher';
@@ -196,6 +206,21 @@ export interface Daemon {
    * in cleanup.
    */
   readonly auditPruneSweeper: AuditPruneSweeper;
+  /**
+   * Durable-first billing publisher (billing-event-stream) — appends each event
+   * to `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POSTs it.
+   * Registered as the core billing sink (via the billing runtime slot) by
+   * `start.ts`/admin PUT ONLY when the `billing` segment is enabled. INERT until
+   * then (no sink ⇒ `publishBillingEvent` is a no-op).
+   */
+  readonly billingPublisher: BillingPublisher;
+  /**
+   * Bounded retry + reconciliation sweep for the billing ledger
+   * (billing-event-stream) — re-POSTs undelivered events within `maxRetryAgeMs`,
+   * NEVER deletes. Armed-off; `start.ts` configures from the persisted `billing`
+   * segment + starts it ONLY when enabled with an endpoint. Disposed in cleanup.
+   */
+  readonly billingRetrySweeper: BillingRetrySweeper;
 }
 
 /**
@@ -408,6 +433,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // Request-audit store dir (request-audit-log) — sibling `audit/` of config.json.
   // Resolved here so the AUTHED admin query reader can close over it below.
   const auditDir = defaultAuditDir(paths.configPath);
+  // Billing ledger dir (billing-event-stream) — sibling `billing/` of config.json.
+  // Resolved here so the AUTHED admin status reader can close over it below.
+  const billingDir = defaultBillingDir(paths.configPath);
 
   // Admin dashboard listener (RT3) — a SEPARATE node:http server over the live
   // daemon handles. Instance-scoped on the Daemon (not a module singleton); the
@@ -485,6 +513,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // carries no path/store coupling. Records hold IP/UA/bodies → admin-only,
     // NEVER unauth, NEVER on `/health`. Routed in `AdminServer` (not `adminApi.ts`).
     auditReader: (query) => readAuditRecords(auditDir, query),
+    // billing-event-stream: the AUTHED `GET /admin/api/billing-status` returns the
+    // secret-free total/delivered/pending counts of the durable ledger.
+    billingStatusReader: () => readBillingStatus(billingDir),
   });
 
   // Webhook dispatcher (webhook-notifications) — the fire-and-forget sender.
@@ -509,6 +540,23 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   const auditWriter = new AuditWriter(auditDir, logger);
   const auditPruneSweeper = new AuditPruneSweeper(auditDir, logger, DEFAULT_AUDIT_CONFIG);
   setAuditRuntime(auditWriter, auditPruneSweeper);
+
+  // Billing event stream (billing-event-stream) — the durable-first publisher
+  // (append `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POST) + its
+  // bounded retry sweep. Injected into the billing runtime slot; `start.ts` (boot)
+  // + the admin config PUT (hot-reload) call `applyBillingConfig(...)` to
+  // (un)register the core sink + capture gate and arm/disarm the retry sweep.
+  // Constructed ALWAYS but INERT until a config enables it — no sink ⇒
+  // `publishBillingEvent` is a no-op (zero regression). The billing ledger is a
+  // financial record — NEVER auto-pruned.
+  const billingPublisher = new BillingPublisher(billingDir, logger);
+  const billingRetrySweeper = new BillingRetrySweeper(
+    billingDir,
+    billingPublisher,
+    logger,
+    DEFAULT_BILLING_CONFIG,
+  );
+  setBillingRuntime(billingPublisher, billingRetrySweeper);
 
   // Background token-refresh sweep (external-cli-sync) — constructed armed-off;
   // `start.ts` calls `.start()` on the resident daemon.
@@ -546,6 +594,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     webhookDispatcher,
     auditWriter,
     auditPruneSweeper,
+    billingPublisher,
+    billingRetrySweeper,
   };
 }
 
@@ -589,6 +639,9 @@ export function resetDaemonSingletonsForTests(): void {
   // Clear the audit runtime slot (writer + prune sweeper + core capture/sink) so
   // a prior boot's writer does not leak the core audit sink into a fresh boot.
   resetAuditRuntimeForTests();
+  // Clear the billing runtime slot (publisher + retry sweeper + core capture/sink)
+  // so a prior boot's publisher does not leak the core billing sink into a fresh boot.
+  resetBillingRuntimeForTests();
 }
 
 /**

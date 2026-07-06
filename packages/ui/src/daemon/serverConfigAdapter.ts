@@ -29,6 +29,7 @@ import type {
 } from './types';
 import type {
   AuditRecord,
+  BillingDeliveryStatus,
   EndpointRoutingConfig,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -323,6 +324,31 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return data.records ?? [];
       } catch {
         return [];
+      }
+    },
+
+    async updateBillingConfig(
+      billing: OutboundApiServerConfig['billing'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // billing-event-stream: send the FULL segment; the daemon validates +
+        // normalizes it and PRESERVES the write-only HMAC secret when the patch
+        // masks/omits it. `undefined` resets to defaults (disabled).
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          billing: billing ?? { enabled: false, maxRetryAgeMs: 24 * 60 * 60_000 },
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update billing configuration');
+      }
+    },
+
+    async queryBillingStatus(): Promise<BillingDeliveryStatus> {
+      try {
+        const data = await adminClient.get<{ status: BillingDeliveryStatus }>('/billing-status');
+        return data.status ?? { total: 0, delivered: 0, pending: 0 };
+      } catch {
+        return { total: 0, delivered: 0, pending: 0 };
       }
     },
   };

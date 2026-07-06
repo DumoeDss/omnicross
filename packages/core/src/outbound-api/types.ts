@@ -15,6 +15,7 @@
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import type { AuditConfig } from '@omnicross/contracts/audit-types';
+import type { BillingConfig } from '@omnicross/contracts/billing-types';
 import type { HealthReport } from '@omnicross/contracts/health-logging-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 
@@ -282,6 +283,17 @@ export interface OutboundApiServerConfig {
    * effect immediately (hot-reloaded like `webhook`). Carries NO secret.
    */
   audit?: AuditConfig;
+  /**
+   * Billing-event-stream segment (billing-event-stream). Optional; when absent
+   * (or `enabled:false`) no sink is wired ⇒ `publishBillingEvent` is a no-op ⇒ no
+   * ledger append, no POST, byte-identical zero regression.
+   * `normalizeServerConfig` always fills it with the frozen defaults
+   * (enabled:false). Read by the daemon at boot + admin PUT to (un)register the
+   * core sink + capture gate; a change takes effect immediately (hot-reloaded like
+   * `webhook`/`audit`). Carries ONE secret (`secret`, the HMAC key — encrypted at
+   * rest + masked in admin).
+   */
+  billing?: BillingConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */

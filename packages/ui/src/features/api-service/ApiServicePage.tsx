@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { AuditSection } from './AuditSection';
+import { BillingSection } from './BillingSection';
 import { EndpointRoutingCard } from './EndpointRoutingCard';
 import { missingKindsByEndpoint } from './endpointKinds';
 import { useApiService } from './hooks/useApiService';
@@ -53,6 +54,8 @@ export function ApiServicePage() {
     testWebhook,
     updateAuditConfig,
     queryAudit,
+    updateBillingConfig,
+    queryBillingStatus,
     queueStatus,
   } = useApiService();
 
@@ -160,6 +163,13 @@ export function ApiServicePage() {
               <WebhookSection config={config} busy={busy} onUpdate={updateWebhookConfig} onTest={testWebhook} />
 
               <AuditSection config={config} busy={busy} onUpdate={updateAuditConfig} onQuery={queryAudit} />
+
+              <BillingSection
+                config={config}
+                busy={busy}
+                onUpdate={updateBillingConfig}
+                onQueryStatus={queryBillingStatus}
+              />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>

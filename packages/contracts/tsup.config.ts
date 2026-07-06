@@ -9,6 +9,7 @@ export default defineConfig({
     'src/index.ts',
     'src/account-tokens-types.ts',
     'src/audit-types.ts',
+    'src/billing-types.ts',
     'src/canonical-models.ts',
     'src/completion-types.ts',
     'src/endpoint-resolver.ts',
