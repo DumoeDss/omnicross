@@ -678,6 +678,32 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "webhook": {
+      "title": "Webhook notifications",
+      "description": "Deliver operational events (account recovery/anomaly, key quota, server errors) to a URL out-of-band. Delivery is fire-and-forget and never affects relay latency.",
+      "enable": {
+        "label": "Enable webhooks",
+        "description": "Master switch. When off, no events are delivered."
+      },
+      "type": {
+        "custom": "Custom (JSON)",
+        "feishu": "Feishu / Lark"
+      },
+      "destinationEnabled": "Destination enabled",
+      "remove": "Remove destination",
+      "url": "Webhook URL",
+      "urlPlaceholder": "https://example.com/webhook",
+      "secret": "Signing secret",
+      "secretPlaceholder": "Optional HMAC signing secret",
+      "eventsLabel": "Events",
+      "eventsHint": "Deselect all to receive every event kind.",
+      "test": "Test",
+      "testOk": "Delivered",
+      "testFail": "Failed: {{error}}",
+      "addDestination": "Add destination",
+      "save": "Save webhooks",
+      "testHint": "Save before testing — the test delivers to the saved destination."
     }
   },
   "accounts": {

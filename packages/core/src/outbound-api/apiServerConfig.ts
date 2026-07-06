@@ -16,6 +16,13 @@
  */
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import {
+  WEBHOOK_DESTINATION_TYPES,
+  WEBHOOK_EVENT_KINDS,
+  type WebhookConfig,
+  type WebhookDestination,
+  type WebhookEventKind,
+} from '@omnicross/contracts/webhook-types';
 
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
@@ -176,6 +183,67 @@ export function normalizeProxySegment(raw: unknown): OutboundProxyConfig | undef
     if (Object.keys(byProvider).length > 0) out.byProvider = byProvider;
   }
   return out.global || out.byProvider ? out : undefined;
+}
+
+/**
+ * Validate ONE webhook destination (webhook-notifications). Returns the cleaned
+ * descriptor or `undefined` (drop) when malformed — lenient like the proxy
+ * normalizer, never throws:
+ *  - `id`   — a non-empty trimmed string.
+ *  - `type` — ∈ {custom, feishu}.
+ *  - `url`  — a non-empty trimmed string.
+ *  - `secret` — non-empty-string-or-omit (may be `enc:`/`$ENV` at load — the
+ *               settings-store secret box decrypts afterwards).
+ *  - `events` — kept only when a non-empty array of known kinds (unknown kinds
+ *               dropped); an absent/empty filter means "all kinds".
+ *  - `enabled` — coerced boolean (default true — a destination in the list is on
+ *                unless explicitly disabled).
+ */
+export function normalizeWebhookDestination(raw: unknown): WebhookDestination | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const id = typeof r['id'] === 'string' ? r['id'].trim() : '';
+  const url = typeof r['url'] === 'string' ? r['url'].trim() : '';
+  const type = r['type'];
+  if (!id || !url || typeof type !== 'string' || !WEBHOOK_DESTINATION_TYPES.includes(type as never)) {
+    return undefined;
+  }
+  const out: WebhookDestination = {
+    id,
+    type: type as WebhookDestination['type'],
+    url,
+    enabled: r['enabled'] !== false,
+  };
+  if (typeof r['secret'] === 'string' && r['secret'].length > 0) out.secret = r['secret'];
+  if (Array.isArray(r['events'])) {
+    const events = r['events'].filter(
+      (e): e is WebhookEventKind => typeof e === 'string' && WEBHOOK_EVENT_KINDS.includes(e as never),
+    );
+    if (events.length > 0) out.events = events;
+  }
+  return out;
+}
+
+/**
+ * Validate the optional `webhook` segment (webhook-notifications). Drops
+ * malformed destinations; `enabled` defaults false. Returns `undefined` when the
+ * segment is absent/non-object — a missing webhook segment stays ABSENT (no sink
+ * wired ⇒ zero regression), unlike `accountHealth` no default is synthesized. A
+ * present segment with `enabled` present OR any valid destination is kept.
+ */
+export function normalizeWebhookSegment(raw: unknown): WebhookConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const destinations: WebhookDestination[] = [];
+  if (Array.isArray(r['destinations'])) {
+    for (const entry of r['destinations']) {
+      const d = normalizeWebhookDestination(entry);
+      if (d) destinations.push(d);
+    }
+  }
+  const enabled = r['enabled'] === true;
+  if (!enabled && destinations.length === 0) return undefined;
+  return { enabled, destinations };
 }
 
 /** Clamp a numeric to `[min, max]`, falling back to `fallback` when non-finite. */
@@ -353,6 +421,9 @@ export function normalizeServerConfig(
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
   if (proxy) config.proxy = proxy;
+  // Webhook segment is only carried when valid — absent stays absent (no sink).
+  const webhook = normalizeWebhookSegment(raw.webhook);
+  if (webhook) config.webhook = webhook;
   return config;
 }
 
@@ -391,5 +462,8 @@ export function mergeServerConfig(
     // Proxy is layer-replaced (not deep-merged): a PUT carrying `proxy` swaps the
     // whole segment; omitting it keeps the current one. `undefined` on both ⇒ absent.
     proxy: patch.proxy ?? current.proxy,
+    // Webhook is layer-replaced too (a PUT carrying `webhook` swaps the whole
+    // segment; omitting it keeps the current one). `undefined` on both ⇒ absent.
+    webhook: patch.webhook ?? current.webhook,
   });
 }

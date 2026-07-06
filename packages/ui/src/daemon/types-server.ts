@@ -112,6 +112,38 @@ export interface OutboundProxyConfig {
   byProvider?: Record<string, ProxyConfig>;
 }
 
+/** Webhook destination type (webhook-notifications) — v1: custom + feishu. */
+export type WebhookDestinationType = 'custom' | 'feishu';
+
+/** Webhook event kinds a destination filter may select. */
+export type WebhookEventKind =
+  | 'account.recovery'
+  | 'account.anomaly'
+  | 'key.quotaWarning'
+  | 'key.quotaExceeded'
+  | 'server.error'
+  | 'test';
+
+/**
+ * One webhook destination (webhook-notifications). On a GET the `secret` is
+ * masked (a sentinel signals presence); a PUT omitting/masking it preserves the
+ * stored value (write-only).
+ */
+export interface WebhookDestination {
+  id: string;
+  type: WebhookDestinationType;
+  url: string;
+  secret?: string;
+  events?: WebhookEventKind[];
+  enabled: boolean;
+}
+
+/** The `server.webhook` segment (webhook-notifications). Absent ⇒ inert. */
+export interface WebhookConfig {
+  enabled: boolean;
+  destinations: WebhookDestination[];
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;
@@ -127,6 +159,11 @@ export interface OutboundApiServerConfig {
    * daemon or when no proxy is configured. Passwords are masked on GET.
    */
   proxy?: OutboundProxyConfig;
+  /**
+   * Webhook notifications (webhook-notifications). OPTIONAL — absent on a
+   * pre-upgrade daemon or when unconfigured. Destination secrets are masked on GET.
+   */
+  webhook?: WebhookConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

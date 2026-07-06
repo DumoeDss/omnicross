@@ -29,6 +29,7 @@
  */
 
 import type { AccountTokensConfig, ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 import type { OutboundProxyConfig } from '@omnicross/core';
 
 import type { DaemonConfig } from '../config';
@@ -100,6 +101,31 @@ export function decryptProxySegment(proxy: OutboundProxyConfig, box: SecretBox):
   return transformOutboundProxy(proxy, (v) => box.decryptMaybe(v));
 }
 
+/**
+ * Apply a transform to a whole `WebhookConfig` segment (webhook-notifications):
+ * each destination's `secret` (its HMAC signing key) is the only secret. A
+ * `$ENV`/already-`enc:` value is left untouched by the box (idempotent). Pure —
+ * returns a new object; a secret-less destination is copied verbatim.
+ */
+function transformWebhookSegment(webhook: WebhookConfig, fn: ValueTransform): WebhookConfig {
+  return {
+    ...webhook,
+    destinations: webhook.destinations.map((d) =>
+      typeof d.secret === 'string' && d.secret.length > 0 ? { ...d, secret: fn(d.secret) } : d,
+    ),
+  };
+}
+
+/** Encrypt-on-write the webhook destination secrets (settings-store path). */
+export function encryptWebhookSegment(webhook: WebhookConfig, box: SecretBox): WebhookConfig {
+  return transformWebhookSegment(webhook, (v) => box.encryptMaybe(v));
+}
+
+/** Decrypt-on-read the webhook destination secrets (settings-store path). */
+export function decryptWebhookSegment(webhook: WebhookConfig, box: SecretBox): WebhookConfig {
+  return transformWebhookSegment(webhook, (v) => box.decryptMaybe(v));
+}
+
 /** Apply a transform to one provider row's secret fields (pure; new object). */
 function transformProvider(
   provider: DaemonConfig['providers'][number],
@@ -138,10 +164,16 @@ function transformConfigSecrets(cfg: DaemonConfig, fn: ValueTransform): DaemonCo
   if (cfg.admin && typeof cfg.admin.token === 'string' && cfg.admin.token.length > 0) {
     next.admin = { ...cfg.admin, token: fn(cfg.admin.token) };
   }
-  // upstream-proxy: the global + per-provider proxy passwords are secrets too.
+  // upstream-proxy + webhook-notifications: the global/per-provider proxy
+  // passwords AND each webhook destination `secret` on `server` are secrets too.
   const proxy = cfg.server?.proxy;
-  if (cfg.server && proxy && (proxy.global || proxy.byProvider)) {
-    next.server = { ...cfg.server, proxy: transformOutboundProxy(proxy, fn) };
+  const webhook = cfg.server?.webhook;
+  if (cfg.server && (proxy?.global || proxy?.byProvider || webhook)) {
+    next.server = { ...cfg.server };
+    if (proxy && (proxy.global || proxy.byProvider)) {
+      next.server.proxy = transformOutboundProxy(proxy, fn);
+    }
+    if (webhook) next.server.webhook = transformWebhookSegment(webhook, fn);
   }
   return next;
 }

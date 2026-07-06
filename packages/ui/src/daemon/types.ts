@@ -54,6 +54,13 @@ export interface MutationResult {
   missing?: OutboundModelConfigError[];
 }
 
+/** Outcome of a webhook `test` delivery (webhook-notifications) — secret-free. */
+export interface WebhookTestResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+}
+
 // ── Daemon wire DTOs ────────────────────────────────────────────────────────────
 
 /** `GET /admin/api/providers` row (secrets IN-never-OUT; literal key absent). */
@@ -242,6 +249,17 @@ export interface AgentApiServiceApi {
    * daemon preserves each untouched layer's write-only password.
    */
   updateProxyConfig(proxy: OutboundApiServerConfig['proxy'] | undefined): Promise<MutationResult>;
+  /**
+   * Persist the webhook segment (`PUT /server` with `{ webhook }`,
+   * webhook-notifications). Pass `undefined` to clear it. The daemon preserves
+   * each destination's write-only secret when the patch masks/omits it.
+   */
+  updateWebhookConfig(webhook: OutboundApiServerConfig['webhook'] | undefined): Promise<MutationResult>;
+  /**
+   * Deliver a `test` event to one configured destination (webhook-notifications,
+   * `POST /webhook-test`). Returns the delivery outcome (secret-free).
+   */
+  testWebhook(destinationId: string): Promise<WebhookTestResult>;
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;

@@ -27,4 +27,5 @@ export * from './subscription-types';
 export * from './thinking-config';
 export * from './usage-stats-types';
 export * from './usage-types';
+export * from './webhook-types';
 export * from './websearch-types';

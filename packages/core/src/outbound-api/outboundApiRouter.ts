@@ -24,12 +24,14 @@ import { Readable } from 'node:stream';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
+import { emitWebhookEvent } from '../pipeline/webhookEmit';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
+import { computeQuotaWarnings, markQuotaWarnedOnce } from './quotaWarn';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import type { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
@@ -289,8 +291,34 @@ export async function handleOutboundRequest(
     const spend = await deps.keySpendTracker.getSpend(verified.id, now);
     const quota = checkKeyQuota(verified.costLimits, spend);
     if (!quota.allowed) {
+      // webhook-notifications D3: fire the quota-exceeded event ALONGSIDE the 402
+      // (fire-and-forget — a no-op unless a sink is wired). Secret-free: keyId +
+      // this key's own scope/limit/spend.
+      emitWebhookEvent({
+        kind: 'key.quotaExceeded',
+        at: now,
+        keyId: verified.id,
+        scope: quota.scope,
+        limitUsd: quota.limitUsd,
+        spentUsd: quota.spentUsd,
+      });
       writeCostLimitError(res, quota.scope, quota.limitUsd, quota.spentUsd);
       return;
+    }
+    // webhook-notifications D3 (Phase 2): fire quota-WARNING once per window when a
+    // scope crosses the warn ratio but is not yet exceeded (deduped per window so
+    // it doesn't spam every request past 80%).
+    for (const warn of computeQuotaWarnings(verified.costLimits, spend)) {
+      if (markQuotaWarnedOnce(verified.id, warn.scope, warn.windowStart)) {
+        emitWebhookEvent({
+          kind: 'key.quotaWarning',
+          at: now,
+          keyId: verified.id,
+          scope: warn.scope,
+          limitUsd: warn.limitUsd,
+          spentUsd: warn.spentUsd,
+        });
+      }
     }
   }
 
@@ -482,6 +510,11 @@ export async function handleOutboundRequest(
       // format/sink), else the legacy console.error (byte-identical fallback).
       if (deps.logger) deps.logger.error('[OutboundApi] dispatch error:', message);
       else console.error('[OutboundApi] dispatch error:', message);
+      // webhook-notifications D3 (OQ3): a relay/dispatch FAILURE (thrown → 502) is a
+      // REAL server error → fire the event (fire-and-forget; no-op unless a sink is
+      // wired). Client 4xx early-returns above never reach here, so no 4xx noise.
+      // The message is the already-sanitized `serializeError` string (no secrets).
+      emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
       writeJsonError(res, 502, message);
     } finally {
       routeMap.removeRoute(token);

@@ -24,6 +24,7 @@ import { ProxySection } from './ProxySection';
 import { QueueStatusView } from './QueueStatusView';
 import { RequestQueueSection } from './RequestQueueSection';
 import { ServerStatusBanner } from './ServerStatusBanner';
+import { WebhookSection } from './WebhookSection';
 
 export function ApiServicePage() {
   const t = useTranslation();
@@ -47,6 +48,8 @@ export function ApiServicePage() {
     setKeyPolicy,
     updateQueueConfig,
     updateProxyConfig,
+    updateWebhookConfig,
+    testWebhook,
     queueStatus,
   } = useApiService();
 
@@ -150,6 +153,8 @@ export function ApiServicePage() {
               <RequestQueueSection config={config} busy={busy} onUpdate={updateQueueConfig} />
 
               <ProxySection config={config} busy={busy} onUpdate={updateProxyConfig} />
+
+              <WebhookSection config={config} busy={busy} onUpdate={updateWebhookConfig} onTest={testWebhook} />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>

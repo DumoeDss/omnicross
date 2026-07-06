@@ -20,7 +20,9 @@ export {
   decryptConfigSecrets,
   decryptProxySegment,
   decryptTokens,
+  decryptWebhookSegment,
   encryptConfigSecrets,
   encryptProxySegment,
   encryptTokens,
+  encryptWebhookSegment,
 } from './secretFields';

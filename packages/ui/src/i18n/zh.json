@@ -678,6 +678,32 @@
         "title": "按提供方覆盖"
       },
       "byoLabel": "自带密钥提供方"
+    },
+    "webhook": {
+      "title": "Webhook 通知",
+      "description": "将运行事件（账号恢复/异常、密钥配额、服务器错误）带外投递到某个 URL。投递为即发即忘，绝不影响中转延迟。",
+      "enable": {
+        "label": "启用 Webhook",
+        "description": "总开关。关闭时不投递任何事件。"
+      },
+      "type": {
+        "custom": "自定义 (JSON)",
+        "feishu": "飞书 / Lark"
+      },
+      "destinationEnabled": "启用该目标",
+      "remove": "删除目标",
+      "url": "Webhook URL",
+      "urlPlaceholder": "https://example.com/webhook",
+      "secret": "签名密钥",
+      "secretPlaceholder": "可选的 HMAC 签名密钥",
+      "eventsLabel": "事件",
+      "eventsHint": "全部取消选择即接收所有事件类型。",
+      "test": "测试",
+      "testOk": "已投递",
+      "testFail": "失败：{{error}}",
+      "addDestination": "添加目标",
+      "save": "保存 Webhook",
+      "testHint": "测试前请先保存 —— 测试会投递到已保存的目标。"
     }
   },
   "accounts": {

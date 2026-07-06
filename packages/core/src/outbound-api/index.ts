@@ -52,6 +52,8 @@ export {
   normalizeProxySegment,
   normalizeQueueSegments,
   normalizeServerConfig,
+  normalizeWebhookDestination,
+  normalizeWebhookSegment,
   OUTBOUND_API_SERVER_CONFIG_KEY,
   saveServerConfig,
 } from './apiServerConfig';

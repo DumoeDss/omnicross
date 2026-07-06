@@ -110,6 +110,11 @@
       "import": "./dist/usage-types.js",
       "require": "./dist/usage-types.cjs"
     },
+    "./webhook-types": {
+      "types": "./dist/webhook-types.d.ts",
+      "import": "./dist/webhook-types.js",
+      "require": "./dist/webhook-types.cjs"
+    },
     "./websearch-types": {
       "types": "./dist/websearch-types.d.ts",
       "import": "./dist/websearch-types.js",

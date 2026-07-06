@@ -80,6 +80,31 @@ export interface AccountRecoveryEvent {
 /** A recovery listener (fire-and-forget; the emitter never awaits it). */
 export type AccountRecoveryListener = (event: AccountRecoveryEvent) => void;
 
+/** The coarse anomaly state an account transitioned into (secret-free). */
+export type AccountAnomalyState = 'blocked' | 'unauthorized' | 'rate_limited' | 'overloaded';
+
+/**
+ * The anomaly signal emitted when a HEALTHY account transitions to unhealthy —
+ * the additive union #5 (webhooks) consumes, which this tracker's frozen `kind`
+ * discriminator (on {@link AccountRecoveryEvent}) explicitly anticipated. ADDITIVE:
+ * it fires ONLY on the healthy→unhealthy EDGE (de-duped) and changes NOTHING about
+ * the existing marking / recovery behavior. A #8 probe failure flows through the
+ * same `recordUpstreamOutcome` path, so anomaly covers it for free.
+ */
+export interface AccountAnomalyEvent {
+  /** Opaque provider id ('claude' | 'codex' | 'gemini' | 'opencodego'). */
+  providerId: string;
+  /** The account id that became unhealthy. */
+  accountId: string;
+  /** Epoch ms of the transition. */
+  at: number;
+  /** The coarse state the account entered (mapped from the marking). */
+  state: AccountAnomalyState;
+}
+
+/** An anomaly listener (fire-and-forget; the emitter never awaits it). */
+export type AccountAnomalyListener = (event: AccountAnomalyEvent) => void;
+
 /** The inputs one upstream attempt contributes to health marking (design D3). */
 export interface RecordUpstreamOutcomeInput {
   /** The final HTTP status, or `null` for a thrown / network failure. */
@@ -176,6 +201,7 @@ const KEY_SEP = '\0';
 export class SubscriptionAccountHealth {
   private readonly records = new Map<string, HealthRecord>();
   private readonly listeners = new Set<AccountRecoveryListener>();
+  private readonly anomalyListeners = new Set<AccountAnomalyListener>();
 
   private readonly now: () => number;
   private overloadEnabled: boolean;
@@ -239,8 +265,18 @@ export class SubscriptionAccountHealth {
   ): void {
     const now = input.now ?? this.now();
     const key = this.key(providerId, accountId);
-    const record = this.records.get(key) ?? {};
+    const preExisting = this.records.get(key);
+    const record = preExisting ?? {};
     const status = input.status;
+
+    // Edge-trigger input for the ADDITIVE anomaly emit (webhook-notifications D3):
+    // was the account already unhealthy BEFORE this marking? If so, escalating it
+    // is NOT a healthy→unhealthy edge, so no anomaly fires (de-dupe). Computed on
+    // the pre-existing record without mutating it.
+    const wasUnhealthyBefore = preExisting ? this.isUnhealthyAt(preExisting, now) : false;
+    // The coarse state this marking put the account into (undefined ⇒ no anomaly —
+    // a bare 429 / 5xx-transient / neutral 4xx has no clean anomaly state).
+    let anomalyState: AccountAnomalyState | undefined;
 
     // A 2xx on an account that WAS unhealthy is a traffic-driven recovery edge —
     // emit the recovery signal here (the 60s sweep never sees it, because the 2xx
@@ -262,19 +298,33 @@ export class SubscriptionAccountHealth {
     } else if (status === 429) {
       if (input.resetHeaderSeconds != null) {
         record.rateLimitEndAt = input.resetHeaderSeconds * 1000;
+        anomalyState = 'rate_limited';
       } else if (input.retryAfterSeconds != null) {
         record.rateLimitEndAt = now + input.retryAfterSeconds * 1000;
+        anomalyState = 'rate_limited';
       }
       // else bare 429: transient overflow, passed through — NOT marked.
     } else if (status === 529) {
-      if (this.overloadEnabled) record.overloadUntil = now + this.overloadTtlMs;
+      if (this.overloadEnabled) {
+        record.overloadUntil = now + this.overloadTtlMs;
+        anomalyState = 'overloaded';
+      }
     } else if (status === 403) {
-      if (isBanBody(input.bodyText)) record.blocked = true;
-      else record.tempUnavailableUntil = now + this.authErrorTtlMs;
+      if (isBanBody(input.bodyText)) {
+        record.blocked = true;
+        anomalyState = 'blocked';
+      } else {
+        record.tempUnavailableUntil = now + this.authErrorTtlMs;
+        anomalyState = 'unauthorized';
+      }
     } else if (status === 401) {
       record.tempUnavailableUntil = now + this.authErrorTtlMs;
+      anomalyState = 'unauthorized';
     } else if (status >= 500) {
       record.tempUnavailableUntil = now + this.serverErrorTtlMs;
+      // A 5xx/thrown marks the account transiently unavailable, but that's a
+      // SERVER error (delivered via `server.error`), not one of the four account
+      // anomaly states — so no anomaly is emitted for it.
     }
     // else: non-429 4xx (400/422/…) — NEUTRAL, never marked.
 
@@ -282,6 +332,19 @@ export class SubscriptionAccountHealth {
     else this.records.set(key, record);
 
     if (recovered) this.emit({ providerId, accountId, at: now, kind: 'rateLimitRecovery' });
+    // ADDITIVE anomaly emit: only on the healthy→unhealthy EDGE with a mapped state.
+    if (anomalyState && !wasUnhealthyBefore) {
+      this.emitAnomaly({ providerId, accountId, at: now, state: anomalyState });
+    }
+  }
+
+  /** Whether a record is unhealthy at `now`: blocked, or any timer still future. */
+  private isUnhealthyAt(record: HealthRecord, now: number): boolean {
+    if (record.blocked) return true;
+    if (record.rateLimitEndAt !== undefined && now < record.rateLimitEndAt) return true;
+    if (record.overloadUntil !== undefined && now < record.overloadUntil) return true;
+    if (record.tempUnavailableUntil !== undefined && now < record.tempUnavailableUntil) return true;
+    return false;
   }
 
   /**
@@ -369,6 +432,28 @@ export class SubscriptionAccountHealth {
 
   private emit(event: AccountRecoveryEvent): void {
     for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch {
+        // A misbehaving consumer never breaks health tracking.
+      }
+    }
+  }
+
+  /**
+   * Register an anomaly listener (the ADDITIVE seam #5 webhooks consumes; the
+   * frozen `kind` discriminator on {@link AccountRecoveryEvent} anticipated it).
+   * Fires ONLY on the healthy→unhealthy EDGE inside `recordUpstreamOutcome`
+   * (de-duped: an already-unhealthy account escalating does NOT re-fire). Returns
+   * an unsubscribe function. Existing marking/recovery behavior is UNCHANGED.
+   */
+  onAnomaly(listener: AccountAnomalyListener): () => void {
+    this.anomalyListeners.add(listener);
+    return () => this.anomalyListeners.delete(listener);
+  }
+
+  private emitAnomaly(event: AccountAnomalyEvent): void {
+    for (const listener of this.anomalyListeners) {
       try {
         listener(event);
       } catch {

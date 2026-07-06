@@ -30,6 +30,7 @@ import type {
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
   OutboundQueueStatus,
+  WebhookTestResult,
 } from '@/daemon/types';
 import type { LLMProvider } from '@shared/llm-config';
 
@@ -65,6 +66,8 @@ export interface UseApiServiceResult {
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }) => Promise<void>;
   updateProxyConfig: (proxy: OutboundApiServerConfig['proxy'] | undefined) => Promise<void>;
+  updateWebhookConfig: (webhook: OutboundApiServerConfig['webhook'] | undefined) => Promise<void>;
+  testWebhook: (destinationId: string) => Promise<WebhookTestResult>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -271,6 +274,20 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const updateWebhookConfig = useCallback(
+    async (webhook: OutboundApiServerConfig['webhook'] | undefined) => {
+      await runWrite(() => agent.apiService.updateWebhookConfig(webhook));
+    },
+    [runWrite],
+  );
+
+  // The webhook test does NOT go through `runWrite` (it mutates no config, just
+  // probes a destination) — the caller renders the returned outcome inline.
+  const testWebhook = useCallback(
+    (destinationId: string) => agent.apiService.testWebhook(destinationId),
+    [],
+  );
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
 
@@ -295,5 +312,7 @@ export function useApiService(): UseApiServiceResult {
     setKeyPolicy,
     updateQueueConfig,
     updateProxyConfig,
+    updateWebhookConfig,
+    testWebhook,
   };
 }

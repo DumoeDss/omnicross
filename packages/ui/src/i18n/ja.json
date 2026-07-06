@@ -678,6 +678,32 @@
         "title": "プロバイダー別の上書き"
       },
       "byoLabel": "BYO プロバイダー"
+    },
+    "webhook": {
+      "title": "Webhook 通知",
+      "description": "運用イベント（アカウントの回復/異常、キー割当、サーバーエラー）を URL へ帯域外で配信します。配信はファイア・アンド・フォーゲットで、中継のレイテンシには影響しません。",
+      "enable": {
+        "label": "Webhook を有効化",
+        "description": "マスタースイッチ。オフの場合、イベントは配信されません。"
+      },
+      "type": {
+        "custom": "カスタム (JSON)",
+        "feishu": "Feishu / Lark"
+      },
+      "destinationEnabled": "この宛先を有効化",
+      "remove": "宛先を削除",
+      "url": "Webhook URL",
+      "urlPlaceholder": "https://example.com/webhook",
+      "secret": "署名シークレット",
+      "secretPlaceholder": "任意の HMAC 署名シークレット",
+      "eventsLabel": "イベント",
+      "eventsHint": "すべて選択解除するとすべてのイベント種別を受信します。",
+      "test": "テスト",
+      "testOk": "配信しました",
+      "testFail": "失敗：{{error}}",
+      "addDestination": "宛先を追加",
+      "save": "Webhook を保存",
+      "testHint": "テスト前に保存してください —— テストは保存済みの宛先へ配信します。"
     }
   },
   "accounts": {

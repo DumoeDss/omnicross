@@ -17,6 +17,7 @@ import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAcc
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
+import { applyWebhookConfig } from '../webhook/webhookRuntime';
 
 import { defaultKeysPath, defaultTokensPath } from './paths';
 
@@ -119,6 +120,13 @@ export async function runStart(argv: string[]): Promise<StartResult> {
     daemon.accountHealthProbeScheduler.configure(serverConfig.accountProbe);
   }
   daemon.accountHealthProbeScheduler.start();
+
+  // Webhook notifications (webhook-notifications): register the core emit sink +
+  // subscribe the #2 health recovery/anomaly signals ONLY when the persisted
+  // `webhook` segment is enabled with ≥1 destination. Absent/disabled ⇒ no sink ⇒
+  // `emitWebhookEvent` stays a no-op (zero regression). The dispatcher receives
+  // the live (decrypted) config so the admin test button can probe destinations.
+  applyWebhookConfig(serverConfig.webhook);
 
   const status = daemon.outboundApiServer.getStatus();
   console.info('omnicross daemon is running.');

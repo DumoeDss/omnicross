@@ -25,6 +25,7 @@ import type {
   AgentApiServiceApi,
   CreateKeyResult,
   MutationResult,
+  WebhookTestResult,
 } from './types';
 import type {
   EndpointRoutingConfig,
@@ -249,6 +250,35 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update proxy configuration');
+      }
+    },
+
+    async updateWebhookConfig(
+      webhook: OutboundApiServerConfig['webhook'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // webhook-notifications: send the FULL segment rebuilt from the last-loaded
+        // (masked) config; the daemon preserves each destination's write-only secret
+        // when the patch masks/omits it. An empty `{ enabled:false, destinations:[] }`
+        // (not undefined, which is nullish and keeps current) CLEARS it — the daemon
+        // normalizes an empty webhook segment to absent (inert).
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          webhook: webhook ?? { enabled: false, destinations: [] },
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update webhook configuration');
+      }
+    },
+
+    async testWebhook(destinationId: string): Promise<WebhookTestResult> {
+      try {
+        const data = await adminClient.post<{ result: WebhookTestResult }>('/webhook-test', {
+          destinationId,
+        });
+        return data.result;
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'test failed' };
       }
     },
   };

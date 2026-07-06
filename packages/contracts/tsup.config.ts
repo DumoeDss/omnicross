@@ -21,6 +21,7 @@ export default defineConfig({
     'src/thinking-config.ts',
     'src/usage-stats-types.ts',
     'src/usage-types.ts',
+    'src/webhook-types.ts',
     'src/websearch-types.ts',
     'src/provider-presets/index.ts',
   ],

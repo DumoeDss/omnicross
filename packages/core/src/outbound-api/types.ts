@@ -15,6 +15,7 @@
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import type { HealthReport } from '@omnicross/contracts/health-logging-types';
+import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 
 import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
@@ -226,6 +227,15 @@ export interface OutboundApiServerConfig {
    * stays absent — zero-config = direct fetch).
    */
   proxy?: OutboundProxyConfig;
+  /**
+   * Webhook notification segment (webhook-notifications). Optional; when absent
+   * (or `enabled:false`) the emit sink is never wired ⇒ `emitWebhookEvent` is a
+   * no-op ⇒ byte-identical zero regression. `normalizeServerConfig` drops
+   * malformed destinations but does NOT synthesize a default (a missing webhook
+   * segment stays absent). A destination `secret` is encrypted at rest + masked
+   * in admin views.
+   */
+  webhook?: WebhookConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */

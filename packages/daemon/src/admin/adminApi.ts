@@ -91,6 +91,12 @@ import {
 } from './cliLaunch';
 import { handleDashboard } from './dashboard';
 import { parseKeyPolicyBody } from './keyPolicyBody';
+import {
+  preserveWebhookSecrets,
+  redactWebhookConfig,
+  validateWebhookSegment,
+} from './webhookConfigBody';
+import { applyWebhookConfig } from '../webhook/webhookRuntime';
 import { handleExport, handleImport, type MigrationDeps } from './adminMigration';
 import type { MigrationCredentialStore } from '../migration/migration';
 import type { OAuthSessionStore } from './oauthSessions';
@@ -1617,10 +1623,11 @@ async function handleServer(
 ): Promise<void> {
   if (method === 'GET') {
     const config = await loadServerConfig(deps.settingsStore);
-    // upstream-proxy: mask proxy passwords in the GET view — never leak plaintext.
-    const server = config.proxy
-      ? { ...config, proxy: redactOutboundProxy(config.proxy) }
-      : config;
+    // upstream-proxy + webhook-notifications: mask proxy passwords AND webhook
+    // destination secrets in the GET view — never leak plaintext.
+    let server = config;
+    if (config.proxy) server = { ...server, proxy: redactOutboundProxy(config.proxy) };
+    if (config.webhook) server = { ...server, webhook: redactWebhookConfig(config.webhook) };
     return writeJson(res, 200, { server });
   }
   if (method === 'PUT') {
@@ -1632,14 +1639,24 @@ async function handleServer(
     if (queueErrors.length > 0) {
       return writeJsonError(res, 400, `invalid queue config: ${queueErrors.join('; ')}`);
     }
+    // webhook-notifications: strict validation of a present webhook segment (400
+    // rather than a silent core-normalize drop).
+    const webhookErrors = validateWebhookSegment(patch);
+    if (webhookErrors.length > 0) {
+      return writeJsonError(res, 400, `invalid webhook config: ${webhookErrors.join('; ')}`);
+    }
     const current = await loadServerConfig(deps.settingsStore);
-    // upstream-proxy: the admin GET masks proxy passwords, so an incoming PUT that
-    // edits proxy fields omits the password. Preserve the existing (decrypted)
-    // password write-only when the patch blanks it — editing host/port never wipes
-    // the secret.
-    const effectivePatch: Partial<OutboundApiServerConfig> = patch.proxy
-      ? { ...patch, proxy: preserveOutboundProxySecrets(patch.proxy, current.proxy) }
-      : patch;
+    // upstream-proxy + webhook-notifications: the admin GET masks the proxy
+    // passwords + webhook secrets, so an incoming PUT that edits other fields omits
+    // them. Preserve the existing (decrypted) secret write-only when the patch
+    // masks/blanks it — editing host/port/url/events never wipes the secret.
+    let effectivePatch: Partial<OutboundApiServerConfig> = patch;
+    if (patch.proxy) {
+      effectivePatch = { ...effectivePatch, proxy: preserveOutboundProxySecrets(patch.proxy, current.proxy) };
+    }
+    if (patch.webhook) {
+      effectivePatch = { ...effectivePatch, webhook: preserveWebhookSecrets(patch.webhook, current.webhook) };
+    }
     const merged = mergeServerConfig(current, effectivePatch);
     // Always persist the (partial) config so the editor retains the user's
     // in-progress mappings even when the config can't yet start the listener.
@@ -1648,6 +1665,10 @@ async function handleServer(
     // takes effect without restart — swaps the resolver's server proxy AND bumps
     // the core dispatcher generation (old dispatchers disposed).
     setServerProxyConfig(merged.proxy);
+    // webhook-notifications: hot-reload the live webhook wiring so a config edit
+    // (un)registers the core sink + health subscriptions without a restart. The
+    // merged config carries DECRYPTED secrets (settings store decrypts on read).
+    applyWebhookConfig(merged.webhook);
 
     // Startup gate (model-kind-mapping): when enabling with an incomplete
     // kind map, refuse to bind and return an actionable envelope (HTTP 200 so

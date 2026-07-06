@@ -37,6 +37,7 @@ import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ResolvedAdminConfig } from '../config';
 
 import { handleAccountProbes } from './accountProbesApi';
+import { handleWebhookTest } from './webhookTestApi';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
 import { DAEMON_VERSION } from './version';
@@ -214,6 +215,14 @@ export class AdminServer {
       (req.method === 'GET' || req.method === 'HEAD')
     ) {
       handleAccountProbes(res, this.deps.probeHistoryReader);
+      return;
+    }
+
+    // AUTHED webhook test (webhook-notifications, D8) — routed HERE (not through
+    // `adminApi.ts`, at its line cap) so it honors the auth gate above. Delivers a
+    // `test` event to one destination via the live dispatcher; returns the outcome.
+    if (path === '/admin/api/webhook-test' && req.method === 'POST') {
+      await handleWebhookTest(req, res);
       return;
     }
 

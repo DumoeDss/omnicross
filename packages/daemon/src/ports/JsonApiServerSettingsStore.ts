@@ -20,7 +20,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import type { ApiServerSettingsStore, OutboundApiServerConfig, OutboundProxyConfig } from '@omnicross/core';
 import { OUTBOUND_API_SERVER_CONFIG_KEY } from '@omnicross/core/outbound-api';
 
-import { decryptProxySegment, encryptProxySegment, type SecretBox } from '../secrets';
+import {
+  decryptProxySegment,
+  decryptWebhookSegment,
+  encryptProxySegment,
+  encryptWebhookSegment,
+  type SecretBox,
+} from '../secrets';
 
 /** Shape of the daemon config.json this store reads/writes the `server` field of. */
 interface ConfigFileShape {
@@ -46,26 +52,32 @@ export class JsonApiServerSettingsStore implements ApiServerSettingsStore {
     if (key !== OUTBOUND_API_SERVER_CONFIG_KEY) return undefined;
     const file = this.readFile();
     if (file.server === undefined) return undefined;
-    return this.decryptProxy(file.server as OutboundApiServerConfig) as T;
+    return this.decryptSecrets(file.server as OutboundApiServerConfig) as T;
   }
 
   async set<T = unknown>(key: string, value: T): Promise<void> {
     if (key !== OUTBOUND_API_SERVER_CONFIG_KEY) return;
     const file = this.readFile();
-    file.server = this.encryptProxy(value as OutboundApiServerConfig);
+    file.server = this.encryptSecrets(value as OutboundApiServerConfig);
     writeFileSync(this.configPath, JSON.stringify(file, null, 2) + '\n', 'utf8');
   }
 
-  /** Encrypt the proxy passwords before persisting (no-op without a box/proxy). */
-  private encryptProxy(config: OutboundApiServerConfig): OutboundApiServerConfig {
-    if (!this.box || !config?.proxy) return config;
-    return { ...config, proxy: encryptProxySegment(config.proxy, this.box) as OutboundProxyConfig };
+  /** Encrypt the proxy passwords + webhook secrets before persisting (no-op without a box). */
+  private encryptSecrets(config: OutboundApiServerConfig): OutboundApiServerConfig {
+    if (!this.box) return config;
+    let out = config;
+    if (out?.proxy) out = { ...out, proxy: encryptProxySegment(out.proxy, this.box) as OutboundProxyConfig };
+    if (out?.webhook) out = { ...out, webhook: encryptWebhookSegment(out.webhook, this.box) };
+    return out;
   }
 
-  /** Decrypt the proxy passwords on read (no-op without a box/proxy). */
-  private decryptProxy(config: OutboundApiServerConfig): OutboundApiServerConfig {
-    if (!this.box || !config?.proxy) return config;
-    return { ...config, proxy: decryptProxySegment(config.proxy, this.box) as OutboundProxyConfig };
+  /** Decrypt the proxy passwords + webhook secrets on read (no-op without a box). */
+  private decryptSecrets(config: OutboundApiServerConfig): OutboundApiServerConfig {
+    if (!this.box) return config;
+    let out = config;
+    if (out?.proxy) out = { ...out, proxy: decryptProxySegment(out.proxy, this.box) as OutboundProxyConfig };
+    if (out?.webhook) out = { ...out, webhook: decryptWebhookSegment(out.webhook, this.box) };
+    return out;
   }
 
   /** Read the config.json, tolerating a missing/corrupt file (→ empty shape). */

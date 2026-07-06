@@ -678,6 +678,32 @@
         "title": "各提供方覆寫"
       },
       "byoLabel": "自帶金鑰提供方"
+    },
+    "webhook": {
+      "title": "Webhook 通知",
+      "description": "將運行事件（帳號恢復/異常、金鑰配額、伺服器錯誤）帶外投遞到某個 URL。投遞為即發即忘，絕不影響中轉延遲。",
+      "enable": {
+        "label": "啟用 Webhook",
+        "description": "總開關。關閉時不投遞任何事件。"
+      },
+      "type": {
+        "custom": "自訂 (JSON)",
+        "feishu": "飛書 / Lark"
+      },
+      "destinationEnabled": "啟用該目標",
+      "remove": "刪除目標",
+      "url": "Webhook URL",
+      "urlPlaceholder": "https://example.com/webhook",
+      "secret": "簽名金鑰",
+      "secretPlaceholder": "可選的 HMAC 簽名金鑰",
+      "eventsLabel": "事件",
+      "eventsHint": "全部取消選擇即接收所有事件類型。",
+      "test": "測試",
+      "testOk": "已投遞",
+      "testFail": "失敗：{{error}}",
+      "addDestination": "新增目標",
+      "save": "儲存 Webhook",
+      "testHint": "測試前請先儲存 —— 測試會投遞到已儲存的目標。"
     }
   },
   "accounts": {

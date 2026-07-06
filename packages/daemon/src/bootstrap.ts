@@ -74,6 +74,8 @@ import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
+import { WebhookDispatcher } from './webhook/WebhookDispatcher';
+import { resetWebhookRuntimeForTests, setWebhookRuntime } from './webhook/webhookRuntime';
 
 /** On-disk locations the file-backed ports persist to. */
 export interface DaemonPaths {
@@ -169,6 +171,12 @@ export interface Daemon {
    * ONLY when enabled. Disposed in cleanup.
    */
   readonly accountHealthProbeScheduler: AccountHealthProbeScheduler;
+  /**
+   * Fire-and-forget webhook sender (webhook-notifications). Wired into the core
+   * emit sink + the #2 health signals by `start.ts`/admin PUT via
+   * `applyWebhookConfig`. INERT until a config enables it (zero regression).
+   */
+  readonly webhookDispatcher: WebhookDispatcher;
 }
 
 /**
@@ -451,6 +459,18 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     probeHistoryReader: accountHealthProbeScheduler,
   });
 
+  // Webhook dispatcher (webhook-notifications) — the fire-and-forget sender.
+  // Injected into the runtime slot with the shared health tracker; `start.ts`
+  // (boot) + the admin config PUT (hot-reload) call `applyWebhookConfig(...)` to
+  // (un)register the core sink + subscribe recovery/anomaly. Constructed ALWAYS
+  // (so the admin `test` button works), but INERT until a config enables it — no
+  // sink is wired ⇒ `emitWebhookEvent` stays a no-op (zero regression).
+  const webhookDispatcher = new WebhookDispatcher({
+    logger,
+    fetchImpl: (url, init) => fetchUpstream(url, init),
+  });
+  setWebhookRuntime(webhookDispatcher, getSharedAccountHealth());
+
   // Background token-refresh sweep (external-cli-sync) — constructed armed-off;
   // `start.ts` calls `.start()` on the resident daemon.
   const tokenRefreshScheduler = new TokenRefreshScheduler(credentialStore, logger);
@@ -484,6 +504,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     tokenRefreshScheduler,
     accountHealthSweeper,
     accountHealthProbeScheduler,
+    webhookDispatcher,
   };
 }
 
@@ -521,6 +542,9 @@ export function resetDaemonSingletonsForTests(): void {
   // (which expects plaintext passthrough). The next `buildDaemon` re-injects.
   setSecretBox(null);
   setPoolSecretBox(null);
+  // Clear the webhook runtime slot (dispatcher + sink + health subscriptions) so
+  // a prior boot's dispatcher does not leak the core sink into a fresh boot.
+  resetWebhookRuntimeForTests();
 }
 
 /**
