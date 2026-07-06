@@ -75,6 +75,7 @@ import {
   asSubscriptionProviderId,
   statusEntryFor,
   type SubscriptionTokenWriter,
+  validateSupportedModelsBody,
   validateTokenBody,
 } from './accountsWrite';
 import {
@@ -1872,6 +1873,19 @@ async function handleAccounts(
         if (!proxy) return writeJsonError(res, 400, 'invalid proxy config');
       }
       const result = await deps.subscriptionTokenWriter.setAccountProxy(providerId, accountId, proxy);
+      if (!result.ok) return writeJsonError(res, 404, `account '${accountId}' not found`);
+      return writeJson(res, 200, { ok: true });
+    }
+
+    // POST /accounts/:providerId/:accountId/supported-models { supportedModels } →
+    // set (array/object) or clear (null) one account's model support + remap
+    // (subscription-account-model-map). Secret-free (model ids only). STATUS-ONLY ack.
+    if (method === 'POST' && rest[2] === 'supported-models') {
+      const accountId = rest[1];
+      const body = await readJsonBody(req);
+      const parsed = validateSupportedModelsBody(body['supportedModels']);
+      if (!parsed.ok) return writeJsonError(res, 400, 'invalid supportedModels');
+      const result = await deps.subscriptionTokenWriter.setAccountSupportedModels(providerId, accountId, parsed.value);
       if (!result.ok) return writeJsonError(res, 404, `account '${accountId}' not found`);
       return writeJson(res, 200, { ok: true });
     }

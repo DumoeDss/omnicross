@@ -218,6 +218,24 @@ export function createAccountsAdapter(): AgentAccountsApi {
       }
     },
 
+    async setAccountSupportedModels(
+      providerId: SubscriptionProviderId,
+      accountId: string,
+      supportedModels: string[] | Record<string, string> | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // subscription-account-model-map: `null` clears; an array = allow-list
+        // (skip-only), an object = allow-list keys + logical→actual remap. Secret-free.
+        await adminClient.post(
+          `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}/supported-models`,
+          { supportedModels: supportedModels ?? null },
+        );
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to set supported models' };
+      }
+    },
+
     async setActive(providerId: SubscriptionProviderId, id: string): Promise<MutationResult> {
       try {
         await adminClient.put(`/accounts/${encodeURIComponent(providerId)}/active`, { id });

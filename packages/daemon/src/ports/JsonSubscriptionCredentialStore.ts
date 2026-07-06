@@ -563,6 +563,24 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     return result;
   }
 
+  /**
+   * DAEMON-ONLY set/clear per-account `supportedModels` (subscription-account-
+   * model-map, admin write, NOT on the port). Passing `undefined` clears it.
+   * Secret-free (model ids only; the mirror invariant is untouched). Rejects an
+   * unknown id.
+   */
+  async setAccountSupportedModels(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    supportedModels: string[] | Record<string, string> | undefined,
+  ): Promise<{ ok: boolean }> {
+    const config = this.readConfig();
+    const result = accountMulti.setAccountSupportedModels(config, providerId, accountId, supportedModels);
+    if (!result.ok) return result;
+    this.persist({ ...config, updatedAt: new Date().toISOString() });
+    return result;
+  }
+
   /** Dispatch one OAuth refresh round-trip to the provider's shared flow. */
   private async refreshUpstream(
     provider: 'claude' | 'codex' | 'gemini',

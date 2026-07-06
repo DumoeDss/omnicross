@@ -328,6 +328,9 @@ export function sanitizeAccounts(
       // Per-account proxy (upstream-proxy): masked view — password → hasPassword,
       // userinfo stripped. The plaintext password is NEVER projected.
       proxy: a.proxy ? sanitizeProxyConfig(a.proxy) : undefined,
+      // Per-account model support / remap (subscription-account-model-map): model
+      // ids are not token material → carried through verbatim for the editor.
+      supportedModels: a.supportedModels,
     };
   });
 }
@@ -397,6 +400,35 @@ export function setAccountProxy(
         return rest;
       }
       return { ...a, proxy };
+    }),
+  );
+  return { ok: true };
+}
+
+/**
+ * Set (or CLEAR, with `undefined`) one account's `supportedModels` by id
+ * (subscription-account-model-map). Entry-metadata only (model ids are not token
+ * material) — the token mirror is unaffected, so no `deriveMirror`. Rejects an
+ * unknown id.
+ */
+export function setAccountSupportedModels(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+  supportedModels: string[] | Record<string, string> | undefined,
+): { ok: boolean } {
+  const accounts = getAccounts(config, p);
+  if (!accounts.some((a) => a.id === id)) return { ok: false };
+  setAccounts(
+    config,
+    p,
+    accounts.map((a) => {
+      if (a.id !== id) return a;
+      if (supportedModels === undefined) {
+        const { supportedModels: _drop, ...rest } = a;
+        return rest;
+      }
+      return { ...a, supportedModels };
     }),
   );
   return { ok: true };

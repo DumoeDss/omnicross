@@ -42,13 +42,17 @@ export interface AuthApplyHints {
    */
   sessionKey?: string;
   /**
-   * OPTIONAL per-request selection callback (subscription-account-health, D5).
-   * A subscription strategy invokes it with the EFFECTIVE account id it resolved
-   * (the selected non-active id, or the active id on the null/≤1 path) so the
-   * relay can mark that account's health against the upstream outcome. Fresh per
-   * request (no cross-request race). BYO auth sources ignore it.
+   * OPTIONAL per-request selection callback (subscription-account-health, D5;
+   * subscription-account-model-map, D3). A subscription strategy invokes it with
+   * the EFFECTIVE account id it resolved (the selected non-active id, or the active
+   * id on the null/≤1 path) so the relay can mark that account's health against the
+   * upstream outcome. The OPTIONAL 3rd `remappedModel` carries the selected
+   * account's ACTUAL upstream model when its `supportedModels` object remaps the
+   * request model — the relay rewrites the outbound `body.model` to it on the
+   * pass-through / same-format path (absent ⇒ forward verbatim). Fresh per request
+   * (no cross-request race). BYO auth sources ignore it.
    */
-  reportSelection?: (accountId: string, isActive: boolean) => void;
+  reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
 }
 
 /**

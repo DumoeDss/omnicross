@@ -323,6 +323,14 @@ export interface AgentAccountsApi {
     accountId: string,
     proxy: ProxyConfig | undefined,
   ): Promise<MutationResult>;
+  /** Set (or CLEAR, with `undefined`) one account's `supportedModels`
+   *  (subscription-account-model-map) — an array allow-list (skip-only) or an
+   *  object logical→actual remap. Secret-free (model ids only). */
+  setAccountSupportedModels(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    supportedModels: string[] | Record<string, string> | undefined,
+  ): Promise<MutationResult>;
   /** Refresh the ACTIVE account's OAuth token (claude/codex/gemini only). */
   refreshProvider(providerId: SubscriptionProviderId): Promise<RefreshResult>;
   clearProvider(providerId: SubscriptionProviderId): Promise<MutationResult>;

@@ -27,15 +27,30 @@ import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/Subscri
 import type { RefreshMutex } from '../auth/RefreshMutex';
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
 
+import {
+  accountSupportsModel,
+  remapReportForAccount,
+  type SupportedModels,
+} from './accountModelMap';
 import type { SchedulableAccount, SubscriptionAccountSelector } from './SubscriptionAccountSelector';
 
-/** Extra health-aware inputs for `resolveSelectedToken` (subscription-account-health).
- *  All optional so the pre-health / test call path stays byte-identical. */
+/** Extra health-aware inputs for `resolveSelectedToken` (subscription-account-health
+ *  + subscription-account-model-map). All optional so the pre-health / test call
+ *  path stays byte-identical. */
 export interface SelectionHealthContext {
   /** The shared health tracker; when present, computes `schedulable` per account. */
   health?: SubscriptionAccountHealth;
-  /** Fires with the EFFECTIVE account id + `isActive` so the relay can mark it. */
-  reportSelection?: (accountId: string, isActive: boolean) => void;
+  /**
+   * The resolved (logical) model for this request (subscription-account-model-map).
+   * When present, an account whose `supportedModels` excludes it is filtered out of
+   * a ≥2-account pool EXACTLY like an unhealthy one, and the selected account's
+   * object-form remap is reported to the relay. Absent ⇒ no model gating / no remap.
+   */
+  resolvedModel?: string;
+  /** Fires with the EFFECTIVE account id + `isActive`, plus the account's ACTUAL
+   *  upstream model when its `supportedModels` object remaps `resolvedModel`
+   *  (subscription-account-model-map) — the relay rewrites `body.model` to it. */
+  reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
   /** Injectable clock (default `Date.now()` inside the selector). */
   now?: number;
 }
@@ -56,28 +71,56 @@ const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
 
 /**
  * Compute each account's `schedulable` from health (subscription-account-health,
- * D4) — but ONLY when the provider has ≥2 accounts. With exactly one account the
- * single-account degraded policy forces `schedulable = true` (left unset) so the
- * selector returns `null` → the #1 active-mirror path serves it and the upstream
- * returns its own authoritative error. This preserves #1's byte-identical
- * single-account guarantee AND never strands a sole (possibly unhealthy) account.
+ * D4) AND per-account model support (subscription-account-model-map, D2) — but
+ * ONLY when the provider has ≥2 accounts. Both eligibility reasons fold into the
+ * SAME `schedulable` boolean the selector already consumes (no new mechanism): an
+ * account is skipped when it is unhealthy OR (given a `resolvedModel`) its
+ * `supportedModels` does not include that model. With exactly one account the
+ * single-account degraded policy leaves `schedulable` unset so the selector
+ * returns `null` → the #1 active-mirror path serves it (byte-identical single
+ * account; never-strand — the upstream stays authoritative).
  */
 function gateSchedulable(
   accounts: SchedulableAccount[],
   providerId: SubscriptionProviderId,
   health: SubscriptionAccountHealth | undefined,
   now: number | undefined,
+  resolvedModel: string | undefined,
+  supportedModelsById: Map<string, SupportedModels | undefined>,
 ): SchedulableAccount[] {
-  if (!health || accounts.length < 2) return accounts;
-  return accounts.map((a) => ({ ...a, schedulable: health.isSchedulable(providerId, a.id, now) }));
+  if ((!health && !resolvedModel) || accounts.length < 2) return accounts;
+  return accounts.map((a) => {
+    const healthOk = health ? health.isSchedulable(providerId, a.id, now) : true;
+    const modelOk = resolvedModel
+      ? accountSupportsModel(supportedModelsById.get(a.id), resolvedModel)
+      : true;
+    return { ...a, schedulable: healthOk && modelOk };
+  });
+}
+
+/** Whether `gateSchedulable` actually gated the pool — a tracker OR a resolved
+ *  model was supplied AND the pool has ≥2 accounts. Drives the `pickByIdTarget`
+ *  "filtered-to-1-non-active → route by id" edge for BOTH health and model gating. */
+function isPoolGated(
+  accounts: SchedulableAccount[],
+  health: SubscriptionAccountHealth | undefined,
+  resolvedModel: string | undefined,
+): boolean {
+  return (health !== undefined || resolvedModel !== undefined) && accounts.length >= 2;
 }
 
 /** Project a provider's stored accounts into the selector's candidate shape.
- *  `schedulable` is left unset (defaults true) — child #2 (health) fills it. */
+ *  `schedulable` is left unset (defaults true) — child #2 (health) fills it.
+ *  Also returns each account's `supportedModels` in a side map (NOT on
+ *  `SchedulableAccount`, whose shape the selector owns) for the model-map gate. */
 export function readSchedulableAccounts(
   config: AccountTokensConfig,
   providerId: SubscriptionProviderId,
-): { accounts: SchedulableAccount[]; activeAccountId?: string } {
+): {
+  accounts: SchedulableAccount[];
+  activeAccountId?: string;
+  supportedModelsById: Map<string, SupportedModels | undefined>;
+} {
   const raw =
     (config[ACCOUNTS_KEY[providerId]] as SubscriptionAccountEntry<unknown>[] | undefined) ?? [];
   const accounts: SchedulableAccount[] = raw.map((a) => ({
@@ -86,8 +129,11 @@ export function readSchedulableAccounts(
     lastUsedAt: a.lastUsedAt,
     createdAt: a.createdAt,
   }));
+  const supportedModelsById = new Map<string, SupportedModels | undefined>(
+    raw.map((a) => [a.id, a.supportedModels]),
+  );
   const activeAccountId = config[ACTIVE_KEY[providerId]] as string | undefined;
-  return { accounts, activeAccountId };
+  return { accounts, activeAccountId, supportedModelsById };
 }
 
 /**
@@ -138,20 +184,26 @@ export async function resolveSelectedToken(
   const health = ctx?.health;
   const report = ctx?.reportSelection;
   const now = ctx?.now;
+  const resolvedModel = ctx?.resolvedModel;
   if (selector && tokens.getAccessTokenForAccount) {
     const config = await tokens.getFullConfig();
-    const { accounts, activeAccountId } = readSchedulableAccounts(config, providerId);
-    const gated = gateSchedulable(accounts, providerId, health, now);
-    // Health gating actually ran only when a tracker is present AND the pool has
-    // ≥2 accounts (the single-account degraded policy leaves `gated` ungated).
-    const healthGated = health !== undefined && accounts.length >= 2;
+    const { accounts, activeAccountId, supportedModelsById } = readSchedulableAccounts(config, providerId);
+    const gated = gateSchedulable(accounts, providerId, health, now, resolvedModel, supportedModelsById);
+    // Gating actually ran only when a tracker OR a resolved model was supplied AND
+    // the pool has ≥2 accounts (the single-account degraded policy leaves `gated`
+    // ungated). Drives the route-around edge for BOTH health and model gating.
+    const poolGated = isPoolGated(accounts, health, resolvedModel);
+    // The remapped model to report for a selected account (object-form map) — or
+    // `undefined` (no remap) which the relay treats as "forward the body verbatim".
+    const remapFor = (id: string): string | undefined =>
+      remapReportForAccount(supportedModelsById.get(id), resolvedModel);
 
-    const targetId = pickByIdTarget(selector, gated, providerId, activeAccountId, sessionKey, now, healthGated);
+    const targetId = pickByIdTarget(selector, gated, providerId, activeAccountId, sessionKey, now, poolGated);
     if (targetId !== undefined) {
       const byId = await tokens.getAccessTokenForAccount(providerId, targetId);
       if (byId) {
         maybeTouchLastUsed(selector, tokens, providerId, targetId);
-        report?.(targetId, false);
+        report?.(targetId, false, remapFor(targetId));
         return byId;
       }
       // #1 [Minor] (task 4.2): a null/invalid by-id token → evict this account's
@@ -160,19 +212,21 @@ export async function resolveSelectedToken(
       selector.evictAffinity(providerId, targetId);
       health?.recordUpstreamOutcome(providerId, targetId, { status: 401, now });
       const remaining = gated.filter((a) => a.id !== targetId);
-      const retryId = pickByIdTarget(selector, remaining, providerId, activeAccountId, sessionKey, now, healthGated);
+      const retryId = pickByIdTarget(selector, remaining, providerId, activeAccountId, sessionKey, now, poolGated);
       if (retryId !== undefined) {
         const retryToken = await tokens.getAccessTokenForAccount(providerId, retryId);
         if (retryToken) {
           maybeTouchLastUsed(selector, tokens, providerId, retryId);
-          report?.(retryId, false);
+          report?.(retryId, false, remapFor(retryId));
           return retryToken;
         }
       }
     }
     // No non-active target (null / isActive / by-id-failed) → the active-mirror
-    // path. Report the active account so the relay marks what it actually served.
-    if (activeAccountId) report?.(activeAccountId, true);
+    // path. Report the active account so the relay marks what it actually served
+    // (and remaps its outbound model when the sole/active account's map dictates —
+    // the documented sole-account remap path).
+    if (activeAccountId) report?.(activeAccountId, true, remapFor(activeAccountId));
     return activeGetter();
   }
   return activeGetter();

@@ -22,6 +22,7 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
 
 import { StatusBadge } from './StatusBadge';
+import { SupportedModelsEditor } from './SupportedModelsEditor';
 
 import type { ProxyConfig, RefreshResult, SubscriptionAccountSanitized } from '@/daemon/types';
 
@@ -38,6 +39,11 @@ interface AccountListProps {
   onSetProxy?: (
     id: string,
     proxy: ProxyConfig | undefined,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Set (or clear) one account's `supportedModels` (subscription-account-model-map). */
+  onSetSupportedModels?: (
+    id: string,
+    supportedModels: string[] | Record<string, string> | undefined,
   ) => Promise<{ success: boolean; message?: string }>;
   /** Refresh the ACTIVE account's OAuth token (shown on the active+expired row). */
   onRefreshActive?: () => Promise<RefreshResult>;
@@ -70,6 +76,7 @@ export function AccountList({
   onRename,
   onSetPriority,
   onSetProxy,
+  onSetSupportedModels,
   onRefreshActive,
 }: AccountListProps) {
   const t = useTranslation();
@@ -316,6 +323,19 @@ export function AccountList({
                         busy={rowBusy}
                         onSave={(proxy) => void onSetProxy(acc.id, proxy)}
                         onClear={() => void onSetProxy(acc.id, undefined)}
+                      />
+                    </div>
+                  ) : null}
+                  {onSetSupportedModels ? (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t('accounts.detail.supportedModels')}
+                      </label>
+                      <SupportedModelsEditor
+                        value={acc.supportedModels}
+                        busy={rowBusy}
+                        onSave={(value) => void onSetSupportedModels(acc.id, value)}
+                        onClear={() => void onSetSupportedModels(acc.id, undefined)}
                       />
                     </div>
                   ) : null}

@@ -421,29 +421,77 @@ export async function runPipeline(
 async function runSubscriptionSameFormatFetch(
   rawBody: string,
   plan: AnthropicCallPlan,
-  reportSelection?: (accountId: string, isActive: boolean) => void,
+  reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void,
 ): Promise<{ response: Response; rawStatus: number | null }> {
   // upstream-proxy: capture the effective account (per-account proxy override).
+  // subscription-account-model-map (D3): capture the selected account's ACTUAL
+  // upstream model when its `supportedModels` object remaps the request model.
   let proxyAccountId: string | undefined;
+  let remappedModel: string | undefined;
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   await plan.auth.applyHeaders(headers, {
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
-    reportSelection: (accountId, isActive) => {
+    reportSelection: (accountId, isActive, remapped) => {
       proxyAccountId = accountId;
-      reportSelection?.(accountId, isActive);
+      remappedModel = remapped;
+      reportSelection?.(accountId, isActive, remapped);
     },
   });
+  // Rewrite `body.model` ONLY when a per-account remap was reported AND the remap
+  // applies to this plan's provider (claude — model-INDEPENDENT upstream URL; see
+  // `outboundRemapApplies`). Otherwise the body is forwarded BYTE-FOR-BYTE (map-less
+  // / array-form / no-mapping / opencodego-shape accounts stay verbatim, preserving
+  // Anthropic-native server-tool `type` fields; opencodego per-model-URL remap is
+  // OQ3-deferred so its skip-only allow-list still works but body.model is untouched).
+  const applyRemap = remappedModel !== undefined && outboundRemapApplies(plan);
+  const outboundBody = applyRemap ? rewriteBodyModel(rawBody, remappedModel as string) : rawBody;
+  const outboundModel = applyRemap ? (remappedModel as string) : plan.resolvedModel;
   console.info(
-    `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${plan.resolvedModel} stream=${plan.isStream}`,
+    `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${outboundModel} stream=${plan.isStream}`,
   );
   const response = await fetchUpstream(
     plan.upstreamUrl,
-    { method: 'POST', headers, body: rawBody },
+    { method: 'POST', headers, body: outboundBody },
     { providerId: proxyProviderId(plan), accountId: proxyAccountId },
   );
   return { response, rawStatus: response.status };
+}
+
+/**
+ * Rewrite the `model` field of a serialized JSON relay body to `model`
+ * (subscription-account-model-map remap). Parse-failure-safe: an unparseable body
+ * (or one that is not a JSON object) is returned UNCHANGED so a remap never turns
+ * a relayable request into a broken one.
+ */
+/**
+ * Whether the per-account model remap (subscription-account-model-map) may rewrite
+ * the outbound `body.model` for this plan. Scoped to the claude subscription
+ * provider: its upstream URL (`api.anthropic.com/v1/messages`) is model-INDEPENDENT,
+ * so a `body.model` rewrite is clean. opencodego / transformer providers resolve
+ * their upstream URL (and, for the transformer path, the chain) FROM the model —
+ * a per-account remap there would leave the URL pointing at the LOGICAL model while
+ * the body carried the actual (a half-mismatch), so it is OQ3-deferred. Skip-only
+ * (the allow-list) still applies to those providers via `gateSchedulable`; only the
+ * body rewrite is gated here. `isSubscription` guards against a stray BYO plan.
+ */
+export function outboundRemapApplies(plan: {
+  isSubscription: boolean;
+  transformerProvider: { name: string };
+}): boolean {
+  return plan.isSubscription && plan.transformerProvider.name === 'claude';
+}
+
+export function rewriteBodyModel(rawBody: string, model: string): string {
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return rawBody;
+    (parsed as Record<string, unknown>).model = model;
+    return JSON.stringify(parsed);
+  } catch {
+    return rawBody;
+  }
 }
 
 /**

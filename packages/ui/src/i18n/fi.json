@@ -806,7 +806,11 @@
       "saveLabel": "Tallenna tunniste",
       "proxy": "Proxy override",
       "proxyLabel": "Per-account proxy",
-      "proxyHint": "Overrides the global/provider proxy for this account only."
+      "proxyHint": "Overrides the global/provider proxy for this account only.",
+      "supportedModels": "Supported models",
+      "supportedModelsPlaceholder": "claude-sonnet-4\nclaude-opus-4 = claude-opus-4-20250514",
+      "supportedModelsHint": "One model per line. `logical = actual` remaps that model to the account's upstream model; a bare list limits which models this account serves (multi-account pools only).",
+      "supportedModelsClear": "Clear"
     },
     "oauthFlow": {
       "step1": {

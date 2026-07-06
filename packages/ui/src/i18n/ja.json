@@ -811,7 +811,11 @@
       "neverUsed": "未使用",
       "proxy": "プロキシの上書き",
       "proxyLabel": "アカウント別プロキシ",
-      "proxyHint": "このアカウントのみグローバル/プロバイダーのプロキシを上書きします。"
+      "proxyHint": "このアカウントのみグローバル/プロバイダーのプロキシを上書きします。",
+      "supportedModels": "対応モデル",
+      "supportedModelsPlaceholder": "claude-sonnet-4\nclaude-opus-4 = claude-opus-4-20250514",
+      "supportedModelsHint": "1行に1モデル。`論理名 = 実際名` でそのモデルをこのアカウントのアップストリームモデルに再マッピングします。モデル名のみを列挙すると、このアカウントが処理するモデルを制限します（複数アカウントのプールのみ）。",
+      "supportedModelsClear": "クリア"
     },
     "oauthFlow": {
       "step1": {

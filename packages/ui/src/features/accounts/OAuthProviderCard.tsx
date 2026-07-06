@@ -98,6 +98,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
     renameAccount,
     setAccountPriority,
     setAccountProxy,
+    setAccountSupportedModels,
     refreshProvider,
     startOAuth,
     completeOAuth,
@@ -227,6 +228,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
         onRename={(id, label) => renameAccount(providerId, id, label)}
         onSetPriority={(id, priority) => setAccountPriority(providerId, id, priority)}
         onSetProxy={(id, proxy) => setAccountProxy(providerId, id, proxy)}
+        onSetSupportedModels={(id, models) => setAccountSupportedModels(providerId, id, models)}
         onRefreshActive={() => refreshProvider(providerId)}
       />
 

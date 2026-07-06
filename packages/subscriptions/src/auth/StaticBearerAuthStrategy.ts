@@ -43,7 +43,7 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
       'opencodego',
       hints?.sessionKey,
       () => this.tokens.getValidOpenCodeGoApiKey(),
-      { health: this.health, reportSelection: hints?.reportSelection },
+      { health: this.health, reportSelection: hints?.reportSelection, resolvedModel: hints?.resolvedModel },
     );
     if (!key) {
       // Let the upstream surface the 401 with its own body — clearer than

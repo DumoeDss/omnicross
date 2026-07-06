@@ -73,6 +73,10 @@ export interface SubscriptionAccountSanitized {
   cooldownUntil?: string;
   /** Secret-free per-account proxy view (upstream-proxy); password masked. */
   proxy?: SanitizedProxyConfig;
+  /** Per-account model support / remap (subscription-account-model-map): an array
+   *  allow-list (skip-only) or an object logical→actual map. Absent ⇒ all models,
+   *  no remap. Secret-free (model ids only). */
+  supportedModels?: string[] | Record<string, string>;
 }
 
 /**

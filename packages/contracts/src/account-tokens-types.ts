@@ -160,6 +160,25 @@ export type SubscriptionAccountEntry<TConfig> = {
    * and masked in the sanitized view.
    */
   proxy?: ProxyConfig;
+  /**
+   * Per-account model support + logical→actual remap (subscription-account-model-map).
+   * CRS dual-format, OPTIONAL — an existing `tokens.json` without it parses
+   * unchanged (the account supports every model and never remaps, byte-identical
+   * to before this change):
+   *  - **array** `["a","b"]` — an ALLOW-LIST: the account supports ONLY these
+   *    logical models (skip-only, no remap). In a ≥2-account pool the account is
+   *    routed AROUND for any other model.
+   *  - **object** `{ "a": "X", "b": "Y" }` — the keys are the same allow-list AND
+   *    each value is the account's ACTUAL upstream model, so a selected account
+   *    remaps the logical model to its actual model on the outbound request.
+   *
+   * Model-support filtering only applies when the provider has ≥2 accounts (the
+   * same gate as account health) — a sole account is never model-gated
+   * (never-strand; the upstream stays authoritative). A sole account that must
+   * serve a logical model AS a different actual model uses the OBJECT map (remap),
+   * not skip.
+   */
+  supportedModels?: string[] | Record<string, string>;
   /** The provider's existing token config, verbatim. */
   tokens: TConfig;
 };
@@ -256,6 +275,13 @@ export type SubscriptionAccountSanitized = {
    * flag — never returned.
    */
   proxy?: SanitizedProxyConfig;
+  /**
+   * Per-account model support / logical→actual remap (subscription-account-model-map)
+   * — editable in the admin accounts view. Carried verbatim (secret-free — model
+   * ids are not token material): an array allow-list or an object logical→actual
+   * map. Absent ⇒ the account supports every model with no remap.
+   */
+  supportedModels?: string[] | Record<string, string>;
 };
 
 /**

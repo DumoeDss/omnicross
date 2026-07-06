@@ -57,6 +57,15 @@ export interface SubscriptionTokenWriter {
     id: string,
     proxy: ProxyConfig | undefined,
   ): Promise<{ ok: boolean }>;
+  /** Set (or CLEAR, with `undefined`) one account's `supportedModels`
+   *  (subscription-account-model-map). Secret-free (model ids only). Rejects an
+   *  unknown id. An array = allow-list (skip-only); an object = allow-list keys +
+   *  logical→actual remap values. */
+  setAccountSupportedModels(
+    providerId: SubscriptionProviderId,
+    id: string,
+    supportedModels: string[] | Record<string, string> | undefined,
+  ): Promise<{ ok: boolean }>;
   listSanitizedAccounts(): Promise<Record<string, SubscriptionAccountSanitized[]>>;
   // Active-account OAuth token refresh (oauth design D4). Each returns an HONEST
   // boolean (false when the active block has no refresh_token, or the upstream
@@ -217,6 +226,37 @@ export function validateTokenBody(
     default:
       return null;
   }
+}
+
+/**
+ * Validate a `supportedModels` wire value (subscription-account-model-map, admin
+ * write). Accepts: `null`/absent → CLEAR (`undefined`); a NON-EMPTY `string[]` of
+ * non-blank model ids (array allow-list, skip-only); a NON-EMPTY flat
+ * `Record<string,string>` of non-blank keys → non-blank actual models (the remap).
+ * Rejects (→ `{ ok: false }` → 400): a non-string/blank array element, an empty
+ * array (a "supports nothing" footgun), an empty object, a non-string/blank object
+ * value (a remap to `""` is invalid), or a blank key. Model ids are NOT token
+ * material; nothing is logged or echoed back beyond the status ack.
+ */
+export function validateSupportedModelsBody(
+  raw: unknown,
+): { ok: true; value: string[] | Record<string, string> | undefined } | { ok: false } {
+  if (raw === null || raw === undefined) return { ok: true, value: undefined };
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) return { ok: false };
+    if (!raw.every((x) => typeof x === 'string' && x.trim().length > 0)) return { ok: false };
+    return { ok: true, value: raw as string[] };
+  }
+  if (typeof raw === 'object') {
+    const entries = Object.entries(raw as Record<string, unknown>);
+    if (entries.length === 0) return { ok: false };
+    const valid = entries.every(
+      ([k, v]) => k.trim().length > 0 && typeof v === 'string' && v.trim().length > 0,
+    );
+    if (!valid) return { ok: false };
+    return { ok: true, value: Object.fromEntries(entries) as Record<string, string> };
+  }
+  return { ok: false };
 }
 
 // ── Status-only response projection ───────────────────────────────────────────

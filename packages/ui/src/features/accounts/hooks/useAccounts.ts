@@ -60,6 +60,13 @@ export interface UseAccountsResult {
     accountId: string,
     proxy: ProxyConfig | undefined,
   ) => Promise<{ success: boolean; message?: string }>;
+  /** Set (or clear, with `undefined`) one account's `supportedModels`
+   *  (subscription-account-model-map) — array allow-list or object remap. */
+  setAccountSupportedModels: (
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    supportedModels: string[] | Record<string, string> | undefined,
+  ) => Promise<{ success: boolean; message?: string }>;
   /** Refresh the active account's OAuth token. Returns the honest daemon outcome. */
   refreshProvider: (providerId: SubscriptionProviderId) => Promise<RefreshResult>;
   clearProvider: (providerId: SubscriptionProviderId) => Promise<void>;
@@ -233,6 +240,29 @@ export function useAccounts(): UseAccountsResult {
     [refresh],
   );
 
+  const setAccountSupportedModels = useCallback(
+    async (
+      providerId: SubscriptionProviderId,
+      accountId: string,
+      supportedModels: string[] | Record<string, string> | undefined,
+    ) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.accounts.setAccountSupportedModels(providerId, accountId, supportedModels);
+        if (!result.success) {
+          setError(result.message ?? 'request failed');
+          return { success: false, message: result.message };
+        }
+        await refresh();
+        return { success: true };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
   const refreshProvider = useCallback(
     async (providerId: SubscriptionProviderId) => {
       setBusy(true);
@@ -332,6 +362,7 @@ export function useAccounts(): UseAccountsResult {
     renameAccount,
     setAccountPriority,
     setAccountProxy,
+    setAccountSupportedModels,
     refreshProvider,
     clearProvider,
     startOAuth,

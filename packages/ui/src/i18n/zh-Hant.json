@@ -811,7 +811,11 @@
       "neverUsed": "從未使用",
       "proxy": "代理覆寫",
       "proxyLabel": "帳號級代理",
-      "proxyHint": "僅為此帳號覆寫全域/提供方代理。"
+      "proxyHint": "僅為此帳號覆寫全域/提供方代理。",
+      "supportedModels": "支援的模型",
+      "supportedModelsPlaceholder": "claude-sonnet-4\nclaude-opus-4 = claude-opus-4-20250514",
+      "supportedModelsHint": "每行一個模型。`邏輯名 = 實際名` 會把該模型重新映射為此帳號的上游模型；僅列出模型名則限制此帳號可服務的模型（僅多帳號池生效）。",
+      "supportedModelsClear": "清除"
     },
     "oauthFlow": {
       "step1": {

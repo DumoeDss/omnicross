@@ -165,3 +165,41 @@ describe('touchAccountLastUsed + setAccountPriority', () => {
     expect((await store.setAccountPriority('claude', 'nope', 10)).ok).toBe(false);
   });
 });
+
+describe('setAccountSupportedModels (subscription-account-model-map)', () => {
+  it('persists an array allow-list + surfaces it in the sanitized view (secret-free)', async () => {
+    const store = makeStore();
+    const { id } = await store.appendProviderAccount('claude', claude('AT-A'), 'A');
+    expect((await store.setAccountSupportedModels('claude', id, ['model-1', 'model-2'])).ok).toBe(true);
+    const cfg = await store.getFullConfig();
+    expect(cfg.claudeAccounts?.[0].supportedModels).toEqual(['model-1', 'model-2']);
+    const sanitized = await store.listSanitizedAccounts();
+    expect(sanitized.claude?.[0].supportedModels).toEqual(['model-1', 'model-2']);
+    expect(JSON.stringify(sanitized)).not.toContain('AT-A');
+    // The token mirror is unaffected by the metadata write.
+    expect(cfg.claude?.accessToken).toBe('AT-A');
+  });
+
+  it('persists an object logical→actual map', async () => {
+    const store = makeStore();
+    const { id } = await store.appendProviderAccount('claude', claude('AT-A'), 'A');
+    await store.setAccountSupportedModels('claude', id, { 'model-2': 'model-2-actual' });
+    const cfg = await store.getFullConfig();
+    expect(cfg.claudeAccounts?.[0].supportedModels).toEqual({ 'model-2': 'model-2-actual' });
+  });
+
+  it('clears the field with undefined', async () => {
+    const store = makeStore();
+    const { id } = await store.appendProviderAccount('claude', claude('AT-A'), 'A');
+    await store.setAccountSupportedModels('claude', id, ['model-1']);
+    await store.setAccountSupportedModels('claude', id, undefined);
+    const cfg = await store.getFullConfig();
+    expect(cfg.claudeAccounts?.[0].supportedModels).toBeUndefined();
+  });
+
+  it('rejects an unknown id', async () => {
+    const store = makeStore();
+    await store.appendProviderAccount('claude', claude('AT-A'), 'A');
+    expect((await store.setAccountSupportedModels('claude', 'nope', ['m'])).ok).toBe(false);
+  });
+});
