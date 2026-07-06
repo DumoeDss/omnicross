@@ -36,7 +36,9 @@ export { type AdminApiDeps, handleAdminApi } from './admin/adminApi';
 export { AdminServer, type AdminServerDeps, type AdminServerStatus } from './admin/AdminServer';
 
 // ── Default port implementations ───────────────────────────────────────────────
+export { buildHealthReport, type HealthReportDeps } from './admin/health';
 export { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
+export { ConfigurableLogger } from './ports/ConfigurableLogger';
 export { ConsoleLogger } from './ports/ConsoleLogger';
 export { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
 export { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';

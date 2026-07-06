@@ -25,6 +25,8 @@
 import http from 'node:http';
 import { networkInterfaces } from 'node:os';
 
+import { healthHttpStatus } from '@omnicross/contracts/health-logging-types';
+
 import { serializeError } from '@omnicross/core/serializeError';
 
 import type { EndpointModelConfigError } from './kindDetection';
@@ -156,7 +158,7 @@ export class OutboundApiServer {
     this.boundAddr = bindAddr;
     this.boundPort = actualPort;
     if (actualPort !== port) this.onPortChange?.(actualPort);
-    console.log(`[OutboundApiServer] Listening on ${bindAddr}:${actualPort}`);
+    this.logInfo(`[OutboundApiServer] Listening on ${bindAddr}:${actualPort}`);
     return actualPort;
   }
 
@@ -180,7 +182,7 @@ export class OutboundApiServer {
         const addr = server.address();
         if (addr && typeof addr === 'object') {
           server.removeListener('error', onError);
-          server.on('error', (e) => console.error('[OutboundApiServer] server error', serializeError(e)));
+          server.on('error', (e) => this.logError('[OutboundApiServer] server error', serializeError(e)));
           this.server = server;
           resolve(addr.port);
         } else {
@@ -192,6 +194,11 @@ export class OutboundApiServer {
 
   /** Per-request handler. Auth is enforced on EVERY request (incl. loopback). */
   private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // UNAUTHENTICATED liveness/readiness probe (daemon-health-endpoint, D1
+    // secondary mount) — served BEFORE key-auth so an orchestrator can probe the
+    // traffic port. Only mounted when the daemon wired a provider; otherwise the
+    // path falls through to normal auth (zero-regression).
+    if (this.deps.healthReportProvider && this.tryServeHealth(req, res)) return;
     handleOutboundRequest(
       req,
       res,
@@ -206,12 +213,42 @@ export class OutboundApiServer {
       this.concurrencyGate,
     ).catch((err) => {
       const message = serializeError(err);
-      console.error('[OutboundApiServer] unhandled error:', message);
+      this.logError('[OutboundApiServer] unhandled error:', message);
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
       }
     });
+  }
+
+  /**
+   * Serve `GET|HEAD /health` (+ `/healthz`) from the injected provider, returning
+   * true when it handled the request. 200 when `ok`, else 503; secret-free body.
+   */
+  private tryServeHealth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    const provider = this.deps.healthReportProvider;
+    if (!provider) return false;
+    if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+    const path = (req.url ?? '/').split('?')[0]?.replace(/\/+$/, '') || '/';
+    if (path !== '/health' && path !== '/healthz') return false;
+    const report = provider();
+    res.writeHead(healthHttpStatus(report.status), { 'Content-Type': 'application/json' });
+    res.end(req.method === 'HEAD' ? undefined : JSON.stringify(report));
+    return true;
+  }
+
+  /** Route an info lifecycle line through the injected logger, else `console.log`
+   *  (byte-identical legacy fallback when no logger is wired). */
+  private logInfo(message: string): void {
+    if (this.deps.logger) this.deps.logger.info(message);
+    else console.log(message);
+  }
+
+  /** Route an error lifecycle line through the injected logger, else `console.error`. */
+  private logError(message: string, detail?: unknown): void {
+    if (this.deps.logger) this.deps.logger.error(message, detail);
+    else if (detail === undefined) console.error(message);
+    else console.error(message, detail);
   }
 
   /** Stop the listener and release the port. */
@@ -222,7 +259,7 @@ export class OutboundApiServer {
     this.boundPort = 0;
     return new Promise((resolve) => {
       server.close(() => {
-        console.log('[OutboundApiServer] Stopped');
+        this.logInfo('[OutboundApiServer] Stopped');
         resolve();
       });
     });

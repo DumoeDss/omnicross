@@ -25,6 +25,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AdminServer } from '../admin/AdminServer';
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
 import { loadConfig, saveConfig, setSecretBox } from '../config';
+import { ConsoleLogger } from '../ports/ConsoleLogger';
 import { encryptTokens, resolveMasterKey, SecretBox } from '../secrets';
 
 // ── Mock upstream provider ────────────────────────────────────────────────────
@@ -507,6 +508,15 @@ describe('AdminServer LAN fail-closed gate', () => {
     subscriptionTokenWriter: { writeProviderTokens: async () => {}, clearProvider: async () => {} },
     apiKeyPool: { getKeyHealth: async () => ({}) },
     autoDisableStore: {} as never,
+    getHealthReport: () => ({
+      status: 'ok' as const,
+      version: '0.0.0-dev',
+      uptimeSeconds: 0,
+      timestamp: new Date(0).toISOString(),
+      memory: { rssMb: 0, heapUsedMb: 0 },
+      checks: {},
+    }),
+    logger: new ConsoleLogger(),
   };
 
   it('refuses to bind 0.0.0.0 without an admin.token (fail closed)', async () => {

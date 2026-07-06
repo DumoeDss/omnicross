@@ -27,24 +27,37 @@
 import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 
+import {
+  type HealthReport,
+  healthHttpStatus,
+} from '@omnicross/contracts/health-logging-types';
+import type { Logger } from '@omnicross/core';
+
 import type { ResolvedAdminConfig } from '../config';
 
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
+import { DAEMON_VERSION } from './version';
 
 const LOOPBACK_ADDR = '127.0.0.1';
 const LAN_ADDR = '0.0.0.0';
-
-/** Build-time injected package version (tsup `define`); src runs (vitest) fall
- *  back to a dev sentinel. */
-declare const __DAEMON_VERSION__: string | undefined;
-const DAEMON_VERSION: string =
-  typeof __DAEMON_VERSION__ === 'string' ? __DAEMON_VERSION__ : '0.0.0-dev';
 
 /** The dependencies the admin server + its API need (live daemon handles). */
 export interface AdminServerDeps extends AdminApiDeps {
   /** Read the resolved admin config (enabled/port/networkBinding/token). */
   getAdminConfig: () => ResolvedAdminConfig;
+  /**
+   * Build the coarse, secret-free `/health` report (daemon-health-endpoint). A
+   * shared closure over live handles (bootstrap wires the SAME builder into the
+   * outbound server), served UNAUTHENTICATED — before the admin auth gate.
+   */
+  getHealthReport: () => HealthReport;
+  /**
+   * Injected logger (configurable-logging) — the admin listener's OWN lifecycle
+   * lines (bind/refuse/error) route through it so they honor the configured
+   * level / format / file sink.
+   */
+  logger: Logger;
 }
 
 /** A live status snapshot for the admin listener. */
@@ -78,7 +91,7 @@ export class AdminServer {
     // HARD SAFETY GATE (design D2): never expose the dashboard on the LAN
     // without a token. Fail closed — log a clear error and stay down.
     if (cfg.networkBinding && !cfg.token) {
-      console.error(
+      this.deps.logger.error(
         '[AdminServer] REFUSING to bind: admin.networkBinding (LAN/0.0.0.0) requires a non-empty admin.token. ' +
           'Set admin.token in config.json or disable networkBinding. Dashboard stays DOWN (fail closed).',
       );
@@ -89,7 +102,7 @@ export class AdminServer {
     const actualPort = await this.listen(bindAddr, cfg.port);
     this.boundAddr = bindAddr;
     this.boundPort = actualPort;
-    console.info(`[AdminServer] Dashboard listening on ${bindAddr}:${actualPort}`);
+    this.deps.logger.info(`[AdminServer] Dashboard listening on ${bindAddr}:${actualPort}`);
     return actualPort;
   }
 
@@ -112,7 +125,7 @@ export class AdminServer {
         const addr = server.address();
         if (addr && typeof addr === 'object') {
           server.removeListener('error', onError);
-          server.on('error', (e) => console.error('[AdminServer] server error', e));
+          server.on('error', (e) => this.deps.logger.error('[AdminServer] server error', e));
           this.server = server;
           resolve(addr.port);
         } else {
@@ -126,7 +139,7 @@ export class AdminServer {
   private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     void this.dispatch(req, res).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('[AdminServer] unhandled error:', message);
+      this.deps.logger.error('[AdminServer] unhandled error:', message);
       if (!res.headersSent) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { type: 'admin_error', message } }));
@@ -144,6 +157,28 @@ export class AdminServer {
     res.setHeader('x-omnicross-daemon', DAEMON_VERSION);
     res.setHeader('x-omnicross-pid', String(process.pid));
 
+    const url = req.url ?? '/';
+    const path = url.split('?')[0];
+
+    // UNAUTHENTICATED liveness/readiness probe (daemon-health-endpoint, D1):
+    // mounted at the TOP — after the identity headers, BEFORE the auth gate — so
+    // a container/orchestrator probe reaches it even when an `admin.token` is
+    // configured. Coarse + secret-free body (no token/email/config-value); 200
+    // when `ok`, else 503 (see `healthHttpStatus`).
+    // Strip trailing slashes so `/health/` + `/healthz/` behave identically to
+    // the bare forms (parity with the outbound server's `tryServeHealth`).
+    const healthPath = path.replace(/\/+$/, '') || '/';
+    if (
+      (req.method === 'GET' || req.method === 'HEAD') &&
+      (healthPath === '/health' || healthPath === '/healthz')
+    ) {
+      const report = this.deps.getHealthReport();
+      const code = healthHttpStatus(report.status);
+      res.writeHead(code, { 'Content-Type': 'application/json' });
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify(report));
+      return;
+    }
+
     // Auth gate — when a token is configured, EVERY /admin/* request (incl. the
     // dashboard HTML on `GET /`) must present it.
     if (cfg.token && !this.isAuthorized(req, cfg.token)) {
@@ -151,9 +186,6 @@ export class AdminServer {
       res.end(JSON.stringify({ error: { type: 'unauthorized', message: 'admin token required' } }));
       return;
     }
-
-    const url = req.url ?? '/';
-    const path = url.split('?')[0];
 
     // The legacy embedded vanilla-JS dashboard is GONE — the Control Panel
     // (`/ui/`, the same React UI the desktop app wraps) is the only frontend.

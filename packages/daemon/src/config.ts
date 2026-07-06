@@ -25,6 +25,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
+import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
 import type { OutboundApiServerConfig } from '@omnicross/core';
 
 import { decryptConfigSecrets, encryptConfigSecrets, type SecretBox } from './secrets';
@@ -318,6 +319,12 @@ export interface DaemonConfig {
   server?: OutboundApiServerConfig;
   /** Optional admin-dashboard config (RT3). */
   admin?: DaemonAdminConfig;
+  /**
+   * Optional logging config (configurable-logging). Absent ⇒ the zero-regression
+   * default (console + all levels + text). `file` is a PLAIN value — NOT a secret,
+   * so it is never walked by `decryptConfigSecrets`/`encryptConfigSecrets`.
+   */
+  logging?: LoggingConfig;
 }
 
 /** Shape-guard the optional `admin` block — defensive, never throws on a
@@ -344,6 +351,23 @@ export function resolveAdminConfig(admin: DaemonAdminConfig | undefined): Resolv
     networkBinding: admin?.networkBinding === true,
     token: typeof admin?.token === 'string' && admin.token.length > 0 ? admin.token : undefined,
   };
+}
+
+/** Shape-guard the optional `logging` block (configurable-logging). Defensive:
+ *  a non-object collapses to `undefined`; `level`/`format` are enum-or-omit and
+ *  `file` is a non-empty-string-or-omit; an all-empty result collapses to
+ *  `undefined` (reads as "no logging config" = the console/text/all-levels
+ *  default, byte-identical to before). Never throws. NON-SECRET. */
+function validateLogging(raw: unknown): LoggingConfig | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const l = raw as Record<string, unknown>;
+  const out: LoggingConfig = {};
+  if (l['level'] === 'error' || l['level'] === 'warn' || l['level'] === 'info' || l['level'] === 'debug') {
+    out.level = l['level'];
+  }
+  if (l['format'] === 'text' || l['format'] === 'json') out.format = l['format'];
+  if (typeof l['file'] === 'string' && l['file'].length > 0) out.file = l['file'];
+  return out.level !== undefined || out.format !== undefined || out.file !== undefined ? out : undefined;
 }
 
 const VALID_FORMATS: readonly DaemonApiFormat[] = ['openai', 'anthropic', 'gemini'];
@@ -607,7 +631,8 @@ export function validateConfig(raw: unknown): DaemonConfig {
   const providers = providersRaw.map((p, i) => validateProvider(p, i));
   const server = obj['server'] as OutboundApiServerConfig | undefined;
   const admin = validateAdmin(obj['admin']);
-  return { providers, server, admin };
+  const logging = validateLogging(obj['logging']);
+  return { providers, server, admin, logging };
 }
 
 /**

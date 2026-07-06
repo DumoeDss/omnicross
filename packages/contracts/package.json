@@ -60,6 +60,11 @@
       "import": "./dist/extended-context.js",
       "require": "./dist/extended-context.cjs"
     },
+    "./health-logging-types": {
+      "types": "./dist/health-logging-types.d.ts",
+      "import": "./dist/health-logging-types.js",
+      "require": "./dist/health-logging-types.cjs"
+    },
     "./llm-config": {
       "types": "./dist/llm-config.d.ts",
       "import": "./dist/llm-config.js",

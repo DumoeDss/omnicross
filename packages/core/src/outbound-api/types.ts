@@ -14,7 +14,9 @@
  */
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { HealthReport } from '@omnicross/contracts/health-logging-types';
 
+import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { ProviderProxy } from '../provider-proxy';
 import type { ProviderProxyDeps } from '../provider-proxy';
@@ -296,4 +298,21 @@ export interface OutboundApiDeps {
   readonly providerProxy: ProviderProxy;
   /** The proxy's app-session deps (reused verbatim for `routeRequest`). */
   readonly proxyDeps: ProviderProxyDeps;
+  /**
+   * OPTIONAL unauthenticated `/health` provider (daemon-health-endpoint, D1
+   * secondary mount). When wired (by the daemon bootstrap — core NEVER imports
+   * daemon), the server serves `GET|HEAD /health` (+ `/healthz`) BEFORE its
+   * per-request key-auth, so an orchestrator can probe the TRAFFIC port. Absent
+   * ⇒ `/health` is not mounted and falls through to normal auth (byte-identical
+   * zero-regression for embedders that do not wire it).
+   */
+  readonly healthReportProvider?: () => HealthReport;
+  /**
+   * OPTIONAL injected logger (configurable-logging). When wired (by the daemon
+   * bootstrap), the server's OWN lifecycle lines (listen/stop/error) + the relay
+   * dispatch-error route through it — so they honor the configured level / format
+   * / file sink. Absent ⇒ the legacy `console.*` fallback (byte-identical for
+   * embedders/tests that do not wire it).
+   */
+  readonly logger?: Logger;
 }

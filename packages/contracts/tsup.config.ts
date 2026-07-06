@@ -12,6 +12,7 @@ export default defineConfig({
     'src/completion-types.ts',
     'src/endpoint-resolver.ts',
     'src/extended-context.ts',
+    'src/health-logging-types.ts',
     'src/llm-config.ts',
     'src/mcp-types.ts',
     'src/message-blocks.ts',

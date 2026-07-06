@@ -17,6 +17,7 @@ export * from './canonical-models';
 export * from './completion-types';
 export * from './endpoint-resolver';
 export * from './extended-context';
+export * from './health-logging-types';
 export * from './llm-config';
 export * from './mcp-types';
 export * from './message-blocks';

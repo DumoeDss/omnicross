@@ -381,7 +381,10 @@ export async function handleOutboundRequest(
       await routeRequest(replay, res, routeMap, deps.proxyDeps);
     } catch (err) {
       const message = serializeError(err);
-      console.error('[OutboundApi] dispatch error:', message);
+      // Relay request-dispatch error → injected logger when wired (honors level/
+      // format/sink), else the legacy console.error (byte-identical fallback).
+      if (deps.logger) deps.logger.error('[OutboundApi] dispatch error:', message);
+      else console.error('[OutboundApi] dispatch error:', message);
       writeJsonError(res, 502, message);
     } finally {
       routeMap.removeRoute(token);

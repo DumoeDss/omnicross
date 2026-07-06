@@ -20,6 +20,9 @@
  * @module @omnicross/daemon/bootstrap
  */
 
+import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
+
+import type { Logger } from '@omnicross/core';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
 import {
@@ -47,6 +50,8 @@ import {
 
 import { type CodexLoopbackFn, CodexOAuthSessionStore } from './admin/accountsCodexOAuth';
 import { AdminServer } from './admin/AdminServer';
+import { buildHealthReport } from './admin/health';
+import { DAEMON_VERSION } from './admin/version';
 import type { CommandRunner, PathProbe, TerminalOpener } from './admin/cliLaunch';
 import { OAuthSessionStore } from './admin/oauthSessions';
 import { awaitLoopbackCode } from './commands/loopbackCallback';
@@ -56,7 +61,7 @@ import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/l
 import { resolveEnvKey } from './pool/resolveEnvKey';
 import { defaultPricingPath, defaultUsageEventsPath } from './commands/paths';
 import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
-import { ConsoleLogger } from './ports/ConsoleLogger';
+import { ConfigurableLogger } from './ports/ConfigurableLogger';
 import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
 import { JsonlUsageEventStore } from './ports/JsonlUsageEventStore';
 import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
@@ -110,7 +115,8 @@ export interface DaemonPaths {
 
 /** The constructed daemon handles the CLI commands operate on. */
 export interface Daemon {
-  readonly logger: ConsoleLogger;
+  /** The injected `Logger` port (a `ConfigurableLogger` built from `config.logging`). */
+  readonly logger: Logger;
   readonly llmConfig: ConfigFileProviderConfigSource;
   readonly keyDb: JsonOutboundKeyDb;
   readonly settingsStore: JsonApiServerSettingsStore;
@@ -161,7 +167,11 @@ export interface Daemon {
  * `outboundApiServer.applyConfig(...)`.
  */
 export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
-  const logger = new ConsoleLogger();
+  // Configurable logger (configurable-logging) — level/format/file from
+  // `config.logging`. Absent config ⇒ console + all levels + text = byte-
+  // identical to the legacy `ConsoleLogger`. `logging.file` is a plain value
+  // (not a secret), so it is read straight off the loaded config.
+  const logger = new ConfigurableLogger(config.logging);
 
   // At-rest encryption wiring (secrets design D3/D5/D7). Build the shared
   // `SecretBox` with a LAZY master-key resolver (env → keyfile → auto-gen 0600)
@@ -294,13 +304,38 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // never imports `ApiKeyPoolService` — it only holds this no-type-coupling hook.
   llmConfig.setReloadHook(() => apiKeyPool.invalidateCache());
 
+  // Shared `/health` report builder (daemon-health-endpoint, D1/D3). ONE closure
+  // over the live handles, wired into BOTH the outbound server (below, before
+  // key-auth) and the admin server (below, before the auth gate). Coarse +
+  // secret-free; the checks are cheap synchronous probes (no upstream, no
+  // decrypt). `outboundApiServer`/`adminServer` are referenced lazily — the
+  // closure only runs at request time, after both consts are initialized.
+  const getHealthReport = (): ReturnType<typeof buildHealthReport> =>
+    buildHealthReport({
+      version: DAEMON_VERSION,
+      // CRITICAL: the config loaded with a providers array.
+      configPresent: () => Array.isArray(decryptedConfig.providers),
+      // CRITICAL: the credential store's tokens.json is readable WITHOUT
+      // decrypting (a missing file is fine — no accounts yet). A stat/access
+      // only; never reads or decrypts token material.
+      credentialStoreReadable: () => isTokensStoreReadable(paths.tokensPath),
+      outboundServerRunning: () => outboundApiServer.getStatus().running,
+      adminServerRunning: () => adminServer.getStatus().running,
+    });
+
   // Outbound API server — shares the proxy's route map + deps (one conversion
-  // stack), authenticated by named keys from the file-backed key store.
+  // stack), authenticated by named keys from the file-backed key store. The
+  // `healthReportProvider` mounts an UNAUTHENTICATED `/health` on the traffic
+  // port before key-auth (daemon-health-endpoint, D1 secondary mount).
   const outboundApiServer = getOutboundApiServer({
     db: keyDb,
     llmConfig,
     providerProxy,
     proxyDeps: providerProxy.getDeps(),
+    healthReportProvider: getHealthReport,
+    // configurable-logging: route the server's OWN lifecycle + relay dispatch-error
+    // lines through the injected logger (honors level/format/file sink).
+    logger,
   });
 
   // Admin dashboard listener (RT3) — a SEPARATE node:http server over the live
@@ -362,6 +397,12 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // Use the DECRYPTED config so `admin.token` (if stored as `enc:`) is the
     // plaintext bearer the AdminServer's constant-time compare expects (D4).
     getAdminConfig: () => resolveAdminConfig(decryptedConfig.admin),
+    // Unauthenticated `/health` probe (daemon-health-endpoint) — the SAME shared
+    // builder the outbound server uses, served before the admin auth gate.
+    getHealthReport,
+    // configurable-logging: the admin listener's lifecycle lines route through
+    // the injected logger.
+    logger,
   });
 
   // Background token-refresh sweep (external-cli-sync) — constructed armed-off;
@@ -433,4 +474,20 @@ export function resetDaemonSingletonsForTests(): void {
   // (which expects plaintext passthrough). The next `buildDaemon` re-injects.
   setSecretBox(null);
   setPoolSecretBox(null);
+}
+
+/**
+ * Cheap, non-blocking, secret-free readability probe for the credential store's
+ * `tokens.json` (daemon-health-endpoint check). A MISSING file is healthy (no
+ * accounts configured yet); a present-but-unreadable file is unhealthy. Never
+ * reads or decrypts token material — a `stat`/`access` only.
+ */
+function isTokensStoreReadable(tokensPath: string): boolean {
+  try {
+    if (!existsSync(tokensPath)) return true;
+    accessSync(tokensPath, fsConstants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
