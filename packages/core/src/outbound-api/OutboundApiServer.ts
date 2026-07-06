@@ -30,13 +30,17 @@ import { serializeError } from '@omnicross/core/serializeError';
 import type { EndpointModelConfigError } from './kindDetection';
 import { validateServerModelConfig } from './kindDetection';
 import { handleOutboundRequest } from './outboundApiRouter';
+import { OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import { OutboundRateLimiter } from './outboundRateLimiter';
 import type {
+  ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   OutboundApiDeps,
   OutboundApiServerStatus,
   OutboundFormatUrls,
+  UserMessageQueueConfig,
 } from './types';
+import { UserMessageSerialQueue } from './userMessageSerialQueue';
 
 /** Fixed default port (design D5). Persisted + configurable. */
 export const DEFAULT_OUTBOUND_PORT = 8765;
@@ -50,6 +54,10 @@ export interface ApplyConfigInput {
   networkBinding: boolean;
   endpoints: EndpointRoutingConfig[];
   port?: number;
+  /** User-message serial-queue segment (normalized/defaulted by core). */
+  userMessageQueue?: UserMessageQueueConfig;
+  /** Per-key concurrency-queue segment (normalized/defaulted by core). */
+  concurrencyQueue?: ConcurrencyQueueConfig;
 }
 
 /**
@@ -78,7 +86,11 @@ export class OutboundApiServer {
   private boundPort = 0;
   private boundAddr = LOOPBACK_ADDR;
   private endpoints: EndpointRoutingConfig[] = [];
+  private userMessageQueue: UserMessageQueueConfig | undefined;
+  private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private readonly rateLimiter = new OutboundRateLimiter();
+  private readonly serialQueue = new UserMessageSerialQueue();
+  private readonly concurrencyGate = new OutboundConcurrencyGate();
 
   constructor(
     private readonly deps: OutboundApiDeps,
@@ -93,6 +105,10 @@ export class OutboundApiServer {
    */
   async applyConfig(input: ApplyConfigInput): Promise<void> {
     this.endpoints = input.endpoints;
+    // Queue segments are read live per request (no restart on a queue-only
+    // change) — store them in place before the bindChanged early-return below.
+    this.userMessageQueue = input.userMessageQueue;
+    this.concurrencyQueue = input.concurrencyQueue;
     const wantAddr = input.networkBinding ? LAN_ADDR : LOOPBACK_ADDR;
     const wantPort = input.port ?? DEFAULT_OUTBOUND_PORT;
 
@@ -180,8 +196,14 @@ export class OutboundApiServer {
       req,
       res,
       this.deps,
-      { endpoints: this.endpoints },
+      {
+        endpoints: this.endpoints,
+        userMessageQueue: this.userMessageQueue,
+        concurrencyQueue: this.concurrencyQueue,
+      },
       this.rateLimiter,
+      this.serialQueue,
+      this.concurrencyGate,
     ).catch((err) => {
       const message = serializeError(err);
       console.error('[OutboundApiServer] unhandled error:', message);
@@ -231,6 +253,21 @@ export class OutboundApiServer {
       lanUrl: lanBase,
       formats: formatUrls(loopbackBase),
       lanFormats: lanBase ? formatUrls(lanBase) : null,
+    };
+  }
+
+  /**
+   * Live queue-occupancy snapshot (only active entries). This getter's name +
+   * shape are FROZEN — `omnicross-uqc-daemon` spreads it into its `/status`
+   * response; the existing {@link getStatus} shape is deliberately NOT changed.
+   */
+  getQueueStatus(): {
+    serial: Array<{ providerId: string; holding: boolean; waiting: number }>;
+    concurrency: Array<{ apiKeyId: string; active: number; waiting: number }>;
+  } {
+    return {
+      serial: this.serialQueue.getStatus(),
+      concurrency: this.concurrencyGate.getStatus(),
     };
   }
 }

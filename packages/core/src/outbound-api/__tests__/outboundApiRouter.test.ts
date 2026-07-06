@@ -17,8 +17,10 @@ import {
   handleOutboundRequest,
   selectEndpoint,
 } from '../outboundApiRouter';
+import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
 import { OutboundRateLimiter } from '../outboundRateLimiter';
 import type { OutboundApiDeps, OutboundKeyDb, OutboundKeyDbRow } from '../types';
+import { UserMessageSerialQueue } from '../userMessageSerialQueue';
 
 // --- helpers ---------------------------------------------------------------
 
@@ -173,7 +175,7 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: {} });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(401);
     expect(routeMap.size()).toBe(0);
   });
@@ -184,7 +186,7 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: { authorization: 'Bearer wrong' } });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(401);
   });
 
@@ -195,7 +197,7 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/chat/completions' });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, limiter);
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, limiter, new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(429);
     expect(res.headers['Retry-After']).toBeDefined();
   });
@@ -206,7 +208,7 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/models', method: 'GET' });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { object: string; data: Array<{ id: string; object: string }> };
     expect(body.object).toBe('list');
@@ -222,7 +224,7 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: {}, url: '/v1/models', method: 'GET' });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(401);
   });
 
@@ -232,7 +234,7 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/nope' });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(404);
   });
 
@@ -252,7 +254,7 @@ describe('handleOutboundRequest — auth', () => {
     });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter());
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
 
     // A route was minted on the SHARED map and removed in the finally — the
     // outbound listener funnels into the existing routeRequest dispatch.
@@ -296,6 +298,8 @@ describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1
       deps,
       config,
       new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
     );
     errSpy.mockRestore();
     expect(addSpy).toHaveBeenCalledTimes(1);
@@ -340,6 +344,8 @@ describe('handleOutboundRequest — apiKeyId attribution (udash-attrib D5)', () 
       deps,
       config,
       new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
     );
     errSpy.mockRestore();
 

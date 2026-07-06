@@ -26,16 +26,38 @@ import { serializeError } from '@omnicross/core/serializeError';
 
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
+import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyPresentedKey } from './outboundApiKeyAuth';
+import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import type { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
 import { parseModelRef, resolveRoute } from './routeResolver';
-import type { EndpointRoutingConfig, OutboundApiDeps, OutboundEndpoint } from './types';
+import type {
+  ConcurrencyQueueConfig,
+  EndpointRoutingConfig,
+  OutboundApiDeps,
+  OutboundEndpoint,
+  UserMessageQueueConfig,
+} from './types';
+import { isUserMessageRequest } from './userMessageDetection';
+import { isSerialQueueTimeout, type UserMessageSerialQueue } from './userMessageSerialQueue';
 
 /** Per-request config the listener supplies (read live, no restart). */
 export interface OutboundRequestConfig {
   endpoints: EndpointRoutingConfig[];
+  /**
+   * User-message serial-queue segment (opt-in; `enabled` default false). When
+   * present + enabled the serial queue engages for real user-message turns; the
+   * server threads the normalized segment (see `apiServerConfig`).
+   */
+  userMessageQueue?: UserMessageQueueConfig;
+  /**
+   * Per-key concurrency-queue sizing/timeout segment. Read when the concurrency
+   * gate engages (a key with a positive `maxConcurrency`); falls back to the
+   * frozen defaults when absent.
+   */
+  concurrencyQueue?: ConcurrencyQueueConfig;
 }
 
 /** Write a JSON error response with a status + optional headers. */
@@ -154,6 +176,8 @@ export async function handleOutboundRequest(
   deps: OutboundApiDeps,
   config: OutboundRequestConfig,
   rateLimiter: OutboundRateLimiter,
+  serialQueue: UserMessageSerialQueue,
+  concurrencyGate: OutboundConcurrencyGate,
 ): Promise<void> {
   // 1. AUTH — external named API key (enforced on every request incl. loopback).
   const presented = extractPresentedKey(req);
@@ -190,89 +214,183 @@ export async function handleOutboundRequest(
     return;
   }
 
-  // 4. ROLE + ROUTE. Read the body to detect role, then re-feed it downstream.
-  const ingressFormat = endpointToIngressFormat(endpoint);
-  const rawBody = await readBody(req);
-  let parsedBody: Record<string, unknown> = {};
+  // 3b. CONCURRENCY GATE (design D-WIRE-1/2). Placed AFTER endpoint validation so
+  // `GET /v1/models` + non-POST early-return above and never engage the gate.
+  // Keyed by `verified.id`; the gate is bypassed entirely when the key has no
+  // positive `maxConcurrency`. The acquired slot is held to request end and
+  // released idempotently from BOTH the dispatch `finally` AND a `res.close`
+  // listener (the CRS #1130 leak fix); a still-WAITING acquisition is cancelled
+  // when the client disconnects mid-queue.
+  const concurrencyLimit = verified.maxConcurrency;
+  let releaseConcurrency: (() => void) | null = null;
+  if (typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
+    const cq = config.concurrencyQueue ?? DEFAULT_CONCURRENCY_QUEUE;
+    const acquisition = concurrencyGate.acquire(verified.id, concurrencyLimit, {
+      maxQueueSizeFactor: cq.maxQueueSizeFactor,
+      minQueueSize: cq.minQueueSize,
+      waitTimeoutMs: cq.waitTimeoutMs,
+    });
+    // Cancel the queued wait if the client disconnects before the grant.
+    const cancelOnClose = (): void => acquisition.cancel();
+    res.once('close', cancelOnClose);
+    let slot: GateSlot;
+    try {
+      slot = await acquisition.granted;
+    } catch (err) {
+      res.removeListener('close', cancelOnClose);
+      if (isConcurrencyRejection(err)) {
+        writeJsonError(res, 429, 'Concurrency limit exceeded', { 'Retry-After': '5' });
+        return;
+      }
+      throw err;
+    }
+    // Granted: stop cancelling-on-close, switch to release-on-close. The core
+    // slot's `release()` is idempotent, so the finally + close double-fire is
+    // safe and never double-decrements.
+    res.removeListener('close', cancelOnClose);
+    const release = (): void => slot.release();
+    releaseConcurrency = release;
+    res.once('close', release);
+  }
+
+  // Everything from here (body read → resolveRoute → serial → dispatch) runs
+  // inside the concurrency finally so a routing error or a serial-queue timeout
+  // after the acquire still frees the held slot.
   try {
-    parsedBody = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
-  } catch {
-    writeJsonError(res, 400, 'Invalid JSON in request body');
-    return;
-  }
+    // 4. ROLE + ROUTE. Read the body to detect role, then re-feed it downstream.
+    const ingressFormat = endpointToIngressFormat(endpoint);
+    const rawBody = await readBody(req);
+    let parsedBody: Record<string, unknown> = {};
+    try {
+      parsedBody = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
+    } catch {
+      writeJsonError(res, 400, 'Invalid JSON in request body');
+      return;
+    }
 
-  // m4: Gemini carries its model in the URL path
-  // (`/v1beta/models/<model>:generateContent`), not the body, so background-tier
-  // detection would never fire. Inject the URL-derived model into the parsed
-  // body (detection-only copy — `rawBody` is what gets replayed downstream).
-  if (endpoint === 'gemini' && typeof parsedBody['model'] !== 'string') {
-    const urlModel = extractGeminiModelFromUrl(req.url);
-    if (urlModel) parsedBody['model'] = urlModel;
-  }
+    // m4: Gemini carries its model in the URL path
+    // (`/v1beta/models/<model>:generateContent`), not the body, so background-tier
+    // detection would never fire. Inject the URL-derived model into the parsed
+    // body (detection-only copy — `rawBody` is what gets replayed downstream).
+    if (endpoint === 'gemini' && typeof parsedBody['model'] !== 'string') {
+      const urlModel = extractGeminiModelFromUrl(req.url);
+      if (urlModel) parsedBody['model'] = urlModel;
+    }
 
-  // pool-seam (omnicross-daemon-parity-poolseam, design D1/D2(a)): synthesize a
-  // STABLE per-verified-key sessionId so the BYO ingress can seed a pool session
-  // binding and 429/529/401/403 failover actually fires. Synthesize ONLY when
-  // the pool is wired — pool-null embedders/tests keep `route.sessionId === null`
-  // (byte-identical to pre-seam). The `outbound:` prefix is namespace-isolated
-  // from real chat-session ids; `verified.id` is a small operator-controlled set,
-  // so `sessionBindings` stays bounded (one binding per named key, not per
-  // request — `sessionBindings` has no TTL).
-  const sessionId = deps.proxyDeps.apiKeyPool ? `outbound:${verified.id}` : null;
+    // pool-seam (omnicross-daemon-parity-poolseam, design D1/D2(a)): synthesize a
+    // STABLE per-verified-key sessionId so the BYO ingress can seed a pool session
+    // binding and 429/529/401/403 failover actually fires. Synthesize ONLY when
+    // the pool is wired — pool-null embedders/tests keep `route.sessionId === null`
+    // (byte-identical to pre-seam). The `outbound:` prefix is namespace-isolated
+    // from real chat-session ids; `verified.id` is a small operator-controlled set,
+    // so `sessionBindings` stays bounded (one binding per named key, not per
+    // request — `sessionBindings` has no TTL).
+    const sessionId = deps.proxyDeps.apiKeyPool ? `outbound:${verified.id}` : null;
 
-  // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
-  // (`messages`/`responses`) route by model KIND and carry the client's original
-  // requested id through to the response `model` passthrough; the list-mapped
-  // `chat` endpoint matches the requested id against its configured model list;
-  // the role-based `gemini` endpoint keeps detecting default/background.
-  const resolved =
-    isKindMappedEndpoint(endpoint) || endpoint === 'chat'
-      ? await resolveRoute({
-          config: endpointConfig,
-          ingressFormat,
-          llmConfig: deps.llmConfig,
-          sessionId,
-          // Capture the ORIGINAL requested id BEFORE any downstream swap; for
-          // kind-mapped endpoints it selects the kind AND is stamped onto
-          // `route.requestedModel`; for chat it is matched against the list.
-          requestedModel: extractRequestedModel(ingressFormat, parsedBody),
-          // Attribution: stamp the verified named-key id onto the route.
-          apiKeyId: verified.id,
-        })
-      : await resolveRoute({
-          config: endpointConfig,
-          role: detectRequestRole(ingressFormat, parsedBody, {
-            backgroundModelIds: endpointConfig.backgroundModelIds,
-          }),
-          ingressFormat,
-          llmConfig: deps.llmConfig,
-          sessionId,
-          // Attribution: stamp the verified named-key id onto the route.
-          apiKeyId: verified.id,
+    // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
+    // (`messages`/`responses`) route by model KIND and carry the client's original
+    // requested id through to the response `model` passthrough; the list-mapped
+    // `chat` endpoint matches the requested id against its configured model list;
+    // the role-based `gemini` endpoint keeps detecting default/background.
+    const resolved =
+      isKindMappedEndpoint(endpoint) || endpoint === 'chat'
+        ? await resolveRoute({
+            config: endpointConfig,
+            ingressFormat,
+            llmConfig: deps.llmConfig,
+            sessionId,
+            // Capture the ORIGINAL requested id BEFORE any downstream swap; for
+            // kind-mapped endpoints it selects the kind AND is stamped onto
+            // `route.requestedModel`; for chat it is matched against the list.
+            requestedModel: extractRequestedModel(ingressFormat, parsedBody),
+            // Attribution: stamp the verified named-key id onto the route.
+            apiKeyId: verified.id,
+          })
+        : await resolveRoute({
+            config: endpointConfig,
+            role: detectRequestRole(ingressFormat, parsedBody, {
+              backgroundModelIds: endpointConfig.backgroundModelIds,
+            }),
+            ingressFormat,
+            llmConfig: deps.llmConfig,
+            sessionId,
+            // Attribution: stamp the verified named-key id onto the route.
+            apiKeyId: verified.id,
+          });
+    if (!resolved.ok) {
+      writeJsonError(res, resolved.error.status, resolved.error.message);
+      return;
+    }
+
+    // 4b. USER-MESSAGE SERIAL QUEUE (design D-WIRE-3/4). Keyed by the resolved
+    // upstream account (`route.providerId`); engages ONLY when the queue is
+    // enabled AND this is a real user-message turn (tool-loop / non-user turns
+    // bypass so agent latency is preserved). The lock releases on RESPONSE START
+    // (the wrapped `writeHead` below) with a finally backstop.
+    let releaseSerial: (() => void) | null = null;
+    const providerKey = resolved.route.providerId;
+    if (
+      config.userMessageQueue?.enabled &&
+      providerKey &&
+      isUserMessageRequest(endpoint, parsedBody)
+    ) {
+      const umq = config.userMessageQueue;
+      try {
+        const serialSlot = await serialQueue.acquire(providerKey, {
+          waitTimeoutMs: umq.waitTimeoutMs,
+          delayMs: umq.delayMs,
         });
-  if (!resolved.ok) {
-    writeJsonError(res, resolved.error.status, resolved.error.message);
-    return;
-  }
+        releaseSerial = () => serialSlot.release();
+      } catch (err) {
+        if (isSerialQueueTimeout(err)) {
+          // Nothing has streamed yet (`res.headersSent` is false) → plain 503
+          // JSON. The enclosing finally releases the held concurrency slot.
+          writeJsonError(res, 503, 'User-message serial queue wait timed out');
+          return;
+        }
+        throw err;
+      }
+    }
 
-  // 5. DISPATCH — mint a route on the SHARED map, shim the auth header, delegate
-  // to the existing routeRequest, and remove the route in a finally.
-  const routeMap = deps.providerProxy.getRouteMap();
-  const token = routeMap.addRoute(resolved.route);
-  try {
-    shimAuthHeader(req, token);
-    // We consumed the request stream once to detect the role. Every shared
-    // ingress consumer (`readBody` / the Anthropic delegation's own reader)
-    // re-reads the body via `req.on('data'/'end')`, so replay the buffered
-    // bytes through a fresh readable that carries the request's metadata.
-    const replay = makeReplayRequest(req, rawBody);
-    await routeRequest(replay, res, routeMap, deps.proxyDeps);
-  } catch (err) {
-    const message = serializeError(err);
-    console.error('[OutboundApi] dispatch error:', message);
-    writeJsonError(res, 502, message);
+    // Release the serial lock on RESPONSE START so the next account request can
+    // begin while this response streams. Wrap `res.writeHead` as a one-shot: the
+    // FIRST call releases (seeding the `delayMs` gap) then restores + delegates
+    // to the original. Format-agnostic — covers the Anthropic host-handler path
+    // without threading a callback through the shared relay.
+    if (releaseSerial) {
+      const original = res.writeHead.bind(res) as http.ServerResponse['writeHead'];
+      const releaseOnce = releaseSerial;
+      res.writeHead = ((...args: Parameters<http.ServerResponse['writeHead']>) => {
+        res.writeHead = original;
+        releaseOnce();
+        return (original as (...a: unknown[]) => http.ServerResponse)(...args);
+      }) as http.ServerResponse['writeHead'];
+    }
+
+    // 5. DISPATCH — mint a route on the SHARED map, shim the auth header, delegate
+    // to the existing routeRequest, and remove the route in a finally.
+    const routeMap = deps.providerProxy.getRouteMap();
+    const token = routeMap.addRoute(resolved.route);
+    try {
+      shimAuthHeader(req, token);
+      // We consumed the request stream once to detect the role. Every shared
+      // ingress consumer (`readBody` / the Anthropic delegation's own reader)
+      // re-reads the body via `req.on('data'/'end')`, so replay the buffered
+      // bytes through a fresh readable that carries the request's metadata.
+      const replay = makeReplayRequest(req, rawBody);
+      await routeRequest(replay, res, routeMap, deps.proxyDeps);
+    } catch (err) {
+      const message = serializeError(err);
+      console.error('[OutboundApi] dispatch error:', message);
+      writeJsonError(res, 502, message);
+    } finally {
+      routeMap.removeRoute(token);
+      // Backstop for paths that end the response without a `writeHead` (errors);
+      // idempotent with the writeHead one-shot above.
+      if (releaseSerial) releaseSerial();
+    }
   } finally {
-    routeMap.removeRoute(token);
+    if (releaseConcurrency) releaseConcurrency();
   }
 }
 
