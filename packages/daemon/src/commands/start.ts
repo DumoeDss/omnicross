@@ -15,6 +15,7 @@ import { parseArgs } from 'node:util';
 import { loadServerConfig, OutboundApiConfigError } from '@omnicross/core/outbound-api';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
+import { applyAuditConfig } from '../audit/auditRuntime';
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
 import { applyWebhookConfig } from '../webhook/webhookRuntime';
@@ -127,6 +128,13 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // `emitWebhookEvent` stays a no-op (zero regression). The dispatcher receives
   // the live (decrypted) config so the admin test button can probe destinations.
   applyWebhookConfig(serverConfig.webhook);
+
+  // Request audit (request-audit-log): register the core capture config + the
+  // file-backed sink and arm the TTL prune ONLY when the persisted `audit`
+  // segment is enabled (`applyAuditConfig` configures + starts the sweeper, which
+  // runs one prune at boot). Absent/disabled ⇒ no sink ⇒ the capture hook is a
+  // no-op (zero regression).
+  applyAuditConfig(serverConfig.audit);
 
   const status = daemon.outboundApiServer.getStatus();
   console.info('omnicross daemon is running.');

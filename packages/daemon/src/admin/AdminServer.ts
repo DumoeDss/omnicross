@@ -37,6 +37,7 @@ import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ResolvedAdminConfig } from '../config';
 
 import { handleAccountProbes } from './accountProbesApi';
+import { type AuditQueryReader, handleAuditQuery } from './auditQueryApi';
 import { handleWebhookTest } from './webhookTestApi';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
@@ -69,6 +70,14 @@ export interface AdminServerDeps extends AdminApiDeps {
    * do not wire it). Read-only + secret-free (ids + status labels, no tokens).
    */
   probeHistoryReader?: AccountProbeHistoryReader;
+  /**
+   * OPTIONAL audit query reader (request-audit-log, design D6). When wired
+   * (bootstrap → the date-rotated store), the AUTHED `GET /admin/api/audit`
+   * returns filtered records. Absent ⇒ the route serves an empty list. The
+   * records carry IP/UA/bodies → this route is behind the auth gate ONLY, NEVER
+   * unauthenticated, NEVER on `/health`.
+   */
+  auditReader?: AuditQueryReader;
 }
 
 /** A live status snapshot for the admin listener. */
@@ -215,6 +224,14 @@ export class AdminServer {
       (req.method === 'GET' || req.method === 'HEAD')
     ) {
       handleAccountProbes(res, this.deps.probeHistoryReader);
+      return;
+    }
+
+    // AUTHED audit query (request-audit-log, design D6) — routed HERE (not through
+    // `adminApi.ts`, at its line cap) so it honors the auth gate above. The records
+    // carry IP/UA + possibly bodies → admin-only; NEVER unauth, NEVER on `/health`.
+    if (path === '/admin/api/audit' && (req.method === 'GET' || req.method === 'HEAD')) {
+      handleAuditQuery(req, res, this.deps.auditReader);
       return;
     }
 

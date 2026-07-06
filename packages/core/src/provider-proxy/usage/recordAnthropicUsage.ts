@@ -28,6 +28,8 @@ interface AnthropicUsageAttribution {
   readonly providerId: string;
   readonly model: string;
   readonly apiKeyId: string | null;
+  /** request-audit-log: per-request audit correlation key (the response object). */
+  readonly auditResponse?: object;
 }
 
 /** Read token counts from an Anthropic `usage` object (cache-aware). */
@@ -82,6 +84,7 @@ export function recordAnthropicNonStreamUsage(
       engineOrigin: 'codex-ingress',
       usage: tapped,
       rawUsage: parsed.usage,
+      auditResponse: attribution.auditResponse,
     });
   } catch {
     // Unparseable body / no usage — skip silently.

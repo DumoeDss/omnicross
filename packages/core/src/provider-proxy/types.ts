@@ -487,4 +487,10 @@ export interface UsageRecordImportInput {
   rawUsage?: unknown;
   runId?: string | null;
   eventId?: string | null;
+  /**
+   * OPTIONAL per-request audit correlation key (request-audit-log) — the outbound
+   * relay taps set this to the request's `http.ServerResponse` so the recorder can
+   * stash this request's tokens/cost for the audit capture. Opaque; unset ⇒ no-op.
+   */
+  auditResponse?: object;
 }

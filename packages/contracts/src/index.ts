@@ -13,6 +13,7 @@
  */
 
 export * from './account-tokens-types';
+export * from './audit-types';
 export * from './canonical-models';
 export * from './completion-types';
 export * from './endpoint-resolver';

@@ -36,6 +36,12 @@ export function defaultUsageEventsPath(configPath: string): string {
   return join(dirname(configPath), 'usage-events.jsonl');
 }
 
+/** Resolve the `audit/` directory (date-rotated audit jsonl files) that sits
+ *  alongside a given config.json path (request-audit-log, design D4). */
+export function defaultAuditDir(configPath: string): string {
+  return join(dirname(configPath), 'audit');
+}
+
 /**
  * Build a `SecretBox` for an OFFLINE CLI write (secrets design D3/D6) with a
  * LAZY master-key resolver (env → keyfile → auto-gen 0600). The key is only

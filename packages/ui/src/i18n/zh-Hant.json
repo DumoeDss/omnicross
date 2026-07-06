@@ -679,6 +679,46 @@
       },
       "byoLabel": "自帶金鑰提供方"
     },
+    "audit": {
+      "title": "請求稽核日誌",
+      "description": "為每個請求記錄一筆稽核條目（誰、來自何處、何時、哪個模型、狀態、延遲）。預設關閉、需顯式開啟；儲存僅管理員可見，依可設定的時長保留後自動清理。寫入為即發即忘，絕不影響中轉延遲。",
+      "enable": {
+        "label": "啟用稽核日誌",
+        "description": "總開關。關閉時不擷取任何內容（零回歸）。"
+      },
+      "captureBodies": {
+        "label": "擷取請求/回應內文",
+        "description": "獨立的敏感開關。內文會被截斷並經過機密遮罩處理；絕不擷取請求標頭。串流回應僅記錄中繼資料。"
+      },
+      "maxBodyBytes": {
+        "label": "內文最大位元組數",
+        "description": "每筆內文擷取的截斷上限。"
+      },
+      "retentionDays": {
+        "label": "保留天數",
+        "description": "超過該天數的稽核檔案將被清理（整檔刪除）。"
+      },
+      "trustForwardedFor": {
+        "label": "信任 X-Forwarded-For",
+        "description": "使用 X-Forwarded-For 標頭作為用戶端 IP。僅在受信任的反向代理之後啟用——否則絕不信任用戶端提供的該標頭。"
+      },
+      "save": "儲存稽核設定",
+      "viewer": {
+        "title": "稽核日誌檢視器",
+        "keyPlaceholder": "依 key id 篩選（選填）",
+        "refresh": "重新整理",
+        "hint": "重新整理以載入最近的稽核紀錄。",
+        "empty": "沒有符合的稽核紀錄。",
+        "colTime": "時間",
+        "colMethod": "方法",
+        "colPath": "路徑",
+        "colStatus": "狀態",
+        "colModel": "模型",
+        "colKey": "Key",
+        "colIp": "IP",
+        "colLatency": "延遲"
+      }
+    },
     "webhook": {
       "title": "Webhook 通知",
       "description": "將運行事件（帳號恢復/異常、金鑰配額、伺服器錯誤）帶外投遞到某個 URL。投遞為即發即忘，絕不影響中轉延遲。",

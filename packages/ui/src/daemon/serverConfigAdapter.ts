@@ -28,6 +28,7 @@ import type {
   WebhookTestResult,
 } from './types';
 import type {
+  AuditRecord,
   EndpointRoutingConfig,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -279,6 +280,49 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return data.result;
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : 'test failed' };
+      }
+    },
+
+    async updateAuditConfig(
+      audit: OutboundApiServerConfig['audit'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // request-audit-log: send the FULL segment; the daemon validates + normalizes
+        // it. `undefined` resets to defaults (disabled). No secret round-trips.
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          audit: audit ?? {
+            enabled: false,
+            captureBodies: false,
+            maxBodyBytes: 8192,
+            retentionDays: 7,
+            trustForwardedFor: false,
+          },
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update audit configuration');
+      }
+    },
+
+    async queryAudit(query: {
+      keyId?: string;
+      from?: number;
+      to?: number;
+      limit?: number;
+    }): Promise<AuditRecord[]> {
+      try {
+        const params = new URLSearchParams();
+        if (query.keyId) params.set('keyId', query.keyId);
+        if (typeof query.from === 'number') params.set('from', String(query.from));
+        if (typeof query.to === 'number') params.set('to', String(query.to));
+        if (typeof query.limit === 'number') params.set('limit', String(query.limit));
+        const qs = params.toString();
+        const data = await adminClient.get<{ records: AuditRecord[] }>(
+          qs ? `/audit?${qs}` : '/audit',
+        );
+        return data.records ?? [];
+      } catch {
+        return [];
       }
     },
   };

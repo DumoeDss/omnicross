@@ -18,6 +18,7 @@ import type {
 import type { UsageTokens } from '@omnicross/contracts/usage-types';
 import { describe, expect, it, vi } from 'vitest';
 
+import { readAuditUsage } from '../../pipeline/auditUsageStash';
 import type { Logger } from '../../ports/logger';
 import type { UsageEventStore } from '../../ports/usage-event-store';
 import type { PricingEngine } from '../pricing-engine';
@@ -247,5 +248,48 @@ describe('UsageRecorder aggregate delegates', () => {
 
     await expect(recorder.getSessionCacheStats('sess')).resolves.toBe(cacheStats);
     expect(store.getSessionCacheStats).toHaveBeenCalledWith('sess');
+  });
+});
+
+describe('UsageRecorder — request-audit usage stash', () => {
+  it('stashes token counts SYNCHRONOUSLY on record() (before the deferred insert)', () => {
+    const store = makeStore();
+    const recorder = new UsageRecorder(store, makePricing(), makeLogger(), {
+      // Never run the deferred work in this test — prove the token stash is sync.
+      defer: () => {},
+    });
+    const res = {}; // opaque correlation key (a WeakMap key)
+    recorder.record({ ...baseInput, providerId: 'anthropic', model: 'claude-x', auditResponse: res });
+    const stashed = readAuditUsage(res);
+    expect(stashed).toBeDefined();
+    expect(stashed?.inputTokens).toBe(100);
+    expect(stashed?.outputTokens).toBe(50);
+    expect(stashed?.model).toBe('claude-x');
+    expect(stashed?.provider).toBe('anthropic');
+    // Cost is NOT yet present (it lands on the deferred pricing tick).
+    expect(stashed?.costUsd).toBeUndefined();
+  });
+
+  it('stashes the computed cost on recordAsync()', async () => {
+    const store = makeStore();
+    const recorder = new UsageRecorder(store, makePricing({ costUsd: 0.42, costSavedByCacheUsd: 0 }), makeLogger());
+    const res = {};
+    await recorder.recordAsync({ ...baseInput, auditResponse: res });
+    expect(readAuditUsage(res)?.costUsd).toBe(0.42);
+  });
+
+  it('does NOT touch the stash when auditResponse is unset (zero regression)', () => {
+    const store = makeStore();
+    const recorder = new UsageRecorder(store, makePricing(), makeLogger(), { defer: () => {} });
+    const res = {};
+    recorder.record({ ...baseInput });
+    expect(readAuditUsage(res)).toBeUndefined();
+  });
+
+  it('never persists the auditResponse key into the usage row', async () => {
+    const store = makeStore();
+    const recorder = new UsageRecorder(store, makePricing(), makeLogger());
+    await recorder.recordAsync({ ...baseInput, auditResponse: {} });
+    expect('auditResponse' in store.inserted[0]).toBe(false);
   });
 });

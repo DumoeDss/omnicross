@@ -121,6 +121,8 @@ export async function handleOpenAIResponsesRequest(
         providerId: route.providerId ?? 'codex',
         model: resolvedModel,
         apiKeyId: route.apiKeyId ?? null,
+        // request-audit-log: correlate this request's tokens/cost to its audit record.
+        auditResponse: res,
       });
     }
   } catch (err) {

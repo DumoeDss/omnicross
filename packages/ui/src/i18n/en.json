@@ -679,6 +679,46 @@
       },
       "byoLabel": "BYO providers"
     },
+    "audit": {
+      "title": "Request audit log",
+      "description": "Record a per-request audit entry (who, from where, when, which model, status, latency). Opt-in and off by default; the store is admin-only, retained for a configurable window, then pruned. Writes are fire-and-forget and never affect relay latency.",
+      "enable": {
+        "label": "Enable audit log",
+        "description": "Master switch. When off, nothing is captured (zero regression)."
+      },
+      "captureBodies": {
+        "label": "Capture request/response bodies",
+        "description": "A separate, sensitive opt-in. Bodies are truncated and passed through a secret-redaction pass; request headers are never captured. Streaming responses record metadata only."
+      },
+      "maxBodyBytes": {
+        "label": "Max body bytes",
+        "description": "Truncation cap per captured body."
+      },
+      "retentionDays": {
+        "label": "Retention (days)",
+        "description": "Audit files older than this are pruned (whole-file delete)."
+      },
+      "trustForwardedFor": {
+        "label": "Trust X-Forwarded-For",
+        "description": "Use the X-Forwarded-For header for the client IP. Enable ONLY behind a trusted reverse proxy — a client-supplied header is never trusted otherwise."
+      },
+      "save": "Save audit settings",
+      "viewer": {
+        "title": "Audit log viewer",
+        "keyPlaceholder": "Filter by key id (optional)",
+        "refresh": "Refresh",
+        "hint": "Refresh to load recent audit records.",
+        "empty": "No audit records match.",
+        "colTime": "Time",
+        "colMethod": "Method",
+        "colPath": "Path",
+        "colStatus": "Status",
+        "colModel": "Model",
+        "colKey": "Key",
+        "colIp": "IP",
+        "colLatency": "Latency"
+      }
+    },
     "webhook": {
       "title": "Webhook notifications",
       "description": "Deliver operational events (account recovery/anomaly, key quota, server errors) to a URL out-of-band. Delivery is fire-and-forget and never affects relay latency.",

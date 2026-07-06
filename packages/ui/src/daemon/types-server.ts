@@ -144,6 +144,41 @@ export interface WebhookConfig {
   destinations: WebhookDestination[];
 }
 
+/** The `server.audit` segment (request-audit-log) — mirrors the daemon `AuditConfig`. */
+export interface AuditConfig {
+  /** Master switch; false/absent ⇒ no capture (zero regression). */
+  enabled: boolean;
+  /** Capture request/response bodies too (redacted+truncated); the sensitive second opt-in. */
+  captureBodies: boolean;
+  /** Per-body truncation cap in bytes. */
+  maxBodyBytes: number;
+  /** TTL retention in days. */
+  retentionDays: number;
+  /** Trust `X-Forwarded-For` for the client IP (anti-spoof; default false). */
+  trustForwardedFor: boolean;
+}
+
+/** One audit record returned by `GET /admin/api/audit` (request-audit-log). */
+export interface AuditRecord {
+  id: string;
+  ts: number;
+  keyId?: string | null;
+  ip?: string;
+  ua?: string;
+  method: string;
+  path: string;
+  model?: string;
+  provider?: string;
+  status: number;
+  latencyMs: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  error?: string;
+  requestBody?: string;
+  responseBody?: string;
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;
@@ -164,6 +199,11 @@ export interface OutboundApiServerConfig {
    * pre-upgrade daemon or when unconfigured. Destination secrets are masked on GET.
    */
   webhook?: WebhookConfig;
+  /**
+   * Request audit (request-audit-log). OPTIONAL — absent on a pre-upgrade daemon.
+   * Carries no secret. `normalizeServerConfig` always fills it (enabled:false).
+   */
+  audit?: AuditConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

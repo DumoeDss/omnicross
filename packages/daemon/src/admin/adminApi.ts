@@ -89,6 +89,7 @@ import {
   type PathProbe,
   type TerminalOpener,
 } from './cliLaunch';
+import { validateAuditSegment } from './auditConfigBody';
 import { handleDashboard } from './dashboard';
 import { parseKeyPolicyBody } from './keyPolicyBody';
 import {
@@ -96,6 +97,7 @@ import {
   redactWebhookConfig,
   validateWebhookSegment,
 } from './webhookConfigBody';
+import { applyAuditConfig } from '../audit/auditRuntime';
 import { applyWebhookConfig } from '../webhook/webhookRuntime';
 import { handleExport, handleImport, type MigrationDeps } from './adminMigration';
 import type { MigrationCredentialStore } from '../migration/migration';
@@ -1645,6 +1647,12 @@ async function handleServer(
     if (webhookErrors.length > 0) {
       return writeJsonError(res, 400, `invalid webhook config: ${webhookErrors.join('; ')}`);
     }
+    // request-audit-log: strict validation of a present audit segment (no secret,
+    // so no preserve concern) — 400 rather than a silent core-normalize clamp.
+    const auditErrors = validateAuditSegment(patch);
+    if (auditErrors.length > 0) {
+      return writeJsonError(res, 400, `invalid audit config: ${auditErrors.join('; ')}`);
+    }
     const current = await loadServerConfig(deps.settingsStore);
     // upstream-proxy + webhook-notifications: the admin GET masks the proxy
     // passwords + webhook secrets, so an incoming PUT that edits other fields omits
@@ -1669,6 +1677,10 @@ async function handleServer(
     // (un)registers the core sink + health subscriptions without a restart. The
     // merged config carries DECRYPTED secrets (settings store decrypts on read).
     applyWebhookConfig(merged.webhook);
+    // request-audit-log: hot-reload the live audit wiring so a config edit
+    // (un)registers the core capture config + sink and arms/disarms the TTL prune
+    // without a restart. The `audit` segment carries no secret.
+    applyAuditConfig(merged.audit);
 
     // Startup gate (model-kind-mapping): when enabling with an incomplete
     // kind map, refuse to bind and return an actionable envelope (HTTP 200 so

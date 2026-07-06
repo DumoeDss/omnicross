@@ -14,6 +14,7 @@
  */
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import type { HealthReport } from '@omnicross/contracts/health-logging-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 
@@ -272,6 +273,15 @@ export interface OutboundApiServerConfig {
    * in admin views.
    */
   webhook?: WebhookConfig;
+  /**
+   * Request-audit segment (request-audit-log). Optional; when absent (or
+   * `enabled:false`) no capture config or sink is wired ⇒ the capture hook does
+   * nothing ⇒ byte-identical zero regression. `normalizeServerConfig` always
+   * fills it with the frozen defaults (enabled:false). Read by the daemon at boot
+   * + admin PUT to (un)register the core sink + capture config; a change takes
+   * effect immediately (hot-reloaded like `webhook`). Carries NO secret.
+   */
+  audit?: AuditConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */

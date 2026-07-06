@@ -16,6 +16,7 @@ import { SettingRow } from '@/components/ui/setting-row';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
+import { AuditSection } from './AuditSection';
 import { EndpointRoutingCard } from './EndpointRoutingCard';
 import { missingKindsByEndpoint } from './endpointKinds';
 import { useApiService } from './hooks/useApiService';
@@ -50,6 +51,8 @@ export function ApiServicePage() {
     updateProxyConfig,
     updateWebhookConfig,
     testWebhook,
+    updateAuditConfig,
+    queryAudit,
     queueStatus,
   } = useApiService();
 
@@ -155,6 +158,8 @@ export function ApiServicePage() {
               <ProxySection config={config} busy={busy} onUpdate={updateProxyConfig} />
 
               <WebhookSection config={config} busy={busy} onUpdate={updateWebhookConfig} onTest={testWebhook} />
+
+              <AuditSection config={config} busy={busy} onUpdate={updateAuditConfig} onQuery={queryAudit} />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>

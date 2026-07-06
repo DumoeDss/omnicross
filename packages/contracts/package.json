@@ -40,6 +40,11 @@
       "import": "./dist/account-tokens-types.js",
       "require": "./dist/account-tokens-types.cjs"
     },
+    "./audit-types": {
+      "types": "./dist/audit-types.d.ts",
+      "import": "./dist/audit-types.js",
+      "require": "./dist/audit-types.cjs"
+    },
     "./canonical-models": {
       "types": "./dist/canonical-models.d.ts",
       "import": "./dist/canonical-models.js",

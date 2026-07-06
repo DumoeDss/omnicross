@@ -126,6 +126,8 @@ export async function handleAnthropicMessagesByo(
         providerId: route.providerId ?? 'anthropic',
         model: plan.resolvedModel,
         apiKeyId: route.apiKeyId ?? null,
+        // request-audit-log: correlate this request's tokens/cost to its audit record.
+        auditResponse: res,
       });
     }
   } catch (err) {

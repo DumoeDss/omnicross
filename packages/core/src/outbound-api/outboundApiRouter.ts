@@ -28,6 +28,7 @@ import { emitWebhookEvent } from '../pipeline/webhookEmit';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
+import { beginAuditCapture } from './auditCapture';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
@@ -238,6 +239,14 @@ export async function handleOutboundRequest(
   // One clock for the whole request so expiry / rate / quota agree.
   const now = Date.now();
 
+  // AUDIT (request-audit-log, design D5). Gated inside `beginAuditCapture` on the
+  // core capture-config slot: audit-disabled ⇒ `null` (one slot read, no work,
+  // zero regression). When enabled it registers a `res.close` listener that emits
+  // the record fire-and-forget at response end, covering EVERY exit path below
+  // (incl. the 401/429/402/403 early-returns). The handler enriches it (keyId /
+  // model / provider / body / error) as it progresses. NEVER captures headers.
+  const audit = beginAuditCapture(req, res, now);
+
   // 1. AUTH — external named API key (enforced on every request incl. loopback).
   // Reason-bearing (outbound-key-policy): an expired / not-yet-valid key is a
   // 401 (OQ1), same status as a missing/disabled/revoked key. First use of an
@@ -253,6 +262,7 @@ export async function handleOutboundRequest(
     return;
   }
   const verified = verification.key;
+  if (audit) audit.keyId = verified.id;
 
   // 2. RATE LIMIT — per-key window when the key configures one (else 60/60s).
   const decision = rateLimiter.check(verified.id, now, verified.rateLimit);
@@ -375,6 +385,9 @@ export async function handleOutboundRequest(
       writeJsonError(res, 400, 'Invalid JSON in request body');
       return;
     }
+    // AUDIT: stash the raw request body (a no-op unless `captureBodies`). Captured
+    // even for a routing error below so the audited request is complete.
+    if (audit) audit.setRequestBody(rawBody);
 
     // m4: Gemini carries its model in the URL path
     // (`/v1beta/models/<model>:generateContent`), not the body, so background-tier
@@ -428,6 +441,11 @@ export async function handleOutboundRequest(
     if (!resolved.ok) {
       writeJsonError(res, resolved.error.status, resolved.error.message);
       return;
+    }
+    // AUDIT: record the RESOLVED upstream model + provider (post kind-mapping).
+    if (audit) {
+      audit.model = resolved.route.model;
+      audit.provider = resolved.route.providerId;
     }
 
     // 4a. MODEL RESTRICTION (outbound-key-policy #6, design D3/D4). Runs ONLY when
@@ -515,6 +533,8 @@ export async function handleOutboundRequest(
       // wired). Client 4xx early-returns above never reach here, so no 4xx noise.
       // The message is the already-sanitized `serializeError` string (no secrets).
       emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
+      // AUDIT: record the sanitized failure message (redacted again at assembly).
+      if (audit) audit.error = message;
       writeJsonError(res, 502, message);
     } finally {
       routeMap.removeRoute(token);

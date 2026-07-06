@@ -22,6 +22,7 @@
 
 import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
 
+import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import type { Logger } from '@omnicross/core';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
@@ -61,7 +62,7 @@ import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
 import { AutoDisableStore } from './pool/autoDisableStore';
 import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
 import { resolveEnvKey } from './pool/resolveEnvKey';
-import { defaultPricingPath, defaultUsageEventsPath } from './commands/paths';
+import { defaultAuditDir, defaultPricingPath, defaultUsageEventsPath } from './commands/paths';
 import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
 import { ConfigurableLogger } from './ports/ConfigurableLogger';
 import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
@@ -72,6 +73,10 @@ import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredent
 import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstreamProxyResolver';
 import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
+import { AuditPruneSweeper } from './audit/AuditPruneSweeper';
+import { readAuditRecords } from './audit/auditReader';
+import { resetAuditRuntimeForTests, setAuditRuntime } from './audit/auditRuntime';
+import { AuditWriter } from './audit/AuditWriter';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
 import { WebhookDispatcher } from './webhook/WebhookDispatcher';
@@ -177,6 +182,20 @@ export interface Daemon {
    * `applyWebhookConfig`. INERT until a config enables it (zero regression).
    */
   readonly webhookDispatcher: WebhookDispatcher;
+  /**
+   * File-backed audit sink (request-audit-log) — appends each captured record to
+   * `audit/audit-YYYY-MM-DD.jsonl` fire-and-forget. Registered as the core sink
+   * (via the audit runtime slot) by `start.ts`/admin PUT ONLY when the `audit`
+   * segment is enabled. INERT until then (no sink ⇒ capture hook is a no-op).
+   */
+  readonly auditWriter: AuditWriter;
+  /**
+   * TTL prune for the audit store (request-audit-log) — unlinks date files past
+   * `retentionDays`. Armed-off; `start.ts` configures from the persisted `audit`
+   * segment + starts it (running one prune at boot) ONLY when enabled. Disposed
+   * in cleanup.
+   */
+  readonly auditPruneSweeper: AuditPruneSweeper;
 }
 
 /**
@@ -386,6 +405,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     logger,
   });
 
+  // Request-audit store dir (request-audit-log) — sibling `audit/` of config.json.
+  // Resolved here so the AUTHED admin query reader can close over it below.
+  const auditDir = defaultAuditDir(paths.configPath);
+
   // Admin dashboard listener (RT3) — a SEPARATE node:http server over the live
   // daemon handles. Instance-scoped on the Daemon (not a module singleton); the
   // `start` command starts it (honoring the LAN fail-closed gate), tests stop it
@@ -457,6 +480,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // reads per-account probe history from the scheduler (secret-free — ids +
     // status labels only). Routed in `AdminServer` (not `adminApi.ts`).
     probeHistoryReader: accountHealthProbeScheduler,
+    // request-audit-log: the AUTHED `GET /admin/api/audit` reads + filters the
+    // date-rotated audit store. Bound to the store dir here so the AdminServer
+    // carries no path/store coupling. Records hold IP/UA/bodies → admin-only,
+    // NEVER unauth, NEVER on `/health`. Routed in `AdminServer` (not `adminApi.ts`).
+    auditReader: (query) => readAuditRecords(auditDir, query),
   });
 
   // Webhook dispatcher (webhook-notifications) — the fire-and-forget sender.
@@ -470,6 +498,17 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     fetchImpl: (url, init) => fetchUpstream(url, init),
   });
   setWebhookRuntime(webhookDispatcher, getSharedAccountHealth());
+
+  // Request audit store (request-audit-log) — the fire-and-forget date-rotated
+  // jsonl writer + its TTL prune sweeper, both siblings of config.json under
+  // `audit/`. Injected into the audit runtime slot; `start.ts` (boot) + the admin
+  // config PUT (hot-reload) call `applyAuditConfig(...)` to (un)register the core
+  // capture config + sink and arm/disarm the prune. Constructed ALWAYS but INERT
+  // until a config enables it — no sink ⇒ the capture hook is a no-op (zero
+  // regression). The sweeper starts armed-off with the frozen defaults.
+  const auditWriter = new AuditWriter(auditDir, logger);
+  const auditPruneSweeper = new AuditPruneSweeper(auditDir, logger, DEFAULT_AUDIT_CONFIG);
+  setAuditRuntime(auditWriter, auditPruneSweeper);
 
   // Background token-refresh sweep (external-cli-sync) — constructed armed-off;
   // `start.ts` calls `.start()` on the resident daemon.
@@ -505,6 +544,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     accountHealthSweeper,
     accountHealthProbeScheduler,
     webhookDispatcher,
+    auditWriter,
+    auditPruneSweeper,
   };
 }
 
@@ -545,6 +586,9 @@ export function resetDaemonSingletonsForTests(): void {
   // Clear the webhook runtime slot (dispatcher + sink + health subscriptions) so
   // a prior boot's dispatcher does not leak the core sink into a fresh boot.
   resetWebhookRuntimeForTests();
+  // Clear the audit runtime slot (writer + prune sweeper + core capture/sink) so
+  // a prior boot's writer does not leak the core audit sink into a fresh boot.
+  resetAuditRuntimeForTests();
 }
 
 /**

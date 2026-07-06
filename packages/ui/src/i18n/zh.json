@@ -679,6 +679,46 @@
       },
       "byoLabel": "自带密钥提供方"
     },
+    "audit": {
+      "title": "请求审计日志",
+      "description": "为每个请求记录一条审计条目（谁、来自哪里、何时、哪个模型、状态、延迟）。默认关闭、需显式开启；存储仅管理员可见，按可配置的时长保留后自动清理。写入为即发即忘，绝不影响中转延迟。",
+      "enable": {
+        "label": "启用审计日志",
+        "description": "总开关。关闭时不采集任何内容（零回归）。"
+      },
+      "captureBodies": {
+        "label": "捕获请求/响应正文",
+        "description": "独立的敏感开关。正文会被截断并经过密钥脱敏处理；绝不捕获请求头。流式响应仅记录元数据。"
+      },
+      "maxBodyBytes": {
+        "label": "正文最大字节数",
+        "description": "每条正文捕获的截断上限。"
+      },
+      "retentionDays": {
+        "label": "保留天数",
+        "description": "超过该天数的审计文件将被清理（整文件删除）。"
+      },
+      "trustForwardedFor": {
+        "label": "信任 X-Forwarded-For",
+        "description": "使用 X-Forwarded-For 头作为客户端 IP。仅在受信任的反向代理之后启用——否则绝不信任客户端提供的该头。"
+      },
+      "save": "保存审计设置",
+      "viewer": {
+        "title": "审计日志查看器",
+        "keyPlaceholder": "按 key id 过滤（可选）",
+        "refresh": "刷新",
+        "hint": "刷新以加载最近的审计记录。",
+        "empty": "没有匹配的审计记录。",
+        "colTime": "时间",
+        "colMethod": "方法",
+        "colPath": "路径",
+        "colStatus": "状态",
+        "colModel": "模型",
+        "colKey": "Key",
+        "colIp": "IP",
+        "colLatency": "延迟"
+      }
+    },
     "webhook": {
       "title": "Webhook 通知",
       "description": "将运行事件（账号恢复/异常、密钥配额、服务器错误）带外投递到某个 URL。投递为即发即忘，绝不影响中转延迟。",

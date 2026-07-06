@@ -28,6 +28,7 @@ import type {
   SubscriptionProviderId,
 } from './types-accounts';
 import type {
+  AuditRecord,
   EndpointRoutingConfig,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -260,6 +261,21 @@ export interface AgentApiServiceApi {
    * `POST /webhook-test`). Returns the delivery outcome (secret-free).
    */
   testWebhook(destinationId: string): Promise<WebhookTestResult>;
+  /**
+   * Persist the audit segment (`PUT /server` with `{ audit }`, request-audit-log).
+   * Pass `undefined` to reset to defaults (disabled). Carries no secret.
+   */
+  updateAuditConfig(audit: OutboundApiServerConfig['audit'] | undefined): Promise<MutationResult>;
+  /**
+   * Query the audit log (`GET /admin/api/audit`, request-audit-log) by key id +
+   * time window. Authed-only on the daemon; returns records newest-first.
+   */
+  queryAudit(query: {
+    keyId?: string;
+    from?: number;
+    to?: number;
+    limit?: number;
+  }): Promise<AuditRecord[]>;
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;

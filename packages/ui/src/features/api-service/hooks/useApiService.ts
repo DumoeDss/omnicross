@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { agent } from '@/shared/agent';
 
 import type {
+  AuditRecord,
   EndpointRoutingConfig,
   MutationResult,
   OutboundApiKeyCreated,
@@ -68,6 +69,13 @@ export interface UseApiServiceResult {
   updateProxyConfig: (proxy: OutboundApiServerConfig['proxy'] | undefined) => Promise<void>;
   updateWebhookConfig: (webhook: OutboundApiServerConfig['webhook'] | undefined) => Promise<void>;
   testWebhook: (destinationId: string) => Promise<WebhookTestResult>;
+  updateAuditConfig: (audit: OutboundApiServerConfig['audit'] | undefined) => Promise<void>;
+  queryAudit: (query: {
+    keyId?: string;
+    from?: number;
+    to?: number;
+    limit?: number;
+  }) => Promise<AuditRecord[]>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -288,6 +296,21 @@ export function useApiService(): UseApiServiceResult {
     [],
   );
 
+  const updateAuditConfig = useCallback(
+    async (audit: OutboundApiServerConfig['audit'] | undefined) => {
+      await runWrite(() => agent.apiService.updateAuditConfig(audit));
+    },
+    [runWrite],
+  );
+
+  // The audit query does NOT go through `runWrite` (it reads, mutates nothing) —
+  // the viewer renders the returned records inline.
+  const queryAudit = useCallback(
+    (query: { keyId?: string; from?: number; to?: number; limit?: number }) =>
+      agent.apiService.queryAudit(query),
+    [],
+  );
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
 
@@ -314,5 +337,7 @@ export function useApiService(): UseApiServiceResult {
     updateProxyConfig,
     updateWebhookConfig,
     testWebhook,
+    updateAuditConfig,
+    queryAudit,
   };
 }

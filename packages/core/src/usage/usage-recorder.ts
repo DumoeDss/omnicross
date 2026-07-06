@@ -22,6 +22,7 @@ import type {
 } from '@omnicross/contracts/usage-stats-types';
 import type { UsageEngineOrigin, UsageTokens } from '@omnicross/contracts/usage-types';
 
+import { stashAuditUsage } from '../pipeline/auditUsageStash';
 import type { Logger } from '../ports/logger';
 import type { UsageEventStore } from '../ports/usage-event-store';
 
@@ -43,6 +44,15 @@ export interface UsageRecordInput {
   runId?: string | null;
   /** Host event-correlation id for this call. Optional / additive. */
   eventId?: string | null;
+  /**
+   * OPTIONAL per-request audit correlation key (request-audit-log). When the
+   * OUTBOUND relay taps set this to the request's `http.ServerResponse`, the
+   * recorder stashes this request's token counts (synchronously) + cost (on the
+   * deferred pricing tick) keyed by it, so the audit capture can enrich its
+   * record. Any other caller leaves it unset ⇒ the audit stash is never touched
+   * (byte-identical zero regression). Opaque object; NEVER inspected/serialized.
+   */
+  auditResponse?: object;
 }
 
 /** Optional knobs (mostly for hosts/tests). */
@@ -83,6 +93,18 @@ export class UsageRecorder {
    * Errors during the insert are logged but never thrown.
    */
   record(input: UsageRecordInput): void {
+    // request-audit-log: stash the token counts SYNCHRONOUSLY (before the
+    // response closes ⇒ reliably readable by the audit capture); the cost is
+    // stashed later on the deferred pricing tick. Gated on `auditResponse` — only
+    // the outbound relay taps set it, so no other caller touches the stash.
+    if (input.auditResponse) {
+      stashAuditUsage(input.auditResponse, {
+        inputTokens: input.usage.inputTokens,
+        outputTokens: input.usage.outputTokens,
+        model: input.model,
+        provider: input.providerId,
+      });
+    }
     this.defer(() => {
       void this.recordAsync(input).catch(err => {
         this.logger.warn('[UsageRecorder] failed to persist usage event', {
@@ -102,6 +124,17 @@ export class UsageRecorder {
       input.model,
       input.usage,
     );
+
+    // request-audit-log: stash the computed cost for this request (best-effort —
+    // populated when this deferred tick lands before the response closes). Guarded
+    // so a stash failure never sinks the usage persist.
+    if (input.auditResponse) {
+      try {
+        stashAuditUsage(input.auditResponse, { costUsd });
+      } catch {
+        /* an audit-stash failure must never break usage persistence */
+      }
+    }
 
     // Live per-key spend increment (outbound-key-policy) — fired before the
     // deferred store write so an in-memory aggregate stays current without a

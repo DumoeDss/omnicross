@@ -16,6 +16,7 @@
  */
 
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import { type AuditConfig, DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import {
   WEBHOOK_DESTINATION_TYPES,
   WEBHOOK_EVENT_KINDS,
@@ -114,6 +115,30 @@ export function normalizeAccountProbe(
       clampNumber(ap?.historySize, 1, 200, DEFAULT_ACCOUNT_PROBE.historySize),
     ),
     staggerMs: clampNumber(ap?.staggerMs, 0, 60_000, DEFAULT_ACCOUNT_PROBE.staggerMs),
+  };
+}
+
+/**
+ * Fill + range-CLAMP the request-audit segment to the frozen defaults
+ * (request-audit-log, design D2). Lenient like the other segment normalizers:
+ * `enabled`/`captureBodies`/`trustForwardedFor` coerce to booleans (default
+ * false), `maxBodyBytes` clamps to `[256, 1_048_576]`, `retentionDays` clamps to
+ * `[1, 365]`. Default (all-off) ⇒ no capture ⇒ zero regression.
+ */
+export function normalizeAudit(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): AuditConfig {
+  const a = raw?.audit;
+  return {
+    enabled: a?.enabled === true,
+    captureBodies: a?.captureBodies === true,
+    maxBodyBytes: Math.trunc(
+      clampNumber(a?.maxBodyBytes, 256, 1_048_576, DEFAULT_AUDIT_CONFIG.maxBodyBytes),
+    ),
+    retentionDays: Math.trunc(
+      clampNumber(a?.retentionDays, 1, 365, DEFAULT_AUDIT_CONFIG.retentionDays),
+    ),
+    trustForwardedFor: a?.trustForwardedFor === true,
   };
 }
 
@@ -415,6 +440,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(undefined),
     accountProbe: normalizeAccountProbe(undefined),
+    audit: normalizeAudit(undefined),
   };
 }
 
@@ -446,6 +472,7 @@ export function normalizeServerConfig(
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(raw),
     accountProbe: normalizeAccountProbe(raw),
+    audit: normalizeAudit(raw),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -488,6 +515,7 @@ export function mergeServerConfig(
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
     accountHealth: patch.accountHealth ?? current.accountHealth,
     accountProbe: patch.accountProbe ?? current.accountProbe,
+    audit: patch.audit ?? current.audit,
     // Proxy is layer-replaced (not deep-merged): a PUT carrying `proxy` swaps the
     // whole segment; omitting it keeps the current one. `undefined` on both ⇒ absent.
     proxy: patch.proxy ?? current.proxy,

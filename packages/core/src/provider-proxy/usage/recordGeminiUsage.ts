@@ -27,6 +27,8 @@ interface GeminiUsageAttribution {
   readonly providerId: string;
   readonly model: string;
   readonly apiKeyId: string | null;
+  /** request-audit-log: per-request audit correlation key (the response object). */
+  readonly auditResponse?: object;
 }
 
 /** Read token counts from a Gemini `usageMetadata` object (cache + thoughts aware). */
@@ -74,6 +76,7 @@ export function recordGeminiNonStreamUsage(
       providerId: attribution.providerId,
       model: attribution.model,
       apiKeyId: attribution.apiKeyId,
+      auditResponse: attribution.auditResponse,
       engineOrigin: 'codex-ingress',
       usage: tapped,
       rawUsage: parsed.usageMetadata,

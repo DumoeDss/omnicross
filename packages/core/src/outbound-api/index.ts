@@ -48,6 +48,7 @@ export {
   loadServerConfig,
   mergeServerConfig,
   normalizeAccountProbe,
+  normalizeAudit,
   normalizePrefixTargets,
   normalizeProxyConfig,
   normalizeProxySegment,
@@ -58,6 +59,14 @@ export {
   OUTBOUND_API_SERVER_CONFIG_KEY,
   saveServerConfig,
 } from './apiServerConfig';
+export {
+  AUDIT_REDACTED,
+  redactAuditText,
+} from './auditRedact';
+export {
+  type AuditCaptureContext,
+  beginAuditCapture,
+} from './auditCapture';
 export {
   classifyModelPrefix,
   type ModelPrefixKind,

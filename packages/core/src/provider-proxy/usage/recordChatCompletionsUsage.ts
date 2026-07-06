@@ -24,6 +24,8 @@ interface ChatCompletionsUsageAttribution {
   readonly providerId: string;
   readonly model: string;
   readonly apiKeyId: string | null;
+  /** request-audit-log: per-request audit correlation key (the response object). */
+  readonly auditResponse?: object;
 }
 
 /** Read token counts from a Chat-Completions `usage` object (cache-aware). */
@@ -72,6 +74,7 @@ export function recordChatCompletionsNonStreamUsage(
       providerId: attribution.providerId,
       model: attribution.model,
       apiKeyId: attribution.apiKeyId,
+      auditResponse: attribution.auditResponse,
       engineOrigin: 'codex-ingress',
       usage: tapped,
       rawUsage: parsed.usage,
