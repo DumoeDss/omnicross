@@ -608,7 +608,15 @@
         "unlimitedHint": "无限制",
         "rateDefaultHint": "默认 60 / 60000",
         "save": "保存策略",
-        "spent": "已用"
+        "spent": "已用",
+        "modelRestrictionTitle": "模型限制",
+        "modelRestrictionEnable": "限制模型",
+        "modelRestrictionMode": "模式",
+        "modelRestrictionBlacklist": "黑名单（拒绝列表内）",
+        "modelRestrictionAllowlist": "白名单（仅允许列表内）",
+        "modelRestrictionList": "模型",
+        "modelRestrictionListHint": "每行一个模型 ID",
+        "modelRestrictionEmptyAllowlistWarning": "启用的白名单若为空将拒绝所有请求。"
       }
     },
     "queue": {

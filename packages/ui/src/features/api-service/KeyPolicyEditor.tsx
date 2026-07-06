@@ -1,9 +1,10 @@
 /**
  * KeyPolicyEditor.tsx — the per-key policy panel (outbound-key-policy): expiry /
- * first-use activation, daily/total/weekly USD cost caps, and the per-key rate
- * limit (max requests + window). Seeds its drafts from the key's stored policy;
- * on Save it builds an `OutboundKeyPolicyPatch` (blank field → `null` = clear,
- * a value → set) and calls `onSave`.
+ * first-use activation, daily/total/weekly USD cost caps, the per-key rate limit
+ * (max requests + window), and the per-key model restriction (#6: enable toggle +
+ * blacklist/allowlist mode + model-id list). Seeds its drafts from the key's
+ * stored policy; on Save it builds an `OutboundKeyPolicyPatch` (blank field →
+ * `null` = clear, a value → set) and calls `onSave`.
  *
  * Secret discipline: this panel only ever shows/edits the key's OWN non-secret
  * policy scalars (never a hash or plaintext).
@@ -18,6 +19,15 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 import type { OutboundApiKeyInfo, OutboundKeyPolicyPatch } from '@/daemon/types';
 
 type ExpiryMode = 'none' | 'fixed' | 'activation';
+type RestrictionMode = 'blacklist' | 'allowlist';
+
+/** Split a model-id textarea (newline- or comma-separated) into trimmed ids. */
+function parseModelList(text: string): string[] {
+  return text
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+}
 
 /** epoch ms → the `datetime-local` input value (local time), or '' when unset. */
 function toDateTimeLocal(ms: number | null | undefined): string {
@@ -79,6 +89,19 @@ export function KeyPolicyEditor({
   const [rateWindow, setRateWindow] = useState(
     keyInfo.rateLimitWindowMs != null ? String(keyInfo.rateLimitWindowMs) : '',
   );
+  // Per-key model restriction (#6): enable toggle + mode + model-id list.
+  const [modelRestrict, setModelRestrict] = useState(keyInfo.enableModelRestriction === true);
+  const [restrictionMode, setRestrictionMode] = useState<RestrictionMode>(
+    keyInfo.restrictionMode ?? 'blacklist',
+  );
+  const [restrictedModelsText, setRestrictedModelsText] = useState(
+    (keyInfo.restrictedModels ?? []).join('\n'),
+  );
+
+  const parsedModels = parseModelList(restrictedModelsText);
+  // An enabled allowlist with zero entries denies every request — warn the operator.
+  const emptyAllowlistWarning =
+    modelRestrict && restrictionMode === 'allowlist' && parsedModels.length === 0;
 
   const save = (): void => {
     // Build the three-way patch. Expiry mode drives which of the two expiry
@@ -104,6 +127,13 @@ export function KeyPolicyEditor({
       patch.expiresAt = null;
       patch.activationDays = null;
     }
+    // Model restriction (#6): always send the three fields explicitly. When the
+    // toggle is off the list is kept but inert (the daemon only enforces when
+    // `enableModelRestriction` is true), so the operator can re-enable without
+    // retyping the list.
+    patch.enableModelRestriction = modelRestrict;
+    patch.restrictionMode = restrictionMode;
+    patch.restrictedModels = parsedModels;
     void onSave(patch);
   };
 
@@ -239,6 +269,58 @@ export function KeyPolicyEditor({
             onChange={(e) => setRateWindow(e.target.value)}
           />,
         )}
+      </div>
+
+      <div className="space-y-2 border-t border-border/60 pt-3">
+        <label className="flex items-center justify-between gap-2">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t('apiService.keys.policy.modelRestrictionTitle')}
+          </span>
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-primary"
+            checked={modelRestrict}
+            disabled={busy}
+            onChange={(e) => setModelRestrict(e.target.checked)}
+            aria-label={t('apiService.keys.policy.modelRestrictionEnable')}
+          />
+        </label>
+
+        {modelRestrict ? (
+          <>
+            {field(
+              t('apiService.keys.policy.modelRestrictionMode'),
+              <select
+                className="h-8 rounded-md border border-border/60 bg-surface-0 px-2 text-sm text-foreground"
+                value={restrictionMode}
+                disabled={busy}
+                onChange={(e) => setRestrictionMode(e.target.value as RestrictionMode)}
+              >
+                <option value="blacklist">
+                  {t('apiService.keys.policy.modelRestrictionBlacklist')}
+                </option>
+                <option value="allowlist">
+                  {t('apiService.keys.policy.modelRestrictionAllowlist')}
+                </option>
+              </select>,
+            )}
+            {field(
+              t('apiService.keys.policy.modelRestrictionList'),
+              <textarea
+                className="min-h-[64px] rounded-md border border-border/60 bg-surface-0 px-2 py-1.5 text-sm text-foreground"
+                value={restrictedModelsText}
+                disabled={busy}
+                placeholder={t('apiService.keys.policy.modelRestrictionListHint')}
+                onChange={(e) => setRestrictedModelsText(e.target.value)}
+              />,
+            )}
+            {emptyAllowlistWarning ? (
+              <p className="text-[11px] text-destructive">
+                {t('apiService.keys.policy.modelRestrictionEmptyAllowlistWarning')}
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       <div className="flex justify-end">

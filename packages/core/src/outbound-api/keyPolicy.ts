@@ -106,3 +106,54 @@ export function checkKeyQuota(
   }
   return { allowed: true };
 }
+
+/**
+ * Per-key model restriction carried on the verified key (outbound-key-policy #6).
+ * Present ONLY when the key has `enableModelRestriction === true` — so the wire
+ * layer's presence check (`if (key.modelRestriction) …`) is the zero-regression
+ * gate.
+ */
+export interface ModelRestriction {
+  mode: 'blacklist' | 'allowlist';
+  /** Bare modelIds the mode acts on. Empty allowlist denies every model. */
+  models: string[];
+}
+
+/** Decision returned by {@link checkModelAllowed}. */
+export type ModelDecision = { allowed: true } | { allowed: false; model: string };
+
+/**
+ * Canonicalize a model id or `"providerId,modelId"` ref to the ONE comparison
+ * form: the bare, trimmed, lower-cased modelId. Normalizing both the resolved
+ * model and every list entry to this form makes membership case-insensitive and
+ * ref-shape-insensitive (design D3 "canonical form = bare modelId").
+ */
+function canonicalModelId(value: string): string {
+  const idx = value.indexOf(',');
+  const bare = idx >= 0 ? value.slice(idx + 1) : value;
+  return bare.trim().toLowerCase();
+}
+
+/**
+ * Decide whether the key may use the RESOLVED upstream model (design D3).
+ * Matching the resolved model id (post kind-mapping), NOT the raw client string,
+ * is alias-proof — a versioned/aliased id that maps to a restricted model cannot
+ * bypass the block. `undefined` restriction ⇒ always allowed (the wire layer only
+ * calls this for a restriction-bearing key). Membership is exact + case-
+ * insensitive on the canonical bare modelId. `blacklist` denies IN-list models;
+ * `allowlist` denies models NOT in the list (an empty allowlist denies all). On a
+ * deny, `model` is the original resolved id (for a readable 403 body).
+ */
+export function checkModelAllowed(
+  restriction: ModelRestriction | undefined,
+  resolvedModelId: string,
+): ModelDecision {
+  if (!restriction) return { allowed: true };
+  const target = canonicalModelId(resolvedModelId);
+  const listed = restriction.models.some((m) => canonicalModelId(m) === target);
+  if (restriction.mode === 'allowlist') {
+    return listed ? { allowed: true } : { allowed: false, model: resolvedModelId };
+  }
+  // blacklist
+  return listed ? { allowed: false, model: resolvedModelId } : { allowed: true };
+}

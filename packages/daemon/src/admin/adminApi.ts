@@ -30,7 +30,6 @@ import {
   type KeySpendReader,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
-  type OutboundKeyPolicy,
   saveServerConfig,
   validateServerModelConfig,
 } from '@omnicross/core/outbound-api';
@@ -90,6 +89,7 @@ import {
   type TerminalOpener,
 } from './cliLaunch';
 import { handleDashboard } from './dashboard';
+import { parseKeyPolicyBody } from './keyPolicyBody';
 import { handleExport, handleImport, type MigrationDeps } from './adminMigration';
 import type { MigrationCredentialStore } from '../migration/migration';
 import type { OAuthSessionStore } from './oauthSessions';
@@ -297,6 +297,10 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     weeklyCostLimitUsd: row.weeklyCostLimitUsd,
     rateLimitMaxRequests: row.rateLimitMaxRequests,
     rateLimitWindowMs: row.rateLimitWindowMs,
+    // Per-key model restriction (#6) — secret-free scalars the UI pre-fills.
+    enableModelRestriction: row.enableModelRestriction,
+    restrictionMode: row.restrictionMode,
+    restrictedModels: row.restrictedModels,
   };
 }
 
@@ -1540,65 +1544,6 @@ async function handleKeys(
   }
 
   return writeJsonError(res, 405, `method ${method} not allowed on keys`);
-}
-
-/**
- * Parse + validate the key-policy write body (outbound-key-policy). Each field is
- * three-way: OMITTED keeps the stored value, `null` clears, a value sets. Numeric
- * fields must be finite (cost/window ≥ 0; rate max ≥ 0 with `0` = unlimited;
- * `activationDays` a positive integer). `activationMode` must be one of the two
- * modes. Anything malformed → a 400 with a clear message. `activatedAt` is NOT
- * accepted here (it is server-stamped on first use only).
- */
-function parseKeyPolicyBody(
-  body: Record<string, unknown>,
-): { ok: true; policy: OutboundKeyPolicy } | { ok: false; message: string } {
-  const policy: OutboundKeyPolicy = {};
-
-  // activationMode enum (three-way).
-  if ('activationMode' in body) {
-    const m = body['activationMode'];
-    if (m === null) policy.activationMode = null;
-    else if (m === 'fixed' || m === 'activation') policy.activationMode = m;
-    else return { ok: false, message: "activationMode must be 'fixed', 'activation', or null" };
-  }
-
-  // Numeric-nullable fields with per-field bounds.
-  const numericFields: Array<{
-    key: keyof OutboundKeyPolicy & string;
-    min: number;
-    integer?: boolean;
-  }> = [
-    { key: 'expiresAt', min: 0 },
-    { key: 'activationDays', min: 1, integer: true },
-    { key: 'dailyCostLimitUsd', min: 0 },
-    { key: 'totalCostLimitUsd', min: 0 },
-    { key: 'weeklyCostLimitUsd', min: 0 },
-    { key: 'rateLimitMaxRequests', min: 0, integer: true },
-    { key: 'rateLimitWindowMs', min: 1 },
-  ];
-  for (const { key, min, integer } of numericFields) {
-    if (!(key in body)) continue;
-    const v = body[key];
-    if (v === null) {
-      (policy as Record<string, number | null>)[key] = null;
-      continue;
-    }
-    if (
-      typeof v !== 'number' ||
-      !Number.isFinite(v) ||
-      v < min ||
-      (integer && !Number.isInteger(v))
-    ) {
-      return {
-        ok: false,
-        message: `${key} must be ${integer ? 'an integer' : 'a number'} >= ${min} or null`,
-      };
-    }
-    (policy as Record<string, number | null>)[key] = v;
-  }
-
-  return { ok: true, policy };
 }
 
 // ── Server config (live apply) ────────────────────────────────────────────────

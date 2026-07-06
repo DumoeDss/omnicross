@@ -12,7 +12,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
-import { computeKeyExpiry, type KeyCostLimits } from './keyPolicy';
+import { computeKeyExpiry, type KeyCostLimits, type ModelRestriction } from './keyPolicy';
 import type { OutboundApiKeyCreated, OutboundKeyDb, OutboundKeyDbRow } from './types';
 
 /** Bytes of entropy in a generated secret (256-bit → 43 base62 chars). */
@@ -113,6 +113,12 @@ export interface VerifiedKey {
    * rate config → the limiter uses its default 60/60s window (byte-identical).
    */
   rateLimit?: { maxRequests?: number; windowMs?: number };
+  /**
+   * Per-key model restriction (outbound-key-policy #6). Populated ONLY when the
+   * row has `enableModelRestriction === true` → the wire layer's presence check
+   * is the zero-regression gate. Absent ⇒ NO model check runs for this key.
+   */
+  modelRestriction?: ModelRestriction;
 }
 
 /** The reason-bearing verify outcome (design D2). */
@@ -143,6 +149,21 @@ function extractRateLimit(
   return override;
 }
 
+/**
+ * Extract the per-key model restriction from a row, or undefined when it is not
+ * ENABLED (#6). The master switch `enableModelRestriction` is the zero-regression
+ * gate: a row with it off/unset yields `undefined` here, so the verified key
+ * carries no restriction and the wire layer skips the whole check. Mode defaults
+ * to `'blacklist'`; a missing list is treated as empty.
+ */
+function extractModelRestriction(row: OutboundKeyDbRow): ModelRestriction | undefined {
+  if (row.enableModelRestriction !== true) return undefined;
+  return {
+    mode: row.restrictionMode ?? 'blacklist',
+    models: row.restrictedModels ?? [],
+  };
+}
+
 /** Project a stored row to the verified key, carrying its policy inputs through. */
 function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   const key: VerifiedKey = { id: row.id };
@@ -153,6 +174,8 @@ function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   if (costLimits) key.costLimits = costLimits;
   const rateLimit = extractRateLimit(row);
   if (rateLimit) key.rateLimit = rateLimit;
+  const modelRestriction = extractModelRestriction(row);
+  if (modelRestriction) key.modelRestriction = modelRestriction;
   return key;
 }
 

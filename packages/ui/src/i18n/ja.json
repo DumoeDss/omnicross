@@ -608,7 +608,15 @@
         "unlimitedHint": "制限なし",
         "rateDefaultHint": "既定 60 / 60000",
         "save": "ポリシーを保存",
-        "spent": "使用済み"
+        "spent": "使用済み",
+        "modelRestrictionTitle": "モデル制限",
+        "modelRestrictionEnable": "モデルを制限",
+        "modelRestrictionMode": "モード",
+        "modelRestrictionBlacklist": "ブラックリスト（一覧を拒否）",
+        "modelRestrictionAllowlist": "許可リスト（一覧のみ許可）",
+        "modelRestrictionList": "モデル",
+        "modelRestrictionListHint": "1行に1つのモデルID",
+        "modelRestrictionEmptyAllowlistWarning": "有効な許可リストが空の場合、すべてのリクエストを拒否します。"
       }
     },
     "queue": {

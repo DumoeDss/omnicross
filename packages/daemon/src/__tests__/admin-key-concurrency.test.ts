@@ -309,6 +309,9 @@ interface KeyPolicyInfo {
   dailyCostLimitUsd?: number | null;
   activationMode?: string;
   activationDays?: number | null;
+  enableModelRestriction?: boolean;
+  restrictionMode?: 'blacklist' | 'allowlist';
+  restrictedModels?: string[];
   spend?: { dailyUsd: number; weeklyUsd: number; totalUsd: number };
 }
 
@@ -348,6 +351,45 @@ describe('POST /admin/api/keys/:id/policy', () => {
     const r = await adminFetch('POST', '/admin/api/keys/nope/policy', { dailyCostLimitUsd: 1 });
     expect(r.status).toBe(404);
     expect((r.json as { ok: boolean }).ok).toBe(false);
+  });
+
+  it('sets + clears the #6 model restriction and surfaces it on the list', async () => {
+    await bootDaemon();
+    const { id } = await createKey();
+
+    const set = await adminFetch('POST', `/admin/api/keys/${id}/policy`, {
+      enableModelRestriction: true,
+      restrictionMode: 'allowlist',
+      restrictedModels: ['gpt-4o', ' opus '],
+    });
+    expect(set.status).toBe(200);
+    const afterSet = await listPolicyKey(id);
+    expect(afterSet?.enableModelRestriction).toBe(true);
+    expect(afterSet?.restrictionMode).toBe('allowlist');
+    // Entries are trimmed + blanks dropped by the parser.
+    expect(afterSet?.restrictedModels).toEqual(['gpt-4o', 'opus']);
+
+    // Explicit null clears each restriction field back to absent.
+    const clear = await adminFetch('POST', `/admin/api/keys/${id}/policy`, {
+      enableModelRestriction: null,
+      restrictionMode: null,
+      restrictedModels: null,
+    });
+    expect(clear.status).toBe(200);
+    const afterClear = await listPolicyKey(id);
+    expect(afterClear?.enableModelRestriction).toBeUndefined();
+    expect(afterClear?.restrictionMode).toBeUndefined();
+    expect(afterClear?.restrictedModels).toBeUndefined();
+  });
+
+  it('rejects a malformed restrictionMode with 400 and persists nothing', async () => {
+    await bootDaemon();
+    const { id } = await createKey();
+    const bad = await adminFetch('POST', `/admin/api/keys/${id}/policy`, {
+      restrictionMode: 'nope',
+    });
+    expect(bad.status).toBe(400);
+    expect((await listPolicyKey(id))?.restrictionMode).toBeUndefined();
   });
 });
 

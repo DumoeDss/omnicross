@@ -608,7 +608,15 @@
         "unlimitedHint": "No limit",
         "rateDefaultHint": "Default 60 / 60000",
         "save": "Save policy",
-        "spent": "Spent"
+        "spent": "Spent",
+        "modelRestrictionTitle": "Model restriction",
+        "modelRestrictionEnable": "Restrict models",
+        "modelRestrictionMode": "Mode",
+        "modelRestrictionBlacklist": "Blacklist (deny listed)",
+        "modelRestrictionAllowlist": "Allowlist (allow only listed)",
+        "modelRestrictionList": "Models",
+        "modelRestrictionListHint": "One model id per line",
+        "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
       }
     },
     "queue": {

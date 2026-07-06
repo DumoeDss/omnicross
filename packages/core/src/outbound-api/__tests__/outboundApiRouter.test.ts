@@ -357,6 +357,107 @@ describe('handleOutboundRequest — key policy (expiry / cost quota)', () => {
   });
 });
 
+describe('handleOutboundRequest — model restriction (#6, 403)', () => {
+  /** Drive one chat request for the given row + client model; return res + addSpy. */
+  const run = async (
+    row: OutboundKeyDbRow,
+    clientModel: string,
+  ): Promise<{ res: MockRes; addCount: number }> => {
+    const routeMap = new ProviderProxyRouteMap();
+    const addSpy = vi.spyOn(routeMap, 'addRoute');
+    const deps = makeDeps({ db: makeDb(() => ({ ...row })), routeMap });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/chat/completions',
+      body: JSON.stringify({ model: clientModel, messages: [{ role: 'user', content: 'hi' }] }),
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      config,
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    errSpy.mockRestore();
+    return { res, addCount: addSpy.mock.calls.length };
+  };
+
+  const blacklistRow = (models: string[]): OutboundKeyDbRow => ({
+    ...enabledRow,
+    id: 'oak_self',
+    enableModelRestriction: true,
+    restrictionMode: 'blacklist',
+    restrictedModels: models,
+  });
+  const allowlistRow = (models: string[]): OutboundKeyDbRow => ({
+    ...enabledRow,
+    id: 'oak_self',
+    enableModelRestriction: true,
+    restrictionMode: 'allowlist',
+    restrictedModels: models,
+  });
+
+  it('blacklist blocks the resolved model → 403 naming only the model, no route minted', async () => {
+    const { res, addCount } = await run(blacklistRow(['gpt-4o']), 'gpt-4o');
+    expect(res.statusCode).toBe(403);
+    const parsed = JSON.parse(res.body) as { model: string; mode: string; error: { message: string } };
+    expect(parsed.model).toBe('gpt-4o');
+    expect(parsed.mode).toBe('blacklist');
+    // Rejected BEFORE dispatch — no route was minted (no upstream call).
+    expect(addCount).toBe(0);
+    // No cross-key leak: the body carries no key id at all.
+    expect(res.body).not.toContain('oak_self');
+    expect(res.body).not.toContain('oak_other');
+  });
+
+  it('blacklist allows an unlisted model → not 403 (route minted, reaches dispatch)', async () => {
+    const { res, addCount } = await run(blacklistRow(['claude-opus']), 'gpt-4o');
+    expect(res.statusCode).not.toBe(403);
+    expect(addCount).toBe(1);
+  });
+
+  it('allowlist allows only a listed model; denies an unlisted one → 403', async () => {
+    const ok = await run(allowlistRow(['gpt-4o']), 'gpt-4o');
+    expect(ok.res.statusCode).not.toBe(403);
+    expect(ok.addCount).toBe(1);
+
+    const denied = await run(allowlistRow(['gpt-4o']), 'gpt-4o-mini');
+    expect(denied.res.statusCode).toBe(403);
+    expect(denied.addCount).toBe(0);
+  });
+
+  it('enforces on the RESOLVED model, not the raw client string (case-insensitive)', async () => {
+    // Client sends `GPT-4O`; the chat endpoint CI-resolves it to the configured
+    // ref `openai,gpt-4o` → resolved model `gpt-4o`. A blacklist of `gpt-4o`
+    // therefore blocks it even though the raw client string differs in case —
+    // proving the check runs on the resolved model, not the raw request.
+    const { res, addCount } = await run(blacklistRow(['gpt-4o']), 'GPT-4O');
+    expect(res.statusCode).toBe(403);
+    expect(addCount).toBe(0);
+  });
+
+  it('a restriction-less key runs no model check (403 never raised)', async () => {
+    // enableModelRestriction off but a stale list present → still no check.
+    const { res, addCount } = await run(
+      { ...enabledRow, restrictionMode: 'blacklist', restrictedModels: ['gpt-4o'] },
+      'gpt-4o',
+    );
+    expect(res.statusCode).not.toBe(403);
+    expect(addCount).toBe(1);
+  });
+
+  it('the model rejection (403) is distinct from 401/402/429', async () => {
+    const { res } = await run(blacklistRow(['gpt-4o']), 'gpt-4o');
+    expect(res.statusCode).toBe(403);
+    expect([401, 402, 429]).not.toContain(res.statusCode);
+  });
+});
+
 describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1/D2(a))', () => {
   /** Drive one chat request and return the RouteContext that was minted. */
   async function mintRoute(opts: { apiKeyPool?: unknown }): Promise<{

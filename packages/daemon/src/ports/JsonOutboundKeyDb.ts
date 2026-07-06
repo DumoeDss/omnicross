@@ -108,6 +108,15 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
       // `activationMode` is an enum, not a number — apply with the same three-way.
       if (policy.activationMode === null) delete row.activationMode;
       else if (policy.activationMode !== undefined) row.activationMode = policy.activationMode;
+      // Per-key model restriction (#6) — three-way each (null clears, omit keeps).
+      if (policy.enableModelRestriction === null) delete row.enableModelRestriction;
+      else if (policy.enableModelRestriction !== undefined) {
+        row.enableModelRestriction = policy.enableModelRestriction;
+      }
+      if (policy.restrictionMode === null) delete row.restrictionMode;
+      else if (policy.restrictionMode !== undefined) row.restrictionMode = policy.restrictionMode;
+      if (policy.restrictedModels === null) delete row.restrictedModels;
+      else if (policy.restrictedModels !== undefined) row.restrictedModels = policy.restrictedModels;
       return true;
     });
   }

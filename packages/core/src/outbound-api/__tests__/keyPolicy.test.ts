@@ -4,7 +4,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { checkKeyQuota, computeKeyExpiry, type KeySpend } from '../keyPolicy';
+import {
+  checkKeyQuota,
+  checkModelAllowed,
+  computeKeyExpiry,
+  type KeySpend,
+  type ModelRestriction,
+} from '../keyPolicy';
 
 const DAY_MS = 86_400_000;
 
@@ -77,5 +83,64 @@ describe('checkKeyQuota', () => {
       limitUsd: 100,
       spentUsd: 100,
     });
+  });
+});
+
+describe('checkModelAllowed (#6 per-key model restriction)', () => {
+  const blacklist = (models: string[]): ModelRestriction => ({ mode: 'blacklist', models });
+  const allowlist = (models: string[]): ModelRestriction => ({ mode: 'allowlist', models });
+
+  it('undefined restriction ⇒ allowed (restriction-less key path)', () => {
+    expect(checkModelAllowed(undefined, 'gpt-4o')).toEqual({ allowed: true });
+  });
+
+  it('blacklist denies a listed model, naming the model', () => {
+    expect(checkModelAllowed(blacklist(['gpt-4o', 'opus']), 'gpt-4o')).toEqual({
+      allowed: false,
+      model: 'gpt-4o',
+    });
+  });
+
+  it('blacklist allows an unlisted model', () => {
+    expect(checkModelAllowed(blacklist(['opus']), 'gpt-4o')).toEqual({ allowed: true });
+  });
+
+  it('allowlist permits a listed model', () => {
+    expect(checkModelAllowed(allowlist(['gpt-4o']), 'gpt-4o')).toEqual({ allowed: true });
+  });
+
+  it('allowlist denies an unlisted model', () => {
+    expect(checkModelAllowed(allowlist(['gpt-4o']), 'opus')).toEqual({
+      allowed: false,
+      model: 'opus',
+    });
+  });
+
+  it('an empty allowlist denies every model (deliberate deny-all)', () => {
+    expect(checkModelAllowed(allowlist([]), 'anything').allowed).toBe(false);
+  });
+
+  it('an empty blacklist allows every model', () => {
+    expect(checkModelAllowed(blacklist([]), 'anything')).toEqual({ allowed: true });
+  });
+
+  it('membership is case-insensitive on the bare modelId', () => {
+    expect(checkModelAllowed(blacklist(['GPT-4o']), 'gpt-4O').allowed).toBe(false);
+    expect(checkModelAllowed(allowlist(['Claude-Opus']), 'claude-opus').allowed).toBe(true);
+  });
+
+  it('canonicalizes a "providerId,modelId" ref on both sides to the bare modelId', () => {
+    // List entry as a full ref, resolved model as bare id → still matches.
+    expect(checkModelAllowed(blacklist(['openai,gpt-4o']), 'gpt-4o').allowed).toBe(false);
+    // Both as full refs → matches on the modelId part, ignoring the providerId.
+    expect(checkModelAllowed(allowlist(['anthropic,opus']), 'claude,opus').allowed).toBe(true);
+  });
+
+  it('is alias-proof: it decides on the RESOLVED model id it is handed', () => {
+    // The wire layer passes the RESOLVED upstream model (post kind-mapping), so a
+    // client alias that maps to a blacklisted model is blocked here regardless of
+    // the original client string — this fn only ever sees the resolved id.
+    const resolvedFromAlias = 'opus';
+    expect(checkModelAllowed(blacklist(['opus']), resolvedFromAlias).allowed).toBe(false);
   });
 });

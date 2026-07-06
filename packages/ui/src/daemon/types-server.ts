@@ -224,6 +224,14 @@ export interface OutboundApiKeyInfo {
   rateLimitMaxRequests?: number | null;
   /** Per-key rate-limit window (ms; absent ⇒ 60_000). */
   rateLimitWindowMs?: number | null;
+  // ── Per-key model restriction (outbound-key-policy #6). All optional; a
+  //    pre-upgrade daemon omits them (they read as absent = unset). ─────────────
+  /** Master switch; false/unset ⇒ no model check. */
+  enableModelRestriction?: boolean;
+  /** Restriction mode; absent ⇒ `'blacklist'`. */
+  restrictionMode?: 'blacklist' | 'allowlist';
+  /** The model-id list the mode acts on (bare modelIds). */
+  restrictedModels?: string[];
   /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the daemon wired a
@@ -246,6 +254,10 @@ export interface OutboundKeyPolicyPatch {
   weeklyCostLimitUsd?: number | null;
   rateLimitMaxRequests?: number | null;
   rateLimitWindowMs?: number | null;
+  // Per-key model restriction (#6). Three-way like the rest of the patch.
+  enableModelRestriction?: boolean | null;
+  restrictionMode?: 'blacklist' | 'allowlist' | null;
+  restrictedModels?: string[] | null;
 }
 
 /**

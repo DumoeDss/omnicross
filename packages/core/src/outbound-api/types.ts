@@ -251,6 +251,14 @@ export interface OutboundApiKeyInfo {
   rateLimitMaxRequests?: number | null;
   /** Per-key rate-limit window (ms; absent ⇒ 60_000). */
   rateLimitWindowMs?: number | null;
+  // ── Per-key model restriction (outbound-key-policy #6). All optional; the
+  //    master gate is `enableModelRestriction` — false/unset ⇒ no check. ────────
+  /** Master switch: when false/unset the model list is inert (no restriction). */
+  enableModelRestriction?: boolean;
+  /** Restriction mode; absent ⇒ `'blacklist'` (CRS-parity). */
+  restrictionMode?: OutboundKeyModelRestrictionMode;
+  /** The model-id list the mode acts on (bare modelIds; empty allowlist denies all). */
+  restrictedModels?: string[];
   /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the host wired a spend
@@ -262,6 +270,13 @@ export interface OutboundApiKeyInfo {
 
 /** Expiry mode for an outbound key: fixed absolute vs first-use activation. */
 export type OutboundKeyActivationMode = 'fixed' | 'activation';
+
+/**
+ * Per-key model-restriction mode (outbound-key-policy #6). `blacklist` denies the
+ * listed models; `allowlist` permits ONLY the listed models (an empty allowlist
+ * denies everything — a deliberate "disabled by model" state).
+ */
+export type OutboundKeyModelRestrictionMode = 'blacklist' | 'allowlist';
 
 /**
  * The settable key-policy envelope (`outboundApiKeysSetPolicy`). Every field is
@@ -279,6 +294,10 @@ export interface OutboundKeyPolicy {
   weeklyCostLimitUsd?: number | null;
   rateLimitMaxRequests?: number | null;
   rateLimitWindowMs?: number | null;
+  // Per-key model restriction (#6). Three-way like the rest of the envelope.
+  enableModelRestriction?: boolean | null;
+  restrictionMode?: OutboundKeyModelRestrictionMode | null;
+  restrictedModels?: string[] | null;
 }
 
 /** The one-time create result; `plaintextOnce` is shown exactly once. */
@@ -329,6 +348,15 @@ export interface OutboundKeyDbRow {
   rateLimitMaxRequests?: number | null;
   /** Per-key rate-limit window (ms; absent ⇒ 60_000). */
   rateLimitWindowMs?: number | null;
+  // ── Per-key model restriction (outbound-key-policy #6). All optional; existing
+  //    rows parse unchanged and a row with `enableModelRestriction` off behaves
+  //    exactly as before. ───────────────────────────────────────────────────────
+  /** Master switch; false/unset ⇒ no model check (zero-regression gate). */
+  enableModelRestriction?: boolean;
+  /** Restriction mode; absent ⇒ `'blacklist'`. */
+  restrictionMode?: OutboundKeyModelRestrictionMode;
+  /** The model-id list the mode acts on (bare modelIds). */
+  restrictedModels?: string[];
 }
 
 export interface OutboundKeyDb {

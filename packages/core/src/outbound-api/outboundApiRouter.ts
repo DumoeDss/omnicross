@@ -29,7 +29,7 @@ import { routeRequest } from '../provider-proxy/providerProxyRouter';
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey } from './outboundApiKeyAuth';
-import { checkKeyQuota } from './keyPolicy';
+import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import type { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
@@ -96,6 +96,32 @@ function writeCostLimitError(
       scope,
       limitUsd,
       spentUsd,
+    }),
+  );
+}
+
+/**
+ * Write the 403 model-restriction body (outbound-key-policy #6). Secret-safe: it
+ * names ONLY the disallowed resolved model + this key's own restriction mode, and
+ * NOTHING about any other key. 403 (authorized-but-forbidden) is deliberately
+ * distinct from the 401 (invalid/expired credential), 402 (spend), and 429 (rate)
+ * rejections so a client can react correctly.
+ */
+function writeModelNotAllowedError(
+  res: http.ServerResponse,
+  model: string,
+  mode: 'blacklist' | 'allowlist',
+): void {
+  if (res.headersSent) return;
+  res.writeHead(403, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      error: {
+        type: 'outbound_api_error',
+        message: `Model '${model}' is not permitted for this key (${mode})`,
+      },
+      model,
+      mode,
     }),
   );
 }
@@ -374,6 +400,23 @@ export async function handleOutboundRequest(
     if (!resolved.ok) {
       writeJsonError(res, resolved.error.status, resolved.error.message);
       return;
+    }
+
+    // 4a. MODEL RESTRICTION (outbound-key-policy #6, design D3/D4). Runs ONLY when
+    // the key has restriction enabled (`verified.modelRestriction` is populated by
+    // `verifyKey` only then) — a restriction-less key does zero work here
+    // (byte-identical). Enforced on the RESOLVED upstream model (`route.model`,
+    // post kind-mapping / list resolution), NOT the raw client string, so an
+    // aliased/versioned id cannot bypass a block. Sits AFTER route resolution
+    // (the resolved model only exists here) and BEFORE dispatch, so a disallowed
+    // model is rejected before any upstream call. On a deny → 403 naming ONLY this
+    // model + this key's mode (no other-key leak).
+    if (verified.modelRestriction) {
+      const modelDecision = checkModelAllowed(verified.modelRestriction, resolved.route.model);
+      if (!modelDecision.allowed) {
+        writeModelNotAllowedError(res, modelDecision.model, verified.modelRestriction.mode);
+        return;
+      }
     }
 
     // 4b. USER-MESSAGE SERIAL QUEUE (design D-WIRE-3/4). Keyed by the resolved
