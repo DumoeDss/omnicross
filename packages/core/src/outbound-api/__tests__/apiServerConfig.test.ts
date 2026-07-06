@@ -7,6 +7,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_CONCURRENCY_QUEUE,
+  DEFAULT_USER_MESSAGE_QUEUE,
   defaultServerConfig,
   mergeServerConfig,
   normalizeServerConfig,

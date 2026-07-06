@@ -93,6 +93,36 @@ export interface EndpointRoutingConfig {
   backgroundModelIds?: string[];
 }
 
+/**
+ * User-message serial-queue segment (per-upstream-account 防风控). Frozen
+ * defaults + valid ranges (SSOT + clamp in `apiServerConfig`):
+ *  - `enabled`       default **false** (opt-in).
+ *  - `delayMs`       default **200**, valid `0..10000` — min gap between one
+ *                    account's serialized requests.
+ *  - `waitTimeoutMs` default **60000**, valid `1000..300000` — a waiter past
+ *                    this rejects (wire → 503).
+ */
+export interface UserMessageQueueConfig {
+  enabled: boolean;
+  delayMs: number;
+  waitTimeoutMs: number;
+}
+
+/**
+ * Per-key concurrency-queue segment (排队而非硬拒). Frozen defaults + valid
+ * ranges (SSOT + clamp in `apiServerConfig`):
+ *  - `maxQueueSizeFactor` default **2**, valid `1..10` — per-key max queued =
+ *    `max(limit*factor, minQueueSize)`.
+ *  - `minQueueSize`       default **4**, valid `1..100` — floor of the above.
+ *  - `waitTimeoutMs`      default **60000**, valid `1000..300000` — a waiter
+ *    past this rejects (wire → 429).
+ */
+export interface ConcurrencyQueueConfig {
+  maxQueueSizeFactor: number;
+  minQueueSize: number;
+  waitTimeoutMs: number;
+}
+
 /** The persisted server config. */
 export interface OutboundApiServerConfig {
   /** When false the listener never binds (off by default). */
@@ -103,6 +133,17 @@ export interface OutboundApiServerConfig {
   endpoints: EndpointRoutingConfig[];
   /** Persisted port (fixed default; falls back to ephemeral on EADDRINUSE). */
   port?: number;
+  /**
+   * User-message serial queue segment. Optional in the persisted shape;
+   * `normalizeServerConfig` always fills it with the frozen defaults, so a
+   * normalized config carries it.
+   */
+  userMessageQueue?: UserMessageQueueConfig;
+  /**
+   * Per-key concurrency queue segment. Optional in the persisted shape;
+   * `normalizeServerConfig` always fills it with the frozen defaults.
+   */
+  concurrencyQueue?: ConcurrencyQueueConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */
@@ -137,6 +178,11 @@ export interface OutboundApiKeyInfo {
   createdAt: number;
   lastUsedAt: number | null;
   revoked: boolean;
+  /**
+   * Per-key concurrency ceiling for the outbound concurrency gate. Absent or
+   * `0` = unlimited (the gate is bypassed entirely for this key).
+   */
+  maxConcurrency?: number;
 }
 
 /** The one-time create result; `plaintextOnce` is shown exactly once. */
@@ -162,6 +208,11 @@ export interface OutboundKeyDbRow {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  /**
+   * Per-key concurrency ceiling. Absent/`0` = unlimited = the concurrency gate
+   * is bypassed for this key. Persisted by the daemon (`omnicross-uqc-daemon`).
+   */
+  maxConcurrency?: number;
 }
 
 export interface OutboundKeyDb {
@@ -177,6 +228,16 @@ export interface OutboundKeyDb {
   outboundApiKeysRevoke(id: string): Promise<boolean>;
   outboundApiKeysTouchLastUsed(id: string): Promise<boolean>;
   outboundApiKeysSetEnabled(id: string, enabled: boolean): Promise<boolean>;
+  /**
+   * Set (or clear) a key's per-key concurrency ceiling. `null` clears the field
+   * → unlimited (gate bypassed). Mirrors `outboundApiKeysSetEnabled`; returns
+   * `false` when the key is missing/revoked. Implemented by the daemon
+   * (`omnicross-uqc-daemon`); test fakes implement it inline.
+   */
+  outboundApiKeysSetMaxConcurrency(
+    id: string,
+    maxConcurrency: number | null,
+  ): Promise<boolean>;
 }
 
 /**

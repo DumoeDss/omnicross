@@ -93,6 +93,12 @@ export async function createNamedKey(
 /** The id of a verified key (for rate-limiting + last-used bookkeeping). */
 export interface VerifiedKey {
   id: string;
+  /**
+   * The key's per-key concurrency ceiling, carried from the row so the wire
+   * layer keys the concurrency gate without a second DB read. Absent/`0` =
+   * unlimited (gate bypassed).
+   */
+  maxConcurrency?: number;
 }
 
 /**
@@ -116,5 +122,9 @@ export async function verifyPresentedKey(
   void db.outboundApiKeysTouchLastUsed(row.id).catch(() => {
     /* last-used bookkeeping is best-effort */
   });
-  return { id: row.id };
+  // Carry the concurrency ceiling through when the row has one (absent otherwise
+  // so the wire layer bypasses the gate for unlimited keys).
+  return row.maxConcurrency !== undefined && row.maxConcurrency !== null
+    ? { id: row.id, maxConcurrency: row.maxConcurrency }
+    : { id: row.id };
 }

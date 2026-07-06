@@ -54,6 +54,13 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
       row.enabled = enabled;
       return true;
     },
+    outboundApiKeysSetMaxConcurrency: async (id, maxConcurrency) => {
+      const row = store.find((r) => r.id === id);
+      if (!row || row.revokedAt !== null) return false;
+      if (maxConcurrency === null) delete row.maxConcurrency;
+      else row.maxConcurrency = maxConcurrency;
+      return true;
+    },
   };
 }
 
@@ -110,5 +117,25 @@ describe('outboundApiKeyAuth', () => {
     await db.outboundApiKeysSetEnabled(created.id, true);
     await db.outboundApiKeysRevoke(created.id);
     expect(await verifyPresentedKey(db, created.plaintextOnce)).toBeNull();
+  });
+
+  it('carries maxConcurrency through verify when the row has one, absent otherwise', async () => {
+    const db = makeStubDb();
+    const created = await createNamedKey(db, 'capped');
+
+    // No ceiling set → the verified key omits maxConcurrency.
+    const before = await verifyPresentedKey(db, created.plaintextOnce);
+    expect(before).not.toBeNull();
+    expect(before?.maxConcurrency).toBeUndefined();
+
+    // Set a ceiling → verify carries it.
+    await db.outboundApiKeysSetMaxConcurrency(created.id, 3);
+    const after = await verifyPresentedKey(db, created.plaintextOnce);
+    expect(after?.maxConcurrency).toBe(3);
+
+    // Clear it (null) → back to absent.
+    await db.outboundApiKeysSetMaxConcurrency(created.id, null);
+    const cleared = await verifyPresentedKey(db, created.plaintextOnce);
+    expect(cleared?.maxConcurrency).toBeUndefined();
   });
 });

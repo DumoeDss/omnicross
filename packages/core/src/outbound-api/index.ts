@@ -41,13 +41,38 @@ export function __resetOutboundApiServerForTests(): void {
 
 export {
   type ApiServerSettingsStore,
+  DEFAULT_CONCURRENCY_QUEUE,
+  DEFAULT_USER_MESSAGE_QUEUE,
   defaultServerConfig,
   loadServerConfig,
   mergeServerConfig,
+  normalizeQueueSegments,
   normalizeServerConfig,
   OUTBOUND_API_SERVER_CONFIG_KEY,
   saveServerConfig,
 } from './apiServerConfig';
+export {
+  ConcurrencyQueueFullError,
+  ConcurrencyWaitCancelledError,
+  ConcurrencyWaitTimeoutError,
+  type GateAcquireOptions,
+  type GateAcquisition,
+  type GateSlot,
+  type GateStatusEntry,
+  isConcurrencyRejection,
+  OutboundConcurrencyGate,
+} from './outboundConcurrencyGate';
+export {
+  isUserMessageRequest,
+} from './userMessageDetection';
+export {
+  isSerialQueueTimeout,
+  type SerialAcquireOptions,
+  type SerialQueueStatusEntry,
+  SerialQueueTimeoutError,
+  type SerialSlot,
+  UserMessageSerialQueue,
+} from './userMessageSerialQueue';
 export {
   detectModelKind,
   type EndpointModelConfigError,
@@ -75,6 +100,7 @@ export {
 } from './subscriptionSupport';
 export { ENDPOINT_MODEL_KINDS } from './types';
 export type {
+  ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   KindMappedEndpoint,
   MessagesModelKind,
@@ -90,4 +116,5 @@ export type {
   OutboundKeyDbRow,
   RequestRole,
   ResponsesModelKind,
+  UserMessageQueueConfig,
 } from './types';

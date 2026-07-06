@@ -80,6 +80,7 @@ function makeDb(byHash: (h: string) => OutboundKeyDbRow | null): OutboundKeyDb {
     outboundApiKeysRevoke: async () => true,
     outboundApiKeysTouchLastUsed: async () => true,
     outboundApiKeysSetEnabled: async () => true,
+    outboundApiKeysSetMaxConcurrency: async () => true,
   };
 }
 

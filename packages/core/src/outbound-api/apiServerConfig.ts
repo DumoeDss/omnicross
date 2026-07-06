@@ -18,14 +18,81 @@
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
 import type {
+  ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   ModelRef,
   OutboundApiServerConfig,
   OutboundEndpoint,
+  UserMessageQueueConfig,
 } from './types';
 
 /** The settings key the config persists under. */
 export const OUTBOUND_API_SERVER_CONFIG_KEY = 'outboundApiServer.config';
+
+/**
+ * Frozen defaults for the user-message serial queue segment (SSOT). Note the
+ * `waitTimeoutMs` default is **60000** — the office-hours draft's 30000 is
+ * superseded by the user's拍板 / planning-context §COMMITTED.
+ */
+export const DEFAULT_USER_MESSAGE_QUEUE: UserMessageQueueConfig = {
+  enabled: false,
+  delayMs: 200,
+  waitTimeoutMs: 60_000,
+};
+
+/** Frozen defaults for the per-key concurrency queue segment (SSOT). */
+export const DEFAULT_CONCURRENCY_QUEUE: ConcurrencyQueueConfig = {
+  maxQueueSizeFactor: 2,
+  minQueueSize: 4,
+  waitTimeoutMs: 60_000,
+};
+
+/** Clamp a numeric to `[min, max]`, falling back to `fallback` when non-finite. */
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * Fill + range-CLAMP the two queue segments to the frozen defaults. Lenient:
+ * out-of-range persisted numerics are clamped to the nearest bound, never
+ * thrown — strict validation is the daemon admin PUT's job. `enabled` coerces
+ * to a boolean (default false).
+ */
+export function normalizeQueueSegments(raw: Partial<OutboundApiServerConfig> | undefined | null): {
+  userMessageQueue: UserMessageQueueConfig;
+  concurrencyQueue: ConcurrencyQueueConfig;
+} {
+  const umq = raw?.userMessageQueue;
+  const cq = raw?.concurrencyQueue;
+  return {
+    userMessageQueue: {
+      enabled: umq?.enabled === true,
+      delayMs: clampNumber(umq?.delayMs, 0, 10_000, DEFAULT_USER_MESSAGE_QUEUE.delayMs),
+      waitTimeoutMs: clampNumber(
+        umq?.waitTimeoutMs,
+        1000,
+        300_000,
+        DEFAULT_USER_MESSAGE_QUEUE.waitTimeoutMs,
+      ),
+    },
+    concurrencyQueue: {
+      maxQueueSizeFactor: clampNumber(
+        cq?.maxQueueSizeFactor,
+        1,
+        10,
+        DEFAULT_CONCURRENCY_QUEUE.maxQueueSizeFactor,
+      ),
+      minQueueSize: clampNumber(cq?.minQueueSize, 1, 100, DEFAULT_CONCURRENCY_QUEUE.minQueueSize),
+      waitTimeoutMs: clampNumber(
+        cq?.waitTimeoutMs,
+        1000,
+        300_000,
+        DEFAULT_CONCURRENCY_QUEUE.waitTimeoutMs,
+      ),
+    },
+  };
+}
 
 /** Structural subset of the settings store the config loader needs. */
 export interface ApiServerSettingsStore {
@@ -110,11 +177,14 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
 
 /** The default server config: disabled, loopback, four blank endpoints. */
 export function defaultServerConfig(): OutboundApiServerConfig {
+  const queues = normalizeQueueSegments(undefined);
   return {
     enabled: false,
     networkBinding: false,
     endpoints: ALL_ENDPOINTS.map(defaultEndpointConfig),
     port: DEFAULT_OUTBOUND_PORT,
+    userMessageQueue: queues.userMessageQueue,
+    concurrencyQueue: queues.concurrencyQueue,
   };
 }
 
@@ -134,6 +204,7 @@ export function normalizeServerConfig(
       byEndpoint.set(e.endpoint, normalizeEndpointConfig(e));
     }
   }
+  const queues = normalizeQueueSegments(raw);
   return {
     enabled: raw.enabled === true,
     networkBinding: raw.networkBinding === true,
@@ -141,6 +212,8 @@ export function normalizeServerConfig(
       (ep) => byEndpoint.get(ep) ?? defaultEndpointConfig(ep),
     ),
     port: raw.port ?? base.port,
+    userMessageQueue: queues.userMessageQueue,
+    concurrencyQueue: queues.concurrencyQueue,
   };
 }
 
@@ -172,5 +245,7 @@ export function mergeServerConfig(
     networkBinding: patch.networkBinding ?? current.networkBinding,
     endpoints: patch.endpoints ?? current.endpoints,
     port: patch.port ?? current.port,
+    userMessageQueue: patch.userMessageQueue ?? current.userMessageQueue,
+    concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
   });
 }
