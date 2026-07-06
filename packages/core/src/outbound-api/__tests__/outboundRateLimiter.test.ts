@@ -32,4 +32,28 @@ describe('OutboundRateLimiter', () => {
     // A different key has its own window.
     expect(limiter.check('b', 0).allowed).toBe(true);
   });
+
+  it('a per-key override throttles at its own value (outbound-key-policy)', () => {
+    // Instance default is 60/60s; the override caps THIS key at 2 per window.
+    const limiter = new OutboundRateLimiter();
+    const o = { maxRequests: 2, windowMs: 1000 };
+    expect(limiter.check('k', 0, o).allowed).toBe(true);
+    expect(limiter.check('k', 0, o).allowed).toBe(true);
+    const denied = limiter.check('k', 0, o);
+    expect(denied.allowed).toBe(false);
+    expect(denied.retryAfterSeconds).toBeGreaterThanOrEqual(1);
+  });
+
+  it('an unconfigured key uses the 60/60s default (byte-identical)', () => {
+    const limiter = new OutboundRateLimiter();
+    // 60 allowed, the 61st denied — the pre-change behavior.
+    for (let i = 0; i < 60; i++) expect(limiter.check('k', 0).allowed).toBe(true);
+    expect(limiter.check('k', 0).allowed).toBe(false);
+  });
+
+  it('maxRequests: 0 means unlimited (never throttled, never recorded)', () => {
+    const limiter = new OutboundRateLimiter();
+    const o = { maxRequests: 0 };
+    for (let i = 0; i < 1000; i++) expect(limiter.check('k', 0, o).allowed).toBe(true);
+  });
 });

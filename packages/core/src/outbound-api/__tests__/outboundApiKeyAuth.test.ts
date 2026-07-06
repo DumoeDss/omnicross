@@ -9,9 +9,12 @@ import {
   generateSecret,
   hashKey,
   keyPrefix,
+  verifyKey,
   verifyPresentedKey,
 } from '../outboundApiKeyAuth';
 import type { OutboundKeyDb, OutboundKeyDbRow } from '../types';
+
+const DAY_MS = 86_400_000;
 
 /** A tiny in-memory OutboundKeyDb stub. */
 function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: OutboundKeyDbRow[] } {
@@ -59,6 +62,18 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
       if (!row || row.revokedAt !== null) return false;
       if (maxConcurrency === null) delete row.maxConcurrency;
       else row.maxConcurrency = maxConcurrency;
+      return true;
+    },
+    outboundApiKeysSetPolicy: async (id, policy) => {
+      const row = store.find((r) => r.id === id);
+      if (!row || row.revokedAt !== null) return false;
+      Object.assign(row, policy);
+      return true;
+    },
+    outboundApiKeysMarkActivated: async (id, activatedAt) => {
+      const row = store.find((r) => r.id === id);
+      if (!row || row.revokedAt !== null || row.activatedAt != null) return false;
+      row.activatedAt = activatedAt;
       return true;
     },
   };
@@ -137,5 +152,77 @@ describe('outboundApiKeyAuth', () => {
     await db.outboundApiKeysSetMaxConcurrency(created.id, null);
     const cleared = await verifyPresentedKey(db, created.plaintextOnce);
     expect(cleared?.maxConcurrency).toBeUndefined();
+  });
+});
+
+describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
+  it('a policy-less key resolves ok with a byte-identical {id} verified key', async () => {
+    const db = makeStubDb();
+    const created = await createNamedKey(db, 'plain');
+    const res = await verifyKey(db, created.plaintextOnce);
+    expect(res.status).toBe('ok');
+    if (res.status !== 'ok') return;
+    expect(res.key).toEqual({ id: created.id });
+    expect(res.key.costLimits).toBeUndefined();
+    expect(res.key.rateLimit).toBeUndefined();
+  });
+
+  it('a fixed key past expiresAt is expired', async () => {
+    const db = makeStubDb();
+    const created = await createNamedKey(db, 'exp');
+    await db.outboundApiKeysSetPolicy(created.id, { expiresAt: 1_000 });
+    expect((await verifyKey(db, created.plaintextOnce, 2_000)).status).toBe('expired');
+    // Still valid strictly before its expiry.
+    expect((await verifyKey(db, created.plaintextOnce, 500)).status).toBe('ok');
+  });
+
+  it('an activation-mode key activates on first use and stamps activatedAt once', async () => {
+    const db = makeStubDb();
+    const created = await createNamedKey(db, 'act');
+    await db.outboundApiKeysSetPolicy(created.id, { activationMode: 'activation', activationDays: 30 });
+    const spy = vi.spyOn(db, 'outboundApiKeysMarkActivated');
+
+    // First use: not expired, activation fired.
+    const first = await verifyKey(db, created.plaintextOnce, 10_000);
+    expect(first.status).toBe('ok');
+    // Best-effort activation is fire-and-forget; let the microtask settle.
+    await Promise.resolve();
+    expect(spy).toHaveBeenCalledWith(created.id, 10_000);
+    const row = db.rows.find((r) => r.id === created.id);
+    expect(row?.activatedAt).toBe(10_000);
+
+    // Second use much later within the window: still ok, activatedAt unchanged.
+    const second = await verifyKey(db, created.plaintextOnce, 10_000 + 5 * DAY_MS);
+    expect(second.status).toBe('ok');
+    expect(row?.activatedAt).toBe(10_000);
+  });
+
+  it('an activation-mode key past its window is expired', async () => {
+    const db = makeStubDb();
+    const created = await createNamedKey(db, 'act2');
+    await db.outboundApiKeysSetPolicy(created.id, {
+      activationMode: 'activation',
+      activationDays: 7,
+    });
+    // Simulate a prior activation.
+    await db.outboundApiKeysMarkActivated(created.id, 1_000);
+    expect((await verifyKey(db, created.plaintextOnce, 1_000 + 8 * DAY_MS)).status).toBe('expired');
+    expect((await verifyKey(db, created.plaintextOnce, 1_000 + 3 * DAY_MS)).status).toBe('ok');
+  });
+
+  it('carries cost limits + rate override through the verified key', async () => {
+    const db = makeStubDb();
+    const created = await createNamedKey(db, 'quota');
+    await db.outboundApiKeysSetPolicy(created.id, {
+      dailyCostLimitUsd: 5,
+      totalCostLimitUsd: 100,
+      rateLimitMaxRequests: 10,
+      rateLimitWindowMs: 1_000,
+    });
+    const res = await verifyKey(db, created.plaintextOnce);
+    expect(res.status).toBe('ok');
+    if (res.status !== 'ok') return;
+    expect(res.key.costLimits).toEqual({ dailyUsd: 5, totalUsd: 100 });
+    expect(res.key.rateLimit).toEqual({ maxRequests: 10, windowMs: 1_000 });
   });
 });

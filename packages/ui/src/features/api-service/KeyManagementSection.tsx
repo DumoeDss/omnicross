@@ -9,7 +9,7 @@
  * on dismiss).
  */
 
-import { Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, KeyRound, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,13 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-import type { OutboundApiKeyCreated, OutboundApiKeyInfo } from '@/daemon/types';
+import type {
+  OutboundApiKeyCreated,
+  OutboundApiKeyInfo,
+  OutboundKeyPolicyPatch,
+} from '@/daemon/types';
+
+import { KeyPolicyEditor } from './KeyPolicyEditor';
 
 interface KeyManagementSectionProps {
   keys: OutboundApiKeyInfo[];
@@ -29,6 +35,7 @@ interface KeyManagementSectionProps {
   onRevoke: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
+  onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   onDismissCreated: () => void;
 }
 
@@ -140,11 +147,14 @@ export function KeyManagementSection({
   onRevoke,
   onToggle,
   onSetMaxConcurrency,
+  onSetPolicy,
   onDismissCreated,
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
   const [revokeTarget, setRevokeTarget] = useState<OutboundApiKeyInfo | null>(null);
+  // Which key's policy editor is expanded (only one open at a time).
+  const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     const trimmed = name.trim();
@@ -189,52 +199,76 @@ export function KeyManagementSection({
           {keys.map((k) => (
             <li
               key={k.id}
-              className="flex items-center gap-3 rounded-md border border-border/60 bg-surface-0/60 px-3 py-2"
+              className="rounded-md border border-border/60 bg-surface-0/60 px-3 py-2"
             >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-foreground">{k.name}</span>
-                  {k.revoked ? (
-                    <Badge variant="destructive">{t('apiService.keys.revoked')}</Badge>
-                  ) : k.enabled ? (
-                    <Badge variant="success">{t('apiService.keys.enabled')}</Badge>
-                  ) : (
-                    <Badge variant="secondary">{t('apiService.keys.disabled')}</Badge>
-                  )}
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">{k.name}</span>
+                    {k.revoked ? (
+                      <Badge variant="destructive">{t('apiService.keys.revoked')}</Badge>
+                    ) : k.enabled ? (
+                      <Badge variant="success">{t('apiService.keys.enabled')}</Badge>
+                    ) : (
+                      <Badge variant="secondary">{t('apiService.keys.disabled')}</Badge>
+                    )}
+                  </div>
+                  <code className="text-xs text-muted-foreground">{k.keyPrefix}…</code>
                 </div>
-                <code className="text-xs text-muted-foreground">{k.keyPrefix}…</code>
-              </div>
-              {!k.revoked ? (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    {t('apiService.queue.key.label')}
-                  </span>
-                  <KeyConcurrencyInput
-                    value={k.maxConcurrency}
-                    busy={busy}
-                    onCommit={(next) => void onSetMaxConcurrency(k.id, next)}
+                {!k.revoked ? (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      {t('apiService.queue.key.label')}
+                    </span>
+                    <KeyConcurrencyInput
+                      value={k.maxConcurrency}
+                      busy={busy}
+                      onCommit={(next) => void onSetMaxConcurrency(k.id, next)}
+                    />
+                  </div>
+                ) : null}
+                {!k.revoked ? (
+                  <Button
+                    variant={policyOpenId === k.id ? 'secondary' : 'ghost'}
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={busy}
+                    onClick={() => setPolicyOpenId((cur) => (cur === k.id ? null : k.id))}
+                    aria-label={t('apiService.keys.policy.title')}
+                    title={t('apiService.keys.policy.title')}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
+                {!k.revoked ? (
+                  <Switch
+                    checked={k.enabled}
+                    disabled={busy}
+                    onCheckedChange={(checked) => void onToggle(k.id, checked)}
+                    aria-label={t('apiService.keys.toggle')}
                   />
-                </div>
-              ) : null}
-              {!k.revoked ? (
-                <Switch
-                  checked={k.enabled}
-                  disabled={busy}
-                  onCheckedChange={(checked) => void onToggle(k.id, checked)}
-                  aria-label={t('apiService.keys.toggle')}
+                ) : null}
+                {!k.revoked ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={busy}
+                    onClick={() => setRevokeTarget(k)}
+                    aria-label={t('apiService.keys.revoke')}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                ) : null}
+              </div>
+              {!k.revoked && policyOpenId === k.id ? (
+                <KeyPolicyEditor
+                  keyInfo={k}
+                  busy={busy}
+                  onSave={async (policy) => {
+                    await onSetPolicy(k.id, policy);
+                  }}
                 />
-              ) : null}
-              {!k.revoked ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={busy}
-                  onClick={() => setRevokeTarget(k)}
-                  aria-label={t('apiService.keys.revoke')}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
               ) : null}
             </li>
           ))}

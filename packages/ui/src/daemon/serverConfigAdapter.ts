@@ -32,6 +32,7 @@ import type {
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
+  OutboundKeyPolicyPatch,
   OutboundModelConfigError,
 } from './types-server';
 
@@ -201,6 +202,19 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return { success: true };
       } catch (err) {
         return fail(err, 'failed to update key concurrency limit');
+      }
+    },
+
+    async setKeyPolicy(id: string, policy: OutboundKeyPolicyPatch): Promise<MutationResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean }>(
+          `/keys/${encodeURIComponent(id)}/policy`,
+          policy,
+        );
+        if (!data.ok) return { success: false, message: 'key not found' };
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update key policy');
       }
     },
 

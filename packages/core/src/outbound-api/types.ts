@@ -21,6 +21,8 @@ import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { ProviderProxy } from '../provider-proxy';
 import type { ProviderProxyDeps } from '../provider-proxy';
 
+import type { KeySpendReader } from './keySpendTracker';
+
 /** The four endpoints, 1:1 with the four wire-format ingress parsers. */
 export type OutboundEndpoint = 'chat' | 'responses' | 'messages' | 'gemini';
 
@@ -229,6 +231,54 @@ export interface OutboundApiKeyInfo {
    * `0` = unlimited (the gate is bypassed entirely for this key).
    */
   maxConcurrency?: number;
+  // ── Key-policy envelope (outbound-key-policy). All optional; a policy-less key
+  //    carries none of these and behaves exactly as before this change. ────────
+  /** Fixed-mode absolute expiry (epoch ms). */
+  expiresAt?: number | null;
+  /** Expiry mode; absent ⇒ `'fixed'`. */
+  activationMode?: OutboundKeyActivationMode;
+  /** Activation-mode lifetime in days. */
+  activationDays?: number | null;
+  /** First-use activation stamp (epoch ms); written once, surfaced read-only. */
+  activatedAt?: number | null;
+  /** Daily USD cost cap. */
+  dailyCostLimitUsd?: number | null;
+  /** Lifetime USD cost cap. */
+  totalCostLimitUsd?: number | null;
+  /** Weekly USD cost cap. */
+  weeklyCostLimitUsd?: number | null;
+  /** Per-key rate-limit max requests per window (absent ⇒ 60; `0` ⇒ unlimited). */
+  rateLimitMaxRequests?: number | null;
+  /** Per-key rate-limit window (ms; absent ⇒ 60_000). */
+  rateLimitWindowMs?: number | null;
+  /**
+   * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
+   * so an operator sees spend-vs-limit. Present only when the host wired a spend
+   * reader. Leak-safe: each key carries only ITS own numbers — the same data the
+   * key's holder already sees in a 402 body.
+   */
+  spend?: { dailyUsd: number; weeklyUsd: number; totalUsd: number };
+}
+
+/** Expiry mode for an outbound key: fixed absolute vs first-use activation. */
+export type OutboundKeyActivationMode = 'fixed' | 'activation';
+
+/**
+ * The settable key-policy envelope (`outboundApiKeysSetPolicy`). Every field is
+ * three-way: a value SETS, explicit `null` CLEARS, and OMISSION keeps the stored
+ * value (mirrors the `maxConcurrency` write contract). `activatedAt` is NOT here
+ * — it is written once by `outboundApiKeysMarkActivated`, never operator-set.
+ * The #6/#9 children extend this shape; do not drift the frozen fields.
+ */
+export interface OutboundKeyPolicy {
+  expiresAt?: number | null;
+  activationMode?: OutboundKeyActivationMode | null;
+  activationDays?: number | null;
+  dailyCostLimitUsd?: number | null;
+  totalCostLimitUsd?: number | null;
+  weeklyCostLimitUsd?: number | null;
+  rateLimitMaxRequests?: number | null;
+  rateLimitWindowMs?: number | null;
 }
 
 /** The one-time create result; `plaintextOnce` is shown exactly once. */
@@ -259,6 +309,26 @@ export interface OutboundKeyDbRow {
    * is bypassed for this key. Persisted by the daemon (`omnicross-uqc-daemon`).
    */
   maxConcurrency?: number;
+  // ── Key-policy envelope (outbound-key-policy). All optional/nullable; existing
+  //    rows (+ tests) parse unchanged and a row with none behaves as before. ────
+  /** Fixed-mode absolute expiry (epoch ms). */
+  expiresAt?: number | null;
+  /** Expiry mode; absent ⇒ `'fixed'`. */
+  activationMode?: OutboundKeyActivationMode;
+  /** Activation-mode lifetime in days. */
+  activationDays?: number | null;
+  /** First-use activation stamp (epoch ms); written ONCE on first successful use. */
+  activatedAt?: number | null;
+  /** Daily USD cost cap. */
+  dailyCostLimitUsd?: number | null;
+  /** Lifetime USD cost cap. */
+  totalCostLimitUsd?: number | null;
+  /** Weekly USD cost cap. */
+  weeklyCostLimitUsd?: number | null;
+  /** Per-key rate-limit max requests per window (absent ⇒ 60; `0` ⇒ unlimited). */
+  rateLimitMaxRequests?: number | null;
+  /** Per-key rate-limit window (ms; absent ⇒ 60_000). */
+  rateLimitWindowMs?: number | null;
 }
 
 export interface OutboundKeyDb {
@@ -284,6 +354,22 @@ export interface OutboundKeyDb {
     id: string,
     maxConcurrency: number | null,
   ): Promise<boolean>;
+  /**
+   * Set (or clear) a key's policy envelope (expiry / activation window / cost
+   * limits / per-key rate) in one write (outbound-key-policy). Each field is
+   * three-way — a value sets, explicit `null` clears, omission keeps — mirroring
+   * `outboundApiKeysSetMaxConcurrency`. Returns `false` when the key is
+   * missing/revoked. Does NOT touch `activatedAt`.
+   */
+  outboundApiKeysSetPolicy(id: string, policy: OutboundKeyPolicy): Promise<boolean>;
+  /**
+   * Stamp the one-time first-use activation (`activatedAt`) for an
+   * activation-mode key. Best-effort like `outboundApiKeysTouchLastUsed`; a
+   * no-op returning `false` when the key is missing/revoked or already
+   * activated (the original stamp is never overwritten — activation is
+   * idempotent).
+   */
+  outboundApiKeysMarkActivated(id: string, activatedAt: number): Promise<boolean>;
 }
 
 /**
@@ -307,6 +393,14 @@ export interface OutboundApiDeps {
    * zero-regression for embedders that do not wire it).
    */
   readonly healthReportProvider?: () => HealthReport;
+  /**
+   * OPTIONAL per-key spend reader (outbound-key-policy). When wired (by the
+   * daemon bootstrap), a key carrying a cost limit is checked against its
+   * accumulated spend before dispatch (→ 402). Absent ⇒ NO cost-quota check runs
+   * (byte-identical zero-regression for embedders/tests that do not wire it, and
+   * for every policy-less key regardless).
+   */
+  readonly keySpendTracker?: KeySpendReader;
   /**
    * OPTIONAL injected logger (configurable-logging). When wired (by the daemon
    * bootstrap), the server's OWN lifecycle lines (listen/stop/error) + the relay

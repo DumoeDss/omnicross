@@ -44,6 +44,7 @@ export function ApiServicePage() {
     revokeKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
+    setKeyPolicy,
     updateQueueConfig,
     updateProxyConfig,
     queueStatus,
@@ -142,6 +143,7 @@ export function ApiServicePage() {
                 onRevoke={revokeKey}
                 onToggle={setKeyEnabled}
                 onSetMaxConcurrency={setKeyMaxConcurrency}
+                onSetPolicy={setKeyPolicy}
                 onDismissCreated={dismissCreatedKey}
               />
 

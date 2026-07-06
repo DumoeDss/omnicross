@@ -45,22 +45,37 @@ export class OutboundRateLimiter {
    * Record a request for `apiKeyId` and decide whether it is allowed. Prunes
    * timestamps older than the window first; when allowed, the request's
    * timestamp is appended.
+   *
+   * `override` (outbound-key-policy) supplies a PER-KEY window/max for this
+   * bucket, superseding the instance defaults for THAT key. Absent ⇒ the
+   * instance default 60/60s (byte-identical to before this change). An effective
+   * `maxRequests` of `0` means UNLIMITED — the request is allowed and NOT
+   * recorded (no bucket growth).
    */
-  check(apiKeyId: string, now: number = Date.now()): RateLimitDecision {
-    const cutoff = now - this.windowMs;
+  check(
+    apiKeyId: string,
+    now: number = Date.now(),
+    override?: RateLimiterOptions,
+  ): RateLimitDecision {
+    const maxRequests = override?.maxRequests ?? this.maxRequests;
+    const windowMs = override?.windowMs ?? this.windowMs;
+    // `0` = unlimited: bypass entirely (allow, no bucket record).
+    if (maxRequests === 0) return { allowed: true, retryAfterSeconds: 0 };
+
+    const cutoff = now - windowMs;
     const timestamps = (this.hits.get(apiKeyId) ?? []).filter((ts) => ts > cutoff);
 
-    if (timestamps.length >= this.maxRequests) {
+    if (timestamps.length >= maxRequests) {
       // Window full — deny. Retry-After = time until the oldest hit ages out.
-      // m6: when the pruned window is empty (e.g. a `maxRequests: 0` limiter),
-      // drop the entry rather than re-storing an empty array, so the map does
-      // not accumulate empty entries for keys that never get an allowed hit.
+      // m6: when the pruned window is empty, drop the entry rather than
+      // re-storing an empty array, so the map does not accumulate empty entries
+      // for keys that never get an allowed hit.
       if (timestamps.length === 0) {
         this.hits.delete(apiKeyId);
-        return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil(this.windowMs / 1000)) };
+        return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil(windowMs / 1000)) };
       }
       const oldest = timestamps[0];
-      const retryAfterMs = Math.max(0, oldest + this.windowMs - now);
+      const retryAfterMs = Math.max(0, oldest + windowMs - now);
       this.hits.set(apiKeyId, timestamps);
       return {
         allowed: false,

@@ -590,6 +590,25 @@
         "copy": "コピー",
         "copied": "コピーしました",
         "dismiss": "完了"
+      },
+      "policy": {
+        "title": "ポリシー",
+        "expiryMode": "有効期限",
+        "expiryNone": "無期限",
+        "expiryFixed": "固定日時",
+        "expiryActivation": "初回使用後の日数",
+        "expiresAt": "有効期限",
+        "activationDays": "初回使用後の日数",
+        "activatedAt": "有効化済み",
+        "dailyCost": "日次上限（USD）",
+        "weeklyCost": "週次上限（USD）",
+        "totalCost": "合計上限（USD）",
+        "rateMax": "レート制限（最大リクエスト数）",
+        "rateWindow": "レート制限ウィンドウ（ミリ秒）",
+        "unlimitedHint": "制限なし",
+        "rateDefaultHint": "既定 60 / 60000",
+        "save": "ポリシーを保存",
+        "spent": "使用済み"
       }
     },
     "queue": {

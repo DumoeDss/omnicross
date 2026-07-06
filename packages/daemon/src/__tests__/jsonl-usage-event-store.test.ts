@@ -177,4 +177,43 @@ describe('JsonlUsageEventStore', () => {
     expect(none.hitRate).toBe(0);
     expect(none.eventCount).toBe(0);
   });
+
+  describe('getSpendByKey (outbound-key-policy single-pass seed)', () => {
+    it('sums total/daily/weekly for one key in a single scan', async () => {
+      await store.insert(event({ ts: 100, apiKeyId: 'k1', costUsd: 1 })); // before week
+      await store.insert(event({ ts: 200, apiKeyId: 'k1', costUsd: 2 })); // this week
+      await store.insert(event({ ts: 250, apiKeyId: 'k2', costUsd: 99 })); // other key
+      await store.insert(event({ ts: 300, apiKeyId: 'k1', costUsd: 4 })); // today (endTs-excluded below)
+
+      // endTs=300 excludes the ts:300 row; day/week starts bucket the rest.
+      const a = await store.getSpendByKey({
+        apiKeyId: 'k1',
+        dayStartTs: 200,
+        weekStartTs: 150,
+        endTs: 300,
+      });
+      expect(a.totalUsd).toBe(3); // 1 + 2
+      expect(a.weeklyUsd).toBe(2); // only ts:200 >= 150
+      expect(a.dailyUsd).toBe(2); // only ts:200 >= 200
+
+      // Whole history for the key (endTs past the last row).
+      const b = await store.getSpendByKey({
+        apiKeyId: 'k1',
+        dayStartTs: 300,
+        weekStartTs: 150,
+        endTs: 301,
+      });
+      expect(b.totalUsd).toBe(7); // 1 + 2 + 4
+      expect(b.dailyUsd).toBe(4); // only ts:300 >= 300
+
+      // A key with no events yields all zeros.
+      const none = await store.getSpendByKey({
+        apiKeyId: 'nope',
+        dayStartTs: 0,
+        weekStartTs: 0,
+        endTs: 999,
+      });
+      expect(none).toEqual({ totalUsd: 0, dailyUsd: 0, weeklyUsd: 0 });
+    });
+  });
 });

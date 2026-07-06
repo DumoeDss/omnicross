@@ -14,7 +14,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
-import type { OutboundKeyDb, OutboundKeyDbRow } from '@omnicross/core';
+import type { OutboundKeyDb, OutboundKeyDbRow, OutboundKeyPolicy } from '@omnicross/core';
 
 export class JsonOutboundKeyDb implements OutboundKeyDb {
   constructor(private readonly keysPath: string) {}
@@ -92,6 +92,36 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     });
   }
 
+  async outboundApiKeysSetPolicy(id: string, policy: OutboundKeyPolicy): Promise<boolean> {
+    return this.mutateRow(id, (row) => {
+      if (row.revokedAt !== null) return false;
+      // Three-way per field: a value SETS, explicit `null` CLEARS (delete →
+      // absent round-trips without the field), OMISSION keeps the stored value.
+      // `activatedAt` is intentionally NOT settable here.
+      applyPolicyField(row, 'expiresAt', policy.expiresAt);
+      applyPolicyField(row, 'activationDays', policy.activationDays);
+      applyPolicyField(row, 'dailyCostLimitUsd', policy.dailyCostLimitUsd);
+      applyPolicyField(row, 'totalCostLimitUsd', policy.totalCostLimitUsd);
+      applyPolicyField(row, 'weeklyCostLimitUsd', policy.weeklyCostLimitUsd);
+      applyPolicyField(row, 'rateLimitMaxRequests', policy.rateLimitMaxRequests);
+      applyPolicyField(row, 'rateLimitWindowMs', policy.rateLimitWindowMs);
+      // `activationMode` is an enum, not a number — apply with the same three-way.
+      if (policy.activationMode === null) delete row.activationMode;
+      else if (policy.activationMode !== undefined) row.activationMode = policy.activationMode;
+      return true;
+    });
+  }
+
+  async outboundApiKeysMarkActivated(id: string, activatedAt: number): Promise<boolean> {
+    return this.mutateRow(id, (row) => {
+      if (row.revokedAt !== null) return false;
+      // Idempotent: never overwrite an existing activation stamp.
+      if (row.activatedAt != null) return false;
+      row.activatedAt = activatedAt;
+      return true;
+    });
+  }
+
   /** Apply `fn` to the row with `id`, persisting when it returns true. */
   private mutateRow(id: string, fn: (row: OutboundKeyDbRow) => boolean): boolean {
     const rows = this.readRows();
@@ -116,4 +146,26 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
   private writeRows(rows: OutboundKeyDbRow[]): void {
     writeFileSync(this.keysPath, JSON.stringify(rows, null, 2) + '\n', 'utf8');
   }
+}
+
+/**
+ * Three-way write of a numeric-nullable policy field: `undefined` (absent in the
+ * patch) keeps the stored value, `null` clears it (delete → the JSON drops the
+ * `undefined` so the field round-trips absent), and a value sets it.
+ */
+function applyPolicyField(
+  row: OutboundKeyDbRow,
+  field:
+    | 'expiresAt'
+    | 'activationDays'
+    | 'dailyCostLimitUsd'
+    | 'totalCostLimitUsd'
+    | 'weeklyCostLimitUsd'
+    | 'rateLimitMaxRequests'
+    | 'rateLimitWindowMs',
+  value: number | null | undefined,
+): void {
+  if (value === undefined) return;
+  if (value === null) delete row[field];
+  else row[field] = value;
 }

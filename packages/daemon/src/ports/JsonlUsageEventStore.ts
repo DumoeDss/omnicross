@@ -146,6 +146,32 @@ export class JsonlUsageEventStore implements UsageEventStore {
   }
 
   /**
+   * ONE pass over a single key's events (`ts < endTs`) summing its `costUsd` into
+   * `totalUsd` / `dailyUsd` (`ts >= dayStartTs`) / `weeklyUsd` (`ts >= weekStartTs`).
+   * Used to lazily seed the outbound key-policy spend tracker (once per key). A
+   * key with no attributed events yields all zeros.
+   */
+  async getSpendByKey(query: {
+    apiKeyId: string;
+    dayStartTs: number;
+    weekStartTs: number;
+    endTs: number;
+  }): Promise<{ totalUsd: number; dailyUsd: number; weeklyUsd: number }> {
+    let totalUsd = 0;
+    let dailyUsd = 0;
+    let weeklyUsd = 0;
+    // Scan the whole history up to endTs once; bucket each row into every window
+    // it qualifies for (daily/weekly are sub-ranges of total).
+    for (const row of this.readRows({ startTs: 0, endTs: query.endTs })) {
+      if (row.apiKeyId !== query.apiKeyId) continue;
+      totalUsd += row.costUsd;
+      if (row.ts >= query.dayStartTs) dailyUsd += row.costUsd;
+      if (row.ts >= query.weekStartTs) weeklyUsd += row.costUsd;
+    }
+    return { totalUsd, dailyUsd, weeklyUsd };
+  }
+
+  /**
    * Time-series aggregation over LOCAL-time bucket boundaries. Every bucket in
    * `[floor(startTs), endTs)` is present (empty ones zero-filled), ascending by
    * `bucketStartTs`; an empty range (`startTs >= endTs`) returns `[]`. Reuses

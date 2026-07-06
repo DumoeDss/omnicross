@@ -33,6 +33,7 @@ import type {
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
+  OutboundKeyPolicyPatch,
   OutboundModelConfigError,
   ProxyConfig,
 } from './types-server';
@@ -219,6 +220,13 @@ export interface AgentApiServiceApi {
    * handling (`ok:false` → "key not found").
    */
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
+  /**
+   * Set a key's policy envelope (`POST /keys/:id/policy`, outbound-key-policy):
+   * expiry / activation / cost limits / per-key rate. Each field is three-way
+   * (omit keeps, `null` clears, value sets). Mirrors `setKeyMaxConcurrency`'s
+   * `{ ok }` handling.
+   */
+  setKeyPolicy(id: string, policy: OutboundKeyPolicyPatch): Promise<MutationResult>;
   /**
    * Persist one or both queue-config segments (`PUT /server`), reusing the
    * `applyServerPut` cache-refresh + `incomplete-model-config` envelope handling.

@@ -83,6 +83,8 @@ function makeDb(byHash: (h: string) => OutboundKeyDbRow | null): OutboundKeyDb {
     outboundApiKeysTouchLastUsed: async () => true,
     outboundApiKeysSetEnabled: async () => true,
     outboundApiKeysSetMaxConcurrency: async () => true,
+    outboundApiKeysSetPolicy: async () => true,
+    outboundApiKeysMarkActivated: async () => true,
   };
 }
 
@@ -193,7 +195,12 @@ describe('handleOutboundRequest — auth', () => {
   it('429 when the per-key rate limit is exceeded', async () => {
     const routeMap = new ProviderProxyRouteMap();
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
-    const limiter = new OutboundRateLimiter({ windowMs: 1000, maxRequests: 0 });
+    // A 1/window limiter, pre-exhausted for this key's bucket, so the handler's
+    // own check is the 2nd hit within the window and is denied. (Instance
+    // `maxRequests: 0` now means UNLIMITED per the frozen key-policy contract, so
+    // the bucket is pre-filled instead.)
+    const limiter = new OutboundRateLimiter({ windowMs: 60_000, maxRequests: 1 });
+    limiter.check(enabledRow.id);
     const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/chat/completions' });
     const res = new MockRes();
     req.start();
@@ -268,6 +275,85 @@ describe('handleOutboundRequest — auth', () => {
     );
     expect(reachedSharedIngress).toBe(true);
     errSpy.mockRestore();
+  });
+});
+
+describe('handleOutboundRequest — key policy (expiry / cost quota)', () => {
+  const run = async (
+    row: OutboundKeyDbRow,
+    extra: Partial<OutboundApiDeps> = {},
+    body = JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] }),
+  ): Promise<MockRes> => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = { ...makeDeps({ db: makeDb(() => ({ ...row })), routeMap }), ...extra };
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/chat/completions',
+      body,
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      config,
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    errSpy.mockRestore();
+    return res;
+  };
+
+  it('401 when the key is expired (fixed mode past expiresAt)', async () => {
+    const res = await run({ ...enabledRow, expiresAt: 1 });
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toContain('expired');
+  });
+
+  it('402 when the key is over its daily cost limit, naming only this key', async () => {
+    const tracker = {
+      getSpend: async () => ({
+        dailyUsd: 12,
+        dailyWindowStart: 0,
+        weeklyUsd: 12,
+        weeklyWindowStart: 0,
+        totalUsd: 12,
+      }),
+    };
+    const res = await run({ ...enabledRow, id: 'oak_self', dailyCostLimitUsd: 10 }, {
+      keySpendTracker: tracker,
+    });
+    expect(res.statusCode).toBe(402);
+    const parsed = JSON.parse(res.body) as { scope: string; limitUsd: number; spentUsd: number; error: { message: string } };
+    expect(parsed.scope).toBe('daily');
+    expect(parsed.limitUsd).toBe(10);
+    expect(parsed.spentUsd).toBe(12);
+    // Secret-safe: the body carries THIS key's own numbers only — no other key id.
+    expect(res.body).not.toContain('oak_other');
+  });
+
+  it('proceeds when under the cost limit (402 not raised)', async () => {
+    const tracker = {
+      getSpend: async () => ({
+        dailyUsd: 2,
+        dailyWindowStart: 0,
+        weeklyUsd: 2,
+        weeklyWindowStart: 0,
+        totalUsd: 2,
+      }),
+    };
+    const res = await run({ ...enabledRow, dailyCostLimitUsd: 10 }, { keySpendTracker: tracker });
+    expect(res.statusCode).not.toBe(402);
+  });
+
+  it('a policy-less key never triggers a cost computation (tracker untouched)', async () => {
+    const getSpend = vi.fn();
+    const res = await run({ ...enabledRow }, { keySpendTracker: { getSpend } });
+    expect(getSpend).not.toHaveBeenCalled();
+    expect(res.statusCode).not.toBe(402);
   });
 });
 

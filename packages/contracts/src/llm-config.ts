@@ -195,7 +195,6 @@ export interface LLMProvider {
   defaultSettings?: CompletionSettings;
   isSystem?: boolean;
   isOfficial?: boolean;
-  rateLimit?: number;
   maxConcurrency?: number;
   notes?: string;
   apiVersion?: string;

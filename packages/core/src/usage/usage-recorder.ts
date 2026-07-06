@@ -53,10 +53,18 @@ export interface UsageRecorderOptions {
    * `setImmediate` to preserve their exact scheduling.
    */
   defer?: (fn: () => void) => void;
+  /**
+   * OPTIONAL per-request hook (outbound-key-policy). Called synchronously after
+   * cost is computed for each recorded request that carries an `apiKeyId`, so a
+   * host can keep a live per-key spend aggregate WITHOUT re-scanning the store.
+   * Absent ⇒ no-op (byte-identical for hosts/tests that do not wire it).
+   */
+  onRecord?: (apiKeyId: string, costUsd: number, now: number) => void;
 }
 
 export class UsageRecorder {
   private defer: (fn: () => void) => void;
+  private onRecord?: (apiKeyId: string, costUsd: number, now: number) => void;
 
   constructor(
     private store: UsageEventStore,
@@ -65,6 +73,7 @@ export class UsageRecorder {
     options: UsageRecorderOptions = {},
   ) {
     this.defer = options.defer ?? (fn => setTimeout(fn, 0));
+    this.onRecord = options.onRecord;
   }
 
   /**
@@ -93,6 +102,18 @@ export class UsageRecorder {
       input.model,
       input.usage,
     );
+
+    // Live per-key spend increment (outbound-key-policy) — fired before the
+    // deferred store write so an in-memory aggregate stays current without a
+    // re-scan. Only for attributed requests; guarded so a throwing hook never
+    // sinks the persist.
+    if (this.onRecord && input.apiKeyId) {
+      try {
+        this.onRecord(input.apiKeyId, costUsd, Date.now());
+      } catch {
+        /* a spend-hook failure must never break usage persistence */
+      }
+    }
 
     const row: UsageEventInput = {
       messageId: input.messageId ?? null,

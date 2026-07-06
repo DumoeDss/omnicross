@@ -12,7 +12,8 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
-import type { OutboundApiKeyCreated, OutboundKeyDb } from './types';
+import { computeKeyExpiry, type KeyCostLimits } from './keyPolicy';
+import type { OutboundApiKeyCreated, OutboundKeyDb, OutboundKeyDbRow } from './types';
 
 /** Bytes of entropy in a generated secret (256-bit → 43 base62 chars). */
 const SECRET_BYTES = 32;
@@ -90,7 +91,10 @@ export async function createNamedKey(
   };
 }
 
-/** The id of a verified key (for rate-limiting + last-used bookkeeping). */
+/**
+ * A verified key + the enforcement inputs carried from the row so the wire layer
+ * runs its policy checks WITHOUT a second DB read (mirrors `maxConcurrency`).
+ */
 export interface VerifiedKey {
   id: string;
   /**
@@ -99,32 +103,109 @@ export interface VerifiedKey {
    * unlimited (gate bypassed).
    */
   maxConcurrency?: number;
+  /**
+   * Per-key USD cost limits (outbound-key-policy). Absent when the key has no
+   * cost cap → the wire layer skips the cost-quota check entirely.
+   */
+  costLimits?: KeyCostLimits;
+  /**
+   * Per-key rate-limit override (outbound-key-policy). Absent when the key has no
+   * rate config → the limiter uses its default 60/60s window (byte-identical).
+   */
+  rateLimit?: { maxRequests?: number; windowMs?: number };
+}
+
+/** The reason-bearing verify outcome (design D2). */
+export type KeyVerification =
+  | { status: 'ok'; key: VerifiedKey }
+  | { status: 'invalid' } // not found / disabled / revoked → 401
+  | { status: 'expired' }; // past effective expiry → 401
+
+/** Extract the per-key cost limits from a row, or undefined when none are set. */
+function extractCostLimits(row: OutboundKeyDbRow): KeyCostLimits | undefined {
+  const limits: KeyCostLimits = {};
+  if (row.dailyCostLimitUsd != null) limits.dailyUsd = row.dailyCostLimitUsd;
+  if (row.totalCostLimitUsd != null) limits.totalUsd = row.totalCostLimitUsd;
+  if (row.weeklyCostLimitUsd != null) limits.weeklyUsd = row.weeklyCostLimitUsd;
+  return limits.dailyUsd != null || limits.totalUsd != null || limits.weeklyUsd != null
+    ? limits
+    : undefined;
+}
+
+/** Extract the per-key rate override from a row, or undefined when none is set. */
+function extractRateLimit(
+  row: OutboundKeyDbRow,
+): { maxRequests?: number; windowMs?: number } | undefined {
+  if (row.rateLimitMaxRequests == null && row.rateLimitWindowMs == null) return undefined;
+  const override: { maxRequests?: number; windowMs?: number } = {};
+  if (row.rateLimitMaxRequests != null) override.maxRequests = row.rateLimitMaxRequests;
+  if (row.rateLimitWindowMs != null) override.windowMs = row.rateLimitWindowMs;
+  return override;
+}
+
+/** Project a stored row to the verified key, carrying its policy inputs through. */
+function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
+  const key: VerifiedKey = { id: row.id };
+  if (row.maxConcurrency !== undefined && row.maxConcurrency !== null) {
+    key.maxConcurrency = row.maxConcurrency;
+  }
+  const costLimits = extractCostLimits(row);
+  if (costLimits) key.costLimits = costLimits;
+  const rateLimit = extractRateLimit(row);
+  if (rateLimit) key.rateLimit = rateLimit;
+  return key;
 }
 
 /**
- * Verify a presented key against the DB. Matches by hash where the stored row
- * is enabled AND not revoked (the DB query enforces this). On success bumps
- * `lastUsedAt` (best-effort, fire-and-forget) and returns the key id; returns
- * `null` on any miss / disabled / revoked key.
+ * Verify a presented key against the DB, returning a REASON (design D2) so the
+ * wire layer can emit the right status + a clear body. Matches by hash where the
+ * stored row is enabled AND not revoked. On a valid, non-expired key: bumps
+ * `lastUsedAt` (best-effort) and, for an activation-mode key on its FIRST use,
+ * stamps `activatedAt` once (best-effort). A policy-less enabled key resolves to
+ * `{ status:'ok', key:{ id } }` — byte-identical to the pre-policy result.
+ */
+export async function verifyKey(
+  db: OutboundKeyDb,
+  presentedKey: string | undefined,
+  now: number = Date.now(),
+): Promise<KeyVerification> {
+  if (!presentedKey) return { status: 'invalid' };
+  const trimmed = presentedKey.trim();
+  if (!trimmed) return { status: 'invalid' };
+  const row = await db.outboundApiKeysGetByHash(hashKey(trimmed));
+  if (!row) return { status: 'invalid' };
+  // Defensive re-check (the query already filters, but never trust a single
+  // boolean in the auth path).
+  if (!row.enabled || row.revokedAt !== null) return { status: 'invalid' };
+
+  // Expiry / first-use activation (outbound-key-policy). A policy-less row is
+  // never expired and never needs activation, so this is inert for it.
+  const expiry = computeKeyExpiry(row, now);
+  if (expiry.expired) return { status: 'expired' };
+
+  void db.outboundApiKeysTouchLastUsed(row.id).catch(() => {
+    /* last-used bookkeeping is best-effort */
+  });
+  // First successful use of an activation-mode key → stamp activation ONCE
+  // (best-effort; `markActivated` is idempotent so a concurrent double-fire is
+  // harmless).
+  if (expiry.needsActivation) {
+    void db.outboundApiKeysMarkActivated(row.id, now).catch(() => {
+      /* activation stamp is best-effort */
+    });
+  }
+  return { status: 'ok', key: toVerifiedKey(row) };
+}
+
+/**
+ * Thin id-or-null wrapper over {@link verifyKey} for callers not ready for the
+ * reason-bearing form: returns the `VerifiedKey` on success, `null` on any
+ * invalid/expired key (the exact pre-policy contract).
  */
 export async function verifyPresentedKey(
   db: OutboundKeyDb,
   presentedKey: string | undefined,
 ): Promise<VerifiedKey | null> {
-  if (!presentedKey) return null;
-  const trimmed = presentedKey.trim();
-  if (!trimmed) return null;
-  const row = await db.outboundApiKeysGetByHash(hashKey(trimmed));
-  if (!row) return null;
-  // Defensive re-check (the query already filters, but never trust a single
-  // boolean in the auth path).
-  if (!row.enabled || row.revokedAt !== null) return null;
-  void db.outboundApiKeysTouchLastUsed(row.id).catch(() => {
-    /* last-used bookkeeping is best-effort */
-  });
-  // Carry the concurrency ceiling through when the row has one (absent otherwise
-  // so the wire layer bypasses the gate for unlimited keys).
-  return row.maxConcurrency !== undefined && row.maxConcurrency !== null
-    ? { id: row.id, maxConcurrency: row.maxConcurrency }
-    : { id: row.id };
+  const result = await verifyKey(db, presentedKey);
+  return result.status === 'ok' ? result.key : null;
 }

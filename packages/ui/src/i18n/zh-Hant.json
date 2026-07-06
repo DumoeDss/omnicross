@@ -590,6 +590,25 @@
         "copy": "複製",
         "copied": "已複製",
         "dismiss": "完成"
+      },
+      "policy": {
+        "title": "策略",
+        "expiryMode": "有效期",
+        "expiryNone": "永不過期",
+        "expiryFixed": "固定日期",
+        "expiryActivation": "首次使用後天數",
+        "expiresAt": "過期時間",
+        "activationDays": "首次使用後天數",
+        "activatedAt": "已啟用",
+        "dailyCost": "每日額度（USD）",
+        "weeklyCost": "每週額度（USD）",
+        "totalCost": "總額度（USD）",
+        "rateMax": "限流（最大請求數）",
+        "rateWindow": "限流視窗（毫秒）",
+        "unlimitedHint": "無限制",
+        "rateDefaultHint": "預設 60 / 60000",
+        "save": "儲存策略",
+        "spent": "已用"
       }
     },
     "queue": {

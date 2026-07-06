@@ -66,6 +66,7 @@ function makeStore(): UsageEventStore & { inserted: UsageEventInput[] } {
     getTotals: vi.fn(async () => totals),
     getByModel: vi.fn(async () => modelRows),
     getByApiKey: vi.fn(async () => keyRows),
+    getSpendByKey: vi.fn(async () => ({ totalUsd: 0, dailyUsd: 0, weeklyUsd: 0 })),
     getMessagesForSession: vi.fn(async () => messageRows),
     getSessionCacheStats: vi.fn(async () => cacheStats),
   };

@@ -198,7 +198,6 @@ export interface LLMProvider {
   defaultSettings?: CompletionSettings;
   isSystem?: boolean;
   isOfficial?: boolean;
-  rateLimit?: number;
   maxConcurrency?: number;
   notes?: string;
   apiVersion?: string;
@@ -241,7 +240,6 @@ export interface LLMProviderInput {
   defaultSettings?: CompletionSettings;
   isSystem?: boolean;
   isOfficial?: boolean;
-  rateLimit?: number;
   maxConcurrency?: number;
   notes?: string;
   apiVersion?: string;
@@ -276,7 +274,6 @@ export interface LLMProviderUpdateInput {
   defaultSettings?: CompletionSettings;
   isSystem?: boolean;
   isOfficial?: boolean;
-  rateLimit?: number;
   maxConcurrency?: number | null;
   notes?: string;
   apiVersion?: string | null;

@@ -28,7 +28,8 @@ import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { isKindMappedEndpoint } from './kindDetection';
-import { verifyPresentedKey } from './outboundApiKeyAuth';
+import { verifyKey } from './outboundApiKeyAuth';
+import { checkKeyQuota } from './keyPolicy';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import type { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
@@ -70,6 +71,33 @@ function writeJsonError(
   if (res.headersSent) return;
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
+}
+
+/**
+ * Write the 402 cost-limit body (outbound-key-policy). Secret-safe: it names the
+ * presented key's OWN exceeded scope + its own limit/spend and NOTHING about any
+ * other key. The numbers are this caller's own attributed spend, so surfacing
+ * them leaks no cross-key data.
+ */
+function writeCostLimitError(
+  res: http.ServerResponse,
+  scope: 'daily' | 'weekly' | 'total',
+  limitUsd: number,
+  spentUsd: number,
+): void {
+  if (res.headersSent) return;
+  res.writeHead(402, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      error: {
+        type: 'outbound_api_error',
+        message: `Cost limit reached for this key (${scope}): $${spentUsd.toFixed(4)} of $${limitUsd.toFixed(4)}`,
+      },
+      scope,
+      limitUsd,
+      spentUsd,
+    }),
+  );
 }
 
 /** Extract the presented external API key from the auth headers. */
@@ -179,16 +207,27 @@ export async function handleOutboundRequest(
   serialQueue: UserMessageSerialQueue,
   concurrencyGate: OutboundConcurrencyGate,
 ): Promise<void> {
+  // One clock for the whole request so expiry / rate / quota agree.
+  const now = Date.now();
+
   // 1. AUTH — external named API key (enforced on every request incl. loopback).
+  // Reason-bearing (outbound-key-policy): an expired / not-yet-valid key is a
+  // 401 (OQ1), same status as a missing/disabled/revoked key. First use of an
+  // activation-mode key stamps its activation inside `verifyKey` (best-effort).
   const presented = extractPresentedKey(req);
-  const verified = await verifyPresentedKey(deps.db, presented);
-  if (!verified) {
-    writeJsonError(res, 401, 'Invalid or missing API key');
+  const verification = await verifyKey(deps.db, presented, now);
+  if (verification.status !== 'ok') {
+    writeJsonError(
+      res,
+      401,
+      verification.status === 'expired' ? 'API key has expired' : 'Invalid or missing API key',
+    );
     return;
   }
+  const verified = verification.key;
 
-  // 2. RATE LIMIT.
-  const decision = rateLimiter.check(verified.id);
+  // 2. RATE LIMIT — per-key window when the key configures one (else 60/60s).
+  const decision = rateLimiter.check(verified.id, now, verified.rateLimit);
   if (!decision.allowed) {
     writeJsonError(res, 429, 'Rate limit exceeded', {
       'Retry-After': String(decision.retryAfterSeconds),
@@ -212,6 +251,21 @@ export async function handleOutboundRequest(
   if (!endpointConfig) {
     writeJsonError(res, 503, `endpoint '${endpoint}' is not configured`);
     return;
+  }
+
+  // 3a. COST QUOTA (outbound-key-policy, design D4). Runs ONLY when the key has a
+  // cost limit AND the host wired a spend reader — a policy-less key (or a
+  // tracker-less embedder/test) does zero work here (byte-identical). Placed
+  // after endpoint validation so `GET /v1/models` + non-POST early-return above
+  // never trigger a quota computation. The 402 body names ONLY this key's
+  // exceeded scope + its own limit/spend — never any other key's data.
+  if (verified.costLimits && deps.keySpendTracker) {
+    const spend = await deps.keySpendTracker.getSpend(verified.id, now);
+    const quota = checkKeyQuota(verified.costLimits, spend);
+    if (!quota.allowed) {
+      writeCostLimitError(res, quota.scope, quota.limitUsd, quota.spentUsd);
+      return;
+    }
   }
 
   // 3b. CONCURRENCY GATE (design D-WIRE-1/2). Placed AFTER endpoint validation so

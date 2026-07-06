@@ -39,6 +39,7 @@ import {
   getProviderProxy,
   type ProviderProxy,
 } from '@omnicross/core/provider-proxy';
+import { KeySpendTracker } from '@omnicross/core/outbound-api';
 import { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import {
   type FetchLike,
@@ -291,7 +292,15 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     defaultUsageEventsPath(paths.configPath),
     async (providerId, model) => (await pricingEngine.getEntry(providerId, model)) !== null,
   );
-  const usageRecorder = new UsageRecorder(usageEventStore, pricingEngine, logger);
+  // Per-key spend tracker (outbound-key-policy) — lazily seeds each key's
+  // daily/weekly/total spend from the jsonl store (once per key), then stays hot
+  // via the recorder's `onRecord` hook. `totalUsd` survives a restart by
+  // re-seeding from the durable store. Wired into the outbound deps below so the
+  // wire layer's 402 cost check reads it O(1) with no per-request scan.
+  const keySpendTracker = new KeySpendTracker(usageEventStore);
+  const usageRecorder = new UsageRecorder(usageEventStore, pricingEngine, logger, {
+    onRecord: (apiKeyId, costUsd, at) => keySpendTracker.add(apiKeyId, costUsd, at),
+  });
 
   // Resident ProviderProxy — pool wired into the `apiKeyPool` deps slot, the
   // usage recorder into `usageRecorder`. NO Anthropic factory. (Reads the
@@ -333,6 +342,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     providerProxy,
     proxyDeps: providerProxy.getDeps(),
     healthReportProvider: getHealthReport,
+    // outbound-key-policy: the wire layer's 402 cost check reads per-key spend.
+    keySpendTracker,
     // configurable-logging: route the server's OWN lifecycle + relay dispatch-error
     // lines through the injected logger (honors level/format/file sink).
     logger,
@@ -346,6 +357,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     configPath: paths.configPath,
     llmConfig,
     keyDb,
+    // outbound-key-policy: the admin key list surfaces each key's OWN spend.
+    keySpendReader: keySpendTracker,
     settingsStore,
     outboundApiServer,
     subscriptionAccounts,

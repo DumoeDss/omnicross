@@ -83,7 +83,30 @@ export {
   validateEndpointModelConfig,
   validateServerModelConfig,
 } from './kindDetection';
-export { createNamedKey, hashKey, verifyPresentedKey } from './outboundApiKeyAuth';
+export {
+  createNamedKey,
+  hashKey,
+  type KeyVerification,
+  verifyKey,
+  verifyPresentedKey,
+  type VerifiedKey,
+} from './outboundApiKeyAuth';
+export {
+  checkKeyQuota,
+  computeKeyExpiry,
+  type KeyCostLimits,
+  type KeyExpiryInput,
+  type KeyExpiryResult,
+  type KeySpend,
+  type QuotaDecision,
+} from './keyPolicy';
+export {
+  KeySpendTracker,
+  type KeySpendReader,
+  type KeySpendSeeder,
+  startOfLocalDay,
+  startOfLocalWeek,
+} from './keySpendTracker';
 export type {
   ApplyConfigInput,
 } from './OutboundApiServer';
@@ -114,8 +137,10 @@ export type {
   OutboundApiServerStatus,
   OutboundEndpoint,
   OutboundFormatUrls,
+  OutboundKeyActivationMode,
   OutboundKeyDb,
   OutboundKeyDbRow,
+  OutboundKeyPolicy,
   OutboundProxyConfig,
   RequestRole,
   ResponsesModelKind,

@@ -27,8 +27,10 @@ import {
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
+  type KeySpendReader,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
+  type OutboundKeyPolicy,
   saveServerConfig,
   validateServerModelConfig,
 } from '@omnicross/core/outbound-api';
@@ -131,6 +133,12 @@ export interface AdminApiDeps {
   readonly llmConfig: ConfigFileProviderConfigSource;
   /** Named outbound-key store. */
   readonly keyDb: OutboundKeyDb;
+  /**
+   * OPTIONAL per-key spend reader (outbound-key-policy). When wired, the key list
+   * surfaces each key's OWN accumulated spend (daily/weekly/total) so the admin
+   * can see spend-vs-limit. Leak-safe: only the key's own numbers are exposed.
+   */
+  readonly keySpendReader?: KeySpendReader;
   /** Outbound server settings store (server config persistence). */
   readonly settingsStore: JsonApiServerSettingsStore;
   /** The running outbound server (status + live applyConfig). */
@@ -278,6 +286,17 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     lastUsedAt: row.lastUsedAt,
     revoked: row.revokedAt !== null,
     maxConcurrency: row.maxConcurrency,
+    // Key-policy envelope (outbound-key-policy) — all secret-free scalar fields;
+    // the UI reads them to render + pre-fill the policy editor.
+    expiresAt: row.expiresAt,
+    activationMode: row.activationMode,
+    activationDays: row.activationDays,
+    activatedAt: row.activatedAt,
+    dailyCostLimitUsd: row.dailyCostLimitUsd,
+    totalCostLimitUsd: row.totalCostLimitUsd,
+    weeklyCostLimitUsd: row.weeklyCostLimitUsd,
+    rateLimitMaxRequests: row.rateLimitMaxRequests,
+    rateLimitWindowMs: row.rateLimitWindowMs,
   };
 }
 
@@ -1441,7 +1460,24 @@ async function handleKeys(
 ): Promise<void> {
   if (method === 'GET' && rest.length === 0) {
     const rows = await deps.keyDb.outboundApiKeysList();
-    return writeJson(res, 200, { keys: rows.map(toKeyInfo) });
+    const reader = deps.keySpendReader;
+    if (!reader) return writeJson(res, 200, { keys: rows.map(toKeyInfo) });
+    // Attach each key's OWN accumulated spend (leak-safe — per-key only). The
+    // reader lazily seeds once per key then serves O(1); this admin list is rare.
+    const now = Date.now();
+    const keys = await Promise.all(
+      rows.map(async (row) => {
+        const info = toKeyInfo(row);
+        // Only for live keys — a revoked key never dispatches, so its spend is
+        // frozen and uninteresting; skip the seed for it.
+        if (row.revokedAt === null) {
+          const s = await reader.getSpend(row.id, now);
+          info.spend = { dailyUsd: s.dailyUsd, weeklyUsd: s.weeklyUsd, totalUsd: s.totalUsd };
+        }
+        return info;
+      }),
+    );
+    return writeJson(res, 200, { keys });
   }
 
   if (method === 'POST' && rest.length === 0) {
@@ -1495,8 +1531,74 @@ async function handleKeys(
     const ok = await deps.keyDb.outboundApiKeysSetMaxConcurrency(id, value);
     return writeJson(res, ok ? 200 : 404, { ok, maxConcurrency: value });
   }
+  if (method === 'POST' && id && action === 'policy') {
+    const body = await readJsonBody(req);
+    const parsed = parseKeyPolicyBody(body);
+    if (!parsed.ok) return writeJsonError(res, 400, parsed.message);
+    const ok = await deps.keyDb.outboundApiKeysSetPolicy(id, parsed.policy);
+    return writeJson(res, ok ? 200 : 404, { ok });
+  }
 
   return writeJsonError(res, 405, `method ${method} not allowed on keys`);
+}
+
+/**
+ * Parse + validate the key-policy write body (outbound-key-policy). Each field is
+ * three-way: OMITTED keeps the stored value, `null` clears, a value sets. Numeric
+ * fields must be finite (cost/window ≥ 0; rate max ≥ 0 with `0` = unlimited;
+ * `activationDays` a positive integer). `activationMode` must be one of the two
+ * modes. Anything malformed → a 400 with a clear message. `activatedAt` is NOT
+ * accepted here (it is server-stamped on first use only).
+ */
+function parseKeyPolicyBody(
+  body: Record<string, unknown>,
+): { ok: true; policy: OutboundKeyPolicy } | { ok: false; message: string } {
+  const policy: OutboundKeyPolicy = {};
+
+  // activationMode enum (three-way).
+  if ('activationMode' in body) {
+    const m = body['activationMode'];
+    if (m === null) policy.activationMode = null;
+    else if (m === 'fixed' || m === 'activation') policy.activationMode = m;
+    else return { ok: false, message: "activationMode must be 'fixed', 'activation', or null" };
+  }
+
+  // Numeric-nullable fields with per-field bounds.
+  const numericFields: Array<{
+    key: keyof OutboundKeyPolicy & string;
+    min: number;
+    integer?: boolean;
+  }> = [
+    { key: 'expiresAt', min: 0 },
+    { key: 'activationDays', min: 1, integer: true },
+    { key: 'dailyCostLimitUsd', min: 0 },
+    { key: 'totalCostLimitUsd', min: 0 },
+    { key: 'weeklyCostLimitUsd', min: 0 },
+    { key: 'rateLimitMaxRequests', min: 0, integer: true },
+    { key: 'rateLimitWindowMs', min: 1 },
+  ];
+  for (const { key, min, integer } of numericFields) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (v === null) {
+      (policy as Record<string, number | null>)[key] = null;
+      continue;
+    }
+    if (
+      typeof v !== 'number' ||
+      !Number.isFinite(v) ||
+      v < min ||
+      (integer && !Number.isInteger(v))
+    ) {
+      return {
+        ok: false,
+        message: `${key} must be ${integer ? 'an integer' : 'a number'} >= ${min} or null`,
+      };
+    }
+    (policy as Record<string, number | null>)[key] = v;
+  }
+
+  return { ok: true, policy };
 }
 
 // ── Server config (live apply) ────────────────────────────────────────────────

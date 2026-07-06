@@ -590,6 +590,25 @@
         "copy": "Kopier",
         "copied": "Kopiert",
         "dismiss": "Ferdig"
+      },
+      "policy": {
+        "title": "Policy",
+        "expiryMode": "Expiry",
+        "expiryNone": "Never expires",
+        "expiryFixed": "Fixed date",
+        "expiryActivation": "Days after first use",
+        "expiresAt": "Expires at",
+        "activationDays": "Days after first use",
+        "activatedAt": "Activated",
+        "dailyCost": "Daily limit (USD)",
+        "weeklyCost": "Weekly limit (USD)",
+        "totalCost": "Total limit (USD)",
+        "rateMax": "Rate limit (max requests)",
+        "rateWindow": "Rate window (ms)",
+        "unlimitedHint": "No limit",
+        "rateDefaultHint": "Default 60 / 60000",
+        "save": "Save policy",
+        "spent": "Spent"
       }
     },
     "queue": {

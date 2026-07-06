@@ -28,6 +28,7 @@ import type {
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
+  OutboundKeyPolicyPatch,
   OutboundQueueStatus,
 } from '@/daemon/types';
 import type { LLMProvider } from '@shared/llm-config';
@@ -58,6 +59,7 @@ export interface UseApiServiceResult {
   revokeKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
   setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
+  setKeyPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   updateQueueConfig: (patch: {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
@@ -240,6 +242,18 @@ export function useApiService(): UseApiServiceResult {
     }
   }, []);
 
+  const setKeyPolicy = useCallback(async (id: string, policy: OutboundKeyPolicyPatch) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.setKeyPolicy(id, policy);
+      if (!result.success) setError(result.message ?? 'request failed');
+      setKeys(await agent.apiService.listKeys());
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const updateQueueConfig = useCallback(
     async (patch: {
       userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
@@ -278,6 +292,7 @@ export function useApiService(): UseApiServiceResult {
     revokeKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
+    setKeyPolicy,
     updateQueueConfig,
     updateProxyConfig,
   };

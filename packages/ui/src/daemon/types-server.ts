@@ -204,6 +204,48 @@ export interface OutboundApiKeyInfo {
    * pre-upgrade daemon response type-checks.
    */
   maxConcurrency?: number;
+  // ── Key-policy envelope (outbound-key-policy). All optional/secret-free; a
+  //    pre-upgrade daemon omits them (they read as absent = unset). ─────────────
+  /** Fixed-mode absolute expiry (epoch ms). */
+  expiresAt?: number | null;
+  /** Expiry mode; absent ⇒ `'fixed'`. */
+  activationMode?: 'fixed' | 'activation';
+  /** Activation-mode lifetime in days. */
+  activationDays?: number | null;
+  /** First-use activation stamp (epoch ms); read-only (server-stamped). */
+  activatedAt?: number | null;
+  /** Daily USD cost cap. */
+  dailyCostLimitUsd?: number | null;
+  /** Lifetime USD cost cap. */
+  totalCostLimitUsd?: number | null;
+  /** Weekly USD cost cap. */
+  weeklyCostLimitUsd?: number | null;
+  /** Per-key rate-limit max requests per window (absent ⇒ 60; `0` ⇒ unlimited). */
+  rateLimitMaxRequests?: number | null;
+  /** Per-key rate-limit window (ms; absent ⇒ 60_000). */
+  rateLimitWindowMs?: number | null;
+  /**
+   * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
+   * so an operator sees spend-vs-limit. Present only when the daemon wired a
+   * spend reader; leak-safe (this key's numbers only).
+   */
+  spend?: { dailyUsd: number; weeklyUsd: number; totalUsd: number };
+}
+
+/**
+ * The settable key-policy patch (`POST /admin/api/keys/:id/policy`). Each field
+ * is three-way: OMITTED keeps, `null` clears, a value sets. `activatedAt` is not
+ * settable (server-stamped on first use).
+ */
+export interface OutboundKeyPolicyPatch {
+  expiresAt?: number | null;
+  activationMode?: 'fixed' | 'activation' | null;
+  activationDays?: number | null;
+  dailyCostLimitUsd?: number | null;
+  totalCostLimitUsd?: number | null;
+  weeklyCostLimitUsd?: number | null;
+  rateLimitMaxRequests?: number | null;
+  rateLimitWindowMs?: number | null;
 }
 
 /**
