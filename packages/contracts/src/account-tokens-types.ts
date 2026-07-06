@@ -12,6 +12,28 @@ import type {
 } from './subscription-types';
 
 /**
+ * Upstream proxy descriptor (upstream-proxy). Routes an outbound upstream call
+ * through an http/https or socks5 proxy. Two interchangeable shapes:
+ *  - `{ url }`      — a full proxy URL, e.g. `http://user:pass@host:1080` or
+ *                     `socks5://host:1080` (userinfo carries basic-auth).
+ *  - structured     — an explicit `{ type, host, port, username?, password? }`.
+ *
+ * `username`/`password` are SECRETS: encrypted at rest via the same envelope as
+ * other credentials, masked in every sanitized/admin view, and never logged
+ * (logs carry at most `host:port`). Additive everywhere it appears — absent ⇒ a
+ * direct (non-proxied) call, byte-identical to before proxy support.
+ */
+export type ProxyConfig =
+  | { url: string }
+  | {
+      type: 'http' | 'https' | 'socks5';
+      host: string;
+      port: number;
+      username?: string;
+      password?: string;
+    };
+
+/**
  * Authorization method (general)
  */
 export type AuthMethod = 'oauth' | 'manual';
@@ -129,6 +151,15 @@ export type SubscriptionAccountEntry<TConfig> = {
    * value; an account without it sorts as least-recently-used (timestamp `0`).
    */
   lastUsedAt?: string;
+  /**
+   * Per-account upstream proxy override (upstream-proxy). When set, this
+   * account's relay + OAuth-refresh traffic is routed through this proxy,
+   * WINNING over the per-provider and global proxy layers. OPTIONAL — an
+   * existing `tokens.json` without it parses unchanged (no proxy → direct). Its
+   * `password` is a secret: encrypted at rest by the tokens `SecretBox` walker
+   * and masked in the sanitized view.
+   */
+  proxy?: ProxyConfig;
   /** The provider's existing token config, verbatim. */
   tokens: TConfig;
 };
@@ -156,6 +187,23 @@ export type AccountTokensConfig = {
   opencodegoAccounts?: SubscriptionAccountEntry<OpenCodeGoTokenConfig>[];
   activeOpencodegoAccountId?: string;
   updatedAt: string;
+};
+
+/**
+ * Secret-free view of a per-account/global/provider proxy (upstream-proxy). The
+ * password is NEVER carried — only a `hasPassword` presence flag plus a
+ * display-safe `host:port` endpoint (userinfo stripped). Rendered in the admin
+ * accounts view.
+ */
+export type SanitizedProxyConfig = {
+  /** `'url'` when configured via a full URL, else the structured proxy type. */
+  kind: 'url' | 'http' | 'https' | 'socks5';
+  /** Display-safe `host:port` (parsed from a url form; userinfo stripped). */
+  endpoint?: string;
+  /** Optional non-secret username (for display); the password is never returned. */
+  username?: string;
+  /** Whether a proxy password is set. The password value itself never leaves. */
+  hasPassword: boolean;
 };
 
 /**
@@ -202,6 +250,12 @@ export type SubscriptionAccountSanitized = {
    * permanently-blocked). Lets the admin view render "rate-limited until …".
    */
   cooldownUntil?: string;
+  /**
+   * Secret-free view of this account's proxy override (upstream-proxy). Absent ⇒
+   * no per-account proxy configured. The password is masked to a `hasPassword`
+   * flag — never returned.
+   */
+  proxy?: SanitizedProxyConfig;
 };
 
 /**

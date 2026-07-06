@@ -62,6 +62,7 @@ export interface UseApiServiceResult {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }) => Promise<void>;
+  updateProxyConfig: (proxy: OutboundApiServerConfig['proxy'] | undefined) => Promise<void>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -249,6 +250,13 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const updateProxyConfig = useCallback(
+    async (proxy: OutboundApiServerConfig['proxy'] | undefined) => {
+      await runWrite(() => agent.apiService.updateProxyConfig(proxy));
+    },
+    [runWrite],
+  );
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
 
@@ -271,5 +279,6 @@ export function useApiService(): UseApiServiceResult {
     setKeyEnabled,
     setKeyMaxConcurrency,
     updateQueueConfig,
+    updateProxyConfig,
   };
 }

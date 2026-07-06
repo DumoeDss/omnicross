@@ -23,6 +23,7 @@ import {
   isKindMappedEndpoint,
   loadServerConfig,
   mergeServerConfig,
+  normalizeProxyConfig,
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
@@ -31,6 +32,8 @@ import {
   saveServerConfig,
   validateServerModelConfig,
 } from '@omnicross/core/outbound-api';
+import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { FetchLike } from '@omnicross/subscriptions';
 
@@ -53,6 +56,8 @@ import type { ConfigFileProviderConfigSource } from '../ports/ConfigFileProvider
 import type { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsStore';
 import type { JsonPricingStore } from '../ports/JsonPricingStore';
 import { listMappablePresets } from '../preset-map';
+import { preserveOutboundProxySecrets, redactOutboundProxy } from '../proxy/sanitizeProxy';
+import { setServerProxyConfig } from '../proxy/upstreamProxyResolver';
 
 import {
   type CodexLoopbackFn,
@@ -697,7 +702,8 @@ async function handleDiscoverModels(
   try {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
-    const response = await fetch(url, { method: 'GET', headers });
+    // upstream-proxy: BYO discover-models egress honors the global/provider proxy.
+    const response = await fetchUpstream(url, { method: 'GET', headers }, { providerId: 'byo' });
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       let message = text.slice(0, 300);
@@ -782,11 +788,12 @@ async function handleTestModel(
 
   const startedAt = Date.now();
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    // upstream-proxy: BYO test-model egress honors the global/provider proxy.
+    const response = await fetchUpstream(
+      url,
+      { method: 'POST', headers, body: JSON.stringify(payload) },
+      { providerId: 'byo' },
+    );
     const latencyMs = Date.now() - startedAt;
     const text = await response.text().catch(() => '');
     if (!response.ok) {
@@ -1562,7 +1569,11 @@ async function handleServer(
 ): Promise<void> {
   if (method === 'GET') {
     const config = await loadServerConfig(deps.settingsStore);
-    return writeJson(res, 200, { server: config });
+    // upstream-proxy: mask proxy passwords in the GET view — never leak plaintext.
+    const server = config.proxy
+      ? { ...config, proxy: redactOutboundProxy(config.proxy) }
+      : config;
+    return writeJson(res, 200, { server });
   }
   if (method === 'PUT') {
     const patch = (await readJsonBody(req)) as Partial<OutboundApiServerConfig>;
@@ -1574,10 +1585,21 @@ async function handleServer(
       return writeJsonError(res, 400, `invalid queue config: ${queueErrors.join('; ')}`);
     }
     const current = await loadServerConfig(deps.settingsStore);
-    const merged = mergeServerConfig(current, patch);
+    // upstream-proxy: the admin GET masks proxy passwords, so an incoming PUT that
+    // edits proxy fields omits the password. Preserve the existing (decrypted)
+    // password write-only when the patch blanks it — editing host/port never wipes
+    // the secret.
+    const effectivePatch: Partial<OutboundApiServerConfig> = patch.proxy
+      ? { ...patch, proxy: preserveOutboundProxySecrets(patch.proxy, current.proxy) }
+      : patch;
+    const merged = mergeServerConfig(current, effectivePatch);
     // Always persist the (partial) config so the editor retains the user's
     // in-progress mappings even when the config can't yet start the listener.
     await saveServerConfig(deps.settingsStore, merged);
+    // upstream-proxy: hot-reload the live proxy segment (task 4.2) so a proxy edit
+    // takes effect without restart — swaps the resolver's server proxy AND bumps
+    // the core dispatcher generation (old dispatchers disposed).
+    setServerProxyConfig(merged.proxy);
 
     // Startup gate (model-kind-mapping): when enabling with an incomplete
     // kind map, refuse to bind and return an actionable envelope (HTTP 200 so
@@ -1784,6 +1806,25 @@ async function handleAccounts(
         return writeJsonError(res, 400, 'priority must be a finite number');
       }
       const result = await deps.subscriptionTokenWriter.setAccountPriority(providerId, accountId, priority);
+      if (!result.ok) return writeJsonError(res, 404, `account '${accountId}' not found`);
+      return writeJson(res, 200, { ok: true });
+    }
+
+    // POST /accounts/:providerId/:accountId/proxy { proxy: ProxyConfig | null } →
+    // set (or clear with null) one account's per-account proxy override
+    // (upstream-proxy). The proxy password is a secret (encrypted at rest, masked
+    // in the sanitized list); a blank password is preserved write-only by the
+    // credential store. STATUS-ONLY ack.
+    if (method === 'POST' && rest[2] === 'proxy') {
+      const accountId = rest[1];
+      const body = await readJsonBody(req);
+      const rawProxy = body['proxy'];
+      let proxy: ProxyConfig | undefined;
+      if (rawProxy !== null && rawProxy !== undefined) {
+        proxy = normalizeProxyConfig(rawProxy);
+        if (!proxy) return writeJsonError(res, 400, 'invalid proxy config');
+      }
+      const result = await deps.subscriptionTokenWriter.setAccountProxy(providerId, accountId, proxy);
       if (!result.ok) return writeJsonError(res, 404, `account '${accountId}' not found`);
       return writeJson(res, 200, { ok: true });
     }

@@ -18,7 +18,9 @@ export { defaultMasterKeyPath, MASTER_KEY_ENV, resolveMasterKey } from './master
 export { SecretBox } from './SecretBox';
 export {
   decryptConfigSecrets,
+  decryptProxySegment,
   decryptTokens,
   encryptConfigSecrets,
+  encryptProxySegment,
   encryptTokens,
 } from './secretFields';

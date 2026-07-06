@@ -18,12 +18,15 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  ProxyConfig,
   SubscriptionAccountEntry,
   SubscriptionAccountSanitized,
   SyncWarningCode,
   TokenStatus,
 } from '@omnicross/contracts/account-tokens-types';
 import type { OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
+
+import { sanitizeProxyConfig } from '../proxy/sanitizeProxy';
 
 export type AnyTokenConfig =
   | ClaudeTokenConfig
@@ -220,6 +223,19 @@ export function getAccountById(
   return account ? { id: account.id, tokens: account.tokens } : undefined;
 }
 
+/**
+ * One account's per-account proxy override by id (upstream-proxy). Returns the
+ * DECRYPTED `ProxyConfig` (the caller passes a decrypted config), or `undefined`
+ * when the account has no proxy. Feeds the per-account layer of the resolver.
+ */
+export function getAccountProxy(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+): ProxyConfig | undefined {
+  return getAccounts(config, p).find((a) => a.id === id)?.proxy;
+}
+
 /** The active account's id + tokens (read-side helper for refresh capture). */
 export function getActiveAccount(
   config: AccountTokensConfig,
@@ -309,6 +325,9 @@ export function sanitizeAccounts(
       priority: a.priority,
       lastUsedAt: a.lastUsedAt,
       syncWarning: t.syncWarning,
+      // Per-account proxy (upstream-proxy): masked view — password → hasPassword,
+      // userinfo stripped. The plaintext password is NEVER projected.
+      proxy: a.proxy ? sanitizeProxyConfig(a.proxy) : undefined,
     };
   });
 }
@@ -350,6 +369,35 @@ export function setAccountPriority(
     config,
     p,
     accounts.map((a) => (a.id === id ? { ...a, priority } : a)),
+  );
+  return { ok: true };
+}
+
+/**
+ * Set (or CLEAR, with `undefined`) one account's per-account proxy override by id
+ * (upstream-proxy). Entry-metadata only — the token mirror is unaffected, so no
+ * `deriveMirror`. The `proxy.password` is encrypted at rest by the tokens
+ * `SecretBox` walker on persist. Rejects an unknown id.
+ */
+export function setAccountProxy(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+  proxy: ProxyConfig | undefined,
+): { ok: boolean } {
+  const accounts = getAccounts(config, p);
+  if (!accounts.some((a) => a.id === id)) return { ok: false };
+  setAccounts(
+    config,
+    p,
+    accounts.map((a) => {
+      if (a.id !== id) return a;
+      if (!proxy) {
+        const { proxy: _drop, ...rest } = a;
+        return rest;
+      }
+      return { ...a, proxy };
+    }),
   );
   return { ok: true };
 }

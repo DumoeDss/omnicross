@@ -16,6 +16,7 @@ import type {
   AccountsListResponse,
   AccountTokenInput,
   CodexOAuthStatus,
+  ProxyConfig,
   RefreshResult,
   StartOAuthResult,
   SubscriptionProviderId,
@@ -52,6 +53,12 @@ export interface UseAccountsResult {
     providerId: SubscriptionProviderId,
     accountId: string,
     priority: number,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Set (or clear, with `undefined`) one account's per-account proxy override. */
+  setAccountProxy: (
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    proxy: ProxyConfig | undefined,
   ) => Promise<{ success: boolean; message?: string }>;
   /** Refresh the active account's OAuth token. Returns the honest daemon outcome. */
   refreshProvider: (providerId: SubscriptionProviderId) => Promise<RefreshResult>;
@@ -207,6 +214,25 @@ export function useAccounts(): UseAccountsResult {
     [refresh],
   );
 
+  const setAccountProxy = useCallback(
+    async (providerId: SubscriptionProviderId, accountId: string, proxy: ProxyConfig | undefined) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.accounts.setAccountProxy(providerId, accountId, proxy);
+        if (!result.success) {
+          setError(result.message ?? 'request failed');
+          return { success: false, message: result.message };
+        }
+        await refresh();
+        return { success: true };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
   const refreshProvider = useCallback(
     async (providerId: SubscriptionProviderId) => {
       setBusy(true);
@@ -305,6 +331,7 @@ export function useAccounts(): UseAccountsResult {
     removeAccount,
     renameAccount,
     setAccountPriority,
+    setAccountProxy,
     refreshProvider,
     clearProvider,
     startOAuth,

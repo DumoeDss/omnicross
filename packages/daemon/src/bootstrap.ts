@@ -29,6 +29,7 @@ import {
 } from '@omnicross/core/outbound-api';
 import { setSubscriptionRegistryForOutbound } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import {
   __resetProviderProxyForTests,
@@ -61,6 +62,7 @@ import { JsonlUsageEventStore } from './ports/JsonlUsageEventStore';
 import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
 import { JsonPricingStore } from './ports/JsonPricingStore';
 import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
+import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstreamProxyResolver';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
@@ -184,7 +186,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
 
   const llmConfig = new ConfigFileProviderConfigSource(decryptedConfig);
   const keyDb = new JsonOutboundKeyDb(paths.keysPath);
-  const settingsStore = new JsonApiServerSettingsStore(paths.configPath);
+  // upstream-proxy: pass the box so the settings-store path (admin PUT) encrypts
+  // `server.proxy.*` passwords at rest + decrypts on read (other server fields
+  // are non-secret). Mirrors config.ts's proxy-secret handling.
+  const settingsStore = new JsonApiServerSettingsStore(paths.configPath, secretBox);
 
   // Subscription wiring. The file-backed credential store feeds the account
   // service (which builds all
@@ -208,6 +213,20 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     credentialStore,
   );
   setSubscriptionProviderRegistry(subscriptionRegistry); // → mirrors into core's outbound slot
+
+  // Upstream proxy (upstream-proxy): seed the global/provider segment from the
+  // persisted (decrypted) server config and register the layered resolver into
+  // core's `fetchUpstream` egress seam. Precedence account > provider > global >
+  // env; the per-account layer reads the DECRYPTED account entry via the store.
+  // Absent ALL proxy config AND env ⇒ the resolver returns undefined ⇒ bare fetch
+  // (byte-identical zero regression). `start.ts` re-seeds the live config on boot.
+  setServerProxyConfig(decryptedConfig.server?.proxy);
+  setUpstreamProxyResolver(
+    createUpstreamProxyResolver({
+      getAccountProxy: (providerId, accountId) =>
+        credentialStore.getAccountProxy(providerId, accountId),
+    }),
+  );
 
   // Wire the shared host-clean Gemini Code-Assist project resolver from core
   // into the core port (the same module singleton any embedder wires). The gemini
@@ -313,7 +332,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     oauthSessions: new OAuthSessionStore(),
     // Real global fetch by default; a test seam (`paths.oauthExchangeFetch`) can
     // inject a mock so no real token endpoint is hit.
-    oauthExchangeFetch: paths.oauthExchangeFetch ?? ((url, init) => fetch(url, init)),
+    // upstream-proxy: default the OAuth token-exchange fetch to the proxy-aware
+    // helper so interactive login honors a configured proxy (global/env layers).
+    oauthExchangeFetch: paths.oauthExchangeFetch ?? ((url, init) => fetchUpstream(url, init)),
     subscriptionAccountAppender: credentialStore,
     // Codex interactive OAuth (app-parity-2 child 5) — the async loopback flow store
     // + the one-shot 127.0.0.1:1455 listener. Token captured + persisted daemon-side;
@@ -400,6 +421,10 @@ export function resetDaemonSingletonsForTests(): void {
   setSubscriptionRegistryForOutbound(null);
   setSubscriptionProviderRegistry(null as never);
   setSubscriptionAccountService(null as never);
+  // Clear the upstream-proxy resolver + server-proxy holder so a prior boot's
+  // proxy config does not leak into a fresh (e.g. no-proxy) boot-smoke test.
+  setUpstreamProxyResolver(null);
+  setServerProxyConfig(undefined);
   // Clear the Gemini Code-Assist resolver slot so a wired resolver from a prior
   // boot does not leak into a fresh (e.g. BYO-only) boot-smoke test.
   setGeminiCodeAssistResolver(null);

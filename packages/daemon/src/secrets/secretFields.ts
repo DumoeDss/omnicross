@@ -28,14 +28,77 @@
  * @module @omnicross/daemon/secrets/secretFields
  */
 
-import type { AccountTokensConfig } from '@omnicross/contracts/account-tokens-types';
+import type { AccountTokensConfig, ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { OutboundProxyConfig } from '@omnicross/core';
 
 import type { DaemonConfig } from '../config';
 
+import { isEnvelope } from './envelope';
 import type { SecretBox } from './SecretBox';
 
 /** A per-value string transform (the box's `encryptMaybe` or `decryptMaybe`). */
 type ValueTransform = (value: string) => string;
+
+/** Whether a `{ url }`-form proxy carries inline userinfo credentials. */
+function urlHasInlineCredential(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.username.length > 0 || u.password.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Transform a `ProxyConfig`'s SECRET material (upstream-proxy):
+ *  - structured form → the `password` field.
+ *  - `{ url }` form with inline userinfo credentials → the WHOLE url string is
+ *    treated as a secret (M4): encrypted to an `enc:` envelope at rest and
+ *    restored on read, so a hand-authored credentialed proxy url is never stored
+ *    in plaintext. Detection is direction-safe — the encrypt side matches the
+ *    plaintext credentialed url, the decrypt side matches the `enc:` envelope.
+ * A `$ENV`/already-`enc:` value is left untouched by the box (idempotent
+ * tri-state). Pure — returns a new object only when a secret is present.
+ */
+function transformProxyConfig(cfg: ProxyConfig, fn: ValueTransform): ProxyConfig {
+  if ('url' in cfg) {
+    if (isEnvelope(cfg.url) || urlHasInlineCredential(cfg.url)) {
+      return { url: fn(cfg.url) };
+    }
+    return cfg;
+  }
+  if (typeof cfg.password === 'string' && cfg.password.length > 0) {
+    return { ...cfg, password: fn(cfg.password) };
+  }
+  return cfg;
+}
+
+/** Apply a transform to a whole `OutboundProxyConfig` segment (global + per-provider). */
+function transformOutboundProxy(
+  proxy: OutboundProxyConfig,
+  fn: ValueTransform,
+): OutboundProxyConfig {
+  const next: OutboundProxyConfig = {};
+  if (proxy.global) next.global = transformProxyConfig(proxy.global, fn);
+  if (proxy.byProvider) {
+    const byProvider: Record<string, ProxyConfig> = {};
+    for (const [key, value] of Object.entries(proxy.byProvider)) {
+      byProvider[key] = transformProxyConfig(value, fn);
+    }
+    next.byProvider = byProvider;
+  }
+  return next;
+}
+
+/** Encrypt-on-write the global/provider proxy passwords (settings-store path). */
+export function encryptProxySegment(proxy: OutboundProxyConfig, box: SecretBox): OutboundProxyConfig {
+  return transformOutboundProxy(proxy, (v) => box.encryptMaybe(v));
+}
+
+/** Decrypt-on-read the global/provider proxy passwords (settings-store path). */
+export function decryptProxySegment(proxy: OutboundProxyConfig, box: SecretBox): OutboundProxyConfig {
+  return transformOutboundProxy(proxy, (v) => box.decryptMaybe(v));
+}
 
 /** Apply a transform to one provider row's secret fields (pure; new object). */
 function transformProvider(
@@ -74,6 +137,11 @@ function transformConfigSecrets(cfg: DaemonConfig, fn: ValueTransform): DaemonCo
   };
   if (cfg.admin && typeof cfg.admin.token === 'string' && cfg.admin.token.length > 0) {
     next.admin = { ...cfg.admin, token: fn(cfg.admin.token) };
+  }
+  // upstream-proxy: the global + per-provider proxy passwords are secrets too.
+  const proxy = cfg.server?.proxy;
+  if (cfg.server && proxy && (proxy.global || proxy.byProvider)) {
+    next.server = { ...cfg.server, proxy: transformOutboundProxy(proxy, fn) };
   }
   return next;
 }
@@ -143,7 +211,7 @@ function transformTokens(tokens: AccountTokensConfig, fn: ValueTransform): Accou
           (entry as { tokens?: unknown }).tokens &&
           typeof (entry as { tokens?: unknown }).tokens === 'object'
         ) {
-          return {
+          const nextEntry: Record<string, unknown> = {
             ...(entry as Record<string, unknown>),
             tokens: transformTokenBlock(
               (entry as { tokens: Record<string, unknown> }).tokens,
@@ -151,6 +219,12 @@ function transformTokens(tokens: AccountTokensConfig, fn: ValueTransform): Accou
               fn,
             ),
           };
+          // upstream-proxy: the per-account proxy password is a secret too.
+          const proxy = (entry as { proxy?: unknown }).proxy;
+          if (proxy && typeof proxy === 'object') {
+            nextEntry.proxy = transformProxyConfig(proxy as ProxyConfig, fn);
+          }
+          return nextEntry;
         }
         return entry;
       });

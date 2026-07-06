@@ -56,6 +56,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  ProxyConfig,
   SubscriptionAccountSanitized,
   SyncWarningCode,
 } from '@omnicross/contracts/account-tokens-types';
@@ -64,6 +65,9 @@ import type {
   SubscriptionProviderId,
 } from '@omnicross/contracts/subscription-types';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
+
+import { preserveProxyConfigSecret } from '../proxy/sanitizeProxy';
 import {
   claudeOAuth,
   codexOAuth,
@@ -113,20 +117,34 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   /**
    * @param tokensPath  on-disk `tokens.json` location.
    * @param box         at-rest `SecretBox` (encrypt-on-write / decrypt-on-read).
-   * @param fetchImpl   injectable HTTP port for the OAuth refresh round-trips
-   *                    (oauth design D4). Defaults to the global `fetch` so boot
-   *                    is unchanged; tests inject a mock fetch. NOT used by any
-   *                    read/write path — only by `refresh*Token`.
+   * @param fetchImpl   OPTIONAL injectable HTTP port for the OAuth refresh
+   *                    round-trips (oauth design D4). A TEST-injected transport is
+   *                    used verbatim. When ABSENT (production), each refresh uses a
+   *                    proxy-aware {@link fetchUpstream} that threads the
+   *                    `{ providerId, accountId }` ctx (upstream-proxy M1) so a
+   *                    per-account/per-provider proxy is honored on refresh exactly
+   *                    as on relay — refresh egresses from the SAME proxy IP as the
+   *                    account's traffic. NOT used by any read/write path.
    */
   constructor(
     private readonly tokensPath: string,
     private readonly box: SecretBox,
-    private readonly fetchImpl: FetchLike = (url, init) => fetch(url, init),
+    private readonly fetchImpl: FetchLike | undefined = undefined,
     /** Injectable external CLI native-store reader (external-cli-sync). */
     private readonly externalCliReader: ExternalCliReader = readExternalCliCredentials,
     /** Injectable external CLI native-store WRITER (marker-gated write-back). */
     private readonly externalCliStore: ExternalCliStorePort = createExternalCliStore(),
   ) {}
+
+  /**
+   * The proxy-aware `FetchLike` for one refresh round-trip (upstream-proxy M1). A
+   * TEST-injected `fetchImpl` is returned verbatim; otherwise the refresh routes
+   * through {@link fetchUpstream} with the account's `{ providerId, accountId }`
+   * ctx so the per-account/provider proxy applies. `@internal` — also a test seam.
+   */
+  buildRefreshFetch(providerId: string, accountId?: string): FetchLike {
+    return this.fetchImpl ?? ((url, init) => fetchUpstream(url, init, { providerId, accountId }));
+  }
 
   /**
    * In-flight refresh coalescing (external-cli-sync). OAuth refresh tokens are
@@ -162,6 +180,25 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   /** Current OpenCodeGo static API key, or `null` when none is stored. */
   async getValidOpenCodeGoApiKey(): Promise<string | null> {
     return this.readConfig().opencodego?.apiKey ?? null;
+  }
+
+  /**
+   * DAEMON-ONLY per-account proxy lookup by id (upstream-proxy). Returns the
+   * DECRYPTED `ProxyConfig` for the account (`readConfig` decrypts on read), or
+   * `undefined` for an unknown provider/account or no per-account proxy. Feeds the
+   * winning per-account layer of the upstream-proxy resolver. Synchronous like the
+   * other hot reads. Never returns token material.
+   */
+  getAccountProxy(providerId: string, accountId: string): ProxyConfig | undefined {
+    if (
+      providerId !== 'claude' &&
+      providerId !== 'codex' &&
+      providerId !== 'gemini' &&
+      providerId !== 'opencodego'
+    ) {
+      return undefined;
+    }
+    return accountMulti.getAccountProxy(this.readConfig(), providerId, accountId);
   }
 
   /**
@@ -253,8 +290,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       // (which re-reads) keys against the SAME, now-durable id (D3 lazy migration).
       this.materializeMigration(config);
 
+      const refreshFetch = this.buildRefreshFetch('claude', capturedId);
       try {
-        const result = await claudeOAuth.refreshAccessToken(claude.refreshToken, this.fetchImpl);
+        const result = await claudeOAuth.refreshAccessToken(claude.refreshToken, refreshFetch);
         const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
         const next: ClaudeTokenConfig = {
           ...claude,
@@ -275,7 +313,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
         // (external-cli-sync) — recover by importing the rotated credential.
         if (
           await this.tryExternalImport('claude', capturedId, claude, async (rt) => {
-            const r = await claudeOAuth.refreshAccessToken(rt, this.fetchImpl);
+            const r = await claudeOAuth.refreshAccessToken(rt, refreshFetch);
             return {
               accessToken: r.accessToken,
               refreshToken: r.refreshToken,
@@ -305,8 +343,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       const capturedId = active.id;
       this.materializeMigration(config);
 
+      const refreshFetch = this.buildRefreshFetch('codex', capturedId);
       try {
-        const result = await codexOAuth.refreshAccessToken(codex.refreshToken, this.fetchImpl);
+        const result = await codexOAuth.refreshAccessToken(codex.refreshToken, refreshFetch);
         const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
         const next: CodexTokenConfig = {
           ...codex,
@@ -327,7 +366,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
         // `~/.codex/auth.json` (external-cli-sync) — recover via import.
         if (
           await this.tryExternalImport('codex', capturedId, codex, async (rt) => {
-            const r = await codexOAuth.refreshAccessToken(rt, this.fetchImpl);
+            const r = await codexOAuth.refreshAccessToken(rt, refreshFetch);
             return {
               accessToken: r.accessToken,
               refreshToken: r.refreshToken,
@@ -360,8 +399,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       const capturedId = active.id;
       this.materializeMigration(config);
 
+      const refreshFetch = this.buildRefreshFetch('gemini', capturedId);
       try {
-        const result = await geminiOAuth.refreshAccessToken(gemini.refreshToken, this.fetchImpl);
+        const result = await geminiOAuth.refreshAccessToken(gemini.refreshToken, refreshFetch);
         const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
         const next: GeminiTokenConfig = {
           ...gemini, // KEEP the existing refreshToken (response omits it).
@@ -398,7 +438,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       this.materializeMigration(config);
 
       try {
-        const refreshed = await this.refreshUpstream(provider, captured.refreshToken);
+        // upstream-proxy M1: thread the account id so the by-id refresh egresses
+        // through THIS account's proxy (residential-IP isolation holds on refresh).
+        const refreshed = await this.refreshUpstream(provider, captured.refreshToken, id);
         const next = {
           ...captured,
           accessToken: refreshed.accessToken,
@@ -499,14 +541,38 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     return result;
   }
 
+  /**
+   * DAEMON-ONLY set/clear per-account proxy (upstream-proxy, admin write, NOT on
+   * the port). Passing `undefined` clears the override. Write-only password: when
+   * the incoming structured proxy omits the password but the account already had
+   * one, the current (decrypted) password is preserved — editing host/port never
+   * wipes the secret. Persist re-encrypts `proxy.password` via the tokens SecretBox.
+   */
+  async setAccountProxy(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    proxy: ProxyConfig | undefined,
+  ): Promise<{ ok: boolean }> {
+    const config = this.readConfig();
+    const merged = proxy
+      ? preserveProxyConfigSecret(proxy, accountMulti.getAccountProxy(config, providerId, accountId))
+      : undefined;
+    const result = accountMulti.setAccountProxy(config, providerId, accountId, merged);
+    if (!result.ok) return result;
+    this.persist({ ...config, updatedAt: new Date().toISOString() });
+    return result;
+  }
+
   /** Dispatch one OAuth refresh round-trip to the provider's shared flow. */
   private async refreshUpstream(
     provider: 'claude' | 'codex' | 'gemini',
     refreshToken: string,
+    accountId?: string,
   ): Promise<{ accessToken: string; refreshToken?: string; idToken?: string; expiresAt: string }> {
     const flow =
       provider === 'claude' ? claudeOAuth : provider === 'codex' ? codexOAuth : geminiOAuth;
-    const r = await flow.refreshAccessToken(refreshToken, this.fetchImpl);
+    // upstream-proxy M1: thread the account ctx so refresh honors the per-account proxy.
+    const r = await flow.refreshAccessToken(refreshToken, this.buildRefreshFetch(provider, accountId));
     return {
       accessToken: r.accessToken,
       refreshToken: (r as { refreshToken?: string }).refreshToken,

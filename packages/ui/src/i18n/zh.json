@@ -639,6 +639,18 @@
         "active": "{{count}} 个进行中",
         "waiting": "{{count}} 个等待"
       }
+    },
+    "proxy": {
+      "title": "上游代理",
+      "description": "通过 HTTP/HTTPS 或 SOCKS5 代理转发发往上游提供方的请求。优先级：账号 > 提供方 > 全局 > 环境变量。",
+      "global": {
+        "label": "全局代理",
+        "description": "适用于所有上游，除非设置了提供方或账号级覆盖。"
+      },
+      "byProvider": {
+        "title": "按提供方覆盖"
+      },
+      "byoLabel": "自带密钥提供方"
     }
   },
   "accounts": {
@@ -769,7 +781,10 @@
       "savePriority": "保存优先级",
       "priorityHint": "数值越小越优先",
       "lastUsed": "最近使用",
-      "neverUsed": "从未使用"
+      "neverUsed": "从未使用",
+      "proxy": "代理覆盖",
+      "proxyLabel": "账号级代理",
+      "proxyHint": "仅为此账号覆盖全局/提供方代理。"
     },
     "oauthFlow": {
       "step1": {
@@ -1006,5 +1021,18 @@
     "sourceBuiltin": "内置",
     "sourceLitellm": "LiteLLM",
     "sourceUser": "用户"
+  },
+  "proxy": {
+    "field": {
+      "type": "类型",
+      "host": "主机",
+      "port": "端口",
+      "username": "用户名",
+      "password": "密码",
+      "passwordKeep": "留空则保持不变"
+    },
+    "save": "保存代理",
+    "saveHint": "上游请求将通过此代理转发。",
+    "disabledHint": "未启用代理，上游请求直连。"
   }
 }

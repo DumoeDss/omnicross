@@ -34,6 +34,7 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundModelConfigError,
+  ProxyConfig,
 } from './types-server';
 
 export type * from './types-server';
@@ -227,6 +228,12 @@ export interface AgentApiServiceApi {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }): Promise<MutationResult>;
+  /**
+   * Persist the layered upstream proxy segment (`PUT /server` with `{ proxy }`,
+   * upstream-proxy). Pass `undefined` to clear all global/provider layers. The
+   * daemon preserves each untouched layer's write-only password.
+   */
+  updateProxyConfig(proxy: OutboundApiServerConfig['proxy'] | undefined): Promise<MutationResult>;
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;
@@ -300,6 +307,13 @@ export interface AgentAccountsApi {
     providerId: SubscriptionProviderId,
     accountId: string,
     priority: number,
+  ): Promise<MutationResult>;
+  /** Set (or CLEAR, with `undefined`) one account's per-account proxy override
+   *  (upstream-proxy). The proxy password is masked on read + preserved write-only. */
+  setAccountProxy(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    proxy: ProxyConfig | undefined,
   ): Promise<MutationResult>;
   /** Refresh the ACTIVE account's OAuth token (claude/codex/gemini only). */
   refreshProvider(providerId: SubscriptionProviderId): Promise<RefreshResult>;

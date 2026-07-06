@@ -85,6 +85,33 @@ export interface OutboundConcurrencyQueueConfig {
   waitTimeoutMs: number;
 }
 
+/**
+ * Upstream proxy descriptor (upstream-proxy) — mirrors the daemon `ProxyConfig`.
+ * Either a full proxy `url` or a structured form. On a GET the `password` is
+ * ALWAYS masked (dropped from the structured form / stripped from the url), so a
+ * value read back never carries the secret; a PUT with the password omitted
+ * preserves the stored one (write-only).
+ */
+export type ProxyConfig =
+  | { url: string }
+  | {
+      type: 'http' | 'https' | 'socks5';
+      host: string;
+      port: number;
+      username?: string;
+      password?: string;
+    };
+
+/**
+ * Layered global + per-provider proxy segment (`server.proxy`). `byProvider` keys
+ * are subscription provider ids (`claude`/`codex`/`gemini`/`opencodego`) or `'byo'`.
+ * Absent ⇒ no global/provider proxy configured (direct egress).
+ */
+export interface OutboundProxyConfig {
+  global?: ProxyConfig;
+  byProvider?: Record<string, ProxyConfig>;
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;
@@ -95,6 +122,11 @@ export interface OutboundApiServerConfig {
   userMessageQueue?: OutboundUserMessageQueueConfig;
   /** Per-key concurrency queue (OPTIONAL — absent on a pre-upgrade daemon). */
   concurrencyQueue?: OutboundConcurrencyQueueConfig;
+  /**
+   * Layered upstream proxy (upstream-proxy). OPTIONAL — absent on a pre-upgrade
+   * daemon or when no proxy is configured. Passwords are masked on GET.
+   */
+  proxy?: OutboundProxyConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

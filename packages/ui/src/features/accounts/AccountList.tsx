@@ -17,12 +17,13 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
+import { ProxyEditor, seedFromSanitized } from '@/components/ProxyEditor';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
 
 import { StatusBadge } from './StatusBadge';
 
-import type { RefreshResult, SubscriptionAccountSanitized } from '@/daemon/types';
+import type { ProxyConfig, RefreshResult, SubscriptionAccountSanitized } from '@/daemon/types';
 
 interface AccountListProps {
   accounts: SubscriptionAccountSanitized[];
@@ -33,6 +34,11 @@ interface AccountListProps {
   onRename?: (id: string, label: string) => Promise<{ success: boolean; message?: string }>;
   /** Set one account's scheduling priority (subscription-account-scheduling). */
   onSetPriority?: (id: string, priority: number) => Promise<{ success: boolean; message?: string }>;
+  /** Set (or clear) one account's per-account proxy override (upstream-proxy). */
+  onSetProxy?: (
+    id: string,
+    proxy: ProxyConfig | undefined,
+  ) => Promise<{ success: boolean; message?: string }>;
   /** Refresh the ACTIVE account's OAuth token (shown on the active+expired row). */
   onRefreshActive?: () => Promise<RefreshResult>;
 }
@@ -63,6 +69,7 @@ export function AccountList({
   onRemove,
   onRename,
   onSetPriority,
+  onSetProxy,
   onRefreshActive,
 }: AccountListProps) {
   const t = useTranslation();
@@ -295,6 +302,21 @@ export function AccountList({
                           {t('accounts.detail.priorityHint')}
                         </span>
                       </div>
+                    </div>
+                  ) : null}
+                  {onSetProxy ? (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t('accounts.detail.proxy')}
+                      </label>
+                      <ProxyEditor
+                        label={t('accounts.detail.proxyLabel')}
+                        description={t('accounts.detail.proxyHint')}
+                        seed={seedFromSanitized(acc.proxy)}
+                        busy={rowBusy}
+                        onSave={(proxy) => void onSetProxy(acc.id, proxy)}
+                        onClear={() => void onSetProxy(acc.id, undefined)}
+                      />
                     </div>
                   ) : null}
                   <div className="grid gap-1 text-xs sm:grid-cols-2">

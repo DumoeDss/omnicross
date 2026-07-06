@@ -15,6 +15,8 @@
  * @module outbound-api/apiServerConfig
  */
 
+import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
 import type {
@@ -24,6 +26,7 @@ import type {
   ModelRef,
   OutboundApiServerConfig,
   OutboundEndpoint,
+  OutboundProxyConfig,
   UserMessageQueueConfig,
 } from './types';
 
@@ -71,6 +74,75 @@ export function normalizeAccountHealth(
       DEFAULT_ACCOUNT_HEALTH.overloadCooldownMs,
     ),
   };
+}
+
+/** Valid structured proxy types. */
+const PROXY_TYPES: readonly string[] = ['http', 'https', 'socks5'];
+
+/**
+ * Validate ONE `ProxyConfig` (upstream-proxy). Returns the cleaned descriptor or
+ * `undefined` (drop) when malformed. Lenient like the other segment normalizers:
+ *  - `{ url }`        — a non-empty string URL (trimmed).
+ *  - structured       — `type` ∈ {http,https,socks5} + non-empty `host` + a
+ *                       finite integer `port` in `1..65535`. `username`/`password`
+ *                       are non-empty-string-or-omit (may be `enc:`/`$ENV` at load
+ *                       — the secret box decrypts afterwards).
+ * Never throws.
+ */
+export function normalizeProxyConfig(raw: unknown): ProxyConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  if (typeof r['url'] === 'string' && r['url'].trim().length > 0) {
+    return { url: r['url'].trim() };
+  }
+  const type = r['type'];
+  const host = r['host'];
+  const port = r['port'];
+  if (
+    typeof type === 'string' &&
+    PROXY_TYPES.includes(type) &&
+    typeof host === 'string' &&
+    host.trim().length > 0 &&
+    typeof port === 'number' &&
+    Number.isFinite(port) &&
+    port >= 1 &&
+    port <= 65535
+  ) {
+    const out: ProxyConfig = {
+      type: type as 'http' | 'https' | 'socks5',
+      host: host.trim(),
+      port: Math.trunc(port),
+    };
+    if (typeof r['username'] === 'string' && r['username'].length > 0) out.username = r['username'];
+    if (typeof r['password'] === 'string' && r['password'].length > 0) out.password = r['password'];
+    return out;
+  }
+  return undefined;
+}
+
+/**
+ * Validate the optional `proxy` segment (upstream-proxy). Drops malformed entries
+ * (a bad `global` or a bad `byProvider[*]` value/key is dropped, never thrown).
+ * Returns `undefined` when nothing valid remains — a missing/empty proxy segment
+ * stays ABSENT (zero-config = direct fetch; unlike `accountHealth`, no default is
+ * synthesized).
+ */
+export function normalizeProxySegment(raw: unknown): OutboundProxyConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: OutboundProxyConfig = {};
+  const global = normalizeProxyConfig(r['global']);
+  if (global) out.global = global;
+  if (r['byProvider'] && typeof r['byProvider'] === 'object') {
+    const byProvider: Record<string, ProxyConfig> = {};
+    for (const [key, value] of Object.entries(r['byProvider'] as Record<string, unknown>)) {
+      if (!key.trim()) continue;
+      const cfg = normalizeProxyConfig(value);
+      if (cfg) byProvider[key] = cfg;
+    }
+    if (Object.keys(byProvider).length > 0) out.byProvider = byProvider;
+  }
+  return out.global || out.byProvider ? out : undefined;
 }
 
 /** Clamp a numeric to `[min, max]`, falling back to `fallback` when non-finite. */
@@ -232,7 +304,7 @@ export function normalizeServerConfig(
     }
   }
   const queues = normalizeQueueSegments(raw);
-  return {
+  const config: OutboundApiServerConfig = {
     enabled: raw.enabled === true,
     networkBinding: raw.networkBinding === true,
     endpoints: ALL_ENDPOINTS.map(
@@ -243,6 +315,10 @@ export function normalizeServerConfig(
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(raw),
   };
+  // Proxy segment is only carried when valid — absent stays absent (direct fetch).
+  const proxy = normalizeProxySegment(raw.proxy);
+  if (proxy) config.proxy = proxy;
+  return config;
 }
 
 /** Load the persisted config (normalized), defaulting on a missing/blank key. */
@@ -276,5 +352,8 @@ export function mergeServerConfig(
     userMessageQueue: patch.userMessageQueue ?? current.userMessageQueue,
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
     accountHealth: patch.accountHealth ?? current.accountHealth,
+    // Proxy is layer-replaced (not deep-merged): a PUT carrying `proxy` swaps the
+    // whole segment; omitting it keeps the current one. `undefined` on both ⇒ absent.
+    proxy: patch.proxy ?? current.proxy,
   });
 }

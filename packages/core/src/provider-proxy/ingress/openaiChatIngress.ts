@@ -30,6 +30,8 @@
 
 import type http from 'node:http';
 
+import { fetchUpstream } from '../../pipeline/upstreamFetch';
+
 import { serializeError } from '@omnicross/core/serializeError';
 
 import { buildProviderApiUrl } from '../../completion';
@@ -230,7 +232,12 @@ async function runPipeline(
     },
     fetchFn: (url, headers, body) => {
       console.log(`[ProviderProxy:chat] -> ${url} model=${resolvedModel} stream=${isStream}`);
-      return fetch(url, { method: 'POST', headers, body: JSON.stringify(body) }).then((r) => {
+      // upstream-proxy: BYO chat egress honors the global/provider proxy.
+      return fetchUpstream(
+        url,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        { providerId: 'byo' },
+      ).then((r) => {
         rawStatus = r.status;
         return r;
       });

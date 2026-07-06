@@ -20,6 +20,7 @@ import { EndpointRoutingCard } from './EndpointRoutingCard';
 import { missingKindsByEndpoint } from './endpointKinds';
 import { useApiService } from './hooks/useApiService';
 import { KeyManagementSection } from './KeyManagementSection';
+import { ProxySection } from './ProxySection';
 import { QueueStatusView } from './QueueStatusView';
 import { RequestQueueSection } from './RequestQueueSection';
 import { ServerStatusBanner } from './ServerStatusBanner';
@@ -44,6 +45,7 @@ export function ApiServicePage() {
     setKeyEnabled,
     setKeyMaxConcurrency,
     updateQueueConfig,
+    updateProxyConfig,
     queueStatus,
   } = useApiService();
 
@@ -144,6 +146,8 @@ export function ApiServicePage() {
               />
 
               <RequestQueueSection config={config} busy={busy} onUpdate={updateQueueConfig} />
+
+              <ProxySection config={config} busy={busy} onUpdate={updateProxyConfig} />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>

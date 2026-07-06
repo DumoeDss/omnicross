@@ -639,6 +639,18 @@
         "active": "{{count}} active",
         "waiting": "{{count}} waiting"
       }
+    },
+    "proxy": {
+      "title": "Upstream proxy",
+      "description": "Route outbound requests to upstream providers through an HTTP/HTTPS or SOCKS5 proxy. Precedence: account > provider > global > environment.",
+      "global": {
+        "label": "Global proxy",
+        "description": "Applies to every upstream unless a provider or account override is set."
+      },
+      "byProvider": {
+        "title": "Per-provider overrides"
+      },
+      "byoLabel": "BYO providers"
     }
   },
   "accounts": {
@@ -764,7 +776,10 @@
       "lastRefreshed": "Τελευταία ανανέωση",
       "label": "Ετικέτα λογαριασμού",
       "labelPlaceholder": "Δώστε όνομα στον λογαριασμό",
-      "saveLabel": "Αποθήκευση ετικέτας"
+      "saveLabel": "Αποθήκευση ετικέτας",
+      "proxy": "Proxy override",
+      "proxyLabel": "Per-account proxy",
+      "proxyHint": "Overrides the global/provider proxy for this account only."
     },
     "oauthFlow": {
       "step1": {
@@ -998,5 +1013,18 @@
     "sourceBuiltin": "Ενσωματωμένο",
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Χρήστης"
+  },
+  "proxy": {
+    "field": {
+      "type": "Type",
+      "host": "Host",
+      "port": "Port",
+      "username": "Username",
+      "password": "Password",
+      "passwordKeep": "Leave blank to keep current"
+    },
+    "save": "Save proxy",
+    "saveHint": "Upstream requests route through this proxy.",
+    "disabledHint": "No proxy — upstream requests go direct."
   }
 }

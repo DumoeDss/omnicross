@@ -18,6 +18,8 @@
 
 import type http from 'node:http';
 
+import { fetchUpstream } from '../../pipeline/upstreamFetch';
+
 import { serializeError } from '@omnicross/core/serializeError';
 
 import { buildProviderApiUrl } from '../../completion';
@@ -67,6 +69,8 @@ interface ResponsesCallPlan {
   readonly isStream: boolean;
   readonly resolveUrl: (config: RequestConfig) => string;
   readonly upstreamUrl: string;
+  /** upstream-proxy ctx: the subscription provider id, or `'byo'` for a BYO plan. */
+  readonly proxyProviderId: string;
 }
 
 /**
@@ -185,6 +189,7 @@ async function buildByoPlan(
     isStream,
     resolveUrl: (config) => (config.url instanceof URL ? config.url.toString() : byoUrl),
     upstreamUrl: byoUrl,
+    proxyProviderId: 'byo',
   };
 }
 
@@ -264,6 +269,7 @@ async function buildSubscriptionPlan(
           ? config.url
           : upstreamUrl,
     upstreamUrl,
+    proxyProviderId: profile.authStrategy.providerId,
   };
 }
 
@@ -309,8 +315,17 @@ async function runPipeline(
   // Pre-resolve auth headers (applyHeaders MAY be async for OAuth refresh while
   // buildHeaders is sync). Auth wins — chain headers never clobber a key the
   // AuthSource set.
+  // upstream-proxy: capture the selected pooled account so per-account proxy
+  // resolves (no-op for BYO — LlmConfigProviderAuth never reports a selection).
+  let proxyAccountId: string | undefined;
   const authHeaders: Record<string, string> = {};
-  await auth.applyHeaders(authHeaders, { upstreamUrl, model: resolvedModel });
+  await auth.applyHeaders(authHeaders, {
+    upstreamUrl,
+    model: resolvedModel,
+    reportSelection: (accountId) => {
+      proxyAccountId = accountId;
+    },
+  });
 
   let rawStatus: number | null = null;
 
@@ -332,7 +347,11 @@ async function runPipeline(
     },
     fetchFn: (url, headers, body) => {
       console.log(`[ProviderProxy:responses] -> ${url} model=${resolvedModel} stream=${isStream}`);
-      return fetch(url, { method: 'POST', headers, body: JSON.stringify(body) }).then((r) => {
+      return fetchUpstream(
+        url,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        { providerId: plan.proxyProviderId, accountId: proxyAccountId },
+      ).then((r) => {
         rawStatus = r.status;
         return r;
       });

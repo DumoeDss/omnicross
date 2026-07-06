@@ -30,6 +30,8 @@
 
 import type http from 'node:http';
 
+import { fetchUpstream } from '../../pipeline/upstreamFetch';
+
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import type { OpenCodeGoScenario } from '@omnicross/contracts/subscription-types';
 
@@ -334,6 +336,16 @@ export function collectText(value: unknown): number {
  * provider's wire format. SHARED by both the BYO (`runPipelineWithPoolReporting`)
  * and subscription (`runPipelineWithSubscriptionRetry`) relays.
  */
+/**
+ * upstream-proxy ctx provider id for a plan: the subscription provider (for the
+ * per-provider proxy layer) or `'byo'` for a BYO plan. Uses the plan's
+ * `isSubscription` discriminant — the subscription `transformerProvider.name` is
+ * `profile.authStrategy.providerId`.
+ */
+function proxyProviderId(plan: AnthropicCallPlan): string {
+  return plan.isSubscription ? plan.transformerProvider.name : 'byo';
+}
+
 export async function runPipeline(
   anthropicBody: Record<string, unknown>,
   plan: AnthropicCallPlan,
@@ -346,12 +358,18 @@ export async function runPipeline(
   // Pre-resolve auth headers (applyHeaders MAY be async for OAuth refresh while
   // buildHeaders is sync). Auth wins — chain headers never clobber a key the
   // AuthSource set.
+  // upstream-proxy: capture the effective account so a per-account proxy resolves.
+  // Wrap the caller's `reportSelection` so the health-marking capture still fires.
+  let proxyAccountId: string | undefined;
   const authHeaders: Record<string, string> = {};
   await auth.applyHeaders(authHeaders, {
     upstreamUrl,
     model: resolvedModel,
     sessionKey: plan.sessionKey,
-    reportSelection,
+    reportSelection: (accountId, isActive) => {
+      proxyAccountId = accountId;
+      reportSelection?.(accountId, isActive);
+    },
   });
 
   let rawStatus: number | null = null;
@@ -374,7 +392,11 @@ export async function runPipeline(
     },
     fetchFn: (url, headers, body) => {
       console.info(`[ProviderProxy:anthropic] -> ${url} model=${resolvedModel} stream=${isStream}`);
-      return fetch(url, { method: 'POST', headers, body: JSON.stringify(body) }).then((r) => {
+      return fetchUpstream(
+        url,
+        { method: 'POST', headers, body: JSON.stringify(body) },
+        { providerId: proxyProviderId(plan), accountId: proxyAccountId },
+      ).then((r) => {
         rawStatus = r.status;
         return r;
       });
@@ -401,17 +423,26 @@ async function runSubscriptionSameFormatFetch(
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean) => void,
 ): Promise<{ response: Response; rawStatus: number | null }> {
+  // upstream-proxy: capture the effective account (per-account proxy override).
+  let proxyAccountId: string | undefined;
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   await plan.auth.applyHeaders(headers, {
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
-    reportSelection,
+    reportSelection: (accountId, isActive) => {
+      proxyAccountId = accountId;
+      reportSelection?.(accountId, isActive);
+    },
   });
   console.info(
     `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${plan.resolvedModel} stream=${plan.isStream}`,
   );
-  const response = await fetch(plan.upstreamUrl, { method: 'POST', headers, body: rawBody });
+  const response = await fetchUpstream(
+    plan.upstreamUrl,
+    { method: 'POST', headers, body: rawBody },
+    { providerId: proxyProviderId(plan), accountId: proxyAccountId },
+  );
   return { response, rawStatus: response.status };
 }
 

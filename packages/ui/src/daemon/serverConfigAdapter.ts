@@ -218,5 +218,24 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return fail(err, 'failed to update queue configuration');
       }
     },
+
+    async updateProxyConfig(
+      proxy: OutboundApiServerConfig['proxy'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // upstream-proxy: the caller (ProxySection) sends the FULL segment rebuilt
+        // from the last-loaded (masked) config; the daemon preserves each untouched
+        // layer's write-only password. `mergeServerConfig` replaces `proxy` wholesale
+        // via `patch.proxy ?? current.proxy` — so an EMPTY object `{}` (not null/
+        // undefined, which are nullish and would keep the current) is sent to CLEAR:
+        // the daemon normalizes an empty proxy segment to absent (direct fetch).
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          proxy: proxy ?? {},
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update proxy configuration');
+      }
+    },
   };
 }

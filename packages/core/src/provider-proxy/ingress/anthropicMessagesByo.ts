@@ -36,6 +36,8 @@
 
 import type http from 'node:http';
 
+import { fetchUpstream } from '../../pipeline/upstreamFetch';
+
 import { serializeError } from '@omnicross/core/serializeError';
 
 import {
@@ -259,7 +261,12 @@ async function runSameFormatFetch(
 
   const url = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);
-  const response = await fetch(url, { method: 'POST', headers, body: bodyToSend });
+  // upstream-proxy: BYO egress honors the global/provider proxy (providerId 'byo').
+  const response = await fetchUpstream(
+    url,
+    { method: 'POST', headers, body: bodyToSend },
+    { providerId: 'byo' },
+  );
   return { response, rawStatus: response.status };
 }
 

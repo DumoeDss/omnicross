@@ -31,6 +31,7 @@
  * @module @omnicross/core/auth/GeminiCodeAssistProjectResolver
  */
 
+import { fetchUpstream } from '../pipeline/upstreamFetch';
 import {
   resolveCodeAssistApiVersion,
   resolveCodeAssistEndpoint,
@@ -83,7 +84,12 @@ export class GeminiCodeAssistProjectResolver {
   /** In-flight handshakes so concurrent callers share one round-trip. */
   private readonly inflight = new Map<string, Promise<string | undefined>>();
 
-  constructor(private readonly fetchImpl: FetchLike = (url, init) => fetch(url, init)) {}
+  // upstream-proxy: the Code Assist handshake is upstream egress → honor the
+  // gemini proxy by default (still injectable for tests).
+  constructor(
+    private readonly fetchImpl: FetchLike = (url, init) =>
+      fetchUpstream(url, init, { providerId: 'gemini' }),
+  ) {}
 
   /** Test/diagnostic helper — clear the cached resolution for an account. */
   clearCache(): void {

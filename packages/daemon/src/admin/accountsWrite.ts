@@ -19,6 +19,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  ProxyConfig,
   SubscriptionAccountSanitized,
   TokenStatus,
 } from '@omnicross/contracts/account-tokens-types';
@@ -48,6 +49,14 @@ export interface SubscriptionTokenWriter {
   /** Set one account's scheduling priority (secret-free; rejects an unknown id).
    *  subscription-account-scheduling — lets an operator order a pool. */
   setAccountPriority(providerId: SubscriptionProviderId, id: string, priority: number): Promise<{ ok: boolean }>;
+  /** Set (or CLEAR, with `undefined`) one account's per-account proxy override
+   *  (upstream-proxy). The `proxy.password` is a secret (encrypted at rest, masked
+   *  in the sanitized view). Rejects an unknown id. */
+  setAccountProxy(
+    providerId: SubscriptionProviderId,
+    id: string,
+    proxy: ProxyConfig | undefined,
+  ): Promise<{ ok: boolean }>;
   listSanitizedAccounts(): Promise<Record<string, SubscriptionAccountSanitized[]>>;
   // Active-account OAuth token refresh (oauth design D4). Each returns an HONEST
   // boolean (false when the active block has no refresh_token, or the upstream

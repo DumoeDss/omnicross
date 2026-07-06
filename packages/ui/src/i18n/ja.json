@@ -639,6 +639,18 @@
         "active": "{{count}} 件実行中",
         "waiting": "{{count}} 件待機中"
       }
+    },
+    "proxy": {
+      "title": "アップストリームプロキシ",
+      "description": "アップストリームプロバイダーへの送信リクエストを HTTP/HTTPS または SOCKS5 プロキシ経由にします。優先順位: アカウント > プロバイダー > グローバル > 環境変数。",
+      "global": {
+        "label": "グローバルプロキシ",
+        "description": "プロバイダーまたはアカウントの上書きがない限り、すべてのアップストリームに適用されます。"
+      },
+      "byProvider": {
+        "title": "プロバイダー別の上書き"
+      },
+      "byoLabel": "BYO プロバイダー"
     }
   },
   "accounts": {
@@ -769,7 +781,10 @@
       "savePriority": "優先度を保存",
       "priorityHint": "小さいほど優先",
       "lastUsed": "最終使用",
-      "neverUsed": "未使用"
+      "neverUsed": "未使用",
+      "proxy": "プロキシの上書き",
+      "proxyLabel": "アカウント別プロキシ",
+      "proxyHint": "このアカウントのみグローバル/プロバイダーのプロキシを上書きします。"
     },
     "oauthFlow": {
       "step1": {
@@ -1006,5 +1021,18 @@
     "sourceBuiltin": "組み込み",
     "sourceLitellm": "LiteLLM",
     "sourceUser": "ユーザー"
+  },
+  "proxy": {
+    "field": {
+      "type": "種類",
+      "host": "ホスト",
+      "port": "ポート",
+      "username": "ユーザー名",
+      "password": "パスワード",
+      "passwordKeep": "空欄で現在の値を保持"
+    },
+    "save": "プロキシを保存",
+    "saveHint": "アップストリームのリクエストはこのプロキシ経由になります。",
+    "disabledHint": "プロキシなし — アップストリームへ直接接続します。"
   }
 }

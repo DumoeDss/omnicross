@@ -71,6 +71,20 @@ export interface SubscriptionAccountSanitized {
   health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
   /** ISO instant the current health cooldown elapses (absent for healthy/blocked). */
   cooldownUntil?: string;
+  /** Secret-free per-account proxy view (upstream-proxy); password masked. */
+  proxy?: SanitizedProxyConfig;
+}
+
+/**
+ * Secret-free per-account/global proxy view (upstream-proxy) — mirrors the daemon
+ * `SanitizedProxyConfig`. The password is NEVER carried, only a `hasPassword` flag
+ * plus a display-safe `host:port` endpoint.
+ */
+export interface SanitizedProxyConfig {
+  kind: 'url' | 'http' | 'https' | 'socks5';
+  endpoint?: string;
+  username?: string;
+  hasPassword: boolean;
 }
 
 /** `GET /admin/api/accounts` response. */

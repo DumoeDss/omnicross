@@ -639,6 +639,18 @@
         "active": "{{count}} active",
         "waiting": "{{count}} waiting"
       }
+    },
+    "proxy": {
+      "title": "Upstream proxy",
+      "description": "Route outbound requests to upstream providers through an HTTP/HTTPS or SOCKS5 proxy. Precedence: account > provider > global > environment.",
+      "global": {
+        "label": "Global proxy",
+        "description": "Applies to every upstream unless a provider or account override is set."
+      },
+      "byProvider": {
+        "title": "Per-provider overrides"
+      },
+      "byoLabel": "BYO providers"
     }
   },
   "accounts": {
@@ -769,7 +781,10 @@
       "savePriority": "Save priority",
       "priorityHint": "Lower runs first",
       "lastUsed": "Last used",
-      "neverUsed": "Never"
+      "neverUsed": "Never",
+      "proxy": "Proxy override",
+      "proxyLabel": "Per-account proxy",
+      "proxyHint": "Overrides the global/provider proxy for this account only."
     },
     "oauthFlow": {
       "step1": {
@@ -1006,5 +1021,18 @@
     "sourceBuiltin": "Built-in",
     "sourceLitellm": "LiteLLM",
     "sourceUser": "User"
+  },
+  "proxy": {
+    "field": {
+      "type": "Type",
+      "host": "Host",
+      "port": "Port",
+      "username": "Username",
+      "password": "Password",
+      "passwordKeep": "Leave blank to keep current"
+    },
+    "save": "Save proxy",
+    "saveHint": "Upstream requests route through this proxy.",
+    "disabledHint": "No proxy — upstream requests go direct."
   }
 }

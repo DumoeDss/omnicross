@@ -45,7 +45,8 @@ function headerStatus(
 
 export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCodeGoAccountCardProps) {
   const t = useTranslation();
-  const { busy, appendTokens, setActive, removeAccount, renameAccount, setAccountPriority } = accountsApi;
+  const { busy, appendTokens, setActive, removeAccount, renameAccount, setAccountPriority, setAccountProxy } =
+    accountsApi;
 
   const [formOpen, setFormOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -117,6 +118,7 @@ export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCode
         onRemove={(id) => void removeAccount('opencodego', id)}
         onRename={(id, label) => renameAccount('opencodego', id, label)}
         onSetPriority={(id, priority) => setAccountPriority('opencodego', id, priority)}
+        onSetProxy={(id, proxy) => setAccountProxy('opencodego', id, proxy)}
       />
 
       {/* Add path: API-key form */}

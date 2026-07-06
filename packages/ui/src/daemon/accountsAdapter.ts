@@ -21,6 +21,7 @@ import type {
   AgentAccountsApi,
   CodexOAuthStatus,
   MutationResult,
+  ProxyConfig,
   RefreshResult,
   StartOAuthResult,
   WriteTokensResult,
@@ -196,6 +197,24 @@ export function createAccountsAdapter(): AgentAccountsApi {
         return { success: true };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'failed to set priority' };
+      }
+    },
+
+    async setAccountProxy(
+      providerId: SubscriptionProviderId,
+      accountId: string,
+      proxy: ProxyConfig | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // upstream-proxy: `null` clears the override; a config sets it. The password
+        // is masked on read + preserved write-only by the daemon when omitted.
+        await adminClient.post(
+          `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}/proxy`,
+          { proxy: proxy ?? null },
+        );
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to set account proxy' };
       }
     },
 

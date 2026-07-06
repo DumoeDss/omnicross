@@ -34,11 +34,13 @@ import type {
   CodexTokenConfig,
   GeminiTokenConfig,
 } from '@omnicross/contracts/account-tokens-types';
+import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import { claudeOAuth, codexOAuth, type FetchLike, geminiOAuth } from '@omnicross/subscriptions';
 
 import { maskProviderApiKey } from '../admin/adminApi';
 import { setSecretBox } from '../config';
 import { JsonSubscriptionCredentialStore } from '../ports/JsonSubscriptionCredentialStore';
+import { createUpstreamProxyResolver } from '../proxy/upstreamProxyResolver';
 
 import { awaitLoopbackCode } from './loopbackCallback';
 import { defaultTokensPath, resolveSecretBox } from './paths';
@@ -94,9 +96,16 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
   // set it for any config seam, build the store directly. `finally` clears it.
   const box = resolveSecretBox(values['master-key-file']);
   setSecretBox(box);
+  // upstream-proxy: the offline login has no daemon bootstrap, so register the
+  // env-layer resolver here (HTTPS_PROXY/NO_PROXY) — the common proxy-required
+  // case for a login exchange. Cleared in `finally`.
+  setUpstreamProxyResolver(createUpstreamProxyResolver());
   try {
     const tokensPath = defaultTokensPath(values.config);
-    const exchangeFetch: FetchLike = resolved.tokensFetch ?? ((url, init) => fetch(url, init));
+    // Funnel the token exchange through the proxy-aware helper (providerId ctx);
+    // a test-injected `tokensFetch` overrides it verbatim.
+    const exchangeFetch: FetchLike =
+      resolved.tokensFetch ?? ((url, init) => fetchUpstream(url, init, { providerId: provider }));
     const store = new JsonSubscriptionCredentialStore(tokensPath, box, exchangeFetch);
     const expiresAt = await runProviderLogin(
       provider,
@@ -110,6 +119,7 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
     console.info(`  token: [stored, encrypted]   expiresAt: ${expiresAt ?? 'n/a'}`);
   } finally {
     setSecretBox(null);
+    setUpstreamProxyResolver(null);
   }
 }
 

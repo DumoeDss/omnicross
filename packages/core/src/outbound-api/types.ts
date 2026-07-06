@@ -13,6 +13,8 @@
  * @module outbound-api/types
  */
 
+import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { ProviderProxy } from '../provider-proxy';
 import type { ProviderProxyDeps } from '../provider-proxy';
@@ -136,6 +138,22 @@ export interface AccountHealthConfig {
   overloadCooldownMs: number;
 }
 
+/**
+ * Layered upstream-proxy segment (upstream-proxy). Global + per-provider proxy
+ * config for outbound EGRESS to upstreams (NOT the inbound listener). Resolved
+ * with precedence account > provider > global > env; the per-account layer lives
+ * on the account entry (`SubscriptionAccountEntry.proxy`), not here. Absent ⇒ no
+ * proxy at these layers (direct fetch). `byProvider` keys are subscription
+ * provider ids (`claude`/`codex`/`gemini`/`opencodego`) or `'byo'`. A `ProxyConfig`
+ * `password` is a SECRET — encrypted at rest + masked in the admin GET.
+ */
+export interface OutboundProxyConfig {
+  /** Applies to every upstream unless a more specific layer overrides. */
+  global?: ProxyConfig;
+  /** Per-provider override, keyed by subscription provider id or `'byo'`. */
+  byProvider?: Record<string, ProxyConfig>;
+}
+
 /** The persisted server config. */
 export interface OutboundApiServerConfig {
   /** When false the listener never binds (off by default). */
@@ -163,6 +181,13 @@ export interface OutboundApiServerConfig {
    * the shared health tracker at daemon boot (change takes effect on restart).
    */
   accountHealth?: AccountHealthConfig;
+  /**
+   * Layered upstream-proxy segment (upstream-proxy). Optional; when absent no
+   * global/provider proxy applies (direct egress). `normalizeServerConfig` drops
+   * malformed entries but does NOT synthesize a default (a missing proxy segment
+   * stays absent — zero-config = direct fetch).
+   */
+  proxy?: OutboundProxyConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */

@@ -17,8 +17,10 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import type { ApiServerSettingsStore } from '@omnicross/core';
+import type { ApiServerSettingsStore, OutboundApiServerConfig, OutboundProxyConfig } from '@omnicross/core';
 import { OUTBOUND_API_SERVER_CONFIG_KEY } from '@omnicross/core/outbound-api';
+
+import { decryptProxySegment, encryptProxySegment, type SecretBox } from '../secrets';
 
 /** Shape of the daemon config.json this store reads/writes the `server` field of. */
 interface ConfigFileShape {
@@ -27,19 +29,43 @@ interface ConfigFileShape {
 }
 
 export class JsonApiServerSettingsStore implements ApiServerSettingsStore {
-  constructor(private readonly configPath: string) {}
+  /**
+   * @param configPath the daemon config.json whose `server` field is backed.
+   * @param box         OPTIONAL at-rest `SecretBox` (upstream-proxy). When set, the
+   *                    `server.proxy.*` passwords are encrypted-on-`set` /
+   *                    decrypted-on-`get` (the settings-store path is otherwise not
+   *                    secret-aware — every OTHER server field is non-secret). Null
+   *                    ⇒ passthrough (legacy/pure tests unchanged).
+   */
+  constructor(
+    private readonly configPath: string,
+    private readonly box: SecretBox | null = null,
+  ) {}
 
   async get<T = unknown>(key: string): Promise<T | undefined> {
     if (key !== OUTBOUND_API_SERVER_CONFIG_KEY) return undefined;
     const file = this.readFile();
-    return (file.server as T | undefined) ?? undefined;
+    if (file.server === undefined) return undefined;
+    return this.decryptProxy(file.server as OutboundApiServerConfig) as T;
   }
 
   async set<T = unknown>(key: string, value: T): Promise<void> {
     if (key !== OUTBOUND_API_SERVER_CONFIG_KEY) return;
     const file = this.readFile();
-    file.server = value;
+    file.server = this.encryptProxy(value as OutboundApiServerConfig);
     writeFileSync(this.configPath, JSON.stringify(file, null, 2) + '\n', 'utf8');
+  }
+
+  /** Encrypt the proxy passwords before persisting (no-op without a box/proxy). */
+  private encryptProxy(config: OutboundApiServerConfig): OutboundApiServerConfig {
+    if (!this.box || !config?.proxy) return config;
+    return { ...config, proxy: encryptProxySegment(config.proxy, this.box) as OutboundProxyConfig };
+  }
+
+  /** Decrypt the proxy passwords on read (no-op without a box/proxy). */
+  private decryptProxy(config: OutboundApiServerConfig): OutboundApiServerConfig {
+    if (!this.box || !config?.proxy) return config;
+    return { ...config, proxy: decryptProxySegment(config.proxy, this.box) as OutboundProxyConfig };
   }
 
   /** Read the config.json, tolerating a missing/corrupt file (→ empty shape). */
