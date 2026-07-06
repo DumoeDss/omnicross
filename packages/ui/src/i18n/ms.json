@@ -821,6 +821,13 @@
       "detected": "Log masuk CLI {{name}} sedia ada ditemui pada mesin ini.",
       "hint": "Selepas diimport, aplikasi ini memastikannya sentiasa terkini: setiap kali token dimuat semula, fail log masuk CLI turut dikemas kini, jadi CLI dalam terminal kekal log masuk.",
       "button": "Import log masuk CLI sedia ada"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

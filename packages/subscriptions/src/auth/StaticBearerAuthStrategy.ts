@@ -9,6 +9,7 @@
  */
 
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
+import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
 import { resolveSelectedToken } from '../scheduler/accountSelection';
@@ -28,13 +29,21 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
     /** Shared account-pool scheduler (subscription-account-scheduling). Absent ⇒
      *  the pre-change single-account active-mirror behavior. */
     private readonly selector?: SubscriptionAccountSelector,
+    /** Shared account health tracker (subscription-account-health). Absent ⇒ no
+     *  health gating (all accounts schedulable). */
+    private readonly health?: SubscriptionAccountHealth,
   ) {}
 
   async applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
     // Account pool: a non-active pick uses that account's static key by id;
     // otherwise the active `getValidOpenCodeGoApiKey()` path runs verbatim.
-    const key = await resolveSelectedToken(this.selector, this.tokens, 'opencodego', hints?.sessionKey, () =>
-      this.tokens.getValidOpenCodeGoApiKey(),
+    const key = await resolveSelectedToken(
+      this.selector,
+      this.tokens,
+      'opencodego',
+      hints?.sessionKey,
+      () => this.tokens.getValidOpenCodeGoApiKey(),
+      { health: this.health, reportSelection: hints?.reportSelection },
     );
     if (!key) {
       // Let the upstream surface the 401 with its own body — clearer than

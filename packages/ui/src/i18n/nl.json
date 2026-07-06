@@ -821,6 +821,13 @@
       "detected": "Er is een bestaande {{name}}-CLI-aanmelding gevonden op deze machine.",
       "hint": "Na het importeren houdt deze app deze actueel: bij elke tokenvernieuwing wordt ook het CLI-aanmeldbestand bijgewerkt, zodat de CLI in de terminal aangemeld blijft.",
       "button": "Bestaande CLI-aanmelding importeren"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

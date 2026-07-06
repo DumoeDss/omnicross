@@ -829,6 +829,13 @@
       "detected": "An existing {{name}} CLI login was found on this machine.",
       "hint": "Importing takes over keeping it fresh: after each token refresh the CLI login file is updated too, so the terminal CLI stays signed in.",
       "button": "Import existing CLI login"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

@@ -821,6 +821,13 @@
       "detected": "Um login de CLI do {{name}} existente foi encontrado nesta máquina.",
       "hint": "Após a importação, este aplicativo o mantém atualizado: a cada renovação do token, o arquivo de login da CLI também é atualizado, e a CLI do terminal permanece conectada.",
       "button": "Importar login de CLI existente"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

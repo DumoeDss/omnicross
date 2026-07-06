@@ -821,6 +821,13 @@
       "detected": "A fost găsită o autentificare CLI {{name}} existentă pe această mașină.",
       "hint": "După import, această aplicație o menține actualizată: la fiecare reîmprospătare a tokenului se actualizează și fișierul de autentificare al CLI-ului, astfel încât CLI-ul din terminal rămâne conectat.",
       "button": "Importă autentificarea CLI existentă"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

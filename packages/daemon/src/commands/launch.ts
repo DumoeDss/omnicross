@@ -193,6 +193,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     // (review T1: otherwise it only dies with the process).
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
+    daemon.accountHealthSweeper.dispose();
     throw err;
   }
 
@@ -208,6 +209,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     await daemon.providerProxy.stop();
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
+    daemon.accountHealthSweeper.dispose();
     throw err;
   }
 
@@ -232,6 +234,7 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     await daemon.providerProxy.stop();
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
+    daemon.accountHealthSweeper.dispose();
   }
 }
 

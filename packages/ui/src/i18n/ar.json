@@ -821,6 +821,13 @@
       "detected": "تم العثور على تسجيل دخول CLI لـ {{name}} موجود على هذا الجهاز.",
       "hint": "بعد الاستيراد، يحافظ هذا التطبيق على تحديثه: عند كل تحديث للرمز يتم أيضًا تحديث ملف تسجيل دخول CLI، فيبقى CLI في الطرفية مسجلاً للدخول.",
       "button": "استيراد تسجيل دخول CLI الحالي"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

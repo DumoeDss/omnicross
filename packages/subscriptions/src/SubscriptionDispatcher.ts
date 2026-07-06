@@ -14,6 +14,11 @@ import type http from 'node:http';
 
 import type { OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
 import { getGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
+import {
+  getSharedAccountHealth,
+  type HeadersLike,
+  resolveResetSeconds,
+} from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { collectMatchText, deriveSubscriptionSessionKey } from '@omnicross/core/provider-proxy/matchText';
 import { serializeError } from '@omnicross/core/serializeError';
 import type { TransformerChainExecutor } from '@omnicross/core/transformer/TransformerChainExecutor';
@@ -42,7 +47,17 @@ export interface DispatcherHooks {
   readonly executor: TransformerChainExecutor;
   /** Shared transformer service registry — looks up transformer-by-name. */
   readonly transformerService: TransformerService;
-  /** Fetch + retry helper from the proxy (semaphore, 429/5xx loop). */
+  /**
+   * Fetch + retry helper from the proxy (semaphore, 429/5xx loop). On a non-ok
+   * upstream it throws a `ProviderApiError`-shaped error carrying `.status`.
+   *
+   * ACCOUNT-HEALTH CONTRACT (subscription-account-health): for the daemon-path
+   * 429-reset cooldown + 403-ban sniff to function, the thrown error SHOULD also
+   * carry the upstream response `headers` (a `Headers` or a plain record) and, on
+   * a 403, a bounded `bodyText`/`body` string. The dispatcher reads them
+   * STRUCTURALLY (`errHeaders`/`errBodyText`) — absent ⇒ the account-health mark
+   * gracefully degrades to a bare-429 (unmarked, lazy re-probe), never an error.
+   */
   fetchWithRetry(
     url: string,
     headers: Record<string, string>,
@@ -146,6 +161,12 @@ export class SubscriptionDispatcher {
     const gate = this.gatePrimaryModel(resolvedModel, scenario, ocConfig);
     const attempted: string[] = gate.attempted;
     let currentModel = gate.firstModel;
+    // subscription-account-health (D5): capture the effective account id the
+    // strategy resolves so we can mark its health against each attempt's outcome.
+    let usedAccountId: string | undefined;
+    const reportSelection = (accountId: string): void => {
+      usedAccountId = accountId;
+    };
 
     // KNOWN LIMITATION (see opencodego-zen-provider design.md Open Questions):
     // this loop resolves the upstream URL (and chain, where applicable) ONCE
@@ -158,7 +179,7 @@ export class SubscriptionDispatcher {
       req.anthropicBody.model = currentModel;
 
       const headers: Record<string, string> = { 'content-type': 'application/json' };
-      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey });
+      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
 
       console.info(
         `[AgentProxy:subscription] REQ#${req.reqId} | opencodego anthropic-shape -> ${upstreamUrl} model=${currentModel} attempt=${attempted.length}`,
@@ -170,21 +191,31 @@ export class SubscriptionDispatcher {
         // (non-ok throws) → success. Recorded BEFORE relay so the breaker updates
         // even if the SDK disconnects mid-relay.
         this.profile.recordModelOutcome?.(currentModel, true);
+        this.markHealth(usedAccountId, 200);
         await this.hooks.writeProxyResponse(req.res, upstream, req.isStream, req.reqId);
         return;
       } catch (err) {
         const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey);
         if (handled.retryOnce) {
-          const upstream = await this.hooks.fetchWithRetry(upstreamUrl, handled.headers, req.anthropicBody, currentModel);
-          this.profile.recordModelOutcome?.(currentModel, true);
-          await this.hooks.writeProxyResponse(req.res, upstream, req.isStream, req.reqId);
-          return;
+          try {
+            const upstream = await this.hooks.fetchWithRetry(upstreamUrl, handled.headers, req.anthropicBody, currentModel);
+            this.profile.recordModelOutcome?.(currentModel, true);
+            this.markHealth(usedAccountId, 200);
+            await this.hooks.writeProxyResponse(req.res, upstream, req.isStream, req.reqId);
+            return;
+          } catch (retryErr) {
+            // The post-refresh retry threw too — mark the FINAL failure before it
+            // propagates (subscription-account-health Minor #2).
+            this.markHealth(usedAccountId, errStatus(retryErr), retryErr);
+            throw retryErr;
+          }
         }
         // D5 RECORD: status trichotomy on the caught error (LEAD OQ1 = parity).
         // A non-429 4xx is NEUTRAL (not recorded); throw / 5xx / 429 → failure.
         if (caughtErrorBreakerOutcome(err) === 'failure') {
           this.profile.recordModelOutcome?.(currentModel, false);
         }
+        this.markHealth(usedAccountId, errStatus(err), err);
         // Fallback to next OpenCodeGo model if available.
         const next = this.profile.nextFallback?.(scenario, attempted, ocConfig);
         if (!next || attempted.length >= MAX_FALLBACK_ATTEMPTS_LOCAL) {
@@ -244,6 +275,11 @@ export class SubscriptionDispatcher {
     const gate = this.gatePrimaryModel(resolvedModel, scenario, ocConfig);
     const attempted: string[] = gate.attempted;
     let currentModel = gate.firstModel;
+    // subscription-account-health (D5): capture the effective account id.
+    let usedAccountId: string | undefined;
+    const reportSelection = (accountId: string): void => {
+      usedAccountId = accountId;
+    };
 
     // KNOWN LIMITATION (see opencodego-zen-provider design.md Open Questions):
     // this loop resolves the upstream URL (and chain, where applicable) ONCE
@@ -267,7 +303,7 @@ export class SubscriptionDispatcher {
         ...(config.headers as Record<string, string> | undefined),
       };
       stripAuthHeaders(headers);
-      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey });
+      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
 
       // Prefer the transformer-supplied URL (the gemini / gemini-code-assist
       // transformers carry the correct stream-vs-nonstream PER-MODEL colon-method
@@ -302,6 +338,7 @@ export class SubscriptionDispatcher {
         const upstream = await this.hooks.fetchWithRetry(fetchUrl, headers, requestBody, currentModel);
         // D5 RECORD: returned response from `fetchWithRetry` is always 2xx → success.
         this.profile.recordModelOutcome?.(currentModel, true);
+        this.markHealth(usedAccountId, 200);
         const finalResponse = await this.hooks.executor.executeResponseChain(
           requestBody as UnifiedChatRequest,
           upstream,
@@ -314,22 +351,31 @@ export class SubscriptionDispatcher {
       } catch (err) {
         const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey);
         if (handled.retryOnce) {
-          const upstream = await this.hooks.fetchWithRetry(fetchUrl, handled.headers, requestBody, currentModel);
-          this.profile.recordModelOutcome?.(currentModel, true);
-          const finalResponse = await this.hooks.executor.executeResponseChain(
-            requestBody as UnifiedChatRequest,
-            upstream,
-            transformerProvider,
-            { providerTransformers, modelTransformers },
-            { endpointTransformer: this.hooks.endpointTransformer },
-          );
-          await this.hooks.writeProxyResponse(req.res, finalResponse, req.isStream, req.reqId);
-          return;
+          try {
+            const upstream = await this.hooks.fetchWithRetry(fetchUrl, handled.headers, requestBody, currentModel);
+            this.profile.recordModelOutcome?.(currentModel, true);
+            this.markHealth(usedAccountId, 200);
+            const finalResponse = await this.hooks.executor.executeResponseChain(
+              requestBody as UnifiedChatRequest,
+              upstream,
+              transformerProvider,
+              { providerTransformers, modelTransformers },
+              { endpointTransformer: this.hooks.endpointTransformer },
+            );
+            await this.hooks.writeProxyResponse(req.res, finalResponse, req.isStream, req.reqId);
+            return;
+          } catch (retryErr) {
+            // The post-refresh retry threw too — mark the FINAL failure before it
+            // propagates (subscription-account-health Minor #2).
+            this.markHealth(usedAccountId, errStatus(retryErr), retryErr);
+            throw retryErr;
+          }
         }
         // D5 RECORD: status trichotomy on the caught error (LEAD OQ1 = parity).
         if (caughtErrorBreakerOutcome(err) === 'failure') {
           this.profile.recordModelOutcome?.(currentModel, false);
         }
+        this.markHealth(usedAccountId, errStatus(err), err);
         const next = this.profile.nextFallback?.(scenario, attempted, ocConfig);
         if (!next || attempted.length >= MAX_FALLBACK_ATTEMPTS_LOCAL) {
           throw err;
@@ -414,13 +460,43 @@ export class SubscriptionDispatcher {
 
   private async applyHeadersWithRetry(
     headers: Record<string, string>,
-    hints: { upstreamUrl: string; resolvedModel: string; sessionKey?: string },
+    hints: {
+      upstreamUrl: string;
+      resolvedModel: string;
+      sessionKey?: string;
+      reportSelection?: (accountId: string, isActive: boolean) => void;
+    },
   ): Promise<void> {
     try {
       await this.profile.authStrategy.applyHeaders(headers, hints);
     } catch (err) {
       console.warn('[AgentProxy:subscription] authStrategy.applyHeaders threw:', serializeError(err));
     }
+  }
+
+  /**
+   * Mark the served account's health against ONE attempt's outcome
+   * (subscription-account-health, task 3.4). No-op when no account was reported
+   * (non-pooled / single-account) or on a session-cancel (status 0). On a caught
+   * error `err` is passed so the 429-reset / 403-ban drivers are read STRUCTURALLY
+   * from the error's upstream `headers` + `bodyText` (the `fetchWithRetry`
+   * contract) — so daemon-path 429 cooldown + ban blocking function for
+   * multi-account codex/gemini/opencodego pools; absent headers ⇒ a bare-429
+   * (unmarked, lazy re-probe). Success (2xx) clears; 401/5xx/thrown → transient.
+   */
+  private markHealth(accountId: string | undefined, status: number | null, err?: unknown): void {
+    if (accountId === undefined || status === 0) return;
+    const headers = err !== undefined ? errHeaders(err) : undefined;
+    const reset = headers
+      ? resolveResetSeconds(this.profile.providerId, headers)
+      : { resetHeaderSeconds: null, retryAfterSeconds: null };
+    const bodyText = status === 403 && err !== undefined ? errBodyText(err) : undefined;
+    getSharedAccountHealth().recordUpstreamOutcome(this.profile.providerId, accountId, {
+      status,
+      resetHeaderSeconds: reset.resetHeaderSeconds,
+      retryAfterSeconds: reset.retryAfterSeconds,
+      bodyText,
+    });
   }
 
   /**
@@ -543,6 +619,31 @@ const MAX_FALLBACK_ATTEMPTS_LOCAL = 3;
  * A returned response from `fetchWithRetry` is ALWAYS 2xx (non-ok throws), so the
  * success side is recorded directly at the call site (not here).
  */
+/** The HTTP status a caught dispatch error carries, or `null` for a status-less
+ *  (genuine network) throw — the value `markHealth` records against the account. */
+function errStatus(err: unknown): number | null {
+  const status = (err as { status?: number })?.status;
+  return typeof status === 'number' ? status : null;
+}
+
+/** The upstream response headers a caught `ProviderApiError` may carry (a `Headers`
+ *  or a plain record), for the daemon-path 429-reset / retry-after resolution.
+ *  `undefined` when the error doesn't expose them (⇒ bare-429 degrade). */
+function errHeaders(err: unknown): HeadersLike | undefined {
+  const h = (err as { headers?: unknown })?.headers;
+  if (!h) return undefined;
+  if (typeof (h as { get?: unknown }).get === 'function') return h as HeadersLike;
+  if (typeof h === 'object') return h as HeadersLike;
+  return undefined;
+}
+
+/** A bounded upstream body text a caught 403 may carry (for the ban sniff). */
+function errBodyText(err: unknown): string | undefined {
+  const e = err as { bodyText?: unknown; body?: unknown };
+  const raw = typeof e?.bodyText === 'string' ? e.bodyText : typeof e?.body === 'string' ? e.body : undefined;
+  return raw?.slice(0, 2048);
+}
+
 function caughtErrorBreakerOutcome(err: unknown): 'failure' | 'neutral' {
   const status = (err as { status?: number })?.status;
   if (typeof status !== 'number') return 'failure'; // status-less throw = genuine network failure

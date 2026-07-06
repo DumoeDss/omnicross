@@ -190,6 +190,18 @@ export type SubscriptionAccountSanitized = {
    * list-time computed codes (`external-divergent` / `duplicate-token`).
    */
   syncWarning?: SyncWarningCode;
+  /**
+   * Live scheduling-health state (subscription-account-health) — in-memory, never
+   * persisted. Absent / `'healthy'` ⇒ eligible; the rest mean the account is
+   * currently excluded from the pool (multi-account) or would surface the
+   * upstream's error (single-account). Secret-free.
+   */
+  health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
+  /**
+   * ISO instant the current health cooldown elapses (absent for healthy /
+   * permanently-blocked). Lets the admin view render "rate-limited until …".
+   */
+  cooldownUntil?: string;
 };
 
 /**

@@ -821,6 +821,13 @@
       "detected": "Na tomto počítači bylo nalezeno existující přihlášení CLI {{name}}.",
       "hint": "Po importu jej tato aplikace udržuje aktuální: při každém obnovení tokenu se aktualizuje i přihlašovací soubor CLI, takže CLI v terminálu zůstává přihlášené.",
       "button": "Importovat existující přihlášení CLI"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

@@ -821,6 +821,13 @@
       "detected": "Ezen a gépen meglévő {{name}} CLI-bejelentkezést találtunk.",
       "hint": "Importálás után ez az alkalmazás tartja frissen: minden token-frissítéskor a CLI bejelentkezési fájlja is frissül, így a terminálban a CLI bejelentkezve marad.",
       "button": "Meglévő CLI-bejelentkezés importálása"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

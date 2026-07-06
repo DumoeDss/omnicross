@@ -821,6 +821,13 @@
       "detected": "Der blev fundet et eksisterende {{name}}-CLI-login på denne maskine.",
       "hint": "Efter importen holder denne app det opdateret: ved hver tokenopdatering opdateres CLI-loginfilen også, så CLI’en i terminalen forbliver logget ind.",
       "button": "Importér eksisterende CLI-login"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

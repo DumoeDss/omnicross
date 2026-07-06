@@ -821,6 +821,13 @@
       "detected": "Βρέθηκε υπάρχουσα σύνδεση CLI {{name}} σε αυτό το μηχάνημα.",
       "hint": "Μετά την εισαγωγή, αυτή η εφαρμογή τη διατηρεί ενημερωμένη: σε κάθε ανανέωση του token ενημερώνεται και το αρχείο σύνδεσης του CLI, ώστε το CLI στο τερματικό να παραμένει συνδεδεμένο.",
       "button": "Εισαγωγή υπάρχουσας σύνδεσης CLI"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

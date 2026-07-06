@@ -123,6 +123,19 @@ export interface ConcurrencyQueueConfig {
   waitTimeoutMs: number;
 }
 
+/**
+ * Subscription account-health segment (subscription-account-health, LEAD OQ1).
+ * Persisted + strictly validated like the queue segments; applied to the shared
+ * `SubscriptionAccountHealth` tracker at daemon boot.
+ *  - `overloadCooldownEnabled` default **true** — a 529 places the account in
+ *    overload cooldown (ON by default; CRS ships it off).
+ *  - `overloadCooldownMs`      default **600000** (10 min), valid `60000..3600000`.
+ */
+export interface AccountHealthConfig {
+  overloadCooldownEnabled: boolean;
+  overloadCooldownMs: number;
+}
+
 /** The persisted server config. */
 export interface OutboundApiServerConfig {
   /** When false the listener never binds (off by default). */
@@ -144,6 +157,12 @@ export interface OutboundApiServerConfig {
    * `normalizeServerConfig` always fills it with the frozen defaults.
    */
   concurrencyQueue?: ConcurrencyQueueConfig;
+  /**
+   * Subscription account-health segment. Optional in the persisted shape;
+   * `normalizeServerConfig` always fills it with the frozen defaults. Applied to
+   * the shared health tracker at daemon boot (change takes effect on restart).
+   */
+  accountHealth?: AccountHealthConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */

@@ -13,6 +13,7 @@
 import { parseArgs } from 'node:util';
 
 import { loadServerConfig, OutboundApiConfigError } from '@omnicross/core/outbound-api';
+import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
@@ -60,6 +61,15 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   await daemon.providerProxy.start();
 
   const serverConfig = await loadServerConfig(daemon.settingsStore);
+
+  // Apply the persisted account-health config to the shared tracker (subscription-
+  // account-health, LEAD OQ1) — the strategies/relay/sweeper already hold this
+  // exact instance, so `configure` retunes the live 529 overload cooldown.
+  getSharedAccountHealth().configure({
+    overloadEnabled: serverConfig.accountHealth?.overloadCooldownEnabled,
+    overloadTtlMs: serverConfig.accountHealth?.overloadCooldownMs,
+  });
+
   // Startup gate (model-kind-mapping): if the persisted config enables the
   // outbound server but a kind-mapped endpoint (messages/responses) is missing
   // required mappings, `applyConfig` throws `OutboundApiConfigError` and does not
@@ -95,6 +105,11 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // expiry lead window — an idle daemon stays warm instead of paying the
   // refresh (or a dead rotated token) on the first request.
   daemon.tokenRefreshScheduler.start();
+
+  // Proactive account-health recovery (subscription-account-health, D6): surface
+  // idle accounts whose cooldown elapsed (fires the recovery signal #5/#8 consume)
+  // + nudge a fresh token so a recovered account resumes instantly.
+  daemon.accountHealthSweeper.start();
 
   const status = daemon.outboundApiServer.getStatus();
   console.info('omnicross daemon is running.');

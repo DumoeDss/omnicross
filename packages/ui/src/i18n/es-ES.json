@@ -821,6 +821,13 @@
       "detected": "Se encontró una sesión de CLI de {{name}} existente en esta máquina.",
       "hint": "Tras la importación, esta aplicación la mantiene actualizada: en cada renovación del token también se actualiza el archivo de sesión de la CLI, de modo que la CLI del terminal sigue conectada.",
       "button": "Importar sesión de CLI existente"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

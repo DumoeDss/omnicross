@@ -35,6 +35,7 @@ import type { OpenCodeGoScenario } from '@omnicross/contracts/subscription-types
 
 import type { AuthSource } from '../../pipeline/AuthSource';
 import { executeProviderCall } from '../../pipeline/executeProviderCall';
+import { getSharedAccountHealth, resolveResetSeconds } from '../../pipeline/SubscriptionAccountHealth';
 import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChain';
 import {
   type SubscriptionAuthProfile,
@@ -336,6 +337,7 @@ export function collectText(value: unknown): number {
 export async function runPipeline(
   anthropicBody: Record<string, unknown>,
   plan: AnthropicCallPlan,
+  reportSelection?: (accountId: string, isActive: boolean) => void,
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const executor = getSharedExecutor();
   const endpointTransformer = getAnthropicEndpointTransformer();
@@ -345,7 +347,12 @@ export async function runPipeline(
   // buildHeaders is sync). Auth wins — chain headers never clobber a key the
   // AuthSource set.
   const authHeaders: Record<string, string> = {};
-  await auth.applyHeaders(authHeaders, { upstreamUrl, model: resolvedModel, sessionKey: plan.sessionKey });
+  await auth.applyHeaders(authHeaders, {
+    upstreamUrl,
+    model: resolvedModel,
+    sessionKey: plan.sessionKey,
+    reportSelection,
+  });
 
   let rawStatus: number | null = null;
 
@@ -392,12 +399,14 @@ export async function runPipeline(
 async function runSubscriptionSameFormatFetch(
   rawBody: string,
   plan: AnthropicCallPlan,
+  reportSelection?: (accountId: string, isActive: boolean) => void,
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   await plan.auth.applyHeaders(headers, {
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
+    reportSelection,
   });
   console.info(
     `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${plan.resolvedModel} stream=${plan.isStream}`,
@@ -422,21 +431,74 @@ async function runSubscriptionAttemptWith401Retry(
   relayBody: string,
   plan: AnthropicCallPlan,
 ): Promise<{ response: Response; rawStatus: number | null }> {
+  // Per-request capture (subscription-account-health, D5): the strategy reports
+  // the EFFECTIVE account id it resolved so we mark THAT account's health against
+  // the FINAL upstream outcome. Fresh per call ⇒ no cross-request race.
+  let selectedAccountId: string | undefined;
+  const reportSelection = (accountId: string): void => {
+    selectedAccountId = accountId;
+  };
   const runOnce = (): Promise<{ response: Response; rawStatus: number | null }> =>
     plan.sameFormat
-      ? runSubscriptionSameFormatFetch(relayBody, plan)
-      : runPipeline(anthropicBody, plan);
+      ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection)
+      : runPipeline(anthropicBody, plan, reportSelection);
 
   const first = await runOnce();
-  if (first.rawStatus !== 401) return first;
-
-  const refreshed = await plan.auth.onUnauthorized?.(plan.sessionKey);
-  if (!refreshed) {
-    console.warn('[ProviderProxy:anthropic] 401 not recoverable (onUnauthorized returned false)');
-    return first;
+  let result = first;
+  if (first.rawStatus === 401) {
+    const refreshed = await plan.auth.onUnauthorized?.(plan.sessionKey);
+    if (refreshed) {
+      console.info('[ProviderProxy:anthropic] 401 → token refreshed; retrying once');
+      result = await runOnce();
+    } else {
+      console.warn('[ProviderProxy:anthropic] 401 not recoverable (onUnauthorized returned false)');
+    }
   }
-  console.info('[ProviderProxy:anthropic] 401 → token refreshed; retrying once');
-  return runOnce();
+
+  // Mark the account against the FINAL surfaced outcome: a first-401 recovered by
+  // a refresh-then-2xx marks 2xx (clears); a final-401 (refresh failed / retry
+  // still 401) marks transient — the design's "recovered 401 marks nothing,
+  // final-401 marks transient" falls out of marking the FINAL result once.
+  await markSubscriptionHealth(plan, selectedAccountId, result);
+  return result;
+}
+
+/** Bounded read of a response body (clone, so the relayed stream is untouched) —
+ *  only used for the 403-ban sniff. `undefined` when unreadable. */
+async function readBoundedBody(response: Response, max = 2048): Promise<string | undefined> {
+  try {
+    const text = await response.clone().text();
+    return text.slice(0, max);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Mark the served account's health against ONE subscription attempt's final
+ * outcome (subscription-account-health, task 3.3). No-op when the account is
+ * unknown (the strategy never reported one — e.g. a single-account provider with
+ * no active pointer, or a non-pooled test double) ⇒ safely degrades to the
+ * pre-health behavior. `providerId` = the plan's bound subscription provider.
+ */
+async function markSubscriptionHealth(
+  plan: AnthropicCallPlan,
+  selectedAccountId: string | undefined,
+  result: { response: Response; rawStatus: number | null },
+): Promise<void> {
+  if (!plan.isSubscription || selectedAccountId === undefined) return;
+  const providerId = plan.transformerProvider.name;
+  const status = result.rawStatus;
+  const { resetHeaderSeconds, retryAfterSeconds } = resolveResetSeconds(providerId, result.response.headers);
+  // Read the body ONLY on a 403 (rare) for the ban sniff; a streaming/unreadable
+  // 403 body falls back to transient (the safer failure direction).
+  const bodyText = status === 403 ? await readBoundedBody(result.response) : undefined;
+  getSharedAccountHealth().recordUpstreamOutcome(providerId, selectedAccountId, {
+    status,
+    resetHeaderSeconds,
+    retryAfterSeconds,
+    bodyText,
+  });
 }
 
 /**

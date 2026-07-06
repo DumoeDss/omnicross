@@ -821,6 +821,13 @@
       "detected": "Na tym komputerze znaleziono istniejące logowanie CLI {{name}}.",
       "hint": "Po zaimportowaniu ta aplikacja dba o jego aktualność: przy każdym odświeżeniu tokenu aktualizowany jest też plik logowania CLI, więc CLI w terminalu pozostaje zalogowane.",
       "button": "Importuj istniejące logowanie CLI"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

@@ -821,6 +821,13 @@
       "detected": "Tältä koneelta löytyi olemassa oleva {{name}} CLI -kirjautuminen.",
       "hint": "Tuonnin jälkeen tämä sovellus pitää sen ajan tasalla: jokaisen tokenin päivityksen yhteydessä myös CLI:n kirjautumistiedosto päivitetään, joten terminaalin CLI pysyy kirjautuneena.",
       "button": "Tuo olemassa oleva CLI-kirjautuminen"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

@@ -63,6 +63,7 @@ import type {
   OpenCodeGoTokenConfig,
   SubscriptionProviderId,
 } from '@omnicross/contracts/subscription-types';
+import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import {
   claudeOAuth,
   codexOAuth,
@@ -171,10 +172,21 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    */
   async listSanitizedAccounts(): Promise<Record<string, SubscriptionAccountSanitized[]>> {
     const config = this.readConfig();
+    const health = getSharedAccountHealth();
+    const now = Date.now();
     const out: Record<string, SubscriptionAccountSanitized[]> = {};
     for (const provider of ['claude', 'codex', 'gemini', 'opencodego'] as const) {
       const sanitized = accountMulti.sanitizeAccounts(config, provider);
-      if (sanitized.length > 0) out[provider] = this.attachSyncWarnings(config, provider, sanitized);
+      if (sanitized.length === 0) continue;
+      // Attach the live (in-memory) scheduling-health state so the admin accounts
+      // view can render "rate-limited until …" (subscription-account-health, 6.1).
+      for (const account of sanitized) {
+        const status = health.getStatus(provider, account.id, now);
+        account.health = status.state;
+        account.cooldownUntil =
+          status.cooldownUntil !== undefined ? new Date(status.cooldownUntil).toISOString() : undefined;
+      }
+      out[provider] = this.attachSyncWarnings(config, provider, sanitized);
     }
     return out;
   }

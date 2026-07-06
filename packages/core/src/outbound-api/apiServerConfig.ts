@@ -18,6 +18,7 @@
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
 import type {
+  AccountHealthConfig,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   ModelRef,
@@ -46,6 +47,31 @@ export const DEFAULT_CONCURRENCY_QUEUE: ConcurrencyQueueConfig = {
   minQueueSize: 4,
   waitTimeoutMs: 60_000,
 };
+
+/**
+ * Frozen defaults for the subscription account-health segment (SSOT). LEAD OQ1:
+ * 529 overload cooldown ON by default, bounded 10 min.
+ */
+export const DEFAULT_ACCOUNT_HEALTH: AccountHealthConfig = {
+  overloadCooldownEnabled: true,
+  overloadCooldownMs: 10 * 60_000,
+};
+
+/** Fill + range-CLAMP the account-health segment to the frozen defaults. */
+export function normalizeAccountHealth(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): AccountHealthConfig {
+  const ah = raw?.accountHealth;
+  return {
+    overloadCooldownEnabled: ah?.overloadCooldownEnabled !== false,
+    overloadCooldownMs: clampNumber(
+      ah?.overloadCooldownMs,
+      60_000,
+      3_600_000,
+      DEFAULT_ACCOUNT_HEALTH.overloadCooldownMs,
+    ),
+  };
+}
 
 /** Clamp a numeric to `[min, max]`, falling back to `fallback` when non-finite. */
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
@@ -185,6 +211,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     port: DEFAULT_OUTBOUND_PORT,
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
+    accountHealth: normalizeAccountHealth(undefined),
   };
 }
 
@@ -214,6 +241,7 @@ export function normalizeServerConfig(
     port: raw.port ?? base.port,
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
+    accountHealth: normalizeAccountHealth(raw),
   };
 }
 
@@ -247,5 +275,6 @@ export function mergeServerConfig(
     port: patch.port ?? current.port,
     userMessageQueue: patch.userMessageQueue ?? current.userMessageQueue,
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
+    accountHealth: patch.accountHealth ?? current.accountHealth,
   });
 }

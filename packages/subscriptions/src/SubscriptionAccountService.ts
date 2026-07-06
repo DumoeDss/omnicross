@@ -15,6 +15,7 @@ import type {
   SubscriptionProviderId,
   SubscriptionStatusEntry,
 } from '@omnicross/contracts/subscription-types';
+import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import {
   type AuthStrategy,
@@ -41,11 +42,15 @@ export class SubscriptionAccountService {
   private readonly strategies: Map<SubscriptionProviderId, AuthStrategy>;
 
   constructor(tokens: SubscriptionCredentialStore) {
+    // The process-shared health tracker (subscription-account-health) — the SAME
+    // instance the core relay marks + the daemon sweeper drives, so `schedulable`
+    // is computed from the exact state the upstream outcomes wrote.
+    const health = getSharedAccountHealth();
     this.strategies = new Map<SubscriptionProviderId, AuthStrategy>([
-      ['claude', new PassThroughAuthStrategy(tokens, this.mutex, this.selector)],
-      ['codex', new OAuthBearerAuthStrategy('codex', tokens, this.mutex, this.selector)],
-      ['gemini', new OAuthBearerAuthStrategy('gemini', tokens, this.mutex, this.selector)],
-      ['opencodego', new StaticBearerAuthStrategy(tokens, this.selector)],
+      ['claude', new PassThroughAuthStrategy(tokens, this.mutex, this.selector, health)],
+      ['codex', new OAuthBearerAuthStrategy('codex', tokens, this.mutex, this.selector, health)],
+      ['gemini', new OAuthBearerAuthStrategy('gemini', tokens, this.mutex, this.selector, health)],
+      ['opencodego', new StaticBearerAuthStrategy(tokens, this.selector, health)],
     ]);
   }
 

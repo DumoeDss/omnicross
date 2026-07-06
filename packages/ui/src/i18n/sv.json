@@ -821,6 +821,13 @@
       "detected": "En befintlig {{name}}-CLI-inloggning hittades på den här datorn.",
       "hint": "Efter importen håller den här appen den uppdaterad: vid varje tokenuppdatering uppdateras även CLI-inloggningsfilen, så CLI:n i terminalen förblir inloggad.",
       "button": "Importera befintlig CLI-inloggning"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

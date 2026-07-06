@@ -821,6 +821,13 @@
       "detected": "È stato trovato un accesso CLI {{name}} esistente su questa macchina.",
       "hint": "Dopo l'importazione, questa app lo mantiene aggiornato: a ogni rinnovo del token viene aggiornato anche il file di accesso della CLI, così la CLI del terminale resta connessa.",
       "button": "Importa accesso CLI esistente"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

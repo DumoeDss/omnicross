@@ -28,6 +28,7 @@ import {
   type OutboundApiServer,
 } from '@omnicross/core/outbound-api';
 import { setSubscriptionRegistryForOutbound } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
+import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import {
   __resetProviderProxyForTests,
@@ -60,6 +61,7 @@ import { JsonlUsageEventStore } from './ports/JsonlUsageEventStore';
 import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
 import { JsonPricingStore } from './ports/JsonPricingStore';
 import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
+import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
 
@@ -143,6 +145,12 @@ export interface Daemon {
    * still disposes it in cleanup.
    */
   readonly tokenRefreshScheduler: TokenRefreshScheduler;
+  /**
+   * Proactive account-health recovery sweep (subscription-account-health, D6).
+   * NOT started here — `start.ts` arms it for the resident daemon; disposed in
+   * cleanup. Correctness never depends on it (health self-heals lazily on read).
+   */
+  readonly accountHealthSweeper: AccountHealthSweeper;
 }
 
 /**
@@ -186,6 +194,13 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // route-resolution wiring for `/v1/responses` subscription dispatch. Placed
   // after `llmConfig` (TransformerService ready) so boot stays deterministic.
   const credentialStore = new JsonSubscriptionCredentialStore(paths.tokensPath, secretBox);
+
+  // Subscription account health (subscription-account-health): the account service
+  // builds its strategies over the process-shared tracker (`getSharedAccountHealth`)
+  // for `schedulable` computation. Its 529 overload cooldown honors the persisted
+  // `accountHealth` config, applied by the async `start.ts` path via
+  // `getSharedAccountHealth().configure(...)` (buildDaemon is sync); the default
+  // already matches LEAD OQ1 (ON, 10 min) for the short-lived `launch` path.
   const subscriptionAccounts = new SubscriptionAccountService(credentialStore);
   setSubscriptionAccountService(subscriptionAccounts);
   const subscriptionRegistry = new SubscriptionProviderRegistry(
@@ -332,6 +347,16 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // `start.ts` calls `.start()` on the resident daemon.
   const tokenRefreshScheduler = new TokenRefreshScheduler(credentialStore, logger);
 
+  // Account-health recovery sweep (subscription-account-health, D6) — armed-off;
+  // `start.ts` starts it alongside the token-refresh sweep. Correctness never
+  // depends on it (lazy clear self-heals); it fires the recovery signal for idle
+  // recoveries + nudges a fresh token for a recovered OAuth account.
+  const accountHealthSweeper = new AccountHealthSweeper(
+    credentialStore,
+    getSharedAccountHealth(),
+    logger,
+  );
+
   return {
     logger,
     llmConfig,
@@ -349,6 +374,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     usageRecorder,
     adminServer,
     tokenRefreshScheduler,
+    accountHealthSweeper,
   };
 }
 

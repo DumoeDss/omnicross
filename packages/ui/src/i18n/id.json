@@ -821,6 +821,13 @@
       "detected": "Login CLI {{name}} yang sudah ada ditemukan di mesin ini.",
       "hint": "Setelah diimpor, aplikasi ini menjaganya tetap segar: setiap kali token diperbarui, file login CLI juga diperbarui, sehingga CLI di terminal tetap masuk.",
       "button": "Impor login CLI yang ada"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

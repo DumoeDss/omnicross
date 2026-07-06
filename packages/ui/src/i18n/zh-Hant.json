@@ -829,6 +829,13 @@
       "detected": "偵測到本機已有 {{name}} CLI 登入。",
       "hint": "匯入後由本程式負責保鮮：每次重新整理權杖都會同步更新 CLI 登入檔案，終端機裡的 CLI 保持登入不中斷。",
       "button": "匯入現有 CLI 登入"
+    },
+    "health": {
+      "rate_limited": "已限流",
+      "overloaded": "過載",
+      "transient": "暫時無法使用",
+      "blocked": "已封鎖",
+      "until": "至 {{time}}"
     }
   },
   "codeCli": {

@@ -821,6 +821,13 @@
       "detected": "Đã tìm thấy phiên đăng nhập CLI {{name}} hiện có trên máy này.",
       "hint": "Sau khi nhập, ứng dụng này sẽ giữ cho nó luôn mới: mỗi lần làm mới token, tệp đăng nhập của CLI cũng được cập nhật, nên CLI trong terminal vẫn đăng nhập.",
       "button": "Nhập phiên đăng nhập CLI hiện có"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

@@ -168,6 +168,18 @@ export function AccountList({
                       {t('accounts.list.active')}
                     </span>
                   ) : null}
+                  {acc.health && acc.health !== 'healthy' ? (
+                    <span
+                      className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-600 dark:text-amber-500"
+                      title={
+                        acc.cooldownUntil
+                          ? t('accounts.health.until', { time: new Date(acc.cooldownUntil).toLocaleString() })
+                          : undefined
+                      }
+                    >
+                      {t(`accounts.health.${acc.health}`)}
+                    </span>
+                  ) : null}
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
                   {showRefresh ? (

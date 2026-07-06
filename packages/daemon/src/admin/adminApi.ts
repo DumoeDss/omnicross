@@ -1538,6 +1538,19 @@ function validateQueueSegments(patch: Partial<OutboundApiServerConfig>): string[
     }
   }
 
+  // Subscription account-health segment (subscription-account-health, LEAD OQ1).
+  const ah: unknown = patch.accountHealth;
+  if (ah !== undefined) {
+    if (!isPlainObject(ah)) {
+      errors.push('accountHealth must be an object');
+    } else {
+      if (typeof ah.overloadCooldownEnabled !== 'boolean') {
+        errors.push('accountHealth.overloadCooldownEnabled must be a boolean');
+      }
+      checkNum('accountHealth.overloadCooldownMs', ah.overloadCooldownMs, 60_000, 3_600_000);
+    }
+  }
+
   return errors;
 }
 

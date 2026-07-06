@@ -821,6 +821,13 @@
       "detected": "En eksisterende {{name}}-CLI-pålogging ble funnet på denne maskinen.",
       "hint": "Etter importen holder denne appen den oppdatert: ved hver tokenfornyelse oppdateres også CLI-påloggingsfilen, slik at CLI-en i terminalen forblir pålogget.",
       "button": "Importer eksisterende CLI-pålogging"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

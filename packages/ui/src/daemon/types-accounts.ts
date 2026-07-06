@@ -67,6 +67,10 @@ export interface SubscriptionAccountSanitized {
   lastUsedAt?: string;
   /** Credential-sync warning for this account (external-cli-sync). */
   syncWarning?: SyncWarningCode;
+  /** Live scheduling-health state (subscription-account-health); in-memory. */
+  health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
+  /** ISO instant the current health cooldown elapses (absent for healthy/blocked). */
+  cooldownUntil?: string;
 }
 
 /** `GET /admin/api/accounts` response. */

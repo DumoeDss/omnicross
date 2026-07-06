@@ -821,6 +821,13 @@
       "detected": "Bu makinede mevcut bir {{name}} CLI oturumu bulundu.",
       "hint": "İçe aktardıktan sonra bu uygulama onu güncel tutar: her belirteç yenilemesinde CLI oturum dosyası da güncellenir, böylece terminaldeki CLI oturumu açık kalır.",
       "button": "Mevcut CLI oturumunu içe aktar"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

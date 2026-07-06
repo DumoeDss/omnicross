@@ -821,6 +821,13 @@
       "detected": "Auf diesem Rechner wurde eine vorhandene {{name}}-CLI-Anmeldung gefunden.",
       "hint": "Nach dem Import hält diese App sie aktuell: Bei jeder Token-Aktualisierung wird auch die CLI-Anmeldedatei aktualisiert, sodass die CLI im Terminal angemeldet bleibt.",
       "button": "Vorhandene CLI-Anmeldung importieren"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

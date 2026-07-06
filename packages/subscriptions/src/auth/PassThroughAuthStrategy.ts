@@ -18,6 +18,7 @@
  */
 
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
+import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
 import { refreshSelectedAccount, resolveSelectedToken } from '../scheduler/accountSelection';
@@ -36,6 +37,9 @@ export class PassThroughAuthStrategy implements AuthStrategy {
     /** Shared account-pool scheduler (subscription-account-scheduling). Absent ⇒
      *  the pre-change single-account active-mirror behavior. */
     private readonly selector?: SubscriptionAccountSelector,
+    /** Shared account health tracker (subscription-account-health). Absent ⇒ no
+     *  health gating (all accounts schedulable). */
+    private readonly health?: SubscriptionAccountHealth,
   ) {}
 
   async applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
@@ -53,8 +57,13 @@ export class PassThroughAuthStrategy implements AuthStrategy {
     // Account pool (subscription-account-scheduling): the selector picks WHICH
     // claude account serves this request; a non-active pick resolves that
     // account's token by id, otherwise the active getter runs verbatim.
-    const token = await resolveSelectedToken(this.selector, this.tokens, 'claude', hints?.sessionKey, () =>
-      this.tokens.getValidClaudeAccessToken(),
+    const token = await resolveSelectedToken(
+      this.selector,
+      this.tokens,
+      'claude',
+      hints?.sessionKey,
+      () => this.tokens.getValidClaudeAccessToken(),
+      { health: this.health, reportSelection: hints?.reportSelection },
     );
     if (!token) return;
     headers['Authorization'] = `Bearer ${token}`;

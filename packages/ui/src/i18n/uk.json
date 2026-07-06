@@ -821,6 +821,13 @@
       "detected": "На цьому комп’ютері знайдено наявний вхід CLI {{name}}.",
       "hint": "Після імпорту цей застосунок підтримує його актуальність: під час кожного оновлення токена файл входу CLI також оновлюється, і CLI в терміналі залишається авторизованим.",
       "button": "Імпортувати наявний вхід CLI"
+    },
+    "health": {
+      "rate_limited": "Rate-limited",
+      "overloaded": "Overloaded",
+      "transient": "Temporarily unavailable",
+      "blocked": "Blocked",
+      "until": "Until {{time}}"
     }
   },
   "codeCli": {

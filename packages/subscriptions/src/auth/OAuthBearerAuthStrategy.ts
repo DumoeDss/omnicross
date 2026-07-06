@@ -8,6 +8,7 @@
  */
 
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
+import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
 import { refreshSelectedAccount, resolveSelectedToken } from '../scheduler/accountSelection';
@@ -32,6 +33,9 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     /** Shared account-pool scheduler (subscription-account-scheduling). Absent ⇒
      *  the pre-change single-account active-mirror behavior. */
     private readonly selector?: SubscriptionAccountSelector,
+    /** Shared account health tracker (subscription-account-health). Absent ⇒ no
+     *  health gating (all accounts schedulable). */
+    private readonly health?: SubscriptionAccountHealth,
   ) {
     this.providerId = providerId;
   }
@@ -40,8 +44,13 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     // Account pool: a non-active pick resolves that account's token by id (with
     // the by-id near-expiry refresh inside `getAccessTokenForAccount`); otherwise
     // the active `resolveAccessToken()` path runs verbatim.
-    const token = await resolveSelectedToken(this.selector, this.tokens, this.providerId, hints?.sessionKey, () =>
-      this.resolveAccessToken(),
+    const token = await resolveSelectedToken(
+      this.selector,
+      this.tokens,
+      this.providerId,
+      hints?.sessionKey,
+      () => this.resolveAccessToken(),
+      { health: this.health, reportSelection: hints?.reportSelection },
     );
     if (!token) {
       // Don't throw — let the upstream call surface the actual 401/403 with

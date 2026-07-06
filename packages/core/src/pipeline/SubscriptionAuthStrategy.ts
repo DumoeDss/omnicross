@@ -37,6 +37,13 @@ export interface AuthApplyHints {
    * pure priority/LRU selection (still correct — affinity only loses stickiness).
    */
   sessionKey?: string;
+  /**
+   * Per-request selection callback (subscription-account-health, D5). The
+   * strategy invokes it with the EFFECTIVE account id it resolved so the relay
+   * can mark that account's health against the upstream outcome. Absent ⇒ health
+   * simply isn't marked on that path (degrades to the pre-health behavior).
+   */
+  reportSelection?: (accountId: string, isActive: boolean) => void;
 }
 
 export interface AuthStrategy {
