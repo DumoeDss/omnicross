@@ -54,13 +54,20 @@ export function isSubscriptionProviderId(providerId: string): boolean {
  *  - `messages` (Anthropic) — the delegation reads `anthropicSdkHints.subscriptionProfile`.
  *  - `responses` (OpenAI Responses) — the ingress reads top-level
  *    `route.subscriptionProfile` (codex / opencodego / gemini route-to).
- *  - `chat` / `gemini` — the chat + gemini ingresses HARD-REJECT subscription
- *    auth (BYO-only in this slice). Full cross-format subscription on those is
- *    the deferred "omnicross" hard part, OUT OF SCOPE here.
+ *  - `chat` (OpenAI Chat Completions) — the chat ingress reads top-level
+ *    `route.subscriptionProfile` and builds a subscription plan (openai-chat-bridge).
+ *    v1 covers the CLAUDE subscription target (Unified≡OpenAI-chat → Anthropic via
+ *    the profile's `['anthropic']` route-to chain, streaming + tools by reuse);
+ *    the chat ingress DEFERS other subscription providers with a clear per-request
+ *    error (codex/gemini/opencodego need verification / Code-Assist project
+ *    handling out of this slice).
+ *  - `gemini` — the gemini ingress HARD-REJECTS subscription auth (BYO-only in this
+ *    slice). The Anthropic→Gemini bridge is the deferred hard part, OUT OF SCOPE.
  */
 const SUBSCRIPTION_SUPPORTED_ENDPOINTS: ReadonlySet<OutboundEndpoint> = new Set<OutboundEndpoint>([
   'messages',
   'responses',
+  'chat',
 ]);
 
 /** True when the endpoint's ingress can soundly serve a subscription route. */

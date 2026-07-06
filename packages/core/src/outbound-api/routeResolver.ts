@@ -33,6 +33,7 @@ import type {
 } from '../provider-proxy';
 
 import { detectModelKind, isKindMappedEndpoint } from './kindDetection';
+import { resolvePrefixTarget } from './modelPrefixDispatch';
 import { getSubscriptionRegistryForOutbound } from './subscriptionRegistryPort';
 // Shared SSOT for subscription-id classification + per-endpoint support (m1/M1).
 import { endpointSupportsSubscription, isSubscriptionProviderId } from './subscriptionSupport';
@@ -198,6 +199,16 @@ export async function resolveRoute(args: {
     noModelMessage = `endpoint '${config.endpoint}' has no model configured for kind '${picked.kind}'`;
     malformedMessage = (r) =>
       `endpoint '${config.endpoint}' model ref for kind '${picked.kind}' is malformed: '${r}'`;
+  } else if (endpoint === 'chat' && config.dispatchMode === 'prefix') {
+    // Prefix dispatch (openai-chat-bridge #11): route by the requested model's
+    // NAME PREFIX to a configured target. An unmatched prefix (unknown vendor OR
+    // no target configured for that prefix) is a clear per-request client error.
+    ref = resolvePrefixTarget(config.prefixTargets, args.requestedModel)?.ref;
+    noModelStatus = 404;
+    noModelMessage = args.requestedModel
+      ? `model '${args.requestedModel}' has no matching prefix target (claude-* / gpt-* / gemini-*) on the 'chat' endpoint`
+      : `request has no 'model'; a prefix-dispatch 'chat' endpoint routes claude-* / gpt-* / gemini-*`;
+    malformedMessage = (r) => `endpoint 'chat' prefix target ref is malformed: '${r}'`;
   } else if (endpoint === 'chat') {
     ref = pickModelRefFromList(config.models, args.requestedModel);
     // A model outside the advertised list is a client error, not a config one.
@@ -297,20 +308,23 @@ export async function resolveRoute(args: {
  * failure is a deterministic, actionable 503 (never an opaque downstream 502):
  *
  *  1. `useSubscription` must be ON for the endpoint (else "disabled").
- *  2. The endpoint's ingress must support subscription (`messages`/`responses`
- *     only). `chat`/`gemini` ingresses are BYO-only in this slice — full
- *     cross-format subscription is the deferred omnicross work, OUT OF SCOPE —
- *     so reject with a clear "not supported on this endpoint" 503 rather than
- *     letting the chat/gemini ingress hard-reject with a generic 502 (M1).
+ *  2. The endpoint's ingress must support subscription (`messages`/`responses`/
+ *     `chat`). The `gemini` ingress stays BYO-only in this slice — the
+ *     Anthropic→Gemini bridge is the deferred omnicross work, OUT OF SCOPE — so
+ *     reject with a clear "not supported on this endpoint" 503 rather than
+ *     letting the gemini ingress hard-reject with a generic 502 (M1).
  *  3. The registry must have a dispatch profile for the provider.
  *
  * Wiring (per ingress):
  *  - `messages` (Anthropic) → the delegated host handler reads
  *    `anthropicSdkHints.subscriptionProfile` (mirrors `buildSubscriptionProxyResult`).
- *  - `responses` (OpenAI Responses) → the ingress reads the TOP-LEVEL
- *    `route.subscriptionProfile` (the `SubscriptionAuthProfile` shape, which the
- *    registry's `SubscriptionDispatchProfile` structurally satisfies), so we set
- *    it there too. `anthropicSdkHints` is ignored by that ingress.
+ *  - `responses` (OpenAI Responses) / `chat` (OpenAI Chat Completions) → the
+ *    ingress reads the TOP-LEVEL `route.subscriptionProfile` (the
+ *    `SubscriptionAuthProfile` shape, which the registry's
+ *    `SubscriptionDispatchProfile` structurally satisfies), so we set it there
+ *    too. `anthropicSdkHints` is ignored by those ingresses. (openai-chat-bridge:
+ *    the chat ingress's subscription plan itself scopes to the CLAUDE target and
+ *    defers other providers per-request.)
  */
 async function resolveSubscriptionRoute(args: {
   config: EndpointRoutingConfig;
@@ -405,7 +419,9 @@ async function resolveSubscriptionRoute(args: {
     // route-minting path), never the top-level field. (chat/gemini never reach
     // here — Gate 2 rejected them.)
     subscriptionProfile:
-      ingressFormat === 'openai-responses' || ingressFormat === 'anthropic-messages'
+      ingressFormat === 'openai-responses' ||
+      ingressFormat === 'anthropic-messages' ||
+      ingressFormat === 'openai-chat'
         ? profile
         : undefined,
     // Opaque per-account config (opencodego-only; `undefined` otherwise). Read by

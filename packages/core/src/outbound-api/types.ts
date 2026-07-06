@@ -34,6 +34,31 @@ export type ModelRef = string;
 export type RequestRole = 'background' | 'default';
 
 /**
+ * Dispatch mode for the list-mapped `chat` endpoint (openai-chat-bridge #11).
+ *  - `'list'` (default): the client requests one of the endpoint's configured
+ *    `models` refs by modelId — the exact current behavior (zero regression).
+ *  - `'prefix'`: the requested model's NAME PREFIX (`claude-*` / `gpt-*` /
+ *    `gemini-*`) selects a configured target from {@link ModelPrefixTargets},
+ *    on a single `/v1/chat/completions` — a routing convenience over the same
+ *    conversion machinery. An unmatched prefix is a clear per-request error.
+ */
+export type ChatDispatchMode = 'list' | 'prefix';
+
+/**
+ * Prefix → target `"providerId,modelId"` ref map for the `chat` endpoint's
+ * `dispatchMode: 'prefix'` (openai-chat-bridge #11). Each target may be a
+ * subscription (e.g. `claude,claude-sonnet-4-5`) or a BYO ref — the same ref
+ * vocabulary the list mode uses. Absent prefixes are simply unroutable in prefix
+ * mode. The vocabulary is the three core prefixes (claude / gpt / gemini);
+ * additional prefixes (deepseek, …) are an additive-later extension.
+ */
+export interface ModelPrefixTargets {
+  claude?: ModelRef;
+  gpt?: ModelRef;
+  gemini?: ModelRef;
+}
+
+/**
  * SSOT of the canonical model KINDS per kind-mapped endpoint.
  *
  * The `messages` (Claude Code) and `responses` (Codex) endpoints route by model
@@ -84,6 +109,17 @@ export interface EndpointRoutingConfig {
    * rejected per-request (404-style). Empty ⇒ endpoint unused.
    */
   models?: ModelRef[];
+  /**
+   * List-mapped endpoint (`chat`) dispatch mode (openai-chat-bridge #11). Absent
+   * ⇒ `'list'` (default) — routing is byte-identical to before this change. Only
+   * `'prefix'` changes behavior (route by model-name prefix via `prefixTargets`).
+   */
+  dispatchMode?: ChatDispatchMode;
+  /**
+   * List-mapped endpoint (`chat`) prefix → target map, consumed ONLY when
+   * `dispatchMode === 'prefix'` (openai-chat-bridge #11). Ignored in list mode.
+   */
+  prefixTargets?: ModelPrefixTargets;
   /** Role-based endpoint (`gemini`): model for normal requests. */
   defaultModel?: ModelRef;
   /** Role-based endpoint (`gemini`): model for background/probe requests. */

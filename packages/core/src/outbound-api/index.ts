@@ -48,6 +48,7 @@ export {
   loadServerConfig,
   mergeServerConfig,
   normalizeAccountProbe,
+  normalizePrefixTargets,
   normalizeProxyConfig,
   normalizeProxySegment,
   normalizeQueueSegments,
@@ -57,6 +58,11 @@ export {
   OUTBOUND_API_SERVER_CONFIG_KEY,
   saveServerConfig,
 } from './apiServerConfig';
+export {
+  classifyModelPrefix,
+  type ModelPrefixKind,
+  resolvePrefixTarget,
+} from './modelPrefixDispatch';
 export {
   ConcurrencyQueueFullError,
   ConcurrencyWaitCancelledError,
@@ -130,11 +136,13 @@ export {
 export { ENDPOINT_MODEL_KINDS } from './types';
 export type {
   AccountProbeConfig,
+  ChatDispatchMode,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   KindMappedEndpoint,
   MessagesModelKind,
   ModelKind,
+  ModelPrefixTargets,
   OutboundApiDeps,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,

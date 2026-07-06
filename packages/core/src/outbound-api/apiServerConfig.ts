@@ -31,6 +31,7 @@ import type {
   AccountProbeConfig,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
+  ModelPrefixTargets,
   ModelRef,
   OutboundApiServerConfig,
   OutboundEndpoint,
@@ -329,6 +330,24 @@ function defaultEndpointConfig(endpoint: OutboundEndpoint): EndpointRoutingConfi
 }
 
 /**
+ * Validate the optional `chat` prefix-target map (openai-chat-bridge #11). Keeps
+ * ONLY the three known prefixes (`claude`/`gpt`/`gemini`) whose value is a
+ * non-empty trimmed `"providerId,modelId"` string; drops everything else. Returns
+ * `undefined` when nothing valid remains (a prefix-mode chat endpoint with no
+ * targets simply routes nothing until configured). Never throws.
+ */
+export function normalizePrefixTargets(raw: unknown): ModelPrefixTargets | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const out: ModelPrefixTargets = {};
+  for (const key of ['claude', 'gpt', 'gemini'] as const) {
+    const v = r[key];
+    if (typeof v === 'string' && v.trim() !== '') out[key] = v.trim();
+  }
+  return out.claude || out.gpt || out.gemini ? out : undefined;
+}
+
+/**
  * Normalize ONE persisted endpoint block to the current heterogeneous shape,
  * dropping legacy/unknown fields with NO migration:
  *  - kind-mapped (`messages`/`responses`): keep ONLY the declared-kind `modelMap`
@@ -360,7 +379,17 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
     const models = Array.isArray(e.models)
       ? e.models.filter((m): m is string => typeof m === 'string' && m.trim() !== '')
       : [];
-    return { endpoint, models, useSubscription };
+    const config: EndpointRoutingConfig = { endpoint, models, useSubscription };
+    // openai-chat-bridge #11: `dispatchMode` defaults to `'list'` — carried ONLY
+    // when explicitly `'prefix'` (any other/absent value is list, and a blank
+    // list-mode chat config stays byte-identical). `prefixTargets` keeps only the
+    // valid string refs for the three known prefixes; carried only in prefix mode.
+    if (e.dispatchMode === 'prefix') {
+      config.dispatchMode = 'prefix';
+      const targets = normalizePrefixTargets(e.prefixTargets);
+      if (targets) config.prefixTargets = targets;
+    }
+    return config;
   }
   const config: EndpointRoutingConfig = {
     endpoint,
