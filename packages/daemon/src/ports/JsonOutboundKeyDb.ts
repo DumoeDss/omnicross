@@ -78,6 +78,20 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     });
   }
 
+  async outboundApiKeysSetMaxConcurrency(
+    id: string,
+    maxConcurrency: number | null,
+  ): Promise<boolean> {
+    return this.mutateRow(id, (row) => {
+      if (row.revokedAt !== null) return false;
+      // `null` clears the ceiling (field absent = unlimited); JSON serialization
+      // drops the `undefined`, so a cleared row round-trips without the field.
+      if (maxConcurrency === null) delete row.maxConcurrency;
+      else row.maxConcurrency = maxConcurrency;
+      return true;
+    });
+  }
+
   /** Apply `fn` to the row with `id`, persisting when it returns true. */
   private mutateRow(id: string, fn: (row: OutboundKeyDbRow) => boolean): boolean {
     const rows = this.readRows();

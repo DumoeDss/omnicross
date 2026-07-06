@@ -272,6 +272,7 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
     revoked: row.revokedAt !== null,
+    maxConcurrency: row.maxConcurrency,
   };
 }
 
@@ -1462,11 +1463,83 @@ async function handleKeys(
     const ok = await deps.keyDb.outboundApiKeysSetEnabled(id, enabled);
     return writeJson(res, ok ? 200 : 404, { ok, enabled });
   }
+  if (method === 'POST' && id && action === 'max-concurrency') {
+    const body = await readJsonBody(req);
+    const raw = body['maxConcurrency'];
+    // Strict admin-edge validation (unlike core's lenient clamp): a positive
+    // integer 1..1000, or explicit `null` to clear. Anything else → 400.
+    let value: number | null;
+    if (raw === null) {
+      value = null;
+    } else if (
+      typeof raw === 'number' &&
+      Number.isInteger(raw) &&
+      raw >= 1 &&
+      raw <= 1000
+    ) {
+      value = raw;
+    } else {
+      return writeJsonError(
+        res,
+        400,
+        'maxConcurrency must be an integer 1..1000 or null',
+      );
+    }
+    const ok = await deps.keyDb.outboundApiKeysSetMaxConcurrency(id, value);
+    return writeJson(res, ok ? 200 : 404, { ok, maxConcurrency: value });
+  }
 
   return writeJsonError(res, 405, `method ${method} not allowed on keys`);
 }
 
 // ── Server config (live apply) ────────────────────────────────────────────────
+
+/**
+ * Strictly range-validate the queue config segments PRESENT in a `PUT /server`
+ * patch (§1 ranges, planning-context). Deliberately stricter than core's lenient
+ * `normalizeQueueSegments` clamp — an operator write gets a clear error, not a
+ * silently coerced value. Only validates segments actually present in the patch
+ * (a partial PUT stays partial). Returns a list of field errors (empty = valid).
+ */
+function validateQueueSegments(patch: Partial<OutboundApiServerConfig>): string[] {
+  const errors: string[] = [];
+  const checkNum = (label: string, value: unknown, min: number, max: number): void => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+      errors.push(`${label} must be a number ${min}..${max}`);
+    }
+  };
+  const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v);
+
+  // A PRESENT segment must be a plain object before we deref its fields — an
+  // explicit `null` / string / array otherwise dereferences null → TypeError →
+  // 500; reject it as a 400 like any other malformed input.
+  const umq: unknown = patch.userMessageQueue;
+  if (umq !== undefined) {
+    if (!isPlainObject(umq)) {
+      errors.push('userMessageQueue must be an object');
+    } else {
+      if (typeof umq.enabled !== 'boolean') {
+        errors.push('userMessageQueue.enabled must be a boolean');
+      }
+      checkNum('userMessageQueue.delayMs', umq.delayMs, 0, 10_000);
+      checkNum('userMessageQueue.waitTimeoutMs', umq.waitTimeoutMs, 1000, 300_000);
+    }
+  }
+
+  const cq: unknown = patch.concurrencyQueue;
+  if (cq !== undefined) {
+    if (!isPlainObject(cq)) {
+      errors.push('concurrencyQueue must be an object');
+    } else {
+      checkNum('concurrencyQueue.maxQueueSizeFactor', cq.maxQueueSizeFactor, 1, 10);
+      checkNum('concurrencyQueue.minQueueSize', cq.minQueueSize, 1, 100);
+      checkNum('concurrencyQueue.waitTimeoutMs', cq.waitTimeoutMs, 1000, 300_000);
+    }
+  }
+
+  return errors;
+}
 
 async function handleServer(
   req: http.IncomingMessage,
@@ -1480,6 +1553,13 @@ async function handleServer(
   }
   if (method === 'PUT') {
     const patch = (await readJsonBody(req)) as Partial<OutboundApiServerConfig>;
+    // Strict queue-segment validation BEFORE any merge/persist: an illegal value
+    // in a PRESENT segment → 400 and nothing is written (unlike core's lenient
+    // clamp). Segments absent from the patch are not validated (partial PUT).
+    const queueErrors = validateQueueSegments(patch);
+    if (queueErrors.length > 0) {
+      return writeJsonError(res, 400, `invalid queue config: ${queueErrors.join('; ')}`);
+    }
     const current = await loadServerConfig(deps.settingsStore);
     const merged = mergeServerConfig(current, patch);
     // Always persist the (partial) config so the editor retains the user's
@@ -1514,6 +1594,8 @@ async function handleServer(
         networkBinding: merged.networkBinding,
         endpoints: merged.endpoints,
         port: merged.port,
+        userMessageQueue: merged.userMessageQueue,
+        concurrencyQueue: merged.concurrencyQueue,
       });
     } catch (err) {
       // Defense-in-depth: if serving still throws an incomplete-config error
@@ -1793,6 +1875,13 @@ async function handleStatus(
     }
     return { endpoint: e.endpoint, model: e.defaultModel ?? '', useSubscription: e.useSubscription };
   });
+  // Live queue-occupancy snapshot from the wire layer's frozen `getQueueStatus()`
+  // — included only when the server is running (§4 allows omission otherwise), so
+  // the field stays genuinely optional. Existing status fields are untouched.
+  if (status.running) {
+    const queueStatus = deps.outboundApiServer.getQueueStatus();
+    return writeJson(res, 200, { ...status, endpoints, queueStatus });
+  }
   return writeJson(res, 200, { ...status, endpoints });
 }
 
