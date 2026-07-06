@@ -14,7 +14,7 @@ import type http from 'node:http';
 
 import type { OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
 import { getGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
-import { collectMatchText } from '@omnicross/core/provider-proxy/matchText';
+import { collectMatchText, deriveSubscriptionSessionKey } from '@omnicross/core/provider-proxy/matchText';
 import { serializeError } from '@omnicross/core/serializeError';
 import type { TransformerChainExecutor } from '@omnicross/core/transformer/TransformerChainExecutor';
 import type { TransformerService } from '@omnicross/core/transformer/TransformerService';
@@ -80,6 +80,11 @@ export class SubscriptionDispatcher {
    * resolution and probe-detection.
    */
   async dispatch(req: DispatchRequest): Promise<void> {
+    // Account-pool session key (subscription-account-scheduling, D5) — derived once
+    // from the stable request anchor, threaded into every auth apply + 401 retry so
+    // a conversation sticks to one pooled account.
+    const sessionKey = deriveSubscriptionSessionKey(req.anthropicBody);
+
     // 1. Resolve the model via the profile's mapper (OpenCodeGo scenario
     //    routing). For other profiles the mapper is undefined and we keep
     //    the SDK-resolved model as-is.
@@ -119,12 +124,12 @@ export class SubscriptionDispatcher {
         modelId: resolvedModel,
       }) === 'anthropic'
     ) {
-      await this.dispatchAnthropicShapeBypass(req, upstreamUrl, resolvedModel, scenario, ocConfig);
+      await this.dispatchAnthropicShapeBypass(req, upstreamUrl, resolvedModel, scenario, ocConfig, sessionKey);
       return;
     }
 
     // 4. Standard transformer-chain dispatch.
-    await this.dispatchTransformerChain(req, upstreamUrl, resolvedModel, scenario, ocConfig);
+    await this.dispatchTransformerChain(req, upstreamUrl, resolvedModel, scenario, ocConfig, sessionKey);
   }
 
   /** Bypass path for OpenCodeGo MiniMax models — forwards Anthropic body verbatim. */
@@ -134,6 +139,7 @@ export class SubscriptionDispatcher {
     resolvedModel: string,
     scenario: OpenCodeGoScenario,
     ocConfig: OpenCodeGoTokenConfig | undefined,
+    sessionKey: string | undefined,
   ): Promise<void> {
     // D2 PRIMARY-GATING (D5): consult the breaker for the mapped primary; an open
     // primary jumps straight to the first admitting fallback (all-open ⇒ fail open).
@@ -152,7 +158,7 @@ export class SubscriptionDispatcher {
       req.anthropicBody.model = currentModel;
 
       const headers: Record<string, string> = { 'content-type': 'application/json' };
-      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel });
+      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey });
 
       console.info(
         `[AgentProxy:subscription] REQ#${req.reqId} | opencodego anthropic-shape -> ${upstreamUrl} model=${currentModel} attempt=${attempted.length}`,
@@ -167,7 +173,7 @@ export class SubscriptionDispatcher {
         await this.hooks.writeProxyResponse(req.res, upstream, req.isStream, req.reqId);
         return;
       } catch (err) {
-        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel);
+        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey);
         if (handled.retryOnce) {
           const upstream = await this.hooks.fetchWithRetry(upstreamUrl, handled.headers, req.anthropicBody, currentModel);
           this.profile.recordModelOutcome?.(currentModel, true);
@@ -200,6 +206,7 @@ export class SubscriptionDispatcher {
     resolvedModel: string,
     scenario: OpenCodeGoScenario,
     ocConfig: OpenCodeGoTokenConfig | undefined,
+    sessionKey: string | undefined,
   ): Promise<void> {
     // zen seam: when the profile varies its chain by resolved shape (opencodego),
     // consult `resolveProviderTransformerNames(resolvedModel, ocConfig)` — so a zen
@@ -260,7 +267,7 @@ export class SubscriptionDispatcher {
         ...(config.headers as Record<string, string> | undefined),
       };
       stripAuthHeaders(headers);
-      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel });
+      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey });
 
       // Prefer the transformer-supplied URL (the gemini / gemini-code-assist
       // transformers carry the correct stream-vs-nonstream PER-MODEL colon-method
@@ -305,7 +312,7 @@ export class SubscriptionDispatcher {
         await this.hooks.writeProxyResponse(req.res, finalResponse, req.isStream, req.reqId);
         return;
       } catch (err) {
-        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel);
+        const handled = await this.maybeRetryAfterError(err, headers, req, currentModel, sessionKey);
         if (handled.retryOnce) {
           const upstream = await this.hooks.fetchWithRetry(fetchUrl, handled.headers, requestBody, currentModel);
           this.profile.recordModelOutcome?.(currentModel, true);
@@ -383,12 +390,15 @@ export class SubscriptionDispatcher {
     headers: Record<string, string>,
     req: DispatchRequest,
     resolvedModel: string,
+    sessionKey: string | undefined,
   ): Promise<{ retryOnce: boolean; headers: Record<string, string> }> {
     const status = (err as { status?: number })?.status ?? 0;
     if (status !== 401) {
       return { retryOnce: false, headers };
     }
-    const refreshed = await this.profile.authStrategy.onUnauthorized();
+    // Refresh the account actually served (D7) — threads the session key so a
+    // sticky non-active pooled account refreshes by id.
+    const refreshed = await this.profile.authStrategy.onUnauthorized(sessionKey);
     if (!refreshed) {
       console.warn(
         `[AgentProxy:subscription] REQ#${req.reqId} | 401 not recoverable for provider=${this.profile.providerId}`,
@@ -398,13 +408,13 @@ export class SubscriptionDispatcher {
     // Re-apply headers with the freshly-refreshed credential.
     const fresh: Record<string, string> = { ...headers };
     stripAuthHeaders(fresh);
-    await this.applyHeadersWithRetry(fresh, { upstreamUrl: '', resolvedModel });
+    await this.applyHeadersWithRetry(fresh, { upstreamUrl: '', resolvedModel, sessionKey });
     return { retryOnce: true, headers: fresh };
   }
 
   private async applyHeadersWithRetry(
     headers: Record<string, string>,
-    hints: { upstreamUrl: string; resolvedModel: string },
+    hints: { upstreamUrl: string; resolvedModel: string; sessionKey?: string },
   ): Promise<void> {
     try {
       await this.profile.authStrategy.applyHeaders(headers, hints);

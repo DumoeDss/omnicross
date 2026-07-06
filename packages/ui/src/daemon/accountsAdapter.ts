@@ -182,6 +182,23 @@ export function createAccountsAdapter(): AgentAccountsApi {
       }
     },
 
+    async setAccountPriority(
+      providerId: SubscriptionProviderId,
+      accountId: string,
+      priority: number,
+    ): Promise<MutationResult> {
+      try {
+        // Secret-free metadata write (subscription-account-scheduling).
+        await adminClient.post(
+          `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}/priority`,
+          { priority },
+        );
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to set priority' };
+      }
+    },
+
     async setActive(providerId: SubscriptionProviderId, id: string): Promise<MutationResult> {
       try {
         await adminClient.put(`/accounts/${encodeURIComponent(providerId)}/active`, { id });

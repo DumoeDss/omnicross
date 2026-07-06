@@ -45,6 +45,9 @@ export interface SubscriptionTokenWriter {
   removeAccount(providerId: SubscriptionProviderId, id: string): Promise<{ removed: boolean }>;
   /** Rename one account's label (label-only; rejects an unknown id). */
   renameAccount(providerId: SubscriptionProviderId, id: string, label: string): Promise<{ ok: boolean }>;
+  /** Set one account's scheduling priority (secret-free; rejects an unknown id).
+   *  subscription-account-scheduling — lets an operator order a pool. */
+  setAccountPriority(providerId: SubscriptionProviderId, id: string, priority: number): Promise<{ ok: boolean }>;
   listSanitizedAccounts(): Promise<Record<string, SubscriptionAccountSanitized[]>>;
   // Active-account OAuth token refresh (oauth design D4). Each returns an HONEST
   // boolean (false when the active block has no refresh_token, or the upstream

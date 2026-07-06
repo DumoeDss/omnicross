@@ -1759,6 +1759,22 @@ async function handleAccounts(
       return writeJson(res, 200, { ok: true });
     }
 
+    // POST /accounts/:providerId/:accountId/priority { priority } → set one
+    // account's scheduling priority (subscription-account-scheduling). Secret-free
+    // (no token read/write). STATUS-ONLY ack.
+    if (method === 'POST' && rest[2] === 'priority') {
+      const accountId = rest[1];
+      const body = await readJsonBody(req);
+      const raw = body['priority'];
+      const priority = typeof raw === 'number' ? raw : Number(raw);
+      if (!Number.isFinite(priority)) {
+        return writeJsonError(res, 400, 'priority must be a finite number');
+      }
+      const result = await deps.subscriptionTokenWriter.setAccountPriority(providerId, accountId, priority);
+      if (!result.ok) return writeJsonError(res, 404, `account '${accountId}' not found`);
+      return writeJson(res, 200, { ok: true });
+    }
+
     // PUT /accounts/:providerId/active { id } → switch active account (STATUS-ONLY).
     if (method === 'PUT' && rest[1] === 'active') {
       const body = await readJsonBody(req);

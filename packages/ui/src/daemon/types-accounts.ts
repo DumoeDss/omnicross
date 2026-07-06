@@ -60,6 +60,11 @@ export interface SubscriptionAccountSanitized {
   isSetupToken?: boolean;
   hasAccessToken: boolean;
   isActive: boolean;
+  /** Editable scheduling precedence (subscription-account-scheduling); default 50
+   *  when absent (lower = higher precedence). */
+  priority?: number;
+  /** Display-only ISO timestamp of the last scheduler selection. */
+  lastUsedAt?: string;
   /** Credential-sync warning for this account (external-cli-sync). */
   syncWarning?: SyncWarningCode;
 }

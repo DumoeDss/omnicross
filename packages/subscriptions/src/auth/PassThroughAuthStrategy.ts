@@ -20,6 +20,8 @@
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
+import { refreshSelectedAccount, resolveSelectedToken } from '../scheduler/accountSelection';
+import type { SubscriptionAccountSelector } from '../scheduler/SubscriptionAccountSelector';
 
 import type { AuthApplyHints, AuthStrategy } from './AuthStrategy';
 import type { RefreshMutex } from './RefreshMutex';
@@ -31,9 +33,12 @@ export class PassThroughAuthStrategy implements AuthStrategy {
   constructor(
     private readonly tokens: SubscriptionCredentialStore,
     private readonly mutex: RefreshMutex<boolean>,
+    /** Shared account-pool scheduler (subscription-account-scheduling). Absent ⇒
+     *  the pre-change single-account active-mirror behavior. */
+    private readonly selector?: SubscriptionAccountSelector,
   ) {}
 
-  async applyHeaders(headers: Record<string, string>, _hints?: AuthApplyHints): Promise<void> {
+  async applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
     // The MAIN claude pass-through path (`handlePassThroughRequest`) NEVER calls
     // this — it preserves/substitutes the SDK's own Authorization header and
     // forwards verbatim, so the normal claude-sdk Anthropic-ingress flow is
@@ -44,12 +49,21 @@ export class PassThroughAuthStrategy implements AuthStrategy {
     // `api.anthropic.com` authenticated. When no managed token exists, leave the
     // headers untouched and let the upstream surface its native 401/403 (so the
     // SDK renders a meaningful error), matching `OAuthBearerAuthStrategy`.
-    const token = await this.tokens.getValidClaudeAccessToken();
+    //
+    // Account pool (subscription-account-scheduling): the selector picks WHICH
+    // claude account serves this request; a non-active pick resolves that
+    // account's token by id, otherwise the active getter runs verbatim.
+    const token = await resolveSelectedToken(this.selector, this.tokens, 'claude', hints?.sessionKey, () =>
+      this.tokens.getValidClaudeAccessToken(),
+    );
     if (!token) return;
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  async onUnauthorized(): Promise<boolean> {
+  async onUnauthorized(sessionKey?: string): Promise<boolean> {
+    // Refresh the account actually served (D7); `null` ⇒ the active refresh below.
+    const byId = await refreshSelectedAccount(this.selector, this.tokens, this.mutex, 'claude', sessionKey);
+    if (byId !== null) return byId;
     return this.mutex.run('claude:refresh', async () => {
       try {
         return await this.tokens.refreshClaudeToken();

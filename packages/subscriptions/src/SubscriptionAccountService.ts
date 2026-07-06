@@ -24,6 +24,7 @@ import {
   StaticBearerAuthStrategy,
 } from './auth';
 import type { SubscriptionCredentialStore } from './ports/credential-store';
+import { SubscriptionAccountSelector } from './scheduler/SubscriptionAccountSelector';
 
 const DISPLAY_NAMES: Record<SubscriptionProviderId, string> = {
   claude: 'Claude (Anthropic OAuth)',
@@ -34,14 +35,17 @@ const DISPLAY_NAMES: Record<SubscriptionProviderId, string> = {
 
 export class SubscriptionAccountService {
   private readonly mutex = new RefreshMutex<boolean>();
+  /** ONE account-pool scheduler (subscription-account-scheduling) shared by all
+   *  four strategies so they share the affinity map + the `lastUsedAt` overlay. */
+  private readonly selector = new SubscriptionAccountSelector();
   private readonly strategies: Map<SubscriptionProviderId, AuthStrategy>;
 
   constructor(tokens: SubscriptionCredentialStore) {
     this.strategies = new Map<SubscriptionProviderId, AuthStrategy>([
-      ['claude', new PassThroughAuthStrategy(tokens, this.mutex)],
-      ['codex', new OAuthBearerAuthStrategy('codex', tokens, this.mutex)],
-      ['gemini', new OAuthBearerAuthStrategy('gemini', tokens, this.mutex)],
-      ['opencodego', new StaticBearerAuthStrategy(tokens)],
+      ['claude', new PassThroughAuthStrategy(tokens, this.mutex, this.selector)],
+      ['codex', new OAuthBearerAuthStrategy('codex', tokens, this.mutex, this.selector)],
+      ['gemini', new OAuthBearerAuthStrategy('gemini', tokens, this.mutex, this.selector)],
+      ['opencodego', new StaticBearerAuthStrategy(tokens, this.selector)],
     ]);
   }
 

@@ -764,7 +764,12 @@
       "lastRefreshed": "上次更新",
       "label": "帳號標籤",
       "labelPlaceholder": "為此帳號命名",
-      "saveLabel": "儲存標籤"
+      "saveLabel": "儲存標籤",
+      "priority": "優先順序",
+      "savePriority": "儲存優先順序",
+      "priorityHint": "數值越小越優先",
+      "lastUsed": "最近使用",
+      "neverUsed": "從未使用"
     },
     "oauthFlow": {
       "step1": {
@@ -805,6 +810,9 @@
     },
     "rename": {
       "failed": "無法重新命名帳號。"
+    },
+    "priority": {
+      "failed": "無法設定優先順序。"
     },
     "refresh": {
       "failed": "無法更新權杖。"

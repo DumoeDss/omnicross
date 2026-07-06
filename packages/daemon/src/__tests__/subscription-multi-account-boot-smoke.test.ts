@@ -1,11 +1,20 @@
 /**
- * subscription-multi-account-boot-smoke.test.ts — the active-account-switch
- * proof for `subscription-multi-account` (task 11.4).
+ * subscription-multi-account-boot-smoke.test.ts — the account-POOL serving proof
+ * for `subscription-account-scheduling` (originally the `subscription-multi-account`
+ * active-switch proof, task 11.4).
  *
- * Two claude accounts in tokens.json (each with a distinct OAuth bearer) →
- * switch the active account via `PUT /admin/api/accounts/claude/active` → the
- * NEXT subscription `/v1/messages` request carries the OTHER account's bearer.
- * REAL core routing + REAL PassThroughAuthStrategy; ONLY the upstream is mocked.
+ * Two claude accounts in tokens.json (each a distinct OAuth bearer). Since the
+ * account-pool scheduler shipped, WHICH account serves a request is the selector's
+ * job (priority → LRU, sticky per session), NOT the active pointer — so this proves
+ * the NEW behavior: distinct conversations SPREAD across both bearers, while one
+ * conversation (a repeated body → one session key) STICKS to a single bearer. REAL
+ * core routing + REAL PassThroughAuthStrategy + REAL selector; ONLY the upstream is
+ * mocked.
+ *
+ * (The pre-pool assertion "switching active pins all traffic to the active
+ * bearer" is exactly what this feature changes — see design.md D1/D2 and
+ * subscription-account-scheduling spec "Selected non-active account emits traffic
+ * by id".)
  *
  * Sibling of `subscription-messages-boot-smoke.test.ts` (kept separate, not an
  * edit of it).
@@ -129,11 +138,15 @@ async function adminFetch(method: string, path: string, body?: unknown): Promise
   return { status: res.status, text: await res.text() };
 }
 
-function postMessages(): Promise<Response> {
+/** POST a `/v1/messages` request. A distinct `content` yields a distinct session
+ *  key (the pool anchors affinity on system + first user message), so passing
+ *  unique content exercises fresh priority/LRU selection; repeating one content
+ *  exercises sticky affinity. */
+function postMessages(content = 'ping'): Promise<Response> {
   return fetch(`${baseUrl}/v1/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${plaintextKey}` },
-    body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+    body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 16, messages: [{ role: 'user', content }] }),
   });
 }
 
@@ -193,23 +206,45 @@ afterEach(async () => {
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('omnicross daemon multi-account active-switch → outbound bearer follows', () => {
-  it('switching the active claude account changes the /v1/messages bearer', async () => {
-    // Account B is active (appended last) → first request carries B's bearer.
-    let res = await postMessages();
-    expect(res.status).toBe(200);
-    expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_B}`);
+describe('omnicross daemon account pool → both accounts serve /v1/messages', () => {
+  it('distinct conversations SPREAD across both account bearers', async () => {
+    // Fire several requests, each with a DISTINCT first user message → distinct
+    // session keys → fresh priority/LRU selection each time. Both bearers must be
+    // observed (the non-active account emits traffic BY ID — the whole point).
+    const seen = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      const res = await postMessages(`conversation-${i}`);
+      expect(res.status).toBe(200);
+      if (upstream.lastAuthHeader) seen.add(upstream.lastAuthHeader);
+    }
+    expect(seen).toEqual(new Set([`Bearer ${BEARER_A}`, `Bearer ${BEARER_B}`]));
+  });
 
-    // Switch active to Account A via the admin API.
+  it('one conversation (repeated body → one session key) STICKS to a single bearer', async () => {
+    const first = await postMessages('sticky-conversation');
+    expect(first.status).toBe(200);
+    const pinned = upstream.lastAuthHeader;
+    expect(pinned).toBeDefined();
+    for (let i = 0; i < 4; i++) {
+      const res = await postMessages('sticky-conversation');
+      expect(res.status).toBe(200);
+      expect(upstream.lastAuthHeader).toBe(pinned);
+    }
+  });
+
+  it('switching the active account does NOT rotate the persistent active pointer via scheduling', async () => {
+    // The admin active-switch still works (secret-free ack); the scheduler never
+    // writes the active pointer, so it stays exactly where the admin API set it.
     const list = await daemon.credentialStore.listSanitizedAccounts();
     const accountA = list.claude.find((a) => a.label === 'Account A')!;
     const sw = await adminFetch('PUT', '/admin/api/accounts/claude/active', { id: accountA.id });
     expect(sw.status).toBe(200);
     expect(sw.text).not.toContain(BEARER_A);
 
-    // The NEXT request carries Account A's bearer (real store→strategy→bearer).
-    res = await postMessages();
-    expect(res.status).toBe(200);
-    expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_A}`);
+    // Serve a spread of requests, then confirm the active pointer is untouched by
+    // scheduling (still Account A — what the admin call set).
+    for (let i = 0; i < 4; i++) await postMessages(`post-switch-${i}`);
+    const after = await daemon.credentialStore.getFullConfig();
+    expect(after.activeClaudeAccountId).toBe(accountA.id);
   });
 });

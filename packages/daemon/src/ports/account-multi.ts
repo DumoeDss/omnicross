@@ -304,6 +304,10 @@ export function sanitizeAccounts(
       isSetupToken: t.isSetupToken,
       hasAccessToken: !!(t.accessToken || t.apiKey),
       isActive: a.id === activeId,
+      // Scheduling metadata (subscription-account-scheduling): editable priority
+      // (default 50 shown when unset) + display-only lastUsedAt. Secret-free.
+      priority: a.priority,
+      lastUsedAt: a.lastUsedAt,
       syncWarning: t.syncWarning,
     };
   });
@@ -325,6 +329,48 @@ export function renameAccount(
     config,
     p,
     accounts.map((a) => (a.id === id ? { ...a, label } : a)),
+  );
+  return { ok: true };
+}
+
+/**
+ * Set one account's scheduling `priority` by id (subscription-account-scheduling).
+ * Entry-metadata only — the top-level token mirror (a clone of `tokens`) is
+ * unaffected, so no `deriveMirror` is needed. Rejects an unknown id.
+ */
+export function setAccountPriority(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+  priority: number,
+): { ok: boolean } {
+  const accounts = getAccounts(config, p);
+  if (!accounts.some((a) => a.id === id)) return { ok: false };
+  setAccounts(
+    config,
+    p,
+    accounts.map((a) => (a.id === id ? { ...a, priority } : a)),
+  );
+  return { ok: true };
+}
+
+/**
+ * Set one account's `lastUsedAt` by id (subscription-account-scheduling, best-
+ * effort LRU persist). Entry-metadata only — the token mirror is unaffected.
+ * Rejects an unknown id.
+ */
+export function setAccountLastUsed(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+  iso: string,
+): { ok: boolean } {
+  const accounts = getAccounts(config, p);
+  if (!accounts.some((a) => a.id === id)) return { ok: false };
+  setAccounts(
+    config,
+    p,
+    accounts.map((a) => (a.id === id ? { ...a, lastUsedAt: iso } : a)),
   );
   return { ok: true };
 }

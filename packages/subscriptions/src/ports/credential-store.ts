@@ -15,8 +15,17 @@
  */
 
 import type { AccountTokensConfig } from '@omnicross/contracts/account-tokens-types';
+import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 
-/** The six methods the subscription block consumes from the host credential store. */
+/**
+ * The credential surface the subscription block consumes from the host store.
+ *
+ * The six ORIGINAL methods (active-account getters + refreshers) are REQUIRED;
+ * the three by-id methods (subscription-account-scheduling, design D6) are
+ * OPTIONAL and feature-detected so every existing lightweight test double that
+ * implements only the six keeps compiling and the single-account active path is
+ * untouched.
+ */
 export interface SubscriptionCredentialStore {
   /** Full decrypted account-tokens config (all subscription providers). */
   getFullConfig(): Promise<AccountTokensConfig>;
@@ -30,4 +39,24 @@ export interface SubscriptionCredentialStore {
   refreshGeminiToken(): Promise<boolean>;
   /** Current valid OpenCodeGo static API key; `null` if none. */
   getValidOpenCodeGoApiKey(): Promise<string | null>;
+
+  // ── By-id account-pool surface (subscription-account-scheduling, OPTIONAL) ──
+
+  /**
+   * Resolve a SPECIFIC account's access token by id (refreshing a near-expiry
+   * OAuth token for that account, mirroring the active getter's per-provider
+   * refresh policy). `null` when the account is unknown/expired/tokenless.
+   */
+  getAccessTokenForAccount?(providerId: SubscriptionProviderId, accountId: string): Promise<string | null>;
+  /**
+   * Force a refresh of a SPECIFIC account's OAuth token by id; `true` on success.
+   * Static-key providers (opencodego) return `false` — they don't refresh.
+   */
+  refreshAccountToken?(providerId: SubscriptionProviderId, accountId: string): Promise<boolean>;
+  /**
+   * Best-effort record of a selection's time onto the account's `lastUsedAt`
+   * (throttled by the selector so the hot path does not rewrite the store every
+   * request). Durability only — never affects which credential is valid.
+   */
+  touchAccountLastUsed?(providerId: SubscriptionProviderId, accountId: string, iso: string): Promise<void>;
 }

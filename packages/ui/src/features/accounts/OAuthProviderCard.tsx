@@ -96,6 +96,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
     setActive,
     removeAccount,
     renameAccount,
+    setAccountPriority,
     refreshProvider,
     startOAuth,
     completeOAuth,
@@ -223,6 +224,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
         onSetActive={(id) => void setActive(providerId, id)}
         onRemove={(id) => void removeAccount(providerId, id)}
         onRename={(id, label) => renameAccount(providerId, id, label)}
+        onSetPriority={(id, priority) => setAccountPriority(providerId, id, priority)}
         onRefreshActive={() => refreshProvider(providerId)}
       />
 

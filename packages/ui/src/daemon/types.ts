@@ -294,6 +294,13 @@ export interface AgentAccountsApi {
     accountId: string,
     label: string,
   ): Promise<MutationResult>;
+  /** Set one account's scheduling priority (subscription-account-scheduling;
+   *  secret-free, lower = higher precedence). */
+  setAccountPriority(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    priority: number,
+  ): Promise<MutationResult>;
   /** Refresh the ACTIVE account's OAuth token (claude/codex/gemini only). */
   refreshProvider(providerId: SubscriptionProviderId): Promise<RefreshResult>;
   clearProvider(providerId: SubscriptionProviderId): Promise<MutationResult>;

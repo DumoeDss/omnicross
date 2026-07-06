@@ -188,15 +188,17 @@ export class SubscriptionAuthSource implements AuthSource {
       await this.profile.authStrategy.applyHeaders(headers, {
         upstreamUrl: hints.upstreamUrl,
         resolvedModel: hints.model,
+        sessionKey: hints.sessionKey,
       });
     } catch (err) {
       console.warn('[SubscriptionAuthSource] authStrategy.applyHeaders threw:', serializeError(err));
     }
   }
 
-  /** Delegate the 401-refresh decision to the bound strategy. */
-  async onUnauthorized(): Promise<boolean> {
-    return this.profile.authStrategy.onUnauthorized();
+  /** Delegate the 401-refresh decision to the bound strategy, threading the
+   *  session key so the account actually served is the one refreshed (D7). */
+  async onUnauthorized(sessionKey?: string): Promise<boolean> {
+    return this.profile.authStrategy.onUnauthorized(sessionKey);
   }
 
   /** Resolve the upstream URL from the profile, when it provides one. */

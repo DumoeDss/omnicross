@@ -764,7 +764,12 @@
       "lastRefreshed": "Last refreshed",
       "label": "Account label",
       "labelPlaceholder": "Name this account",
-      "saveLabel": "Save label"
+      "saveLabel": "Save label",
+      "priority": "Priority",
+      "savePriority": "Save priority",
+      "priorityHint": "Lower runs first",
+      "lastUsed": "Last used",
+      "neverUsed": "Never"
     },
     "oauthFlow": {
       "step1": {
@@ -805,6 +810,9 @@
     },
     "rename": {
       "failed": "Couldn't rename the account."
+    },
+    "priority": {
+      "failed": "Couldn't set the priority."
     },
     "refresh": {
       "failed": "Couldn't refresh the token."

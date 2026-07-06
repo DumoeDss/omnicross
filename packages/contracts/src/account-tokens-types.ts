@@ -115,6 +115,20 @@ export type SubscriptionAccountEntry<TConfig> = {
   label?: string;
   /** ISO creation timestamp. */
   createdAt?: string;
+  /**
+   * Scheduling precedence in the account pool (subscription-account-scheduling).
+   * Lower = higher precedence; default `50` when absent (CRS `parseInt(x,10) || 50`
+   * parity). OPTIONAL — an existing `tokens.json` without it parses unchanged and
+   * every account defaults to 50.
+   */
+  priority?: number;
+  /**
+   * ISO timestamp of the last time this account was selected to serve a request
+   * (subscription-account-scheduling LRU tie-break input). OPTIONAL, best-effort
+   * throttled persist — the selector's in-memory overlay is the authoritative live
+   * value; an account without it sorts as least-recently-used (timestamp `0`).
+   */
+  lastUsedAt?: string;
   /** The provider's existing token config, verbatim. */
   tokens: TConfig;
 };
@@ -159,6 +173,17 @@ export type SubscriptionAccountSanitized = {
   isSetupToken?: boolean;
   hasAccessToken: boolean;
   isActive: boolean;
+  /**
+   * Scheduling precedence (subscription-account-scheduling) — editable in the
+   * admin accounts view so an operator can order a pool. Absent ⇒ default 50.
+   */
+  priority?: number;
+  /**
+   * ISO timestamp of the last scheduler selection (display-only in the admin
+   * accounts view). Absent ⇒ never selected (or the best-effort persist has not
+   * yet flushed).
+   */
+  lastUsedAt?: string;
   /**
    * Credential-sync warning for this account (external-cli-sync). Carries the
    * persisted code when one was recorded by a failed refresh, plus the

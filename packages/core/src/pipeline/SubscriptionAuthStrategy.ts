@@ -31,6 +31,12 @@ export interface AuthApplyHints {
   upstreamUrl?: string;
   /** Resolved model id — same purpose as `upstreamUrl`. */
   resolvedModel?: string;
+  /**
+   * Stable per-conversation session key (subscription-account-scheduling, D5).
+   * When present it drives the account pool's sticky session affinity; absent ⇒
+   * pure priority/LRU selection (still correct — affinity only loses stickiness).
+   */
+  sessionKey?: string;
 }
 
 export interface AuthStrategy {
@@ -55,8 +61,13 @@ export interface AuthStrategy {
    *
    * Implementations SHOULD use a shared `RefreshMutex` to dedupe concurrent
    * refreshes so N parallel 401s collapse into one upstream refresh call.
+   *
+   * The OPTIONAL `sessionKey` (subscription-account-scheduling, D7) refreshes the
+   * account the request was ACTUALLY served by: when it resolves to a sticky
+   * non-active account the strategy refreshes THAT account by id; absent (or an
+   * active pick) ⇒ the active-account refresh, unchanged.
    */
-  onUnauthorized(): Promise<boolean>;
+  onUnauthorized(sessionKey?: string): Promise<boolean>;
 
   /** Diagnostic surface for the `subscription:status` IPC. */
   describeStatus(): Promise<SubscriptionStatusEntry>;

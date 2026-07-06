@@ -764,7 +764,12 @@
       "lastRefreshed": "最終更新",
       "label": "アカウントラベル",
       "labelPlaceholder": "アカウント名を入力",
-      "saveLabel": "ラベルを保存"
+      "saveLabel": "ラベルを保存",
+      "priority": "優先度",
+      "savePriority": "優先度を保存",
+      "priorityHint": "小さいほど優先",
+      "lastUsed": "最終使用",
+      "neverUsed": "未使用"
     },
     "oauthFlow": {
       "step1": {
@@ -805,6 +810,9 @@
     },
     "rename": {
       "failed": "アカウント名を変更できませんでした。"
+    },
+    "priority": {
+      "failed": "優先度を設定できませんでした。"
     },
     "refresh": {
       "failed": "トークンを更新できませんでした。"

@@ -8,6 +8,18 @@
 // Credential port — the host injects its token store (which structurally satisfies it).
 export type { SubscriptionCredentialStore } from './ports/credential-store';
 
+// Account pool scheduler (subscription-account-scheduling) — the pure selector +
+// its types, constructed once at bootstrap and shared by the auth strategies.
+export {
+  DEFAULT_ACCOUNT_PRIORITY,
+  LAST_USED_PERSIST_THROTTLE_MS,
+  type SchedulableAccount,
+  type SelectInput,
+  type SelectResult,
+  SESSION_AFFINITY_TTL_MS,
+  SubscriptionAccountSelector,
+} from './scheduler/SubscriptionAccountSelector';
+
 // Account service (auth-strategy holder) + its module singleton accessors.
 export {
   getSubscriptionAccountService,

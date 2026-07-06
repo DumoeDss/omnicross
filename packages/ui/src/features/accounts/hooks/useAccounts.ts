@@ -47,6 +47,12 @@ export interface UseAccountsResult {
     accountId: string,
     label: string,
   ) => Promise<{ success: boolean; message?: string }>;
+  /** Set one account's scheduling priority. Returns success for inline feedback. */
+  setAccountPriority: (
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    priority: number,
+  ) => Promise<{ success: boolean; message?: string }>;
   /** Refresh the active account's OAuth token. Returns the honest daemon outcome. */
   refreshProvider: (providerId: SubscriptionProviderId) => Promise<RefreshResult>;
   clearProvider: (providerId: SubscriptionProviderId) => Promise<void>;
@@ -182,6 +188,25 @@ export function useAccounts(): UseAccountsResult {
     [refresh],
   );
 
+  const setAccountPriority = useCallback(
+    async (providerId: SubscriptionProviderId, accountId: string, priority: number) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.accounts.setAccountPriority(providerId, accountId, priority);
+        if (!result.success) {
+          setError(result.message ?? 'request failed');
+          return { success: false, message: result.message };
+        }
+        await refresh();
+        return { success: true };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
   const refreshProvider = useCallback(
     async (providerId: SubscriptionProviderId) => {
       setBusy(true);
@@ -279,6 +304,7 @@ export function useAccounts(): UseAccountsResult {
     setActive,
     removeAccount,
     renameAccount,
+    setAccountPriority,
     refreshProvider,
     clearProvider,
     startOAuth,

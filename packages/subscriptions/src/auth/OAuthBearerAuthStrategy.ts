@@ -10,6 +10,8 @@
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
+import { refreshSelectedAccount, resolveSelectedToken } from '../scheduler/accountSelection';
+import type { SubscriptionAccountSelector } from '../scheduler/SubscriptionAccountSelector';
 
 import type { AuthApplyHints, AuthStrategy } from './AuthStrategy';
 import type { RefreshMutex } from './RefreshMutex';
@@ -27,12 +29,20 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     providerId: OAuthProviderKey,
     private readonly tokens: SubscriptionCredentialStore,
     private readonly mutex: RefreshMutex<boolean>,
+    /** Shared account-pool scheduler (subscription-account-scheduling). Absent ⇒
+     *  the pre-change single-account active-mirror behavior. */
+    private readonly selector?: SubscriptionAccountSelector,
   ) {
     this.providerId = providerId;
   }
 
-  async applyHeaders(headers: Record<string, string>, _hints?: AuthApplyHints): Promise<void> {
-    const token = await this.resolveAccessToken();
+  async applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
+    // Account pool: a non-active pick resolves that account's token by id (with
+    // the by-id near-expiry refresh inside `getAccessTokenForAccount`); otherwise
+    // the active `resolveAccessToken()` path runs verbatim.
+    const token = await resolveSelectedToken(this.selector, this.tokens, this.providerId, hints?.sessionKey, () =>
+      this.resolveAccessToken(),
+    );
     if (!token) {
       // Don't throw — let the upstream call surface the actual 401/403 with
       // its native body so the SDK can render a meaningful error.
@@ -41,7 +51,9 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  async onUnauthorized(): Promise<boolean> {
+  async onUnauthorized(sessionKey?: string): Promise<boolean> {
+    const byId = await refreshSelectedAccount(this.selector, this.tokens, this.mutex, this.providerId, sessionKey);
+    if (byId !== null) return byId;
     return this.mutex.run(`${this.providerId}:refresh`, async () => {
       try {
         return this.providerId === 'codex'

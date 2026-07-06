@@ -31,9 +31,14 @@ interface AccountListProps {
   onRemove: (id: string) => void;
   /** Rename one account's label. */
   onRename?: (id: string, label: string) => Promise<{ success: boolean; message?: string }>;
+  /** Set one account's scheduling priority (subscription-account-scheduling). */
+  onSetPriority?: (id: string, priority: number) => Promise<{ success: boolean; message?: string }>;
   /** Refresh the ACTIVE account's OAuth token (shown on the active+expired row). */
   onRefreshActive?: () => Promise<RefreshResult>;
 }
+
+/** Default precedence shown for an account with no explicit priority. */
+const DEFAULT_PRIORITY = 50;
 
 /** A single read-only detail line in the expanded row. */
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -57,12 +62,14 @@ export function AccountList({
   onSetActive,
   onRemove,
   onRename,
+  onSetPriority,
   onRefreshActive,
 }: AccountListProps) {
   const t = useTranslation();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<SubscriptionAccountSanitized | null>(null);
   const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
+  const [draftPriorities, setDraftPriorities] = useState<Record<string, string>>({});
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
 
@@ -78,6 +85,24 @@ export function AccountList({
       const result = await onRename(acc.id, next);
       if (!result.success) {
         setNotice({ kind: 'error', text: result.message ?? t('accounts.rename.failed') });
+      }
+    } finally {
+      setRowBusyId(null);
+    }
+  };
+
+  const handleSetPriority = async (acc: SubscriptionAccountSanitized) => {
+    if (!onSetPriority) return;
+    const current = acc.priority ?? DEFAULT_PRIORITY;
+    const raw = draftPriorities[acc.id];
+    const next = raw === undefined || raw === '' ? current : Number(raw);
+    if (!Number.isFinite(next) || next === current) return;
+    setRowBusyId(acc.id);
+    setNotice(null);
+    try {
+      const result = await onSetPriority(acc.id, next);
+      if (!result.success) {
+        setNotice({ kind: 'error', text: result.message ?? t('accounts.priority.failed') });
       }
     } finally {
       setRowBusyId(null);
@@ -108,6 +133,8 @@ export function AccountList({
           const draftLabel = draftLabels[acc.id] ?? acc.label ?? '';
           const expiresAt = acc.expiresAt ? new Date(acc.expiresAt) : null;
           const lastRefreshedAt = acc.lastRefreshedAt ? new Date(acc.lastRefreshedAt) : null;
+          const lastUsedAt = acc.lastUsedAt ? new Date(acc.lastUsedAt) : null;
+          const draftPriority = draftPriorities[acc.id] ?? String(acc.priority ?? DEFAULT_PRIORITY);
           const rowBusy = rowBusyId === acc.id;
           const showRefresh = Boolean(onRefreshActive && acc.isActive && isExpired(acc));
           return (
@@ -221,6 +248,43 @@ export function AccountList({
                       </div>
                     </div>
                   ) : null}
+                  {onSetPriority ? (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t('accounts.detail.priority')}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          density="compact"
+                          className="w-24"
+                          value={draftPriority}
+                          onChange={(e) =>
+                            setDraftPriorities((prev) => ({ ...prev, [acc.id]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleSetPriority(acc);
+                            }
+                          }}
+                          disabled={rowBusy}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={rowBusy || draftPriority === String(acc.priority ?? DEFAULT_PRIORITY)}
+                          onClick={() => void handleSetPriority(acc)}
+                          aria-label={t('accounts.detail.savePriority')}
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {t('accounts.detail.priorityHint')}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="grid gap-1 text-xs sm:grid-cols-2">
                     {acc.authMethod ? (
                       <DetailRow
@@ -246,6 +310,10 @@ export function AccountList({
                         value={lastRefreshedAt.toLocaleString()}
                       />
                     ) : null}
+                    <DetailRow
+                      label={t('accounts.detail.lastUsed')}
+                      value={lastUsedAt ? lastUsedAt.toLocaleString() : t('accounts.detail.neverUsed')}
+                    />
                   </div>
                 </div>
               ) : null}

@@ -35,6 +35,12 @@ export interface AuthApplyHints {
   upstreamUrl: string;
   /** Resolved model id for the request. */
   model: string;
+  /**
+   * OPTIONAL stable per-conversation session key (subscription-account-scheduling,
+   * D5) — mapped through to the subscription strategy's sticky account affinity.
+   * BYO auth sources ignore it.
+   */
+  sessionKey?: string;
 }
 
 /**
@@ -78,8 +84,12 @@ export interface AuthSource {
    * Called when the upstream returns 401. Return `true` to ask the caller to
    * retry once with freshly-applied headers; `false` to surface the 401.
    * Optional — sources without a refresh notion omit it.
+   *
+   * The OPTIONAL `sessionKey` (subscription-account-scheduling, D7) lets a
+   * subscription source refresh the account the request was actually served by;
+   * BYO sources ignore it.
    */
-  onUnauthorized?(): Promise<boolean>;
+  onUnauthorized?(sessionKey?: string): Promise<boolean>;
 
   /**
    * Resolve the upstream URL the request should target, when the credential

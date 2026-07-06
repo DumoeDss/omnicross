@@ -104,6 +104,10 @@ export type SubscriptionTokenBlock =
   | GeminiTokenConfig
   | OpenCodeGoTokenConfig;
 
+/** By-id near-expiry OAuth refresh lead window (mirrors the codex/gemini active
+ *  strategy's `REFRESH_LEAD_MS`) — subscription-account-scheduling. */
+const ACCOUNT_REFRESH_LEAD_MS = 5 * 60_000;
+
 export class JsonSubscriptionCredentialStore implements SubscriptionCredentialStore {
   /**
    * @param tokensPath  on-disk `tokens.json` location.
@@ -403,6 +407,84 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
         return false;
       }
     });
+  }
+
+  // ── By-id account-pool surface (subscription-account-scheduling, design D6) ──
+
+  /**
+   * Resolve a SPECIFIC account's access token by id (design D6). Mirrors each
+   * provider's ACTIVE-getter policy, keyed by id: claude returns the stored token
+   * (refresh is 401-driven, like `getValidClaudeAccessToken`); codex/gemini refresh
+   * a near-expiry token via `refreshAccountById` (like `resolveAccessToken`);
+   * opencodego returns the account's static key. `null` when unknown/expired/
+   * tokenless.
+   */
+  async getAccessTokenForAccount(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ): Promise<string | null> {
+    const account = accountMulti.getAccountById(this.readConfig(), providerId, accountId);
+    if (!account) return null;
+    if (providerId === 'opencodego') {
+      return (account.tokens as OpenCodeGoTokenConfig).apiKey ?? null;
+    }
+    const oauth = account.tokens as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig;
+    if (!oauth.accessToken) return null;
+    if (providerId === 'codex' || providerId === 'gemini') {
+      const expiresAtMs = oauth.expiresAt ? Date.parse(oauth.expiresAt) : 0;
+      const expiringSoon = expiresAtMs > 0 && Date.now() >= expiresAtMs - ACCOUNT_REFRESH_LEAD_MS;
+      if (expiringSoon && oauth.refreshToken) {
+        const ok = await this.refreshAccountById(providerId, accountId);
+        if (!ok) return null;
+        const fresh = accountMulti.getAccountById(this.readConfig(), providerId, accountId);
+        return (fresh?.tokens as CodexTokenConfig | GeminiTokenConfig | undefined)?.accessToken ?? null;
+      }
+    }
+    if (oauth.status === 'expired') return null;
+    return oauth.accessToken;
+  }
+
+  /**
+   * Refresh a SPECIFIC account's OAuth token by id (design D6/D7). Delegates to
+   * `refreshAccountById` (coalesced per `provider:id`); opencodego is a static key
+   * → `false` (no refresh affordance).
+   */
+  async refreshAccountToken(providerId: SubscriptionProviderId, accountId: string): Promise<boolean> {
+    if (providerId === 'opencodego') return false;
+    return this.refreshAccountById(providerId, accountId);
+  }
+
+  /**
+   * Best-effort record of a selection time onto the account's `lastUsedAt` by id
+   * (design D4). Entry-metadata only (the token mirror is untouched); a no-op for
+   * an unknown id. The selector throttles the call frequency, so this stays cheap.
+   */
+  async touchAccountLastUsed(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    iso: string,
+  ): Promise<void> {
+    const config = this.readConfig();
+    const result = accountMulti.setAccountLastUsed(config, providerId, accountId, iso);
+    if (!result.ok) return;
+    this.persist({ ...config, updatedAt: new Date().toISOString() });
+  }
+
+  /**
+   * DAEMON-ONLY set-priority (subscription-account-scheduling, admin write, NOT on
+   * the port). Set one account's scheduling `priority` by id. Secret-free
+   * (entry-metadata only; the mirror invariant is untouched). Rejects an unknown id.
+   */
+  async setAccountPriority(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    priority: number,
+  ): Promise<{ ok: boolean }> {
+    const config = this.readConfig();
+    const result = accountMulti.setAccountPriority(config, providerId, accountId, priority);
+    if (!result.ok) return result;
+    this.persist({ ...config, updatedAt: new Date().toISOString() });
+    return result;
   }
 
   /** Dispatch one OAuth refresh round-trip to the provider's shared flow. */

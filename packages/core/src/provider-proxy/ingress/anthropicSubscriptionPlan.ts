@@ -45,7 +45,7 @@ import type {
   RequestConfig,
   ResolvedTransformerChain,
 } from '../../transformer';
-import { collectMatchText } from '../matchText';
+import { collectMatchText, deriveSubscriptionSessionKey } from '../matchText';
 import type {
   ProviderProxyDeps,
   RouteContext,
@@ -102,6 +102,12 @@ export interface AnthropicCallPlan {
   readonly apiKey?: string;
   /** Route 1M-context opt-in (BYO same-format fast path beta injection). */
   readonly extendedContextEnabled?: boolean;
+  /** Stable per-conversation session key (subscription-account-scheduling, D5) —
+   *  threaded into `auth.applyHeaders`/`onUnauthorized` so the account pool's
+   *  sticky affinity holds across a conversation's turns and its 401 retry. Derived
+   *  once in `buildSubscriptionPlan` and carried across fallback iterations.
+   *  `undefined` for BYO / no-anchor requests (⇒ pure priority/LRU). */
+  readonly sessionKey?: string;
 }
 
 /**
@@ -147,7 +153,11 @@ export async function buildSubscriptionPlan(
     scenario = mapped.scenario;
   }
 
-  const plan = buildSubscriptionIterationPlan(profile, route, deps, resolvedModel, isStream, scenario);
+  // Derive the account-pool session key ONCE (D5) from the stable request anchor
+  // and carry it on every iteration plan (fallbacks reuse it).
+  const sessionKey = deriveSubscriptionSessionKey(anthropicBody);
+
+  const plan = buildSubscriptionIterationPlan(profile, route, deps, resolvedModel, isStream, scenario, sessionKey);
   if (!plan) {
     writeError(res, 502, 'Subscription profile is missing resolveUpstreamUrl');
     return null;
@@ -174,6 +184,7 @@ export function buildSubscriptionIterationPlan(
   resolvedModel: string,
   isStream: boolean,
   scenario: OpenCodeGoScenario | undefined,
+  sessionKey?: string,
 ): AnthropicCallPlan | null {
   // D1: pass the opaque per-account config so the opencodego profile honors a
   // user `baseUrl`/`zenBaseUrl` override + the per-model go/zen half; byte-
@@ -256,6 +267,7 @@ export function buildSubscriptionIterationPlan(
     sameFormat,
     isSubscription: true,
     scenario,
+    sessionKey,
   };
 }
 
@@ -333,7 +345,7 @@ export async function runPipeline(
   // buildHeaders is sync). Auth wins — chain headers never clobber a key the
   // AuthSource set.
   const authHeaders: Record<string, string> = {};
-  await auth.applyHeaders(authHeaders, { upstreamUrl, model: resolvedModel });
+  await auth.applyHeaders(authHeaders, { upstreamUrl, model: resolvedModel, sessionKey: plan.sessionKey });
 
   let rawStatus: number | null = null;
 
@@ -385,6 +397,7 @@ async function runSubscriptionSameFormatFetch(
   await plan.auth.applyHeaders(headers, {
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
+    sessionKey: plan.sessionKey,
   });
   console.info(
     `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${plan.resolvedModel} stream=${plan.isStream}`,
@@ -417,7 +430,7 @@ async function runSubscriptionAttemptWith401Retry(
   const first = await runOnce();
   if (first.rawStatus !== 401) return first;
 
-  const refreshed = await plan.auth.onUnauthorized?.();
+  const refreshed = await plan.auth.onUnauthorized?.(plan.sessionKey);
   if (!refreshed) {
     console.warn('[ProviderProxy:anthropic] 401 not recoverable (onUnauthorized returned false)');
     return first;
@@ -577,7 +590,7 @@ export async function runPipelineWithSubscriptionRetry(
     attempted.push(initialPlan.resolvedModel);
     const firstAdmitting = profile.nextFallback(scenario, attempted, route.subscriptionConfig as never);
     const gatedPlan = firstAdmitting
-      ? buildSubscriptionIterationPlan(profile, route, deps, firstAdmitting.modelId, initialPlan.isStream, scenario)
+      ? buildSubscriptionIterationPlan(profile, route, deps, firstAdmitting.modelId, initialPlan.isStream, scenario, initialPlan.sessionKey)
       : null;
     if (firstAdmitting && gatedPlan) {
       console.warn(
@@ -616,6 +629,7 @@ export async function runPipelineWithSubscriptionRetry(
       next.modelId,
       plan.isStream,
       scenario,
+      initialPlan.sessionKey,
     );
     if (!nextPlan) return settleOutcome(outcome); // profile lost resolveUpstreamUrl — surface last.
 

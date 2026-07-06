@@ -11,6 +11,8 @@
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
+import { resolveSelectedToken } from '../scheduler/accountSelection';
+import type { SubscriptionAccountSelector } from '../scheduler/SubscriptionAccountSelector';
 
 import type { AuthApplyHints, AuthStrategy } from './AuthStrategy';
 
@@ -21,10 +23,19 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
   readonly kind = 'static-bearer' as const;
   readonly providerId = 'opencodego' as const;
 
-  constructor(private readonly tokens: SubscriptionCredentialStore) {}
+  constructor(
+    private readonly tokens: SubscriptionCredentialStore,
+    /** Shared account-pool scheduler (subscription-account-scheduling). Absent ⇒
+     *  the pre-change single-account active-mirror behavior. */
+    private readonly selector?: SubscriptionAccountSelector,
+  ) {}
 
   async applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
-    const key = await this.tokens.getValidOpenCodeGoApiKey();
+    // Account pool: a non-active pick uses that account's static key by id;
+    // otherwise the active `getValidOpenCodeGoApiKey()` path runs verbatim.
+    const key = await resolveSelectedToken(this.selector, this.tokens, 'opencodego', hints?.sessionKey, () =>
+      this.tokens.getValidOpenCodeGoApiKey(),
+    );
     if (!key) {
       // Let the upstream surface the 401 with its own body — clearer than
       // synthesizing an error here.
@@ -39,8 +50,9 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
     }
   }
 
-  async onUnauthorized(): Promise<boolean> {
-    // Static keys have no refresh affordance; the user must re-enter the key.
+  async onUnauthorized(_sessionKey?: string): Promise<boolean> {
+    // Static keys have no refresh affordance; the user must re-enter the key —
+    // whichever pooled account served it, the 401 surfaces unchanged.
     return false;
   }
 
