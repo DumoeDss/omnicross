@@ -32,6 +32,9 @@ import type {
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
   OutboundQueueStatus,
+  VoucherCreated,
+  VoucherGenerateInput,
+  VoucherInfo,
   WebhookTestResult,
 } from '@/daemon/types';
 import type { LLMProvider } from '@shared/llm-config';
@@ -82,6 +85,16 @@ export interface UseApiServiceResult {
   updateFingerprintConfig: (
     fingerprint: OutboundApiServerConfig['fingerprint'] | undefined,
   ) => Promise<void>;
+  /** Redemption cards (voucher-redemption #9). */
+  vouchers: VoucherInfo[];
+  /** The one-time generated-code reveal; cleared via `dismissCreatedVoucher`. */
+  createdVoucher: VoucherCreated | null;
+  dismissCreatedVoucher: () => void;
+  updateVoucherConfig: (
+    voucher: OutboundApiServerConfig['voucher'] | undefined,
+  ) => Promise<void>;
+  generateVoucher: (input: VoucherGenerateInput) => Promise<boolean>;
+  revokeVoucher: (id: string) => Promise<void>;
 }
 
 /** Build `"providerId,modelId"` options from the daemon provider list. */
@@ -104,36 +117,42 @@ export function useApiService(): UseApiServiceResult {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdKey, setCreatedKey] = useState<OutboundApiKeyCreated | null>(null);
+  const [vouchers, setVouchers] = useState<VoucherInfo[]>([]);
+  const [createdVoucher, setCreatedVoucher] = useState<VoucherCreated | null>(null);
 
   // Latest `busy` for the poll timer to read without re-arming the interval.
   const busyRef = useRef(busy);
   busyRef.current = busy;
 
   const refreshAll = useCallback(async () => {
-    const [cfg, st, ks] = await Promise.all([
+    const [cfg, st, ks, vs] = await Promise.all([
       agent.apiService.getConfig(),
       agent.apiService.getStatus(),
       agent.apiService.listKeys(),
+      agent.apiService.listVouchers(),
     ]);
     setConfig(cfg);
     setStatus(st);
     setKeys(ks);
+    setVouchers(vs);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const [cfg, st, ks, provs] = await Promise.all([
+      const [cfg, st, ks, vs, provs] = await Promise.all([
         agent.apiService.getConfig(),
         agent.apiService.getStatus(),
         agent.apiService.listKeys(),
+        agent.apiService.listVouchers(),
         agent.llmConfig.getProviders().catch(() => [] as LLMProvider[]),
       ]);
       if (cancelled) return;
       setConfig(cfg);
       setStatus(st);
       setKeys(ks);
+      setVouchers(vs);
       setProviders(provs);
       setLoading(false);
     })();
@@ -334,8 +353,45 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const updateVoucherConfig = useCallback(
+    async (voucher: OutboundApiServerConfig['voucher'] | undefined) => {
+      await runWrite(() => agent.apiService.updateVoucherConfig(voucher));
+    },
+    [runWrite],
+  );
+
+  const generateVoucher = useCallback(async (input: VoucherGenerateInput): Promise<boolean> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.generateVoucher(input);
+      if (!result.success) {
+        setError(result.message);
+        return false;
+      }
+      setCreatedVoucher(result.created);
+      setVouchers(await agent.apiService.listVouchers());
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const revokeVoucher = useCallback(async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.revokeVoucher(id);
+      if (!result.success) setError(result.message ?? 'request failed');
+      setVouchers(await agent.apiService.listVouchers());
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const modelOptions = useMemo(() => toModelOptions(providers), [providers]);
   const dismissCreatedKey = useCallback(() => setCreatedKey(null), []);
+  const dismissCreatedVoucher = useCallback(() => setCreatedVoucher(null), []);
 
   return {
     loading,
@@ -365,5 +421,11 @@ export function useApiService(): UseApiServiceResult {
     updateBillingConfig,
     queryBillingStatus,
     updateFingerprintConfig,
+    vouchers,
+    createdVoucher,
+    dismissCreatedVoucher,
+    updateVoucherConfig,
+    generateVoucher,
+    revokeVoucher,
   };
 }

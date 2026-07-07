@@ -32,7 +32,7 @@ const BASE62_REJECT_THRESHOLD = 248;
  * 62 alphabet (each char equally likely), eliminating the `byte % 62` modulo
  * bias. Draws fresh random bytes in batches until enough chars are accepted.
  */
-function randomBase62(count: number): string {
+export function randomBase62(count: number): string {
   let out = '';
   while (out.length < count) {
     const buf = randomBytes(count - out.length + 8);

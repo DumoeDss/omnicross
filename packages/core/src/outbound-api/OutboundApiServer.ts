@@ -26,11 +26,13 @@ import http from 'node:http';
 import { networkInterfaces } from 'node:os';
 
 import { healthHttpStatus } from '@omnicross/contracts/health-logging-types';
+import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
 import type { EndpointModelConfigError } from './kindDetection';
 import { validateServerModelConfig } from './kindDetection';
+import { KeyedMutex } from './keyedMutex';
 import { handleOutboundRequest } from './outboundApiRouter';
 import { OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import { OutboundRateLimiter } from './outboundRateLimiter';
@@ -60,6 +62,9 @@ export interface ApplyConfigInput {
   userMessageQueue?: UserMessageQueueConfig;
   /** Per-key concurrency-queue segment (normalized/defaulted by core). */
   concurrencyQueue?: ConcurrencyQueueConfig;
+  /** Voucher segment (voucher-redemption #9). Read live per request; absent ⇒
+   *  disabled ⇒ the `/redeem` endpoint is inert (zero regression). */
+  voucher?: VoucherConfig;
 }
 
 /**
@@ -90,7 +95,21 @@ export class OutboundApiServer {
   private endpoints: EndpointRoutingConfig[] = [];
   private userMessageQueue: UserMessageQueueConfig | undefined;
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
+  private voucherConfig: VoucherConfig | undefined;
   private readonly rateLimiter = new OutboundRateLimiter();
+  /**
+   * Redeem-attempt limiter (voucher-redemption #9, design D6) — a SEPARATE bucket
+   * from the traffic `rateLimiter`, keyed by the authenticating key id, so
+   * brute-forcing `CC_` codes is throttled (a handful/min) without touching the
+   * per-key request rate. Conservative fixed defaults (10 / 60s).
+   */
+  private readonly redeemLimiter = new OutboundRateLimiter({ maxRequests: 10, windowMs: 60_000 });
+  /**
+   * Per-key redeem mutex (voucher-redemption #9, MJ1 fix). One instance for the
+   * server's lifetime so concurrent redeem REQUESTS for the same key serialize
+   * (relative grant increments accumulate instead of clobbering a snapshot).
+   */
+  private readonly redeemMutex = new KeyedMutex();
   private readonly serialQueue = new UserMessageSerialQueue();
   private readonly concurrencyGate = new OutboundConcurrencyGate();
 
@@ -111,6 +130,7 @@ export class OutboundApiServer {
     // change) — store them in place before the bindChanged early-return below.
     this.userMessageQueue = input.userMessageQueue;
     this.concurrencyQueue = input.concurrencyQueue;
+    this.voucherConfig = input.voucher;
     const wantAddr = input.networkBinding ? LAN_ADDR : LOOPBACK_ADDR;
     const wantPort = input.port ?? DEFAULT_OUTBOUND_PORT;
 
@@ -207,10 +227,13 @@ export class OutboundApiServer {
         endpoints: this.endpoints,
         userMessageQueue: this.userMessageQueue,
         concurrencyQueue: this.concurrencyQueue,
+        voucher: this.voucherConfig,
       },
       this.rateLimiter,
       this.serialQueue,
       this.concurrencyGate,
+      this.redeemLimiter,
+      this.redeemMutex,
     ).catch((err) => {
       const message = serializeError(err);
       this.logError('[OutboundApiServer] unhandled error:', message);

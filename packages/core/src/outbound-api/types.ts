@@ -17,6 +17,7 @@ import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import type { BillingConfig } from '@omnicross/contracts/billing-types';
 import type { HealthReport } from '@omnicross/contracts/health-logging-types';
+import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
 
 import type { Logger } from '../ports/logger';
@@ -25,6 +26,7 @@ import type { ProviderProxy } from '../provider-proxy';
 import type { ProviderProxyDeps } from '../provider-proxy';
 
 import type { KeySpendReader } from './keySpendTracker';
+import type { VoucherDb } from './voucher';
 
 /** The four endpoints, 1:1 with the four wire-format ingress parsers. */
 export type OutboundEndpoint = 'chat' | 'responses' | 'messages' | 'gemini';
@@ -320,6 +322,14 @@ export interface OutboundApiServerConfig {
    * Default-off ⇒ no capture/replay ⇒ byte-identical outbound headers.
    */
   fingerprint?: FingerprintConfig;
+  /**
+   * Voucher (redemption-card) segment (voucher-redemption #9). Optional in the
+   * persisted shape; `normalizeServerConfig` always fills it with the frozen
+   * defaults (enabled:false). When disabled (the default) the `POST /redeem`
+   * endpoint rejects + no admin generate is offered ⇒ no key is ever mutated ⇒
+   * byte-identical zero regression, purely additive on the #4 key-policy.
+   */
+  voucher?: VoucherConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */
@@ -535,6 +545,14 @@ export interface OutboundKeyDb {
  */
 export interface OutboundApiDeps {
   readonly db: OutboundKeyDb;
+  /**
+   * OPTIONAL voucher store (voucher-redemption #9). When wired (by the daemon
+   * bootstrap), the key-authenticated `POST /redeem` endpoint can redeem cards
+   * against the presenting key (gated on `voucher.enabled`). Absent ⇒ `/redeem`
+   * is inert (byte-identical zero-regression for embedders/tests that do not wire
+   * it, and whenever the feature is disabled).
+   */
+  readonly voucherDb?: VoucherDb;
   readonly llmConfig: ProviderConfigSource;
   /** The resident proxy — shared for route minting + ingress dispatch. */
   readonly providerProxy: ProviderProxy;

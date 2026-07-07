@@ -17,6 +17,13 @@ export function defaultKeysPath(configPath: string): string {
   return join(dirname(configPath), 'keys.json');
 }
 
+/** Resolve the vouchers.json path (redemption cards) that sits alongside a given
+ *  config.json path (convention parity with `defaultKeysPath`, voucher-redemption
+ *  #9). An update-capable JSON store (NOT jsonl) so the redeem status CAS works. */
+export function defaultVouchersPath(configPath: string): string {
+  return join(dirname(configPath), 'vouchers.json');
+}
+
 /** Resolve the subscription tokens.json path that sits alongside a given
  *  config.json path (convention parity with `defaultKeysPath`). A `--tokens`
  *  CLI flag is deferred to RT3 — drop `tokens.json` next to `config.json`. */

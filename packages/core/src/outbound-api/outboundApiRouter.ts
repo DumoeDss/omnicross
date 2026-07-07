@@ -22,6 +22,8 @@
 import type http from 'node:http';
 import { Readable } from 'node:stream';
 
+import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
+
 import { serializeError } from '@omnicross/core/serializeError';
 
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
@@ -35,7 +37,7 @@ import { verifyKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
 import { computeQuotaWarnings, markQuotaWarnedOnce } from './quotaWarn';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
-import type { OutboundRateLimiter } from './outboundRateLimiter';
+import { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
 import { parseModelRef, resolveRoute } from './routeResolver';
 import type {
@@ -45,8 +47,21 @@ import type {
   OutboundEndpoint,
   UserMessageQueueConfig,
 } from './types';
+import type { KeyedMutex } from './keyedMutex';
 import { isUserMessageRequest } from './userMessageDetection';
 import { isSerialQueueTimeout, type UserMessageSerialQueue } from './userMessageSerialQueue';
+import { handleVoucherRedeem, isRedeemRequest } from './voucherRedeem';
+
+/**
+ * Lazily-constructed fallback redeem-attempt limiter (voucher-redemption #9) for
+ * callers that do not supply one. The real server passes its own; this only
+ * covers direct callers (tests) that send a `/redeem` request without a limiter.
+ */
+let fallbackRedeemLimiter: OutboundRateLimiter | null = null;
+function getFallbackRedeemLimiter(): OutboundRateLimiter {
+  fallbackRedeemLimiter ??= new OutboundRateLimiter({ maxRequests: 10, windowMs: 60_000 });
+  return fallbackRedeemLimiter;
+}
 
 /** Per-request config the listener supplies (read live, no restart). */
 export interface OutboundRequestConfig {
@@ -63,6 +78,12 @@ export interface OutboundRequestConfig {
    * frozen defaults when absent.
    */
   concurrencyQueue?: ConcurrencyQueueConfig;
+  /**
+   * Voucher segment (voucher-redemption #9). Gates the key-authenticated
+   * `POST /redeem` endpoint; absent or `enabled:false` ⇒ redeem is rejected and no
+   * key is ever mutated (byte-identical zero regression).
+   */
+  voucher?: VoucherConfig;
 }
 
 /** Write a JSON error response with a status + optional headers. */
@@ -236,6 +257,19 @@ export async function handleOutboundRequest(
   rateLimiter: OutboundRateLimiter,
   serialQueue: UserMessageSerialQueue,
   concurrencyGate: OutboundConcurrencyGate,
+  /**
+   * Redeem-attempt limiter (voucher-redemption #9). OPTIONAL so existing callers
+   * (tests) that predate vouchers compile unchanged; the real server always
+   * supplies its own instance. A caller that omits it AND sends a `/redeem`
+   * request falls back to a lazily-constructed shared limiter.
+   */
+  redeemLimiter?: OutboundRateLimiter,
+  /**
+   * Per-key redeem mutex (voucher-redemption #9, MJ1 fix). OPTIONAL; the handler
+   * falls back to a process-shared instance when omitted (tests). The real server
+   * supplies its own so serialization spans concurrent requests.
+   */
+  redeemMutex?: KeyedMutex,
 ): Promise<void> {
   // One clock for the whole request so expiry / rate / quota agree.
   const now = Date.now();
@@ -273,6 +307,28 @@ export async function handleOutboundRequest(
   const verified = verification.key;
   if (audit) audit.keyId = verified.id;
   if (billing) billing.keyId = verified.id;
+
+  // 1a. VOUCHER REDEEM (voucher-redemption #9, design D1). A key-authenticated
+  // `POST /redeem` applies a card's value to THIS verified key. Handled right
+  // after auth (the key is now known) and BEFORE the traffic rate-limit / endpoint
+  // select — redemption is NOT relay traffic and carries its OWN attempt limiter
+  // (design D6). The redeem code is a CREDENTIAL: the handler hashes it, never logs
+  // it, and this branch returns before any request body is stashed for audit, so
+  // the plaintext code never reaches the audit/billing capture.
+  if (isRedeemRequest(req.method, req.url)) {
+    await handleVoucherRedeem(
+      req,
+      res,
+      deps,
+      config.voucher?.enabled === true,
+      redeemLimiter ?? getFallbackRedeemLimiter(),
+      verified.id,
+      presented ?? '',
+      now,
+      redeemMutex,
+    );
+    return;
+  }
 
   // 2. RATE LIMIT — per-key window when the key configures one (else 60/60s).
   const decision = rateLimiter.check(verified.id, now, verified.rateLimit);

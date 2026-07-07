@@ -32,6 +32,7 @@ import {
   type OutboundKeyDbRow,
   saveServerConfig,
   validateServerModelConfig,
+  type VoucherDb,
 } from '@omnicross/core/outbound-api';
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
@@ -97,6 +98,7 @@ import {
 } from './billingConfigBody';
 import { handleDashboard } from './dashboard';
 import { parseKeyPolicyBody } from './keyPolicyBody';
+import { handleVoucher } from './voucherAdmin';
 import {
   preserveWebhookSecrets,
   redactWebhookConfig,
@@ -148,6 +150,12 @@ export interface AdminApiDeps {
   readonly llmConfig: ConfigFileProviderConfigSource;
   /** Named outbound-key store. */
   readonly keyDb: OutboundKeyDb;
+  /**
+   * OPTIONAL voucher (redemption-card) store (voucher-redemption #9). When wired,
+   * the `/admin/api/voucher` surface can generate/list/revoke cards. Absent ⇒ the
+   * surface returns 501 (feature not available in this build).
+   */
+  readonly voucherDb?: VoucherDb;
   /**
    * OPTIONAL per-key spend reader (outbound-key-policy). When wired, the key list
    * surfaces each key's OWN accumulated spend (daily/weekly/total) so the admin
@@ -414,6 +422,8 @@ export async function handleAdminApi(
         return handlePresets(res, method);
       case 'keys':
         return await handleKeys(req, res, method, rest, deps);
+      case 'voucher':
+        return await handleVoucher(req, res, method, rest, deps);
       case 'server':
         return await handleServer(req, res, method, deps);
       case 'accounts':
@@ -1732,6 +1742,9 @@ async function handleServer(
         port: merged.port,
         userMessageQueue: merged.userMessageQueue,
         concurrencyQueue: merged.concurrencyQueue,
+        // voucher-redemption #9: hot-apply the voucher flag so enabling the product
+        // takes effect without a restart.
+        voucher: merged.voucher,
       });
     } catch (err) {
       // Defense-in-depth: if serving still throws an incomplete-config error

@@ -734,6 +734,60 @@
       "save": "儲存指紋設定",
       "restartHint": "重新啟動守護行程後生效。"
     },
+    "voucher": {
+      "title": "兌換卡",
+      "description": "產生可兌換的卡片，為外發金鑰充值花費上限（信用卡）或延長有效期（續期卡）。持卡人以自己的金鑰兌換；你負責產生與撤銷。兌換碼僅顯示一次，僅以雜湊形式儲存。預設關閉。",
+      "enable": {
+        "label": "啟用兌換卡",
+        "description": "總開關。關閉時兌換端點失效，任何卡片都不會變更金鑰（零回歸）。"
+      },
+      "type": {
+        "credit": "信用",
+        "renewal": "續期"
+      },
+      "creditUsd": {
+        "label": "信用額度（美元）",
+        "placeholder": "信用額度（美元）"
+      },
+      "renewalDays": {
+        "label": "續期（天）",
+        "placeholder": "續期天數"
+      },
+      "maxTotal": {
+        "label": "上限：總額度（美元）",
+        "placeholder": "上限：總額度（選填）"
+      },
+      "maxDays": {
+        "label": "上限：有效期（天）",
+        "placeholder": "上限：天數（選填）"
+      },
+      "generate": "產生卡片",
+      "disabledHint": "啟用此功能後才能產生卡片。",
+      "created": {
+        "title": "卡片已產生",
+        "warning": "請立即複製此兌換碼——它僅顯示一次，之後無法再次取得。",
+        "copy": "複製",
+        "copied": "已複製",
+        "dismiss": "完成"
+      },
+      "empty": "尚無卡片。",
+      "status": {
+        "unredeemed": "未兌換",
+        "redeemed": "已兌換",
+        "revoked": "已撤銷"
+      },
+      "value": {
+        "credit": "信用 ${{amount}}",
+        "renewal": "續期 {{days}} 天"
+      },
+      "revoke": "撤銷",
+      "revokeConfirmTitle": "撤銷此卡片？",
+      "revokeConfirmDesc": "卡片 {{prefix}}… 將無法再被兌換。此操作無法復原。",
+      "redeemInfo": {
+        "title": "持卡人如何兌換",
+        "description": "持卡人在 API 伺服器上以自己的外發金鑰進行驗證，將卡片兌換到該金鑰："
+      }
+    },
     "billing": {
       "title": "計費事件串流",
       "description": "為每個計費請求向外部消費方（計量服務、資料倉儲或計費平台）發出結構化計費事件。持久優先：每個事件在投遞前先寫入本機帳本，因此投遞失敗絕不會遺失計費記錄。預設關閉；發布絕不影響中轉延遲。",

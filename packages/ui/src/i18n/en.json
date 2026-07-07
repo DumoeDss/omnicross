@@ -734,6 +734,60 @@
       "save": "Save fingerprint settings",
       "restartHint": "Takes effect on daemon restart."
     },
+    "voucher": {
+      "title": "Redemption cards",
+      "description": "Generate redeemable cards that top up an outbound key's spend limit (credit) or extend its expiry (renewal). A key-holder redeems a card against their own key; you generate and revoke. Codes are shown once and stored only as a hash. Off by default.",
+      "enable": {
+        "label": "Enable redemption cards",
+        "description": "Master switch. When off, the redeem endpoint is inert and no card mutates any key (zero regression)."
+      },
+      "type": {
+        "credit": "Credit",
+        "renewal": "Renewal"
+      },
+      "creditUsd": {
+        "label": "Credit (USD)",
+        "placeholder": "Credit USD"
+      },
+      "renewalDays": {
+        "label": "Renewal (days)",
+        "placeholder": "Renewal days"
+      },
+      "maxTotal": {
+        "label": "Max total limit (USD)",
+        "placeholder": "Cap: total (optional)"
+      },
+      "maxDays": {
+        "label": "Max lifetime (days)",
+        "placeholder": "Cap: days (optional)"
+      },
+      "generate": "Generate card",
+      "disabledHint": "Enable the feature to generate cards.",
+      "created": {
+        "title": "Card generated",
+        "warning": "Copy this code now — it is shown only once and cannot be retrieved later.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "dismiss": "Done"
+      },
+      "empty": "No cards yet.",
+      "status": {
+        "unredeemed": "Unredeemed",
+        "redeemed": "Redeemed",
+        "revoked": "Revoked"
+      },
+      "value": {
+        "credit": "Credit ${{amount}}",
+        "renewal": "Renewal {{days}}d"
+      },
+      "revoke": "Revoke",
+      "revokeConfirmTitle": "Revoke this card?",
+      "revokeConfirmDesc": "Card {{prefix}}… will no longer be redeemable. This cannot be undone.",
+      "redeemInfo": {
+        "title": "How holders redeem",
+        "description": "A key-holder redeems a card against their own outbound key on the API server, authenticated by their key:"
+      }
+    },
     "billing": {
       "title": "Billing event stream",
       "description": "Emit a structured billing event per billable request for an external consumer (a metering service, data warehouse, or billing platform). Durable-first: each event is written to a local ledger before delivery, so a failed POST never loses a billing record. Off by default; publishing never affects relay latency.",

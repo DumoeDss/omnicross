@@ -178,6 +178,46 @@ export interface FingerprintConfig {
   ua?: string;
 }
 
+/** The `server.voucher` segment (voucher-redemption #9). */
+export interface VoucherConfig {
+  /** Master switch; false/absent ⇒ redeem endpoint inert + no admin generate. */
+  enabled: boolean;
+}
+
+/** Card type: credit adds USD, renewal extends expiry. */
+export type VoucherType = 'credit' | 'renewal';
+/** Card lifecycle. */
+export type VoucherStatus = 'unredeemed' | 'redeemed' | 'revoked';
+
+/** Admin-safe voucher DTO from `GET /admin/api/voucher` (NEVER the code hash). */
+export interface VoucherInfo {
+  id: string;
+  codePrefix: string;
+  type: VoucherType;
+  creditUsd?: number;
+  renewalDays?: number;
+  maxTotalCostLimitUsd?: number;
+  maxExpiryDays?: number;
+  status: VoucherStatus;
+  createdAt: number;
+  redeemedAt?: number;
+  redeemedByKeyId?: string;
+  /** Whether the grant has been applied to the key (redeemed cards only). */
+  grantApplied?: boolean;
+  grantedTotalCostLimitUsd?: number;
+  grantedExpiresAt?: number;
+  revokedAt?: number;
+}
+
+/** The one-time generate result — `plaintextOnce` is shown exactly once. */
+export interface VoucherCreated {
+  id: string;
+  codePrefix: string;
+  type: VoucherType;
+  createdAt: number;
+  plaintextOnce: string;
+}
+
 /** Aggregate delivery status from `GET /admin/api/billing-status` (billing-event-stream). */
 export interface BillingDeliveryStatus {
   total: number;
@@ -243,6 +283,13 @@ export interface OutboundApiServerConfig {
    * it (enabled:false). A change takes effect on daemon restart.
    */
   fingerprint?: FingerprintConfig;
+  /**
+   * Voucher redemption (voucher-redemption #9). OPTIONAL — absent on a pre-upgrade
+   * daemon. Carries no secret. `normalizeServerConfig` always fills it
+   * (enabled:false). When enabled, the key-self-serve `POST /redeem` endpoint +
+   * the admin generate/revoke surface are active.
+   */
+  voucher?: VoucherConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

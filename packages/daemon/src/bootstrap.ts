@@ -69,6 +69,7 @@ import {
   defaultBillingDir,
   defaultPricingPath,
   defaultUsageEventsPath,
+  defaultVouchersPath,
 } from './commands/paths';
 import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
 import { ConfigurableLogger } from './ports/ConfigurableLogger';
@@ -76,6 +77,7 @@ import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
 import { JsonlUsageEventStore } from './ports/JsonlUsageEventStore';
 import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
 import { JsonPricingStore } from './ports/JsonPricingStore';
+import { JsonVoucherDb } from './ports/JsonVoucherDb';
 import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
 import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstreamProxyResolver';
 import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
@@ -259,6 +261,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
 
   const llmConfig = new ConfigFileProviderConfigSource(decryptedConfig);
   const keyDb = new JsonOutboundKeyDb(paths.keysPath);
+  // Voucher (redemption-card) store (voucher-redemption #9) — a sibling
+  // `vouchers.json`, the SAME update-capable JSON mechanism as the key store so
+  // the redeem status CAS works. Constructed always; the redeem endpoint + admin
+  // surface stay inert until `voucher.enabled` (zero regression when off).
+  const voucherDb = new JsonVoucherDb(defaultVouchersPath(paths.configPath));
   // upstream-proxy: pass the box so the settings-store path (admin PUT) encrypts
   // `server.proxy.*` passwords at rest + decrypts on read (other server fields
   // are non-secret). Mirrors config.ts's proxy-secret handling.
@@ -420,6 +427,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // port before key-auth (daemon-health-endpoint, D1 secondary mount).
   const outboundApiServer = getOutboundApiServer({
     db: keyDb,
+    // voucher-redemption #9: the key-authenticated `POST /redeem` endpoint redeems
+    // cards against the presenting key (gated on `voucher.enabled`).
+    voucherDb,
     llmConfig,
     providerProxy,
     proxyDeps: providerProxy.getDeps(),
@@ -446,6 +456,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     configPath: paths.configPath,
     llmConfig,
     keyDb,
+    // voucher-redemption #9: the admin `/admin/api/voucher` surface generates/
+    // lists/revokes redemption cards (gated on `voucher.enabled`).
+    voucherDb,
     // outbound-key-policy: the admin key list surfaces each key's OWN spend.
     keySpendReader: keySpendTracker,
     settingsStore,

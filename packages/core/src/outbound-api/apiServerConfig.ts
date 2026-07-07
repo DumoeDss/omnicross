@@ -18,6 +18,7 @@
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import { type AuditConfig, DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import { type BillingConfig, DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
+import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import {
   WEBHOOK_DESTINATION_TYPES,
   WEBHOOK_EVENT_KINDS,
@@ -188,6 +189,18 @@ export function normalizeFingerprint(
   const out: FingerprintConfig = { enabled: f?.enabled === true };
   if (typeof f?.ua === 'string' && f.ua.trim().length > 0) out.ua = f.ua.trim();
   return out;
+}
+
+/**
+ * Fill the voucher segment to the frozen defaults (voucher-redemption #9). Lenient
+ * like the other segment normalizers: `enabled` coerces to a boolean (default
+ * false). Default (off) ⇒ the redeem endpoint is inert ⇒ zero regression. Carries
+ * NO secret (codes are hashed at rest in the separate voucher store).
+ */
+export function normalizeVoucher(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): VoucherConfig {
+  return { enabled: raw?.voucher?.enabled === true };
 }
 
 /** Valid structured proxy types. */
@@ -491,6 +504,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     audit: normalizeAudit(undefined),
     billing: normalizeBilling(undefined),
     fingerprint: normalizeFingerprint(undefined),
+    voucher: normalizeVoucher(undefined),
   };
 }
 
@@ -525,6 +539,7 @@ export function normalizeServerConfig(
     audit: normalizeAudit(raw),
     billing: normalizeBilling(raw),
     fingerprint: normalizeFingerprint(raw),
+    voucher: normalizeVoucher(raw),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -578,5 +593,8 @@ export function mergeServerConfig(
     // Fingerprint is always-filled (normalizeFingerprint synthesizes a default);
     // a PUT carrying it replaces the segment, else the current one is kept.
     fingerprint: patch.fingerprint ?? current.fingerprint,
+    // Voucher is always-filled (normalizeVoucher synthesizes a default); a PUT
+    // carrying it replaces the segment, else the current one is kept.
+    voucher: patch.voucher ?? current.voucher,
   });
 }

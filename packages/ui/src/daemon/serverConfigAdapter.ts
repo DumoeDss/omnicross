@@ -24,7 +24,9 @@ import { adminClient } from './adminClient';
 import type {
   AgentApiServiceApi,
   CreateKeyResult,
+  GenerateVoucherResult,
   MutationResult,
+  VoucherGenerateInput,
   WebhookTestResult,
 } from './types';
 import type {
@@ -37,6 +39,8 @@ import type {
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
   OutboundModelConfigError,
+  VoucherCreated,
+  VoucherInfo,
 } from './types-server';
 
 /**
@@ -365,6 +369,51 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update fingerprint configuration');
+      }
+    },
+
+    async updateVoucherConfig(
+      voucher: OutboundApiServerConfig['voucher'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // voucher-redemption #9: send the FULL segment; the daemon normalizes it.
+        // `undefined` resets to defaults (disabled). Carries no secret.
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          voucher: voucher ?? { enabled: false },
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update voucher configuration');
+      }
+    },
+
+    async listVouchers(): Promise<VoucherInfo[]> {
+      try {
+        const data = await adminClient.get<{ vouchers: VoucherInfo[] }>('/voucher');
+        return data.vouchers ?? [];
+      } catch {
+        return [];
+      }
+    },
+
+    async generateVoucher(input: VoucherGenerateInput): Promise<GenerateVoucherResult> {
+      try {
+        const created = await adminClient.post<VoucherCreated>('/voucher', input);
+        return { success: true, created };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to generate voucher' };
+      }
+    },
+
+    async revokeVoucher(id: string): Promise<MutationResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean }>(
+          `/voucher/${encodeURIComponent(id)}/revoke`,
+        );
+        if (!data.ok) return { success: false, message: 'voucher not revocable' };
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to revoke voucher');
       }
     },
   };

@@ -57,6 +57,7 @@ export {
   normalizeProxySegment,
   normalizeQueueSegments,
   normalizeServerConfig,
+  normalizeVoucher,
   normalizeWebhookDestination,
   normalizeWebhookSegment,
   OUTBOUND_API_SERVER_CONFIG_KEY,
@@ -113,10 +114,26 @@ export {
   createNamedKey,
   hashKey,
   type KeyVerification,
+  randomBase62,
   verifyKey,
   verifyPresentedKey,
   type VerifiedKey,
 } from './outboundApiKeyAuth';
+export {
+  computeVoucherGrant,
+  generateVoucherCode,
+  hashVoucherCode,
+  newVoucherId,
+  toVoucherInfo,
+  type VoucherCreateInput,
+  type VoucherDb,
+  voucherCodePrefix,
+} from './voucher';
+export {
+  handleVoucherRedeem,
+  isRedeemRequest,
+} from './voucherRedeem';
+export { KeyedMutex } from './keyedMutex';
 export {
   checkKeyQuota,
   computeKeyExpiry,

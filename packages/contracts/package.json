@@ -120,6 +120,11 @@
       "import": "./dist/usage-types.js",
       "require": "./dist/usage-types.cjs"
     },
+    "./voucher-types": {
+      "types": "./dist/voucher-types.d.ts",
+      "import": "./dist/voucher-types.js",
+      "require": "./dist/voucher-types.cjs"
+    },
     "./webhook-types": {
       "types": "./dist/webhook-types.d.ts",
       "import": "./dist/webhook-types.js",

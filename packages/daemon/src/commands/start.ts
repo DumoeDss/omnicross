@@ -86,6 +86,11 @@ export async function runStart(argv: string[]): Promise<StartResult> {
       networkBinding: serverConfig.networkBinding,
       endpoints: serverConfig.endpoints,
       port: serverConfig.port,
+      userMessageQueue: serverConfig.userMessageQueue,
+      concurrencyQueue: serverConfig.concurrencyQueue,
+      // voucher-redemption #9: carry the persisted flag so `POST /redeem` works on
+      // boot when the operator has enabled the product.
+      voucher: serverConfig.voucher,
     });
   } catch (err) {
     if (err instanceof OutboundApiConfigError) {

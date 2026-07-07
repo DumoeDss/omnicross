@@ -734,6 +734,60 @@
       "save": "保存指纹设置",
       "restartHint": "重启守护进程后生效。"
     },
+    "voucher": {
+      "title": "兑换卡",
+      "description": "生成可兑换的卡片，为外发密钥充值花费上限（信用卡）或延长有效期（续期卡）。持卡人用自己的密钥兑换；你负责生成与吊销。兑换码仅显示一次，仅以哈希形式存储。默认关闭。",
+      "enable": {
+        "label": "启用兑换卡",
+        "description": "总开关。关闭时兑换端点失效，任何卡片都不会改动密钥（零回归）。"
+      },
+      "type": {
+        "credit": "信用",
+        "renewal": "续期"
+      },
+      "creditUsd": {
+        "label": "信用额度（美元）",
+        "placeholder": "信用额度（美元）"
+      },
+      "renewalDays": {
+        "label": "续期（天）",
+        "placeholder": "续期天数"
+      },
+      "maxTotal": {
+        "label": "上限：总额度（美元）",
+        "placeholder": "上限：总额度（可选）"
+      },
+      "maxDays": {
+        "label": "上限：有效期（天）",
+        "placeholder": "上限：天数（可选）"
+      },
+      "generate": "生成卡片",
+      "disabledHint": "启用该功能后才能生成卡片。",
+      "created": {
+        "title": "卡片已生成",
+        "warning": "请立即复制此兑换码——它仅显示一次，之后无法再次获取。",
+        "copy": "复制",
+        "copied": "已复制",
+        "dismiss": "完成"
+      },
+      "empty": "暂无卡片。",
+      "status": {
+        "unredeemed": "未兑换",
+        "redeemed": "已兑换",
+        "revoked": "已吊销"
+      },
+      "value": {
+        "credit": "信用 ${{amount}}",
+        "renewal": "续期 {{days}} 天"
+      },
+      "revoke": "吊销",
+      "revokeConfirmTitle": "吊销此卡片？",
+      "revokeConfirmDesc": "卡片 {{prefix}}… 将无法再被兑换。此操作不可撤销。",
+      "redeemInfo": {
+        "title": "持卡人如何兑换",
+        "description": "持卡人在 API 服务器上用自己的外发密钥进行鉴权，将卡片兑换到该密钥："
+      }
+    },
     "billing": {
       "title": "计费事件流",
       "description": "为每个计费请求向外部消费方（计量服务、数据仓库或计费平台）发出结构化计费事件。持久优先：每个事件在投递前先写入本地账本，因此投递失败绝不会丢失计费记录。默认关闭；发布绝不影响中转延迟。",

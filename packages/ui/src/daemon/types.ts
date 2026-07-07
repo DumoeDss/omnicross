@@ -38,6 +38,9 @@ import type {
   OutboundKeyPolicyPatch,
   OutboundModelConfigError,
   ProxyConfig,
+  VoucherCreated,
+  VoucherInfo,
+  VoucherType,
 } from './types-server';
 
 export type * from './types-server';
@@ -212,6 +215,24 @@ export type CreateKeyResult =
   | { success: true; created: OutboundApiKeyCreated }
   | { success: false; message: string };
 
+/** The admin voucher-generate input (voucher-redemption #9). */
+export interface VoucherGenerateInput {
+  type: VoucherType;
+  /** Required for `credit` — USD added to the redeeming key's total limit. */
+  creditUsd?: number;
+  /** Required for `renewal` — days added to the redeeming key's expiry. */
+  renewalDays?: number;
+  /** Per-card cap on the resulting key total limit (anti-abuse). */
+  maxTotalCostLimitUsd?: number;
+  /** Per-card cap on the resulting key lifetime, in days (anti-abuse). */
+  maxExpiryDays?: number;
+}
+
+/** Generate-voucher result carrying the one-time plaintext code, or a failure. */
+export type GenerateVoucherResult =
+  | { success: true; created: VoucherCreated }
+  | { success: false; message: string };
+
 /**
  * `agent.apiService` — the daemon server-config + status + keys surface. All
  * mutations return `{ success, message? }` (never fake success). `updateEndpoint`
@@ -300,6 +321,21 @@ export interface AgentApiServiceApi {
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;
   setKeyEnabled(id: string, enabled: boolean): Promise<MutationResult>;
+  /**
+   * Persist the voucher segment (`PUT /server` with `{ voucher }`,
+   * voucher-redemption #9). Pass `undefined` to reset to defaults (disabled).
+   * Carries no secret.
+   */
+  updateVoucherConfig(voucher: OutboundApiServerConfig['voucher'] | undefined): Promise<MutationResult>;
+  /** List redemption cards (`GET /admin/api/voucher`) — safe DTOs (no code hash). */
+  listVouchers(): Promise<VoucherInfo[]>;
+  /**
+   * Generate a card (`POST /admin/api/voucher`). Returns the plaintext `CC_…` code
+   * ONCE; only the hash is stored. Gated on `voucher.enabled` (403 when disabled).
+   */
+  generateVoucher(input: VoucherGenerateInput): Promise<GenerateVoucherResult>;
+  /** Revoke an UNREDEEMED card (`POST /admin/api/voucher/:id/revoke`). */
+  revokeVoucher(id: string): Promise<MutationResult>;
 }
 
 // ── Accounts adapter (subscription token management) ──────────────────────────

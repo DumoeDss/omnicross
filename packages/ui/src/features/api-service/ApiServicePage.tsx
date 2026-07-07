@@ -27,6 +27,7 @@ import { ProxySection } from './ProxySection';
 import { QueueStatusView } from './QueueStatusView';
 import { RequestQueueSection } from './RequestQueueSection';
 import { ServerStatusBanner } from './ServerStatusBanner';
+import { VoucherSection } from './VoucherSection';
 import { WebhookSection } from './WebhookSection';
 
 export function ApiServicePage() {
@@ -59,6 +60,12 @@ export function ApiServicePage() {
     queryBillingStatus,
     updateFingerprintConfig,
     queueStatus,
+    vouchers,
+    createdVoucher,
+    dismissCreatedVoucher,
+    updateVoucherConfig,
+    generateVoucher,
+    revokeVoucher,
   } = useApiService();
 
   return (
@@ -174,6 +181,17 @@ export function ApiServicePage() {
               />
 
               <FingerprintSection config={config} busy={busy} onUpdate={updateFingerprintConfig} />
+
+              <VoucherSection
+                config={config}
+                vouchers={vouchers}
+                busy={busy}
+                createdVoucher={createdVoucher}
+                onUpdateConfig={updateVoucherConfig}
+                onGenerate={generateVoucher}
+                onRevoke={revokeVoucher}
+                onDismissCreated={dismissCreatedVoucher}
+              />
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">{t('apiService.endpoints.title')}</h3>
