@@ -100,6 +100,10 @@ jobs:
         run: npm run stage-daemon -w omnicross-desktop
         env:
           OMNICROSS_NODE_TARGET: ${{ matrix.node-target }}
+          # tsup's DTS build runs in a worker thread that inherits this limit;
+          # @omnicross/core's declaration build blows the default heap on the
+          # 7 GB macOS runners (ERR_WORKER_OUT_OF_MEMORY).
+          NODE_OPTIONS: --max-old-space-size=4096
 
       # Builds the UI (beforeBuildCommand), compiles the Rust shell, bundles the
       # installers, then creates/updates the release and uploads the artifacts.
