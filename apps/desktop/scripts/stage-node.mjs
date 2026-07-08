@@ -17,7 +17,16 @@
  *
  * Escape hatches:
  *   - OMNICROSS_SKIP_NODE_BUNDLE=1 → skip (the shell falls back to PATH node);
- *   - OMNICROSS_NODE_VERSION=x.y.z → pin a different Node (default below).
+ *   - OMNICROSS_NODE_VERSION=x.y.z → pin a different Node (default below);
+ *   - OMNICROSS_NODE_MIRROR=<url> (or NODEJS_ORG_MIRROR) → fetch from a mirror of
+ *     the nodejs.org/dist layout, tried *before* the built-ins. Note: Node's global
+ *     fetch() ignores HTTP(S)_PROXY, so a working proxy alone won't unblock this.
+ *   - OMNICROSS_NODE_FETCH_TIMEOUT_MS=<ms> → per-request timeout (default 300000);
+ *     converts a stalled connection into a clear error instead of an infinite hang.
+ *
+ * Mirrors are tried in order; on timeout/failure it auto-falls back to the next.
+ * Built-in order: nodejs.org → npmmirror (so a blocked nodejs.org self-heals in
+ * China). Checksums are verified against SHASUMS256.txt regardless of source.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -36,19 +45,56 @@ if (process.env.OMNICROSS_SKIP_NODE_BUNDLE) {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const runtimeDir = resolve(here, '..', 'src-tauri', 'daemon-runtime', 'runtime');
-const DIST = `https://nodejs.org/dist/v${NODE_VERSION}`;
+// Mirrors of the nodejs.org/dist layout, tried in order with auto-fallback. An
+// explicit env mirror wins; npmmirror is the built-in China fallback. Each must
+// expose /v<ver>/{win-x64/node.exe,*.tar.gz,SHASUMS256.txt} — checksums verified.
+const envMirror = (process.env.OMNICROSS_NODE_MIRROR || process.env.NODEJS_ORG_MIRROR || '')
+  .replace(/\/+$/, '');
+const MIRRORS = [
+  ...new Set(
+    [envMirror, 'https://nodejs.org/dist', 'https://registry.npmmirror.com/-/binary/node'].filter(
+      Boolean,
+    ),
+  ),
+];
+// fetch() has no default timeout; without this a stalled connection hangs forever.
+const FETCH_TIMEOUT_MS = Number(process.env.OMNICROSS_NODE_FETCH_TIMEOUT_MS) || 300_000;
 
 async function fetchBuffer(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`download failed (${res.status}): ${url}`);
   return Buffer.from(await res.arrayBuffer());
+}
+
+// Fetch a path (relative to /v<ver>/) trying each mirror until one works. The
+// last-good mirror is tried first next time so we don't re-probe a dead host.
+let activeMirror;
+async function fetchRelative(relPath) {
+  const ordered = activeMirror
+    ? [activeMirror, ...MIRRORS.filter((m) => m !== activeMirror)]
+    : MIRRORS;
+  let lastErr;
+  for (const base of ordered) {
+    try {
+      const buf = await fetchBuffer(`${base}/v${NODE_VERSION}/${relPath}`);
+      if (base !== activeMirror) {
+        if (activeMirror) console.info(`[stage-node] mirror fallback → ${base}`);
+        activeMirror = base;
+      }
+      return buf;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[stage-node] ${base} failed (${err.message}); trying next mirror …`);
+    }
+  }
+  throw new Error(`all mirrors failed for ${relPath}: ${lastErr?.message}`);
 }
 
 // SHASUMS256.txt maps each published file to its sha256 — fetched once, lazily.
 let shasums;
 async function expectedSha(name) {
   if (!shasums) {
-    const txt = (await fetchBuffer(`${DIST}/SHASUMS256.txt`)).toString('utf8');
+    const txt = (await fetchRelative('SHASUMS256.txt')).toString('utf8');
     shasums = new Map(
       txt
         .split('\n')
@@ -60,13 +106,14 @@ async function expectedSha(name) {
   return shasums.get(name);
 }
 
-async function download(name, url) {
-  console.info(`[stage-node] downloading ${name} …`);
-  const buf = await fetchBuffer(url);
-  const want = await expectedSha(name);
-  if (!want) throw new Error(`no checksum for ${name} in SHASUMS256.txt`);
+// relPath doubles as the SHASUMS256.txt key (e.g. 'win-x64/node.exe', '<tar>.tar.gz').
+async function download(relPath) {
+  console.info(`[stage-node] downloading ${relPath} …`);
+  const buf = await fetchRelative(relPath);
+  const want = await expectedSha(relPath);
+  if (!want) throw new Error(`no checksum for ${relPath} in SHASUMS256.txt`);
   const got = createHash('sha256').update(buf).digest('hex');
-  if (got !== want) throw new Error(`checksum mismatch for ${name}:\n  got  ${got}\n  want ${want}`);
+  if (got !== want) throw new Error(`checksum mismatch for ${relPath}:\n  got  ${got}\n  want ${want}`);
   return buf;
 }
 
@@ -74,12 +121,12 @@ async function download(name, url) {
 async function nodeBinary(plat, arch) {
   // Windows publishes a bare node.exe — no archive to unpack.
   if (plat === 'win') {
-    return download('win-x64/node.exe', `${DIST}/win-x64/node.exe`);
+    return download('win-x64/node.exe');
   }
   // darwin / linux: pluck `<dir>/bin/node` straight out of the tarball via tar -O.
   const base = `node-v${NODE_VERSION}-${plat}-${arch}`;
   const tarName = `${base}.tar.gz`;
-  const tarBuf = await download(tarName, `${DIST}/${tarName}`);
+  const tarBuf = await download(tarName);
   const tmpTar = join(tmpdir(), `omnicross-${base}.tar.gz`);
   writeFileSync(tmpTar, tarBuf);
   try {
