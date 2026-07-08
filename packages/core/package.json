@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Omnicross LLM serving core — provider dispatch, completion pipeline, transformers, and the provider proxy.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
