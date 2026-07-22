@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { openExternal } from '@/shared/tauri/openExternal';
 
 import { AccountList } from './AccountList';
 import { CodexInlineSignIn } from './CodexInlineSignIn';
@@ -103,6 +104,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
     startOAuth,
     completeOAuth,
     pollCodexOAuth,
+    cancelCodexOAuth,
     importExternalCli,
     refresh,
   } = accountsApi;
@@ -138,6 +140,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
     const started = await startOAuth(providerId);
     if (started) {
       setOauth(started);
+      if (providerId === 'codex') void openExternal(started.authUrl);
       setAuthCode('');
       setAccountLabel('');
     } else {
@@ -167,7 +170,8 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
     }
   };
 
-  const cancelOAuth = () => {
+  const cancelOAuth = async () => {
+    if (isCodex && oauth) await cancelCodexOAuth(oauth.sessionId);
     setOauth(null);
     setAuthCode('');
     setAccountLabel('');
@@ -242,7 +246,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
             setOauth(null);
             void refresh();
           }}
-          onCancel={cancelOAuth}
+          onCancel={() => void cancelOAuth()}
         />
       ) : oauth ? (
         <OAuthInlineFlow
@@ -254,7 +258,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
           onAccountLabelChange={setAccountLabel}
           onAuthCodeChange={setAuthCode}
           onExchange={() => void handleExchange()}
-          onCancel={cancelOAuth}
+          onCancel={() => void cancelOAuth()}
         />
       ) : (
         <>

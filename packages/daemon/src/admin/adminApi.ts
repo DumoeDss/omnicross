@@ -64,6 +64,7 @@ import { setServerProxyConfig } from '../proxy/upstreamProxyResolver';
 import {
   type CodexLoopbackFn,
   CodexOAuthSessionStore,
+  handleCodexOAuthCancel,
   handleCodexOAuthStart,
   handleCodexOAuthStatus,
 } from './accountsCodexOAuth';
@@ -1812,6 +1813,11 @@ async function handleAccounts(
   // codex loopback sign-in (app-parity-2 child 5). Returns ONLY { state, message? }.
   if (method === 'GET' && rest[0] === 'codex' && rest[1] === 'oauth' && rest[3] === 'status') {
     const result = handleCodexOAuthStatus(rest[2], deps);
+    return writeJson(res, result.status, result.body);
+  }
+
+  if (method === 'DELETE' && rest[0] === 'codex' && rest[1] === 'oauth' && rest[2]) {
+    const result = handleCodexOAuthCancel(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 

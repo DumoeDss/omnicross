@@ -77,6 +77,7 @@ export interface UseAccountsResult {
   ) => Promise<{ success: boolean; message?: string }>;
   /** Poll a codex loopback sign-in's token-free status (app-parity-2 child 5). */
   pollCodexOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  cancelCodexOAuth: (sessionId: string) => Promise<{ success: boolean; message?: string }>;
   /** Import the daemon machine's external CLI login as a managed account. */
   importExternalCli: (
     providerId: 'claude' | 'codex',
@@ -327,6 +328,11 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const cancelCodexOAuth = useCallback(
+    (sessionId: string) => agent.accounts.cancelCodexOAuth(sessionId),
+    [],
+  );
+
   const importExternalCli = useCallback(
     async (providerId: 'claude' | 'codex') => {
       setBusy(true);
@@ -368,6 +374,7 @@ export function useAccounts(): UseAccountsResult {
     startOAuth,
     completeOAuth,
     pollCodexOAuth,
+    cancelCodexOAuth,
     importExternalCli,
   };
 }

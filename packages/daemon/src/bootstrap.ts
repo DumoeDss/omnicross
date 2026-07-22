@@ -491,7 +491,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // the app polls the token-free status. A test seam (`paths.codexAwaitLoopback`)
     // can inject a mock so no real port is bound.
     codexSessions: new CodexOAuthSessionStore(),
-    codexAwaitLoopback: paths.codexAwaitLoopback ?? ((state, timeoutMs) => awaitLoopbackCode(state, timeoutMs)),
+    codexAwaitLoopback: paths.codexAwaitLoopback ?? ((state, timeoutMs, signal) => awaitLoopbackCode(state, timeoutMs, signal)),
     // Migration pack (app-parity child 6, design D2/D3) — the concrete credential
     // store provides BOTH the full DECRYPTED read (`getFullConfig`, export) and
     // the multi-account append (`appendProviderAccount`, import re-encrypts at-

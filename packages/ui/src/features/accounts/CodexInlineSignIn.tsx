@@ -17,6 +17,7 @@ import React, { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { openExternal } from '@/shared/tauri/openExternal';
 
 import type { CodexOAuthStatus } from '@/daemon/types';
 
@@ -82,15 +83,15 @@ export function CodexInlineSignIn({
     <div className="space-y-3 rounded-md bg-surface-2 p-4">
       <p className="text-sm text-muted-foreground">{t('accounts.codexOauth.description')}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <a
-          href={authUrl}
-          target="_blank"
-          rel="noreferrer"
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void openExternal(authUrl)}
           className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <ExternalLink className="h-4 w-4" />
           {t('accounts.oauth.openPage')}
-        </a>
+        </Button>
         <Button variant="outline" size="sm" onClick={onCancel}>
           {t('common.cancel')}
         </Button>

@@ -39,6 +39,7 @@ function pageHtml(message: string): string {
 export function awaitLoopbackCode(
   expectedState: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     let settled = false;
@@ -78,6 +79,13 @@ export function awaitLoopbackCode(
       res.end(pageHtml('Login complete.'));
       finish(server, () => resolve(code));
     });
+
+    const abort = () => finish(server, () => reject(new Error('login: cancelled')));
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener('abort', abort, { once: true });
 
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (settled) return;

@@ -321,5 +321,14 @@ export function createAccountsAdapter(): AgentAccountsApi {
         `/accounts/codex/oauth/${encodeURIComponent(sessionId)}/status`,
       );
     },
+
+    async cancelCodexOAuth(sessionId: string): Promise<MutationResult> {
+      try {
+        await adminClient.delete(`/accounts/codex/oauth/${encodeURIComponent(sessionId)}`);
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to cancel sign-in' };
+      }
+    },
   };
 }

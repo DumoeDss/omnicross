@@ -38,7 +38,7 @@ import { codexOAuth, type FetchLike } from '@omnicross/subscriptions';
 import type { OAuthHandlerResult, SubscriptionAccountAppender } from './accountsOAuth';
 
 /** The loopback-listener fn (injected so tests need not bind a real port). */
-export type CodexLoopbackFn = (state: string, timeoutMs?: number) => Promise<string>;
+export type CodexLoopbackFn = (state: string, timeoutMs?: number, signal?: AbortSignal) => Promise<string>;
 
 /** One codex sign-in flow's polled status (NEVER carries a token). */
 interface CodexFlowState {
@@ -60,6 +60,7 @@ export const DEFAULT_CODEX_OAUTH_TTL_MS = 10 * 60 * 1000;
 export class CodexOAuthSessionStore {
   private readonly sessions = new Map<string, CodexFlowState>();
   private activeSessionId: string | null = null;
+  private readonly aborters = new Map<string, AbortController>();
 
   constructor(private readonly ttlMs: number = DEFAULT_CODEX_OAUTH_TTL_MS) {}
 
@@ -70,12 +71,14 @@ export class CodexOAuthSessionStore {
   }
 
   /** Mint a fresh sessionId, mark it pending + active, return the id. */
-  begin(): string {
+  begin(): { sessionId: string; signal: AbortSignal } {
     this.sweep();
     const sessionId = crypto.randomBytes(24).toString('base64url');
     this.sessions.set(sessionId, { status: 'pending', createdAt: Date.now() });
     this.activeSessionId = sessionId;
-    return sessionId;
+    const controller = new AbortController();
+    this.aborters.set(sessionId, controller);
+    return { sessionId, signal: controller.signal };
   }
 
   /** Settle a flow (done/error) + free the active slot. */
@@ -83,6 +86,14 @@ export class CodexOAuthSessionStore {
     const prior = this.sessions.get(sessionId);
     this.sessions.set(sessionId, { status, error, createdAt: prior?.createdAt ?? Date.now() });
     if (this.activeSessionId === sessionId) this.activeSessionId = null;
+    this.aborters.delete(sessionId);
+  }
+
+  cancel(sessionId: string): boolean {
+    if (!this.sessions.has(sessionId)) return false;
+    this.aborters.get(sessionId)?.abort();
+    this.settle(sessionId, 'error', 'login: cancelled');
+    return true;
   }
 
   /** Read a flow's status (token-free), or null when unknown/expired. */
@@ -128,10 +139,10 @@ export function handleCodexOAuthStart(deps: CodexOAuthDeps): OAuthHandlerResult 
     );
   }
   const { authUrl, codeVerifier, state } = codexOAuth.generateAuthParams();
-  const sessionId = deps.codexSessions.begin();
+  const { sessionId, signal } = deps.codexSessions.begin();
   // Arm the loopback ASYNC (fire-and-forget). The token NEVER crosses to the
   // client — captured + exchanged + persisted entirely daemon-side; the app POLLS.
-  void runCodexLoopback(sessionId, codeVerifier, state, deps);
+  void runCodexLoopback(sessionId, codeVerifier, state, signal, deps);
   return { status: 200, body: { authUrl, sessionId } };
 }
 
@@ -140,10 +151,11 @@ async function runCodexLoopback(
   sessionId: string,
   codeVerifier: string,
   state: string,
+  signal: AbortSignal,
   deps: CodexOAuthDeps,
 ): Promise<void> {
   try {
-    const code = await deps.codexAwaitLoopback(state);
+    const code = await deps.codexAwaitLoopback(state, undefined, signal);
     const result = await codexOAuth.exchangeCodeForTokens(
       { authorizationCode: code, codeVerifier, state },
       deps.oauthExchangeFetch,
@@ -165,6 +177,11 @@ async function runCodexLoopback(
     const reason = e instanceof Error ? e.message : 'codex sign-in failed';
     deps.codexSessions.settle(sessionId, 'error', reason);
   }
+}
+
+export function handleCodexOAuthCancel(sessionId: string, deps: CodexOAuthDeps): OAuthHandlerResult {
+  if (!deps.codexSessions.cancel(sessionId)) return err(404, 'unknown or expired codex sign-in session');
+  return { status: 200, body: { ok: true } };
 }
 
 /**

@@ -9,6 +9,7 @@ mod daemon_runtime;
 mod kill;
 mod ui_settings;
 
+use std::process::Command;
 use tauri::{Manager, RunEvent, WindowEvent};
 
 use daemon_runtime::{adopt_or_spawn, daemon_status, DaemonRuntime};
@@ -42,6 +43,28 @@ fn ensure_loopback_no_proxy() {
     }
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("only http(s) URLs may be opened".into());
+    }
+    #[cfg(target_os = "windows")]
+    let status = Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", &url])
+        .status();
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").arg(&url).status();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open").arg(&url).status();
+    status.map_err(|e| e.to_string()).and_then(|s| {
+        if s.success() {
+            Ok(())
+        } else {
+            Err(format!("browser opener exited with {s}"))
+        }
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Loopback daemon must never be proxied — set this BEFORE the http plugin
@@ -61,7 +84,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             daemon_status,
             get_ui_settings,
-            set_ui_settings
+            set_ui_settings,
+            open_external_url
         ])
         .on_window_event(|window, event| {
             // close_to_tray: hide instead of exiting when the user closes the

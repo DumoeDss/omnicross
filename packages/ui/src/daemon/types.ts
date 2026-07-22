@@ -436,6 +436,7 @@ export interface AgentAccountsApi {
    * `done`/`error`. The token is captured + persisted entirely daemon-side.
    */
   pollCodexOAuth(sessionId: string): Promise<CodexOAuthStatus>;
+  cancelCodexOAuth(sessionId: string): Promise<MutationResult>;
   /**
    * Import the daemon machine's external CLI login (~/.claude/.credentials.json
    * / ~/.codex/auth.json) as a new managed account (external-cli-sync). The
