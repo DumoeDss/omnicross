@@ -264,4 +264,38 @@ describe('DeepseekTransformer', () => {
       expect(transformer.name).toBe('deepseek');
     });
   });
+
+  describe('Anthropic-only field stripping (request)', () => {
+    it('strips thinking/cache_control from messages but keeps tool_calls round-trip', async () => {
+      const request = {
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'user', content: 'hi', cache_control: { type: 'ephemeral' } },
+          {
+            role: 'assistant',
+            content: null,
+            thinking: { content: 'secret reasoning' },
+            tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'f', arguments: '{}' } }],
+          },
+          { role: 'tool', content: 'result', tool_call_id: 'call_1' },
+        ],
+      } as unknown as UnifiedChatRequest;
+
+      const result = (await transformer.transformRequestIn(request, mockProvider, mockContext)) as {
+        messages: Array<Record<string, unknown>>;
+      };
+
+      expect(result.messages[0]).toEqual({ role: 'user', content: 'hi' });
+      expect(result.messages[1]).toEqual({
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'f', arguments: '{}' } }],
+      });
+      expect(result.messages[2]).toEqual({ role: 'tool', content: 'result', tool_call_id: 'call_1' });
+      // No Anthropic-only fields leaked.
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain('thinking');
+      expect(serialized).not.toContain('cache_control');
+    });
+  });
 });
