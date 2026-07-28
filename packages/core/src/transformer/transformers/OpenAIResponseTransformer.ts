@@ -705,6 +705,15 @@ function convertOpenAIStreamToResponseApi(
       let accumulatedContent = '';
       let model = 'unknown';
       const responseId = `resp_${Date.now()}`;
+      // Accumulate tool calls (keyed by OpenAI tool_call index) so the terminal
+      // `response.completed` carries them as `function_call` output items, and
+      // stream them as `function_call_arguments.delta` events — mirroring codex's
+      // own wire format. Without this, a tool call from an OpenAI-chat upstream
+      // (e.g. a BYO provider behind `/v1/responses`) is silently dropped.
+      const toolCalls = new Map<number, { callId: string; name: string; arguments: string }>();
+      // Output index 0 is the assistant `message` (text); tool calls follow at 1+.
+      const toolOutputIndex = new Map<number, number>();
+      let nextOutputIndex = 1;
 
       const safeEnqueue = (str: string) => {
         if (!isClosed) {
@@ -760,21 +769,91 @@ function convertOpenAIStreamToResponseApi(
                 });
               }
 
+              // Tool calls → codex-style function_call streaming events.
+              if (choice.delta?.tool_calls) {
+                for (const tc of choice.delta.tool_calls as Array<Record<string, unknown>>) {
+                  const tcIndex = typeof tc['index'] === 'number' ? tc['index'] : 0;
+                  const func = (tc['function'] ?? {}) as Record<string, unknown>;
+                  let entry = toolCalls.get(tcIndex);
+                  if (!entry) {
+                    const callId = typeof tc['id'] === 'string' ? (tc['id'] as string) : `call_${Date.now()}_${tcIndex}`;
+                    const name = typeof func['name'] === 'string' ? (func['name'] as string) : '';
+                    entry = { callId, name, arguments: '' };
+                    toolCalls.set(tcIndex, entry);
+                    const outIdx = nextOutputIndex++;
+                    toolOutputIndex.set(tcIndex, outIdx);
+                    // codex requires a function_call ITEM id to begin with 'fc_'.
+                    const itemId = callId.startsWith('fc_')
+                      ? callId
+                      : `fc_${callId.replace(/^(call_|fc_)/, '')}`;
+                    emitEvent({
+                      type: 'response.output_item.added',
+                      output_index: outIdx,
+                      item: {
+                        id: itemId,
+                        type: 'function_call',
+                        status: 'in_progress',
+                        call_id: callId,
+                        name,
+                        arguments: '',
+                      },
+                    });
+                  }
+                  const argsFragment = typeof func['arguments'] === 'string' ? (func['arguments'] as string) : '';
+                  if (argsFragment) {
+                    entry.arguments += argsFragment;
+                    emitEvent({
+                      type: 'response.function_call_arguments.delta',
+                      output_index: toolOutputIndex.get(tcIndex),
+                      delta: argsFragment,
+                    });
+                  }
+                }
+              }
+
               if (choice.finish_reason) {
                 emitEvent({ type: 'response.output_text.done', text: accumulatedContent });
+                const output: Array<Record<string, unknown>> = [];
+                if (accumulatedContent) {
+                  output.push({
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: accumulatedContent }],
+                  });
+                }
+                for (const [tcIndex, entry] of toolCalls) {
+                  const itemId = entry.callId.startsWith('fc_')
+                    ? entry.callId
+                    : `fc_${entry.callId.replace(/^(call_|fc_)/, '')}`;
+                  output.push({
+                    id: itemId,
+                    type: 'function_call',
+                    status: 'completed',
+                    call_id: entry.callId,
+                    name: entry.name,
+                    arguments: entry.arguments,
+                  });
+                  // The streamed `added` event carried status in_progress; mark done.
+                  emitEvent({
+                    type: 'response.output_item.done',
+                    output_index: toolOutputIndex.get(tcIndex),
+                    item: {
+                      id: itemId,
+                      type: 'function_call',
+                      status: 'completed',
+                      call_id: entry.callId,
+                      name: entry.name,
+                      arguments: entry.arguments,
+                    },
+                  });
+                }
                 emitEvent({
                   type: 'response.completed',
                   response: {
                     id: responseId,
                     status: 'completed',
                     model,
-                    output: [
-                      {
-                        type: 'message',
-                        role: 'assistant',
-                        content: [{ type: 'output_text', text: accumulatedContent }],
-                      },
-                    ],
+                    output,
                     usage: chunk.usage
                       ? {
                           input_tokens: chunk.usage.prompt_tokens || 0,

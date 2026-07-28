@@ -140,3 +140,45 @@ describe('OpenAIResponseTransformer — codex function-call streaming (Task 2)',
     expect(finalChunk!.choices[0].finish_reason).toBe('stop');
   });
 });
+
+describe('OpenAIResponseTransformer — OpenAI-chat tool_calls → Responses function_call (responses endpoint)', () => {
+  const transformer = new OpenAIResponseTransformer();
+
+  it('maps an OpenAI-chat tool_call stream to codex function_call events', async () => {
+    // An OpenAI-chat upstream (e.g. a BYO provider behind /v1/responses) streams
+    // tool_calls; transformResponseIn must emit codex-style function_call events
+    // so a Responses client (codex CLI) receives the tool call.
+    const openaiFrames = [
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"glm-5.2","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_xyz","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}]}\n\n',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"glm-5.2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"city\\":\\"Tokyo\\"}"}}]},"finish_reason":null}]}\n\n',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"glm-5.2","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":8,"completion_tokens":5,"total_tokens":13}}\n\n',
+      'data: [DONE]\n\n',
+    ];
+
+    const out = await transformer.transformResponseIn(sseResponse(openaiFrames), mockContext);
+    expect(out.headers.get('Content-Type')).toContain('text/event-stream');
+    const events = await drainSseEvents(out);
+
+    // output_item.added opens a function_call with an fc_-prefixed item id and
+    // the call_id as the call handle.
+    const added = events.find((e) => e.type === 'response.output_item.added');
+    expect(added).toBeDefined();
+    expect(added.item.type).toBe('function_call');
+    expect(added.item.id.startsWith('fc_')).toBe(true);
+    expect(added.item.call_id).toBe('call_xyz');
+    expect(added.item.name).toBe('get_weather');
+
+    // argument fragments stream through function_call_arguments.delta.
+    const argDeltas = events.filter((e) => e.type === 'response.function_call_arguments.delta');
+    const assembled = argDeltas.map((e) => e.delta).join('');
+    expect(assembled).toBe('{"city":"Tokyo"}');
+
+    // response.completed carries the function_call in its output (not just text).
+    const completed = events.find((e) => e.type === 'response.completed');
+    expect(completed).toBeDefined();
+    const fc = (completed.response.output ?? []).find((o: Record<string, unknown>) => o.type === 'function_call');
+    expect(fc).toBeDefined();
+    expect(fc.call_id).toBe('call_xyz');
+    expect(fc.arguments).toBe('{"city":"Tokyo"}');
+  });
+});
