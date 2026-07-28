@@ -192,6 +192,12 @@ export async function executeProviderCall(
   // 3. Resolve URL + headers from the post-request-chain config (per-site logic).
   const url = resolveUrl(config);
   const headers = buildHeaders(config);
+  // Ensure a JSON content-type — some transformer chains omit it, and upstreams
+  // (e.g. ChatGPT's codex backend) reject with 400 "Unsupported content type"
+  // without an explicit application/json header.
+  if (!headers['content-type'] && !headers['Content-Type']) {
+    headers['content-type'] = 'application/json';
+  }
 
   // 4. Fetch via the injected mechanism.
   const fetched = await fetchFn(url, headers, finalBody);

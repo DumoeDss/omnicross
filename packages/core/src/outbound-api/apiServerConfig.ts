@@ -449,6 +449,20 @@ export function normalizePrefixTargets(raw: unknown): ModelPrefixTargets | undef
 function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfig {
   const endpoint = e.endpoint;
   const useSubscription = e.useSubscription === true;
+  // OPTIONAL per-endpoint account/key binding (provider/subscription duality).
+  // Carried ONLY when a non-blank string (absent/blank ⇒ account-pool / default-
+  // key behavior); survives the per-class re-projection so an edited binding
+  // round-trips through GET/PUT unchanged. Applies to ALL endpoint classes.
+  const boundAccountId =
+    typeof e.boundAccountId === 'string' && e.boundAccountId.trim() !== ''
+      ? e.boundAccountId
+      : undefined;
+  const boundKeyId =
+    typeof e.boundKeyId === 'string' && e.boundKeyId.trim() !== ''
+      ? e.boundKeyId
+      : undefined;
+
+  let config: EndpointRoutingConfig;
   if (isKindMappedEndpoint(endpoint)) {
     const rawMap =
       e.modelMap && typeof e.modelMap === 'object'
@@ -459,13 +473,12 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
       const v = rawMap[kind];
       modelMap[kind] = typeof v === 'string' ? v : '';
     }
-    return { endpoint, modelMap, useSubscription };
-  }
-  if (endpoint === 'chat') {
+    config = { endpoint, modelMap, useSubscription };
+  } else if (endpoint === 'chat') {
     const models = Array.isArray(e.models)
       ? e.models.filter((m): m is string => typeof m === 'string' && m.trim() !== '')
       : [];
-    const config: EndpointRoutingConfig = { endpoint, models, useSubscription };
+    config = { endpoint, models, useSubscription };
     // openai-chat-bridge #11: `dispatchMode` defaults to `'list'` — carried ONLY
     // when explicitly `'prefix'` (any other/absent value is list, and a blank
     // list-mode chat config stays byte-identical). `prefixTargets` keeps only the
@@ -475,17 +488,20 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
       const targets = normalizePrefixTargets(e.prefixTargets);
       if (targets) config.prefixTargets = targets;
     }
-    return config;
+  } else {
+    config = {
+      endpoint,
+      defaultModel: typeof e.defaultModel === 'string' ? e.defaultModel : '',
+      backgroundModel: typeof e.backgroundModel === 'string' ? e.backgroundModel : '',
+      useSubscription,
+    };
+    if (Array.isArray(e.backgroundModelIds)) {
+      config.backgroundModelIds = e.backgroundModelIds;
+    }
   }
-  const config: EndpointRoutingConfig = {
-    endpoint,
-    defaultModel: typeof e.defaultModel === 'string' ? e.defaultModel : '',
-    backgroundModel: typeof e.backgroundModel === 'string' ? e.backgroundModel : '',
-    useSubscription,
-  };
-  if (Array.isArray(e.backgroundModelIds)) {
-    config.backgroundModelIds = e.backgroundModelIds;
-  }
+
+  if (boundAccountId) config.boundAccountId = boundAccountId;
+  if (boundKeyId) config.boundKeyId = boundKeyId;
   return config;
 }
 

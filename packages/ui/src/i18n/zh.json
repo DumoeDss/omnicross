@@ -555,6 +555,11 @@
       "modelPlaceholder": "选择模型…",
       "useSubscription": "使用订阅",
       "subscriptionUnsupported": "此端点不支持订阅路由。",
+      "subscriptionType": "订阅类型",
+      "subscriptionTypePlaceholder": "选择订阅…",
+      "account": "账号",
+      "accountPool": "账号池（自动调度）",
+      "pickSubscriptionTypeFirst": "请先选择订阅提供商，再配置模型映射。",
       "kind": {
         "fable": "Fable",
         "opus": "Opus",

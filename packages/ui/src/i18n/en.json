@@ -555,6 +555,11 @@
       "modelPlaceholder": "Select a model…",
       "useSubscription": "Use subscription",
       "subscriptionUnsupported": "Subscription routing is not available for this endpoint.",
+      "subscriptionType": "Subscription",
+      "subscriptionTypePlaceholder": "Select subscription…",
+      "account": "Account",
+      "accountPool": "Account pool (auto)",
+      "pickSubscriptionTypeFirst": "Select a subscription provider first to configure model mappings.",
       "kind": {
         "fable": "Fable",
         "opus": "Opus",

@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { agent } from '@/shared/agent';
 
 import type {
+  AccountsListResponse,
   AuditRecord,
   BillingDeliveryStatus,
   EndpointRoutingConfig,
@@ -51,6 +52,8 @@ export interface UseApiServiceResult {
   status: OutboundApiServerStatus | null;
   keys: OutboundApiKeyInfo[];
   modelOptions: ModelRefOption[];
+  /** Subscription accounts (per-provider) for the subscription-mode account picker. */
+  accounts: AccountsListResponse;
   busy: boolean;
   error: string | null;
   /** The one-time create-key reveal; cleared via `dismissCreatedKey`. */
@@ -114,6 +117,10 @@ export function useApiService(): UseApiServiceResult {
   const [status, setStatus] = useState<OutboundApiServerStatus | null>(null);
   const [keys, setKeys] = useState<OutboundApiKeyInfo[]>([]);
   const [providers, setProviders] = useState<LLMProvider[]>([]);
+  const [accounts, setAccounts] = useState<AccountsListResponse>({
+    accounts: [],
+    providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdKey, setCreatedKey] = useState<OutboundApiKeyCreated | null>(null);
@@ -141,12 +148,16 @@ export function useApiService(): UseApiServiceResult {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const [cfg, st, ks, vs, provs] = await Promise.all([
+      const [cfg, st, ks, vs, provs, accts] = await Promise.all([
         agent.apiService.getConfig(),
         agent.apiService.getStatus(),
         agent.apiService.listKeys(),
         agent.apiService.listVouchers(),
         agent.llmConfig.getProviders().catch(() => [] as LLMProvider[]),
+        agent.accounts.list().catch(() => ({
+          accounts: [],
+          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+        })),
       ]);
       if (cancelled) return;
       setConfig(cfg);
@@ -154,6 +165,7 @@ export function useApiService(): UseApiServiceResult {
       setKeys(ks);
       setVouchers(vs);
       setProviders(provs);
+      setAccounts(accts);
       setLoading(false);
     })();
     return () => {
@@ -399,6 +411,7 @@ export function useApiService(): UseApiServiceResult {
     status,
     keys,
     modelOptions,
+    accounts,
     busy,
     error,
     createdKey,

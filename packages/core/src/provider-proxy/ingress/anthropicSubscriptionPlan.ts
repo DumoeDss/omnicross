@@ -90,6 +90,8 @@ export interface AnthropicByoOptions {
  */
 export interface AnthropicCallPlan {
   readonly auth: AuthSource;
+  /** Per-request preferred subscription account (subscription routes only). */
+  readonly preferredAccountId?: string;
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
@@ -249,6 +251,7 @@ export function buildSubscriptionIterationPlan(
 
   return {
     auth,
+    preferredAccountId: route.preferredAccountId,
     chain,
     transformerProvider,
     resolvedModel,
@@ -377,6 +380,7 @@ export async function runPipeline(
     upstreamUrl,
     model: resolvedModel,
     sessionKey: plan.sessionKey,
+    preferredAccountId: plan.preferredAccountId,
     reportSelection: (accountId, isActive) => {
       proxyAccountId = accountId;
       reportSelection?.(accountId, isActive);
@@ -445,6 +449,7 @@ async function runSubscriptionSameFormatFetch(
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
+    preferredAccountId: plan.preferredAccountId,
     reportSelection: (accountId, isActive, remapped) => {
       proxyAccountId = accountId;
       remappedModel = remapped;

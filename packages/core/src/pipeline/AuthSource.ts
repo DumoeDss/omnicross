@@ -53,6 +53,12 @@ export interface AuthApplyHints {
    * (no cross-request race). BYO auth sources ignore it.
    */
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
+  /**
+   * OPTIONAL preferred subscription account id (provider/subscription duality).
+   * When set and schedulable the account picker resolves it directly; absent or
+   * unschedulable ⇒ pool auto-schedule. BYO auth sources ignore it.
+   */
+  preferredAccountId?: string;
 }
 
 /**

@@ -428,6 +428,8 @@ async function resolveSubscriptionRoute(args: {
     // the built-in `/v1/messages` plan builder; INERT for the factory-present
     // delegation path + non-opencodego.
     subscriptionConfig,
+    // Per-request preferred account (provider/subscription duality); undefined ⇒ pool.
+    preferredAccountId: config.boundAccountId,
     anthropicSdkHints: hints,
   };
 

@@ -38,6 +38,7 @@ export function ApiServicePage() {
     status,
     keys,
     modelOptions,
+    accounts,
     busy,
     error,
     createdKey,
@@ -202,6 +203,7 @@ export function ApiServicePage() {
                       key={ep.endpoint}
                       endpoint={ep}
                       modelOptions={modelOptions}
+                      accounts={accounts}
                       busy={busy}
                       onChange={(next) => void updateEndpoint(next)}
                     />

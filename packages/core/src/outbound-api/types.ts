@@ -131,6 +131,18 @@ export interface EndpointRoutingConfig {
   /** Gates subscription-vs-BYO provider selection. Default FALSE. */
   useSubscription: boolean;
   /**
+   * OPTIONAL subscription-mode binding to ONE specific subscription account id
+   * (provider/subscription duality). Absent/blank ⇒ the provider's account pool
+   * auto-schedules (priority/LRU/health). When set and the account is
+   * schedulable it is used directly; otherwise the pool is the fallback.
+   */
+  boundAccountId?: string;
+  /**
+   * OPTIONAL provider-mode binding to ONE specific BYO key id (from the
+   * provider's key pool). Absent/blank ⇒ the provider's default key / key pool.
+   */
+  boundKeyId?: string;
+  /**
    * OPTIONAL "background model id" override list (role-based `gemini` only).
    * When set, an incoming requested model id appearing in this list is
    * classified as the BACKGROUND role; otherwise the registry small/haiku-class

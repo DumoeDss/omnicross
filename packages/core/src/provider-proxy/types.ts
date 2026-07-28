@@ -397,6 +397,13 @@ export interface RouteContext {
    */
   readonly subscriptionProfile?: SubscriptionAuthProfile | null;
   /**
+   * Per-request preferred subscription account id (provider/subscription
+   * duality). Stamped by the outbound `resolveRoute` from
+   * `EndpointRoutingConfig.boundAccountId`; the account picker prefers it when
+   * schedulable (else falls back to the pool). Undefined ⇒ pool auto-schedule.
+   */
+  readonly preferredAccountId?: string;
+  /**
    * OPAQUE per-account subscription config (opencodego-only). Populated by the
    * route resolver from the subscription registry's `getOpenCodeGoConfig()`
    * getter; passed BACK INTO the profile closures (`modelMapper` /

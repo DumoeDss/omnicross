@@ -84,13 +84,25 @@ export class OpenAIResponseTransformer implements Transformer {
     provider: LLMProvider,
     _context: TransformerContext
   ): Promise<Record<string, unknown>> {
+    // ChatGPT's codex backend (official chatgpt.com OR any third-party relay)
+    // is a PRIVATE Responses variant: it REQUIRES `store:false`, REQUIRES typed
+    // `input_text` parts (rejects bare-string content), REJECTS
+    // `max_output_tokens`, and omits Content-Type on its SSE stream. Relays do
+    // NOT carry a discoverable url token, so codex can't be reliably told from
+    // public-OpenAI by url. Default to the codex-private shape because the
+    // public OpenAI Responses API ACCEPTS it too (`input_text` is the standard
+    // part type, `store:false` is legal, omitting `max_output_tokens` falls
+    // back to the upstream default) — works for all providers without a url
+    // guess. If a future public provider must honor max_output_tokens, add an
+    // opt-out flag then.
     const input: Array<Record<string, unknown>> = [];
 
     for (const msg of request.messages) {
       if (msg.role === 'system') {
+        const sysText = typeof msg.content === 'string' ? msg.content : flattenContent(msg.content);
         input.push({
           role: 'developer',
-          content: typeof msg.content === 'string' ? msg.content : flattenContent(msg.content),
+          content: [{ type: 'input_text', text: sysText }],
         });
       } else if (msg.role === 'tool') {
         input.push({
@@ -99,9 +111,10 @@ export class OpenAIResponseTransformer implements Transformer {
           output: typeof msg.content === 'string' ? msg.content : '',
         });
       } else {
+        const text = typeof msg.content === 'string' ? msg.content : flattenContent(msg.content);
         const entry: Record<string, unknown> = {
           role: msg.role,
-          content: typeof msg.content === 'string' ? msg.content : flattenContent(msg.content),
+          content: [{ type: msg.role === 'assistant' ? 'output_text' : 'input_text', text }],
         };
         // Include tool_calls as function_call items
         if (msg.role === 'assistant' && msg.tool_calls?.length) {
@@ -127,7 +140,13 @@ export class OpenAIResponseTransformer implements Transformer {
       model: request.model,
       input,
       stream: request.stream ?? false,
-      ...(request.max_tokens ? { max_output_tokens: request.max_tokens } : {}),
+      // `store:false` is required by the codex backend and accepted by the
+      // public Responses API (which defaults to store:true). Always set it so
+      // codex relays (no discoverable url token) work without configuration.
+      store: false,
+      // `max_output_tokens` is intentionally omitted: the codex backend rejects
+      // it, and the public API falls back to its default when absent. If a
+      // public provider ever needs it honored, gate that on an opt-out flag.
       ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
     };
 
@@ -274,7 +293,25 @@ export class OpenAIResponseTransformer implements Transformer {
   ): Promise<Response> {
     const contentType = response.headers.get('Content-Type') ?? '';
 
-    if (contentType.includes('text/event-stream')) {
+    // ChatGPT's codex backend OMITS Content-Type on SSE streams, so a header
+    // check alone misroutes them into the JSON branch (which throws
+    // "Unexpected token 'e'" on the leading `event:` line). Peek the first
+    // chunk to detect an SSE frame when the header is absent.
+    let isSse = contentType.includes('text/event-stream');
+    if (!isSse && response.body) {
+      const peek = response.clone();
+      try {
+        const reader = peek.body!.getReader();
+        const { value } = await reader.read();
+        reader.releaseLock();
+        const head = value ? new TextDecoder().decode(value).trimStart() : '';
+        isSse = head.startsWith('event:') || head.startsWith('data:');
+      } catch {
+        /* treat as non-SSE on peek failure */
+      }
+    }
+
+    if (isSse) {
       if (!response.body) {
         throw new Error('Stream response body is null');
       }

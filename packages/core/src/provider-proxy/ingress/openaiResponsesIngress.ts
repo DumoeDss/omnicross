@@ -63,6 +63,8 @@ export function isOpenAIResponsesRequest(
 /** The auth-mode-resolved inputs for one `executeProviderCall` (mirrors the host's codex call plan). */
 interface ResponsesCallPlan {
   readonly auth: AuthSource;
+  /** Per-request preferred subscription account (subscription routes only). */
+  readonly preferredAccountId?: string;
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
@@ -257,6 +259,7 @@ async function buildSubscriptionPlan(
 
   return {
     auth,
+    preferredAccountId: route.preferredAccountId,
     chain,
     transformerProvider,
     resolvedModel,
@@ -324,6 +327,7 @@ async function runPipeline(
   await auth.applyHeaders(authHeaders, {
     upstreamUrl,
     model: resolvedModel,
+    preferredAccountId: plan.preferredAccountId,
     reportSelection: (accountId) => {
       proxyAccountId = accountId;
     },
