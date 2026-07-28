@@ -96,6 +96,18 @@ export function convertOpenAIResponseToAnthropic(
   const message = choice.message as Record<string, unknown>;
   const content: Array<Record<string, unknown>> = [];
 
+  // Handle thinking — MUST precede text and tool_use blocks in Anthropic
+  // format (the Anthropic API enforces block ordering: thinking → text →
+  // tool_use). Mirrors `buildAnthropicRequestBody`'s ordering.
+  const thinking = message.thinking as Record<string, unknown> | undefined;
+  if (thinking?.content) {
+    content.push({
+      type: 'thinking',
+      thinking: thinking.content,
+      signature: thinking.signature,
+    });
+  }
+
   // Handle text content
   if (message.content) {
     content.push({
@@ -124,16 +136,6 @@ export function convertOpenAIResponseToAnthropic(
         input: parsedInput,
       });
     }
-  }
-
-  // Handle thinking
-  const thinking = message.thinking as Record<string, unknown> | undefined;
-  if (thinking?.content) {
-    content.push({
-      type: 'thinking',
-      thinking: thinking.content,
-      signature: thinking.signature,
-    });
   }
 
   // Map finish reason

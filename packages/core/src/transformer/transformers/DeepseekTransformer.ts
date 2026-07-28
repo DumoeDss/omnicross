@@ -42,7 +42,19 @@ export class DeepseekTransformer implements Transformer {
       this.logger?.debug('DeepSeek: Limiting max_tokens from %d to 8192', request.max_tokens);
       request.max_tokens = 8192;
     }
-    return request as unknown as Record<string, unknown>;
+    // DeepSeek speaks the OpenAI Chat shape. Strip Anthropic-only message
+    // fields (`thinking`, `cache_control`, `reasoning`) that an Anthropic
+    // endpoint decoder may have attached to the unified messages, so they don't
+    // leak to the upstream. Tool calls / tool results are preserved so
+    // multi-turn tool loops still round-trip.
+    const sanitizedMessages = (request.messages ?? []).map((m) => {
+      const out: Record<string, unknown> = { role: m.role };
+      if (m.content !== undefined) out.content = m.content;
+      if (m.tool_calls) out.tool_calls = m.tool_calls;
+      if (m.tool_call_id) out.tool_call_id = m.tool_call_id;
+      return out;
+    });
+    return { ...request, messages: sanitizedMessages } as unknown as Record<string, unknown>;
   }
 
   /**

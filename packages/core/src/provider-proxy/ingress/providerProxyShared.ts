@@ -297,7 +297,7 @@ export async function aggregateAnthropicSseToJsonBody(
   };
   const blocks = new Map<
     number,
-    { type: string; text: string; id?: string; name?: string; inputJson: string }
+    { type: string; text: string; id?: string; name?: string; inputJson: string; signature?: string }
   >();
 
   for (const raw of text.split('\n')) {
@@ -340,6 +340,8 @@ export async function aggregateAnthropicSseToJsonBody(
           b.inputJson += d['partial_json'] as string;
         else if (d['type'] === 'thinking_delta' && typeof d['thinking'] === 'string')
           b.text += d['thinking'] as string;
+        else if (d['type'] === 'signature_delta' && typeof d['signature'] === 'string')
+          b.signature = (b.signature || '') + (d['signature'] as string);
         break;
       }
       case 'message_delta': {
@@ -369,7 +371,11 @@ export async function aggregateAnthropicSseToJsonBody(
         }
         return { type: 'tool_use', id: blk.id ?? '', name: blk.name ?? '', input };
       }
-      if (blk.type === 'thinking') return { type: 'thinking', thinking: blk.text };
+      if (blk.type === 'thinking') {
+        const out: Record<string, unknown> = { type: 'thinking', thinking: blk.text };
+        if (blk.signature) out.signature = blk.signature;
+        return out;
+      }
       return { type: blk.type || 'text', text: blk.text };
     })
     .filter((b) => b !== undefined);
