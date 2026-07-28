@@ -149,7 +149,7 @@ describe('beginAuditCapture — metadata capture', () => {
 });
 
 describe('beginAuditCapture — body capture (opt-in)', () => {
-  it('captures + redacts + bounds request and non-stream response bodies', () => {
+  it('captures + redacts request and non-stream response bodies IN FULL', () => {
     setAuditCaptureConfig(cfg({ captureBodies: true }));
     const seen: AuditRecord[] = [];
     setAuditSink((rec) => seen.push(rec));
@@ -169,7 +169,7 @@ describe('beginAuditCapture — body capture (opt-in)', () => {
     expect(rec.responseBody).not.toContain('leaked-tok-abc123');
   });
 
-  it('truncates a captured body to maxBodyBytes', () => {
+  it('does NOT truncate a captured body (complete content for debugging)', () => {
     setAuditCaptureConfig(cfg({ captureBodies: true, maxBodyBytes: 10 }));
     const seen: AuditRecord[] = [];
     setAuditSink((rec) => seen.push(rec));
@@ -177,10 +177,11 @@ describe('beginAuditCapture — body capture (opt-in)', () => {
     const ctx = beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, 1);
     ctx!.setRequestBody('x'.repeat(500));
     r.triggerClose();
-    expect(seen[0].requestBody!.length).toBeLessThanOrEqual(10);
+    // The full body is preserved — maxBodyBytes is no longer a truncation cap.
+    expect(seen[0].requestBody!.length).toBe(500);
   });
 
-  it('records METADATA ONLY for a streaming response (no unbounded stream body)', () => {
+  it('captures the FULL streaming response body (a codex SSE reply is visible)', () => {
     setAuditCaptureConfig(cfg({ captureBodies: true }));
     const seen: AuditRecord[] = [];
     setAuditSink((rec) => seen.push(rec));
@@ -194,9 +195,10 @@ describe('beginAuditCapture — body capture (opt-in)', () => {
     r.triggerClose();
 
     const rec = seen[0];
-    // Request body (bounded) is still captured; the STREAM body is not.
+    // Both the request body AND the full SSE stream are captured.
     expect(rec.requestBody).toBeDefined();
-    expect(rec.responseBody).toBeUndefined();
+    expect(rec.responseBody).toContain('data: {"delta":"a"}');
+    expect(rec.responseBody).toContain('data: {"delta":"b"}');
   });
 });
 

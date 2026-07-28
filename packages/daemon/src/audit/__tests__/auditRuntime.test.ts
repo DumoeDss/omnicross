@@ -9,6 +9,7 @@ import {
   getAuditCaptureConfig,
   recordAudit,
 } from '@omnicross/core/pipeline/auditSink';
+import { getUpstreamTracePath } from '@omnicross/core/pipeline/upstreamTrace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuditPruneSweeper } from '../AuditPruneSweeper';
@@ -46,7 +47,7 @@ beforeEach(() => {
   // Synchronous defer so recordAudit → writer append is observable inline.
   const writer = new AuditWriter(dir, noopLogger, (fn) => fn());
   const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg({ enabled: false }));
-  setAuditRuntime(writer, sweeper);
+  setAuditRuntime(writer, sweeper, dir);
 });
 afterEach(() => {
   resetAuditRuntimeForTests();
@@ -83,5 +84,17 @@ describe('applyAuditConfig', () => {
     expect(getAuditCaptureConfig()).toBeNull();
     recordAudit(rec());
     expect(readdirSync(dir).some((f) => f.startsWith('audit-'))).toBe(false);
+  });
+
+  it('enables the upstream trace exactly when captureBodies is on', () => {
+    // Bodies OFF (audit enabled, captureBodies false) ⇒ no upstream trace.
+    applyAuditConfig(cfg({ captureBodies: false }));
+    expect(getUpstreamTracePath()).toBeNull();
+    // Bodies ON ⇒ trace file resolved beside the audit store.
+    applyAuditConfig(cfg({ captureBodies: true }));
+    expect(getUpstreamTracePath()).toBe(join(dir, 'upstream-trace.jsonl'));
+    // Disabling audit clears the trace too (zero-regression no-op in fetchUpstream).
+    applyAuditConfig(cfg({ enabled: false, captureBodies: true }));
+    expect(getUpstreamTracePath()).toBeNull();
   });
 });

@@ -41,6 +41,7 @@ export default defineConfig({
     'pipeline/SubscriptionAuthSource': 'src/pipeline/SubscriptionAuthSource.ts',
     'pipeline/SubscriptionAuthStrategy': 'src/pipeline/SubscriptionAuthStrategy.ts',
     'pipeline/upstreamFetch': 'src/pipeline/upstreamFetch.ts',
+    'pipeline/upstreamTrace': 'src/pipeline/upstreamTrace.ts',
     'pipeline/webhookEmit': 'src/pipeline/webhookEmit.ts',
     ports: 'src/ports/index.ts',
     'ports/gemini-code-assist-resolver': 'src/ports/gemini-code-assist-resolver.ts',
