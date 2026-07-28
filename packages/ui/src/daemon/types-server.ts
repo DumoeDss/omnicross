@@ -44,6 +44,10 @@ export interface EndpointRoutingConfig {
   backgroundModel?: ModelRef;
   /** Gates subscription-vs-BYO provider selection. Default false. */
   useSubscription: boolean;
+  /** Subscription mode: bind one specific account id; blank ⇒ account pool. */
+  boundAccountId?: string;
+  /** Provider mode: bind one specific BYO key id; blank ⇒ default key / key pool. */
+  boundKeyId?: string;
   /** Optional per-endpoint background-model id override list (role-based only). */
   backgroundModelIds?: string[];
 }

@@ -190,6 +190,7 @@ export class SubscriptionAuthSource implements AuthSource {
         resolvedModel: hints.model,
         sessionKey: hints.sessionKey,
         reportSelection: hints.reportSelection,
+        preferredAccountId: hints.preferredAccountId,
       });
     } catch (err) {
       console.warn('[SubscriptionAuthSource] authStrategy.applyHeaders threw:', serializeError(err));

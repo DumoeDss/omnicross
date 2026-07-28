@@ -51,6 +51,12 @@ export interface SelectionHealthContext {
    *  upstream model when its `supportedModels` object remaps `resolvedModel`
    *  (subscription-account-model-map) — the relay rewrites `body.model` to it. */
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
+  /**
+   * Per-request preferred account id (provider/subscription duality). When set
+   * and schedulable, `resolveSelectedToken` resolves it directly (falling back
+   * to the pool only when it is missing/unschedulable/empty-token).
+   */
+  preferredAccountId?: string;
   /** Injectable clock (default `Date.now()` inside the selector). */
   now?: number;
 }
@@ -197,6 +203,22 @@ export async function resolveSelectedToken(
     // `undefined` (no remap) which the relay treats as "forward the body verbatim".
     const remapFor = (id: string): string | undefined =>
       remapReportForAccount(supportedModelsById.get(id), resolvedModel);
+
+    // Preferred-account shortcut (provider/subscription duality): when the
+    // endpoint binds a specific account, resolve it directly when schedulable;
+    // only fall through to the pool when it is missing/unschedulable/empty-token.
+    const preferredId = ctx?.preferredAccountId;
+    if (preferredId) {
+      const preferred = gated.find((a) => a.id === preferredId);
+      if (preferred && preferred.schedulable !== false) {
+        const preferredToken = await tokens.getAccessTokenForAccount(providerId, preferredId);
+        if (preferredToken) {
+          maybeTouchLastUsed(selector, tokens, providerId, preferredId);
+          report?.(preferredId, preferredId === activeAccountId, remapFor(preferredId));
+          return preferredToken;
+        }
+      }
+    }
 
     const targetId = pickByIdTarget(selector, gated, providerId, activeAccountId, sessionKey, now, poolGated);
     if (targetId !== undefined) {

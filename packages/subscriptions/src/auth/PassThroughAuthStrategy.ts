@@ -63,7 +63,7 @@ export class PassThroughAuthStrategy implements AuthStrategy {
       'claude',
       hints?.sessionKey,
       () => this.tokens.getValidClaudeAccessToken(),
-      { health: this.health, reportSelection: hints?.reportSelection, resolvedModel: hints?.resolvedModel },
+      { health: this.health, reportSelection: hints?.reportSelection, resolvedModel: hints?.resolvedModel, preferredAccountId: hints?.preferredAccountId },
     );
     if (!token) return;
     headers['Authorization'] = `Bearer ${token}`;

@@ -49,6 +49,12 @@ export interface AuthApplyHints {
    * pre-health behavior).
    */
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
+  /**
+   * OPTIONAL preferred subscription account id (provider/subscription duality).
+   * When set and schedulable the account picker resolves it directly; absent or
+   * unschedulable ⇒ pool auto-schedule.
+   */
+  preferredAccountId?: string;
 }
 
 export interface AuthStrategy {

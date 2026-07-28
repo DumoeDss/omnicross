@@ -100,6 +100,11 @@
       "import": "./dist/provider-presets/index.js",
       "require": "./dist/provider-presets/index.cjs"
     },
+    "./subscription-model-catalog": {
+      "types": "./dist/subscription-model-catalog.d.ts",
+      "import": "./dist/subscription-model-catalog.js",
+      "require": "./dist/subscription-model-catalog.cjs"
+    },
     "./subscription-types": {
       "types": "./dist/subscription-types.d.ts",
       "import": "./dist/subscription-types.js",
