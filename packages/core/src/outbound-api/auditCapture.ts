@@ -12,9 +12,11 @@
  *    method; path with the query string DROPPED), the response `statusCode`, the
  *    elapsed ms, and the fields the handler fills in (keyId / model / provider /
  *    error / bodies) — then hands it to the fire-and-forget `recordAudit`;
- *  - when `captureBodies` is ALSO on, wraps `res.write`/`res.end` to accumulate a
- *    BOUNDED response body (metadata-only for a streaming `text/event-stream`
- *    response — a full stream is unbounded), and truncates+redacts both bodies.
+ *  - when `captureBodies` is ALSO on, wraps `res.write`/`res.end` to accumulate
+ *    the response body. Bodies are captured IN FULL (no truncation) and a
+ *    streaming `text/event-stream` response is captured too — the earlier
+ *    metadata-only/bounded behavior made a codex (streaming) reply invisible,
+ *    which defeated debugging. See `upstreamTrace.ts` for the upstream leg.
  *
  * Request HEADERS are NEVER read into a record (Authorization / x-api-key live
  * there). Every stored body passes through {@link redactAuditText}. The assembly
@@ -51,13 +53,6 @@ export interface AuditCaptureContext {
   setRequestBody(raw: string): void;
 }
 
-/** Content-types treated as streaming (response body recorded as metadata only). */
-function isStreamingContentType(res: http.ServerResponse): boolean {
-  const ct = res.getHeader('content-type');
-  const value = Array.isArray(ct) ? ct.join(';') : String(ct ?? '');
-  return value.toLowerCase().includes('text/event-stream');
-}
-
 /** Resolve the client IP: socket by default; a trusted `X-Forwarded-For` only when configured. */
 function resolveClientIp(req: http.IncomingMessage, trustForwardedFor: boolean): string | undefined {
   if (trustForwardedFor) {
@@ -70,13 +65,6 @@ function resolveClientIp(req: http.IncomingMessage, trustForwardedFor: boolean):
     }
   }
   return req.socket?.remoteAddress ?? undefined;
-}
-
-/** Truncate a UTF-8 string to at most `maxBytes` bytes (may cut a multibyte tail). */
-function truncateToBytes(text: string, maxBytes: number): string {
-  const buf = Buffer.from(text, 'utf8');
-  if (buf.length <= maxBytes) return text;
-  return buf.subarray(0, maxBytes).toString('utf8');
 }
 
 /**
@@ -94,8 +82,6 @@ export function beginAuditCapture(
 
   let rawRequestBody: string | undefined;
   const responseChunks: Buffer[] = [];
-  let responseBytes = 0;
-  let streamDetected = false;
   let finished = false;
 
   const ctx: AuditCaptureContext = {
@@ -105,21 +91,13 @@ export function beginAuditCapture(
   };
 
   // Response-body capture is installed ONLY when bodies are opted in. It records
-  // a BOUNDED head and drops entirely once a streaming response is detected.
+  // the FULL body — streaming responses included (a codex reply is SSE; recording
+  // only metadata hid it). Every original call is delegated verbatim so the
+  // response itself is unaffected.
   if (config.captureBodies) {
-    installResponseCapture(res, config.maxBodyBytes, {
+    installResponseCapture(res, {
       push(chunk: Buffer): void {
-        responseBytes += chunk.length;
         responseChunks.push(chunk);
-      },
-      get bytes() {
-        return responseBytes;
-      },
-      markStream(): void {
-        streamDetected = true;
-      },
-      get isStream() {
-        return streamDetected;
       },
     });
   }
@@ -158,11 +136,12 @@ export function beginAuditCapture(
       }
       if (ctx.error) record.error = redactAuditText(ctx.error);
       if (config.captureBodies) {
+        // Bodies captured IN FULL (no truncation) so a large prompt / a full SSE
+        // stream is preserved for debugging. Secret shapes are still redacted.
         if (rawRequestBody != null && rawRequestBody.length > 0) {
-          record.requestBody = redactAuditText(truncateToBytes(rawRequestBody, config.maxBodyBytes));
+          record.requestBody = redactAuditText(rawRequestBody);
         }
-        // Streaming responses record metadata only (a full stream is unbounded).
-        if (!streamDetected && responseChunks.length > 0) {
+        if (responseChunks.length > 0) {
           const body = Buffer.concat(responseChunks).toString('utf8');
           record.responseBody = redactAuditText(body);
         }
@@ -177,42 +156,25 @@ export function beginAuditCapture(
   return ctx;
 }
 
-/** The bounded accumulator the response-capture wrapper feeds. */
+/** The accumulator the response-capture wrapper feeds. */
 interface ResponseCaptureSink {
   push(chunk: Buffer): void;
-  readonly bytes: number;
-  markStream(): void;
-  readonly isStream: boolean;
 }
 
 /**
- * Wrap `res.write`/`res.end` to accumulate a BOUNDED response-body head. Once a
- * streaming response is detected (via its Content-Type on the first chunk) it
- * marks the sink as a stream and stops accumulating (metadata only). Every
- * original call is delegated verbatim so the response itself is unaffected.
+ * Wrap `res.write`/`res.end` to accumulate the response body IN FULL (streaming
+ * responses included). Every original call is delegated verbatim so the response
+ * itself is unaffected. Note: a very large streaming response is held in memory
+ * until the record is emitted — `captureBodies` is an opt-in debug switch, so
+ * this is the explicit trade for complete capture.
  */
-function installResponseCapture(
-  res: http.ServerResponse,
-  maxBodyBytes: number,
-  sink: ResponseCaptureSink,
-): void {
-  let contentTypeChecked = false;
+function installResponseCapture(res: http.ServerResponse, sink: ResponseCaptureSink): void {
   const capture = (chunk: unknown): void => {
-    if (sink.isStream) return;
-    if (!contentTypeChecked) {
-      contentTypeChecked = true;
-      if (isStreamingContentType(res)) {
-        sink.markStream();
-        return;
-      }
-    }
-    if (sink.bytes >= maxBodyBytes) return;
     let buf: Buffer | null = null;
     if (Buffer.isBuffer(chunk)) buf = chunk;
     else if (typeof chunk === 'string') buf = Buffer.from(chunk, 'utf8');
     if (!buf || buf.length === 0) return;
-    const remaining = maxBodyBytes - sink.bytes;
-    sink.push(buf.length > remaining ? buf.subarray(0, remaining) : buf);
+    sink.push(buf);
   };
 
   const originalWrite = res.write.bind(res) as http.ServerResponse['write'];

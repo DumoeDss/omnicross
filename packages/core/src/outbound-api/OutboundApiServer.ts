@@ -214,6 +214,12 @@ export class OutboundApiServer {
 
   /** Per-request handler. Auth is enforced on EVERY request (incl. loopback). */
   private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // Defensively collapse a doubled `/v1/messages/v1/messages` (etc.) request
+    // path ONCE at the entry so audit / selectEndpoint / dispatch all see the
+    // clean path. elftia's baseUrl already ends in `/v1/messages` and some
+    // clients (ClaudeCode) append it again. No-op for normal (non-doubled)
+    // paths and for /health, /admin/*, voucher redeem, and Gemini routes.
+    if (req.url) req.url = normalizeDoubledEndpointPath(req.url);
     // UNAUTHENTICATED liveness/readiness probe (daemon-health-endpoint, D1
     // secondary mount) — served BEFORE key-auth so an orchestrator can probe the
     // traffic port. Only mounted when the daemon wired a provider; otherwise the
@@ -352,4 +358,29 @@ function firstLanIPv4(): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Collapse a repeated `/v1/<endpoint>` suffix (e.g. `/v1/messages/v1/messages`
+ * → `/v1/messages`). elftia's baseUrl already ends in `/v1/messages` and some
+ * clients (ClaudeCode) append the same path again; routing works today by
+ * suffix match, but the doubled path pollutes the audit `path` field and breaks
+ * usage correlation. Normalizing once at the http entry keeps every downstream
+ * consumer (audit / selectEndpoint / dispatch) on the clean path.
+ *
+ * Covers the three chat-shape endpoints: `/v1/messages`, `/v1/responses`,
+ * `/v1/chat/completions`. Leaves every other path (`/health`, `/admin/*`,
+ * voucher `/redeem`, Gemini `:generateContent`) unchanged. The query string is
+ * preserved.
+ */
+export function normalizeDoubledEndpointPath(url: string): string {
+  const queryIdx = url.indexOf('?');
+  const path = queryIdx === -1 ? url : url.slice(0, queryIdx);
+  const query = queryIdx === -1 ? '' : url.slice(queryIdx);
+  // Match a prefix followed by the SAME `/v1/<endpoint>` twice (backreference).
+  const collapsed = path.replace(
+    /^(.*?)(\/v1\/(?:messages|responses|chat\/completions))\2$/,
+    '$1$2',
+  );
+  return collapsed + query;
 }

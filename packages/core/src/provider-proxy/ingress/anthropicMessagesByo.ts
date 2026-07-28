@@ -61,7 +61,7 @@ import {
   runPipeline,
   runPipelineWithSubscriptionRetry,
 } from './anthropicSubscriptionPlan';
-import { relayResponse, resolvePoolBoundKey, writeError } from './providerProxyShared';
+import { aggregateAnthropicSseToJsonBody, relayResponse, resolvePoolBoundKey, writeError } from './providerProxyShared';
 
 // Re-export the shared plan/options types so existing importers
 // (`anthropicMessagesIngress.ts`, tests) keep their import paths unchanged.
@@ -119,7 +119,28 @@ export async function handleAnthropicMessagesByo(
     // `claude-opus-4-8-…` rather than the upstream provider model. `undefined`
     // for internal / delegated traffic ⇒ byte-identical. Usage accounting STAYS
     // on the upstream `plan.resolvedModel`.
-    const bodyText = await relayResponse(res, providerResponse.response, isStream, route.requestedModel);
+    //
+    // codex's Responses backend ONLY streams (it 400s on `stream:false`), so the
+    // request transformer forces `stream:true` and the response arrives as
+    // Anthropic SSE even when the CLIENT asked for a non-streaming message. In
+    // that case collapse the SSE into a single buffered `message` JSON (the
+    // format a non-streaming client expects) instead of letting `relayResponse`
+    // stream the SSE verbatim to a non-streaming consumer.
+    const upstreamResponse = providerResponse.response;
+    const upstreamSse = (upstreamResponse.headers.get('content-type') ?? '').includes(
+      'text/event-stream',
+    );
+    let bodyText: string | null;
+    if (!isStream && upstreamSse) {
+      bodyText = await aggregateAnthropicSseToJsonBody(upstreamResponse, route.requestedModel);
+      res.writeHead(
+        upstreamResponse.status && upstreamResponse.status >= 100 ? upstreamResponse.status : 200,
+        { 'Content-Type': 'application/json' },
+      );
+      res.end(bodyText);
+    } else {
+      bodyText = await relayResponse(res, upstreamResponse, isStream, route.requestedModel);
+    }
     if (bodyText && deps.usageRecorder) {
       recordAnthropicNonStreamUsage(deps.usageRecorder, bodyText, {
         sessionId: route.sessionId,
