@@ -285,6 +285,53 @@ describe('transformRequestOut (Gemini request → unified)', () => {
     expect(toolMsg!.tool_call_id).toBe('call_7');
     expect(toolMsg!.content).toBe('32 cats');
   });
+
+  it('regression: a part carrying BOTH text and thoughtSignature keeps the text', () => {
+    // Gemini attaches thoughtSignature to ANY part kind on a thinking turn; a
+    // `{text, thoughtSignature}` part must not lose its text (previously the
+    // signature branch preempted the text branch).
+    const decoded = transformRequestOut({
+      model: 'gemini-2.5-pro',
+      contents: [
+        { role: 'model', parts: [{ text: 'Here is my answer', thoughtSignature: 'sig_1' }] },
+      ],
+    });
+    const asst = decoded.messages.find((m) => m.role === 'assistant');
+    expect(asst).toBeDefined();
+    expect(asst!.content).toBe('Here is my answer');
+    expect((asst!.thinking as { signature?: string })?.signature).toBe('sig_1');
+  });
+
+  it('regression: parallel same-name tool calls pair results to the correct ids (by order)', () => {
+    // Two concurrent `search` calls: Gemini functionResponse carries no id, so
+    // the decoder pairs by NAME+ORDER. Both results must not collapse onto the
+    // last call's id.
+    const decoded = transformRequestOut({
+      model: 'gemini-2.5-pro',
+      contents: [
+        {
+          role: 'model',
+          parts: [
+            { functionCall: { id: 'c1', name: 'search', args: { q: 'cats' } } },
+            { functionCall: { id: 'c2', name: 'search', args: { q: 'dogs' } } },
+          ],
+        },
+        {
+          role: 'user',
+          parts: [
+            { functionResponse: { name: 'search', response: { result: '32 cats' } } },
+            { functionResponse: { name: 'search', response: { result: '7 dogs' } } },
+          ],
+        },
+      ],
+    });
+    const toolMsgs = decoded.messages.filter((m) => m.role === 'tool');
+    expect(toolMsgs).toHaveLength(2);
+    expect(toolMsgs[0].tool_call_id).toBe('c1');
+    expect(toolMsgs[0].content).toBe('32 cats');
+    expect(toolMsgs[1].tool_call_id).toBe('c2');
+    expect(toolMsgs[1].content).toBe('7 dogs');
+  });
 });
 
 // ---------------------------------------------------------------------------

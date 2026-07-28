@@ -340,10 +340,13 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
   // Convert contents to messages
   if (Array.isArray(contents)) {
     // Gemini pairs a functionResponse to its functionCall by NAME only — there
-    // is no per-call id on functionResponse. Track the most-recent tool_call id
-    // per function name as we walk the contents, so a functionResponse can be
-    // paired back to the originating tool_call on the unified side.
-    const lastToolCallIdByName = new Map<string, string>();
+    // is no per-call id on functionResponse. Track the tool_call ids per
+    // function name as a QUEUE as we walk the contents; Gemini delivers
+    // functionResponse parts in the same order as the matching functionCall
+    // parts, so shifting one id per response pairs them correctly even when the
+    // model makes PARALLEL calls to the same function (two `search`, two
+    // `read_file`). A plain last-wins map would mispair those.
+    const toolCallIdsByName = new Map<string, string[]>();
 
     for (const content of contents) {
       // Bare-string shorthand (some clients send `contents: ["hi"]`).
@@ -385,6 +388,15 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
       let signature: string | undefined;
 
       for (const part of parts as unknown as Array<Record<string, unknown>>) {
+        // `thoughtSignature` is an AUXILIARY field: Gemini attaches it to ANY
+        // part kind (text, functionCall, ...) on a thinking turn. Capture it
+        // FIRST and non-exclusively, then dispatch the part's primary kind, so a
+        // `{text, thoughtSignature}` part keeps BOTH its text and its signature
+        // (buildRequestBody produces exactly this shape for assistant turns with
+        // thinking, so the round-trip must preserve it).
+        if ('thoughtSignature' in part) {
+          signature = part.thoughtSignature as string;
+        }
         if ('functionResponse' in part) {
           functionResponses.push(part as unknown as GeminiFunctionResponsePart);
         } else if ('functionCall' in part) {
@@ -407,8 +419,6 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
               media_type: fileData.mime_type,
             });
           }
-        } else if ('thoughtSignature' in part) {
-          signature = part.thoughtSignature as string;
         } else if ('text' in part) {
           // Gemini encodes reasoning as `{text, thought:true}` parts.
           if (part.thought === true) {
@@ -424,14 +434,25 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
       // format expects each tool result as its own message).
       for (const fr of functionResponses) {
         const fnName = fr.functionResponse.name ?? '';
+        const queue = toolCallIdsByName.get(fnName);
         const id =
-          lastToolCallIdByName.get(fnName) ||
-          `tool_${Math.random().toString(36).substring(2, 15)}`;
+          queue && queue.length > 0
+            ? (queue.shift() as string)
+            : `tool_${Math.random().toString(36).substring(2, 15)}`;
         // Gemini's functionResponse.response.result is the tool output; OpenAI
-        // tool messages carry a string `content`.
-        const result = fr.functionResponse.response?.result;
+        // tool messages carry a string `content`. The forward direction always
+        // writes `{ result }`, but external SDKs sometimes use other shapes
+        // (`{ response: { content } }`), so fall back to the whole response.
+        const response = fr.functionResponse.response;
+        const result = response?.result;
         const toolContent =
-          typeof result === 'string' ? result : JSON.stringify(result ?? '');
+          typeof result === 'string'
+            ? result
+            : result !== undefined
+              ? JSON.stringify(result)
+              : response !== undefined
+                ? JSON.stringify(response)
+                : '';
         unifiedRequest.messages.push({
           role: 'tool',
           tool_call_id: id,
@@ -439,12 +460,15 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
         });
       }
 
-      // Build tool_calls array from functionCall parts, remembering each call's
-      // id so the following functionResponse (matched by name) can re-use it.
+      // Build tool_calls array from functionCall parts, queuing each call's id
+      // by function name so the following functionResponses (matched by name,
+      // in order) can re-use them.
       const toolCalls: ToolCall[] = functionCalls.map((p) => {
         const id = p.functionCall.id || `tool_${Math.random().toString(36).substring(2, 15)}`;
         if (p.functionCall.name) {
-          lastToolCallIdByName.set(p.functionCall.name, id);
+          const arr = toolCallIdsByName.get(p.functionCall.name) ?? [];
+          arr.push(id);
+          toolCallIdsByName.set(p.functionCall.name, arr);
         }
         return {
           id,
