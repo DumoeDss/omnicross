@@ -61,10 +61,20 @@ export class OpenCodeGoTransformer implements Transformer {
       const content = m.content;
       // Single-text-block content → string. Multi-block (image + text) stays
       // as array since OpenCodeGo OpenAI-shape upstreams accept the array form.
-      if (Array.isArray(content) && content.length === 1 && content[0]?.type === 'text') {
-        return { ...m, content: (content[0] as { type: 'text'; text: string }).text };
-      }
-      return m;
+      const normalizedContent =
+        Array.isArray(content) && content.length === 1 && content[0]?.type === 'text'
+          ? (content[0] as { type: 'text'; text: string }).text
+          : content;
+      // Build a clean OpenAI Chat message — only fields the OpenCodeGo chat
+      // upstream understands. The endpoint transformer (e.g. AnthropicConversion)
+      // can attach Anthropic-only fields (`thinking`, `cache_control`) to unified
+      // messages; leaking them to the OpenAI-shape upstream can trigger a 400 on
+      // multi-turn tool conversations that carry prior thinking. Tool calls and
+      // tool-result handles are preserved so tool turns round-trip across turns.
+      const out: Record<string, unknown> = { role: m.role, content: normalizedContent };
+      if (m.tool_calls) out.tool_calls = m.tool_calls;
+      if (m.tool_call_id) out.tool_call_id = m.tool_call_id;
+      return out;
     });
 
     const out: Record<string, unknown> = {
