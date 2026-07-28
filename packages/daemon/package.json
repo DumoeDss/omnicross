@@ -1,7 +1,7 @@
 {
   "name": "@omnicross/daemon",
-  "version": "0.1.3",
-  "description": "Omnicross standalone daemon — the bare-Node embedder of @omnicross/core with an admin HTTP API + dashboard.",
+  "version": "0.1.4",
+  "description": "Omnicross standalone daemon 鈥?the bare-Node embedder of @omnicross/core with an admin HTTP API + dashboard.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
   "homepage": "https://github.com/Dumoedss/omnicross#readme",
