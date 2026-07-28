@@ -267,6 +267,117 @@ export async function relayResponse(
   return bodyText;
 }
 
+/**
+ * Aggregate a streaming Anthropic `text/event-stream` body into ONE buffered
+ * Anthropic `message` JSON object — the inverse of the SDK's SSE wire format.
+ *
+ * Used when an upstream that ONLY streams (e.g. the codex Responses backend,
+ * which 400s on `stream:false`) serves a NON-streaming client: codex is forced
+ * to `stream:true`, the transformer emits Anthropic SSE, and this collapses it
+ * back into the single JSON message a non-streaming client expects. Round-trips
+ * `message_start` (id/model/usage), `content_block_start`+`_delta`+`_stop`
+ * (text / tool_use `input_json_delta` / thinking), and `message_delta`
+ * (stop_reason + usage). `rewriteModel` overrides `model` (the passthrough D4
+ * model rewrite) to mirror `relayResponse`'s non-stream branch.
+ *
+ * Best-effort: a malformed event is skipped, never thrown.
+ */
+export async function aggregateAnthropicSseToJsonBody(
+  response: Response,
+  rewriteModel?: string,
+): Promise<string> {
+  const text = await response.text();
+  const message: Record<string, unknown> = {
+    type: 'message',
+    role: 'assistant',
+    content: [] as unknown[],
+    stop_reason: null,
+    stop_sequence: null,
+    usage: {} as Record<string, number>,
+  };
+  const blocks = new Map<
+    number,
+    { type: string; text: string; id?: string; name?: string; inputJson: string }
+  >();
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let ev: Record<string, unknown>;
+    try {
+      ev = JSON.parse(payload) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    switch (ev['type']) {
+      case 'message_start': {
+        const m = (ev['message'] ?? {}) as Record<string, unknown>;
+        if (typeof m['id'] === 'string') message['id'] = m['id'];
+        if (typeof m['model'] === 'string') message['model'] = m['model'];
+        if (m['usage']) message['usage'] = { ...(m['usage'] as object) };
+        break;
+      }
+      case 'content_block_start': {
+        const idx = Number(ev['index']);
+        const cb = (ev['content_block'] ?? {}) as Record<string, unknown>;
+        blocks.set(idx, {
+          type: typeof cb['type'] === 'string' ? (cb['type'] as string) : 'text',
+          text: typeof cb['text'] === 'string' ? (cb['text'] as string) : '',
+          id: typeof cb['id'] === 'string' ? (cb['id'] as string) : undefined,
+          name: typeof cb['name'] === 'string' ? (cb['name'] as string) : undefined,
+          inputJson: '',
+        });
+        break;
+      }
+      case 'content_block_delta': {
+        const b = blocks.get(Number(ev['index']));
+        if (!b) break;
+        const d = (ev['delta'] ?? {}) as Record<string, unknown>;
+        if (d['type'] === 'text_delta' && typeof d['text'] === 'string') b.text += d['text'] as string;
+        else if (d['type'] === 'input_json_delta' && typeof d['partial_json'] === 'string')
+          b.inputJson += d['partial_json'] as string;
+        else if (d['type'] === 'thinking_delta' && typeof d['thinking'] === 'string')
+          b.text += d['thinking'] as string;
+        break;
+      }
+      case 'message_delta': {
+        const d = (ev['delta'] ?? {}) as Record<string, unknown>;
+        if (d['stop_reason'] !== undefined) message['stop_reason'] = d['stop_reason'];
+        if (d['stop_sequence'] !== undefined) message['stop_sequence'] = d['stop_sequence'];
+        if (ev['usage'])
+          message['usage'] = { ...(message['usage'] as object), ...(ev['usage'] as object) };
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  message['content'] = [...blocks.keys()]
+    .sort((a, b) => a - b)
+    .map((idx) => {
+      const blk = blocks.get(idx);
+      if (!blk) return undefined;
+      if (blk.type === 'tool_use') {
+        let input: unknown = {};
+        try {
+          input = blk.inputJson ? JSON.parse(blk.inputJson) : {};
+        } catch {
+          input = {};
+        }
+        return { type: 'tool_use', id: blk.id ?? '', name: blk.name ?? '', input };
+      }
+      if (blk.type === 'thinking') return { type: 'thinking', thinking: blk.text };
+      return { type: blk.type || 'text', text: blk.text };
+    })
+    .filter((b) => b !== undefined);
+
+  if (rewriteModel) message['model'] = rewriteModel;
+  return JSON.stringify(message);
+}
+
 /** Write a JSON error response if the headers have not been sent. */
 export function writeError(res: http.ServerResponse, status: number, message: string): void {
   if (res.headersSent) return;

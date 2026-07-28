@@ -122,10 +122,19 @@ export class OpenAIResponseTransformer implements Transformer {
           // Push the assistant text first, then each function_call
           input.push(entry);
           for (const tc of msg.tool_calls) {
+            // codex's function_call ITEM carries TWO ids: `id` (the item id,
+            // MUST begin with 'fc_') and `call_id` (the call handle a later
+            // function_call_output references). The unified tool_call only has
+            // the call_id, so synthesize an fc_ item id from it — codex
+            // correlates call↔output by `call_id`, never by the item id.
+            const callId = tc.id;
+            const itemId = callId.startsWith('fc_')
+              ? callId
+              : `fc_${callId.replace(/^(call_|fc_)/, '')}`;
             input.push({
               type: 'function_call',
-              id: tc.id,
-              call_id: tc.id,
+              id: itemId,
+              call_id: callId,
               name: tc.function.name,
               arguments: tc.function.arguments,
             });
@@ -139,7 +148,11 @@ export class OpenAIResponseTransformer implements Transformer {
     const body: Record<string, unknown> = {
       model: request.model,
       input,
-      stream: request.stream ?? false,
+      // codex's backend REQUIRES `stream:true` (it 400s with "Stream must be
+      // set to true" otherwise). Always force it; a non-streaming CLIENT is
+      // served by aggregating the SSE upstream of the wire (the ingress buffers
+      // it into a single message), not by asking codex for a non-streaming reply.
+      stream: true,
       // `store:false` is required by the codex backend and accepted by the
       // public Responses API (which defaults to store:true). Always set it so
       // codex relays (no discoverable url token) work without configuration.
@@ -511,6 +524,10 @@ function convertResponseApiStreamToOpenAI(
       const messageId = `chatcmpl-${Date.now()}`;
       let model = 'unknown';
       let hasEmittedRole = false;
+      // True once a codex function_call event is seen in this stream, so the
+      // terminal `response.completed` chunk carries `finish_reason:"tool_calls"`
+      // (matching the OpenAI-chat protocol — a tool-call turn is NOT a `stop`).
+      let hasToolCalls = false;
 
       const safeEnqueue = (str: string) => {
         if (!isClosed) {
@@ -575,6 +592,52 @@ function convertResponseApiStreamToOpenAI(
                   }
                   break;
 
+                case 'response.output_item.added': {
+                  // codex emits a `function_call` output item when the model
+                  // decides to call a tool. Translate it into an OpenAI-chat
+                  // `tool_calls` delta so step 2 (AnthropicOpenAIToAnthropicStream)
+                  // can map it to an Anthropic `tool_use` block. Without this,
+                  // the tool call is silently dropped and the client gets an
+                  // empty assistant turn.
+                  const item = event.item;
+                  if (item?.type !== 'function_call') break;
+                  if (!hasEmittedRole) {
+                    emitChunk([{ index: 0, delta: { role: 'assistant', content: null }, finish_reason: null }]);
+                    hasEmittedRole = true;
+                  }
+                  hasToolCalls = true;
+                  emitChunk([{
+                    index: 0,
+                    delta: {
+                      tool_calls: [{
+                        index: event.output_index ?? 0,
+                        id: item.call_id,
+                        type: 'function',
+                        function: { name: item.name, arguments: '' },
+                      }],
+                    },
+                    finish_reason: null,
+                  }]);
+                  break;
+                }
+
+                case 'response.function_call_arguments.delta': {
+                  // codex streams the function-call arguments token-by-token;
+                  // concatenate into the matching tool_call's `arguments`.
+                  hasToolCalls = true;
+                  emitChunk([{
+                    index: 0,
+                    delta: {
+                      tool_calls: [{
+                        index: event.output_index ?? 0,
+                        function: { arguments: event.delta ?? '' },
+                      }],
+                    },
+                    finish_reason: null,
+                  }]);
+                  break;
+                }
+
                 case 'response.completed': {
                   const resp = event.response;
                   const respUsage = resp?.usage;
@@ -586,7 +649,9 @@ function convertResponseApiStreamToOpenAI(
                           (respUsage.input_tokens || 0) + (respUsage.output_tokens || 0),
                       }
                     : undefined;
-                  emitChunk([{ index: 0, delta: {}, finish_reason: 'stop' }], usage);
+                  // A tool-call turn finishes with `tool_calls` (matching the
+                  // OpenAI-chat protocol); a plain-text turn finishes `stop`.
+                  emitChunk([{ index: 0, delta: {}, finish_reason: hasToolCalls ? 'tool_calls' : 'stop' }], usage);
                   safeEnqueue('data: [DONE]\n\n');
                   break;
                 }
