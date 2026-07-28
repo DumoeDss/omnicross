@@ -89,4 +89,31 @@ describe('aggregateAnthropicSseToJsonBody', () => {
     const msg = JSON.parse(await aggregateAnthropicSseToJsonBody(sseResponse(sse)));
     expect(msg.content.map((c: { text: string }) => c.text)).toEqual(['A', 'B']);
   });
+
+  it('preserves thinking content AND signature from signature_delta events', async () => {
+    // Anthropic streams thinking blocks as: content_block_start (thinking) →
+    // thinking_delta (content fragments) → signature_delta (signature) →
+    // content_block_stop. The aggregator must capture the signature so the
+    // non-streaming client can echo it back on the next tool_result turn.
+    const sse = [
+      ev('message_start', { message: { id: 'm', model: 'x' } }),
+      ev('content_block_start', { index: 0, content_block: { type: 'thinking', thinking: '' } }),
+      ev('content_block_delta', { index: 0, delta: { type: 'thinking_delta', thinking: 'Let me ' } }),
+      ev('content_block_delta', { index: 0, delta: { type: 'thinking_delta', thinking: 'think.' } }),
+      ev('content_block_delta', { index: 0, delta: { type: 'signature_delta', signature: 'sig_' } }),
+      ev('content_block_delta', { index: 0, delta: { type: 'signature_delta', signature: 'abc' } }),
+      ev('content_block_stop', { index: 0 }),
+      ev('content_block_start', { index: 1, content_block: { type: 'text', text: '' } }),
+      ev('content_block_delta', { index: 1, delta: { type: 'text_delta', text: 'Answer.' } }),
+      ev('message_stop', {}),
+    ].join('');
+
+    const msg = JSON.parse(await aggregateAnthropicSseToJsonBody(sseResponse(sse)));
+    expect(msg.content[0]).toEqual({
+      type: 'thinking',
+      thinking: 'Let me think.',
+      signature: 'sig_abc',
+    });
+    expect(msg.content[1]).toEqual({ type: 'text', text: 'Answer.' });
+  });
 });
