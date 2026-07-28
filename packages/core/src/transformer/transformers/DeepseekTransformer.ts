@@ -52,7 +52,6 @@ export class DeepseekTransformer implements Transformer {
       if (m.content !== undefined) out.content = m.content;
       if (m.tool_calls) out.tool_calls = m.tool_calls;
       if (m.tool_call_id) out.tool_call_id = m.tool_call_id;
-      if (m.name) out.name = m.name;
       return out;
     });
     return { ...request, messages: sanitizedMessages } as unknown as Record<string, unknown>;

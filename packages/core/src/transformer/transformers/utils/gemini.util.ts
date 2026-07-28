@@ -384,7 +384,7 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
       let thinkingText = '';
       let signature: string | undefined;
 
-      for (const part of parts as Array<Record<string, unknown>>) {
+      for (const part of parts as unknown as Array<Record<string, unknown>>) {
         if ('functionResponse' in part) {
           functionResponses.push(part as unknown as GeminiFunctionResponsePart);
         } else if ('functionCall' in part) {
@@ -410,12 +410,11 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
         } else if ('thoughtSignature' in part) {
           signature = part.thoughtSignature as string;
         } else if ('text' in part) {
-          const textPart = part as unknown as GeminiTextPart;
-          if (textPart.thought === true) {
-            // Gemini encodes reasoning as `{text, thought:true}` parts.
-            thinkingText += textPart.text ?? '';
+          // Gemini encodes reasoning as `{text, thought:true}` parts.
+          if (part.thought === true) {
+            thinkingText += (part.text as string) ?? '';
           } else {
-            textParts.push(textPart);
+            textParts.push(part as unknown as GeminiTextPart);
           }
         }
       }
@@ -480,7 +479,10 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
         messageContent = textParts.map((p) => p.text).join('\n') || null;
       }
 
-      const message: UnifiedMessage = { role, content: messageContent };
+      const message: UnifiedMessage = {
+        role,
+        content: messageContent as unknown as UnifiedMessage['content'],
+      };
       if (toolCalls.length > 0) {
         message.tool_calls = toolCalls;
       }
