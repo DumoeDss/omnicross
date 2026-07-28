@@ -238,6 +238,10 @@ function handleStreamResponse(
   let pendingContent = '';
   let contentIndex = 0;
   let toolCallIndex = -1;
+  // Set when the current chunk's text was buffered for post-signature flush
+  // (Gemini 3.x content-before-signature). When true the text emission block
+  // is skipped but tool calls in the same chunk MUST still be emitted.
+  let textBuffered = false;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -262,6 +266,10 @@ function handleStreamResponse(
 
           const candidate = chunk.candidates[0];
           const parts = candidate.content?.parts || [];
+
+          // Reset per-chunk: text from this chunk may be buffered (Gemini 3.x
+          // pre-signature case); tool calls must still flow through.
+          textBuffered = false;
 
           // Process thinking content
           parts
@@ -359,7 +367,10 @@ function handleStreamResponse(
           if (hasThinkingContent && textContent && !signatureSent) {
             if (chunk.modelVersion?.includes('3')) {
               pendingContent += textContent;
-              return;
+              // Do NOT early-return: the same chunk may also carry functionCall
+              // parts whose tool_calls must be emitted this turn (buffering the
+              // text must not silently drop tool-call events).
+              textBuffered = true;
             } else {
               // Generate signature for older models
               const signatureChunk = createChunk({
@@ -377,8 +388,8 @@ function handleStreamResponse(
             }
           }
 
-          // Send text content
-          if (textContent) {
+          // Send text content (skip when the text was buffered for post-signature flush)
+          if (textContent && !textBuffered) {
             if (!pendingContent) contentIndex++;
 
             const contentChunk = createChunk({

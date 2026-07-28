@@ -7,7 +7,7 @@
  * @module transformer/transformers/utils/gemini.util
  */
 
-import type { UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '../../types';
+import type { ToolCall, UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '../../types';
 
 import { transformTool } from './gemini.schema';
 
@@ -306,6 +306,16 @@ export function buildRequestBody(request: UnifiedChatRequest): GeminiRequestBody
  * Transform Gemini request format to UnifiedChatRequest
  * (For incoming requests to Gemini endpoint)
  *
+ * Round-trips Gemini's `contents[].parts[]` shape into the unified
+ * OpenAI-chat-like message list:
+ *   - `{role:"model", parts:[{functionCall}, {text}]}`  → assistant message
+ *     with `tool_calls` + text content.
+ *   - `{role:"user", parts:[{functionResponse}]}`        → one `role:"tool"`
+ *     message per `functionResponse` (Gemini matches function calls by NAME,
+ *     not id, so the previous assistant turn's id is re-used when available).
+ *   - `{text, thought:true}` and `thoughtSignature`      → `thinking` block.
+ *   - `inlineData` / `file_data` parts                   → `image_url` parts.
+ *
  * @param request - Gemini-formatted request
  * @returns Unified chat request
  */
@@ -329,37 +339,155 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
 
   // Convert contents to messages
   if (Array.isArray(contents)) {
+    // Gemini pairs a functionResponse to its functionCall by NAME only — there
+    // is no per-call id on functionResponse. Track the most-recent tool_call id
+    // per function name as we walk the contents, so a functionResponse can be
+    // paired back to the originating tool_call on the unified side.
+    const lastToolCallIdByName = new Map<string, string>();
+
     for (const content of contents) {
+      // Bare-string shorthand (some clients send `contents: ["hi"]`).
       if (typeof content === 'string') {
+        unifiedRequest.messages.push({ role: 'user', content });
+        continue;
+      }
+
+      // Tolerate a lone part sent directly instead of a `{role, parts}` wrapper.
+      if (
+        content &&
+        typeof content === 'object' &&
+        'text' in content &&
+        typeof (content as { text: unknown }).text === 'string' &&
+        !('parts' in content)
+      ) {
         unifiedRequest.messages.push({
           role: 'user',
-          content,
+          content: (content as { text: string }).text || null,
         });
-      } else if ('text' in content && typeof content.text === 'string') {
+        continue;
+      }
+
+      if (!content || typeof content !== 'object' || !('role' in content)) {
+        continue;
+      }
+
+      const geminiContent = content as GeminiContent;
+      const isModel = geminiContent.role === 'model';
+      const role: 'user' | 'assistant' = isModel ? 'assistant' : 'user';
+      const parts = geminiContent.parts ?? [];
+
+      // Partition parts by kind so each kind maps to its unified equivalent.
+      const functionResponses: GeminiFunctionResponsePart[] = [];
+      const functionCalls: GeminiFunctionCallPart[] = [];
+      const textParts: GeminiTextPart[] = [];
+      const contentParts: Array<Record<string, unknown>> = [];
+      let thinkingText = '';
+      let signature: string | undefined;
+
+      for (const part of parts as Array<Record<string, unknown>>) {
+        if ('functionResponse' in part) {
+          functionResponses.push(part as unknown as GeminiFunctionResponsePart);
+        } else if ('functionCall' in part) {
+          functionCalls.push(part as unknown as GeminiFunctionCallPart);
+        } else if ('inlineData' in part || 'file_data' in part) {
+          // Multimodal → image_url content block (mirror of buildRequestBody).
+          const inline = part.inlineData as { mime_type?: string; data?: string } | undefined;
+          const fileData = part.file_data as { mime_type?: string; file_uri?: string } | undefined;
+          if (inline?.data) {
+            const mime = inline.mime_type || 'image/png';
+            contentParts.push({
+              type: 'image_url',
+              image_url: { url: `data:${mime};base64,${inline.data}` },
+              media_type: mime,
+            });
+          } else if (fileData?.file_uri) {
+            contentParts.push({
+              type: 'image_url',
+              image_url: { url: fileData.file_uri },
+              media_type: fileData.mime_type,
+            });
+          }
+        } else if ('thoughtSignature' in part) {
+          signature = part.thoughtSignature as string;
+        } else if ('text' in part) {
+          const textPart = part as unknown as GeminiTextPart;
+          if (textPart.thought === true) {
+            // Gemini encodes reasoning as `{text, thought:true}` parts.
+            thinkingText += textPart.text ?? '';
+          } else {
+            textParts.push(textPart);
+          }
+        }
+      }
+
+      // Emit one unified `role:"tool"` message per functionResponse (Gemini
+      // delivers them bundled inside a single user content, but the unified
+      // format expects each tool result as its own message).
+      for (const fr of functionResponses) {
+        const fnName = fr.functionResponse.name ?? '';
+        const id =
+          lastToolCallIdByName.get(fnName) ||
+          `tool_${Math.random().toString(36).substring(2, 15)}`;
+        // Gemini's functionResponse.response.result is the tool output; OpenAI
+        // tool messages carry a string `content`.
+        const result = fr.functionResponse.response?.result;
+        const toolContent =
+          typeof result === 'string' ? result : JSON.stringify(result ?? '');
         unifiedRequest.messages.push({
-          role: 'user',
-          content: content.text || null,
-        });
-      } else if ('role' in content && content.role === 'user') {
-        const geminiContent = content as GeminiContent;
-        unifiedRequest.messages.push({
-          role: 'user',
-          content:
-            geminiContent.parts?.map((part) => ({
-              type: 'text' as const,
-              text: (part as GeminiTextPart).text || '',
-            })) || [],
-        });
-      } else if ((content as GeminiContent).role === 'model') {
-        unifiedRequest.messages.push({
-          role: 'assistant',
-          content:
-            (content as GeminiContent).parts?.map((part) => ({
-              type: 'text' as const,
-              text: (part as GeminiTextPart).text || '',
-            })) || [],
+          role: 'tool',
+          tool_call_id: id,
+          content: toolContent,
         });
       }
+
+      // Build tool_calls array from functionCall parts, remembering each call's
+      // id so the following functionResponse (matched by name) can re-use it.
+      const toolCalls: ToolCall[] = functionCalls.map((p) => {
+        const id = p.functionCall.id || `tool_${Math.random().toString(36).substring(2, 15)}`;
+        if (p.functionCall.name) {
+          lastToolCallIdByName.set(p.functionCall.name, id);
+        }
+        return {
+          id,
+          type: 'function',
+          function: {
+            name: p.functionCall.name,
+            arguments: JSON.stringify(p.functionCall.args ?? {}),
+          },
+        };
+      });
+
+      // If this content held ONLY functionResponses, the tool messages above are
+      // the whole story — do not also emit an empty user message.
+      const onlyToolResults =
+        functionResponses.length > 0 &&
+        textParts.length === 0 &&
+        functionCalls.length === 0 &&
+        contentParts.length === 0 &&
+        !thinkingText &&
+        !signature;
+      if (onlyToolResults) continue;
+
+      // Compose the unified message content. Prefer a plain string for
+      // text-only contents (the common case); otherwise build a content array.
+      let messageContent: string | null | Array<Record<string, unknown>>;
+      if (contentParts.length > 0) {
+        messageContent = [
+          ...textParts.map((p) => ({ type: 'text', text: p.text })),
+          ...contentParts,
+        ];
+      } else {
+        messageContent = textParts.map((p) => p.text).join('\n') || null;
+      }
+
+      const message: UnifiedMessage = { role, content: messageContent };
+      if (toolCalls.length > 0) {
+        message.tool_calls = toolCalls;
+      }
+      if (signature || thinkingText) {
+        message.thinking = { content: thinkingText || '', signature };
+      }
+      unifiedRequest.messages.push(message);
     }
   }
 
@@ -374,7 +502,9 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
             function: {
               name: funcDecl.name,
               description: funcDecl.description ?? '',
-              parameters: (funcDecl.parameters ?? {}) as unknown as UnifiedTool['function']['parameters'],
+              parameters: (funcDecl.parameters ??
+                funcDecl.parametersJsonSchema ??
+                {}) as unknown as UnifiedTool['function']['parameters'],
             },
           });
         }
