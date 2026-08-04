@@ -148,7 +148,7 @@ export function buildAnthropicRequestBody(request: UnifiedChatRequest): Record<s
   const body: Record<string, unknown> = {
     model: request.model,
     messages: anthropicMessages,
-    max_tokens: request.max_tokens || 4096,
+    max_tokens: request.max_tokens ?? 4096,
     stream: request.stream ?? false,
   };
 

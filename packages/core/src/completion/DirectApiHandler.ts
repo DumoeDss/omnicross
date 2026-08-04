@@ -40,7 +40,7 @@ export async function callOpenAICompletion(
     model: options.model,
     messages: options.messages.map(m => convertMessageToOpenAI(m)),
     // Only set max_tokens if explicitly provided, otherwise let API use its default
-    ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
+    ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     temperature: options.temperature,
     stream: false, // For now, non-streaming only
   };
@@ -111,7 +111,7 @@ export async function callAnthropicCompletion(
 
     const anthropicRequest = {
       model: options.model,
-      max_tokens: options.maxTokens || 16384,
+      max_tokens: options.maxTokens ?? 16384,
       temperature: options.temperature,
       ...(systemMessages.length > 0 ? { system: systemMessages.map(m => m.content).join('\n\n') } : {}),
       messages: nonSystemMessages.map(m => convertMessageToAnthropic(m)),
@@ -166,7 +166,7 @@ export async function callAnthropicCompletion(
       content: m.content,
     })),
     // Anthropic requires max_tokens; use 16384 default if not explicitly set
-    max_tokens: options.maxTokens || 16384,
+    max_tokens: options.maxTokens ?? 16384,
     temperature: options.temperature,
     stream: false,
   };
@@ -248,7 +248,7 @@ export async function callGeminiCompletion(
   const request: Record<string, unknown> = {
     contents,
     generationConfig: {
-      ...(options.maxTokens ? { maxOutputTokens: options.maxTokens } : {}),
+      ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
       ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     },
   };
@@ -343,7 +343,7 @@ export async function callOpenAIResponseCompletion(
     model: options.model,
     input,
     stream: false,
-    ...(options.maxTokens ? { max_output_tokens: options.maxTokens } : {}),
+    ...(options.maxTokens !== undefined ? { max_output_tokens: options.maxTokens } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
   };
 

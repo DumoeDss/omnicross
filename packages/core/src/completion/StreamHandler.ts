@@ -44,7 +44,7 @@ export async function streamOpenAICompletion(
     model: options.model,
     messages: options.messages.map(m => convertMessageToOpenAI(m)),
     // Only set max_tokens if explicitly provided, otherwise let API use its default
-    ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
+    ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     temperature: options.temperature,
     stream: true,
   };
@@ -135,7 +135,7 @@ export async function streamAnthropicCompletion(
   // - Some proxies have lower limits than official Anthropic API
   // Cap max_tokens first, then calculate thinking budget based on that
   const MAX_TOKENS_FOR_THINKING = 16384; // Safe limit for most proxies
-  let effectiveMaxTokens = options.maxTokens || 16384;
+  let effectiveMaxTokens = options.maxTokens ?? 16384;
 
   // Build thinking configuration if thinkLevel is set
   // Use the capped max_tokens for budget calculation
@@ -299,7 +299,7 @@ export async function streamGeminiCompletion(
   const request: Record<string, unknown> = {
     contents,
     generationConfig: {
-      ...(options.maxTokens ? { maxOutputTokens: options.maxTokens } : {}),
+      ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
       ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
     },
   };
@@ -392,7 +392,7 @@ export async function streamOpenAIResponseCompletion(
     model: options.model,
     input,
     stream: true,
-    ...(options.maxTokens ? { max_output_tokens: options.maxTokens } : {}),
+    ...(options.maxTokens !== undefined ? { max_output_tokens: options.maxTokens } : {}),
     ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
   };
 

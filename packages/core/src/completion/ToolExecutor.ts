@@ -96,7 +96,10 @@ export function buildToolRequest(
 
     requestBody = {
       contents,
-      tools: options.tools
+      tools: options.tools,
+      ...(options.maxTokens !== undefined
+        ? { generationConfig: { maxOutputTokens: options.maxTokens } }
+        : {}),
     };
 
     // TEMPORARY: Use non-streaming endpoint for debugging
@@ -109,7 +112,8 @@ export function buildToolRequest(
         role: m.role,
         content: m.content
       })),
-      max_tokens: options.maxTokens || 4096,
+      // Native Anthropic Messages requires this field.
+      max_tokens: options.maxTokens ?? 4096,
       temperature: options.temperature ?? 0.7,
       stream: true,
       tools: options.tools
@@ -129,7 +133,7 @@ export function buildToolRequest(
         role: m.role,
         content: m.content
       })),
-      max_tokens: options.maxTokens || 4096,
+      ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
       temperature: options.temperature ?? 0.7,
       stream: true,
       tools: options.tools

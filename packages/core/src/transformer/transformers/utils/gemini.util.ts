@@ -72,6 +72,7 @@ export interface GeminiTool {
 }
 
 export interface GeminiGenerationConfig {
+  maxOutputTokens?: number;
   thinkingConfig?: {
     includeThoughts?: boolean;
     thinkingLevel?: string;
@@ -241,6 +242,10 @@ export function buildRequestBody(request: UnifiedChatRequest): GeminiRequestBody
   // Build generation config
   const generationConfig: GeminiGenerationConfig = {};
 
+  if (request.max_tokens !== undefined) {
+    generationConfig.maxOutputTokens = request.max_tokens;
+  }
+
   if (request.reasoning?.effort && request.reasoning.effort !== 'none') {
     generationConfig.thinkingConfig = {
       includeThoughts: true,
@@ -323,7 +328,8 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
   const contents = request.contents as GeminiContent[] | undefined;
   const tools = request.tools as GeminiTool[] | undefined;
   const model = request.model as string;
-  const maxTokens = request.max_tokens as number | undefined;
+  const generationConfig = request.generationConfig as GeminiGenerationConfig | undefined;
+  const maxTokens = generationConfig?.maxOutputTokens ?? request.max_tokens as number | undefined;
   const temperature = request.temperature as number | undefined;
   const stream = request.stream as boolean | undefined;
   const toolChoice = request.tool_choice as string | undefined;

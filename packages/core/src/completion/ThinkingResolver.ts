@@ -24,11 +24,11 @@ import { resolveApiFormat } from './';
  * Resolve effective max_tokens value with priority:
  * 1. Session settings (if provided)
  * 2. Global model parameters (if enabled)
- * 3. Model's maxTokens from provider config
- * 4. Discovered models cache (from API)
- * 5. undefined - let API use its default
+ * 3. undefined - let API use its default
  *
- * Note: Returns undefined to let the API use its own default.
+ * Model-catalog `maxTokens` values describe hard capabilities, not a user's
+ * desired per-request output cap. They must never be promoted into request
+ * parameters implicitly. Returns undefined to let the API use its own default.
  * Use getRequiredMaxTokens() for providers that require max_tokens (e.g., Anthropic)
  *
  * @param llmConfig - The provider-config source (the host's config service)
@@ -41,10 +41,10 @@ import { resolveApiFormat } from './';
  */
 export async function resolveEffectiveMaxTokens(
   llmConfig: ProviderConfigSource,
-  getProvider: (providerId: string) => Promise<LLMProvider | null>,
+  _getProvider: (providerId: string) => Promise<LLMProvider | null>,
   logger: Logger,
-  providerId: string,
-  modelId: string,
+  _providerId: string,
+  _modelId: string,
   sessionMaxTokens?: number
 ): Promise<number | undefined> {
   // 1. Session settings take highest priority
@@ -64,64 +64,8 @@ export async function resolveEffectiveMaxTokens(
     logger.warn('Failed to get global params', err instanceof Error ? err : undefined);
   }
 
-  // Cap for auto-resolved maxTokens to avoid exceeding context window
-  // (input_tokens + max_tokens must be <= context_length)
-  // Note: User-specified values (session settings, global params) are NOT capped
-  //
-  // Bumped 65536 → 131072 (2026-05-06): GLM-5.1 ships a 128k output ceiling
-  // and large generated artifacts (full HTML + scaling JS + multi-slide
-  // content) can need 30-60k output tokens. The previous 64k cap silently
-  // halved the model's capability for any preset-driven session.
-  // 200k context − 128k output still leaves 72k for input, which covers
-  // even very heavy system prompts.
-  const MAX_TOKENS_CAP = 131072;
-
-  // 3. Check model's maxTokens from provider config
-  const provider = await getProvider(providerId);
-  if (provider) {
-    // Check modelConfigs
-    const modelConfig = provider.modelConfigs?.find(m => m.id === modelId);
-    if (modelConfig?.maxTokens && modelConfig.maxTokens > 0) {
-      const cappedMaxTokens = Math.min(modelConfig.maxTokens, MAX_TOKENS_CAP);
-      logger.debug('Using model config maxTokens', {
-        maxTokens: modelConfig.maxTokens,
-        cappedMaxTokens
-      });
-      return cappedMaxTokens;
-    }
-
-    // Check modelGroups
-    if (provider.modelGroups) {
-      for (const group of provider.modelGroups) {
-        const model = group.models?.find(m => m.id === modelId);
-        if (model?.maxTokens && model.maxTokens > 0) {
-          const cappedMaxTokens = Math.min(model.maxTokens, MAX_TOKENS_CAP);
-          logger.debug('Using modelGroup model maxTokens', {
-            maxTokens: model.maxTokens,
-            cappedMaxTokens
-          });
-          return cappedMaxTokens;
-        }
-      }
-    }
-  }
-
-  // 4. Check discovered models cache (from model discovery API)
-  try {
-    const discoveredMaxTokens = await llmConfig.getDiscoveredModelMaxTokens(providerId, modelId);
-    if (discoveredMaxTokens && discoveredMaxTokens > 0) {
-      const cappedMaxTokens = Math.min(discoveredMaxTokens, MAX_TOKENS_CAP);
-      logger.debug('Using discovered model maxTokens', {
-        discoveredMaxTokens,
-        cappedMaxTokens
-      });
-      return cappedMaxTokens;
-    }
-  } catch (err) {
-    logger.warn('Failed to get discovered model maxTokens', err instanceof Error ? err : undefined);
-  }
-
-  // 5. Return undefined to let API use its default
+  // Capability metadata and discovery results intentionally do not participate
+  // here. They are validation inputs, not an instruction to cap every request.
   logger.debug('No maxTokens configured, returning undefined');
   return undefined;
 }

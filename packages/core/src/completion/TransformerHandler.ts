@@ -98,6 +98,24 @@ async function resolveChainWithMain(
   return resolveProviderChain(llmConfig, providerId, model);
 }
 
+/** Build the unified request without inventing an optional output-token cap. */
+export function buildUnifiedCompletionRequest(
+  actualModel: string,
+  options: CompletionOptions,
+  stream: boolean,
+): UnifiedChatRequest {
+  return {
+    model: actualModel,
+    messages: options.messages.map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+      content: m.content,
+    })),
+    ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+    temperature: options.temperature,
+    stream,
+  };
+}
+
 /**
  * Send a completion request using transformer chain.
  * This method uses the provider's configured transformers for request/response transformation.
@@ -148,16 +166,11 @@ export async function completeWithTransformers(
     }
 
     // Build unified request (using actual model ID)
-    const unifiedRequest: UnifiedChatRequest = {
-      model: actualModel,
-      messages: options.messages.map(m => ({
-        role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-        content: m.content
-      })),
-      max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature,
-      stream: options.stream ?? false
-    };
+    const unifiedRequest = buildUnifiedCompletionRequest(
+      actualModel,
+      options,
+      options.stream ?? false,
+    );
 
     // Convert provider to transformer LLMProvider format
     const transformerProvider: TransformerLLMProvider = {
@@ -353,16 +366,7 @@ export async function completeStreamWithTransformers(
     callbacks.onStart?.(messageId);
 
     // Build unified request (using actual model ID)
-    const unifiedRequest: UnifiedChatRequest = {
-      model: actualModel,
-      messages: options.messages.map(m => ({
-        role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-        content: m.content
-      })),
-      max_tokens: options.maxTokens || 4096,
-      temperature: options.temperature,
-      stream: true
-    };
+    const unifiedRequest = buildUnifiedCompletionRequest(actualModel, options, true);
 
     // Convert provider to transformer LLMProvider format
     const transformerProvider: TransformerLLMProvider = {

@@ -579,9 +579,10 @@ export class CompletionService {
    * Resolve effective max_tokens value with priority:
    * 1. Session settings (if provided)
    * 2. Global model parameters (if enabled)
-   * 3. Model's maxTokens from provider config
-   * 4. Discovered models cache (from API)
-   * 5. undefined - let API use its default
+   * 3. undefined - let API use its default
+   *
+   * Provider and discovery maxTokens values are capability metadata, not
+   * implicit per-request output limits.
    */
   async resolveEffectiveMaxTokens(
     providerId: string,
