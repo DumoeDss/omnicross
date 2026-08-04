@@ -22,6 +22,8 @@
 
 import { adminClient } from './adminClient';
 import type {
+  AccountAllowanceSchedulingStatus,
+  AllowanceSchedulingConfig,
   AgentApiServiceApi,
   CreateKeyResult,
   GenerateVoucherResult,
@@ -237,6 +239,31 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update queue configuration');
+      }
+    },
+
+    async updateAllowanceSchedulingConfig(
+      allowanceScheduling: AllowanceSchedulingConfig,
+    ): Promise<MutationResult> {
+      try {
+        const data = await adminClient.put<ServerPutResponse>('/server', { allowanceScheduling });
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update allowance scheduling');
+      }
+    },
+
+    async getAllowanceSchedulingStatus(): Promise<AccountAllowanceSchedulingStatus | null> {
+      try {
+        const data = await adminClient.get<{ scheduling: AccountAllowanceSchedulingStatus }>(
+          '/accounts/allowances/scheduling',
+        );
+        return data.scheduling ?? null;
+      } catch {
+        // Compatibility seam: older daemons do not expose diagnostics. The
+        // settings surface keeps the persisted policy editable and labels the
+        // history as unavailable instead of treating this as a page failure.
+        return null;
       }
     },
 

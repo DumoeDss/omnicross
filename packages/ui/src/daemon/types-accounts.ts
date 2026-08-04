@@ -14,8 +14,8 @@ export type SubscriptionProviderId = 'claude' | 'codex' | 'gemini' | 'opencodego
 /** Token lifecycle status. */
 export type TokenStatus = 'unconfigured' | 'authorized' | 'configured' | 'expired' | 'error';
 
-/** Credential-sync warning code (external-cli-sync, computed by the daemon). */
-export type SyncWarningCode = 'external-divergent' | 'external-not-rotated' | 'duplicate-token';
+/** Managed-account credential warning code computed by the daemon. */
+export type SyncWarningCode = 'duplicate-token';
 
 /** Status of a single subscription provider's credential. */
 export interface SubscriptionStatusEntry {
@@ -52,6 +52,9 @@ export interface SubscriptionListEntry {
 export interface SubscriptionAccountSanitized {
   id: string;
   label?: string;
+  enabled: boolean;
+  group: string;
+  tags: string[];
   status: TokenStatus;
   authMethod?: string;
   subscriptionLevel?: string;
@@ -60,6 +63,13 @@ export interface SubscriptionAccountSanitized {
   isSetupToken?: boolean;
   hasAccessToken: boolean;
   isActive: boolean;
+  schedulable: boolean;
+  /** Read-only projection of the configured allowance scheduling policy. */
+  allowanceAction?: 'normal' | 'demote' | 'pause' | 'ignore';
+  allowanceEffectivePriority?: number;
+  allowanceUsedPercent?: number;
+  allowanceResumeAt?: string;
+  errorMessage?: string;
   /** Editable scheduling precedence (subscription-account-scheduling); default 50
    *  when absent (lower = higher precedence). */
   priority?: number;
@@ -107,6 +117,74 @@ export interface AccountsListResponse {
    * affordance. Pure presence booleans, never a token. Absent on older daemons.
    */
   externalCli?: { claude?: boolean; codex?: boolean };
+}
+
+/** Deny-by-default non-secret account metadata patch accepted by the daemon. */
+export interface AccountManagementPatch {
+  label?: string;
+  enabled?: boolean;
+  priority?: number;
+  group?: string | null;
+  tags?: string[];
+}
+
+export interface AccountManagementRef {
+  providerId: SubscriptionProviderId;
+  accountId: string;
+}
+
+export type AccountBatchInput =
+  | { action: 'enable' | 'disable' | 'delete'; accounts: AccountManagementRef[] }
+  | { action: 'set-group'; accounts: AccountManagementRef[]; group: string | null };
+
+export interface AccountProbeRecord {
+  ts: number;
+  ok: boolean;
+  status?: number | null;
+  latencyMs?: number;
+  tier: 'local' | 'upstream';
+}
+
+export interface AccountConnectionTestResult {
+  success: boolean;
+  ok?: boolean;
+  marked?: boolean;
+  message?: string;
+}
+
+/** Availability/freshness of one normalized subscription allowance window. */
+export type AllowanceWindowState = 'fresh' | 'stale' | 'unavailable' | 'unsupported';
+
+/** Secret-free normalized allowance window returned by the daemon. */
+export interface AllowanceWindow {
+  id: string;
+  label: string;
+  scope: 'all' | 'model-family';
+  modelFamily?: string;
+  usedPercent: number | null;
+  windowMinutes?: number;
+  resetsAt?: string;
+  remainingSeconds?: number;
+  state: AllowanceWindowState;
+}
+
+/** Secret-free allowance snapshot for one managed subscription account. */
+export interface AccountAllowanceSnapshot {
+  providerId: SubscriptionProviderId;
+  accountId: string;
+  source: 'oauth-usage-api' | 'response-headers';
+  observedAt: string;
+  expiresAt?: string;
+  windows: AllowanceWindow[];
+  lastErrorCode?: string;
+  primaryOverSecondaryLimitPercent?: number;
+}
+
+/** Honest adapter result: a failed allowance request never erases cached rows. */
+export interface AccountAllowancesResult {
+  success: boolean;
+  allowances: AccountAllowanceSnapshot[];
+  message?: string;
 }
 
 // ── Per-provider token-write input shapes (allowlisted fields ONLY) ───────────

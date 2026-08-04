@@ -18,10 +18,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isTauri } from '@tauri-apps/api/core';
 
 import { agent } from '@/shared/agent';
 
 import type {
+  AccountAllowanceSchedulingStatus,
   AccountsListResponse,
   AuditRecord,
   BillingDeliveryStatus,
@@ -73,6 +75,10 @@ export interface UseApiServiceResult {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }) => Promise<void>;
+  updateAllowanceSchedulingConfig: (
+    config: NonNullable<OutboundApiServerConfig['allowanceScheduling']>,
+  ) => Promise<void>;
+  getAllowanceSchedulingStatus: () => Promise<AccountAllowanceSchedulingStatus | null>;
   updateProxyConfig: (proxy: OutboundApiServerConfig['proxy'] | undefined) => Promise<void>;
   updateWebhookConfig: (webhook: OutboundApiServerConfig['webhook'] | undefined) => Promise<void>;
   testWebhook: (destinationId: string) => Promise<WebhookTestResult>;
@@ -148,17 +154,33 @@ export function useApiService(): UseApiServiceResult {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const [cfg, st, ks, vs, provs, accts] = await Promise.all([
-        agent.apiService.getConfig(),
-        agent.apiService.getStatus(),
-        agent.apiService.listKeys(),
-        agent.apiService.listVouchers(),
-        agent.llmConfig.getProviders().catch(() => [] as LLMProvider[]),
-        agent.accounts.list().catch(() => ({
-          accounts: [],
-          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
-        })),
-      ]);
+      // The Tauri webview can mount a fraction before its bundled daemon has
+      // bound the admin port. Retry only that cold-start window; browser mode
+      // keeps the existing fail-fast behavior when no daemon is running.
+      const attempts = isTauri() ? 20 : 1;
+      let cfg: OutboundApiServerConfig | null = null;
+      let st: OutboundApiServerStatus | null = null;
+      let ks: OutboundApiKeyInfo[] = [];
+      let vs: VoucherInfo[] = [];
+      let provs: LLMProvider[] = [];
+      let accts: AccountsListResponse = {
+        accounts: [],
+        providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+      };
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        [cfg, st, ks, vs, provs, accts] = await Promise.all([
+          agent.apiService.getConfig(),
+          agent.apiService.getStatus(),
+          agent.apiService.listKeys(),
+          agent.apiService.listVouchers(),
+          agent.llmConfig.getProviders().catch(() => [] as LLMProvider[]),
+          agent.accounts.list().catch(() => accts),
+        ]);
+        if (cancelled || (cfg && st)) break;
+        if (attempt + 1 < attempts) {
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+        }
+      }
       if (cancelled) return;
       setConfig(cfg);
       setStatus(st);
@@ -312,6 +334,18 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const updateAllowanceSchedulingConfig = useCallback(
+    async (allowanceScheduling: NonNullable<OutboundApiServerConfig['allowanceScheduling']>) => {
+      await runWrite(() => agent.apiService.updateAllowanceSchedulingConfig(allowanceScheduling));
+    },
+    [runWrite],
+  );
+
+  const getAllowanceSchedulingStatus = useCallback(
+    () => agent.apiService.getAllowanceSchedulingStatus(),
+    [],
+  );
+
   const updateProxyConfig = useCallback(
     async (proxy: OutboundApiServerConfig['proxy'] | undefined) => {
       await runWrite(() => agent.apiService.updateProxyConfig(proxy));
@@ -426,6 +460,8 @@ export function useApiService(): UseApiServiceResult {
     setKeyMaxConcurrency,
     setKeyPolicy,
     updateQueueConfig,
+    updateAllowanceSchedulingConfig,
+    getAllowanceSchedulingStatus,
     updateProxyConfig,
     updateWebhookConfig,
     testWebhook,

@@ -37,6 +37,9 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     keyHash: string;
     keyPrefix: string;
     createdAt?: number;
+    kind?: 'client' | 'integration';
+    allowedEndpoints?: import('@omnicross/core').OutboundEndpoint[];
+    loopbackOnly?: boolean;
   }): Promise<OutboundKeyDbRow> {
     const rows = this.readRows();
     const row: OutboundKeyDbRow = {
@@ -48,6 +51,9 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
       createdAt: input.createdAt ?? Date.now(),
       lastUsedAt: null,
       revokedAt: null,
+      kind: input.kind,
+      allowedEndpoints: input.allowedEndpoints,
+      loopbackOnly: input.loopbackOnly,
     };
     rows.push(row);
     this.writeRows(rows);

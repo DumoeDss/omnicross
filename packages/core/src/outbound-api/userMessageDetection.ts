@@ -7,8 +7,7 @@
  * concurrent humans. Only human-INITIATED turns should be serialized; a
  * tool-loop turn (the client feeding a tool result back) must NOT be throttled
  * or it stalls the agent. This module classifies the LAST turn per ingress
- * format, aligned to claude-relay-service's `isUserMessageRequest` semantics but
- * covering all four omnicross ingress formats.
+ * format and covers all four Omnicross ingress formats.
  *
  * SAFETY BIAS: default `false` (bypass) on any shape it cannot POSITIVELY
  * classify as a human turn. Under-serializing only costs the (opt-in, default-

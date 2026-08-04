@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme tokens ported from the upstream renderer's index.css (light :root + dark
+/* Shared theme tokens for the light :root and dark
    .dark). De-branded: only the semantic surface/text/accent/radius tokens the
    Provider page consumes are kept; per-skin font/wallpaper layers are dropped.
    Fonts fall back to system stacks (the Inter/JetBrains web fonts are not
@@ -99,5 +99,38 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     margin: 0;
+  }
+
+  :focus-visible {
+    scroll-margin: 0.75rem;
+  }
+}
+
+@layer utilities {
+  .request-path-live::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: hsl(var(--success));
+    box-shadow: 0 0 0 3px hsl(var(--surface-1));
+    animation: request-path-travel 3.2s linear infinite;
+  }
+}
+
+@keyframes request-path-travel {
+  from { left: 0; }
+  to { left: calc(100% - 5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -8,11 +8,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_ACCOUNT_PROBE,
+  DEFAULT_ALLOWANCE_SCHEDULING,
   DEFAULT_CONCURRENCY_QUEUE,
   DEFAULT_USER_MESSAGE_QUEUE,
   defaultServerConfig,
   mergeServerConfig,
   normalizeAccountProbe,
+  normalizeAllowanceScheduling,
   normalizeServerConfig,
 } from '../apiServerConfig';
 import type { EndpointRoutingConfig, OutboundApiServerConfig, OutboundEndpoint } from '../types';
@@ -152,6 +154,60 @@ describe('normalizeServerConfig — no migration', () => {
     expect(chat).not.toHaveProperty('backgroundModelIds');
   });
 
+  it('migrates a bound endpoint without policy to strict failure and round-trips pool opt-in', () => {
+    const strict = endpoint(
+      normalizeServerConfig({
+        endpoints: [
+          {
+            endpoint: 'messages',
+            modelMap: { opus: 'claude,claude-opus' },
+            useSubscription: true,
+            boundAccountId: ' acct-strict ',
+          },
+        ],
+      } as unknown as Partial<OutboundApiServerConfig>),
+      'messages',
+    );
+    expect(strict.boundAccountId).toBe('acct-strict');
+    expect(strict.boundAccountFallbackPolicy).toBe('strict');
+
+    const pool = endpoint(
+      normalizeServerConfig({
+        endpoints: [
+          {
+            endpoint: 'messages',
+            useSubscription: true,
+            boundAccountId: 'acct-pool',
+            boundAccountFallbackPolicy: 'pool',
+          },
+        ],
+      } as unknown as Partial<OutboundApiServerConfig>),
+      'messages',
+    );
+    expect(pool.boundAccountFallbackPolicy).toBe('pool');
+  });
+
+  it('drops a policy when the binding is blank and rejects invalid policy values to strict', () => {
+    const config = normalizeServerConfig({
+      endpoints: [
+        {
+          endpoint: 'messages',
+          useSubscription: true,
+          boundAccountId: '   ',
+          boundAccountFallbackPolicy: 'pool',
+        },
+        {
+          endpoint: 'responses',
+          useSubscription: true,
+          boundAccountId: 'acct-1',
+          boundAccountFallbackPolicy: 'unexpected',
+        },
+      ],
+    } as unknown as Partial<OutboundApiServerConfig>);
+    expect(endpoint(config, 'messages')).not.toHaveProperty('boundAccountFallbackPolicy');
+    expect(endpoint(config, 'responses').boundAccountFallbackPolicy).toBe('strict');
+  });
+
   it('missing/blank raw → full default shape', () => {
     expect(normalizeServerConfig(undefined)).toEqual(defaultServerConfig());
     expect(normalizeServerConfig(null)).toEqual(defaultServerConfig());
@@ -234,5 +290,40 @@ describe('normalizeAccountProbe (subscription-account-probe #8)', () => {
     });
     expect(probe.enabled).toBe(false); // non-true ⇒ false
     expect(probe.onlyMultiAccount).toBe(true); // absent ⇒ true
+  });
+});
+
+describe('normalizeAllowanceScheduling', () => {
+  it('defaults OFF and is included in the persisted server shape', () => {
+    expect(normalizeAllowanceScheduling(undefined)).toEqual(DEFAULT_ALLOWANCE_SCHEDULING);
+    expect(defaultServerConfig().allowanceScheduling).toEqual(DEFAULT_ALLOWANCE_SCHEDULING);
+    expect(DEFAULT_ALLOWANCE_SCHEDULING.enabled).toBe(false);
+  });
+
+  it('clamps thresholds and never lets pause precede demotion', () => {
+    expect(normalizeAllowanceScheduling({
+      allowanceScheduling: {
+        enabled: true,
+        demoteAtPercent: 90,
+        pauseAtPercent: 50,
+        priorityPenalty: 9_999,
+      },
+    })).toEqual({
+      enabled: true,
+      demoteAtPercent: 90,
+      pauseAtPercent: 90,
+      priorityPenalty: 1_000,
+    });
+  });
+
+  it('coerces enabled strictly and restores invalid numeric values', () => {
+    expect(normalizeAllowanceScheduling({
+      allowanceScheduling: {
+        enabled: 'yes',
+        demoteAtPercent: Number.NaN,
+        pauseAtPercent: Number.POSITIVE_INFINITY,
+        priorityPenalty: 0,
+      } as unknown as typeof DEFAULT_ALLOWANCE_SCHEDULING,
+    })).toEqual({ ...DEFAULT_ALLOWANCE_SCHEDULING, priorityPenalty: 1 });
   });
 });

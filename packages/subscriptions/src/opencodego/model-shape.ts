@@ -2,13 +2,11 @@
  * OpenCodeGo upstream shape resolver.
  *
  * Classifies a resolved provider model id into one of the upstream wire shapes,
- * keyed on the provider HALF the model lives on (`go` vs `zen`). Mirrors the
- * routing in `_others/oc-go-cc/internal/client/opencode.go`
- * (`ClassifyEndpoint` / `IsAnthropicModel` / `getEndpoint`).
+ * keyed on the provider half the model lives on (`go` vs `zen`).
  *
  * - GO half: most models are OpenAI-shape (`chat`); the MiniMax family is
  *   Anthropic-shape `/v1/messages`. (UNCHANGED from the original detector.)
- * - ZEN half: the reference's four-endpoint classifier — `anthropic`
+ * - ZEN half: a four-endpoint classifier — `anthropic`
  *   (`claude*` / `minimax*` / explicit `qwen3.7-max`), `gemini` (`gemini-*`),
  *   `responses` (`gpt-5*` / `*-codex`), else `chat`.
  *
@@ -21,55 +19,46 @@ import type { OpenCodeGoModelEntry, OpenCodeGoScenario } from '@omnicross/contra
 
 export type OpenCodeGoShape = 'anthropic' | 'chat' | 'responses' | 'gemini';
 
-/** Provider half a model lives on (mirrors the reference `ModelConfig.Provider`). */
+/** Provider half a model lives on. */
 export type OpenCodeGoHalf = 'go' | 'zen';
 
-/** Model id prefixes (case-insensitive) that route to the Anthropic-shape upstream
- *  on the GO half. (UNCHANGED — the reference's go-half anthropic family.) */
+/** Model id prefixes (case-insensitive) that route to the Anthropic-shaped upstream
+ * on the GO half. */
 const GO_ANTHROPIC_SHAPE_PREFIXES: readonly string[] = ['minimax-', 'minimax_'];
 
 /**
- * The reference's `gpt-5*` / `*-codex` Responses family
- * (`_others/oc-go-cc/internal/client/opencode.go` `isResponsesModel`). Ported as
- * a `gpt-5*` PREFIX (covers the whole listed family + near-future ids) plus the
- * `*-codex` suffix rule — strictly a superset of the reference's hard-coded list,
- * so every reference id still classifies as `responses`.
+ * Responses-compatible models use the `gpt-5*` prefix or `*-codex` suffix. The
+ * prefix rule also covers future model ids in the same family.
  */
 function isZenResponsesModel(modelId: string): boolean {
   return modelId.startsWith('gpt-5') || modelId.endsWith('-codex');
 }
 
 /**
- * The reference's gemini family (`isGeminiModel`). The reference hard-codes three
- * ids (`gemini-3.5-flash` / `gemini-3.1-pro` / `gemini-3-flash`); we accept the
- * `gemini-` PREFIX as a forward-compatible superset (a documented deliberate
- * widening — the prefix is the CORRECT endpoint for the whole family, the inverse
- * judgment from the qwen* fix below).
+ * Gemini models use a family prefix so newly introduced ids select the correct
+ * wire protocol without a catalog update.
  */
 function isZenGeminiModel(modelId: string): boolean {
   return modelId.startsWith('gemini-');
 }
 
 /**
- * The reference's Anthropic-shape zen family — WITH the deliberate `qwen*`
- * over-capture FIX (LEAD Q2). The reference's `isZenAnthropicModel` routes ANY
- * `qwen*` prefix to `/v1/messages`, which mis-sends qwen *chat* models. We route
- * ONLY the explicit `qwen3.7-max` (plus `claude*` / `minimax*`); all other qwen
- * ids fall through to `chat`. This is a DOCUMENTED divergence (the reference
- * behavior is a latent bug). `// UNVERIFIED (no live zen key)` — if opencode.ai's
+ * Anthropic-shaped ZEN models include the Claude and MiniMax families plus the
+ * explicit `qwen3.7-max` model. Other Qwen ids fall through to `chat`.
+ * `// UNVERIFIED (no live zen key)` — if opencode.ai's
  * real zen backend genuinely expects all `qwen*` on `/v1/messages`, this would
  * misroute; no live key exists to confirm either way, so the documented-correct
  * behavior wins.
  */
 function isZenAnthropicModel(modelId: string): boolean {
   if (modelId.startsWith('claude') || modelId.startsWith('minimax')) return true;
-  // Explicit single-id only — NOT the reference's `qwen*` prefix.
+  // Explicit single id only; other Qwen models use the chat protocol.
   return modelId === 'qwen3.7-max';
 }
 
 /**
- * Classify a ZEN-half model id into the four wire shapes — ported from the
- * reference `ClassifyEndpoint` (anthropic → gemini → responses → chat order).
+ * Classify a ZEN-half model id into the four wire shapes
+ * (anthropic → gemini → responses → chat order).
  * Case-insensitive (lower-cased before matching) to mirror the rest of the
  * resolver.
  */

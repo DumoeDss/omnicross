@@ -14,6 +14,7 @@ import { parseArgs } from 'node:util';
 
 import { loadServerConfig, OutboundApiConfigError } from '@omnicross/core/outbound-api';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 
 import { applyAuditConfig } from '../audit/auditRuntime';
 import { applyBillingConfig } from '../billing/billingRuntime';
@@ -73,6 +74,8 @@ export async function runStart(argv: string[]): Promise<StartResult> {
     overloadEnabled: serverConfig.accountHealth?.overloadCooldownEnabled,
     overloadTtlMs: serverConfig.accountHealth?.overloadCooldownMs,
   });
+  getSharedAccountAllowanceScheduling().configure(serverConfig.allowanceScheduling);
+  daemon.claudeAllowanceRefreshScheduler.configure(serverConfig.allowanceScheduling);
 
   // Startup gate (model-kind-mapping): if the persisted config enables the
   // outbound server but a kind-mapped endpoint (messages/responses) is missing
@@ -114,6 +117,17 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // expiry lead window — an idle daemon stays warm instead of paying the
   // refresh (or a dead rotated token) on the first request.
   daemon.tokenRefreshScheduler.start();
+
+  // Allowance-aware routing ignores stale Claude snapshots. Keep that cache
+  // warm in the resident daemon even when the dashboard is closed. The worker
+  // is completely inert unless the persisted scheduling policy is enabled;
+  // start/configure never await upstream I/O. Codex remains response-driven.
+  daemon.claudeAllowanceRefreshScheduler.start();
+
+  // Pricing uses stale-while-revalidate: serve the durable local table
+  // immediately and refresh stale LiteLLM/OpenRouter catalogs in the background.
+  // This call never awaits remote I/O, so dashboard startup is not delayed.
+  daemon.pricingRefreshScheduler.start();
 
   // Proactive account-health recovery (subscription-account-health, D6): surface
   // idle accounts whose cooldown elapsed (fires the recovery signal #5/#8 consume)

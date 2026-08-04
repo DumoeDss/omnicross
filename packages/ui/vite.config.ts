@@ -12,6 +12,8 @@ import { defineConfig } from 'vite';
 // forwards `/admin/*` to it server-side — the browser only ever talks
 // same-origin, exactly like the production `/ui` serving. Override the target
 // with VITE_DAEMON_PROXY_TARGET when the daemon runs elsewhere.
+export const DAEMON_PROXY_TARGET = process.env.VITE_DAEMON_PROXY_TARGET || 'http://127.0.0.1:8766';
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -25,7 +27,11 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/admin': {
-        target: process.env.VITE_DAEMON_PROXY_TARGET || 'http://127.0.0.1:8766',
+        target: DAEMON_PROXY_TARGET,
+        changeOrigin: true,
+      },
+      '/health': {
+        target: DAEMON_PROXY_TARGET,
         changeOrigin: true,
       },
     },

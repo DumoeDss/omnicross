@@ -859,8 +859,6 @@
       "requestFailed": "Požadavek se nezdařil. Zkuste to prosím znovu."
     },
     "syncWarning": {
-      "external-divergent": "Přihlašovací soubor externího CLI obsahuje novější přihlašovací údaje než tento účet. Uložený token se možná přestane obnovovat — obnovte jej nyní nebo se znovu přihlaste.",
-      "external-not-rotated": "Obnovení selhalo a externí CLI obsahuje stejné prošlé přihlašovací údaje. Přihlaste se znovu.",
       "duplicate-token": "Jiný účet sdílí tyto přihlašovací údaje. Obnovení jednoho z nich odhlásí druhý."
     },
     "importExternal": {

@@ -30,6 +30,11 @@ import type {
 } from '@omnicross/contracts/subscription-types';
 
 import type { SubscriptionTokenBlock } from '../ports/JsonSubscriptionCredentialStore';
+import type {
+  AccountBatchMutation,
+  AccountMetadataPatch,
+  AccountRef,
+} from '../ports/account-multi';
 
 /**
  * Least-authority writer handle (design D4): the admin write path sees ONLY the
@@ -49,6 +54,17 @@ export interface SubscriptionTokenWriter {
   /** Set one account's scheduling priority (secret-free; rejects an unknown id).
    *  subscription-account-scheduling — lets an operator order a pool. */
   setAccountPriority(providerId: SubscriptionProviderId, id: string, priority: number): Promise<{ ok: boolean }>;
+  /** Patch non-secret account management metadata in one write. */
+  patchAccountMetadata(
+    providerId: SubscriptionProviderId,
+    id: string,
+    patch: AccountMetadataPatch,
+  ): Promise<{ ok: boolean }>;
+  /** All-or-nothing multi-provider account management mutation. */
+  batchManageAccounts(
+    refs: AccountRef[],
+    mutation: AccountBatchMutation,
+  ): Promise<{ ok: true; affected: number } | { ok: false; missing: AccountRef }>;
   /** Set (or CLEAR, with `undefined`) one account's per-account proxy override
    *  (upstream-proxy). The `proxy.password` is a secret (encrypted at rest, masked
    *  in the sanitized view). Rejects an unknown id. */
@@ -73,15 +89,23 @@ export interface SubscriptionTokenWriter {
   refreshClaudeToken(): Promise<boolean>;
   refreshCodexToken(): Promise<boolean>;
   refreshGeminiToken(): Promise<boolean>;
-  // External CLI import (external-cli-sync): detection is pure file presence
-  // (never a token); import appends + activates a new account and takes managed
-  // ownership of the native store so refreshes write back. Both run entirely
-  // daemon-side — the credential files live on the daemon's machine.
+  // External CLI import: detection is pure file presence (never a token); import
+  // appends + activates a COPY-ONLY account. It never takes ownership of, writes,
+  // or changes the native CLI store. Both run entirely daemon-side — the
+  // credential files live on the daemon's machine.
   listExternalCliAvailability(): Promise<Record<'claude' | 'codex', boolean>>;
   importExternalCliAccount(
     providerId: 'claude' | 'codex',
     label?: string,
-  ): Promise<{ ok: true; id: string } | { ok: false; reason: 'no-credential' }>;
+  ): Promise<
+    | {
+        ok: true;
+        id: string;
+        nativeCredentialMode: 'read-only';
+        refreshWritesNativeCredentials: false;
+      }
+    | { ok: false; reason: 'no-credential' }
+  >;
 }
 
 /** Token-free status reader for the write response (NOT a token-returning surface). */
@@ -101,6 +125,76 @@ export function asSubscriptionProviderId(id: string | undefined): SubscriptionPr
   return VALID_PROVIDER_IDS.includes(id as SubscriptionProviderId)
     ? (id as SubscriptionProviderId)
     : null;
+}
+
+const ACCOUNT_PATCH_KEYS = new Set(['label', 'enabled', 'priority', 'group', 'tags']);
+
+/** Validate a deny-by-default metadata patch. No credential field is accepted. */
+export function validateAccountMetadataPatch(
+  body: Record<string, unknown>,
+): AccountMetadataPatch | null {
+  const keys = Object.keys(body);
+  if (keys.length === 0 || keys.some((key) => !ACCOUNT_PATCH_KEYS.has(key))) return null;
+  const patch: AccountMetadataPatch = {};
+  if ('label' in body) {
+    if (typeof body['label'] !== 'string' || body['label'].trim().length > 120) return null;
+    patch.label = body['label'].trim();
+  }
+  if ('enabled' in body) {
+    if (typeof body['enabled'] !== 'boolean') return null;
+    patch.enabled = body['enabled'];
+  }
+  if ('priority' in body) {
+    const priority = body['priority'];
+    if (typeof priority !== 'number' || !Number.isFinite(priority) || priority < -10_000 || priority > 10_000) return null;
+    patch.priority = priority;
+  }
+  if ('group' in body) {
+    const group = body['group'];
+    if (group !== null && typeof group !== 'string') return null;
+    const normalized = typeof group === 'string' ? group.trim() : null;
+    if (normalized !== null && normalized.length > 80) return null;
+    patch.group = normalized || null;
+  }
+  if ('tags' in body) {
+    const tags = body['tags'];
+    if (!Array.isArray(tags) || tags.length > 20) return null;
+    const normalized = tags.map((tag) => typeof tag === 'string' ? tag.trim() : '');
+    if (normalized.some((tag) => !tag || tag.length > 40)) return null;
+    patch.tags = [...new Set(normalized)];
+  }
+  return patch;
+}
+
+export type ValidAccountBatch = { refs: AccountRef[]; mutation: AccountBatchMutation };
+
+/** Validate a bounded, duplicate-free multi-provider batch request. */
+export function validateAccountBatchBody(body: Record<string, unknown>): ValidAccountBatch | null {
+  const action = body['action'];
+  const rawAccounts = body['accounts'];
+  if (!Array.isArray(rawAccounts) || rawAccounts.length < 1 || rawAccounts.length > 100) return null;
+  if (action !== 'enable' && action !== 'disable' && action !== 'set-group' && action !== 'delete') return null;
+  const refs: AccountRef[] = [];
+  const seen = new Set<string>();
+  for (const raw of rawAccounts) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const row = raw as Record<string, unknown>;
+    const providerId = typeof row['providerId'] === 'string' ? asSubscriptionProviderId(row['providerId']) : null;
+    const accountId = typeof row['accountId'] === 'string' ? row['accountId'].trim() : '';
+    if (!providerId || !accountId || accountId.length > 200) return null;
+    const key = `${providerId}\0${accountId}`;
+    if (seen.has(key)) return null;
+    seen.add(key);
+    refs.push({ providerId, accountId });
+  }
+  if (action === 'set-group') {
+    const group = body['group'];
+    if (group !== null && typeof group !== 'string') return null;
+    const normalized = typeof group === 'string' ? group.trim() : null;
+    if (normalized !== null && normalized.length > 80) return null;
+    return { refs, mutation: { action, group: normalized || null } };
+  }
+  return { refs, mutation: { action } };
 }
 
 // ── Per-provider body validators ──────────────────────────────────────────────

@@ -14,13 +14,13 @@ import type {
 /**
  * Upstream proxy descriptor (upstream-proxy). Routes an outbound upstream call
  * through an http/https or socks5 proxy. Two interchangeable shapes:
- *  - `{ url }`      — a full proxy URL, e.g. `http://user:pass@host:1080` or
+ *  - `{ url }`      a full proxy URL, e.g. `http://user:pass@host:1080` or
  *                     `socks5://host:1080` (userinfo carries basic-auth).
- *  - structured     — an explicit `{ type, host, port, username?, password? }`.
+ *  - structured     an explicit `{ type, host, port, username, password }`.
  *
  * `username`/`password` are SECRETS: encrypted at rest via the same envelope as
  * other credentials, masked in every sanitized/admin view, and never logged
- * (logs carry at most `host:port`). Additive everywhere it appears — absent ⇒ a
+ * (logs carry at most `host:port`). Additive everywhere it appears absent a
  * direct (non-proxied) call, byte-identical to before proxy support.
  */
 export type ProxyConfig =
@@ -38,9 +38,9 @@ export type ProxyConfig =
  * The frozen fingerprint headers a real Claude Code client sent for this account,
  * captured + replayed so relayed traffic presents a stable identity across
  * restarts. NON-secret metadata: it holds ONLY whitelisted fingerprint headers
- * (`x-stainless-*` / user-agent / anthropic-beta / x-app / CC headers) — NEVER
+ * (`x-stainless-*` / user-agent / anthropic-beta / x-app / CC headers) NEVER
  * `authorization` / `x-api-key` / `cookie` (excluded at capture AND at
- * store-normalize). Additive + OPTIONAL — an existing `tokens.json` without it
+ * store-normalize). Additive + OPTIONAL an existing `tokens.json` without it
  * parses unchanged (the account re-captures from a real client). Because it is
  * non-secret it lives on the entry OUTSIDE the encrypted `tokens` block and is
  * not walked by the secrets encryptor.
@@ -73,17 +73,13 @@ export type SubscriptionLevel = 'Free' | 'Pro' | 'Max';
 export type TokenStatus = 'unconfigured' | 'authorized' | 'configured' | 'expired' | 'error';
 
 /**
- * Machine-readable credential-sync warning code (external-cli-sync).
+ * Machine-readable managed-account credential warning code.
  *
- * - `external-divergent`: the external CLI's native credential file (e.g.
- *   `~/.claude/.credentials.json`) holds a DIFFERENT, fresher credential than
- *   the stored account — the stored refresh token may have been rotated out.
- * - `external-not-rotated`: a refresh failed and the external file holds the
- *   SAME dead credential — a genuine revocation, re-login is required.
- * - `duplicate-token`: two accounts of one provider share the same credential —
- *   refreshing one will invalidate the other (single-use refresh tokens).
+ * `duplicate-token` means two managed accounts of one provider share the same
+ * credential. Native CLI credential files are not compared by normal account
+ * listing or refresh paths.
  */
-export type SyncWarningCode = 'external-divergent' | 'external-not-rotated' | 'duplicate-token';
+export type SyncWarningCode = 'duplicate-token';
 
 /**
  * Claude token configuration
@@ -103,8 +99,8 @@ export type ClaudeTokenConfig = {
   // Metadata
   lastRefreshedAt?: string;
   errorMessage?: string;
-  /** Persisted credential-sync warning (external-cli-sync); cleared on a
-   *  successful refresh / import. */
+  /** Managed-account credential warning; duplicate-token may be projected on
+   *  account listing. */
   syncWarning?: SyncWarningCode;
 };
 
@@ -123,8 +119,8 @@ export type CodexTokenConfig = {
   organizationId?: string;
   lastRefreshedAt?: string;
   errorMessage?: string;
-  /** Persisted credential-sync warning (external-cli-sync); cleared on a
-   *  successful refresh / import. */
+  /** Managed-account credential warning; duplicate-token may be projected on
+   *  account listing. */
   syncWarning?: SyncWarningCode;
 };
 
@@ -152,47 +148,53 @@ export type GeminiTokenConfig = {
 export type SubscriptionAccountEntry<TConfig> = {
   /** Stable, generated id (`crypto.randomUUID()`). */
   id: string;
-  /** User-supplied label; default "账号 N" / "Account N". */
+  /** User-supplied label; default "N" / "Account N". */
   label?: string;
+  /** Whether the scheduler may select this account. Absent on legacy rows means true. */
+  enabled?: boolean;
+  /** Operator-defined account-pool group. Absent rows are presented in their provider group. */
+  group?: string;
+  /** Searchable operator metadata. Tags are non-secret and normalized on write. */
+  tags?: string[];
   /** ISO creation timestamp. */
   createdAt?: string;
   /**
    * Scheduling precedence in the account pool (subscription-account-scheduling).
-   * Lower = higher precedence; default `50` when absent (CRS `parseInt(x,10) || 50`
-   * parity). OPTIONAL — an existing `tokens.json` without it parses unchanged and
+   * Lower = higher precedence; default `50` when absent. OPTIONAL: an existing
+   * `tokens.json` without it parses unchanged and
    * every account defaults to 50.
    */
   priority?: number;
   /**
    * ISO timestamp of the last time this account was selected to serve a request
    * (subscription-account-scheduling LRU tie-break input). OPTIONAL, best-effort
-   * throttled persist — the selector's in-memory overlay is the authoritative live
+   * throttled persist the selector's in-memory overlay is the authoritative live
    * value; an account without it sorts as least-recently-used (timestamp `0`).
    */
   lastUsedAt?: string;
   /**
    * Per-account upstream proxy override (upstream-proxy). When set, this
    * account's relay + OAuth-refresh traffic is routed through this proxy,
-   * WINNING over the per-provider and global proxy layers. OPTIONAL — an
-   * existing `tokens.json` without it parses unchanged (no proxy → direct). Its
+   * WINNING over the per-provider and global proxy layers. OPTIONAL an
+   * existing `tokens.json` without it parses unchanged (no proxy direct). Its
    * `password` is a secret: encrypted at rest by the tokens `SecretBox` walker
    * and masked in the sanitized view.
    */
   proxy?: ProxyConfig;
   /**
-   * Per-account model support + logical→actual remap (subscription-account-model-map).
-   * CRS dual-format, OPTIONAL — an existing `tokens.json` without it parses
+   * Per-account model support + logicaltual remap (subscription-account-model-map).
+   * Supports both allow-list and logical-to-actual mapping formats. OPTIONAL: an existing `tokens.json` without it parses
    * unchanged (the account supports every model and never remaps, byte-identical
    * to before this change):
-   *  - **array** `["a","b"]` — an ALLOW-LIST: the account supports ONLY these
-   *    logical models (skip-only, no remap). In a ≥2-account pool the account is
+   *  - **array** `["a","b"]` an ALLOW-LIST: the account supports ONLY these
+   *    logical models (skip-only, no remap). In a -account pool the account is
    *    routed AROUND for any other model.
-   *  - **object** `{ "a": "X", "b": "Y" }` — the keys are the same allow-list AND
+   *  - **object** `{ "a": "X", "b": "Y" }` the keys are the same allow-list AND
    *    each value is the account's ACTUAL upstream model, so a selected account
    *    remaps the logical model to its actual model on the outbound request.
    *
-   * Model-support filtering only applies when the provider has ≥2 accounts (the
-   * same gate as account health) — a sole account is never model-gated
+   * Model-support filtering only applies when the provider has  accounts (the
+   * same gate as account health) a sole account is never model-gated
    * (never-strand; the upstream stays authoritative). A sole account that must
    * serve a logical model AS a different actual model uses the OBJECT map (remap),
    * not skip.
@@ -201,7 +203,7 @@ export type SubscriptionAccountEntry<TConfig> = {
   /**
    * Persisted per-account client fingerprint identity (subscription-client-
    * fingerprint #7, P2). OPTIONAL, additive, NON-secret metadata (kept OUTSIDE the
-   * encrypted `tokens` block) — an existing `tokens.json` without it parses
+   * encrypted `tokens` block) an existing `tokens.json` without it parses
    * unchanged. Written through by the daemon on a first-seen freeze / TTL refresh;
    * seeded back into the in-memory identity store at boot so a claude account's
    * replayed identity survives restart.
@@ -238,7 +240,7 @@ export type AccountTokensConfig = {
 
 /**
  * Secret-free view of a per-account/global/provider proxy (upstream-proxy). The
- * password is NEVER carried — only a `hasPassword` presence flag plus a
+ * password is NEVER carried only a `hasPassword` presence flag plus a
  * display-safe `host:port` endpoint (userinfo stripped). Rendered in the admin
  * accounts view.
  */
@@ -260,6 +262,12 @@ export type SanitizedProxyConfig = {
 export type SubscriptionAccountSanitized = {
   id: string;
   label?: string;
+  /** Explicit scheduling switch. Legacy rows are projected as enabled. */
+  enabled: boolean;
+  /** Effective group (provider id when the persisted group is absent). */
+  group: string;
+  /** Searchable non-secret operator tags. */
+  tags: string[];
   status: TokenStatus;
   authMethod?: string;
   subscriptionLevel?: string;
@@ -268,60 +276,69 @@ export type SubscriptionAccountSanitized = {
   isSetupToken?: boolean;
   hasAccessToken: boolean;
   isActive: boolean;
+  /** Derived current eligibility after operator, live-health, and allowance gates. */
+  schedulable: boolean;
+  /** Read-only allowance policy projection. Absent on older daemons. */
+  allowanceAction?: 'normal' | 'demote' | 'pause' | 'ignore';
+  /** Priority after the allowance policy's optional demotion penalty. */
+  allowanceEffectivePriority?: number;
+  /** Highest fresh allowance-window consumption used for this decision. */
+  allowanceUsedPercent?: number;
+  /** Known reset/deadline associated with the allowance decision. */
+  allowanceResumeAt?: string;
+  /** Redacted and bounded credential diagnostic, when the provider recorded one. */
+  errorMessage?: string;
   /**
-   * Scheduling precedence (subscription-account-scheduling) — editable in the
-   * admin accounts view so an operator can order a pool. Absent ⇒ default 50.
+   * Scheduling precedence (subscription-account-scheduling) editable in the
+   * admin accounts view so an operator can order a pool. Absent default 50.
    */
   priority?: number;
   /**
    * ISO timestamp of the last scheduler selection (display-only in the admin
-   * accounts view). Absent ⇒ never selected (or the best-effort persist has not
+   * accounts view). Absent never selected (or the best-effort persist has not
    * yet flushed).
    */
   lastUsedAt?: string;
   /**
-   * Credential-sync warning for this account (external-cli-sync). Carries the
-   * persisted code when one was recorded by a failed refresh, plus the
-   * list-time computed codes (`external-divergent` / `duplicate-token`).
+   * Managed-account credential warning. The daemon retains duplicate-token
+   * warnings without consulting native CLI credential files.
    */
   syncWarning?: SyncWarningCode;
   /**
-   * Live scheduling-health state (subscription-account-health) — in-memory, never
-   * persisted. Absent / `'healthy'` ⇒ eligible; the rest mean the account is
+   * Live scheduling-health state (subscription-account-health) in-memory, never
+   * persisted. Absent / `'healthy'` eligible; the rest mean the account is
    * currently excluded from the pool (multi-account) or would surface the
    * upstream's error (single-account). Secret-free.
    */
   health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
   /**
    * ISO instant the current health cooldown elapses (absent for healthy /
-   * permanently-blocked). Lets the admin view render "rate-limited until …".
+   * permanently-blocked). Lets the admin view render "rate-limited until .
    */
   cooldownUntil?: string;
   /**
-   * Secret-free view of this account's proxy override (upstream-proxy). Absent ⇒
-   * no per-account proxy configured. The password is masked to a `hasPassword`
-   * flag — never returned.
+   * Secret-free view of this account's proxy override (upstream-proxy). Absent    * no per-account proxy configured. The password is masked to a `hasPassword`
+   * flag never returned.
    */
   proxy?: SanitizedProxyConfig;
   /**
-   * Per-account model support / logical→actual remap (subscription-account-model-map)
-   * — editable in the admin accounts view. Carried verbatim (secret-free — model
-   * ids are not token material): an array allow-list or an object logical→actual
-   * map. Absent ⇒ the account supports every model with no remap.
+   * Per-account model support / logicaltual remap (subscription-account-model-map)
+   * editable in the admin accounts view. Carried verbatim (secret-free model
+   * ids are not token material): an array allow-list or an object logicaltual
+   * map. Absent the account supports every model with no remap.
    */
   supportedModels?: string[] | Record<string, string>;
   /**
-   * COARSE client-fingerprint status (subscription-client-fingerprint #7, D7) —
-   * whether THIS account has a captured/frozen client identity in the in-memory
-   * store. Present only when fingerprint replay is ENABLED (else absent ⇒ the UI
-   * shows nothing). Secret-free by construction: it is a BOOLEAN only — the raw
+   * COARSE client-fingerprint status (subscription-client-fingerprint #7, D7)    * whether THIS account has a captured/frozen client identity in the in-memory
+   * store. Present only when fingerprint replay is ENABLED (else absent the UI
+   * shows nothing). Secret-free by construction: it is a BOOLEAN only the raw
    * captured headers are NEVER surfaced here (nor in any admin view).
    */
   identityCaptured?: boolean;
   /**
    * ISO instant this account's fingerprint identity was frozen / last TTL-refreshed
    * (subscription-client-fingerprint #7, D7). Present only alongside
-   * `identityCaptured === true`. Coarse timestamp only — never the headers.
+   * `identityCaptured === true`. Coarse timestamp only never the headers.
    */
   identityCapturedAt?: string;
 };

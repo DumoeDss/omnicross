@@ -193,10 +193,12 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     // (review T1: otherwise it only dies with the process).
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
+    daemon.claudeAllowanceRefreshScheduler.dispose();
     daemon.accountHealthSweeper.dispose();
     daemon.accountHealthProbeScheduler.dispose();
     daemon.auditPruneSweeper.dispose();
     daemon.billingRetrySweeper.dispose();
+    daemon.pricingRefreshScheduler.dispose();
     throw err;
   }
 
@@ -212,10 +214,12 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     await daemon.providerProxy.stop();
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
+    daemon.claudeAllowanceRefreshScheduler.dispose();
     daemon.accountHealthSweeper.dispose();
     daemon.accountHealthProbeScheduler.dispose();
     daemon.auditPruneSweeper.dispose();
     daemon.billingRetrySweeper.dispose();
+    daemon.pricingRefreshScheduler.dispose();
     throw err;
   }
 
@@ -240,10 +244,12 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
     await daemon.providerProxy.stop();
     daemon.apiKeyPool.dispose();
     daemon.tokenRefreshScheduler.dispose();
+    daemon.claudeAllowanceRefreshScheduler.dispose();
     daemon.accountHealthSweeper.dispose();
     daemon.accountHealthProbeScheduler.dispose();
     daemon.auditPruneSweeper.dispose();
     daemon.billingRetrySweeper.dispose();
+    daemon.pricingRefreshScheduler.dispose();
   }
 }
 

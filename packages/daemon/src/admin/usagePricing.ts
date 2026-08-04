@@ -263,6 +263,7 @@ export async function handlePricingFetchLatest(
         conflicts: result.conflicts,
         fetchedAt: result.fetchedAt,
         sourceUrl: result.sourceUrl,
+        sources: result.sources,
       },
     };
   } catch (e) {

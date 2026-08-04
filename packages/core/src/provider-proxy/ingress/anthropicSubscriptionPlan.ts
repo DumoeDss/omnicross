@@ -92,6 +92,8 @@ export interface AnthropicCallPlan {
   readonly auth: AuthSource;
   /** Per-request preferred subscription account (subscription routes only). */
   readonly preferredAccountId?: string;
+  /** Strict by default; pool fallback is an explicit endpoint opt-in. */
+  readonly boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
@@ -252,6 +254,7 @@ export function buildSubscriptionIterationPlan(
   return {
     auth,
     preferredAccountId: route.preferredAccountId,
+    boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
@@ -381,6 +384,7 @@ export async function runPipeline(
     model: resolvedModel,
     sessionKey: plan.sessionKey,
     preferredAccountId: plan.preferredAccountId,
+    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId, isActive) => {
       proxyAccountId = accountId;
       reportSelection?.(accountId, isActive);
@@ -450,6 +454,7 @@ async function runSubscriptionSameFormatFetch(
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
     preferredAccountId: plan.preferredAccountId,
+    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId, isActive, remapped) => {
       proxyAccountId = accountId;
       remappedModel = remapped;
@@ -763,7 +768,7 @@ export async function runPipelineWithSubscriptionRetry(
   let firstBodyObj = anthropicBody;
 
   if (profile.allowModel && !profile.allowModel(initialPlan.resolvedModel)) {
-    // Primary open: mark it attempted (skipped, chain index 0 in the reference)
+    // Primary open: mark it attempted (skipped, chain index 0)
     // and pick the first admitting fallback as the real first attempt.
     attempted.push(initialPlan.resolvedModel);
     const firstAdmitting = profile.nextFallback(scenario, attempted, route.subscriptionConfig as never);

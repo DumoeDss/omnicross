@@ -15,17 +15,35 @@
  * @module @omnicross/daemon/ports/JsonPricingStore
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 
 import type {
   PricingEntry,
   PricingEntryInput,
   PricingResolution,
 } from '@omnicross/contracts/pricing-types';
-import type { PricingStore } from '@omnicross/core';
+import type { AutomaticPricingSource, PricingStore } from '@omnicross/core';
 
 export class JsonPricingStore implements PricingStore {
   constructor(private readonly pricingPath: string) {}
+
+  /**
+   * Return whether the durable snapshot can actually serve at least one price.
+   *
+   * This intentionally checks the file itself instead of relying on refresh
+   * metadata: a recent `lastSuccessAt` must not hide a deleted, truncated, or
+   * otherwise unusable pricing table after a crash or manual file edit.
+   */
+  hasUsableSnapshot(): boolean {
+    if (!existsSync(this.pricingPath)) return false;
+    try {
+      const parsed = JSON.parse(readFileSync(this.pricingPath, 'utf8')) as unknown;
+      return Array.isArray(parsed) && parsed.some(isUsablePricingRow);
+    } catch {
+      return false;
+    }
+  }
 
   async getAll(): Promise<PricingEntry[]> {
     return this.readRows();
@@ -40,7 +58,7 @@ export class JsonPricingStore implements PricingStore {
    */
   async upsert(input: PricingEntryInput, asUserEdit: boolean): Promise<PricingEntry> {
     const rows = this.readRows();
-    const entry = this.applyUpsert(rows, input, asUserEdit);
+    const entry = this.applyUpsert(rows, input, asUserEdit, 'litellm');
     this.writeRows(rows);
     return entry;
   }
@@ -48,10 +66,13 @@ export class JsonPricingStore implements PricingStore {
   /**
    * Apply a batch fetched from a pricing source. Rows whose local copy is
    * user-edited are NOT applied — they come back as `{ current, incoming }`
-   * conflicts; everything else is upserted (source 'litellm'). ONE file write
-   * for the whole batch.
+   * conflicts; everything else is upserted with the supplied automatic source.
+   * ONE file write for the whole batch.
    */
-  async bulkApplyFromSource(entries: PricingEntryInput[]): Promise<{
+  async bulkApplyFromSource(
+    entries: PricingEntryInput[],
+    source: AutomaticPricingSource = 'litellm',
+  ): Promise<{
     applied: PricingEntry[];
     conflicts: Array<{ current: PricingEntry; incoming: PricingEntryInput }>;
   }> {
@@ -66,7 +87,7 @@ export class JsonPricingStore implements PricingStore {
         conflicts.push({ current, incoming });
         continue;
       }
-      applied.push(this.applyUpsert(rows, incoming, /* asUserEdit */ false));
+      applied.push(this.applyUpsert(rows, incoming, /* asUserEdit */ false, source));
     }
     if (applied.length > 0) this.writeRows(rows);
     return { applied, conflicts };
@@ -87,7 +108,7 @@ export class JsonPricingStore implements PricingStore {
         skippedCount += 1;
         continue;
       }
-      this.applyUpsert(rows, r.incoming, /* asUserEdit */ false);
+      this.applyUpsert(rows, r.incoming, /* asUserEdit */ false, 'litellm');
       overwrittenCount += 1;
     }
     if (overwrittenCount > 0) this.writeRows(rows);
@@ -113,6 +134,7 @@ export class JsonPricingStore implements PricingStore {
     rows: PricingEntry[],
     input: PricingEntryInput,
     asUserEdit: boolean,
+    automaticSource: AutomaticPricingSource,
   ): PricingEntry {
     const now = Date.now();
     const entry: PricingEntry = {
@@ -122,7 +144,7 @@ export class JsonPricingStore implements PricingStore {
       outputPricePer1m: input.outputPricePer1m,
       cacheReadPricePer1m: input.cacheReadPricePer1m ?? null,
       cacheWritePricePer1m: input.cacheWritePricePer1m ?? null,
-      source: asUserEdit ? 'user' : 'litellm',
+      source: asUserEdit ? 'user' : automaticSource,
       userEdited: asUserEdit,
       editedAt: asUserEdit ? now : null,
       updatedAt: now,
@@ -147,6 +169,40 @@ export class JsonPricingStore implements PricingStore {
   }
 
   private writeRows(rows: PricingEntry[]): void {
-    writeFileSync(this.pricingPath, JSON.stringify(rows, null, 2) + '\n', 'utf8');
+    // The temporary file lives beside the destination so rename remains an
+    // atomic same-volume replacement. Node/libuv uses replace-existing
+    // semantics on Windows. If replacement still fails (for example because a
+    // scanner temporarily locks the destination), never unlink the healthy
+    // snapshot: surface the mutation failure and only remove our temp file.
+    const temporaryPath = `${this.pricingPath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temporaryPath, JSON.stringify(rows, null, 2) + '\n', {
+        encoding: 'utf8',
+        flag: 'wx',
+      });
+      this.replaceFile(temporaryPath);
+    } finally {
+      rmSync(temporaryPath, { force: true });
+    }
   }
+
+  /** Isolated for deterministic failure testing; never removes the target. */
+  private replaceFile(temporaryPath: string): void {
+    renameSync(temporaryPath, this.pricingPath);
+  }
+}
+
+function isUsablePricingRow(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.providerId === 'string' &&
+    row.providerId.length > 0 &&
+    typeof row.modelId === 'string' &&
+    row.modelId.length > 0 &&
+    typeof row.inputPricePer1m === 'number' &&
+    Number.isFinite(row.inputPricePer1m) &&
+    typeof row.outputPricePer1m === 'number' &&
+    Number.isFinite(row.outputPricePer1m)
+  );
 }

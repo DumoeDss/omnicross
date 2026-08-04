@@ -859,8 +859,6 @@
       "requestFailed": "Pyyntö epäonnistui. Yritä uudelleen."
     },
     "syncWarning": {
-      "external-divergent": "Ulkoisen CLI:n kirjautumistiedosto sisältää uudemmat tunnistetiedot kuin tämä tili. Tallennettu token ei ehkä enää päivity — päivitä nyt tai kirjaudu uudelleen.",
-      "external-not-rotated": "Päivitys epäonnistui, ja ulkoinen CLI sisältää samat vanhentuneet tunnistetiedot. Kirjaudu uudelleen.",
       "duplicate-token": "Toinen tili käyttää samoja tunnistetietoja. Jommankumman päivittäminen kirjaa toisen ulos."
     },
     "importExternal": {

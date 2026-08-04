@@ -859,8 +859,6 @@
       "requestFailed": "İstek başarısız. Lütfen tekrar deneyin."
     },
     "syncWarning": {
-      "external-divergent": "Harici CLI oturum açma dosyası bu hesaptan daha yeni kimlik bilgileri içeriyor. Kayıtlı belirteç yenilenemeyebilir — şimdi yenileyin veya yeniden oturum açın.",
-      "external-not-rotated": "Yenileme başarısız oldu ve harici CLI aynı süresi dolmuş kimlik bilgilerini içeriyor. Lütfen yeniden oturum açın.",
       "duplicate-token": "Başka bir hesap bu kimlik bilgilerini paylaşıyor. Birini yenilemek diğerinin oturumunu kapatır."
     },
     "importExternal": {

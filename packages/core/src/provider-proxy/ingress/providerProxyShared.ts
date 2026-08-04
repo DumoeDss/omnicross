@@ -18,6 +18,10 @@ import type http from 'node:http';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
 import { resolveProviderEndpoint } from '../../completion';
+import {
+  boundAccountSelectionMessage,
+  type BoundAccountSelectionError,
+} from '../../pipeline/BoundAccountSelectionError';
 import { TransformerChainExecutor } from '../../transformer';
 import { AnthropicTransformer } from '../../transformer/transformers/AnthropicTransformer';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
@@ -391,6 +395,36 @@ export function writeError(res: http.ServerResponse, status: number, message: st
   res.end(JSON.stringify({ error: { type: 'provider_proxy_error', message } }));
 }
 
+/**
+ * Map a strict bound-account failure to a stable structured response. The body
+ * carries only the fixed code/reason/message; account ids, tokens, and upstream
+ * error text never cross the wire.
+ */
+export function writeBoundAccountError(
+  res: http.ServerResponse,
+  error: BoundAccountSelectionError,
+): void {
+  if (res.headersSent) return;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (error.status === 429 && error.resumeAt) {
+    const resumeMs = Date.parse(error.resumeAt);
+    if (Number.isFinite(resumeMs)) {
+      headers['Retry-After'] = String(Math.max(1, Math.ceil((resumeMs - Date.now()) / 1000)));
+    }
+  }
+  res.writeHead(error.status, headers);
+  res.end(
+    JSON.stringify({
+      error: {
+        type: 'provider_proxy_error',
+        code: error.code,
+        reason: error.reason,
+        message: boundAccountSelectionMessage(error.reason),
+      },
+    }),
+  );
+}
+
 /** Resolve an `$ENV_VAR` reference or return the literal key. */
 function resolveApiKey(apiKey: string | undefined): string {
   if (!apiKey) return '';
@@ -405,8 +439,8 @@ function resolveApiKey(apiKey: string | undefined): string {
  * ApiKeyPool through TWO gates so 429/529/401/403 failover actually fires on the
  * outbound serving path (omnicross-daemon-parity-poolseam, design D2(b)).
  *
- * MIRRORS the host engine adapter's `resolveApiKeyForProvider` (the reference impl whose
- * pool failover already works internally):
+ * Matches the host engine adapter's `resolveApiKeyForProvider` contract so pool
+ * failover remains inside the provider layer:
  *   - pool present AND a (synthesized outbound) sessionId present →
  *     `getKeyForSession(providerId, sessionId)`. This SEEDS `sessionBindings`
  *     with the chosen key AND returns that same key, so it becomes the first

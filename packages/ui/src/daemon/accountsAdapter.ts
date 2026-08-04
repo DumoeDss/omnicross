@@ -18,6 +18,11 @@
 
 import { adminClient } from './adminClient';
 import type {
+  AccountAllowanceSnapshot,
+  AccountAllowancesResult,
+  AccountBatchInput,
+  AccountConnectionTestResult,
+  AccountManagementPatch,
   AgentAccountsApi,
   CodexOAuthStatus,
   MutationResult,
@@ -320,6 +325,100 @@ export function createAccountsAdapter(): AgentAccountsApi {
       return adminClient.get<CodexOAuthStatus>(
         `/accounts/codex/oauth/${encodeURIComponent(sessionId)}/status`,
       );
+    },
+
+    async patchAccount(
+      providerId: SubscriptionProviderId,
+      accountId: string,
+      patch: AccountManagementPatch,
+    ): Promise<MutationResult> {
+      try {
+        await adminClient.patch(
+          `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}`,
+          patch,
+        );
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to update account' };
+      }
+    },
+
+    async batchManage(input: AccountBatchInput): Promise<MutationResult & { affected?: number }> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; affected: number }>('/accounts/batch', input);
+        return { success: data.ok, affected: data.affected };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to update accounts' };
+      }
+    },
+
+    async testAccount(
+      providerId: SubscriptionProviderId,
+      accountId: string,
+    ): Promise<AccountConnectionTestResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; marked: boolean }>(
+          `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}/test`,
+        );
+        return { success: true, ok: data.ok, marked: data.marked };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'account test failed' };
+      }
+    },
+
+    async listAccountEvents(providerId: SubscriptionProviderId, accountId: string) {
+      try {
+        const data = await adminClient.get<{ events?: import('./types-accounts').AccountProbeRecord[] }>(
+          `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}/events`,
+        );
+        return { success: true, events: Array.isArray(data.events) ? data.events : [] };
+      } catch (err) {
+        return {
+          success: false,
+          events: [],
+          message: err instanceof Error ? err.message : 'failed to load account events',
+        };
+      }
+    },
+
+    async listAllowances(): Promise<AccountAllowancesResult> {
+      try {
+        const data = await adminClient.get<{ allowances?: AccountAllowanceSnapshot[] }>(
+          '/accounts/allowances',
+        );
+        return {
+          success: true,
+          allowances: Array.isArray(data.allowances) ? data.allowances : [],
+        };
+      } catch (err) {
+        return {
+          success: false,
+          allowances: [],
+          message: err instanceof Error ? err.message : 'failed to load account allowances',
+        };
+      }
+    },
+
+    async refreshAllowance(
+      providerId: 'claude',
+      accountId: string,
+    ): Promise<AccountAllowancesResult> {
+      try {
+        const data = await adminClient.post<{ allowances?: AccountAllowanceSnapshot[] }>(
+          '/accounts/allowances/refresh',
+          { providerId, accountId },
+        );
+        return {
+          success: true,
+          allowances: Array.isArray(data.allowances) ? data.allowances : [],
+        };
+      } catch (err) {
+        return {
+          success: false,
+          allowances: [],
+          message: err instanceof Error ? err.message : 'failed to refresh account allowance',
+        };
+      }
     },
 
     async cancelCodexOAuth(sessionId: string): Promise<MutationResult> {

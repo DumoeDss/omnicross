@@ -14,8 +14,7 @@
 export type SubscriptionProviderId = 'claude' | 'codex' | 'gemini' | 'opencodego';
 
 /**
- * OpenCodeGo routing scenarios, mirroring `_others/oc-go-cc/internal/router/`
- * (and `_others/oc-go-cc/configs/config.example.json`).
+ * OpenCodeGo routing scenarios used for model selection and fallback.
  *
  * `background` is DORMANT in this version: the scenario router never
  * auto-selects it (keyword-driven selection is a downstream change). It is
@@ -35,13 +34,11 @@ export interface OpenCodeGoModelEntry {
   /** Provider model id sent upstream (e.g. `kimi-k2.6`, `minimax-m2.5`). */
   modelId: string;
   /**
-   * Which opencode provider HALF this model lives on. Mirrors the reference
-   * `ModelConfig.Provider` (`_others/oc-go-cc`). When ABSENT it defaults to
-   * `'go'` (the reference's `Provider("")` → `opencode-go`), so every existing
-   * stored config behaves byte-identically (no zen traffic). The built-in
+   * Which OpenCode provider half this model lives on. When absent it defaults to
+   * `'go'`, so every existing stored config behaves the same (no zen traffic).
+   * The built-in
    * default `modelMap`/`fallbacks` are entirely `'go'`; a `'zen'` model is
-   * reachable ONLY via a user-supplied entry that explicitly sets this field
-   * (strict user-only parity, mirroring the reference's `model_overrides`).
+   * reachable only via a user-supplied entry that explicitly sets this field.
    */
   provider?: 'go' | 'zen';
   /** Optional temperature override. */
@@ -65,12 +62,10 @@ export interface OpenCodeGoTokenConfig {
   /** Encrypted on disk; decrypted in memory only via the host's token store. */
   apiKey?: string;
   /** Optional override of the default OpenCodeGo upstream host. Applies to the
-   *  GO half ONLY (mirrors the reference's `OC_GO_CC_OPENCODE_URL`); the zen
-   *  half is overridden by `zenBaseUrl`. */
+   * GO half only; the ZEN half is overridden by `zenBaseUrl`. */
   baseUrl?: string;
-  /** Optional override of the default opencode-ZEN upstream host. Applies to the
-   *  ZEN half ONLY (mirrors the reference's `OC_GO_CC_OPENCODE_ZEN_URL`). When
-   *  unset, zen models resolve under the built-in zen constants. A go-half
+  /** Optional override of the default OpenCode ZEN upstream host. Applies to the
+   * ZEN half only. When unset, ZEN models resolve under the built-in constants. A GO-half
    *  override (`baseUrl`) NEVER redirects zen traffic and vice-versa. */
   zenBaseUrl?: string;
   /** Optional override of the built-in model map per scenario. */

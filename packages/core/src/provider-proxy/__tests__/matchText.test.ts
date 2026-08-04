@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 import { collectMatchText as collectViaRelative } from '../matchText';
 import {
   collectMatchText,
+  deriveGatewaySessionKey,
   MATCH_TEXT_PER_MESSAGE_CAP,
   MATCH_TEXT_RECENT_MESSAGES,
 } from '../matchText';
@@ -167,5 +168,65 @@ describe('collectMatchText — builder-level bound (design §2)', () => {
       { role: 'user', content: 'u7' },
     ];
     expect(collectMatchText({ messages })).toEqual(['u2', 'u3', 'u4', 'u5', 'u6', 'u7']);
+  });
+});
+
+describe('deriveGatewaySessionKey - Responses account affinity', () => {
+  it('keeps a multi-turn Responses conversation on one content fingerprint', () => {
+    const first = {
+      input: [
+        { role: 'developer', content: 'You are a careful coding assistant.' },
+        { role: 'user', content: 'Start the migration.' },
+      ],
+    };
+    const later = {
+      input: [
+        { role: 'developer', content: 'You are a careful coding assistant.' },
+        { role: 'user', content: 'Start the migration.' },
+        { role: 'assistant', content: 'I will inspect the repository.' },
+        { role: 'user', content: 'Now update the tests too.' },
+      ],
+    };
+    expect(deriveGatewaySessionKey(first).source).toBe('content-fingerprint');
+    expect(deriveGatewaySessionKey(first).key).toBe(deriveGatewaySessionKey(later).key);
+    expect(
+      deriveGatewaySessionKey({
+        input: [
+          { role: 'developer', content: 'You are a careful coding assistant.' },
+          { role: 'user', content: 'A different conversation.' },
+        ],
+      }).key,
+    ).not.toBe(deriveGatewaySessionKey(first).key);
+  });
+
+  it('uses explicit identifiers in session header > thread header > body > prompt-cache priority order', () => {
+    const all = {
+      session_id: 'body-session',
+      conversation_id: 'conversation',
+      prompt_cache_key: 'cache',
+      input: [{ role: 'user', content: 'ignored when an id exists' }],
+    };
+    const header = deriveGatewaySessionKey(all, {
+      'X-SESSION-ID': ' header-session ',
+      'x-session-id': 'lower-priority-header',
+    });
+    expect(header.source).toBe('session-header');
+    expect(header.key).toBe(deriveGatewaySessionKey({ session_id: 'header-session' }).key);
+
+    expect(deriveGatewaySessionKey(all, { 'thread-id': 'thread' }).source).toBe('thread-header');
+    expect(deriveGatewaySessionKey({ session_id: 's', conversation_id: 'c' }).source).toBe('body-session-id');
+    expect(deriveGatewaySessionKey({ thread_id: 't', conversation_id: 'c' }).source).toBe('body-thread-id');
+    expect(deriveGatewaySessionKey({ conversation_id: 'c', prompt_cache_key: 'p' }).source).toBe('body-session-id');
+    expect(deriveGatewaySessionKey({ prompt_cache_key: 'p' }).source).toBe('prompt-cache-key');
+  });
+
+  it('falls back conservatively to a route/key seed when content has no anchors', () => {
+    const a = deriveGatewaySessionKey({}, {}, { fallbackKey: 'key-a', endpoint: 'responses' });
+    const b = deriveGatewaySessionKey({}, {}, { fallbackKey: 'key-a', endpoint: 'responses' });
+    const c = deriveGatewaySessionKey({}, {}, { fallbackKey: 'key-b', endpoint: 'responses' });
+    expect(a.source).toBe('api-key-fallback');
+    expect(a.key).toBe(b.key);
+    expect(a.key).not.toBe(c.key);
+    expect(a.key).not.toContain('key-a');
   });
 });

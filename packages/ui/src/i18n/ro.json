@@ -859,8 +859,6 @@
       "requestFailed": "Cererea a eșuat. Vă rugăm să încercați din nou."
     },
     "syncWarning": {
-      "external-divergent": "Fișierul de autentificare al CLI-ului extern conține acreditări mai noi decât acest cont. Tokenul stocat ar putea să nu se mai reîmprospăteze — reîmprospătați acum sau autentificați-vă din nou.",
-      "external-not-rotated": "Reîmprospătarea a eșuat, iar CLI-ul extern conține aceleași acreditări expirate. Autentificați-vă din nou.",
       "duplicate-token": "Un alt cont folosește aceleași acreditări. Reîmprospătarea unuia îl va deconecta pe celălalt."
     },
     "importExternal": {

@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-import { DataMigrationSection } from './DataMigrationSection';
 import { EditModelDialog } from './EditModelDialog';
 import { useProviderSettings } from './hooks/useProviderSettings';
 import { ManageModelsDialog } from './ManageModelsDialog';
@@ -104,11 +103,6 @@ export function ProviderSettings() {
   return (
     <>
       <div className="flex flex-col h-full overflow-hidden">
-        {/* The encrypted-credential migration pack (MigrationPackDialogs) is the
-            ONLY hard exclusion from the port — it is a pure host-IPC
-            `@/shared/ipc/secretsPack` capability with no daemon HTTP equivalent
-            (design D6). */}
-
         {/* Secret re-entry banner (provider-storage-overlay): non-blocking,
             dismissible — shown when ≥1 enabled provider has no stored key
             (e.g. a new machine / restored profile where machine-local secrets
@@ -221,10 +215,6 @@ export function ProviderSettings() {
         </div>
       </div>
 
-      {/* Data Migration (app-parity child 6): export/import the full provider +
-          subscription-token state as a passphrase-encrypted, machine-portable
-          pack. Daemon-backed via `agent.migration` (no host bridge). */}
-      <DataMigrationSection />
       </div>
 
       <ManageModelsDialog

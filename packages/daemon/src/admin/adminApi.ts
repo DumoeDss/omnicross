@@ -35,9 +35,13 @@ import {
   type VoucherDb,
 } from '@omnicross/core/outbound-api';
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
+import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { FetchLike } from '@omnicross/subscriptions';
+import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
+import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
 
 import {
   type DaemonApiKeyEntry,
@@ -57,6 +61,11 @@ import { resolveEnvKey } from '../pool/resolveEnvKey';
 import type { ConfigFileProviderConfigSource } from '../ports/ConfigFileProviderConfigSource';
 import type { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsStore';
 import type { JsonPricingStore } from '../ports/JsonPricingStore';
+import {
+  IntegrationConflictError,
+  type IntegrationManager,
+  type IntegrationClientId,
+} from '../integrations';
 import { listMappablePresets } from '../preset-map';
 import { preserveOutboundProxySecrets, redactOutboundProxy } from '../proxy/sanitizeProxy';
 import { setServerProxyConfig } from '../proxy/upstreamProxyResolver';
@@ -77,6 +86,8 @@ import {
   asSubscriptionProviderId,
   statusEntryFor,
   type SubscriptionTokenWriter,
+  validateAccountBatchBody,
+  validateAccountMetadataPatch,
   validateSupportedModelsBody,
   validateTokenBody,
 } from './accountsWrite';
@@ -120,6 +131,10 @@ import {
   handleUsageGet,
   type UsagePricingResult,
 } from './usagePricing';
+import {
+  type AccountAllowanceAdminReader,
+  handleAccountAllowanceApi,
+} from './accountAllowanceApi';
 
 /** Token-free subscription account list entry (passthrough from core's service). */
 export interface AdminAccountsLister {
@@ -169,6 +184,20 @@ export interface AdminApiDeps {
   readonly outboundApiServer: OutboundApiServer;
   /** Subscription accounts (token-free `listAll`). */
   readonly subscriptionAccounts: AdminAccountsLister;
+  /**
+   * Secret-free upstream allowance facade. Optional for lightweight embedders;
+   * the standalone daemon wires it and the route returns 501 when absent.
+   */
+  readonly accountAllowanceService?: AccountAllowanceAdminReader;
+  /** Live Claude cache worker; hot-reconfigured with allowance scheduling. */
+  readonly allowanceRefreshScheduler?: Pick<ClaudeAllowanceRefreshScheduler, 'configure'>;
+  /** Optional secret-free account connection probe + rolling history surface. */
+  readonly accountProbeService?: AccountProbeHistoryReader & {
+    probeAccount(
+      providerId: import('@omnicross/contracts/subscription-types').SubscriptionProviderId,
+      accountId: string,
+    ): Promise<{ ok: boolean; marked: boolean }>;
+  };
   /**
    * Least-authority subscription-token WRITER (design D4) — ONLY the mutation
    * methods (`writeProviderTokens` / `clearProvider`), never a token-returning
@@ -249,6 +278,8 @@ export interface AdminApiDeps {
    * actually runs.
    */
   readonly cliCommandRunner?: CommandRunner;
+  /** Factory so each request observes the outbound server's current loopback port. */
+  readonly integrationManagerFactory?: () => IntegrationManager;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -309,6 +340,9 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
     revoked: row.revokedAt !== null,
+    kind: row.kind,
+    allowedEndpoints: row.allowedEndpoints,
+    loopbackOnly: row.loopbackOnly,
     maxConcurrency: row.maxConcurrency,
     // Key-policy envelope (outbound-key-policy) — all secret-free scalar fields;
     // the UI reads them to render + pre-fill the policy editor.
@@ -431,6 +465,8 @@ export async function handleAdminApi(
         return await handleAccounts(req, res, method, rest, deps);
       case 'cli':
         return await handleCli(req, res, method, rest, deps);
+      case 'integrations':
+        return await handleIntegrations(req, res, method, rest, deps);
       case 'status':
         return await handleStatus(res, method, deps);
       case 'playground':
@@ -1634,6 +1670,43 @@ function validateQueueSegments(patch: Partial<OutboundApiServerConfig>): string[
   return errors;
 }
 
+function validateAllowanceSchedulingSegment(
+  patch: Partial<OutboundApiServerConfig>,
+): string[] {
+  const value: unknown = patch.allowanceScheduling;
+  if (value === undefined) return [];
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return ['allowanceScheduling must be an object'];
+  }
+  const allowance = value as Record<string, unknown>;
+  const errors: string[] = [];
+  const checkNumber = (field: string, min: number, max: number): void => {
+    const candidate = allowance[field];
+    if (
+      typeof candidate !== 'number' ||
+      !Number.isFinite(candidate) ||
+      candidate < min ||
+      candidate > max
+    ) {
+      errors.push(`allowanceScheduling.${field} must be a number ${min}..${max}`);
+    }
+  };
+  if (typeof allowance.enabled !== 'boolean') {
+    errors.push('allowanceScheduling.enabled must be a boolean');
+  }
+  checkNumber('demoteAtPercent', 0, 100);
+  checkNumber('pauseAtPercent', 0, 100);
+  checkNumber('priorityPenalty', 1, 1_000);
+  if (
+    typeof allowance.demoteAtPercent === 'number' &&
+    typeof allowance.pauseAtPercent === 'number' &&
+    allowance.pauseAtPercent < allowance.demoteAtPercent
+  ) {
+    errors.push('allowanceScheduling.pauseAtPercent must be >= demoteAtPercent');
+  }
+  return errors;
+}
+
 async function handleServer(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -1659,6 +1732,14 @@ async function handleServer(
     const queueErrors = validateQueueSegments(patch);
     if (queueErrors.length > 0) {
       return writeJsonError(res, 400, `invalid queue config: ${queueErrors.join('; ')}`);
+    }
+    const allowanceErrors = validateAllowanceSchedulingSegment(patch);
+    if (allowanceErrors.length > 0) {
+      return writeJsonError(
+        res,
+        400,
+        `invalid allowance scheduling config: ${allowanceErrors.join('; ')}`,
+      );
     }
     // webhook-notifications: strict validation of a present webhook segment (400
     // rather than a silent core-normalize drop).
@@ -1701,6 +1782,8 @@ async function handleServer(
     // takes effect without restart — swaps the resolver's server proxy AND bumps
     // the core dispatcher generation (old dispatchers disposed).
     setServerProxyConfig(merged.proxy);
+    getSharedAccountAllowanceScheduling().configure(merged.allowanceScheduling);
+    deps.allowanceRefreshScheduler?.configure(merged.allowanceScheduling);
     // webhook-notifications: hot-reload the live webhook wiring so a config edit
     // (un)registers the core sink + health subscriptions without a restart. The
     // merged config carries DECRYPTED secrets (settings store decrypts on read).
@@ -1797,6 +1880,18 @@ async function handleAccounts(
   rest: string[],
   deps: AdminApiDeps,
 ): Promise<void> {
+  // Account allowances are delegated to a focused handler before `allowances`
+  // could be mistaken for a provider id. This surface never receives a token.
+  if (rest[0] === 'allowances') {
+    return handleAccountAllowanceApi(
+      req,
+      res,
+      method,
+      rest.slice(1),
+      deps.accountAllowanceService,
+    );
+  }
+
   // GET (no `:providerId`) → token-free list + sanitized per-provider accounts
   // arrays (design D8 — id/label/status/expiresAt/hasAccessToken/isActive only,
   // NEVER a raw token or `enc:` envelope).
@@ -1809,6 +1904,28 @@ async function handleAccounts(
     return writeJson(res, 200, { accounts, providerAccounts, externalCli });
   }
 
+  // POST /accounts/batch — bounded, all-or-nothing management action across
+  // provider pools. Matched before `batch` could be parsed as a provider id.
+  if (method === 'POST' && rest[0] === 'batch' && rest.length === 1) {
+    const body = await readJsonBody(req);
+    const parsed = validateAccountBatchBody(body);
+    if (!parsed) return writeJsonError(res, 400, 'invalid account batch request');
+    const result = await deps.subscriptionTokenWriter.batchManageAccounts(parsed.refs, parsed.mutation);
+    if (!result.ok) {
+      return writeJsonError(
+        res,
+        404,
+        `account '${result.missing.accountId}' not found for provider '${result.missing.providerId}'`,
+      );
+    }
+    if (parsed.mutation.action === 'delete') {
+      for (const ref of parsed.refs) {
+        deps.accountAllowanceService?.removeAccountSnapshot?.(ref.providerId, ref.accountId);
+      }
+    }
+    return writeJson(res, 200, { ok: true, affected: result.affected });
+  }
+
   // GET /accounts/codex/oauth/:sessionId/status → token-free poll for the async
   // codex loopback sign-in (app-parity-2 child 5). Returns ONLY { state, message? }.
   if (method === 'GET' && rest[0] === 'codex' && rest[1] === 'oauth' && rest[3] === 'status') {
@@ -1819,6 +1936,65 @@ async function handleAccounts(
   if (method === 'DELETE' && rest[0] === 'codex' && rest[1] === 'oauth' && rest[2]) {
     const result = handleCodexOAuthCancel(rest[2], deps);
     return writeJson(res, result.status, result.body);
+  }
+
+  // GET /accounts/:providerId/:accountId/diagnostics — one account's bounded,
+  // secret-free health/allowance diagnostic projection. Account scope is
+  // validated against the store.
+  if (method === 'GET' && rest.length === 3 && rest[2] === 'diagnostics') {
+    const providerId = asSubscriptionProviderId(rest[0]);
+    if (!providerId) return writeJsonError(res, 400, `unknown subscription provider '${rest[0] ?? ''}'`);
+    const accountId = rest[1];
+    const listed = await deps.subscriptionTokenWriter.listSanitizedAccounts();
+    if (!(listed[providerId] ?? []).some((account) => account.id === accountId)) {
+      return writeJsonError(res, 404, `account '${accountId}' not found`);
+    }
+    const health = getSharedAccountHealth().getDiagnostics({ providerId, accountId });
+    const allowance = deps.accountAllowanceService?.getSchedulingStatus?.()?.history
+      .filter((entry) => entry.providerId === providerId && entry.accountId === accountId)
+      .map((entry) => ({
+        kind: 'allowance-policy' as const,
+        at: Date.parse(entry.decidedAt),
+        providerId: entry.providerId,
+        accountId: entry.accountId,
+        action: entry.action,
+        reason: entry.reason,
+        usedPercent: entry.usedPercent,
+        resumeAt: entry.resumeAt,
+      })) ?? [];
+    const diagnostics = [...health, ...allowance]
+      .sort((left, right) => right.at - left.at)
+      .slice(0, 200);
+    return writeJson(res, 200, { diagnostics });
+  }
+
+  // GET /accounts/:providerId/:accountId/events — one account's bounded,
+  // secret-free probe history. Account scope is validated against the store.
+  if (method === 'GET' && rest.length === 3 && rest[2] === 'events') {
+    const providerId = asSubscriptionProviderId(rest[0]);
+    if (!providerId) return writeJsonError(res, 400, `unknown subscription provider '${rest[0] ?? ''}'`);
+    const accountId = rest[1];
+    const listed = await deps.subscriptionTokenWriter.listSanitizedAccounts();
+    if (!(listed[providerId] ?? []).some((account) => account.id === accountId)) {
+      return writeJsonError(res, 404, `account '${accountId}' not found`);
+    }
+    const snapshot = deps.accountProbeService?.getAllHistory()
+      .find((entry) => entry.providerId === providerId && entry.accountId === accountId);
+    const diagnostics = getSharedAccountHealth().getDiagnostics({ providerId, accountId });
+    return writeJson(res, 200, { events: snapshot?.records ?? [], diagnostics });
+  }
+
+  // PATCH /accounts/:providerId/:accountId — consolidated non-secret metadata
+  // mutation. Deny-by-default validation rejects token-like or unknown fields.
+  if (method === 'PATCH' && rest.length === 2) {
+    const providerId = asSubscriptionProviderId(rest[0]);
+    if (!providerId) return writeJsonError(res, 400, `unknown subscription provider '${rest[0] ?? ''}'`);
+    const body = await readJsonBody(req);
+    const patch = validateAccountMetadataPatch(body);
+    if (!patch) return writeJsonError(res, 400, 'invalid account metadata patch');
+    const result = await deps.subscriptionTokenWriter.patchAccountMetadata(providerId, rest[1], patch);
+    if (!result.ok) return writeJsonError(res, 404, `account '${rest[1]}' not found`);
+    return writeJson(res, 200, { ok: true });
   }
 
   if (method === 'PUT' || method === 'POST' || method === 'DELETE') {
@@ -1864,10 +2040,11 @@ async function handleAccounts(
       return writeJson(res, 200, status ? { account: status } : { ok: true });
     }
 
-    // POST /accounts/:providerId/import-external { label? } → import the external
-    // CLI's current login as a NEW account + take managed ownership of the native
-    // store (external-cli-sync). claude/codex only. STATUS-ONLY response — the
-    // imported credential never crosses the wire.
+    // POST /accounts/:providerId/import-external { label? } → copy the external
+    // CLI's current login into a NEW account. claude/codex only. The native
+    // credential file remains unmanaged and future Omnicross refreshes NEVER
+    // write it. STATUS-ONLY response — the imported credential never crosses
+    // the wire.
     if (method === 'POST' && rest[1] === 'import-external') {
       if (providerId !== 'claude' && providerId !== 'codex') {
         return writeJsonError(res, 400, `provider '${providerId}' has no external CLI store`);
@@ -1880,7 +2057,14 @@ async function handleAccounts(
         return writeJsonError(res, 409, `no usable external ${providerId} CLI credential found`);
       }
       const status = await statusEntryFor(deps.subscriptionAccounts, providerId);
-      return writeJson(res, 200, { ok: true, account: status ?? undefined });
+      return writeJson(res, 200, {
+        ok: true,
+        account: status ?? undefined,
+        nativeCredentialMode: result.nativeCredentialMode,
+        refreshWritesNativeCredentials: result.refreshWritesNativeCredentials,
+        message:
+          'Imported a read-only copy. Omnicross does not manage the native CLI credential file and future refreshes do not write it.',
+      });
     }
 
     // POST /accounts/:providerId/refresh → refresh the ACTIVE account's OAuth
@@ -1901,6 +2085,17 @@ async function handleAccounts(
             : await writer.refreshGeminiToken();
       const status = await statusEntryFor(deps.subscriptionAccounts, providerId);
       return writeJson(res, 200, { ok, account: status ?? undefined });
+    }
+
+    if (method === 'POST' && rest.length === 3 && rest[2] === 'test') {
+      const accountId = rest[1];
+      if (!deps.accountProbeService) return writeJsonError(res, 501, 'account probe service unavailable');
+      const listed = await deps.subscriptionTokenWriter.listSanitizedAccounts();
+      if (!(listed[providerId] ?? []).some((account) => account.id === accountId)) {
+        return writeJsonError(res, 404, `account '${accountId}' not found`);
+      }
+      const result = await deps.accountProbeService.probeAccount(providerId, accountId);
+      return writeJson(res, 200, { ok: result.ok, marked: result.marked });
     }
 
     // POST /accounts/:providerId/:accountId/label { label } → rename one account
@@ -1973,17 +2168,23 @@ async function handleAccounts(
     }
 
     // DELETE /accounts/:providerId/:accountId → remove one account (STATUS-ONLY).
-    if (method === 'DELETE' && rest.length >= 2) {
+    if (method === 'DELETE' && rest.length === 2) {
       const accountId = rest[1];
       const result = await deps.subscriptionTokenWriter.removeAccount(providerId, accountId);
       if (!result.removed) return writeJsonError(res, 404, `account '${accountId}' not found`);
+      deps.accountAllowanceService?.removeAccountSnapshot?.(providerId, accountId);
       return writeJson(res, 200, { ok: true });
     }
 
     // DELETE /accounts/:providerId → clear the whole provider block.
-    if (method === 'DELETE') {
+    if (method === 'DELETE' && rest.length === 1) {
       await deps.subscriptionTokenWriter.clearProvider(providerId);
+      deps.accountAllowanceService?.removeProviderSnapshots?.(providerId);
       return writeJson(res, 200, { ok: true });
+    }
+
+    if (method === 'DELETE') {
+      return writeJsonError(res, 405, 'method DELETE not allowed on this accounts path');
     }
 
     const body = await readJsonBody(req);
@@ -2054,6 +2255,75 @@ async function handleCli(
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
+
+// Native CLI persistent gateway integration. Never returns the gateway secret.
+async function handleIntegrations(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  method: string,
+  rest: string[],
+  deps: AdminApiDeps,
+): Promise<void> {
+  const factory = deps.integrationManagerFactory;
+  if (!factory) return writeJsonError(res, 501, 'native CLI integration is not available');
+  const manager = factory();
+  try {
+    if (method === 'GET' && rest.length === 0) {
+      return writeJson(res, 200, {
+        integrations: await manager.listStatus(),
+        gateway: deps.outboundApiServer.getStatus(),
+      });
+    }
+
+    // POST /accounts/:providerId/:accountId/test — run the existing cheapest-
+    // first probe for exactly one validated account. The result contains only
+    // booleans; diagnostics are read separately from the bounded event route.
+    if (method === 'POST' && rest.length === 1 && rest[0] === 'rotate') {
+      await manager.rotateGatewayKey();
+      return writeJson(res, 200, { ok: true, integrations: await manager.listStatus() });
+    }
+    const client = rest[0];
+    if (!isIntegrationClient(client)) {
+      return writeJsonError(res, 400, `unknown integration client '${client ?? ''}'`);
+    }
+    if (method === 'POST' && rest[1] === 'plan') {
+      const body = await readJsonBody(req);
+      const configPath = body.configPath;
+      if (configPath !== undefined && typeof configPath !== 'string') {
+        return writeJsonError(res, 400, 'configPath must be a string');
+      }
+      const plan = await manager.plan(client, configPath);
+      return writeJson(res, 200, { plan });
+    }
+    if (method === 'POST' && (rest[1] === 'install' || rest[1] === 'apply')) {
+      const body = await readJsonBody(req);
+      const configPath = body.configPath;
+      if (configPath !== undefined && typeof configPath !== 'string') {
+        return writeJsonError(res, 400, 'configPath must be a string');
+      }
+      const status = await manager.install(client, configPath);
+      return writeJson(res, 200, { integration: status });
+    }
+    if (method === 'POST' && rest[1] === 'repair') {
+      const status = await manager.repair(client);
+      return writeJson(res, 200, { integration: status });
+    }
+    if ((method === 'DELETE' && rest.length === 1) || (method === 'POST' && rest[1] === 'remove')) {
+      const status = await manager.remove(client);
+      return writeJson(res, 200, { integration: status });
+    }
+    return writeJsonError(res, 405, `method ${method} not allowed on integrations`);
+  } catch (error) {
+    if (error instanceof IntegrationConflictError) {
+      return writeJsonError(res, 409, error.message);
+    }
+    throw error;
+  }
+}
+
+function isIntegrationClient(value: string | undefined): value is IntegrationClientId {
+  return value === 'codex' || value === 'claude';
+}
 
 async function handleStatus(
   res: http.ServerResponse,

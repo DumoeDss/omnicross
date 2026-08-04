@@ -20,7 +20,7 @@ import { PricingEntryEditor } from './PricingEntryEditor';
 import type { PricingEntry, PricingEntryInput, PricingSource } from '@/daemon/types-usage-pricing';
 
 /** Localized labels for the source enum (never render the raw wire value). */
-const SOURCE_LABEL_KEY: Record<PricingSource, string> = {
+const SOURCE_LABEL_KEY: Partial<Record<PricingSource, string>> = {
   builtin: 'pricing.sourceBuiltin',
   litellm: 'pricing.sourceLitellm',
   user: 'pricing.sourceUser',
@@ -56,7 +56,18 @@ export function PricingTable({ entries, busy, onSave, onDelete }: PricingTablePr
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border/70">
-      <table className="w-full border-collapse bg-surface-1/40">
+      <table className="w-full min-w-[1160px] table-fixed border-collapse bg-surface-1/40">
+        <colgroup>
+          <col className="w-[150px]" />
+          <col className="w-[250px]" />
+          <col className="w-[95px]" />
+          <col className="w-[95px]" />
+          <col className="w-[95px]" />
+          <col className="w-[95px]" />
+          <col className="w-[105px]" />
+          <col className="w-[185px]" />
+          <col className="w-[90px]" />
+        </colgroup>
         <thead className="border-b border-border/60">
           <tr>
             <th className={TH}>{t('pricing.provider')}</th>
@@ -67,7 +78,7 @@ export function PricingTable({ entries, busy, onSave, onDelete }: PricingTablePr
             <th className={TH_NUM}>{t('pricing.cacheWritePrice')}</th>
             <th className={TH}>{t('pricing.source')}</th>
             <th className={TH}>{t('pricing.updated')}</th>
-            <th className={TH} />
+            <th className={`${TH} sticky right-0 z-10 bg-surface-1`} />
           </tr>
         </thead>
         <tbody>
@@ -77,22 +88,26 @@ export function PricingTable({ entries, busy, onSave, onDelete }: PricingTablePr
             return (
               <React.Fragment key={key}>
                 <tr className="border-b border-border/40 last:border-b-0">
-                  <td className={TD}>{entry.providerId}</td>
-                  <td className={`${TD} break-all`}>{entry.modelId}</td>
-                  <td className={TD_NUM}>{formatPrice(entry.inputPricePer1m, locale)}</td>
-                  <td className={TD_NUM}>{formatPrice(entry.outputPricePer1m, locale)}</td>
-                  <td className={TD_NUM}>{formatPrice(entry.cacheReadPricePer1m, locale)}</td>
-                  <td className={TD_NUM}>{formatPrice(entry.cacheWritePricePer1m, locale)}</td>
+                  <td className={`${TD} truncate font-mono text-xs`} title={entry.providerId}>{entry.providerId}</td>
+                  <td className={`${TD} truncate font-mono text-xs`} title={entry.modelId}>{entry.modelId}</td>
+                  <td className={`${TD_NUM} whitespace-nowrap`}>{formatPrice(entry.inputPricePer1m, locale)}</td>
+                  <td className={`${TD_NUM} whitespace-nowrap`}>{formatPrice(entry.outputPricePer1m, locale)}</td>
+                  <td className={`${TD_NUM} whitespace-nowrap`}>{formatPrice(entry.cacheReadPricePer1m, locale)}</td>
+                  <td className={`${TD_NUM} whitespace-nowrap`}>{formatPrice(entry.cacheWritePricePer1m, locale)}</td>
                   <td className={TD}>
                     <span className="inline-flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground">{t(SOURCE_LABEL_KEY[entry.source])}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {entry.source === 'openrouter'
+                          ? 'OpenRouter'
+                          : t(SOURCE_LABEL_KEY[entry.source] ?? 'pricing.sourceBuiltin')}
+                      </span>
                       {entry.userEdited ? <Badge>{t('pricing.userEdited')}</Badge> : null}
                     </span>
                   </td>
                   <td className={`${TD} whitespace-nowrap text-xs text-muted-foreground`}>
                     {new Date(entry.updatedAt).toLocaleString(locale)}
                   </td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="sticky right-0 z-10 bg-surface-1 px-2 py-2 text-right">
                     <span className="inline-flex items-center gap-1">
                       <Button
                         size="icon"

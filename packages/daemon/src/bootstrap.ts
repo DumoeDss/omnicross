@@ -21,6 +21,7 @@
  */
 
 import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
@@ -30,11 +31,22 @@ import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService'
 import {
   __resetOutboundApiServerForTests,
   DEFAULT_ACCOUNT_PROBE,
+  DEFAULT_OUTBOUND_PORT,
   getOutboundApiServer,
+  normalizeServerConfig,
   type OutboundApiServer,
 } from '@omnicross/core/outbound-api';
 import { setSubscriptionRegistryForOutbound } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import {
+  __resetSharedAccountAllowanceStoreForTests,
+  AccountAllowanceStore,
+  setSharedAccountAllowanceStore,
+} from '@omnicross/core/pipeline/AccountAllowanceStore';
+import {
+  __resetSharedAccountAllowanceSchedulingForTests,
+  getSharedAccountAllowanceScheduling,
+} from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import { __resetSharedIdentityStoreForTests } from '@omnicross/core/provider-proxy/identity/SubscriptionIdentityStore';
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
@@ -54,6 +66,9 @@ import {
 } from '@omnicross/subscriptions';
 
 import { type CodexLoopbackFn, CodexOAuthSessionStore } from './admin/accountsCodexOAuth';
+import { AccountAllowanceService } from './allowance/AccountAllowanceService';
+import { ClaudeAllowanceRefreshScheduler } from './allowance/ClaudeAllowanceRefreshScheduler';
+import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowancePersistence';
 import { AdminServer } from './admin/AdminServer';
 import { buildHealthReport } from './admin/health';
 import { DAEMON_VERSION } from './admin/version';
@@ -67,16 +82,21 @@ import { resolveEnvKey } from './pool/resolveEnvKey';
 import {
   defaultAuditDir,
   defaultBillingDir,
+  defaultAccountAllowancePath,
+  defaultIntegrationsPath,
   defaultPricingPath,
+  defaultPricingRefreshStatePath,
   defaultUsageEventsPath,
   defaultVouchersPath,
 } from './commands/paths';
+import { IntegrationManager, IntegrationStateStore } from './integrations';
 import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
 import { ConfigurableLogger } from './ports/ConfigurableLogger';
 import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
 import { JsonlUsageEventStore } from './ports/JsonlUsageEventStore';
 import { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
 import { JsonPricingStore } from './ports/JsonPricingStore';
+import { PricingRefreshScheduler } from './pricing/PricingRefreshScheduler';
 import { JsonVoucherDb } from './ports/JsonVoucherDb';
 import { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
 import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstreamProxyResolver';
@@ -161,10 +181,20 @@ export interface Daemon {
   /** Subscription account service (token-free `listAll`) — now exposed for the
    *  admin dashboard's read-only accounts panel (RT3). */
   readonly subscriptionAccounts: SubscriptionAccountService;
+  /** Secret-free upstream subscription allowance cache/collector facade. */
+  readonly accountAllowanceService: AccountAllowanceService;
+  /**
+   * Claude allowance cache maintenance for allowance-aware routing. Constructed
+   * armed-off; the resident `start` command starts it only when the persisted
+   * scheduling policy is enabled.
+   */
+  readonly claudeAllowanceRefreshScheduler: ClaudeAllowanceRefreshScheduler;
   /** File-backed pricing table (`pricing.json`; concrete for the admin DELETE). */
   readonly pricingStore: JsonPricingStore;
   /** Pricing engine (cost calc + source refresh + conflict resolution). */
   readonly pricingEngine: PricingEngine;
+  /** Non-blocking stale-while-revalidate catalog worker (armed by `start`). */
+  readonly pricingRefreshScheduler: PricingRefreshScheduler;
   /** Usage recorder over `usage-events.jsonl` — also the admin stats query facade. */
   readonly usageRecorder: UsageRecorder;
   /** The localhost admin/dashboard HTTP listener (RT3). Started by `start.ts`. */
@@ -259,6 +289,19 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // accessor). `decryptConfigSecrets` is idempotent on already-plaintext values.
   const decryptedConfig = decryptConfigSecrets(config, secretBox);
 
+  // Allowance snapshots are telemetry, not credentials: keep the core store
+  // secret-free and inject the daemon's config-relative, atomic JSON persistence
+  // before any scheduler/registry captures the shared store instance.
+  const accountAllowanceStore = new AccountAllowanceStore(
+    Date.now,
+    undefined,
+    new JsonAccountAllowancePersistence(defaultAccountAllowancePath(paths.configPath)),
+  );
+  setSharedAccountAllowanceStore(accountAllowanceStore);
+  getSharedAccountAllowanceScheduling().configure(
+    normalizeServerConfig(decryptedConfig.server).allowanceScheduling,
+  );
+
   const llmConfig = new ConfigFileProviderConfigSource(decryptedConfig);
   const keyDb = new JsonOutboundKeyDb(paths.keysPath);
   // Voucher (redemption-card) store (voucher-redemption #9) — a sibling
@@ -270,6 +313,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // `server.proxy.*` passwords at rest + decrypts on read (other server fields
   // are non-secret). Mirrors config.ts's proxy-secret handling.
   const settingsStore = new JsonApiServerSettingsStore(paths.configPath, secretBox);
+  const integrationStateStore = new IntegrationStateStore(
+    defaultIntegrationsPath(paths.configPath),
+    secretBox,
+  );
 
   // Subscription wiring. The file-backed credential store feeds the account
   // service (which builds all
@@ -279,6 +326,14 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // route-resolution wiring for `/v1/responses` subscription dispatch. Placed
   // after `llmConfig` (TransformerService ready) so boot stays deterministic.
   const credentialStore = new JsonSubscriptionCredentialStore(paths.tokensPath, secretBox);
+  const accountAllowanceService = new AccountAllowanceService(credentialStore, accountAllowanceStore);
+  const claudeAllowanceRefreshScheduler = new ClaudeAllowanceRefreshScheduler(
+    accountAllowanceService,
+    logger,
+  );
+  claudeAllowanceRefreshScheduler.configure(
+    normalizeServerConfig(decryptedConfig.server).allowanceScheduling,
+  );
 
   // Subscription account health (subscription-account-health): the account service
   // builds its strategies over the process-shared tracker (`getSharedAccountHealth`)
@@ -356,7 +411,18 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // logged) — the serving hot path gains no latency or failure modes. Files
   // are created lazily on first write; boot needs neither to exist.
   const pricingStore = new JsonPricingStore(defaultPricingPath(paths.configPath));
-  const pricingEngine = new PricingEngine(pricingStore, logger);
+  const pricingEngine = new PricingEngine(pricingStore, logger, {
+    // Catalog egress follows the same global/env proxy policy as every other
+    // daemon upstream call; no provider/account override applies here.
+    fetchImpl: ((input, init) =>
+      fetchUpstream(String(input), init ?? {})) as typeof fetch,
+  });
+  const pricingRefreshScheduler = new PricingRefreshScheduler(
+    pricingEngine,
+    pricingStore,
+    defaultPricingRefreshStatePath(paths.configPath),
+    logger,
+  );
   const usageEventStore = new JsonlUsageEventStore(
     defaultUsageEventsPath(paths.configPath),
     async (providerId, model) => (await pricingEngine.getEntry(providerId, model)) !== null,
@@ -464,6 +530,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     settingsStore,
     outboundApiServer,
     subscriptionAccounts,
+    accountAllowanceService,
+    allowanceRefreshScheduler: claudeAllowanceRefreshScheduler,
+    accountProbeService: accountHealthProbeScheduler,
     // Least-authority token WRITER (design D4) — the concrete credential store
     // exposes `writeProviderTokens` / `clearProvider` as daemon-only methods (NOT
     // on the `SubscriptionCredentialStore` port). The admin API sees ONLY these two
@@ -502,6 +571,19 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     cliTerminalOpener: paths.cliTerminalOpener,
     cliPathProbe: paths.cliPathProbe,
     cliCommandRunner: paths.cliCommandRunner,
+    integrationManagerFactory: () => {
+      const live = outboundApiServer.getStatus();
+      const port = live.port || decryptedConfig.server?.port || DEFAULT_OUTBOUND_PORT;
+      return new IntegrationManager({
+        configPath: paths.configPath,
+        gatewayBaseUrl: live.loopbackUrl ?? `http://127.0.0.1:${port}`,
+        keyDb,
+        stateStore: integrationStateStore,
+        helperArgsSuffix: paths.masterKeyFilePath
+          ? ['--master-key-file', resolve(paths.masterKeyFilePath)]
+          : undefined,
+      });
+    },
     // Usage/pricing admin surface (usage-pricing child): stats queries go
     // through the recorder facade, pricing mutations through the engine, and
     // the row DELETE through the concrete store (delete is store-local — the
@@ -598,8 +680,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     credentialStore,
     subscriptionRegistry,
     subscriptionAccounts,
+    accountAllowanceService,
+    claudeAllowanceRefreshScheduler,
     pricingStore,
     pricingEngine,
+    pricingRefreshScheduler,
     usageRecorder,
     adminServer,
     tokenRefreshScheduler,
@@ -659,6 +744,10 @@ export function resetDaemonSingletonsForTests(): void {
   // Clear the shared client-fingerprint identity store so a prior boot's captured
   // identities / enabled flag / persistence port do not leak into a fresh boot.
   __resetSharedIdentityStoreForTests();
+  // Drop the process singleton between daemon boots/tests; production boots
+  // recreate it with the config-relative persisted allowance adapter above.
+  __resetSharedAccountAllowanceStoreForTests();
+  __resetSharedAccountAllowanceSchedulingForTests();
 }
 
 /**

@@ -101,7 +101,7 @@ export interface DashboardSummary {
 }
 
 /** Where a pricing entry came from. */
-export type PricingSource = 'builtin' | 'litellm' | 'user';
+export type PricingSource = 'builtin' | 'litellm' | 'openrouter' | 'user';
 
 /** Per-model pricing row. Prices in USD per 1,000,000 tokens. */
 export interface PricingEntry {
@@ -141,6 +141,14 @@ export interface PricingFetchLatestResult {
   conflicts: PricingConflict[];
   fetchedAt: number;
   sourceUrl: string;
+  sources: Array<{
+    source: 'litellm' | 'openrouter';
+    sourceUrl: string;
+    status: 'applied' | 'failed';
+    parsedCount: number;
+    appliedCount: number;
+    error?: string;
+  }>;
 }
 
 /** One per-conflict decision — top-level ids MUST match the echoed incoming. */

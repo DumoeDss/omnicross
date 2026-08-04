@@ -504,7 +504,17 @@
     "discoveryUnsupportedFormat": "当前提供商格式暂不支持模型发现，请手动添加模型。"
   },
   "nav": {
+    "primary": "主导航",
+    "overview": "总览",
+    "gateway": "网关",
+    "integrations": "集成",
+    "group": {
+      "run": "运行",
+      "configure": "配置",
+      "system": "系统"
+    },
     "subtitle": "控制面板",
+    "more": "更多",
     "providers": "提供商",
     "apiService": "API 服务",
     "accounts": "账户",
@@ -514,9 +524,134 @@
     "pricing": "模型价格",
     "dashboard": "仪表板"
   },
+  "overview": {
+    "eyebrow": "本地请求交换台",
+    "title": "请求能顺利通过吗？",
+    "description": "沿真实状态查看请求如何从本地客户端经过网关和路由表，最终到达健康账号或提供商。",
+    "operational": "链路正常",
+    "actionRequired": "链路需要处理",
+    "requestPath": "实时请求路径",
+    "requestPathHint": "根据当前密钥、网关状态、端点路由与账号健康状态生成。",
+    "open": "打开",
+    "refresh": "刷新",
+    "source": {
+      "loading": "正在加载",
+      "unavailable": "不可用",
+      "unavailableHint": "此数据源没有响应；其他运行证据仍会显示。"
+    },
+    "state": { "ready": "就绪", "attention": "需要处理", "inactive": "未启用", "loading": "正在加载", "unavailable": "不可用" },
+    "path": {
+      "client": "客户端",
+      "gateway": "网关",
+      "routing": "路由",
+      "upstream": "上游",
+      "detail": {
+        "client": "{{value}} 个可用密钥",
+        "gateway": "端口 {{value}}",
+        "routing": "{{value}} 种格式",
+        "upstream": "{{value}} 个账号 / 目标"
+      }
+    },
+    "routes": { "title": "路由矩阵", "description": "各协议格式当前配置的上游目标。", "unconfigured": "尚未配置", "unavailable": "路由证据不可用，请打开网关检查。" },
+    "gateway": {
+      "title": "网关运行证据",
+      "description": "显示实时监听状态、地址，以及守护进程提供的构建版本。",
+      "status": "状态",
+      "address": "本地回环地址",
+      "version": "守护进程版本",
+      "versionHint": "当前网关状态数据没有提供版本号。",
+      "port": "端口 {{port}}",
+      "running": "运行中",
+      "stopped": "已停止",
+      "open": "打开网关"
+    },
+    "accounts": {
+      "title": "账号池",
+      "description": "显示调度器当前的账号投影和额度观察状态。",
+      "schedulable": "可调度",
+      "abnormal": "异常",
+      "total": "共 {{count}} 个",
+      "countOfTotal": "{{count}} / {{total}}",
+      "none": "未发现",
+      "allowance": "额度观察",
+      "allowanceValue": "{{near}} 个接近上限 · {{stale}} 个过期",
+      "allowanceUnavailable": "有 {{count}} 个账号的额度快照不可用",
+      "allowanceThreshold": "警告阈值 {{threshold}}%",
+      "expiringSoon": "即将过期",
+      "expiringSoonHint": "48 小时内到期的凭证",
+      "open": "打开账号"
+    },
+    "today": {
+      "title": "今日交换记录",
+      "description": "当前日期的本地 Usage 记录；只有审计数据完整时才会测量失败率。",
+      "requests": "请求数",
+      "errorRate": "错误率",
+      "cost": "估算成本",
+      "source": "来自本地 Usage 记录",
+      "auditSource": "来自 {{count}} 条审计请求",
+      "auditDisabled": "请求审计未启用；请在设置 → 数据中启用后测量失败率。",
+      "auditIncomplete": "审计读取可能不完整，因此不会估算错误率。",
+      "noAuditedRequests": "没有可用于和今日 Usage 对比的审计请求。",
+      "auditUnavailable": "无法读取请求审计，因此不会估算错误率。",
+      "openUsage": "打开 Usage"
+    },
+    "integrations": {
+      "title": "持久集成",
+      "description": "显示 Codex 和 Claude Code 的受管本地配置是否同步。",
+      "codex": "Codex",
+      "claude": "Claude Code",
+      "persistentHint": "持久原生 CLI 配置",
+      "open": "打开集成",
+      "status": {
+        "not-installed": "未安装",
+        "enabled": "已启用",
+        "configuration-drift": "配置发生漂移",
+        "configuration-missing": "缺少配置",
+        "key-missing": "缺少网关密钥"
+      }
+    },
+    "attention": {
+      "title": "需要处理",
+      "description": "这里只显示可能阻断请求链路的状态。",
+      "empty": "未发现会阻断请求的状态。",
+      "gatewayConfigUnavailable": "网关配置不可用，请先检查状态后再修改路由。",
+      "gatewayUnavailable": "网关状态不可用，请确认守护进程可连接。",
+      "gatewayStopped": "客户端连接前需要先启动网关。",
+      "accessKeyDataUnavailable": "访问密钥数据不可用，请检查网关访问密钥。",
+      "noAccessKey": "为客户端创建或启用访问密钥。",
+      "routingDataUnavailable": "路由数据不可用，请检查网关路由。",
+      "routingIncomplete": "补全所有支持协议格式的路由。",
+      "accountDataUnavailable": "账号健康数据不可用，请检查账号池。",
+      "noUpstream": "添加健康的订阅账号或提供商目标。",
+      "noSchedulableAccounts": "当前没有可调度的订阅账号。",
+      "abnormalAccounts": "有 {{count}} 个账号需要检查健康或凭证。",
+      "accountsExpiringSoon": "有 {{count}} 个账号将在 48 小时内过期。",
+      "allowanceDataUnavailable": "额度数据不可用，请先检查账号再依赖限额。",
+      "allowanceNearLimit": "有 {{count}} 个额度窗口接近警告阈值。",
+      "allowanceStale": "有 {{count}} 个额度窗口已过期，需要重新采集。",
+      "integrationDataUnavailable": "持久集成状态不可用，请检查集成页面。",
+      "integrationCodexNeedsAttention": "Codex 的持久集成需要修复。",
+      "integrationClaudeNeedsAttention": "Claude Code 的持久集成需要修复。",
+      "usageDataUnavailable": "今日请求和成本数据不可用，请检查 Usage。",
+      "errorRateUnavailable": "今日错误率不可用，请打开关联的审计或流量设置。"
+    }
+  },
   "apiService": {
+    "gatewayTitle": "网关",
+    "gatewayDescription": "说明并控制客户端如何进入本地服务、经过路由并流转。",
     "title": "API 服务",
     "description": "配置对外 API 服务器、各端点的模型路由以及命名访问密钥。",
+    "tabs": {
+      "status": "状态",
+      "routes": "路由",
+      "accessKeys": "访问密钥",
+      "liveTraffic": "实时流量",
+      "overview": "概览",
+      "endpoints": "端点",
+      "access": "访问密钥",
+      "network": "网络与代理",
+      "advanced": "高级"
+    },
     "loading": "正在加载服务器配置…",
     "loadError": "无法加载服务器配置。请检查守护进程是否可达。",
     "enable": {
@@ -529,6 +664,13 @@
       "warning": "局域网访问会把 API 服务器暴露给网络中的其他设备。若同时启用订阅路由，请求可能消耗你的订阅额度——除非你信任该网络，否则请保持关闭。"
     },
     "status": {
+      "queue": {
+        "title": "当前队列",
+        "summary": "{{active}} 个进行中 · {{waiting}} 个等待",
+        "open": "查看实时流量"
+      },
+      "unavailable": "网关状态不可用",
+      "unavailableHint": "服务器配置已加载，但守护进程没有返回实时状态快照。",
       "running": "服务器运行中",
       "stopped": "服务器已停止",
       "runningHint": "对外 API 服务器正在接收请求。",
@@ -538,6 +680,7 @@
       "lan": "局域网地址"
     },
     "endpoints": {
+      "empty": "此守护进程没有提供端点定义。",
       "title": "端点路由",
       "description": "为每种线路格式选择路由到的模型。默认模型已并入此处——该服务器是路由器，而非聊天应用。"
     },
@@ -559,6 +702,13 @@
       "subscriptionTypePlaceholder": "选择订阅…",
       "account": "账号",
       "accountPool": "账号池（自动调度）",
+      "boundAccountFallbackPolicy": "绑定账号无法服务时",
+      "boundAccountFallbackPlaceholder": "选择回退行为",
+      "boundAccountFallbackStrict": "请求直接失败（推荐）",
+      "boundAccountFallbackPool": "使用账号池（需主动开启）",
+      "boundAccountFallbackStrictHint": "只有所选账号可以服务此端点。账号不可用、不健康、模型不兼容、被限额暂停或没有令牌时，请求会失败。",
+      "boundAccountFallbackPoolHint": "所选账号无法服务时，系统可能改用账号池中的其他账号。",
+      "boundAccountFallbackChooseAccount": "选择绑定账号后才能设置回退行为。",
       "pickSubscriptionTypeFirst": "请先选择订阅提供商，再配置模型映射。",
       "kind": {
         "fable": "Fable",
@@ -670,6 +820,22 @@
         "holding": "处理中",
         "active": "{{count}} 个进行中",
         "waiting": "{{count}} 个等待"
+      }
+    },
+    "liveTraffic": {
+      "title": "实时请求流",
+      "description": "查看当前队列活动和最近的审计错误。这里不会显示虚构的流量指标。",
+      "queueIdle": "当前没有请求正在队列中等待或运行。",
+      "queueUnavailable": "网关运行在兼容的守护进程上后，这里才会显示实时队列数据。",
+      "errors": {
+        "title": "最近错误",
+        "description": "来自请求审计日志的无密钥错误记录。",
+        "refresh": "刷新",
+        "loading": "正在加载最近的审计记录…",
+        "loadError": "无法加载最近错误。",
+        "retry": "重试",
+        "empty": "最近记录中没有找到审计错误。",
+        "auditOff": "在设置 > 数据中启用请求审计后，这里才会显示最近错误。"
       }
     },
     "proxy": {
@@ -854,9 +1020,37 @@
   "accounts": {
     "title": "账户与订阅",
     "description": "管理服务器路由所使用的订阅凭据。令牌在此写入，但绝不会回显。",
+    "managementDescription": "优先查看账户状态、路由优先级与额度，再按需添加新凭据。",
+    "summary": "{{providers}} 个已配置提供商，共 {{accounts}} 个账户",
     "loading": "正在加载账户…",
     "empty": "暂无可用的订阅提供商。",
     "signIn": "登录",
+    "management": {
+      "summary": { "total": "账户总数", "schedulable": "可参与调度", "excluded": "已排除", "warnings": "需要处理" },
+      "searchPlaceholder": "搜索名称、标识、分组或标签",
+      "selected": "已选择 {{count}} 个", "selectAll": "选择当前可见账户", "selectAccount": "选择 {{name}}", "openDetails": "打开账户详情",
+      "emptyFiltered": "没有符合筛选条件的账户。", "sortDirection": "反转排序方向", "schedulable": "可调度", "excluded": "已排除", "priorityValue": "优先级 {{value}}",
+      "schedulingState": { "disabled": "已由管理员停用", "healthPaused": "因健康状态暂停", "allowancePaused": "因限额暂停", "demoted": "已按限额降权", "schedulable": "可调度", "excluded": "已排除" },
+      "allowanceAction": { "normal": "正常", "demote": "降权", "pause": "暂停", "ignore": "未应用" },
+      "allowanceDecision": "限额策略：{{action}} · 已用 {{used}}%",
+      "allowanceDecisionNoUsage": "限额策略：{{action}}",
+      "effectivePriority": "基础 {{base}} → 生效 {{effective}}",
+      "filters": {
+        "allProviders": "全部提供商", "allGroups": "全部分组", "allHealth": "全部健康状态", "allCredentials": "全部凭证状态",
+        "scheduling": { "all": "全部调度状态", "enabled": "已启用", "disabled": "已停用", "schedulable": "可调度", "excluded": "已排除" }
+      },
+      "sort": { "label": "名称", "priority": "优先级", "last-used": "最近使用", "allowance": "额度用量", "reset-time": "重置时间" },
+      "columns": { "account": "账户", "providerGroup": "提供商 / 分组", "status": "调度状态", "priority": "优先级", "lastUsed": "最近使用", "actions": "操作" },
+      "batch": { "enable": "启用", "disable": "停用", "setGroup": "设置分组", "groupPlaceholder": "分组名称", "delete": "删除", "deleteTitle": "删除所选账户？", "deleteDescription": "这会永久删除 {{count}} 个账户及其已存储凭证。" },
+      "tabs": { "overview": "概览", "allowance": "限额", "scheduling": "调度", "network": "网络", "diagnostics": "诊断", "danger": "危险操作" },
+      "fields": {
+        "enabled": "参与路由", "enabledHint": "停用后绝不会被选择，即使它是唯一账户。",
+        "label": "账户名称", "group": "分组", "tags": "标签", "tagsPlaceholder": "生产环境, 团队A", "credential": "凭证", "health": "健康状态", "scheduling": "调度", "lastUsed": "最近使用", "priority": "优先级",
+        "allowanceAction": "限额策略", "effectivePriority": "生效优先级", "allowanceUsed": "限额已用", "allowanceResume": "限额重置"
+      },
+      "diagnostics": { "testConnection": "测试连接", "testPassed": "连接测试通过。", "testFailed": "连接测试失败。", "history": "最近探测", "empty": "暂无探测事件。", "loadFailed": "无法加载探测历史。" },
+      "danger": { "title": "删除账户", "description": "删除该账户及其加密凭证，此操作不可撤销。" }
+    },
     "oauth": {
       "title": "登录 {{name}}",
       "description": "在浏览器中打开登录页面，授权后将授权码粘贴到下方。授权码仅传入守护进程——签发的令牌不会回显。",
@@ -967,6 +1161,33 @@
     "accounts": {
       "addAccount": "添加账户"
     },
+    "addDialog": {
+      "title": "添加或导入账户",
+      "description": "选择提供商后，可登录、导入检测到的 CLI 登录，或粘贴已有凭据。",
+      "back": "选择其他提供商",
+      "existingCount": "已有 {{count}} 个账户"
+    },
+    "allowance": {
+      "title": "额度",
+      "fiveHour": "5 小时限额",
+      "weekly": "周限额",
+      "used": "已用 {{percent}}%",
+      "resetsAt": "{{time}} 重置",
+      "observedAt": "观测于 {{time}}",
+      "refresh": "刷新",
+      "refreshAll": "重新加载额度",
+      "loading": "加载中",
+      "loadFailed": "额度加载失败：{{error}}。现有账户数据不受影响。",
+      "unavailableHint": "提供商没有返回此账户的额度信息。",
+      "codexNotObserved": "尚未观测到额度响应头。请先用此账户发起一次 Codex 请求，再重新加载。",
+      "unsupportedProvider": "此提供商暂无受支持的额度数据来源。",
+      "state": {
+        "fresh": "最新",
+        "stale": "已过期",
+        "unavailable": "不可用",
+        "unsupported": "不支持"
+      }
+    },
     "detail": {
       "authMethod": "授权方式",
       "subscriptionLevel": "订阅等级",
@@ -1038,8 +1259,6 @@
       "requestFailed": "请求失败，请重试。"
     },
     "syncWarning": {
-      "external-divergent": "外部 CLI 登录文件中的凭据比此账号更新，已存储的令牌可能无法再刷新——请立即刷新或重新登录。",
-      "external-not-rotated": "刷新失败，且外部 CLI 中保存的是同一个已过期凭据。请重新登录。",
       "duplicate-token": "另一个账号与此账号共用同一凭据，刷新任意一个都会使另一个失效。"
     },
     "importExternal": {
@@ -1053,6 +1272,7 @@
       "capturedAt": "已于 {{time}} 捕获客户端指纹"
     },
     "health": {
+      "healthy": "健康",
       "rate_limited": "已限流",
       "overloaded": "过载",
       "transient": "暂时不可用",
@@ -1061,8 +1281,8 @@
     }
   },
   "codeCli": {
-    "title": "Code CLI",
-    "description": "将编码 CLI 指向守护进程的对外代理。此页面为只读——无需在此配置任何内容。",
+    "title": "集成",
+    "description": "将 Codex 和 Claude Code 持久接入 Omnicross，或打开仅本次生效的代理终端。",
     "copy": "复制",
     "copied": "已复制",
     "baseUrl": {
@@ -1079,6 +1299,55 @@
       "keyNote": "请使用在 API 服务页面创建的对外访问密钥——而非管理令牌。",
       "anthropic": "Anthropic 格式 CLI",
       "openai": "OpenAI 格式 CLI"
+    },
+    "persistent": {
+      "title": "持久接入",
+      "description": "启用后，直接运行普通 codex 或 claude 命令即可使用 Omnicross，无需专用启动器；共享接入密钥始终隐藏。",
+      "gatewayRunning": "网关运行中",
+      "gatewayStopped": "网关已停止",
+      "gatewayStoppedHint": "原生 CLI 配置仍然存在，但对外网关启动前，请求无法到达 Omnicross。",
+      "loading": "正在检查持久接入状态……",
+      "configPath": "配置文件",
+      "customPath": "自定义配置路径",
+      "routesTo": "路由到 {{url}}",
+      "enable": "启用持久接入",
+      "reviewEnable": "预览并启用",
+      "repair": "预览修复",
+      "planTitle": "确认托管变更",
+      "planDescription": "此预览只包含逻辑字段名和警告。Omnicross 不会把原生配置文件内容发送到 UI。",
+      "planChanges": "托管字段",
+      "planWarnings": "注意事项",
+      "noChanges": "无需更改。",
+      "applyEnable": "应用并启用",
+      "applyRepair": "应用修复",
+      "remove": "移除接入",
+      "removeTitle": "移除 {{name}} 接入？",
+      "removeDescription": "Omnicross 会恢复安装前保存的配置。如果文件此后被修改，将拒绝覆盖你的改动。",
+      "removeLocked": "请先解决配置漂移，再移除此接入。",
+      "rotate": "轮换共享密钥",
+      "rotateTitle": "轮换共享接入密钥？",
+      "rotateDescription": "新的最小权限密钥会替换所有托管接入中的现有密钥。UI 永远不会显示密钥内容。",
+      "rotateLocked": "请先解决配置漂移，再轮换共享密钥。",
+      "driftProtection": "Omnicross 安装后该文件又被修改。为保护你的改动，直接移除已锁定；你可以先查看修复计划，只协调托管字段。",
+      "attention": "此接入需要处理。请按状态提示修复后刷新本页。",
+      "status": {
+        "notInstalled": "未启用",
+        "enabled": "已启用",
+        "drift": "配置已变更",
+        "missing": "配置缺失",
+        "keyMissing": "密钥缺失"
+      },
+      "hint": {
+        "notInstalled": "普通 CLI 命令尚未持久路由到 Omnicross。",
+        "enabled": "普通 CLI 命令将经由本地 Omnicross 网关路由。",
+        "drift": "当前配置与 Omnicross 安装时的内容不一致。",
+        "missing": "托管配置文件已被移动或删除。",
+        "keyMissing": "配置仍完整，但共享网关密钥缺失或已撤销。请轮换密钥进行修复。"
+      }
+    },
+    "temporary": {
+      "title": "临时启动",
+      "description": "仅为本次运行打开代理终端，不会更改 CLI 的持久配置。"
     },
     "launchDescription": "在终端中启动编码 CLI，并指向此守护进程。守护进程会注入重定向环境变量并为你启动 CLI。",
     "refresh": "刷新",
@@ -1112,8 +1381,69 @@
     "failedHint": "请确认已安装 Node.js 且守护进程已构建（dist 存在），或将 OMNICROSS_DAEMON_ENTRY 设为守护进程的 cli.js 路径。"
   },
   "settings": {
+    "security": {
+      "title": "安全与隐私",
+      "description": "控制客户端身份重放以及影响本地服务外发数据的策略。"
+    },
+    "network": {
+      "title": "网络与代理",
+      "description": "控制客户端如何连接本地网关，以及请求如何到达上游提供方。"
+    },
+    "data": {
+      "migrationTitle": "数据迁移"
+    },
+    "tabs": {
+      "network": "网络",
+      "security": "安全与隐私",
+      "data": "数据",
+      "advanced": "高级",
+      "general": "常规",
+      "scheduling": "账号调度",
+      "notifications": "通知",
+      "audit": "审计",
+      "billing": "计费",
+      "privacy": "客户端身份",
+      "pricing": "模型价格"
+    },
+    "allowanceScheduling": {
+      "title": "基于额度的账号调度",
+      "description": "使用新鲜的 Claude 与 Codex 额度数据，把请求从接近限额的账号移开。",
+      "safety": "缺失、过期、不支持或已失效的额度数据绝不会导致账号降级或暂停。",
+      "enable": {
+        "label": "启用额度调度",
+        "description": "默认关闭。关闭时，额度数据仅用于展示。"
+      },
+      "demote": {
+        "label": "用量达到此百分比时降级",
+        "description": "达到或超过该用量时，临时增加账号的优先级惩罚。"
+      },
+      "pause": {
+        "label": "用量达到此百分比时暂停",
+        "description": "达到或超过该用量时，仅在具有明确未来重置时间的情况下排除账号。"
+      },
+      "penalty": {
+        "label": "优先级惩罚",
+        "description": "账号降级期间加到基础优先级；优先级数值越小越先调度。"
+      },
+      "validation": {
+        "demote": "降级百分比必须在 0 到 100 之间。",
+        "pause": "暂停百分比必须在 0 到 100 之间。",
+        "order": "暂停百分比必须大于或等于降级百分比。",
+        "penalty": "优先级惩罚必须是 1 到 1000 之间的整数。"
+      },
+      "save": "保存调度策略",
+      "history": {
+        "title": "最近生效的决策",
+        "description": "这里只记录实际生效的降级和暂停决策。",
+        "refresh": "刷新",
+        "unavailable": "当前 daemon 版本不提供决策诊断。上方策略配置仍可编辑。",
+        "empty": "尚未执行过由额度触发的降级或暂停。",
+        "action": { "demote": "已降级", "pause": "已暂停" },
+        "priority": "优先级 {{base}} → {{effective}} · 已用 {{used}}%"
+      }
+    },
     "title": "设置",
-    "description": "桌面应用偏好设置。",
+    "description": "桌面偏好设置与运行控制。",
     "desktopOnly": "开机启动与托盘选项仅在桌面应用中生效。",
     "startup": {
       "title": "启动",
@@ -1156,7 +1486,7 @@
     "cost": "费用",
     "apiKey": "API 密钥",
     "unpriced": "无价格",
-    "unpricedHint": "该模型没有价格条目 — 请在“模型价格”页面添加。",
+    "unpricedHint": "该模型没有价格条目 — 请在“设置 > 模型价格”中添加。",
     "unattributed": "未归属",
     "unattributedHint": "未关联到具体 API 密钥的请求。在按密钥归属记录上线之前，这是正常现象。",
     "empty": "该时间范围内没有请求。",
@@ -1205,6 +1535,7 @@
     "empty": "价格表为空。",
     "emptyHint": "获取最新价格以填充表格。",
     "noMatches": "没有匹配的条目。",
+    "pagination": { "summary": "第 {{page}} / {{pages}} 页，共 {{count}} 个模型", "previous": "上一页", "next": "下一页" },
     "saved": "价格条目已保存。",
     "saveFailed": "保存失败：{{message}}",
     "deleteFailed": "删除失败：{{message}}",

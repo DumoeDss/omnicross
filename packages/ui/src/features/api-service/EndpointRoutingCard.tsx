@@ -31,6 +31,11 @@ import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { ENDPOINT_MODEL_KINDS, isKindMappedEndpoint } from './endpointKinds';
+import {
+  effectiveBoundAccountFallbackPolicy,
+  setBoundAccount,
+  setBoundAccountFallbackPolicy,
+} from './endpointRoutingModel';
 import { SUBSCRIPTION_MODEL_CATALOG, subscriptionProviderHasCatalog } from './subscriptionModelCatalog';
 
 import type { ModelRefOption } from './hooks/useApiService';
@@ -94,6 +99,17 @@ export function EndpointRoutingCard({
   const endpointId = endpoint.endpoint;
   const subSupported = subscriptionSupported(endpointId);
   const kindMapped = isKindMappedEndpoint(endpointId);
+  const boundAccountFallbackPolicy = effectiveBoundAccountFallbackPolicy(endpoint);
+  const boundAccountFallbackOptions: SelectOption[] = [
+    {
+      value: 'strict',
+      label: t('apiService.endpoint.boundAccountFallbackStrict'),
+    },
+    {
+      value: 'pool',
+      label: t('apiService.endpoint.boundAccountFallbackPool'),
+    },
+  ];
 
   // Required-model pickers (no empty option — the daemon requires a value, but
   // we surface a placeholder when the stored ref is blank).
@@ -141,7 +157,7 @@ export function EndpointRoutingCard({
 
   /** Switch provider/subscription mode: clear incompatible refs + the other mode's binding. */
   const onModeChange = (checked: boolean) => {
-    const next: EndpointRoutingConfig = { ...endpoint, useSubscription: checked };
+    let next: EndpointRoutingConfig = { ...endpoint, useSubscription: checked };
     if (kindMapped) {
       // BYO refs and subscription refs are not interchangeable — reset the map.
       const modelMap: Record<string, ModelRef> = {};
@@ -150,8 +166,12 @@ export function EndpointRoutingCard({
       }
       next.modelMap = modelMap;
     }
-    if (checked) next.boundKeyId = undefined;
-    else next.boundAccountId = undefined;
+    if (checked) {
+      next.boundKeyId = undefined;
+      next = setBoundAccount(next, next.boundAccountId ?? '');
+    } else {
+      next = setBoundAccount(next, '');
+    }
     onChange(next);
   };
 
@@ -165,7 +185,7 @@ export function EndpointRoutingCard({
       const dm = defaultModelForKind(next as SubscriptionProviderId, kind);
       modelMap[kind] = dm ? `${next},${dm}` : '';
     }
-    onChange({ ...endpoint, modelMap, boundAccountId: undefined });
+    onChange({ ...setBoundAccount(endpoint, ''), modelMap });
   };
 
   const backgroundIdsText = (endpoint.backgroundModelIds ?? []).join(', ');
@@ -266,9 +286,42 @@ export function EndpointRoutingCard({
                   options={accountOptions}
                   placeholder={t('apiService.endpoint.accountPool')}
                   disabled={busy || !currentSubProvider}
-                  onChange={(id) => onChange({ ...endpoint, boundAccountId: id || undefined })}
+                  onChange={(id) => onChange(setBoundAccount(endpoint, id))}
                   size="sm"
                 />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2 border-t border-border/50 pt-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t('apiService.endpoint.boundAccountFallbackPolicy')}
+                </label>
+                <Select
+                  value={boundAccountFallbackPolicy ?? ''}
+                  options={boundAccountFallbackOptions}
+                  placeholder={t('apiService.endpoint.boundAccountFallbackPlaceholder')}
+                  disabled={busy || !endpoint.boundAccountId}
+                  onChange={(value) => {
+                    onChange(
+                      setBoundAccountFallbackPolicy(
+                        endpoint,
+                        value === 'pool' ? 'pool' : 'strict',
+                      ),
+                    );
+                  }}
+                  size="sm"
+                />
+                <p
+                  className={
+                    boundAccountFallbackPolicy === 'pool'
+                      ? 'text-[11px] text-destructive'
+                      : 'text-[11px] text-muted-foreground'
+                  }
+                >
+                  {boundAccountFallbackPolicy === 'pool'
+                    ? t('apiService.endpoint.boundAccountFallbackPoolHint')
+                    : boundAccountFallbackPolicy === 'strict'
+                      ? t('apiService.endpoint.boundAccountFallbackStrictHint')
+                      : t('apiService.endpoint.boundAccountFallbackChooseAccount')}
+                </p>
               </div>
             </div>
 

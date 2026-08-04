@@ -36,6 +36,8 @@
 
 import type http from 'node:http';
 
+import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
+import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
 
 import { serializeError } from '@omnicross/core/serializeError';
@@ -61,7 +63,13 @@ import {
   runPipeline,
   runPipelineWithSubscriptionRetry,
 } from './anthropicSubscriptionPlan';
-import { aggregateAnthropicSseToJsonBody, relayResponse, resolvePoolBoundKey, writeError } from './providerProxyShared';
+import {
+  aggregateAnthropicSseToJsonBody,
+  relayResponse,
+  resolvePoolBoundKey,
+  writeBoundAccountError,
+  writeError,
+} from './providerProxyShared';
 
 // Re-export the shared plan/options types so existing importers
 // (`anthropicMessagesIngress.ts`, tests) keep their import paths unchanged.
@@ -152,9 +160,13 @@ export async function handleAnthropicMessagesByo(
       });
     }
   } catch (err) {
+    if (isBoundAccountSelectionError(err)) {
+      writeBoundAccountError(res, err);
+      return;
+    }
     const errMsg = serializeError(err);
     console.error('[ProviderProxy:anthropic] Pipeline error:', errMsg);
-    writeError(res, 502, errMsg);
+    writeError(res, isAccountAllowanceExhaustedError(err) ? 429 : 502, errMsg);
   }
 }
 

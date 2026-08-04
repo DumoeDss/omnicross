@@ -298,8 +298,8 @@ describe('SubscriptionDispatcher circuit breaker (D5)', () => {
 // [Major 2 + 3] Negative-control regression for the admit-slot invariant — drives
 // the REAL production `SubscriptionProviderRegistry` opencodego `nextFallback`
 // closure (NOT a test re-implementation), so it exercises the actual scan body.
-// A consult of a HALF-OPEN model burns one of its 3 admit slots; the reference
-// (and our fix) consult `allowRequest` EXACTLY ONCE — on the candidate returned.
+// A consult of a HALF-OPEN model burns one of its 3 admit slots, so the dispatcher
+// must call `allowRequest` exactly once on the candidate returned.
 // With the OLD `Array.filter` body this test FAILS (the non-chosen half-open
 // model after the chosen one loses an admit slot it should keep); with the
 // early-returning scan it PASSES.

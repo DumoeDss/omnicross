@@ -87,7 +87,7 @@ export type QuotaDecision =
  * Decide whether the key's accumulated spend already meets/exceeds any
  * configured cost limit (design D4). `allowed:false` when a scope's PRIOR spend
  * is `>= limit` (the triggering request's own cost is unknown pre-flight →
- * bounded one-request overage, CRS-equivalent). An unconfigured scope is never
+ * bounded one-request overage). An unconfigured scope is never
  * gated; a `limits`-less key always passes.
  */
 export function checkKeyQuota(

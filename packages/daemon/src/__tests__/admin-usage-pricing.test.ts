@@ -14,7 +14,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_LITELLM_PRICING_URL } from '@omnicross/contracts/pricing-types';
+import {
+  DEFAULT_LITELLM_PRICING_URL,
+  DEFAULT_OPENROUTER_PRICING_URL,
+} from '@omnicross/contracts/pricing-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
@@ -249,10 +252,15 @@ describe('pricing CRUD', () => {
 
 /** Stub global fetch SELECTIVELY: the LiteLLM URL → the given impl; everything
  *  else (the admin test client itself) passes through to the real fetch. */
-function stubPricingSource(impl: () => Promise<Response>): void {
+function stubPricingSource(
+  impl: () => Promise<Response>,
+  openRouterImpl: () => Promise<Response> = async () =>
+    new Response(JSON.stringify({ data: [] }), { status: 200 }),
+): void {
   const realFetch = fetch;
   vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input) === DEFAULT_LITELLM_PRICING_URL) return impl();
+    if (String(input) === DEFAULT_OPENROUTER_PRICING_URL) return openRouterImpl();
     return realFetch(input, init);
   });
 }
@@ -282,9 +290,18 @@ describe('POST /admin/api/pricing/fetch-latest + resolve-conflicts', () => {
       conflicts: Array<{ modelId: string; current: { inputPricePer1m: number }; incoming: { inputPricePer1m: number } }>;
       fetchedAt: number;
       sourceUrl: string;
+      sources: Array<{ source: string; status: string }>;
     };
     expect(body.appliedCount).toBe(1); // fresh-model only
     expect(body.sourceUrl).toBe(DEFAULT_LITELLM_PRICING_URL);
+    expect(body.sources).toEqual([
+      expect.objectContaining({ source: 'litellm', status: 'applied' }),
+      expect.objectContaining({
+        source: 'openrouter',
+        status: 'failed',
+        error: expect.stringContaining('no usable entries'),
+      }),
+    ]);
     expect(body.conflicts).toHaveLength(1);
     expect(body.conflicts[0].modelId).toBe('mock-model');
     expect(body.conflicts[0].current.inputPricePer1m).toBe(3); // unchanged
@@ -299,7 +316,8 @@ describe('POST /admin/api/pricing/fetch-latest + resolve-conflicts', () => {
 
   it('surfaces an upstream failure as an error response with the table unchanged', async () => {
     await adminFetch('PUT', '/admin/api/pricing', ENTRY);
-    stubPricingSource(async () => new Response('oops', { status: 503 }));
+    const fail = async () => new Response('oops', { status: 503 });
+    stubPricingSource(fail, fail);
 
     const r = await adminFetch('POST', '/admin/api/pricing/fetch-latest');
     expect(r.status).toBe(502);

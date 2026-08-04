@@ -1,7 +1,7 @@
 /**
  * i18n init (design D7) — minimal react-i18next, all supported languages.
  *
- * Resources are the ported `providerSettings` / `apiMode` / `presetName` trees
+ * Resources include the `providerSettings` / `apiMode` / `presetName` trees
  * plus the `common` / `mediaSettings` subsets the page uses, and two app-local
  * keys (`appLocal.notSupportedByDaemon`, `appLocal.discoveryUnsupportedFormat`).
  */

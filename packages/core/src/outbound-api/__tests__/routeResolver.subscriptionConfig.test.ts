@@ -49,11 +49,58 @@ function messagesConfig(ref: string): EndpointRoutingConfig {
   };
 }
 
+function responsesConfig(ref: string): EndpointRoutingConfig {
+  return {
+    endpoint: 'responses',
+    modelMap: { codex: ref, mini: ref },
+    useSubscription: true,
+  };
+}
+
 afterEach(() => {
   setSubscriptionRegistryForOutbound(null);
 });
 
 describe('routeResolver — opaque subscriptionConfig seam', () => {
+  it('propagates the bound-account policy through subscription route and auth hints', async () => {
+    const registry: SubscriptionRegistryLike = {
+      getProfile: (id) => (id === 'claude' || id === 'codex' ? fakeProfile(id) : null),
+    };
+    setSubscriptionRegistryForOutbound(registry);
+
+    const claudeResult = await resolveRoute({
+      config: {
+        ...messagesConfig('claude,claude-sonnet-4-5'),
+        boundAccountId: 'acct-claude',
+        boundAccountFallbackPolicy: 'pool',
+      },
+      role: 'default',
+      ingressFormat: 'anthropic-messages',
+      llmConfig: NO_BYO_LLM_CONFIG,
+    });
+    expect(claudeResult.ok).toBe(true);
+    if (!claudeResult.ok) return;
+    expect(claudeResult.route.preferredAccountId).toBe('acct-claude');
+    expect(claudeResult.route.boundAccountFallbackPolicy).toBe('pool');
+    expect(claudeResult.route.anthropicSdkHints?.preferredAccountId).toBe('acct-claude');
+    expect(claudeResult.route.anthropicSdkHints?.boundAccountFallbackPolicy).toBe('pool');
+
+    const codexResult = await resolveRoute({
+      config: {
+        ...responsesConfig('codex,gpt-5-codex'),
+        boundAccountId: 'acct-codex',
+        boundAccountFallbackPolicy: 'strict',
+      },
+      ingressFormat: 'openai-responses',
+      llmConfig: NO_BYO_LLM_CONFIG,
+      requestedModel: 'gpt-5-codex',
+    });
+    expect(codexResult.ok).toBe(true);
+    if (!codexResult.ok) return;
+    expect(codexResult.route.preferredAccountId).toBe('acct-codex');
+    expect(codexResult.route.boundAccountFallbackPolicy).toBe('strict');
+  });
+
   it('opencodego route → route.subscriptionConfig is populated from the registry getter', async () => {
     const opaqueConfig = { baseUrl: 'https://host.example', modelMap: { default: { modelId: 'x' } } };
     const registry: SubscriptionRegistryLike = {

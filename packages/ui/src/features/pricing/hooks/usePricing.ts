@@ -190,7 +190,11 @@ export function usePricing(): UsePricingResult {
     try {
       await refreshList();
       setNotice({
-        kind: 'success',
+        // A multi-source refresh may succeed partially; keep the applied rows
+        // but render the notice as a warning when one catalog was unavailable.
+        kind: result.sources?.some((source) => source.status === 'failed')
+          ? 'warning'
+          : 'success',
         messageKey: 'pricing.fetchApplied',
         params: { count: result.appliedCount },
       });

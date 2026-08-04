@@ -1,7 +1,6 @@
 /**
- * Defaults parity tests — the built-in OpenCodeGo model map + fallback chain
- * MUST mirror `_others/oc-go-cc/configs/config.example.json` (audit D4 +
- * fallback-list parity). Covers the `complex` → `glm-5.1` fix, the new DORMANT
+ * Defaults tests for the built-in OpenCodeGo model map + fallback chain.
+ * Covers the `complex` → `glm-5.1` choice, the dormant
  * `background` scenario, and every aligned fallback list.
  */
 
@@ -18,14 +17,14 @@ describe('DEFAULT_OPENCODEGO_MODEL_MAP', () => {
     expect(DEFAULT_OPENCODEGO_MODEL_MAP.complex.modelId).toBe('glm-5.1');
   });
 
-  it('maps background to qwen3.5-plus with reference temperature/maxTokens', () => {
+  it('maps background to qwen3.5-plus with the configured temperature/maxTokens', () => {
     const bg = DEFAULT_OPENCODEGO_MODEL_MAP.background;
     expect(bg.modelId).toBe('qwen3.5-plus');
     expect(bg.temperature).toBe(0.5);
     expect(bg.maxTokens).toBe(2048);
   });
 
-  it('keeps the untouched primary models aligned to the reference', () => {
+  it('keeps the expected primary model defaults', () => {
     expect(DEFAULT_OPENCODEGO_MODEL_MAP.default.modelId).toBe('kimi-k2.6');
     expect(DEFAULT_OPENCODEGO_MODEL_MAP.long_context.modelId).toBe('minimax-m2.5');
     expect(DEFAULT_OPENCODEGO_MODEL_MAP.think.modelId).toBe('glm-5');

@@ -24,6 +24,7 @@ import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { ProviderProxy } from '../provider-proxy';
 import type { ProviderProxyDeps } from '../provider-proxy';
+import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
 
 import type { KeySpendReader } from './keySpendTracker';
 import type { VoucherDb } from './voucher';
@@ -133,10 +134,17 @@ export interface EndpointRoutingConfig {
   /**
    * OPTIONAL subscription-mode binding to ONE specific subscription account id
    * (provider/subscription duality). Absent/blank ⇒ the provider's account pool
-   * auto-schedules (priority/LRU/health). When set and the account is
-   * schedulable it is used directly; otherwise the pool is the fallback.
+   * auto-schedules (priority/LRU/health). When set, strict mode requires this
+   * account to serve; the pool is a fallback only with the explicit policy below.
    */
   boundAccountId?: string;
+  /**
+   * What a bound account does when it cannot serve this request. Meaningful
+   * only with `boundAccountId`; normalization drops it otherwise. A legacy
+   * bound endpoint with no field migrates to `'strict'`. The pool is used only
+   * when this is explicitly set to `'pool'`.
+   */
+  boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /**
    * OPTIONAL provider-mode binding to ONE specific BYO key id (from the
    * provider's key pool). Absent/blank ⇒ the provider's default key / key pool.
@@ -187,7 +195,7 @@ export interface ConcurrencyQueueConfig {
  * Persisted + strictly validated like the queue segments; applied to the shared
  * `SubscriptionAccountHealth` tracker at daemon boot.
  *  - `overloadCooldownEnabled` default **true** — a 529 places the account in
- *    overload cooldown (ON by default; CRS ships it off).
+ *    overload cooldown (enabled by default).
  *  - `overloadCooldownMs`      default **600000** (10 min), valid `60000..3600000`.
  */
 export interface AccountHealthConfig {
@@ -220,6 +228,20 @@ export interface AccountProbeConfig {
   timeoutMs: number;
   historySize: number;
   staggerMs: number;
+}
+
+/**
+ * Optional allowance-aware account scheduling. Default-off keeps allowance
+ * telemetry display-only. When enabled, only fresh Claude/Codex snapshots are
+ * considered: accounts above `demoteAtPercent` receive a temporary priority
+ * penalty; accounts above `pauseAtPercent` are excluded until the provider's
+ * reset/freshness deadline. Missing or stale data never excludes an account.
+ */
+export interface AllowanceSchedulingConfig {
+  enabled: boolean;
+  demoteAtPercent: number;
+  pauseAtPercent: number;
+  priorityPenalty: number;
 }
 
 /**
@@ -290,6 +312,8 @@ export interface OutboundApiServerConfig {
    * boot; a change takes effect on restart. Default-off ⇒ no scheduler runs.
    */
   accountProbe?: AccountProbeConfig;
+  /** Default-off allowance-aware scheduling; hot-reloaded by the daemon. */
+  allowanceScheduling?: AllowanceSchedulingConfig;
   /**
    * Layered upstream-proxy segment (upstream-proxy). Optional; when absent no
    * global/provider proxy applies (direct egress). `normalizeServerConfig` drops
@@ -376,6 +400,12 @@ export interface OutboundApiKeyInfo {
   createdAt: number;
   lastUsedAt: number | null;
   revoked: boolean;
+  /** Intended consumer. Existing rows default to a general client key. */
+  kind?: 'client' | 'integration';
+  /** Optional endpoint allow-list. Absent means every outbound endpoint. */
+  allowedEndpoints?: OutboundEndpoint[];
+  /** When true the key is rejected unless the TCP peer is loopback. */
+  loopbackOnly?: boolean;
   /**
    * Per-key concurrency ceiling for the outbound concurrency gate. Absent or
    * `0` = unlimited (the gate is bypassed entirely for this key).
@@ -405,7 +435,7 @@ export interface OutboundApiKeyInfo {
   //    master gate is `enableModelRestriction` — false/unset ⇒ no check. ────────
   /** Master switch: when false/unset the model list is inert (no restriction). */
   enableModelRestriction?: boolean;
-  /** Restriction mode; absent ⇒ `'blacklist'` (CRS-parity). */
+  /** Restriction mode; absent ⇒ `'blacklist'`. */
   restrictionMode?: OutboundKeyModelRestrictionMode;
   /** The model-id list the mode acts on (bare modelIds; empty allowlist denies all). */
   restrictedModels?: string[];
@@ -473,6 +503,12 @@ export interface OutboundKeyDbRow {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  /** Intended consumer. Existing rows without this field remain client keys. */
+  kind?: 'client' | 'integration';
+  /** Optional endpoint allow-list for least-privilege integration keys. */
+  allowedEndpoints?: OutboundEndpoint[];
+  /** Restrict use to requests whose direct socket peer is loopback. */
+  loopbackOnly?: boolean;
   /**
    * Per-key concurrency ceiling. Absent/`0` = unlimited = the concurrency gate
    * is bypassed for this key. Persisted by the daemon (`omnicross-uqc-daemon`).
@@ -518,6 +554,9 @@ export interface OutboundKeyDb {
     keyHash: string;
     keyPrefix: string;
     createdAt?: number;
+    kind?: 'client' | 'integration';
+    allowedEndpoints?: OutboundEndpoint[];
+    loopbackOnly?: boolean;
   }): Promise<OutboundKeyDbRow>;
   outboundApiKeysRevoke(id: string): Promise<boolean>;
   outboundApiKeysTouchLastUsed(id: string): Promise<boolean>;

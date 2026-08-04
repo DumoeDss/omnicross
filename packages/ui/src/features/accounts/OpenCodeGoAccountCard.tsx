@@ -32,6 +32,9 @@ interface OpenCodeGoAccountCardProps {
   entry: SubscriptionListEntry;
   accounts: SubscriptionAccountSanitized[];
   accountsApi: ReturnType<typeof useAccounts>;
+  mode?: 'manage' | 'add';
+  onAddRequest?: () => void;
+  onAdded?: () => void;
 }
 
 function headerStatus(
@@ -43,10 +46,20 @@ function headerStatus(
   return entry.credentialStatus.ok ? 'configured' : 'unconfigured';
 }
 
-export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCodeGoAccountCardProps) {
+export function OpenCodeGoAccountCard({
+  entry,
+  accounts,
+  accountsApi,
+  mode = 'manage',
+  onAddRequest,
+  onAdded,
+}: OpenCodeGoAccountCardProps) {
   const t = useTranslation();
   const {
     busy,
+    allowances,
+    allowanceLoading,
+    allowanceErrors,
     appendTokens,
     setActive,
     removeAccount,
@@ -64,6 +77,7 @@ export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCode
   const [formError, setFormError] = useState<string | null>(null);
 
   const status = headerStatus(entry, accounts);
+  const isAddMode = mode === 'add';
 
   const resetForm = () => {
     setApiKey('');
@@ -95,6 +109,7 @@ export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCode
     if (result.success) {
       resetForm();
       setFormOpen(false);
+      onAdded?.();
     } else {
       setFormError(result.message ?? t('accounts.errors.requestFailed'));
     }
@@ -115,23 +130,43 @@ export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCode
             </p>
           </div>
         </div>
-        <StatusBadge status={status} />
+        <div className="flex shrink-0 items-center gap-2">
+          <StatusBadge status={status} />
+          {!isAddMode && onAddRequest ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={onAddRequest}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {t('accounts.accounts.addAccount')}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Multi-account list (no refresh — OpenCodeGo is a static key) */}
-      <AccountList
-        accounts={accounts}
-        busy={busy}
-        onSetActive={(id) => void setActive('opencodego', id)}
-        onRemove={(id) => void removeAccount('opencodego', id)}
-        onRename={(id, label) => renameAccount('opencodego', id, label)}
-        onSetPriority={(id, priority) => setAccountPriority('opencodego', id, priority)}
-        onSetProxy={(id, proxy) => setAccountProxy('opencodego', id, proxy)}
-        onSetSupportedModels={(id, models) => setAccountSupportedModels('opencodego', id, models)}
-      />
+      {!isAddMode ? (
+        accounts.length > 0 ? (
+          <AccountList
+            providerId="opencodego"
+            accounts={accounts}
+            busy={busy}
+            allowances={allowances}
+            allowanceLoading={allowanceLoading}
+            allowanceErrors={allowanceErrors}
+            onSetActive={(id) => void setActive('opencodego', id)}
+            onRemove={(id) => void removeAccount('opencodego', id)}
+            onRename={(id, label) => renameAccount('opencodego', id, label)}
+            onSetPriority={(id, priority) => setAccountPriority('opencodego', id, priority)}
+            onSetProxy={(id, proxy) => setAccountProxy('opencodego', id, proxy)}
+            onSetSupportedModels={(id, models) => setAccountSupportedModels('opencodego', id, models)}
+          />
+        ) : (
+          <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-sm text-muted-foreground">
+            {t('accounts.list.empty')}
+          </p>
+        )
+      ) : null}
 
       {/* Add path: API-key form */}
-      {formOpen ? (
+      {isAddMode && formOpen ? (
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
@@ -209,7 +244,7 @@ export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCode
             </Button>
           </div>
         </div>
-      ) : (
+      ) : isAddMode ? (
         <Button
           className="w-full"
           disabled={busy}
@@ -221,7 +256,7 @@ export function OpenCodeGoAccountCard({ entry, accounts, accountsApi }: OpenCode
           <Plus className="mr-2 h-4 w-4" />
           {t('accounts.accounts.addAccount')}
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }

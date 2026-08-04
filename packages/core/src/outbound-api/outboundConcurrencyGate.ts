@@ -10,8 +10,7 @@
  * waiter can be CANCELLED (the wire layer binds this to `res.close` so a client
  * that disconnects mid-queue frees its spot). Release + cancel are idempotent
  * (guarded by a per-acquisition `settled` flag) so the wire's `finally` +
- * `res.once('close')` double-fire is safe — this directly avoids the CRS #1130
- * slot leak.
+ * `res.once('close')` double-fire is safe and cannot leak a concurrency slot.
  *
  * Memory-only, injected clock, resets on restart. `limit <= 0` means unlimited
  * (the wire layer bypasses the gate entirely for such keys; a defensive call

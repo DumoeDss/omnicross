@@ -29,9 +29,11 @@ import {
 
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
+import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
 import type {
   AccountHealthConfig,
   AccountProbeConfig,
+  AllowanceSchedulingConfig,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   FingerprintConfig,
@@ -103,6 +105,44 @@ export const DEFAULT_ACCOUNT_PROBE: AccountProbeConfig = {
   historySize: 10,
   staggerMs: 500,
 };
+
+/** Default-off thresholds for allowance-aware account scheduling. */
+export const DEFAULT_ALLOWANCE_SCHEDULING: AllowanceSchedulingConfig = {
+  enabled: false,
+  demoteAtPercent: 80,
+  pauseAtPercent: 98,
+  priorityPenalty: 100,
+};
+
+/** Fill and clamp the optional allowance scheduling segment. */
+export function normalizeAllowanceScheduling(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): AllowanceSchedulingConfig {
+  const value = raw?.allowanceScheduling;
+  const demoteAtPercent = clampNumber(
+    value?.demoteAtPercent,
+    0,
+    100,
+    DEFAULT_ALLOWANCE_SCHEDULING.demoteAtPercent,
+  );
+  const requestedPause = clampNumber(
+    value?.pauseAtPercent,
+    0,
+    100,
+    DEFAULT_ALLOWANCE_SCHEDULING.pauseAtPercent,
+  );
+  return {
+    enabled: value?.enabled === true,
+    demoteAtPercent,
+    pauseAtPercent: Math.max(demoteAtPercent, requestedPause),
+    priorityPenalty: Math.trunc(clampNumber(
+      value?.priorityPenalty,
+      1,
+      1_000,
+      DEFAULT_ALLOWANCE_SCHEDULING.priorityPenalty,
+    )),
+  };
+}
 
 /** Fill + range-CLAMP the account-probe segment to the frozen defaults. */
 export function normalizeAccountProbe(
@@ -455,8 +495,17 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
   // round-trips through GET/PUT unchanged. Applies to ALL endpoint classes.
   const boundAccountId =
     typeof e.boundAccountId === 'string' && e.boundAccountId.trim() !== ''
-      ? e.boundAccountId
+      ? e.boundAccountId.trim()
       : undefined;
+  // A binding without the new policy is legacy data: migrate it to strict
+  // failure. Pool fallback is accepted only as the exact opt-in value. The
+  // policy is omitted when the binding is cleared so stale UI fields cannot
+  // affect a later unbound endpoint.
+  const boundAccountFallbackPolicy: BoundAccountFallbackPolicy | undefined = boundAccountId
+    ? e.boundAccountFallbackPolicy === 'pool'
+      ? 'pool'
+      : 'strict'
+    : undefined;
   const boundKeyId =
     typeof e.boundKeyId === 'string' && e.boundKeyId.trim() !== ''
       ? e.boundKeyId
@@ -500,7 +549,10 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
     }
   }
 
-  if (boundAccountId) config.boundAccountId = boundAccountId;
+  if (boundAccountId) {
+    config.boundAccountId = boundAccountId;
+    config.boundAccountFallbackPolicy = boundAccountFallbackPolicy;
+  }
   if (boundKeyId) config.boundKeyId = boundKeyId;
   return config;
 }
@@ -517,6 +569,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(undefined),
     accountProbe: normalizeAccountProbe(undefined),
+    allowanceScheduling: normalizeAllowanceScheduling(undefined),
     audit: normalizeAudit(undefined),
     billing: normalizeBilling(undefined),
     fingerprint: normalizeFingerprint(undefined),
@@ -552,6 +605,7 @@ export function normalizeServerConfig(
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(raw),
     accountProbe: normalizeAccountProbe(raw),
+    allowanceScheduling: normalizeAllowanceScheduling(raw),
     audit: normalizeAudit(raw),
     billing: normalizeBilling(raw),
     fingerprint: normalizeFingerprint(raw),
@@ -598,6 +652,7 @@ export function mergeServerConfig(
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
     accountHealth: patch.accountHealth ?? current.accountHealth,
     accountProbe: patch.accountProbe ?? current.accountProbe,
+    allowanceScheduling: patch.allowanceScheduling ?? current.allowanceScheduling,
     audit: patch.audit ?? current.audit,
     billing: patch.billing ?? current.billing,
     // Proxy is layer-replaced (not deep-merged): a PUT carrying `proxy` swaps the

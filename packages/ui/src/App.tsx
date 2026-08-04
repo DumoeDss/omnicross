@@ -1,51 +1,39 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 import { DaemonStatusBanner } from '@/components/DaemonStatusBanner';
-import { NavRail, type PageId } from '@/components/nav/NavRail';
+import { NavRail } from '@/components/nav/NavRail';
 import { AccountsPage } from '@/features/accounts';
 import { ApiServicePage } from '@/features/api-service';
+import type { ApiServiceTabId } from '@/features/api-service/apiServiceTabModel';
 import { CodeCliPage } from '@/features/code-cli';
-import { PricingPage } from '@/features/pricing';
+import { OverviewPage } from '@/features/overview';
 import { ProviderSettings } from '@/features/provider-settings/ProviderSettings';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+import type { SettingsTabId } from '@/features/settings/settingsTabModel';
 import { UsageStatsPage } from '@/features/usage-stats';
+import { useHashRoute, type AppRoute, type RouteNavigate } from '@/shared/state/hashRoute';
 
-/**
- * App shell — a multi-page settings shell over the daemon admin API. Navigation
- * is lightweight local state (no router lib, design D4): `activePage` selects
- * the rendered page via a `switch`; `NavRail` owns the rail markup. Language is
- * managed on the Settings page; each component re-renders on language change via
- * its own `useTranslation` subscription.
- */
-function renderPage(page: PageId) {
-  switch (page) {
-    case 'api-service':
-      return <ApiServicePage />;
-    case 'accounts':
-      return <AccountsPage />;
-    case 'code-cli':
-      return <CodeCliPage />;
-    case 'usage-stats':
-      return <UsageStatsPage />;
-    case 'pricing':
-      return <PricingPage />;
-    case 'settings':
-      return <SettingsPage />;
+function renderPage(route: AppRoute, navigate: RouteNavigate) {
+  switch (route.page) {
+    case 'overview': return <OverviewPage onNavigate={navigate} />;
+    case 'api-service': return <ApiServicePage activeTab={(route.tab as ApiServiceTabId | undefined) ?? 'overview'} onTabChange={(tab) => navigate({ page: 'api-service', tab })} />;
+    case 'accounts': return <AccountsPage route={route} onNavigate={navigate} />;
+    case 'integrations': return <CodeCliPage />;
+    case 'usage-stats': return <UsageStatsPage />;
+    case 'settings': return <SettingsPage activeTab={(route.tab as SettingsTabId | undefined) ?? 'general'} onTabChange={(tab) => navigate({ page: 'settings', tab })} />;
     case 'providers':
-    default:
-      return <ProviderSettings />;
+    default: return <ProviderSettings />;
   }
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState<PageId>('providers');
-
+  const [route, navigate] = useHashRoute();
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <NavRail activePage={activePage} onNavigate={setActivePage} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground md:flex-row">
+      <NavRail activePage={route.page} onNavigate={(page) => navigate({ page })} />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DaemonStatusBanner />
-        <main className="min-w-0 flex-1 overflow-hidden">{renderPage(activePage)}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{renderPage(route, navigate)}</main>
       </div>
     </div>
   );

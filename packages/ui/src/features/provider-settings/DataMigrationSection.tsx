@@ -342,20 +342,25 @@ export function DataMigrationSection() {
   const [importOpen, setImportOpen] = useState(false);
 
   return (
-    <div className="flex items-center gap-3 border-t border-border/50 px-4 py-3">
-      <span className="flex-1 min-w-0 text-xs text-muted-foreground">
-        {t('providerSettings.migrationPack.barHint')}
-      </span>
-      <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
-        <Download className="h-4 w-4" />
-        {t('providerSettings.migrationPack.export.button')}
-      </Button>
-      <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-        <FileUp className="h-4 w-4" />
-        {t('providerSettings.migrationPack.import.button')}
-      </Button>
+    <section className="space-y-3 rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">{t('settings.data.migrationTitle')}</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t('providerSettings.migrationPack.barHint')}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={() => setExportOpen(true)}>
+          <Download className="h-4 w-4" />
+          {t('providerSettings.migrationPack.export.button')}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+          <FileUp className="h-4 w-4" />
+          {t('providerSettings.migrationPack.import.button')}
+        </Button>
+      </div>
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
-    </div>
+    </section>
   );
 }

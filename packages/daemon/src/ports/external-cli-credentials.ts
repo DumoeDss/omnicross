@@ -1,19 +1,17 @@
 /**
- * external-cli-credentials — read-only access to the external CLI native
+ * external-cli-credentials read-only access to the external CLI native
  * credential stores (external-cli-sync).
  *
- * The daemon never WRITES these files (they belong to the CLIs); it only reads
- * them back to (a) recover from the rotating-refresh-token race — when e.g.
- * Claude Code refreshes `~/.claude/.credentials.json` it rotates OUR stored
- * refresh token out from under us, and the external file then holds the only
- * live credential — and (b) detect divergence for the account-list warning.
+ * The daemon never WRITES these files (they belong to the CLIs); it reads them
+ * only for the explicit admin availability check and copy-as-new-account import
+ * flow. Normal account reads and refreshes never call this reader.
  *
  * File shapes (mirrors the shapes the CLIs themselves write):
  *   claude `~/.claude/.credentials.json`
- *     → `{ claudeAiOauth: { accessToken, refreshToken?, expiresAt(number ms),
+ *     `{ claudeAiOauth: { accessToken, refreshToken, expiresAt(number ms),
  *          scopes? } }`
  *   codex `~/.codex/auth.json`
- *     → `{ tokens: { id_token?, access_token, refresh_token? } }` — no explicit
+ *     `{ tokens: { id_token, access_token, refresh_token } }` no explicit
  *       expiry; the access token's JWT `exp` claim is the only expiry signal.
  *
  * Gemini is deliberately excluded: the gemini CLI's oauth store is not a
@@ -45,7 +43,7 @@ export interface ExternalCliCredentials {
   scopes?: string[];
 }
 
-/** Reader port — injectable so tests never touch the real home directory. */
+/** Reader port injectable so tests never touch the real home directory. */
 export type ExternalCliReader = (provider: ExternalCliProvider) => ExternalCliCredentials | null;
 
 /** Absolute path to a provider's native credential store. */
@@ -56,8 +54,8 @@ export function externalStorePath(provider: ExternalCliProvider, home: string = 
 }
 
 /**
- * Best-effort decode of a JWT's `exp` claim → ms since epoch. Defensive: any
- * malformed input → undefined.
+ * Best-effort decode of a JWT's `exp` claim ms since epoch. Defensive: any
+ * malformed input undefined.
  */
 export function decodeJwtExpiryMs(token: string): number | undefined {
   try {
@@ -88,7 +86,7 @@ export function parseClaudeOAuthEnvelope(
   if (typeof oauth.refreshToken === 'string' && oauth.refreshToken) {
     parsed.refreshToken = oauth.refreshToken;
   }
-  // Number ms epoch → ISO string (the internal axis). Non-finite ⇒ omitted.
+  // Number ms epoch ISO string (the internal axis). Non-finite omitted.
   if (typeof oauth.expiresAt === 'number' && Number.isFinite(oauth.expiresAt)) {
     parsed.expiresAt = new Date(oauth.expiresAt).toISOString();
   }
@@ -129,8 +127,9 @@ export function parseCodexTokensEnvelope(
 }
 
 /**
- * Default reader: read + parse one provider's native store. Tolerates an
- * absent / unreadable / malformed file by returning `null` (nothing to sync).
+ * Default reader: read + parse one provider's native store for an explicit
+ * admin availability/import operation. Tolerates an absent / unreadable /
+ * malformed file by returning `null`. This function is read-only.
  */
 export function readExternalCliCredentials(
   provider: ExternalCliProvider,

@@ -32,6 +32,8 @@ import type {
 } from '@omnicross/contracts/subscription-types';
 import { serializeError } from '@omnicross/core/serializeError';
 
+import { isAccountAllowanceExhaustedError } from './AccountAllowanceScheduling';
+import { isBoundAccountSelectionError } from './BoundAccountSelectionError';
 import type { AuthApplyHints, AuthSource } from './AuthSource';
 import type { AuthStrategy } from './SubscriptionAuthStrategy';
 
@@ -191,8 +193,10 @@ export class SubscriptionAuthSource implements AuthSource {
         sessionKey: hints.sessionKey,
         reportSelection: hints.reportSelection,
         preferredAccountId: hints.preferredAccountId,
+        boundAccountFallbackPolicy: hints.boundAccountFallbackPolicy,
       });
     } catch (err) {
+      if (isAccountAllowanceExhaustedError(err) || isBoundAccountSelectionError(err)) throw err;
       console.warn('[SubscriptionAuthSource] authStrategy.applyHeaders threw:', serializeError(err));
     }
   }

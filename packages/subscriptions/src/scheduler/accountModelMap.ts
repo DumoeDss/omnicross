@@ -2,7 +2,7 @@
  * accountModelMap — pure helpers for the per-account `supportedModels` field
  * (subscription-account-model-map, design D1).
  *
- * CRS dual-format `SubscriptionAccountEntry.supportedModels`:
+ * Dual-format `SubscriptionAccountEntry.supportedModels`:
  *  - **array** — an ALLOW-LIST of supported logical models; no remap.
  *  - **object** — the KEYS are the same allow-list AND each VALUE is the
  *    account's ACTUAL upstream model (a logical→actual remap).

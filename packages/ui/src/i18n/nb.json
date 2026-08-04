@@ -859,8 +859,6 @@
       "requestFailed": "Forespørselen mislyktes. Prøv igjen."
     },
     "syncWarning": {
-      "external-divergent": "Den eksterne CLI-påloggingsfilen inneholder nyere legitimasjon enn denne kontoen. Det lagrede tokenet kan slutte å fornyes — forny nå eller logg inn på nytt.",
-      "external-not-rotated": "Fornyelsen mislyktes, og den eksterne CLI-en inneholder den samme utløpte legitimasjonen. Logg inn på nytt.",
       "duplicate-token": "En annen konto deler denne legitimasjonen. Fornyelse av den ene logger den andre ut."
     },
     "importExternal": {

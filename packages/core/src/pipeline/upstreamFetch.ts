@@ -43,6 +43,7 @@ import {
   redactHeaders,
   writeUpstreamTrace,
 } from './upstreamTrace';
+import { getSharedAccountAllowanceStore } from './AccountAllowanceStore';
 
 /** The opaque call context the resolver maps to a proxy (precedence input). */
 export interface UpstreamProxyContext {
@@ -199,7 +200,7 @@ export function resolveUpstreamDispatcher(ctx: UpstreamProxyContext): Dispatcher
   if (!cfg) return undefined;
   const norm = normalizeProxy(cfg);
   if (!norm) return undefined;
-  const key = `${generation} ${proxyKey(norm)}`;
+  const key = `${generation}\0${proxyKey(norm)}`;
   let dispatcher = cache.get(key);
   if (!dispatcher) {
     dispatcher = buildDispatcher(norm);
@@ -225,11 +226,27 @@ export function fetchUpstream(
     ? () => fetch(url, { ...init, dispatcher } as RequestInit)
     : () => fetch(url, init);
 
+  // Passive Codex allowance capture. The egress context contains the account id
+  // selected for THIS request, so attribution cannot drift to the active/default
+  // account during concurrent pool traffic. Missing account ids and non-Codex
+  // calls are strict no-ops. Parsing/storage must never be able to break serving.
+  const doFetchWithAllowanceTap = (): Promise<Response> =>
+    doFetch().then((response) => {
+      if (ctx?.providerId === 'codex' && ctx.accountId) {
+        try {
+          getSharedAccountAllowanceStore().recordCodexHeaders(ctx.accountId, response.headers);
+        } catch {
+          /* allowance telemetry is best-effort */
+        }
+      }
+      return response;
+    });
+
   // Upstream-exchange trace (debugging). Only relay calls carry a `providerId`;
   // OAuth-refresh / webhook sends pass no ctx, so they are skipped (less noise).
   // Zero work when no trace path is installed. See `upstreamTrace.ts`.
   const tracePath = getUpstreamTracePath();
-  if (!tracePath || !ctx?.providerId) return doFetch();
+  if (!tracePath || !ctx?.providerId) return doFetchWithAllowanceTap();
 
   const startedAt = Date.now();
   const method = typeof init.method === 'string' ? init.method : 'GET';
@@ -240,7 +257,7 @@ export function fetchUpstream(
   const providerId = ctx.providerId;
   const accountId = ctx.accountId;
 
-  return doFetch()
+  return doFetchWithAllowanceTap()
     .then((res) => {
       // Tee the stream: the relay keeps streaming `res`; the clone is buffered
       // fully (a `text/event-stream` included) and written to the trace.

@@ -38,7 +38,7 @@ describe('detectOpenCodeGoShape (GO half, back-compat)', () => {
   });
 });
 
-describe('classifyZenShape (ZEN half — ported ClassifyEndpoint)', () => {
+describe('classifyZenShape (ZEN half)', () => {
   it('claude* → anthropic', () => {
     expect(classifyZenShape('claude-sonnet-4.5')).toBe('anthropic');
     expect(classifyZenShape('claude-opus-4.1')).toBe('anthropic');
@@ -53,8 +53,8 @@ describe('classifyZenShape (ZEN half — ported ClassifyEndpoint)', () => {
   });
 
   it('Q2 FIX: a NON-qwen3.7-max qwen id is NOT over-captured to anthropic → chat', () => {
-    // Negative control: if the qwen* PREFIX (the reference bug) were ported, this
-    // would be 'anthropic'. The fix routes it to chat.
+    // Negative control: only the explicitly supported Qwen id uses the
+    // Anthropic-shaped endpoint; other Qwen ids use chat.
     expect(classifyZenShape('qwen3.6-plus')).toBe('chat');
     expect(classifyZenShape('qwen3.5-plus')).toBe('chat');
     expect(classifyZenShape('qwen-turbo')).toBe('chat');
@@ -73,7 +73,7 @@ describe('classifyZenShape (ZEN half — ported ClassifyEndpoint)', () => {
     expect(classifyZenShape('gemini-3-flash')).toBe('gemini');
     expect(classifyZenShape('gemini-3.5-flash')).toBe('gemini');
     expect(classifyZenShape('gemini-3.1-pro')).toBe('gemini');
-    // A near-future id the reference's 3-id list would miss.
+    // A near-future id should remain in the Gemini family.
     expect(classifyZenShape('gemini-4-ultra')).toBe('gemini');
   });
 

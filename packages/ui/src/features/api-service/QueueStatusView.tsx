@@ -2,10 +2,10 @@
  * QueueStatusView.tsx — a quiet-when-idle readout of live queue activity
  * (`status.queueStatus`, omnicross-user-queue-concurrency §COMMITTED §4).
  *
- * Renders NOTHING when `queueStatus` is absent or both arrays are empty (the
- * office-hours "silent when nothing is queued" intent — no empty-state box).
  * When there is activity it lists serial holders/waiters per provider and
- * concurrency active/waiting per key, read-only.
+ * concurrency active/waiting per key, read-only. When there is no activity it
+ * keeps the empty state explicit so the Live Traffic task still explains what
+ * the operator is looking at.
  */
 
 import { Activity } from 'lucide-react';
@@ -16,14 +16,15 @@ import type { OutboundQueueStatus } from '@/daemon/types';
 
 interface QueueStatusViewProps {
   queueStatus: OutboundQueueStatus | undefined;
+  running?: boolean;
 }
 
-export function QueueStatusView({ queueStatus }: QueueStatusViewProps) {
+export function QueueStatusView({ queueStatus, running = false }: QueueStatusViewProps) {
   const t = useTranslation();
 
   const serial = queueStatus?.serial ?? [];
   const concurrency = queueStatus?.concurrency ?? [];
-  if (serial.length === 0 && concurrency.length === 0) return null;
+  const hasActivity = serial.length > 0 || concurrency.length > 0;
 
   return (
     <div className="rounded-md border border-border/60 bg-surface-0/60 p-3 space-y-2" role="status">
@@ -31,6 +32,12 @@ export function QueueStatusView({ queueStatus }: QueueStatusViewProps) {
         <Activity className="h-4 w-4 text-primary" aria-hidden="true" />
         <span className="text-sm font-medium text-foreground">{t('apiService.queue.status.title')}</span>
       </div>
+
+      {!hasActivity ? (
+        <p className="rounded-md border border-dashed border-border/60 px-3 py-3 text-xs text-muted-foreground">
+          {running ? t('apiService.liveTraffic.queueIdle') : t('apiService.liveTraffic.queueUnavailable')}
+        </p>
+      ) : null}
 
       {serial.length > 0 ? (
         <div className="space-y-1">

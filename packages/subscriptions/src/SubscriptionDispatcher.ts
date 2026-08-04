@@ -13,6 +13,8 @@
 import type http from 'node:http';
 
 import type { OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
+import { isAccountAllowanceExhaustedError } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
+import { isBoundAccountSelectionError } from '@omnicross/core/pipeline/BoundAccountSelectionError';
 import { getGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import {
   getSharedAccountHealth,
@@ -470,6 +472,7 @@ export class SubscriptionDispatcher {
     try {
       await this.profile.authStrategy.applyHeaders(headers, hints);
     } catch (err) {
+      if (isAccountAllowanceExhaustedError(err) || isBoundAccountSelectionError(err)) throw err;
       console.warn('[AgentProxy:subscription] authStrategy.applyHeaders threw:', serializeError(err));
     }
   }

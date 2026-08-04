@@ -48,7 +48,7 @@ const useProvidersStore = create<ProvidersState>((set, get) => ({
 }));
 
 /**
- * The hook the ported page consumes. On first mount it kicks off a load (so the
+ * The hook consumed by the Provider page. On first mount it kicks off a load (so the
  * page renders against the daemon without an explicit caller).
  */
 export function useLlmProvidersData(): {

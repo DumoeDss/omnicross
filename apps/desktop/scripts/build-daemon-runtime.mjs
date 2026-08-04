@@ -33,11 +33,13 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit' });
 }
 
-// 1. Fresh dists for everything the tarballs will carry.
-if (!existsSync(join(repo, 'packages', 'daemon', 'dist', 'cli.js'))) {
-  console.info('[daemon-runtime] package dists missing — running root `npm run build`…');
-  sh('npm run build', repo);
-}
+// 1. Fresh dists for everything the runtime tarballs will carry. Merely
+// checking for dist/cli.js is insufficient: an existing artifact can be older
+// than the source and silently put stale daemon behavior into a new desktop
+// release. Build the non-UI runtime workspaces on every packaging run; the UI
+// has its own Tauri beforeBuildCommand and @omnicross/ui prepack hook.
+console.info('[daemon-runtime] building fresh daemon workspace artifacts…');
+sh('npm run build:daemon', repo);
 
 // 2. Pack each workspace package (npm pack respects `files`, runs `prepack`).
 rmSync(staging, { recursive: true, force: true });

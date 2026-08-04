@@ -24,6 +24,10 @@
 
 import type { SubscriptionProviderId, SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
 
+import type { BoundAccountFallbackPolicy } from './BoundAccountSelectionError';
+
+export type { BoundAccountFallbackPolicy } from './BoundAccountSelectionError';
+
 /** Hints the strategy may need to vary header formatting per request. */
 export interface AuthApplyHints {
   /** Resolved upstream URL — used by some strategies (e.g. OpenCodeGo) to
@@ -51,10 +55,12 @@ export interface AuthApplyHints {
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
   /**
    * OPTIONAL preferred subscription account id (provider/subscription duality).
-   * When set and schedulable the account picker resolves it directly; absent or
-   * unschedulable ⇒ pool auto-schedule.
+   * When set, strict is the default; only the explicit `'pool'` policy permits
+   * pool fallback. Absent bindings keep pool auto-scheduling.
    */
   preferredAccountId?: string;
+  /** `'pool'` is an explicit opt-in; strict is the default for bindings. */
+  boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
 }
 
 export interface AuthStrategy {

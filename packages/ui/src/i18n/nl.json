@@ -859,8 +859,6 @@
       "requestFailed": "Aanvraag mislukt. Probeer het opnieuw."
     },
     "syncWarning": {
-      "external-divergent": "Het externe CLI-aanmeldbestand bevat nieuwere referenties dan dit account. Het opgeslagen token kan mogelijk niet meer worden vernieuwd — vernieuw nu of meld u opnieuw aan.",
-      "external-not-rotated": "Vernieuwen is mislukt en de externe CLI bevat dezelfde verlopen referenties. Meld u opnieuw aan.",
       "duplicate-token": "Een ander account deelt deze referenties. Het vernieuwen van het ene account meldt het andere af."
     },
     "importExternal": {

@@ -92,6 +92,7 @@ afterEach(async () => {
     await daemon.adminServer.stop();
     await daemon.outboundApiServer.stop();
     daemon.apiKeyPool.dispose();
+    daemon.claudeAllowanceRefreshScheduler.dispose();
   }
   resetDaemonSingletonsForTests();
   if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
@@ -101,6 +102,12 @@ interface ServerBody {
   server: {
     userMessageQueue: { enabled: boolean; delayMs: number; waitTimeoutMs: number };
     concurrencyQueue: { maxQueueSizeFactor: number; minQueueSize: number; waitTimeoutMs: number };
+    allowanceScheduling: {
+      enabled: boolean;
+      demoteAtPercent: number;
+      pauseAtPercent: number;
+      priorityPenalty: number;
+    };
   };
 }
 
@@ -187,6 +194,42 @@ describe('PUT /admin/api/server queue segments', () => {
 
     const server = await getServer();
     expect(server.userMessageQueue).toEqual({ enabled: true, delayMs: 500, waitTimeoutMs: 120000 });
+  });
+});
+
+describe('PUT /admin/api/server allowance scheduling', () => {
+  it('persists a valid default-off policy segment', async () => {
+    await bootDaemon();
+    const configureSpy = vi.spyOn(daemon.claudeAllowanceRefreshScheduler, 'configure');
+    const value = {
+      enabled: true,
+      demoteAtPercent: 82,
+      pauseAtPercent: 97,
+      priorityPenalty: 120,
+    };
+    const response = await adminFetch('PUT', '/admin/api/server', {
+      allowanceScheduling: value,
+    });
+    expect(response.status).toBe(200);
+    expect((await getServer()).allowanceScheduling).toEqual(value);
+    expect(configureSpy).toHaveBeenCalledWith(value);
+  });
+
+  it('rejects malformed or inverted thresholds without persisting them', async () => {
+    await bootDaemon();
+    const before = await getServer();
+    for (const allowanceScheduling of [
+      null,
+      { enabled: true, demoteAtPercent: 90, pauseAtPercent: 80, priorityPenalty: 100 },
+      { enabled: 'yes', demoteAtPercent: 80, pauseAtPercent: 98, priorityPenalty: 100 },
+    ]) {
+      const response = await adminFetch('PUT', '/admin/api/server', {
+        allowanceScheduling,
+      });
+      expect(response.status).toBe(400);
+      expect(response.text).toContain('invalid allowance scheduling config');
+    }
+    expect(await getServer()).toEqual(before);
   });
 });
 

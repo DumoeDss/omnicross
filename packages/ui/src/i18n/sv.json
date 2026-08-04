@@ -859,8 +859,6 @@
       "requestFailed": "Förfrågan misslyckades. Försök igen."
     },
     "syncWarning": {
-      "external-divergent": "Den externa CLI-inloggningsfilen innehåller nyare autentiseringsuppgifter än det här kontot. Den sparade token kanske inte längre kan uppdateras — uppdatera nu eller logga in igen.",
-      "external-not-rotated": "Uppdateringen misslyckades och den externa CLI:n innehåller samma utgångna autentiseringsuppgifter. Logga in igen.",
       "duplicate-token": "Ett annat konto delar dessa autentiseringsuppgifter. Att uppdatera det ena loggar ut det andra."
     },
     "importExternal": {

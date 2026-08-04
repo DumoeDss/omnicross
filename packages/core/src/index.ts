@@ -38,6 +38,7 @@ export type {
   CoreUsageTokenCounts,
   Logger,
   OutboundCredentialStore,
+  AutomaticPricingSource,
   PricingStore,
   ProviderConfigSource,
   UsageEventSink,

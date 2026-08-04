@@ -28,12 +28,12 @@
 export const OVERLOAD_TTL_MS = 10 * 60_000;
 /** 529 overload cooldown enabled by default (LEAD OQ1). */
 export const OVERLOAD_ENABLED_DEFAULT = true;
-/** Transient cooldown for a final-401 / plain-403 (CRS auth_error 1800s). */
+/** Transient cooldown for a final 401 or non-ban 403 response. */
 export const AUTH_ERROR_TTL_MS = 30 * 60_000;
-/** Transient cooldown for a 5xx / thrown network failure (CRS server_error 300s). */
+/** Transient cooldown for a 5xx response or network failure. */
 export const SERVER_ERROR_TTL_MS = 5 * 60_000;
 
-/** 403-ban body markers → permanent block (CRS `markAccountBlocked`). */
+/** 403 response markers that indicate a permanently blocked account. */
 const BAN_BODY_MARKERS = [
   'this organization has been disabled',
   'oauth authentication is currently not allowed',
@@ -104,6 +104,35 @@ export interface AccountAnomalyEvent {
 
 /** An anomaly listener (fire-and-forget; the emitter never awaits it). */
 export type AccountAnomalyListener = (event: AccountAnomalyEvent) => void;
+
+/**
+ * Admin-readable projection of the existing health event stream. It is kept in
+ * the tracker itself so webhooks and diagnostics consume the same edge events;
+ * this is not a second marking/event mechanism. Only opaque ids, timestamps,
+ * and coarse states are retained.
+ */
+export type AccountHealthDiagnostic =
+  | {
+      kind: 'health-anomaly';
+      providerId: string;
+      accountId: string;
+      at: number;
+      state: AccountAnomalyState;
+    }
+  | {
+      kind: 'health-recovery';
+      providerId: string;
+      accountId: string;
+      at: number;
+    };
+
+export interface AccountHealthDiagnosticFilter {
+  providerId?: string;
+  accountId?: string;
+  limit?: number;
+}
+
+export const ACCOUNT_HEALTH_DIAGNOSTIC_LIMIT = 200;
 
 /** The inputs one upstream attempt contributes to health marking (design D3). */
 export interface RecordUpstreamOutcomeInput {
@@ -202,6 +231,7 @@ export class SubscriptionAccountHealth {
   private readonly records = new Map<string, HealthRecord>();
   private readonly listeners = new Set<AccountRecoveryListener>();
   private readonly anomalyListeners = new Set<AccountAnomalyListener>();
+  private readonly diagnostics: AccountHealthDiagnostic[] = [];
 
   private readonly now: () => number;
   private overloadEnabled: boolean;
@@ -233,8 +263,8 @@ export class SubscriptionAccountHealth {
 
   /**
    * Whether an account may be scheduled RIGHT NOW. `blocked` → false; any timer
-   * still in the future → false. Expired timers are lazily deleted on read (CRS
-   * lazy-clear parity) so an elapsed cooldown restores the account WITHOUT a
+   * still in the future → false. Expired timers are lazily deleted on read so
+   * an elapsed cooldown restores the account WITHOUT a
    * timer — but the recovery SIGNAL is the sweeper's job (`sweepRecoveries`), so
    * this read never emits (correctness is independent of the tick).
    */
@@ -249,7 +279,7 @@ export class SubscriptionAccountHealth {
   }
 
   /**
-   * The single marking entry point (design D3). Faithful to CRS status semantics:
+   * The single marking entry point (design D3):
    *  - 429 + authoritative reset → `rateLimitEndAt`; a non-claude 429 may use
    *    `retryAfterSeconds`; a bare 429 (no resolvable reset) is NOT marked;
    *  - 529 → `overloadUntil` (gated by `overloadEnabled`);
@@ -331,10 +361,21 @@ export class SubscriptionAccountHealth {
     if (isRecordEmpty(record)) this.records.delete(key);
     else this.records.set(key, record);
 
-    if (recovered) this.emit({ providerId, accountId, at: now, kind: 'rateLimitRecovery' });
+    if (recovered) {
+      const recovery: AccountRecoveryEvent = {
+        providerId,
+        accountId,
+        at: now,
+        kind: 'rateLimitRecovery',
+      };
+      this.recordDiagnostic({ kind: 'health-recovery', providerId, accountId, at: now });
+      this.emit(recovery);
+    }
     // ADDITIVE anomaly emit: only on the healthy→unhealthy EDGE with a mapped state.
     if (anomalyState && !wasUnhealthyBefore) {
-      this.emitAnomaly({ providerId, accountId, at: now, state: anomalyState });
+      const anomaly: AccountAnomalyEvent = { providerId, accountId, at: now, state: anomalyState };
+      this.recordDiagnostic({ kind: 'health-anomaly', ...anomaly });
+      this.emitAnomaly(anomaly);
     }
   }
 
@@ -393,7 +434,15 @@ export class SubscriptionAccountHealth {
         this.records.delete(key);
       }
     }
-    for (const event of recovered) this.emit(event);
+    for (const event of recovered) {
+      this.recordDiagnostic({
+        kind: 'health-recovery',
+        providerId: event.providerId,
+        accountId: event.accountId,
+        at: event.at,
+      });
+      this.emit(event);
+    }
     return recovered;
   }
 
@@ -412,6 +461,22 @@ export class SubscriptionAccountHealth {
       return { state: 'transient', cooldownUntil: record.tempUnavailableUntil };
     }
     return { state: 'healthy' };
+  }
+
+  /** Return newest-first, bounded, secret-free health edge diagnostics. */
+  getDiagnostics(filter: AccountHealthDiagnosticFilter = {}): AccountHealthDiagnostic[] {
+    const requested = typeof filter.limit === 'number' && Number.isFinite(filter.limit)
+      ? Math.trunc(filter.limit)
+      : ACCOUNT_HEALTH_DIAGNOSTIC_LIMIT;
+    const limit = Math.min(ACCOUNT_HEALTH_DIAGNOSTIC_LIMIT, Math.max(1, requested));
+    return this.diagnostics
+      .filter((event) =>
+        (!filter.providerId || event.providerId === filter.providerId) &&
+        (!filter.accountId || event.accountId === filter.accountId),
+      )
+      .slice(-limit)
+      .reverse()
+      .map((event) => ({ ...event }));
   }
 
   /**
@@ -459,6 +524,13 @@ export class SubscriptionAccountHealth {
       } catch {
         // A misbehaving consumer never breaks health tracking.
       }
+    }
+  }
+
+  private recordDiagnostic(event: AccountHealthDiagnostic): void {
+    this.diagnostics.push({ ...event });
+    if (this.diagnostics.length > ACCOUNT_HEALTH_DIAGNOSTIC_LIMIT) {
+      this.diagnostics.splice(0, this.diagnostics.length - ACCOUNT_HEALTH_DIAGNOSTIC_LIMIT);
     }
   }
 

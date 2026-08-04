@@ -1,8 +1,7 @@
 /**
  * Built-in default OpenCodeGo model map + fallback chain.
  *
- * Mirrors `_others/oc-go-cc/configs/config.example.json`. The user MAY
- * override per-scenario entries via `OpenCodeGoTokenConfig.modelMap` /
+ * Users may override per-scenario entries via `OpenCodeGoTokenConfig.modelMap` /
  * `OpenCodeGoTokenConfig.fallbacks`; unset entries fall back to these.
  */
 
@@ -25,8 +24,7 @@ export const DEFAULT_OPENCODEGO_MODEL_MAP: Record<OpenCodeGoScenario, OpenCodeGo
     modelId: 'glm-5',
   },
   complex: {
-    // Reference maps `complex` → `glm-5.1` (config.example.json:55-60); was
-    // drifted to `mimo-v2-pro` (audit D4).
+    // Complex tasks use the higher-capability GLM variant by default.
     modelId: 'glm-5.1',
   },
   fast: {
@@ -43,8 +41,7 @@ export const DEFAULT_OPENCODEGO_MODEL_MAP: Record<OpenCodeGoScenario, OpenCodeGo
   },
 };
 
-// Fallback lists mirror `config.example.json` `fallbacks` block
-// (lines 69-93) verbatim (modelId-only entries).
+// Built-in fallback order for each scenario (modelId-only entries).
 export const DEFAULT_OPENCODEGO_FALLBACKS: Record<OpenCodeGoScenario, OpenCodeGoModelEntry[]> = {
   default: [
     { modelId: 'mimo-v2-pro' },

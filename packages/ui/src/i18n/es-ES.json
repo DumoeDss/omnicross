@@ -859,8 +859,6 @@
       "requestFailed": "La solicitud falló. Por favor, inténtalo de nuevo."
     },
     "syncWarning": {
-      "external-divergent": "El archivo de inicio de sesión de la CLI externa contiene credenciales más recientes que esta cuenta. El token guardado podría dejar de renovarse: renueva ahora o vuelve a iniciar sesión.",
-      "external-not-rotated": "La renovación falló y la CLI externa contiene las mismas credenciales caducadas. Vuelve a iniciar sesión.",
       "duplicate-token": "Otra cuenta comparte estas credenciales. Renovar cualquiera de las dos invalidará la otra."
     },
     "importExternal": {

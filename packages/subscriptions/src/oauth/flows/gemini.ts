@@ -9,8 +9,6 @@
  * `refreshGeminiToken`). Network goes through the injected `FetchLike`.
  * NOTE: `exchangeCodeForTokens` keeps a POSITIONAL signature
  * `(authorizationCode, codeVerifier)`.
- * Reference: claude-relay-service `src/services/geminiAccountService.js`.
- *
  * @module @omnicross/subscriptions/oauth/flows/gemini
  */
 

@@ -1,22 +1,18 @@
 /**
- * TokenRefreshScheduler — proactive background OAuth token refresh
- * (external-cli-sync).
+ * TokenRefreshScheduler proactive background OAuth token refresh.
  *
- * The auth strategies already refresh LAZILY (lead-window check before each
- * request + 401 retry), but a daemon that sits idle past a token's lifetime
- * pays the refresh latency — or a dead rotated token — on the first request.
- * This scheduler sweeps every account of every OAuth provider on an interval
- * and refreshes any token entering the expiry lead window.
+ * The auth strategies already refresh lazily (lead-window check before each
+ * request + 401 retry), but an idle daemon can still reach token expiry
+ * before its next request. This scheduler sweeps managed OAuth accounts on
+ * an interval and refreshes tokens entering the expiry lead window.
  *
  * Safety properties:
- *  - the store coalesces in-flight refreshes per account, so a sweep can never
+ *  - the store coalesces in-flight refreshes per account, so a sweep cannot
  *    double-spend a single-use refresh token against a concurrent lazy refresh;
- *  - accounts already flagged `expired` are skipped (a dead refresh token is
- *    not retried every tick — recovery is the external-import fallback or a
- *    re-login);
- *  - the ACTIVE account routes through the provider's active refresher (which
- *    carries the external CLI import fallback); non-active accounts refresh
- *    by id;
+ *  - accounts already flagged `expired` are skipped and remain expired until
+ *    their own managed credential is repaired or re-login occurs;
+ *  - the active account uses its managed active refresher, while non-active
+ *    accounts refresh by id; both paths use only managed stored credentials;
  *  - one sweep runs at a time (a long sweep never overlaps the next tick).
  *
  * Modeled on `ApiKeyPoolService`'s interval lifecycle: `start()` arms an
@@ -91,17 +87,18 @@ export class TokenRefreshScheduler {
   private needsRefresh(tokens: accountMulti.AnyTokenConfig, now: number): boolean {
     const t = tokens as { refreshToken?: string; expiresAt?: string; status?: string };
     if (!t.refreshToken || t.status === 'expired' || t.status === 'error') return false;
-    if (!t.expiresAt) return false; // non-expiring (or unknown) ⇒ nothing to do
+    if (!t.expiresAt) return false; // non-expiring (or unknown) nothing to do
     const expiresAt = Date.parse(t.expiresAt);
     return Number.isFinite(expiresAt) && now >= expiresAt - this.leadMs;
   }
 
-  /** Refresh one account; failures are logged, never thrown (the store has
-   *  already flagged the account `expired`). */
+  /** Refresh one managed account; failures are logged, never thrown. The
+   * store marks only the targeted account `expired` on a failed refresh.
+   */
   private async refreshOne(provider: OAuthProvider, id: string, isActive: boolean): Promise<void> {
     try {
-      // The ACTIVE account goes through the provider refresher so the external
-      // CLI import fallback applies; others refresh by id.
+      // Preserve the store's active-refresh coalescing for the active account;
+      // non-active accounts use the coalesced by-id path.
       const ok = isActive
         ? await this.refreshActive(provider)
         : await this.store.refreshAccountById(provider, id);

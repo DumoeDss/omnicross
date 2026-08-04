@@ -42,6 +42,7 @@ export function __resetOutboundApiServerForTests(): void {
 export {
   type ApiServerSettingsStore,
   DEFAULT_ACCOUNT_PROBE,
+  DEFAULT_ALLOWANCE_SCHEDULING,
   DEFAULT_CONCURRENCY_QUEUE,
   DEFAULT_FINGERPRINT,
   DEFAULT_USER_MESSAGE_QUEUE,
@@ -49,6 +50,7 @@ export {
   loadServerConfig,
   mergeServerConfig,
   normalizeAccountProbe,
+  normalizeAllowanceScheduling,
   normalizeAudit,
   normalizeBilling,
   normalizeFingerprint,
@@ -111,6 +113,7 @@ export {
   validateServerModelConfig,
 } from './kindDetection';
 export {
+  createIntegrationKey,
   createNamedKey,
   hashKey,
   type KeyVerification,
@@ -163,12 +166,22 @@ export { OutboundRateLimiter } from './outboundRateLimiter';
 export { detectRequestRole, endpointToIngressFormat } from './roleDetection';
 export { isSubscriptionProviderId, parseModelRef, pickModelRefFromList, resolveRoute } from './routeResolver';
 export {
+  BoundAccountSelectionError,
+  boundAccountSelectionMessage,
+  isBoundAccountSelectionError,
+} from '../pipeline/BoundAccountSelectionError';
+export type {
+  BoundAccountFallbackPolicy,
+  BoundAccountSelectionFailureReason,
+} from '../pipeline/BoundAccountSelectionError';
+export {
   endpointSupportsSubscription,
   SUBSCRIPTION_PROVIDER_IDS,
 } from './subscriptionSupport';
 export { ENDPOINT_MODEL_KINDS } from './types';
 export type {
   AccountProbeConfig,
+  AllowanceSchedulingConfig,
   ChatDispatchMode,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,

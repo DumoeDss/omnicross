@@ -12,7 +12,7 @@
 
 export type { CorePaths } from './core-paths';
 export type { Logger } from './logger';
-export type { PricingStore } from './pricing-store';
+export type { AutomaticPricingSource, PricingStore } from './pricing-store';
 export type { ProviderConfigSource } from './provider-config-source';
 export type { UsageEventStore } from './usage-event-store';
 export type {

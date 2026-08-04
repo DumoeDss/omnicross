@@ -103,9 +103,9 @@ export class SubscriptionProviderRegistry {
    * process singleton, built here and captured by the opencodego profile's
    * `nextFallback` (consult) + `recordModelOutcome` (record) closures. Because
    * the `SubscriptionProviderRegistry` is itself a process singleton (via
-   * `setSubscriptionProviderRegistry`), breaker state persists across requests —
-   * exactly the reference's long-lived `FallbackHandler`. Constructed with the
-   * default reference thresholds (3 / 30s / 3) and the default `Date.now` clock.
+   * `setSubscriptionProviderRegistry`), breaker state persists across requests.
+   * Constructed with the production thresholds (3 / 30s / 3) and the default
+   * `Date.now` clock.
    */
   private readonly breaker = new CircuitBreakerRegistry();
 
@@ -157,7 +157,7 @@ export class SubscriptionProviderRegistry {
           authStrategy: codex,
           mode: 'transformer',
           // ChatGPT internal endpoint — accepts the OpenAI Responses API
-          // format. Mirrors `_others/claude-relay-service/src/routes/openaiRoutes.js:454`.
+          // format and uses the Codex OAuth access token below.
           // The Codex OAuth access token grants access here; the public
           // `api.openai.com/v1/responses` endpoint would reject the same token.
           resolveUpstreamUrl: () => 'https://chatgpt.com/backend-api/codex/responses',
@@ -203,8 +203,8 @@ export class SubscriptionProviderRegistry {
           // `ocConfig`; the core `/v1/messages` plan builder passes the opaque
           // `route.subscriptionConfig`). With NO zen config every resolved model
           // is go-half → byte-identical to the prior resolver.
-          // `// UNVERIFIED (no live zen key)`: the zen endpoint hosts/paths are
-          // ported from the reference + proven in-process only.
+          // `// UNVERIFIED (no live zen key)`: the ZEN endpoint hosts and paths
+          // are covered by in-process tests only.
           resolveUpstreamUrl: (model, config) => {
             const oc = config as OpenCodeGoTokenConfig | undefined;
             const { half, shape } = resolveOpenCodeGoTarget(model, oc);
@@ -242,9 +242,8 @@ export class SubscriptionProviderRegistry {
           // circuit is open. `breaker.allowRequest(modelId)` is the admission
           // gate — calling it has the side effect of flipping an `open` model to
           // `half-open` once its 30s window elapses AND counting a half-open admit
-          // slot. It MUST therefore be consulted EXACTLY ONCE per returned model,
-          // on the candidate about to be attempted — mirroring the reference
-          // (`fallback.go` calls `AllowRequest` once, on the model it returns).
+          // slot. It MUST therefore be consulted exactly once per returned model,
+          // on the candidate about to be attempted.
           // An early-returning scan (NOT `Array.filter`, which would `allowRequest`
           // every candidate and burn the admit slots of half-open models AFTER the
           // chosen one — those are never attempted, never recorded, so they would

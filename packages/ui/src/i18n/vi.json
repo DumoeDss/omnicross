@@ -859,8 +859,6 @@
       "requestFailed": "Yêu cầu thất bại. Vui lòng thử lại."
     },
     "syncWarning": {
-      "external-divergent": "Tệp đăng nhập của CLI bên ngoài chứa thông tin xác thực mới hơn tài khoản này. Token đã lưu có thể không làm mới được nữa — hãy làm mới ngay hoặc đăng nhập lại.",
-      "external-not-rotated": "Làm mới thất bại và CLI bên ngoài chứa cùng thông tin xác thực đã hết hạn. Vui lòng đăng nhập lại.",
       "duplicate-token": "Một tài khoản khác đang dùng chung thông tin xác thực này. Làm mới một trong hai sẽ khiến tài khoản còn lại bị đăng xuất."
     },
     "importExternal": {

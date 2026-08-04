@@ -17,6 +17,14 @@ import type {
   GeminiTokenConfig,
 } from '@omnicross/contracts/account-tokens-types';
 import type { OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
+import {
+  __resetSharedAccountAllowanceStoreForTests,
+  getSharedAccountAllowanceStore,
+} from '@omnicross/core/pipeline/AccountAllowanceStore';
+import {
+  __resetSharedAccountAllowanceSchedulingForTests,
+  getSharedAccountAllowanceScheduling,
+} from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import type { FetchLike } from '@omnicross/subscriptions';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -40,6 +48,8 @@ function claude(at: string, rt?: string): ClaudeTokenConfig {
 }
 
 beforeEach(() => {
+  __resetSharedAccountAllowanceSchedulingForTests();
+  __resetSharedAccountAllowanceStoreForTests();
   tmpDir = mkdtempSync(join(tmpdir(), 'omnicross-pool-byid-'));
   tokensPath = join(tmpDir, 'tokens.json');
   keyFile = join(tmpDir, 'master.key');
@@ -47,6 +57,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  __resetSharedAccountAllowanceSchedulingForTests();
+  __resetSharedAccountAllowanceStoreForTests();
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -201,5 +213,37 @@ describe('setAccountSupportedModels (subscription-account-model-map)', () => {
     const store = makeStore();
     await store.appendProviderAccount('claude', claude('AT-A'), 'A');
     expect((await store.setAccountSupportedModels('claude', 'nope', ['m'])).ok).toBe(false);
+  });
+});
+
+describe('allowance scheduling admin projection', () => {
+  it('projects pause metadata and final schedulability without recording history', async () => {
+    const store = makeStore();
+    const { id } = await store.appendProviderAccount('codex', {
+      authMethod: 'oauth', status: 'authorized', accessToken: 'AT-A', refreshToken: 'RT-A',
+    }, 'A');
+    await store.setAccountPriority('codex', id, 25);
+    const now = Date.now();
+    getSharedAccountAllowanceStore().set({
+      providerId: 'codex', accountId: id, source: 'response-headers',
+      observedAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + 15 * 60_000).toISOString(),
+      windows: [{
+        id: 'primary', label: '5 hours', scope: 'all', usedPercent: 99,
+        resetsAt: new Date(now + 60 * 60_000).toISOString(), state: 'fresh',
+      }],
+    });
+    const scheduling = getSharedAccountAllowanceScheduling();
+    scheduling.configure({ enabled: true, demoteAtPercent: 80, pauseAtPercent: 98, priorityPenalty: 100 });
+
+    const account = (await store.listSanitizedAccounts()).codex?.[0];
+    expect(account).toMatchObject({
+      schedulable: false,
+      allowanceAction: 'pause',
+      allowanceEffectivePriority: 25,
+      allowanceUsedPercent: 99,
+    });
+    expect(account?.allowanceResumeAt).toBeTruthy();
+    expect(scheduling.getHistory()).toEqual([]);
   });
 });

@@ -859,8 +859,6 @@
       "requestFailed": "Anfrage fehlgeschlagen. Bitte versuchen Sie es erneut."
     },
     "syncWarning": {
-      "external-divergent": "Die externe CLI-Anmeldedatei enthält neuere Zugangsdaten als dieses Konto. Das gespeicherte Token kann sich möglicherweise nicht mehr aktualisieren — jetzt aktualisieren oder neu anmelden.",
-      "external-not-rotated": "Aktualisierung fehlgeschlagen, und die externe CLI enthält dieselben abgelaufenen Zugangsdaten. Bitte erneut anmelden.",
       "duplicate-token": "Ein anderes Konto verwendet dieselben Zugangsdaten. Das Aktualisieren eines Kontos meldet das andere ab."
     },
     "importExternal": {

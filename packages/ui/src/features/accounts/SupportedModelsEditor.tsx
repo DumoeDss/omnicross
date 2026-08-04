@@ -4,8 +4,8 @@
  *  - `model` — an allow-list entry (the account supports this model, no remap).
  *  - `model = actualModel` — an allow-list entry PLUS a logical→actual remap.
  *
- * If NO line has `=`, the value serializes to a CRS ARRAY (allow-list, skip-only).
- * If ANY line has `=`, it serializes to a CRS OBJECT (keys = allow-list, values =
+ * If NO line has `=`, the value serializes to an ARRAY (allow-list, skip-only).
+ * If ANY line has `=`, it serializes to an OBJECT (keys = allow-list, values =
  * the account's actual upstream model; a bare `k` line maps to itself). An empty
  * textarea clears the field (the account supports every model, no remap).
  *

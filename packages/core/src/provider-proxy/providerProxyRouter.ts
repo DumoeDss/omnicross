@@ -102,7 +102,10 @@ export async function routeRequest(
 
   if (isOpenAIResponsesRequest(method, url)) {
     const rawBody = await readBody(req);
-    await handleOpenAIResponsesRequest(res, rawBody, route, deps);
+    // Preserve Codex's session-id compatibility headers for account-pool
+    // affinity. The ingress treats this as metadata only and never forwards
+    // the headers as credentials.
+    await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers);
     return;
   }
 

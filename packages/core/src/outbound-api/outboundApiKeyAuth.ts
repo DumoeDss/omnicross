@@ -13,7 +13,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import { computeKeyExpiry, type KeyCostLimits, type ModelRestriction } from './keyPolicy';
-import type { OutboundApiKeyCreated, OutboundKeyDb, OutboundKeyDbRow } from './types';
+import type {
+  OutboundApiKeyCreated,
+  OutboundEndpoint,
+  OutboundKeyDb,
+  OutboundKeyDbRow,
+} from './types';
 
 /** Bytes of entropy in a generated secret (256-bit → 43 base62 chars). */
 const SECRET_BYTES = 32;
@@ -92,11 +97,44 @@ export async function createNamedKey(
 }
 
 /**
+ * Mint the local gateway key used by native CLI configuration adapters. Unlike
+ * a user-distributed key it is explicitly loopback-only and endpoint-scoped.
+ */
+export async function createIntegrationKey(
+  db: OutboundKeyDb,
+  name: string,
+  allowedEndpoints: OutboundEndpoint[] = ['responses', 'messages'],
+): Promise<OutboundApiKeyCreated> {
+  const secret = generateSecret();
+  const id = newKeyId();
+  const prefix = keyPrefix(secret);
+  const row = await db.outboundApiKeysCreate({
+    id,
+    name,
+    keyHash: hashKey(secret),
+    keyPrefix: prefix,
+    kind: 'integration',
+    allowedEndpoints: [...new Set(allowedEndpoints)],
+    loopbackOnly: true,
+  });
+  return {
+    id: row.id,
+    name: row.name,
+    keyPrefix: row.keyPrefix,
+    createdAt: row.createdAt,
+    plaintextOnce: secret,
+  };
+}
+
+/**
  * A verified key + the enforcement inputs carried from the row so the wire layer
  * runs its policy checks WITHOUT a second DB read (mirrors `maxConcurrency`).
  */
 export interface VerifiedKey {
   id: string;
+  kind?: 'client' | 'integration';
+  allowedEndpoints?: OutboundEndpoint[];
+  loopbackOnly?: boolean;
   /**
    * The key's per-key concurrency ceiling, carried from the row so the wire
    * layer keys the concurrency gate without a second DB read. Absent/`0` =
@@ -166,7 +204,12 @@ function extractModelRestriction(row: OutboundKeyDbRow): ModelRestriction | unde
 
 /** Project a stored row to the verified key, carrying its policy inputs through. */
 function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
-  const key: VerifiedKey = { id: row.id };
+  const key: VerifiedKey = {
+    id: row.id,
+    kind: row.kind,
+    allowedEndpoints: row.allowedEndpoints,
+    loopbackOnly: row.loopbackOnly,
+  };
   if (row.maxConcurrency !== undefined && row.maxConcurrency !== null) {
     key.maxConcurrency = row.maxConcurrency;
   }

@@ -11,13 +11,15 @@
  * builders (BYO + subscription), the model mapping, the 401-refresh-retry, and
  * the relay are preserved byte-for-byte in shape; the ONLY difference is that
  * the auth + provider id come from the looked-up `RouteContext` rather than a
- * per-session proxy constructor. No CRS conversion code is used (design D7).
+ * per-session proxy constructor (design D7).
  *
  * @module provider-proxy/ingress/openaiResponsesIngress
  */
 
 import type http from 'node:http';
 
+import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
+import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
 
 import { serializeError } from '@omnicross/core/serializeError';
@@ -35,6 +37,7 @@ import type {
   RequestConfig,
   ResolvedTransformerChain,
 } from '../../transformer';
+import { deriveGatewaySessionKey, type SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import { recordResponsesNonStreamUsage } from '../usage/recordResponsesUsage';
 
@@ -43,6 +46,7 @@ import {
   getSharedExecutor,
   relayResponse,
   resolvePoolBoundKey,
+  writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
 
@@ -63,8 +67,12 @@ export function isOpenAIResponsesRequest(
 /** The auth-mode-resolved inputs for one `executeProviderCall` (mirrors the host's codex call plan). */
 interface ResponsesCallPlan {
   readonly auth: AuthSource;
+  /** Stable per-conversation account-pool affinity key. */
+  readonly sessionKey?: string;
   /** Per-request preferred subscription account (subscription routes only). */
   readonly preferredAccountId?: string;
+  /** Strict by default; pool fallback is an explicit endpoint opt-in. */
+  readonly boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
@@ -85,6 +93,7 @@ export async function handleOpenAIResponsesRequest(
   rawBody: string,
   route: RouteContext,
   deps: ProviderProxyDeps,
+  requestHeaders: SessionRequestHeaders = {},
 ): Promise<void> {
   let responsesBody: Record<string, unknown>;
   try {
@@ -95,6 +104,14 @@ export async function handleOpenAIResponsesRequest(
   }
 
   const isStream = responsesBody.stream === true;
+  const derivedSession = deriveGatewaySessionKey(responsesBody, requestHeaders, {
+    endpoint: 'responses',
+    // A verified outbound key is the strongest route-local fallback. Resident
+    // proxy callers without one still get a stable run/session bucket; the
+    // final `anonymous` fallback is handled inside the shared utility.
+    fallbackKey: route.apiKeyId ?? route.sessionId ?? undefined,
+  });
+  const sessionKey = derivedSession.key;
   // Codex model-name mapping (ingress quirk): route the CLI's model to the
   // route's configured provider model.
   const resolvedModel = route.model;
@@ -103,7 +120,7 @@ export async function handleOpenAIResponsesRequest(
   try {
     const plan =
       route.authMode === 'subscription'
-        ? await buildSubscriptionPlan(res, route, deps, resolvedModel, isStream)
+        ? await buildSubscriptionPlan(res, route, deps, resolvedModel, isStream, sessionKey)
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
@@ -128,9 +145,13 @@ export async function handleOpenAIResponsesRequest(
       });
     }
   } catch (err) {
+    if (isBoundAccountSelectionError(err)) {
+      writeBoundAccountError(res, err);
+      return;
+    }
     const errMsg = serializeError(err);
     console.error('[ProviderProxy:responses] Pipeline error:', errMsg);
-    writeError(res, 502, errMsg);
+    writeError(res, isAccountAllowanceExhaustedError(err) ? 429 : 502, errMsg);
   }
 }
 
@@ -213,6 +234,7 @@ async function buildSubscriptionPlan(
   deps: ProviderProxyDeps,
   resolvedModel: string,
   isStream: boolean,
+  sessionKey: string,
 ): Promise<ResponsesCallPlan | null> {
   const profile = route.subscriptionProfile;
   if (!profile) {
@@ -250,8 +272,16 @@ async function buildSubscriptionPlan(
   // pass per-account data the chain can read, without widening the executor API.
   if (profile.authStrategy.providerId === 'gemini') {
     try {
-      transformerProvider.geminiProject = await resolveGeminiCodeAssistProject(profile);
+      transformerProvider.geminiProject = await resolveGeminiCodeAssistProject(profile, {
+        sessionKey,
+        preferredAccountId: route.preferredAccountId,
+        boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+      });
     } catch (err) {
+      if (isBoundAccountSelectionError(err)) {
+        writeBoundAccountError(res, err);
+        return null;
+      }
       writeError(res, 502, serializeError(err));
       return null;
     }
@@ -259,7 +289,9 @@ async function buildSubscriptionPlan(
 
   return {
     auth,
+    sessionKey,
     preferredAccountId: route.preferredAccountId,
+    boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
@@ -285,12 +317,28 @@ async function buildSubscriptionPlan(
  * fresh free-tier account (valid — no project in the envelope).
  */
 async function resolveGeminiCodeAssistProject(
-  profile: { authStrategy: { applyHeaders: (h: Record<string, string>) => Promise<void> } },
+  profile: {
+    authStrategy: {
+      applyHeaders: (
+        h: Record<string, string>,
+        hints?: {
+          sessionKey?: string;
+          preferredAccountId?: string;
+          boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
+        },
+      ) => Promise<void>;
+    };
+  },
+  hints: {
+    sessionKey?: string;
+    preferredAccountId?: string;
+    boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
+  },
 ): Promise<string | undefined> {
   // Pull the Bearer the auth strategy would inject, so we don't need a separate
   // token-store handle here — the strategy is the single source of the token.
   const probe: Record<string, string> = {};
-  await profile.authStrategy.applyHeaders(probe);
+  await profile.authStrategy.applyHeaders(probe, hints);
   const bearer = probe.Authorization ?? probe.authorization ?? '';
   const accessToken = bearer.replace(/^Bearer\s+/i, '').trim();
   if (!accessToken) return undefined;
@@ -315,7 +363,7 @@ async function runPipeline(
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const executor = getSharedExecutor();
   const endpointTransformer = getResponsesEndpointTransformer();
-  const { auth, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
+  const { auth, sessionKey, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
 
   // Pre-resolve auth headers (applyHeaders MAY be async for OAuth refresh while
   // buildHeaders is sync). Auth wins — chain headers never clobber a key the
@@ -327,7 +375,9 @@ async function runPipeline(
   await auth.applyHeaders(authHeaders, {
     upstreamUrl,
     model: resolvedModel,
+    sessionKey,
     preferredAccountId: plan.preferredAccountId,
+    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId) => {
       proxyAccountId = accountId;
     },
@@ -408,7 +458,7 @@ async function runPipelineWithSubscriptionRetry(
   const first = await runPipeline(responsesBody, plan);
   if (first.rawStatus !== 401) return first;
 
-  const refreshed = await plan.auth.onUnauthorized?.();
+  const refreshed = await plan.auth.onUnauthorized?.(plan.sessionKey);
   if (!refreshed) {
     console.warn('[ProviderProxy:responses] 401 not recoverable (onUnauthorized returned false)');
     return first;

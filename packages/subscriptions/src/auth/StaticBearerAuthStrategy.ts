@@ -43,7 +43,13 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
       'opencodego',
       hints?.sessionKey,
       () => this.tokens.getValidOpenCodeGoApiKey(),
-      { health: this.health, reportSelection: hints?.reportSelection, resolvedModel: hints?.resolvedModel, preferredAccountId: hints?.preferredAccountId },
+      {
+        health: this.health,
+        reportSelection: hints?.reportSelection,
+        resolvedModel: hints?.resolvedModel,
+        preferredAccountId: hints?.preferredAccountId,
+        boundAccountFallbackPolicy: hints?.boundAccountFallbackPolicy,
+      },
     );
     if (!key) {
       // Let the upstream surface the 401 with its own body — clearer than
@@ -52,8 +58,7 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
     }
     headers['Authorization'] = `Bearer ${key}`;
 
-    // Anthropic-shape upstreams (MiniMax) historically accept x-api-key too
-    // — mirrors `_others/oc-go-cc/internal/client/opencode.go`.
+    // Anthropic-shaped upstreams (including MiniMax) may require x-api-key too.
     if (hints?.upstreamUrl?.includes(ANTHROPIC_SHAPE_PATH)) {
       headers['x-api-key'] = key;
     }

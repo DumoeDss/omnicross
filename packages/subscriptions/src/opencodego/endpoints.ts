@@ -1,16 +1,14 @@
 /**
  * Default OpenCodeGo upstream URLs (both provider halves).
  *
- * Ported from `_others/oc-go-cc/configs/config.example.json` +
- * `_others/oc-go-cc/internal/config/loader.go:17-25`. There are TWO halves under
- * the SAME single key:
+ * There are two provider halves under the same account key:
  *   - GO  (`opencode-go`):  `https://opencode.ai/zen/go/v1/...` — chat + anthropic.
  *   - ZEN (`opencode-zen`): `https://opencode.ai/zen/v1/...`    — chat + anthropic
  *     + responses + gemini (per-model colon-method).
  *
  * The user may override each half's host independently:
- *   - `OpenCodeGoTokenConfig.baseUrl`    → GO  half  (reference `OC_GO_CC_OPENCODE_URL`).
- *   - `OpenCodeGoTokenConfig.zenBaseUrl` → ZEN half  (reference `OC_GO_CC_OPENCODE_ZEN_URL`).
+ *   - `OpenCodeGoTokenConfig.baseUrl`    → GO half.
+ *   - `OpenCodeGoTokenConfig.zenBaseUrl` → ZEN half.
  * A go-half override NEVER redirects zen traffic and vice-versa.
  */
 
@@ -29,8 +27,7 @@ export const OPENCODEGO_ZEN_RESPONSES_URL = 'https://opencode.ai/zen/v1/response
  * by the `gemini` transformer's emitted `config.url`
  * (`new URL('./${model}:${action}', base)`). The TRAILING SLASH is load-bearing:
  * `new URL('./x', '.../v1/models')` would resolve relative to `/v1/` and DROP the
- * `models` segment; `.../v1/models/` keeps it. Mirrors the reference's
- * `GeminiBaseURL + "/" + modelID` concatenation.
+ * `models` segment; `.../v1/models/` keeps it.
  */
 export const OPENCODEGO_ZEN_GEMINI_BASE = 'https://opencode.ai/zen/v1/models/';
 

@@ -50,7 +50,13 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
       this.providerId,
       hints?.sessionKey,
       () => this.resolveAccessToken(),
-      { health: this.health, reportSelection: hints?.reportSelection, resolvedModel: hints?.resolvedModel, preferredAccountId: hints?.preferredAccountId },
+      {
+        health: this.health,
+        reportSelection: hints?.reportSelection,
+        resolvedModel: hints?.resolvedModel,
+        preferredAccountId: hints?.preferredAccountId,
+        boundAccountFallbackPolicy: hints?.boundAccountFallbackPolicy,
+      },
     );
     if (!token) {
       // Don't throw — let the upstream call surface the actual 401/403 with

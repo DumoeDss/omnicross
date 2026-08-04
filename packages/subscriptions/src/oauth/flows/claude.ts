@@ -6,7 +6,7 @@
  * through an INJECTED `FetchLike` port — NO `electron`, NO `net`, NO host path
  * (a desktop host can inject an electron-net adapter; the daemon injects global
  * `fetch`). Claude `code=true`, `state` carried in exchange, setup-token has no
- * refresh_token. Reference: claude-relay-service `src/utils/oauthHelper.js`.
+ * refresh_token.
  *
  * @module @omnicross/subscriptions/oauth/flows/claude
  */
@@ -22,8 +22,7 @@ import { postJson } from '../fetchPort';
  * Headers the official Claude Code CLI sends on the OAuth token endpoint. The
  * endpoint is Cloudflare-fronted and rejects (403 "Request not allowed") any
  * request that doesn't present the `claude-cli` identity + claude.ai
- * Referer/Origin with a JSON body. Mirrors claude-relay-service
- * `src/utils/oauthHelper.js`. (Electron's `net.request` — the desktop fetch
+ * Referer/Origin with a JSON body. Electron's `net.request` — the desktop fetch
  * adapter — sends these verbatim; browser `fetch` would strip Referer/Origin,
  * but the OAuth flow runs in a backend process / daemon, not a browser.)
  */
@@ -127,7 +126,7 @@ export async function exchangeCodeForTokens(
 }> {
   const { authorizationCode, codeVerifier, state } = request;
   // Defensive: strip any leftover `#state` / `&...` fragment from the pasted code
-  // (client paste-parsers already do this; mirrors the reference).
+  // (client paste-parsers already do this).
   const code = authorizationCode.split('#')[0]?.split('&')[0] ?? authorizationCode;
 
   const data = await postJson(

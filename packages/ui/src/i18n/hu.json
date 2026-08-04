@@ -859,8 +859,6 @@
       "requestFailed": "A kérés sikertelen. Kérjük, próbálja újra."
     },
     "syncWarning": {
-      "external-divergent": "A külső CLI bejelentkezési fájlja újabb hitelesítő adatokat tartalmaz, mint ez a fiók. A tárolt token frissítése leállhat — frissítsen most, vagy jelentkezzen be újra.",
-      "external-not-rotated": "A frissítés nem sikerült, és a külső CLI ugyanazt a lejárt hitelesítő adatot tartalmazza. Jelentkezzen be újra.",
       "duplicate-token": "Egy másik fiók ugyanezeket a hitelesítő adatokat használja. Bármelyik frissítése kijelentkezteti a másikat."
     },
     "importExternal": {

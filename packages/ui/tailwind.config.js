@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 // The typography plugin + per-skin font vars are NOT needed for the Provider
 // page, so they are dropped; the semantic color/radius/spacing tokens are kept
-// verbatim so the ported components render with full visual fidelity.
+// unchanged so shared components render with consistent visual fidelity.
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],

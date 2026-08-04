@@ -41,6 +41,8 @@
 
 import type http from 'node:http';
 
+import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
+import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
 
 import { serializeError } from '@omnicross/core/serializeError';
@@ -65,6 +67,7 @@ import {
   getSharedExecutor,
   relayResponse,
   resolvePoolBoundKey,
+  writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
 
@@ -104,6 +107,10 @@ const IDENTITY_ENDPOINT_TRANSFORMER: Transformer = { name: 'identity-openai-chat
 /** The auth-mode-resolved inputs for one `executeProviderCall`. */
 interface ChatCallPlan {
   readonly auth: AuthSource;
+  /** Per-request preferred subscription account (subscription routes only). */
+  readonly preferredAccountId?: string;
+  /** Strict by default; pool fallback is an explicit endpoint opt-in. */
+  readonly boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
   readonly resolvedModel: string;
@@ -164,9 +171,13 @@ export async function handleOpenAIChatRequest(
       });
     }
   } catch (err) {
+    if (isBoundAccountSelectionError(err)) {
+      writeBoundAccountError(res, err);
+      return;
+    }
     const errMsg = serializeError(err);
     console.error('[ProviderProxy:chat] Pipeline error:', errMsg);
-    writeError(res, 502, errMsg);
+    writeError(res, isAccountAllowanceExhaustedError(err) ? 429 : 502, errMsg);
   }
 }
 
@@ -302,6 +313,8 @@ async function buildSubscriptionPlan(
 
   return {
     auth,
+    preferredAccountId: route.preferredAccountId,
+    boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
@@ -343,6 +356,8 @@ async function runPipeline(
   await auth.applyHeaders(authHeaders, {
     upstreamUrl,
     model: resolvedModel,
+    preferredAccountId: plan.preferredAccountId,
+    boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId) => {
       proxyAccountId = accountId;
     },

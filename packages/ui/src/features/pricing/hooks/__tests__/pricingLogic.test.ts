@@ -108,7 +108,14 @@ describe('draftFromEntry', () => {
 });
 
 describe('filterEntries', () => {
-  const entries = [entry('openrouter', 'vendor/Model-A'), entry('other', 'something-else')];
+  const entries = [
+    entry('openrouter', 'vendor/Model-A'),
+    entry('other', 'something-else'),
+    entry('one of https://docs.litellm.ai/docs/providers', 'sample_spec', {
+      source: 'litellm',
+      userEdited: false,
+    }),
+  ];
 
   it('matches case-insensitively across providerId and modelId', () => {
     expect(filterEntries(entries, 'model-a')).toHaveLength(1);
@@ -119,6 +126,10 @@ describe('filterEntries', () => {
   it('empty/whitespace search returns all rows', () => {
     expect(filterEntries(entries, '')).toHaveLength(2);
     expect(filterEntries(entries, '   ')).toHaveLength(2);
+  });
+
+  it('hides LiteLLM sample metadata left behind by an older cache', () => {
+    expect(filterEntries(entries, 'sample_spec')).toEqual([]);
   });
 });
 

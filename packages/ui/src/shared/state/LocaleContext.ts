@@ -1,7 +1,6 @@
 /**
  * LocaleContext shim (design D7) — provides a `useTranslation()` that returns
- * the `t(key, opts)` function DIRECTLY (matching the upstream `LocaleContext`
- * call shape, NOT react-i18next's `{ t }` object). The ported page calls
+ * the `t(key, opts)` function directly, not react-i18next's `{ t }` object. The page calls
  * `const t = useTranslation(); t('providerSettings.x')`.
  *
  * `t` returns the key string itself when no translation is found (upstream
@@ -12,7 +11,7 @@
 import { useTranslation as useReactI18nextTranslation } from 'react-i18next';
 
 /**
- * The `t` shape the ported page uses. Matches the upstream's two call forms:
+ * The `t` shape used by the Provider page supports two call forms:
  *   - `t('key')` / `t('key', { count })` — interpolation options
  *   - `t('key', 'Fallback')` — a literal default-value string (used by the
  *     OpenRouter config and a few others). i18next accepts a string as the

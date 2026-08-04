@@ -76,7 +76,7 @@ frontend changes (or point `OMNICROSS_UI_DIST` elsewhere).
   shim, and `cn`.
 - `src/shared-types/` — the hand-mirrored subset of the daemon/upstream
   `llm-config` types the page consumes.
-- `src/components/ui/` — the ported UI primitives.
+- `src/components/ui/` — shared UI primitives.
 - `src/features/` — the pages (provider settings, accounts, API service,
   Code CLI, settings).
 - The Tauri shell itself lives in `apps/desktop/src-tauri` (separate project).

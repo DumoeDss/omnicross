@@ -87,7 +87,7 @@ export async function deletePricing(providerId: string, modelId: string): Promis
   return data.deleted;
 }
 
-/** `POST /pricing/fetch-latest`. */
+/** `POST /pricing/fetch-latest` — includes per-source LiteLLM/OpenRouter outcomes. */
 export function fetchLatestPricing(): Promise<PricingFetchLatestResult> {
   return adminClient.post<PricingFetchLatestResult>('/pricing/fetch-latest');
 }

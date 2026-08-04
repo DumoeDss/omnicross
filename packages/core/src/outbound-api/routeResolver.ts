@@ -383,6 +383,8 @@ async function resolveSubscriptionRoute(args: {
     isOfficialProvider: false,
     passThrough: false,
     subscriptionProfile: profile,
+    preferredAccountId: config.boundAccountId,
+    boundAccountFallbackPolicy: config.boundAccountFallbackPolicy,
     attribution: { sessionId, apiKeyId: apiKeyId ?? null },
   };
 
@@ -430,6 +432,7 @@ async function resolveSubscriptionRoute(args: {
     subscriptionConfig,
     // Per-request preferred account (provider/subscription duality); undefined ⇒ pool.
     preferredAccountId: config.boundAccountId,
+    boundAccountFallbackPolicy: config.boundAccountFallbackPolicy,
     anthropicSdkHints: hints,
   };
 

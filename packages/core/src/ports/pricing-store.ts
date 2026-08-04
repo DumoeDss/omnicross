@@ -8,7 +8,14 @@
  *
  * @module ports/pricing-store
  */
-import type { PricingEntry, PricingEntryInput, PricingResolution } from '@omnicross/contracts/pricing-types';
+import type {
+  PricingEntry,
+  PricingEntryInput,
+  PricingResolution,
+  PricingSource,
+} from '@omnicross/contracts/pricing-types';
+
+export type AutomaticPricingSource = Extract<PricingSource, 'litellm' | 'openrouter'>;
 
 export interface PricingStore {
   /** Return every pricing row. The engine caches the full table in memory. */
@@ -30,7 +37,7 @@ export interface PricingStore {
    * left untouched and returned in `conflicts` as `{ current, incoming }`
    * pairs for per-row resolution by the user.
    */
-  bulkApplyFromSource(entries: PricingEntryInput[]): Promise<{
+  bulkApplyFromSource(entries: PricingEntryInput[], source?: AutomaticPricingSource): Promise<{
     applied: PricingEntry[];
     conflicts: Array<{ current: PricingEntry; incoming: PricingEntryInput }>;
   }>;

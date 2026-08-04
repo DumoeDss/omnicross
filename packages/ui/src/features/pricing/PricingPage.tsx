@@ -6,7 +6,7 @@
  */
 
 import { CircleDollarSign, Plus, RefreshCw } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -35,10 +35,21 @@ const NOTICE_STYLES: Record<PricingNotice['kind'], string> = {
   error: 'border-destructive/60 bg-destructive/10 text-destructive',
 };
 
+const PAGE_SIZE = 100;
+
 export function PricingPage() {
   const t = useTranslation();
   const pricing = usePricing();
   const [adding, setAdding] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(pricing.filtered.length / PAGE_SIZE));
+  const visibleEntries = useMemo(
+    () => pricing.filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [page, pricing.filtered],
+  );
+
+  useEffect(() => setPage(1), [pricing.search]);
+  useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
 
   const handleAddSave = async (input: PricingEntryInput) => {
     const ok = await pricing.saveEntry(input);
@@ -125,12 +136,33 @@ export function PricingPage() {
             pricing.filtered.length === 0 ? (
               <p className="px-1 text-sm text-muted-foreground">{t('pricing.noMatches')}</p>
             ) : (
-              <PricingTable
-                entries={pricing.filtered}
-                busy={pricing.busy}
-                onSave={pricing.saveEntry}
-                onDelete={(providerId, modelId) => void pricing.removeEntry(providerId, modelId)}
-              />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                  <p className="text-xs text-muted-foreground">
+                    {t('pricing.pagination.summary', {
+                      page,
+                      pages: pageCount,
+                      count: pricing.filtered.length,
+                    })}
+                  </p>
+                  {pageCount > 1 ? (
+                    <div className="flex items-center gap-1">
+                      <Button size="xs" variant="outline" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>
+                        {t('pricing.pagination.previous')}
+                      </Button>
+                      <Button size="xs" variant="outline" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)}>
+                        {t('pricing.pagination.next')}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+                <PricingTable
+                  entries={visibleEntries}
+                  busy={pricing.busy}
+                  onSave={pricing.saveEntry}
+                  onDelete={(providerId, modelId) => void pricing.removeEntry(providerId, modelId)}
+                />
+              </div>
             )
           ) : null}
         </div>

@@ -431,6 +431,59 @@ describe('omnicross admin multi-account (secret scan + switch/delete)', () => {
     expect(after.claude).toHaveLength(1);
     expect(after.claude[0].label).toBe('Personal');
   });
+
+  it('PATCH updates only validated management metadata and never echoes credentials', async () => {
+    const before = await daemon.credentialStore.listSanitizedAccounts();
+    const personal = before.claude.find((account) => account.label === 'Personal')!;
+    const r = await adminFetch('PATCH', `/admin/api/accounts/claude/${personal.id}`, {
+      label: 'Primary',
+      enabled: false,
+      priority: 7,
+      group: 'production',
+      tags: ['max', 'team-a'],
+    });
+    expect(r.status).toBe(200);
+    expect(r.text).not.toContain(SENTINEL_ACC1);
+    const after = await daemon.credentialStore.listSanitizedAccounts();
+    expect(after.claude.find((account) => account.id === personal.id)).toMatchObject({
+      label: 'Primary', enabled: false, schedulable: false, priority: 7,
+      group: 'production', tags: ['max', 'team-a'],
+    });
+    expect((await daemon.credentialStore.getFullConfig()).claudeAccounts?.find((account) => account.id === personal.id)?.tokens.accessToken).toBe(SENTINEL_ACC1);
+  });
+
+  it('rejects token fields in PATCH and validates all batch targets before mutation', async () => {
+    const list = await daemon.credentialStore.listSanitizedAccounts();
+    const personal = list.claude.find((account) => account.label === 'Personal')!;
+    expect((await adminFetch('PATCH', `/admin/api/accounts/claude/${personal.id}`, {
+      accessToken: 'MUST-NOT-BE-ACCEPTED',
+    })).status).toBe(400);
+
+    const failed = await adminFetch('POST', '/admin/api/accounts/batch', {
+      action: 'disable',
+      accounts: [
+        { providerId: 'claude', accountId: personal.id },
+        { providerId: 'codex', accountId: 'missing' },
+      ],
+    });
+    expect(failed.status).toBe(404);
+    expect((await daemon.credentialStore.listSanitizedAccounts()).claude.find((account) => account.id === personal.id)?.enabled).toBe(true);
+  });
+
+  it('applies cross-account batch enable/group/delete with status-only responses', async () => {
+    const list = await daemon.credentialStore.listSanitizedAccounts();
+    const refs = list.claude.map((account) => ({ providerId: 'claude', accountId: account.id }));
+    const disabled = await adminFetch('POST', '/admin/api/accounts/batch', { action: 'disable', accounts: refs });
+    expect(disabled.status).toBe(200);
+    expect(disabled.text).not.toContain('SENTINEL');
+    expect((await daemon.credentialStore.listSanitizedAccounts()).claude.every((account) => !account.enabled)).toBe(true);
+
+    expect((await adminFetch('POST', '/admin/api/accounts/batch', { action: 'set-group', accounts: refs, group: 'shared' })).status).toBe(200);
+    expect((await daemon.credentialStore.listSanitizedAccounts()).claude.every((account) => account.group === 'shared')).toBe(true);
+
+    expect((await adminFetch('POST', '/admin/api/accounts/batch', { action: 'delete', accounts: refs })).status).toBe(200);
+    expect((await daemon.credentialStore.listSanitizedAccounts()).claude ?? []).toHaveLength(0);
+  });
 });
 
 // ── Write path is auth-gated ────────────────────────────────────────────────────

@@ -1,3 +1,5 @@
+import type { BoundAccountFallbackPolicy } from './BoundAccountSelectionError';
+
 /**
  * AuthSource — unified outbound-authentication strategy for the provider
  * request pipeline.
@@ -55,10 +57,15 @@ export interface AuthApplyHints {
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
   /**
    * OPTIONAL preferred subscription account id (provider/subscription duality).
-   * When set and schedulable the account picker resolves it directly; absent or
-   * unschedulable ⇒ pool auto-schedule. BYO auth sources ignore it.
+   * When set, strict is the default; only the explicit `'pool'` policy permits
+   * pool fallback. BYO auth sources ignore both binding hints.
    */
   preferredAccountId?: string;
+  /**
+   * Binding behavior. `'pool'` is an explicit opt-in; any other value used
+   * with a preferred account is treated as strict by the selector.
+   */
+  boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
 }
 
 /**

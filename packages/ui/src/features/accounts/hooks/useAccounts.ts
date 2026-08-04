@@ -12,7 +12,14 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { agent } from '@/shared/agent';
 
+import { allowanceKey, mergeAllowances } from '../allowanceLogic';
+
 import type {
+  AccountAllowanceSnapshot,
+  AccountBatchInput,
+  AccountConnectionTestResult,
+  AccountManagementPatch,
+  AccountProbeRecord,
   AccountsListResponse,
   AccountTokenInput,
   CodexOAuthStatus,
@@ -32,8 +39,17 @@ export interface UseAccountsResult {
   data: AccountsListResponse;
   busy: boolean;
   error: string | null;
+  allowances: AccountAllowanceSnapshot[];
+  allowanceLoading: boolean;
+  allowanceError: string | null;
+  allowanceErrors: Record<string, string>;
   clearError: () => void;
   refresh: () => Promise<void>;
+  refreshAllowances: () => Promise<void>;
+  /** Force-refresh a single Claude account without replacing unrelated snapshots. */
+  refreshAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   writeTokens: (payload: AccountTokenInput) => Promise<{ success: boolean; message?: string }>;
   /** Append a new account (+ activate) with an optional label. */
   appendTokens: (
@@ -42,6 +58,22 @@ export interface UseAccountsResult {
   ) => Promise<{ success: boolean; message?: string }>;
   setActive: (providerId: SubscriptionProviderId, id: string) => Promise<void>;
   removeAccount: (providerId: SubscriptionProviderId, accountId: string) => Promise<void>;
+  patchAccount: (
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    patch: AccountManagementPatch,
+  ) => Promise<{ success: boolean; message?: string }>;
+  batchManage: (
+    input: AccountBatchInput,
+  ) => Promise<{ success: boolean; affected?: number; message?: string }>;
+  testAccount: (
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ) => Promise<AccountConnectionTestResult>;
+  listAccountEvents: (
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ) => Promise<{ success: boolean; events: AccountProbeRecord[]; message?: string }>;
   /** Rename one account's label (label-only). Returns success for inline feedback. */
   renameAccount: (
     providerId: SubscriptionProviderId,
@@ -89,25 +121,71 @@ export function useAccounts(): UseAccountsResult {
   const [data, setData] = useState<AccountsListResponse>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allowances, setAllowances] = useState<AccountAllowanceSnapshot[]>([]);
+  const [allowanceLoading, setAllowanceLoading] = useState(true);
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
+  const [allowanceErrors, setAllowanceErrors] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     const next = await agent.accounts.list();
     setData(next);
   }, []);
 
+  const refreshAllowances = useCallback(async () => {
+    setAllowanceLoading(true);
+    const result = await agent.accounts.listAllowances();
+    if (result.success) {
+      setAllowances(result.allowances);
+      setAllowanceError(null);
+      setAllowanceErrors({});
+    } else {
+      // Preserve the last usable snapshots on an allowance-only failure.
+      setAllowanceError(result.message ?? 'failed to load account allowances');
+    }
+    setAllowanceLoading(false);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const next = await agent.accounts.list();
+      setAllowanceLoading(true);
+      const [next, nextAllowances] = await Promise.all([
+        agent.accounts.list(),
+        agent.accounts.listAllowances(),
+      ]);
       if (!cancelled) {
         setData(next);
         setLoading(false);
+        if (nextAllowances.success) {
+          setAllowances(nextAllowances.allowances);
+          setAllowanceError(null);
+        } else {
+          setAllowanceError(nextAllowances.message ?? 'failed to load account allowances');
+        }
+        setAllowanceLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const refreshAccountAllowance = useCallback(async (accountId: string) => {
+    const key = allowanceKey('claude', accountId);
+    setAllowanceErrors((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    const result = await agent.accounts.refreshAllowance('claude', accountId);
+    if (!result.success) {
+      const message = result.message ?? 'failed to refresh account allowance';
+      setAllowanceErrors((current) => ({ ...current, [key]: message }));
+      return { success: false, message };
+    }
+    setAllowances((current) => mergeAllowances(current, result.allowances));
+    return { success: true };
   }, []);
 
   const writeTokens = useCallback(
@@ -328,6 +406,64 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const patchAccount = useCallback(
+    async (
+      providerId: SubscriptionProviderId,
+      accountId: string,
+      patch: AccountManagementPatch,
+    ) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.accounts.patchAccount(providerId, accountId, patch);
+        if (!result.success) {
+          setError(result.message ?? 'request failed');
+          return result;
+        }
+        await refresh();
+        return { success: true };
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  const batchManage = useCallback(
+    async (input: AccountBatchInput) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.accounts.batchManage(input);
+        if (!result.success) {
+          setError(result.message ?? 'request failed');
+          return result;
+        }
+        await refresh();
+        return result;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
+
+  const testAccount = useCallback(
+    async (providerId: SubscriptionProviderId, accountId: string) => {
+      const result = await agent.accounts.testAccount(providerId, accountId);
+      // Probe outcome updates live health and the sanitized scheduling state.
+      await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  const listAccountEvents = useCallback(
+    (providerId: SubscriptionProviderId, accountId: string) =>
+      agent.accounts.listAccountEvents(providerId, accountId),
+    [],
+  );
+
   const cancelCodexOAuth = useCallback(
     (sessionId: string) => agent.accounts.cancelCodexOAuth(sessionId),
     [],
@@ -359,12 +495,22 @@ export function useAccounts(): UseAccountsResult {
     data,
     busy,
     error,
+    allowances,
+    allowanceLoading,
+    allowanceError,
+    allowanceErrors,
     clearError,
     refresh,
+    refreshAllowances,
+    refreshAccountAllowance,
     writeTokens,
     appendTokens,
     setActive,
     removeAccount,
+    patchAccount,
+    batchManage,
+    testAccount,
+    listAccountEvents,
     renameAccount,
     setAccountPriority,
     setAccountProxy,

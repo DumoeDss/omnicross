@@ -1,6 +1,5 @@
 /**
- * CircuitBreaker state-machine tests — every transition ported from
- * `_others/oc-go-cc/internal/router/fallback.go`, exercised with an INJECTED
+ * CircuitBreaker state-machine tests exercise every transition with an injected
  * mutable clock so the 30s open window is crossed deterministically (no real
  * timers / no waits — design D5).
  */

@@ -63,7 +63,7 @@ const mockCodexAwaitLoopback: CodexLoopbackFn = () =>
 
 // ── Mocked token-exchange fetch (claude/gemini token endpoints only) ────────────
 
-const CLAUDE_TOKEN_ENDPOINT = 'https://console.anthropic.com/v1/oauth/token';
+const CLAUDE_TOKEN_ENDPOINT = 'https://platform.claude.com/v1/oauth/token';
 const GEMINI_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const CODEX_TOKEN_ENDPOINT = 'https://auth.openai.com/oauth/token';
 

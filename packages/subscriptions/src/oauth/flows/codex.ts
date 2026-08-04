@@ -6,8 +6,6 @@
  * the exchange body, refresh carries `scope=openid profile email`, and the refresh
  * defaults `expiresIn` to 3600 + returns an `idToken`. Network goes through the
  * injected `FetchLike`.
- * Reference: claude-relay-service `src/services/openaiAccountService.js`.
- *
  * @module @omnicross/subscriptions/oauth/flows/codex
  */
 

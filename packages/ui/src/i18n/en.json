@@ -505,6 +505,16 @@
   },
   "nav": {
     "subtitle": "Control Panel",
+    "primary": "Primary navigation",
+    "more": "More",
+    "overview": "Overview",
+    "gateway": "Gateway",
+    "integrations": "Integrations",
+    "group": {
+      "run": "Run",
+      "configure": "Configure",
+      "system": "System"
+    },
     "providers": "Providers",
     "apiService": "API Service",
     "accounts": "Accounts",
@@ -514,9 +524,140 @@
     "pricing": "Pricing",
     "dashboard": "Dashboard"
   },
+  "overview": {
+    "eyebrow": "Local request exchange",
+    "title": "Can a request get through?",
+    "description": "Follow the active path from a local client through the Gateway and routing table to a healthy account or provider.",
+    "operational": "Path operational",
+    "actionRequired": "Path needs attention",
+    "requestPath": "Live request path",
+    "requestPathHint": "Derived from current keys, Gateway status, endpoint routing and account health.",
+    "open": "Open",
+    "refresh": "Refresh",
+    "source": {
+      "loading": "Loading",
+      "unavailable": "Unavailable",
+      "unavailableHint": "This source did not respond; the other evidence is still shown."
+    },
+    "state": {
+      "ready": "Ready",
+      "attention": "Needs attention",
+      "inactive": "Inactive",
+      "loading": "Loading",
+      "unavailable": "Unavailable"
+    },
+    "path": {
+      "client": "Client",
+      "gateway": "Gateway",
+      "routing": "Routing",
+      "upstream": "Upstream",
+      "detail": {
+        "client": "{{value}} usable keys",
+        "gateway": "port {{value}}",
+        "routing": "{{value}} formats",
+        "upstream": "{{value}} accounts / targets"
+      }
+    },
+    "routes": {
+      "title": "Routing matrix",
+      "description": "The configured upstream target for each wire format.",
+      "unconfigured": "not configured",
+      "unavailable": "Routing evidence is unavailable. Open Gateway to inspect it."
+    },
+    "gateway": {
+      "title": "Gateway evidence",
+      "description": "Live listener status, address and build identity when the daemon exposes them.",
+      "status": "Status",
+      "address": "Loopback address",
+      "version": "Daemon version",
+      "versionHint": "The current Gateway status payload does not expose a version.",
+      "port": "port {{port}}",
+      "running": "Running",
+      "stopped": "Stopped",
+      "open": "Open Gateway"
+    },
+    "accounts": {
+      "title": "Account pool",
+      "description": "The scheduler's current account projection, including allowance watch states.",
+      "schedulable": "Schedulable",
+      "abnormal": "Abnormal",
+      "total": "{{count}} total",
+      "countOfTotal": "{{count}} / {{total}}",
+      "none": "None detected",
+      "allowance": "Allowance watch",
+      "allowanceValue": "{{near}} near limit · {{stale}} stale",
+      "allowanceUnavailable": "{{count}} account allowance snapshot(s) unavailable",
+      "allowanceThreshold": "warning threshold {{threshold}}%",
+      "expiringSoon": "Expiring soon",
+      "expiringSoonHint": "Credentials expiring within 48 hours",
+      "open": "Open Accounts"
+    },
+    "today": {
+      "title": "Today's exchange",
+      "description": "The local usage ledger for the current day; failures are measured only when audit data is complete.",
+      "requests": "Requests",
+      "errorRate": "Error rate",
+      "cost": "Estimated cost",
+      "source": "From the local usage ledger",
+      "auditSource": "From {{count}} audited requests",
+      "auditDisabled": "Request audit is disabled; enable it in Settings → Data to measure failures.",
+      "auditIncomplete": "The bounded audit read may be incomplete, so the rate is not estimated.",
+      "noAuditedRequests": "No audited requests were available to compare with today's usage.",
+      "auditUnavailable": "Request audit could not be read; the rate is not estimated.",
+      "openUsage": "Open Usage"
+    },
+    "integrations": {
+      "title": "Persistent integrations",
+      "description": "Whether Codex and Claude Code's managed local configuration is in sync.",
+      "codex": "Codex",
+      "claude": "Claude Code",
+      "persistentHint": "Persistent native-CLI configuration",
+      "open": "Open Integrations",
+      "status": {
+        "not-installed": "Not installed",
+        "enabled": "Enabled",
+        "configuration-drift": "Configuration drift",
+        "configuration-missing": "Configuration missing",
+        "key-missing": "Gateway key missing"
+      }
+    },
+    "attention": {
+      "title": "Needs attention",
+      "description": "Only conditions that can break the request path appear here.",
+      "empty": "No blocking condition detected.",
+      "gatewayConfigUnavailable": "Gateway configuration is unavailable; inspect Status before changing routing.",
+      "gatewayUnavailable": "Gateway status is unavailable; confirm the daemon is reachable.",
+      "gatewayStopped": "Start the Gateway before clients connect.",
+      "accessKeyDataUnavailable": "Access-key data is unavailable; inspect Gateway access keys.",
+      "noAccessKey": "Create or enable an access key for clients.",
+      "routingDataUnavailable": "Routing data is unavailable; inspect Gateway routes.",
+      "routingIncomplete": "Complete routing for every supported wire format.",
+      "accountDataUnavailable": "Account health data is unavailable; inspect the account pool.",
+      "noUpstream": "Add a healthy subscription account or provider target.",
+      "noSchedulableAccounts": "No subscription account is currently schedulable.",
+      "abnormalAccounts": "{{count}} account(s) need health or credential attention.",
+      "accountsExpiringSoon": "{{count}} account(s) expire within 48 hours.",
+      "allowanceDataUnavailable": "Allowance data is unavailable; inspect Accounts before relying on limits.",
+      "allowanceNearLimit": "{{count}} allowance window(s) are near the warning threshold.",
+      "allowanceStale": "{{count}} allowance window(s) are stale and need a fresh observation.",
+      "integrationDataUnavailable": "Persistent integration status is unavailable; inspect Integrations.",
+      "integrationCodexNeedsAttention": "Codex's persistent integration needs repair.",
+      "integrationClaudeNeedsAttention": "Claude Code's persistent integration needs repair.",
+      "usageDataUnavailable": "Today's request and cost data is unavailable; inspect Usage.",
+      "errorRateUnavailable": "Today's error rate is unavailable; open the linked audit or traffic settings."
+    }
+  },
   "apiService": {
+    "gatewayTitle": "Gateway",
+    "gatewayDescription": "Explain and control how clients enter, route, and flow through the local service.",
     "title": "API Service",
     "description": "Configure the outbound API server, per-endpoint model routing, and named access keys.",
+    "tabs": {
+      "status": "Status",
+      "routes": "Routes",
+      "accessKeys": "Access Keys",
+      "liveTraffic": "Live Traffic"
+    },
     "loading": "Loading server configuration…",
     "loadError": "Could not load the server configuration. Check that the daemon is reachable.",
     "enable": {
@@ -533,12 +674,20 @@
       "stopped": "Server stopped",
       "runningHint": "The outbound API server is accepting requests.",
       "stoppedHint": "Enable the server to start accepting requests.",
+      "unavailable": "Gateway status unavailable",
+      "unavailableHint": "The server configuration loaded, but the daemon did not return a live status snapshot.",
       "port": "port {{port}}",
       "loopback": "Loopback URLs",
-      "lan": "LAN URLs"
+      "lan": "LAN URLs",
+      "queue": {
+        "title": "Current queue",
+        "summary": "{{active}} active · {{waiting}} waiting",
+        "open": "View live traffic"
+      }
     },
     "endpoints": {
       "title": "Endpoint routing",
+      "empty": "No endpoint definitions are available from this daemon.",
       "description": "Pick the model each wire format routes to. The default model folds in here — the server is a router, not a chat app."
     },
     "endpoint": {
@@ -559,6 +708,13 @@
       "subscriptionTypePlaceholder": "Select subscription…",
       "account": "Account",
       "accountPool": "Account pool (auto)",
+      "boundAccountFallbackPolicy": "When the bound account cannot serve",
+      "boundAccountFallbackPlaceholder": "Select fallback behavior",
+      "boundAccountFallbackStrict": "Fail the request (recommended)",
+      "boundAccountFallbackPool": "Use the account pool (opt-in)",
+      "boundAccountFallbackStrictHint": "Only the selected account may serve this endpoint. Unavailable, unhealthy, incompatible, paused, or tokenless bindings fail.",
+      "boundAccountFallbackPoolHint": "If the selected account cannot serve, another account may be chosen from the pool.",
+      "boundAccountFallbackChooseAccount": "Select a bound account to choose its fallback behavior.",
       "pickSubscriptionTypeFirst": "Select a subscription provider first to configure model mappings.",
       "kind": {
         "fable": "Fable",
@@ -669,7 +825,25 @@
         "concurrency": "Concurrency",
         "holding": "holding",
         "active": "{{count}} active",
-        "waiting": "{{count}} waiting"
+        "waiting": "{{count}} waiting",
+        "idle": "No requests are waiting or running through a queue right now.",
+        "unavailable": "Live queue data appears when the Gateway is running on a compatible daemon."
+      }
+    },
+    "liveTraffic": {
+      "title": "Live request flow",
+      "description": "Inspect current queue activity and the latest audited errors. No synthetic traffic metrics are shown.",
+      "queueIdle": "No requests are waiting or running through a queue right now.",
+      "queueUnavailable": "Live queue data appears when the Gateway is running on a compatible daemon.",
+      "errors": {
+        "title": "Recent errors",
+        "description": "Secret-free error records from the request audit log.",
+        "refresh": "Refresh",
+        "loading": "Loading recent audit records…",
+        "loadError": "Recent errors could not be loaded.",
+        "retry": "Retry",
+        "empty": "No audited errors were found in the latest records.",
+        "auditOff": "Enable request audit in Settings > Data to make recent errors available here."
       }
     },
     "proxy": {
@@ -854,9 +1028,37 @@
   "accounts": {
     "title": "Accounts & Subscriptions",
     "description": "Manage the subscription credentials the server routes through. Tokens are written here but never displayed back.",
+    "managementDescription": "Review account health, routing priority, and allowance before adding another credential.",
+    "summary": "{{accounts}} accounts across {{providers}} configured providers",
     "loading": "Loading accounts…",
     "empty": "No subscription providers are available.",
     "signIn": "Sign in",
+    "management": {
+      "summary": { "total": "Total accounts", "schedulable": "Ready to route", "excluded": "Excluded", "warnings": "Needs attention" },
+      "searchPlaceholder": "Search name, ID, group, or tag",
+      "selected": "{{count}} selected", "selectAll": "Select all visible accounts", "selectAccount": "Select {{name}}", "openDetails": "Open account details",
+      "emptyFiltered": "No accounts match these filters.", "sortDirection": "Reverse sort direction", "schedulable": "Schedulable", "excluded": "Excluded", "priorityValue": "Priority {{value}}",
+      "schedulingState": { "disabled": "Disabled by operator", "healthPaused": "Paused by health", "allowancePaused": "Paused by allowance", "demoted": "Allowance demoted", "schedulable": "Schedulable", "excluded": "Excluded" },
+      "allowanceAction": { "normal": "Normal", "demote": "Demote", "pause": "Pause", "ignore": "Ignored" },
+      "allowanceDecision": "Allowance: {{action}} · {{used}}% used",
+      "allowanceDecisionNoUsage": "Allowance: {{action}}",
+      "effectivePriority": "Base {{base}} → effective {{effective}}",
+      "filters": {
+        "allProviders": "All providers", "allGroups": "All groups", "allHealth": "All health", "allCredentials": "All credentials",
+        "scheduling": { "all": "All scheduling", "enabled": "Enabled", "disabled": "Disabled", "schedulable": "Schedulable", "excluded": "Excluded" }
+      },
+      "sort": { "label": "Name", "priority": "Priority", "last-used": "Last used", "allowance": "Allowance used", "reset-time": "Reset time" },
+      "columns": { "account": "Account", "providerGroup": "Provider / group", "status": "Routing status", "priority": "Priority", "lastUsed": "Last used", "actions": "Actions" },
+      "batch": { "enable": "Enable", "disable": "Disable", "setGroup": "Set group", "groupPlaceholder": "Group name", "delete": "Delete", "deleteTitle": "Delete selected accounts?", "deleteDescription": "This permanently deletes {{count}} stored credentials." },
+      "tabs": { "overview": "Overview", "allowance": "Allowance", "scheduling": "Scheduling", "network": "Network", "diagnostics": "Diagnostics", "danger": "Danger zone" },
+      "fields": {
+        "enabled": "Use for routing", "enabledHint": "Disabled accounts are never selected, even when they are the only account.",
+        "label": "Account name", "group": "Group", "tags": "Tags", "tagsPlaceholder": "production, team-a", "credential": "Credential", "health": "Health", "scheduling": "Scheduling", "lastUsed": "Last used", "priority": "Priority",
+        "allowanceAction": "Allowance policy", "effectivePriority": "Effective priority", "allowanceUsed": "Allowance used", "allowanceResume": "Allowance resets"
+      },
+      "diagnostics": { "testConnection": "Test connection", "testPassed": "Connection test passed.", "testFailed": "Connection test failed.", "history": "Recent probes", "empty": "No probe events yet.", "loadFailed": "Probe history could not be loaded." },
+      "danger": { "title": "Delete account", "description": "Deletes this account and its encrypted credential. This cannot be undone." }
+    },
     "oauth": {
       "title": "Sign in to {{name}}",
       "description": "Open the sign-in page in your browser, authorize, then paste the authorization code below. The code crosses to the daemon only — the minted token is never shown.",
@@ -967,6 +1169,33 @@
     "accounts": {
       "addAccount": "Add account"
     },
+    "addDialog": {
+      "title": "Add or import an account",
+      "description": "Choose a provider, then sign in, import a detected CLI login, or paste a credential.",
+      "back": "Choose another provider",
+      "existingCount": "{{count}} existing account(s)"
+    },
+    "allowance": {
+      "title": "Allowance",
+      "fiveHour": "5-hour limit",
+      "weekly": "Weekly limit",
+      "used": "{{percent}}% used",
+      "resetsAt": "Resets {{time}}",
+      "observedAt": "Observed {{time}}",
+      "refresh": "Refresh",
+      "refreshAll": "Reload allowances",
+      "loading": "Loading",
+      "loadFailed": "Allowances could not be loaded: {{error}}. Existing account data is unaffected.",
+      "unavailableHint": "The provider did not return allowance information for this account.",
+      "codexNotObserved": "No allowance headers observed yet. Use this account for a Codex request, then reload.",
+      "unsupportedProvider": "This provider does not expose a supported allowance source.",
+      "state": {
+        "fresh": "Fresh",
+        "stale": "Stale",
+        "unavailable": "Unavailable",
+        "unsupported": "Unsupported"
+      }
+    },
     "detail": {
       "authMethod": "Authorization method",
       "subscriptionLevel": "Subscription level",
@@ -1038,8 +1267,6 @@
       "requestFailed": "Request failed. Please try again."
     },
     "syncWarning": {
-      "external-divergent": "The external CLI login file holds a newer credential than this account. The stored token may stop refreshing — refresh now or sign in again.",
-      "external-not-rotated": "Refresh failed, and the external CLI holds the same expired credential. Please sign in again.",
       "duplicate-token": "Another account shares this credential. Refreshing either account will sign the other out."
     },
     "importExternal": {
@@ -1053,6 +1280,7 @@
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
     "health": {
+      "healthy": "Healthy",
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",
       "transient": "Temporarily unavailable",
@@ -1061,8 +1289,8 @@
     }
   },
   "codeCli": {
-    "title": "Code CLI",
-    "description": "Point a coding CLI at the daemon's outbound proxy. This page is read-only — there is nothing to configure here.",
+    "title": "Integrations",
+    "description": "Connect Codex and Claude Code to Omnicross persistently, or open a one-off routed terminal.",
     "copy": "Copy",
     "copied": "Copied",
     "baseUrl": {
@@ -1079,6 +1307,55 @@
       "keyNote": "Use an outbound access key created on the API Service page — not the admin token.",
       "anthropic": "Anthropic-format CLI",
       "openai": "OpenAI-format CLI"
+    },
+    "persistent": {
+      "title": "Persistent integration",
+      "description": "After enabling, ordinary codex or claude commands use Omnicross without a special launcher. The shared integration key stays hidden.",
+      "gatewayRunning": "Gateway running",
+      "gatewayStopped": "Gateway stopped",
+      "gatewayStoppedHint": "The native CLI configuration is present, but requests cannot reach Omnicross until the outbound gateway is running.",
+      "loading": "Checking persistent integrations…",
+      "configPath": "Configuration file",
+      "customPath": "Custom configuration path",
+      "routesTo": "Routes to {{url}}",
+      "enable": "Enable persistent access",
+      "reviewEnable": "Review and enable",
+      "repair": "Review repair",
+      "planTitle": "Review managed changes",
+      "planDescription": "This preview contains only logical field names and warnings. Omnicross never sends native configuration content to the UI.",
+      "planChanges": "Managed fields",
+      "planWarnings": "Warnings",
+      "noChanges": "No changes are required.",
+      "applyEnable": "Apply and enable",
+      "applyRepair": "Apply repair",
+      "remove": "Remove integration",
+      "removeTitle": "Remove {{name}} integration?",
+      "removeDescription": "Omnicross will restore the configuration captured before installation. If the file has changed since then, it will refuse to overwrite your edits.",
+      "removeLocked": "Resolve the configuration drift before removing this integration.",
+      "rotate": "Rotate shared key",
+      "rotateTitle": "Rotate the shared integration key?",
+      "rotateDescription": "A new least-privilege key will replace the current one in every managed integration. The key is never displayed in the UI.",
+      "rotateLocked": "Resolve configuration drift before rotating the shared key.",
+      "driftProtection": "This file changed after Omnicross installed it. Direct removal is locked to protect your edits; review the repair plan to reconcile only managed fields.",
+      "attention": "This integration needs attention. Follow the status guidance, then refresh this page.",
+      "status": {
+        "notInstalled": "Not enabled",
+        "enabled": "Enabled",
+        "drift": "Config changed",
+        "missing": "Config missing",
+        "keyMissing": "Key missing"
+      },
+      "hint": {
+        "notInstalled": "Your normal CLI commands are not persistently routed through Omnicross.",
+        "enabled": "Normal CLI commands are routed through the local Omnicross gateway.",
+        "drift": "The managed configuration no longer matches what Omnicross installed.",
+        "missing": "The managed configuration file was moved or deleted.",
+        "keyMissing": "The configuration is intact, but its shared gateway key is missing or revoked. Rotate the key to repair it."
+      }
+    },
+    "temporary": {
+      "title": "Temporary launch",
+      "description": "Open a routed terminal for this run only. This does not change the CLI's persistent configuration."
     },
     "launchDescription": "Launch a coding CLI in a terminal, pointed at this daemon. The daemon injects the redirect env and starts the CLI for you.",
     "refresh": "Refresh",
@@ -1112,8 +1389,66 @@
     "failedHint": "Ensure Node.js is installed and the daemon is built (dist present), or set OMNICROSS_DAEMON_ENTRY to the daemon's cli.js."
   },
   "settings": {
+    "security": {
+      "title": "Security and privacy",
+      "description": "Control identity replay and other policies that affect what leaves the local service."
+    },
     "title": "Settings",
-    "description": "Desktop app preferences.",
+    "description": "Desktop preferences and operational controls.",
+    "tabs": {
+      "general": "General",
+      "network": "Network",
+      "security": "Security & Privacy",
+      "data": "Data",
+      "notifications": "Notifications",
+      "advanced": "Advanced",
+      "billing": "Billing",
+      "pricing": "Model pricing"
+    },
+    "network": {
+      "title": "Network and proxy",
+      "description": "Control how clients reach the local Gateway and how requests reach upstream providers."
+    },
+    "data": {
+      "migrationTitle": "Data migration"
+    },
+    "allowanceScheduling": {
+      "title": "Allowance-aware scheduling",
+      "description": "Use fresh Claude and Codex allowance data to steer requests away from accounts approaching their limit.",
+      "safety": "Missing, stale, unsupported, or expired allowance data never demotes or pauses an account.",
+      "enable": {
+        "label": "Enable allowance-aware scheduling",
+        "description": "Default off. When disabled, allowance telemetry remains display-only."
+      },
+      "demote": {
+        "label": "Demote at used percent",
+        "description": "At or above this usage, add a temporary priority penalty."
+      },
+      "pause": {
+        "label": "Pause at used percent",
+        "description": "At or above this usage, exclude the account only when a known future reset time is available."
+      },
+      "penalty": {
+        "label": "Priority penalty",
+        "description": "Added to the account's base priority while it is demoted; lower priority values run first."
+      },
+      "validation": {
+        "demote": "Demote percent must be between 0 and 100.",
+        "pause": "Pause percent must be between 0 and 100.",
+        "order": "Pause percent must be greater than or equal to demote percent.",
+        "penalty": "Priority penalty must be a whole number from 1 to 1000."
+      },
+      "save": "Save scheduling policy",
+      "history": {
+        "title": "Recent applied decisions",
+        "description": "Only demotions and pauses that were actually applied are recorded.",
+        "refresh": "Refresh",
+        "unavailable": "Decision diagnostics are unavailable on this daemon version. The policy configuration above remains editable.",
+        "empty": "No allowance-driven demotion or pause has been applied yet.",
+        "action": { "demote": "Demoted", "pause": "Paused" },
+        "priority": "priority {{base}} → {{effective}} · {{used}}% used"
+      }
+    },
     "desktopOnly": "Startup and tray options apply only in the desktop app.",
     "startup": {
       "title": "Startup",
@@ -1156,7 +1491,7 @@
     "cost": "Cost",
     "apiKey": "API key",
     "unpriced": "Unpriced",
-    "unpricedHint": "No pricing entry exists for this model — add one on the Pricing page.",
+    "unpricedHint": "No pricing entry exists for this model — add one under Settings > Model pricing.",
     "unattributed": "Unattributed",
     "unattributedHint": "Requests not linked to a specific API key. This is expected until per-key attribution is recorded.",
     "empty": "No requests in this range.",
@@ -1205,6 +1540,7 @@
     "empty": "The pricing table is empty.",
     "emptyHint": "Fetch the latest prices to populate it.",
     "noMatches": "No entries match your search.",
+    "pagination": { "summary": "Page {{page}} of {{pages}} · {{count}} models", "previous": "Previous", "next": "Next" },
     "saved": "Pricing entry saved.",
     "saveFailed": "Save failed: {{message}}",
     "deleteFailed": "Delete failed: {{message}}",

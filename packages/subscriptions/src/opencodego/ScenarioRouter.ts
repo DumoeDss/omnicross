@@ -1,22 +1,18 @@
 /**
  * ScenarioRouter — pick the OpenCodeGo scenario for an incoming request.
  *
- * Mirrors the reference `DetectScenario`
- * (`_others/oc-go-cc/internal/router/scenarios.go`). Priority order (first match
- * wins): `long_context` (token-count over threshold) → `complex` → `think` →
- * `background` → `default`. The token check is text-free; the three keyword
+ * Priority order (first match wins): `long_context` (token-count over threshold)
+ * → `complex` → `think` → `background` → `default`. The token check is text-free; the three keyword
  * checks run only when the request is UNDER the long-context threshold and scan
  * a BOUNDED text slice (`summary.matchText` — the system prompt + most recent
  * user/system messages, per-message-capped by the builders) rather than the full
  * concatenated history.
  *
- * This is an inherently HEURISTIC, documented-substring match (case-insensitive
- * except the `antThinking` content marker, which is case-sensitive as in the
- * reference). It is faithfully mirrored — not "improved": the keyword lists are
+ * This is an inherently heuristic substring match (case-insensitive except the
+ * `antThinking` content marker, which is case-sensitive). The keyword lists are
  * crude and have known false positives (e.g. `complex`'s `"create"`/`"build"`).
- * The streaming `fast` preference (`RouteForStreaming`) is intentionally NOT
- * ported here — DEFERRED per design.md §4 (no `isStream` is threaded into this
- * resolver).
+ * A streaming-specific `fast` preference is intentionally deferred because no
+ * `isStream` flag is threaded into this resolver.
  */
 
 import type { OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
@@ -25,54 +21,35 @@ import type { SubscriptionRequestSummary } from '../SubscriptionProviderRegistry
 
 import { DEFAULT_OPENCODEGO_LONG_CONTEXT_THRESHOLD } from './defaults';
 
-// ── Keyword tables (verbatim from `scenarios.go`) ───────────────────────────
-// Source: `_others/oc-go-cc/internal/router/scenarios.go`
-// `hasComplexPattern` (scenarios.go:93-117), `hasThinkingPattern`
-// (scenarios.go:121-142), `hasBackgroundPattern` (scenarios.go:147-181).
+// ── Bounded keyword tables used by Omnicross scenario selection ─────────────
 
 /** Complex operations needing a more capable model (architectural + tool-related). */
 const COMPLEX_KEYWORDS: readonly string[] = [
-  // Architectural
-  'architect',
   'architecture',
   'refactor',
   'redesign',
-  'complex',
-  'difficult',
-  'challenging',
   'optimize',
   'performance',
-  'efficiency',
-  'design pattern',
-  'best practice',
-  // Tool-related keywords indicate complex operations
-  'execute',
-  'run command',
-  'bash',
-  'shell',
   'implement',
   'build',
-  'create',
-  'add feature',
-  'write to',
   'edit file',
-  'create file',
+  'debug',
+  'migrate',
+  'benchmark',
 ];
 
 /** Reasoning / thinking keywords. */
 const THINKING_KEYWORDS: readonly string[] = [
   'think',
-  'thinking',
   'plan',
   'reason',
-  'reasoning',
   'analyze',
-  'analysis',
   'step by step',
+  'evaluate',
+  'compare tradeoffs',
 ];
 
-/** Case-SENSITIVE content marker for thinking content blocks (no `ToLower` in
- *  the reference — `strings.Contains(msg.Content, "antThinking")`). */
+/** Case-sensitive content marker for thinking content blocks. */
 const ANT_THINKING_MARKER = 'antThinking';
 
 /** If ANY of these appear, the request is NOT a background task (tool-blocker
@@ -80,29 +57,21 @@ const ANT_THINKING_MARKER = 'antThinking';
 const TOOL_BLOCKERS: readonly string[] = [
   'tool',
   'function',
-  'execute',
-  'run command',
+  'command',
   'write',
   'edit',
-  'create',
   'delete',
-  'remove',
   'implement',
   'build',
-  'add',
   'modify',
 ];
 
 /** Truly-simple operations that qualify as background tasks. */
 const BACKGROUND_KEYWORDS: readonly string[] = [
   'list directory',
-  'ls -',
-  'dir',
   'show file',
-  'view file',
-  'cat file',
+  'read file',
   'what is',
-  "what's",
   'tell me about',
   'check status',
   'show status',
@@ -163,7 +132,7 @@ export function resolveOpenCodeGoScenario(
     return 'long_context';
   }
 
-  // 2-4. Keyword heuristics over the bounded match-text slice, in the reference
+  // 2-4. Keyword heuristics over the bounded match-text slice, in the
   //      priority order `complex → think → background`. When the summary carries
   //      no match text (caller omitted the optional field), all three degrade to
   //      no-match and we fall through to `default` — a graceful degrade that

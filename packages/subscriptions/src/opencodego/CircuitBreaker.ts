@@ -1,12 +1,11 @@
 /**
  * CircuitBreaker — per-model circuit breaker for OpenCodeGo subscription routing.
  *
- * Ported VERBATIM from `_others/oc-go-cc/internal/router/fallback.go:38-115`
- * (audit item D5). One `CircuitBreaker` tracks ONE model's health across
+ * One `CircuitBreaker` tracks one model's health across
  * requests; the `CircuitBreakerRegistry` lazily owns one breaker per model id
- * (mirroring the reference `FallbackHandler.circuitBreakers map[string]*CircuitBreaker`).
+ * in a per-model registry.
  *
- * State machine (reference thresholds, NOT user-configurable):
+ * State machine (defaults are configurable for deterministic tests):
  *   - `closed`    : normal. Opens after **3 consecutive failures**
  *                   (`failureCount >= threshold`); any success in `closed`
  *                   RESETS `failureCount` to 0 (failures are CONSECUTIVE).
@@ -27,10 +26,10 @@
  * @module opencodego/CircuitBreaker
  */
 
-/** The three breaker states (mirrors the reference `closed`/`open`/`half-open`). */
+/** The three circuit-breaker states. */
 export type CircuitState = 'closed' | 'open' | 'half-open';
 
-/** Constructor knobs — all default to the reference's verbatim values. */
+/** Constructor knobs with production defaults. */
 export interface CircuitBreakerOptions {
   /** Consecutive failures that open the circuit. Default 3. */
   threshold?: number;
@@ -42,42 +41,46 @@ export interface CircuitBreakerOptions {
   now?: () => number;
 }
 
+interface CircuitSnapshot {
+  mode: CircuitState;
+  consecutiveFailures: number;
+  openedAt: number;
+  probeAdmissions: number;
+  probeSuccesses: number;
+}
+
 /**
- * One model's circuit-breaker state machine. Faithful port of the reference
- * `CircuitBreaker` (`fallback.go:38-115`): same fields, same transitions, same
- * thresholds. The reference mutates under a mutex; this runs on the single Node
- * event loop so no lock is needed.
+ * One model's circuit-breaker state machine. It runs on the single Node event
+ * loop, so no mutex is needed.
  */
 export class CircuitBreaker {
-  private state: CircuitState = 'closed';
-  /** CONSECUTIVE failures while closed (reset by any closed success). */
-  private failureCount = 0;
-  /** Successes accumulated in the current half-open probe window. */
-  private successCount = 0;
-  /** Test calls admitted in the current half-open window (cap = halfOpenMaxCalls). */
-  private halfOpenCalls = 0;
-  /** `now()` at the last recorded failure — drives the open→half-open elapsed check. */
-  private lastFailureTime = 0;
+  private snapshot: CircuitSnapshot = {
+    mode: 'closed',
+    consecutiveFailures: 0,
+    openedAt: 0,
+    probeAdmissions: 0,
+    probeSuccesses: 0,
+  };
 
-  private readonly threshold: number;
-  private readonly openMs: number;
-  private readonly halfOpenMaxCalls: number;
+  private readonly limits: Required<Omit<CircuitBreakerOptions, 'now'>>;
   private readonly now: () => number;
 
   constructor(opts: CircuitBreakerOptions = {}) {
-    this.threshold = opts.threshold ?? 3;
-    this.openMs = opts.openMs ?? 30_000;
-    this.halfOpenMaxCalls = opts.halfOpenMaxCalls ?? 3;
+    this.limits = {
+      threshold: opts.threshold ?? 3,
+      openMs: opts.openMs ?? 30_000,
+      halfOpenMaxCalls: opts.halfOpenMaxCalls ?? 3,
+    };
     this.now = opts.now ?? Date.now;
   }
 
   /** Current state (diagnostics / tests). */
   getState(): CircuitState {
-    return this.state;
+    return this.snapshot.mode;
   }
 
   /**
-   * Admission gate (`fallback.go:54-72` `AllowRequest`). Returns whether a
+   * Admission gate. Returns whether a
    * request to this model is allowed RIGHT NOW. Side-effecting BY DESIGN:
    *   - `closed`    → always admit.
    *   - `open`      → if `now() - lastFailureTime > openMs`, FLIP to `half-open`,
@@ -88,76 +91,95 @@ export class CircuitBreaker {
    *                   recorded outcome resolves the state).
    */
   allowRequest(): boolean {
-    switch (this.state) {
-      case 'closed':
-        return true;
-      case 'open':
-        if (this.now() - this.lastFailureTime > this.openMs) {
-          // Transition to half-open and admit the first test call.
-          this.state = 'half-open';
-          this.successCount = 0;
-          this.halfOpenCalls = 1;
-          return true;
-        }
-        return false;
-      case 'half-open':
-        if (this.halfOpenCalls < this.halfOpenMaxCalls) {
-          this.halfOpenCalls += 1;
-          return true;
-        }
-        return false;
-      default:
-        return true;
+    if (this.snapshot.mode === 'closed') return true;
+
+    if (this.snapshot.mode === 'open') {
+      const elapsed = this.now() - this.snapshot.openedAt;
+      if (elapsed <= this.limits.openMs) return false;
+      this.snapshot = {
+        ...this.snapshot,
+        mode: 'half-open',
+        probeAdmissions: 1,
+        probeSuccesses: 0,
+      };
+      return true;
     }
+
+    if (this.snapshot.probeAdmissions >= this.limits.halfOpenMaxCalls) return false;
+    this.snapshot = {
+      ...this.snapshot,
+      probeAdmissions: this.snapshot.probeAdmissions + 1,
+    };
+    return true;
   }
 
   /**
-   * Record a successful attempt (`fallback.go:75-91` `RecordSuccess`).
+   * Record a successful attempt.
    *   - `half-open` → increment `successCount`; at `halfOpenMaxCalls` successes,
    *     CLOSE the circuit and reset all counters.
    *   - `closed`    → reset the consecutive `failureCount` (a single good call
    *     clears the streak).
    */
   recordSuccess(): void {
-    if (this.state === 'half-open') {
-      this.successCount += 1;
-      if (this.successCount >= this.halfOpenMaxCalls) {
-        this.state = 'closed';
-        this.failureCount = 0;
-        this.successCount = 0;
-        this.halfOpenCalls = 0;
+    if (this.snapshot.mode === 'open') return;
+
+    if (this.snapshot.mode === 'closed') {
+      if (this.snapshot.consecutiveFailures !== 0) {
+        this.snapshot = { ...this.snapshot, consecutiveFailures: 0 };
       }
       return;
     }
-    // closed (open never records — allowRequest gates it): clear the streak.
-    this.failureCount = 0;
+
+    const probeSuccesses = this.snapshot.probeSuccesses + 1;
+    if (probeSuccesses >= this.limits.halfOpenMaxCalls) {
+      this.snapshot = {
+        mode: 'closed',
+        consecutiveFailures: 0,
+        openedAt: 0,
+        probeAdmissions: 0,
+        probeSuccesses: 0,
+      };
+      return;
+    }
+    this.snapshot = { ...this.snapshot, probeSuccesses };
   }
 
   /**
-   * Record a failed attempt (`fallback.go:94-115` `RecordFailure`).
+   * Record a failed attempt.
    *   - `half-open` → immediately RE-OPEN (one probe failure is enough); stamp
    *     `lastFailureTime`, reset `successCount`.
    *   - `closed`    → increment the consecutive `failureCount`; at `threshold`,
    *     OPEN the circuit. Always stamp `lastFailureTime`.
    */
   recordFailure(): void {
-    this.lastFailureTime = this.now();
-    if (this.state === 'half-open') {
-      this.state = 'open';
-      this.successCount = 0;
-      this.halfOpenCalls = 0;
+    const openedAt = this.now();
+    if (this.snapshot.mode === 'half-open') {
+      this.snapshot = {
+        ...this.snapshot,
+        mode: 'open',
+        openedAt,
+        probeAdmissions: 0,
+        probeSuccesses: 0,
+      };
       return;
     }
-    this.failureCount += 1;
-    if (this.failureCount >= this.threshold) {
-      this.state = 'open';
+
+    const consecutiveFailures = this.snapshot.consecutiveFailures + 1;
+    this.snapshot = {
+      ...this.snapshot,
+      consecutiveFailures,
+      openedAt,
+      mode: consecutiveFailures >= this.limits.threshold ? 'open' : this.snapshot.mode,
+    };
+    if (this.snapshot.mode === 'open') {
+      this.snapshot.probeAdmissions = 0;
+      this.snapshot.probeSuccesses = 0;
     }
   }
 }
 
 /**
- * Per-model registry of `CircuitBreaker`s (mirrors the reference
- * `FallbackHandler.getCircuitBreaker`, `fallback.go:156-166`). Lazily creates a
+ * Per-model registry of `CircuitBreaker`s. Lazily creates a
  * breaker the first time a model id is seen, threading the SAME options (clock +
  * thresholds) to every child. Owned as a single process instance by
  * `SubscriptionProviderRegistry` (design D1) so breaker state is shared across

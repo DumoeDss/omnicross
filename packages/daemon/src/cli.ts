@@ -12,6 +12,8 @@
  */
 
 import { runImportCcr } from './commands/import-ccr';
+import { runIntegrationToken } from './commands/integration-token';
+import { runIntegrations } from './commands/integrations';
 import { runKeys } from './commands/keys';
 import { runLaunch } from './commands/launch';
 import { runLogin } from './commands/login';
@@ -40,6 +42,16 @@ Usage:
   omnicross launch <cli> --provider <id> --model <m> --config <p> [--cwd <dir>] [-- <cli-args…>]
                                            Launch a Code CLI (claude|codex|gemini|qwen|copilot|opencode)
                                            against an in-process proxy (route-token auth; BYO).
+  omnicross integrations status --config <p>  Inspect native CLI gateway integration.
+  omnicross integrations plan <codex|claude> --config <p> [--target <path>]
+                                           Preview redacted configuration changes.
+  omnicross integrations install <codex|claude> --config <p> --gateway-base-url <url>
+                                           Reversibly configure a native CLI for Omnicross.
+  omnicross integrations repair <codex|claude> --config <p>
+                                           Repair managed fields while preserving unrelated edits.
+  omnicross integrations remove <codex|claude> --config <p>
+                                           Restore the exact pre-install configuration.
+  omnicross integrations rotate --config <p>  Rotate the shared local integration key.
   omnicross import-ccr <ccr.json> [--out <p>]  Translate a CCR config.
   omnicross secrets encrypt --config <p>   Encrypt all at-rest secrets in place.
   omnicross secrets status --config <p>    Report each secret field (no values shown).
@@ -66,6 +78,12 @@ async function main(): Promise<void> {
       return;
     case 'launch':
       process.exitCode = await runLaunch(rest);
+      return;
+    case 'integrations':
+      await runIntegrations(rest);
+      return;
+    case 'integration-token':
+      await runIntegrationToken(rest);
       return;
     case 'import-ccr':
       await runImportCcr(rest);

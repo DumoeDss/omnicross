@@ -859,8 +859,6 @@
       "requestFailed": "Anmodningen mislykkedes. Prøv venligst igen."
     },
     "syncWarning": {
-      "external-divergent": "Den eksterne CLI-loginfil indeholder nyere legitimationsoplysninger end denne konto. Det gemte token kan muligvis ikke længere opdateres — opdater nu, eller log ind igen.",
-      "external-not-rotated": "Opdateringen mislykkedes, og den eksterne CLI indeholder de samme udløbne legitimationsoplysninger. Log ind igen.",
       "duplicate-token": "En anden konto deler disse legitimationsoplysninger. Opdatering af den ene logger den anden ud."
     },
     "importExternal": {

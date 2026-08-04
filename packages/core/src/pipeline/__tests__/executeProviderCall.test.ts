@@ -72,7 +72,7 @@ describe('executeProviderCall', () => {
     // No prepareBody / no response chain → fetched body sent verbatim.
     expect(fetchFn).toHaveBeenCalledWith(
       'https://api.test.com/v1/chat',
-      { authorization: 'Bearer test-key' },
+      { authorization: 'Bearer test-key', 'content-type': 'application/json' },
       unifiedRequest,
     );
     // runResponseChain defaults to false → raw fetched response returned.
@@ -117,7 +117,7 @@ describe('executeProviderCall', () => {
     expect(result.requestBody).toEqual(decoded);
     expect(fetchFn).toHaveBeenCalledWith(
       'https://api.test.com/v1/messages',
-      {},
+      { 'content-type': 'application/json' },
       decoded,
     );
     // response-in ran: the returned response is the endpoint-encoded one.
@@ -160,7 +160,7 @@ describe('executeProviderCall', () => {
     // The MUTATED body is what got fetched.
     expect(fetchFn).toHaveBeenCalledWith(
       'https://api.test.com/v1/chat',
-      {},
+      { 'content-type': 'application/json' },
       { ...unifiedRequest, mutated: true },
     );
     expect(result.finalBody).toEqual({ ...unifiedRequest, mutated: true });
@@ -225,7 +225,7 @@ describe('executeProviderCall', () => {
     // fetchFn received the resolved url + assembled headers + the request body.
     expect(fetchFn).toHaveBeenCalledWith(
       'https://chain.example/api',
-      { 'x-from-chain': 'yes' },
+      { 'x-from-chain': 'yes', 'content-type': 'application/json' },
       unifiedRequest,
     );
   });

@@ -859,8 +859,6 @@
       "requestFailed": "Permintaan gagal. Sila cuba lagi."
     },
     "syncWarning": {
-      "external-divergent": "Fail log masuk CLI luaran mengandungi kelayakan yang lebih baharu daripada akaun ini. Token yang disimpan mungkin berhenti dimuat semula — muat semula sekarang atau log masuk semula.",
-      "external-not-rotated": "Muat semula gagal dan CLI luaran mengandungi kelayakan tamat tempoh yang sama. Sila log masuk semula.",
       "duplicate-token": "Akaun lain berkongsi kelayakan ini. Memuat semula salah satu akan melog keluar yang satu lagi."
     },
     "importExternal": {

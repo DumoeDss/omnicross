@@ -15,6 +15,9 @@ export type OutboundEndpointId = 'chat' | 'responses' | 'messages' | 'gemini';
 /** A `"providerId,modelId"` model reference. */
 export type ModelRef = string;
 
+/** Bound-account behavior; pool fallback is an explicit opt-in. */
+export type BoundAccountFallbackPolicy = 'strict' | 'pool';
+
 /**
  * Per-endpoint routing config (the editable shape from `GET /server`).
  *
@@ -46,6 +49,8 @@ export interface EndpointRoutingConfig {
   useSubscription: boolean;
   /** Subscription mode: bind one specific account id; blank ⇒ account pool. */
   boundAccountId?: string;
+  /** When bound account cannot serve: strict failure (default) or pool fallback. */
+  boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Provider mode: bind one specific BYO key id; blank ⇒ default key / key pool. */
   boundKeyId?: string;
   /** Optional per-endpoint background-model id override list (role-based only). */
@@ -182,6 +187,43 @@ export interface FingerprintConfig {
   ua?: string;
 }
 
+/** Default-off allowance-aware subscription account scheduling policy. */
+export interface AllowanceSchedulingConfig {
+  enabled: boolean;
+  demoteAtPercent: number;
+  pauseAtPercent: number;
+  priorityPenalty: number;
+}
+
+export type AllowanceSchedulingAction = 'normal' | 'demote' | 'pause' | 'ignore';
+
+/** Secret-free record of an applied demotion/pause scheduling decision. */
+export interface AllowanceSchedulingDecision {
+  providerId: 'claude' | 'codex' | 'gemini' | 'opencodego';
+  accountId: string;
+  action: AllowanceSchedulingAction;
+  reason:
+    | 'policy-disabled'
+    | 'provider-unsupported'
+    | 'snapshot-missing'
+    | 'snapshot-not-fresh'
+    | 'below-threshold'
+    | 'demote-threshold'
+    | 'pause-threshold';
+  basePriority: number;
+  effectivePriority: number;
+  schedulable: boolean;
+  usedPercent?: number;
+  observedAt?: string;
+  resumeAt?: string;
+  decidedAt: string;
+}
+
+export interface AccountAllowanceSchedulingStatus {
+  config: AllowanceSchedulingConfig;
+  history: AllowanceSchedulingDecision[];
+}
+
 /** The `server.voucher` segment (voucher-redemption #9). */
 export interface VoucherConfig {
   /** Master switch; false/absent ⇒ redeem endpoint inert + no admin generate. */
@@ -260,6 +302,8 @@ export interface OutboundApiServerConfig {
   userMessageQueue?: OutboundUserMessageQueueConfig;
   /** Per-key concurrency queue (OPTIONAL — absent on a pre-upgrade daemon). */
   concurrencyQueue?: OutboundConcurrencyQueueConfig;
+  /** Allowance-aware account scheduling. Optional for compatibility with older daemons. */
+  allowanceScheduling?: AllowanceSchedulingConfig;
   /**
    * Layered upstream proxy (upstream-proxy). OPTIONAL — absent on a pre-upgrade
    * daemon or when no proxy is configured. Passwords are masked on GET.

@@ -15,6 +15,8 @@ export type PricingSource =
   | 'builtin'
   /** Auto-fetched from the LiteLLM JSON URL. */
   | 'litellm'
+  /** Supplemental OpenRouter model catalog price (OpenRouter routes only). */
+  | 'openrouter'
   /** Hand-edited by the user; protected from auto-overwrite. */
   | 'user';
 
@@ -69,6 +71,8 @@ export interface PricingFetchResult {
   fetchedAt: number;
   /** Source URL that was fetched. */
   sourceUrl: string;
+  /** Outcome of every configured catalog source; one source may fail without discarding the other. */
+  sources: PricingSourceRefreshResult[];
 }
 
 /** Per-row decision passed back from the host's conflict-resolution UI. */
@@ -89,3 +93,16 @@ export interface PricingResolution {
 /** Default LiteLLM source URL — public model_prices_and_context_window.json. */
 export const DEFAULT_LITELLM_PRICING_URL =
   'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json';
+
+/** Supplemental OpenRouter catalog. Prices are USD per token in `data[].pricing`. */
+export const DEFAULT_OPENROUTER_PRICING_URL = 'https://openrouter.ai/api/v1/models';
+
+/** One source attempt in a multi-source pricing refresh. */
+export interface PricingSourceRefreshResult {
+  source: 'litellm' | 'openrouter';
+  sourceUrl: string;
+  status: 'applied' | 'failed';
+  parsedCount: number;
+  appliedCount: number;
+  error?: string;
+}

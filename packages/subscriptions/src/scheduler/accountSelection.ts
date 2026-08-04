@@ -22,6 +22,14 @@
 
 import type { AccountTokensConfig, SubscriptionAccountEntry } from '@omnicross/contracts/account-tokens-types';
 import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
+import {
+  AccountAllowanceExhaustedError,
+  getSharedAccountAllowanceScheduling,
+} from '@omnicross/core/pipeline/AccountAllowanceScheduling';
+import {
+  BoundAccountSelectionError,
+  type BoundAccountFallbackPolicy,
+} from '@omnicross/core/pipeline/BoundAccountSelectionError';
 import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import type { RefreshMutex } from '../auth/RefreshMutex';
@@ -32,7 +40,11 @@ import {
   remapReportForAccount,
   type SupportedModels,
 } from './accountModelMap';
-import type { SchedulableAccount, SubscriptionAccountSelector } from './SubscriptionAccountSelector';
+import {
+  DEFAULT_ACCOUNT_PRIORITY,
+  type SchedulableAccount,
+  type SubscriptionAccountSelector,
+} from './SubscriptionAccountSelector';
 
 /** Extra health-aware inputs for `resolveSelectedToken` (subscription-account-health
  *  + subscription-account-model-map). All optional so the pre-health / test call
@@ -52,11 +64,13 @@ export interface SelectionHealthContext {
    *  (subscription-account-model-map) — the relay rewrites `body.model` to it. */
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
   /**
-   * Per-request preferred account id (provider/subscription duality). When set
-   * and schedulable, `resolveSelectedToken` resolves it directly (falling back
-   * to the pool only when it is missing/unschedulable/empty-token).
+   * Per-request preferred account id (provider/subscription duality). When set,
+   * strict selection is the default; only the explicit pool policy permits
+   * fallback. Absent bindings retain pool auto-scheduling.
    */
   preferredAccountId?: string;
+  /** `'pool'` is the explicit fallback opt-in; bound accounts otherwise fail. */
+  boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Injectable clock (default `Date.now()` inside the selector). */
   now?: number;
 }
@@ -100,7 +114,7 @@ function gateSchedulable(
     const modelOk = resolvedModel
       ? accountSupportsModel(supportedModelsById.get(a.id), resolvedModel)
       : true;
-    return { ...a, schedulable: healthOk && modelOk };
+    return { ...a, schedulable: a.schedulable !== false && healthOk && modelOk };
   });
 }
 
@@ -113,6 +127,127 @@ function isPoolGated(
   resolvedModel: string | undefined,
 ): boolean {
   return (health !== undefined || resolvedModel !== undefined) && accounts.length >= 2;
+}
+
+function hasUsableToken(token: string | null): token is string {
+  return typeof token === 'string' && token.trim() !== '';
+}
+
+/**
+ * Resolve a bound account without consulting another account. This path is
+ * intentionally separate from the pool selector: the selector's historical
+ * single-account degraded behavior is correct for pools but would violate a
+ * strict endpoint binding (especially for model maps and allowance pauses).
+ */
+async function resolveStrictPreferredToken(
+  tokens: SubscriptionCredentialStore,
+  providerId: SubscriptionProviderId,
+  preferredId: string,
+  activeGetter: () => Promise<string | null>,
+  ctx: SelectionHealthContext,
+): Promise<string> {
+  let config: AccountTokensConfig;
+  try {
+    config = await tokens.getFullConfig();
+  } catch {
+    throw new BoundAccountSelectionError(providerId, 'unavailable');
+  }
+
+  let accounts: SchedulableAccount[];
+  let activeAccountId: string | undefined;
+  let supportedModelsById: Map<string, SupportedModels | undefined>;
+  try {
+    ({ accounts, activeAccountId, supportedModelsById } = readSchedulableAccounts(config, providerId));
+  } catch {
+    throw new BoundAccountSelectionError(providerId, 'unavailable');
+  }
+  const preferred = accounts.find((account) => account.id === preferredId);
+  if (!preferred) {
+    throw new BoundAccountSelectionError(providerId, 'not-found');
+  }
+  if (preferred.schedulable === false) {
+    throw new BoundAccountSelectionError(providerId, 'disabled');
+  }
+  if (ctx.health && !ctx.health.isSchedulable(providerId, preferredId, ctx.now)) {
+    throw new BoundAccountSelectionError(providerId, 'unhealthy');
+  }
+  if (ctx.resolvedModel && !accountSupportsModel(supportedModelsById.get(preferredId), ctx.resolvedModel)) {
+    throw new BoundAccountSelectionError(providerId, 'model-incompatible');
+  }
+
+  const allowance = getSharedAccountAllowanceScheduling().evaluate(
+    providerId,
+    preferredId,
+    preferred.priority ?? DEFAULT_ACCOUNT_PRIORITY,
+    ctx.now,
+  );
+  if (allowance.action === 'pause') {
+    throw new BoundAccountSelectionError(providerId, 'allowance-paused', allowance.resumeAt);
+  }
+
+  let token: string | null = null;
+  try {
+    token = tokens.getAccessTokenForAccount
+      ? await tokens.getAccessTokenForAccount(providerId, preferredId)
+      : preferredId === activeAccountId
+        ? await activeGetter()
+        : null;
+  } catch {
+    throw new BoundAccountSelectionError(providerId, 'unavailable');
+  }
+  if (!hasUsableToken(token)) {
+    throw new BoundAccountSelectionError(providerId, 'empty-token');
+  }
+
+  const remapped = remapReportForAccount(supportedModelsById.get(preferredId), ctx.resolvedModel);
+  ctx.reportSelection?.(preferredId, preferredId === activeAccountId, remapped);
+  return token;
+}
+
+/**
+ * Apply the default-off allowance policy after operator/health/model gates. A
+ * stale or absent snapshot evaluates to `ignore`; only fresh provider data can
+ * alter priority or eligibility. Unlike transient health's single-account
+ * degraded behavior, an explicitly enabled pause threshold is authoritative for
+ * a one-account pool as well.
+ */
+function gateByAllowance(
+  accounts: SchedulableAccount[],
+  providerId: SubscriptionProviderId,
+  now: number | undefined,
+): SchedulableAccount[] {
+  const scheduling = getSharedAccountAllowanceScheduling();
+  const evaluatedAt = now ?? Date.now();
+  const eligibleBeforePolicy = accounts.filter((account) => account.schedulable !== false);
+  if (eligibleBeforePolicy.length === 0) return accounts;
+
+  const decisions = new Map<string, ReturnType<typeof scheduling.evaluate>>();
+  const gated = accounts.map((account) => {
+    if (account.schedulable === false) return account;
+    const decision = scheduling.evaluate(
+      providerId,
+      account.id,
+      account.priority ?? DEFAULT_ACCOUNT_PRIORITY,
+      evaluatedAt,
+    );
+    decisions.set(account.id, decision);
+    return {
+      ...account,
+      priority: decision.effectivePriority,
+      schedulable: decision.schedulable,
+    };
+  });
+
+  if (gated.some((account) => account.schedulable !== false)) return gated;
+  const paused = eligibleBeforePolicy
+    .map((account) => decisions.get(account.id))
+    .filter((decision) => decision?.action === 'pause');
+  if (paused.length !== eligibleBeforePolicy.length) return gated;
+  const resumeAt = paused
+    .map((decision) => decision?.resumeAt)
+    .filter((value): value is string => !!value)
+    .sort()[0];
+  throw new AccountAllowanceExhaustedError(providerId, resumeAt);
 }
 
 /** Project a provider's stored accounts into the selector's candidate shape.
@@ -134,6 +269,9 @@ export function readSchedulableAccounts(
     priority: a.priority,
     lastUsedAt: a.lastUsedAt,
     createdAt: a.createdAt,
+    // Persisted opt-out is absolute, including a one-account pool. Legacy rows
+    // omit the field and therefore remain enabled.
+    schedulable: a.enabled !== false,
   }));
   const supportedModelsById = new Map<string, SupportedModels | undefined>(
     raw.map((a) => [a.id, a.supportedModels]),
@@ -191,23 +329,38 @@ export async function resolveSelectedToken(
   const report = ctx?.reportSelection;
   const now = ctx?.now;
   const resolvedModel = ctx?.resolvedModel;
+  const preferredId =
+    typeof ctx?.preferredAccountId === 'string' && ctx.preferredAccountId.trim() !== ''
+      ? ctx.preferredAccountId.trim()
+      : undefined;
+  if (preferredId && ctx && ctx.boundAccountFallbackPolicy !== 'pool') {
+    return resolveStrictPreferredToken(tokens, providerId, preferredId, activeGetter, ctx);
+  }
   if (selector && tokens.getAccessTokenForAccount) {
     const config = await tokens.getFullConfig();
     const { accounts, activeAccountId, supportedModelsById } = readSchedulableAccounts(config, providerId);
-    const gated = gateSchedulable(accounts, providerId, health, now, resolvedModel, supportedModelsById);
+    const healthAndModelGated = gateSchedulable(
+      accounts,
+      providerId,
+      health,
+      now,
+      resolvedModel,
+      supportedModelsById,
+    );
+    const gated = gateByAllowance(healthAndModelGated, providerId, now);
     // Gating actually ran only when a tracker OR a resolved model was supplied AND
     // the pool has ≥2 accounts (the single-account degraded policy leaves `gated`
     // ungated). Drives the route-around edge for BOTH health and model gating.
-    const poolGated = isPoolGated(accounts, health, resolvedModel);
+    const poolGated =
+      isPoolGated(accounts, health, resolvedModel) || accounts.some((account) => account.schedulable === false);
     // The remapped model to report for a selected account (object-form map) — or
     // `undefined` (no remap) which the relay treats as "forward the body verbatim".
     const remapFor = (id: string): string | undefined =>
       remapReportForAccount(supportedModelsById.get(id), resolvedModel);
 
-    // Preferred-account shortcut (provider/subscription duality): when the
-    // endpoint binds a specific account, resolve it directly when schedulable;
-    // only fall through to the pool when it is missing/unschedulable/empty-token.
-    const preferredId = ctx?.preferredAccountId;
+    // Explicit pool fallback (provider/subscription duality): a strict binding
+    // returned above, so this legacy selector path is reached only when the
+    // endpoint opted into pool fallback or has no binding.
     if (preferredId) {
       const preferred = gated.find((a) => a.id === preferredId);
       if (preferred && preferred.schedulable !== false) {
@@ -248,7 +401,25 @@ export async function resolveSelectedToken(
     // path. Report the active account so the relay marks what it actually served
     // (and remaps its outbound model when the sole/active account's map dictates —
     // the documented sole-account remap path).
-    if (activeAccountId) report?.(activeAccountId, true, remapFor(activeAccountId));
+    if (activeAccountId) {
+      // Unlike transient health/model degradation, an explicit operator disable
+      // must never fall through to the active credential, even for a sole account.
+      const persistedActive = accounts.find((account) => account.id === activeAccountId);
+      if (persistedActive?.schedulable === false) return null;
+      // A by-id failure may leave the active account as the last fallback. Do
+      // not let that degraded path bypass an explicit fresh allowance pause;
+      // health/model gates still retain their upstream-authoritative fallback.
+      const activeAllowance = getSharedAccountAllowanceScheduling().evaluate(
+        providerId,
+        activeAccountId,
+        persistedActive?.priority ?? DEFAULT_ACCOUNT_PRIORITY,
+        now,
+      );
+      if (activeAllowance.action === 'pause') {
+        throw new AccountAllowanceExhaustedError(providerId, activeAllowance.resumeAt);
+      }
+      report?.(activeAccountId, true, remapFor(activeAccountId));
+    }
     return activeGetter();
   }
   return activeGetter();

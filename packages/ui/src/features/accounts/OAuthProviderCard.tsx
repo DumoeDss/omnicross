@@ -14,7 +14,7 @@
  * token is never echoed back.
  */
 
-import { Edit2, ExternalLink, HardDriveDownload, Key } from 'lucide-react';
+import { Edit2, ExternalLink, HardDriveDownload, Key, Plus } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,9 @@ interface OAuthProviderCardProps {
   entry: SubscriptionListEntry;
   accounts: SubscriptionAccountSanitized[];
   accountsApi: ReturnType<typeof useAccounts>;
+  mode?: 'manage' | 'add';
+  onAddRequest?: () => void;
+  onAdded?: () => void;
 }
 
 /** Derive the header status from the active account, else the credential status. */
@@ -86,13 +89,24 @@ function buildManualPayload(
   }
 }
 
-export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProviderCardProps) {
+export function OAuthProviderCard({
+  entry,
+  accounts,
+  accountsApi,
+  mode = 'manage',
+  onAddRequest,
+  onAdded,
+}: OAuthProviderCardProps) {
   const t = useTranslation();
   const providerId = entry.providerId as OAuthProviderId;
   const isCodex = providerId === 'codex';
   const {
     busy,
     data,
+    allowances,
+    allowanceLoading,
+    allowanceErrors,
+    refreshAccountAllowance,
     appendTokens,
     setActive,
     removeAccount,
@@ -120,11 +134,11 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
   const [cardError, setCardError] = useState<string | null>(null);
 
   const status = headerStatus(entry, accounts);
+  const isAddMode = mode === 'add';
 
-  // External CLI import (external-cli-sync): offered only while the provider
-  // has NO accounts yet and the daemon detected a usable native CLI login.
+  // External CLI import is a secondary add-dialog action. Import appends a
+  // managed account, so it remains available for an existing multi-account pool.
   const canImportExternal =
-    accounts.length === 0 &&
     (providerId === 'claude' || providerId === 'codex') &&
     Boolean(data.externalCli?.[providerId]);
 
@@ -133,6 +147,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
     setCardError(null);
     const result = await importExternalCli(providerId);
     if (!result.success) setCardError(result.message ?? t('accounts.errors.requestFailed'));
+    else onAdded?.();
   };
 
   const handleStartOAuth = async () => {
@@ -162,6 +177,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
         setAuthCode('');
         setAccountLabel('');
         setCardError(null);
+        onAdded?.();
       } else {
         setCardError(result.message ?? t('accounts.errors.requestFailed'));
       }
@@ -185,6 +201,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
   ) => {
     const result = await appendTokens(buildManualPayload(providerId, accessToken, extra), label);
     if (!result.success) setCardError(result.message ?? t('accounts.errors.requestFailed'));
+    else onAdded?.();
     return result;
   };
 
@@ -215,7 +232,15 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
             </p>
           </div>
         </div>
-        <StatusBadge status={status} />
+        <div className="flex shrink-0 items-center gap-2">
+          <StatusBadge status={status} />
+          {!isAddMode && onAddRequest ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={onAddRequest}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {t('accounts.accounts.addAccount')}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Card-level error (suppressed while the inline OAuth flow renders its own). */}
@@ -224,20 +249,33 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
       ) : null}
 
       {/* Multi-account list */}
-      <AccountList
-        accounts={accounts}
-        busy={busy}
-        onSetActive={(id) => void setActive(providerId, id)}
-        onRemove={(id) => void removeAccount(providerId, id)}
-        onRename={(id, label) => renameAccount(providerId, id, label)}
-        onSetPriority={(id, priority) => setAccountPriority(providerId, id, priority)}
-        onSetProxy={(id, proxy) => setAccountProxy(providerId, id, proxy)}
-        onSetSupportedModels={(id, models) => setAccountSupportedModels(providerId, id, models)}
-        onRefreshActive={() => refreshProvider(providerId)}
-      />
+      {!isAddMode ? (
+        accounts.length > 0 ? (
+          <AccountList
+            providerId={providerId}
+            accounts={accounts}
+            busy={busy}
+            allowances={allowances}
+            allowanceLoading={allowanceLoading}
+            allowanceErrors={allowanceErrors}
+            onRefreshAllowance={providerId === 'claude' ? refreshAccountAllowance : undefined}
+            onSetActive={(id) => void setActive(providerId, id)}
+            onRemove={(id) => void removeAccount(providerId, id)}
+            onRename={(id, label) => renameAccount(providerId, id, label)}
+            onSetPriority={(id, priority) => setAccountPriority(providerId, id, priority)}
+            onSetProxy={(id, proxy) => setAccountProxy(providerId, id, proxy)}
+            onSetSupportedModels={(id, models) => setAccountSupportedModels(providerId, id, models)}
+            onRefreshActive={() => refreshProvider(providerId)}
+          />
+        ) : (
+          <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-sm text-muted-foreground">
+            {t('accounts.list.empty')}
+          </p>
+        )
+      ) : null}
 
       {/* Add path: inline OAuth (code-paste / loopback) OR the method picker + button */}
-      {oauth && isCodex ? (
+      {isAddMode && oauth && isCodex ? (
         <CodexInlineSignIn
           authUrl={oauth.authUrl}
           sessionId={oauth.sessionId}
@@ -245,10 +283,11 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
           onDone={() => {
             setOauth(null);
             void refresh();
+            onAdded?.();
           }}
           onCancel={() => void cancelOAuth()}
         />
-      ) : oauth ? (
+      ) : isAddMode && oauth ? (
         <OAuthInlineFlow
           authUrl={oauth.authUrl}
           authCode={authCode}
@@ -260,7 +299,7 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
           onExchange={() => void handleExchange()}
           onCancel={() => void cancelOAuth()}
         />
-      ) : (
+      ) : isAddMode ? (
         <>
           {canImportExternal ? (
             <div className="space-y-2 rounded-md border border-border/60 bg-surface-2/40 p-3">
@@ -308,16 +347,18 @@ export function OAuthProviderCard({ entry, accounts, accountsApi }: OAuthProvide
             {addLabel}
           </Button>
         </>
-      )}
+      ) : null}
 
-      <ManualTokenModal
-        open={manualOpen}
-        onOpenChange={setManualOpen}
-        provider={providerId}
-        busy={busy}
-        error={cardError}
-        onSubmit={handleManualSubmit}
-      />
+      {isAddMode ? (
+        <ManualTokenModal
+          open={manualOpen}
+          onOpenChange={setManualOpen}
+          provider={providerId}
+          busy={busy}
+          error={cardError}
+          onSubmit={handleManualSubmit}
+        />
+      ) : null}
     </div>
   );
 }

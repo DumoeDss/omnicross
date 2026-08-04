@@ -5,3 +5,7 @@ dist/
 coverage/
 *.tsbuildinfo
 omnicross.dev.config.json
+
+# Local agent tooling and embedded workflow workspace
+/.claude/
+/rasen/

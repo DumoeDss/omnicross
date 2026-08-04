@@ -27,6 +27,7 @@ import type { UsageEngineOrigin, UsageTokens } from '@omnicross/contracts/usage-
 
 import type { ApiKeyPoolService } from '../completion/ApiKeyPoolService';
 import type { AuthSource } from '../pipeline/AuthSource';
+import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
 import type { SubscriptionAuthProfile } from '../pipeline/SubscriptionAuthSource';
 import type { AuthStrategy } from '../pipeline/SubscriptionAuthStrategy';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
@@ -210,6 +211,10 @@ export interface AnthropicRouteHandlerParams {
   /** Lazy per-request resolver for the pass-through Bearer (takes precedence over the static one). */
   readonly resolvePassThroughAuthToken?: (() => Promise<string | null>) | null;
   readonly subscriptionProfile?: SubscriptionDispatchProfile | null;
+  /** Bound subscription account forwarded to the host's Anthropic handler. */
+  readonly preferredAccountId?: string;
+  /** Strict by default; pool fallback is an explicit endpoint opt-in. */
+  readonly boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   readonly maxConcurrency?: number;
   /** Instance-level web-search backend; falls back to the proxy-global one. */
   readonly webSearchService?: WebSearchBackend | null;
@@ -309,6 +314,10 @@ export interface AnthropicSdkHints {
   readonly extendedContext?: ExtendedContextHint | null;
   /** Subscription dispatch profile (Codex/Gemini/OpenCodeGo over the SDK wire). */
   readonly subscriptionProfile?: SubscriptionDispatchProfile | null;
+  /** Bound subscription account for the delegated Anthropic path. */
+  readonly preferredAccountId?: string;
+  /** Strict by default; pool fallback is an explicit endpoint opt-in. */
+  readonly boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Per-request max-concurrency cap for the error-handler semaphore. */
   readonly maxConcurrency?: number;
   /** Instance-level web-search backend (falls back to the proxy-global one). */
@@ -399,10 +408,13 @@ export interface RouteContext {
   /**
    * Per-request preferred subscription account id (provider/subscription
    * duality). Stamped by the outbound `resolveRoute` from
-   * `EndpointRoutingConfig.boundAccountId`; the account picker prefers it when
-   * schedulable (else falls back to the pool). Undefined ⇒ pool auto-schedule.
+   * `EndpointRoutingConfig.boundAccountId`; strict bindings fail when this
+   * account cannot serve. The pool is used only when the route carries the
+   * explicit `'pool'` fallback policy. Undefined ⇒ pool auto-schedule.
    */
   readonly preferredAccountId?: string;
+  /** Bound-account behavior; `'pool'` is the explicit fallback opt-in. */
+  readonly boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /**
    * OPAQUE per-account subscription config (opencodego-only). Populated by the
    * route resolver from the subscription registry's `getOpenCodeGoConfig()`

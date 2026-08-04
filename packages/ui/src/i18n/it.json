@@ -859,8 +859,6 @@
       "requestFailed": "Richiesta non riuscita. Riprova."
     },
     "syncWarning": {
-      "external-divergent": "Il file di accesso della CLI esterna contiene credenziali più recenti di questo account. Il token salvato potrebbe non aggiornarsi più: aggiorna ora o accedi di nuovo.",
-      "external-not-rotated": "L'aggiornamento non è riuscito e la CLI esterna contiene le stesse credenziali scadute. Accedi di nuovo.",
       "duplicate-token": "Un altro account condivide queste credenziali. Aggiornarne uno disconnetterà l'altro."
     },
     "importExternal": {

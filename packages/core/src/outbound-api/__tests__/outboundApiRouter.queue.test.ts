@@ -4,8 +4,8 @@
  * Drives the REAL `handleOutboundRequest` pipeline with the two `omnicross-uqc-
  * core` primitives, mocking only the shared `routeRequest` dispatch so a test can
  * hold a response open, start a stream, or abort a client mid-stream. Covers the
- * concurrency gate (bypass, queue-full 429, wait-timeout 429, the CRS #1130
- * streaming-abort slot leak, release-after-routing-error), the user-message
+ * concurrency gate (bypass, queue-full 429, wait-timeout 429,
+ * streaming-abort slot release, release-after-routing-error), the user-message
  * serial queue (serialize-per-provider, tool-loop bypass, disabled bypass, 503
  * wait-timeout), and the server's `getQueueStatus()` seam.
  */

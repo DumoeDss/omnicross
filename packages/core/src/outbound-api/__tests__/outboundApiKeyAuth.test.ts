@@ -5,6 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  createIntegrationKey,
   createNamedKey,
   generateSecret,
   hashKey,
@@ -34,6 +35,9 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
         createdAt: input.createdAt ?? Date.now(),
         lastUsedAt: null,
         revokedAt: null,
+        kind: input.kind,
+        allowedEndpoints: input.allowedEndpoints,
+        loopbackOnly: input.loopbackOnly,
       };
       store.push(row);
       return row;
@@ -104,6 +108,23 @@ describe('outboundApiKeyAuth', () => {
     expect(db.rows[0].keyHash).toBe(hashKey(created.plaintextOnce));
     expect(db.rows[0].keyHash).not.toBe(created.plaintextOnce);
     expect(db.rows[0].keyPrefix).toBe(created.keyPrefix);
+  });
+
+  it('createIntegrationKey is loopback-only and scoped to native CLI endpoints', async () => {
+    const db = makeStubDb();
+    const created = await createIntegrationKey(db, 'Native CLIs');
+    expect(db.rows[0]).toMatchObject({
+      id: created.id,
+      kind: 'integration',
+      allowedEndpoints: ['responses', 'messages'],
+      loopbackOnly: true,
+    });
+    const verified = await verifyPresentedKey(db, created.plaintextOnce);
+    expect(verified).toMatchObject({
+      kind: 'integration',
+      allowedEndpoints: ['responses', 'messages'],
+      loopbackOnly: true,
+    });
   });
 
   it('verify accepts an enabled key and bumps lastUsedAt', async () => {

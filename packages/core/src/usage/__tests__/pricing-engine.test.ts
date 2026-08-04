@@ -17,7 +17,7 @@ import type { UsageTokens } from '@omnicross/contracts/usage-types';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Logger } from '../../ports/logger';
-import type { PricingStore } from '../../ports/pricing-store';
+import type { AutomaticPricingSource, PricingStore } from '../../ports/pricing-store';
 import { PricingEngine } from '../pricing-engine';
 
 function makeLogger(): Logger {
@@ -65,6 +65,7 @@ class FakePricingStore implements PricingStore {
   bulkApplyFromSource = vi.fn(
     async (
       entries: PricingEntryInput[],
+      source: AutomaticPricingSource = 'litellm',
     ): Promise<{ applied: PricingEntry[]; conflicts: Array<{ current: PricingEntry; incoming: PricingEntryInput }> }> => {
       const applied: PricingEntry[] = [];
       const conflicts: Array<{ current: PricingEntry; incoming: PricingEntryInput }> = [];
@@ -75,7 +76,16 @@ class FakePricingStore implements PricingStore {
           conflicts.push({ current, incoming });
           continue;
         }
-        const row = await this.upsert(incoming, false);
+        const row = entry({
+          ...incoming,
+          cacheReadPricePer1m: incoming.cacheReadPricePer1m ?? null,
+          cacheWritePricePer1m: incoming.cacheWritePricePer1m ?? null,
+          source,
+          userEdited: false,
+          editedAt: null,
+          updatedAt: 123,
+        });
+        this.rows.set(key, row);
         applied.push(row);
       }
       return { applied, conflicts };
@@ -152,6 +162,20 @@ describe('PricingEngine.getEntry resolution order', () => {
     const engine = new PricingEngine(store, makeLogger());
     // wildcard only matches its own modelId via step 2; model-only index skips '*'.
     expect(await engine.getEntry('p', 'missing-model')).toBeNull();
+  });
+
+  it('never uses an OpenRouter route price for direct-provider alias fallback', async () => {
+    const store = new FakePricingStore([
+      entry({
+        providerId: 'openrouter',
+        modelId: 'anthropic/claude-new',
+        source: 'openrouter',
+        inputPricePer1m: 9,
+      }),
+    ]);
+    const engine = new PricingEngine(store, makeLogger());
+    expect(await engine.getEntry('openrouter', 'anthropic/claude-new')).not.toBeNull();
+    expect(await engine.getEntry('anthropic', 'anthropic/claude-new')).toBeNull();
   });
 
   it('returns null when nothing matches', async () => {
@@ -278,6 +302,11 @@ describe('PricingEngine.fetchLatestFromSource', () => {
       output_cost_per_token: 0.000002,
       litellm_provider: 'azure',
     },
+    sample_spec: {
+      input_cost_per_token: 0,
+      output_cost_per_token: 0,
+      litellm_provider: 'one of https://docs.litellm.ai/docs/providers',
+    },
     'model-no-output': { input_cost_per_token: 0.000001, litellm_provider: 'openai' },
     'model-no-provider': { input_cost_per_token: 0.000001, output_cost_per_token: 0.000002 },
   };
@@ -294,7 +323,8 @@ describe('PricingEngine.fetchLatestFromSource', () => {
     expect(result.conflicts).toEqual([]);
 
     const byModel = new Map(result.applied.map(e => [e.modelId, e]));
-    expect(byModel.size).toBe(5); // the two malformed entries skipped
+    expect(byModel.size).toBe(5); // malformed entries and LiteLLM metadata skipped
+    expect(byModel.has('sample_spec')).toBe(false);
     const a = byModel.get('model-a');
     expect(a).toMatchObject({
       providerId: 'anthropic',
@@ -368,6 +398,130 @@ describe('PricingEngine.fetchLatestFromSource', () => {
 
     await expect(engine.fetchLatestFromSource()).rejects.toThrow('boom');
     expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('supplements LiteLLM with OpenRouter per-token string prices and cache fields', async () => {
+    const store = new FakePricingStore();
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes('openrouter')
+        ? okJsonResponse({
+            data: [
+              {
+                id: 'anthropic/claude-new',
+                pricing: {
+                  prompt: '0.000003',
+                  completion: '0.000015',
+                  input_cache_read: '0.0000003',
+                  input_cache_write: '0.00000375',
+                },
+              },
+              { id: 'broken', pricing: { prompt: '-', completion: '1' } },
+            ],
+          })
+        : okJsonResponse({}),
+    ) as unknown as typeof fetch;
+    const engine = new PricingEngine(store, makeLogger(), { fetchImpl });
+
+    const result = await engine.fetchLatestFromSource();
+
+    expect(result.sources).toEqual([
+      expect.objectContaining({
+        source: 'litellm',
+        status: 'failed',
+        parsedCount: 0,
+        error: expect.stringContaining('no usable entries'),
+      }),
+      expect.objectContaining({ source: 'openrouter', status: 'applied', parsedCount: 1 }),
+    ]);
+    expect(result.applied).toContainEqual(
+      expect.objectContaining({
+        providerId: 'openrouter',
+        modelId: 'anthropic/claude-new',
+        source: 'openrouter',
+        inputPricePer1m: 3,
+        outputPricePer1m: 15,
+        cacheReadPricePer1m: 0.3,
+        cacheWritePricePer1m: 3.75,
+      }),
+    );
+  });
+
+  it('keeps user and LiteLLM rows authoritative over the OpenRouter supplement', async () => {
+    const store = new FakePricingStore([
+      entry({ providerId: 'openrouter', modelId: 'vendor/user-row', source: 'user', userEdited: true, inputPricePer1m: 99 }),
+      entry({ providerId: 'openrouter', modelId: 'vendor/primary-row', source: 'litellm', inputPricePer1m: 88 }),
+    ]);
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes('openrouter')
+        ? okJsonResponse({
+            data: [
+              { id: 'vendor/user-row', pricing: { prompt: '0.000001', completion: '0.000002' } },
+              { id: 'vendor/primary-row', pricing: { prompt: '0.000001', completion: '0.000002' } },
+            ],
+          })
+        : okJsonResponse({}),
+    ) as unknown as typeof fetch;
+    const engine = new PricingEngine(store, makeLogger(), { fetchImpl });
+
+    await engine.fetchLatestFromSource();
+
+    expect((await engine.getEntry('openrouter', 'vendor/user-row'))?.inputPricePer1m).toBe(99);
+    expect((await engine.getEntry('openrouter', 'vendor/primary-row'))?.inputPricePer1m).toBe(88);
+  });
+
+  it('applies a healthy source when the other source fails', async () => {
+    const store = new FakePricingStore();
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('openrouter')) return { ok: false, status: 503 } as Response;
+      return okJsonResponse({ 'model-a': sourceJson['model-a'] });
+    }) as unknown as typeof fetch;
+    const engine = new PricingEngine(store, makeLogger(), { fetchImpl });
+
+    const result = await engine.fetchLatestFromSource();
+
+    expect(result.applied).toHaveLength(1);
+    expect(result.sources[1]).toMatchObject({ source: 'openrouter', status: 'failed' });
+  });
+
+  it('treats syntactically valid empty catalogs as failed sources', async () => {
+    const engine = new PricingEngine(new FakePricingStore(), makeLogger(), {
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) =>
+        String(input).includes('openrouter')
+          ? okJsonResponse({ data: [] })
+          : okJsonResponse({}),
+      ) as unknown as typeof fetch,
+    });
+
+    await expect(engine.fetchLatestFromSource()).rejects.toThrow(
+      'pricing catalog contained no usable entries',
+    );
+  });
+
+  it('coalesces overlapping refreshes into one request per source', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      await gate;
+      return String(input).includes('openrouter')
+        ? okJsonResponse({
+            data: [{ id: 'vendor/model-a', pricing: { prompt: '0.000001', completion: '0.000002' } }],
+          })
+        : okJsonResponse({
+            'model-a': {
+              input_cost_per_token: 0.000001,
+              output_cost_per_token: 0.000002,
+              litellm_provider: 'vendor',
+            },
+          });
+    }) as unknown as typeof fetch;
+    const engine = new PricingEngine(new FakePricingStore(), makeLogger(), { fetchImpl });
+
+    const first = engine.fetchLatestFromSource();
+    const second = engine.fetchLatestFromSource();
+    release();
+    await Promise.all([first, second]);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
 

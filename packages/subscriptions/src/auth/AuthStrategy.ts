@@ -16,4 +16,5 @@
 export type {
   AuthApplyHints,
   AuthStrategy,
+  BoundAccountFallbackPolicy,
 } from '@omnicross/core/pipeline/SubscriptionAuthStrategy';

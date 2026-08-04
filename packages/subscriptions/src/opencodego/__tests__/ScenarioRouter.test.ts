@@ -1,8 +1,7 @@
 /**
  * ScenarioRouter tests — long-context token boundary + custom threshold
  * overrides, plus the D3 keyword heuristics (`complex` / `think` / `background`)
- * ported from `_others/oc-go-cc/internal/router/scenarios.go`: per-scenario
- * detection, the reference priority order, the case-sensitive `antThinking`
+ * used by Omnicross: per-scenario detection, priority order, the case-sensitive `antThinking`
  * marker, the background tool-blocker pre-scan, and the bounded `matchText` source.
  */
 
@@ -98,8 +97,7 @@ describe('resolveOpenCodeGoScenario — keyword detection (D3)', () => {
   });
 
   it('antThinking content marker (exact case) auto-selects think', () => {
-    // Mirrors the reference's case-SENSITIVE `strings.Contains(Content,
-    // "antThinking")` content-block check.
+    // The content-block marker is intentionally case-sensitive.
     expect(
       resolveOpenCodeGoScenario(summaryWith(['<antThinking>private reasoning</antThinking>']), undefined),
     ).toBe('think');
@@ -151,7 +149,7 @@ describe('resolveOpenCodeGoScenario — keyword detection (D3)', () => {
   });
 });
 
-describe('resolveOpenCodeGoScenario — priority order (mirrors DetectScenario)', () => {
+describe('resolveOpenCodeGoScenario — priority order', () => {
   it('complex outranks think when both keywords present', () => {
     expect(
       resolveOpenCodeGoScenario(summaryWith(['please refactor and think step by step']), undefined),

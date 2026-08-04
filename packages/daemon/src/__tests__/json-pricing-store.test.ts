@@ -4,7 +4,7 @@
  * (single batch write), resolution counts, store-local delete.
  */
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -48,6 +48,19 @@ describe('JsonPricingStore', () => {
     await expect(store.getAll()).resolves.toEqual([]);
   });
 
+  it('reports only a non-empty, structurally usable snapshot as fresh', async () => {
+    expect(store.hasUsableSnapshot()).toBe(false);
+    writeFileSync(pricingPath, '{not json[', 'utf8');
+    expect(store.hasUsableSnapshot()).toBe(false);
+    writeFileSync(pricingPath, '[]', 'utf8');
+    expect(store.hasUsableSnapshot()).toBe(false);
+    writeFileSync(pricingPath, '[{}]', 'utf8');
+    expect(store.hasUsableSnapshot()).toBe(false);
+
+    await store.upsert(input('p1', 'm1'), false);
+    expect(store.hasUsableSnapshot()).toBe(true);
+  });
+
   it('upsert(_, true) stamps user provenance; upsert(_, false) stamps litellm', async () => {
     const user = await store.upsert(input('p1', 'm1'), true);
     expect(user.source).toBe('user');
@@ -73,6 +86,25 @@ describe('JsonPricingStore', () => {
     expect(all).toHaveLength(1);
     expect(all[0].inputPricePer1m).toBe(9);
     expect(all[0].userEdited).toBe(true);
+    expect(readdirSync(tmpDir).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('keeps the previous healthy snapshot when atomic replacement fails', async () => {
+    await store.upsert(input('p1', 'm1', { inputPricePer1m: 1 }), false);
+    const previous = readFileSync(pricingPath, 'utf8');
+    vi.spyOn(
+      store as never as { replaceFile: (temporaryPath: string) => void },
+      'replaceFile',
+    ).mockImplementation(() => {
+      throw Object.assign(new Error('destination is locked'), { code: 'EPERM' });
+    });
+
+    await expect(
+      store.upsert(input('p1', 'm1', { inputPricePer1m: 9 }), false),
+    ).rejects.toThrow('destination is locked');
+
+    expect(readFileSync(pricingPath, 'utf8')).toBe(previous);
+    expect(readdirSync(tmpDir).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 
   it('bulkApplyFromSource splits user-edited conflicts and applies the rest in ONE write', async () => {
@@ -96,6 +128,19 @@ describe('JsonPricingStore', () => {
     const edited = (await store.getAll()).find((r) => r.modelId === 'edited')!;
     expect(edited.inputPricePer1m).toBe(99);
     expect(edited.userEdited).toBe(true);
+  });
+
+  it('persists OpenRouter provenance for supplemental source batches', async () => {
+    const result = await store.bulkApplyFromSource(
+      [input('openrouter', 'anthropic/claude-new')],
+      'openrouter',
+    );
+    expect(result.applied).toEqual([
+      expect.objectContaining({ source: 'openrouter', userEdited: false }),
+    ]);
+    await expect(new JsonPricingStore(pricingPath).getAll()).resolves.toEqual([
+      expect.objectContaining({ source: 'openrouter' }),
+    ]);
   });
 
   it('applyResolutions overwrites (clearing userEdited) and counts skips', async () => {

@@ -15,6 +15,7 @@ import {
   extractGeminiModelFromUrl,
   extractPresentedKey,
   handleOutboundRequest,
+  isLoopbackPeer,
   selectEndpoint,
 } from '../outboundApiRouter';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
@@ -31,12 +32,13 @@ class MockReq extends EventEmitter {
   socket = { remoteAddress: '127.0.0.1', destroy: () => {} };
   httpVersion = '1.1';
   private body: string;
-  constructor(opts: { method?: string; url?: string; headers?: Record<string, string>; body?: string }) {
+  constructor(opts: { method?: string; url?: string; headers?: Record<string, string>; body?: string; remoteAddress?: string }) {
     super();
     this.method = opts.method ?? 'POST';
     this.url = opts.url ?? '/v1/chat/completions';
     this.headers = opts.headers ?? {};
     this.body = opts.body ?? '{}';
+    this.socket.remoteAddress = opts.remoteAddress ?? '127.0.0.1';
   }
   // Replay the body once handlers attach (mimics a live request stream).
   start(): void {
@@ -137,6 +139,17 @@ describe('extractPresentedKey', () => {
   });
 });
 
+describe('isLoopbackPeer', () => {
+  it('accepts IPv4, IPv6, and IPv4-mapped loopback only', () => {
+    expect(isLoopbackPeer('127.0.0.1')).toBe(true);
+    expect(isLoopbackPeer('127.12.4.8')).toBe(true);
+    expect(isLoopbackPeer('::1')).toBe(true);
+    expect(isLoopbackPeer('::ffff:127.0.0.1')).toBe(true);
+    expect(isLoopbackPeer('192.168.1.10')).toBe(false);
+    expect(isLoopbackPeer(undefined)).toBe(false);
+  });
+});
+
 describe('selectEndpoint', () => {
   it('matches the four endpoints and 404s the rest', () => {
     expect(selectEndpoint('POST', '/v1/chat/completions')).toBe('chat');
@@ -190,6 +203,42 @@ describe('handleOutboundRequest — auth', () => {
     req.start();
     await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(401);
+  });
+
+  it('403 when a loopback-only integration key is used from a LAN peer', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({
+      db: makeDb(() => ({ ...enabledRow, kind: 'integration', loopbackOnly: true })),
+      routeMap,
+    });
+    const req = new MockReq({
+      headers: { authorization: 'Bearer integration' },
+      remoteAddress: '192.168.1.20',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+    expect(res.statusCode).toBe(403);
+    expect(routeMap.size()).toBe(0);
+  });
+
+  it('403 when an integration key calls an endpoint outside its allow-list', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({
+      db: makeDb(() => ({
+        ...enabledRow,
+        kind: 'integration',
+        loopbackOnly: true,
+        allowedEndpoints: ['responses'],
+      })),
+      routeMap,
+    });
+    const req = new MockReq({ headers: { authorization: 'Bearer integration' } });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+    expect(res.statusCode).toBe(403);
+    expect(routeMap.size()).toBe(0);
   });
 
   it('429 when the per-key rate limit is exceeded', async () => {

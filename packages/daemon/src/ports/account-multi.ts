@@ -309,10 +309,15 @@ export function sanitizeAccounts(
       lastRefreshedAt?: string;
       isSetupToken?: boolean;
       syncWarning?: SyncWarningCode;
+      errorMessage?: string;
     };
+    const enabled = a.enabled !== false;
     return {
       id: a.id,
       label: a.label,
+      enabled,
+      group: a.group?.trim() || p,
+      tags: a.tags ?? [],
       status: (t.status ?? 'unconfigured') as TokenStatus,
       authMethod: t.authMethod,
       subscriptionLevel: t.subscriptionLevel,
@@ -321,6 +326,8 @@ export function sanitizeAccounts(
       isSetupToken: t.isSetupToken,
       hasAccessToken: !!(t.accessToken || t.apiKey),
       isActive: a.id === activeId,
+      schedulable: enabled,
+      errorMessage: sanitizeDiagnosticMessage(t.errorMessage),
       // Scheduling metadata (subscription-account-scheduling): editable priority
       // (default 50 shown when unset) + display-only lastUsedAt. Secret-free.
       priority: a.priority,
@@ -334,6 +341,86 @@ export function sanitizeAccounts(
       supportedModels: a.supportedModels,
     };
   });
+}
+
+/** Project only a coarse diagnostic category. Persisted upstream error text may
+ * contain request details, so it is never copied to an admin response verbatim. */
+function sanitizeDiagnosticMessage(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const lower = value.toLowerCase();
+  if (lower.includes('timeout') || lower.includes('timed out')) return 'Credential operation timed out.';
+  if (lower.includes('network') || lower.includes('fetch')) return 'Credential network request failed.';
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('revoked')) {
+    return 'Credential authorization was rejected.';
+  }
+  return 'Credential operation failed.';
+}
+
+export interface AccountMetadataPatch {
+  label?: string;
+  enabled?: boolean;
+  priority?: number;
+  group?: string | null;
+  tags?: string[];
+}
+
+/** Apply a validated non-secret metadata patch to one account. */
+export function patchAccountMetadata(
+  config: AccountTokensConfig,
+  p: DaemonProvider,
+  id: string,
+  patch: AccountMetadataPatch,
+): { ok: boolean } {
+  const accounts = getAccounts(config, p);
+  if (!accounts.some((account) => account.id === id)) return { ok: false };
+  setAccounts(config, p, accounts.map((account) => {
+    if (account.id !== id) return account;
+    const next = { ...account };
+    if (patch.label !== undefined) next.label = patch.label;
+    if (patch.enabled !== undefined) next.enabled = patch.enabled;
+    if (patch.priority !== undefined) next.priority = patch.priority;
+    if (patch.group !== undefined) {
+      if (patch.group === null || patch.group === '') delete next.group;
+      else next.group = patch.group;
+    }
+    if (patch.tags !== undefined) next.tags = patch.tags;
+    return next;
+  }));
+  return { ok: true };
+}
+
+export interface AccountRef {
+  providerId: DaemonProvider;
+  accountId: string;
+}
+
+export type AccountBatchMutation =
+  | { action: 'enable' | 'disable' }
+  | { action: 'set-group'; group: string | null }
+  | { action: 'delete' };
+
+/** Validate all targets first, then mutate the config atomically in memory. */
+export function batchManageAccounts(
+  config: AccountTokensConfig,
+  refs: AccountRef[],
+  mutation: AccountBatchMutation,
+): { ok: true; affected: number } | { ok: false; missing: AccountRef } {
+  for (const ref of refs) {
+    if (!getAccounts(config, ref.providerId).some((account) => account.id === ref.accountId)) {
+      return { ok: false, missing: ref };
+    }
+  }
+  for (const ref of refs) {
+    if (mutation.action === 'delete') {
+      removeAccount(config, ref.providerId, ref.accountId);
+    } else {
+      patchAccountMetadata(config, ref.providerId, ref.accountId,
+        mutation.action === 'set-group'
+          ? { group: mutation.group }
+          : { enabled: mutation.action === 'enable' });
+    }
+  }
+  return { ok: true, affected: refs.length };
 }
 
 /**

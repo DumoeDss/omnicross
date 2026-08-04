@@ -13,6 +13,7 @@
  */
 
 export * from './account-tokens-types';
+export * from './account-allowance-types';
 export * from './audit-types';
 export * from './billing-types';
 export * from './canonical-models';

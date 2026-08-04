@@ -26,6 +26,11 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
+import { isAccountAllowanceExhaustedError } from '../pipeline/AccountAllowanceScheduling';
+import {
+  boundAccountSelectionMessage,
+  isBoundAccountSelectionError,
+} from '../pipeline/BoundAccountSelectionError';
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
@@ -92,10 +97,11 @@ function writeJsonError(
   status: number,
   message: string,
   headers: Record<string, string> = {},
+  details: { code?: string; reason?: string } = {},
 ): void {
   if (res.headersSent) return;
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
-  res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
+  res.end(JSON.stringify({ error: { type: 'outbound_api_error', message, ...details } }));
 }
 
 /**
@@ -164,6 +170,14 @@ export function extractPresentedKey(req: http.IncomingMessage): string | undefin
   const goog = req.headers['x-goog-api-key'];
   const g = Array.isArray(goog) ? goog[0] : goog;
   return g?.trim() || undefined;
+}
+
+/** True only for direct loopback peers; forwarded headers are deliberately ignored. */
+export function isLoopbackPeer(address: string | undefined): boolean {
+  if (!address) return false;
+  const normalized = address.toLowerCase().split('%')[0];
+  return normalized === '::1' || normalized === '127.0.0.1' || normalized.startsWith('127.') ||
+    normalized.startsWith('::ffff:127.');
 }
 
 /** Match an HTTP method+path to one of the four outbound endpoints. */
@@ -308,6 +322,11 @@ export async function handleOutboundRequest(
   if (audit) audit.keyId = verified.id;
   if (billing) billing.keyId = verified.id;
 
+  if (verified.loopbackOnly && !isLoopbackPeer(req.socket?.remoteAddress)) {
+    writeJsonError(res, 403, 'This integration key is restricted to loopback clients');
+    return;
+  }
+
   // 1a. VOUCHER REDEEM (voucher-redemption #9, design D1). A key-authenticated
   // `POST /redeem` applies a card's value to THIS verified key. Handled right
   // after auth (the key is now known) and BEFORE the traffic rate-limit / endpoint
@@ -316,6 +335,10 @@ export async function handleOutboundRequest(
   // it, and this branch returns before any request body is stashed for audit, so
   // the plaintext code never reaches the audit/billing capture.
   if (isRedeemRequest(req.method, req.url)) {
+    if (verified.kind === 'integration') {
+      writeJsonError(res, 403, 'Integration keys cannot redeem vouchers');
+      return;
+    }
     await handleVoucherRedeem(
       req,
       res,
@@ -343,12 +366,20 @@ export async function handleOutboundRequest(
   // configured model list (OpenAI list shape) so generic OpenAI clients can
   // discover the names to request — handled before the POST-only selection.
   if (req.method === 'GET' && isModelsListRequest(req.url)) {
+    if (verified.allowedEndpoints && !verified.allowedEndpoints.includes('chat')) {
+      writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
+      return;
+    }
     writeChatModelsList(res, config);
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
   if (!endpoint) {
     writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
+    return;
+  }
+  if (verified.allowedEndpoints && !verified.allowedEndpoints.includes(endpoint)) {
+    writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
     return;
   }
   const endpointConfig = config.endpoints.find((e) => e.endpoint === endpoint);
@@ -403,7 +434,7 @@ export async function handleOutboundRequest(
   // Keyed by `verified.id`; the gate is bypassed entirely when the key has no
   // positive `maxConcurrency`. The acquired slot is held to request end and
   // released idempotently from BOTH the dispatch `finally` AND a `res.close`
-  // listener (the CRS #1130 leak fix); a still-WAITING acquisition is cancelled
+  // listener to prevent slot leaks; a still-WAITING acquisition is cancelled
   // when the client disconnects mid-queue.
   const concurrencyLimit = verified.maxConcurrency;
   let releaseConcurrency: (() => void) | null = null;
@@ -596,6 +627,23 @@ export async function handleOutboundRequest(
       const replay = makeReplayRequest(req, rawBody);
       await routeRequest(replay, res, routeMap, deps.proxyDeps);
     } catch (err) {
+      if (isBoundAccountSelectionError(err)) {
+        const headers: Record<string, string> = {};
+        if (err.status === 429 && err.resumeAt) {
+          const resumeMs = Date.parse(err.resumeAt);
+          if (Number.isFinite(resumeMs)) {
+            headers['Retry-After'] = String(Math.max(1, Math.ceil((resumeMs - Date.now()) / 1000)));
+          }
+        }
+        writeJsonError(
+          res,
+          err.status,
+          boundAccountSelectionMessage(err.reason),
+          headers,
+          { code: err.code, reason: err.reason },
+        );
+        return;
+      }
       const message = serializeError(err);
       // Relay request-dispatch error → injected logger when wired (honors level/
       // format/sink), else the legacy console.error (byte-identical fallback).
@@ -608,7 +656,7 @@ export async function handleOutboundRequest(
       emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
       // AUDIT: record the sanitized failure message (redacted again at assembly).
       if (audit) audit.error = message;
-      writeJsonError(res, 502, message);
+      writeJsonError(res, isAccountAllowanceExhaustedError(err) ? 429 : 502, message);
     } finally {
       routeMap.removeRoute(token);
       // Backstop for paths that end the response without a `writeHead` (errors);

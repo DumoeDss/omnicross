@@ -23,6 +23,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { maskProviderApiKey } from '../admin/adminApi';
@@ -34,8 +35,15 @@ import {
   validateConfig,
 } from '../config';
 import { encryptTokens, isEnvelope, type SecretBox } from '../secrets';
+import { IntegrationManager, IntegrationStateStore, type IntegrationState } from '../integrations';
+import { JsonOutboundKeyDb } from '../ports/JsonOutboundKeyDb';
 
-import { defaultTokensPath, resolveSecretBox } from './paths';
+import {
+  defaultIntegrationsPath,
+  defaultKeysPath,
+  defaultTokensPath,
+  resolveSecretBox,
+} from './paths';
 
 /** The parsed `secrets` flags (every action shares this surface). */
 interface SecretsArgs {
@@ -74,7 +82,7 @@ export async function runSecrets(argv: string[]): Promise<void> {
     case 'status':
       return secretsStatus(args);
     case 'rotate':
-      return secretsRotate(args);
+      return await secretsRotate(args);
     case 'decrypt':
       return secretsDecrypt(args);
     default:
@@ -98,6 +106,7 @@ function secretsEncrypt(args: SecretsArgs): void {
     const cfg = loadConfig(args.config as string);
     saveConfig(args.config as string, cfg);
     encryptTokensFileInPlace(args.config as string, box);
+    rewriteIntegrationState(args.config as string, box, box);
   } finally {
     setSecretBox(null);
   }
@@ -148,6 +157,25 @@ function secretsStatus(args: SecretsArgs): void {
     console.info(`Secret status for ${tokensPath}:`);
     reportTokenFields(tokensPath);
   }
+  const integrationsPath = defaultIntegrationsPath(args.config as string);
+  if (existsSync(integrationsPath)) {
+    const state = readRawJson(integrationsPath);
+    const key = state.gatewayKey;
+    if (key && typeof key === 'object' && !Array.isArray(key)) {
+      const secret = (key as Record<string, unknown>).secret;
+      if (typeof secret === 'string') reportField('integrations.gatewayKey', secret);
+    }
+    const clients = state.clients;
+    if (clients && typeof clients === 'object' && !Array.isArray(clients)) {
+      for (const client of ['codex', 'claude']) {
+        const record = (clients as Record<string, unknown>)[client];
+        const snapshot = record && typeof record === 'object' && !Array.isArray(record)
+          ? (record as Record<string, unknown>).originalContent
+          : undefined;
+        if (typeof snapshot === 'string') reportField(`integrations.${client}.snapshot`, snapshot);
+      }
+    }
+  }
 }
 
 /** Print one field's `name: classification mask` line (secret-free). */
@@ -185,7 +213,7 @@ function reportTokenFields(tokensPath: string): void {
  * the new box. Requires a `--new-master-key-file` (otherwise it would re-seal
  * with the same key — a no-op rotate is rejected to avoid surprise).
  */
-function secretsRotate(args: SecretsArgs): void {
+async function secretsRotate(args: SecretsArgs): Promise<void> {
   if (!args.newMasterKeyFile) {
     throw new Error('secrets rotate: --new-master-key-file <path> is required');
   }
@@ -196,10 +224,15 @@ function secretsRotate(args: SecretsArgs): void {
   setSecretBox(oldBox);
   let cfg: DaemonConfig;
   let tokensPlain: ReturnType<typeof readRawJson> | null = null;
+  let integrationsPlain: IntegrationState | null = null;
   const tokensPath = defaultTokensPath(args.config as string);
+  const integrationsPath = defaultIntegrationsPath(args.config as string);
   try {
     cfg = loadConfig(args.config as string);
     if (existsSync(tokensPath)) tokensPlain = decryptTokensFile(tokensPath, oldBox);
+    if (existsSync(integrationsPath)) {
+      integrationsPlain = new IntegrationStateStore(integrationsPath, oldBox).load();
+    }
   } finally {
     setSecretBox(null);
   }
@@ -209,6 +242,26 @@ function secretsRotate(args: SecretsArgs): void {
   try {
     saveConfig(args.config as string, cfg);
     if (tokensPlain) writeTokensEncrypted(tokensPath, tokensPlain, newBox);
+    if (integrationsPlain) {
+      const newStore = new IntegrationStateStore(integrationsPath, newBox);
+      newStore.save(integrationsPlain);
+      const codex = integrationsPlain.clients.codex;
+      if (codex) {
+        try {
+          await new IntegrationManager({
+            configPath: resolve(args.config as string),
+            gatewayBaseUrl: codex.gatewayBaseUrl,
+            keyDb: new JsonOutboundKeyDb(defaultKeysPath(args.config as string)),
+            stateStore: newStore,
+            helperArgsSuffix: ['--master-key-file', resolve(args.newMasterKeyFile)],
+          }).repair('codex');
+        } catch (error) {
+          // Keep the old helper usable when its path could not be updated.
+          new IntegrationStateStore(integrationsPath, oldBox).save(integrationsPlain);
+          throw error;
+        }
+      }
+    }
   } finally {
     setSecretBox(null);
   }
@@ -286,6 +339,13 @@ function encryptTokensFileInPlace(configPath: string, box: SecretBox): void {
   // Decrypt-then-encrypt so any legacy/mixed file re-seals uniformly.
   const plain = decryptTokensFile(tokensPath, box);
   writeTokensEncrypted(tokensPath, plain, box);
+}
+
+function rewriteIntegrationState(configPath: string, readBox: SecretBox, writeBox: SecretBox): void {
+  const path = defaultIntegrationsPath(configPath);
+  if (!existsSync(path)) return;
+  const state = new IntegrationStateStore(path, readBox).load();
+  new IntegrationStateStore(path, writeBox).save(state);
 }
 
 /** Read a tokens.json and return it with token fields DECRYPTED (plaintext). */

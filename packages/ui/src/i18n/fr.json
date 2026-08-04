@@ -859,8 +859,6 @@
       "requestFailed": "La requête a échoué. Veuillez réessayer."
     },
     "syncWarning": {
-      "external-divergent": "Le fichier de connexion de la CLI externe contient des identifiants plus récents que ce compte. Le jeton enregistré pourrait ne plus se rafraîchir — rafraîchissez maintenant ou reconnectez-vous.",
-      "external-not-rotated": "Le rafraîchissement a échoué et la CLI externe contient les mêmes identifiants expirés. Veuillez vous reconnecter.",
       "duplicate-token": "Un autre compte partage ces identifiants. Rafraîchir l'un déconnectera l'autre."
     },
     "importExternal": {

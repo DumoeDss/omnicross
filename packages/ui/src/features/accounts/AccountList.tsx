@@ -23,12 +23,25 @@ import { cn } from '@/shared/utils/utils';
 
 import { StatusBadge } from './StatusBadge';
 import { SupportedModelsEditor } from './SupportedModelsEditor';
+import { AccountAllowance } from './AccountAllowance';
+import { allowanceKey, indexAllowances } from './allowanceLogic';
 
-import type { ProxyConfig, RefreshResult, SubscriptionAccountSanitized } from '@/daemon/types';
+import type {
+  AccountAllowanceSnapshot,
+  ProxyConfig,
+  RefreshResult,
+  SubscriptionAccountSanitized,
+  SubscriptionProviderId,
+} from '@/daemon/types';
 
 interface AccountListProps {
+  providerId: SubscriptionProviderId;
   accounts: SubscriptionAccountSanitized[];
   busy: boolean;
+  allowances?: AccountAllowanceSnapshot[];
+  allowanceLoading?: boolean;
+  allowanceErrors?: Record<string, string>;
+  onRefreshAllowance?: (accountId: string) => Promise<{ success: boolean; message?: string }>;
   onSetActive: (id: string) => void;
   onRemove: (id: string) => void;
   /** Rename one account's label. */
@@ -69,8 +82,13 @@ function isExpired(acc: SubscriptionAccountSanitized): boolean {
 }
 
 export function AccountList({
+  providerId,
   accounts,
   busy,
+  allowances = [],
+  allowanceLoading = false,
+  allowanceErrors = {},
+  onRefreshAllowance,
   onSetActive,
   onRemove,
   onRename,
@@ -86,6 +104,7 @@ export function AccountList({
   const [draftPriorities, setDraftPriorities] = useState<Record<string, string>>({});
   const [rowBusyId, setRowBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
+  const allowanceIndex = indexAllowances(allowances);
 
   if (accounts.length === 0) return null;
 
@@ -261,6 +280,18 @@ export function AccountList({
                   <span>{t(`accounts.syncWarning.${acc.syncWarning}`)}</span>
                 </p>
               ) : null}
+
+              <AccountAllowance
+                providerId={providerId}
+                snapshot={allowanceIndex[allowanceKey(providerId, acc.id)]}
+                loading={allowanceLoading}
+                error={allowanceErrors[allowanceKey(providerId, acc.id)]}
+                onRefresh={
+                  providerId === 'claude' && onRefreshAllowance
+                    ? () => onRefreshAllowance(acc.id)
+                    : undefined
+                }
+              />
 
               {isExpanded ? (
                 <div className="mt-2 space-y-2 border-t border-border/40 pt-2">

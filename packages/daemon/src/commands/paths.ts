@@ -31,10 +31,25 @@ export function defaultTokensPath(configPath: string): string {
   return join(dirname(configPath), 'tokens.json');
 }
 
+/** Encrypted native-CLI integration state next to the daemon config. */
+export function defaultIntegrationsPath(configPath: string): string {
+  return join(dirname(configPath), 'integrations.json');
+}
+
 /** Resolve the pricing.json path that sits alongside a given config.json path
  *  (convention parity with `defaultKeysPath`). */
 export function defaultPricingPath(configPath: string): string {
   return join(dirname(configPath), 'pricing.json');
+}
+
+/** Persistent metadata for non-blocking pricing catalog refreshes. */
+export function defaultPricingRefreshStatePath(configPath: string): string {
+  return join(dirname(configPath), 'pricing-refresh.json');
+}
+
+/** Persistent, secret-free upstream account allowance snapshots. */
+export function defaultAccountAllowancePath(configPath: string): string {
+  return join(dirname(configPath), 'allowance-cache.json');
 }
 
 /** Resolve the append-only usage-events.jsonl path that sits alongside a given

@@ -22,12 +22,19 @@ import type {
 } from '@shared/llm-config';
 
 import type {
+  AccountAllowancesResult,
+  AccountBatchInput,
+  AccountConnectionTestResult,
+  AccountManagementPatch,
+  AccountProbeRecord,
   AccountsListResponse,
   AccountTokenInput,
   SubscriptionListEntry,
   SubscriptionProviderId,
 } from './types-accounts';
 import type {
+  AccountAllowanceSchedulingStatus,
+  AllowanceSchedulingConfig,
   AuditRecord,
   BillingDeliveryStatus,
   EndpointRoutingConfig,
@@ -157,7 +164,7 @@ export interface ModelTestResult {
 
 // ── The LLM-config API subset the page calls ────────────────────────────────────
 //
-// Mirrors the upstream `AgentLLMConfigApi` for the methods the ported page invokes.
+// UI contract for the supported `AgentLLMConfigApi` methods.
 // Methods the daemon does not back (router/transformer/coding-plan/default-models
 // CRUD) are intentionally OMITTED — the page never calls them.
 export interface AgentLLMConfigApi {
@@ -266,6 +273,10 @@ export interface AgentApiServiceApi {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }): Promise<MutationResult>;
+  /** Persist the default-off allowance-aware account scheduling policy. */
+  updateAllowanceSchedulingConfig(config: AllowanceSchedulingConfig): Promise<MutationResult>;
+  /** Read the secret-free recent demote/pause decisions; null means unsupported/unavailable. */
+  getAllowanceSchedulingStatus(): Promise<AccountAllowanceSchedulingStatus | null>;
   /**
    * Persist the layered upstream proxy segment (`PUT /server` with `{ proxy }`,
    * upstream-proxy). Pass `undefined` to clear all global/provider layers. The
@@ -384,6 +395,13 @@ export interface CodexOAuthStatus {
  */
 export interface AgentAccountsApi {
   list(): Promise<AccountsListResponse>;
+  /** Read secret-free five-hour/weekly (or provider-equivalent) allowance snapshots. */
+  listAllowances(): Promise<AccountAllowancesResult>;
+  /** Force-refresh one Claude account. Codex allowance is observed from real responses. */
+  refreshAllowance(
+    providerId: 'claude',
+    accountId: string,
+  ): Promise<AccountAllowancesResult>;
   /** Replace the ACTIVE account's credential (token-paste parity). */
   writeTokens(payload: AccountTokenInput): Promise<WriteTokensResult>;
   /**
@@ -393,6 +411,20 @@ export interface AgentAccountsApi {
   appendTokens(payload: AccountTokenInput, label?: string): Promise<WriteTokensResult>;
   setActive(providerId: SubscriptionProviderId, id: string): Promise<MutationResult>;
   removeAccount(providerId: SubscriptionProviderId, accountId: string): Promise<MutationResult>;
+  patchAccount(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+    patch: AccountManagementPatch,
+  ): Promise<MutationResult>;
+  batchManage(input: AccountBatchInput): Promise<MutationResult & { affected?: number }>;
+  testAccount(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ): Promise<AccountConnectionTestResult>;
+  listAccountEvents(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ): Promise<{ success: boolean; events: AccountProbeRecord[]; message?: string }>;
   /** Rename one account's label (label-only; no token touched). */
   renameAccount(
     providerId: SubscriptionProviderId,
@@ -475,6 +507,54 @@ export interface CliLaunchResult {
   message?: string;
 }
 
+/** Native CLI whose ordinary invocation is persistently routed through Omnicross. */
+export type CliIntegrationClient = 'codex' | 'claude';
+
+/** Secret-free reconciliation state returned by `GET /admin/api/integrations`. */
+export type CliIntegrationStatusKind =
+  | 'not-installed'
+  | 'enabled'
+  | 'configuration-drift'
+  | 'configuration-missing'
+  | 'key-missing';
+
+/**
+ * One persistent native-CLI integration. The shared gateway key is deliberately
+ * absent from this DTO: neither the admin response nor the React layer may see it.
+ */
+export interface CliIntegrationStatus {
+  client: CliIntegrationClient;
+  status: CliIntegrationStatusKind;
+  configPath: string;
+  installedAt?: number;
+  gatewayBaseUrl?: string;
+  message?: string;
+}
+
+export interface CliIntegrationsOverview {
+  integrations: CliIntegrationStatus[];
+  gateway: OutboundApiServerStatus;
+}
+
+/** Redacted, side-effect-free preview of a persistent integration change. */
+export interface CliIntegrationPlan {
+  client: CliIntegrationClient;
+  configPath: string;
+  action: 'install' | 'none' | 'repair';
+  canApply: boolean;
+  /** Logical field names only — never native file content or a credential value. */
+  changes: string[];
+  warnings: string[];
+}
+
+export type CliIntegrationPlanResult =
+  | { success: true; plan: CliIntegrationPlan }
+  | { success: false; message: string };
+
+export type CliIntegrationsResult =
+  | { success: true; overview: CliIntegrationsOverview }
+  | { success: false; message: string };
+
 /**
  * `agent.cli` — the Code CLI launch surface. `launch` opens an external terminal
  * (on the daemon host) running the CLI pointed at the daemon proxy; the route
@@ -490,4 +570,21 @@ export interface AgentCliApi {
   ): Promise<CliLaunchResult>;
   sessions(): Promise<CliSession[]>;
   stop(id: string): Promise<MutationResult>;
+  /** Inspect the two persistent CLI integrations without returning their shared key. */
+  getIntegrations(): Promise<CliIntegrationsResult>;
+  planIntegration(
+    client: CliIntegrationClient,
+    input?: { configPath?: string },
+  ): Promise<CliIntegrationPlanResult>;
+  /** Write the managed native CLI config. An omitted path selects the platform default. */
+  installIntegration(
+    client: CliIntegrationClient,
+    input?: { configPath?: string },
+  ): Promise<MutationResult>;
+  /** Restore the native CLI config captured before Omnicross installed the integration. */
+  removeIntegration(client: CliIntegrationClient): Promise<MutationResult>;
+  /** Reconcile a moved or changed managed config while preserving unrelated settings. */
+  repairIntegration(client: CliIntegrationClient): Promise<MutationResult>;
+  /** Rotate the shared least-privilege key. Its plaintext never crosses this API. */
+  rotateIntegrationKey(): Promise<MutationResult>;
 }

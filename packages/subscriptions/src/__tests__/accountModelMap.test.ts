@@ -1,6 +1,6 @@
 /**
  * accountModelMap pure-helper tests (subscription-account-model-map, task 2.1 / 3.1).
- * Covers the CRS dual-format allow-list membership + logical→actual remap:
+ * Covers both allow-list membership and logical-to-actual remapping:
  * absent ⇒ supports all / no remap; array ⇒ case-insensitive membership; object ⇒
  * keys are the allow-list + values are the actual model; the report helper returns
  * `undefined` on a no-op so the relay forwards the body byte-for-byte.

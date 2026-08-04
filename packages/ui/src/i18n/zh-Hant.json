@@ -504,7 +504,17 @@
     "discoveryUnsupportedFormat": "此提供者格式目前不支援自動探索模型，請手動新增模型。"
   },
   "nav": {
+    "primary": "主導覽",
+    "overview": "總覽",
+    "gateway": "閘道",
+    "integrations": "整合",
+    "group": {
+      "run": "執行",
+      "configure": "設定",
+      "system": "系統"
+    },
     "subtitle": "控制台",
+    "more": "更多",
     "providers": "提供者",
     "apiService": "API 服務",
     "accounts": "帳號",
@@ -514,9 +524,134 @@
     "pricing": "模型價格",
     "dashboard": "儀表板"
   },
+  "overview": {
+    "eyebrow": "本機請求交換台",
+    "title": "請求能順利通過嗎？",
+    "description": "沿真實狀態查看請求如何從本機客戶端經過閘道與路由表，最終到達健康帳號或提供者。",
+    "operational": "鏈路正常",
+    "actionRequired": "鏈路需要處理",
+    "requestPath": "即時請求路徑",
+    "requestPathHint": "依目前金鑰、閘道狀態、端點路由與帳號健康狀態產生。",
+    "open": "開啟",
+    "refresh": "重新整理",
+    "source": {
+      "loading": "載入中",
+      "unavailable": "無法取得",
+      "unavailableHint": "此資料來源沒有回應；其他執行證據仍會顯示。"
+    },
+    "state": { "ready": "就緒", "attention": "需要處理", "inactive": "未啟用", "loading": "載入中", "unavailable": "無法取得" },
+    "path": {
+      "client": "客戶端",
+      "gateway": "閘道",
+      "routing": "路由",
+      "upstream": "上游",
+      "detail": {
+        "client": "{{value}} 個可用金鑰",
+        "gateway": "連接埠 {{value}}",
+        "routing": "{{value}} 種格式",
+        "upstream": "{{value}} 個帳號 / 目標"
+      }
+    },
+    "routes": { "title": "路由矩陣", "description": "各協定格式目前設定的上游目標。", "unconfigured": "尚未設定", "unavailable": "路由證據無法取得，請開啟閘道檢查。" },
+    "gateway": {
+      "title": "閘道執行證據",
+      "description": "顯示即時監聽狀態、位址，以及守護程式提供的建置版本。",
+      "status": "狀態",
+      "address": "本機回環位址",
+      "version": "守護程式版本",
+      "versionHint": "目前閘道狀態資料沒有提供版本號。",
+      "port": "連接埠 {{port}}",
+      "running": "執行中",
+      "stopped": "已停止",
+      "open": "開啟閘道"
+    },
+    "accounts": {
+      "title": "帳號池",
+      "description": "顯示排程器目前的帳號投影與額度觀察狀態。",
+      "schedulable": "可排程",
+      "abnormal": "異常",
+      "total": "共 {{count}} 個",
+      "countOfTotal": "{{count}} / {{total}}",
+      "none": "未發現",
+      "allowance": "額度觀察",
+      "allowanceValue": "{{near}} 個接近上限 · {{stale}} 個過期",
+      "allowanceUnavailable": "有 {{count}} 個帳號的額度快照無法取得",
+      "allowanceThreshold": "警告閾值 {{threshold}}%",
+      "expiringSoon": "即將過期",
+      "expiringSoonHint": "48 小時內到期的憑證",
+      "open": "開啟帳號"
+    },
+    "today": {
+      "title": "今日交換記錄",
+      "description": "目前日期的本機 Usage 記錄；只有稽核資料完整時才會測量錯誤率。",
+      "requests": "請求數",
+      "errorRate": "錯誤率",
+      "cost": "估算成本",
+      "source": "來自本機 Usage 記錄",
+      "auditSource": "來自 {{count}} 筆稽核請求",
+      "auditDisabled": "請求稽核未啟用；請在設定 → 資料中啟用後測量錯誤率。",
+      "auditIncomplete": "稽核讀取可能不完整，因此不會估算錯誤率。",
+      "noAuditedRequests": "沒有可用來與今日 Usage 比對的稽核請求。",
+      "auditUnavailable": "無法讀取請求稽核，因此不會估算錯誤率。",
+      "openUsage": "開啟 Usage"
+    },
+    "integrations": {
+      "title": "持久整合",
+      "description": "顯示 Codex 與 Claude Code 的受管本機設定是否同步。",
+      "codex": "Codex",
+      "claude": "Claude Code",
+      "persistentHint": "持久原生 CLI 設定",
+      "open": "開啟整合",
+      "status": {
+        "not-installed": "未安裝",
+        "enabled": "已啟用",
+        "configuration-drift": "設定發生漂移",
+        "configuration-missing": "缺少設定",
+        "key-missing": "缺少閘道金鑰"
+      }
+    },
+    "attention": {
+      "title": "需要處理",
+      "description": "這裡只顯示可能阻斷請求鏈路的狀態。",
+      "empty": "未發現會阻斷請求的狀態。",
+      "gatewayConfigUnavailable": "閘道設定無法取得，請先檢查狀態再修改路由。",
+      "gatewayUnavailable": "閘道狀態無法取得，請確認守護程式可連線。",
+      "gatewayStopped": "客戶端連線前需要先啟動閘道。",
+      "accessKeyDataUnavailable": "存取金鑰資料無法取得，請檢查閘道存取金鑰。",
+      "noAccessKey": "為客戶端建立或啟用存取金鑰。",
+      "routingDataUnavailable": "路由資料無法取得，請檢查閘道路由。",
+      "routingIncomplete": "補全所有支援協定格式的路由。",
+      "accountDataUnavailable": "帳號健康資料無法取得，請檢查帳號池。",
+      "noUpstream": "新增健康的訂閱帳號或提供者目標。",
+      "noSchedulableAccounts": "目前沒有可排程的訂閱帳號。",
+      "abnormalAccounts": "有 {{count}} 個帳號需要檢查健康或憑證。",
+      "accountsExpiringSoon": "有 {{count}} 個帳號將在 48 小時內過期。",
+      "allowanceDataUnavailable": "額度資料無法取得，請先檢查帳號再依賴限額。",
+      "allowanceNearLimit": "有 {{count}} 個額度視窗接近警告閾值。",
+      "allowanceStale": "有 {{count}} 個額度視窗已過期，需要重新採集。",
+      "integrationDataUnavailable": "持久整合狀態無法取得，請檢查整合頁面。",
+      "integrationCodexNeedsAttention": "Codex 的持久整合需要修復。",
+      "integrationClaudeNeedsAttention": "Claude Code 的持久整合需要修復。",
+      "usageDataUnavailable": "今日請求與成本資料無法取得，請檢查 Usage。",
+      "errorRateUnavailable": "今日錯誤率無法取得，請開啟相關的稽核或流量設定。"
+    }
+  },
   "apiService": {
+    "gatewayTitle": "閘道",
+    "gatewayDescription": "說明並控制客戶端如何進入本機服務、經過路由並流轉。",
     "title": "API 服務",
     "description": "設定對外 API 伺服器、各端點的模型路由及命名存取金鑰。",
+    "tabs": {
+      "status": "狀態",
+      "routes": "路由",
+      "accessKeys": "存取金鑰",
+      "liveTraffic": "即時流量",
+      "overview": "總覽",
+      "endpoints": "端點",
+      "access": "存取金鑰",
+      "network": "網路與代理",
+      "advanced": "進階"
+    },
     "loading": "正在載入伺服器設定…",
     "loadError": "無法載入伺服器設定。請確認 Daemon 是否可正常連線。",
     "enable": {
@@ -529,6 +664,13 @@
       "warning": "允許區域網路存取將使 API 伺服器對網路中的其他裝置開放。若同時啟用訂閱路由，請求可能消耗您的訂閱配額——除非您信任該網路，否則請保持關閉。"
     },
     "status": {
+      "queue": {
+        "title": "目前佇列",
+        "summary": "{{active}} 個執行中 · {{waiting}} 個等待",
+        "open": "查看即時流量"
+      },
+      "unavailable": "閘道狀態無法取得",
+      "unavailableHint": "伺服器設定已載入，但 Daemon 沒有回傳即時狀態快照。",
       "running": "伺服器執行中",
       "stopped": "伺服器已停止",
       "runningHint": "對外 API 伺服器正在接受請求。",
@@ -538,6 +680,7 @@
       "lan": "區域網路 URL"
     },
     "endpoints": {
+      "empty": "此 Daemon 沒有提供端點定義。",
       "title": "端點路由",
       "description": "為每種 wire 格式選擇路由目標模型。預設模型已整合於此——此伺服器是路由器，而非對話應用程式。"
     },
@@ -555,6 +698,18 @@
       "modelPlaceholder": "選取模型…",
       "useSubscription": "使用訂閱",
       "subscriptionUnsupported": "此端點不支援訂閱路由。",
+      "subscriptionType": "訂閱類型",
+      "subscriptionTypePlaceholder": "選取訂閱…",
+      "account": "帳號",
+      "accountPool": "帳號池（自動調度）",
+      "boundAccountFallbackPolicy": "繫結帳號無法服務時",
+      "boundAccountFallbackPlaceholder": "選擇回退行為",
+      "boundAccountFallbackStrict": "請求直接失敗（建議）",
+      "boundAccountFallbackPool": "使用帳號池（需主動開啟）",
+      "boundAccountFallbackStrictHint": "只有所選帳號可以服務此端點。帳號不可用、不健康、模型不相容、遭限額暫停或沒有權杖時，請求會失敗。",
+      "boundAccountFallbackPoolHint": "所選帳號無法服務時，系統可能改用帳號池中的其他帳號。",
+      "boundAccountFallbackChooseAccount": "選擇繫結帳號後才能設定回退行為。",
+      "pickSubscriptionTypeFirst": "請先選擇訂閱提供者，再設定模型映射。",
       "kind": {
         "fable": "Fable",
         "opus": "Opus",
@@ -665,6 +820,22 @@
         "holding": "處理中",
         "active": "{{count}} 個進行中",
         "waiting": "{{count}} 個等待"
+      }
+    },
+    "liveTraffic": {
+      "title": "即時請求流",
+      "description": "查看目前佇列活動和最近的稽核錯誤。這裡不會顯示虛構的流量指標。",
+      "queueIdle": "目前沒有請求正在佇列中等待或執行。",
+      "queueUnavailable": "閘道在相容的 Daemon 上執行後，這裡才會顯示即時佇列資料。",
+      "errors": {
+        "title": "最近錯誤",
+        "description": "來自請求稽核記錄的不含密鑰錯誤。",
+        "refresh": "重新整理",
+        "loading": "正在載入最近的稽核記錄…",
+        "loadError": "無法載入最近錯誤。",
+        "retry": "重試",
+        "empty": "最近記錄中沒有找到稽核錯誤。",
+        "auditOff": "在設定 > 資料中啟用請求稽核後，這裡才會顯示最近錯誤。"
       }
     },
     "proxy": {
@@ -849,9 +1020,37 @@
   "accounts": {
     "title": "帳號與訂閱",
     "description": "管理伺服器路由所使用的訂閱憑證。權杖在此寫入，但不會回顯。",
+    "managementDescription": "優先檢視帳號狀態、路由優先順序與額度，再按需新增憑證。",
+    "summary": "{{providers}} 個已設定提供者，共 {{accounts}} 個帳號",
     "loading": "正在載入帳號…",
     "empty": "目前沒有可用的訂閱提供者。",
     "signIn": "登入",
+    "management": {
+      "summary": { "total": "帳號總數", "schedulable": "可參與排程", "excluded": "已排除", "warnings": "需要處理" },
+      "searchPlaceholder": "搜尋名稱、識別碼、群組或標籤",
+      "selected": "已選擇 {{count}} 個", "selectAll": "選擇目前可見帳號", "selectAccount": "選擇 {{name}}", "openDetails": "開啟帳號詳情",
+      "emptyFiltered": "沒有符合篩選條件的帳號。", "sortDirection": "反轉排序方向", "schedulable": "可排程", "excluded": "已排除", "priorityValue": "優先級 {{value}}",
+      "schedulingState": { "disabled": "已由管理員停用", "healthPaused": "因健康狀態暫停", "allowancePaused": "因限額暫停", "demoted": "已按限額降權", "schedulable": "可排程", "excluded": "已排除" },
+      "allowanceAction": { "normal": "正常", "demote": "降權", "pause": "暫停", "ignore": "未套用" },
+      "allowanceDecision": "限額策略：{{action}} · 已用 {{used}}%",
+      "allowanceDecisionNoUsage": "限額策略：{{action}}",
+      "effectivePriority": "基礎 {{base}} → 生效 {{effective}}",
+      "filters": {
+        "allProviders": "全部提供商", "allGroups": "全部群組", "allHealth": "全部健康狀態", "allCredentials": "全部憑證狀態",
+        "scheduling": { "all": "全部排程狀態", "enabled": "已啟用", "disabled": "已停用", "schedulable": "可排程", "excluded": "已排除" }
+      },
+      "sort": { "label": "名稱", "priority": "優先級", "last-used": "最近使用", "allowance": "額度用量", "reset-time": "重設時間" },
+      "columns": { "account": "帳號", "providerGroup": "提供商 / 群組", "status": "排程狀態", "priority": "優先級", "lastUsed": "最近使用", "actions": "操作" },
+      "batch": { "enable": "啟用", "disable": "停用", "setGroup": "設定群組", "groupPlaceholder": "群組名稱", "delete": "刪除", "deleteTitle": "刪除所選帳號？", "deleteDescription": "這會永久刪除 {{count}} 個帳號及其已儲存憑證。" },
+      "tabs": { "overview": "概覽", "allowance": "限額", "scheduling": "排程", "network": "網路", "diagnostics": "診斷", "danger": "危險操作" },
+      "fields": {
+        "enabled": "參與路由", "enabledHint": "停用後絕不會被選擇，即使它是唯一帳號。",
+        "label": "帳號名稱", "group": "群組", "tags": "標籤", "tagsPlaceholder": "正式環境, 團隊A", "credential": "憑證", "health": "健康狀態", "scheduling": "排程", "lastUsed": "最近使用", "priority": "優先級",
+        "allowanceAction": "限額策略", "effectivePriority": "生效優先級", "allowanceUsed": "限額已用", "allowanceResume": "限額重設"
+      },
+      "diagnostics": { "testConnection": "測試連線", "testPassed": "連線測試通過。", "testFailed": "連線測試失敗。", "history": "最近探測", "empty": "暫無探測事件。", "loadFailed": "無法載入探測歷史。" },
+      "danger": { "title": "刪除帳號", "description": "刪除該帳號及其加密憑證，此操作無法復原。" }
+    },
     "oauth": {
       "title": "登入 {{name}}",
       "description": "在瀏覽器中開啟登入頁面，授權後將授權碼貼至下方。授權碼僅傳送至 Daemon——簽發的權杖不會回顯。",
@@ -962,6 +1161,33 @@
     "accounts": {
       "addAccount": "新增帳號"
     },
+    "addDialog": {
+      "title": "新增或匯入帳號",
+      "description": "選擇提供者後，可登入、匯入偵測到的 CLI 登入，或貼上既有憑證。",
+      "back": "選擇其他提供者",
+      "existingCount": "已有 {{count}} 個帳號"
+    },
+    "allowance": {
+      "title": "額度",
+      "fiveHour": "5 小時限額",
+      "weekly": "週限額",
+      "used": "已用 {{percent}}%",
+      "resetsAt": "{{time}} 重設",
+      "observedAt": "觀測於 {{time}}",
+      "refresh": "重新整理",
+      "refreshAll": "重新載入額度",
+      "loading": "載入中",
+      "loadFailed": "額度載入失敗：{{error}}。既有帳號資料不受影響。",
+      "unavailableHint": "提供者沒有回傳此帳號的額度資訊。",
+      "codexNotObserved": "尚未觀測到額度回應標頭。請先用此帳號發起一次 Codex 請求，再重新載入。",
+      "unsupportedProvider": "此提供者目前沒有受支援的額度資料來源。",
+      "state": {
+        "fresh": "最新",
+        "stale": "已過期",
+        "unavailable": "無法使用",
+        "unsupported": "不支援"
+      }
+    },
     "detail": {
       "authMethod": "授權方式",
       "subscriptionLevel": "訂閱等級",
@@ -1033,8 +1259,6 @@
       "requestFailed": "請求失敗，請再試一次。"
     },
     "syncWarning": {
-      "external-divergent": "外部 CLI 登入檔案中的憑證比此帳號更新，已儲存的權杖可能無法再重新整理——請立即重新整理或重新登入。",
-      "external-not-rotated": "重新整理失敗，且外部 CLI 中保存的是同一個已過期憑證。請重新登入。",
       "duplicate-token": "另一個帳號與此帳號共用同一憑證，重新整理任一帳號都會使另一個失效。"
     },
     "importExternal": {
@@ -1048,6 +1272,7 @@
       "capturedAt": "已於 {{time}} 擷取用戶端指紋"
     },
     "health": {
+      "healthy": "健康",
       "rate_limited": "已限流",
       "overloaded": "過載",
       "transient": "暫時無法使用",
@@ -1056,8 +1281,8 @@
     }
   },
   "codeCli": {
-    "title": "Code CLI",
-    "description": "將程式碼 CLI 指向 Daemon 的對外代理。此頁面為唯讀——無需在此進行任何設定。",
+    "title": "整合",
+    "description": "將 Codex 和 Claude Code 持久接入 Omnicross，或開啟僅本次生效的代理終端。",
     "copy": "複製",
     "copied": "已複製",
     "baseUrl": {
@@ -1074,6 +1299,55 @@
       "keyNote": "請使用在 API 服務頁面建立的對外存取金鑰——而非管理權杖。",
       "anthropic": "Anthropic 格式 CLI",
       "openai": "OpenAI 格式 CLI"
+    },
+    "persistent": {
+      "title": "持久接入",
+      "description": "啟用後，直接執行一般 codex 或 claude 指令即可使用 Omnicross，無需專用啟動器；共享接入金鑰始終隱藏。",
+      "gatewayRunning": "閘道執行中",
+      "gatewayStopped": "閘道已停止",
+      "gatewayStoppedHint": "原生 CLI 設定仍然存在，但對外閘道啟動前，請求無法到達 Omnicross。",
+      "loading": "正在檢查持久接入狀態…",
+      "configPath": "設定檔",
+      "customPath": "自訂設定路徑",
+      "routesTo": "路由至 {{url}}",
+      "enable": "啟用持久接入",
+      "reviewEnable": "預覽並啟用",
+      "repair": "預覽修復",
+      "planTitle": "確認託管變更",
+      "planDescription": "此預覽只包含邏輯欄位名稱和警告。Omnicross 不會把原生設定檔內容傳送至 UI。",
+      "planChanges": "託管欄位",
+      "planWarnings": "注意事項",
+      "noChanges": "無需變更。",
+      "applyEnable": "套用並啟用",
+      "applyRepair": "套用修復",
+      "remove": "移除接入",
+      "removeTitle": "移除 {{name}} 接入？",
+      "removeDescription": "Omnicross 會還原安裝前保存的設定。如果檔案此後被修改，將拒絕覆寫您的變更。",
+      "removeLocked": "請先解決設定漂移，再移除此接入。",
+      "rotate": "輪換共享金鑰",
+      "rotateTitle": "輪換共享接入金鑰？",
+      "rotateDescription": "新的最小權限金鑰會取代所有託管接入中的現有金鑰。UI 永遠不會顯示金鑰內容。",
+      "rotateLocked": "請先解決設定漂移，再輪換共享金鑰。",
+      "driftProtection": "Omnicross 安裝後此檔案又被修改。為保護您的變更，直接移除已鎖定；您可以先查看修復計畫，只協調託管欄位。",
+      "attention": "此接入需要處理。請依狀態提示修復後重新整理本頁。",
+      "status": {
+        "notInstalled": "未啟用",
+        "enabled": "已啟用",
+        "drift": "設定已變更",
+        "missing": "設定缺失",
+        "keyMissing": "金鑰缺失"
+      },
+      "hint": {
+        "notInstalled": "一般 CLI 指令尚未持久路由至 Omnicross。",
+        "enabled": "一般 CLI 指令將經由本機 Omnicross 閘道路由。",
+        "drift": "目前設定與 Omnicross 安裝時的內容不一致。",
+        "missing": "託管設定檔已被移動或刪除。",
+        "keyMissing": "設定仍完整，但共享閘道金鑰缺失或已撤銷。請輪換金鑰進行修復。"
+      }
+    },
+    "temporary": {
+      "title": "臨時啟動",
+      "description": "僅為本次執行開啟代理終端，不會變更 CLI 的持久設定。"
     },
     "launchDescription": "在終端機中啟動程式碼 CLI，並指向此 Daemon。Daemon 會注入重新導向的環境變數並為您啟動 CLI。",
     "refresh": "重新整理",
@@ -1107,8 +1381,69 @@
     "failedHint": "請確認已安裝 Node.js 且 Daemon 已建置（dist 存在），或將 OMNICROSS_DAEMON_ENTRY 設定為 Daemon 的 cli.js 路徑。"
   },
   "settings": {
+    "security": {
+      "title": "安全性與隱私",
+      "description": "控制客戶端身分重放，以及影響本機服務外發資料的策略。"
+    },
+    "network": {
+      "title": "網路與代理",
+      "description": "控制客戶端如何連線到本機閘道，以及請求如何到達上游提供者。"
+    },
+    "data": {
+      "migrationTitle": "資料移轉"
+    },
+    "tabs": {
+      "network": "網路",
+      "security": "安全性與隱私",
+      "data": "資料",
+      "advanced": "進階",
+      "general": "一般",
+      "scheduling": "帳號調度",
+      "notifications": "通知",
+      "audit": "稽核",
+      "billing": "計費",
+      "privacy": "客戶端身分",
+      "pricing": "模型價格"
+    },
+    "allowanceScheduling": {
+      "title": "依額度調度帳號",
+      "description": "使用新鮮的 Claude 與 Codex 額度資料，把請求從接近限額的帳號移開。",
+      "safety": "缺失、過期、不支援或已失效的額度資料絕不會導致帳號降級或暫停。",
+      "enable": {
+        "label": "啟用額度調度",
+        "description": "預設關閉。關閉時，額度資料僅供顯示。"
+      },
+      "demote": {
+        "label": "用量達到此百分比時降級",
+        "description": "達到或超過該用量時，暫時增加帳號的優先級懲罰。"
+      },
+      "pause": {
+        "label": "用量達到此百分比時暫停",
+        "description": "達到或超過該用量時，僅在具有明確未來重設時間時排除帳號。"
+      },
+      "penalty": {
+        "label": "優先級懲罰",
+        "description": "帳號降級期間加到基礎優先級；優先級數值越小越先調度。"
+      },
+      "validation": {
+        "demote": "降級百分比必須介於 0 與 100 之間。",
+        "pause": "暫停百分比必須介於 0 與 100 之間。",
+        "order": "暫停百分比必須大於或等於降級百分比。",
+        "penalty": "優先級懲罰必須是 1 到 1000 之間的整數。"
+      },
+      "save": "儲存調度策略",
+      "history": {
+        "title": "最近生效的決策",
+        "description": "這裡只記錄實際生效的降級與暫停決策。",
+        "refresh": "重新整理",
+        "unavailable": "目前 daemon 版本不提供決策診斷。上方策略設定仍可編輯。",
+        "empty": "尚未執行由額度觸發的降級或暫停。",
+        "action": { "demote": "已降級", "pause": "已暫停" },
+        "priority": "優先級 {{base}} → {{effective}} · 已用 {{used}}%"
+      }
+    },
     "title": "設定",
-    "description": "桌面應用程式偏好設定。",
+    "description": "桌面偏好設定與執行控制。",
     "desktopOnly": "啟動與系統匣選項僅適用於桌面應用程式。",
     "startup": {
       "title": "啟動",
@@ -1151,7 +1486,7 @@
     "cost": "費用",
     "apiKey": "API 金鑰",
     "unpriced": "無價格",
-    "unpricedHint": "此模型沒有價格條目 — 請在「模型價格」頁面新增。",
+    "unpricedHint": "此模型沒有價格條目 — 請在「設定 > 模型價格」中新增。",
     "unattributed": "未歸屬",
     "unattributedHint": "未關聯到特定 API 金鑰的請求。在按金鑰歸屬記錄上線之前，這是正常現象。",
     "empty": "此時間範圍內沒有請求。",
@@ -1200,6 +1535,7 @@
     "empty": "價格表為空。",
     "emptyHint": "取得最新價格以填入表格。",
     "noMatches": "沒有符合的條目。",
+    "pagination": { "summary": "第 {{page}} / {{pages}} 頁，共 {{count}} 個模型", "previous": "上一頁", "next": "下一頁" },
     "saved": "價格條目已儲存。",
     "saveFailed": "儲存失敗：{{message}}",
     "deleteFailed": "刪除失敗：{{message}}",

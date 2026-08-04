@@ -31,7 +31,7 @@
  * host handler routes its conversion through the SAME shared pipeline
  * SSOT every other ingress uses: `executeProviderCall` +
  * `AnthropicTransformer` as the endpoint transformer. There is NO second
- * conversion stack here (the CRS conversion code was never ported). All four
+ * conversion stack here. All four
  * ingresses converge on `executeProviderCall`: Anthropic via this delegation,
  * and Responses / OpenAI-Chat / Gemini directly.
  *
@@ -134,6 +134,8 @@ export async function handleAnthropicMessagesRequest(
     passThroughAuthToken: hints.passThroughAuthToken ?? null,
     resolvePassThroughAuthToken: hints.resolvePassThroughAuthToken ?? null,
     subscriptionProfile: hints.subscriptionProfile ?? null,
+    preferredAccountId: hints.preferredAccountId,
+    boundAccountFallbackPolicy: hints.boundAccountFallbackPolicy,
     maxConcurrency: hints.maxConcurrency,
     webSearchService: hints.webSearchService ?? null,
     onRetry: hints.onRetry,

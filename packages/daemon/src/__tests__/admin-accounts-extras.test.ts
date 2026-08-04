@@ -31,7 +31,7 @@ import { loadConfig } from '../config';
 
 const SENTINEL_AT = 'SENTINEL-OAUTH-ACCESS-TOKEN';
 const SENTINEL_RT = 'SENTINEL-OAUTH-REFRESH-TOKEN';
-const CLAUDE_TOKEN_ENDPOINT = 'https://console.anthropic.com/v1/oauth/token';
+const CLAUDE_TOKEN_ENDPOINT = 'https://platform.claude.com/v1/oauth/token';
 const GEMINI_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 
 let realFetch: typeof globalThis.fetch;
@@ -244,6 +244,24 @@ describe('account extras (G1–G4)', () => {
       label: 'x',
     });
     expect(missing.status).toBe(404);
+  });
+
+  it('rejects an unexpected DELETE suffix without deleting the account or provider', async () => {
+    await adminFetch('POST', '/admin/api/accounts/opencodego/accounts', {
+      authMethod: 'manual',
+      status: 'configured',
+      apiKey: 'OCG-delete-boundary',
+      label: 'keep-me',
+    });
+    const [account] = await sanitized('opencodego');
+
+    const rejected = await adminFetch(
+      'DELETE',
+      `/admin/api/accounts/opencodego/${account.id}/unexpected`,
+    );
+
+    expect(rejected.status).toBe(405);
+    expect((await sanitized('opencodego')).map((item) => item.id)).toContain(account.id);
   });
 
   it('G3: refresh the active claude OAuth token → status-only { ok: true }, token never leaks', async () => {

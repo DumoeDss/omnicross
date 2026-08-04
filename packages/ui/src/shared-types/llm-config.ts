@@ -1,6 +1,6 @@
 /**
- * llm-config.ts — the hand-mirrored SUBSET of the upstream `@shared/llm-config`
- * the ported Provider page consumes (design D6 type closure).
+ * llm-config.ts — the UI-facing subset of the shared LLM configuration
+ * consumed by the Provider page (design D6 type closure).
  *
  * This is a STANDALONE copy: it carries the types + the two display consts
  * (`PROVIDER_TEMPLATES`, `BUILTIN_TRANSFORMERS`) the full form/dialogs reference,
@@ -11,10 +11,10 @@
  * Keep this in sync with the upstream source only as needed — the app owns its copy.
  */
 
-// ── Thinking levels (ported from completion-types) ──────────────────────────────
+// ── Thinking levels ─────────────────────────────────────────────────────────────
 export type ThinkLevel = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-// ── Provider-preset subset (ported from provider-presets/types) ─────────────────
+// ── Provider-preset subset ──────────────────────────────────────────────────────
 export type ApiModeId = string;
 
 /** One API endpoint variant on a provider (standard / coding-plan / token-plan). */
@@ -356,7 +356,7 @@ export const DEFAULT_COMPLETION_SETTINGS: CompletionSettings = {
   stream: true,
 };
 
-/** Common provider templates (ported from the upstream; display/seed data only). */
+/** Common provider templates used as display and seed data. */
 export const PROVIDER_TEMPLATES: ProviderTemplate[] = [
   {
     id: 'openai',
@@ -521,7 +521,7 @@ export const PROVIDER_TEMPLATES: ProviderTemplate[] = [
   },
 ];
 
-/** Built-in transformer names + descriptions (ported from the upstream). */
+/** Built-in transformer names and descriptions. */
 export const BUILTIN_TRANSFORMERS: TransformerInfo[] = [
   { name: 'anthropic', description: 'Preserve original Anthropic request/response format' },
   { name: 'deepseek', description: 'Adapt for DeepSeek API format' },

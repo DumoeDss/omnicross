@@ -4,7 +4,7 @@
  * when network binding is on, i.e. `status.lanFormats` is present).
  */
 
-import { CircleDot, Copy, Power } from 'lucide-react';
+import { CircleAlert, CircleDot, Copy, Power } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +56,17 @@ function FormatList({ title, formats }: { title: string; formats: OutboundFormat
 
 export function ServerStatusBanner({ status }: ServerStatusBannerProps) {
   const t = useTranslation();
+  if (!status) {
+    return (
+      <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4" role="alert">
+        <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+        <div>
+          <p className="text-sm font-medium text-foreground">{t('apiService.status.unavailable')}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('apiService.status.unavailableHint')}</p>
+        </div>
+      </div>
+    );
+  }
   const running = Boolean(status?.running);
 
   return (

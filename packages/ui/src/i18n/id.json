@@ -859,8 +859,6 @@
       "requestFailed": "Permintaan gagal. Silakan coba lagi."
     },
     "syncWarning": {
-      "external-divergent": "File login CLI eksternal berisi kredensial yang lebih baru daripada akun ini. Token yang tersimpan mungkin berhenti diperbarui — perbarui sekarang atau masuk lagi.",
-      "external-not-rotated": "Pembaruan gagal dan CLI eksternal berisi kredensial kedaluwarsa yang sama. Silakan masuk lagi.",
       "duplicate-token": "Akun lain menggunakan kredensial yang sama. Memperbarui salah satu akan mengeluarkan yang lain."
     },
     "importExternal": {

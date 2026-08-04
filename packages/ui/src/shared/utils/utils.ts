@@ -1,5 +1,5 @@
 /**
- * cn — className combiner (ported from the upstream `@/shared/utils/utils`).
+ * cn — shared className combiner.
  *
  * A dependency-free clsx-style combiner: filters falsy values and joins with a
  * space. The Provider page only passes strings / conditional strings, so the

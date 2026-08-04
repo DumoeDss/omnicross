@@ -2,7 +2,6 @@
 
 > 状态：**已实现并本地落地**（branch `feat/model-kind-mapping`，typecheck 0 / vitest 全绿，仅 5 个预存 OAuth 环境测试红；push/PR/合并待 operator）。原调研设计见下文。
 > 适用范围：`packages/core` 的 outbound-api-server（对外中转服务）+ `packages/daemon`（admin API）+ `packages/ui`（API Service 设置页）。
-> 相关参考实现：`E:/AI/ChatAI/Agents/VibeCodingProjects/elftia/_others/claude-relay-service`
 
 ---
 
@@ -19,7 +18,7 @@ Claude Code CLI 请求中转端点后，**响应里回传的 `model` 字段是�
 - verbatim 路径（same-format，上游本身是 anthropic 协议）：`relayResponse()` 逐字节转发，`model` 就是上游返回的名字。
 
 ### 问题 2：现有映射按「角色」而非「模型种」，且需精确写全名
-当前是**按角色**（default / background / vision）配置，每个角色配一个 `providerId,modelId`。参考项目 `claude-relay-service` 的映射则是**按完整模型名精确匹配**（见 §3），两者都无法满足「用户只配 opus/sonnet/haiku/fable 四个模型种、其余靠版本号透传」的诉求。
+当前是**按角色**（default / background / vision）配置，每个角色配一个 `providerId,modelId`。简单的完整模型名映射仍要求逐个维护带版本号的模型，两种方式都无法满足「用户只配 opus/sonnet/haiku/fable 四个模型种、其余靠版本号透传」的诉求。
 
 ### 目标
 1. 用户只需配置 **fable / opus / sonnet / haiku** 四个「模型种」的映射（Claude Code 端点）。
@@ -90,14 +89,12 @@ interface EndpointRoutingConfig {
 
 ---
 
-## 3. 参考实现 claude-relay-service（已核实）
+## 3. 约束与验证结论
 
-- 映射存于账户的 `supportedModels`（对象格式 `{ "claude-opus-4-20250514": "…", "opus": "…" }`）。
-  - `ccrAccountService.js:597-641`、`claudeConsoleAccountService.js`。
-- 匹配逻辑 `getMappedModel()` / `isModelSupported()`：**先精确匹配 key，再大小写不敏感匹配整串**，**没有前缀/家族匹配**。故若 key 写 `opus`，只有客户端**恰好发 `opus`** 才命中；而 CLI 发的是带版本号的 `claude-opus-4-…`，不会命中 → 必须把完整版本名写进映射表。
-- 响应侧：`ccrRelayService.js`、`claudeConsoleRelayService.js` **均逐字节转发，不改写 `model`**。
+- 只做大小写不敏感的完整字符串匹配时，键 `opus` 无法匹配客户端发送的 `claude-opus-4-…`，仍需逐个维护带版本号的模型名。
+- 对响应逐字节透传时，上游返回的 `model` 会直接暴露给客户端，无法保留客户端最初请求的模型身份。
 
-**结论**：参考项目印证了用户的判断——只能整串精确匹配、且响应不透传。我们要做的正是它缺的两点：**按种（token）匹配** + **响应透传原始请求名**。
+**结论**：需要同时实现**按种（token）匹配**和**响应透传原始请求名**。
 
 ---
 

@@ -97,4 +97,27 @@ describe('SubscriptionAccountHealth — onAnomaly (webhook-notifications D3)', (
     // Only the initial rate-limit edge produced an anomaly; the 2xx produced none.
     expect(events).toHaveLength(1);
   });
+
+  it('keeps the same anomaly/recovery edges in a bounded admin-readable projection', () => {
+    const { health } = makeTracker();
+    health.recordUpstreamOutcome('claude', 'a11', { status: 429, resetHeaderSeconds: 2_000 });
+    health.recordUpstreamOutcome('claude', 'a11', { status: 200 });
+
+    expect(health.getDiagnostics({ providerId: 'claude', accountId: 'a11' })).toEqual([
+      { kind: 'health-recovery', providerId: 'claude', accountId: 'a11', at: 1_000_000 },
+      {
+        kind: 'health-anomaly',
+        providerId: 'claude',
+        accountId: 'a11',
+        at: 1_000_000,
+        state: 'rate_limited',
+      },
+    ]);
+
+    for (let i = 0; i < 250; i += 1) {
+      health.recordUpstreamOutcome('codex', `bounded-${i}`, { status: 401 });
+    }
+    expect(health.getDiagnostics()).toHaveLength(200);
+    expect(JSON.stringify(health.getDiagnostics())).not.toContain('Authorization');
+  });
 });
