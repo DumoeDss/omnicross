@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/contracts",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Dependency-light, host-agnostic contract types + runtime-value helpers shared by the @omnicross/* packages.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
