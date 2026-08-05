@@ -467,7 +467,14 @@ export async function resolvePoolBoundKey(
   providerId: string,
   provider: LLMProvider,
   sessionId: string | null,
+  preferredKeyId?: string,
+  boundKeyFallbackPolicy?: 'strict' | 'pool',
 ): Promise<string> {
+  if (preferredKeyId) {
+    const preferred = await deps.apiKeyPool?.getKeyById(providerId, preferredKeyId, sessionId);
+    if (preferred) return preferred;
+    if (boundKeyFallbackPolicy !== 'pool') return '';
+  }
   if (deps.apiKeyPool && sessionId) {
     const poolKey = await deps.apiKeyPool.getKeyForSession(providerId, sessionId);
     if (poolKey) return poolKey;

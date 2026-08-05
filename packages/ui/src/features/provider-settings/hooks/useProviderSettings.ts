@@ -10,6 +10,12 @@ import { useCatalogBrowser } from './useCatalogBrowser';
 import { useModelManagement } from './useModelManagement';
 import { useProviderForm } from './useProviderForm';
 
+export interface UseProviderSettingsOptions {
+  /** Optional externally-owned selection used by the Upstreams workbench. */
+  selectedProviderId?: string | null;
+  onSelectedProviderChange?: (providerId: string | null) => void;
+}
+
 /** daemon preset apiFormat ('openai'|'anthropic'|'gemini') → UI ApiFormat. */
 function presetUiFormat(fmt: DaemonPresetView['apiFormat']): ApiFormat {
   return fmt === 'gemini' ? 'google' : fmt;
@@ -69,7 +75,7 @@ function mergeWithPresets(real: LLMProvider[], presets: DaemonPresetView[]): LLM
 /**
  * Composition hook that assembles provider form, model management, and catalog browser.
  */
-export function useProviderSettings() {
+export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
   const {
     providers: realProviders,
     loading: providersLoading,
@@ -96,7 +102,15 @@ export function useProviderSettings() {
   );
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [localSelectedProviderId, setLocalSelectedProviderId] = useState<string | null>(null);
+  const selectionControlled = options.selectedProviderId !== undefined;
+  const selectedProviderId = selectionControlled
+    ? options.selectedProviderId ?? null
+    : localSelectedProviderId;
+  const setSelectedProviderId = (providerId: string | null) => {
+    if (!selectionControlled) setLocalSelectedProviderId(providerId);
+    options.onSelectedProviderChange?.(providerId);
+  };
 
   // Auto-select first provider when none is explicitly selected
   const effectiveSelectedProviderId = selectedProviderId ?? (providers.length > 0 ? providers[0].id : null);

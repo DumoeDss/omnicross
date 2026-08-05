@@ -20,7 +20,7 @@ import {
 } from '../outboundApiRouter';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
 import { OutboundRateLimiter } from '../outboundRateLimiter';
-import type { OutboundApiDeps, OutboundKeyDb, OutboundKeyDbRow } from '../types';
+import type { GatewayBinding, OutboundApiDeps, OutboundKeyDb, OutboundKeyDbRow } from '../types';
 import { UserMessageSerialQueue } from '../userMessageSerialQueue';
 
 // --- helpers ---------------------------------------------------------------
@@ -548,7 +548,7 @@ describe('handleOutboundRequest — model restriction (#6, 403)', () => {
 
 describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1/D2(a))', () => {
   /** Drive one chat request and return the RouteContext that was minted. */
-  async function mintRoute(opts: { apiKeyPool?: unknown }): Promise<{
+  async function mintRoute(opts: { apiKeyPool?: unknown; bindings?: GatewayBinding[] }): Promise<{
     sessionId: string | null | undefined;
   }> {
     const routeMap = new ProviderProxyRouteMap();
@@ -571,7 +571,7 @@ describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1
       req as unknown as http.IncomingMessage,
       res as unknown as http.ServerResponse,
       deps,
-      config,
+      { ...config, bindings: opts.bindings },
       new OutboundRateLimiter(),
       new UserMessageSerialQueue(),
       new OutboundConcurrencyGate(),
@@ -592,6 +592,22 @@ describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1
     const b = await mintRoute({ apiKeyPool: { reportError: vi.fn() } });
     expect(a.sessionId).toBe('outbound:oak_1');
     expect(b.sessionId).toBe(a.sessionId);
+  });
+
+  it('an active Binding adds its id to the affinity namespace without changing the legacy path', async () => {
+    const { sessionId } = await mintRoute({
+      apiKeyPool: { reportError: vi.fn() },
+      bindings: [{
+        id: 'route-a',
+        name: 'Route A',
+        enabled: true,
+        endpoint: 'chat',
+        target: { kind: 'provider', providerId: 'openai' },
+        fallback: 'fail',
+        models: ['gpt-4o'],
+      }],
+    });
+    expect(sessionId).toBe('outbound:oak_1:route-a');
   });
 
   it('pool NOT wired → minted route sessionId stays null (byte-identical to pre-seam)', async () => {

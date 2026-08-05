@@ -1,22 +1,24 @@
 export const API_SERVICE_TABS = [
-  { id: 'status', labelKey: 'apiService.tabs.status' },
-  { id: 'routes', labelKey: 'apiService.tabs.routes' },
-  { id: 'access-keys', labelKey: 'apiService.tabs.accessKeys' },
-  { id: 'live-traffic', labelKey: 'apiService.tabs.liveTraffic' },
+  { id: 'overview', labelKey: 'apiService.tabs.overview' },
+  { id: 'access', labelKey: 'apiService.tabs.access' },
+  { id: 'activity', labelKey: 'apiService.tabs.activity' },
+  { id: 'settings', labelKey: 'apiService.tabs.settings' },
 ] as const;
 
 export type ApiServiceCanonicalTabId = (typeof API_SERVICE_TABS)[number]['id'];
 
 /** IDs kept in the type surface for callers from the pre-P4 navigation model. */
-export type ApiServiceLegacyTabId = 'overview' | 'endpoints' | 'access' | 'network' | 'advanced';
+export type ApiServiceLegacyTabId = 'status' | 'routes' | 'access-keys' | 'live-traffic' | 'endpoints' | 'network' | 'advanced';
 export type ApiServiceTabId = ApiServiceCanonicalTabId | ApiServiceLegacyTabId;
 
 export function normalizeApiServiceTab(tab: ApiServiceTabId | undefined): ApiServiceCanonicalTabId {
   switch (tab) {
-    case 'overview': return 'status';
-    case 'endpoints': return 'routes';
-    case 'access': return 'access-keys';
-    default: return tab === 'status' || tab === 'routes' || tab === 'access-keys' || tab === 'live-traffic' ? tab : 'status';
+    case 'status': return 'overview';
+    case 'routes':
+    case 'endpoints': return 'settings';
+    case 'access-keys': return 'access';
+    case 'live-traffic': return 'activity';
+    default: return tab === 'overview' || tab === 'access' || tab === 'activity' || tab === 'settings' ? tab : 'overview';
   }
 }
 
@@ -26,14 +28,15 @@ export function normalizeApiServiceTab(tab: ApiServiceTabId | undefined): ApiSer
  * section when the page is reorganised again.
  */
 export const API_SERVICE_SECTION_TAB = {
-  serverStatus: 'status',
-  serviceControls: 'status',
-  queueStatus: 'status',
-  endpointRouting: 'routes',
-  accessKeys: 'access-keys',
-  vouchers: 'access-keys',
-  liveTrafficQueue: 'live-traffic',
-  recentErrors: 'live-traffic',
+  serverStatus: 'overview',
+  serviceControls: 'overview',
+  queueStatus: 'overview',
+  bindingCoverage: 'overview',
+  accessKeys: 'access',
+  vouchers: 'access',
+  liveTrafficQueue: 'activity',
+  recentErrors: 'activity',
+  endpointRouting: 'settings',
 } as const satisfies Record<string, ApiServiceTabId>;
 
 export type ApiServiceSectionId = keyof typeof API_SERVICE_SECTION_TAB;

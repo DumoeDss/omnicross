@@ -156,6 +156,19 @@ export class ApiKeyPoolService {
   }
 
   /**
+   * Bind a session to one explicit provider key. Returns an empty string when
+   * the key is unknown, disabled, or cooling so the caller can apply its strict
+   * versus pool fallback policy without exposing key material.
+   */
+  async getKeyById(providerId: string, keyId: string, sessionId?: string | null): Promise<string> {
+    const keys = await this.getAvailableKeys(providerId);
+    const selected = keys.find((key) => key.id === keyId);
+    if (!selected) return '';
+    if (sessionId) this.sessionBindings.set(sessionId, { keyId: selected.id, providerId });
+    return this.resolveKey(selected.apiKey);
+  }
+
+  /**
    * Get a key without session affinity (for one-shot calls like testConnection).
    *
    * @returns Resolved API key string, or empty string if no keys available

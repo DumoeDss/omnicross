@@ -4,7 +4,7 @@ import en from '../en.json';
 import zh from '../zh.json';
 import zhHant from '../zh-Hant.json';
 
-const gatewayTabs = ['status', 'routes', 'accessKeys', 'liveTraffic'];
+const gatewayTabs = ['overview', 'access', 'activity', 'settings'];
 const settingsTabs = ['general', 'network', 'security', 'data', 'notifications', 'advanced', 'billing', 'pricing'];
 
 describe('Gateway and Settings translations', () => {
@@ -27,6 +27,11 @@ describe('Gateway and Settings translations', () => {
       expect(locale.apiService.endpoint.boundAccountFallbackPool).toEqual(expect.any(String));
       expect(locale.apiService.endpoint.boundAccountFallbackStrictHint).toEqual(expect.any(String));
       expect(locale.apiService.endpoint.boundAccountFallbackPoolHint).toEqual(expect.any(String));
+      expect(locale.apiService.globalFallback.title).toEqual(expect.any(String));
+      expect(locale.apiService.bindingCoverage.title).toEqual(expect.any(String));
+      expect(locale.apiService.keys.bindings.title).toEqual(expect.any(String));
+      expect(locale.upstreams.title).toEqual(expect.any(String));
+      expect(locale.upstreams.routes.signalPath).toEqual(expect.any(String));
     }
   });
 });

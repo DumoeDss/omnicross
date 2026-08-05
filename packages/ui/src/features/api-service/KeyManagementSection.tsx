@@ -9,7 +9,7 @@
  * on dismiss).
  */
 
-import { Check, Copy, KeyRound, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Copy, KeyRound, Plus, Route, SlidersHorizontal, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -23,8 +23,10 @@ import type {
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundKeyPolicyPatch,
+  GatewayBinding,
 } from '@/daemon/types';
 
+import { bindingsForClientKey, bindingTargetLabel } from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
 
 interface KeyManagementSectionProps {
@@ -37,6 +39,8 @@ interface KeyManagementSectionProps {
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   onDismissCreated: () => void;
+  bindings?: GatewayBinding[];
+  onOpenBinding?: (binding: GatewayBinding) => void;
 }
 
 /**
@@ -149,6 +153,8 @@ export function KeyManagementSection({
   onSetMaxConcurrency,
   onSetPolicy,
   onDismissCreated,
+  bindings = [],
+  onOpenBinding,
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
@@ -196,7 +202,9 @@ export function KeyManagementSection({
         </p>
       ) : (
         <ul className="space-y-2">
-          {keys.map((k) => (
+          {keys.map((k) => {
+            const relatedBindings = bindingsForClientKey(bindings, k.id);
+            return (
             <li
               key={k.id}
               className="rounded-md border border-border/60 bg-surface-0/60 px-3 py-2"
@@ -261,6 +269,33 @@ export function KeyManagementSection({
                   </Button>
                 ) : null}
               </div>
+              {!k.revoked ? (
+                <div className="mt-2 border-t border-border/60 pt-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Route className="h-3 w-3" />
+                    {relatedBindings.length
+                      ? t('apiService.keys.bindings.count', { count: relatedBindings.length })
+                      : t('apiService.keys.bindings.empty')}
+                  </div>
+                  {relatedBindings.length ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {relatedBindings.map((binding) => (
+                        <button
+                          key={binding.id}
+                          type="button"
+                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] text-foreground hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => onOpenBinding?.(binding)}
+                          disabled={!onOpenBinding}
+                        >
+                          <span className="truncate">{binding.name}</span>
+                          <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
+                          <span className="truncate">{bindingTargetLabel(binding)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {!k.revoked && policyOpenId === k.id ? (
                 <KeyPolicyEditor
                   keyInfo={k}
@@ -271,7 +306,8 @@ export function KeyManagementSection({
                 />
               ) : null}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

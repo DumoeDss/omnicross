@@ -33,6 +33,7 @@ function makeStore(
     id: string;
     token: string | null;
     enabled?: boolean;
+    group?: string;
     priority?: number;
     supportedModels?: string[] | Record<string, string>;
   }>,
@@ -46,6 +47,7 @@ function makeStore(
     claudeAccounts: accounts.map((a) => ({
       id: a.id,
       enabled: a.enabled,
+      group: a.group,
       priority: a.priority,
       supportedModels: a.supportedModels,
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -246,5 +248,77 @@ describe('preferred-account binding', () => {
     const strategy = new SubscriptionAccountService(tokens).getStrategy('claude')!;
 
     expect(await bearer(strategy)).toBe('Bearer AT-A');
+  });
+});
+
+describe('preferred-account-group binding', () => {
+  it('selects only from the requested group even when the active account is outside it', async () => {
+    const tokens = makeStore(
+      [
+        { id: 'A', token: 'AT-A', group: 'default' },
+        { id: 'B', token: 'AT-B', group: 'team' },
+      ],
+      'A',
+    );
+    const strategy = new SubscriptionAccountService(tokens).getStrategy('claude')!;
+    expect(await bearer(strategy, { preferredAccountGroup: 'team' })).toBe('Bearer AT-B');
+  });
+
+  it('fails closed for an unknown group unless global pool fallback is explicit', async () => {
+    const tokens = makeStore(
+      [
+        { id: 'A', token: 'AT-A', group: 'default' },
+        { id: 'B', token: 'AT-B', group: 'team' },
+      ],
+      'A',
+    );
+    const strategy = new SubscriptionAccountService(tokens).getStrategy('claude')!;
+    await expectBoundFailure(
+      bearer(strategy, { preferredAccountGroup: 'missing' }),
+      'not-found',
+      503,
+    );
+    expect(
+      await bearer(strategy, {
+        preferredAccountGroup: 'missing',
+        boundAccountFallbackPolicy: 'pool',
+      }),
+    ).toBeTruthy();
+  });
+
+  it('uses the full pool when an existing preferred group has no schedulable account', async () => {
+    const tokens = makeStore(
+      [
+        { id: 'A', token: 'AT-A', group: 'default' },
+        { id: 'B', token: 'AT-B', group: 'team', enabled: false },
+      ],
+      'B',
+    );
+    const strategy = new SubscriptionAccountService(tokens).getStrategy('claude')!;
+
+    expect(
+      await bearer(strategy, {
+        preferredAccountGroup: 'team',
+        boundAccountFallbackPolicy: 'pool',
+      }),
+    ).toBe('Bearer AT-A');
+  });
+
+  it('uses the full pool when every account in the preferred group is tokenless', async () => {
+    const tokens = makeStore(
+      [
+        { id: 'A', token: 'AT-A', group: 'default' },
+        { id: 'B', token: null, group: 'team' },
+      ],
+      'B',
+    );
+    const strategy = new SubscriptionAccountService(tokens).getStrategy('claude')!;
+
+    expect(
+      await bearer(strategy, {
+        preferredAccountGroup: 'team',
+        boundAccountFallbackPolicy: 'pool',
+      }),
+    ).toBe('Bearer AT-A');
   });
 });

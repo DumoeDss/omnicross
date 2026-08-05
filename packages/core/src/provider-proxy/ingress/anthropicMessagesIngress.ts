@@ -53,7 +53,7 @@ import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 
 import { handleAnthropicMessagesByo } from './anthropicMessagesByo';
-import { readBody, writeError } from './providerProxyShared';
+import { readBody, resolvePoolBoundKey, writeError } from './providerProxyShared';
 
 /** Match `POST` + any path containing `/v1/messages` (parity with the host handler). */
 export function isAnthropicMessagesRequest(
@@ -121,11 +121,32 @@ export async function handleAnthropicMessagesRequest(
     return;
   }
 
+  let delegatedApiKey = hints.apiKey;
+  if (route.authMode === 'byo' && route.providerId) {
+    const provider = await deps.llmConfig.getProvider(route.providerId);
+    if (!provider) {
+      writeError(res, 502, `Provider not found: ${route.providerId}`);
+      return;
+    }
+    delegatedApiKey = await resolvePoolBoundKey(
+      deps,
+      route.providerId,
+      provider,
+      route.sessionId,
+      route.preferredKeyId,
+      route.boundKeyFallbackPolicy,
+    );
+    if (!delegatedApiKey) {
+      writeError(res, 502, 'API key not configured');
+      return;
+    }
+  }
+
   const handler = handlerFactory({
     llmConfig: deps.llmConfig,
     providerId: route.providerId ?? '',
     model: route.model,
-    apiKey: hints.apiKey,
+    apiKey: delegatedApiKey,
     backgroundTaskModel: route.backgroundTaskModel,
     isOfficialProvider: hints.isOfficialProvider,
     thinkingLevel: hints.thinkingLevel,
@@ -135,7 +156,10 @@ export async function handleAnthropicMessagesRequest(
     resolvePassThroughAuthToken: hints.resolvePassThroughAuthToken ?? null,
     subscriptionProfile: hints.subscriptionProfile ?? null,
     preferredAccountId: hints.preferredAccountId,
+    preferredAccountGroup: hints.preferredAccountGroup,
     boundAccountFallbackPolicy: hints.boundAccountFallbackPolicy,
+    preferredKeyId: route.preferredKeyId,
+    boundKeyFallbackPolicy: route.boundKeyFallbackPolicy,
     maxConcurrency: hints.maxConcurrency,
     webSearchService: hints.webSearchService ?? null,
     onRetry: hints.onRetry,

@@ -35,6 +35,7 @@ import type {
   AuditRecord,
   BillingDeliveryStatus,
   EndpointRoutingConfig,
+  GatewayBinding,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
@@ -239,6 +240,15 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update queue configuration');
+      }
+    },
+
+    async updateBindings(bindings: GatewayBinding[]): Promise<MutationResult> {
+      try {
+        const data = await adminClient.put<ServerPutResponse>('/server', { bindings });
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update gateway bindings');
       }
     },
 

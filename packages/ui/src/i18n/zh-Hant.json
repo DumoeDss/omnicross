@@ -488,6 +488,7 @@
     "close": "關閉",
     "copy": "複製",
     "delete": "刪除",
+    "edit": "編輯",
     "dismiss": "關閉",
     "save": "儲存",
     "optional": "選填",
@@ -507,6 +508,7 @@
     "primary": "主導覽",
     "overview": "總覽",
     "gateway": "閘道",
+    "upstreams": "上游資源",
     "integrations": "整合",
     "group": {
       "run": "執行",
@@ -636,6 +638,70 @@
       "errorRateUnavailable": "今日錯誤率無法取得，請開啟相關的稽核或流量設定。"
     }
   },
+  "upstreams": {
+    "title": "上游資源",
+    "description": "統一管理可承接閘道請求的帳號、帳號群組與提供者。",
+    "addAccount": "新增帳號",
+    "addProvider": "新增提供者",
+    "addProviderDescription": "建立提供者，並設定其模型與金鑰池。",
+    "searchPlaceholder": "搜尋上游資源…",
+    "empty": "目前檢視中沒有符合的上游資源。",
+    "filter": {
+      "all": "全部",
+      "account": "帳號",
+      "account-group": "帳號群組",
+      "provider": "提供者"
+    },
+    "kind": {
+      "account": "帳號",
+      "account-group": "帳號群組",
+      "provider": "提供者"
+    },
+    "status": {
+      "ready": "就緒",
+      "disabled": "已停用",
+      "needsKey": "需要金鑰"
+    },
+    "memberCount": "{{count}} 位成員",
+    "groupSummary": "{{provider}} 中的 {{count}} 個帳號",
+    "routeCount": "{{count}} 條路由",
+    "manageAccount": "管理帳號",
+    "routes": {
+      "title": "閘道路由",
+      "description": "將客戶端存取連接到此上游，不變更上游憑證本身。",
+      "add": "新增路由",
+      "empty": "尚無路由指向此上游。",
+      "emptyHint": "新增路由以指定哪些客戶端金鑰與端點可以使用它。",
+      "enabled": "已啟用",
+      "disabled": "已停用",
+      "enabledHint": "停用後保留設定，但不再接收請求。",
+      "allClientKeys": "所有客戶端金鑰",
+      "clientKeyScope": "客戶端金鑰範圍",
+      "createTitle": "新增閘道路由",
+      "editTitle": "編輯閘道路由",
+      "editorDescription": "定義客戶端到上游的請求路徑與回退行為。",
+      "name": "路由名稱",
+      "endpoint": "端點",
+      "priority": "優先順序",
+      "fallbackLabel": "此路由無法服務時",
+      "fallback": {
+        "fail": "請求失敗",
+        "global": "使用全域回退"
+      },
+      "priorityFallback": "優先順序 {{priority}} · {{fallback}}",
+      "providerKey": "提供者金鑰",
+      "providerKeyPool": "提供者金鑰池",
+      "providerKeyHint": "選擇單一金鑰進行嚴格路由，或繼續使用提供者金鑰池。",
+      "modelMapping": "模型映射",
+      "models": "模型",
+      "modelsHint": "每行一個模型 ID，也可使用逗號分隔。",
+      "unconfiguredModel": "尚未設定模型",
+      "deleteTitle": "刪除此路由？",
+      "deleteDescription": "刪除「{{name}}」。後續請求將使用其他符合的路由或全域回退。",
+      "signalPath": "{{key}} 到 {{endpoint}}，再到 {{resource}}，最後使用 {{model}}",
+      "openFromUpstreams": "請從上游資源開啟此帳號以管理其閘道路由。"
+    }
+  },
   "apiService": {
     "gatewayTitle": "閘道",
     "gatewayDescription": "說明並控制客戶端如何進入本機服務、經過路由並流轉。",
@@ -647,10 +713,24 @@
       "accessKeys": "存取金鑰",
       "liveTraffic": "即時流量",
       "overview": "總覽",
+      "activity": "活動",
+      "settings": "設定",
       "endpoints": "端點",
       "access": "存取金鑰",
       "network": "網路與代理",
       "advanced": "進階"
+    },
+    "globalFallback": {
+      "title": "全域回退路由",
+      "description": "沒有資源路由符合時才使用這些端點設定。日常路由請在「上游資源」中管理。"
+    },
+    "bindingCoverage": {
+      "title": "路由覆蓋",
+      "description": "查看客戶端金鑰如何透過四類端點連接至上游資源。",
+      "manage": "管理上游資源",
+      "bindings": "已啟用路由",
+      "endpoints": "已覆蓋端點",
+      "keyScoped": "限定金鑰路由"
     },
     "loading": "正在載入伺服器設定…",
     "loadError": "無法載入伺服器設定。請確認 Daemon 是否可正常連線。",
@@ -746,6 +826,11 @@
         "copied": "已複製",
         "dismiss": "完成"
       },
+      "bindings": {
+        "title": "閘道路由",
+        "count": "{{count}} 條適用路由",
+        "empty": "沒有適用路由"
+      },
       "policy": {
         "title": "策略",
         "expiryMode": "有效期",
@@ -819,7 +904,9 @@
         "concurrency": "並發",
         "holding": "處理中",
         "active": "{{count}} 個進行中",
-        "waiting": "{{count}} 個等待"
+        "waiting": "{{count}} 個等待",
+        "idle": "目前沒有請求在佇列中等待或執行。",
+        "unavailable": "Gateway 在相容的 daemon 上執行時會顯示即時佇列資料。"
       }
     },
     "liveTraffic": {
@@ -1042,7 +1129,7 @@
       "sort": { "label": "名稱", "priority": "優先級", "last-used": "最近使用", "allowance": "額度用量", "reset-time": "重設時間" },
       "columns": { "account": "帳號", "providerGroup": "提供商 / 群組", "status": "排程狀態", "priority": "優先級", "lastUsed": "最近使用", "actions": "操作" },
       "batch": { "enable": "啟用", "disable": "停用", "setGroup": "設定群組", "groupPlaceholder": "群組名稱", "delete": "刪除", "deleteTitle": "刪除所選帳號？", "deleteDescription": "這會永久刪除 {{count}} 個帳號及其已儲存憑證。" },
-      "tabs": { "overview": "概覽", "allowance": "限額", "scheduling": "排程", "network": "網路", "diagnostics": "診斷", "danger": "危險操作" },
+      "tabs": { "overview": "概覽", "routes": "路由", "allowance": "限額", "scheduling": "排程", "network": "網路", "diagnostics": "診斷", "danger": "危險操作" },
       "fields": {
         "enabled": "參與路由", "enabledHint": "停用後絕不會被選擇，即使它是唯一帳號。",
         "label": "帳號名稱", "group": "群組", "tags": "標籤", "tagsPlaceholder": "正式環境, 團隊A", "credential": "憑證", "health": "健康狀態", "scheduling": "排程", "lastUsed": "最近使用", "priority": "優先級",

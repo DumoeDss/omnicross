@@ -61,6 +61,8 @@ export interface AuthApplyHints {
    * pool fallback. BYO auth sources ignore both binding hints.
    */
   preferredAccountId?: string;
+  /** Optional account group selected by a resource-level gateway binding. */
+  preferredAccountGroup?: string;
   /**
    * Binding behavior. `'pool'` is an explicit opt-in; any other value used
    * with a preferred account is treated as strict by the selector.

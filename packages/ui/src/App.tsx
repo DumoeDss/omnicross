@@ -2,13 +2,12 @@ import React from 'react';
 
 import { DaemonStatusBanner } from '@/components/DaemonStatusBanner';
 import { NavRail } from '@/components/nav/NavRail';
-import { AccountsPage } from '@/features/accounts';
 import { ApiServicePage } from '@/features/api-service';
 import type { ApiServiceTabId } from '@/features/api-service/apiServiceTabModel';
 import { CodeCliPage } from '@/features/code-cli';
 import { OverviewPage } from '@/features/overview';
-import { ProviderSettings } from '@/features/provider-settings/ProviderSettings';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+import { UpstreamsPage } from '@/features/upstreams';
 import type { SettingsTabId } from '@/features/settings/settingsTabModel';
 import { UsageStatsPage } from '@/features/usage-stats';
 import { useHashRoute, type AppRoute, type RouteNavigate } from '@/shared/state/hashRoute';
@@ -16,13 +15,12 @@ import { useHashRoute, type AppRoute, type RouteNavigate } from '@/shared/state/
 function renderPage(route: AppRoute, navigate: RouteNavigate) {
   switch (route.page) {
     case 'overview': return <OverviewPage onNavigate={navigate} />;
-    case 'api-service': return <ApiServicePage activeTab={(route.tab as ApiServiceTabId | undefined) ?? 'overview'} onTabChange={(tab) => navigate({ page: 'api-service', tab })} />;
-    case 'accounts': return <AccountsPage route={route} onNavigate={navigate} />;
+    case 'api-service': return <ApiServicePage activeTab={(route.tab as ApiServiceTabId | undefined) ?? 'overview'} onTabChange={(tab) => navigate({ page: 'api-service', tab })} onNavigate={navigate} />;
+    case 'upstreams': return <UpstreamsPage route={route} onNavigate={navigate} />;
     case 'integrations': return <CodeCliPage />;
     case 'usage-stats': return <UsageStatsPage />;
     case 'settings': return <SettingsPage activeTab={(route.tab as SettingsTabId | undefined) ?? 'general'} onTabChange={(tab) => navigate({ page: 'settings', tab })} />;
-    case 'providers':
-    default: return <ProviderSettings />;
+    default: return <OverviewPage onNavigate={navigate} />;
   }
 }
 

@@ -110,6 +110,7 @@ import {
 } from './billingConfigBody';
 import { handleDashboard } from './dashboard';
 import { parseKeyPolicyBody } from './keyPolicyBody';
+import { validateGatewayBindingsSegment } from './gatewayBindingBody';
 import { handleVoucher } from './voucherAdmin';
 import {
   preserveWebhookSecrets,
@@ -1741,6 +1742,10 @@ async function handleServer(
         `invalid allowance scheduling config: ${allowanceErrors.join('; ')}`,
       );
     }
+    const bindingErrors = validateGatewayBindingsSegment(patch);
+    if (bindingErrors.length > 0) {
+      return writeJsonError(res, 400, `invalid gateway bindings: ${bindingErrors.join('; ')}`);
+    }
     // webhook-notifications: strict validation of a present webhook segment (400
     // rather than a silent core-normalize drop).
     const webhookErrors = validateWebhookSegment(patch);
@@ -1823,6 +1828,7 @@ async function handleServer(
         enabled: merged.enabled,
         networkBinding: merged.networkBinding,
         endpoints: merged.endpoints,
+        bindings: merged.bindings,
         port: merged.port,
         userMessageQueue: merged.userMessageQueue,
         concurrencyQueue: merged.concurrencyQueue,

@@ -36,6 +36,8 @@ export const DEFAULT_ACCOUNT_PRIORITY = 50;
 /** One schedulable candidate — the scheduling projection of an account entry. */
 export interface SchedulableAccount {
   id: string;
+  /** Operator-defined pool group used by resource-level gateway bindings. */
+  group?: string;
   /** Default `50` (lower = higher precedence). */
   priority?: number;
   /** ISO — LRU tie-break; absent ⇒ treated as least-recently-used (`0`). */

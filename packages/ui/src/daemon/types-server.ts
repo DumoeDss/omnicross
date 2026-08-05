@@ -17,6 +17,30 @@ export type ModelRef = string;
 
 /** Bound-account behavior; pool fallback is an explicit opt-in. */
 export type BoundAccountFallbackPolicy = 'strict' | 'pool';
+export type GatewayBindingFallback = 'global' | 'fail';
+
+export type GatewayBindingTarget =
+  | { kind: 'account'; providerId: string; accountId: string }
+  | { kind: 'account-group'; providerId: string; group: string }
+  | { kind: 'provider'; providerId: string; keyId?: string };
+
+export interface GatewayBinding {
+  id: string;
+  name: string;
+  enabled: boolean;
+  apiKeyIds?: string[];
+  endpoint: OutboundEndpointId;
+  target: GatewayBindingTarget;
+  priority?: number;
+  fallback: GatewayBindingFallback;
+  modelMap?: Record<string, ModelRef>;
+  models?: ModelRef[];
+  dispatchMode?: 'list' | 'prefix';
+  prefixTargets?: { claude?: ModelRef; gpt?: ModelRef; gemini?: ModelRef };
+  defaultModel?: ModelRef;
+  backgroundModel?: ModelRef;
+  backgroundModelIds?: string[];
+}
 
 /**
  * Per-endpoint routing config (the editable shape from `GET /server`).
@@ -41,6 +65,8 @@ export interface EndpointRoutingConfig {
   modelMap?: Record<string, ModelRef>;
   /** List-mapped endpoint (`chat`): the refs this endpoint serves. */
   models?: ModelRef[];
+  dispatchMode?: 'list' | 'prefix';
+  prefixTargets?: { claude?: ModelRef; gpt?: ModelRef; gemini?: ModelRef };
   /** Role-based endpoint (`gemini`): model for normal requests. */
   defaultModel?: ModelRef;
   /** Role-based endpoint (`gemini`): model for background/probe requests. */
@@ -53,6 +79,8 @@ export interface EndpointRoutingConfig {
   boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Provider mode: bind one specific BYO key id; blank ⇒ default key / key pool. */
   boundKeyId?: string;
+  /** When the bound provider key is unavailable: strict failure or key-pool fallback. */
+  boundKeyFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Optional per-endpoint background-model id override list (role-based only). */
   backgroundModelIds?: string[];
 }
@@ -297,6 +325,8 @@ export interface OutboundApiServerConfig {
   enabled: boolean;
   networkBinding: boolean;
   endpoints: EndpointRoutingConfig[];
+  /** Resource-centric routes; absent on older daemons. */
+  bindings?: GatewayBinding[];
   port?: number;
   /** Per-account serial queue (OPTIONAL — absent on a pre-upgrade daemon). */
   userMessageQueue?: OutboundUserMessageQueueConfig;
@@ -409,6 +439,9 @@ export interface OutboundApiKeyInfo {
   createdAt: number;
   lastUsedAt: number | null;
   revoked: boolean;
+  kind?: 'client' | 'integration';
+  allowedEndpoints?: OutboundEndpointId[];
+  loopbackOnly?: boolean;
   /**
    * Per-key outbound concurrency ceiling (planning-context §COMMITTED §2). Absent
    * or 0 = unlimited (the concurrency gate is bypassed for this key). OPTIONAL so a

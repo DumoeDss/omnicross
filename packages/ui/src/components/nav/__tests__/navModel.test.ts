@@ -10,16 +10,16 @@ describe('navigation model', () => {
   it('groups work by running, configuring and system concerns', () => {
     expect(NAV_GROUPS.map((group) => [group.id, group.items.map((item) => item.id)])).toEqual([
       ['run', ['overview', 'api-service', 'usage-stats']],
-      ['configure', ['accounts', 'providers', 'integrations']],
+      ['configure', ['upstreams', 'integrations']],
       ['system', ['settings']],
     ]);
   });
 
-  it('keeps all seven destinations reachable from the compact mobile model', () => {
+  it('keeps all six destinations reachable from the compact mobile model', () => {
     const ids = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id));
-    expect(ids).toHaveLength(7);
-    expect(new Set(ids).size).toBe(7);
-    expect(MOBILE_PRIMARY_IDS).toEqual(['overview', 'api-service', 'accounts', 'usage-stats']);
+    expect(ids).toHaveLength(6);
+    expect(new Set(ids).size).toBe(6);
+    expect(MOBILE_PRIMARY_IDS).toEqual(['overview', 'api-service', 'upstreams', 'usage-stats']);
     expect(MOBILE_PRIMARY_IDS.every((id) => ids.includes(id))).toBe(true);
   });
 

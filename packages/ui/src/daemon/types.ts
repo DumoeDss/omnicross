@@ -38,6 +38,7 @@ import type {
   AuditRecord,
   BillingDeliveryStatus,
   EndpointRoutingConfig,
+  GatewayBinding,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
@@ -251,6 +252,8 @@ export interface AgentApiServiceApi {
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
   updateEndpoint(endpoint: EndpointRoutingConfig): Promise<MutationResult>;
+  /** Replace the complete independent gateway-binding aggregate. */
+  updateBindings(bindings: GatewayBinding[]): Promise<MutationResult>;
   /**
    * Set a key's outbound concurrency ceiling (`POST /keys/:id/max-concurrency`).
    * `null` clears the ceiling → unlimited. Mirrors `setKeyEnabled`'s `{ ok }`

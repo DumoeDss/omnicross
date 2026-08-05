@@ -37,6 +37,7 @@ import { routeRequest } from '../provider-proxy/providerProxyRouter';
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { beginAuditCapture } from './auditCapture';
 import { beginBillingCapture } from './billingCapture';
+import { gatewayBindingToEndpointConfig, resolveGatewayBinding } from './gatewayBindingResolver';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
@@ -48,6 +49,7 @@ import { parseModelRef, resolveRoute } from './routeResolver';
 import type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
+  GatewayBinding,
   OutboundApiDeps,
   OutboundEndpoint,
   UserMessageQueueConfig,
@@ -71,6 +73,8 @@ function getFallbackRedeemLimiter(): OutboundRateLimiter {
 /** Per-request config the listener supplies (read live, no restart). */
 export interface OutboundRequestConfig {
   endpoints: EndpointRoutingConfig[];
+  /** Independent key/resource routes; absent keeps legacy endpoint behavior. */
+  bindings?: GatewayBinding[];
   /**
    * User-message serial-queue segment (opt-in; `enabled` default false). When
    * present + enabled the serial queue engages for real user-message turns; the
@@ -224,10 +228,23 @@ export function isModelsListRequest(url: string | undefined): boolean {
 function writeModelsList(
   res: http.ServerResponse,
   config: OutboundRequestConfig,
+  apiKeyId: string,
   allowedEndpoints: readonly OutboundEndpoint[] | undefined,
 ): void {
   const refs: string[] = [];
-  for (const endpoint of config.endpoints) {
+  const endpointConfigs = [...config.endpoints];
+  for (const endpoint of ['chat', 'responses', 'messages', 'gemini'] as const) {
+    if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
+    const bindings = (config.bindings ?? []).filter(
+      (binding) =>
+        binding.enabled &&
+        binding.endpoint === endpoint &&
+        (!binding.apiKeyIds?.length || binding.apiKeyIds.includes(apiKeyId)),
+    );
+    const scoped = bindings.filter((binding) => binding.apiKeyIds?.includes(apiKeyId));
+    endpointConfigs.push(...(scoped.length > 0 ? scoped : bindings.filter((binding) => !binding.apiKeyIds?.length)).map(gatewayBindingToEndpointConfig));
+  }
+  for (const endpoint of endpointConfigs) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint.endpoint)) continue;
     if (endpoint.endpoint === 'chat') refs.push(...(endpoint.models ?? []));
     else if (endpoint.endpoint === 'messages' || endpoint.endpoint === 'responses') {
@@ -385,7 +402,7 @@ export async function handleOutboundRequest(
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
-    writeModelsList(res, config, verified.allowedEndpoints);
+    writeModelsList(res, config, verified.id, verified.allowedEndpoints);
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
@@ -518,7 +535,26 @@ export async function handleOutboundRequest(
     // from real chat-session ids; `verified.id` is a small operator-controlled set,
     // so `sessionBindings` stays bounded (one binding per named key, not per
     // request — `sessionBindings` has no TTL).
-    const sessionId = deps.proxyDeps.apiKeyPool ? `outbound:${verified.id}` : null;
+    const requestedModel = extractRequestedModel(ingressFormat, parsedBody);
+    const role =
+      isKindMappedEndpoint(endpoint) || endpoint === 'chat'
+        ? undefined
+        : detectRequestRole(ingressFormat, parsedBody, {
+            backgroundModelIds: endpointConfig.backgroundModelIds,
+          });
+    const bindingResolution = resolveGatewayBinding({
+      bindings: config.bindings,
+      apiKeyId: verified.id,
+      endpoint,
+      requestedModel,
+      role,
+      fallbackEndpointConfig: endpointConfig,
+    });
+    const effectiveEndpointConfig = bindingResolution.config;
+    const bindingAffinitySuffix = bindingResolution.binding ? `:${bindingResolution.binding.id}` : '';
+    const sessionId = deps.proxyDeps.apiKeyPool
+      ? `outbound:${verified.id}${bindingAffinitySuffix}`
+      : null;
 
     // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
     // (`messages`/`responses`) route by model KIND and carry the client's original
@@ -528,22 +564,20 @@ export async function handleOutboundRequest(
     const resolved =
       isKindMappedEndpoint(endpoint) || endpoint === 'chat'
         ? await resolveRoute({
-            config: endpointConfig,
+            config: effectiveEndpointConfig,
             ingressFormat,
             llmConfig: deps.llmConfig,
             sessionId,
             // Capture the ORIGINAL requested id BEFORE any downstream swap; for
             // kind-mapped endpoints it selects the kind AND is stamped onto
             // `route.requestedModel`; for chat it is matched against the list.
-            requestedModel: extractRequestedModel(ingressFormat, parsedBody),
+            requestedModel,
             // Attribution: stamp the verified named-key id onto the route.
             apiKeyId: verified.id,
           })
         : await resolveRoute({
-            config: endpointConfig,
-            role: detectRequestRole(ingressFormat, parsedBody, {
-              backgroundModelIds: endpointConfig.backgroundModelIds,
-            }),
+            config: effectiveEndpointConfig,
+            role,
             ingressFormat,
             llmConfig: deps.llmConfig,
             sessionId,

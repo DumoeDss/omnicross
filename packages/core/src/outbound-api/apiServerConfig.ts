@@ -37,6 +37,8 @@ import type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   FingerprintConfig,
+  GatewayBinding,
+  GatewayBindingTarget,
   ModelPrefixTargets,
   ModelRef,
   OutboundApiServerConfig,
@@ -557,6 +559,74 @@ function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfi
   return config;
 }
 
+function normalizeBindingTarget(raw: unknown): GatewayBindingTarget | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const target = raw as Record<string, unknown>;
+  const providerId = typeof target.providerId === 'string' ? target.providerId.trim() : '';
+  if (!providerId) return null;
+  if (target.kind === 'account') {
+    const accountId = typeof target.accountId === 'string' ? target.accountId.trim() : '';
+    return accountId ? { kind: 'account', providerId, accountId } : null;
+  }
+  if (target.kind === 'account-group') {
+    const group = typeof target.group === 'string' ? target.group.trim() : '';
+    return group ? { kind: 'account-group', providerId, group } : null;
+  }
+  if (target.kind === 'provider') {
+    const keyId = typeof target.keyId === 'string' ? target.keyId.trim() : '';
+    return keyId ? { kind: 'provider', providerId, keyId } : { kind: 'provider', providerId };
+  }
+  return null;
+}
+
+/** Normalize independent gateway bindings while dropping malformed entries. */
+export function normalizeGatewayBindings(raw: unknown): GatewayBinding[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const bindings: GatewayBinding[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const value = entry as Record<string, unknown>;
+    const id = typeof value.id === 'string' ? value.id.trim() : '';
+    const name = typeof value.name === 'string' ? value.name.trim() : '';
+    const endpoint = value.endpoint as OutboundEndpoint;
+    const target = normalizeBindingTarget(value.target);
+    if (!id || seen.has(id) || !name || !ALL_ENDPOINTS.includes(endpoint) || !target) continue;
+    seen.add(id);
+    const normalizedRoute = normalizeEndpointConfig({
+      ...(value as unknown as EndpointRoutingConfig),
+      endpoint,
+      useSubscription: target.kind !== 'provider',
+    });
+    const apiKeyIds = Array.isArray(value.apiKeyIds)
+      ? [...new Set(value.apiKeyIds.filter((key): key is string => typeof key === 'string' && key.trim() !== '').map((key) => key.trim()))]
+      : [];
+    const priority =
+      typeof value.priority === 'number' && Number.isFinite(value.priority)
+        ? Math.max(0, Math.min(10_000, Math.round(value.priority)))
+        : undefined;
+    const binding: GatewayBinding = {
+      id,
+      name,
+      enabled: value.enabled !== false,
+      endpoint,
+      target,
+      fallback: value.fallback === 'fail' ? 'fail' : 'global',
+    };
+    if (apiKeyIds.length > 0) binding.apiKeyIds = apiKeyIds;
+    if (priority !== undefined) binding.priority = priority;
+    if (normalizedRoute.modelMap) binding.modelMap = normalizedRoute.modelMap;
+    if (normalizedRoute.models) binding.models = normalizedRoute.models;
+    if (normalizedRoute.dispatchMode) binding.dispatchMode = normalizedRoute.dispatchMode;
+    if (normalizedRoute.prefixTargets) binding.prefixTargets = normalizedRoute.prefixTargets;
+    if (normalizedRoute.defaultModel !== undefined) binding.defaultModel = normalizedRoute.defaultModel;
+    if (normalizedRoute.backgroundModel !== undefined) binding.backgroundModel = normalizedRoute.backgroundModel;
+    if (normalizedRoute.backgroundModelIds) binding.backgroundModelIds = normalizedRoute.backgroundModelIds;
+    bindings.push(binding);
+  }
+  return bindings;
+}
+
 /** The default server config: disabled, loopback, four blank endpoints. */
 export function defaultServerConfig(): OutboundApiServerConfig {
   const queues = normalizeQueueSegments(undefined);
@@ -564,6 +634,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     enabled: false,
     networkBinding: false,
     endpoints: ALL_ENDPOINTS.map(defaultEndpointConfig),
+    bindings: [],
     port: DEFAULT_OUTBOUND_PORT,
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
@@ -600,6 +671,7 @@ export function normalizeServerConfig(
     endpoints: ALL_ENDPOINTS.map(
       (ep) => byEndpoint.get(ep) ?? defaultEndpointConfig(ep),
     ),
+    bindings: normalizeGatewayBindings(raw.bindings),
     port: raw.port ?? base.port,
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
@@ -647,6 +719,7 @@ export function mergeServerConfig(
     enabled: patch.enabled ?? current.enabled,
     networkBinding: patch.networkBinding ?? current.networkBinding,
     endpoints: patch.endpoints ?? current.endpoints,
+    bindings: patch.bindings ?? current.bindings,
     port: patch.port ?? current.port,
     userMessageQueue: patch.userMessageQueue ?? current.userMessageQueue,
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,

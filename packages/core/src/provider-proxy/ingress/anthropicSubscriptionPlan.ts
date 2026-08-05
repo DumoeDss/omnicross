@@ -92,6 +92,7 @@ export interface AnthropicCallPlan {
   readonly auth: AuthSource;
   /** Per-request preferred subscription account (subscription routes only). */
   readonly preferredAccountId?: string;
+  readonly preferredAccountGroup?: string;
   /** Strict by default; pool fallback is an explicit endpoint opt-in. */
   readonly boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
   readonly chain: ResolvedTransformerChain;
@@ -254,6 +255,7 @@ export function buildSubscriptionIterationPlan(
   return {
     auth,
     preferredAccountId: route.preferredAccountId,
+    preferredAccountGroup: route.preferredAccountGroup,
     boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
@@ -384,6 +386,7 @@ export async function runPipeline(
     model: resolvedModel,
     sessionKey: plan.sessionKey,
     preferredAccountId: plan.preferredAccountId,
+    preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId, isActive) => {
       proxyAccountId = accountId;
@@ -454,6 +457,7 @@ async function runSubscriptionSameFormatFetch(
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
     preferredAccountId: plan.preferredAccountId,
+    preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId, isActive, remapped) => {
       proxyAccountId = accountId;

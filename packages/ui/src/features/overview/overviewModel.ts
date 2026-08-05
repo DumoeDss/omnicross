@@ -47,8 +47,8 @@ export interface RequestPathStage {
 }
 
 export type OverviewRoute =
-  | { page: 'api-service'; tab: 'status' | 'routes' | 'access-keys' | 'live-traffic' }
-  | { page: 'accounts' }
+  | { page: 'api-service'; tab: 'overview' | 'access' | 'activity' | 'settings' }
+  | { page: 'upstreams'; upstreamFilter?: 'account' }
   | { page: 'integrations' }
   | { page: 'usage-stats' }
   | { page: 'settings'; tab: 'data' | 'advanced' };
@@ -369,48 +369,48 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
 
   const issues: OverviewIssue[] = [];
   if (input.gateway.config.state === 'unavailable') {
-    issues.push(issue('gatewayConfigUnavailable', { page: 'api-service', tab: 'status' }, 'warning'));
+    issues.push(issue('gatewayConfigUnavailable', { page: 'api-service', tab: 'overview' }, 'warning'));
   }
   if (input.gateway.status.state === 'unavailable') {
-    issues.push(issue('gatewayUnavailable', { page: 'api-service', tab: 'status' }, 'blocking'));
+    issues.push(issue('gatewayUnavailable', { page: 'api-service', tab: 'overview' }, 'blocking'));
   } else if (input.gateway.status.state === 'ready' && !status?.running) {
-    issues.push(issue('gatewayStopped', { page: 'api-service', tab: 'status' }, 'blocking'));
+    issues.push(issue('gatewayStopped', { page: 'api-service', tab: 'overview' }, 'blocking'));
   }
   if (input.gateway.keys.state === 'unavailable') {
-    issues.push(issue('accessKeyDataUnavailable', { page: 'api-service', tab: 'access-keys' }, 'warning'));
+    issues.push(issue('accessKeyDataUnavailable', { page: 'api-service', tab: 'access' }, 'warning'));
   } else if (input.gateway.keys.state === 'ready' && enabledKeyCount === 0) {
-    issues.push(issue('noAccessKey', { page: 'api-service', tab: 'access-keys' }, 'blocking'));
+    issues.push(issue('noAccessKey', { page: 'api-service', tab: 'access' }, 'blocking'));
   }
   if (input.gateway.config.state === 'unavailable') {
     // The config gap above already identifies the Gateway status destination;
     // do not turn the same missing read into a fabricated routing failure.
   } else if (input.gateway.config.state === 'ready' && routeCount < 4) {
-    issues.push(issue('routingIncomplete', { page: 'api-service', tab: 'routes' }, routeCount === 0 ? 'blocking' : 'warning'));
+    issues.push(issue('routingIncomplete', { page: 'api-service', tab: 'settings' }, routeCount === 0 ? 'blocking' : 'warning'));
   }
   if (input.accounts.state === 'unavailable') {
-    issues.push(issue('accountDataUnavailable', { page: 'accounts' }, 'warning'));
+    issues.push(issue('accountDataUnavailable', { page: 'upstreams', upstreamFilter: 'account' }, 'warning'));
   } else if (input.accounts.state === 'ready') {
     if (rows.length === 0 && configuredTargetCount === 0) {
-      issues.push(issue('noUpstream', { page: 'accounts' }, 'blocking'));
+      issues.push(issue('noUpstream', { page: 'upstreams', upstreamFilter: 'account' }, 'blocking'));
     } else if (rows.length > 0 && schedulableCount === 0 && configuredTargetCount === 0) {
-      issues.push(issue('noSchedulableAccounts', { page: 'accounts' }, 'blocking'));
+      issues.push(issue('noSchedulableAccounts', { page: 'upstreams', upstreamFilter: 'account' }, 'blocking'));
     }
-    if (abnormalCount > 0) issues.push(issue('abnormalAccounts', { page: 'accounts' }, 'warning', abnormalCount));
+    if (abnormalCount > 0) issues.push(issue('abnormalAccounts', { page: 'upstreams', upstreamFilter: 'account' }, 'warning', abnormalCount));
     if (expiringSoonCount > 0) {
-      issues.push(issue('accountsExpiringSoon', { page: 'accounts' }, 'warning', expiringSoonCount));
+      issues.push(issue('accountsExpiringSoon', { page: 'upstreams', upstreamFilter: 'account' }, 'warning', expiringSoonCount));
     }
   }
   if (input.allowances.state === 'unavailable') {
-    issues.push(issue('allowanceDataUnavailable', { page: 'accounts' }, 'warning'));
+    issues.push(issue('allowanceDataUnavailable', { page: 'upstreams', upstreamFilter: 'account' }, 'warning'));
   } else if (input.allowances.state === 'ready') {
     if (allowanceWatch.unavailableCount > 0) {
-      issues.push(issue('allowanceDataUnavailable', { page: 'accounts' }, 'warning', allowanceWatch.unavailableCount));
+      issues.push(issue('allowanceDataUnavailable', { page: 'upstreams', upstreamFilter: 'account' }, 'warning', allowanceWatch.unavailableCount));
     }
     if (allowanceWatch.nearLimit.length > 0) {
-      issues.push(issue('allowanceNearLimit', { page: 'accounts' }, 'warning', allowanceWatch.nearLimit.length));
+      issues.push(issue('allowanceNearLimit', { page: 'upstreams', upstreamFilter: 'account' }, 'warning', allowanceWatch.nearLimit.length));
     }
     if (allowanceWatch.stale.length > 0) {
-      issues.push(issue('allowanceStale', { page: 'accounts' }, 'warning', allowanceWatch.stale.length));
+      issues.push(issue('allowanceStale', { page: 'upstreams', upstreamFilter: 'account' }, 'warning', allowanceWatch.stale.length));
     }
   }
   if (input.integrations.state === 'unavailable') {
@@ -431,7 +431,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   if (todayAudit.errorRate.state === 'unavailable' && input.usage.state !== 'loading') {
     const auditRoute = todayAudit.errorRateReason === 'audit-disabled'
       ? { page: 'settings', tab: 'data' } as const
-      : { page: 'api-service', tab: 'live-traffic' } as const;
+      : { page: 'api-service', tab: 'activity' } as const;
     issues.push(issue('errorRateUnavailable', auditRoute, 'warning'));
   }
 

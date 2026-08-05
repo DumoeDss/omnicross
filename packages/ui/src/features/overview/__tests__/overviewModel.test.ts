@@ -203,7 +203,7 @@ describe('buildOverviewModel', () => {
       'accountsExpiringSoon',
       'integrationCodexNeedsAttention',
     ]));
-    expect(view.issues.find((entry) => entry.id === 'gatewayStopped')?.route).toEqual({ page: 'api-service', tab: 'status' });
+    expect(view.issues.find((entry) => entry.id === 'gatewayStopped')?.route).toEqual({ page: 'api-service', tab: 'overview' });
     expect(view.issues.find((entry) => entry.id === 'integrationCodexNeedsAttention')?.route).toEqual({ page: 'integrations' });
   });
 
@@ -269,8 +269,8 @@ describe('buildOverviewModel', () => {
 
     expect(view.allowance.nearLimit).toHaveLength(1);
     expect(view.allowance.stale).toHaveLength(1);
-    expect(view.issues.find((entry) => entry.id === 'allowanceNearLimit')?.route).toEqual({ page: 'accounts' });
-    expect(view.issues.find((entry) => entry.id === 'allowanceStale')?.route).toEqual({ page: 'accounts' });
+    expect(view.issues.find((entry) => entry.id === 'allowanceNearLimit')?.route).toEqual({ page: 'upstreams', upstreamFilter: 'account' });
+    expect(view.issues.find((entry) => entry.id === 'allowanceStale')?.route).toEqual({ page: 'upstreams', upstreamFilter: 'account' });
     expect(view.issues.find((entry) => entry.id === 'integrationClaudeNeedsAttention')?.route).toEqual({ page: 'integrations' });
   });
 
@@ -288,6 +288,6 @@ describe('buildOverviewModel', () => {
       audit: source({ records: baseAudit.records, complete: false }),
     }, NOW);
     expect(capped.today.errorRateReason).toBe('audit-incomplete');
-    expect(capped.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'api-service', tab: 'live-traffic' });
+    expect(capped.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'api-service', tab: 'activity' });
   });
 });

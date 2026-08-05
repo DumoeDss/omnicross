@@ -53,7 +53,7 @@ export function AccountsPage({ route, onNavigate }: AccountsPageProps) {
       (account) => account.id === selectedRouteAccount.accountId,
     ) ?? false;
     if (!exists) {
-      onNavigate({ page: 'accounts', accountFilters: route.accountFilters }, { replace: true });
+      onNavigate({ page: 'upstreams', upstreamFilter: 'account', accountFilters: route.accountFilters }, { replace: true });
     }
   }, [data.providerAccounts, loading, onNavigate, route.accountFilters, route.accountId, route.accountProvider]);
 

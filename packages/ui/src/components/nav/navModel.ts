@@ -1,6 +1,6 @@
 import type { PageId } from '../../shared/state/hashRoute';
 
-export interface NavItemDef { id: PageId; icon: 'overview' | 'gateway' | 'usage' | 'accounts' | 'providers' | 'integrations' | 'settings'; labelKey: string }
+export interface NavItemDef { id: PageId; icon: 'overview' | 'gateway' | 'usage' | 'upstreams' | 'integrations' | 'settings'; labelKey: string }
 export interface NavGroupDef { id: 'run' | 'configure' | 'system'; items: NavItemDef[] }
 
 export const NAV_GROUPS: NavGroupDef[] = [
@@ -15,8 +15,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'configure',
     items: [
-      { id: 'accounts', icon: 'accounts', labelKey: 'nav.accounts' },
-      { id: 'providers', icon: 'providers', labelKey: 'nav.providers' },
+      { id: 'upstreams', icon: 'upstreams', labelKey: 'nav.upstreams' },
       { id: 'integrations', icon: 'integrations', labelKey: 'nav.integrations' },
     ],
   },
@@ -27,7 +26,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
 export const MOBILE_PRIMARY_IDS: readonly PageId[] = [
   'overview',
   'api-service',
-  'accounts',
+  'upstreams',
   'usage-stats',
 ];
 

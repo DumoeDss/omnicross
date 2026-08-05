@@ -55,6 +55,7 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
         reportSelection: hints?.reportSelection,
         resolvedModel: hints?.resolvedModel,
         preferredAccountId: hints?.preferredAccountId,
+        preferredAccountGroup: hints?.preferredAccountGroup,
         boundAccountFallbackPolicy: hints?.boundAccountFallbackPolicy,
       },
     );

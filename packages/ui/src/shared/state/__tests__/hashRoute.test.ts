@@ -11,11 +11,11 @@ import {
 
 describe('hashRoute', () => {
   it('restores pages and supported nested tabs', () => {
-    expect(parseHashRoute('#/api-service/routes')).toEqual({ page: 'api-service', tab: 'routes' });
+    expect(parseHashRoute('#/api-service/routes')).toEqual({ page: 'api-service', tab: 'settings' });
     expect(parseHashRoute('#/settings/pricing')).toEqual({ page: 'settings', tab: 'pricing' });
     expect(parseHashRoute('#/settings/advanced')).toEqual({ page: 'settings', tab: 'advanced' });
     expect(routeToHash({ page: 'api-service', tab: 'status' })).toBe('#/api-service');
-    expect(routeToHash({ page: 'api-service', tab: 'live-traffic' })).toBe('#/api-service/live-traffic');
+    expect(routeToHash({ page: 'api-service', tab: 'live-traffic' })).toBe('#/api-service/activity');
     expect(routeToHash({ page: 'settings', tab: 'pricing' })).toBe('#/settings/pricing');
   });
 
@@ -24,16 +24,26 @@ describe('hashRoute', () => {
     expect(parseHashRoute('#/api-service/nope')).toEqual({ page: 'api-service' });
   });
 
-  it('redirects every pre-P4 Gateway and Settings tab explicitly', () => {
-    expect(parseHashRoute('#/api-service/overview')).toEqual({ page: 'api-service', tab: 'status' });
-    expect(parseHashRoute('#/api-service/endpoints')).toEqual({ page: 'api-service', tab: 'routes' });
-    expect(parseHashRoute('#/api-service/access')).toEqual({ page: 'api-service', tab: 'access-keys' });
+  it('redirects every legacy Gateway and Settings tab explicitly', () => {
+    expect(parseHashRoute('#/api-service/status')).toEqual({ page: 'api-service', tab: 'overview' });
+    expect(parseHashRoute('#/api-service/endpoints')).toEqual({ page: 'api-service', tab: 'settings' });
+    expect(parseHashRoute('#/api-service/access-keys')).toEqual({ page: 'api-service', tab: 'access' });
+    expect(parseHashRoute('#/api-service/live-traffic')).toEqual({ page: 'api-service', tab: 'activity' });
+    expect(parseHashRoute('#/api-service/access')).toEqual({ page: 'api-service', tab: 'access' });
     expect(parseHashRoute('#/api-service/network')).toEqual({ page: 'settings', tab: 'network' });
     expect(parseHashRoute('#/api-service/advanced')).toEqual({ page: 'settings', tab: 'advanced' });
     expect(parseHashRoute('#/settings/scheduling')).toEqual({ page: 'settings', tab: 'advanced' });
     expect(parseHashRoute('#/settings/audit')).toEqual({ page: 'settings', tab: 'data' });
     expect(parseHashRoute('#/settings/privacy')).toEqual({ page: 'settings', tab: 'security' });
-    expect(Object.keys(LEGACY_API_TAB_REDIRECTS)).toEqual(['overview', 'endpoints', 'access', 'network', 'advanced']);
+    expect(Object.keys(LEGACY_API_TAB_REDIRECTS)).toEqual([
+      'status',
+      'routes',
+      'access-keys',
+      'live-traffic',
+      'endpoints',
+      'network',
+      'advanced',
+    ]);
     expect(Object.keys(LEGACY_SETTINGS_TAB_REDIRECTS)).toEqual(['scheduling', 'audit', 'privacy']);
   });
 
@@ -44,7 +54,10 @@ describe('hashRoute', () => {
 
   it('round-trips account selection, detail tab, meaningful filters, and unsafe text safely', () => {
     const route = {
-      page: 'accounts' as const,
+      page: 'upstreams' as const,
+      upstreamKind: 'account' as const,
+      upstreamFilter: 'account' as const,
+      upstreamQuery: 'email + label',
       accountProvider: 'claude' as const,
       accountId: 'account/one?region=cn&中文',
       accountTab: 'diagnostics' as const,
@@ -62,32 +75,42 @@ describe('hashRoute', () => {
 
     const hash = routeToHash(route);
     expect(hash).toContain('accountId=account%2Fone%3Fregion%3Dcn%26%E4%B8%AD%E6%96%87');
+    expect(hash).toContain('accountHealth=rate_limited');
     expect(parseHashRoute(hash)).toEqual(route);
   });
 
-  it('omits defaults and rejects invalid or partial account route values', () => {
+  it('redirects legacy account/provider bookmarks and rejects invalid selections', () => {
     expect(routeToHash({
-      page: 'accounts',
+      page: 'upstreams',
+      upstreamKind: 'account',
+      upstreamFilter: 'account',
       accountProvider: 'codex',
       accountId: 'one',
       accountTab: 'overview',
       accountFilters: { query: '', provider: 'all', sort: 'priority', direction: 'asc' },
-    })).toBe('#/accounts?accountProvider=codex&accountId=one');
+    })).toBe('#/upstreams?kind=account&filter=account&accountProvider=codex&accountId=one');
 
-    expect(parseHashRoute('#/accounts?accountProvider=unknown&accountId=one&detail=wat&provider=unknown&health=wat&sort=wat')).toEqual({ page: 'accounts' });
+    expect(parseHashRoute('#/accounts?accountProvider=unknown&accountId=one&detail=wat&provider=unknown&health=wat&sort=wat')).toEqual({ page: 'upstreams', upstreamFilter: 'account' });
     expect(parseHashRoute('#/accounts?accountProvider=claude&detail=diagnostics&q=needle')).toEqual({
-      page: 'accounts',
+      page: 'upstreams',
+      upstreamFilter: 'account',
+      upstreamQuery: 'needle',
       accountFilters: { query: 'needle' },
     });
-    expect(parseHashRoute('#/accounts?accountProvider=claude&accountId=one&accountId=two')).toEqual({ page: 'accounts' });
-    expect(parseHashRoute('#/accounts?q=%ZZ')).toEqual({ page: 'accounts' });
-    expect(routeToHash({ page: 'accounts', accountProvider: 'claude', accountId: 'bad\u0000id' })).toBe('#/accounts');
+    expect(parseHashRoute('#/accounts?accountProvider=claude&accountId=one&accountId=two')).toEqual({ page: 'upstreams', upstreamFilter: 'account' });
+    expect(parseHashRoute('#/accounts?q=%ZZ')).toEqual({ page: 'upstreams', upstreamFilter: 'account' });
+    expect(parseHashRoute('#/providers?providerId=openrouter')).toEqual({
+      page: 'upstreams',
+      upstreamFilter: 'provider',
+      upstreamProviderId: 'openrouter',
+    });
+    expect(routeToHash({ page: 'upstreams', upstreamKind: 'account', accountProvider: 'claude', accountId: 'bad\u0000id' })).toBe('#/upstreams?kind=account');
   });
 
   it('provides pure selection helpers for async reconciliation and closing', () => {
-    const route = { page: 'accounts' as const, accountProvider: 'gemini' as const, accountId: 'gone', accountTab: 'allowance' as const, accountFilters: { query: 'keep' } };
+    const route = { page: 'upstreams' as const, upstreamKind: 'account' as const, accountProvider: 'gemini' as const, accountId: 'gone', accountTab: 'allowance' as const, accountFilters: { query: 'keep' } };
     expect(selectedAccountFromRoute(route)).toEqual({ providerId: 'gemini', accountId: 'gone' });
-    expect(withoutSelectedAccount(route)).toEqual({ page: 'accounts', accountFilters: { query: 'keep' } });
-    expect(selectedAccountFromRoute({ page: 'accounts', accountProvider: 'gemini' })).toBeNull();
+    expect(withoutSelectedAccount(route)).toEqual({ page: 'upstreams', upstreamKind: 'account', accountFilters: { query: 'keep' } });
+    expect(selectedAccountFromRoute({ page: 'upstreams', accountProvider: 'gemini' })).toBeNull();
   });
 });

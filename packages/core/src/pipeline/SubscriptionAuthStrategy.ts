@@ -59,6 +59,8 @@ export interface AuthApplyHints {
    * pool fallback. Absent bindings keep pool auto-scheduling.
    */
   preferredAccountId?: string;
+  /** Optional account group selected by a resource-level gateway binding. */
+  preferredAccountGroup?: string;
   /** `'pool'` is an explicit opt-in; strict is the default for bindings. */
   boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
 }

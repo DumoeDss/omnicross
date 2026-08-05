@@ -207,7 +207,7 @@ function AccountsEvidence({
         icon={Users}
         title={t('overview.accounts.title')}
         description={t('overview.accounts.description')}
-        action={<Button variant="ghost" size="sm" onClick={() => onNavigate({ page: 'accounts' })}>{t('overview.accounts.open')}</Button>}
+        action={<Button variant="ghost" size="sm" onClick={() => onNavigate({ page: 'upstreams', upstreamFilter: 'account' })}>{t('overview.accounts.open')}</Button>}
       />
       <div className="mt-4">
         <EvidenceRow

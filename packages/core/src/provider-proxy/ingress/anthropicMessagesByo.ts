@@ -200,7 +200,14 @@ async function buildByoPlan(
   // key is threaded explicitly as `runOnce(outcome.newKey)` → `keyOverride`
   // (`plan.apiKey` stays readonly/frozen to the first choice), so the bound key
   // === the key actually sent upstream on every attempt.
-  const apiKey = await resolvePoolBoundKey(deps, providerId, provider, route.sessionId);
+  const apiKey = await resolvePoolBoundKey(
+    deps,
+    providerId,
+    provider,
+    route.sessionId,
+    route.preferredKeyId,
+    route.boundKeyFallbackPolicy,
+  );
   if (!apiKey) {
     writeError(res, 502, 'API key not configured');
     return null;

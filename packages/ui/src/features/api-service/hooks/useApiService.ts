@@ -28,6 +28,7 @@ import type {
   AuditRecord,
   BillingDeliveryStatus,
   EndpointRoutingConfig,
+  GatewayBinding,
   MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -66,6 +67,7 @@ export interface UseApiServiceResult {
   setEnabled: (enabled: boolean) => Promise<void>;
   setNetworkBinding: (networkBinding: boolean) => Promise<void>;
   updateEndpoint: (endpoint: EndpointRoutingConfig) => Promise<void>;
+  updateBindings: (bindings: GatewayBinding[]) => Promise<void>;
   createKey: (name: string) => Promise<boolean>;
   revokeKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
@@ -334,6 +336,13 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const updateBindings = useCallback(
+    async (bindings: GatewayBinding[]) => {
+      await runWrite(() => agent.apiService.updateBindings(bindings));
+    },
+    [runWrite],
+  );
+
   const updateAllowanceSchedulingConfig = useCallback(
     async (allowanceScheduling: NonNullable<OutboundApiServerConfig['allowanceScheduling']>) => {
       await runWrite(() => agent.apiService.updateAllowanceSchedulingConfig(allowanceScheduling));
@@ -454,6 +463,7 @@ export function useApiService(): UseApiServiceResult {
     setEnabled,
     setNetworkBinding,
     updateEndpoint,
+    updateBindings,
     createKey,
     revokeKey,
     setKeyEnabled,

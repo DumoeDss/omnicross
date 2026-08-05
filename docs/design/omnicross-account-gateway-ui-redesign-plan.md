@@ -839,3 +839,119 @@ integration state 保存安装前相关键值与安装后哈希。卸载规则�
 - 当前环境的浏览器运行时没有可用实例，因此未能执行真实宽屏/320–375 px 截图和交互回归；移动 More 面板已通过静态几何约束、无障碍结构、UI 测试与生产构建验证，发布前仍建议补一次 Tauri/浏览器实机走查；
 - UI 当前生产包仍有单 chunk 超过 500 kB 的 Vite 告警，后续可按页面动态 import 拆包；
 - 桌面完整安装包构建会重复装载约 206 MB daemon/Node runtime 并进行 SOLID LZMA 压缩，适合发布流水线；日常验证应优先使用 `cargo check` 和 `tauri build --no-bundle`。
+
+---
+
+## 18. P6—P9：资源工作台与路由归属调整
+
+P0—P5 解决了账号正确性、客户端接入、限额、基础管理页和全局信息架构。后续调整不推翻这些能力，而是修正两个仍然割裂的心智模型：
+
+- Account 与 Provider 都是可承接请求的上游资源，却分散在两个一级页面；
+- 路由实际选择某个上游资源，却集中在与资源脱离的全局 Routes 页面。
+
+### 18.1 P6：独立 Gateway Binding 契约
+
+新增独立 `GatewayBinding` 聚合，不把客户端路由字段写入账号、Provider 或 Key DTO：
+
+```ts
+interface GatewayBinding {
+  id: string;
+  name: string;
+  enabled: boolean;
+  apiKeyIds?: string[];
+  endpoint: 'chat' | 'responses' | 'messages' | 'gemini';
+  target:
+    | { kind: 'account'; providerId: string; accountId: string }
+    | { kind: 'account-group'; providerId: string; group: string }
+    | { kind: 'provider'; providerId: string; keyId?: string };
+  priority?: number;
+  fallback: 'global' | 'fail';
+  // 与 endpoint 类型对应的模型映射字段
+}
+```
+
+约束：
+
+- 一个 Binding 只属于一个端点和一个上游目标；需要覆盖多个端点时创建多个 Binding；
+- 指定客户端 Key 的 Binding 优先于不限定 Key 的 Binding；同级按较小 `priority` 优先；
+- `fallback: fail` 保持资源绑定并返回可操作错误；`fallback: global` 显式退回旧 endpoint/pool；
+- Account Group 是账号 `group` 的运行时聚合，不增加新的账号存储实体；
+- 旧 `EndpointRoutingConfig` 保留为全局/高级 fallback，不做破坏性迁移；
+- 配置标准化、部分更新和旧客户端 PUT 必须保留未知于旧 UI 的 Binding 数组。
+
+### 18.2 P7：Upstreams 一级工作台
+
+把 Accounts 与 Providers 合并为唯一的 **Upstreams** 一级页面。页面的单一任务是回答：“当前有哪些上游资源，每个资源能否承接请求，它接收哪些路由？”
+
+```text
+┌ Upstreams ───────────────────── Add account · Add provider ┐
+│ Search · All · Accounts · Groups · Providers               │
+├ resource list ─────────────┬ selected resource              │
+│ ● Account                  │ identity / health              │
+│ ◉ Account group            │ client key → endpoint          │
+│ ◆ Provider                 │        → upstream → model      │
+│                            │ bindings / fallback / details  │
+└────────────────────────────┴────────────────────────────────┘
+```
+
+交互规则：
+
+- 一级页面以资源浏览、健康状态和路由状态为主；OAuth、手动 Token、Provider 创建表单全部进入 Dialog；
+- 混合资源列表同时展示 Account、由 Account 聚合出的 Group、已配置或可配置的 Provider；
+- Account 详情保留额度、调度、网络和诊断能力，并增加 Routes；
+- Provider 详情复用既有 Provider 表单、模型管理和 Key Pool，不复制第二套业务逻辑；
+- Group 详情展示成员和直接作用于该组的 Binding；
+- 路由区域采用贯穿列表与详情的“信号路径”表达：`Client Key → Endpoint → Resource → Model / Fallback`；这是本轮唯一强化的视觉识别元素；
+- `#/accounts` 与 `#/providers` 作为旧书签入口重定向到 `#/upstreams`，并保留可恢复的筛选、账号详情和 Provider 选择。
+
+### 18.3 P8：Gateway 重新按运行任务分组
+
+Gateway 不再保留独立 Routes 标签，改为：
+
+- **Overview**：服务启停、地址、端点可用性、Binding 覆盖率、当前队列摘要；
+- **Access**：客户端 Key、Integration Key、权限、限流、预算、兑换码，以及每个 Key 的反向 Binding 关联；
+- **Activity**：实时并发、等待队列、近期错误与审计入口；
+- **Settings**：旧 `EndpointRoutingConfig` 的全局 fallback、网络和其他 Gateway 低频设置入口。
+
+旧 `#/api-service/routes` 重定向到 Settings；资源的日常路由编辑只能从 Upstreams 或 Access Key 反向关联进入。全局 endpoint 编辑器必须明确标注为高级 fallback，避免用户把它误认为资源路由的主要入口。
+
+### 18.4 P9：兼容、验证与发布边界
+
+- 只修改 Omnicross 仓库；不修改外部宿主或 Provider 插件仓；
+- `GatewayBinding`、账号组和指定 Provider Key 都是可选增量字段；未配置 Binding 时请求路径必须与 P5 完全一致；
+- 不给 `ProviderConfigSource` 增加必需方法，不给 `LLMProvider` 或账号 DTO 增加 Binding 字段；
+- 指定 `boundKeyId` 后默认严格失败，只有显式 pool/global fallback 才选择其他 Key；升级测试必须覆盖旧配置中的失效 Key；
+- 发布前验证 core、subscriptions、daemon、ui 的类型检查、聚焦测试、全仓测试与构建；
+- 增加真实 HTTP 请求链路测试，证明客户端 Key 选择正确 Binding、Account Group 严格选择和全局 fallback；
+- 用依赖审计证明外部宿主仍可停留在旧版本；未来升级核心包时另行接入 Binding Schema 和宿主委托路径。
+
+### 18.5 实施结果
+
+- **独立配置契约：** `GatewayBinding` 已作为 `OutboundApiServerConfig` 的可选聚合加入 core，并贯通标准化、默认配置、部分更新、daemon 管理 API、热更新和 UI adapter。旧配置没有 `bindings` 时标准化为安全的空数组；只更新旧字段不会清空现有 Binding。
+- **确定性选择：** 请求验证客户端 Key 后才解析 Binding；限定客户端 Key 的候选优先于全局候选，同级按 `priority` 和稳定 id 排序。Binding 只投影到本次请求使用的 Endpoint 配置，不修改账号、Provider 或 Key 的持久化身份。
+- **账号与账号组：** Account Binding 默认严格选中指定账号；Group Binding 从现有账号 `group` 字段聚合候选。严格模式在组缺失、组内无可调度账号或无令牌时失败；只有显式 `global` 才重新进入完整账号池。
+- **Provider Key：** Provider Binding 可精确选择 Key Pool 中的 Key。Key 不存在、停用或冷却时默认严格失败；只有显式 `global` 才使用正常 Key Pool。Anthropic 委托路径在调用宿主 factory 前完成 Key 解析，避免旧宿主忽略新增提示后产生静默回退。
+- **Upstreams：** Accounts 与 Providers 已合并为单一一级工作台，混合显示 Account、Account Group 与 Provider；创建流程位于二级 Dialog。账号详情复用原额度、调度和诊断工作区，Provider 详情复用现有配置、模型与 Key Pool 逻辑，三类资源都在详情内管理自己的 Binding。
+- **路由表达：** 路由列表与编辑器统一使用 `Client Key → Endpoint → Resource → Model / Fallback` 信号路径；这是本轮唯一强化的视觉元素。旧 Accounts/Providers hash 会恢复筛选和选中资源后重定向至 Upstreams。
+- **Gateway：** 一级任务已收束为 Overview、Access、Activity、Settings。Overview 展示服务、地址、Binding 覆盖率与队列摘要；Access 展示客户端 Key 及其 Binding 反向关联；Activity 展示实时队列与近期错误；Settings 明确把旧 Endpoint 编辑器标为高级全局 fallback。旧 Routes hash 重定向到 Settings。
+
+### 18.6 宿主兼容清单
+
+- `bindings` 在持久配置和 `applyConfig()` 输入中都是可选字段；停留在旧包版本的宿主不受当前源码变化影响，升级后不传该字段也保持原请求路径。
+- `ProviderConfigSource` 没有新增必需方法，`LLMProvider`、订阅账号和 Provider Key DTO 没有加入 Binding 字段；新增的账号组、账号 fallback 和 Key fallback 提示均为可选字段。
+- Anthropic 账号/账号组 Binding 通过包装本次请求的 `subscriptionProfile.authStrategy` 注入，旧 handler factory 即使忽略新增提示也能执行正确账号选择。
+- Anthropic Provider Key Binding 在调用 handler factory 前由 core 解析，严格 Key 不可用时不会进入宿主；显式 global fallback 才恢复正常 Key Pool。
+- 外部宿主未来升级 core 包并希望暴露本功能时，只需在自己的 Schema、配置存储与 `applyConfig()` 转发中加入可选 `bindings`，再按自身产品边界决定是否提供管理 UI；Provider 插件无需为本批修改数据契约。
+
+### 18.7 2026-08-06 验证记录
+
+- P6—P9 聚焦回归覆盖 14 个测试文件、70 项测试，包含 Binding 解析/标准化、账号/账号组选择、Anthropic 委托、Provider Key、daemon 管理 API、真实 HTTP 热更新、Upstreams/Gateway UI model、hash 重定向和四语关键文案。
+- 首轮全仓测试发现未命中 Binding 的旧请求被错误加入 `:global` 会话后缀；实现已改为只有实际命中 Binding 才加入 Binding id。补充的回归测试同时证明旧 `outbound:<clientKeyId>` 亲和键保持不变、Binding 路由使用独立亲和命名空间。
+- `npm run typecheck`：contracts、core、subscriptions、cli-launcher、daemon、ui 六个 workspace 全部通过；修复兼容性回归后又单独复核 core typecheck。
+- `npm test`：222 个测试文件通过，1967 项测试通过，1 项既有测试跳过。
+- `npm run build`：六个 workspace 全部构建成功；UI 仍有已知的单 chunk 超过 500 kB 告警，没有新增构建错误。
+- 真实 daemon + 本地 mock upstream 测试证明：客户端 Key 作用域 Binding 优先于全局 Binding；Account Group 严格选择；Group 缺失或无可用凭证时严格失败且不访问上游；显式 global 可回退完整账号池；Provider Key 精确选择、严格失败和显式 global fallback 均按契约执行；管理 API 更新后配置持久化并立即热生效。
+- 依赖审计确认外部宿主仍固定使用旧版 vendored 包，Provider 插件只消费未变更的 contracts 包。本批没有修改这两个仓库；仓库、NOTICE 和历史文档中也没有引入外部项目名称或归属引用。
+- 72 个本批文本文件完成严格 UTF-8 解码检查，没有替换字符或乱码候选；唯一 BOM 属于原文件既有格式且未发生变化。JSON 语法、diff whitespace 和新增字面量 i18n key 均通过检查。
+
+P6—P9 完成后的最终模型是：**客户端凭证属于 Access，上游身份属于 Upstreams，二者通过独立 Binding 连接；Gateway 负责运行状态和全局兜底，而不是替资源持有全部路由。**

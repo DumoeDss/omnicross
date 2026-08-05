@@ -28,7 +28,11 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createNamedKey, loadServerConfig } from '@omnicross/core/outbound-api';
+import {
+  createNamedKey,
+  type GatewayBinding,
+  loadServerConfig,
+} from '@omnicross/core/outbound-api';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
@@ -94,6 +98,36 @@ let tmpDir: string;
 let upstream: MockUpstream;
 let daemon: Daemon;
 let baseUrl: string;
+
+async function applyBindings(bindings: GatewayBinding[]): Promise<void> {
+  const config = await loadServerConfig(daemon.settingsStore);
+  await daemon.outboundApiServer.applyConfig({
+    enabled: true,
+    networkBinding: config.networkBinding,
+    endpoints: config.endpoints,
+    bindings,
+    // Keep the existing listener stable while changing only live route data.
+    port: daemon.outboundApiServer.getStatus().port,
+  });
+}
+
+function providerKeyBinding(options: {
+  clientKeyId: string;
+  providerKeyId: string;
+  fallback?: GatewayBinding['fallback'];
+}): GatewayBinding {
+  return {
+    id: `provider-key-${options.providerKeyId}`,
+    name: 'Provider key route',
+    enabled: true,
+    apiKeyIds: [options.clientKeyId],
+    endpoint: 'chat',
+    target: { kind: 'provider', providerId: 'mock', keyId: options.providerKeyId },
+    fallback: options.fallback ?? 'fail',
+    models: ['mock-model'],
+    dispatchMode: 'list',
+  };
+}
 
 function writeConfig(path: string, providerBase: string): void {
   const cfg = {
@@ -222,5 +256,53 @@ describe('omnicross daemon outbound pool failover (e2e, daemon prod code unchang
     const bindings = (daemon.apiKeyPool as unknown as { sessionBindings: Map<string, unknown> })
       .sessionBindings;
     expect(bindings.size).toBe(1);
+  });
+});
+
+describe('omnicross daemon provider-key bindings (real HTTP)', () => {
+  it('sends a key-scoped route through the selected provider key', async () => {
+    const created = await createNamedKey(daemon.keyDb, 'provider-key-binding');
+    await applyBindings([providerKeyBinding({ clientKeyId: created.id, providerKeyId: 'k2' })]);
+
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${created.plaintextOnce}` },
+      body: JSON.stringify({ model: 'mock-model', messages: [{ role: 'user', content: 'bound-key' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.keysSeen).toEqual([KEY_2]);
+  });
+
+  it('an unavailable selected key fails strictly before an upstream call', async () => {
+    const created = await createNamedKey(daemon.keyDb, 'missing-provider-key');
+    await applyBindings([providerKeyBinding({ clientKeyId: created.id, providerKeyId: 'missing' })]);
+
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${created.plaintextOnce}` },
+      body: JSON.stringify({ model: 'mock-model', messages: [{ role: 'user', content: 'strict-missing' }] }),
+    });
+
+    expect(res.status).toBe(502);
+    expect(upstream.keysSeen).toEqual([]);
+  });
+
+  it('an unavailable selected key uses the pool only with explicit global fallback', async () => {
+    const created = await createNamedKey(daemon.keyDb, 'fallback-provider-key');
+    await applyBindings([providerKeyBinding({
+      clientKeyId: created.id,
+      providerKeyId: 'missing',
+      fallback: 'global',
+    })]);
+
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${created.plaintextOnce}` },
+      body: JSON.stringify({ model: 'mock-model', messages: [{ role: 'user', content: 'pool-fallback' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.keysSeen).toEqual([KEY_1, KEY_2]);
   });
 });

@@ -9,7 +9,7 @@
  * import `@omnicross/subscriptions` (the cross-layer litmus stays 0).
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProviderConfigSource } from '../../ports/provider-config-source';
 import type { SubscriptionDispatchProfile } from '../../provider-proxy/types';
@@ -99,6 +99,47 @@ describe('routeResolver — opaque subscriptionConfig seam', () => {
     if (!codexResult.ok) return;
     expect(codexResult.route.preferredAccountId).toBe('acct-codex');
     expect(codexResult.route.boundAccountFallbackPolicy).toBe('strict');
+  });
+
+  it('injects account-group hints into a delegated Anthropic profile for older hosts', async () => {
+    const applyHeaders = vi.fn(async () => {});
+    const profile: SubscriptionDispatchProfile = {
+      providerId: 'claude',
+      displayName: 'Claude',
+      mode: 'transformer',
+      authStrategy: {
+        kind: 'oauth-bearer',
+        providerId: 'claude',
+        applyHeaders,
+        onUnauthorized: async () => false,
+        describeStatus: async () => ({ providerId: 'claude', status: 'configured' }),
+      },
+    };
+    setSubscriptionRegistryForOutbound({ getProfile: (id) => id === 'claude' ? profile : null });
+
+    const result = await resolveRoute({
+      config: {
+        ...messagesConfig('claude,claude-sonnet-4-5'),
+        boundAccountGroup: 'team-a',
+        boundAccountFallbackPolicy: 'strict',
+      },
+      role: 'default',
+      ingressFormat: 'anthropic-messages',
+      llmConfig: NO_BYO_LLM_CONFIG,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const delegated = result.route.anthropicSdkHints?.subscriptionProfile;
+    expect(delegated).toBeDefined();
+    expect(result.route.subscriptionProfile).toBe(profile);
+    await delegated?.authStrategy.applyHeaders({}, { sessionKey: 'session-a' });
+    expect(applyHeaders).toHaveBeenCalledWith({}, {
+      sessionKey: 'session-a',
+      preferredAccountId: undefined,
+      preferredAccountGroup: 'team-a',
+      boundAccountFallbackPolicy: 'strict',
+    });
   });
 
   it('opencodego route → route.subscriptionConfig is populated from the registry getter', async () => {

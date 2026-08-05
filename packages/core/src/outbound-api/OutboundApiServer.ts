@@ -39,6 +39,7 @@ import { OutboundRateLimiter } from './outboundRateLimiter';
 import type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
+  GatewayBinding,
   OutboundApiDeps,
   OutboundApiServerStatus,
   OutboundFormatUrls,
@@ -57,6 +58,8 @@ export interface ApplyConfigInput {
   enabled: boolean;
   networkBinding: boolean;
   endpoints: EndpointRoutingConfig[];
+  /** Independent resource bindings; absent preserves legacy endpoint routing. */
+  bindings?: GatewayBinding[];
   port?: number;
   /** User-message serial-queue segment (normalized/defaulted by core). */
   userMessageQueue?: UserMessageQueueConfig;
@@ -93,6 +96,7 @@ export class OutboundApiServer {
   private boundPort = 0;
   private boundAddr = LOOPBACK_ADDR;
   private endpoints: EndpointRoutingConfig[] = [];
+  private bindings: GatewayBinding[] = [];
   private userMessageQueue: UserMessageQueueConfig | undefined;
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private voucherConfig: VoucherConfig | undefined;
@@ -126,6 +130,7 @@ export class OutboundApiServer {
    */
   async applyConfig(input: ApplyConfigInput): Promise<void> {
     this.endpoints = input.endpoints;
+    this.bindings = input.bindings ?? [];
     // Queue segments are read live per request (no restart on a queue-only
     // change) — store them in place before the bindChanged early-return below.
     this.userMessageQueue = input.userMessageQueue;
@@ -231,6 +236,7 @@ export class OutboundApiServer {
       this.deps,
       {
         endpoints: this.endpoints,
+        bindings: this.bindings,
         userMessageQueue: this.userMessageQueue,
         concurrencyQueue: this.concurrencyQueue,
         voucher: this.voucherConfig,

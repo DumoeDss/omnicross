@@ -88,6 +88,7 @@ export async function runStart(argv: string[]): Promise<StartResult> {
       enabled: true,
       networkBinding: serverConfig.networkBinding,
       endpoints: serverConfig.endpoints,
+      bindings: serverConfig.bindings,
       port: serverConfig.port,
       userMessageQueue: serverConfig.userMessageQueue,
       concurrencyQueue: serverConfig.concurrencyQueue,

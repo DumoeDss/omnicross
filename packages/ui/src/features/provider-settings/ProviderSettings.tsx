@@ -1,5 +1,5 @@
 import { KeyRound, X } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/shared/state/LocaleContext';
@@ -12,7 +12,24 @@ import { ProviderDetails } from './ProviderDetails';
 import { ProviderForm } from './ProviderForm';
 import { ProviderList } from './ProviderList';
 
-export function ProviderSettings() {
+export interface ProviderSettingsProps {
+  /** Hide the provider list so an owning workbench can supply resource navigation. */
+  embedded?: boolean;
+  selectedProviderId?: string | null;
+  onSelectedProviderChange?: (providerId: string | null) => void;
+  /** Open directly in the provider creation form. */
+  mode?: 'manage' | 'create';
+  /** Resource-owned route editor inserted above provider configuration. */
+  routePanel?: React.ReactNode;
+}
+
+export function ProviderSettings({
+  embedded = false,
+  selectedProviderId: controlledProviderId,
+  onSelectedProviderChange,
+  mode = 'manage',
+  routePanel,
+}: ProviderSettingsProps = {}) {
   const t = useTranslation();
   // Re-entry banner dismiss state (per-view, resets on remount) — non-blocking.
   const [reentryDismissed, setReentryDismissed] = useState(false);
@@ -96,7 +113,17 @@ export function ProviderSettings() {
     handleToggleModelEnabled,
     loadModelDiscovery,
     onShowEditModelDialog
-  } = useProviderSettings();
+  } = useProviderSettings({
+    selectedProviderId: controlledProviderId,
+    onSelectedProviderChange,
+  });
+
+  const initializedMode = useRef(false);
+  useEffect(() => {
+    if (mode !== 'create' || initializedMode.current) return;
+    initializedMode.current = true;
+    handleAddProvider();
+  }, [handleAddProvider, mode]);
 
   const showReentryBanner = missingKeyCount > 0 && !reentryDismissed;
 
@@ -107,7 +134,7 @@ export function ProviderSettings() {
             dismissible — shown when ≥1 enabled provider has no stored key
             (e.g. a new machine / restored profile where machine-local secrets
             did not travel). Affected rows are identifiable via `hasKey`. */}
-        {showReentryBanner ? (
+        {showReentryBanner && !embedded ? (
           <div
             className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 bg-surface-2/60 text-sm"
             role="status"
@@ -131,22 +158,29 @@ export function ProviderSettings() {
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Panel - Provider List */}
-        <ProviderList
-          providers={providers}
-          loading={providersLoading}
-          selectedProviderId={selectedProviderId}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          onSelectProvider={handleSelectProvider}
-          onAddProvider={handleAddProvider}
-          onReorderProviders={handleReorderProviders}
-          isAddingNew={isAddingNew}
-        />
+        {!embedded ? (
+          <ProviderList
+            providers={providers}
+            loading={providersLoading}
+            selectedProviderId={selectedProviderId}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            onSelectProvider={handleSelectProvider}
+            onAddProvider={handleAddProvider}
+            onReorderProviders={handleReorderProviders}
+            isAddingNew={isAddingNew}
+          />
+        ) : null}
 
         {/* Right Panel - Details/Form */}
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface-1/60 wallpaper-blur">
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
+            {!isAddingNew && !isEditing && routePanel ? (
+              <div className="border-b border-border/70 bg-surface-0/50 p-4 sm:p-5">
+                {routePanel}
+              </div>
+            ) : null}
             {isAddingNew ? (
               <ProviderForm
                 isEditing={false}

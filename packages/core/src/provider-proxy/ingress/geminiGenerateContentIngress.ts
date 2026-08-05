@@ -202,7 +202,14 @@ async function buildByoPlan(
   // sessionId, this SEEDS the session binding and returns the pool-selected key
   // so 429/529/401/403 failover fires. Otherwise it byte-identically falls back
   // to the provider row's `$ENV`-resolved key.
-  const apiKey = await resolvePoolBoundKey(deps, providerId, provider, route.sessionId);
+  const apiKey = await resolvePoolBoundKey(
+    deps,
+    providerId,
+    provider,
+    route.sessionId,
+    route.preferredKeyId,
+    route.boundKeyFallbackPolicy,
+  );
   if (!apiKey) {
     writeError(res, 502, 'API key not configured');
     return null;

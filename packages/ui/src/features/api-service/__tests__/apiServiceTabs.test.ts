@@ -10,10 +10,10 @@ import {
 describe('API service information architecture', () => {
   it('keeps the four gateway tasks in a stable request-path order', () => {
     expect(API_SERVICE_TABS.map((tab) => tab.id)).toEqual([
-      'status',
-      'routes',
-      'access-keys',
-      'live-traffic',
+      'overview',
+      'access',
+      'activity',
+      'settings',
     ]);
   });
 
@@ -25,22 +25,25 @@ describe('API service information architecture', () => {
     expect(new Set(mappedSections).size).toBe(Object.keys(API_SERVICE_SECTION_TAB).length);
   });
 
-  it('keeps status concise and moves operational settings into Settings', () => {
-    expect(sectionsForApiServiceTab('status')).toEqual([
+  it('keeps overview concise and places legacy routing in Settings', () => {
+    expect(sectionsForApiServiceTab('overview')).toEqual([
       'serverStatus',
       'serviceControls',
       'queueStatus',
+      'bindingCoverage',
     ]);
-    expect(sectionsForApiServiceTab('access-keys')).toEqual(['accessKeys', 'vouchers']);
-    expect(sectionsForApiServiceTab('live-traffic')).toEqual(['liveTrafficQueue', 'recentErrors']);
+    expect(sectionsForApiServiceTab('access')).toEqual(['accessKeys', 'vouchers']);
+    expect(sectionsForApiServiceTab('activity')).toEqual(['liveTrafficQueue', 'recentErrors']);
+    expect(sectionsForApiServiceTab('settings')).toEqual(['endpointRouting']);
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('networkBinding');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('requestQueue');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('upstreamProxy');
   });
 
   it('normalizes old in-memory callers while hashes redirect at the route boundary', () => {
-    expect(normalizeApiServiceTab('overview')).toBe('status');
-    expect(normalizeApiServiceTab('endpoints')).toBe('routes');
-    expect(normalizeApiServiceTab('access')).toBe('access-keys');
+    expect(normalizeApiServiceTab('status')).toBe('overview');
+    expect(normalizeApiServiceTab('endpoints')).toBe('settings');
+    expect(normalizeApiServiceTab('access-keys')).toBe('access');
+    expect(normalizeApiServiceTab('live-traffic')).toBe('activity');
   });
 });

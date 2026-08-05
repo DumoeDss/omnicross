@@ -71,6 +71,7 @@ interface ResponsesCallPlan {
   readonly sessionKey?: string;
   /** Per-request preferred subscription account (subscription routes only). */
   readonly preferredAccountId?: string;
+  readonly preferredAccountGroup?: string;
   /** Strict by default; pool fallback is an explicit endpoint opt-in. */
   readonly boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
   readonly chain: ResolvedTransformerChain;
@@ -179,7 +180,14 @@ async function buildByoPlan(
   // sessionId, this SEEDS the session binding and returns the pool-selected key
   // so 429/529/401/403 failover fires. Otherwise it byte-identically falls back
   // to the provider row's `$ENV`-resolved key.
-  const apiKey = await resolvePoolBoundKey(deps, providerId, provider, route.sessionId);
+  const apiKey = await resolvePoolBoundKey(
+    deps,
+    providerId,
+    provider,
+    route.sessionId,
+    route.preferredKeyId,
+    route.boundKeyFallbackPolicy,
+  );
   if (!apiKey) {
     writeError(res, 502, 'API key not configured');
     return null;
@@ -275,6 +283,7 @@ async function buildSubscriptionPlan(
       transformerProvider.geminiProject = await resolveGeminiCodeAssistProject(profile, {
         sessionKey,
         preferredAccountId: route.preferredAccountId,
+        preferredAccountGroup: route.preferredAccountGroup,
         boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
       });
     } catch (err) {
@@ -291,6 +300,7 @@ async function buildSubscriptionPlan(
     auth,
     sessionKey,
     preferredAccountId: route.preferredAccountId,
+    preferredAccountGroup: route.preferredAccountGroup,
     boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
@@ -324,6 +334,7 @@ async function resolveGeminiCodeAssistProject(
         hints?: {
           sessionKey?: string;
           preferredAccountId?: string;
+          preferredAccountGroup?: string;
           boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
         },
       ) => Promise<void>;
@@ -332,6 +343,7 @@ async function resolveGeminiCodeAssistProject(
   hints: {
     sessionKey?: string;
     preferredAccountId?: string;
+    preferredAccountGroup?: string;
     boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
   },
 ): Promise<string | undefined> {
@@ -377,6 +389,7 @@ async function runPipeline(
     model: resolvedModel,
     sessionKey,
     preferredAccountId: plan.preferredAccountId,
+    preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
     reportSelection: (accountId) => {
       proxyAccountId = accountId;

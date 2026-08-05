@@ -65,7 +65,7 @@ export function AccountManagementWorkspace({ accountsApi, route, onNavigate }: A
     accountTab?: AccountDetailTabId,
     options?: Parameters<RouteNavigate>[1],
   ) => {
-    const next: AppRoute = { page: 'accounts', accountFilters: filters };
+    const next: AppRoute = { page: 'upstreams', upstreamFilter: 'account', accountFilters: filters };
     if (selection) {
       next.accountProvider = selection.providerId;
       next.accountId = selection.accountId;
@@ -77,7 +77,8 @@ export function AccountManagementWorkspace({ accountsApi, route, onNavigate }: A
   const patchFilters = (patch: Partial<AccountFilters>) => {
     const nextFilters = { ...filters, ...patch };
     onNavigate({
-      page: 'accounts',
+      page: 'upstreams',
+      upstreamFilter: 'account',
       accountProvider: route.accountProvider,
       accountId: route.accountId,
       accountTab: route.accountTab,

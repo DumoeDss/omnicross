@@ -213,8 +213,13 @@ export interface AnthropicRouteHandlerParams {
   readonly subscriptionProfile?: SubscriptionDispatchProfile | null;
   /** Bound subscription account forwarded to the host's Anthropic handler. */
   readonly preferredAccountId?: string;
+  readonly preferredAccountGroup?: string;
   /** Strict by default; pool fallback is an explicit endpoint opt-in. */
   readonly boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
+  /** Preferred provider-pool key selected by a resource-level binding. */
+  readonly preferredKeyId?: string;
+  /** Strict by default; pool fallback is an explicit binding opt-in. */
+  readonly boundKeyFallbackPolicy?: BoundAccountFallbackPolicy;
   readonly maxConcurrency?: number;
   /** Instance-level web-search backend; falls back to the proxy-global one. */
   readonly webSearchService?: WebSearchBackend | null;
@@ -316,8 +321,13 @@ export interface AnthropicSdkHints {
   readonly subscriptionProfile?: SubscriptionDispatchProfile | null;
   /** Bound subscription account for the delegated Anthropic path. */
   readonly preferredAccountId?: string;
+  readonly preferredAccountGroup?: string;
   /** Strict by default; pool fallback is an explicit endpoint opt-in. */
   readonly boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
+  /** Preferred provider-pool key for a delegated BYO Anthropic route. */
+  readonly preferredKeyId?: string;
+  /** Strict by default; pool fallback is an explicit binding opt-in. */
+  readonly boundKeyFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Per-request max-concurrency cap for the error-handler semaphore. */
   readonly maxConcurrency?: number;
   /** Instance-level web-search backend (falls back to the proxy-global one). */
@@ -413,8 +423,14 @@ export interface RouteContext {
    * explicit `'pool'` fallback policy. Undefined ⇒ pool auto-schedule.
    */
   readonly preferredAccountId?: string;
+  /** Account-group binding projected by the outbound gateway. */
+  readonly preferredAccountGroup?: string;
   /** Bound-account behavior; `'pool'` is the explicit fallback opt-in. */
   readonly boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
+  /** Optional provider key selected by a resource-level gateway binding. */
+  readonly preferredKeyId?: string;
+  /** Strict by default; `'pool'` permits normal provider key selection. */
+  readonly boundKeyFallbackPolicy?: BoundAccountFallbackPolicy;
   /**
    * OPAQUE per-account subscription config (opencodego-only). Populated by the
    * route resolver from the subscription registry's `getOpenCodeGoConfig()`

@@ -54,6 +54,7 @@ export {
   normalizeAudit,
   normalizeBilling,
   normalizeFingerprint,
+  normalizeGatewayBindings,
   normalizePrefixTargets,
   normalizeProxyConfig,
   normalizeProxySegment,
@@ -65,6 +66,12 @@ export {
   OUTBOUND_API_SERVER_CONFIG_KEY,
   saveServerConfig,
 } from './apiServerConfig';
+export {
+  gatewayBindingToEndpointConfig,
+  resolveGatewayBinding,
+  type GatewayBindingResolution,
+  type ResolveGatewayBindingInput,
+} from './gatewayBindingResolver';
 export {
   AUDIT_REDACTED,
   redactAuditText,
@@ -186,6 +193,9 @@ export type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   FingerprintConfig,
+  GatewayBinding,
+  GatewayBindingFallback,
+  GatewayBindingTarget,
   KindMappedEndpoint,
   MessagesModelKind,
   ModelKind,

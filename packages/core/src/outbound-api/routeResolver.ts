@@ -25,10 +25,12 @@
  */
 
 import type { ProviderConfigSource } from '../ports/provider-config-source';
+import type { AuthApplyHints } from '../pipeline/SubscriptionAuthStrategy';
 import type {
   AnthropicSdkHints,
   IngressFormat,
   RouteContext,
+  SubscriptionDispatchProfile,
   TargetProviderFormat,
 } from '../provider-proxy';
 
@@ -47,6 +49,45 @@ import type {
 } from './types';
 
 export { isSubscriptionProviderId } from './subscriptionSupport';
+
+/**
+ * Preserve account/group bindings across a host-owned Anthropic delegation.
+ * Older hosts already call the profile strategy but do not know the newer
+ * route-level hint fields, so the wrapper injects them at that stable seam.
+ * With no binding it returns the original profile by identity.
+ */
+function bindDelegatedSubscriptionProfile(
+  profile: SubscriptionDispatchProfile,
+  config: EndpointRoutingConfig,
+): SubscriptionDispatchProfile {
+  const preferredAccountId = config.boundAccountId;
+  const preferredAccountGroup = config.boundAccountGroup;
+  const boundAccountFallbackPolicy = config.boundAccountFallbackPolicy;
+  if (!preferredAccountId && !preferredAccountGroup) return profile;
+
+  const strategy = profile.authStrategy;
+  return {
+    ...profile,
+    authStrategy: {
+      kind: strategy.kind,
+      providerId: strategy.providerId,
+      applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
+        return strategy.applyHeaders(headers, {
+          ...hints,
+          preferredAccountId,
+          preferredAccountGroup,
+          boundAccountFallbackPolicy,
+        });
+      },
+      onUnauthorized(sessionKey?: string): Promise<boolean> {
+        return strategy.onUnauthorized(sessionKey);
+      },
+      describeStatus() {
+        return strategy.describeStatus();
+      },
+    },
+  };
+}
 
 /** A 503-style resolution failure. */
 export interface RouteResolveError {
@@ -282,6 +323,8 @@ export async function resolveRoute(args: {
       apiKey: resolveApiKey(provider.api_key),
       isOfficialProvider,
       passThrough: false,
+      preferredKeyId: config.boundKeyId,
+      boundKeyFallbackPolicy: config.boundKeyFallbackPolicy,
       attribution: { sessionId, apiKeyId: args.apiKeyId ?? null },
     };
   }
@@ -293,6 +336,8 @@ export async function resolveRoute(args: {
     ingressFormat,
     authMode: 'byo',
     providerId,
+    preferredKeyId: config.boundKeyId,
+    boundKeyFallbackPolicy: config.boundKeyFallbackPolicy,
     // Passthrough gate: the client's ORIGINAL requested id (kind-mapped only).
     requestedModel,
     // Usage attribution: the verified named-key id (undefined for internal traffic).
@@ -382,8 +427,9 @@ async function resolveSubscriptionRoute(args: {
     apiKey: '',
     isOfficialProvider: false,
     passThrough: false,
-    subscriptionProfile: profile,
+    subscriptionProfile: bindDelegatedSubscriptionProfile(profile, config),
     preferredAccountId: config.boundAccountId,
+    preferredAccountGroup: config.boundAccountGroup,
     boundAccountFallbackPolicy: config.boundAccountFallbackPolicy,
     attribution: { sessionId, apiKeyId: apiKeyId ?? null },
   };
@@ -432,6 +478,7 @@ async function resolveSubscriptionRoute(args: {
     subscriptionConfig,
     // Per-request preferred account (provider/subscription duality); undefined ⇒ pool.
     preferredAccountId: config.boundAccountId,
+    preferredAccountGroup: config.boundAccountGroup,
     boundAccountFallbackPolicy: config.boundAccountFallbackPolicy,
     anthropicSdkHints: hints,
   };

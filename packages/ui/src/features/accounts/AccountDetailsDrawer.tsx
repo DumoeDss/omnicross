@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Gauge, Network, Settings2, ShieldAlert, Trash2 } from 'lucide-react';
+import { Activity, AlertTriangle, Gauge, Network, Route, Settings2, ShieldAlert, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -37,11 +37,13 @@ interface AccountDetailsDrawerProps {
   onTest: () => Promise<{ success: boolean; ok?: boolean; message?: string }>;
   onLoadEvents: () => Promise<{ success: boolean; events: AccountProbeRecord[]; message?: string }>;
   onRefreshAllowance?: () => Promise<{ success: boolean; message?: string }>;
+  routePanel?: React.ReactNode;
   onRemove: () => void;
 }
 
 const TAB_ICONS = {
   overview: Activity,
+  routes: Route,
   allowance: Gauge,
   scheduling: Settings2,
   network: Network,
@@ -61,6 +63,7 @@ export function AccountDetailsDrawer({
   onTest,
   onLoadEvents,
   onRefreshAllowance,
+  routePanel,
   onRemove,
 }: AccountDetailsDrawerProps) {
   const t = useTranslation();
@@ -185,6 +188,14 @@ export function AccountDetailsDrawer({
                   loading={false}
                   onRefresh={account.providerId === 'claude' ? onRefreshAllowance : undefined}
                 />
+              ) : null}
+
+              {tab === 'routes' ? (
+                routePanel ?? (
+                  <p className="rounded-lg border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+                    {t('upstreams.routes.openFromUpstreams')}
+                  </p>
+                )
               ) : null}
 
               {tab === 'scheduling' ? (

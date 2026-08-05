@@ -146,10 +146,18 @@ export interface EndpointRoutingConfig {
    */
   boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /**
+   * Runtime-only account-group selector used by a {@link GatewayBinding}.
+   * Legacy endpoint persistence does not synthesize this field; it is projected
+   * from an independent binding immediately before route resolution.
+   */
+  boundAccountGroup?: string;
+  /**
    * OPTIONAL provider-mode binding to ONE specific BYO key id (from the
    * provider's key pool). Absent/blank ⇒ the provider's default key / key pool.
    */
   boundKeyId?: string;
+  /** Strict by default; `'pool'` permits the provider's normal key pool. */
+  boundKeyFallbackPolicy?: BoundAccountFallbackPolicy;
   /**
    * OPTIONAL "background model id" override list (role-based `gemini` only).
    * When set, an incoming requested model id appearing in this list is
@@ -230,6 +238,55 @@ export interface AccountProbeConfig {
   staggerMs: number;
 }
 
+/** A resource selected by a client-to-upstream gateway binding. */
+export type GatewayBindingTarget =
+  | {
+      kind: 'account';
+      providerId: string;
+      accountId: string;
+    }
+  | {
+      kind: 'account-group';
+      providerId: string;
+      group: string;
+    }
+  | {
+      kind: 'provider';
+      providerId: string;
+      keyId?: string;
+    };
+
+/** Behavior when a binding cannot serve the requested model or credential. */
+export type GatewayBindingFallback = 'global' | 'fail';
+
+/**
+ * Independent client-to-upstream route aggregate.
+ *
+ * A binding belongs to exactly one endpoint and one upstream resource. Keeping
+ * it separate from account/provider DTOs lets the same resource participate in
+ * multiple client-key routes without changing its identity or secret shape.
+ */
+export interface GatewayBinding {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** Absent means every client key; a non-empty list scopes the binding. */
+  apiKeyIds?: string[];
+  endpoint: OutboundEndpoint;
+  target: GatewayBindingTarget;
+  /** Lower values win. Key-scoped bindings win before this comparison. */
+  priority?: number;
+  /** Global falls back to the legacy endpoint/pool; fail keeps the binding strict. */
+  fallback: GatewayBindingFallback;
+  modelMap?: Record<string, ModelRef>;
+  models?: ModelRef[];
+  dispatchMode?: ChatDispatchMode;
+  prefixTargets?: ModelPrefixTargets;
+  defaultModel?: ModelRef;
+  backgroundModel?: ModelRef;
+  backgroundModelIds?: string[];
+}
+
 /**
  * Optional allowance-aware account scheduling. Default-off keeps allowance
  * telemetry display-only. When enabled, only fresh Claude/Codex snapshots are
@@ -286,6 +343,11 @@ export interface OutboundApiServerConfig {
   networkBinding: boolean;
   /** Per-endpoint routing config, one per endpoint (4 entries). */
   endpoints: EndpointRoutingConfig[];
+  /**
+   * Resource-centric routes. Optional for embedders pinned to the legacy
+   * endpoint model; normalized Omnicross configs carry an array.
+   */
+  bindings?: GatewayBinding[];
   /** Persisted port (fixed default; falls back to ephemeral on EADDRINUSE). */
   port?: number;
   /**

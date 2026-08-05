@@ -8,14 +8,14 @@ import type { SubscriptionProviderId } from '@/daemon/types';
 export type PageId =
   | 'overview'
   | 'api-service'
-  | 'accounts'
-  | 'providers'
+  | 'upstreams'
   | 'integrations'
   | 'usage-stats'
   | 'settings';
 
 export type AccountDetailTabId =
   | 'overview'
+  | 'routes'
   | 'allowance'
   | 'scheduling'
   | 'network'
@@ -23,6 +23,7 @@ export type AccountDetailTabId =
   | 'danger';
 
 export type AccountRouteFilters = Partial<AccountFilters>;
+export type UpstreamKind = 'account' | 'account-group' | 'provider';
 
 export interface AppRoute {
   page: PageId;
@@ -31,6 +32,11 @@ export interface AppRoute {
   accountId?: string;
   accountTab?: AccountDetailTabId;
   accountFilters?: AccountRouteFilters;
+  upstreamKind?: UpstreamKind;
+  upstreamFilter?: UpstreamKind | 'all';
+  upstreamProviderId?: string;
+  upstreamGroup?: string;
+  upstreamQuery?: string;
 }
 
 export interface AccountRouteSelection {
@@ -48,13 +54,12 @@ export type RouteNavigate = (route: AppRoute, options?: NavigateOptions) => void
 const PAGE_IDS = new Set<PageId>([
   'overview',
   'api-service',
-  'accounts',
-  'providers',
+  'upstreams',
   'integrations',
   'usage-stats',
   'settings',
 ]);
-const API_TABS = new Set<ApiServiceTabId>(['status', 'routes', 'access-keys', 'live-traffic']);
+const API_TABS = new Set<ApiServiceTabId>(['overview', 'access', 'activity', 'settings']);
 const SETTINGS_TABS = new Set<SettingsTabId>([
   'general',
   'network',
@@ -68,6 +73,7 @@ const SETTINGS_TABS = new Set<SettingsTabId>([
 const ACCOUNT_PROVIDERS = new Set<SubscriptionProviderId>(['claude', 'codex', 'gemini', 'opencodego']);
 const ACCOUNT_DETAIL_TABS = new Set<AccountDetailTabId>([
   'overview',
+  'routes',
   'allowance',
   'scheduling',
   'network',
@@ -108,9 +114,11 @@ export const DEFAULT_ROUTE: AppRoute = { page: 'overview' };
 
 /** Explicit redirects for hashes written by the pre-P4 Gateway tabs. */
 export const LEGACY_API_TAB_REDIRECTS: Readonly<Record<string, AppRoute>> = {
-  overview: { page: 'api-service', tab: 'status' },
-  endpoints: { page: 'api-service', tab: 'routes' },
-  access: { page: 'api-service', tab: 'access-keys' },
+  status: { page: 'api-service', tab: 'overview' },
+  routes: { page: 'api-service', tab: 'settings' },
+  'access-keys': { page: 'api-service', tab: 'access' },
+  'live-traffic': { page: 'api-service', tab: 'activity' },
+  endpoints: { page: 'api-service', tab: 'settings' },
   network: { page: 'settings', tab: 'network' },
   advanced: { page: 'settings', tab: 'advanced' },
 };
@@ -127,6 +135,9 @@ export const LEGACY_PAGE_REDIRECTS: Readonly<Record<string, AppRoute>> = {
   pricing: { page: 'settings', tab: 'pricing' },
   'code-cli': { page: 'integrations' },
 };
+
+const UPSTREAM_KINDS = new Set<UpstreamKind>(['account', 'account-group', 'provider']);
+const UPSTREAM_FILTERS = new Set<UpstreamKind | 'all'>(['all', ...UPSTREAM_KINDS]);
 
 const MAX_ROUTE_TEXT_LENGTH = 512;
 
@@ -188,6 +199,25 @@ function accountFiltersFromQuery(params: URLSearchParams): AccountRouteFilters |
   return Object.keys(filters).length ? filters : undefined;
 }
 
+function accountFiltersFromUpstreamsQuery(params: URLSearchParams): AccountRouteFilters | undefined {
+  const accountParams = new URLSearchParams();
+  const mappings = [
+    ['accountQuery', 'q'],
+    ['accountFilterProvider', 'provider'],
+    ['accountGroup', 'group'],
+    ['accountHealth', 'health'],
+    ['accountCredential', 'credential'],
+    ['accountScheduling', 'scheduling'],
+    ['accountSort', 'sort'],
+    ['accountDirection', 'dir'],
+  ] as const;
+  for (const [source, target] of mappings) {
+    const value = singleQueryValue(params, source);
+    if (value !== undefined) accountParams.set(target, value);
+  }
+  return accountFiltersFromQuery(accountParams);
+}
+
 function splitHash(hash: string): { path: string; query: string } {
   const withoutPrefix = hash.replace(/^#/, '').replace(/^\/?/, '');
   const queryIndex = withoutPrefix.indexOf('?');
@@ -202,6 +232,24 @@ function splitHash(hash: string): { path: string; query: string } {
 export function parseHashRoute(hash: string): AppRoute {
   const { path, query: rawQuery } = splitHash(hash);
   const [rawPage = '', rawTab] = path.split('/').filter(Boolean);
+
+  if (rawPage === 'accounts') {
+    const params = parseQuery(rawQuery);
+    if (!params) return { page: 'upstreams', upstreamFilter: 'account' };
+    const route = parseUpstreamsQuery(params, { page: 'upstreams', upstreamFilter: 'account' });
+    delete route.upstreamProviderId;
+    delete route.upstreamGroup;
+    const legacyFilters = accountFiltersFromQuery(params);
+    if (legacyFilters) route.accountFilters = legacyFilters;
+    if (legacyFilters?.query && !route.upstreamQuery) route.upstreamQuery = legacyFilters.query;
+    return route;
+  }
+  if (rawPage === 'providers') {
+    const params = parseQuery(rawQuery);
+    return params
+      ? parseUpstreamsQuery(params, { page: 'upstreams', upstreamFilter: 'provider' })
+      : { page: 'upstreams', upstreamFilter: 'provider' };
+  }
 
   // Keep bookmarks from the previous navigation model useful.
   const legacyPage = LEGACY_PAGE_REDIRECTS[rawPage];
@@ -223,25 +271,37 @@ export function parseHashRoute(hash: string): AppRoute {
   if (page === 'settings' && SETTINGS_TABS.has(rawTab as SettingsTabId)) {
     return { page, tab: rawTab as SettingsTabId };
   }
-  if (page !== 'accounts') return { page };
+  if (page !== 'upstreams') return { page };
 
   const params = parseQuery(rawQuery);
   if (!params) return { page };
+  return parseUpstreamsQuery(params, { page });
+}
+
+function parseUpstreamsQuery(params: URLSearchParams, base: AppRoute): AppRoute {
+  const route: AppRoute = { ...base };
+  const kind = enumValue(singleQueryValue(params, 'kind'), UPSTREAM_KINDS);
+  const filter = enumValue(singleQueryValue(params, 'filter'), UPSTREAM_FILTERS);
+  const query = singleQueryValue(params, 'q');
+  const upstreamProviderId = singleQueryValue(params, 'providerId');
+  const upstreamGroup = singleQueryValue(params, 'group');
+  if (kind) route.upstreamKind = kind;
+  if (filter && filter !== 'all') route.upstreamFilter = filter;
+  if (isSafeRouteText(query) && query.trim()) route.upstreamQuery = query;
+  if (isSafeRouteText(upstreamProviderId)) route.upstreamProviderId = upstreamProviderId;
+  if (isSafeRouteText(upstreamGroup)) route.upstreamGroup = upstreamGroup;
 
   const provider = enumValue(singleQueryValue(params, 'accountProvider'), ACCOUNT_PROVIDERS);
   const accountId = singleQueryValue(params, 'accountId');
   const accountTab = enumValue(singleQueryValue(params, 'detail'), ACCOUNT_DETAIL_TABS);
-  const filters = accountFiltersFromQuery(params);
-  const route: AppRoute = { page };
-
-  // The selection is an all-or-nothing pair. This prevents a malformed or
-  // partial query from opening a drawer against the wrong provider.
   if (provider && isSafeRouteText(accountId)) {
     route.accountProvider = provider;
     route.accountId = accountId;
+    route.upstreamKind = 'account';
     if (accountTab) route.accountTab = accountTab;
   }
-  if (filters) route.accountFilters = filters;
+  const accountFilters = accountFiltersFromUpstreamsQuery(params);
+  if (accountFilters) route.accountFilters = accountFilters;
   return route;
 }
 
@@ -255,7 +315,33 @@ export function withoutSelectedAccount(route: AppRoute): AppRoute {
   return rest;
 }
 
-function appendAccountQuery(params: URLSearchParams, route: AppRoute): void {
+function appendAccountFiltersQuery(params: URLSearchParams, route: AppRoute): void {
+  const filters = route.accountFilters;
+  if (!filters) return;
+  if (isSafeRouteText(filters.query) && filters.query.trim()) params.set('accountQuery', filters.query);
+  const provider = enumValue(filters.provider, new Set(['all', ...ACCOUNT_PROVIDERS] as const));
+  if (provider && provider !== 'all') params.set('accountFilterProvider', provider);
+  if (isSafeRouteText(filters.group) && filters.group !== 'all') params.set('accountGroup', filters.group);
+  const health = enumValue(filters.health, ACCOUNT_HEALTH);
+  if (health && health !== 'all') params.set('accountHealth', health);
+  const credential = enumValue(filters.credential, ACCOUNT_CREDENTIALS);
+  if (credential && credential !== 'all') params.set('accountCredential', credential);
+  const scheduling = enumValue(filters.scheduling, ACCOUNT_SCHEDULING);
+  if (scheduling && scheduling !== 'all') params.set('accountScheduling', scheduling);
+  const sort = enumValue(filters.sort, ACCOUNT_SORTS);
+  if (sort && sort !== 'priority') params.set('accountSort', sort);
+  const direction = enumValue(filters.direction, new Set(['asc', 'desc'] as const));
+  if (direction && direction !== 'asc') params.set('accountDirection', direction);
+}
+
+function appendUpstreamsQuery(params: URLSearchParams, route: AppRoute): void {
+  if (route.upstreamKind && UPSTREAM_KINDS.has(route.upstreamKind)) params.set('kind', route.upstreamKind);
+  if (route.upstreamFilter && route.upstreamFilter !== 'all' && UPSTREAM_FILTERS.has(route.upstreamFilter)) {
+    params.set('filter', route.upstreamFilter);
+  }
+  if (isSafeRouteText(route.upstreamQuery) && route.upstreamQuery.trim()) params.set('q', route.upstreamQuery);
+  if (isSafeRouteText(route.upstreamProviderId)) params.set('providerId', route.upstreamProviderId);
+  if (isSafeRouteText(route.upstreamGroup)) params.set('group', route.upstreamGroup);
   const selection = selectedAccountFromRoute(route);
   if (selection) {
     params.set('accountProvider', selection.providerId);
@@ -264,23 +350,7 @@ function appendAccountQuery(params: URLSearchParams, route: AppRoute): void {
       params.set('detail', route.accountTab);
     }
   }
-
-  const filters = route.accountFilters;
-  if (!filters) return;
-  if (isSafeRouteText(filters.query) && filters.query.trim()) params.set('q', filters.query);
-  const provider = enumValue(filters.provider, new Set(['all', ...ACCOUNT_PROVIDERS] as const));
-  if (provider && provider !== 'all') params.set('provider', provider);
-  if (isSafeRouteText(filters.group) && filters.group !== 'all') params.set('group', filters.group);
-  const health = enumValue(filters.health, ACCOUNT_HEALTH);
-  if (health && health !== 'all') params.set('health', health);
-  const credential = enumValue(filters.credential, ACCOUNT_CREDENTIALS);
-  if (credential && credential !== 'all') params.set('credential', credential);
-  const scheduling = enumValue(filters.scheduling, ACCOUNT_SCHEDULING);
-  if (scheduling && scheduling !== 'all') params.set('scheduling', scheduling);
-  const sort = enumValue(filters.sort, ACCOUNT_SORTS);
-  if (sort && sort !== 'priority') params.set('sort', sort);
-  const direction = enumValue(filters.direction, new Set(['asc', 'desc'] as const));
-  if (direction && direction !== 'asc') params.set('dir', direction);
+  appendAccountFiltersQuery(params, route);
 }
 
 export function routeToHash(route: AppRoute): string {
@@ -290,19 +360,19 @@ export function routeToHash(route: AppRoute): string {
     const legacy = route.tab ? LEGACY_API_TAB_REDIRECTS[route.tab] : undefined;
     if (legacy && legacy.page !== 'api-service') return routeToHash(legacy);
     const tab = legacy?.tab ?? (API_TABS.has(route.tab as ApiServiceTabId) ? route.tab : undefined);
-    return `#/api-service${tab && tab !== 'status' ? `/${tab}` : ''}`;
+    return `#/api-service${tab && tab !== 'overview' ? `/${tab}` : ''}`;
   }
   if (page === 'settings') {
     const legacy = route.tab ? LEGACY_SETTINGS_TAB_REDIRECTS[route.tab] : undefined;
     const tab = legacy?.tab ?? (SETTINGS_TABS.has(route.tab as SettingsTabId) ? route.tab : undefined);
     return `#/settings${tab && tab !== 'general' ? `/${tab}` : ''}`;
   }
-  if (page !== 'accounts') return `#/${page}`;
+  if (page !== 'upstreams') return `#/${page}`;
 
   const params = new URLSearchParams();
-  appendAccountQuery(params, route);
+  appendUpstreamsQuery(params, route);
   const query = params.toString();
-  return `#/accounts${query ? `?${query}` : ''}`;
+  return `#/upstreams${query ? `?${query}` : ''}`;
 }
 
 function readRoute(): AppRoute {

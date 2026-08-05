@@ -26,7 +26,11 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createNamedKey, loadServerConfig } from '@omnicross/core/outbound-api';
+import {
+  createNamedKey,
+  type GatewayBinding,
+  loadServerConfig,
+} from '@omnicross/core/outbound-api';
 import {
   setSubscriptionRegistryForOutbound,
   type SubscriptionRegistryLike,
@@ -90,6 +94,9 @@ let daemon: Daemon;
 let baseUrl: string;
 let adminBase: string;
 let plaintextKey: string;
+let clientKeyId: string;
+let accountAId: string;
+let accountBId: string;
 
 function overrideUpstreamUrl(d: Daemon, providerId: string, mockUrl: string): void {
   const real = d.subscriptionRegistry;
@@ -150,6 +157,41 @@ function postMessages(content = 'ping'): Promise<Response> {
   });
 }
 
+function accountBinding(options: {
+  id: string;
+  target: GatewayBinding['target'];
+  apiKeyIds?: string[];
+  priority?: number;
+  fallback?: GatewayBinding['fallback'];
+}): GatewayBinding {
+  return {
+    id: options.id,
+    name: options.id,
+    enabled: true,
+    apiKeyIds: options.apiKeyIds,
+    endpoint: 'messages',
+    target: options.target,
+    priority: options.priority,
+    fallback: options.fallback ?? 'fail',
+    modelMap: {
+      fable: 'claude-sonnet-4-5',
+      opus: 'claude-sonnet-4-5',
+      sonnet: 'claude-sonnet-4-5',
+      haiku: 'claude-sonnet-4-5',
+    },
+  };
+}
+
+async function setBindings(bindings: GatewayBinding[]): Promise<void> {
+  const updated = await adminFetch('PUT', '/admin/api/server', { bindings });
+  expect(updated.status).toBe(200);
+  expect((await loadServerConfig(daemon.settingsStore)).bindings?.map((binding) => binding.id))
+    .toEqual(bindings.map((binding) => binding.id));
+  // The test intentionally boots on port 0. A config PUT may therefore rebind
+  // to another ephemeral port; follow the live status before issuing traffic.
+  baseUrl = daemon.outboundApiServer.getStatus().loopbackUrl as string;
+}
+
 beforeEach(async () => {
   resetDaemonSingletonsForTests();
   upstream = await startMockUpstream();
@@ -164,16 +206,18 @@ beforeEach(async () => {
   daemon = buildDaemon(config, { configPath, keysPath, tokensPath, masterKeyFilePath: join(tmpDir, 'master.key') });
 
   // Seed TWO claude accounts (distinct bearers) — account A active initially.
-  await daemon.credentialStore.appendProviderAccount(
+  ({ id: accountAId } = await daemon.credentialStore.appendProviderAccount(
     'claude',
     { authMethod: 'oauth', status: 'authorized', accessToken: BEARER_A },
     'Account A',
-  );
-  await daemon.credentialStore.appendProviderAccount(
+  ));
+  ({ id: accountBId } = await daemon.credentialStore.appendProviderAccount(
     'claude',
     { authMethod: 'oauth', status: 'authorized', accessToken: BEARER_B },
     'Account B',
-  );
+  ));
+  await daemon.credentialStore.patchAccountMetadata('claude', accountAId, { group: 'default' });
+  await daemon.credentialStore.patchAccountMetadata('claude', accountBId, { group: 'team-a' });
 
   overrideUpstreamUrl(daemon, 'claude', `http://127.0.0.1:${upstream.port}/v1/messages`);
 
@@ -191,6 +235,7 @@ beforeEach(async () => {
   baseUrl = daemon.outboundApiServer.getStatus().loopbackUrl as string;
   adminBase = daemon.adminServer.getStatus().url as string;
   const created = await createNamedKey(daemon.keyDb, 'multi-boot');
+  clientKeyId = created.id;
   plaintextKey = created.plaintextOnce;
 });
 
@@ -246,5 +291,88 @@ describe('omnicross daemon account pool → both accounts serve /v1/messages', (
     for (let i = 0; i < 4; i++) await postMessages(`post-switch-${i}`);
     const after = await daemon.credentialStore.getFullConfig();
     expect(after.activeClaudeAccountId).toBe(accountA.id);
+  });
+});
+
+describe('omnicross daemon gateway bindings → real /v1/messages routing', () => {
+  it('a client-key-scoped binding outranks an unscoped binding', async () => {
+    await setBindings([
+      accountBinding({
+        id: 'unscoped-a',
+        target: { kind: 'account', providerId: 'claude', accountId: accountAId },
+        priority: 1,
+      }),
+      accountBinding({
+        id: 'scoped-b',
+        target: { kind: 'account', providerId: 'claude', accountId: accountBId },
+        apiKeyIds: [clientKeyId],
+        priority: 999,
+      }),
+    ]);
+
+    const response = await postMessages('client-key-binding');
+    expect(response.status).toBe(200);
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_B}`);
+  });
+
+  it('an account-group binding selects only a member of that group', async () => {
+    await setBindings([
+      accountBinding({
+        id: 'team-a',
+        target: { kind: 'account-group', providerId: 'claude', group: 'team-a' },
+        apiKeyIds: [clientKeyId],
+      }),
+    ]);
+
+    const response = await postMessages('account-group-binding');
+    expect(response.status).toBe(200);
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_B}`);
+  });
+
+  it('a missing strict account group fails without contacting the upstream', async () => {
+    await setBindings([
+      accountBinding({
+        id: 'missing-team',
+        target: { kind: 'account-group', providerId: 'claude', group: 'missing' },
+        apiKeyIds: [clientKeyId],
+      }),
+    ]);
+    const hitsBefore = upstream.hits;
+
+    const response = await postMessages('missing-account-group');
+    expect(response.status).toBe(503);
+    expect(upstream.hits).toBe(hitsBefore);
+  });
+
+  it('global fallback uses the legacy pool when the bound account is unavailable', async () => {
+    await daemon.credentialStore.patchAccountMetadata('claude', accountBId, { enabled: false });
+    await setBindings([
+      accountBinding({
+        id: 'fallback-from-b',
+        target: { kind: 'account', providerId: 'claude', accountId: accountBId },
+        apiKeyIds: [clientKeyId],
+        fallback: 'global',
+      }),
+    ]);
+
+    const response = await postMessages('global-fallback');
+    expect(response.status).toBe(200);
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_A}`);
+  });
+
+  it('global fallback leaves an unavailable account group and uses the full pool', async () => {
+    await daemon.credentialStore.patchAccountMetadata('claude', accountBId, { enabled: false });
+    await setBindings([
+      accountBinding({
+        id: 'fallback-from-team-a',
+        target: { kind: 'account-group', providerId: 'claude', group: 'team-a' },
+        apiKeyIds: [clientKeyId],
+        fallback: 'global',
+      }),
+    ]);
+
+    const response = await postMessages('account-group-global-fallback');
+    expect(response.status).toBe(200);
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_A}`);
   });
 });

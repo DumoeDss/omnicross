@@ -69,6 +69,8 @@ export interface SelectionHealthContext {
    * fallback. Absent bindings retain pool auto-scheduling.
    */
   preferredAccountId?: string;
+  /** Optional account group to prefer/restrict before normal pool scheduling. */
+  preferredAccountGroup?: string;
   /** `'pool'` is the explicit fallback opt-in; bound accounts otherwise fail. */
   boundAccountFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Injectable clock (default `Date.now()` inside the selector). */
@@ -266,6 +268,7 @@ export function readSchedulableAccounts(
     (config[ACCOUNTS_KEY[providerId]] as SubscriptionAccountEntry<unknown>[] | undefined) ?? [];
   const accounts: SchedulableAccount[] = raw.map((a) => ({
     id: a.id,
+    group: typeof a.group === 'string' && a.group.trim() !== '' ? a.group.trim() : providerId,
     priority: a.priority,
     lastUsedAt: a.lastUsedAt,
     createdAt: a.createdAt,
@@ -333,26 +336,75 @@ export async function resolveSelectedToken(
     typeof ctx?.preferredAccountId === 'string' && ctx.preferredAccountId.trim() !== ''
       ? ctx.preferredAccountId.trim()
       : undefined;
+  const preferredGroup =
+    typeof ctx?.preferredAccountGroup === 'string' && ctx.preferredAccountGroup.trim() !== ''
+      ? ctx.preferredAccountGroup.trim()
+      : undefined;
   if (preferredId && ctx && ctx.boundAccountFallbackPolicy !== 'pool') {
     return resolveStrictPreferredToken(tokens, providerId, preferredId, activeGetter, ctx);
   }
   if (selector && tokens.getAccessTokenForAccount) {
     const config = await tokens.getFullConfig();
     const { accounts, activeAccountId, supportedModelsById } = readSchedulableAccounts(config, providerId);
-    const healthAndModelGated = gateSchedulable(
-      accounts,
+    const groupAccounts = preferredGroup
+      ? accounts.filter((account) => account.group === preferredGroup)
+      : accounts;
+    if (preferredGroup && groupAccounts.length === 0 && ctx?.boundAccountFallbackPolicy !== 'pool') {
+      throw new BoundAccountSelectionError(providerId, 'not-found');
+    }
+    let candidates = groupAccounts.length > 0 ? groupAccounts : accounts;
+    let healthAndModelGated = gateSchedulable(
+      candidates,
       providerId,
       health,
       now,
       resolvedModel,
       supportedModelsById,
     );
-    const gated = gateByAllowance(healthAndModelGated, providerId, now);
+    let gated = gateByAllowance(healthAndModelGated, providerId, now);
+    // An explicit global/pool fallback must leave an existing-but-unavailable
+    // group as well as a missing group. Otherwise a disabled group member can
+    // strand selection inside that group despite a healthy provider pool.
+    let groupHasUsableCredential = gated.some((account) => account.schedulable !== false);
+    if (
+      groupHasUsableCredential &&
+      preferredGroup &&
+      ctx?.boundAccountFallbackPolicy === 'pool' &&
+      candidates !== accounts
+    ) {
+      groupHasUsableCredential = false;
+      for (const account of gated) {
+        if (account.schedulable === false) continue;
+        if (await tokens.getAccessTokenForAccount(providerId, account.id)) {
+          groupHasUsableCredential = true;
+          break;
+        }
+      }
+    }
+    if (
+      preferredGroup &&
+      ctx?.boundAccountFallbackPolicy === 'pool' &&
+      candidates !== accounts &&
+      !groupHasUsableCredential
+    ) {
+      candidates = accounts;
+      healthAndModelGated = gateSchedulable(
+        candidates,
+        providerId,
+        health,
+        now,
+        resolvedModel,
+        supportedModelsById,
+      );
+      gated = gateByAllowance(healthAndModelGated, providerId, now);
+    }
     // Gating actually ran only when a tracker OR a resolved model was supplied AND
     // the pool has ≥2 accounts (the single-account degraded policy leaves `gated`
     // ungated). Drives the route-around edge for BOTH health and model gating.
     const poolGated =
-      isPoolGated(accounts, health, resolvedModel) || accounts.some((account) => account.schedulable === false);
+      isPoolGated(candidates, health, resolvedModel) ||
+      candidates.some((account) => account.schedulable === false) ||
+      preferredGroup !== undefined;
     // The remapped model to report for a selected account (object-form map) — or
     // `undefined` (no remap) which the relay treats as "forward the body verbatim".
     const remapFor = (id: string): string | undefined =>
@@ -402,6 +454,13 @@ export async function resolveSelectedToken(
     // (and remaps its outbound model when the sole/active account's map dictates —
     // the documented sole-account remap path).
     if (activeAccountId) {
+      if (
+        preferredGroup &&
+        ctx?.boundAccountFallbackPolicy !== 'pool' &&
+        !candidates.some((account) => account.id === activeAccountId)
+      ) {
+        throw new BoundAccountSelectionError(providerId, 'unavailable');
+      }
       // Unlike transient health/model degradation, an explicit operator disable
       // must never fall through to the active credential, even for a sole account.
       const persistedActive = accounts.find((account) => account.id === activeAccountId);

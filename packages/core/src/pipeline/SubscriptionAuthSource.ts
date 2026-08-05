@@ -193,6 +193,7 @@ export class SubscriptionAuthSource implements AuthSource {
         sessionKey: hints.sessionKey,
         reportSelection: hints.reportSelection,
         preferredAccountId: hints.preferredAccountId,
+        preferredAccountGroup: hints.preferredAccountGroup,
         boundAccountFallbackPolicy: hints.boundAccountFallbackPolicy,
       });
     } catch (err) {

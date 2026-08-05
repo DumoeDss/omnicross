@@ -488,6 +488,7 @@
     "close": "閉じる",
     "copy": "コピー",
     "delete": "削除",
+    "edit": "編集",
     "dismiss": "閉じる",
     "save": "保存",
     "optional": "任意",
@@ -505,6 +506,17 @@
   },
   "nav": {
     "subtitle": "コントロールパネル",
+    "primary": "メインナビゲーション",
+    "more": "その他",
+    "overview": "概要",
+    "gateway": "ゲートウェイ",
+    "upstreams": "アップストリーム",
+    "integrations": "連携",
+    "group": {
+      "run": "運用",
+      "configure": "設定",
+      "system": "システム"
+    },
     "providers": "プロバイダー",
     "apiService": "API サービス",
     "accounts": "アカウント",
@@ -514,11 +526,102 @@
     "pricing": "料金",
     "dashboard": "ダッシュボード"
   },
+  "overview": {
+    "accounts": {
+      "open": "アカウントを開く"
+    }
+  },
+  "upstreams": {
+    "title": "アップストリーム",
+    "description": "ゲートウェイのトラフィックを受け取るアカウント、アカウントグループ、プロバイダーを管理します。",
+    "addAccount": "アカウントを追加",
+    "addProvider": "プロバイダーを追加",
+    "addProviderDescription": "プロバイダーを作成し、モデルとキープールを設定します。",
+    "searchPlaceholder": "アップストリームを検索…",
+    "empty": "この表示条件に一致するアップストリームはありません。",
+    "filter": {
+      "all": "すべて",
+      "account": "アカウント",
+      "account-group": "グループ",
+      "provider": "プロバイダー"
+    },
+    "kind": {
+      "account": "アカウント",
+      "account-group": "アカウントグループ",
+      "provider": "プロバイダー"
+    },
+    "status": {
+      "ready": "利用可能",
+      "disabled": "無効",
+      "needsKey": "キーが必要"
+    },
+    "memberCount": "{{count}} メンバー",
+    "groupSummary": "{{provider}} の {{count}} アカウント",
+    "routeCount": "{{count}} ルート",
+    "manageAccount": "アカウントを管理",
+    "routes": {
+      "title": "ゲートウェイルート",
+      "description": "アップストリームの認証情報を変更せず、クライアントアクセスをこのリソースへ接続します。",
+      "add": "ルートを追加",
+      "empty": "このアップストリームを対象とするルートはありません。",
+      "emptyHint": "利用できるクライアントキーとエンドポイントを指定するルートを追加してください。",
+      "enabled": "有効",
+      "disabled": "無効",
+      "enabledHint": "無効なルートは保存されたままですが、リクエストを受け取りません。",
+      "allClientKeys": "すべてのクライアントキー",
+      "clientKeyScope": "クライアントキーの範囲",
+      "createTitle": "ゲートウェイルートを追加",
+      "editTitle": "ゲートウェイルートを編集",
+      "editorDescription": "クライアントからアップストリームまでの経路とフォールバック動作を指定します。",
+      "name": "ルート名",
+      "endpoint": "エンドポイント",
+      "priority": "優先度",
+      "fallbackLabel": "このルートで処理できない場合",
+      "fallback": {
+        "fail": "リクエストを失敗させる",
+        "global": "グローバルフォールバックを使用"
+      },
+      "priorityFallback": "優先度 {{priority}} · {{fallback}}",
+      "providerKey": "プロバイダーキー",
+      "providerKeyPool": "プロバイダーキープール",
+      "providerKeyHint": "厳密なルーティングにはキーを1つ選択します。プールを使用する場合は未選択のままにします。",
+      "modelMapping": "モデルマッピング",
+      "models": "モデル",
+      "modelsHint": "1行に1つ、またはカンマ区切りでモデル ID を入力します。",
+      "unconfiguredModel": "モデル未設定",
+      "deleteTitle": "このルートを削除しますか？",
+      "deleteDescription": "「{{name}}」を削除します。リクエストは別の一致するルートまたはグローバルフォールバックを使用します。",
+      "signalPath": "{{key}} から {{endpoint}}、{{resource}}、{{model}} へ",
+      "openFromUpstreams": "このアカウントのゲートウェイルートを管理するには、アップストリームから開いてください。"
+    }
+  },
   "apiService": {
     "title": "API サービス",
     "description": "アウトバウンド API サーバー、エンドポイントごとのモデルルーティング、および名前付きアクセスキーを設定します。",
     "loading": "サーバー設定を読み込み中…",
     "loadError": "サーバー設定を読み込めませんでした。デーモンに到達できるか確認してください。",
+    "tabs": {
+      "overview": "概要",
+      "access": "アクセス",
+      "activity": "アクティビティ",
+      "settings": "設定",
+      "status": "ステータス",
+      "routes": "ルート",
+      "accessKeys": "アクセスキー",
+      "liveTraffic": "ライブトラフィック"
+    },
+    "globalFallback": {
+      "title": "グローバルフォールバックルーティング",
+      "description": "リソースルートが一致しない場合に使用する高度なフォールバックです。通常のルートはアップストリームから管理します。"
+    },
+    "bindingCoverage": {
+      "title": "Binding カバレッジ",
+      "description": "4つのエンドポイントでクライアントキーとアップストリームリソースがどのように接続されているか確認します。",
+      "manage": "アップストリームを管理",
+      "bindings": "有効なルート",
+      "endpoints": "対象エンドポイント",
+      "keyScoped": "キー限定ルート"
+    },
     "enable": {
       "label": "アウトバウンドサーバーを有効化",
       "description": "外部の呼び出し元からのリクエストをプロバイダー経由でルーティングするローカル API サーバーを起動します。"
@@ -574,6 +677,11 @@
     "keys": {
       "title": "アクセスキー",
       "description": "外部の呼び出し元が Bearer トークンとして送信する名前付きキーです。完全なキーは作成時に一度だけ表示されます。",
+      "bindings": {
+        "title": "ゲートウェイルート",
+        "count": "適用可能なルート {{count}} 件",
+        "empty": "適用可能なルートなし"
+      },
       "namePlaceholder": "キー名（例: my-cli）",
       "create": "キーを作成",
       "empty": "アクセスキーがまだありません。",
@@ -664,7 +772,9 @@
         "concurrency": "同時実行",
         "holding": "処理中",
         "active": "{{count}} 件実行中",
-        "waiting": "{{count}} 件待機中"
+        "waiting": "{{count}} 件待機中",
+        "idle": "現在、キューで待機中または実行中のリクエストはありません。",
+        "unavailable": "互換性のあるデーモンでゲートウェイが動作すると、ライブキューデータが表示されます。"
       }
     },
     "proxy": {
