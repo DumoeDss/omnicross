@@ -36,6 +36,17 @@ export interface IntegrationInstallRecord {
   installedHash: string;
   installedAt: number;
   gatewayBaseUrl: string;
+  /** Codex auth.json snapshot and installed hash; absent on legacy records. */
+  credentialFile?: IntegrationManagedFileRecord;
+}
+
+export interface IntegrationManagedFileRecord {
+  path: string;
+  originalExisted: boolean;
+  /** Encrypted by IntegrationStateStore before it reaches disk. */
+  originalContent: string;
+  originalHash: string;
+  installedHash: string;
 }
 
 export interface IntegrationGatewayKeyRecord {

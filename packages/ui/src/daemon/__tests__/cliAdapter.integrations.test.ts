@@ -72,7 +72,13 @@ describe('CLI persistent integration adapter', () => {
       configPath: 'C:\\Users\\test\\.codex\\config.toml',
       action: 'install' as const,
       canApply: true,
-      changes: ['model_provider', 'model_providers.omnicross.auth'],
+      changes: [
+        'model_provider',
+        'preferred_auth_method',
+        'model_providers.omnicross',
+        'auth.json.auth_mode',
+        'auth.json.OPENAI_API_KEY',
+      ],
       warnings: [],
     };
     mocked.post.mockResolvedValueOnce({ plan });

@@ -12,7 +12,6 @@
  */
 
 import { runImportCcr } from './commands/import-ccr';
-import { runIntegrationToken } from './commands/integration-token';
 import { runIntegrations } from './commands/integrations';
 import { runKeys } from './commands/keys';
 import { runLaunch } from './commands/launch';
@@ -81,9 +80,6 @@ async function main(): Promise<void> {
       return;
     case 'integrations':
       await runIntegrations(rest);
-      return;
-    case 'integration-token':
-      await runIntegrationToken(rest);
       return;
     case 'import-ccr':
       await runImportCcr(rest);

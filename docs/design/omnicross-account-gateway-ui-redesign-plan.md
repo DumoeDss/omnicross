@@ -161,60 +161,45 @@ flowchart LR
 
 ## 5. CLI 一键接入方案
 
-### 5.1 Codex：写配置，不写原生 OAuth 文件
+### 5.1 Codex：依次写入 TOML 与 API Key 凭证
 
-本地 Codex 源码确认自定义 provider 支持：
-
-- `base_url`
-- `wire_api = "responses"`
-- `requires_openai_auth = false`
-- `auth` 命令式 Bearer Token 获取
-- `env_key`
-- `experimental_bearer_token`
-
-其中 `auth` 可以执行指定命令，把命令 stdout 去除首尾空白后作为 Bearer Token，并支持超时、缓存周期和 401 后重新获取；源码明确说明 `experimental_bearer_token` 不如 `env_key` 安全。因此，对支持该能力的 Codex 版本，推荐安装内容为：
+Codex 的持久接入必须使用其标准 API Key 认证链路。安装时先更新
+`config.toml`，再写入同一 Codex home 下的 `auth.json`：
 
 ```toml
 model_provider = "omnicross"
+preferred_auth_method = "apikey"
 disable_response_storage = true
 
 [model_providers.omnicross]
 name = "Omnicross Local Gateway"
 base_url = "http://127.0.0.1:8765/v1"
 wire_api = "responses"
-requires_openai_auth = false
+requires_openai_auth = true
 supports_websockets = false
-
-[model_providers.omnicross.auth]
-command = "C:/absolute/path/to/omnicross-token-helper.exe"
-args = ["get", "codex"]
-timeout_ms = 5000
-refresh_interval_ms = 300000
 ```
 
-token helper 只向 stdout 输出 Gateway Key，诊断只写 stderr；它从系统凭证库读取密钥，不读取 Codex `auth.json`，也不输出上游 OAuth。这样普通 `codex` 可以直接运行，既跳过 OpenAI / ChatGPT 登录，也无需把 Gateway Key 明文写进 TOML 或等待新终端继承环境变量。
+```json
+{
+  "auth_mode": "apikey",
+  "OPENAI_API_KEY": "<omnicross-gateway-key>"
+}
+```
 
-adapter 必须检测已安装 Codex 是否支持 provider `auth`；旧版本回退到 `env_key`。token helper 使用安装目录下的绝对路径，避免依赖 `PATH`，卸载时一并清理该引用。
-
-提供三种接入模式：
-
-| 模式 | 密钥方式 | 适用场景 | 约束 |
-|---|---|---|---|
-| 命令安全模式（默认） | TOML 写 provider `auth` 命令；helper 从系统凭证库按需读取 | 支持 command auth 的当前 Codex | helper 必须稳定安装、stdout 只能包含 Token |
-| 环境变量模式 | TOML 只写 `env_key`；Gateway Key 进入用户环境 | 不支持 command auth 的旧 Codex | 已打开的旧终端可能需要重开；UI 必须明确提示 |
-| 兼容模式 | TOML 写 `experimental_bearer_token` | 用户明确要求普通 `codex` 立即可用且不依赖环境注入 | 只允许 loopback URL、使用独立最小权限 Key，并明确提示 TOML 中存在明文本地密钥 |
-
-兼容模式写入的也只能是**Omnicross 本地 Gateway Key**，绝不能是上游 OAuth / API 凭证。
+该值只能是 Omnicross 本地 Gateway Key，绝不能是上游 OAuth 或 API
+凭证。adapter 在安装前加密保存两份文件的原始内容与哈希；状态检查、修复、
+密钥轮换和移除同时覆盖两份文件。任何一份发生用户修改时都报告配置漂移，
+不得静默覆盖。
 
 ### 5.2 不能使用简单字符串追加
 
 “一键启用/移除”必须是配置事务：
 
-1. 检测 Codex 路径、版本和当前 TOML；
-2. 解析 TOML，并展示将修改的键；
-3. 保存原值与文件哈希到 Omnicross 自己的 integration state；
-4. 使用保留注释与未知键的结构化编辑器修改；
-5. 同目录临时文件写入后原子替换，并生成一次可恢复备份；
+1. 检测 Codex home、当前 TOML 与 `auth.json`；
+2. 解析 TOML，并展示两份文件中将修改的逻辑键；
+3. 加密保存原值与文件哈希到 Omnicross 自己的 integration state；
+4. 使用保留注释与未知键的结构化编辑器修改 TOML；
+5. 先原子替换 TOML，再原子替换 `auth.json`；任一步失败都回滚两份文件；
 6. 重新解析并执行 `codex` 配置自检；
 7. 卸载时仅恢复 Omnicross 曾接管且未被用户再次修改的键；遇到冲突先显示 diff，不静默覆盖。
 
@@ -246,8 +231,8 @@ Claude 与 Codex 在 UI 上使用同一套安装状态、预览、修复、移�
 - 可限制到 `/v1/messages` 或 `/v1/responses`；
 - 不绑定上游账号；
 - 支持轮换、撤销和最后使用时间；
-- 命令安全模式下原始值保存在系统凭证库，服务端只存验证摘要；
-- LAN 模式切换时重新检查所有明文兼容配置并警告。
+- Gateway Key 以 Codex 要求的格式写入 `auth.json`，原始用户凭证快照只以加密形式保存在 integration state；
+- LAN 模式切换时重新检查本地集成配置并警告。
 
 现有 `OutboundApiServer` 已具备命名 Key 强制鉴权，可在其上增加 Key 类型与 scope，无需新建第二套 API 服务。
 

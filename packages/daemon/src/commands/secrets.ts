@@ -23,7 +23,6 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { maskProviderApiKey } from '../admin/adminApi';
@@ -35,12 +34,10 @@ import {
   validateConfig,
 } from '../config';
 import { encryptTokens, isEnvelope, type SecretBox } from '../secrets';
-import { IntegrationManager, IntegrationStateStore, type IntegrationState } from '../integrations';
-import { JsonOutboundKeyDb } from '../ports/JsonOutboundKeyDb';
+import { IntegrationStateStore, type IntegrationState } from '../integrations';
 
 import {
   defaultIntegrationsPath,
-  defaultKeysPath,
   defaultTokensPath,
   resolveSecretBox,
 } from './paths';
@@ -245,22 +242,6 @@ async function secretsRotate(args: SecretsArgs): Promise<void> {
     if (integrationsPlain) {
       const newStore = new IntegrationStateStore(integrationsPath, newBox);
       newStore.save(integrationsPlain);
-      const codex = integrationsPlain.clients.codex;
-      if (codex) {
-        try {
-          await new IntegrationManager({
-            configPath: resolve(args.config as string),
-            gatewayBaseUrl: codex.gatewayBaseUrl,
-            keyDb: new JsonOutboundKeyDb(defaultKeysPath(args.config as string)),
-            stateStore: newStore,
-            helperArgsSuffix: ['--master-key-file', resolve(args.newMasterKeyFile)],
-          }).repair('codex');
-        } catch (error) {
-          // Keep the old helper usable when its path could not be updated.
-          new IntegrationStateStore(integrationsPath, oldBox).save(integrationsPlain);
-          throw error;
-        }
-      }
     }
   } finally {
     setSecretBox(null);

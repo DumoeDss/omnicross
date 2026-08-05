@@ -21,7 +21,6 @@
  */
 
 import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
@@ -579,9 +578,6 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
         gatewayBaseUrl: live.loopbackUrl ?? `http://127.0.0.1:${port}`,
         keyDb,
         stateStore: integrationStateStore,
-        helperArgsSuffix: paths.masterKeyFilePath
-          ? ['--master-key-file', resolve(paths.masterKeyFilePath)]
-          : undefined,
       });
     },
     // Usage/pricing admin surface (usage-pricing child): stats queries go

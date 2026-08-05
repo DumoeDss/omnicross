@@ -274,6 +274,45 @@ describe('handleOutboundRequest — auth', () => {
     expect(routeMap.size()).toBe(0);
   });
 
+  it('GET /v1/models allows a Responses-scoped integration key and filters its catalog', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({
+      db: makeDb(() => ({
+        ...enabledRow,
+        kind: 'integration',
+        loopbackOnly: true,
+        allowedEndpoints: ['responses'],
+      })),
+      routeMap,
+    });
+    const responsesConfig = {
+      endpoints: [
+        ...config.endpoints,
+        {
+          endpoint: 'responses' as const,
+          modelMap: {
+            codex: 'codex,gpt-5.6-sol',
+            mini: 'codex,gpt-5.6-luna',
+          },
+          useSubscription: true,
+        },
+      ],
+    };
+    const req = new MockReq({
+      headers: { authorization: 'Bearer integration' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, responsesConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.map((model) => model.id)).toEqual(['gpt-5.6-sol', 'gpt-5.6-luna']);
+    expect(routeMap.size()).toBe(0);
+  });
+
   it('GET /v1/models still requires a valid API key', async () => {
     const routeMap = new ProviderProxyRouteMap();
     const deps = makeDeps({ db: makeDb(() => null), routeMap });

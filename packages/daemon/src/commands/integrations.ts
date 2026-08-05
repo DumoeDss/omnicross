@@ -32,9 +32,6 @@ export async function runIntegrations(argv: string[]): Promise<void> {
     gatewayBaseUrl,
     keyDb: new JsonOutboundKeyDb(defaultKeysPath(values.config)),
     stateStore: store,
-    helperArgsSuffix: values['master-key-file']
-      ? ['--master-key-file', resolve(values['master-key-file'])]
-      : undefined,
   });
 
   if (action === 'status') {

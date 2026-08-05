@@ -220,17 +220,32 @@ export function isModelsListRequest(url: string | undefined): boolean {
   return path.endsWith('/models');
 }
 
-/**
- * Serve the chat endpoint's configured model list in the OpenAI `GET /v1/models`
- * shape. The advertised `id` is each ref's modelId — exactly the name
- * `pickModelRefFromList` matches on the request path. An unconfigured chat
- * endpoint serves an empty list (valid shape; the endpoint is simply unused).
- */
-function writeChatModelsList(res: http.ServerResponse, config: OutboundRequestConfig): void {
-  const chat = config.endpoints.find((e) => e.endpoint === 'chat');
-  const data = (chat?.models ?? [])
+/** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
+function writeModelsList(
+  res: http.ServerResponse,
+  config: OutboundRequestConfig,
+  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+): void {
+  const refs: string[] = [];
+  for (const endpoint of config.endpoints) {
+    if (allowedEndpoints && !allowedEndpoints.includes(endpoint.endpoint)) continue;
+    if (endpoint.endpoint === 'chat') refs.push(...(endpoint.models ?? []));
+    else if (endpoint.endpoint === 'messages' || endpoint.endpoint === 'responses') {
+      refs.push(...Object.values(endpoint.modelMap ?? {}));
+    } else {
+      if (endpoint.defaultModel) refs.push(endpoint.defaultModel);
+      if (endpoint.backgroundModel) refs.push(endpoint.backgroundModel);
+    }
+  }
+  const seen = new Set<string>();
+  const data = refs
     .map((ref) => parseModelRef(ref))
     .filter((p): p is NonNullable<typeof p> => p !== null)
+    .filter((p) => {
+      if (seen.has(p.modelId)) return false;
+      seen.add(p.modelId);
+      return true;
+    })
     .map((p) => ({ id: p.modelId, object: 'model', owned_by: 'omnicross' }));
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ object: 'list', data }));
@@ -362,15 +377,15 @@ export async function handleOutboundRequest(
     return;
   }
 
-  // 3. ENDPOINT SELECT. `GET <base>/models` serves the chat endpoint's
-  // configured model list (OpenAI list shape) so generic OpenAI clients can
-  // discover the names to request — handled before the POST-only selection.
+  // 3. ENDPOINT SELECT. `GET <base>/models` is shared discovery metadata rather
+  // than a chat-only operation. A scoped key may discover models for any endpoint
+  // it can use, but never sees models belonging only to another endpoint.
   if (req.method === 'GET' && isModelsListRequest(req.url)) {
-    if (verified.allowedEndpoints && !verified.allowedEndpoints.includes('chat')) {
+    if (verified.allowedEndpoints && verified.allowedEndpoints.length === 0) {
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
-    writeChatModelsList(res, config);
+    writeModelsList(res, config, verified.allowedEndpoints);
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);

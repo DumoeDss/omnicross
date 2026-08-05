@@ -2,6 +2,7 @@ export { IntegrationManager, IntegrationConflictError } from './IntegrationManag
 export { IntegrationStateStore } from './IntegrationStateStore';
 export {
   renderClaudeSettings,
+  renderCodexAuth,
   renderCodexConfig,
   restoreClaudeBase,
   restoreCodexBase,
@@ -11,6 +12,7 @@ export type {
   IntegrationClientStatus,
   IntegrationChangePlan,
   IntegrationInstallRecord,
+  IntegrationManagedFileRecord,
   IntegrationState,
   IntegrationStatusKind,
 } from './types';

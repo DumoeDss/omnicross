@@ -6,8 +6,6 @@ const CLAUDE_API_KEY_SENTINEL = 'omnicross-gateway';
 export interface CodexConfigInput {
   existing: string;
   gatewayBaseUrl: string;
-  helperCommand: string;
-  helperArgs: string[];
 }
 
 /** Lossless outside the two managed regions; uninstall restores the exact snapshot. */
@@ -23,39 +21,54 @@ export function renderCodexConfig(input: CodexConfigInput): string {
   const lines = input.existing.replace(/\r\n/g, '\n').split('\n');
   const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
   const rootEnd = firstTable < 0 ? lines.length : firstTable;
-  const assignments: number[] = [];
+  const assignments: Record<'model_provider' | 'preferred_auth_method', number[]> = {
+    model_provider: [],
+    preferred_auth_method: [],
+  };
   for (let index = 0; index < rootEnd; index += 1) {
-    if (/^\s*model_provider\s*=/.test(lines[index]) && !/^\s*#/.test(lines[index])) {
-      assignments.push(index);
+    if (/^\s*#/.test(lines[index])) continue;
+    for (const key of Object.keys(assignments) as Array<keyof typeof assignments>) {
+      if (new RegExp(`^\\s*${key}\\s*=`).test(lines[index])) assignments[key].push(index);
     }
   }
-  if (assignments.length > 1) throw new Error('Codex config has duplicate top-level model_provider keys');
-  const managedRoot = `model_provider = "${CODEX_PROVIDER}" # managed by Omnicross`;
-  if (assignments.length === 1) lines[assignments[0]] = managedRoot;
-  else lines.splice(rootEnd, 0, managedRoot, '');
+  if (assignments.model_provider.length > 1) {
+    throw new Error('Codex config has duplicate top-level model_provider keys');
+  }
+  if (assignments.preferred_auth_method.length > 1) {
+    throw new Error('Codex config has duplicate top-level preferred_auth_method keys');
+  }
+  const managedRoot: Record<keyof typeof assignments, string> = {
+    model_provider: `model_provider = "${CODEX_PROVIDER}" # managed by Omnicross`,
+    preferred_auth_method: 'preferred_auth_method = "apikey" # managed by Omnicross',
+  };
+  const missing: string[] = [];
+  for (const key of Object.keys(assignments) as Array<keyof typeof assignments>) {
+    const [index] = assignments[key];
+    if (index === undefined) missing.push(managedRoot[key]);
+    else lines[index] = managedRoot[key];
+  }
+  if (missing.length > 0) lines.splice(rootEnd, 0, ...missing, '');
 
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   const base = lines.length > 0 ? `${lines.join('\n')}\n\n` : '';
   const root = trimTrailingSlash(input.gatewayBaseUrl);
-  const args = input.helperArgs.map(tomlString).join(', ');
   const block = [
     CODEX_BEGIN,
     `[model_providers.${CODEX_PROVIDER}]`,
     'name = "Omnicross Local Gateway"',
     `base_url = ${tomlString(`${root}/v1`)}`,
     'wire_api = "responses"',
-    'requires_openai_auth = false',
+    'requires_openai_auth = true',
     'supports_websockets = false',
-    '',
-    `[model_providers.${CODEX_PROVIDER}.auth]`,
-    `command = ${tomlString(input.helperCommand)}`,
-    `args = [${args}]`,
-    'timeout_ms = 5000',
-    'refresh_interval_ms = 300000',
     CODEX_END,
     '',
   ].join('\n');
   return (base + block).replace(/\n/g, eol);
+}
+
+/** Render the file-backed API-key credential shape consumed by Codex. */
+export function renderCodexAuth(secret: string): string {
+  return JSON.stringify({ auth_mode: 'apikey', OPENAI_API_KEY: secret }, null, 2) + '\n';
 }
 
 export function renderClaudeSettings(existing: string, gatewayBaseUrl: string, secret: string): string {
@@ -79,7 +92,7 @@ export function renderClaudeSettings(existing: string, gatewayBaseUrl: string, s
   return JSON.stringify(settings, null, 2) + '\n';
 }
 
-/** Remove our Codex block and restore only the pre-install root selector. */
+/** Remove our Codex block and restore only the pre-install root selectors. */
 export function restoreCodexBase(current: string, original: string): string {
   const hasBegin = current.includes(CODEX_BEGIN);
   const hasEnd = current.includes(CODEX_END);
@@ -94,15 +107,18 @@ export function restoreCodexBase(current: string, original: string): string {
     normalized = normalized.slice(0, start) + (end < 0 ? '' : normalized.slice(end + 1));
   }
 
-  const originalSelector = rootAssignment(original, 'model_provider');
   const lines = normalized.split('\n');
-  const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
-  const rootEnd = firstTable < 0 ? lines.length : firstTable;
-  const managedIndex = lines.slice(0, rootEnd)
-    .findIndex((line) => /^\s*model_provider\s*=\s*["']omnicross["']\s*#\s*managed by Omnicross\s*$/.test(line));
-  if (managedIndex >= 0) {
-    if (originalSelector) lines[managedIndex] = originalSelector;
-    else lines.splice(managedIndex, 1);
+  for (const key of ['model_provider', 'preferred_auth_method'] as const) {
+    const originalAssignment = rootAssignment(original, key);
+    const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
+    const rootEnd = firstTable < 0 ? lines.length : firstTable;
+    const managedIndex = lines.slice(0, rootEnd).findIndex(
+      (line) => new RegExp(`^\\s*${key}\\s*=.*#\\s*managed by Omnicross\\s*$`).test(line),
+    );
+    if (managedIndex >= 0) {
+      if (originalAssignment) lines[managedIndex] = originalAssignment;
+      else lines.splice(managedIndex, 1);
+    }
   }
   return lines.join('\n').replace(/\n/g, eol);
 }

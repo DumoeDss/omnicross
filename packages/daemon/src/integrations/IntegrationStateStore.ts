@@ -61,7 +61,15 @@ function transformClients(
   const out: IntegrationState['clients'] = {};
   for (const client of ['codex', 'claude'] as const) {
     const row = clients[client];
-    if (row) out[client] = { ...row, originalContent: transform(row.originalContent) };
+    if (row) {
+      out[client] = {
+        ...row,
+        originalContent: transform(row.originalContent),
+        credentialFile: row.credentialFile
+          ? { ...row.credentialFile, originalContent: transform(row.credentialFile.originalContent) }
+          : undefined,
+      };
+    }
   }
   return out;
 }
@@ -105,7 +113,16 @@ function isInstallRecord(value: unknown, client: IntegrationClientId): value is 
   return row.client === client && typeof row.configPath === 'string' &&
     typeof row.originalExisted === 'boolean' && typeof row.originalContent === 'string' &&
     typeof row.originalHash === 'string' && typeof row.installedHash === 'string' &&
-    typeof row.installedAt === 'number' && typeof row.gatewayBaseUrl === 'string';
+    typeof row.installedAt === 'number' && typeof row.gatewayBaseUrl === 'string' &&
+    (row.credentialFile === undefined || isManagedFileRecord(row.credentialFile));
+}
+
+function isManagedFileRecord(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.path === 'string' && typeof row.originalExisted === 'boolean' &&
+    typeof row.originalContent === 'string' && typeof row.originalHash === 'string' &&
+    typeof row.installedHash === 'string';
 }
 
 export function atomicWrite(path: string, content: string): void {
