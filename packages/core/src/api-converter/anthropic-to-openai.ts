@@ -22,7 +22,7 @@ import type {
   OpenAIToolCall,
 } from '@omnicross/contracts/completion-types';
 
-import { mapAnthropicStopReason } from './shared';
+import { flattenToolResultContent, mapAnthropicStopReason } from './shared';
 
 /**
  * Convert Anthropic response to OpenAI format.
@@ -146,9 +146,9 @@ export function convertAnthropicRequestToOpenAI(
           });
         } else if (part.type === 'tool_result') {
           toolResultId = part.tool_use_id;
-          toolResultContent = typeof part.content === 'string'
-            ? part.content
-            : JSON.stringify(part.content);
+          // Anthropic tool results are usually a block ARRAY; stringifying it
+          // fed the model the literal `[{"type":"text","text":"…"}]` envelope.
+          toolResultContent = flattenToolResultContent(part.content);
         }
       }
 

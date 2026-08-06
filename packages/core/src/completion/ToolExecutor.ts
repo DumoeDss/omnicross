@@ -11,6 +11,7 @@ import type { SimpleChatMessage } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import type { MCPTool } from '@omnicross/contracts/mcp-types';
 
+import { resolveAnthropicMaxTokens } from '../anthropicMaxTokens';
 import type { Logger } from '../ports/logger';
 import type { AnthropicTool, GeminiTools, McpToolProvider, OpenAITool } from '../tool-types';
 
@@ -112,8 +113,10 @@ export function buildToolRequest(
         role: m.role,
         content: m.content
       })),
-      // Native Anthropic Messages requires this field.
-      max_tokens: options.maxTokens ?? 4096,
+      // Native Anthropic Messages requires this field. Resolve an absent
+      // caller cap to the model's real ceiling rather than a small constant —
+      // see `resolveAnthropicMaxTokens`.
+      max_tokens: resolveAnthropicMaxTokens(actualModel, options.maxTokens),
       temperature: options.temperature ?? 0.7,
       stream: true,
       tools: options.tools

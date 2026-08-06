@@ -23,7 +23,7 @@ import type {
   OpenAIMessage,
 } from '@omnicross/contracts/completion-types';
 
-import { convertOpenAITool, mapOpenAIFinishReason } from './shared';
+import { convertOpenAITool, flattenToolResultContent, mapOpenAIFinishReason } from './shared';
 
 /**
  * Convert OpenAI chat request to Anthropic format.
@@ -54,7 +54,10 @@ export function convertOpenAIToAnthropic(
       const toolResult: AnthropicContentPart = {
         type: 'tool_result',
         tool_use_id: msg.tool_call_id,
-        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        // An OpenAI tool message is normally a plain string, but a parts array
+        // must be flattened to text rather than stringified into a literal
+        // `[{"type":"text",…}]` envelope the model then has to read.
+        content: flattenToolResultContent(msg.content),
       };
 
       const lastMsg = messages[messages.length - 1];

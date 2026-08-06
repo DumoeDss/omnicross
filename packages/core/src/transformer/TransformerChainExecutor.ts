@@ -222,6 +222,12 @@ export class TransformerChainExecutor {
     const context: TransformerContext = {
       logger: this.logger,
       providerName: provider.name,
+      // The unified REQUEST this response answers. Response encoders need it to
+      // restore request-scoped protocol state that the chat wire cannot carry —
+      // e.g. which codex tools were declared `custom` (see
+      // `UnifiedChatRequestMeta.codexTools`), which decides whether a tool call
+      // is encoded back as a `function_call` or a `custom_tool_call` item.
+      req: request,
     };
 
     let finalResponse = response;

@@ -183,6 +183,23 @@ export interface UnifiedChatRequestMeta {
     | (string & {});
   /** The api-key-pool entry id selected for this request. */
   apiKeyId?: string | null;
+  /**
+   * codex custom-tool protocol state, recorded while DECODING a Responses
+   * request and read back while ENCODING the response.
+   *
+   * codex declares its tools in an `additional_tools` input item, where one of
+   * them (`exec`) is a `custom` tool taking FREE-FORM text rather than JSON
+   * arguments, and others live under a `namespace`. Neither concept exists in
+   * OpenAI-chat, so the decode flattens them into plain function tools and
+   * records here what has to be restored on the way back: which names must be
+   * re-encoded as `custom_tool_call` items, and which carry a namespace.
+   */
+  codexTools?: {
+    /** Tool names declared `type:'custom'` — re-encode as `custom_tool_call`. */
+    customToolNames?: string[];
+    /** Tool name → codex namespace, restored onto `function_call` items. */
+    toolNamespaces?: Record<string, string>;
+  };
 }
 
 /**

@@ -13,6 +13,7 @@ import type {
   TransformerContext,
   TransformerLogger,
   UnifiedChatRequest,
+  UnifiedChatRequestMeta,
   UnifiedMessage,
   UnifiedTool,
 } from '../types';
@@ -212,6 +213,9 @@ export class OpenAIResponseTransformer implements Transformer {
   ): Promise<UnifiedChatRequest> {
     const req = request as ResponseApiRequest;
     const messages: UnifiedMessage[] = [];
+    // codex ships its tool declarations inside an `additional_tools` INPUT item
+    // rather than the top-level `tools` field; collected as we walk the input.
+    let codexTools: CodexToolDeclarations | null = null;
 
     // The public Responses API carries the system prompt in `instructions`
     // (codex instead sends it as a `developer` message item). Dropping it lost
@@ -227,6 +231,49 @@ export class OpenAIResponseTransformer implements Transformer {
         const itemType = typeof entry.type === 'string' ? entry.type : undefined;
 
         if (itemType && SKIPPED_INPUT_ITEM_TYPES.has(itemType)) continue;
+
+        // codex's tool declarations. Merged into `result.tools` below; the item
+        // itself carries `role:'developer'` with no content and must not become
+        // a message.
+        if (itemType === 'additional_tools') {
+          codexTools = collectCodexTools(entry);
+          continue;
+        }
+
+        // A custom tool RESULT. Same array-vs-string `output` shape as
+        // `function_call_output`, so it gets the same flattening.
+        if (itemType === 'custom_tool_call_output') {
+          messages.push({
+            role: 'tool',
+            content: flattenContent(entry.output),
+            tool_call_id: (entry.call_id as string) || undefined,
+          });
+          continue;
+        }
+
+        // A custom tool CALL. codex carries the payload as free-form text in
+        // `input`; the chat wire wants JSON arguments, so it is wrapped in the
+        // `{input:…}` envelope declared by CUSTOM_TOOL_PARAMETERS. The response
+        // encoder unwraps it again.
+        if (itemType === 'custom_tool_call') {
+          const toolCall = {
+            id: ((entry.call_id ?? entry.id) as string) || '',
+            type: 'function' as const,
+            function: {
+              name: (entry.name as string) || '',
+              arguments: JSON.stringify({
+                input: typeof entry.input === 'string' ? entry.input : '',
+              }),
+            },
+          };
+          const last = messages[messages.length - 1];
+          if (last && last.role === 'assistant') {
+            (last.tool_calls ??= []).push(toolCall);
+          } else {
+            messages.push({ role: 'assistant', content: null, tool_calls: [toolCall] });
+          }
+          continue;
+        }
 
         // Handle function_call_output (tool results). `output` is a plain string
         // for most tools, but codex sends an ARRAY of `input_text` parts when a
@@ -303,17 +350,43 @@ export class OpenAIResponseTransformer implements Transformer {
       };
     }
 
+    // Tools come from BOTH the standard top-level `tools` field and codex's
+    // `additional_tools` input item; a client may use either.
+    const tools: UnifiedTool[] = [];
     if (req.tools?.length) {
-      result.tools = req.tools
-        .filter((t) => t.type === 'function')
-        .map((t) => ({
-          type: 'function' as const,
-          function: {
-            name: (t.name as string) || '',
-            description: (t.description as string) || '',
-            parameters: (t.parameters || {}) as UnifiedTool['function']['parameters'],
-          },
-        }));
+      tools.push(
+        ...req.tools
+          .filter((t) => t.type === 'function')
+          .map((t) => ({
+            type: 'function' as const,
+            function: {
+              name: (t.name as string) || '',
+              description: (t.description as string) || '',
+              parameters: (t.parameters || {}) as UnifiedTool['function']['parameters'],
+            },
+          }))
+      );
+    }
+    if (codexTools?.tools.length) {
+      const declared = new Set(tools.map((t) => t.function.name));
+      tools.push(...codexTools.tools.filter((t) => !declared.has(t.function.name)));
+    }
+    if (tools.length) result.tools = tools;
+
+    // Thread the custom-tool / namespace state to the response encoder. `meta`
+    // is internal-only and never serialised into the outbound body.
+    if (codexTools?.customToolNames.length || Object.keys(codexTools?.toolNamespaces ?? {}).length) {
+      result.meta = {
+        ...result.meta,
+        codexTools: {
+          ...(codexTools!.customToolNames.length
+            ? { customToolNames: codexTools!.customToolNames }
+            : {}),
+          ...(Object.keys(codexTools!.toolNamespaces).length
+            ? { toolNamespaces: codexTools!.toolNamespaces }
+            : {}),
+        },
+      };
     }
 
     return result;
@@ -370,15 +443,19 @@ export class OpenAIResponseTransformer implements Transformer {
    */
   async transformResponseIn(
     response: Response,
-    _context?: TransformerContext
+    context?: TransformerContext
   ): Promise<Response> {
     const contentType = response.headers.get('Content-Type') ?? '';
+    // Request-scoped codex protocol state, recorded by `transformRequestOut`
+    // and threaded here on `context.req` by `executeResponseChain`. Absent for
+    // non-codex clients, which simply get plain `function_call` items.
+    const codexTools = (context?.req as UnifiedChatRequest | undefined)?.meta?.codexTools;
 
     if (contentType.includes('text/event-stream')) {
       if (!response.body) {
         throw new Error('Stream response body is null');
       }
-      return new Response(convertOpenAIStreamToResponseApi(response.body), {
+      return new Response(convertOpenAIStreamToResponseApi(response.body, codexTools), {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -388,7 +465,7 @@ export class OpenAIResponseTransformer implements Transformer {
     }
 
     const data = await response.json();
-    return new Response(JSON.stringify(convertOpenAIJsonToResponseApi(data)), {
+    return new Response(JSON.stringify(convertOpenAIJsonToResponseApi(data, codexTools)), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -411,24 +488,173 @@ const TEXT_PART_TYPES = new Set(['text', 'input_text', 'output_text', 'summary_t
  * Responses `input` item types with no OpenAI-chat equivalent — dropped on decode.
  *
  * - `reasoning` — provider-internal, and `encrypted_content` under `store:false`.
- * - `additional_tools` — codex's tool DECLARATIONS (the custom `exec` tool plus
- *   the collaboration namespace). Mapping them needs the custom-tool call/output
- *   protocol on the RESPONSE side too, so they are dropped rather than
- *   half-supported (a declared tool the response path can't encode back is worse
- *   than no tool). It also carries `role:'developer'` with NO content, which is
- *   why the message branch below guards on empty text.
- * - `custom_tool_call` / `custom_tool_call_output` — the other half of that same
- *   protocol. Dropped AS A PAIR: keeping either side alone would break the
- *   assistant-call ↔ tool-result pairing that upstreams validate.
  * - `agent_message` — codex multi-agent inbound message; no chat role fits it.
+ *
+ * `additional_tools`, `custom_tool_call` and `custom_tool_call_output` are NOT
+ * dropped: see `collectCodexTools` and the custom-tool branches in
+ * `transformRequestOut`.
  */
-const SKIPPED_INPUT_ITEM_TYPES = new Set([
-  'reasoning',
-  'additional_tools',
-  'custom_tool_call',
-  'custom_tool_call_output',
-  'agent_message',
-]);
+const SKIPPED_INPUT_ITEM_TYPES = new Set(['reasoning', 'agent_message']);
+
+/**
+ * Parameter schema a codex `custom` tool is exposed with.
+ *
+ * A custom tool takes FREE-FORM text (codex constrains it with a lark grammar,
+ * e.g. `exec` receives raw JavaScript), whereas OpenAI-chat function tools take
+ * JSON arguments. Declaring one required `input` string is the faithful
+ * flattening: the model writes its free-form payload into `input`, and the
+ * response encoder unwraps it straight back into the `custom_tool_call.input`
+ * field codex expects.
+ */
+const CUSTOM_TOOL_PARAMETERS = {
+  type: 'object',
+  properties: {
+    input: {
+      type: 'string',
+      description: 'The complete free-form input for this tool, passed through verbatim.',
+    },
+  },
+  required: ['input'],
+} as const;
+
+/** Request-scoped codex protocol state threaded from decode to encode. */
+type CodexToolState = UnifiedChatRequestMeta['codexTools'];
+
+/**
+ * Unwrap a custom tool's free-form payload from the `{input:…}` JSON envelope
+ * the model was asked to produce (see `CUSTOM_TOOL_PARAMETERS`).
+ *
+ * Falls back to the raw argument string when the model ignored the schema or
+ * the stream was cut mid-JSON: passing the payload through imperfectly beats
+ * dropping the tool call entirely.
+ */
+function unwrapCustomToolInput(argumentsJson: string): string {
+  try {
+    const parsed = JSON.parse(argumentsJson) as Record<string, unknown>;
+    if (parsed && typeof parsed === 'object' && typeof parsed.input === 'string') {
+      return parsed.input;
+    }
+  } catch {
+    /* not valid JSON — fall through to the raw text */
+  }
+  return argumentsJson;
+}
+
+/**
+ * Encode ONE OpenAI-chat tool call as the Responses output item codex expects.
+ *
+ * A tool codex declared `type:'custom'` MUST come back as a `custom_tool_call`
+ * carrying free-form `input`; sending it a `function_call` for a tool it
+ * registered as custom leaves the call unroutable. Everything else is a
+ * `function_call`, with the codex `namespace` restored when the tool came from
+ * one. Item ids must carry the protocol's prefix (`ctc_` / `fc_`), which is
+ * synthesized from the call id since the chat wire has only that one handle.
+ */
+function encodeToolCallItem(
+  callId: string,
+  name: string,
+  argumentsJson: string,
+  status: 'in_progress' | 'completed',
+  codexTools: CodexToolState,
+): Record<string, unknown> {
+  const bareId = callId.replace(/^(call_|fc_|ctc_)/, '');
+
+  if (codexTools?.customToolNames?.includes(name)) {
+    return {
+      id: `ctc_${bareId}`,
+      type: 'custom_tool_call',
+      status,
+      call_id: callId,
+      name,
+      input: unwrapCustomToolInput(argumentsJson),
+    };
+  }
+
+  const namespace = codexTools?.toolNamespaces?.[name];
+  return {
+    id: callId.startsWith('fc_') ? callId : `fc_${bareId}`,
+    type: 'function_call',
+    status,
+    call_id: callId,
+    name,
+    ...(namespace ? { namespace } : {}),
+    arguments: argumentsJson,
+  };
+}
+
+/** What `collectCodexTools` recovers from an `additional_tools` item. */
+interface CodexToolDeclarations {
+  tools: UnifiedTool[];
+  /** Names declared `type:'custom'` — re-encoded as `custom_tool_call` on the way back. */
+  customToolNames: string[];
+  /** Tool name → codex namespace, restored onto `function_call` items on the way back. */
+  toolNamespaces: Record<string, string>;
+}
+
+/**
+ * Decode codex's `additional_tools` item into plain OpenAI-chat function tools.
+ *
+ * codex does NOT use the top-level `tools` field — it ships every tool inside one
+ * `{type:'additional_tools', role:'developer', tools:[…]}` input item, in three
+ * flavours:
+ *   - `{type:'function', name, description, parameters}` — already chat-shaped.
+ *   - `{type:'namespace', name, tools:[…]}` — a group (e.g. `collaboration`)
+ *     whose members are functions. The MEMBER name is what the model calls; the
+ *     namespace is carried on codex's `function_call` item as a separate field,
+ *     so it is recorded and restored rather than baked into the name.
+ *   - `{type:'custom', name, description, format}` — free-form text tool,
+ *     flattened onto `CUSTOM_TOOL_PARAMETERS` (see there).
+ *
+ * Dropping this item left the upstream request with NO tools at all, so the
+ * model could only ever answer in prose — codex's whole agent loop was dead.
+ */
+function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclarations {
+  const result: CodexToolDeclarations = { tools: [], customToolNames: [], toolNamespaces: {} };
+
+  const visit = (declarations: unknown, namespace?: string): void => {
+    if (!Array.isArray(declarations)) return;
+    for (const raw of declarations) {
+      if (!raw || typeof raw !== 'object') continue;
+      const tool = raw as Record<string, unknown>;
+      const name = typeof tool.name === 'string' ? tool.name : '';
+      if (!name) continue;
+      const description = typeof tool.description === 'string' ? tool.description : '';
+
+      if (tool.type === 'namespace') {
+        visit(tool.tools, name);
+        continue;
+      }
+
+      if (tool.type === 'custom') {
+        result.customToolNames.push(name);
+        result.tools.push({
+          type: 'function',
+          function: {
+            name,
+            description,
+            parameters: CUSTOM_TOOL_PARAMETERS as unknown as UnifiedTool['function']['parameters'],
+          },
+        });
+      } else if (tool.type === 'function') {
+        result.tools.push({
+          type: 'function',
+          function: {
+            name,
+            description,
+            parameters: (tool.parameters || {}) as UnifiedTool['function']['parameters'],
+          },
+        });
+      } else {
+        continue;
+      }
+
+      if (namespace) result.toolNamespaces[name] = namespace;
+    }
+  };
+
+  visit(entry.tools);
+  return result;
+}
 
 /**
  * Flatten any Responses-API content value to plain text.
@@ -532,7 +758,10 @@ function convertResponseApiJsonToOpenAI(data: Record<string, unknown>): Record<s
   };
 }
 
-function convertOpenAIJsonToResponseApi(data: Record<string, unknown>): Record<string, unknown> {
+function convertOpenAIJsonToResponseApi(
+  data: Record<string, unknown>,
+  codexTools?: CodexToolState
+): Record<string, unknown> {
   const choices = data.choices as Array<Record<string, unknown>> | undefined;
   const message = choices?.[0]?.message as Record<string, unknown> | undefined;
   const output: Array<Record<string, unknown>> = [];
@@ -550,13 +779,15 @@ function convertOpenAIJsonToResponseApi(data: Record<string, unknown>): Record<s
     if (toolCalls?.length) {
       for (const tc of toolCalls) {
         const func = tc.function as Record<string, unknown>;
-        output.push({
-          type: 'function_call',
-          id: tc.id,
-          call_id: tc.id,
-          name: func?.name,
-          arguments: func?.arguments,
-        });
+        output.push(
+          encodeToolCallItem(
+            (tc.id as string) || '',
+            (func?.name as string) || '',
+            typeof func?.arguments === 'string' ? func.arguments : '',
+            'completed',
+            codexTools
+          )
+        );
       }
     }
   }
@@ -769,7 +1000,8 @@ function convertResponseApiStreamToOpenAI(
  * Convert OpenAI CC SSE stream → Response API SSE stream
  */
 function convertOpenAIStreamToResponseApi(
-  openaiStream: ReadableStream<Uint8Array>
+  openaiStream: ReadableStream<Uint8Array>,
+  codexTools?: CodexToolState
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -795,7 +1027,10 @@ function convertOpenAIStreamToResponseApi(
       // stream them as `function_call_arguments.delta` events — mirroring codex's
       // own wire format. Without this, a tool call from an OpenAI-chat upstream
       // (e.g. a BYO provider behind `/v1/responses`) is silently dropped.
-      const toolCalls = new Map<number, { callId: string; name: string; arguments: string }>();
+      const toolCalls = new Map<
+        number,
+        { callId: string; name: string; arguments: string; isCustom: boolean }
+      >();
       // Output index 0 is the assistant `message` (text); tool calls follow at 1+.
       const toolOutputIndex = new Map<number, number>();
       let nextOutputIndex = 1;
@@ -882,35 +1117,38 @@ function convertOpenAIStreamToResponseApi(
                   if (!entry) {
                     const callId = typeof tc['id'] === 'string' ? (tc['id'] as string) : `call_${Date.now()}_${tcIndex}`;
                     const name = typeof func['name'] === 'string' ? (func['name'] as string) : '';
-                    entry = { callId, name, arguments: '' };
+                    entry = {
+                      callId,
+                      name,
+                      arguments: '',
+                      isCustom: codexTools?.customToolNames?.includes(name) ?? false,
+                    };
                     toolCalls.set(tcIndex, entry);
                     const outIdx = nextOutputIndex++;
                     toolOutputIndex.set(tcIndex, outIdx);
-                    // codex requires a function_call ITEM id to begin with 'fc_'.
-                    const itemId = callId.startsWith('fc_')
-                      ? callId
-                      : `fc_${callId.replace(/^(call_|fc_)/, '')}`;
+                    // A codex `custom` tool opens a `custom_tool_call` item, a
+                    // regular one a `function_call` — the encoder picks, and
+                    // synthesizes the id prefix each protocol requires.
                     emitEvent({
                       type: 'response.output_item.added',
                       output_index: outIdx,
-                      item: {
-                        id: itemId,
-                        type: 'function_call',
-                        status: 'in_progress',
-                        call_id: callId,
-                        name,
-                        arguments: '',
-                      },
+                      item: encodeToolCallItem(callId, name, '', 'in_progress', codexTools),
                     });
                   }
                   const argsFragment = typeof func['arguments'] === 'string' ? (func['arguments'] as string) : '';
                   if (argsFragment) {
                     entry.arguments += argsFragment;
-                    emitEvent({
-                      type: 'response.function_call_arguments.delta',
-                      output_index: toolOutputIndex.get(tcIndex),
-                      delta: argsFragment,
-                    });
+                    // A custom tool's payload is the `input` STRING nested inside
+                    // the arguments JSON; it cannot be recovered from a partial
+                    // fragment (`{"input":"const a` is not parseable), so its
+                    // delta is emitted once at finish instead of per fragment.
+                    if (!entry.isCustom) {
+                      emitEvent({
+                        type: 'response.function_call_arguments.delta',
+                        output_index: toolOutputIndex.get(tcIndex),
+                        delta: argsFragment,
+                      });
+                    }
                   }
                 }
               }
@@ -939,29 +1177,35 @@ function convertOpenAIStreamToResponseApi(
                   output.push(messageItem);
                 }
                 for (const [tcIndex, entry] of toolCalls) {
-                  const itemId = entry.callId.startsWith('fc_')
-                    ? entry.callId
-                    : `fc_${entry.callId.replace(/^(call_|fc_)/, '')}`;
-                  output.push({
-                    id: itemId,
-                    type: 'function_call',
-                    status: 'completed',
-                    call_id: entry.callId,
-                    name: entry.name,
-                    arguments: entry.arguments,
-                  });
+                  const outIdx = toolOutputIndex.get(tcIndex);
+                  const item = encodeToolCallItem(
+                    entry.callId,
+                    entry.name,
+                    entry.arguments,
+                    'completed',
+                    codexTools
+                  );
+                  // The custom-tool input was withheld during streaming (see the
+                  // delta branch); emit it now as one delta + done so codex still
+                  // receives the input-stream lifecycle it expects.
+                  if (entry.isCustom) {
+                    emitEvent({
+                      type: 'response.custom_tool_call_input.delta',
+                      output_index: outIdx,
+                      delta: item.input,
+                    });
+                    emitEvent({
+                      type: 'response.custom_tool_call_input.done',
+                      output_index: outIdx,
+                      input: item.input,
+                    });
+                  }
+                  output.push(item);
                   // The streamed `added` event carried status in_progress; mark done.
                   emitEvent({
                     type: 'response.output_item.done',
-                    output_index: toolOutputIndex.get(tcIndex),
-                    item: {
-                      id: itemId,
-                      type: 'function_call',
-                      status: 'completed',
-                      call_id: entry.callId,
-                      name: entry.name,
-                      arguments: entry.arguments,
-                    },
+                    output_index: outIdx,
+                    item,
                   });
                 }
                 emitEvent({

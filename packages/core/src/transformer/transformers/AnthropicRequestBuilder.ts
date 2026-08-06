@@ -7,6 +7,7 @@
  * @module transformer/transformers/AnthropicRequestBuilder
  */
 
+import { resolveAnthropicMaxTokens } from '../../anthropicMaxTokens';
 import type { TextContent, UnifiedChatRequest } from '../types';
 
 import type {
@@ -148,7 +149,11 @@ export function buildAnthropicRequestBody(request: UnifiedChatRequest): Record<s
   const body: Record<string, unknown> = {
     model: request.model,
     messages: anthropicMessages,
-    max_tokens: request.max_tokens ?? 4096,
+    // Anthropic requires this field, so an absent caller cap must resolve to
+    // the model's real ceiling — NOT a small constant, which would silently
+    // truncate long responses (and corrupt tool-call JSON mid-stream).
+    // See `resolveAnthropicMaxTokens`.
+    max_tokens: resolveAnthropicMaxTokens(request.model, request.max_tokens),
     stream: request.stream ?? false,
   };
 
