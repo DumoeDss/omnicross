@@ -8,6 +8,8 @@
 
 import type { TransformerLogger } from '../types';
 
+import { anthropicUsageToChatUsage } from './utils/usage-mapping';
+
 /**
  * Convert Anthropic SSE event stream to OpenAI SSE chunk stream.
  * Reverse of `convertOpenAIStreamToAnthropic`.
@@ -170,11 +172,9 @@ export function convertAnthropicStreamToOpenAI(
                   }],
                 };
                 if (event.usage) {
-                  chunk.usage = {
-                    prompt_tokens: event.usage.input_tokens || 0,
-                    completion_tokens: event.usage.output_tokens || 0,
-                    total_tokens: (event.usage.input_tokens || 0) + (event.usage.output_tokens || 0),
-                  };
+                  // Preserve prompt-cache counts (cache-read → prompt_tokens_details.cached_tokens,
+                  // cache-creation folded into prompt_tokens) instead of dropping them.
+                  chunk.usage = anthropicUsageToChatUsage(event.usage as Record<string, unknown>);
                 }
                 safeEnqueue(`data: ${JSON.stringify(chunk)}\n\n`);
               }

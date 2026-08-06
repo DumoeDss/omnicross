@@ -17,6 +17,7 @@ import type {
   UnifiedMessage,
   UnifiedTool,
 } from '../types';
+import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
 
 // ============================================================================
 // Response API Types
@@ -748,13 +749,7 @@ function convertResponseApiJsonToOpenAI(data: Record<string, unknown>): Record<s
         finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
       },
     ],
-    usage: usage
-      ? {
-          prompt_tokens: usage.input_tokens || 0,
-          completion_tokens: usage.output_tokens || 0,
-          total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
-        }
-      : undefined,
+    usage: responsesUsageToChatUsage(usage),
   };
 }
 
@@ -800,14 +795,7 @@ function convertOpenAIJsonToResponseApi(
     status: 'completed',
     model: data.model || 'unknown',
     output,
-    usage: usage
-      ? {
-          input_tokens: usage.prompt_tokens || 0,
-          output_tokens: usage.completion_tokens || 0,
-          total_tokens:
-            usage.total_tokens || (usage.prompt_tokens || 0) + (usage.completion_tokens || 0),
-        }
-      : undefined,
+    usage: chatUsageToResponsesUsage(usage),
   };
 }
 
@@ -949,14 +937,7 @@ function convertResponseApiStreamToOpenAI(
                 case 'response.completed': {
                   const resp = event.response;
                   const respUsage = resp?.usage;
-                  const usage = respUsage
-                    ? {
-                        prompt_tokens: respUsage.input_tokens || 0,
-                        completion_tokens: respUsage.output_tokens || 0,
-                        total_tokens:
-                          (respUsage.input_tokens || 0) + (respUsage.output_tokens || 0),
-                      }
-                    : undefined;
+                  const usage = responsesUsageToChatUsage(respUsage);
                   // A tool-call turn finishes with `tool_calls` (matching the
                   // OpenAI-chat protocol); a plain-text turn finishes `stop`.
                   emitChunk([{ index: 0, delta: {}, finish_reason: hasToolCalls ? 'tool_calls' : 'stop' }], usage);
@@ -1227,13 +1208,7 @@ function convertOpenAIStreamToResponseApi(
                     status: 'completed',
                     model,
                     output,
-                    usage: chunk.usage
-                      ? {
-                          input_tokens: chunk.usage.prompt_tokens || 0,
-                          output_tokens: chunk.usage.completion_tokens || 0,
-                          total_tokens: chunk.usage.total_tokens || 0,
-                        }
-                      : undefined,
+                    usage: chatUsageToResponsesUsage(chunk.usage),
                   },
                 });
               }
