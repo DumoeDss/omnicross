@@ -182,6 +182,59 @@ describe('PricingEngine.getEntry resolution order', () => {
     const engine = new PricingEngine(new FakePricingStore(), makeLogger());
     expect(await engine.getEntry('p', 'm')).toBeNull();
   });
+
+  it('fuzzy fallback matches a bare model id against prefixed catalog slugs (glm-5.2 hero)', async () => {
+    // Real catalog shape: glm-5.2 only exists as prefixed slugs. Usage is
+    // recorded under the user's provider id + bare model id.
+    const store = new FakePricingStore([
+      entry({
+        providerId: 'cloudflare',
+        modelId: 'cloudflare/@cf/zai-org/glm-5.2',
+        source: 'litellm',
+        inputPricePer1m: 1.4,
+        outputPricePer1m: 4.4,
+        cacheReadPricePer1m: 0.26,
+      }),
+      entry({
+        providerId: 'openrouter',
+        modelId: 'z-ai/glm-5.2',
+        source: 'openrouter',
+        inputPricePer1m: 0.546,
+      }),
+    ]);
+    const engine = new PricingEngine(store, makeLogger());
+    const got = await engine.getEntry('zhipu', 'glm-5.2');
+    expect(got).not.toBeNull();
+    // OpenRouter is excluded from the fallback; the LiteLLM/cloudflare row wins.
+    expect(got?.providerId).toBe('cloudflare');
+    expect(got?.inputPricePer1m).toBe(1.4);
+    expect(got?.cacheReadPricePer1m).toBe(0.26);
+  });
+
+  it('fuzzy fallback does not cross version boundaries (glm-5.2 != glm-5.1)', async () => {
+    const store = new FakePricingStore([
+      entry({ providerId: 'cloudflare', modelId: 'cloudflare/@cf/zai-org/glm-5.1', source: 'litellm' }),
+    ]);
+    const engine = new PricingEngine(store, makeLogger());
+    expect(await engine.getEntry('zhipu', 'glm-5.2')).toBeNull();
+  });
+
+  it('exact and model-only matches still take priority over fuzzy', async () => {
+    const store = new FakePricingStore([
+      entry({ providerId: 'zhipu', modelId: 'glm-5.2', inputPricePer1m: 0.8 }), // exact
+      entry({ providerId: 'cloudflare', modelId: 'cloudflare/@cf/zai-org/glm-5.2', inputPricePer1m: 1.4 }),
+    ]);
+    const engine = new PricingEngine(store, makeLogger());
+    expect((await engine.getEntry('zhipu', 'glm-5.2'))?.inputPricePer1m).toBe(0.8);
+  });
+
+  it('fuzzy matches across separator variants (glm-5.2 vs glm_5.2)', async () => {
+    const store = new FakePricingStore([
+      entry({ providerId: 'foo', modelId: 'glm_5.2', source: 'litellm', inputPricePer1m: 7 }),
+    ]);
+    const engine = new PricingEngine(store, makeLogger());
+    expect((await engine.getEntry('zhipu', 'glm-5.2'))?.inputPricePer1m).toBe(7);
+  });
 });
 
 describe('PricingEngine.calculateCost', () => {
