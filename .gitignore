@@ -5,6 +5,10 @@ dist/
 coverage/
 *.tsbuildinfo
 omnicross.dev.config.json
+# Daemon runtime state written next to the config file (so a repo-root dev
+# config drops these here) — generated, refreshed on every pricing sync.
+pricing.json
+pricing-refresh.json
 
 # Local agent tooling and embedded workflow workspace
 /.claude/
