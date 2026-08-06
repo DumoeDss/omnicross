@@ -20,6 +20,7 @@ import React, { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { openExternal } from '@/shared/tauri/openExternal';
 
 interface OAuthInlineFlowProps {
   authUrl: string;
@@ -57,7 +58,7 @@ export function OAuthInlineFlow({
   }, [authUrl]);
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="space-y-1.5 rounded-md bg-surface-2 p-4">
         <label className="text-sm font-medium text-foreground">
           {t('accounts.detail.label')}{' '}
@@ -85,15 +86,14 @@ export function OAuthInlineFlow({
           </p>
           {index === 0 ? (
             <div className="pl-8">
-              <a
-                href={authUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => void openExternal(authUrl)}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 <ExternalLink className="h-4 w-4" />
                 {t('accounts.oauth.openPage')}
-              </a>
+              </button>
             </div>
           ) : null}
           {index === STEP_KEYS.length - 1 ? (
@@ -112,17 +112,26 @@ export function OAuthInlineFlow({
       ))}
 
       {error ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <p className="break-words rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </p>
       ) : null}
 
-      <details className="rounded-md bg-surface-1/50 p-3">
+      {/*
+        The authorize URL is one long unbreakable token. A flex child defaults to
+        `min-width:auto`, so `truncate` alone could NOT shrink it — the <code> grew
+        to its full intrinsic width, pushed the copy button out of view and forced
+        the whole dialog to scroll horizontally. `min-w-0` lets it shrink so the
+        ellipsis actually applies.
+      */}
+      <details className="min-w-0 overflow-hidden rounded-md bg-surface-1/50 p-3">
         <summary className="cursor-pointer text-sm text-muted-foreground">
           {t('accounts.oauthFlow.showUrl')}
         </summary>
-        <div className="mt-2 flex items-center gap-2">
-          <code className="flex-1 truncate rounded bg-surface-1 px-2 py-1 text-xs">{authUrl}</code>
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded bg-surface-1 px-2 py-1 text-xs">
+            {authUrl}
+          </code>
           <Button variant="ghost" size="sm" className="shrink-0" onClick={handleCopyUrl}>
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </Button>
