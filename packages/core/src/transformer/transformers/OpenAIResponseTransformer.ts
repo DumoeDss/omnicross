@@ -705,6 +705,14 @@ function convertOpenAIStreamToResponseApi(
       let accumulatedContent = '';
       let model = 'unknown';
       const responseId = `resp_${Date.now()}`;
+      // The assistant text message occupies output index 0 (tool calls follow at
+      // 1+). Codex builds its message item from `response.output_item.added` and
+      // finalizes it on `response.output_item.done`; without that lifecycle the
+      // text deltas arrive but nothing renders (`last_agent_message` null). Emit
+      // the item lazily on the first content delta and close it at finish,
+      // mirroring the real Responses streaming wire format.
+      const messageId = `msg_${Date.now()}`;
+      let messageItemAdded = false;
       // Accumulate tool calls (keyed by OpenAI tool_call index) so the terminal
       // `response.completed` carries them as `function_call` output items, and
       // stream them as `function_call_arguments.delta` events — mirroring codex's
@@ -758,8 +766,27 @@ function convertOpenAIStreamToResponseApi(
               if (!choice) continue;
 
               if (choice.delta?.content) {
+                if (!messageItemAdded) {
+                  messageItemAdded = true;
+                  emitEvent({
+                    type: 'response.output_item.added',
+                    output_index: 0,
+                    item: {
+                      id: messageId,
+                      type: 'message',
+                      role: 'assistant',
+                      status: 'in_progress',
+                      content: [],
+                    },
+                  });
+                }
                 accumulatedContent += choice.delta.content;
-                emitEvent({ type: 'response.output_text.delta', delta: choice.delta.content });
+                emitEvent({
+                  type: 'response.output_text.delta',
+                  output_index: 0,
+                  content_index: 0,
+                  delta: choice.delta.content,
+                });
               }
 
               if (choice.delta?.thinking?.content) {
@@ -812,14 +839,27 @@ function convertOpenAIStreamToResponseApi(
               }
 
               if (choice.finish_reason) {
-                emitEvent({ type: 'response.output_text.done', text: accumulatedContent });
                 const output: Array<Record<string, unknown>> = [];
-                if (accumulatedContent) {
-                  output.push({
+                if (messageItemAdded) {
+                  emitEvent({
+                    type: 'response.output_text.done',
+                    output_index: 0,
+                    content_index: 0,
+                    text: accumulatedContent,
+                  });
+                  const messageItem = {
+                    id: messageId,
                     type: 'message',
                     role: 'assistant',
+                    status: 'completed',
                     content: [{ type: 'output_text', text: accumulatedContent }],
+                  };
+                  emitEvent({
+                    type: 'response.output_item.done',
+                    output_index: 0,
+                    item: messageItem,
                   });
+                  output.push(messageItem);
                 }
                 for (const [tcIndex, entry] of toolCalls) {
                   const itemId = entry.callId.startsWith('fc_')
