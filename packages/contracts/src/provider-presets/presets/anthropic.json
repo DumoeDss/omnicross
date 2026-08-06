@@ -76,11 +76,6 @@
       "enabled": true
     }
   ],
-  "transformer": {
-    "use": [
-      "anthropic"
-    ]
-  },
   "description": "Claude模型官方API (Anthropic Messages格式)",
   "icon": "anthropic",
   "website": "https://anthropic.com",

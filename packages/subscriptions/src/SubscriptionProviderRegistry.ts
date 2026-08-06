@@ -53,9 +53,13 @@ const CLAUDE_MESSAGES_UPSTREAM_URL = 'https://api.anthropic.com/v1/messages';
  * Map a resolved opencodego wire shape → the provider transformer chain that
  * re-encodes Unified → the upstream's wire (Decision 3). `anthropic` is the
  * verbatim same-format / bypass path (NO chain — both ingress paths select the
- * bypass earlier by shape), so it maps to the empty chain. The other three reuse
- * the EXISTING transformers (`opencodego` / `openai-response` / `gemini`) — no new
- * transformer module is authored.
+ * bypass earlier by shape), so it maps to the empty chain. Every other shape
+ * names the FORMAT transformer for that wire — the same names a BYO row's
+ * `apiFormat` resolves to, so this list stays vendor-free.
+ *
+ * The `chat` shape used to name a bespoke `opencodego` transformer. That existed
+ * only because the OpenAI chat wire had no format transformer to name, so the
+ * slot had to be filled with a vendor-specific class; it is now `openai`.
  */
 function opencodegoTransformerNamesForShape(shape: OpenCodeGoShape): readonly string[] {
   switch (shape) {
@@ -67,7 +71,7 @@ function opencodegoTransformerNamesForShape(shape: OpenCodeGoShape): readonly st
       return ['gemini'];
     case 'chat':
     default:
-      return ['opencodego'];
+      return ['openai'];
   }
 }
 
@@ -212,7 +216,7 @@ export class SubscriptionProviderRegistry {
             return buildOpenCodeGoUrl(half, shape, override);
           },
           // zen seam (Decision 3): vary the provider transformer chain by resolved
-          // shape (anthropic⇒[] verbatim, chat⇒opencodego, responses⇒openai-response,
+          // shape (anthropic⇒[] verbatim, chat⇒openai, responses⇒openai-response,
           // gemini⇒gemini). OPTIONAL on the profile type — only opencodego sets it;
           // claude/codex/gemini omit it and fall back to `providerTransformerNames`,
           // keeping their routing byte-identical. The static `providerTransformerNames`
@@ -222,7 +226,7 @@ export class SubscriptionProviderRegistry {
             const { shape } = resolveOpenCodeGoTarget(model, config as OpenCodeGoTokenConfig | undefined);
             return opencodegoTransformerNamesForShape(shape);
           },
-          providerTransformerNames: ['opencodego'],
+          providerTransformerNames: ['openai'],
           modelTransformerNames: [],
           modelMapper: (sdkModel, summary, config) => {
             const scenario = resolveOpenCodeGoScenario(summary, config);

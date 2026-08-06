@@ -53,11 +53,11 @@ describe('preset → daemon-row mapping', () => {
     expect(r.provider.apiFormat).toBe('gemini'); // narrowed, NOT 'google'
   });
 
-  it('excludes openai-response with a reason', () => {
+  it('maps openai-response to the openai-response daemon format', () => {
     const preset = getPresetById('openai-response')!;
     const r = mapPresetToProvider(preset, { key: 'sk-x' });
-    if (!('excluded' in r)) throw new Error('expected excluded');
-    expect(r.excluded.reason).toMatch(/responses/i);
+    if (!('provider' in r)) throw new Error('expected provider');
+    expect(r.provider.apiFormat).toBe('openai-response');
   });
 
   it('excludes azure-openai with a reason', () => {
@@ -106,15 +106,16 @@ describe('FORMAT_MAP exhaustiveness (drift guard)', () => {
   it('splits the catalog into mappable + excluded with no overlap or loss', () => {
     const { mappable, excluded } = listMappablePresets();
     expect(mappable.length).toBeGreaterThan(20);
-    expect(excluded.length).toBeGreaterThanOrEqual(2); // openai-response + azure-openai
+    expect(excluded.length).toBeGreaterThanOrEqual(1); // azure-openai
     expect(mappable.length + excluded.length).toBe(getCatalog().length);
     // Every mappable apiFormat is a valid daemon format.
     for (const m of mappable) {
-      expect(['openai', 'anthropic', 'gemini']).toContain(m.apiFormat);
+      expect(['openai', 'anthropic', 'gemini', 'openai-response']).toContain(m.apiFormat);
     }
-    // The two known exclusions are present with reasons.
+    // azure-openai is the only remaining exclusion (openai-response became
+    // mappable once DaemonApiFormat could name the Responses wire).
     const excludedIds = excluded.map((e) => e.id);
-    expect(excludedIds).toContain('openai-response');
+    expect(excludedIds).not.toContain('openai-response');
     expect(excludedIds).toContain('azure-openai');
     for (const e of excluded) expect(e.reason.length).toBeGreaterThan(0);
   });

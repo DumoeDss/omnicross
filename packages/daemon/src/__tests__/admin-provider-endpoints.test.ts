@@ -779,18 +779,18 @@ describe('provider transformer slot (app-parity child 5)', () => {
     const put = await adminFetch('PUT', '/admin/api/providers/a', {
       apiFormat: 'openai',
       baseUrl: base(),
-      transformer: { use: ['gemini', ['maxtoken', { max_tokens: 4096 }]] },
+      transformer: { use: ['sampling', ['maxtoken', { max_tokens: 4096 }]] },
     });
     expect(put.status).toBe(200);
 
     // GET round-trip (through toProviderView) — verbatim, including the tuple entry.
     const list = await adminFetch('GET', '/admin/api/providers');
     const p = findProvider(list.json, 'a');
-    expect(p['transformer']).toEqual({ use: ['gemini', ['maxtoken', { max_tokens: 4096 }]] });
+    expect(p['transformer']).toEqual({ use: ['sampling', ['maxtoken', { max_tokens: 4096 }]] });
 
     // Disk round-trip (through validateTransformer in loadConfig).
     const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
-    expect(persisted.transformer).toEqual({ use: ['gemini', ['maxtoken', { max_tokens: 4096 }]] });
+    expect(persisted.transformer).toEqual({ use: ['sampling', ['maxtoken', { max_tokens: 4096 }]] });
   });
 
   it('back-compat: a row with no transformer loads and GET returns no transformer', async () => {
@@ -812,7 +812,7 @@ describe('provider transformer slot (app-parity child 5)', () => {
     await adminFetch('PUT', '/admin/api/providers/a', {
       apiFormat: 'openai',
       baseUrl: base(),
-      transformer: { use: ['anthropic'] },
+      transformer: { use: ['cleancache'] },
     });
     // An unrelated edit (only models) OMITS transformer → keeps the stored value.
     await adminFetch('PUT', '/admin/api/providers/a', {
@@ -823,7 +823,7 @@ describe('provider transformer slot (app-parity child 5)', () => {
     {
       const r = await adminFetch('GET', '/admin/api/providers');
       const p = findProvider(r.json, 'a');
-      expect(p['transformer']).toEqual({ use: ['anthropic'] });
+      expect(p['transformer']).toEqual({ use: ['cleancache'] });
       expect(p['models']).toEqual(['m1']);
     }
     // Explicit null → clears (D3).
@@ -849,7 +849,7 @@ describe('provider transformer slot (app-parity child 5)', () => {
       transformer: {
         // Mixed good/bad entries: a number (bad), `[123]` (bad tuple), a bad
         // 2-tuple with a non-object option, and two well-formed entries.
-        use: ['gemini', 123, [123], ['maxtoken', 'not-an-object'], ['openrouter', { provider: 'x' }]],
+        use: ['sampling', 123, [123], ['maxtoken', 'not-an-object'], ['openrouter', { provider: 'x' }]],
         // A well-formed per-model key (object-shaped) → preserved verbatim.
         'gpt-4o': { use: ['tooluse'] },
         // Garbage at an unknown key (scalar) → dropped (deny-by-default).
@@ -861,7 +861,7 @@ describe('provider transformer slot (app-parity child 5)', () => {
     // Re-loadConfig from disk: only the well-formed entries + the object per-model key survive.
     const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
     expect(persisted.transformer).toEqual({
-      use: ['gemini', ['openrouter', { provider: 'x' }]],
+      use: ['sampling', ['openrouter', { provider: 'x' }]],
       'gpt-4o': { use: ['tooluse'] },
     });
     // The malformed values never reach disk.
@@ -881,12 +881,12 @@ describe('provider transformer slot (app-parity child 5)', () => {
       const putLit = await adminFetch('PUT', '/admin/api/providers/lit', {
         apiFormat: 'openai',
         baseUrl: base(),
-        transformer: { use: ['gemini', ['maxtoken', { max_tokens: 4096 }]] },
+        transformer: { use: ['sampling', ['maxtoken', { max_tokens: 4096 }]] },
       });
       const putEnv = await adminFetch('PUT', '/admin/api/providers/env', {
         apiFormat: 'openai',
         baseUrl: base(),
-        transformer: { use: ['anthropic'] },
+        transformer: { use: ['cleancache'] },
       });
       const get = await adminFetch('GET', '/admin/api/providers');
       // Neither the literal key nor the env-var NAME ever crosses the wire.
@@ -896,70 +896,114 @@ describe('provider transformer slot (app-parity child 5)', () => {
       }
       // But the non-secret transformer DID round-trip (proves the assertion isn't vacuous).
       expect(findProvider(get.json, 'lit')['transformer']).toEqual({
-        use: ['gemini', ['maxtoken', { max_tokens: 4096 }]],
+        use: ['sampling', ['maxtoken', { max_tokens: 4096 }]],
       });
     } finally {
       delete process.env['OMNI_TRANSFORMER_TEST_KEY'];
     }
   });
 
-  // app-parity-2 child 2: the transformer slot is now ENFORCED (was store-only).
+  // The provider slot holds EXACTLY ONE format transformer, named by `apiFormat`.
+  // `transformer.use[]` is the MODIFIER axis: format-axis names are migrated off
+  // it at load/write time, and modifier names resolve on top of the format one.
   type ChainPort = {
     resolveTransformerChain: (
       providerId: string,
       model?: string,
     ) => Promise<{ providerTransformers: Array<{ name: string }>; modelTransformers: unknown[] }>;
     getMainTransformer: (providerId: string) => Promise<{ name: string } | null>;
+    getTransformerService: () => {
+      registerTransformer: (name: string, t: { name: string }) => void;
+    };
   };
 
-  it('ENFORCED: a stored transformer.use[] resolves into the provider chain, FORMAT-FIRST', async () => {
+  /** Compose exactly as core's `resolveProviderChain` does (unshift main if absent). */
+  function compose(
+    providerTransformers: Array<{ name: string }>,
+    main: { name: string } | null,
+  ): string[] {
+    const out = [...providerTransformers];
+    if (main && !out.some((t) => t.name === main.name)) out.unshift(main);
+    return out.map((t) => t.name);
+  }
+
+  it('ENFORCED: a stored modifier use[] resolves into the chain, FORMAT-FIRST', async () => {
     await bootDaemon((b) => [
-      { id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['reasoning'] } },
+      { id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['test-modifier'] } },
     ]);
     const source = daemon.llmConfig as unknown as ChainPort;
+    // The modifier axis ships no implementations, so register a stub: what is
+    // under test is the RESOLUTION MECHANISM, not any particular modifier.
+    source.getTransformerService().registerTransformer('test-modifier', { name: 'test-modifier' });
     const chain = await source.resolveTransformerChain('a');
     const main = await source.getMainTransformer('a');
-    // The custom transformer is now enforced in the provider chain...
-    expect(chain.providerTransformers.map((t) => t.name)).toContain('reasoning');
-    // ...and the FORMAT transformer (anthropic) is still supplied by getMainTransformer.
+    expect(chain.providerTransformers.map((t) => t.name)).toEqual(['test-modifier']);
     expect(main?.name).toBe('anthropic');
-    // Compose exactly as core's resolveProviderChain does (unshift main if absent)
-    // to assert FORMAT-FIRST — the load-bearing wire conversion runs before custom.
-    const composed = [...chain.providerTransformers];
-    if (main && !composed.some((t) => t.name === main.name)) composed.unshift(main);
-    expect(composed.map((t) => t.name)).toEqual(['anthropic', 'reasoning']);
+    // FORMAT-FIRST — the load-bearing wire conversion runs before any modifier.
+    expect(compose(chain.providerTransformers, main)).toEqual(['anthropic', 'test-modifier']);
   });
 
-  it('format-first INVARIANT holds even if the user lists their own format name in use[]', async () => {
-    // A user checks 'anthropic' AFTER 'reasoning' in the UI. The daemon drops the
-    // self-format entry from resolveTransformerChain so getMainTransformer's
-    // front-unshift is never suppressed by core's dedup-by-name.
+  it('every apiFormat resolves exactly one format transformer (openai included)', async () => {
     await bootDaemon((b) => [
-      { id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['reasoning', 'anthropic'] } },
+      { id: 'oa', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' },
+      { id: 'an', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a' },
+      { id: 'ge', apiFormat: 'gemini', baseUrl: b, apiKey: 'sk-a' },
+      { id: 'rs', apiFormat: 'openai-response', baseUrl: b, apiKey: 'sk-a' },
     ]);
     const source = daemon.llmConfig as unknown as ChainPort;
-    const chain = await source.resolveTransformerChain('a');
+    // `openai` used to resolve to null (identity), which is why every OpenAI-shape
+    // upstream needed its own hand-written sanitizer.
+    expect((await source.getMainTransformer('oa'))?.name).toBe('openai');
+    expect((await source.getMainTransformer('an'))?.name).toBe('anthropic');
+    expect((await source.getMainTransformer('ge'))?.name).toBe('gemini');
+    expect((await source.getMainTransformer('rs'))?.name).toBe('openai-response');
+    // ...and none of them puts a SECOND format transformer in the slot.
+    for (const id of ['oa', 'an', 'ge', 'rs']) {
+      expect((await source.resolveTransformerChain(id)).providerTransformers).toEqual([]);
+    }
+  });
+
+  it('MIGRATION: a legacy openai row whose use[] names the Responses wire is promoted', async () => {
+    // The pre-four-value shape: the format could not be spelled in `apiFormat`,
+    // so it was smuggled through `use[]` (where it was the slot's ONLY encoder,
+    // because `openai` resolved to null). It must promote, not stack.
+    await bootDaemon((b) => [
+      {
+        id: 'a',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: 'sk-a',
+        transformer: { use: ['openai-response', 'sampling'] },
+      },
+    ]);
+    const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
+    expect(persisted.apiFormat).toBe('openai-response');
+    // The format name left use[]; the modifier stayed.
+    expect(persisted.transformer).toEqual({ use: ['sampling'] });
+
+    const source = daemon.llmConfig as unknown as ChainPort;
     const main = await source.getMainTransformer('a');
-    // The self-format 'anthropic' is filtered out of the custom chain...
-    expect(chain.providerTransformers.map((t) => t.name)).toEqual(['reasoning']);
-    // ...so the composed chain still puts the format transformer FIRST (no dup, no reorder).
-    const composed = [...chain.providerTransformers];
-    if (main && !composed.some((t) => t.name === main.name)) composed.unshift(main);
-    expect(composed.map((t) => t.name)).toEqual(['anthropic', 'reasoning']);
-  });
-
-  it('ENFORCED on openai: custom transformers apply with no format transformer', async () => {
-    await bootDaemon((b) => [
-      { id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['reasoning'] } },
-    ]);
-    const source = daemon.llmConfig as unknown as ChainPort;
     const chain = await source.resolveTransformerChain('a');
-    expect(chain.providerTransformers.map((t) => t.name)).toEqual(['reasoning']);
-    // openai has no format transformer (its wire ≡ the unified IR pivot).
-    expect(await source.getMainTransformer('a')).toBeNull();
+    expect(main?.name).toBe('openai-response');
+    // EXACTLY ONE format transformer -- not [openai, openai-response].
+    expect(compose(chain.providerTransformers, main)).toEqual(['openai-response']);
   });
 
-  it('back-compat: a row with no transformer.use → EMPTY chain (format alone via getMainTransformer)', async () => {
+  it('MIGRATION: a self-naming format entry is dropped (no duplicate, no reorder)', async () => {
+    // A user checks 'anthropic' in the UI on an anthropic row.
+    await bootDaemon((b) => [
+      { id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['anthropic'] } },
+    ]);
+    const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
+    expect(persisted.apiFormat).toBe('anthropic');
+    expect(persisted.transformer).toBeUndefined();
+    const source = daemon.llmConfig as unknown as ChainPort;
+    const main = await source.getMainTransformer('a');
+    const chain = await source.resolveTransformerChain('a');
+    expect(compose(chain.providerTransformers, main)).toEqual(['anthropic']);
+  });
+
+  it('back-compat: a row with no transformer.use -> EMPTY chain (format alone via getMainTransformer)', async () => {
     await bootDaemon((b) => [{ id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a' }]);
     const source = daemon.llmConfig as unknown as ChainPort;
     const chain = await source.resolveTransformerChain('a');
@@ -968,21 +1012,30 @@ describe('provider transformer slot (app-parity child 5)', () => {
     expect((await source.getMainTransformer('a'))?.name).toBe('anthropic');
   });
 
-  it('lenient: an unknown transformer name is skipped (no crash); known ones still resolve', async () => {
+  it('lenient: an unimplemented modifier name is skipped (no crash), format still resolves', async () => {
+    // This is what keeps the UI's declared-but-unimplemented modifier names
+    // harmless: they persist, and resolve to nothing, without failing a request.
     await bootDaemon((b) => [
-      { id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['reasoning', 'definitely-not-a-real-transformer'] } },
+      {
+        id: 'a',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: 'sk-a',
+        transformer: { use: ['sampling', 'definitely-not-a-real-transformer'] },
+      },
     ]);
     const source = daemon.llmConfig as unknown as ChainPort;
     const chain = await source.resolveTransformerChain('a');
-    expect(chain.providerTransformers.map((t) => t.name)).toEqual(['reasoning']);
+    expect(chain.providerTransformers).toEqual([]);
+    expect((await source.getMainTransformer('a'))?.name).toBe('openai');
   });
 
-  it('the stored transformer is still persisted verbatim (enforcement does not mutate config)', async () => {
+  it('the stored modifier list is persisted verbatim (resolution does not mutate config)', async () => {
     await bootDaemon((b) => [
-      { id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['reasoning'] } },
+      { id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a', transformer: { use: ['sampling'] } },
     ]);
     const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
-    expect(persisted.transformer).toEqual({ use: ['reasoning'] });
+    expect(persisted.transformer).toEqual({ use: ['sampling'] });
   });
 
   it('ENFORCED: a model with enabled:false is dropped from the routed models[] (discovery gate)', async () => {

@@ -82,6 +82,11 @@ export function inferApiFormat(provider: CcrProvider): {
   ) {
     return { format: 'gemini', ambiguous: false };
   }
+  // Checked BEFORE the generic openai probe: a Responses upstream's URL also
+  // matches `openai`/`/v1`, so the more specific wire has to win.
+  if (hay.includes('/responses')) {
+    return { format: 'openai-response', ambiguous: false };
+  }
   if (hay.includes('openai') || hay.includes('/v1') || hay.includes('chat/completions')) {
     return { format: 'openai', ambiguous: false };
   }

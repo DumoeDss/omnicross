@@ -8,9 +8,8 @@
  * block verbatim. This module extracts that single shared helper so the
  * logic lives in exactly one place.
  *
- * IMPORTANT: body mutations that are proxy-specific (ReasoningTransformer
- * auto-inject, thinkingLevel body-inject) are NOT part of this helper —
- * they remain at each call site as before.
+ * IMPORTANT: body mutations that are proxy-specific (thinkingLevel body-inject)
+ * are NOT part of this helper — they remain at each call site as before.
  *
  * @module pipeline/resolveProviderChain
  */

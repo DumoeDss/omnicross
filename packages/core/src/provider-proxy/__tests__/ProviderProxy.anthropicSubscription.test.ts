@@ -38,7 +38,7 @@ import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscript
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
-import { OpenCodeGoTransformer } from '../../transformer/transformers/OpenCodeGoTransformer';
+import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
 import type {
@@ -268,11 +268,11 @@ function claudeProfile(upstreamUrl: string): SubscriptionDispatchProfile {
 
 function makeLlmConfig(): ProviderConfigSource {
   // The REAL provider transformers, resolved by name (the SAME ones the production
-  // profile / zen seam declare): `opencodego` (chat), `openai-response` (zen
+  // profile / zen seam declare): `openai` (chat), `openai-response` (zen
   // responses), `gemini` (zen gemini). The Anthropic endpoint transformer
   // re-encodes the upstream's wire → the Anthropic wire for the caller.
   const transformers: Record<string, Transformer> = {
-    opencodego: new OpenCodeGoTransformer(),
+    openai: new OpenAITransformer(),
     'openai-response': new OpenAIResponseTransformer(),
     gemini: new GeminiTransformer(),
   };
@@ -379,7 +379,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       // A mapper that resolves a minimax model; the upstream URL (ending in
       // /v1/messages) is what drives the same-format decision.
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
     };
     const token = proxy.addRoute(subRoute(profile));
@@ -404,10 +404,10 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/chat/completions'),
-      // The REAL opencodego provider transformer normalizes the OpenAI-shape
+      // The REAL openai format transformer normalizes the OpenAI-shape
       // request; the Anthropic endpoint transformer decodes the OpenAI response
       // → the Anthropic wire (mirrors the production profile's chain).
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'kimi-k2.6', scenario: 'default' }),
     };
     const token = proxy.addRoute(subRoute(profile));
@@ -455,7 +455,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
     };
     const token = proxy.addRoute(subRoute(profile));
@@ -485,7 +485,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       // OpenAI-shape upstream → transformer path → body re-serialized with the
       // resolved model.
       resolveUpstreamUrl: () => upstreamUrl('/v1/chat/completions'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       // Mirror the REAL registry mapper's config precedence: a user
       // `modelMap.default` override WINS over the built-in default.
       modelMapper: (_sdkModel, _summary, config) => {
@@ -520,7 +520,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback: next,
     };
@@ -549,7 +549,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       mode: 'transformer',
       // All fallback models stay Anthropic-shape (verbatim relay) for this test.
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback: (_scenario, attempted) =>
         chain.find((e) => !attempted.includes(e.modelId)) ?? null,
@@ -585,7 +585,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
         model.startsWith('minimax')
           ? upstreamUrl('/v1/messages')
           : upstreamUrl('/v1/chat/completions'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback: (_scenario, attempted) =>
         attempted.includes('kimi-k2.6') ? null : { modelId: 'kimi-k2.6' },
@@ -621,7 +621,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback: (_scenario, attempted) =>
         chain.find((e) => !attempted.includes(e.modelId)) ?? null,
@@ -669,7 +669,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback: (_scenario, attempted) =>
         attempted.includes('minimax-fb') ? null : { modelId: 'minimax-fb' },
@@ -699,7 +699,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback: (_scenario, attempted) =>
         attempted.includes('minimax-fb') ? null : { modelId: 'minimax-fb' },
@@ -729,7 +729,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       authStrategy: makeOpenCodeGoStrategy(),
       mode: 'transformer',
       resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
       nextFallback,
     };
@@ -769,7 +769,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
         ? ['openai-response']
         : shape === 'gemini'
           ? ['gemini']
-          : ['opencodego'];
+          : ['openai'];
   }
   /** zen upstream URL for a model on this mock (the gemini base ends in /models/). */
   function zenUrl(model: string): string {
@@ -788,7 +788,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       mode: 'transformer',
       resolveUpstreamUrl: (m) => zenUrl(m),
       resolveProviderTransformerNames: (m) => zenNamesForShape(zenShape(m)),
-      providerTransformerNames: ['opencodego'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: model, scenario: 'default' }),
     };
   }
@@ -872,8 +872,8 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     expect(received.extra_server_tool.type).toBe('server_tool_use');
   });
 
-  // 3.4d — zen chat (qwen3.6-plus) → opencodego chain at /v1/chat/completions.
-  it('zen chat → opencodego chain at /v1/chat/completions, Bearer only', async () => {
+  // 3.4d — zen chat (qwen3.6-plus) → openai chat chain at /v1/chat/completions.
+  it('zen chat → openai chain at /v1/chat/completions, Bearer only', async () => {
     await startProxy();
     const token = proxy.addRoute(subRoute(zenProfile('qwen3.6-plus')));
     const res = await fetch(`${baseUrl}/v1/messages`, {
@@ -929,8 +929,8 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       resolveUpstreamUrl: (m) =>
         m === 'gpt-5-codex' ? upstreamUrl('/v1/responses') : upstreamUrl('/v1/chat/completions'),
       resolveProviderTransformerNames: (m) =>
-        m === 'gpt-5-codex' ? ['openai-response'] : ['opencodego'],
-      providerTransformerNames: ['opencodego'],
+        m === 'gpt-5-codex' ? ['openai-response'] : ['openai'],
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'gpt-5-codex', scenario: 'default' }),
       nextFallback: (_scenario, attempted) =>
         attempted.includes('kimi-k2.6') ? null : { modelId: 'kimi-k2.6' },
@@ -962,8 +962,8 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       mode: 'transformer',
       resolveUpstreamUrl: (m) =>
         m.startsWith('claude') ? upstreamUrl('/v1/messages') : upstreamUrl('/v1/chat/completions'),
-      resolveProviderTransformerNames: (m) => (m.startsWith('claude') ? [] : ['opencodego']),
-      providerTransformerNames: ['opencodego'],
+      resolveProviderTransformerNames: (m) => (m.startsWith('claude') ? [] : ['openai']),
+      providerTransformerNames: ['openai'],
       modelMapper: () => ({ resolvedModel: 'claude-sonnet-4.5', scenario: 'default' }),
       nextFallback: (_scenario, attempted) =>
         attempted.includes('kimi-k2.6') ? null : { modelId: 'kimi-k2.6' },

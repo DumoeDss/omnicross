@@ -4,13 +4,18 @@
  * human-visible (a `reason` string) rather than a silent transform.
  *
  * The preset `apiFormat` union (5 values, schema-pinned) is WIDER than the
- * daemon's (`openai | anthropic | gemini`). `FORMAT_MAP` is the single explicit
- * narrowing/translation table:
+ * daemon's (`openai | anthropic | gemini | openai-response`). `FORMAT_MAP` is the
+ * single explicit narrowing/translation table:
  *   openai          → openai
  *   anthropic       → anthropic
  *   google          → gemini      (NAME TRANSLATION, not a passthrough — D3)
- *   openai-response → EXCLUDED     (daemon row can't carry a Responses transformer chain)
+ *   openai-response → openai-response
  *   azure-openai    → EXCLUDED     (needs apiVersion + deployment-name-as-model URL template)
+ *
+ * `openai-response` used to be EXCLUDED because a daemon row could not name the
+ * Responses wire — the format had to be smuggled through `transformer.use[]`,
+ * which a preset-mapped row has no slot for. `DaemonApiFormat` names it now, so
+ * the Responses preset maps like any other.
  *
  * `apiKey` is NEVER sourced from the preset — it is supplied by the caller
  * (CLI `--key` / admin body), literal or `$ENV_VAR` (resolved at call time by core).
@@ -35,9 +40,6 @@ export type PresetApiFormat =
 
 /** Human-readable reasons for each excluded preset format (design D6). */
 export const EXCLUSION_REASONS = {
-  'openai-response':
-    'daemon rows have no openai-response format; the Responses API needs a ' +
-    'transformer chain that a BYO daemon provider row cannot express.',
   'azure-openai':
     'Azure needs an apiVersion + a deployment-name-as-model URL template + an ' +
     'empty baseUrl; a daemon provider row cannot express that shape.',
@@ -51,7 +53,7 @@ export const FORMAT_MAP: Record<PresetApiFormat, DaemonApiFormat | null> = {
   openai: 'openai',
   anthropic: 'anthropic',
   google: 'gemini',
-  'openai-response': null,
+  'openai-response': 'openai-response',
   'azure-openai': null,
 };
 

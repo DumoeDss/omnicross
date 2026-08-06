@@ -90,7 +90,7 @@ describe('SubscriptionProviderRegistry', () => {
     expect(profile?.providerId).toBe('opencodego');
     expect(profile?.authStrategy.kind).toBe('static-bearer');
     expect(profile?.authStrategy).toBeInstanceOf(StaticBearerAuthStrategy);
-    expect(profile?.providerTransformerNames).toEqual(['opencodego']);
+    expect(profile?.providerTransformerNames).toEqual(['openai']);
     expect(profile?.modelMapper).toBeDefined();
     expect(profile?.nextFallback).toBeDefined();
 
@@ -196,12 +196,12 @@ describe('SubscriptionProviderRegistry', () => {
       expect(profile.resolveProviderTransformerNames?.('gemini-3-flash', cfg)).toEqual(['gemini']);
     });
 
-    it('zen chat (qwen non-max) → /zen/v1/chat/completions + opencodego chain', () => {
+    it('zen chat (qwen non-max) → /zen/v1/chat/completions + openai chain', () => {
       const cfg = zenCfg({ modelId: 'qwen3.6-plus' });
       expect(profile.resolveUpstreamUrl?.('qwen3.6-plus', cfg)).toBe(
         'https://opencode.ai/zen/v1/chat/completions',
       );
-      expect(profile.resolveProviderTransformerNames?.('qwen3.6-plus', cfg)).toEqual(['opencodego']);
+      expect(profile.resolveProviderTransformerNames?.('qwen3.6-plus', cfg)).toEqual(['openai']);
     });
 
     it('zenBaseUrl overrides ONLY the zen half (go untouched)', () => {

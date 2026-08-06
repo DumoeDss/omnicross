@@ -30,8 +30,17 @@ import type { OutboundApiServerConfig } from '@omnicross/core';
 
 import { decryptConfigSecrets, encryptConfigSecrets, type SecretBox } from './secrets';
 
-/** The wire formats the daemon's BYO providers can speak. */
-export type DaemonApiFormat = 'openai' | 'anthropic' | 'gemini';
+/**
+ * The wire formats the daemon's BYO providers can speak.
+ *
+ * Each value names EXACTLY ONE provider-slot format transformer (see
+ * `ConfigFileProviderConfigSource.FORMAT_TRANSFORMER`). `openai-response` used
+ * to be inexpressible here, so a Responses-wire upstream had to smuggle its
+ * format through `transformer.use[]` — which put TWO format transformers in
+ * reach of the provider slot. Naming it here keeps `use[]` purely a modifier
+ * list. `validateProvider` migrates the old shape on load.
+ */
+export type DaemonApiFormat = 'openai' | 'anthropic' | 'gemini' | 'openai-response';
 
 /**
  * One pool key on a provider row (design D1). Structurally compatible with
@@ -370,7 +379,26 @@ function validateLogging(raw: unknown): LoggingConfig | undefined {
   return out.level !== undefined || out.format !== undefined || out.file !== undefined ? out : undefined;
 }
 
-const VALID_FORMATS: readonly DaemonApiFormat[] = ['openai', 'anthropic', 'gemini'];
+const VALID_FORMATS: readonly DaemonApiFormat[] = [
+  'openai',
+  'anthropic',
+  'gemini',
+  'openai-response',
+];
+
+/**
+ * Transformer names that occupy the PROVIDER SLOT (the Unified → upstream-wire
+ * encoder). Exactly one of these belongs on a request, and it is chosen by the
+ * row's `apiFormat` — never by `transformer.use[]`, which is the MODIFIER axis.
+ * Used by the load-time migration below and by the admin write gateway.
+ */
+export const FORMAT_AXIS_TRANSFORMERS: readonly string[] = [
+  'openai',
+  'anthropic',
+  'gemini',
+  'openai-response',
+  'gemini-code-assist',
+];
 
 /**
  * Shape-guard the optional `apiKeys` pool array (design D1). Mirrors the
@@ -540,6 +568,69 @@ function validateApiModes(raw: unknown): DaemonApiMode[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+/** The transformer name carried by a `use[]` entry (bare name or `[name, opts]`). */
+function transformerEntryName(entry: DaemonTransformerEntry): string {
+  return typeof entry === 'string' ? entry : entry[0];
+}
+
+/**
+ * Migrate a provider row onto the four-value format axis.
+ *
+ * Before this, `DaemonApiFormat` could not name the OpenAI Responses wire, so a
+ * Responses-targeting row was written as `apiFormat:'openai'` +
+ * `transformer.use:['openai-response']`. That worked only because
+ * `getMainTransformer` short-circuited `'openai'` to `null`, leaving `use[]` as
+ * the sole supplier of the provider-slot encoder. Once `'openai'` has a real
+ * format transformer, that shape would put TWO encoders in the slot.
+ *
+ * So on load:
+ *  - PROMOTE — an `'openai'` row whose `use[]` names a real wire format is
+ *    already running that format's encoder; make it explicit in `apiFormat`.
+ *  - STRIP — every format-axis entry leaves `use[]`, which is the MODIFIER axis
+ *    only. This subsumes the old `resolveTransformerChain` defensive filter
+ *    (which dropped just the entry matching the row's own format), so a row like
+ *    the `anthropic` preset (`apiFormat:'anthropic'` + `use:['anthropic']`)
+ *    resolves to the same single encoder it always did.
+ *
+ * Unknown/modifier names are preserved verbatim (forward-compat: an unimplemented
+ * name round-trips through config untouched). Never throws.
+ *
+ * Exported so the admin write gateway (`parseProviderInput`) applies the SAME
+ * normalization as the load guard — the two-gateway lockstep invariant.
+ */
+export function migrateFormatAxis(
+  apiFormat: DaemonApiFormat,
+  transformer: DaemonTransformerConfig | undefined,
+): { apiFormat: DaemonApiFormat; transformer: DaemonTransformerConfig | undefined } {
+  const use = transformer?.use;
+  if (!use || use.length === 0) return { apiFormat, transformer };
+  const hasFormatEntry = use.some((e) => FORMAT_AXIS_TRANSFORMERS.includes(transformerEntryName(e)));
+  if (!hasFormatEntry) return { apiFormat, transformer };
+
+  let migratedFormat = apiFormat;
+  if (apiFormat === 'openai') {
+    const promoted = use
+      .map(transformerEntryName)
+      .find((n): n is DaemonApiFormat => VALID_FORMATS.includes(n as DaemonApiFormat));
+    if (promoted) migratedFormat = promoted;
+  }
+
+  const rest = use.filter((e) => !FORMAT_AXIS_TRANSFORMERS.includes(transformerEntryName(e)));
+  const next: DaemonTransformerConfig = {};
+  let kept = false;
+  if (rest.length > 0) {
+    next.use = rest;
+    kept = true;
+  }
+  // Per-model transformer keys are NOT format-axis state — carry them verbatim.
+  for (const key of Object.keys(transformer)) {
+    if (key === 'use') continue;
+    next[key] = transformer[key];
+    kept = true;
+  }
+  return { apiFormat: migratedFormat, transformer: kept ? next : undefined };
+}
+
 /** Shape-guard one provider row, throwing a clear error on a malformed entry. */
 function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
   if (!raw || typeof raw !== 'object') {
@@ -587,10 +678,14 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
     typeof p['modelsEndpoint'] === 'string' && p['modelsEndpoint'].length > 0
       ? (p['modelsEndpoint'] as string)
       : undefined;
+  const { apiFormat: migratedFormat, transformer: migratedTransformer } = migrateFormatAxis(
+    apiFormat as DaemonApiFormat,
+    validateTransformer(p['transformer']),
+  );
   return {
     id,
     name,
-    apiFormat: apiFormat as DaemonApiFormat,
+    apiFormat: migratedFormat,
     baseUrl,
     apiKey,
     models: Array.isArray(models) ? models.filter((m): m is string => typeof m === 'string') : undefined,
@@ -604,7 +699,9 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
     modelsEndpoint,
     // Provider transformer config (app-parity child 5): load-guard, collapse-to-
     // undefined; non-secret; ENFORCED via resolveTransformerChain (parity-2 child 2).
-    transformer: validateTransformer(p['transformer']),
+    // Format-axis entries are stripped by `migrateFormatAxis` — `use[]` is the
+    // MODIFIER axis only.
+    transformer: migratedTransformer,
     // Coding-plan endpoint (app-parity-2 child 3): load-guard, collapse-to-undefined.
     // SECRET-bearing (apiKey encrypted at rest); enforced by core's resolveProviderEndpoint.
     codingPlan: validateCodingPlan(p['codingPlan']),

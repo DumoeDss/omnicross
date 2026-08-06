@@ -52,6 +52,7 @@ import {
   type DaemonTransformerConfig,
   type DaemonTransformerEntry,
   loadConfig,
+  migrateFormatAxis,
   saveConfig,
   validateTransformerEntry,
 } from '../config';
@@ -775,7 +776,10 @@ async function handleDiscoverModels(
   const row = cfg.providers.find((p) => p.id === id);
   if (!row) return writeJsonError(res, 404, `provider '${id}' not found`);
 
-  if (row.apiFormat !== 'openai') {
+  // Both OpenAI wires serve the same `GET {base}/models` catalog — the request
+  // and response wire only diverges at the completion endpoint, which discovery
+  // never touches. anthropic/gemini have no equivalent, so they stay unsupported.
+  if (row.apiFormat !== 'openai' && row.apiFormat !== 'openai-response') {
     return writeJson(res, 200, { models: [], unsupportedFormat: true });
   }
 
@@ -851,7 +855,7 @@ async function handleTestModel(
   if (!resolvedKey) {
     return writeJson(res, 200, { ok: false, message: 'no API key configured for this provider' });
   }
-  const url = row.baseUrl.replace(/\/+$/, '');
+  let url = row.baseUrl.replace(/\/+$/, '');
   const prompt = 'Reply with the single word: OK.';
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -860,8 +864,16 @@ async function handleTestModel(
     headers['x-api-key'] = resolvedKey;
     headers['anthropic-version'] = '2023-06-01';
     payload = { model, max_tokens: 16, messages: [{ role: 'user', content: prompt }] };
+  } else if (row.apiFormat === 'openai-response') {
+    // The Responses wire is NOT chat-shaped: `input`/`max_output_tokens`, and the
+    // row stores a BASE (`https://api.openai.com`) rather than the full endpoint
+    // the chat rows store — so the path is appended when absent. Previously this
+    // fell into the chat branch and POSTed a chat body at the bare base.
+    headers['Authorization'] = `Bearer ${resolvedKey}`;
+    if (!/\/responses$/.test(url)) url = `${url}/v1/responses`;
+    payload = { model, max_output_tokens: 16, stream: false, input: prompt };
   } else {
-    // openai wire format (also covers azure-openai / openai-response BYO rows).
+    // openai chat wire format (also covers azure-openai BYO rows).
     headers['Authorization'] = `Bearer ${resolvedKey}`;
     payload = {
       model,
@@ -1365,7 +1377,14 @@ export function parseProviderInput(
       : body['name'] === null
         ? undefined
         : existing?.name;
-  if (apiFormat !== 'openai' && apiFormat !== 'anthropic' && apiFormat !== 'gemini') return null;
+  if (
+    apiFormat !== 'openai' &&
+    apiFormat !== 'anthropic' &&
+    apiFormat !== 'gemini' &&
+    apiFormat !== 'openai-response'
+  ) {
+    return null;
+  }
   if (typeof baseUrl !== 'string' || !baseUrl.trim()) return null;
   const rawKey = body['apiKey'];
   let apiKey =
@@ -1470,10 +1489,15 @@ export function parseProviderInput(
       apiKey = mode.apiKey;
     }
   }
+  // Two-gateway lockstep with the load guard: normalize onto the format axis so a
+  // body still using the legacy shape (apiFormat:'openai' + use:['openai-response'])
+  // is stored the same way `loadConfig` would store it — exactly one provider-slot
+  // encoder, named by apiFormat, with `use[]` left as pure modifiers.
+  const migrated = migrateFormatAxis(apiFormat, transformer);
   return {
     id,
     name,
-    apiFormat,
+    apiFormat: migrated.apiFormat,
     baseUrl: baseUrl.trim(),
     apiKey,
     models,
@@ -1484,7 +1508,7 @@ export function parseProviderInput(
     apiVersion,
     maxConcurrency,
     modelsEndpoint,
-    transformer,
+    transformer: migrated.transformer,
     codingPlan,
     apiModes,
     selectedApiModeId,
