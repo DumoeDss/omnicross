@@ -97,3 +97,38 @@ export function formatBase64(data: string, mediaType?: string): string {
   if (data.startsWith('data:')) return data;
   return `data:${mediaType || 'image/png'};base64,${data}`;
 }
+
+/**
+ * Flatten an Anthropic `tool_result.content` into the plain string an
+ * OpenAI-chat `tool` message carries.
+ *
+ * Claude Code sends tool results as a BLOCK ARRAY (`[{type:'text',text:…}]`)
+ * far more often than as a bare string, so `JSON.stringify` made the upstream
+ * model read the literal envelope `[{"type":"text","text":"…"}]` on EVERY tool
+ * result — and a screenshot tool dumped its whole base64 payload into the
+ * prompt. Text blocks are concatenated; an image block becomes a short
+ * placeholder because a chat `tool` message cannot carry image parts at all.
+ * A non-array object still falls back to JSON, which is a fair textual
+ * rendering of structured data.
+ */
+export function flattenToolResultContent(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (content == null) return '';
+  if (!Array.isArray(content)) return JSON.stringify(content);
+
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block === 'string') {
+      parts.push(block);
+      continue;
+    }
+    if (!block || typeof block !== 'object') continue;
+    const typed = block as Record<string, unknown>;
+    if (typed.type === 'image' || typed.type === 'image_url') {
+      parts.push('[image omitted]');
+    } else if (typeof typed.text === 'string') {
+      parts.push(typed.text);
+    }
+  }
+  return parts.filter((text) => text !== '').join('\n');
+}

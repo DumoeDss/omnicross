@@ -444,7 +444,7 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       ]);
     });
 
-    it('drops the codex-only item types instead of emitting junk messages', async () => {
+    it('drops provider-internal item types instead of emitting junk messages', async () => {
       const unified = await transformer.transformRequestOut(
         {
           model: 'gpt-5-codex',
@@ -453,12 +453,6 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
             // `{"role":"system"}` with `content: undefined`.
             { type: 'additional_tools', role: 'developer', tools: [{ type: 'custom', name: 'exec' }] },
             { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'gAAAA…' },
-            { type: 'custom_tool_call', call_id: 'call_x', name: 'exec', input: 'const a = 1;' },
-            {
-              type: 'custom_tool_call_output',
-              call_id: 'call_x',
-              output: [{ type: 'input_text', text: 'ok' }],
-            },
             { type: 'agent_message', author: '/root/sub', content: [{ type: 'input_text', text: 'done' }] },
             { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'go on' }] },
           ],
@@ -466,22 +460,28 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
         mockContext
       );
 
-      // Only the real user turn survives; no undefined-content message.
+      // Only the real user turn becomes a message; the tool DECLARATIONS from
+      // `additional_tools` land in `tools`, never as a message.
       expect(unified.messages).toEqual([{ role: 'user', content: 'go on' }]);
       for (const message of unified.messages) {
         expect(message.content, 'no message may carry undefined content').toBeTypeOf('string');
       }
     });
 
-    it('drops custom_tool_call and its output AS A PAIR (call/result pairing stays valid)', async () => {
+    it('custom_tool_call/_output survive as a tool_call + tool result pair', async () => {
       // Upstreams validate that every assistant tool_call is answered by a tool
-      // message and vice versa. Dropping only one side would break that.
+      // message and vice versa. Both halves of the codex custom-tool protocol
+      // must map, or the history silently loses every `exec` the agent ran.
       const unified = await transformer.transformRequestOut(
         {
           model: 'gpt-5-codex',
           input: [
             { type: 'custom_tool_call', call_id: 'call_x', name: 'exec', input: 'const a = 1;' },
-            { type: 'custom_tool_call_output', call_id: 'call_x', output: 'ok' },
+            {
+              type: 'custom_tool_call_output',
+              call_id: 'call_x',
+              output: [{ type: 'input_text', text: 'ok' }],
+            },
             { type: 'function_call', call_id: 'call_y', name: 'wait', arguments: '{}' },
             { type: 'function_call_output', call_id: 'call_y', output: 'done' },
           ],
@@ -493,8 +493,247 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       const toolResultIds = unified.messages
         .filter((m) => m.role === 'tool')
         .map((m) => m.tool_call_id);
-      expect(toolCallIds).toEqual(['call_y']);
-      expect(toolResultIds).toEqual(['call_y']);
+      expect(toolCallIds).toEqual(['call_x', 'call_y']);
+      expect(toolResultIds).toEqual(['call_x', 'call_y']);
+
+      // The free-form custom payload is wrapped into the `{input:…}` envelope
+      // the flattened function tool declares.
+      const execCall = unified.messages
+        .flatMap((m) => m.tool_calls ?? [])
+        .find((t) => t.function.name === 'exec')!;
+      expect(JSON.parse(execCall.function.arguments)).toEqual({ input: 'const a = 1;' });
+      // And its multi-part result is flattened like any other tool result.
+      expect(unified.messages.find((m) => m.tool_call_id === 'call_x')!.content).toBe('ok');
+    });
+
+    it('additional_tools becomes real tools: function, namespaced, and custom', async () => {
+      // codex does NOT use the top-level `tools` field. Dropping this item left
+      // the upstream request with no tools at all — the agent loop was dead.
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            {
+              type: 'additional_tools',
+              role: 'developer',
+              tools: [
+                {
+                  type: 'custom',
+                  name: 'exec',
+                  description: 'Run JavaScript',
+                  format: { type: 'grammar', syntax: 'lark', definition: 'start: …' },
+                },
+                {
+                  type: 'function',
+                  name: 'wait',
+                  description: 'Wait on a cell',
+                  parameters: { type: 'object', properties: { cell_id: { type: 'string' } } },
+                },
+                {
+                  type: 'namespace',
+                  name: 'collaboration',
+                  tools: [
+                    {
+                      type: 'function',
+                      name: 'spawn_agent',
+                      description: 'Spawn a sub-agent',
+                      parameters: { type: 'object', properties: { task: { type: 'string' } } },
+                    },
+                  ],
+                },
+              ],
+            },
+            { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'go' }] },
+          ],
+        },
+        mockContext
+      );
+
+      expect(unified.tools?.map((t) => t.function.name)).toEqual(['exec', 'wait', 'spawn_agent']);
+
+      // A custom tool has no JSON schema of its own — it is exposed as one
+      // required free-form `input` string.
+      const exec = unified.tools!.find((t) => t.function.name === 'exec')!;
+      expect(exec.function.parameters).toMatchObject({
+        type: 'object',
+        properties: { input: { type: 'string' } },
+        required: ['input'],
+      });
+      // A namespaced tool keeps its BARE name (that is what the model calls).
+      expect(unified.tools!.find((t) => t.function.name === 'spawn_agent')!.function.parameters)
+        .toMatchObject({ properties: { task: { type: 'string' } } });
+
+      // The protocol state the response encoder needs is threaded on `meta`.
+      expect(unified.meta?.codexTools).toEqual({
+        customToolNames: ['exec'],
+        toolNamespaces: { spawn_agent: 'collaboration' },
+      });
+    });
+  });
+
+  // =========================================================================
+  // 2.6 Custom-tool protocol — ENCODE direction (unified reply → codex wire)
+  //
+  // A tool codex declared `type:'custom'` must come back as a `custom_tool_call`
+  // item carrying free-form `input`. The upstream answers in OpenAI-chat, which
+  // has only JSON-argument function calls, so the encoder restores the protocol
+  // using the state `transformRequestOut` recorded on `meta.codexTools` and
+  // `executeResponseChain` threads back on `context.req`.
+  // =========================================================================
+  describe('2.6 custom-tool encode', () => {
+    const codexContext = (customToolNames: string[], toolNamespaces: Record<string, string> = {}) =>
+      ({
+        ...mockContext,
+        req: { model: 'gpt-5-codex', messages: [], meta: { codexTools: { customToolNames, toolNamespaces } } },
+      }) as TransformerContext;
+
+    it('JSON: a custom tool call encodes to custom_tool_call with unwrapped input', async () => {
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_abc',
+                    type: 'function',
+                    function: { name: 'exec', arguments: '{"input":"const a = 1;"}' },
+                  },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext(['exec'])
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'custom_tool_call');
+      expect(item, 'must be custom_tool_call, not function_call').toBeDefined();
+      expect(item.call_id).toBe('call_abc');
+      expect(item.name).toBe('exec');
+      // Free-form payload, unwrapped from the `{input:…}` envelope.
+      expect(item.input).toBe('const a = 1;');
+      expect(item.id).toMatch(/^ctc_/);
+      expect(json.output.some((o: any) => o.type === 'function_call')).toBe(false);
+    });
+
+    it('JSON: a namespaced function call keeps function_call and regains its namespace', async () => {
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_z', type: 'function', function: { name: 'spawn_agent', arguments: '{"task":"x"}' } },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext(['exec'], { spawn_agent: 'collaboration' })
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'function_call');
+      expect(item.name).toBe('spawn_agent');
+      expect(item.namespace).toBe('collaboration');
+      expect(item.arguments).toBe('{"task":"x"}');
+      expect(item.id).toMatch(/^fc_/);
+    });
+
+    it('SSE: a custom tool streams added → input delta+done → item.done', async () => {
+      // The upstream streams the arguments JSON in fragments; the free-form
+      // `input` is only recoverable once complete, so it is emitted at finish.
+      const out = await transformer.transformResponseIn(
+        sseResponse([
+          'data: {"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_abc","function":{"name":"exec","arguments":"{\\"input\\":\\"con"}}]},"finish_reason":null}]}\n\n',
+          'data: {"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"st a = 1;\\"}"}}]},"finish_reason":null}]}\n\n',
+          'data: {"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+          'data: [DONE]\n\n',
+        ]),
+        codexContext(['exec'])
+      );
+
+      const events = (await drainSseEvents(out)) as Array<Record<string, any>>;
+      const types = events.map((e) => e.type);
+
+      // Opened as a custom_tool_call, not a function_call.
+      const added = events.find((e) => e.type === 'response.output_item.added' && e.item?.type === 'custom_tool_call');
+      expect(added, 'custom_tool_call item must be opened').toBeDefined();
+      expect(added!.item.call_id).toBe('call_abc');
+
+      // No half-parsed JSON leaked as function-call argument deltas.
+      expect(types).not.toContain('response.function_call_arguments.delta');
+
+      const inputDelta = events.find((e) => e.type === 'response.custom_tool_call_input.delta')!;
+      expect(inputDelta.delta).toBe('const a = 1;');
+      const inputDone = events.find((e) => e.type === 'response.custom_tool_call_input.done')!;
+      expect(inputDone.input).toBe('const a = 1;');
+
+      const done = events.find((e) => e.type === 'response.output_item.done')!;
+      expect(done.item.type).toBe('custom_tool_call');
+      expect(done.item.input).toBe('const a = 1;');
+      expect(done.item.status).toBe('completed');
+
+      // The terminal response carries the same item.
+      const completed = events.find((e) => e.type === 'response.completed')!;
+      expect(completed.response.output[0]).toMatchObject({
+        type: 'custom_tool_call',
+        name: 'exec',
+        input: 'const a = 1;',
+      });
+    });
+
+    it('SSE: without codex custom-tool state, tool calls stay plain function_calls', async () => {
+      // A non-codex client declares no custom tools — behaviour is unchanged.
+      const out = await transformer.transformResponseIn(
+        sseResponse([
+          'data: {"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read_file","arguments":"{\\"path\\":\\"a\\"}"}}]},"finish_reason":null}]}\n\n',
+          'data: {"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+        ]),
+        mockContext
+      );
+
+      const events = (await drainSseEvents(out)) as Array<Record<string, any>>;
+      const added = events.find((e) => e.type === 'response.output_item.added' && e.item?.type === 'function_call');
+      expect(added).toBeDefined();
+      expect(events.map((e) => e.type)).toContain('response.function_call_arguments.delta');
+      expect(events.some((e) => e.item?.type === 'custom_tool_call')).toBe(false);
+    });
+
+    it('malformed custom-tool arguments pass through raw instead of dropping the call', async () => {
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'm',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                // Model ignored the schema and emitted bare text.
+                tool_calls: [{ id: 'call_q', type: 'function', function: { name: 'exec', arguments: 'not json' } }],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext(['exec'])
+      );
+      const json = (await out.json()) as Record<string, any>;
+      expect(json.output[0].type).toBe('custom_tool_call');
+      expect(json.output[0].input).toBe('not json');
     });
   });
 

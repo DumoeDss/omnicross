@@ -27,7 +27,7 @@ import type {
   AnthropicToolResultContent,
   AnthropicToolUseContent,
 } from './AnthropicTypes';
-import { formatBase64, getThinkLevel } from './AnthropicTypes';
+import { flattenToolResultContent, formatBase64, getThinkLevel } from './AnthropicTypes';
 
 export { buildAnthropicRequestBody } from './AnthropicRequestBuilder';
 export {
@@ -92,7 +92,10 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
         for (const tool of toolParts as AnthropicToolResultContent[]) {
           messages.push({
             role: 'tool',
-            content: typeof tool.content === 'string' ? tool.content : JSON.stringify(tool.content),
+            // Claude Code sends tool results as a block ARRAY; stringifying it
+            // fed the model the literal `[{"type":"text","text":"…"}]` envelope
+            // on every tool result.
+            content: flattenToolResultContent(tool.content),
             tool_call_id: tool.tool_use_id,
             cache_control: tool.cache_control,
           });

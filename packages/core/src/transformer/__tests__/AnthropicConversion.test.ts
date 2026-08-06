@@ -271,6 +271,63 @@ describe('transformAnthropicRequestToUnified', () => {
     });
   });
 
+  it('flattens a BLOCK-ARRAY tool_result to text (Claude Code sends this shape)', () => {
+    // Claude Code returns tool results as content blocks far more often than as
+    // a bare string. Stringifying made the upstream model read the literal
+    // `[{"type":"text","text":"…"}]` envelope on every single tool result.
+    const result = transformAnthropicRequestToUnified({
+      model: 'claude',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool_1',
+              content: [
+                { type: 'text', text: 'line one' },
+                { type: 'text', text: 'line two' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const toolMsg = result.messages.find((m) => m.role === 'tool')!;
+    expect(toolMsg.content).toBe('line one\nline two');
+    expect(typeof toolMsg.content).toBe('string');
+  });
+
+  it('replaces an image block in a tool_result with a placeholder, not base64', () => {
+    // A chat `tool` message cannot carry image parts; dumping the base64 into
+    // the prompt is worse than saying an image was there.
+    const result = transformAnthropicRequestToUnified({
+      model: 'claude',
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool_1',
+              content: [
+                { type: 'text', text: 'screenshot taken' },
+                { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo…' } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const toolMsg = result.messages.find((m) => m.role === 'tool')!;
+    expect(toolMsg.content).toBe('screenshot taken\n[image omitted]');
+    expect(toolMsg.content).not.toContain('iVBORw0KGgo');
+  });
+
   it('converts assistant tool_use to tool_calls', () => {
     const result = transformAnthropicRequestToUnified({
       model: 'claude',
