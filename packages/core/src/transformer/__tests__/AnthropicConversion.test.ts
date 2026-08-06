@@ -353,6 +353,38 @@ describe('buildAnthropicRequestBody', () => {
     expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
   });
 
+  // Anthropic requires `max_tokens`, so an absent caller cap must resolve to
+  // the model's real ceiling. Regression: a hardcoded 4096 fallback silently
+  // truncated long responses and corrupted tool-call JSON mid-arguments.
+  it('defaults max_tokens to the model ceiling, not a small constant', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude-opus-4-8',
+      messages: [{ role: 'user', content: 'write the chapter' }],
+    });
+
+    expect(body.max_tokens).toBe(128000);
+    expect(body.max_tokens).not.toBe(4096);
+  });
+
+  it('defaults max_tokens to the frontier ceiling for unregistered models', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'some-relay-only-alias',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    expect(body.max_tokens).toBe(128000);
+  });
+
+  it('still honors an explicit max_tokens from the caller', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude-opus-4-8',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    expect(body.max_tokens).toBe(1024);
+  });
+
   it('converts assistant tool_calls to tool_use blocks', () => {
     const request: UnifiedChatRequest = {
       model: 'claude',
