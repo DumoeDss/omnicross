@@ -125,6 +125,40 @@ describe('executeProviderCall', () => {
     expect(result.response).toBe(responseInMarker);
   });
 
+  it('(e) a FAILED upstream response skips the response chain and keeps its status + body', async () => {
+    // Regression: the chain rebuilds `new Response(...)`, which defaults to
+    // status 200, so an upstream 400 used to reach the client as a 200 carrying
+    // an empty success envelope — a streaming client then saw zero events and
+    // reported a truncated stream instead of the real error.
+    const executor = new TransformerChainExecutor(silentLogger);
+    const responseChainSpy = vi
+      .spyOn(executor, 'executeResponseChain')
+      .mockResolvedValue(jsonResponse({ laundered: true }));
+
+    const upstreamError = new Response(
+      JSON.stringify({ error: { code: '1214', message: 'messages[56].content[0].type type error' } }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    );
+
+    const result = await executeProviderCall({
+      executor,
+      request: unifiedRequest,
+      provider,
+      chain: emptyChain,
+      resolveUrl: () => 'https://api.test.com/v1/chat',
+      buildHeaders: () => ({}),
+      fetchFn: async () => upstreamError,
+      runResponseChain: true,
+      responseChainRequest: unifiedRequest,
+    });
+
+    expect(responseChainSpy, 'response chain must not run on a failed response').not.toHaveBeenCalled();
+    expect(result.response).toBe(upstreamError);
+    expect(result.response.status).toBe(400);
+    const body = (await result.response.json()) as { error: { message: string } };
+    expect(body.error.message).toContain('content[0].type type error');
+  });
+
   it('(c) prepareBody is applied to the fetched body but the response chain receives the pre-prepare request body', async () => {
     // Spy on executeResponseChain to capture its first arg.
     const executor = new TransformerChainExecutor(silentLogger);

@@ -115,8 +115,11 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(unified.temperature).toBe(0.4);
       expect(unified.stream).toBe(false);
 
-      // developer → system, user → user
+      // `instructions` (the public Responses API's system prompt) leads, then
+      // developer → system, user → user. `instructions` used to be dropped,
+      // silently losing the caller's whole system prompt.
       expect(unified.messages).toEqual([
+        { role: 'system', content: 'You are a helpful coding assistant.' },
         { role: 'system', content: 'You operate in a sandbox.' },
         { role: 'user', content: 'Say hello.' },
       ]);
@@ -381,6 +384,117 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
         type: 'object',
         properties: { path: { type: 'string' } },
       });
+    });
+  });
+
+  // =========================================================================
+  // 2.5 Codex history decode — the shapes a RESUMED session replays
+  //
+  // Codex resends its whole history every turn (`store:false`). A resumed
+  // session therefore replays item shapes a fresh session never produces, and
+  // each one below used to corrupt or break the outbound OpenAI-chat request.
+  // The fixtures are trimmed from a real rollout that reproduced the bug.
+  // =========================================================================
+  describe('2.5 codex history decode', () => {
+    it('function_call_output with ARRAY output flattens to text (not a parts array)', async () => {
+      // codex splits a multi-segment tool result into several `input_text`
+      // parts. Relaying that array verbatim as an OpenAI-chat `content` made
+      // upstreams 400 (`messages[N].content[0].type type error`).
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            { type: 'function_call', call_id: 'call_1', name: 'shell', arguments: '{}' },
+            {
+              type: 'function_call_output',
+              call_id: 'call_1',
+              output: [
+                { type: 'input_text', text: 'Script completed' },
+                { type: 'input_text', text: 'Exit code: 0' },
+              ],
+            },
+          ],
+        },
+        mockContext
+      );
+
+      const toolMsg = unified.messages.find((m) => m.role === 'tool')!;
+      expect(typeof toolMsg.content, 'tool content must be a plain string').toBe('string');
+      expect(toolMsg.content).toBe('Script completed\nExit code: 0');
+      expect(toolMsg.tool_call_id).toBe('call_1');
+    });
+
+    it('message content parts flatten to text instead of being JSON.stringify-d', async () => {
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            { type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'You are Codex.' }] },
+            { type: 'message', role: 'user', content: [{ type: 'input_text', text: '你好' }] },
+            { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Hi!' }] },
+          ],
+        },
+        mockContext
+      );
+
+      expect(unified.messages).toEqual([
+        { role: 'system', content: 'You are Codex.' },
+        { role: 'user', content: '你好' },
+        { role: 'assistant', content: 'Hi!' },
+      ]);
+    });
+
+    it('drops the codex-only item types instead of emitting junk messages', async () => {
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            // Carries role:'developer' but NO content — used to become
+            // `{"role":"system"}` with `content: undefined`.
+            { type: 'additional_tools', role: 'developer', tools: [{ type: 'custom', name: 'exec' }] },
+            { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'gAAAA…' },
+            { type: 'custom_tool_call', call_id: 'call_x', name: 'exec', input: 'const a = 1;' },
+            {
+              type: 'custom_tool_call_output',
+              call_id: 'call_x',
+              output: [{ type: 'input_text', text: 'ok' }],
+            },
+            { type: 'agent_message', author: '/root/sub', content: [{ type: 'input_text', text: 'done' }] },
+            { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'go on' }] },
+          ],
+        },
+        mockContext
+      );
+
+      // Only the real user turn survives; no undefined-content message.
+      expect(unified.messages).toEqual([{ role: 'user', content: 'go on' }]);
+      for (const message of unified.messages) {
+        expect(message.content, 'no message may carry undefined content').toBeTypeOf('string');
+      }
+    });
+
+    it('drops custom_tool_call and its output AS A PAIR (call/result pairing stays valid)', async () => {
+      // Upstreams validate that every assistant tool_call is answered by a tool
+      // message and vice versa. Dropping only one side would break that.
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            { type: 'custom_tool_call', call_id: 'call_x', name: 'exec', input: 'const a = 1;' },
+            { type: 'custom_tool_call_output', call_id: 'call_x', output: 'ok' },
+            { type: 'function_call', call_id: 'call_y', name: 'wait', arguments: '{}' },
+            { type: 'function_call_output', call_id: 'call_y', output: 'done' },
+          ],
+        },
+        mockContext
+      );
+
+      const toolCallIds = unified.messages.flatMap((m) => m.tool_calls?.map((t) => t.id) ?? []);
+      const toolResultIds = unified.messages
+        .filter((m) => m.role === 'tool')
+        .map((m) => m.tool_call_id);
+      expect(toolCallIds).toEqual(['call_y']);
+      expect(toolResultIds).toEqual(['call_y']);
     });
   });
 

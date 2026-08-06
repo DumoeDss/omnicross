@@ -67,6 +67,54 @@ function sseResponse(fullText: string, splitAt: number[]): Response {
 
 const asRes = (m: MockRes) => m as unknown as http.ServerResponse;
 
+describe('relayResponse — failed upstream is relayed as an error, not as an empty stream', () => {
+  it('a JSON error body is NOT stamped text/event-stream even when the client streams', async () => {
+    // Regression: forcing the SSE content-type onto an error body made codex
+    // read zero events and report "stream closed before response.completed"
+    // instead of the upstream 400.
+    const errorBody = JSON.stringify({ error: { code: '1214', message: 'content[0].type type error' } });
+    const resp = new Response(errorBody, {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const mock = new MockRes();
+
+    const returned = await relayResponse(asRes(mock), resp, /* isStream */ true);
+
+    expect(mock.statusCode, 'the upstream status must survive').toBe(400);
+    expect(mock.headers['Content-Type']).toContain('application/json');
+    expect(mock.body).toBe(errorBody);
+    expect(returned).toBe(errorBody);
+  });
+
+  it('a genuine SSE body still streams at a non-2xx status', async () => {
+    const sse = 'data: {"type":"response.failed"}\n\n';
+    const resp = new Response(sse, {
+      status: 429,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+    const mock = new MockRes();
+
+    await relayResponse(asRes(mock), resp, /* isStream */ true);
+
+    expect(mock.statusCode).toBe(429);
+    expect(mock.headers['Content-Type']).toContain('text/event-stream');
+    expect(mock.body).toBe(sse);
+  });
+
+  it('a 200 stream WITHOUT a Content-Type header still streams (codex backend omits it)', async () => {
+    const sse = 'data: {"type":"response.created"}\n\n';
+    const resp = new Response(sse, { status: 200 });
+    resp.headers.delete('Content-Type');
+    const mock = new MockRes();
+
+    await relayResponse(asRes(mock), resp, /* isStream */ true);
+
+    expect(mock.headers['Content-Type']).toContain('text/event-stream');
+    expect(mock.body).toBe(sse);
+  });
+});
+
 describe('relayResponse — non-stream JSON model rewrite', () => {
   it('Anthropic top-level model → client id; returned body stays upstream', async () => {
     const upstream = { type: 'message', model: 'provider-real-model', usage: { input_tokens: 3, output_tokens: 5 } };

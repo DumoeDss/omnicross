@@ -282,8 +282,15 @@ export async function relayResponse(
   const contentType = providerResponse.headers.get('Content-Type') ?? '';
   const status =
     providerResponse.status && providerResponse.status >= 100 ? providerResponse.status : 200;
+  const upstreamIsSse = contentType.includes('text/event-stream');
 
-  if (isStream || contentType.includes('text/event-stream')) {
+  // A FAILED response is never a stream, even when the client asked for one:
+  // stamping `text/event-stream` onto a JSON error body makes an SSE client read
+  // ZERO events and report a truncated stream ("stream closed before
+  // response.completed") instead of the actual error — which is how a plain
+  // upstream 400 used to reach codex. Errors relay as their real body with their
+  // real status; a genuine SSE body still takes the stream branch at any status.
+  if (upstreamIsSse || (isStream && status < 400)) {
     res.writeHead(status, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
