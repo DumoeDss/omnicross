@@ -61,7 +61,10 @@ import type {
   Transformer,
 } from '../../transformer';
 import type { ProviderProxyDeps, RouteContext } from '../types';
-import { recordChatCompletionsNonStreamUsage } from '../usage/recordChatCompletionsUsage';
+import {
+  recordChatCompletionsNonStreamUsage,
+  recordChatCompletionsStreamUsage,
+} from '../usage/recordChatCompletionsUsage';
 
 import {
   getSharedExecutor,
@@ -160,16 +163,37 @@ export async function handleOpenAIChatRequest(
       ? await runPipelineWithSubscriptionRetry(chatBody, plan)
       : await runPipelineWithPoolReporting(chatBody, plan);
 
-    const bodyText = await relayResponse(res, providerResponse.response, isStream);
+    const usageAttribution = {
+      sessionId: route.sessionId,
+      providerId: route.providerId ?? 'openai',
+      model: resolvedModel,
+      apiKeyId: route.apiKeyId ?? null,
+      // request-audit-log: correlate this request's tokens/cost to its audit record.
+      auditResponse: res,
+    };
+    // Streaming usage tap: a chat stream only carries `usage` on the final chunk
+    // (and only when the client sent `stream_options.include_usage`); without it
+    // the tap simply never fires. Byte-identical when no usageRecorder is wired.
+    const usageRecorder = deps.usageRecorder;
+    const usageTap = usageRecorder
+      ? {
+          extractUsage(event: Record<string, unknown>): Record<string, unknown> | null | undefined {
+            return (event['usage'] as Record<string, unknown> | undefined) ?? null;
+          },
+          onUsage(rawUsage: Record<string, unknown>): void {
+            recordChatCompletionsStreamUsage(usageRecorder, rawUsage, usageAttribution);
+          },
+        }
+      : undefined;
+    const bodyText = await relayResponse(
+      res,
+      providerResponse.response,
+      isStream,
+      undefined,
+      usageTap,
+    );
     if (bodyText && deps.usageRecorder) {
-      recordChatCompletionsNonStreamUsage(deps.usageRecorder, bodyText, {
-        sessionId: route.sessionId,
-        providerId: route.providerId ?? 'openai',
-        model: resolvedModel,
-        apiKeyId: route.apiKeyId ?? null,
-        // request-audit-log: correlate this request's tokens/cost to its audit record.
-        auditResponse: res,
-      });
+      recordChatCompletionsNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
     if (isBoundAccountSelectionError(err)) {

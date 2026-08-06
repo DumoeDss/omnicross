@@ -54,7 +54,7 @@ import type {
 } from '../../transformer';
 import { injectExtendedContextBeta } from '../../transformer/anthropicBetaInject';
 import type { ProviderProxyDeps, RouteContext } from '../types';
-import { recordAnthropicNonStreamUsage } from '../usage/recordAnthropicUsage';
+import { recordAnthropicNonStreamUsage, recordAnthropicStreamUsage } from '../usage/recordAnthropicUsage';
 
 import {
   type AnthropicByoOptions,
@@ -138,6 +138,41 @@ export async function handleAnthropicMessagesByo(
     const upstreamSse = (upstreamResponse.headers.get('content-type') ?? '').includes(
       'text/event-stream',
     );
+    const usageAttribution = {
+      sessionId: route.sessionId,
+      providerId: route.providerId ?? 'anthropic',
+      model: plan.resolvedModel,
+      apiKeyId: route.apiKeyId ?? null,
+      // request-audit-log: correlate this request's tokens/cost to its audit record.
+      auditResponse: res,
+    };
+    // Streaming usage tap: Anthropic streams split usage across `message_start`
+    // (input_tokens) and `message_delta` (output_tokens). Hold the input half and
+    // emit the merge on `message_delta`. The aggregate (non-stream-from-sse) path
+    // below still uses the buffered non-stream recorder.
+    const usageRecorder = deps.usageRecorder;
+    let anthropicInputUsage: Record<string, unknown> | undefined;
+    const usageTap = usageRecorder
+      ? {
+          extractUsage(event: Record<string, unknown>): Record<string, unknown> | null | undefined {
+            if (event['type'] === 'message_start') {
+              const msg = event['message'] as Record<string, unknown> | undefined;
+              const u = msg?.['usage'] as Record<string, unknown> | undefined;
+              if (u) anthropicInputUsage = u;
+              return null;
+            }
+            if (event['type'] === 'message_delta') {
+              const outputUsage = event['usage'] as Record<string, unknown> | undefined;
+              if (!outputUsage) return null;
+              return { ...anthropicInputUsage, ...outputUsage };
+            }
+            return null;
+          },
+          onUsage(rawUsage: Record<string, unknown>): void {
+            recordAnthropicStreamUsage(usageRecorder, rawUsage, usageAttribution);
+          },
+        }
+      : undefined;
     let bodyText: string | null;
     if (!isStream && upstreamSse) {
       bodyText = await aggregateAnthropicSseToJsonBody(upstreamResponse, route.requestedModel);
@@ -147,17 +182,10 @@ export async function handleAnthropicMessagesByo(
       );
       res.end(bodyText);
     } else {
-      bodyText = await relayResponse(res, upstreamResponse, isStream, route.requestedModel);
+      bodyText = await relayResponse(res, upstreamResponse, isStream, route.requestedModel, usageTap);
     }
     if (bodyText && deps.usageRecorder) {
-      recordAnthropicNonStreamUsage(deps.usageRecorder, bodyText, {
-        sessionId: route.sessionId,
-        providerId: route.providerId ?? 'anthropic',
-        model: plan.resolvedModel,
-        apiKeyId: route.apiKeyId ?? null,
-        // request-audit-log: correlate this request's tokens/cost to its audit record.
-        auditResponse: res,
-      });
+      recordAnthropicNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
     if (isBoundAccountSelectionError(err)) {

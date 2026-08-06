@@ -39,7 +39,7 @@ import type {
 } from '../../transformer';
 import { deriveGatewaySessionKey, type SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
-import { recordResponsesNonStreamUsage } from '../usage/recordResponsesUsage';
+import { recordResponsesNonStreamUsage, recordResponsesStreamUsage } from '../usage/recordResponsesUsage';
 
 import {
   getResponsesEndpointTransformer,
@@ -134,16 +134,41 @@ export async function handleOpenAIResponsesRequest(
     // ORIGINAL requested id (`route.requestedModel`) so Codex sees `gpt-5-codex-…`
     // rather than the upstream provider model. `undefined` for internal traffic
     // ⇒ byte-identical. Usage accounting STAYS on the upstream `resolvedModel`.
-    const bodyText = await relayResponse(res, providerResponse.response, isStream, route.requestedModel);
+    const usageAttribution = {
+      sessionId: route.sessionId,
+      providerId: route.providerId ?? 'codex',
+      model: resolvedModel,
+      apiKeyId: route.apiKeyId ?? null,
+      // request-audit-log: correlate this request's tokens/cost to its audit record.
+      auditResponse: res,
+    };
+    // Streaming usage tap: the codex backend forces `stream:true`, so without
+    // this the non-stream recorder below never fires (relayResponse returns null
+    // for streams) and Codex turns produce zero usage/dashboard rows. The tap
+    // pulls `usage` out of the terminal `response.completed` event.
+    const usageRecorder = deps.usageRecorder;
+    const usageTap = usageRecorder
+      ? {
+          extractUsage(event: Record<string, unknown>): Record<string, unknown> | null | undefined {
+            if (event['type'] !== 'response.completed') return null;
+            const response = event['response'] as Record<string, unknown> | undefined;
+            const usage = response?.['usage'] as Record<string, unknown> | undefined;
+            return usage ?? null;
+          },
+          onUsage(rawUsage: Record<string, unknown>): void {
+            recordResponsesStreamUsage(usageRecorder, rawUsage, usageAttribution);
+          },
+        }
+      : undefined;
+    const bodyText = await relayResponse(
+      res,
+      providerResponse.response,
+      isStream,
+      route.requestedModel,
+      usageTap,
+    );
     if (bodyText && deps.usageRecorder) {
-      recordResponsesNonStreamUsage(deps.usageRecorder, bodyText, {
-        sessionId: route.sessionId,
-        providerId: route.providerId ?? 'codex',
-        model: resolvedModel,
-        apiKeyId: route.apiKeyId ?? null,
-        // request-audit-log: correlate this request's tokens/cost to its audit record.
-        auditResponse: res,
-      });
+      recordResponsesNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
     if (isBoundAccountSelectionError(err)) {

@@ -206,3 +206,93 @@ describe('relayResponse — SSE model rewrite (framing preserved, split chunks)'
     expect(res.body).toBe(sse.replace('"model":"up"', '"model":"claude-opus-4-8"'));
   });
 });
+
+describe('relayResponse — streaming usage tap (usageTap)', () => {
+  it('fires onUsage once with the terminal response.completed usage; body relayed verbatim', async () => {
+    const sse =
+      'data: {"type":"response.created","response":{"id":"r","status":"in_progress"}}\n\n' +
+      'data: {"type":"response.output_text.delta","delta":"Hi"}\n\n' +
+      'data: {"type":"response.completed","response":{"id":"r","status":"completed","usage":{"input_tokens":10,"output_tokens":3}}}\n\n';
+    const seen: string[] = [];
+    const captured: Record<string, unknown>[] = [];
+    const tap = {
+      extractUsage(event: Record<string, unknown>): Record<string, unknown> | null | undefined {
+        seen.push(event['type'] as string);
+        if (event['type'] === 'response.completed') {
+          return (event['response'] as Record<string, unknown>)['usage'] as Record<string, unknown>;
+        }
+        return null;
+      },
+      onUsage(rawUsage: Record<string, unknown>): void {
+        captured.push(rawUsage);
+      },
+    };
+    const res = new MockRes();
+    const returned = await relayResponse(asRes(res), sseResponse(sse, [12, 80]), true, undefined, tap);
+    // Streaming relay → null body (no buffered text); SSE bytes pass through unchanged.
+    expect(returned).toBeNull();
+    expect(res.body).toBe(sse);
+    // extractUsage saw every data event (split chunks rejoined).
+    expect(seen).toEqual(['response.created', 'response.output_text.delta', 'response.completed']);
+    // onUsage fired EXACTLY once, with the captured usage object.
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toEqual({ input_tokens: 10, output_tokens: 3 });
+  });
+
+  it('keeps the LAST non-null usage when several events carry one', async () => {
+    const sse = 'data: {"usage":{"prompt_tokens":1}}\n\n' + 'data: {"usage":{"prompt_tokens":2}}\n\n';
+    let captured: Record<string, unknown> | undefined;
+    const tap = {
+      extractUsage(e: Record<string, unknown>) {
+        return e['usage'] as Record<string, unknown> | undefined;
+      },
+      onUsage(u: Record<string, unknown>) {
+        captured = u;
+      },
+    };
+    const res = new MockRes();
+    await relayResponse(asRes(res), sseResponse(sse, [22]), true, undefined, tap);
+    expect(captured).toEqual({ prompt_tokens: 2 });
+  });
+
+  it('composes with model rewrite — usage tapped from the pre-rewrite line', async () => {
+    const sse =
+      'data: {"type":"response.completed","response":{"id":"r","model":"up","usage":{"input_tokens":7,"output_tokens":4}}}\n\n';
+    let captured: Record<string, unknown> | undefined;
+    const tap = {
+      extractUsage(e: Record<string, unknown>) {
+        if (e['type'] === 'response.completed') {
+          return (e['response'] as Record<string, unknown>)['usage'] as Record<string, unknown>;
+        }
+        return null;
+      },
+      onUsage(u: Record<string, unknown>) {
+        captured = u;
+      },
+    };
+    const res = new MockRes();
+    await relayResponse(asRes(res), sseResponse(sse, [10]), true, 'gpt-5-codex', tap);
+    // Model rewritten for the client…
+    expect(res.body).toContain('"model":"gpt-5-codex"');
+    expect(res.body).not.toContain('"model":"up"');
+    // …while usage is still captured (model rewrite never touches usage).
+    expect(captured).toEqual({ input_tokens: 7, output_tokens: 4 });
+  });
+
+  it('no usage in any event + [DONE] sentinel → onUsage never called, body verbatim', async () => {
+    const sse = 'data: {"type":"ping"}\n\ndata: [DONE]\n\n';
+    let called = false;
+    const tap = {
+      extractUsage() {
+        return null;
+      },
+      onUsage() {
+        called = true;
+      },
+    };
+    const res = new MockRes();
+    await relayResponse(asRes(res), sseResponse(sse, [3]), true, undefined, tap);
+    expect(called).toBe(false);
+    expect(res.body).toBe(sse);
+  });
+});

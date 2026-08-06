@@ -169,19 +169,61 @@ function rewriteSseLine(line: string, rewriteModel: string): string {
 }
 
 /**
- * Stream an SSE body to `res`, rewriting the `model` in EVERY model-bearing event
- * (design D4). SSE events can straddle chunk boundaries, so bytes are decoded
- * through a single streaming `TextDecoder` (multi-byte-safe) and assembled into
- * whole lines before rewriting; the exact framing (`event:` / `data:` /
- * blank-line separators + newline style) is preserved. A trailing final line
- * WITHOUT a newline is flushed + rewritten too (terminal-line gap). Non-model
- * lines pass through via the cheap gate in `rewriteSseLine` at zero parse cost.
+ * A usage tap for {@link relayResponse}'s stream branch. Streaming responses were
+ * previously not metered (only the non-stream branch recorded usage), so Codex
+ * — which always streams — produced zero usage/dashboard rows. The tap lets each
+ * ingress extract the RAW provider usage object from the SSE events it already
+ * knows, and {@link onUsage} fires once at stream end so the recorder charges
+ * exactly one event per request. Returning the raw object (not normalized)
+ * keeps this tap endpoint-agnostic; each recorder normalizes its own shape.
  */
-async function relayStreamWithModelRewrite(
+export interface StreamUsageTap {
+  /**
+   * Inspect one parsed SSE `data:` JSON event. Return the raw provider usage
+   * object it carries (else null/undefined). The LAST non-null return across
+   * the whole stream is what {@link onUsage} receives — so for endpoints whose
+   * usage arrives piecewise (e.g. Anthropic `message_start`+`message_delta`),
+   * merge inside this closure and return the combined value from the terminal
+   * event.
+   */
+  extractUsage(event: Record<string, unknown>): Record<string, unknown> | null | undefined;
+  /** Called once at stream end with the last captured usage (only if any). */
+  onUsage(rawUsage: Record<string, unknown>): void;
+}
+
+/** Best-effort parse of one SSE `data:` line; invokes `onEvent` with the JSON. Never throws. */
+function tapSseDataLine(line: string, onEvent: (event: Record<string, unknown>) => void): void {
+  const leadingStripped = line.replace(/^\s+/, '');
+  if (!leadingStripped.startsWith('data:')) return;
+  const payload = leadingStripped.slice(5).trim();
+  if (!payload || payload === '[DONE]') return;
+  try {
+    onEvent(JSON.parse(payload) as Record<string, unknown>);
+  } catch {
+    // non-JSON data line — ignore
+  }
+}
+
+/**
+ * Stream an SSE body to `res`, optionally rewriting the `model` in every
+ * model-bearing event (design D4) AND/OR tapping each parsed `data:` event for
+ * usage extraction. SSE events can straddle chunk boundaries, so bytes are
+ * decoded through a single streaming `TextDecoder` (multi-byte-safe) and
+ * assembled into whole lines before rewriting/tapping; the exact framing
+ * (`event:` / `data:` / blank-line separators + newline style) is preserved.
+ * A trailing final line WITHOUT a newline is flushed too (terminal-line gap).
+ * The usage tap reads the ORIGINAL line (pre-rewrite) — model rewriting never
+ * touches usage, so this avoids re-parsing the rewritten JSON. Best-effort: a
+ * malformed event is skipped, never thrown. Non-model lines pass through via
+ * the cheap gate in `rewriteSseLine` at zero parse cost when neither option
+ * touches them.
+ */
+async function relaySseBody(
   res: http.ServerResponse,
   body: ReadableStream<Uint8Array>,
-  rewriteModel: string,
+  options: { rewriteModel?: string; onSseEvent?: (event: Record<string, unknown>) => void },
 ): Promise<void> {
+  const { rewriteModel, onSseEvent } = options;
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -195,14 +237,18 @@ async function relayStreamWithModelRewrite(
       while ((nlIndex = buffer.indexOf('\n')) !== -1) {
         const linePart = buffer.slice(0, nlIndex + 1);
         buffer = buffer.slice(nlIndex + 1);
-        out += rewriteSseLine(linePart, rewriteModel);
+        if (onSseEvent) tapSseDataLine(linePart, onSseEvent);
+        out += rewriteModel ? rewriteSseLine(linePart, rewriteModel) : linePart;
       }
       if (out) res.write(out);
     }
     // Flush the trailing incomplete final line (no newline). `decoder.decode()`
-    // with no args drains any held bytes — still rewriting a terminal event.
+    // with no args drains any held bytes — still rewriting/tapping a terminal event.
     const tail = buffer + decoder.decode();
-    if (tail) res.write(rewriteSseLine(tail, rewriteModel));
+    if (tail) {
+      if (onSseEvent) tapSseDataLine(tail, onSseEvent);
+      res.write(rewriteModel ? rewriteSseLine(tail, rewriteModel) : tail);
+    }
   } finally {
     reader.releaseLock();
     res.end();
@@ -231,6 +277,7 @@ export async function relayResponse(
   providerResponse: Response,
   isStream: boolean,
   rewriteModel?: string,
+  usageTap?: StreamUsageTap,
 ): Promise<string | null> {
   const contentType = providerResponse.headers.get('Content-Type') ?? '';
   const status =
@@ -246,10 +293,24 @@ export async function relayResponse(
       res.end();
       return null;
     }
-    if (rewriteModel) {
-      await relayStreamWithModelRewrite(res, providerResponse.body, rewriteModel);
+    if (rewriteModel || usageTap) {
+      // Line-based relay so we can rewrite model AND/OR tap usage from SSE events.
+      // The tap captures the LAST non-null usage the extractor returns; onUsage
+      // fires once at stream end (only if usage was seen).
+      let capturedUsage: Record<string, unknown> | null = null;
+      await relaySseBody(res, providerResponse.body, {
+        rewriteModel,
+        onSseEvent: usageTap
+          ? (event) => {
+              const raw = usageTap.extractUsage(event);
+              if (raw) capturedUsage = raw;
+            }
+          : undefined,
+      });
+      if (capturedUsage) usageTap!.onUsage(capturedUsage);
       return null;
     }
+    // No rewrite and no tap: raw byte pipe (byte-identical to pre-tap behavior).
     const reader = providerResponse.body.getReader();
     try {
       for (;;) {
