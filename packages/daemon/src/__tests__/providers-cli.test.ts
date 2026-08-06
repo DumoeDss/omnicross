@@ -140,7 +140,7 @@ describe('providers presets', () => {
     expect(out).toMatch(/Mappable presets/);
     expect(out).toMatch(/openai\s+openai/); // an openai row
     expect(out).toMatch(/Excluded/);
-    expect(out).toMatch(/openai-response\s+EXCLUDED/);
+    expect(out).toMatch(/openai-response\s+openai-response/); // mappable now
     expect(out).toMatch(/azure-openai\s+EXCLUDED/);
   });
 });

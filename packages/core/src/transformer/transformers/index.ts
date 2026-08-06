@@ -9,34 +9,35 @@
 import type { TransformerService } from '../TransformerService';
 
 import { AnthropicTransformer } from './AnthropicTransformer';
-import { DeepseekTransformer } from './DeepseekTransformer';
 import { GeminiCodeAssistTransformer } from './GeminiCodeAssistTransformer';
 import { GeminiTransformer } from './GeminiTransformer';
 import { OpenAIResponseTransformer } from './OpenAIResponseTransformer';
-import { OpenCodeGoTransformer } from './OpenCodeGoTransformer';
-import { ReasoningTransformer } from './ReasoningTransformer';
+import { OpenAITransformer } from './OpenAITransformer';
 
 // Export individual transformers
 export { AnthropicTransformer } from './AnthropicTransformer';
-export { DeepseekTransformer } from './DeepseekTransformer';
 export { GeminiCodeAssistTransformer } from './GeminiCodeAssistTransformer';
 export { GeminiTransformer } from './GeminiTransformer';
 export { OpenAIResponseTransformer } from './OpenAIResponseTransformer';
-export { OpenCodeGoTransformer } from './OpenCodeGoTransformer';
-export { ReasoningTransformer } from './ReasoningTransformer';
+export { OpenAITransformer } from './OpenAITransformer';
 
 /**
  * Map of all built-in transformers
  * Used for automatic registration with TransformerService
+ *
+ * This is the FORMAT axis — one encoder per upstream wire, selected by a
+ * provider row's `apiFormat` (plus `gemini-code-assist`, the Code-Assist
+ * subscription's variant of the Gemini wire). The MODIFIER axis (`maxtoken`,
+ * `sampling`, `reasoning`, …) is a separate, currently-unimplemented surface:
+ * those names are declared in the UI, round-trip through config, and are warned
+ * + skipped at resolve time until something implements them.
  */
 export const BuiltinTransformers = {
-  DeepseekTransformer,
-  ReasoningTransformer,
+  OpenAITransformer,
   GeminiTransformer,
   GeminiCodeAssistTransformer,
   AnthropicTransformer,
   OpenAIResponseTransformer,
-  OpenCodeGoTransformer,
 } as const;
 
 /**
@@ -50,13 +51,11 @@ export function getBuiltinTransformers(): typeof BuiltinTransformers {
  * List of built-in transformer names
  */
 export const BUILTIN_TRANSFORMER_NAMES = [
-  'deepseek',
-  'reasoning',
+  'openai',
   'gemini',
   'gemini-code-assist',
   'anthropic',
   'openai-response',
-  'opencodego',
 ] as const;
 
 export type BuiltinTransformerName = (typeof BUILTIN_TRANSFORMER_NAMES)[number];

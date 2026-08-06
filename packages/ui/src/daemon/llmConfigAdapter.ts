@@ -41,7 +41,7 @@ import type {
   ModelTestResult,
 } from './types';
 
-type DaemonFormat = 'openai' | 'anthropic' | 'gemini';
+type DaemonFormat = 'openai' | 'anthropic' | 'gemini' | 'openai-response';
 
 /** daemon `gemini` → UI `google`; openai/anthropic pass through. */
 function toUiFormat(fmt: DaemonFormat): ApiFormat {
@@ -52,8 +52,11 @@ function toUiFormat(fmt: DaemonFormat): ApiFormat {
 function toDaemonFormat(fmt: ApiFormat | undefined): DaemonFormat {
   if (fmt === 'google') return 'gemini';
   if (fmt === 'anthropic') return 'anthropic';
-  // openai / azure-openai / openai-response all speak the OpenAI wire format to
-  // the daemon (the daemon only validates openai/anthropic/gemini).
+  // The Responses wire is a first-class daemon format now — it used to collapse
+  // to `openai` here (the daemon could not name it), which silently routed a
+  // Responses provider through the chat encoder.
+  if (fmt === 'openai-response') return 'openai-response';
+  // `azure-openai` still speaks the OpenAI chat wire to the daemon.
   return 'openai';
 }
 

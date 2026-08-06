@@ -37,16 +37,23 @@ import {
 
 import type { DaemonApiFormat, DaemonConfig, DaemonProviderConfig } from '../config';
 
-/** The empty transformer chain (OpenAI target — identity, no per-format encode). */
+/** The empty chain — a row with no MODIFIER transformers (the common case). */
 const EMPTY_CHAIN: ResolvedTransformerChain = {
   providerTransformers: [],
   modelTransformers: [],
 };
 
-/** The built-in transformer name per non-OpenAI target format. */
-const FORMAT_TRANSFORMER: Record<Exclude<DaemonApiFormat, 'openai'>, string> = {
+/**
+ * The built-in format transformer per target wire. Total over `DaemonApiFormat`:
+ * every row names EXACTLY ONE provider-slot encoder, so the slot can never hold
+ * two (or zero — `openai` used to map to nothing, which is why the Responses
+ * wire had to smuggle itself through `transformer.use[]`).
+ */
+const FORMAT_TRANSFORMER: Record<DaemonApiFormat, string> = {
+  openai: 'openai',
   anthropic: 'anthropic',
   gemini: 'gemini',
+  'openai-response': 'openai-response',
 };
 
 export class ConfigFileProviderConfigSource implements ProviderConfigSource {
@@ -133,7 +140,11 @@ export class ConfigFileProviderConfigSource implements ProviderConfigSource {
 
   async getMainTransformer(providerId: string): Promise<Transformer | null> {
     const row = this.providers.get(providerId);
-    if (!row || row.apiFormat === 'openai') return null;
+    if (!row) return null;
+    // Every format — including `openai` — now has a real encoder. The OpenAI
+    // one is not identity: Unified carries Anthropic-shaped residue (per-message
+    // `thinking`/`cache_control`, internal `meta`) that an OpenAI-chat upstream
+    // must never see, and `thinking` has to be encoded as `reasoning_content`.
     const name = FORMAT_TRANSFORMER[row.apiFormat];
     const instances = this.transformerService.resolveTransformerReferences([name]);
     return instances[0] ?? null;
@@ -145,32 +156,24 @@ export class ConfigFileProviderConfigSource implements ProviderConfigSource {
   ): Promise<ResolvedTransformerChain> {
     const row = this.providers.get(providerId);
     if (!row) return EMPTY_CHAIN;
-    // app-parity-2 child 2: the provider's stored `transformer.use[]` is now
-    // ENFORCED — its custom transformers (reasoning / maxtoken / deepseek / …)
-    // are resolved into the provider chain (was store-only/inert before).
+    // app-parity-2 child 2: the provider's stored `transformer.use[]` is
+    // ENFORCED — its transformers are resolved into the provider chain.
     //
-    // The FORMAT transformer (anthropic / gemini) is intentionally NOT added
-    // here: `getMainTransformer` + `resolveProviderChain`'s unshift prepend it
-    // (FORMAT-FIRST — the load-bearing wire-format conversion), deduped by name,
-    // so adding it here too would only be deduped away. An UNKNOWN transformer
-    // name is warned + skipped by `TransformerService.resolveTransformerReferences`
-    // (lenient — no hard failure, the request still proceeds). A row with no
-    // `transformer.use[]` → EMPTY chain, byte-identical to before (the format
-    // transformer alone, supplied by `getMainTransformer`).
+    // `use[]` is the MODIFIER axis ONLY. Format-axis names are stripped at load
+    // time by `migrateFormatAxis` (config.ts), so the provider-slot encoder is
+    // supplied solely by `getMainTransformer` + `resolveProviderChain`'s
+    // FORMAT-FIRST unshift. That replaces the defensive same-name filter this
+    // method used to do — and covers the case it missed, where a DIFFERENT
+    // format's name in `use[]` put a second encoder in the slot.
+    //
+    // An UNKNOWN name is warned + skipped by
+    // `TransformerService.resolveTransformerReferences` (lenient — the request
+    // still proceeds), which is what keeps the UI's declared-but-unimplemented
+    // modifier names harmless.
     const customRefs = row.transformer?.use ?? [];
     if (customRefs.length === 0) return EMPTY_CHAIN;
-    // Defensive: drop any entry naming the row's OWN format transformer. It is
-    // always supplied FRONT by `getMainTransformer` (format-first); listing it
-    // again here would let `resolveProviderChain`'s dedup-by-name suppress that
-    // front unshift and run the format transformer SECOND. Filtering it keeps the
-    // invariant regardless of UI click-order.
-    const formatName = row.apiFormat === 'openai' ? undefined : FORMAT_TRANSFORMER[row.apiFormat];
-    const effectiveRefs = formatName
-      ? customRefs.filter((ref) => (typeof ref === 'string' ? ref : ref[0]) !== formatName)
-      : customRefs;
-    if (effectiveRefs.length === 0) return EMPTY_CHAIN;
     return {
-      providerTransformers: this.transformerService.resolveTransformerReferences(effectiveRefs),
+      providerTransformers: this.transformerService.resolveTransformerReferences(customRefs),
       modelTransformers: [],
     };
   }
@@ -219,12 +222,11 @@ function resolvePreferredApiKey(row: DaemonProviderConfig): string {
 
 /** Map a daemon provider row to the `LLMProvider` shape the core pipeline reads. */
 function toLLMProvider(row: DaemonProviderConfig): LLMProvider {
-  // The daemon's `gemini` format maps to the core's `google` apiFormat; the
-  // transformer config drives `resolveTransformerChain` for the non-OpenAI
-  // targets exactly as a host config service's provider rows do.
+  // The daemon's `gemini` format maps to the core's `google` apiFormat (core's
+  // `ApiFormat` already spells `openai-response`, so that one passes through).
+  // Every format names its own encoder now — no undefined/identity case.
   const apiFormat = row.apiFormat === 'gemini' ? 'google' : row.apiFormat;
-  const transformer =
-    row.apiFormat === 'openai' ? undefined : { use: [FORMAT_TRANSFORMER[row.apiFormat]] };
+  const transformer = { use: [FORMAT_TRANSFORMER[row.apiFormat]] };
   // app-parity-2 child 2: ENFORCE per-model `enabled` as a DISCOVERY/advertisement
   // gate — a model whose `modelConfigs[].enabled === false` is dropped from the
   // advertised `models[]`, so the served catalog no longer lists it. HONEST SCOPE:

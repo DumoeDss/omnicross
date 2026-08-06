@@ -23,7 +23,7 @@ import type { OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-ty
 import { getAnthropicEndpointTransformer, getSharedExecutor } from '@omnicross/core/provider-proxy/ingress/providerProxyShared';
 import { GeminiTransformer } from '@omnicross/core/transformer/transformers/GeminiTransformer';
 import { OpenAIResponseTransformer } from '@omnicross/core/transformer/transformers/OpenAIResponseTransformer';
-import { OpenCodeGoTransformer } from '@omnicross/core/transformer/transformers/OpenCodeGoTransformer';
+import { OpenAITransformer } from '@omnicross/core/transformer/transformers/OpenAITransformer';
 import type { Transformer } from '@omnicross/core/transformer/types';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -42,7 +42,7 @@ const OC_KEY = 'fake-oc-zen-key';
 const TRANSFORMERS: Record<string, Transformer> = {
   'openai-response': new OpenAIResponseTransformer(),
   gemini: new GeminiTransformer(),
-  opencodego: new OpenCodeGoTransformer(),
+  openai: new OpenAITransformer(),
 };
 
 /** Canned wire responses the response chain decodes back toward the Anthropic

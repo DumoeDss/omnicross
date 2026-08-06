@@ -28,7 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderConfigSource } from '../../ports';
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
-import { OpenCodeGoTransformer } from '../../transformer/transformers/OpenCodeGoTransformer';
+import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
 import type {
@@ -153,13 +153,13 @@ function makeBreakerHooks(): {
 }
 
 function makeLlmConfig(): ProviderConfigSource {
-  const opencodego: Transformer = new OpenCodeGoTransformer();
+  const openaiChat: Transformer = new OpenAITransformer();
   return {
     getProvider: vi.fn(async () => null),
     resolveTransformerChain: vi.fn(async () => ({ providerTransformers: [], modelTransformers: [] })),
     getMainTransformer: vi.fn(async () => null),
     getTransformerService: () => ({
-      getTransformer: (name: string) => (name === 'opencodego' ? opencodego : undefined),
+      getTransformer: (name: string) => (name === 'openai' ? openaiChat : undefined),
     }),
   } as unknown as ProviderConfigSource;
 }

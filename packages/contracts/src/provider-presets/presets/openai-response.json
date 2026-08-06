@@ -32,11 +32,6 @@
       "enabled": true
     }
   ],
-  "transformer": {
-    "use": [
-      "openai-response"
-    ]
-  },
   "description": "OpenAI Responses API (/v1/responses endpoint)",
   "icon": "openai",
   "website": "https://openai.com",

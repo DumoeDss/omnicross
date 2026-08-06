@@ -21,11 +21,6 @@
       "enabled": true
     }
   ],
-  "transformer": {
-    "use": [
-      "deepseek"
-    ]
-  },
   "description": "DeepSeek官方API",
   "icon": "deepseek",
   "website": "https://deepseek.com",

@@ -185,12 +185,16 @@ describe('GET /admin/api/presets', () => {
     };
     // No mappable preset carries the wide 'google' value.
     for (const p of body.presets) {
-      expect(['openai', 'anthropic', 'gemini']).toContain(p.apiFormat);
+      expect(['openai', 'anthropic', 'gemini', 'openai-response']).toContain(p.apiFormat);
     }
     const gemini = body.presets.find((p) => p.id === 'gemini');
     expect(gemini?.apiFormat).toBe('gemini');
+    // openai-response is MAPPABLE now that DaemonApiFormat can name the wire —
+    // it used to be excluded because the format could only live in use[].
+    const responses = body.presets.find((p) => p.id === 'openai-response');
+    expect(responses?.apiFormat).toBe('openai-response');
     const excludedIds = body.excluded.map((e) => e.id);
-    expect(excludedIds).toContain('openai-response');
+    expect(excludedIds).not.toContain('openai-response');
     expect(excludedIds).toContain('azure-openai');
     for (const e of body.excluded) expect(e.reason.length).toBeGreaterThan(0);
   });

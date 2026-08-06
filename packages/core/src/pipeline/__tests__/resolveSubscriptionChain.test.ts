@@ -5,7 +5,7 @@
  * Proves the Responses ingress no longer hard-codes `[openai-response]` but
  * builds the chain from the profile's OWN `providerTransformerNames`:
  *   - codex profile `['openai-response']`  → the openai-response transformer
- *   - opencodego profile `['opencodego']`  → the opencodego transformer (NOT
+ *   - opencodego profile `['openai']`      → the openai chat transformer (NOT
  *                                             openai-response — the cross-vendor
  *                                             generalization)
  *   - empty/missing names                  → fallback endpoint (codex byte-identity)
@@ -18,7 +18,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
-import { OpenCodeGoTransformer } from '../../transformer/transformers/OpenCodeGoTransformer';
+import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import { TransformerService } from '../../transformer/TransformerService';
 import { resolveSubscriptionChain } from '../resolveSubscriptionChain';
 import type { SubscriptionAuthProfile } from '../SubscriptionAuthSource';
@@ -26,7 +26,7 @@ import type { SubscriptionAuthProfile } from '../SubscriptionAuthSource';
 function makeService(): TransformerService {
   const svc = new TransformerService();
   svc.registerTransformer('openai-response', OpenAIResponseTransformer);
-  svc.registerTransformer('opencodego', OpenCodeGoTransformer);
+  svc.registerTransformer('openai', OpenAITransformer);
   return svc;
 }
 
@@ -50,10 +50,10 @@ describe('resolveSubscriptionChain', () => {
     expect(chain.modelTransformers).toHaveLength(0);
   });
 
-  it('resolves a cross-vendor (opencodego) profile chain to the opencodego transformer (NOT openai-response)', () => {
-    const chain = resolveSubscriptionChain(profile(['opencodego']), makeService(), fallback);
+  it('resolves a cross-vendor (opencodego) profile chain to the openai transformer (NOT openai-response)', () => {
+    const chain = resolveSubscriptionChain(profile(['openai']), makeService(), fallback);
     expect(chain.providerTransformers).toHaveLength(1);
-    expect(chain.providerTransformers[0]).toBeInstanceOf(OpenCodeGoTransformer);
+    expect(chain.providerTransformers[0]).toBeInstanceOf(OpenAITransformer);
     expect(chain.providerTransformers[0]).not.toBeInstanceOf(OpenAIResponseTransformer);
   });
 
@@ -69,7 +69,7 @@ describe('resolveSubscriptionChain', () => {
   });
 
   it('throws when names are declared but no TransformerService is wired (fail loud, not mis-route)', () => {
-    expect(() => resolveSubscriptionChain(profile(['opencodego']), undefined, fallback)).toThrow(
+    expect(() => resolveSubscriptionChain(profile(['openai']), undefined, fallback)).toThrow(
       /no TransformerService/,
     );
   });
@@ -81,8 +81,8 @@ describe('resolveSubscriptionChain', () => {
   });
 
   it('resolves model transformers too when declared', () => {
-    const chain = resolveSubscriptionChain(profile(['opencodego'], ['openai-response']), makeService(), fallback);
-    expect(chain.providerTransformers[0]).toBeInstanceOf(OpenCodeGoTransformer);
+    const chain = resolveSubscriptionChain(profile(['openai'], ['openai-response']), makeService(), fallback);
+    expect(chain.providerTransformers[0]).toBeInstanceOf(OpenAITransformer);
     expect(chain.modelTransformers).toHaveLength(1);
     expect(chain.modelTransformers[0]).toBeInstanceOf(OpenAIResponseTransformer);
   });

@@ -1101,10 +1101,22 @@ function convertOpenAIStreamToResponseApi(
                 });
               }
 
-              if (choice.delta?.thinking?.content) {
+              // Reasoning reaches Unified under EITHER spelling, depending on
+              // which format transformer decoded the upstream: a Responses
+              // upstream yields `thinking.content` (emitted by this class's own
+              // decoder), while an OpenAI-chat upstream carries the wire's
+              // `reasoning_content` verbatim — `openai` is a pass-through on the
+              // response side, since on the chat ingress Unified IS the client
+              // wire. Read both so a Codex client sees reasoning from a chat
+              // upstream too. (This used to work only because DeepseekTransformer
+              // renamed the field, which silently broke the Anthropic encoder.)
+              const reasoningDelta =
+                choice.delta?.thinking?.content ??
+                (choice.delta as { reasoning_content?: string } | undefined)?.reasoning_content;
+              if (reasoningDelta) {
                 emitEvent({
                   type: 'response.reasoning_summary_text.delta',
-                  delta: choice.delta.thinking.content,
+                  delta: reasoningDelta,
                 });
               }
 
