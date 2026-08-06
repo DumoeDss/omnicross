@@ -8,10 +8,12 @@
  * provider's authorize params and stashes the per-session `{ codeVerifier, state }`
  * in the `OAuthSessionStore` keyed by a minted opaque `sessionId`, returning ONLY
  * `{ authUrl, sessionId }` (the `authUrl` carries client_id + PKCE challenge +
- * state — all public). `complete` does a SINGLE-USE `take(sessionId)`, validates
- * state (claude's `code#state`), `exchangeCodeForTokens(...)`, persists the minted
- * token through the encrypted credential store (`appendProviderAccount`) + marks
- * it active, and responds ONLY the sanitized `SubscriptionListEntry`.
+ * state — all public). `complete` `peek`s the session, validates state (claude's
+ * `code#state`), `exchangeCodeForTokens(...)`, then — and ONLY then — `consume`s
+ * the session (single-use), persists the minted token through the encrypted
+ * credential store (`appendProviderAccount`) + marks it active, and responds ONLY
+ * the sanitized `SubscriptionListEntry`. A FAILED exchange leaves the session
+ * intact so the user can retry within its TTL instead of being locked out by a 410.
  *
  * SECRET SPINE (the load-bearing invariant): the minted access/refresh token
  * NEVER appears in any response body or log; the `codeVerifier` / session map is
@@ -97,10 +99,14 @@ export function handleOAuthStart(
 }
 
 /**
- * `complete` — take the single-use session (404/410 if absent/expired/used),
+ * `complete` — peek the pending session (410 if absent/expired/already used),
  * verify the path provider matches the session, validate state, exchange the
- * code, persist through the encrypted store + activate, and respond ONLY the
- * sanitized status. The token is never logged or echoed.
+ * code, burn the session, persist through the encrypted store + activate, and
+ * respond ONLY the sanitized status. The token is never logged or echoed.
+ *
+ * The session is consumed on SUCCESS ONLY: every recoverable failure (bad paste,
+ * state mismatch, token-endpoint/proxy error) returns with the session still
+ * pending, so a retry with a corrected code works.
  */
 export async function handleOAuthComplete(
   providerId: SubscriptionProviderId,
@@ -115,7 +121,12 @@ export async function handleOAuthComplete(
   if (!sessionId) return err(400, 'oauth complete requires { sessionId }');
   if (!rawCode) return err(400, 'oauth complete requires { code }');
 
-  const session = deps.oauthSessions.take(sessionId);
+  // PEEK, don't consume: the session is burned only after a token is actually
+  // minted (below). Consuming here made every recoverable failure — a mistyped
+  // or already-expired pasted code, a proxy/network hiccup on the token endpoint
+  // — permanently destroy the pending login, so the user's natural "click again"
+  // got a 410 and the flow could never be completed.
+  const session = deps.oauthSessions.peek(sessionId);
   if (!session) return err(410, 'oauth session is unknown, expired, or already used');
   if (session.providerId !== providerId) {
     return err(400, `oauth session does not match provider '${providerId}'`);
@@ -143,9 +154,15 @@ export async function handleOAuthComplete(
   } catch (exchangeError) {
     // The error from the token endpoint may itself be benign, but NEVER include a
     // token — reference only the provider + a generic exchange-failure reason.
+    // The session SURVIVES (see the peek above) so the user can paste a fresh
+    // code, or retry a transient network/proxy failure, within the session TTL.
     const reason = exchangeError instanceof Error ? exchangeError.message : 'token exchange failed';
     return err(502, `oauth token exchange failed for '${providerId}': ${reason}`);
   }
+
+  // A token was minted — NOW burn the session so this `sessionId` (and the
+  // authorization code bound to it) can never be replayed.
+  deps.oauthSessions.consume(sessionId);
 
   // Persist through the encrypted store (D2-a narrow append handle) + activate.
   // An optional client-supplied label names the new account (else the store

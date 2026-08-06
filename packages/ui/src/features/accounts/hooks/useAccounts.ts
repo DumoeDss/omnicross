@@ -106,7 +106,7 @@ export interface UseAccountsResult {
   completeOAuth: (
     providerId: SubscriptionProviderId,
     input: { sessionId: string; code: string; label?: string },
-  ) => Promise<{ success: boolean; message?: string }>;
+  ) => Promise<{ success: boolean; message?: string; sessionExpired?: boolean }>;
   /** Poll a codex loopback sign-in's token-free status (app-parity-2 child 5). */
   pollCodexOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   cancelCodexOAuth: (sessionId: string) => Promise<{ success: boolean; message?: string }>;
@@ -388,7 +388,9 @@ export function useAccounts(): UseAccountsResult {
         const result = await agent.accounts.completeOAuth(providerId, input);
         if (!result.success) {
           setError(result.message ?? 'request failed');
-          return { success: false, message: result.message };
+          // `sessionExpired` tells the caller the pending session is unusable, so
+          // it can drop the inline panel instead of offering a dead retry.
+          return { success: false, message: result.message, sessionExpired: result.sessionExpired };
         }
         await refresh();
         return { success: true };

@@ -4,11 +4,12 @@
  * app-parity child 4, design D1).
  *
  * `start` mints a crypto-random `sessionId` and stashes the per-session PKCE
- * `{ providerId, codeVerifier, state }` here; `complete` does a SINGLE-USE
- * `take(sessionId)` (returns + deletes) and exchanges the code. The map is
+ * `{ providerId, codeVerifier, state }` here; `complete` `peek`s the session,
+ * exchanges the code, and `consume`s it ONLY once a token was minted — so a
+ * failed exchange leaves the session retryable instead of burning it. The map is
  * NEVER serialized to the client — only the opaque `sessionId` + the public
  * `authUrl` cross the wire. Sessions are short-lived (OQ3 = 10-min TTL); a sweep
- * reaps abandoned sessions, and `take` re-checks the TTL so an expired-but-not-
+ * reaps abandoned sessions, and `peek` re-checks the TTL so an expired-but-not-
  * yet-swept session is still rejected. A daemon restart simply drops in-flight
  * logins (correct fail-safe — no partial token is ever written).
  *
@@ -59,21 +60,38 @@ export class OAuthSessionStore {
   }
 
   /**
-   * SINGLE-USE consume: return + delete the session for `sessionId`, or `null`
-   * when it is unknown, already used, or past its TTL (in which case it is
-   * dropped). A `null` return means the completer must reject (no exchange, no
-   * write).
+   * NON-DESTRUCTIVE lookup: return the session for `sessionId`, or `null` when
+   * it is unknown, already consumed, or past its TTL (an expired entry is
+   * dropped here). A `null` return means the completer must reject (no
+   * exchange, no write).
+   *
+   * Deliberately NOT a consume: the completer peeks, runs the token exchange,
+   * and only {@link consume}s once a token has actually been minted. Consuming
+   * up-front burned the session on EVERY failed exchange (a mistyped/expired
+   * pasted code, a proxy hiccup), so the user's natural retry hit
+   * "session is unknown, expired, or already used" and the login became
+   * unrecoverable without restarting the whole flow.
    */
-  take(sessionId: string): PendingOAuthSession | null {
+  peek(sessionId: string): PendingOAuthSession | null {
     this.sweep();
     const session = this.sessions.get(sessionId);
     if (!session) return null;
-    this.sessions.delete(sessionId);
-    if (Date.now() - session.createdAt > this.ttlMs) return null;
+    if (Date.now() - session.createdAt > this.ttlMs) {
+      this.sessions.delete(sessionId);
+      return null;
+    }
     return session;
   }
 
-  /** Drop every session past its TTL. Called on each put/take. */
+  /**
+   * SINGLE-USE burn: drop the session so the same `sessionId` can never be
+   * completed twice. Called ONLY after a successful token exchange.
+   */
+  consume(sessionId: string): void {
+    this.sessions.delete(sessionId);
+  }
+
+  /** Drop every session past its TTL. Called on each put/peek. */
   private sweep(): void {
     const now = Date.now();
     for (const [id, session] of this.sessions) {

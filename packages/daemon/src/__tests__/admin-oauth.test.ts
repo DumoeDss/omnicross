@@ -69,11 +69,25 @@ const CODEX_TOKEN_ENDPOINT = 'https://auth.openai.com/oauth/token';
 
 let realFetch: typeof globalThis.fetch;
 
+/**
+ * How many upcoming claude token-endpoint calls should FAIL (each call consumes
+ * one). Drives the "a failed exchange must not burn the pending session" tests.
+ */
+let claudeExchangeFailures = 0;
+
 /** Wrap global fetch so the OAuth token endpoints return a sentinel body. */
 function installFetchMock(): void {
   realFetch = globalThis.fetch;
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === CLAUDE_TOKEN_ENDPOINT && claudeExchangeFailures > 0) {
+      claudeExchangeFailures -= 1;
+      // Anthropic's OBJECT-shaped error envelope, on a real non-2xx.
+      return new Response(
+        JSON.stringify({ error: { type: 'invalid_request', message: 'authorization code is invalid' } }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
     if (url === CLAUDE_TOKEN_ENDPOINT || url === GEMINI_TOKEN_ENDPOINT) {
       return new Response(
         JSON.stringify({
@@ -244,6 +258,7 @@ afterEach(async () => {
   if (upstream) await stopServer(upstream.server);
   resetDaemonSingletonsForTests();
   restoreFetchMock();
+  claudeExchangeFailures = 0;
   codexLoopback = null;
   if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -395,6 +410,52 @@ describe('OAuth over HTTP', () => {
       code: 'AUTH-CODE-AGAIN',
     });
     expect(second.status).toBe(410);
+  });
+
+  it('a FAILED token exchange leaves the session retryable (no 410 lockout)', async () => {
+    const { sessionId } = await startClaude();
+    // The token endpoint rejects the first exchange (bad paste / transient error).
+    claudeExchangeFailures = 1;
+    const first = await adminFetch('POST', '/admin/api/accounts/claude/oauth/complete', {
+      sessionId,
+      code: 'AUTH-CODE-BAD',
+    });
+    expect(first.status).toBe(502);
+    // The real upstream reason + its HTTP status are surfaced (not swallowed).
+    expect(first.text).toContain('authorization code is invalid');
+    expect(first.text).toContain('HTTP 400');
+    // Nothing was written on the failed attempt.
+    expect((await daemon.credentialStore.getFullConfig()).claude).toBeUndefined();
+
+    // REGRESSION: the SAME session must still complete — previously the session
+    // was consumed up-front, so this retry returned 410 and the login was stuck.
+    const retry = await adminFetch('POST', '/admin/api/accounts/claude/oauth/complete', {
+      sessionId,
+      code: 'AUTH-CODE-GOOD',
+    });
+    expect(retry.status).toBe(200);
+    expect((await daemon.credentialStore.getFullConfig()).claude?.accessToken).toBe(SENTINEL_AT);
+
+    // Still single-use once it SUCCEEDED.
+    const third = await adminFetch('POST', '/admin/api/accounts/claude/oauth/complete', {
+      sessionId,
+      code: 'AUTH-CODE-REPLAY',
+    });
+    expect(third.status).toBe(410);
+  });
+
+  it('a state mismatch leaves the session retryable (a corrected paste completes)', async () => {
+    const { sessionId } = await startClaude();
+    const bad = await adminFetch('POST', '/admin/api/accounts/claude/oauth/complete', {
+      sessionId,
+      code: 'AUTH-CODE#deadbeefwrongstate',
+    });
+    expect(bad.status).toBe(400);
+    const good = await adminFetch('POST', '/admin/api/accounts/claude/oauth/complete', {
+      sessionId,
+      code: 'AUTH-CODE-CORRECTED',
+    });
+    expect(good.status).toBe(200);
   });
 
   it('rejects a claude state mismatch (code#wrongstate) as a CSRF guard (no write)', async () => {

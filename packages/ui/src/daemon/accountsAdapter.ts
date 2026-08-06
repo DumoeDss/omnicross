@@ -16,7 +16,7 @@
  * and parses ONLY the sanitized status (never the minted token).
  */
 
-import { adminClient } from './adminClient';
+import { adminClient, AdminApiError } from './adminClient';
 import type {
   AccountAllowanceSnapshot,
   AccountAllowancesResult,
@@ -294,7 +294,15 @@ export function createAccountsAdapter(): AgentAccountsApi {
         );
         return { success: true, status: data.account };
       } catch (err) {
-        return { success: false, message: err instanceof Error ? err.message : 'failed to complete sign-in' };
+        // 410 = the pending session is gone for good (TTL lapsed / daemon
+        // restarted). Flag it so the card resets to a fresh authorize round
+        // instead of letting the user re-submit into a dead session.
+        const sessionExpired = err instanceof AdminApiError && err.status === 410;
+        return {
+          success: false,
+          sessionExpired,
+          message: err instanceof Error ? err.message : 'failed to complete sign-in',
+        };
       }
     },
 

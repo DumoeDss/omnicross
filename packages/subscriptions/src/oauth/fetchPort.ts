@@ -67,6 +67,16 @@ function errorMessage(error: unknown, errorDescription: string | undefined): str
 }
 
 /**
+ * Append `(HTTP <status>)` when the token endpoint answered non-2xx. Without it
+ * a Cloudflare/HTML rejection surfaces only as the opaque parse-error string and
+ * an operator cannot tell a 403-bot-block from a 400-invalid_grant. A 2xx
+ * response is left byte-identical (the existing error text is unchanged).
+ */
+function withStatus(message: string, response: { ok: boolean; status: number }): string {
+  return response.ok ? message : `${message} (HTTP ${response.status})`;
+}
+
+/**
  * POST a `x-www-form-urlencoded` body and parse the JSON response (UTF-8 body
  * accumulation → `JSON.parse` → `data.error` reject → parse-failure reject) over
  * an injected `FetchLike`. `parseErrorMessage` is the per-method catch string.
@@ -93,14 +103,14 @@ export async function postForm(
     data = JSON.parse(responseData) as TokenResponseBody;
   } catch {
     // Matches the helper's `catch { reject(new Error('Failed to parse …')) }`.
-    throw new Error(parseErrorMessage);
+    throw new Error(withStatus(parseErrorMessage, response));
   }
 
   if (data.error) {
     // Object-safe: string errors → `error_description || error` (verbatim legacy
     // behavior); object errors (Anthropic `{ type, message }`) → the real message
     // instead of `"[object Object]"`.
-    throw new Error(errorMessage(data.error, data.error_description));
+    throw new Error(withStatus(errorMessage(data.error, data.error_description), response));
   }
 
   return data;
@@ -136,11 +146,18 @@ export async function postJson(
   try {
     data = JSON.parse(responseData) as TokenResponseBody;
   } catch {
-    throw new Error(parseErrorMessage);
+    throw new Error(withStatus(parseErrorMessage, response));
   }
 
   if (data.error) {
-    throw new Error(errorMessage(data.error, data.error_description));
+    throw new Error(withStatus(errorMessage(data.error, data.error_description), response));
+  }
+
+  // A non-2xx whose JSON body carries no `error` key would otherwise fall
+  // through and yield an `undefined` access_token that gets persisted as a
+  // "authorized" account. Fail loudly with the status instead.
+  if (!response.ok) {
+    throw new Error(withStatus('token endpoint rejected the request', response));
   }
 
   return data;

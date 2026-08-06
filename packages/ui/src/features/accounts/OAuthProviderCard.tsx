@@ -180,6 +180,15 @@ export function OAuthProviderCard({
         onAdded?.();
       } else {
         setCardError(result.message ?? t('accounts.errors.requestFailed'));
+        // A dead session (410) can never be completed — drop the inline panel so
+        // the card falls back to the authorize button and the next click mints a
+        // FRESH session. Any other failure keeps the panel (and the pasted code)
+        // so the user can simply retry; the daemon no longer burns the session on
+        // a failed exchange.
+        if (result.sessionExpired) {
+          setOauth(null);
+          setAuthCode('');
+        }
       }
     } finally {
       setExchanging(false);
