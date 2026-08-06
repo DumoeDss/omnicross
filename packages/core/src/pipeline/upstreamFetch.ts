@@ -41,6 +41,7 @@ import { SocksClient } from 'socks';
 import {
   getUpstreamTracePath,
   redactHeaders,
+  REDACTED_BODY,
   writeUpstreamTrace,
 } from './upstreamTrace';
 import { getSharedAccountAllowanceStore } from './AccountAllowanceStore';
@@ -57,6 +58,19 @@ export interface UpstreamProxyContext {
    * do NOT set this — it is filled from the fetch `url`.
    */
   url?: string;
+  /**
+   * CREDENTIAL EXCHANGE — this call's request/response BODIES carry secrets (an
+   * authorization code + PKCE verifier out, an access/refresh token back), so the
+   * debug trace must record the exchange's METADATA only and replace both bodies
+   * with a placeholder.
+   *
+   * Set it on every OAuth token-endpoint call (interactive login + refresh).
+   * Those calls still need a `providerId` so the per-provider proxy layer applies
+   * and so a failure is traceable at all — but the trace captures bodies verbatim
+   * (that is its purpose for relay traffic), and a plaintext token must never
+   * reach the trace file. Purely a trace concern: the proxy resolver ignores it.
+   */
+  redactBodies?: boolean;
 }
 
 /**
@@ -253,7 +267,15 @@ export function fetchUpstream(
   const requestHeaders = redactHeaders(
     init.headers as Headers | Record<string, string> | Array<[string, string]> | undefined,
   );
-  const requestBody = typeof init.body === 'string' ? init.body : null;
+  // A credential exchange (OAuth login / token refresh) carries the code +
+  // verifier out and the minted access/refresh token back. Trace the exchange's
+  // metadata — url, status, duration, headers, byte count — but NEVER the bodies.
+  const redactBodies = ctx.redactBodies === true;
+  const requestBody = redactBodies
+    ? REDACTED_BODY
+    : typeof init.body === 'string'
+      ? init.body
+      : null;
   const providerId = ctx.providerId;
   const accountId = ctx.accountId;
 
@@ -280,7 +302,9 @@ export function fetchUpstream(
             status,
             statusText,
             responseHeaders,
-            responseBody: body,
+            // The byte count stays REAL even when redacted — it is a useful
+            // diagnostic and reveals nothing about the token itself.
+            responseBody: redactBodies ? REDACTED_BODY : body,
             responseBytes: Buffer.byteLength(body, 'utf8'),
           });
         })

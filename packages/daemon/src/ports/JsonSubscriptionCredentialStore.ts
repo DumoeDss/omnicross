@@ -130,9 +130,18 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * TEST-injected `fetchImpl` is returned verbatim; otherwise the refresh routes
    * through {@link fetchUpstream} with the account's `{ providerId, accountId }`
    * ctx so the per-account/provider proxy applies. `@internal` also a test seam.
+   *
+   * `redactBodies` is REQUIRED here: this round-trip sends the refresh_token and
+   * receives a fresh access/refresh token pair. Carrying a `providerId` opts the
+   * call into the upstream trace (so a failing refresh is diagnosable), and the
+   * trace captures bodies verbatim — without this flag every refresh would write
+   * a plaintext token pair into `upstream-trace.jsonl`.
    */
   buildRefreshFetch(providerId: string, accountId?: string): FetchLike {
-    return this.fetchImpl ?? ((url, init) => fetchUpstream(url, init, { providerId, accountId }));
+    return (
+      this.fetchImpl ??
+      ((url, init) => fetchUpstream(url, init, { providerId, accountId, redactBodies: true }))
+    );
   }
 
   /**

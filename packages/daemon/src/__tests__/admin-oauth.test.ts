@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadServerConfig } from '@omnicross/core/outbound-api';
+import { setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { type CodexLoopbackFn } from '../admin/accountsCodexOAuth';
@@ -410,6 +411,34 @@ describe('OAuth over HTTP', () => {
       code: 'AUTH-CODE-AGAIN',
     });
     expect(second.status).toBe(410);
+  });
+
+  it('the interactive exchange carries a { providerId, redactBodies } egress ctx', async () => {
+    // Record what the egress seam asks the proxy resolver for. Before the fix the
+    // admin OAuth exchange passed NO ctx, so `providerId` was undefined:
+    // `server.proxy.byProvider[...]` was silently skipped and the call was
+    // excluded from the upstream trace, leaving a failed login with no evidence.
+    const seen: Array<{ providerId?: string; url?: string; redactBodies?: boolean }> = [];
+    setUpstreamProxyResolver((ctx) => {
+      seen.push({ ...(ctx as typeof seen[number]) });
+      return undefined; // direct — the global fetch mock answers
+    });
+    try {
+      const { sessionId } = await startClaude();
+      const r = await adminFetch('POST', '/admin/api/accounts/claude/oauth/complete', {
+        sessionId,
+        code: 'AUTH-CODE-CTX',
+      });
+      expect(r.status).toBe(200);
+
+      const tokenCall = seen.find((c) => c.url?.includes(CLAUDE_TOKEN_ENDPOINT));
+      expect(tokenCall, 'the token exchange must reach the proxy-aware seam').toBeDefined();
+      expect(tokenCall?.providerId).toBe('claude');
+      // ...and it must opt OUT of verbatim body capture (it carries the token).
+      expect(tokenCall?.redactBodies).toBe(true);
+    } finally {
+      setUpstreamProxyResolver(null);
+    }
   });
 
   it('a FAILED token exchange leaves the session retryable (no 410 lockout)', async () => {

@@ -59,7 +59,13 @@ export interface SubscriptionAccountAppender {
 /** The deps the OAuth handlers need (a subset of `AdminApiDeps`). */
 export interface AccountsOAuthDeps {
   readonly oauthSessions: OAuthSessionStore;
-  readonly oauthExchangeFetch: FetchLike;
+  /**
+   * Per-provider token-exchange fetch factory. Built in `bootstrap.ts` so the
+   * exchange routes through the proxy-aware egress seam WITH a `{ providerId }`
+   * ctx — the per-provider proxy layer applies and the call lands in the upstream
+   * trace (bodies redacted) instead of leaving no evidence when it fails.
+   */
+  readonly oauthExchangeFetch: (providerId: SubscriptionProviderId) => FetchLike;
   readonly subscriptionAccountAppender: SubscriptionAccountAppender;
   readonly subscriptionAccounts: AccountsStatusReader;
 }
@@ -145,12 +151,13 @@ export async function handleOAuthComplete(
     code = splitCode;
   }
 
+  const exchangeFetch = deps.oauthExchangeFetch(providerId);
   let block: SubscriptionTokenBlock;
   try {
     block =
       providerId === 'claude'
-        ? await exchangeClaude(code, session.codeVerifier, session.state, deps.oauthExchangeFetch)
-        : await exchangeGemini(code, session.codeVerifier, deps.oauthExchangeFetch);
+        ? await exchangeClaude(code, session.codeVerifier, session.state, exchangeFetch)
+        : await exchangeGemini(code, session.codeVerifier, exchangeFetch);
   } catch (exchangeError) {
     // The error from the token endpoint may itself be benign, but NEVER include a
     // token — reference only the provider + a generic exchange-failure reason.

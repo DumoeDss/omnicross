@@ -14,9 +14,12 @@
  * (a `text/event-stream` included — `clone().text()` tees the stream so the
  * relay keeps streaming the original while the clone is buffered for the
  * trace), and appends one {@link UpstreamTraceRecord} JSON line. Relay calls
- * carry an opaque `providerId`; OAuth-refresh / webhook sends do not, so they
- * are skipped (less noise). Tracing is fire-and-forget: a read/write failure
- * is swallowed so the egress path is never affected.
+ * carry an opaque `providerId`; webhook / billing sends do not, so they are
+ * skipped (less noise). OAuth token-endpoint calls (interactive login + refresh)
+ * DO carry one — a failed login must be diagnosable — but they set the ctx's
+ * `redactBodies`, so their bodies are replaced with {@link REDACTED_BODY}.
+ * Tracing is fire-and-forget: a read/write failure is swallowed so the egress
+ * path is never affected.
  *
  * The daemon installs the path via {@link setUpstreamTracePath} (gated on the
  * audit segment's `captureBodies`, hot-reloaded like the audit sink). Absent a
@@ -26,7 +29,8 @@
  * masked (`***REDACTED***`) — they are OAuth bearer tokens, not the thing under
  * test, and a plaintext trace file must not hold them. Header KEYS stay visible
  * so presence is verifiable. The request/response BODIES are captured VERBATIM
- * (a prompt / a codex SSE stream) — that is the whole point.
+ * (a prompt / a codex SSE stream) — that is the whole point — EXCEPT on a
+ * credential exchange, where the body IS the secret (see {@link REDACTED_BODY}).
  *
  * @module @omnicross/core/pipeline/upstreamTrace
  */
@@ -36,6 +40,16 @@ import { dirname } from 'node:path';
 
 /** The JSONL file upstream exchanges are appended to, or `null` (trace off). */
 let tracePath: string | null = null;
+
+/**
+ * Placeholder written in place of a request/response body whose content is a
+ * CREDENTIAL rather than the thing under test — an OAuth token exchange or
+ * refresh (`fetchUpstream` ctx `redactBodies`). Those calls are still traced so a
+ * failed login/refresh is diagnosable (url, status, duration, byte count), but a
+ * plaintext authorization code / access token / refresh token must never land in
+ * this file.
+ */
+export const REDACTED_BODY = '***REDACTED (credential exchange)***';
 
 /** Header names whose VALUES are masked (bearer tokens / api keys). */
 const SECRET_HEADER_NAMES = new Set([

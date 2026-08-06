@@ -549,10 +549,19 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // (NOT widening the least-authority writer — no token-returning read reachable).
     oauthSessions: new OAuthSessionStore(),
     // Real global fetch by default; a test seam (`paths.oauthExchangeFetch`) can
-    // inject a mock so no real token endpoint is hit.
-    // upstream-proxy: default the OAuth token-exchange fetch to the proxy-aware
-    // helper so interactive login honors a configured proxy (global/env layers).
-    oauthExchangeFetch: paths.oauthExchangeFetch ?? ((url, init) => fetchUpstream(url, init)),
+    // inject a mock so no real token endpoint is hit (one FetchLike for every
+    // provider — the ctx below only matters on the real egress path).
+    //
+    // upstream-proxy: a PER-PROVIDER factory, so the exchange carries the same
+    // `{ providerId }` ctx the CLI login and the token refresh already pass.
+    // Without it the interactive login resolved only the global/env proxy layers
+    // — `server.proxy.byProvider[...]` was silently skipped — and the call was
+    // excluded from the upstream trace, so a failing login left no evidence.
+    // `redactBodies` keeps the code/verifier + minted token out of that trace.
+    oauthExchangeFetch: paths.oauthExchangeFetch
+      ? () => paths.oauthExchangeFetch as FetchLike
+      : (providerId) => (url, init) =>
+          fetchUpstream(url, init, { providerId, redactBodies: true }),
     subscriptionAccountAppender: credentialStore,
     // Codex interactive OAuth (app-parity-2 child 5) — the async loopback flow store
     // + the one-shot 127.0.0.1:1455 listener. Token captured + persisted daemon-side;

@@ -103,9 +103,11 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
   try {
     const tokensPath = defaultTokensPath(values.config);
     // Funnel the token exchange through the proxy-aware helper (providerId ctx);
-    // a test-injected `tokensFetch` overrides it verbatim.
+    // a test-injected `tokensFetch` overrides it verbatim. `redactBodies` keeps
+    // the code/verifier + minted token out of the upstream trace.
     const exchangeFetch: FetchLike =
-      resolved.tokensFetch ?? ((url, init) => fetchUpstream(url, init, { providerId: provider }));
+      resolved.tokensFetch ??
+      ((url, init) => fetchUpstream(url, init, { providerId: provider, redactBodies: true }));
     const store = new JsonSubscriptionCredentialStore(tokensPath, box, exchangeFetch);
     const expiresAt = await runProviderLogin(
       provider,

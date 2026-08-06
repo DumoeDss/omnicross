@@ -34,6 +34,7 @@ import {
   type VoucherDb,
 } from '@omnicross/core/outbound-api';
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
@@ -220,11 +221,13 @@ export interface AdminApiDeps {
    */
   readonly oauthSessions: OAuthSessionStore;
   /**
-   * Injected token-exchange `FetchLike` (oauth design D2-a) — defaults to global
-   * `fetch` in `bootstrap.ts`; tests inject a mock so no real token endpoint is
-   * hit. Mirrors how `login.ts` injects its exchange fetch.
+   * Injected token-exchange `FetchLike` FACTORY (oauth design D2-a) — built per
+   * provider in `bootstrap.ts` so the exchange carries a `{ providerId }` egress
+   * ctx (per-provider proxy layer + upstream trace, bodies redacted); tests
+   * inject a mock so no real token endpoint is hit. Mirrors how `login.ts`
+   * injects its exchange fetch.
    */
-  readonly oauthExchangeFetch: FetchLike;
+  readonly oauthExchangeFetch: (providerId: SubscriptionProviderId) => FetchLike;
   /**
    * NARROW append handle (oauth design D2-a) — the OAuth complete handler needs
    * `appendProviderAccount` (NOT on the least-authority `SubscriptionTokenWriter`).

@@ -33,6 +33,7 @@
 import crypto from 'node:crypto';
 
 import type { CodexTokenConfig } from '@omnicross/contracts/account-tokens-types';
+import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 import { codexOAuth, type FetchLike } from '@omnicross/subscriptions';
 
 import type { OAuthHandlerResult, SubscriptionAccountAppender } from './accountsOAuth';
@@ -118,7 +119,8 @@ export class CodexOAuthSessionStore {
 export interface CodexOAuthDeps {
   readonly codexSessions: CodexOAuthSessionStore;
   readonly codexAwaitLoopback: CodexLoopbackFn;
-  readonly oauthExchangeFetch: FetchLike;
+  /** Per-provider token-exchange fetch factory (see `AccountsOAuthDeps`). */
+  readonly oauthExchangeFetch: (providerId: SubscriptionProviderId) => FetchLike;
   readonly subscriptionAccountAppender: SubscriptionAccountAppender;
 }
 
@@ -158,7 +160,7 @@ async function runCodexLoopback(
     const code = await deps.codexAwaitLoopback(state, undefined, signal);
     const result = await codexOAuth.exchangeCodeForTokens(
       { authorizationCode: code, codeVerifier, state },
-      deps.oauthExchangeFetch,
+      deps.oauthExchangeFetch('codex'),
     );
     const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
     const block: CodexTokenConfig = {
