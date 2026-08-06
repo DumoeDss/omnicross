@@ -121,7 +121,16 @@ export function mapPresetToProvider(
   return { provider };
 }
 
-/** A mappable preset's view (post-narrowing) for CLI/admin listing. */
+/**
+ * A mappable preset's view (post-narrowing) for CLI/admin listing.
+ *
+ * The first six fields are the ROW shape (what a daemon provider needs). The
+ * trailing optional ones are non-secret PRESENTATION metadata carried verbatim
+ * from the catalog so the dashboard's template picker can render a real card
+ * (translated name / icon / blurb / capability tags) instead of a bare id, plus
+ * the preset's `modelsEndpoint` so a preset-prefilled row can discover models.
+ * A preset that declares none of them keeps exactly the prior six keys.
+ */
 export interface MappablePreset {
   id: string;
   presetId: string;
@@ -129,6 +138,12 @@ export interface MappablePreset {
   apiFormat: DaemonApiFormat;
   baseUrl: string;
   models: string[];
+  nameKey?: string;
+  icon?: string;
+  description?: string;
+  features?: string[];
+  website?: string;
+  modelsEndpoint?: string;
 }
 
 /** The split of the whole catalog into mappable + excluded. */
@@ -158,6 +173,12 @@ export function listMappablePresets(): ListMappableResult {
       apiFormat: resolved.format,
       baseUrl: preset.api_base_url,
       models: Array.isArray(preset.models) ? preset.models : [],
+      nameKey: preset.nameKey,
+      icon: preset.icon,
+      description: preset.description,
+      features: preset.features,
+      website: preset.website,
+      modelsEndpoint: preset.modelsEndpoint,
     });
   }
   return { mappable, excluded };

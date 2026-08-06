@@ -3,7 +3,9 @@ import { useCallback, useState } from 'react';
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
+import type { DaemonPresetView } from '@/daemon/types';
 import type {
+  ApiFormat,
   LLMProvider,
   ProviderTemplate,
 } from '@shared/llm-config';
@@ -22,12 +24,16 @@ export function useProviderForm(
   selectedProvider: LLMProvider | null,
   refreshProviders: () => Promise<void>,
   updateProviderInCache: (p: LLMProvider) => void,
+  // `isAddingNew` is OWNED BY THE CALLER (`useProviderSettings`) because the
+  // selection fallback has to see it: while the add form is open there must be
+  // no implicitly-selected provider for these handlers to act on by mistake.
+  isAddingNew: boolean,
+  setIsAddingNew: (adding: boolean) => void,
 ) {
   const t = useTranslation();
 
   // ── Form state ──────────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
-  const [isAddingNew, setIsAddingNew] = useState(false);
   const [formData, setFormData] = useState<ProviderFormData>(emptyFormData);
   const [showApiKey, setShowApiKey] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,6 +74,12 @@ export function useProviderForm(
     setFormError(null);
   };
 
+  /**
+   * Open the ADD flow on the template picker (`showTemplates`). The picker is the
+   * entry point — the built-in catalog is the common case — and the user leaves it
+   * either by picking a template (`handleUsePresetTemplate`) or by choosing a bare
+   * API type / "configure manually" (`handleStartCustomProvider`).
+   */
   const handleAddProvider = () => {
     setFormData(emptyFormData);
     setIsAddingNew(true);
@@ -75,7 +87,48 @@ export function useProviderForm(
     setSelectedProviderId(null);
     setShowApiKey(false);
     setFormError(null);
+    setShowTemplates(true);
+  };
+
+  /**
+   * Prefill the add form from a catalog preset and leave the picker.
+   *
+   * The form carries the preset's OWN `id` so the create POSTs onto the catalog
+   * slot (the synthesized list row flips in place instead of duplicating), while
+   * every field stays editable — unlike `materializePreset`, which ignores form
+   * edits and takes the preset verbatim. The user still supplies the key.
+   */
+  const handleUsePresetTemplate = (preset: DaemonPresetView) => {
+    setFormData({
+      ...emptyFormData,
+      id: preset.id,
+      presetId: preset.presetId,
+      name: getProviderDisplayName(t, { name: preset.name, nameKey: preset.nameKey }),
+      apiFormat: preset.apiFormat === 'gemini' ? 'google' : preset.apiFormat,
+      api_base_url: preset.baseUrl,
+      models: [...(preset.models ?? [])],
+      modelsEndpoint: preset.modelsEndpoint ?? '',
+      icon: preset.icon,
+    });
     setShowTemplates(false);
+    setFormError(null);
+  };
+
+  /**
+   * Leave the picker for a hand-rolled provider of `apiFormat`. Nothing but the
+   * format is seeded — the URL stays EMPTY so the user's own endpoint is what
+   * gets saved (a template's URL would otherwise masquerade as their input).
+   */
+  const handleStartCustomProvider = (apiFormat: ApiFormat) => {
+    setFormData({ ...emptyFormData, apiFormat });
+    setShowTemplates(false);
+    setFormError(null);
+  };
+
+  /** Back from the add form to the template picker (nothing is written yet). */
+  const handleBackToTemplates = () => {
+    setShowTemplates(true);
+    setFormError(null);
   };
 
   /**
@@ -179,7 +232,14 @@ export function useProviderForm(
 
     // Saving the form for a synthesized preset row → materialize (create) it
     // rather than PUT a provider the daemon doesn't have yet.
-    if (selectedProvider?.__preset) {
+    //
+    // `isAddingNew` GATES this branch. `selectedProvider` is NOT null while the
+    // add form is open: the list auto-selects `providers[0]` whenever nothing is
+    // explicitly selected, and with no custom providers yet that first row is the
+    // first CATALOG row (OpenAI). Without the gate, saving a hand-filled add form
+    // materialized that preset instead — the saved provider came back named
+    // "openai" on OpenAI's endpoint, discarding everything the user typed.
+    if (!isAddingNew && selectedProvider?.__preset) {
       const materialized = await materializePreset(selectedProvider, {
         apiKey: formData.api_key.trim() || undefined,
         enabled: formData.enabled,
@@ -220,6 +280,10 @@ export function useProviderForm(
         });
       } else {
         const result = await agent.llmConfig.addProvider({
+          // Present only for a template-prefilled create (the preset's own id, so
+          // the catalog row flips in place); omitted otherwise → the adapter mints
+          // a unique id from the name.
+          ...(formData.id ? { id: formData.id } : {}),
           name: formData.name,
           apiFormat: formData.apiFormat,
           chatApiFormat: formData.chatApiFormat,
@@ -527,6 +591,9 @@ export function useProviderForm(
     handleSelectProvider,
     handleAddProvider,
     handleUseTemplate,
+    handleUsePresetTemplate,
+    handleStartCustomProvider,
+    handleBackToTemplates,
     handleEditProvider,
     handleSaveProvider,
     handleCancelEdit,

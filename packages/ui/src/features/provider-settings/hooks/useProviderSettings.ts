@@ -32,6 +32,10 @@ function synthesizePresetRow(p: DaemonPresetView): LLMProvider {
   return {
     id: p.id,
     name: p.name,
+    // The catalog's i18n key for the display name — `getProviderDisplayName`
+    // prefers it, so a Chinese-named built-in renders translated in every locale.
+    nameKey: p.nameKey,
+    icon: p.icon,
     apiFormat: presetUiFormat(p.apiFormat),
     api_base_url: p.baseUrl,
     api_key: '',
@@ -84,13 +88,19 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
     updateProvider: updateProviderInCache,
   } = useLlmProvidersData();
 
-  // Preset catalog (static) — fetched once and merged into the list as rows.
+  // Preset catalog (static) — fetched once, merged into the list as rows AND
+  // handed to the add flow's template picker (one fetch serves both).
   const [presets, setPresets] = useState<DaemonPresetView[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(true);
   useEffect(() => {
     let alive = true;
-    void agent.llmConfig.getPresets().then((list) => {
-      if (alive) setPresets(list ?? []);
-    });
+    void agent.llmConfig.getPresets()
+      .then((list) => {
+        if (alive) setPresets(list ?? []);
+      })
+      .finally(() => {
+        if (alive) setPresetsLoading(false);
+      });
     return () => {
       alive = false;
     };
@@ -102,6 +112,9 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
   );
 
   const [searchTerm, setSearchTerm] = useState('');
+  // Owned here (not in `useProviderForm`) so the selection fallback below can see
+  // it — the add form must run against NO selected provider.
+  const [isAddingNew, setIsAddingNew] = useState(false);
   const [localSelectedProviderId, setLocalSelectedProviderId] = useState<string | null>(null);
   const selectionControlled = options.selectedProviderId !== undefined;
   const selectedProviderId = selectionControlled
@@ -112,8 +125,13 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
     options.onSelectedProviderChange?.(providerId);
   };
 
-  // Auto-select first provider when none is explicitly selected
-  const effectiveSelectedProviderId = selectedProviderId ?? (providers.length > 0 ? providers[0].id : null);
+  // Auto-select the first provider when none is explicitly selected — EXCEPT
+  // while the add form is open. The fallback exists so the detail pane is never
+  // blank; during a create it would instead hand the form handlers a provider
+  // the user never chose (the first row is a synthesized CATALOG row when no
+  // custom provider exists yet), and saving would act on THAT row.
+  const effectiveSelectedProviderId =
+    selectedProviderId ?? (!isAddingNew && providers.length > 0 ? providers[0].id : null);
 
   const selectedProvider = useMemo(() => {
     return providers.find(p => p.id === effectiveSelectedProviderId) || null;
@@ -132,6 +150,7 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
   const form = useProviderForm(
     providers, effectiveSelectedProviderId, setSelectedProviderId,
     selectedProvider, refreshProviders, updateProviderInCache,
+    isAddingNew, setIsAddingNew,
   );
 
   const models = useModelManagement(selectedProvider, updateProviderInCache);
@@ -140,10 +159,21 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
     selectedProvider, models.discoveryModels, models.showManageModels,
   );
 
+  // Preset ids that already exist as REAL daemon rows — the picker marks these
+  // "added" (matched on the preset's own id, which is the id a materialized
+  // preset keeps).
+  const addedPresetIds = useMemo(
+    () => new Set(realProviders.map((p) => p.id)),
+    [realProviders],
+  );
+
   return {
     providers,
     providersLoading,
     providersError,
+    presets,
+    presetsLoading,
+    addedPresetIds,
     searchTerm,
     setSearchTerm,
     selectedProviderId: effectiveSelectedProviderId,

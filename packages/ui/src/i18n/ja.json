@@ -405,9 +405,15 @@
       }
     },
     "presets": {
-      "title": "プロバイダーをすぐに追加",
+      "title": "組み込みプロバイダー",
       "added": "追加済み",
       "add": "追加",
+      "back": "テンプレートに戻る",
+      "searchPlaceholder": "テンプレートを検索...",
+      "empty": "一致するテンプレートがありません。",
+      "loadFailed": "組み込みプロバイダーのカタログを読み込めませんでした。",
+      "customTitle": "API タイプから作成",
+      "customDescription": "エンドポイントを手動で設定します — プロバイダーが使う API 形式を選んでください。",
       "features": {
         "search": "検索",
         "vision": "ビジョン",
@@ -485,6 +491,7 @@
   },
   "common": {
     "cancel": "キャンセル",
+    "clear": "クリア",
     "close": "閉じる",
     "copy": "コピー",
     "delete": "削除",

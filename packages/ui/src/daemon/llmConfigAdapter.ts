@@ -275,13 +275,26 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
       }
     },
 
-    async addProvider(payload: LLMProviderInput): Promise<LLMProviderResult> {
+    async addProvider(payload: LLMProviderInput & { id?: string }): Promise<LLMProviderResult> {
       try {
         const body = fromClientInput(payload);
         // The daemon requires `baseUrl`; create needs an explicit id (the page
         // does not collect a separate id, so we mint one from the name).
+        //
+        // The minted id must not land on an id that is already SPOKEN FOR — not
+        // just an existing provider (a 409) but also a preset id: the list merges
+        // the preset catalog by id, so a custom provider that slugs onto one (a
+        // name like "OpenAI 中转" → `openai`) would be absorbed into that catalog
+        // slot and stamped `isSystem` — silently un-renamable and un-deletable.
+        // A caller-supplied `id` is honoured verbatim (the template picker sends
+        // the preset's own id ON PURPOSE, so its row flips in place).
         if (!body['id']) {
-          body['id'] = slugifyId(payload.name) || `provider-${Date.now()}`;
+          const [providers, presets] = await Promise.all([
+            this.getProviders().catch(() => [] as LLMProvider[]),
+            this.getPresets().catch(() => [] as DaemonPresetView[]),
+          ]);
+          const taken = new Set([...providers.map((p) => p.id), ...presets.map((p) => p.id)]);
+          body['id'] = uniqueId(slugifyId(payload.name) || 'provider', taken);
         }
         const data = await adminClient.post<{ provider: DaemonProviderView }>('/providers', body);
         return ok(toClientProvider(data.provider));
@@ -587,4 +600,18 @@ function slugifyId(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * First free id in the `base`, `base-2`, `base-3`, … series. `taken` holds every
+ * id already spoken for (existing providers + the preset catalog), so a custom
+ * provider never collides with — and is never absorbed by — a catalog slot.
+ */
+function uniqueId(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${base}-${taken.size + 1}`;
 }

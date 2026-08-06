@@ -1520,10 +1520,17 @@ export function parseProviderInput(
 /**
  * `GET /admin/api/presets` → the curated catalog projected to a minimal
  * whitelist DTO for the dashboard's preset picker. Presets carry NO apiKey, but
- * DTO discipline still holds: only `id/presetId/name/apiFormat/baseUrl/models`
- * are projected — the full `PresetProviderTemplate` (transformer/searchConfig/…)
- * is NEVER serialized. `apiFormat` is the NARROWED daemon format (google→gemini),
- * so a picked preset validates against the provider write path unchanged.
+ * DTO discipline still holds: only the keys listed below are projected — the
+ * full `PresetProviderTemplate` (transformer/searchConfig/apiModes/…) is NEVER
+ * serialized. `apiFormat` is the NARROWED daemon format (google→gemini), so a
+ * picked preset validates against the provider write path unchanged.
+ *
+ * The presentation fields (`nameKey`/`icon`/`description`/`features`/`website`)
+ * are non-secret catalog metadata the template picker renders on each card —
+ * `nameKey` so a Chinese-named built-in renders translated, the rest for the
+ * card's icon / blurb / capability tags. `modelsEndpoint` rides along because a
+ * preset-prefilled provider needs it to discover models. All are OPTIONAL: a
+ * preset that declares none serializes exactly the prior six keys.
  */
 function handlePresets(res: http.ServerResponse, method: string): void {
   if (method !== 'GET') return writeJsonError(res, 405, `method ${method} not allowed on presets`);
@@ -1535,6 +1542,12 @@ function handlePresets(res: http.ServerResponse, method: string): void {
     apiFormat: p.apiFormat,
     baseUrl: p.baseUrl,
     models: p.models,
+    nameKey: p.nameKey,
+    icon: p.icon,
+    description: p.description,
+    features: p.features,
+    website: p.website,
+    modelsEndpoint: p.modelsEndpoint,
   }));
   return writeJson(res, 200, { presets, excluded });
 }

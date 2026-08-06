@@ -21,6 +21,13 @@ export interface ModelCatalogFilterDefinition {
 }
 
 export interface ProviderFormData {
+  /**
+   * Explicit provider id for a CREATE. Only set when the form was prefilled from
+   * a catalog template — the row must land on the preset's OWN id so the
+   * synthesized catalog row dedups against it and flips in place. Left undefined
+   * for a hand-rolled provider, where the adapter mints a unique id from the name.
+   */
+  id?: string;
   name: string;
   // v3 fields - apiFormat determines transformer selection
   apiFormat?: ApiFormat;

@@ -85,6 +85,18 @@ function targetFor(resource: UpstreamResource): GatewayBindingTarget {
   return { kind: 'provider', providerId: resource.providerId };
 }
 
+/**
+ * Is this resource live? A provider row is live when it is enabled (`enabled`
+ * absent reads as enabled — the daemon's back-compat default); an account row
+ * when the account itself is enabled, and a group/pool when ANY member is. Drives
+ * the sidebar's enabled-only filter.
+ */
+function resourceIsEnabled(resource: UpstreamResource): boolean {
+  if (resource.kind === 'provider') return resource.provider.enabled !== false;
+  if (resource.kind === 'account') return resource.account.enabled !== false;
+  return resource.accounts.some((account) => account.enabled !== false);
+}
+
 function bindingTargetMatches(left: GatewayBindingTarget, right: GatewayBindingTarget): boolean {
   if (left.kind !== right.kind || left.providerId !== right.providerId) return false;
   if (left.kind === 'account' && right.kind === 'account') return left.accountId === right.accountId;
@@ -125,6 +137,9 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const providersApi = useLlmProvidersData();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [addProviderOpen, setAddProviderOpen] = useState(false);
+  // Sidebar "enabled only" toggle — view state, deliberately NOT in the route:
+  // it is a momentary lens on the list, not a location worth sharing/restoring.
+  const [enabledOnly, setEnabledOnly] = useState(false);
   const activeTab = route.upstreamTab ?? 'resources';
 
   const accountRows = useMemo(
@@ -220,8 +235,9 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     const needle = query.trim().toLocaleLowerCase();
     return resources
       .filter((resource) => kindFilter === 'all' || resource.kind === kindFilter)
+      .filter((resource) => !enabledOnly || resourceIsEnabled(resource))
       .filter((resource) => !needle || `${resource.label} ${resource.providerId}`.toLocaleLowerCase().includes(needle));
-  }, [kindFilter, query, resources]);
+  }, [enabledOnly, kindFilter, query, resources]);
   const selectedResource = resources.find((resource) => resource.key === selectedKey)
     ?? filteredResources[0]
     ?? resources[0]
@@ -347,20 +363,37 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                 onChange={(event) => patchBrowse({ upstreamQuery: event.target.value })}
               />
             </div>
-            <div className="flex gap-1 overflow-x-auto">
-              {(['all', 'account', 'account-group', 'provider'] as const).map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  className={cn(
-                    'shrink-0 rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    kindFilter === kind ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
-                  )}
-                  onClick={() => patchBrowse({ upstreamFilter: kind })}
-                >
-                  {t(`upstreams.filter.${kind}`)}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+                {(['all', 'account', 'account-group', 'provider'] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className={cn(
+                      'shrink-0 rounded-md px-2.5 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      kindFilter === kind ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
+                    )}
+                    onClick={() => patchBrowse({ upstreamFilter: kind })}
+                  >
+                    {t(`upstreams.filter.${kind}`)}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  enabledOnly
+                    ? 'border-primary text-primary bg-primary/10'
+                    : 'border-border/40 text-muted-foreground hover:border-border hover:text-foreground',
+                )}
+                onClick={() => setEnabledOnly((prev) => !prev)}
+                aria-pressed={enabledOnly}
+                aria-label={enabledOnly ? t('providerSettings.showAll') : t('providerSettings.showEnabledOnly')}
+                title={enabledOnly ? t('providerSettings.showAll') : t('providerSettings.showEnabledOnly')}
+              >
+                <CircleDot className="h-4 w-4" />
+              </button>
             </div>
           </div>
           <ScrollArea className="min-h-0 flex-1">

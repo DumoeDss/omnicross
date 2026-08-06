@@ -1,5 +1,6 @@
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ExternalLink,
   Eye,
@@ -66,6 +67,8 @@ interface ProviderFormProps {
   hasKey?: boolean;
   /** Same, for the coding-plan key. */
   hasCodingPlanKey?: boolean;
+  /** ADD flow only — return to the template picker (step 1). */
+  onBackToTemplates?: () => void;
   onCancel: () => void;
   onSave: () => void;
 }
@@ -80,6 +83,7 @@ export function ProviderForm({
   setShowApiKey,
   hasKey,
   hasCodingPlanKey,
+  onBackToTemplates,
   onCancel,
   onSave
 }: ProviderFormProps) {
@@ -111,31 +115,60 @@ export function ProviderForm({
     });
   };
 
-  // Handle provider type change
+  /**
+   * Switch the provider TYPE.
+   *
+   * The type's own template supplies defaults, but only for fields the user has
+   * not already filled in: an endpoint/model list they typed (or that a catalog
+   * template prefilled) SURVIVES the switch. Overwriting them here is how a
+   * hand-entered URL used to silently become the stock OpenAI endpoint on save.
+   * A field is "untouched" when it is empty or still equals some type template's
+   * value — i.e. it only ever held a default.
+   */
   const handleProviderTypeChange = (apiFormat: string) => {
     const template = getTemplateByApiFormat(apiFormat as ApiFormat);
-    if (template) {
-      setFormData(prev => ({
-        ...prev,
-        apiFormat: template.apiFormat || 'openai',
-        chatApiFormat: template.chatApiFormat || template.apiFormat || 'openai',
-        apiType: template.apiType,
-        api_base_url: template.api_base_url,
-        models: [...template.models],
-        modelConfigs: template.modelConfigs ? [...template.modelConfigs] : [],
-        modelGroups: template.modelGroups ? [...template.modelGroups] : [],
-        modelsEndpoint: template.modelsEndpoint,
-        icon: template.icon,
-        transformer: template.transformer,
-        apiVersion: template.apiVersion
-      }));
-    } else {
+    if (!template) {
       setFormData(prev => ({
         ...prev,
         apiFormat: apiFormat as ApiFormat,
         apiVersion: undefined
       }));
+      return;
     }
+    setFormData(prev => {
+      const urlIsDefault =
+        !prev.api_base_url.trim() ||
+        PROVIDER_TEMPLATES.some(candidate => candidate.api_base_url === prev.api_base_url);
+      const modelsAreDefault =
+        !prev.models.length ||
+        PROVIDER_TEMPLATES.some(
+          candidate =>
+            candidate.models.length === prev.models.length &&
+            candidate.models.every((model, idx) => model === prev.models[idx]),
+        );
+      return {
+        ...prev,
+        apiFormat: template.apiFormat || 'openai',
+        chatApiFormat: template.chatApiFormat || template.apiFormat || 'openai',
+        apiType: template.apiType,
+        apiVersion: template.apiVersion,
+        ...(urlIsDefault
+          ? {
+              api_base_url: template.api_base_url,
+              modelsEndpoint: template.modelsEndpoint,
+              icon: template.icon,
+              transformer: template.transformer,
+            }
+          : {}),
+        ...(modelsAreDefault
+          ? {
+              models: [...template.models],
+              modelConfigs: template.modelConfigs ? [...template.modelConfigs] : [],
+              modelGroups: template.modelGroups ? [...template.modelGroups] : [],
+            }
+          : {}),
+      };
+    });
   };
 
   return (
@@ -397,6 +430,12 @@ export function ProviderForm({
 
       {/* Actions */}
       <div className="flex gap-2 justify-end pt-2">
+        {onBackToTemplates ? (
+          <Button variant="ghost" className="mr-auto" onClick={onBackToTemplates}>
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            {t('providerSettings.presets.back')}
+          </Button>
+        ) : null}
         <Button variant="outline" onClick={onCancel}>
           {t('providerSettings.form.buttons.cancel')}
         </Button>

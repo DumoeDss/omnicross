@@ -405,9 +405,15 @@
       }
     },
     "presets": {
-      "title": "快速新增提供者",
+      "title": "內建提供者",
       "added": "已新增",
       "add": "新增",
+      "back": "返回範本",
+      "searchPlaceholder": "搜尋範本...",
+      "empty": "沒有符合的範本。",
+      "loadFailed": "無法載入內建提供者目錄。",
+      "customTitle": "依類型自訂",
+      "customDescription": "手動設定連線位址——先選擇該提供者使用的 API 格式。",
       "features": {
         "search": "搜尋",
         "vision": "視覺",
@@ -485,6 +491,7 @@
   },
   "common": {
     "cancel": "取消",
+    "clear": "清除",
     "close": "關閉",
     "copy": "複製",
     "delete": "刪除",

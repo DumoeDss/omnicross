@@ -405,9 +405,15 @@
       }
     },
     "presets": {
-      "title": "快速添加提供商",
+      "title": "内置提供商",
       "added": "已添加",
       "add": "添加",
+      "back": "返回模板",
+      "searchPlaceholder": "搜索模板...",
+      "empty": "没有匹配的模板。",
+      "loadFailed": "无法加载内置提供商目录。",
+      "customTitle": "按类型自定义",
+      "customDescription": "手动配置接入地址——先选择该提供商使用的 API 格式。",
       "features": {
         "search": "搜索",
         "vision": "视觉",
@@ -485,6 +491,7 @@
   },
   "common": {
     "cancel": "取消",
+    "clear": "清除",
     "close": "关闭",
     "copy": "复制",
     "delete": "删除",

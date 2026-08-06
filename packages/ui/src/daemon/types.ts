@@ -128,14 +128,28 @@ export interface DaemonPoolKeyView {
   };
 }
 
-/** `GET /admin/api/presets` row. */
+/**
+ * `GET /admin/api/presets` row — the curated catalog's whitelist DTO.
+ *
+ * `id/presetId/name/apiFormat/baseUrl/models` are the ROW shape (what a provider
+ * write needs). The optional trailing fields are non-secret PRESENTATION
+ * metadata the template picker renders (`nameKey` for a translated display name,
+ * `icon`/`description`/`features` for the card, `website` for the docs link),
+ * plus the preset's `modelsEndpoint` so a prefilled row can discover models.
+ */
 export interface DaemonPresetView {
   id: string;
   presetId: string;
   name: string;
-  apiFormat: 'openai' | 'anthropic' | 'gemini';
+  apiFormat: 'openai' | 'anthropic' | 'gemini' | 'openai-response';
   baseUrl: string;
   models: string[];
+  nameKey?: string;
+  icon?: string;
+  description?: string;
+  features?: string[];
+  website?: string;
+  modelsEndpoint?: string;
 }
 
 /** `POST /admin/api/providers/:id/discover-models` response. */
@@ -170,7 +184,13 @@ export interface AgentLLMConfigApi {
    * `apiKey` is '' when no key is stored.
    */
   revealProviderKey?(id: string): Promise<{ success: boolean; apiKey?: string; message?: string }>;
-  addProvider(payload: LLMProviderInput): Promise<LLMProviderResult>;
+  /**
+   * Create a provider. `id` is OPTIONAL — omit it and the adapter mints a unique
+   * one from the name. Pass it when the row must land on a SPECIFIC id (the
+   * template picker sends the preset's own id so the synthesized catalog row
+   * dedups against the created provider and flips in place).
+   */
+  addProvider(payload: LLMProviderInput & { id?: string }): Promise<LLMProviderResult>;
   updateProvider(payload: LLMProviderUpdateInput & { id: string }): Promise<LLMProviderResult>;
   deleteProvider(id: string): Promise<{ success: boolean; message?: string }>;
   toggleProvider(id: string, enabled: boolean): Promise<LLMProviderResult>;
@@ -349,6 +369,13 @@ export interface WriteTokensResult {
   success: boolean;
   status?: SubscriptionListEntry;
   message?: string;
+  /**
+   * OAuth-complete only: the daemon answered 410 — the pending sign-in session
+   * is gone (expired past its TTL, or the daemon restarted). The pasted code can
+   * never succeed against it, so the UI must drop the inline panel and let the
+   * user start a fresh authorize round rather than re-submit into a dead session.
+   */
+  sessionExpired?: boolean;
 }
 
 /** Result of an OAuth `start` — the public authorize URL + an opaque session id. */

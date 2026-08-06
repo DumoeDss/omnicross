@@ -405,9 +405,15 @@
       }
     },
     "presets": {
-      "title": "Quick Add Provider",
+      "title": "Built-in providers",
       "added": "Added",
       "add": "Add",
+      "back": "Back to templates",
+      "searchPlaceholder": "Search templates...",
+      "empty": "No template matches your search.",
+      "loadFailed": "Could not load the built-in provider catalog.",
+      "customTitle": "Start from an API type",
+      "customDescription": "Configure an endpoint by hand — pick the API format your provider speaks.",
       "features": {
         "search": "Search",
         "vision": "Vision",
@@ -485,6 +491,7 @@
   },
   "common": {
     "cancel": "Cancel",
+    "clear": "Clear",
     "close": "Close",
     "copy": "Copy",
     "delete": "Delete",

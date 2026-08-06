@@ -11,6 +11,7 @@ import { ManualModelDialog } from './ManualModelDialog';
 import { ProviderDetails } from './ProviderDetails';
 import { ProviderForm } from './ProviderForm';
 import { ProviderList } from './ProviderList';
+import { ProviderTemplatePicker } from './ProviderTemplatePicker';
 
 export interface ProviderSettingsProps {
   /** Hide the provider list so an owning workbench can supply resource navigation. */
@@ -33,6 +34,9 @@ export function ProviderSettings({
   const {
     providers,
     providersLoading,
+    presets,
+    presetsLoading,
+    addedPresetIds,
     searchTerm,
     setSearchTerm,
     selectedProviderId,
@@ -42,8 +46,7 @@ export function ProviderSettings({
     formData,
     setFormData,
     formError,
-    showTemplates: _showTemplates,
-    setShowTemplates: _setShowTemplates,
+    showTemplates,
     showApiKey,
     setShowApiKey,
     modelSearch,
@@ -93,6 +96,9 @@ export function ProviderSettings({
     handleReorderProviders,
     handleSelectApiMode,
     handleUseTemplate: _handleUseTemplate,
+    handleUsePresetTemplate,
+    handleStartCustomProvider,
+    handleBackToTemplates,
     handleSaveProvider,
     handleCancelEdit,
     handleInlineUpdate,
@@ -173,7 +179,18 @@ export function ProviderSettings({
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface-1/60 wallpaper-blur">
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            {isAddingNew ? (
+            {isAddingNew && showTemplates ? (
+              /* Step 1 of ADD: pick a built-in template, or start from a bare
+                 API type. Nothing is written until the form is saved. */
+              <ProviderTemplatePicker
+                presets={presets}
+                loading={presetsLoading}
+                addedPresetIds={addedPresetIds}
+                onUseTemplate={handleUsePresetTemplate}
+                onStartCustom={handleStartCustomProvider}
+                onCancel={handleCancelEdit}
+              />
+            ) : isAddingNew ? (
               <ProviderForm
                 isEditing={false}
                 isAddingNew
@@ -182,6 +199,7 @@ export function ProviderSettings({
                 formError={formError}
                 showApiKey={showApiKey}
                 setShowApiKey={setShowApiKey}
+                onBackToTemplates={handleBackToTemplates}
                 onCancel={handleCancelEdit}
                 onSave={handleSaveProvider}
               />

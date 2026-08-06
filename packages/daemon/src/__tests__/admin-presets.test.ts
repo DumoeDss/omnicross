@@ -163,9 +163,23 @@ describe('GET /admin/api/presets', () => {
     };
     expect(Array.isArray(body.presets)).toBe(true);
     expect(body.presets.length).toBeGreaterThan(20);
-    const allowed = ['id', 'presetId', 'name', 'apiFormat', 'baseUrl', 'models'].sort();
+    // The row shape is always present; the presentation metadata
+    // (nameKey/icon/description/features/website/modelsEndpoint) is per-preset
+    // optional, so assert required-present + nothing-outside-the-allowlist
+    // rather than an exact key set.
+    const required = ['id', 'presetId', 'name', 'apiFormat', 'baseUrl', 'models'];
+    const allowed = new Set([
+      ...required,
+      'nameKey',
+      'icon',
+      'description',
+      'features',
+      'website',
+      'modelsEndpoint',
+    ]);
     for (const p of body.presets) {
-      expect(Object.keys(p).sort()).toEqual(allowed);
+      for (const key of required) expect(Object.keys(p)).toContain(key);
+      for (const key of Object.keys(p)) expect(allowed.has(key), `unexpected key '${key}'`).toBe(true);
     }
     // No leaked full-template fields in the projected presets (the `excluded[]`
     // reasons legitimately mention "transformer" as prose, so scope the key-leak
@@ -197,6 +211,26 @@ describe('GET /admin/api/presets', () => {
     expect(excludedIds).not.toContain('openai-response');
     expect(excludedIds).toContain('azure-openai');
     for (const e of body.excluded) expect(e.reason.length).toBeGreaterThan(0);
+  });
+
+  it('carries the picker presentation metadata from the catalog', async () => {
+    const r = await adminFetch('GET', '/admin/api/presets');
+    const body = r.json as {
+      presets: Array<{
+        id: string;
+        icon?: string;
+        description?: string;
+        features?: string[];
+        nameKey?: string;
+      }>;
+    };
+    // OpenAI declares icon/description/features in its catalog JSON.
+    const openai = body.presets.find((p) => p.id === 'openai');
+    expect(openai?.icon).toBe('openai');
+    expect(openai?.description).toBeTruthy();
+    expect(openai?.features).toContain('vision');
+    // zhipu declares a nameKey so the picker can render a translated name.
+    expect(body.presets.find((p) => p.id === 'zhipu')?.nameKey).toBe('presetName.zhipu');
   });
 
   it('405s a non-GET', async () => {
