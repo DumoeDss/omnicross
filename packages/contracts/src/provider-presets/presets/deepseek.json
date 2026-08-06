@@ -7,9 +7,7 @@
   "api_base_url": "https://api.deepseek.com/v1/chat/completions",
   "models": [
     "deepseek-v4-flash",
-    "deepseek-v4-pro",
-    "deepseek-chat",
-    "deepseek-reasoner"
+    "deepseek-v4-pro"
   ],
   "modelConfigs": [
     {
@@ -21,16 +19,6 @@
       "id": "deepseek-v4-pro",
       "name": "DeepSeek V4 Pro",
       "enabled": true
-    },
-    {
-      "id": "deepseek-chat",
-      "name": "DeepSeek Chat (Legacy)",
-      "enabled": false
-    },
-    {
-      "id": "deepseek-reasoner",
-      "name": "DeepSeek Reasoner (Legacy)",
-      "enabled": false
     }
   ],
   "transformer": {

@@ -6,11 +6,16 @@
   "api_base_url": "https://api.moonshot.ai/v1",
   "codingPlanBaseUrl": "https://api.kimi.com/coding/v1",
   "models": [
+    "kimi-k3",
     "kimi-k2.6",
-    "kimi-k2.5",
-    "kimi-k2-thinking"
+    "kimi-k2.5"
   ],
   "modelConfigs": [
+    {
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "enabled": true
+    },
     {
       "id": "kimi-k2.6",
       "name": "Kimi K2.6",
@@ -20,11 +25,6 @@
       "id": "kimi-k2.5",
       "name": "Kimi K2.5",
       "enabled": true
-    },
-    {
-      "id": "kimi-k2-thinking",
-      "name": "Kimi K2 Thinking",
-      "enabled": false
     }
   ],
   "description": "Moonshot AI - Kimi大模型",

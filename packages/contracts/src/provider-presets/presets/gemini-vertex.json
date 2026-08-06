@@ -6,10 +6,16 @@
   "apiType": "google",
   "api_base_url": "https://us-central1-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/us-central1/publishers/google",
   "models": [
+    "gemini-3.5-flash",
     "gemini-3-flash",
     "gemini-3.1-pro"
   ],
   "modelConfigs": [
+    {
+      "id": "gemini-3.5-flash",
+      "name": "Gemini 3.5 Flash",
+      "enabled": true
+    },
     {
       "id": "gemini-3-flash",
       "name": "Gemini 3 Flash",

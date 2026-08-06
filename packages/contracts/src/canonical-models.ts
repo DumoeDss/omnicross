@@ -62,6 +62,9 @@ export type ResolvedModelCapabilities = KnownModelCapabilities;
 // ============================================================================
 
 const OPENAI_MODELS: Record<string, KnownModelCapabilities> = {
+  'gpt-5.6-sol': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.6-terra': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.6-luna': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
   'gpt-5.5': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
   'gpt-5.4': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
   'gpt-5.4-mini': { category: 'reasoning', contextLength: 400000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
@@ -81,6 +84,10 @@ const OPENAI_MODELS: Record<string, KnownModelCapabilities> = {
 // different model from the API's perspective when the long-context tier is
 // engaged). Pricing on the 1M tier differs from the standard tier.
 const ANTHROPIC_MODELS: Record<string, KnownModelCapabilities> = {
+  'claude-fable-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
+  'claude-opus-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
+  'claude-opus-4-8': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
+  'claude-sonnet-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
   'claude-opus-4-7': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
   'claude-opus-4-7[1m]': { category: 'reasoning', contextLength: 1000000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
   'claude-opus-4-6': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 128000 } },
@@ -91,11 +98,13 @@ const ANTHROPIC_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const GEMINI_MODELS: Record<string, KnownModelCapabilities> = {
+  'gemini-3.5-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3.1-pro': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
 };
 
 const GROK_MODELS: Record<string, KnownModelCapabilities> = {
+  'grok-4.5': { category: 'chat', contextLength: 500000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'grok-4.3': { category: 'chat', contextLength: 1000000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'grok-4.20': { category: 'chat', contextLength: 131072, maxTokens: 32768, vision: true, functionCall: true },
   'grok-4.20-reasoning': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
@@ -111,6 +120,7 @@ const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const ZHIPU_MODELS: Record<string, KnownModelCapabilities> = {
+  'glm-5.2': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
   'glm-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
   'glm-5.1': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
   'glm-4.5-air': { category: 'chat', contextLength: 128000, maxTokens: 32768, functionCall: true },
@@ -119,6 +129,7 @@ const ZHIPU_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const KIMI_MODELS: Record<string, KnownModelCapabilities> = {
+  'kimi-k3': { category: 'code', contextLength: 1048576, maxTokens: 1048576, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'kimi-k2.6': { category: 'code', contextLength: 256000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'kimi-k2.5': { category: 'chat', contextLength: 256000, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'kimi-k2-thinking': { category: 'reasoning', contextLength: 256000, reasoning: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },

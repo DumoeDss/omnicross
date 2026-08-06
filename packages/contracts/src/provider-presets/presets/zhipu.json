@@ -8,6 +8,7 @@
   "codingPlanBaseUrl": "https://api.z.ai/api/coding/paas/v4",
   "modelsEndpoint": "https://api.z.ai/api/paas/v4/models",
   "models": [
+    "glm-5.2",
     "glm-5",
     "glm-5.1",
     "glm-4.5-air",
@@ -15,6 +16,11 @@
     "glm-4.7"
   ],
   "modelConfigs": [
+    {
+      "id": "glm-5.2",
+      "name": "GLM-5.2",
+      "enabled": true
+    },
     {
       "id": "glm-5",
       "name": "GLM-5",
