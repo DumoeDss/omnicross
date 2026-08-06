@@ -85,19 +85,6 @@ describe('updateQueueConfig', () => {
     expect(mocked.put).toHaveBeenCalledWith('/server', patch);
   });
 
-  it('propagates an incomplete-model-config envelope (not fake success)', async () => {
-    const missing = [{ endpoint: 'messages' as const, missingKinds: ['fable'] }];
-    mocked.put.mockResolvedValueOnce({
-      server: CONFIG,
-      error: { code: 'incomplete-model-config', missing },
-    });
-    const adapter = createApiServiceAdapter();
-    const result = await adapter.updateQueueConfig({
-      userMessageQueue: { enabled: true, delayMs: 200, waitTimeoutMs: 60000 },
-    });
-    expect(result).toEqual({ success: false, message: 'incomplete-model-config', missing });
-  });
-
   it('surfaces a transport error honestly', async () => {
     mocked.put.mockRejectedValueOnce(new Error('net down'));
     const adapter = createApiServiceAdapter();

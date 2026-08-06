@@ -233,6 +233,7 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
       enabled: true,
       networkBinding: serverConfig.networkBinding,
       endpoints: serverConfig.endpoints,
+      bindings: serverConfig.bindings,
       port: serverConfig.port,
     });
 

@@ -192,6 +192,7 @@ async function bootDaemon(buildProviders: (base: string) => ProviderRow[]): Prom
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
   await daemon.adminServer.start();

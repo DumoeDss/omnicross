@@ -196,6 +196,7 @@ describe('Claude: real daemon multi-turn health failover', () => {
       enabled: true,
       networkBinding: serverConfig.networkBinding,
       endpoints: serverConfig.endpoints,
+      bindings: serverConfig.bindings,
       port: serverConfig.port,
     });
 

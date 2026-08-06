@@ -1,27 +1,31 @@
-import { detectModelKind, isKindMappedEndpoint } from './kindDetection';
+import { detectModelKind, isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { resolvePrefixTarget } from './modelPrefixDispatch';
 import type {
   EndpointRoutingConfig,
   GatewayBinding,
   GatewayBindingTarget,
+  GatewayModelMapping,
   ModelPrefixTargets,
   ModelRef,
   OutboundEndpoint,
   RequestRole,
 } from './types';
 
-export interface GatewayBindingResolution {
-  source: 'binding' | 'global';
-  binding?: GatewayBinding;
-  config: EndpointRoutingConfig;
-}
+/**
+ * Either the winning route projected to the resolver shape, or `none` — no
+ * enabled route for this key/endpoint could serve the request. There is no
+ * global fallback: `none` is terminal and the caller answers with a route error.
+ */
+export type GatewayBindingResolution =
+  | { source: 'binding'; binding: GatewayBinding; config: EndpointRoutingConfig }
+  | { source: 'none' };
+
 export interface ResolveGatewayBindingInput {
   bindings: readonly GatewayBinding[] | undefined;
   apiKeyId: string;
   endpoint: OutboundEndpoint;
   requestedModel?: string;
   role?: RequestRole;
-  fallbackEndpointConfig: EndpointRoutingConfig;
 }
 
 const MESSAGE_FALLBACK_KINDS = ['sonnet', 'opus', 'haiku', 'fable'] as const;
@@ -30,11 +34,46 @@ function nonBlank(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+/** Preserve legacy unscoped bindings while allowing new routes to start with no keys. */
+export function gatewayBindingAllowsKey(binding: GatewayBinding, apiKeyId: string): boolean {
+  const scope = binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all');
+  return scope === 'all' || Boolean(binding.apiKeyIds?.includes(apiKeyId));
+}
+
+function wildcardMatches(pattern: string, value: string): boolean {
+  const escaped = pattern
+    .split('*')
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
+    .join('.*');
+  return new RegExp(`^${escaped}$`, 'iu').test(value);
+}
+
+/** Resolve the first exact/wildcard mapping in declaration order. */
+export function resolveGatewayModelMapping(
+  mappings: readonly GatewayModelMapping[] | undefined,
+  requestedModel: string | undefined,
+): string | undefined {
+  if (!nonBlank(requestedModel)) return undefined;
+  const wanted = requestedModel.trim();
+  const exact = (mappings ?? []).find(
+    (mapping) => nonBlank(mapping.source) && !mapping.source.includes('*') && mapping.source.trim().toLocaleLowerCase() === wanted.toLocaleLowerCase(),
+  );
+  if (exact && nonBlank(exact.target)) return exact.target.trim();
+  const wildcard = (mappings ?? []).find(
+    (mapping) => nonBlank(mapping.source) && mapping.source.includes('*') && wildcardMatches(mapping.source.trim(), wanted),
+  );
+  return wildcard && nonBlank(wildcard.target) ? wildcard.target.trim() : undefined;
+}
+
 function routeCanServe(
   binding: GatewayBinding,
   requestedModel: string | undefined,
   role: RequestRole | undefined,
 ): boolean {
+  if (binding.modelMode === 'passthrough') return nonBlank(requestedModel);
+  if (binding.modelMappings?.length) {
+    return nonBlank(resolveGatewayModelMapping(binding.modelMappings, requestedModel));
+  }
   if (isKindMappedEndpoint(binding.endpoint)) {
     const map = binding.modelMap ?? {};
     const kind = detectModelKind(binding.endpoint, requestedModel);
@@ -93,15 +132,46 @@ function targetPrefixRefs(
   return mapped.claude || mapped.gpt || mapped.gemini ? mapped : undefined;
 }
 
-/** Project an independent resource binding into the legacy route resolver shape. */
-export function gatewayBindingToEndpointConfig(binding: GatewayBinding): EndpointRoutingConfig {
+function applySingleModel(
+  config: EndpointRoutingConfig,
+  binding: GatewayBinding,
+  targetModel: string,
+): void {
+  const ref = targetRef(binding.target, targetModel);
+  if (!ref) return;
+  if (isKindMappedEndpoint(binding.endpoint)) {
+    config.modelMap = Object.fromEntries(
+      modelKindsForEndpoint(binding.endpoint).map((kind) => [kind, ref]),
+    );
+  } else if (binding.endpoint === 'chat') {
+    config.models = [ref];
+    config.dispatchMode = 'list';
+  } else {
+    config.defaultModel = ref;
+    config.backgroundModel = ref;
+  }
+}
+
+/** Project one downstream route into the legacy route-resolver shape. */
+export function gatewayBindingToEndpointConfig(
+  binding: GatewayBinding,
+  requestedModel?: string,
+): EndpointRoutingConfig {
   const target = binding.target;
   const config: EndpointRoutingConfig = {
     endpoint: binding.endpoint,
     useSubscription: target.kind !== 'provider',
   };
 
-  if (isKindMappedEndpoint(binding.endpoint)) {
+  const usesGenericModelHandling =
+    binding.modelMode === 'passthrough' || Boolean(binding.modelMappings?.length);
+  const dynamicModel = binding.modelMode === 'passthrough'
+    ? requestedModel
+    : resolveGatewayModelMapping(binding.modelMappings, requestedModel);
+
+  if (usesGenericModelHandling) {
+    if (nonBlank(dynamicModel)) applySingleModel(config, binding, dynamicModel);
+  } else if (isKindMappedEndpoint(binding.endpoint)) {
     config.modelMap = Object.fromEntries(
       Object.entries(binding.modelMap ?? {}).map(([kind, ref]) => [kind, targetRef(target, ref)]),
     );
@@ -117,50 +187,92 @@ export function gatewayBindingToEndpointConfig(binding: GatewayBinding): Endpoin
     if (binding.backgroundModelIds) config.backgroundModelIds = [...binding.backgroundModelIds];
   }
 
+  // `account-pool` deliberately sets no bound* hint: `useSubscription` alone is
+  // plain provider-pool scheduling (priority/LRU/health), which is exactly what
+  // the target means.
   if (target.kind === 'account') {
     config.boundAccountId = target.accountId;
-    config.boundAccountFallbackPolicy = binding.fallback === 'global' ? 'pool' : 'strict';
+    config.boundAccountFallbackPolicy = binding.fallback === 'next' ? 'pool' : 'strict';
   } else if (target.kind === 'account-group') {
     config.boundAccountGroup = target.group;
-    config.boundAccountFallbackPolicy = binding.fallback === 'global' ? 'pool' : 'strict';
-  } else if (target.keyId) {
+    config.boundAccountFallbackPolicy = binding.fallback === 'next' ? 'pool' : 'strict';
+  } else if (target.kind === 'provider' && target.keyId) {
     config.boundKeyId = target.keyId;
-    config.boundKeyFallbackPolicy = binding.fallback === 'global' ? 'pool' : 'strict';
+    config.boundKeyFallbackPolicy = binding.fallback === 'next' ? 'pool' : 'strict';
   }
 
   return config;
 }
 
 /**
- * Resolve the resource route for one verified client key. Exact key-scoped
- * bindings outrank unscoped bindings; lower priority values win. A binding with
- * `fallback: global` that has no model for this request yields to the legacy
- * endpoint config, while `fail` remains selected and produces an actionable
- * route error downstream.
+ * The enabled routes one verified key may enter on one endpoint, in resolution
+ * order. Exact key-scoped routes outrank unscoped ones (and suppress them
+ * entirely); within a tier the lower priority value wins, id breaking ties.
  */
-export function resolveGatewayBinding(input: ResolveGatewayBindingInput): GatewayBindingResolution {
-  const candidates = (input.bindings ?? []).filter(
+export function candidateGatewayBindings(
+  bindings: readonly GatewayBinding[] | undefined,
+  apiKeyId: string,
+  endpoint: OutboundEndpoint,
+): GatewayBinding[] {
+  const candidates = (bindings ?? []).filter(
     (binding) =>
       binding.enabled &&
-      binding.endpoint === input.endpoint &&
-      (!binding.apiKeyIds || binding.apiKeyIds.length === 0 || binding.apiKeyIds.includes(input.apiKeyId)),
+      binding.endpoint === endpoint &&
+      gatewayBindingAllowsKey(binding, apiKeyId),
   );
-  const scoped = candidates.filter((binding) => binding.apiKeyIds?.includes(input.apiKeyId));
-  const pool = scoped.length > 0 ? scoped : candidates.filter((binding) => !binding.apiKeyIds?.length);
-  pool.sort(
+  const scopeOf = (binding: GatewayBinding) =>
+    binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all');
+  const scoped = candidates.filter((binding) => scopeOf(binding) === 'selected');
+  const pool = scoped.length > 0
+    ? scoped
+    : candidates.filter((binding) => scopeOf(binding) === 'all');
+  return pool.sort(
     (left, right) =>
       (left.priority ?? 100) - (right.priority ?? 100) || left.id.localeCompare(right.id),
   );
+}
 
-  const binding = pool.find(
+/**
+ * The background-tier model ids the role-based endpoint should recognize for
+ * this request. Role detection runs BEFORE a route is picked (the pick needs the
+ * role), so the hint is the union across every candidate route.
+ */
+export function candidateBackgroundModelIds(
+  bindings: readonly GatewayBinding[] | undefined,
+  apiKeyId: string,
+  endpoint: OutboundEndpoint,
+): string[] | undefined {
+  const ids = [
+    ...new Set(
+      candidateGatewayBindings(bindings, apiKeyId, endpoint).flatMap(
+        (binding) => binding.backgroundModelIds ?? [],
+      ),
+    ),
+  ];
+  return ids.length > 0 ? ids : undefined;
+}
+
+/**
+ * Resolve the resource route for one verified client key. A route with
+ * `fallback: next` that has no model for this request yields to the next
+ * candidate, while `fail` remains selected immediately.
+ *
+ * When no candidate can serve, the FIRST candidate is still selected so route
+ * resolution produces its specific, actionable error (e.g. 404 for a model
+ * outside a chat route's list) rather than a generic one. `none` is reserved
+ * for having no candidate route at all.
+ */
+export function resolveGatewayBinding(input: ResolveGatewayBindingInput): GatewayBindingResolution {
+  const candidates = candidateGatewayBindings(input.bindings, input.apiKeyId, input.endpoint);
+  const binding = candidates.find(
     (candidate) =>
       candidate.fallback === 'fail' ||
       routeCanServe(candidate, input.requestedModel, input.role),
-  );
-  if (!binding) return { source: 'global', config: input.fallbackEndpointConfig };
+  ) ?? candidates[0];
+  if (!binding) return { source: 'none' };
   return {
     source: 'binding',
     binding,
-    config: gatewayBindingToEndpointConfig(binding),
+    config: gatewayBindingToEndpointConfig(binding, input.requestedModel),
   };
 }

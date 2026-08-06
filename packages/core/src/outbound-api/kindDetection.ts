@@ -97,35 +97,3 @@ export function validateEndpointModelConfig(
   );
 }
 
-/** One incomplete kind-mapped endpoint and the kinds it is missing. */
-export interface EndpointModelConfigError {
-  endpoint: KindMappedEndpoint;
-  missingKinds: ModelKind[];
-}
-
-/**
- * Server-level completeness, PER-ENDPOINT: a kind-mapped endpoint whose
- * declared kinds are ALL blank/absent counts as UNCONFIGURED — the operator
- * simply doesn't use that endpoint, so it does NOT block startup (its requests
- * 503 per-request instead). Only a PARTIALLY configured endpoint (some kinds
- * set, some blank — a real config mistake that would silently misroute) is
- * returned as an error. Empty result ⇒ the config satisfies the startup gate.
- *
- * Serving consumes this for the gate ENFORCEMENT; it MAY tighten to an
- * all-endpoints-strict policy by composing {@link validateEndpointModelConfig}.
- */
-export function validateServerModelConfig(
-  config: OutboundApiServerConfig,
-): EndpointModelConfigError[] {
-  const errors: EndpointModelConfigError[] = [];
-  for (const endpoint of Object.keys(ENDPOINT_MODEL_KINDS) as KindMappedEndpoint[]) {
-    const ep = config.endpoints.find((e) => e.endpoint === endpoint);
-    const declared = modelKindsForEndpoint(endpoint);
-    const missingKinds = ep ? validateEndpointModelConfig(ep) : [...declared];
-    // Fully blank ⇒ endpoint unused ⇒ not a startup error.
-    if (missingKinds.length > 0 && missingKinds.length < declared.length) {
-      errors.push({ endpoint, missingKinds });
-    }
-  }
-  return errors;
-}

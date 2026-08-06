@@ -510,7 +510,7 @@
     "more": "More",
     "overview": "Overview",
     "gateway": "Gateway",
-    "upstreams": "Upstreams",
+    "upstreams": "Upstreams & Routes",
     "integrations": "Integrations",
     "group": {
       "run": "Run",
@@ -559,12 +559,6 @@
         "routing": "{{value}} formats",
         "upstream": "{{value}} accounts / targets"
       }
-    },
-    "routes": {
-      "title": "Routing matrix",
-      "description": "The configured upstream target for each wire format.",
-      "unconfigured": "not configured",
-      "unavailable": "Routing evidence is unavailable. Open Gateway to inspect it."
     },
     "gateway": {
       "title": "Gateway evidence",
@@ -650,11 +644,11 @@
     }
   },
   "upstreams": {
-    "title": "Upstreams",
-    "description": "Manage the accounts, account groups, and providers that can receive Gateway traffic.",
+    "title": "Upstreams and routes",
+    "description": "Manage upstream connections separately from the downstream routes clients enter through.",
     "addAccount": "Add account",
     "addProvider": "Add provider",
-    "addProviderDescription": "Create a provider and configure its models and key pool.",
+    "addProviderDescription": "Create a provider and configure its connection; a model list is optional.",
     "searchPlaceholder": "Search upstreams…",
     "empty": "No upstream resources match this view.",
     "filter": {
@@ -674,9 +668,62 @@
       "needsKey": "Needs a key"
     },
     "memberCount": "{{count}} members",
+    "accountPool": "{{provider}} account pool",
     "groupSummary": "{{count}} accounts in {{provider}}",
     "routeCount": "{{count}} routes",
     "manageAccount": "Manage account",
+    "tabs": {
+      "label": "Upstreams and routes",
+      "resources": "Upstream resources",
+      "routes": "Downstreams and routes"
+    },
+    "downstreams": {
+      "listTitle": "Client applications",
+      "listCount": "{{count}} downstreams",
+      "boundKeysShort": "{{count}} keys",
+      "add": "Add downstream",
+      "empty": "No downstream interface yet.",
+      "selectPrompt": "Select a downstream interface or create a new one.",
+      "noResources": "Add an upstream provider or account first.",
+      "editEyebrow": "Downstream route",
+      "createEyebrow": "New downstream interface",
+      "untitled": "Untitled interface",
+      "sourceTitle": "Downstream interface",
+      "sourceDescription": "Define the public protocol clients use. API keys bind here from key management.",
+      "keyBindingHint": "{{count}} API keys are bound to this downstream",
+      "manageKeys": "Manage API keys",
+      "targetTitle": "Target upstream",
+      "targetDescription": "Reference an already configured provider, account, or account group.",
+      "resource": "Upstream resource",
+      "egressProtocol": "Egress protocol",
+      "derived": "Derived",
+      "modelTitle": "Model handling",
+      "modelDescription": "Mapping is optional; without it, the client model name is sent upstream unchanged.",
+      "modelMode": {
+        "passthrough": "Pass model through",
+        "mapped": "Custom mapping"
+      },
+      "modelModeHint": {
+        "passthrough": "The upstream receives exactly the model name the client sends.",
+        "mapped": "Match exact names first, then * wildcards in order, and rewrite to the upstream model name."
+      },
+      "failureTitle": "Failure behavior",
+      "failureDescription": "Control route priority and what happens when it cannot serve a request.",
+      "rail": {
+        "ingress": "Downstream",
+        "models": "Model handling",
+        "egress": "Upstream",
+        "noMapping": "No mapping · unchanged",
+        "mappingCount": "{{count}} mappings",
+        "noResource": "No upstream selected"
+      },
+      "mapping": {
+        "source": "Requested model",
+        "target": "Upstream model (free text)",
+        "add": "Add mapping"
+      },
+      "noResource": "No upstream selected"
+    },
     "routes": {
       "title": "Gateway routes",
       "description": "Connect client access to this upstream without changing the upstream credential itself.",
@@ -697,7 +744,7 @@
       "fallbackLabel": "If this route cannot serve",
       "fallback": {
         "fail": "Fail the request",
-        "global": "Use global fallback"
+        "next": "Try the next matching route"
       },
       "priorityFallback": "Priority {{priority}} · {{fallback}}",
       "providerKey": "Provider key",
@@ -708,9 +755,9 @@
       "modelsHint": "One model ID per line or comma-separated.",
       "unconfiguredModel": "Model not configured",
       "deleteTitle": "Delete this route?",
-      "deleteDescription": "Delete “{{name}}”. Requests will use another matching route or the global fallback.",
+      "deleteDescription": "Delete “{{name}}”. Requests will use another matching route, or fail if none matches.",
       "signalPath": "{{key}} to {{endpoint}}, then {{resource}}, then {{model}}",
-      "openFromUpstreams": "Open this account from Upstreams to manage its Gateway routes."
+      "openFromUpstreams": "Manage routes that use this account from Downstreams and routes."
     }
   },
   "apiService": {
@@ -722,15 +769,9 @@
       "overview": "Overview",
       "access": "Access",
       "activity": "Activity",
-      "settings": "Settings",
       "status": "Status",
-      "routes": "Routes",
       "accessKeys": "Access Keys",
       "liveTraffic": "Live Traffic"
-    },
-    "globalFallback": {
-      "title": "Global fallback routing",
-      "description": "These endpoint routes are the advanced fallback used when no resource route matches. Manage everyday routes from Upstreams."
     },
     "bindingCoverage": {
       "title": "Binding coverage",
@@ -767,52 +808,13 @@
         "open": "View live traffic"
       }
     },
-    "endpoints": {
-      "title": "Endpoint routing",
-      "empty": "No endpoint definitions are available from this daemon.",
-      "description": "Pick the model each wire format routes to. The default model folds in here — the server is a router, not a chat app."
-    },
     "endpoint": {
       "name": {
         "chat": "OpenAI Chat",
         "responses": "OpenAI Responses",
         "messages": "Anthropic Messages",
         "gemini": "Gemini"
-      },
-      "defaultModel": "Default model",
-      "backgroundModel": "Background model",
-      "backgroundModelIds": "Background model IDs",
-      "backgroundModelIdsPlaceholder": "comma-separated model ids",
-      "modelPlaceholder": "Select a model…",
-      "useSubscription": "Use subscription",
-      "subscriptionUnsupported": "Subscription routing is not available for this endpoint.",
-      "subscriptionType": "Subscription",
-      "subscriptionTypePlaceholder": "Select subscription…",
-      "account": "Account",
-      "accountPool": "Account pool (auto)",
-      "boundAccountFallbackPolicy": "When the bound account cannot serve",
-      "boundAccountFallbackPlaceholder": "Select fallback behavior",
-      "boundAccountFallbackStrict": "Fail the request (recommended)",
-      "boundAccountFallbackPool": "Use the account pool (opt-in)",
-      "boundAccountFallbackStrictHint": "Only the selected account may serve this endpoint. Unavailable, unhealthy, incompatible, paused, or tokenless bindings fail.",
-      "boundAccountFallbackPoolHint": "If the selected account cannot serve, another account may be chosen from the pool.",
-      "boundAccountFallbackChooseAccount": "Select a bound account to choose its fallback behavior.",
-      "pickSubscriptionTypeFirst": "Select a subscription provider first to configure model mappings.",
-      "kind": {
-        "fable": "Fable",
-        "opus": "Opus",
-        "sonnet": "Sonnet",
-        "haiku": "Haiku",
-        "codex": "Codex",
-        "mini": "Mini"
-      },
-      "kindMapLabel": "Model mapping by kind",
-      "cannotStart": "Service can't start: missing model mappings",
-      "missingKind": "Required",
-      "modelListLabel": "Model list",
-      "modelListEmpty": "No models configured — this endpoint is unused until you add one.",
-      "addModelPlaceholder": "Add a model...",
-      "removeModel": "Remove"
+      }
     },
     "keys": {
       "title": "Access keys",
@@ -835,9 +837,11 @@
         "dismiss": "Done"
       },
       "bindings": {
-        "title": "Gateway routes",
-        "count": "{{count}} applicable routes",
-        "empty": "No applicable routes"
+        "title": "Downstream interfaces",
+        "count": "Bound to {{count}} downstreams",
+        "empty": "No downstream is bound",
+        "manage": "Manage downstream bindings",
+        "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes."
       },
       "policy": {
         "title": "Policy",

@@ -219,6 +219,7 @@ async function bootDaemon(opts: BootOpts = {}): Promise<void> {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
 
@@ -339,24 +340,32 @@ describe('omnicross admin dashboard (localhost, no token)', () => {
   });
 
   it('PUT /admin/api/server round-trips a config change and applies it live', async () => {
-    const before = await adminFetch('GET', '/admin/api/server');
-    const beforeServer = (before.json as { server: { endpoints: Array<{ endpoint: string; useSubscription: boolean }> } }).server;
-    const chatBefore = beforeServer.endpoints.find((e) => e.endpoint === 'chat')!;
-    expect(chatBefore.useSubscription).toBe(false);
+    type ServerBody = { server: { bindings?: Array<{ id: string; priority?: number }> } };
 
-    // Flip the chat endpoint's useSubscription via a full endpoints patch.
-    const patchedEndpoints = beforeServer.endpoints.map((e) =>
-      e.endpoint === 'chat' ? { ...e, useSubscription: true } : e,
-    );
-    const put = await adminFetch('PUT', '/admin/api/server', { endpoints: patchedEndpoints });
+    // Routing lives in the downstream routes, so round-trip one of those.
+    const route = {
+      id: 'route-round-trip',
+      name: 'Round trip',
+      enabled: true,
+      endpoint: 'chat',
+      target: { kind: 'provider', providerId: 'mock' },
+      fallback: 'next',
+      models: ['mock-model'],
+      priority: 7,
+    };
+    const put = await adminFetch('PUT', '/admin/api/server', { bindings: [route] });
     expect(put.status).toBe(200);
-    const putServer = (put.json as { server: { endpoints: Array<{ endpoint: string; useSubscription: boolean }> } }).server;
-    expect(putServer.endpoints.find((e) => e.endpoint === 'chat')!.useSubscription).toBe(true);
+    expect((put.json as ServerBody).server.bindings?.[0]).toMatchObject({
+      id: 'route-round-trip',
+      priority: 7,
+    });
 
     // Persisted + reflected on the next GET (the live applyConfig ran).
     const after = await adminFetch('GET', '/admin/api/server');
-    const afterServer = (after.json as { server: { endpoints: Array<{ endpoint: string; useSubscription: boolean }> } }).server;
-    expect(afterServer.endpoints.find((e) => e.endpoint === 'chat')!.useSubscription).toBe(true);
+    expect((after.json as ServerBody).server.bindings?.[0]).toMatchObject({
+      id: 'route-round-trip',
+      priority: 7,
+    });
 
     // applyConfig was invoked live — the outbound server is still running on its
     // ephemeral port (no bind/port change, so it stays up).

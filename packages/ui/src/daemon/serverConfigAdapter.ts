@@ -41,47 +41,17 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
-  OutboundModelConfigError,
   VoucherCreated,
   VoucherInfo,
 } from './types-server';
 
-/**
- * The `PUT /server` response. On an incomplete-config enable the daemon returns
- * HTTP 200 with an `error` envelope (`incomplete-model-config`) alongside the
- * persisted partial config — NOT a non-2xx — so the adapter can read `missing`
- * (a 4xx would collapse to just `error.message` through `adminClient`).
- */
+/** The `PUT /server` response: the persisted config, echoed back. */
 interface ServerPutResponse {
   server: OutboundApiServerConfig;
-  error?: { code: string; missing?: OutboundModelConfigError[] };
 }
 
 function fail(err: unknown, fallback: string): MutationResult {
   return { success: false, message: err instanceof Error ? err.message : fallback };
-}
-
-/**
- * Build the daemon `PUT /server` body for one endpoint edit by rebuilding the
- * FULL endpoints array from `current` (trap #1). Only the entry matching
- * `next.endpoint` is replaced; the rest pass through unchanged.
- */
-function rebuildEndpoints(
-  current: OutboundApiServerConfig,
-  next: EndpointRoutingConfig,
-): EndpointRoutingConfig[] {
-  let replaced = false;
-  const merged = current.endpoints.map((e) => {
-    if (e.endpoint === next.endpoint) {
-      replaced = true;
-      return next;
-    }
-    return e;
-  });
-  // If the endpoint was somehow absent from the cached config, append it rather
-  // than silently dropping the edit.
-  if (!replaced) merged.push(next);
-  return merged;
 }
 
 export function createApiServiceAdapter(): AgentApiServiceApi {
@@ -89,17 +59,9 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
   // rebuild (trap #1). Edits never drive off `/status` (trap #2).
   let cachedConfig: OutboundApiServerConfig | null = null;
 
-  /**
-   * Interpret a `PUT /server` response: always refresh the cache from the
-   * returned (possibly partial) config, then map the `incomplete-model-config`
-   * envelope to a `{ success:false, missing }` result the page surfaces as the
-   * "service can't start" prompt. Any other shape is a plain success.
-   */
+  /** Refresh the cache from the config the daemon echoes back. */
   function applyServerPut(data: ServerPutResponse): MutationResult {
     cachedConfig = data.server;
-    if (data.error?.code === 'incomplete-model-config') {
-      return { success: false, message: data.error.code, missing: data.error.missing ?? [] };
-    }
     return { success: true };
   }
 
@@ -137,27 +99,6 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update network binding');
-      }
-    },
-
-    async updateEndpoint(endpoint: EndpointRoutingConfig): Promise<MutationResult> {
-      try {
-        // Always rebuild off a FRESH config so a concurrent edit elsewhere is not
-        // clobbered; fall back to the cache only when the re-read fails.
-        let base = cachedConfig;
-        try {
-          const data = await adminClient.get<{ server: OutboundApiServerConfig }>('/server');
-          base = data.server;
-          cachedConfig = data.server;
-        } catch {
-          // keep `base = cachedConfig`
-        }
-        if (!base) return { success: false, message: 'server config not loaded' };
-        const endpoints = rebuildEndpoints(base, endpoint);
-        const data = await adminClient.put<ServerPutResponse>('/server', { endpoints });
-        return applyServerPut(data);
-      } catch (err) {
-        return fail(err, 'failed to update endpoint routing');
       }
     },
 

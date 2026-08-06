@@ -37,7 +37,12 @@ import { routeRequest } from '../provider-proxy/providerProxyRouter';
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { beginAuditCapture } from './auditCapture';
 import { beginBillingCapture } from './billingCapture';
-import { gatewayBindingToEndpointConfig, resolveGatewayBinding } from './gatewayBindingResolver';
+import {
+  candidateBackgroundModelIds,
+  candidateGatewayBindings,
+  gatewayBindingToEndpointConfig,
+  resolveGatewayBinding,
+} from './gatewayBindingResolver';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
@@ -232,17 +237,14 @@ function writeModelsList(
   allowedEndpoints: readonly OutboundEndpoint[] | undefined,
 ): void {
   const refs: string[] = [];
-  const endpointConfigs = [...config.endpoints];
+  const endpointConfigs: EndpointRoutingConfig[] = [];
   for (const endpoint of ['chat', 'responses', 'messages', 'gemini'] as const) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
-    const bindings = (config.bindings ?? []).filter(
-      (binding) =>
-        binding.enabled &&
-        binding.endpoint === endpoint &&
-        (!binding.apiKeyIds?.length || binding.apiKeyIds.includes(apiKeyId)),
+    endpointConfigs.push(
+      ...candidateGatewayBindings(config.bindings, apiKeyId, endpoint).map((binding) =>
+        gatewayBindingToEndpointConfig(binding),
+      ),
     );
-    const scoped = bindings.filter((binding) => binding.apiKeyIds?.includes(apiKeyId));
-    endpointConfigs.push(...(scoped.length > 0 ? scoped : bindings.filter((binding) => !binding.apiKeyIds?.length)).map(gatewayBindingToEndpointConfig));
   }
   for (const endpoint of endpointConfigs) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint.endpoint)) continue;
@@ -414,9 +416,10 @@ export async function handleOutboundRequest(
     writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
     return;
   }
-  const endpointConfig = config.endpoints.find((e) => e.endpoint === endpoint);
-  if (!endpointConfig) {
-    writeJsonError(res, 503, `endpoint '${endpoint}' is not configured`);
+  // Routing lives entirely in the downstream routes: a key with no enabled route
+  // on this endpoint can never be served, so say so before reading the body.
+  if (candidateGatewayBindings(config.bindings, verified.id, endpoint).length === 0) {
+    writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
     return;
   }
 
@@ -540,7 +543,9 @@ export async function handleOutboundRequest(
       isKindMappedEndpoint(endpoint) || endpoint === 'chat'
         ? undefined
         : detectRequestRole(ingressFormat, parsedBody, {
-            backgroundModelIds: endpointConfig.backgroundModelIds,
+            // Role detection precedes the route pick (the pick consumes the
+            // role), so the hint is the union across the candidate routes.
+            backgroundModelIds: candidateBackgroundModelIds(config.bindings, verified.id, endpoint),
           });
     const bindingResolution = resolveGatewayBinding({
       bindings: config.bindings,
@@ -548,10 +553,15 @@ export async function handleOutboundRequest(
       endpoint,
       requestedModel,
       role,
-      fallbackEndpointConfig: endpointConfig,
     });
+    // Unreachable in practice — the pre-body gate above already rejects a key
+    // with no candidate route — but keeps the resolution total.
+    if (bindingResolution.source === 'none') {
+      writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
+      return;
+    }
     const effectiveEndpointConfig = bindingResolution.config;
-    const bindingAffinitySuffix = bindingResolution.binding ? `:${bindingResolution.binding.id}` : '';
+    const bindingAffinitySuffix = `:${bindingResolution.binding.id}`;
     const sessionId = deps.proxyDeps.apiKeyPool
       ? `outbound:${verified.id}${bindingAffinitySuffix}`
       : null;

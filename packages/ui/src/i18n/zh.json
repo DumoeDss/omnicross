@@ -508,7 +508,7 @@
     "primary": "主导航",
     "overview": "总览",
     "gateway": "网关",
-    "upstreams": "上游资源",
+    "upstreams": "上游与路由",
     "integrations": "集成",
     "group": {
       "run": "运行",
@@ -554,7 +554,6 @@
         "upstream": "{{value}} 个账号 / 目标"
       }
     },
-    "routes": { "title": "路由矩阵", "description": "各协议格式当前配置的上游目标。", "unconfigured": "尚未配置", "unavailable": "路由证据不可用，请打开网关检查。" },
     "gateway": {
       "title": "网关运行证据",
       "description": "显示实时监听状态、地址，以及守护进程提供的构建版本。",
@@ -639,11 +638,11 @@
     }
   },
   "upstreams": {
-    "title": "上游资源",
-    "description": "统一管理可承接网关请求的账号、账号组和提供商。",
+    "title": "上游与路由",
+    "description": "分别管理上游连接，以及客户端进入网关后的下游路由。",
     "addAccount": "添加账号",
     "addProvider": "添加提供商",
-    "addProviderDescription": "创建提供商，并配置其模型与密钥池。",
+    "addProviderDescription": "创建提供商并配置连接信息；模型列表不是必填项。",
     "searchPlaceholder": "搜索上游资源…",
     "empty": "当前视图中没有匹配的上游资源。",
     "filter": {
@@ -663,9 +662,62 @@
       "needsKey": "需要密钥"
     },
     "memberCount": "{{count}} 个成员",
+    "accountPool": "{{provider}} 账号池",
     "groupSummary": "{{provider}} 中的 {{count}} 个账号",
     "routeCount": "{{count}} 条路由",
     "manageAccount": "管理账号",
+    "tabs": {
+      "label": "上游与路由",
+      "resources": "上游资源",
+      "routes": "下游与路由"
+    },
+    "downstreams": {
+      "listTitle": "客户端应用",
+      "listCount": "{{count}} 个下游接口",
+      "boundKeysShort": "{{count}} Key",
+      "add": "添加下游接口",
+      "empty": "还没有下游接口。",
+      "selectPrompt": "选择一个下游接口，或创建新的接口。",
+      "noResources": "请先添加一个上游 Provider 或账号。",
+      "editEyebrow": "下游路由",
+      "createEyebrow": "新建下游接口",
+      "untitled": "未命名接口",
+      "sourceTitle": "下游接口",
+      "sourceDescription": "定义客户端使用的公开协议。API Key 从密钥管理页绑定到这里。",
+      "keyBindingHint": "{{count}} 个 API Key 已绑定到这个下游",
+      "manageKeys": "管理 API Key",
+      "targetTitle": "目标上游",
+      "targetDescription": "引用已经配置好的 Provider、账号或账号组。",
+      "resource": "上游资源",
+      "egressProtocol": "出站协议",
+      "derived": "自动",
+      "modelTitle": "模型处理",
+      "modelDescription": "映射可选；不配置时将客户端模型名原样发送给上游。",
+      "modelMode": {
+        "passthrough": "透传模型名",
+        "mapped": "自定义映射"
+      },
+      "modelModeHint": {
+        "passthrough": "客户端传入什么模型名，上游就收到什么模型名。",
+        "mapped": "优先匹配精确模型名，再按顺序匹配 * 通配符，并改写为上游模型名。"
+      },
+      "failureTitle": "失败处理",
+      "failureDescription": "控制路由优先级和无法服务时的后续行为。",
+      "rail": {
+        "ingress": "下游接口",
+        "models": "模型处理",
+        "egress": "上游资源",
+        "noMapping": "空映射 · 原样发送",
+        "mappingCount": "{{count}} 条映射",
+        "noResource": "未选择上游"
+      },
+      "mapping": {
+        "source": "下游请求模型",
+        "target": "上游模型（自由填写）",
+        "add": "添加映射"
+      },
+      "noResource": "未选择上游"
+    },
     "routes": {
       "title": "网关路由",
       "description": "将客户端访问连接到此上游，不改变上游凭证本身。",
@@ -686,7 +738,7 @@
       "fallbackLabel": "此路由无法服务时",
       "fallback": {
         "fail": "请求失败",
-        "global": "使用全局回退"
+        "next": "尝试下一条匹配路由"
       },
       "priorityFallback": "优先级 {{priority}} · {{fallback}}",
       "providerKey": "提供商密钥",
@@ -697,9 +749,9 @@
       "modelsHint": "每行一个模型 ID，也可以用逗号分隔。",
       "unconfiguredModel": "尚未配置模型",
       "deleteTitle": "删除这条路由？",
-      "deleteDescription": "删除“{{name}}”。后续请求将使用其他匹配路由或全局回退。",
+      "deleteDescription": "删除“{{name}}”。后续请求将使用其他匹配路由；没有匹配则失败。",
       "signalPath": "{{key}} 到 {{endpoint}}，再到 {{resource}}，最终使用 {{model}}",
-      "openFromUpstreams": "请从上游资源打开此账户以管理其网关路由。"
+      "openFromUpstreams": "请在“下游与路由”中管理使用此账号的路由。"
     }
   },
   "apiService": {
@@ -714,15 +766,9 @@
       "liveTraffic": "实时流量",
       "overview": "概览",
       "activity": "活动",
-      "settings": "设置",
-      "endpoints": "端点",
       "access": "访问密钥",
       "network": "网络与代理",
       "advanced": "高级"
-    },
-    "globalFallback": {
-      "title": "全局回退路由",
-      "description": "没有资源路由匹配时才使用这些端点配置。日常路由请在“上游资源”中管理。"
     },
     "bindingCoverage": {
       "title": "路由覆盖",
@@ -759,52 +805,13 @@
       "loopback": "回环地址",
       "lan": "局域网地址"
     },
-    "endpoints": {
-      "empty": "此守护进程没有提供端点定义。",
-      "title": "端点路由",
-      "description": "为每种线路格式选择路由到的模型。默认模型已并入此处——该服务器是路由器，而非聊天应用。"
-    },
     "endpoint": {
       "name": {
         "chat": "OpenAI Chat",
         "responses": "OpenAI Responses",
         "messages": "Anthropic Messages",
         "gemini": "Gemini"
-      },
-      "defaultModel": "默认模型",
-      "backgroundModel": "后台模型",
-      "backgroundModelIds": "后台模型 ID",
-      "backgroundModelIdsPlaceholder": "以逗号分隔的模型 id",
-      "modelPlaceholder": "选择模型…",
-      "useSubscription": "使用订阅",
-      "subscriptionUnsupported": "此端点不支持订阅路由。",
-      "subscriptionType": "订阅类型",
-      "subscriptionTypePlaceholder": "选择订阅…",
-      "account": "账号",
-      "accountPool": "账号池（自动调度）",
-      "boundAccountFallbackPolicy": "绑定账号无法服务时",
-      "boundAccountFallbackPlaceholder": "选择回退行为",
-      "boundAccountFallbackStrict": "请求直接失败（推荐）",
-      "boundAccountFallbackPool": "使用账号池（需主动开启）",
-      "boundAccountFallbackStrictHint": "只有所选账号可以服务此端点。账号不可用、不健康、模型不兼容、被限额暂停或没有令牌时，请求会失败。",
-      "boundAccountFallbackPoolHint": "所选账号无法服务时，系统可能改用账号池中的其他账号。",
-      "boundAccountFallbackChooseAccount": "选择绑定账号后才能设置回退行为。",
-      "pickSubscriptionTypeFirst": "请先选择订阅提供商，再配置模型映射。",
-      "kind": {
-        "fable": "Fable",
-        "opus": "Opus",
-        "sonnet": "Sonnet",
-        "haiku": "Haiku",
-        "codex": "Codex",
-        "mini": "Mini"
-      },
-      "kindMapLabel": "按模型种类映射",
-      "cannotStart": "接口服务无法启动：缺少模型映射配置",
-      "missingKind": "必填",
-      "modelListLabel": "模型列表",
-      "modelListEmpty": "未配置模型——添加模型后此端点才可用。",
-      "addModelPlaceholder": "添加模型...",
-      "removeModel": "移除"
+      }
     },
     "keys": {
       "title": "访问密钥",
@@ -827,9 +834,11 @@
         "dismiss": "完成"
       },
       "bindings": {
-        "title": "网关路由",
-        "count": "{{count}} 条适用路由",
-        "empty": "没有适用路由"
+        "title": "下游接口",
+        "count": "已绑定 {{count}} 个下游接口",
+        "empty": "尚未绑定下游接口",
+        "manage": "管理下游绑定",
+        "manageHint": "API Key 决定可以进入哪些下游接口；路由目标和模型映射仍在“上游与路由”中管理。"
       },
       "policy": {
         "title": "策略",

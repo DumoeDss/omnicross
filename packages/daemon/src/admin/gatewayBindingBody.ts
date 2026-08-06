@@ -1,7 +1,9 @@
 import type { OutboundApiServerConfig } from '@omnicross/core/outbound-api';
 
 const ENDPOINTS = new Set(['chat', 'responses', 'messages', 'gemini']);
-const TARGET_KINDS = new Set(['account', 'account-group', 'provider']);
+const TARGET_KINDS = new Set(['account', 'account-group', 'account-pool', 'provider']);
+/** `global` is the pre-migration spelling of `next`; accepted, normalized in core. */
+const FALLBACKS = new Set(['next', 'fail', 'global']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -39,8 +41,8 @@ export function validateGatewayBindingsSegment(
     if (!nonBlank(entry.name)) errors.push(`${path}.name is required`);
     if (typeof entry.enabled !== 'boolean') errors.push(`${path}.enabled must be boolean`);
     if (!ENDPOINTS.has(String(entry.endpoint))) errors.push(`${path}.endpoint is invalid`);
-    if (entry.fallback !== 'global' && entry.fallback !== 'fail') {
-      errors.push(`${path}.fallback must be global or fail`);
+    if (!FALLBACKS.has(String(entry.fallback))) {
+      errors.push(`${path}.fallback must be next or fail`);
     }
     if (
       entry.priority !== undefined &&
@@ -52,6 +54,23 @@ export function validateGatewayBindingsSegment(
       errors.push(`${path}.priority must be an integer from 0 to 10000`);
     }
     if (entry.apiKeyIds !== undefined) validateStringArray(entry.apiKeyIds, `${path}.apiKeyIds`, errors);
+    if (entry.keyScope !== undefined && entry.keyScope !== 'all' && entry.keyScope !== 'selected') {
+      errors.push(`${path}.keyScope must be all or selected`);
+    }
+    if (entry.modelMode !== undefined && entry.modelMode !== 'passthrough' && entry.modelMode !== 'mapped') {
+      errors.push(`${path}.modelMode must be passthrough or mapped`);
+    }
+    if (entry.modelMappings !== undefined) {
+      if (!Array.isArray(entry.modelMappings)) {
+        errors.push(`${path}.modelMappings must be an array`);
+      } else if (entry.modelMappings.length > 100) {
+        errors.push(`${path}.modelMappings cannot contain more than 100 entries`);
+      } else if (entry.modelMappings.some(
+        (mapping) => !isRecord(mapping) || !nonBlank(mapping.source) || !nonBlank(mapping.target),
+      )) {
+        errors.push(`${path}.modelMappings must contain non-empty source and target strings`);
+      }
+    }
 
     if (!isRecord(entry.target) || !TARGET_KINDS.has(String(entry.target.kind))) {
       errors.push(`${path}.target is invalid`);

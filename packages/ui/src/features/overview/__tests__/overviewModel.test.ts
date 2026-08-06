@@ -54,11 +54,28 @@ const baseConfig: OutboundApiServerConfig = {
     pauseAtPercent: 98,
     priorityPenalty: 100,
   },
-  endpoints: [
-    { endpoint: 'chat', models: ['byo,gpt'], useSubscription: false },
-    { endpoint: 'responses', modelMap: { codex: 'codex,gpt', mini: 'codex,mini' }, useSubscription: true },
-    { endpoint: 'messages', modelMap: { fable: 'claude,sonnet', opus: 'claude,opus', sonnet: 'claude,sonnet', haiku: 'claude,haiku' }, useSubscription: true },
-    { endpoint: 'gemini', defaultModel: 'gemini,pro', useSubscription: true },
+  // Routing evidence comes from the downstream routes; the legacy endpoint
+  // blocks are no longer a routing source.
+  endpoints: [],
+  bindings: [
+    {
+      id: 'r-chat', name: 'chat', enabled: true, endpoint: 'chat', fallback: 'next',
+      target: { kind: 'provider', providerId: 'byo' }, models: ['gpt'],
+    },
+    {
+      id: 'r-responses', name: 'responses', enabled: true, endpoint: 'responses', fallback: 'next',
+      target: { kind: 'account-pool', providerId: 'codex' },
+      modelMap: { codex: 'gpt', mini: 'mini' },
+    },
+    {
+      id: 'r-messages', name: 'messages', enabled: true, endpoint: 'messages', fallback: 'next',
+      target: { kind: 'account-pool', providerId: 'claude' },
+      modelMap: { fable: 'sonnet', opus: 'opus', sonnet: 'sonnet', haiku: 'haiku' },
+    },
+    {
+      id: 'r-gemini', name: 'gemini', enabled: true, endpoint: 'gemini', fallback: 'next',
+      target: { kind: 'account-pool', providerId: 'gemini' }, defaultModel: 'pro',
+    },
   ],
 };
 

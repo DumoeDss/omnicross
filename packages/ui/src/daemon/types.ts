@@ -44,7 +44,6 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
-  OutboundModelConfigError,
   ProxyConfig,
   VoucherCreated,
   VoucherInfo,
@@ -58,13 +57,6 @@ export type * from './types-accounts';
 export interface MutationResult {
   success: boolean;
   message?: string;
-  /**
-   * Present ONLY when a `/server` enable PUT was rejected because a kind-mapped
-   * endpoint is missing required model mappings (`incomplete-model-config`). The
-   * page surfaces this as the "service can't start" prompt; the partial config is
-   * still persisted daemon-side. Absent on ordinary success/failure.
-   */
-  missing?: OutboundModelConfigError[];
 }
 
 /** Outcome of a webhook `test` delivery (webhook-notifications) — secret-free. */
@@ -243,15 +235,13 @@ export type GenerateVoucherResult =
 
 /**
  * `agent.apiService` — the daemon server-config + status + keys surface. All
- * mutations return `{ success, message? }` (never fake success). `updateEndpoint`
- * rebuilds the FULL endpoints array from the last-loaded config (trap D9.1).
+ * mutations return `{ success, message? }` (never fake success).
  */
 export interface AgentApiServiceApi {
   getConfig(): Promise<OutboundApiServerConfig | null>;
   getStatus(): Promise<OutboundApiServerStatus | null>;
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
-  updateEndpoint(endpoint: EndpointRoutingConfig): Promise<MutationResult>;
   /** Replace the complete independent gateway-binding aggregate. */
   updateBindings(bindings: GatewayBinding[]): Promise<MutationResult>;
   /**

@@ -5,6 +5,7 @@ import {
   KeyRound,
   Layers3,
   Plus,
+  Route,
   Search,
   Server,
   UserRound,
@@ -40,7 +41,6 @@ import type {
   GatewayBindingTarget,
   SubscriptionProviderId,
 } from '@/daemon/types';
-import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { useLlmProvidersData } from '@/shared/state/settingsStore';
 import type { AppRoute, RouteNavigate, UpstreamKind } from '@/shared/state/hashRoute';
@@ -48,10 +48,9 @@ import { cn } from '@/shared/utils/utils';
 
 import { AddAccountDialog } from './AddAccountDialog';
 import {
-  ResourceBindingsPanel,
-  type ProviderPoolKeyOption,
-} from './ResourceBindingsPanel';
-import { bindingMatchesTarget } from './upstreamBindingModel';
+  DownstreamRoutesWorkspace,
+  type DownstreamResourceOption,
+} from './DownstreamRoutesWorkspace';
 
 import type { LLMProvider } from '@shared/llm-config';
 
@@ -63,11 +62,13 @@ interface UpstreamsPageProps {
 type UpstreamResource =
   | { kind: 'account'; key: string; label: string; providerId: SubscriptionProviderId; account: ManagedAccountRow }
   | { kind: 'account-group'; key: string; label: string; providerId: SubscriptionProviderId; group: string; accounts: ManagedAccountRow[] }
+  | { kind: 'account-pool'; key: string; label: string; providerId: SubscriptionProviderId; accounts: ManagedAccountRow[] }
   | { kind: 'provider'; key: string; label: string; providerId: string; provider: LLMProvider };
 
 const resourceKey = {
   account: (providerId: string, accountId: string) => `account:${providerId}:${accountId}`,
   group: (providerId: string, group: string) => `group:${providerId}:${group}`,
+  pool: (providerId: string) => `pool:${providerId}`,
   provider: (providerId: string) => `provider:${providerId}`,
 };
 
@@ -78,7 +79,17 @@ function targetFor(resource: UpstreamResource): GatewayBindingTarget {
   if (resource.kind === 'account-group') {
     return { kind: 'account-group', providerId: resource.providerId, group: resource.group };
   }
+  if (resource.kind === 'account-pool') {
+    return { kind: 'account-pool', providerId: resource.providerId };
+  }
   return { kind: 'provider', providerId: resource.providerId };
+}
+
+function bindingTargetMatches(left: GatewayBindingTarget, right: GatewayBindingTarget): boolean {
+  if (left.kind !== right.kind || left.providerId !== right.providerId) return false;
+  if (left.kind === 'account' && right.kind === 'account') return left.accountId === right.accountId;
+  if (left.kind === 'account-group' && right.kind === 'account-group') return left.group === right.group;
+  return true;
 }
 
 function modelsFor(resource: UpstreamResource): string[] {
@@ -94,6 +105,19 @@ function modelsFor(resource: UpstreamResource): string[] {
   return catalog;
 }
 
+function egressProtocolFor(resource: UpstreamResource): string {
+  if (resource.kind !== 'provider') {
+    if (resource.providerId === 'claude') return 'Anthropic Messages';
+    if (resource.providerId === 'codex') return 'OpenAI Responses';
+    if (resource.providerId === 'gemini') return 'Gemini GenerateContent';
+    return 'OpenAI Chat Completions';
+  }
+  if (resource.provider.apiFormat === 'anthropic') return 'Anthropic Messages';
+  if (resource.provider.apiFormat === 'google') return 'Gemini GenerateContent';
+  if (resource.provider.apiFormat === 'openai-response') return 'OpenAI Responses';
+  return 'OpenAI Chat Completions';
+}
+
 export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const t = useTranslation();
   const accountsApi = useAccounts();
@@ -101,7 +125,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const providersApi = useLlmProvidersData();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [addProviderOpen, setAddProviderOpen] = useState(false);
-  const [providerPoolKeys, setProviderPoolKeys] = useState<ProviderPoolKeyOption[]>([]);
+  const activeTab = route.upstreamTab ?? 'resources';
 
   const accountRows = useMemo(
     () => flattenAccounts(accountsApi.data, accountsApi.allowances),
@@ -138,6 +162,21 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
         accounts: members,
       });
     }
+    // One pool resource per subscription provider: bind a route to every account
+    // of that provider without pinning a preferred account or group.
+    const byProvider = new Map<SubscriptionProviderId, ManagedAccountRow[]>();
+    for (const account of visibleAccountRows) {
+      byProvider.set(account.providerId, [...(byProvider.get(account.providerId) ?? []), account]);
+    }
+    for (const [providerId, members] of byProvider) {
+      rows.push({
+        kind: 'account-pool',
+        key: resourceKey.pool(providerId),
+        label: t('upstreams.accountPool', { provider: t(`accounts.provider.${providerId}.title`) }),
+        providerId,
+        accounts: members,
+      });
+    }
     for (const provider of providersApi.providers) {
       rows.push({
         kind: 'provider',
@@ -149,6 +188,18 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     }
     return rows.sort((left, right) => left.label.localeCompare(right.label) || left.kind.localeCompare(right.kind));
   }, [providersApi.providers, visibleAccountRows]);
+
+  const downstreamResources = useMemo<DownstreamResourceOption[]>(
+    () => resources.map((resource) => ({
+      key: resource.key,
+      label: resource.label,
+      detail: resource.providerId,
+      target: targetFor(resource),
+      egressProtocol: egressProtocolFor(resource),
+      modelSuggestions: modelsFor(resource),
+    })),
+    [resources],
+  );
 
   const selectedKey = useMemo(() => {
     if (route.upstreamKind === 'account' && route.accountProvider && route.accountId) {
@@ -197,23 +248,12 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   };
 
   useEffect(() => {
+    if (activeTab === 'routes') return;
     if (!selectedResource || selectedKey === selectedResource.key) return;
     navigateSelection(selectedResource, undefined, true);
   // Selection is canonicalized only when resources/load state invalidates it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedResource?.key, selectedKey]);
-
-  useEffect(() => {
-    let alive = true;
-    if (selectedResource?.kind !== 'provider') {
-      setProviderPoolKeys([]);
-      return () => { alive = false; };
-    }
-    void agent.llmConfig.getApiKeys(selectedResource.providerId).then((keys) => {
-      if (alive) setProviderPoolKeys(keys.map((key) => ({ id: key.id, label: key.label || key.id, enabled: key.enabled })));
-    });
-    return () => { alive = false; };
-  }, [selectedResource?.kind, selectedResource?.providerId]);
+  }, [activeTab, selectedResource?.key, selectedKey]);
 
   const patchBrowse = (patch: { upstreamFilter?: UpstreamKind | 'all'; upstreamQuery?: string }) => {
     const next: AppRoute = {
@@ -223,19 +263,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     };
     onNavigate(next, { replace: true });
   };
-
-  const routePanel = selectedResource && gateway.config ? (
-    <ResourceBindingsPanel
-      target={targetFor(selectedResource)}
-      resourceName={selectedResource.label}
-      bindings={gateway.config.bindings ?? []}
-      clientKeys={gateway.keys}
-      modelIds={modelsFor(selectedResource)}
-      providerKeys={selectedResource.kind === 'provider' ? providerPoolKeys : undefined}
-      busy={gateway.busy}
-      onChange={gateway.updateBindings}
-    />
-  ) : null;
 
   const selectedAccount = selectedResource?.kind === 'account' ? selectedResource.account : null;
   const drawerOpen = Boolean(selectedAccount && route.accountTab);
@@ -253,14 +280,16 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
               <p className="mt-0.5 text-sm text-muted-foreground">{t('upstreams.description')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setAddAccountOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addAccount')}
-            </Button>
-            <Button size="sm" onClick={() => setAddProviderOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addProvider')}
-            </Button>
-          </div>
+          {activeTab === 'resources' ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setAddAccountOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addAccount')}
+              </Button>
+              <Button size="sm" onClick={() => setAddProviderOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addProvider')}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -270,6 +299,42 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
         </div>
       ) : null}
 
+      <nav className="flex shrink-0 items-end gap-1 border-b border-border/70 bg-surface-0 px-5 md:px-6" aria-label={t('upstreams.tabs.label')}>
+        {(['resources', 'routes'] as const).map((tab) => {
+          const Icon = tab === 'resources' ? Server : Route;
+          return (
+            <button
+              key={tab}
+              type="button"
+              className={cn(
+                'flex min-h-10 items-center gap-2 border-b-2 px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => onNavigate({
+                ...route,
+                page: 'upstreams',
+                upstreamTab: tab === 'resources' ? undefined : tab,
+                downstreamId: tab === 'routes' ? route.downstreamId : undefined,
+              })}
+            >
+              <Icon className="h-3.5 w-3.5" />{t(`upstreams.tabs.${tab}`)}
+            </button>
+          );
+        })}
+      </nav>
+
+      {activeTab === 'routes' ? (
+        <DownstreamRoutesWorkspace
+          bindings={gateway.config?.bindings ?? []}
+          resources={downstreamResources}
+          clientKeys={gateway.keys}
+          selectedBindingId={route.downstreamId}
+          busy={gateway.busy || !gateway.config}
+          onSelectBinding={(downstreamId) => onNavigate({ page: 'upstreams', upstreamTab: 'routes', downstreamId }, { replace: true })}
+          onOpenApiKeys={() => onNavigate({ page: 'api-service', tab: 'access' })}
+          onChange={gateway.updateBindings}
+        />
+      ) : (
       <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden md:flex-row">
         <aside className="flex h-[42%] min-h-64 shrink-0 flex-col border-b border-border/70 bg-surface-1/40 md:h-full md:w-80 md:border-b-0 md:border-r">
           <div className="space-y-3 border-b border-border/70 p-3">
@@ -305,7 +370,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                   key={resource.key}
                   resource={resource}
                   selected={selectedResource?.key === resource.key}
-                  bindingCount={(gateway.config?.bindings ?? []).filter((binding) => bindingMatchesTarget(binding, targetFor(resource))).length}
+                  bindingCount={(gateway.config?.bindings ?? []).filter((binding) => bindingTargetMatches(binding.target, targetFor(resource))).length}
                   onClick={() => navigateSelection(resource)}
                 />
               ))}
@@ -329,7 +394,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                 const next = resources.find((resource) => resource.kind === 'provider' && resource.providerId === providerId);
                 if (next) navigateSelection(next);
               }}
-              routePanel={routePanel}
             />
           ) : (
             <ScrollArea className="h-full">
@@ -337,14 +401,12 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                 {selectedResource.kind === 'account'
                   ? <AccountResourceDetails account={selectedResource.account} onManage={() => navigateSelection(selectedResource, 'overview')} />
                   : <GroupResourceDetails resource={selectedResource} />}
-                <section className="rounded-xl border border-border/70 bg-surface-1/50 p-4 md:p-5">
-                  {routePanel}
-                </section>
               </div>
             </ScrollArea>
           )}
         </main>
       </div>
+      )}
 
       <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
       <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
@@ -370,7 +432,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           onTest={() => accountsApi.testAccount(selectedAccount.providerId, selectedAccount.id)}
           onLoadEvents={() => accountsApi.listAccountEvents(selectedAccount.providerId, selectedAccount.id)}
           onRefreshAllowance={selectedAccount.providerId === 'claude' ? () => accountsApi.refreshAccountAllowance(selectedAccount.id) : undefined}
-          routePanel={routePanel}
           onRemove={() => {
             void accountsApi.removeAccount(selectedAccount.providerId, selectedAccount.id);
             onNavigate({ page: 'upstreams', upstreamFilter: kindFilter, upstreamQuery: query || undefined }, { replace: true });
@@ -383,10 +444,12 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
 
 function ResourceRow({ resource, selected, bindingCount, onClick }: { resource: UpstreamResource; selected: boolean; bindingCount: number; onClick: () => void }) {
   const t = useTranslation();
-  const Icon = resource.kind === 'account' ? UserRound : resource.kind === 'account-group' ? UsersRound : Server;
+  const Icon = resource.kind === 'account'
+    ? UserRound
+    : resource.kind === 'account-group' || resource.kind === 'account-pool' ? UsersRound : Server;
   const status = resource.kind === 'account'
     ? t(`accounts.management.schedulingState.${accountSchedulingState(resource.account)}`)
-    : resource.kind === 'account-group'
+    : resource.kind === 'account-group' || resource.kind === 'account-pool'
       ? t('upstreams.memberCount', { count: resource.accounts.length })
       : resource.provider.enabled === false
         ? t('upstreams.status.disabled')
@@ -452,7 +515,7 @@ function AccountResourceDetails({ account, onManage }: { account: ManagedAccount
   );
 }
 
-function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource, { kind: 'account-group' }> }) {
+function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource, { kind: 'account-group' | 'account-pool' }> }) {
   const t = useTranslation();
   const schedulable = resource.accounts.filter((account) => account.schedulable).length;
   return (
@@ -460,7 +523,7 @@ function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Layers3 className="h-5 w-5 text-primary" /></span>
         <div>
-          <h2 className="text-lg font-semibold">{resource.group}</h2>
+          <h2 className="text-lg font-semibold">{resource.kind === 'account-group' ? resource.group : resource.label}</h2>
           <p className="text-xs text-muted-foreground">{t(`accounts.provider.${resource.providerId}.title`)} · {t('upstreams.groupSummary', { total: resource.accounts.length, schedulable })}</p>
         </div>
       </div>

@@ -3,7 +3,7 @@ import type {
   CliIntegrationStatusKind,
   CliIntegrationsOverview,
 } from '../../daemon/types';
-import type { AuditRecord, OutboundApiKeyInfo, OutboundApiServerConfig, OutboundApiServerStatus } from '../../daemon/types-server';
+import type { AuditRecord, GatewayBinding, OutboundApiKeyInfo, OutboundApiServerConfig, OutboundApiServerStatus } from '../../daemon/types-server';
 import type { DashboardSummary } from '../../daemon/types-usage-pricing';
 
 export type DataSourceState = 'loading' | 'ready' | 'unavailable';
@@ -47,7 +47,7 @@ export interface RequestPathStage {
 }
 
 export type OverviewRoute =
-  | { page: 'api-service'; tab: 'overview' | 'access' | 'activity' | 'settings' }
+  | { page: 'api-service'; tab: 'overview' | 'access' | 'activity' }
   | { page: 'upstreams'; upstreamFilter?: 'account' }
   | { page: 'integrations' }
   | { page: 'usage-stats' }
@@ -97,19 +97,14 @@ export interface AllowanceWatchItem {
   kind: 'near-limit' | 'stale';
 }
 
-export interface OverviewRouteRow {
-  endpoint: OutboundApiServerConfig['endpoints'][number]['endpoint'];
-  targets: string[];
-  configured: boolean;
-}
-
 export interface OverviewModel {
   stages: RequestPathStage[];
   pathOperational: boolean;
   overallState: 'loading' | 'operational' | 'attention';
   issues: OverviewIssue[];
-  routeRows: OverviewRouteRow[];
+  /** Endpoints covered by an enabled downstream route (0–4). */
   routeCount: number;
+  /** Distinct upstream resources those routes point at. */
   configuredTargetCount: number;
   gateway: {
     status: OverviewMetric<'running' | 'stopped'>;
@@ -147,11 +142,6 @@ export interface OverviewModel {
   }>;
 }
 
-const ROUTE_KINDS: Record<'responses' | 'messages', string[]> = {
-  responses: ['codex', 'mini'],
-  messages: ['fable', 'opus', 'sonnet', 'haiku'],
-};
-
 const EXPIRING_SOON_MS = 48 * 60 * 60 * 1000;
 const DEFAULT_ALLOWANCE_WARNING_PERCENT = 80;
 
@@ -159,35 +149,25 @@ function sourceState<T>(source: OverviewSource<T>): DataSourceState {
   return source.state;
 }
 
-function hasRoute(config: OutboundApiServerConfig['endpoints'][number]): boolean {
-  if (config.endpoint === 'chat') return (config.models?.length ?? 0) > 0;
-  if (config.endpoint === 'responses' || config.endpoint === 'messages') {
-    return (ROUTE_KINDS[config.endpoint]).every((kind) => Boolean(config.modelMap?.[kind]?.trim()));
-  }
-  return Boolean(config.defaultModel?.trim());
+function enabledBindings(config: OutboundApiServerConfig | undefined): GatewayBinding[] {
+  return (config?.bindings ?? []).filter((binding) => binding.enabled);
 }
 
-function endpointTargets(config: OutboundApiServerConfig['endpoints'][number]): string[] {
-  if (config.endpoint === 'chat') return config.models ?? [];
-  if (config.endpoint === 'responses' || config.endpoint === 'messages') {
-    return Object.values(config.modelMap ?? {}).filter((value): value is string => Boolean(value?.trim()));
-  }
-  return config.defaultModel ? [config.defaultModel] : [];
+/** How many of the four endpoints an enabled downstream route covers. */
+function coveredEndpointCount(bindings: readonly GatewayBinding[]): number {
+  return new Set(bindings.map((binding) => binding.endpoint)).size;
 }
 
-function routeEvidence(config: OutboundApiServerConfig): OverviewRouteRow[] {
-  return config.endpoints.map((endpoint) => ({
-    endpoint: endpoint.endpoint,
-    targets: endpointTargets(endpoint),
-    configured: hasRoute(endpoint),
-  }));
-}
-
-function targetCount(config: OutboundApiServerConfig): number {
+/** Distinct upstream resources the enabled routes point at. */
+function boundTargetCount(bindings: readonly GatewayBinding[]): number {
   return new Set(
-    config.endpoints
-      .flatMap(endpointTargets)
-      .filter((value) => typeof value === 'string' && value.trim()),
+    bindings.map((binding) => {
+      const target = binding.target;
+      if (target.kind === 'account') return `account:${target.providerId}:${target.accountId}`;
+      if (target.kind === 'account-group') return `group:${target.providerId}:${target.group}`;
+      if (target.kind === 'account-pool') return `pool:${target.providerId}`;
+      return `provider:${target.providerId}:${target.keyId ?? ''}`;
+    }),
   ).size;
 }
 
@@ -353,9 +333,9 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   const status = input.gateway.status.data;
   const keys = input.gateway.keys.data;
   const accounts = input.accounts.data;
-  const routeRows = config ? routeEvidence(config) : [];
-  const routeCount = routeRows.filter((row) => row.configured).length;
-  const configuredTargetCount = config ? targetCount(config) : 0;
+  const routes = enabledBindings(config);
+  const routeCount = coveredEndpointCount(routes);
+  const configuredTargetCount = boundTargetCount(routes);
   const enabledKeyCount = keys?.filter((key) => key.enabled && !key.revoked).length;
   const entries = accounts ? accountEntries(accounts) : [];
   const rows = entries.map((entry) => entry.account);
@@ -385,7 +365,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
     // The config gap above already identifies the Gateway status destination;
     // do not turn the same missing read into a fabricated routing failure.
   } else if (input.gateway.config.state === 'ready' && routeCount < 4) {
-    issues.push(issue('routingIncomplete', { page: 'api-service', tab: 'settings' }, routeCount === 0 ? 'blocking' : 'warning'));
+    issues.push(issue('routingIncomplete', { page: 'upstreams' }, routeCount === 0 ? 'blocking' : 'warning'));
   }
   if (input.accounts.state === 'unavailable') {
     issues.push(issue('accountDataUnavailable', { page: 'upstreams', upstreamFilter: 'account' }, 'warning'));
@@ -501,7 +481,6 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
     pathOperational: stages.every((stage) => stage.state === 'ready'),
     overallState,
     issues,
-    routeRows,
     routeCount,
     configuredTargetCount,
     gateway: {
@@ -540,7 +519,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
 
 /** Small helpers kept public for focused model tests and the Overview view. */
 export const overviewModelInternals = {
-  hasRoute,
-  endpointTargets,
+  coveredEndpointCount,
+  boundTargetCount,
   allowanceKey,
 };

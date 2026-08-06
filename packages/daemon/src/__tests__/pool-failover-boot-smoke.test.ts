@@ -183,6 +183,7 @@ beforeEach(async () => {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
   baseUrl = daemon.outboundApiServer.getStatus().loopbackUrl as string;
@@ -288,12 +289,12 @@ describe('omnicross daemon provider-key bindings (real HTTP)', () => {
     expect(upstream.keysSeen).toEqual([]);
   });
 
-  it('an unavailable selected key uses the pool only with explicit global fallback', async () => {
+  it('an unavailable selected key uses the pool only with an explicit next fallback', async () => {
     const created = await createNamedKey(daemon.keyDb, 'fallback-provider-key');
     await applyBindings([providerKeyBinding({
       clientKeyId: created.id,
       providerKeyId: 'missing',
-      fallback: 'global',
+      fallback: 'next',
     })]);
 
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {

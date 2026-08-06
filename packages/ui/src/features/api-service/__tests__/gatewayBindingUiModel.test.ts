@@ -6,6 +6,7 @@ import {
   bindingsForClientKey,
   bindingTargetLabel,
   routeForBinding,
+  setBindingForClientKey,
   summarizeBindingCoverage,
 } from '../gatewayBindingUiModel';
 
@@ -23,27 +24,38 @@ function binding(overrides: Partial<GatewayBinding> = {}): GatewayBinding {
 }
 
 describe('gatewayBindingUiModel', () => {
-  it('routes account, group, and provider bindings back to their Upstreams detail', () => {
+  it('opens every binding in the downstream route workspace', () => {
     expect(routeForBinding(binding())).toEqual({
       page: 'upstreams',
-      upstreamKind: 'account',
-      upstreamFilter: 'account',
-      accountProvider: 'codex',
-      accountId: 'acct-a',
+      upstreamTab: 'routes',
+      downstreamId: 'route-1',
     });
-    expect(routeForBinding(binding({ target: { kind: 'account-group', providerId: 'claude', group: 'team' } }))).toEqual({
-      page: 'upstreams',
-      upstreamKind: 'account-group',
-      upstreamFilter: 'account-group',
-      upstreamProviderId: 'claude',
-      upstreamGroup: 'team',
-    });
-    expect(routeForBinding(binding({ target: { kind: 'provider', providerId: 'openai', keyId: 'key-a' } }))).toEqual({
-      page: 'upstreams',
-      upstreamKind: 'provider',
-      upstreamFilter: 'provider',
-      upstreamProviderId: 'openai',
-    });
+  });
+
+  it('binds and unbinds downstreams from the API-key side', () => {
+    const routes = [
+      binding({ id: 'global', keyScope: 'all' }),
+      binding({ id: 'selected', keyScope: 'selected', apiKeyIds: ['client-b'] }),
+    ];
+    const afterGlobalUnbind = setBindingForClientKey(
+      routes,
+      ['client-a', 'client-b'],
+      'client-a',
+      'global',
+      false,
+    );
+    expect(afterGlobalUnbind[0]).toMatchObject({ keyScope: 'selected', apiKeyIds: ['client-b'] });
+    expect(bindingsForClientKey(afterGlobalUnbind, 'client-a')).toEqual([]);
+
+    const afterBind = setBindingForClientKey(
+      afterGlobalUnbind,
+      ['client-a', 'client-b'],
+      'client-a',
+      'selected',
+      true,
+    );
+    expect(afterBind[1].apiKeyIds).toEqual(['client-b', 'client-a']);
+    expect(bindingsForClientKey(afterBind, 'client-a').map((item) => item.id)).toEqual(['selected']);
   });
 
   it('finds enabled unscoped and key-scoped routes for a client key', () => {

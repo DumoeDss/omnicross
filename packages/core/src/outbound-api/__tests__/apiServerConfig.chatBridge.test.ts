@@ -8,53 +8,36 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { normalizePrefixTargets, normalizeServerConfig } from '../apiServerConfig';
-import type { EndpointRoutingConfig, OutboundApiServerConfig } from '../types';
+import { normalizeEndpointConfig, normalizePrefixTargets } from '../apiServerConfig';
+import type { EndpointRoutingConfig } from '../types';
 
-function chatOf(config: OutboundApiServerConfig): EndpointRoutingConfig {
-  return config.endpoints.find((e) => e.endpoint === 'chat')!;
+/** Normalize ONE raw chat block — the shape a downstream route carries. */
+function chatOf(chat: Record<string, unknown>): EndpointRoutingConfig {
+  return normalizeEndpointConfig(chat as unknown as EndpointRoutingConfig);
 }
 
-function rawWithChat(chat: Record<string, unknown>): Partial<OutboundApiServerConfig> {
-  return {
-    enabled: true,
-    networkBinding: false,
-    endpoints: [chat as unknown as EndpointRoutingConfig],
-  };
-}
-
-describe('normalizeServerConfig — chat dispatchMode (default list)', () => {
+describe('normalizeEndpointConfig — chat dispatchMode (default list)', () => {
   it('a list-mode chat block stays byte-identical (no dispatchMode / prefixTargets keys)', () => {
-    const chat = chatOf(
-      normalizeServerConfig(
-        rawWithChat({ endpoint: 'chat', models: ['pa,gpt-4o'], useSubscription: false }),
-      ),
-    );
+    const chat = chatOf({ endpoint: 'chat', models: ['pa,gpt-4o'], useSubscription: false });
     expect(chat).toEqual({ endpoint: 'chat', models: ['pa,gpt-4o'], useSubscription: false });
     expect(chat).not.toHaveProperty('dispatchMode');
     expect(chat).not.toHaveProperty('prefixTargets');
   });
 
   it('an unknown dispatchMode value is dropped (⇒ list)', () => {
-    const chat = chatOf(
-      normalizeServerConfig(
-        rawWithChat({
+    const chat = chatOf({
           endpoint: 'chat',
           models: [],
           useSubscription: false,
           dispatchMode: 'bogus',
           prefixTargets: { claude: 'c,c' },
-        }),
-      ),
-    );
+        });
     expect(chat).not.toHaveProperty('dispatchMode');
     expect(chat).not.toHaveProperty('prefixTargets');
   });
 
   it('dispatchMode "prefix" is carried with cleaned prefixTargets', () => {
-    const chat = chatOf(
-      normalizeServerConfig(
-        rawWithChat({
+    const chat = chatOf({
           endpoint: 'chat',
           models: [],
           useSubscription: true,
@@ -65,9 +48,7 @@ describe('normalizeServerConfig — chat dispatchMode (default list)', () => {
             gemini: '', // blank dropped
             bogus: 'x,y', // unknown prefix dropped
           },
-        }),
-      ),
-    );
+        });
     expect(chat.dispatchMode).toBe('prefix');
     expect(chat.prefixTargets).toEqual({
       claude: 'claude,claude-sonnet-4-5',
@@ -78,17 +59,13 @@ describe('normalizeServerConfig — chat dispatchMode (default list)', () => {
   });
 
   it('dispatchMode "prefix" with no valid targets carries the mode but omits prefixTargets', () => {
-    const chat = chatOf(
-      normalizeServerConfig(
-        rawWithChat({
+    const chat = chatOf({
           endpoint: 'chat',
           models: [],
           useSubscription: false,
           dispatchMode: 'prefix',
           prefixTargets: { gemini: '   ' },
-        }),
-      ),
-    );
+        });
     expect(chat.dispatchMode).toBe('prefix');
     expect(chat).not.toHaveProperty('prefixTargets');
   });

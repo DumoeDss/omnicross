@@ -12,7 +12,7 @@
 
 import { parseArgs } from 'node:util';
 
-import { loadServerConfig, OutboundApiConfigError } from '@omnicross/core/outbound-api';
+import { loadServerConfig } from '@omnicross/core/outbound-api';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 
@@ -77,32 +77,18 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   getSharedAccountAllowanceScheduling().configure(serverConfig.allowanceScheduling);
   daemon.claudeAllowanceRefreshScheduler.configure(serverConfig.allowanceScheduling);
 
-  // Startup gate (model-kind-mapping): if the persisted config enables the
-  // outbound server but a kind-mapped endpoint (messages/responses) is missing
-  // required mappings, `applyConfig` throws `OutboundApiConfigError` and does not
-  // bind. Catch it so the daemon boots with the outbound server STOPPED (the rest
-  // of the daemon — admin API, provider proxy — still comes up) instead of
-  // crashing; the operator fixes the mappings and re-enables via the admin API.
-  try {
-    await daemon.outboundApiServer.applyConfig({
-      enabled: true,
-      networkBinding: serverConfig.networkBinding,
-      endpoints: serverConfig.endpoints,
-      bindings: serverConfig.bindings,
-      port: serverConfig.port,
-      userMessageQueue: serverConfig.userMessageQueue,
-      concurrencyQueue: serverConfig.concurrencyQueue,
-      // voucher-redemption #9: carry the persisted flag so `POST /redeem` works on
-      // boot when the operator has enabled the product.
-      voucher: serverConfig.voucher,
-    });
-  } catch (err) {
-    if (err instanceof OutboundApiConfigError) {
-      console.warn(`[outbound] not started — incomplete model configuration: ${err.message}`);
-    } else {
-      throw err;
-    }
-  }
+  await daemon.outboundApiServer.applyConfig({
+    enabled: true,
+    networkBinding: serverConfig.networkBinding,
+    endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
+    port: serverConfig.port,
+    userMessageQueue: serverConfig.userMessageQueue,
+    concurrencyQueue: serverConfig.concurrencyQueue,
+    // voucher-redemption #9: carry the persisted flag so `POST /redeem` works on
+    // boot when the operator has enabled the product.
+    voucher: serverConfig.voucher,
+  });
 
   // Admin dashboard (RT3) — always-on by default; opt out via `--no-dashboard`
   // or `admin.enabled:false`. `adminServer.start()` honors the LAN fail-closed

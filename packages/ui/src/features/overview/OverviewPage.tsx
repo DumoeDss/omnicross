@@ -338,41 +338,6 @@ function IntegrationsEvidence({
   );
 }
 
-function RoutesEvidence({
-  view,
-  sourceState,
-  onNavigate,
-}: {
-  view: ReturnType<typeof buildOverviewModel>;
-  sourceState: DataSourceState;
-  onNavigate: (route: AppRoute) => void;
-}) {
-  const t = useTranslation();
-  return (
-    <section className="rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5" aria-labelledby="route-matrix-title">
-      <SectionHeading
-        icon={Route}
-        title={t('overview.routes.title')}
-        description={t('overview.routes.description')}
-        action={<Button variant="ghost" size="sm" onClick={() => onNavigate({ page: 'api-service', tab: 'routes' })}>{t('overview.open')}</Button>}
-      />
-      <div className="mt-4 divide-y divide-border/60 border-y border-border/60">
-        {sourceState === 'loading' ? <p className="py-4 text-xs text-muted-foreground">{t('overview.source.loading')}</p> : null}
-        {sourceState === 'unavailable' ? <p className="py-4 text-xs text-destructive">{t('overview.routes.unavailable')}</p> : null}
-        {sourceState === 'ready' && view.routeRows.map((row) => (
-          <div key={row.endpoint} className="grid grid-cols-[6rem_minmax(0,1fr)] gap-3 py-2.5 text-xs">
-            <span className="font-mono uppercase text-muted-foreground">{row.endpoint}</span>
-            <span className={cn('truncate font-mono', row.configured ? 'text-foreground' : 'text-warning')} title={row.targets.join(', ')}>
-              {row.targets.length ? row.targets.join(' · ') : t('overview.routes.unconfigured')}
-            </span>
-          </div>
-        ))}
-        {sourceState === 'ready' && view.routeRows.length === 0 ? <p className="py-4 text-xs text-muted-foreground">{t('overview.routes.unavailable')}</p> : null}
-      </div>
-    </section>
-  );
-}
-
 function issueIcon(issue: OverviewIssue) {
   if (issue.id.includes('AccessKey')) return KeyRound;
   if (issue.id.includes('Account') || issue.id.includes('Upstream') || issue.id.includes('Schedulable') || issue.id.includes('Allowance')) return WalletCards;
@@ -491,10 +456,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           <IntegrationsEvidence view={view} onNavigate={onNavigate} />
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <RoutesEvidence view={view} sourceState={data.sources.gateway.config.state} onNavigate={onNavigate} />
-          <AttentionEvidence issues={view.issues} loading={data.loading} onNavigate={onNavigate} />
-        </div>
+        <AttentionEvidence issues={view.issues} loading={data.loading} onNavigate={onNavigate} />
       </div>
     </ScrollArea>
   );

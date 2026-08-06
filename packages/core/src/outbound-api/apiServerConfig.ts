@@ -38,7 +38,9 @@ import type {
   EndpointRoutingConfig,
   FingerprintConfig,
   GatewayBinding,
+  GatewayBindingFallback,
   GatewayBindingTarget,
+  GatewayModelMapping,
   ModelPrefixTargets,
   ModelRef,
   OutboundApiServerConfig,
@@ -488,7 +490,7 @@ export function normalizePrefixTargets(raw: unknown): ModelPrefixTargets | undef
  *    non-string → `''`) and `backgroundModelIds` when it is an array; drop
  *    `modelMap`/`visionModel`.
  */
-function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfig {
+export function normalizeEndpointConfig(e: EndpointRoutingConfig): EndpointRoutingConfig {
   const endpoint = e.endpoint;
   const useSubscription = e.useSubscription === true;
   // OPTIONAL per-endpoint account/key binding (provider/subscription duality).
@@ -572,11 +574,145 @@ function normalizeBindingTarget(raw: unknown): GatewayBindingTarget | null {
     const group = typeof target.group === 'string' ? target.group.trim() : '';
     return group ? { kind: 'account-group', providerId, group } : null;
   }
+  if (target.kind === 'account-pool') return { kind: 'account-pool', providerId };
   if (target.kind === 'provider') {
     const keyId = typeof target.keyId === 'string' ? target.keyId.trim() : '';
     return keyId ? { kind: 'provider', providerId, keyId } : { kind: 'provider', providerId };
   }
   return null;
+}
+
+function normalizeGatewayModelMappings(raw: unknown): GatewayModelMapping[] {
+  if (!Array.isArray(raw)) return [];
+  const mappings: GatewayModelMapping[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const value = entry as Record<string, unknown>;
+    const source = typeof value.source === 'string' ? value.source.trim() : '';
+    const target = typeof value.target === 'string' ? value.target.trim() : '';
+    if (!source || !target) continue;
+    mappings.push({ source, target });
+  }
+  return mappings;
+}
+
+function hasConfiguredLegacyModels(config: EndpointRoutingConfig): boolean {
+  return Object.values(config.modelMap ?? {}).some((value) => typeof value === 'string' && value.trim())
+    || Boolean(config.models?.some((value) => typeof value === 'string' && value.trim()))
+    || Boolean(config.defaultModel?.trim())
+    || Boolean(config.backgroundModel?.trim())
+    || Boolean(Object.values(config.prefixTargets ?? {}).some((value) => value?.trim()));
+}
+
+/** Split a `"providerId,modelId"` ref; `null` when either half is blank. */
+function splitModelRef(ref: unknown): { providerId: string; modelId: string } | null {
+  if (typeof ref !== 'string') return null;
+  const idx = ref.indexOf(',');
+  if (idx <= 0) return null;
+  const providerId = ref.slice(0, idx).trim();
+  const modelId = ref.slice(idx + 1).trim();
+  return providerId && modelId ? { providerId, modelId } : null;
+}
+
+/** The upstream resource one legacy endpoint block pointed at, for `providerId`. */
+function legacyTarget(
+  config: EndpointRoutingConfig,
+  providerId: string,
+): GatewayBindingTarget {
+  if (config.useSubscription) {
+    if (config.boundAccountId) {
+      return { kind: 'account', providerId, accountId: config.boundAccountId };
+    }
+    if (config.boundAccountGroup) {
+      return { kind: 'account-group', providerId, group: config.boundAccountGroup };
+    }
+    return { kind: 'account-pool', providerId };
+  }
+  return config.boundKeyId
+    ? { kind: 'provider', providerId, keyId: config.boundKeyId }
+    : { kind: 'provider', providerId };
+}
+
+/**
+ * Project ONE legacy endpoint block into downstream routes.
+ *
+ * A legacy block could name a different provider per model slot, which one
+ * route (single target) cannot express — so the models are grouped by provider
+ * and each group becomes its own route. They share a priority, and resolution
+ * picks whichever can serve the requested model/kind, reproducing the legacy
+ * per-slot dispatch.
+ */
+function legacyEndpointToBindings(config: EndpointRoutingConfig): GatewayBinding[] {
+  // `pool` policy (or no bound account at all) kept serving from the wider pool,
+  // which `next` preserves; `strict` refused, which is `fail`.
+  const fallback: GatewayBindingFallback =
+    config.boundAccountId && config.boundAccountFallbackPolicy === 'strict' ? 'fail' : 'next';
+  const byProvider = new Map<string, GatewayBinding>();
+  const routeFor = (providerId: string): GatewayBinding => {
+    const existing = byProvider.get(providerId);
+    if (existing) return existing;
+    const created: GatewayBinding = {
+      id: `legacy-${config.endpoint}-${providerId}`,
+      name: `${config.endpoint} · ${providerId}`,
+      enabled: true,
+      keyScope: 'all',
+      endpoint: config.endpoint,
+      target: legacyTarget(config, providerId),
+      fallback,
+      modelMode: 'mapped',
+    };
+    byProvider.set(providerId, created);
+    return created;
+  };
+
+  for (const [kind, ref] of Object.entries(config.modelMap ?? {})) {
+    const parsed = splitModelRef(ref);
+    if (!parsed) continue;
+    const route = routeFor(parsed.providerId);
+    route.modelMap = { ...route.modelMap, [kind]: ref as ModelRef };
+  }
+  for (const ref of config.models ?? []) {
+    const parsed = splitModelRef(ref);
+    if (!parsed) continue;
+    const route = routeFor(parsed.providerId);
+    route.models = [...(route.models ?? []), ref];
+  }
+  for (const [prefix, ref] of Object.entries(config.prefixTargets ?? {})) {
+    const parsed = splitModelRef(ref);
+    if (!parsed) continue;
+    const route = routeFor(parsed.providerId);
+    route.dispatchMode = 'prefix';
+    route.prefixTargets = { ...route.prefixTargets, [prefix]: ref as ModelRef };
+  }
+  for (const [field, ref] of [
+    ['defaultModel', config.defaultModel],
+    ['backgroundModel', config.backgroundModel],
+  ] as const) {
+    const parsed = splitModelRef(ref);
+    if (!parsed) continue;
+    const route = routeFor(parsed.providerId);
+    route[field] = ref as ModelRef;
+    if (config.backgroundModelIds?.length) {
+      route.backgroundModelIds = [...config.backgroundModelIds];
+    }
+  }
+  return [...byProvider.values()];
+}
+
+/**
+ * One-time migration off the removed global endpoint fallback: every configured
+ * legacy endpoint block becomes an equivalent downstream route. Runs only when
+ * the config carries no routes yet, so a user who has since deleted their routes
+ * does not get the old ones resurrected. Idempotent by construction —
+ * {@link normalizeServerConfig} blanks the legacy blocks in the same pass, so a
+ * second run finds nothing to project.
+ */
+export function legacyEndpointsToBindings(
+  endpoints: readonly EndpointRoutingConfig[],
+): GatewayBinding[] {
+  return endpoints
+    .filter((endpoint) => hasConfiguredLegacyModels(endpoint))
+    .flatMap((endpoint) => legacyEndpointToBindings(endpoint));
 }
 
 /** Normalize independent gateway bindings while dropping malformed entries. */
@@ -601,6 +737,21 @@ export function normalizeGatewayBindings(raw: unknown): GatewayBinding[] {
     const apiKeyIds = Array.isArray(value.apiKeyIds)
       ? [...new Set(value.apiKeyIds.filter((key): key is string => typeof key === 'string' && key.trim() !== '').map((key) => key.trim()))]
       : [];
+    const keyScope = value.keyScope === 'selected'
+      ? 'selected'
+      : value.keyScope === 'all'
+        ? 'all'
+        : apiKeyIds.length > 0
+          ? 'selected'
+          : 'all';
+    const modelMappings = normalizeGatewayModelMappings(value.modelMappings);
+    const modelMode = value.modelMode === 'passthrough'
+      ? 'passthrough'
+      : value.modelMode === 'mapped'
+        ? 'mapped'
+        : modelMappings.length > 0 || hasConfiguredLegacyModels(normalizedRoute)
+          ? 'mapped'
+          : 'passthrough';
     const priority =
       typeof value.priority === 'number' && Number.isFinite(value.priority)
         ? Math.max(0, Math.min(10_000, Math.round(value.priority)))
@@ -609,11 +760,16 @@ export function normalizeGatewayBindings(raw: unknown): GatewayBinding[] {
       id,
       name,
       enabled: value.enabled !== false,
+      keyScope,
       endpoint,
       target,
-      fallback: value.fallback === 'fail' ? 'fail' : 'global',
+      // Legacy `'global'` meant "yield to the removed global endpoint fallback";
+      // it now yields to the next matching route, which is the same default.
+      fallback: value.fallback === 'fail' ? 'fail' : 'next',
+      modelMode,
     };
     if (apiKeyIds.length > 0) binding.apiKeyIds = apiKeyIds;
+    if (modelMappings.length > 0) binding.modelMappings = modelMappings;
     if (priority !== undefined) binding.priority = priority;
     if (normalizedRoute.modelMap) binding.modelMap = normalizedRoute.modelMap;
     if (normalizedRoute.models) binding.models = normalizedRoute.models;
@@ -665,13 +821,20 @@ export function normalizeServerConfig(
     }
   }
   const queues = normalizeQueueSegments(raw);
+  // The legacy per-endpoint blocks are no longer a routing source. Project them
+  // into routes once (only when there are none yet, so deleting every route
+  // stays deleted), then hand back BLANK blocks — routes are the only SSOT, and
+  // a blank block can never trip the startup model-kind gate.
+  const legacyEndpoints = ALL_ENDPOINTS.map((ep) => byEndpoint.get(ep) ?? defaultEndpointConfig(ep));
+  const persistedBindings = normalizeGatewayBindings(raw.bindings);
+  const bindings = persistedBindings.length > 0
+    ? persistedBindings
+    : normalizeGatewayBindings(legacyEndpointsToBindings(legacyEndpoints));
   const config: OutboundApiServerConfig = {
     enabled: raw.enabled === true,
     networkBinding: raw.networkBinding === true,
-    endpoints: ALL_ENDPOINTS.map(
-      (ep) => byEndpoint.get(ep) ?? defaultEndpointConfig(ep),
-    ),
-    bindings: normalizeGatewayBindings(raw.bindings),
+    endpoints: ALL_ENDPOINTS.map(defaultEndpointConfig),
+    bindings,
     port: raw.port ?? base.port,
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,

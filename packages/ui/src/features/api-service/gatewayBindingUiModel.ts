@@ -2,30 +2,16 @@ import type { GatewayBinding } from '@/daemon/types';
 import type { AppRoute } from '@/shared/state/hashRoute';
 
 export function routeForBinding(binding: GatewayBinding): AppRoute {
-  if (binding.target.kind === 'account') {
-    return {
-      page: 'upstreams',
-      upstreamKind: 'account',
-      upstreamFilter: 'account',
-      accountProvider: binding.target.providerId as AppRoute['accountProvider'],
-      accountId: binding.target.accountId,
-    };
-  }
-  if (binding.target.kind === 'account-group') {
-    return {
-      page: 'upstreams',
-      upstreamKind: 'account-group',
-      upstreamFilter: 'account-group',
-      upstreamProviderId: binding.target.providerId,
-      upstreamGroup: binding.target.group,
-    };
-  }
   return {
     page: 'upstreams',
-    upstreamKind: 'provider',
-    upstreamFilter: 'provider',
-    upstreamProviderId: binding.target.providerId,
+    upstreamTab: 'routes',
+    downstreamId: binding.id,
   };
+}
+
+export function bindingAllowsClientKey(binding: GatewayBinding, keyId: string): boolean {
+  const scope = binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all');
+  return scope === 'all' || Boolean(binding.apiKeyIds?.includes(keyId));
 }
 
 export function bindingsForClientKey(
@@ -33,8 +19,36 @@ export function bindingsForClientKey(
   keyId: string,
 ): GatewayBinding[] {
   return bindings.filter(
-    (binding) => binding.enabled && (!binding.apiKeyIds?.length || binding.apiKeyIds.includes(keyId)),
+    (binding) => binding.enabled && bindingAllowsClientKey(binding, keyId),
   );
+}
+
+/** Update one key-to-downstream assignment without changing any route details. */
+export function setBindingForClientKey(
+  bindings: readonly GatewayBinding[],
+  allKeyIds: readonly string[],
+  keyId: string,
+  bindingId: string,
+  selected: boolean,
+): GatewayBinding[] {
+  return bindings.map((binding) => {
+    if (binding.id !== bindingId) return binding;
+    const currentScope = binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all');
+    if (selected) {
+      if (currentScope === 'all' || binding.apiKeyIds?.includes(keyId)) return binding;
+      return {
+        ...binding,
+        keyScope: 'selected',
+        apiKeyIds: [...new Set([...(binding.apiKeyIds ?? []), keyId])],
+      };
+    }
+    const currentIds = currentScope === 'all' ? [...allKeyIds] : [...(binding.apiKeyIds ?? [])];
+    return {
+      ...binding,
+      keyScope: 'selected',
+      apiKeyIds: currentIds.filter((id) => id !== keyId),
+    };
+  });
 }
 
 export function bindingTargetLabel(binding: GatewayBinding): string {
@@ -56,6 +70,9 @@ export function summarizeBindingCoverage(bindings: readonly GatewayBinding[]): {
   return {
     enabled: enabled.length,
     endpoints: new Set(enabled.map((binding) => binding.endpoint)).size,
-    keyScoped: enabled.filter((binding) => binding.apiKeyIds?.length).length,
+    keyScoped: enabled.filter(
+      (binding) =>
+        (binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all')) === 'selected',
+    ).length,
   };
 }

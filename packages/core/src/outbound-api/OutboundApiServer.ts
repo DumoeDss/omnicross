@@ -30,8 +30,6 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
-import type { EndpointModelConfigError } from './kindDetection';
-import { validateServerModelConfig } from './kindDetection';
 import { KeyedMutex } from './keyedMutex';
 import { handleOutboundRequest } from './outboundApiRouter';
 import { OutboundConcurrencyGate } from './outboundConcurrencyGate';
@@ -68,27 +66,6 @@ export interface ApplyConfigInput {
   /** Voucher segment (voucher-redemption #9). Read live per request; absent ⇒
    *  disabled ⇒ the `/redeem` endpoint is inert (zero regression). */
   voucher?: VoucherConfig;
-}
-
-/**
- * Thrown by {@link OutboundApiServer.applyConfig} when an ENABLED server is asked
- * to bind with an INCOMPLETE model-kind map (the "未配置 → 无法启动接口服务" gate,
- * design D6). Carries the per-endpoint missing kinds so the daemon/UI can render
- * an actionable message; the server does NOT bind. Exported from the barrel so
- * the daemon (surface) can `instanceof`-narrow it.
- */
-export class OutboundApiConfigError extends Error {
-  readonly missing: EndpointModelConfigError[];
-  constructor(missing: EndpointModelConfigError[]) {
-    super(
-      'Outbound API server cannot start: incomplete model-kind configuration — ' +
-        missing
-          .map((m) => `${m.endpoint} missing [${m.missingKinds.join(', ')}]`)
-          .join('; '),
-    );
-    this.name = 'OutboundApiConfigError';
-    this.missing = missing;
-  }
 }
 
 export class OutboundApiServer {
@@ -144,28 +121,10 @@ export class OutboundApiServer {
       return;
     }
 
-    // Startup gate (design D6): an enabled server with an incomplete model-kind
-    // map REFUSES to bind. `this.endpoints` is recorded above for status
-    // introspection, but we throw the typed error BEFORE (re)binding so the boot
-    // path can log + leave the server stopped and the daemon PUT surfaces a clear
-    // 400. The daemon pre-validates with the same `validateServerModelConfig`, so
-    // the typical UI path never reaches this throw.
-    const missing = validateServerModelConfig({
-      enabled: true,
-      networkBinding: input.networkBinding,
-      endpoints: input.endpoints,
-      port: input.port,
-    });
-    if (missing.length > 0) {
-      // If a listener is CURRENTLY bound, tear it down so the live state matches
-      // the "cannot start" the UI shows (an enable that turns an already-running
-      // server's config incomplete must STOP serving, not keep the stale config
-      // live). `stop()` is idempotent — a no-op on the boot path where nothing is
-      // bound yet, so boot still throws-and-stays-stopped exactly as before.
-      await this.stop();
-      throw new OutboundApiConfigError(missing);
-    }
-
+    // No startup gate: routing lives in independent downstream routes that
+    // COMPOSE, so there is no server-wide model-completeness property to check
+    // before binding. An endpoint with no route that can serve a request answers
+    // per-request instead of blocking the whole listener.
     const running = this.server !== null;
     const bindChanged = running && (this.boundAddr !== wantAddr || this.boundPort !== wantPort);
     if (running && !bindChanged) {

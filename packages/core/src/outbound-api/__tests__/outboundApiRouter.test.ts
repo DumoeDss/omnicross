@@ -11,6 +11,7 @@ import type http from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
+import { legacyEndpointsToBindings } from '../apiServerConfig';
 import {
   extractGeminiModelFromUrl,
   extractPresentedKey,
@@ -121,11 +122,15 @@ function makeDeps(opts: {
   };
 }
 
+// Routing is downstream-route-only: the legacy endpoint shape below is projected
+// into the route that serves these requests (chat is LIST-mapped, so the
+// request's `model` must be one of these refs' modelIds).
+const CHAT_ENDPOINTS = [
+  { endpoint: 'chat' as const, models: ['openai,gpt-4o', 'openai,gpt-4o-mini'], useSubscription: false },
+];
 const config = {
-  endpoints: [
-    // chat is LIST-mapped: the request's `model` must be one of these refs' modelIds.
-    { endpoint: 'chat' as const, models: ['openai,gpt-4o', 'openai,gpt-4o-mini'], useSubscription: false },
-  ],
+  endpoints: [],
+  bindings: legacyEndpointsToBindings(CHAT_ENDPOINTS),
 };
 
 // --- tests -----------------------------------------------------------------
@@ -286,8 +291,9 @@ describe('handleOutboundRequest — auth', () => {
       routeMap,
     });
     const responsesConfig = {
-      endpoints: [
-        ...config.endpoints,
+      endpoints: [],
+      bindings: legacyEndpointsToBindings([
+        ...CHAT_ENDPOINTS,
         {
           endpoint: 'responses' as const,
           modelMap: {
@@ -296,7 +302,7 @@ describe('handleOutboundRequest — auth', () => {
           },
           useSubscription: true,
         },
-      ],
+      ]),
     };
     const req = new MockReq({
       headers: { authorization: 'Bearer integration' },
@@ -571,7 +577,7 @@ describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1
       req as unknown as http.IncomingMessage,
       res as unknown as http.ServerResponse,
       deps,
-      { ...config, bindings: opts.bindings },
+      opts.bindings ? { ...config, bindings: opts.bindings } : config,
       new OutboundRateLimiter(),
       new UserMessageSerialQueue(),
       new OutboundConcurrencyGate(),
@@ -582,19 +588,19 @@ describe('handleOutboundRequest — pool-seam synthesized sessionId (poolseam D1
     return { sessionId: minted.sessionId };
   }
 
-  it('pool wired → minted route carries a STABLE `outbound:<verifiedKeyId>` sessionId', async () => {
+  it('pool wired → minted route carries a STABLE `outbound:<verifiedKeyId>:<routeId>` sessionId', async () => {
     const { sessionId } = await mintRoute({ apiKeyPool: { reportError: vi.fn() } });
-    expect(sessionId).toBe('outbound:oak_1');
+    expect(sessionId).toBe('outbound:oak_1:legacy-chat-openai');
   });
 
   it('same verified key → same synthesized id on a second request (stable affinity)', async () => {
     const a = await mintRoute({ apiKeyPool: { reportError: vi.fn() } });
     const b = await mintRoute({ apiKeyPool: { reportError: vi.fn() } });
-    expect(a.sessionId).toBe('outbound:oak_1');
+    expect(a.sessionId).toBe('outbound:oak_1:legacy-chat-openai');
     expect(b.sessionId).toBe(a.sessionId);
   });
 
-  it('an active Binding adds its id to the affinity namespace without changing the legacy path', async () => {
+  it('each route gets its own affinity namespace', async () => {
     const { sessionId } = await mintRoute({
       apiKeyPool: { reportError: vi.fn() },
       bindings: [{

@@ -240,6 +240,7 @@ async function boot(opts: {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
 

@@ -203,6 +203,7 @@ async function boot(): Promise<void> {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
   baseUrl = daemon.outboundApiServer.getStatus().loopbackUrl as string;

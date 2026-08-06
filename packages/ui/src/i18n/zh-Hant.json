@@ -508,7 +508,7 @@
     "primary": "主導覽",
     "overview": "總覽",
     "gateway": "閘道",
-    "upstreams": "上游資源",
+    "upstreams": "上游與路由",
     "integrations": "整合",
     "group": {
       "run": "執行",
@@ -554,7 +554,6 @@
         "upstream": "{{value}} 個帳號 / 目標"
       }
     },
-    "routes": { "title": "路由矩陣", "description": "各協定格式目前設定的上游目標。", "unconfigured": "尚未設定", "unavailable": "路由證據無法取得，請開啟閘道檢查。" },
     "gateway": {
       "title": "閘道執行證據",
       "description": "顯示即時監聽狀態、位址，以及守護程式提供的建置版本。",
@@ -639,11 +638,11 @@
     }
   },
   "upstreams": {
-    "title": "上游資源",
-    "description": "統一管理可承接閘道請求的帳號、帳號群組與提供者。",
+    "title": "上游與路由",
+    "description": "分別管理上游連線，以及客戶端進入閘道後的下游路由。",
     "addAccount": "新增帳號",
     "addProvider": "新增提供者",
-    "addProviderDescription": "建立提供者，並設定其模型與金鑰池。",
+    "addProviderDescription": "建立提供者並設定連線資訊；模型清單不是必填項。",
     "searchPlaceholder": "搜尋上游資源…",
     "empty": "目前檢視中沒有符合的上游資源。",
     "filter": {
@@ -663,9 +662,62 @@
       "needsKey": "需要金鑰"
     },
     "memberCount": "{{count}} 位成員",
+    "accountPool": "{{provider}} 帳號池",
     "groupSummary": "{{provider}} 中的 {{count}} 個帳號",
     "routeCount": "{{count}} 條路由",
     "manageAccount": "管理帳號",
+    "tabs": {
+      "label": "上游與路由",
+      "resources": "上游資源",
+      "routes": "下游與路由"
+    },
+    "downstreams": {
+      "listTitle": "客戶端應用",
+      "listCount": "{{count}} 個下游介面",
+      "boundKeysShort": "{{count}} Key",
+      "add": "新增下游介面",
+      "empty": "尚無下游介面。",
+      "selectPrompt": "選擇一個下游介面，或建立新的介面。",
+      "noResources": "請先新增一個上游 Provider 或帳號。",
+      "editEyebrow": "下游路由",
+      "createEyebrow": "新增下游介面",
+      "untitled": "未命名介面",
+      "sourceTitle": "下游介面",
+      "sourceDescription": "定義客戶端使用的公開協定。API Key 從金鑰管理頁綁定到這裡。",
+      "keyBindingHint": "{{count}} 個 API Key 已綁定到這個下游",
+      "manageKeys": "管理 API Key",
+      "targetTitle": "目標上游",
+      "targetDescription": "引用已設定好的 Provider、帳號或帳號群組。",
+      "resource": "上游資源",
+      "egressProtocol": "出站協定",
+      "derived": "自動",
+      "modelTitle": "模型處理",
+      "modelDescription": "映射可選；未設定時將客戶端模型名稱原樣送到上游。",
+      "modelMode": {
+        "passthrough": "透傳模型名稱",
+        "mapped": "自訂映射"
+      },
+      "modelModeHint": {
+        "passthrough": "客戶端傳入什麼模型名稱，上游就收到什麼模型名稱。",
+        "mapped": "優先比對精確模型名稱，再依序比對 * 萬用字元，並改寫為上游模型名稱。"
+      },
+      "failureTitle": "失敗處理",
+      "failureDescription": "控制路由優先順序與無法服務時的後續行為。",
+      "rail": {
+        "ingress": "下游介面",
+        "models": "模型處理",
+        "egress": "上游資源",
+        "noMapping": "空映射 · 原樣送出",
+        "mappingCount": "{{count}} 條映射",
+        "noResource": "未選擇上游"
+      },
+      "mapping": {
+        "source": "下游請求模型",
+        "target": "上游模型（自由填寫）",
+        "add": "新增映射"
+      },
+      "noResource": "未選擇上游"
+    },
     "routes": {
       "title": "閘道路由",
       "description": "將客戶端存取連接到此上游，不變更上游憑證本身。",
@@ -686,7 +738,7 @@
       "fallbackLabel": "此路由無法服務時",
       "fallback": {
         "fail": "請求失敗",
-        "global": "使用全域回退"
+        "next": "嘗試下一條符合的路由"
       },
       "priorityFallback": "優先順序 {{priority}} · {{fallback}}",
       "providerKey": "提供者金鑰",
@@ -697,9 +749,9 @@
       "modelsHint": "每行一個模型 ID，也可使用逗號分隔。",
       "unconfiguredModel": "尚未設定模型",
       "deleteTitle": "刪除此路由？",
-      "deleteDescription": "刪除「{{name}}」。後續請求將使用其他符合的路由或全域回退。",
+      "deleteDescription": "刪除「{{name}}」。後續請求將使用其他符合的路由；沒有符合則失敗。",
       "signalPath": "{{key}} 到 {{endpoint}}，再到 {{resource}}，最後使用 {{model}}",
-      "openFromUpstreams": "請從上游資源開啟此帳號以管理其閘道路由。"
+      "openFromUpstreams": "請在「下游與路由」中管理使用此帳號的路由。"
     }
   },
   "apiService": {
@@ -714,15 +766,9 @@
       "liveTraffic": "即時流量",
       "overview": "總覽",
       "activity": "活動",
-      "settings": "設定",
-      "endpoints": "端點",
       "access": "存取金鑰",
       "network": "網路與代理",
       "advanced": "進階"
-    },
-    "globalFallback": {
-      "title": "全域回退路由",
-      "description": "沒有資源路由符合時才使用這些端點設定。日常路由請在「上游資源」中管理。"
     },
     "bindingCoverage": {
       "title": "路由覆蓋",
@@ -759,52 +805,13 @@
       "loopback": "回環位址 URL",
       "lan": "區域網路 URL"
     },
-    "endpoints": {
-      "empty": "此 Daemon 沒有提供端點定義。",
-      "title": "端點路由",
-      "description": "為每種 wire 格式選擇路由目標模型。預設模型已整合於此——此伺服器是路由器，而非對話應用程式。"
-    },
     "endpoint": {
       "name": {
         "chat": "OpenAI Chat",
         "responses": "OpenAI Responses",
         "messages": "Anthropic Messages",
         "gemini": "Gemini"
-      },
-      "defaultModel": "預設模型",
-      "backgroundModel": "背景模型",
-      "backgroundModelIds": "背景模型 ID",
-      "backgroundModelIdsPlaceholder": "以逗號分隔的模型 ID",
-      "modelPlaceholder": "選取模型…",
-      "useSubscription": "使用訂閱",
-      "subscriptionUnsupported": "此端點不支援訂閱路由。",
-      "subscriptionType": "訂閱類型",
-      "subscriptionTypePlaceholder": "選取訂閱…",
-      "account": "帳號",
-      "accountPool": "帳號池（自動調度）",
-      "boundAccountFallbackPolicy": "繫結帳號無法服務時",
-      "boundAccountFallbackPlaceholder": "選擇回退行為",
-      "boundAccountFallbackStrict": "請求直接失敗（建議）",
-      "boundAccountFallbackPool": "使用帳號池（需主動開啟）",
-      "boundAccountFallbackStrictHint": "只有所選帳號可以服務此端點。帳號不可用、不健康、模型不相容、遭限額暫停或沒有權杖時，請求會失敗。",
-      "boundAccountFallbackPoolHint": "所選帳號無法服務時，系統可能改用帳號池中的其他帳號。",
-      "boundAccountFallbackChooseAccount": "選擇繫結帳號後才能設定回退行為。",
-      "pickSubscriptionTypeFirst": "請先選擇訂閱提供者，再設定模型映射。",
-      "kind": {
-        "fable": "Fable",
-        "opus": "Opus",
-        "sonnet": "Sonnet",
-        "haiku": "Haiku",
-        "codex": "Codex",
-        "mini": "Mini"
-      },
-      "kindMapLabel": "按模型種類映射",
-      "cannotStart": "接口服務無法啟動：缺少模型映射配置",
-      "missingKind": "必填",
-      "modelListLabel": "模型清單",
-      "modelListEmpty": "未設定模型——新增模型後此端點才可用。",
-      "addModelPlaceholder": "新增模型...",
-      "removeModel": "移除"
+      }
     },
     "keys": {
       "title": "存取金鑰",
@@ -827,9 +834,11 @@
         "dismiss": "完成"
       },
       "bindings": {
-        "title": "閘道路由",
-        "count": "{{count}} 條適用路由",
-        "empty": "沒有適用路由"
+        "title": "下游介面",
+        "count": "已綁定 {{count}} 個下游介面",
+        "empty": "尚未綁定下游介面",
+        "manage": "管理下游綁定",
+        "manageHint": "API Key 決定可以進入哪些下游介面；路由目標與模型映射仍在「上游與路由」中管理。"
       },
       "policy": {
         "title": "策略",

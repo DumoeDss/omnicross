@@ -251,13 +251,38 @@ export type GatewayBindingTarget =
       group: string;
     }
   | {
+      /**
+       * The provider's WHOLE subscription pool, with no account preference —
+       * plain priority/LRU/health scheduling. Distinct from `account-group`,
+       * which pins a preferred group, and from `provider`, which is BYO-key.
+       */
+      kind: 'account-pool';
+      providerId: string;
+    }
+  | {
       kind: 'provider';
       providerId: string;
       keyId?: string;
     };
 
-/** Behavior when a binding cannot serve the requested model or credential. */
-export type GatewayBindingFallback = 'global' | 'fail';
+/**
+ * Behavior when a binding cannot serve the requested model or credential.
+ * `next` yields to the next matching route (and lets a bound account fall back
+ * to its provider pool); `fail` keeps the route strict and errors instead.
+ */
+export type GatewayBindingFallback = 'next' | 'fail';
+
+/** Which named API keys may enter a downstream route. */
+export type GatewayBindingKeyScope = 'all' | 'selected';
+
+/** Whether the downstream model id is forwarded or explicitly remapped. */
+export type GatewayBindingModelMode = 'passthrough' | 'mapped';
+
+/** One exact or `*` wildcard model-name rewrite owned by a downstream route. */
+export interface GatewayModelMapping {
+  source: string;
+  target: ModelRef;
+}
 
 /**
  * Independent client-to-upstream route aggregate.
@@ -270,14 +295,20 @@ export interface GatewayBinding {
   id: string;
   name: string;
   enabled: boolean;
-  /** Absent means every client key; a non-empty list scopes the binding. */
+  /** Legacy entries without this field keep the former all-vs-list behavior. */
+  keyScope?: GatewayBindingKeyScope;
+  /** Used only when `keyScope` resolves to `selected`. */
   apiKeyIds?: string[];
   endpoint: OutboundEndpoint;
   target: GatewayBindingTarget;
   /** Lower values win. Key-scoped bindings win before this comparison. */
   priority?: number;
-  /** Global falls back to the legacy endpoint/pool; fail keeps the binding strict. */
+  /** Next yields to the following matching route; fail keeps the binding strict. */
   fallback: GatewayBindingFallback;
+  /** Empty passthrough routes preserve the client's requested model id. */
+  modelMode?: GatewayBindingModelMode;
+  /** Preferred generic mapping shape; legacy endpoint-specific fields remain readable. */
+  modelMappings?: GatewayModelMapping[];
   modelMap?: Record<string, ModelRef>;
   models?: ModelRef[];
   dispatchMode?: ChatDispatchMode;
@@ -341,11 +372,17 @@ export interface OutboundApiServerConfig {
   enabled: boolean;
   /** When true the listener binds `0.0.0.0` (LAN) instead of `127.0.0.1`. */
   networkBinding: boolean;
-  /** Per-endpoint routing config, one per endpoint (4 entries). */
+  /**
+   * LEGACY per-endpoint routing config, one per endpoint (4 entries). No longer
+   * a routing source: {@link normalizeServerConfig} projects any configured
+   * entry into {@link bindings} once and leaves these blank. Retained as the
+   * projection shape {@link EndpointRoutingConfig} and for embedders that build
+   * a config by hand.
+   */
   endpoints: EndpointRoutingConfig[];
   /**
-   * Resource-centric routes. Optional for embedders pinned to the legacy
-   * endpoint model; normalized Omnicross configs carry an array.
+   * Resource-centric routes — the SSOT for routing. Optional in the raw
+   * persisted shape; normalized Omnicross configs always carry an array.
    */
   bindings?: GatewayBinding[];
   /** Persisted port (fixed default; falls back to ephemeral on EADDRINUSE). */

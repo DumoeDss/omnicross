@@ -13,6 +13,7 @@ import type { WebhookEvent } from '@omnicross/contracts/webhook-types';
 
 import { __resetWebhookSinkForTests, setWebhookSink } from '../../pipeline/webhookEmit';
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
+import { legacyEndpointsToBindings } from '../apiServerConfig';
 import { handleOutboundRequest } from '../outboundApiRouter';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
 import { OutboundRateLimiter } from '../outboundRateLimiter';
@@ -84,7 +85,10 @@ function makeDeps(row: OutboundKeyDbRow, tracker: OutboundApiDeps['keySpendTrack
 }
 
 const config = {
-  endpoints: [{ endpoint: 'chat' as const, models: ['openai,gpt-4o'], useSubscription: false }],
+  endpoints: [],
+  bindings: legacyEndpointsToBindings([
+    { endpoint: 'chat' as const, models: ['openai,gpt-4o'], useSubscription: false },
+  ]),
 };
 
 async function run(row: OutboundKeyDbRow, tracker: OutboundApiDeps['keySpendTracker']): Promise<MockRes> {

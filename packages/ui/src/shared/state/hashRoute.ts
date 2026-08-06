@@ -23,7 +23,8 @@ export type AccountDetailTabId =
   | 'danger';
 
 export type AccountRouteFilters = Partial<AccountFilters>;
-export type UpstreamKind = 'account' | 'account-group' | 'provider';
+export type UpstreamKind = 'account' | 'account-group' | 'account-pool' | 'provider';
+export type UpstreamsTab = 'resources' | 'routes';
 
 export interface AppRoute {
   page: PageId;
@@ -37,6 +38,8 @@ export interface AppRoute {
   upstreamProviderId?: string;
   upstreamGroup?: string;
   upstreamQuery?: string;
+  upstreamTab?: UpstreamsTab;
+  downstreamId?: string;
 }
 
 export interface AccountRouteSelection {
@@ -59,7 +62,7 @@ const PAGE_IDS = new Set<PageId>([
   'usage-stats',
   'settings',
 ]);
-const API_TABS = new Set<ApiServiceTabId>(['overview', 'access', 'activity', 'settings']);
+const API_TABS = new Set<ApiServiceTabId>(['overview', 'access', 'activity']);
 const SETTINGS_TABS = new Set<SettingsTabId>([
   'general',
   'network',
@@ -115,10 +118,13 @@ export const DEFAULT_ROUTE: AppRoute = { page: 'overview' };
 /** Explicit redirects for hashes written by the pre-P4 Gateway tabs. */
 export const LEGACY_API_TAB_REDIRECTS: Readonly<Record<string, AppRoute>> = {
   status: { page: 'api-service', tab: 'overview' },
-  routes: { page: 'api-service', tab: 'settings' },
   'access-keys': { page: 'api-service', tab: 'access' },
   'live-traffic': { page: 'api-service', tab: 'activity' },
-  endpoints: { page: 'api-service', tab: 'settings' },
+  // The endpoint-routing tab is gone with the global fallback — model routing
+  // now lives in the Upstreams page's downstream routes.
+  routes: { page: 'upstreams' },
+  endpoints: { page: 'upstreams' },
+  settings: { page: 'upstreams' },
   network: { page: 'settings', tab: 'network' },
   advanced: { page: 'settings', tab: 'advanced' },
 };
@@ -136,8 +142,9 @@ export const LEGACY_PAGE_REDIRECTS: Readonly<Record<string, AppRoute>> = {
   'code-cli': { page: 'integrations' },
 };
 
-const UPSTREAM_KINDS = new Set<UpstreamKind>(['account', 'account-group', 'provider']);
+const UPSTREAM_KINDS = new Set<UpstreamKind>(['account', 'account-group', 'account-pool', 'provider']);
 const UPSTREAM_FILTERS = new Set<UpstreamKind | 'all'>(['all', ...UPSTREAM_KINDS]);
+const UPSTREAM_TABS = new Set<UpstreamsTab>(['resources', 'routes']);
 
 const MAX_ROUTE_TEXT_LENGTH = 512;
 
@@ -285,11 +292,15 @@ function parseUpstreamsQuery(params: URLSearchParams, base: AppRoute): AppRoute 
   const query = singleQueryValue(params, 'q');
   const upstreamProviderId = singleQueryValue(params, 'providerId');
   const upstreamGroup = singleQueryValue(params, 'group');
+  const upstreamTab = enumValue(singleQueryValue(params, 'view'), UPSTREAM_TABS);
+  const downstreamId = singleQueryValue(params, 'downstreamId');
   if (kind) route.upstreamKind = kind;
   if (filter && filter !== 'all') route.upstreamFilter = filter;
   if (isSafeRouteText(query) && query.trim()) route.upstreamQuery = query;
   if (isSafeRouteText(upstreamProviderId)) route.upstreamProviderId = upstreamProviderId;
   if (isSafeRouteText(upstreamGroup)) route.upstreamGroup = upstreamGroup;
+  if (upstreamTab && upstreamTab !== 'resources') route.upstreamTab = upstreamTab;
+  if (isSafeRouteText(downstreamId)) route.downstreamId = downstreamId;
 
   const provider = enumValue(singleQueryValue(params, 'accountProvider'), ACCOUNT_PROVIDERS);
   const accountId = singleQueryValue(params, 'accountId');
@@ -342,6 +353,10 @@ function appendUpstreamsQuery(params: URLSearchParams, route: AppRoute): void {
   if (isSafeRouteText(route.upstreamQuery) && route.upstreamQuery.trim()) params.set('q', route.upstreamQuery);
   if (isSafeRouteText(route.upstreamProviderId)) params.set('providerId', route.upstreamProviderId);
   if (isSafeRouteText(route.upstreamGroup)) params.set('group', route.upstreamGroup);
+  if (route.upstreamTab && UPSTREAM_TABS.has(route.upstreamTab) && route.upstreamTab !== 'resources') {
+    params.set('view', route.upstreamTab);
+  }
+  if (isSafeRouteText(route.downstreamId)) params.set('downstreamId', route.downstreamId);
   const selection = selectedAccountFromRoute(route);
   if (selection) {
     params.set('accountProvider', selection.providerId);

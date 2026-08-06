@@ -125,6 +125,7 @@ async function bootDaemon(providers: ProviderRow[]): Promise<void> {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
   await daemon.adminServer.start();

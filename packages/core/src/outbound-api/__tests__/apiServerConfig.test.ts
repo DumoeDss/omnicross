@@ -15,6 +15,7 @@ import {
   mergeServerConfig,
   normalizeAccountProbe,
   normalizeAllowanceScheduling,
+  normalizeEndpointConfig,
   normalizeServerConfig,
 } from '../apiServerConfig';
 import type { EndpointRoutingConfig, OutboundApiServerConfig, OutboundEndpoint } from '../types';
@@ -26,6 +27,20 @@ function endpoint(
   const found = config.endpoints.find((e) => e.endpoint === ep);
   if (!found) throw new Error(`missing endpoint ${ep}`);
   return found;
+}
+
+/**
+ * Normalize ONE raw endpoint block. `normalizeServerConfig` no longer keeps
+ * these blocks (routing moved to downstream routes), but the per-endpoint-class
+ * normalization still runs — it is the shape every route carries.
+ */
+function normalizedBlock(
+  raw: Partial<OutboundApiServerConfig>,
+  ep: OutboundEndpoint,
+): EndpointRoutingConfig {
+  const found = raw.endpoints?.find((e) => e.endpoint === ep);
+  if (!found) throw new Error(`missing endpoint ${ep}`);
+  return normalizeEndpointConfig(found);
 }
 
 describe('defaultServerConfig — endpoint-aware blanks', () => {
@@ -85,7 +100,7 @@ describe('normalizeServerConfig — no migration', () => {
       ],
     } as unknown as Partial<OutboundApiServerConfig>;
 
-    const messages = endpoint(normalizeServerConfig(raw), 'messages');
+    const messages = normalizedBlock(raw, 'messages');
     // filled blank kinds, NOT the legacy default/background values
     expect(messages.modelMap).toEqual({ fable: '', opus: '', sonnet: '', haiku: '' });
     expect(messages).not.toHaveProperty('defaultModel');
@@ -105,7 +120,7 @@ describe('normalizeServerConfig — no migration', () => {
       ],
     } as unknown as Partial<OutboundApiServerConfig>;
 
-    const messages = endpoint(normalizeServerConfig(raw), 'messages');
+    const messages = normalizedBlock(raw, 'messages');
     expect(messages.modelMap).toEqual({ fable: '', opus: 'p,opus', sonnet: '', haiku: '' });
     expect(messages.modelMap).not.toHaveProperty('bogus');
   });
@@ -125,7 +140,7 @@ describe('normalizeServerConfig — no migration', () => {
       ],
     } as unknown as Partial<OutboundApiServerConfig>;
 
-    const gemini = endpoint(normalizeServerConfig(raw), 'gemini');
+    const gemini = normalizedBlock(raw, 'gemini');
     expect(gemini.defaultModel).toBe('p,default');
     expect(gemini.backgroundModel).toBe('p,bg');
     expect(gemini.backgroundModelIds).toEqual(['p,small']);
@@ -147,7 +162,7 @@ describe('normalizeServerConfig — no migration', () => {
       ],
     } as unknown as Partial<OutboundApiServerConfig>;
 
-    const chat = endpoint(normalizeServerConfig(raw), 'chat');
+    const chat = normalizedBlock(raw, 'chat');
     expect(chat.models).toEqual(['p,gpt-4o', 'p,glm-4.7']);
     expect(chat).not.toHaveProperty('defaultModel');
     expect(chat).not.toHaveProperty('backgroundModel');
@@ -155,40 +170,34 @@ describe('normalizeServerConfig — no migration', () => {
   });
 
   it('migrates a bound endpoint without policy to strict failure and round-trips pool opt-in', () => {
-    const strict = endpoint(
-      normalizeServerConfig({
-        endpoints: [
-          {
-            endpoint: 'messages',
-            modelMap: { opus: 'claude,claude-opus' },
-            useSubscription: true,
-            boundAccountId: ' acct-strict ',
-          },
-        ],
-      } as unknown as Partial<OutboundApiServerConfig>),
-      'messages',
-    );
+    const strict = normalizedBlock({
+      endpoints: [
+        {
+          endpoint: 'messages',
+          modelMap: { opus: 'claude,claude-opus' },
+          useSubscription: true,
+          boundAccountId: ' acct-strict ',
+        },
+      ],
+    } as unknown as Partial<OutboundApiServerConfig>, 'messages');
     expect(strict.boundAccountId).toBe('acct-strict');
     expect(strict.boundAccountFallbackPolicy).toBe('strict');
 
-    const pool = endpoint(
-      normalizeServerConfig({
-        endpoints: [
-          {
-            endpoint: 'messages',
-            useSubscription: true,
-            boundAccountId: 'acct-pool',
-            boundAccountFallbackPolicy: 'pool',
-          },
-        ],
-      } as unknown as Partial<OutboundApiServerConfig>),
-      'messages',
-    );
+    const pool = normalizedBlock({
+      endpoints: [
+        {
+          endpoint: 'messages',
+          useSubscription: true,
+          boundAccountId: 'acct-pool',
+          boundAccountFallbackPolicy: 'pool',
+        },
+      ],
+    } as unknown as Partial<OutboundApiServerConfig>, 'messages');
     expect(pool.boundAccountFallbackPolicy).toBe('pool');
   });
 
   it('drops a policy when the binding is blank and rejects invalid policy values to strict', () => {
-    const config = normalizeServerConfig({
+    const raw = {
       endpoints: [
         {
           endpoint: 'messages',
@@ -203,9 +212,46 @@ describe('normalizeServerConfig — no migration', () => {
           boundAccountFallbackPolicy: 'unexpected',
         },
       ],
+    } as unknown as Partial<OutboundApiServerConfig>;
+    expect(normalizedBlock(raw, 'messages')).not.toHaveProperty('boundAccountFallbackPolicy');
+    expect(normalizedBlock(raw, 'responses').boundAccountFallbackPolicy).toBe('strict');
+  });
+
+  it('projects a configured legacy endpoint into a downstream route and blanks the block', () => {
+    const config = normalizeServerConfig({
+      endpoints: [
+        {
+          endpoint: 'messages',
+          modelMap: { opus: 'claude,claude-opus', sonnet: 'glm,glm-4.7' },
+          useSubscription: true,
+        },
+      ],
     } as unknown as Partial<OutboundApiServerConfig>);
-    expect(endpoint(config, 'messages')).not.toHaveProperty('boundAccountFallbackPolicy');
-    expect(endpoint(config, 'responses').boundAccountFallbackPolicy).toBe('strict');
+
+    // The legacy block is no longer a routing source.
+    expect(endpoint(config, 'messages').modelMap).toEqual({ fable: '', opus: '', sonnet: '', haiku: '' });
+    // One route per referenced provider, since a route carries a single target.
+    expect(config.bindings?.map((b) => b.target)).toEqual([
+      { kind: 'account-pool', providerId: 'claude' },
+      { kind: 'account-pool', providerId: 'glm' },
+    ]);
+    expect(config.bindings?.[0].modelMap).toMatchObject({ opus: 'claude,claude-opus', sonnet: '' });
+    expect(config.bindings?.[1].modelMap).toMatchObject({ opus: '', sonnet: 'glm,glm-4.7' });
+
+    // Idempotent: re-normalizing the migrated config produces no new routes.
+    expect(normalizeServerConfig(config).bindings).toEqual(config.bindings);
+  });
+
+  it('does not resurrect legacy endpoints once routes exist', () => {
+    const config = normalizeServerConfig({
+      endpoints: [
+        { endpoint: 'chat', models: ['openai,gpt-4o'], useSubscription: false },
+      ],
+      bindings: [],
+      // A user who deleted every route keeps zero routes.
+    } as unknown as Partial<OutboundApiServerConfig>);
+    expect(config.bindings).toHaveLength(1);
+    expect(normalizeServerConfig({ ...config, bindings: [] }).bindings).toEqual([]);
   });
 
   it('missing/blank raw → full default shape', () => {
@@ -231,7 +277,7 @@ describe('mergeServerConfig', () => {
     expect(endpoint(merged, 'gemini').defaultModel).toBe('');
   });
 
-  it('patched endpoints are re-normalized (legacy fields dropped)', () => {
+  it('a patched legacy endpoint is projected into a route, not kept as a block', () => {
     const current = defaultServerConfig();
     const patchedEndpoints = [
       {
@@ -242,9 +288,12 @@ describe('mergeServerConfig', () => {
       },
     ] as unknown as EndpointRoutingConfig[];
     const merged = mergeServerConfig(current, { endpoints: patchedEndpoints });
-    const messages = endpoint(merged, 'messages');
-    expect(messages.modelMap).toEqual({ fable: '', opus: 'p,opus', sonnet: '', haiku: '' });
-    expect(messages).not.toHaveProperty('visionModel');
+    expect(endpoint(merged, 'messages').modelMap).toEqual({ fable: '', opus: '', sonnet: '', haiku: '' });
+
+    const route = merged.bindings?.[0];
+    expect(route?.target).toEqual({ kind: 'provider', providerId: 'p' });
+    expect(route?.modelMap).toEqual({ fable: '', opus: 'p,opus', sonnet: '', haiku: '' });
+    expect(route).not.toHaveProperty('visionModel');
   });
 
   it('carries the accountProbe segment through a patch', () => {

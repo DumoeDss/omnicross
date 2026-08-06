@@ -16,6 +16,7 @@ import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
+import { legacyEndpointsToBindings } from '../apiServerConfig';
 import { handleOutboundRequest, type OutboundRequestConfig } from '../outboundApiRouter';
 import { OutboundApiServer } from '../OutboundApiServer';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
@@ -145,6 +146,9 @@ function mkDeps(r: OutboundKeyDbRow | null): OutboundApiDeps {
 const CHAT_ONLY: OutboundRequestConfig['endpoints'] = [
   { endpoint: 'chat', models: ['openai,gpt-4o'], useSubscription: false },
 ];
+// Routing is downstream-route-only (no global endpoint fallback), so the legacy
+// fixture above is projected into the route that actually serves these requests.
+const CHAT_CONFIG: OutboundRequestConfig = { endpoints: [], bindings: legacyEndpointsToBindings(CHAT_ONLY) };
 
 const USER_MSG = JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] });
 // Last turn is a tool result → NOT a user message (serial queue must bypass).
@@ -220,7 +224,7 @@ describe('concurrency gate wiring', () => {
   it('6.1 GET /v1/models + unlimited key bypass the gate; disabled serial never serializes', async () => {
     const gate = new OutboundConcurrencyGate();
     const serial = new UserMessageSerialQueue();
-    const config: OutboundRequestConfig = { endpoints: CHAT_ONLY };
+    const config: OutboundRequestConfig = { ...CHAT_CONFIG };
 
     // GET models — served before the gate, no route, no gate engagement.
     const models = call({
@@ -249,7 +253,7 @@ describe('concurrency gate wiring', () => {
     const limiter = new OutboundRateLimiter();
     // limit 1, queue cap = max(1*1, 1) = 1 → 1 active + 1 queued, the 3rd rejects.
     const config: OutboundRequestConfig = {
-      endpoints: CHAT_ONLY,
+      ...CHAT_CONFIG,
       concurrencyQueue: { maxQueueSizeFactor: 1, minQueueSize: 1, waitTimeoutMs: 60_000 },
     };
     h.state.dispatch = holdUntilClose;
@@ -276,7 +280,7 @@ describe('concurrency gate wiring', () => {
     const serial = new UserMessageSerialQueue();
     const limiter = new OutboundRateLimiter();
     const config: OutboundRequestConfig = {
-      endpoints: CHAT_ONLY,
+      ...CHAT_CONFIG,
       concurrencyQueue: { maxQueueSizeFactor: 4, minQueueSize: 4, waitTimeoutMs: 30 },
     };
     h.state.dispatch = holdUntilClose;
@@ -297,10 +301,13 @@ describe('concurrency gate wiring', () => {
   it('6.2 slot is released when routing fails after acquire', async () => {
     const gate = new OutboundConcurrencyGate();
     const serial = new UserMessageSerialQueue();
-    // Empty chat model list → the requested model resolves to a 404 AFTER the
+    // A chat route that does NOT list the requested model → 404 AFTER the
     // concurrency slot is acquired. The enclosing finally must free the slot.
     const config: OutboundRequestConfig = {
-      endpoints: [{ endpoint: 'chat', models: [], useSubscription: false }],
+      endpoints: [],
+      bindings: legacyEndpointsToBindings([
+        { endpoint: 'chat', models: ['openai,gpt-4o-mini'], useSubscription: false },
+      ]),
       concurrencyQueue: { maxQueueSizeFactor: 2, minQueueSize: 4, waitTimeoutMs: 60_000 },
     };
 
@@ -314,7 +321,7 @@ describe('concurrency gate wiring', () => {
     const gate = new OutboundConcurrencyGate();
     const serial = new UserMessageSerialQueue();
     const config: OutboundRequestConfig = {
-      endpoints: CHAT_ONLY,
+      ...CHAT_CONFIG,
       concurrencyQueue: { maxQueueSizeFactor: 2, minQueueSize: 4, waitTimeoutMs: 60_000 },
     };
     h.state.dispatch = holdUntilClose;
@@ -333,7 +340,7 @@ describe('concurrency gate wiring', () => {
 
 describe('user-message serial queue wiring', () => {
   const serialConfig = (over?: { delayMs?: number; waitTimeoutMs?: number }): OutboundRequestConfig => ({
-    endpoints: CHAT_ONLY,
+    ...CHAT_CONFIG,
     userMessageQueue: {
       enabled: true,
       delayMs: over?.delayMs ?? 10,
@@ -455,7 +462,7 @@ describe('user-message serial queue wiring', () => {
     const gate = new OutboundConcurrencyGate();
     const serial = new UserMessageSerialQueue();
     const config: OutboundRequestConfig = {
-      endpoints: CHAT_ONLY,
+      ...CHAT_CONFIG,
       userMessageQueue: { enabled: false, delayMs: 10, waitTimeoutMs: 60_000 },
     };
     const r = call({ row: row(), config, serial, gate, body: USER_MSG });
@@ -474,7 +481,7 @@ describe('OutboundApiServer.getQueueStatus()', () => {
     await server.applyConfig({
       enabled: false,
       networkBinding: false,
-      endpoints: CHAT_ONLY,
+      ...CHAT_CONFIG,
       concurrencyQueue: { maxQueueSizeFactor: 2, minQueueSize: 4, waitTimeoutMs: 60_000 },
       userMessageQueue: { enabled: false, delayMs: 200, waitTimeoutMs: 60_000 },
     });

@@ -19,7 +19,7 @@ import http from 'node:http';
 
 import {
   createNamedKey,
-  type EndpointModelConfigError,
+  gatewayBindingToEndpointConfig,
   isKindMappedEndpoint,
   loadServerConfig,
   mergeServerConfig,
@@ -31,7 +31,6 @@ import {
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   saveServerConfig,
-  validateServerModelConfig,
   type VoucherDb,
 } from '@omnicross/core/outbound-api';
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
@@ -1801,68 +1800,25 @@ async function handleServer(
     // gate + retry sweep). The merged config carries the DECRYPTED HMAC secret.
     applyBillingConfig(merged.billing);
 
-    // Startup gate (model-kind-mapping): when enabling with an incomplete
-    // kind map, refuse to bind and return an actionable envelope (HTTP 200 so
-    // the client reads `error.missing`; a 4xx would collapse to a bare message).
-    // The core validator is the SSOT; catching serving's config error below is
-    // defense-in-depth (the pre-check normally makes it unreachable).
-    if (merged.enabled) {
-      const missing = validateServerModelConfig(merged);
-      if (missing.length > 0) {
-        // The persisted config is now incomplete, so the outbound server must not
-        // keep serving a STALE mapping: if a previous (valid) config left the
-        // listener bound, tear it down so live state matches the "cannot start"
-        // the UI shows (honors 未配置→无法启动接口服务). stop() is idempotent.
-        if (deps.outboundApiServer.getStatus().running) {
-          await deps.outboundApiServer.stop();
-        }
-        return writeJson(res, 200, {
-          server: merged,
-          error: { code: 'incomplete-model-config', missing },
-        });
-      }
-    }
-
-    try {
-      await deps.outboundApiServer.applyConfig({
-        enabled: merged.enabled,
-        networkBinding: merged.networkBinding,
-        endpoints: merged.endpoints,
-        bindings: merged.bindings,
-        port: merged.port,
-        userMessageQueue: merged.userMessageQueue,
-        concurrencyQueue: merged.concurrencyQueue,
-        // voucher-redemption #9: hot-apply the voucher flag so enabling the product
-        // takes effect without a restart.
-        voucher: merged.voucher,
-      });
-    } catch (err) {
-      // Defense-in-depth: if serving still throws an incomplete-config error
-      // (duck-typed to avoid coupling to serving's concrete error class), surface
-      // the same envelope instead of a 500. Other failures propagate as before.
-      const missing = incompleteConfigMissing(err);
-      if (missing) {
-        return writeJson(res, 200, {
-          server: merged,
-          error: { code: 'incomplete-model-config', missing },
-        });
-      }
-      throw err;
-    }
+    // No completeness gate: routing lives in independent downstream routes that
+    // COMPOSE (one may serve `opus` while another serves `sonnet`), so there is
+    // no server-wide "all kinds must be mapped" property left to enforce. An
+    // endpoint with no route that can serve a request answers per-request.
+    await deps.outboundApiServer.applyConfig({
+      enabled: merged.enabled,
+      networkBinding: merged.networkBinding,
+      endpoints: merged.endpoints,
+      bindings: merged.bindings,
+      port: merged.port,
+      userMessageQueue: merged.userMessageQueue,
+      concurrencyQueue: merged.concurrencyQueue,
+      // voucher-redemption #9: hot-apply the voucher flag so enabling the product
+      // takes effect without a restart.
+      voucher: merged.voucher,
+    });
     return writeJson(res, 200, { server: merged });
   }
   return writeJsonError(res, 405, `method ${method} not allowed on server`);
-}
-
-/**
- * Duck-typed guard for serving's incomplete-config throw (`OutboundApiConfigError`
- * carries `missing: EndpointModelConfigError[]`). Structural on purpose — the
- * surface stays independent of serving's concrete error class.
- */
-function incompleteConfigMissing(err: unknown): EndpointModelConfigError[] | null {
-  if (typeof err !== 'object' || err === null) return null;
-  const missing = (err as { missing?: unknown }).missing;
-  return Array.isArray(missing) ? (missing as EndpointModelConfigError[]) : null;
 }
 
 // ── Accounts (token-free GET status + secret-IN-never-OUT write) ───────────────
@@ -2339,20 +2295,40 @@ async function handleStatus(
   if (method !== 'GET') return writeJsonError(res, 405, `method ${method} not allowed on status`);
   const status = deps.outboundApiServer.getStatus();
   const serverConfig = await loadServerConfig(deps.settingsStore);
-  // Class-aware read-only projection: kind-mapped endpoints (`messages`/
-  // `responses`) summarize their per-kind `modelMap` (they no longer carry a
-  // single `defaultModel`); role-based endpoints (`chat`/`gemini`) project the
-  // `defaultModel`. The editable surface still drives off GET /server. The
-  // kind-mapped set is read from core's `isKindMappedEndpoint` (SSOT over
-  // `ENDPOINT_MODEL_KINDS`) — no daemon-side hand-mirror.
-  const endpoints = serverConfig.endpoints.map((e) => {
-    if (isKindMappedEndpoint(e.endpoint)) {
-      return { endpoint: e.endpoint, kinds: e.modelMap ?? {}, useSubscription: e.useSubscription };
+  // Class-aware read-only projection, one row per endpoint, merged across the
+  // ENABLED downstream routes that serve it (routes are the only routing
+  // source). Kind-mapped endpoints (`messages`/`responses`) summarize their
+  // per-kind refs; `chat` projects its model list; role-based `gemini` projects
+  // its default. The kind-mapped set is read from core's `isKindMappedEndpoint`
+  // (SSOT over `ENDPOINT_MODEL_KINDS`) — no daemon-side hand-mirror.
+  const endpoints = (['chat', 'responses', 'messages', 'gemini'] as const).map((endpoint) => {
+    // Project through the resolver's own shape so refs are always the resolved
+    // `"providerId,modelId"` (a route stores the bare id + its target).
+    const routes = (serverConfig.bindings ?? [])
+      .filter((binding) => binding.enabled && binding.endpoint === endpoint)
+      .map((binding) => gatewayBindingToEndpointConfig(binding));
+    const useSubscription = routes.some((route) => route.useSubscription);
+    if (isKindMappedEndpoint(endpoint)) {
+      const kinds: Record<string, string> = {};
+      for (const route of routes) {
+        for (const [kind, ref] of Object.entries(route.modelMap ?? {})) {
+          if (ref?.trim() && !kinds[kind]) kinds[kind] = ref;
+        }
+      }
+      return { endpoint, kinds, useSubscription };
     }
-    if (e.endpoint === 'chat') {
-      return { endpoint: e.endpoint, models: e.models ?? [], useSubscription: e.useSubscription };
+    if (endpoint === 'chat') {
+      return {
+        endpoint,
+        models: [...new Set(routes.flatMap((route) => route.models ?? []))],
+        useSubscription,
+      };
     }
-    return { endpoint: e.endpoint, model: e.defaultModel ?? '', useSubscription: e.useSubscription };
+    return {
+      endpoint,
+      model: routes.find((route) => route.defaultModel?.trim())?.defaultModel ?? '',
+      useSubscription,
+    };
   });
   // Live queue-occupancy snapshot from the wire layer's frozen `getQueueStatus()`
   // — included only when the server is running (§4 allows omission otherwise), so

@@ -11,7 +11,7 @@ import {
 
 describe('hashRoute', () => {
   it('restores pages and supported nested tabs', () => {
-    expect(parseHashRoute('#/api-service/routes')).toEqual({ page: 'api-service', tab: 'settings' });
+    expect(parseHashRoute('#/api-service/activity')).toEqual({ page: 'api-service', tab: 'activity' });
     expect(parseHashRoute('#/settings/pricing')).toEqual({ page: 'settings', tab: 'pricing' });
     expect(parseHashRoute('#/settings/advanced')).toEqual({ page: 'settings', tab: 'advanced' });
     expect(routeToHash({ page: 'api-service', tab: 'status' })).toBe('#/api-service');
@@ -26,7 +26,10 @@ describe('hashRoute', () => {
 
   it('redirects every legacy Gateway and Settings tab explicitly', () => {
     expect(parseHashRoute('#/api-service/status')).toEqual({ page: 'api-service', tab: 'overview' });
-    expect(parseHashRoute('#/api-service/endpoints')).toEqual({ page: 'api-service', tab: 'settings' });
+    // Endpoint routing moved to the Upstreams page with the global fallback removed.
+    expect(parseHashRoute('#/api-service/routes')).toEqual({ page: 'upstreams' });
+    expect(parseHashRoute('#/api-service/endpoints')).toEqual({ page: 'upstreams' });
+    expect(parseHashRoute('#/api-service/settings')).toEqual({ page: 'upstreams' });
     expect(parseHashRoute('#/api-service/access-keys')).toEqual({ page: 'api-service', tab: 'access' });
     expect(parseHashRoute('#/api-service/live-traffic')).toEqual({ page: 'api-service', tab: 'activity' });
     expect(parseHashRoute('#/api-service/access')).toEqual({ page: 'api-service', tab: 'access' });
@@ -37,10 +40,11 @@ describe('hashRoute', () => {
     expect(parseHashRoute('#/settings/privacy')).toEqual({ page: 'settings', tab: 'security' });
     expect(Object.keys(LEGACY_API_TAB_REDIRECTS)).toEqual([
       'status',
-      'routes',
       'access-keys',
       'live-traffic',
+      'routes',
       'endpoints',
+      'settings',
       'network',
       'advanced',
     ]);
@@ -50,6 +54,16 @@ describe('hashRoute', () => {
   it('keeps legacy pricing and code-cli bookmarks useful', () => {
     expect(parseHashRoute('#/pricing')).toEqual({ page: 'settings', tab: 'pricing' });
     expect(parseHashRoute('#/code-cli')).toEqual({ page: 'integrations' });
+  });
+
+  it('round-trips the downstream route workspace selection', () => {
+    const route = { page: 'upstreams' as const, upstreamTab: 'routes' as const, downstreamId: 'route/one' };
+    expect(routeToHash(route)).toBe('#/upstreams?view=routes&downstreamId=route%2Fone');
+    expect(parseHashRoute(routeToHash(route))).toEqual(route);
+    expect(parseHashRoute('#/upstreams?view=unknown&downstreamId=route')).toEqual({
+      page: 'upstreams',
+      downstreamId: 'route',
+    });
   });
 
   it('round-trips account selection, detail tab, meaningful filters, and unsafe text safely', () => {

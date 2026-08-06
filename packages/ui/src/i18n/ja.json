@@ -556,6 +556,7 @@
       "needsKey": "キーが必要"
     },
     "memberCount": "{{count}} メンバー",
+    "accountPool": "{{provider}} アカウントプール",
     "groupSummary": "{{provider}} の {{count}} アカウント",
     "routeCount": "{{count}} ルート",
     "manageAccount": "アカウントを管理",
@@ -579,7 +580,7 @@
       "fallbackLabel": "このルートで処理できない場合",
       "fallback": {
         "fail": "リクエストを失敗させる",
-        "global": "グローバルフォールバックを使用"
+        "next": "次に一致するルートを試す"
       },
       "priorityFallback": "優先度 {{priority}} · {{fallback}}",
       "providerKey": "プロバイダーキー",
@@ -590,7 +591,7 @@
       "modelsHint": "1行に1つ、またはカンマ区切りでモデル ID を入力します。",
       "unconfiguredModel": "モデル未設定",
       "deleteTitle": "このルートを削除しますか？",
-      "deleteDescription": "「{{name}}」を削除します。リクエストは別の一致するルートまたはグローバルフォールバックを使用します。",
+      "deleteDescription": "「{{name}}」を削除します。リクエストは別の一致するルートを使用し、一致しなければ失敗します。",
       "signalPath": "{{key}} から {{endpoint}}、{{resource}}、{{model}} へ",
       "openFromUpstreams": "このアカウントのゲートウェイルートを管理するには、アップストリームから開いてください。"
     }
@@ -604,15 +605,9 @@
       "overview": "概要",
       "access": "アクセス",
       "activity": "アクティビティ",
-      "settings": "設定",
       "status": "ステータス",
-      "routes": "ルート",
       "accessKeys": "アクセスキー",
       "liveTraffic": "ライブトラフィック"
-    },
-    "globalFallback": {
-      "title": "グローバルフォールバックルーティング",
-      "description": "リソースルートが一致しない場合に使用する高度なフォールバックです。通常のルートはアップストリームから管理します。"
     },
     "bindingCoverage": {
       "title": "Binding カバレッジ",
@@ -640,39 +635,13 @@
       "loopback": "ループバック URL",
       "lan": "LAN URL"
     },
-    "endpoints": {
-      "title": "エンドポイントルーティング",
-      "description": "各ワイヤー形式がルーティングするモデルを選択します。デフォルトモデルはここに組み込まれています — このサーバーはルーターであり、チャットアプリではありません。"
-    },
     "endpoint": {
       "name": {
         "chat": "OpenAI Chat",
         "responses": "OpenAI Responses",
         "messages": "Anthropic Messages",
         "gemini": "Gemini"
-      },
-      "defaultModel": "デフォルトモデル",
-      "backgroundModel": "バックグラウンドモデル",
-      "backgroundModelIds": "バックグラウンドモデル ID",
-      "backgroundModelIdsPlaceholder": "カンマ区切りのモデル ID",
-      "modelPlaceholder": "モデルを選択…",
-      "useSubscription": "サブスクリプションを使用",
-      "subscriptionUnsupported": "このエンドポイントではサブスクリプションルーティングを利用できません。",
-      "kind": {
-        "fable": "Fable",
-        "opus": "Opus",
-        "sonnet": "Sonnet",
-        "haiku": "Haiku",
-        "codex": "Codex",
-        "mini": "Mini"
-      },
-      "kindMapLabel": "種類ごとのモデルマッピング",
-      "cannotStart": "サービスを開始できません：モデルマッピングが未設定です",
-      "missingKind": "必須",
-      "modelListLabel": "モデルリスト",
-      "modelListEmpty": "モデルが未設定です——追加するまでこのエンドポイントは使用されません。",
-      "addModelPlaceholder": "モデルを追加...",
-      "removeModel": "削除"
+      }
     },
     "keys": {
       "title": "アクセスキー",

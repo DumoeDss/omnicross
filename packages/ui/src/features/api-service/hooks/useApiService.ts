@@ -5,16 +5,10 @@
  * + `GET /keys` on mount, exposes the mutations wired to `agent.apiService`, and
  * holds the one-time `plaintextOnce` create-key reveal state.
  *
- * Edits drive off the `config` (kind-mapped endpoints' `modelMap`; role-based
- * endpoints' `defaultModel`/`backgroundModel`), never off the read-only
+ * Edits drive off the `config` (the downstream routes), never off the read-only
  * `status.endpoints[]` projection. After any successful write the hook re-reads
  * BOTH config + status so the editable surface and the live banner stay
  * consistent (the PUT returns only `{ server }`).
- *
- * An `incomplete-model-config` enable is a special non-success: the daemon
- * persists the partial config but refuses to start. The hook still refreshes so
- * the page's client-side "service can't start" banner reflects the persisted
- * state, and suppresses the raw error box (the banner is the actionable surface).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -66,7 +60,6 @@ export interface UseApiServiceResult {
   dismissCreatedKey: () => void;
   setEnabled: (enabled: boolean) => Promise<void>;
   setNetworkBinding: (networkBinding: boolean) => Promise<void>;
-  updateEndpoint: (endpoint: EndpointRoutingConfig) => Promise<void>;
   updateBindings: (bindings: GatewayBinding[]) => Promise<void>;
   createKey: (name: string) => Promise<boolean>;
   revokeKey: (id: string) => Promise<void>;
@@ -221,13 +214,6 @@ export function useApiService(): UseApiServiceResult {
       try {
         const result = await op();
         if (!result.success) {
-          // An incomplete-model-config enable persisted a partial config but did
-          // not start the listener — refresh so the client-side "can't start"
-          // banner (derived from `config`) lights up, and skip the raw error box.
-          if (result.missing) {
-            await refreshAll();
-            return false;
-          }
           setError(result.message ?? 'request failed');
           return false;
         }
@@ -254,12 +240,6 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
-  const updateEndpoint = useCallback(
-    async (endpoint: EndpointRoutingConfig) => {
-      await runWrite(() => agent.apiService.updateEndpoint(endpoint));
-    },
-    [runWrite],
-  );
 
   const createKey = useCallback(async (name: string): Promise<boolean> => {
     setBusy(true);
@@ -462,7 +442,6 @@ export function useApiService(): UseApiServiceResult {
     dismissCreatedKey,
     setEnabled,
     setNetworkBinding,
-    updateEndpoint,
     updateBindings,
     createKey,
     revokeKey,

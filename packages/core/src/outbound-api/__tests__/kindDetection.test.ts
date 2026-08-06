@@ -11,12 +11,8 @@ import {
   isKindMappedEndpoint,
   modelKindsForEndpoint,
   validateEndpointModelConfig,
-  validateServerModelConfig,
 } from '../kindDetection';
-import type {
-  EndpointRoutingConfig,
-  OutboundApiServerConfig,
-} from '../types';
+import type { EndpointRoutingConfig } from '../types';
 
 describe('isKindMappedEndpoint', () => {
   it('true for messages/responses, false for chat/gemini', () => {
@@ -144,59 +140,5 @@ describe('validateEndpointModelConfig', () => {
         useSubscription: false,
       }),
     ).toEqual([]);
-  });
-});
-
-describe('validateServerModelConfig (per-endpoint: fully-blank = unused, partial = error)', () => {
-  const serverConfig = (
-    endpoints: EndpointRoutingConfig[],
-  ): OutboundApiServerConfig => ({
-    enabled: true,
-    networkBinding: false,
-    endpoints,
-    port: 8080,
-  });
-
-  const completeMessages = messagesConfig({ fable: ref, opus: ref, sonnet: ref, haiku: ref });
-  const completeResponses: EndpointRoutingConfig = {
-    endpoint: 'responses',
-    modelMap: { codex: ref, mini: ref },
-    useSubscription: false,
-  };
-  const roleChat: EndpointRoutingConfig = {
-    endpoint: 'chat',
-    defaultModel: ref,
-    backgroundModel: ref,
-    useSubscription: false,
-  };
-
-  it('all kind-mapped endpoints complete → []', () => {
-    expect(
-      validateServerModelConfig(serverConfig([completeMessages, completeResponses, roleChat])),
-    ).toEqual([]);
-  });
-
-  it('incomplete responses → one entry with the missing kind', () => {
-    const partialResponses: EndpointRoutingConfig = {
-      endpoint: 'responses',
-      modelMap: { codex: ref },
-      useSubscription: false,
-    };
-    expect(
-      validateServerModelConfig(serverConfig([completeMessages, partialResponses])),
-    ).toEqual([{ endpoint: 'responses', missingKinds: ['mini'] }]);
-  });
-
-  it('a fully-unconfigured kind-mapped endpoint is UNUSED, not an error', () => {
-    // Only responses configured → messages entirely blank ⇒ operator doesn't
-    // use it; the server may start (messages requests 503 per-request).
-    expect(validateServerModelConfig(serverConfig([completeResponses]))).toEqual([]);
-  });
-
-  it('a partially configured messages endpoint is still an error', () => {
-    const partialMessages = messagesConfig({ fable: '', opus: ref, sonnet: '', haiku: '' });
-    expect(
-      validateServerModelConfig(serverConfig([partialMessages, completeResponses])),
-    ).toEqual([{ endpoint: 'messages', missingKinds: ['fable', 'sonnet', 'haiku'] }]);
   });
 });

@@ -17,22 +17,33 @@ export type ModelRef = string;
 
 /** Bound-account behavior; pool fallback is an explicit opt-in. */
 export type BoundAccountFallbackPolicy = 'strict' | 'pool';
-export type GatewayBindingFallback = 'global' | 'fail';
+export type GatewayBindingFallback = 'next' | 'fail';
+export type GatewayBindingKeyScope = 'all' | 'selected';
+export type GatewayBindingModelMode = 'passthrough' | 'mapped';
+
+export interface GatewayModelMapping {
+  source: string;
+  target: ModelRef;
+}
 
 export type GatewayBindingTarget =
   | { kind: 'account'; providerId: string; accountId: string }
   | { kind: 'account-group'; providerId: string; group: string }
+  | { kind: 'account-pool'; providerId: string }
   | { kind: 'provider'; providerId: string; keyId?: string };
 
 export interface GatewayBinding {
   id: string;
   name: string;
   enabled: boolean;
+  keyScope?: GatewayBindingKeyScope;
   apiKeyIds?: string[];
   endpoint: OutboundEndpointId;
   target: GatewayBindingTarget;
   priority?: number;
   fallback: GatewayBindingFallback;
+  modelMode?: GatewayBindingModelMode;
+  modelMappings?: GatewayModelMapping[];
   modelMap?: Record<string, ModelRef>;
   models?: ModelRef[];
   dispatchMode?: 'list' | 'prefix';
@@ -83,17 +94,6 @@ export interface EndpointRoutingConfig {
   boundKeyFallbackPolicy?: BoundAccountFallbackPolicy;
   /** Optional per-endpoint background-model id override list (role-based only). */
   backgroundModelIds?: string[];
-}
-
-/**
- * One incomplete kind-mapped endpoint and the kinds it is missing — mirrors
- * mkm-core's `EndpointModelConfigError`. Returned by the daemon's enable PUT when
- * a kind-mapped endpoint lacks required mappings (the "service can't start"
- * envelope, `{ error: { code: 'incomplete-model-config', missing } }`).
- */
-export interface OutboundModelConfigError {
-  endpoint: OutboundEndpointId;
-  missingKinds: string[];
 }
 
 /**

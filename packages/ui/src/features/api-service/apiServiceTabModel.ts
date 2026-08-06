@@ -2,23 +2,23 @@ export const API_SERVICE_TABS = [
   { id: 'overview', labelKey: 'apiService.tabs.overview' },
   { id: 'access', labelKey: 'apiService.tabs.access' },
   { id: 'activity', labelKey: 'apiService.tabs.activity' },
-  { id: 'settings', labelKey: 'apiService.tabs.settings' },
 ] as const;
 
 export type ApiServiceCanonicalTabId = (typeof API_SERVICE_TABS)[number]['id'];
 
-/** IDs kept in the type surface for callers from the pre-P4 navigation model. */
-export type ApiServiceLegacyTabId = 'status' | 'routes' | 'access-keys' | 'live-traffic' | 'endpoints' | 'network' | 'advanced';
+/**
+ * IDs kept in the type surface for callers from the pre-P4 navigation model.
+ * `settings`/`routes`/`endpoints` addressed the removed global endpoint
+ * fallback; model routing now lives on the Upstreams page.
+ */
+export type ApiServiceLegacyTabId = 'status' | 'routes' | 'access-keys' | 'live-traffic' | 'endpoints' | 'settings' | 'network' | 'advanced';
 export type ApiServiceTabId = ApiServiceCanonicalTabId | ApiServiceLegacyTabId;
 
 export function normalizeApiServiceTab(tab: ApiServiceTabId | undefined): ApiServiceCanonicalTabId {
   switch (tab) {
-    case 'status': return 'overview';
-    case 'routes':
-    case 'endpoints': return 'settings';
     case 'access-keys': return 'access';
     case 'live-traffic': return 'activity';
-    default: return tab === 'overview' || tab === 'access' || tab === 'activity' || tab === 'settings' ? tab : 'overview';
+    default: return tab === 'overview' || tab === 'access' || tab === 'activity' ? tab : 'overview';
   }
 }
 
@@ -36,7 +36,6 @@ export const API_SERVICE_SECTION_TAB = {
   vouchers: 'access',
   liveTrafficQueue: 'activity',
   recentErrors: 'activity',
-  endpointRouting: 'settings',
 } as const satisfies Record<string, ApiServiceTabId>;
 
 export type ApiServiceSectionId = keyof typeof API_SERVICE_SECTION_TAB;

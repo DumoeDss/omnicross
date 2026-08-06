@@ -8,12 +8,11 @@ import {
 } from '../apiServiceTabModel';
 
 describe('API service information architecture', () => {
-  it('keeps the four gateway tasks in a stable request-path order', () => {
+  it('keeps the gateway tasks in a stable request-path order', () => {
     expect(API_SERVICE_TABS.map((tab) => tab.id)).toEqual([
       'overview',
       'access',
       'activity',
-      'settings',
     ]);
   });
 
@@ -25,7 +24,7 @@ describe('API service information architecture', () => {
     expect(new Set(mappedSections).size).toBe(Object.keys(API_SERVICE_SECTION_TAB).length);
   });
 
-  it('keeps overview concise and places legacy routing in Settings', () => {
+  it('keeps overview concise and no longer carries an endpoint-routing tab', () => {
     expect(sectionsForApiServiceTab('overview')).toEqual([
       'serverStatus',
       'serviceControls',
@@ -34,7 +33,7 @@ describe('API service information architecture', () => {
     ]);
     expect(sectionsForApiServiceTab('access')).toEqual(['accessKeys', 'vouchers']);
     expect(sectionsForApiServiceTab('activity')).toEqual(['liveTrafficQueue', 'recentErrors']);
-    expect(sectionsForApiServiceTab('settings')).toEqual(['endpointRouting']);
+    expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('endpointRouting');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('networkBinding');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('requestQueue');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('upstreamProxy');
@@ -42,7 +41,9 @@ describe('API service information architecture', () => {
 
   it('normalizes old in-memory callers while hashes redirect at the route boundary', () => {
     expect(normalizeApiServiceTab('status')).toBe('overview');
-    expect(normalizeApiServiceTab('endpoints')).toBe('settings');
+    // The endpoint-routing tab is gone with the global fallback; old ids land on overview.
+    expect(normalizeApiServiceTab('endpoints')).toBe('overview');
+    expect(normalizeApiServiceTab('settings')).toBe('overview');
     expect(normalizeApiServiceTab('access-keys')).toBe('access');
     expect(normalizeApiServiceTab('live-traffic')).toBe('activity');
   });

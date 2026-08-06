@@ -228,6 +228,7 @@ beforeEach(async () => {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
   await daemon.adminServer.start();
@@ -344,14 +345,14 @@ describe('omnicross daemon gateway bindings → real /v1/messages routing', () =
     expect(upstream.hits).toBe(hitsBefore);
   });
 
-  it('global fallback uses the legacy pool when the bound account is unavailable', async () => {
+  it('a next-fallback route uses the provider pool when the bound account is unavailable', async () => {
     await daemon.credentialStore.patchAccountMetadata('claude', accountBId, { enabled: false });
     await setBindings([
       accountBinding({
         id: 'fallback-from-b',
         target: { kind: 'account', providerId: 'claude', accountId: accountBId },
         apiKeyIds: [clientKeyId],
-        fallback: 'global',
+        fallback: 'next',
       }),
     ]);
 
@@ -360,14 +361,14 @@ describe('omnicross daemon gateway bindings → real /v1/messages routing', () =
     expect(upstream.lastAuthHeader).toBe(`Bearer ${BEARER_A}`);
   });
 
-  it('global fallback leaves an unavailable account group and uses the full pool', async () => {
+  it('a next-fallback route leaves an unavailable account group and uses the full pool', async () => {
     await daemon.credentialStore.patchAccountMetadata('claude', accountBId, { enabled: false });
     await setBindings([
       accountBinding({
         id: 'fallback-from-team-a',
         target: { kind: 'account-group', providerId: 'claude', group: 'team-a' },
         apiKeyIds: [clientKeyId],
-        fallback: 'global',
+        fallback: 'next',
       }),
     ]);
 

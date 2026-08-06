@@ -226,6 +226,7 @@ async function bootDaemon(): Promise<void> {
     enabled: true,
     networkBinding: serverConfig.networkBinding,
     endpoints: serverConfig.endpoints,
+    bindings: serverConfig.bindings,
     port: serverConfig.port,
   });
 

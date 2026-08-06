@@ -19,8 +19,6 @@ export interface ProviderSettingsProps {
   onSelectedProviderChange?: (providerId: string | null) => void;
   /** Open directly in the provider creation form. */
   mode?: 'manage' | 'create';
-  /** Resource-owned route editor inserted above provider configuration. */
-  routePanel?: React.ReactNode;
 }
 
 export function ProviderSettings({
@@ -28,7 +26,6 @@ export function ProviderSettings({
   selectedProviderId: controlledProviderId,
   onSelectedProviderChange,
   mode = 'manage',
-  routePanel,
 }: ProviderSettingsProps = {}) {
   const t = useTranslation();
   // Re-entry banner dismiss state (per-view, resets on remount) — non-blocking.
@@ -176,11 +173,6 @@ export function ProviderSettings({
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-surface-1/60 wallpaper-blur">
           {/* Content - Scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            {!isAddingNew && !isEditing && routePanel ? (
-              <div className="border-b border-border/70 bg-surface-0/50 p-4 sm:p-5">
-                {routePanel}
-              </div>
-            ) : null}
             {isAddingNew ? (
               <ProviderForm
                 isEditing={false}

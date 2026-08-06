@@ -52,6 +52,7 @@ export {
   normalizeAccountProbe,
   normalizeAllowanceScheduling,
   normalizeAudit,
+  legacyEndpointsToBindings,
   normalizeBilling,
   normalizeFingerprint,
   normalizeGatewayBindings,
@@ -67,6 +68,8 @@ export {
   saveServerConfig,
 } from './apiServerConfig';
 export {
+  candidateBackgroundModelIds,
+  candidateGatewayBindings,
   gatewayBindingToEndpointConfig,
   resolveGatewayBinding,
   type GatewayBindingResolution,
@@ -113,11 +116,9 @@ export {
 } from './userMessageSerialQueue';
 export {
   detectModelKind,
-  type EndpointModelConfigError,
   isKindMappedEndpoint,
   modelKindsForEndpoint,
   validateEndpointModelConfig,
-  validateServerModelConfig,
 } from './kindDetection';
 export {
   createIntegrationKey,
@@ -166,7 +167,6 @@ export type {
 export {
   DEFAULT_OUTBOUND_PORT,
   formatUrls,
-  OutboundApiConfigError,
   OutboundApiServer,
 } from './OutboundApiServer';
 export { OutboundRateLimiter } from './outboundRateLimiter';
@@ -195,7 +195,10 @@ export type {
   FingerprintConfig,
   GatewayBinding,
   GatewayBindingFallback,
+  GatewayBindingKeyScope,
+  GatewayBindingModelMode,
   GatewayBindingTarget,
+  GatewayModelMapping,
   KindMappedEndpoint,
   MessagesModelKind,
   ModelKind,

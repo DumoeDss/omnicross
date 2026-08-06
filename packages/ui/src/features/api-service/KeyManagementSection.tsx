@@ -9,7 +9,7 @@
  * on dismiss).
  */
 
-import { ArrowRight, Check, Copy, KeyRound, Plus, Route, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Copy, KeyRound, Link2, Plus, Route, SlidersHorizontal, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,12 @@ import type {
   GatewayBinding,
 } from '@/daemon/types';
 
-import { bindingsForClientKey, bindingTargetLabel } from './gatewayBindingUiModel';
+import {
+  bindingAllowsClientKey,
+  bindingsForClientKey,
+  bindingTargetLabel,
+  setBindingForClientKey,
+} from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
 
 interface KeyManagementSectionProps {
@@ -41,6 +46,7 @@ interface KeyManagementSectionProps {
   onDismissCreated: () => void;
   bindings?: GatewayBinding[];
   onOpenBinding?: (binding: GatewayBinding) => void;
+  onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
 }
 
 /**
@@ -155,12 +161,14 @@ export function KeyManagementSection({
   onDismissCreated,
   bindings = [],
   onOpenBinding,
+  onChangeBindings,
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
   const [revokeTarget, setRevokeTarget] = useState<OutboundApiKeyInfo | null>(null);
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
+  const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     const trimmed = name.trim();
@@ -292,6 +300,45 @@ export function KeyManagementSection({
                           <span className="truncate">{bindingTargetLabel(binding)}</span>
                         </button>
                       ))}
+                    </div>
+                  ) : null}
+                  {bindings.length && onChangeBindings ? (
+                    <div className="mt-2">
+                      <Button
+                        size="xs"
+                        variant={bindingOpenId === k.id ? 'secondary' : 'ghost'}
+                        onClick={() => setBindingOpenId((current) => current === k.id ? null : k.id)}
+                      >
+                        <Link2 className="h-3 w-3" />
+                        {t('apiService.keys.bindings.manage')}
+                      </Button>
+                      {bindingOpenId === k.id ? (
+                        <div className="mt-2 space-y-1 rounded-md border border-border/70 bg-surface-1/45 p-2">
+                          {bindings.map((binding) => (
+                            <label key={binding.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-surface-2/60">
+                              <input
+                                type="checkbox"
+                                checked={bindingAllowsClientKey(binding, k.id)}
+                                disabled={busy}
+                                onChange={(event) => void onChangeBindings(setBindingForClientKey(
+                                  bindings,
+                                  keys.map((key) => key.id),
+                                  k.id,
+                                  binding.id,
+                                  event.target.checked,
+                                ))}
+                              />
+                              <span className="min-w-0 flex-1 truncate text-foreground">{binding.name}</span>
+                              <Badge variant={binding.enabled ? 'outline' : 'secondary'}>
+                                {t(`apiService.endpoint.name.${binding.endpoint}`)}
+                              </Badge>
+                            </label>
+                          ))}
+                          <p className="px-2 pt-1 text-[10px] text-muted-foreground">
+                            {t('apiService.keys.bindings.manageHint')}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
