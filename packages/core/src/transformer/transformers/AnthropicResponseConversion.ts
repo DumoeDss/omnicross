@@ -7,6 +7,8 @@
  * @module transformer/transformers/AnthropicResponseConversion
  */
 
+import { anthropicUsageToChatUsage } from './utils/usage-mapping';
+
 /**
  * Convert Anthropic non-streaming response to OpenAI-compatible format.
  * Reverse of `convertOpenAIResponseToAnthropic`.
@@ -62,7 +64,7 @@ export function convertAnthropicResponseToOpenAI(
     stop_sequence: 'stop',
   };
 
-  const usage = anthropicResponse.usage as Record<string, number> | undefined;
+  const usage = anthropicResponse.usage as Record<string, unknown> | undefined;
 
   return {
     id: anthropicResponse.id || `chatcmpl-${Date.now()}`,
@@ -74,11 +76,9 @@ export function convertAnthropicResponseToOpenAI(
       message,
       finish_reason: stopReasonMapping[anthropicResponse.stop_reason as string] || 'stop',
     }],
-    usage: usage ? {
-      prompt_tokens: usage.input_tokens || 0,
-      completion_tokens: usage.output_tokens || 0,
-      total_tokens: (usage.input_tokens || 0) + (usage.output_tokens || 0),
-    } : undefined,
+    // Preserve prompt-cache counts (cache-read → prompt_tokens_details.cached_tokens,
+    // cache-creation folded into prompt_tokens) instead of dropping them.
+    usage: anthropicUsageToChatUsage(usage),
   };
 }
 

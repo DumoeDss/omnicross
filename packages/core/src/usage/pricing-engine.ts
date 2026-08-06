@@ -61,6 +61,15 @@ export class PricingEngine {
    * non-wildcard entry per model wins.
    */
   private cacheByModel: Map<string, PricingEntry> = new Map();
+  /**
+   * Last-resort fuzzy index: `[normalizedModelId, entry]` pairs over the same
+   * non-wildcard, non-openrouter rows as `cacheByModel`. Used when even the
+   * model-name fallback misses — e.g. usage recorded under a bare model id
+   * (`glm-5.2`) while the catalog only knows prefixed slugs
+   * (`cloudflare/@cf/zai-org/glm-5.2`). This is an ESTIMATE: the matched row
+   * may be an aggregate-route price rather than the direct-vendor rate.
+   */
+  private fuzzyEntries: Array<[string, PricingEntry]> = [];
   private cacheLoaded = false;
   /** Coalesce manual and background refreshes to prevent a catalog stampede. */
   private refreshInFlight: Promise<PricingFetchResult> | null = null;
@@ -79,12 +88,14 @@ export class PricingEngine {
     const rows = await this.store.getAll();
     this.cache = new Map(rows.map(r => [keyOf(r.providerId, r.modelId), r]));
     this.cacheByModel = new Map();
+    this.fuzzyEntries = [];
     for (const r of rows) {
       // OpenRouter prices describe routing through OpenRouter, not the direct
       // vendor endpoint. Never let their shared model slug satisfy the legacy
       // cross-provider alias fallback.
       if (r.providerId === '*' || r.providerId === 'openrouter' || r.source === 'openrouter') continue;
       if (!this.cacheByModel.has(r.modelId)) this.cacheByModel.set(r.modelId, r);
+      this.fuzzyEntries.push([normalizeModelId(r.modelId), r]);
     }
     this.cacheLoaded = true;
   }
@@ -108,15 +119,41 @@ export class PricingEngine {
    *   2. wildcard provider ('*', modelId)
    *   3. model name alone (any provider) — tolerates a runtime-alias vs
    *      canonical provider-id mismatch for the same model.
+   *   4. normalized fuzzy match (last resort) — matches a bare id like
+   *      `glm-5.2` against prefixed catalog slugs like
+   *      `cloudflare/@cf/zai-org/glm-5.2`. ESTIMATE only: the matched row may
+   *      be an aggregate-route price, not the direct-vendor rate.
    */
   async getEntry(providerId: string, modelId: string): Promise<PricingEntry | null> {
     await this.ensureCache();
-    return (
+    const exact =
       this.cache.get(keyOf(providerId, modelId)) ??
       this.cache.get(keyOf('*', modelId)) ??
       this.cacheByModel.get(modelId) ??
-      null
-    );
+      null;
+    if (exact) return exact;
+    return this.fuzzyMatch(modelId);
+  }
+
+  /**
+   * Normalized substring match over the catalog's non-openrouter rows. Lowercases
+   * and strips all non-alphanumerics, then matches bidirectionally, preferring
+   * the shortest catalog key (tightest match) to reduce over-matching version
+   * variants. Returns null when nothing matches.
+   */
+  private fuzzyMatch(modelId: string): PricingEntry | null {
+    const normQuery = normalizeModelId(modelId);
+    if (!normQuery) return null;
+    let best: PricingEntry | null = null;
+    let bestLen = Infinity;
+    for (const [key, entry] of this.fuzzyEntries) {
+      if (!key || !key.includes(normQuery) && !normQuery.includes(key)) continue;
+      if (key.length < bestLen) {
+        best = entry;
+        bestLen = key.length;
+      }
+    }
+    return best;
   }
 
   // ===== Cost calculation =====
@@ -291,6 +328,15 @@ export class PricingEngine {
 
 const keyOf = (providerId: string, modelId: string): string =>
   `${providerId}::${modelId}`;
+
+/**
+ * Normalize a model id for fuzzy matching: lowercase and strip every
+ * non-alphanumeric, so `glm-5.2`, `glm_5.2`, `GLM-5.2`, `z-ai/glm-5.2`, and
+ * `cloudflare/@cf/zai-org/glm-5.2` all reduce to a comparable form (the bare
+ * id `glm-5.2` → `glm52` is then a substring of the prefixed slug forms).
+ */
+const normalizeModelId = (modelId: string): string =>
+  (modelId ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // ===== LiteLLM JSON parsing =====
 // LiteLLM publishes one JSON file with model id keys mapping to objects shaped

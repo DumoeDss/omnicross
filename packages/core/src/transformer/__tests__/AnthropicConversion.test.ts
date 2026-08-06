@@ -42,6 +42,40 @@ describe('convertAnthropicResponseToOpenAI', () => {
     expect(result.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
   });
 
+  it('preserves cache_read_input_tokens through the usage conversion (hero regression)', () => {
+    // Real z.ai Anthropic-endpoint shape: input_tokens EXCLUDES cache, cache
+    // read is reported alongside. Pre-fix this dropped the cache field and the
+    // dashboard showed 0 cache read for a 99%-cached turn.
+    const result = convertAnthropicResponseToOpenAI({
+      id: 'msg_cache',
+      model: 'glm-5.2',
+      content: [{ type: 'text', text: 'Hi' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 52, output_tokens: 321, cache_read_input_tokens: 7040 },
+    });
+    expect(result.usage).toEqual({
+      prompt_tokens: 7092, // 52 fresh + 7040 cached
+      completion_tokens: 321,
+      total_tokens: 7413,
+      prompt_tokens_details: { cached_tokens: 7040 },
+    });
+  });
+
+  it('folds cache_creation_input_tokens into prompt_tokens (no OpenAI equivalent)', () => {
+    const result = convertAnthropicResponseToOpenAI({
+      id: 'msg_create',
+      model: 'claude-sonnet-4',
+      content: [{ type: 'text', text: 'Hi' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 200 },
+    });
+    expect(result.usage).toEqual({
+      prompt_tokens: 300, // 100 fresh + 200 cache-create, billed at input rate
+      completion_tokens: 50,
+      total_tokens: 350,
+    });
+  });
+
   it('maps tool_use blocks to tool_calls', () => {
     const result = convertAnthropicResponseToOpenAI({
       id: 'msg_2',

@@ -25,6 +25,36 @@ import type {
 import { flattenToolResultContent, mapAnthropicStopReason } from './shared';
 
 /**
+ * Build an OpenAI Chat `usage` from an Anthropic usage block, preserving
+ * prompt-cache counts. Anthropic `input_tokens` excludes cache; OpenAI
+ * `prompt_tokens` treats cached tokens as a subset (readers compute
+ * billable = prompt_tokens - cached_tokens). So fold both cache pools into
+ * prompt_tokens and surface cache-read via prompt_tokens_details.cached_tokens.
+ *
+ * Mirrors `transformer/transformers/utils/usage-mapping.ts` (kept local to
+ * avoid an api-converter → transformer layering edge).
+ */
+function anthropicUsageToChatUsage(usage: {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+}): { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details?: { cached_tokens: number } } {
+  const input = usage.input_tokens || 0;
+  const output = usage.output_tokens || 0;
+  const cacheRead = usage.cache_read_input_tokens || 0;
+  const cacheCreation = usage.cache_creation_input_tokens || 0;
+  const promptTokens = input + cacheRead + cacheCreation;
+  const out: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details?: { cached_tokens: number } } = {
+    prompt_tokens: promptTokens,
+    completion_tokens: output,
+    total_tokens: promptTokens + output,
+  };
+  if (cacheRead > 0) out.prompt_tokens_details = { cached_tokens: cacheRead };
+  return out;
+}
+
+/**
  * Convert Anthropic response to OpenAI format.
  */
 export function convertAnthropicToOpenAI(
@@ -70,11 +100,7 @@ export function convertAnthropicToOpenAI(
         finish_reason: finishReason,
       },
     ],
-    usage: {
-      prompt_tokens: response.usage.input_tokens,
-      completion_tokens: response.usage.output_tokens,
-      total_tokens: response.usage.input_tokens + response.usage.output_tokens,
-    },
+    usage: anthropicUsageToChatUsage(response.usage),
   };
 
   if (reasoningContent) {
@@ -347,11 +373,14 @@ export async function* convertAnthropicStreamToOpenAI(
                 delta: {},
                 finish_reason: finishReason
               }],
-              usage: event.usage ? {
-                prompt_tokens: event.usage.input_tokens || 0,
-                completion_tokens: event.usage.output_tokens || 0,
-                total_tokens: (event.usage.input_tokens || 0) + (event.usage.output_tokens || 0)
-              } : undefined
+              usage: event.usage
+                ? anthropicUsageToChatUsage({
+                    input_tokens: event.usage.input_tokens || 0,
+                    output_tokens: event.usage.output_tokens || 0,
+                    cache_read_input_tokens: (event.usage as Record<string, unknown>).cache_read_input_tokens as number | undefined,
+                    cache_creation_input_tokens: (event.usage as Record<string, unknown>).cache_creation_input_tokens as number | undefined,
+                  })
+                : undefined
             })}\n\n`;
           }
           break;
