@@ -19,8 +19,11 @@
  *   - OMNICROSS_SKIP_NODE_BUNDLE=1 → skip (the shell falls back to PATH node);
  *   - OMNICROSS_NODE_VERSION=x.y.z → pin a different Node (default below);
  *   - OMNICROSS_NODE_MIRROR=<url> (or NODEJS_ORG_MIRROR) → fetch from a mirror of
- *     the nodejs.org/dist layout, tried *before* the built-ins. Note: Node's global
- *     fetch() ignores HTTP(S)_PROXY, so a working proxy alone won't unblock this.
+ *     the nodejs.org/dist layout, tried *before* the built-ins.
+ *   - HTTP(S)_PROXY / ALL_PROXY / NO_PROXY → honored via undici's EnvHttpProxyAgent,
+ *     so a local proxy (e.g. Clash/V2Ray at 127.0.0.1:7890) or a corporate proxy
+ *     unblocks fetch. Without this, Node's built-in fetch() ignores proxy env vars
+ *     and a direct connection stalls to the timeout below.
  *   - OMNICROSS_NODE_FETCH_TIMEOUT_MS=<ms> → per-request timeout (default 300000);
  *     converts a stalled connection into a clear error instead of an infinite hang.
  *
@@ -35,6 +38,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setGlobalDispatcher, EnvHttpProxyAgent } from 'undici';
 
 const NODE_VERSION = process.env.OMNICROSS_NODE_VERSION || '20.18.1';
 
@@ -59,6 +63,21 @@ const MIRRORS = [
 ];
 // fetch() has no default timeout; without this a stalled connection hangs forever.
 const FETCH_TIMEOUT_MS = Number(process.env.OMNICROSS_NODE_FETCH_TIMEOUT_MS) || 300_000;
+
+// Node's built-in fetch() ignores HTTP(S)_PROXY, so behind a local/corporate proxy
+// every mirror connection stalls until FETCH_TIMEOUT_MS. Route fetch through the
+// proxy env vars when any is set; EnvHttpProxyAgent honors HTTP(S)_PROXY/ALL_PROXY
+// and NO_PROXY. No env → no-op (CI and proxy-less devs keep direct fetch).
+const proxyUrl =
+  process.env.HTTPS_PROXY ||
+  process.env.HTTP_PROXY ||
+  process.env.https_proxy ||
+  process.env.http_proxy ||
+  process.env.ALL_PROXY;
+if (proxyUrl) {
+  setGlobalDispatcher(new EnvHttpProxyAgent());
+  console.info(`[stage-node] routing fetch through proxy (${proxyUrl})`);
+}
 
 async function fetchBuffer(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
