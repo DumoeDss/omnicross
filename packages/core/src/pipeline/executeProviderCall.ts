@@ -115,8 +115,9 @@ export interface ProviderCallContext {
     body: unknown,
   ) => Promise<Response>;
   /**
-   * When `true`, the core runs `executeResponseChain` on the fetched
-   * response and returns the TRANSFORMED response. When `false` (default),
+   * When `true`, the core runs `executeResponseChain` on a SUCCESSFUL fetched
+   * response and returns the TRANSFORMED response; a failed (`!response.ok`)
+   * response is returned raw so its status and error body survive. When `false` (default),
    * the core returns the RAW fetched response and the caller runs the
    * response chain itself — this preserves call sites that gate on
    * `response.ok` BEFORE the response chain (Adapter / Handler).
@@ -142,7 +143,11 @@ export interface ProviderCallContext {
  * before, and so the wire-capture / logging hooks keep their inputs.
  */
 export interface ProviderCallResult {
-  /** Transformed response (runResponseChain=true) or raw response (false). */
+  /**
+   * Transformed response (runResponseChain=true AND the upstream response was
+   * `ok`), otherwise the RAW fetched response — see the `.ok` gate in the
+   * implementation for why failures are never transformed.
+   */
   response: Response;
   /** Request-chain output body (pre-`prepareBody`). */
   requestBody: unknown;
@@ -205,7 +210,14 @@ export async function executeProviderCall(
   // 5. Optionally run the response chain in-core. When false, the caller
   //    runs it itself AFTER its own `response.ok` gate (Adapter / Handler).
   let response = fetched;
-  if (runResponseChain) {
+  // A FAILED upstream response never goes through the response chain. The chain
+  // rebuilds a fresh `new Response(...)` — which defaults to status 200 — so an
+  // upstream 4xx/5xx used to reach the client as a 200 carrying a transformed
+  // (and usually empty) success envelope, hiding the real error and defeating
+  // client-side retry/backoff. Returning the RAW failed response preserves its
+  // status and body, and matches the `.ok` gate the Adapter/Handler call sites
+  // already apply before running the chain themselves.
+  if (runResponseChain && fetched.ok) {
     response = await executor.executeResponseChain(
       // Preserve the EXACT first arg each site passed: proxy → requestBody,
       // unified ingresses → their pre-transform request. The caller supplies

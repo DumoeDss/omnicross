@@ -30,6 +30,8 @@ interface ResponseApiInput {
 interface ResponseApiRequest {
   model: string;
   input: Array<ResponseApiInput | Record<string, unknown>>;
+  /** The public Responses API's system prompt (codex sends a `developer` item instead). */
+  instructions?: string;
   stream?: boolean;
   max_output_tokens?: number;
   temperature?: number;
@@ -211,15 +213,32 @@ export class OpenAIResponseTransformer implements Transformer {
     const req = request as ResponseApiRequest;
     const messages: UnifiedMessage[] = [];
 
+    // The public Responses API carries the system prompt in `instructions`
+    // (codex instead sends it as a `developer` message item). Dropping it lost
+    // the caller's entire system prompt silently.
+    const instructions = typeof req.instructions === 'string' ? req.instructions.trim() : '';
+    if (instructions) {
+      messages.push({ role: 'system', content: instructions });
+    }
+
     if (req.input) {
       for (const item of req.input) {
         const entry = item as Record<string, unknown>;
+        const itemType = typeof entry.type === 'string' ? entry.type : undefined;
 
-        // Handle function_call_output (tool results)
-        if (entry.type === 'function_call_output') {
+        if (itemType && SKIPPED_INPUT_ITEM_TYPES.has(itemType)) continue;
+
+        // Handle function_call_output (tool results). `output` is a plain string
+        // for most tools, but codex sends an ARRAY of `input_text` parts when a
+        // result has several segments (exit code / wall time / stdout). Relaying
+        // that array verbatim put Responses part types inside an OpenAI-chat
+        // `content`, which upstreams reject (z.ai: `messages[N].content[0].type
+        // type error`) — and the resulting upstream error surfaced to the client
+        // as a truncated stream, not as the 400 it was. Flatten to text.
+        if (itemType === 'function_call_output') {
           messages.push({
             role: 'tool',
-            content: (entry.output as string) || '',
+            content: flattenContent(entry.output),
             tool_call_id: (entry.call_id as string) || undefined,
           });
           continue;
@@ -231,7 +250,7 @@ export class OpenAIResponseTransformer implements Transformer {
         // by one `{type:'function_call'}` item per tool call. Attach the call to the
         // most-recent assistant message if it is the last pushed message (mirrors the
         // encode grouping); otherwise start a fresh assistant message.
-        if (entry.type === 'function_call') {
+        if (itemType === 'function_call') {
           const toolCall = {
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
@@ -249,19 +268,22 @@ export class OpenAIResponseTransformer implements Transformer {
           continue;
         }
 
+        // Everything reaching here is a message item — either `{type:'message',
+        // role, content}` or the bare `{role, content}` shorthand; every other
+        // item type was skipped above. `content` is a string or an array of
+        // typed parts; it was previously `JSON.stringify`d, so the upstream
+        // model literally read `[{"type":"input_text","text":"…"}]` instead of
+        // the text. Flatten it.
         const role = entry.role as string;
-        if (role === 'developer') {
-          messages.push({
-            role: 'system',
-            content:
-              typeof entry.content === 'string' ? entry.content : JSON.stringify(entry.content),
-          });
+        const text = flattenContent(entry.content);
+        // Defensive: an item with a role but no usable text would otherwise emit
+        // a `{"role":"system"}` message with `content: undefined`, which some
+        // upstreams reject outright.
+        if (!text) continue;
+        if (role === 'developer' || role === 'system') {
+          messages.push({ role: 'system', content: text });
         } else if (role === 'user' || role === 'assistant') {
-          messages.push({
-            role,
-            content:
-              typeof entry.content === 'string' ? entry.content : JSON.stringify(entry.content),
-          });
+          messages.push({ role, content: text });
         }
       }
     }
@@ -376,14 +398,69 @@ export class OpenAIResponseTransformer implements Transformer {
 // Helper Functions
 // ============================================================================
 
+/**
+ * Content-part types that carry plain text. `input_text` is the user/developer
+ * part type, `output_text` the assistant one, `summary_text` a reasoning
+ * summary, and `text` the unified (OpenAI-chat) spelling — this helper runs in
+ * BOTH directions, so it accepts both vocabularies. Anything else (images,
+ * files) contributes no text.
+ */
+const TEXT_PART_TYPES = new Set(['text', 'input_text', 'output_text', 'summary_text']);
+
+/**
+ * Responses `input` item types with no OpenAI-chat equivalent — dropped on decode.
+ *
+ * - `reasoning` — provider-internal, and `encrypted_content` under `store:false`.
+ * - `additional_tools` — codex's tool DECLARATIONS (the custom `exec` tool plus
+ *   the collaboration namespace). Mapping them needs the custom-tool call/output
+ *   protocol on the RESPONSE side too, so they are dropped rather than
+ *   half-supported (a declared tool the response path can't encode back is worse
+ *   than no tool). It also carries `role:'developer'` with NO content, which is
+ *   why the message branch below guards on empty text.
+ * - `custom_tool_call` / `custom_tool_call_output` — the other half of that same
+ *   protocol. Dropped AS A PAIR: keeping either side alone would break the
+ *   assistant-call ↔ tool-result pairing that upstreams validate.
+ * - `agent_message` — codex multi-agent inbound message; no chat role fits it.
+ */
+const SKIPPED_INPUT_ITEM_TYPES = new Set([
+  'reasoning',
+  'additional_tools',
+  'custom_tool_call',
+  'custom_tool_call_output',
+  'agent_message',
+]);
+
+/**
+ * Flatten any Responses-API content value to plain text.
+ *
+ * Handles the shapes that actually appear on the wire:
+ *   - a bare string
+ *   - an array of typed parts (`[{type:'input_text', text:'…'}, …]`)
+ *   - a `{content:[…]}` / `{text:'…'}` wrapper
+ *
+ * Codex splits one tool result into SEVERAL parts (exit code, wall time,
+ * stdout), so parts are joined with a newline. An unrecognized shape yields ''
+ * — callers drop empty messages rather than forward `undefined` upstream.
+ */
 function flattenContent(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!content) return '';
   if (Array.isArray(content)) {
     return content
-      .filter((c: Record<string, unknown>) => c.type === 'text')
-      .map((c: Record<string, unknown>) => (c.text as string) || '')
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        if (!part || typeof part !== 'object') return '';
+        const c = part as Record<string, unknown>;
+        if (typeof c.type === 'string' && !TEXT_PART_TYPES.has(c.type)) return '';
+        return typeof c.text === 'string' ? c.text : '';
+      })
+      .filter((text) => text !== '')
       .join('\n');
+  }
+  if (typeof content === 'object') {
+    const obj = content as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (Array.isArray(obj.content)) return flattenContent(obj.content);
   }
   return '';
 }
