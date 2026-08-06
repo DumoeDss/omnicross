@@ -65,6 +65,27 @@ function readAnthropicUsage(usage: Record<string, unknown> | undefined): {
  * present, record one usage event with origin `'codex-ingress'`. Never
  * throws.
  */
+function emitAnthropicUsageRecord(
+  recorder: UsageRecorderImport,
+  rawUsage: Record<string, unknown> | undefined,
+  attribution: AnthropicUsageAttribution,
+): void {
+  const tapped = readAnthropicUsage(rawUsage);
+  if (!tapped) return;
+  recorder.record({
+    messageId: null,
+    parentMessageId: null,
+    sessionId: attribution.sessionId,
+    providerId: attribution.providerId,
+    model: attribution.model,
+    apiKeyId: attribution.apiKeyId,
+    auditResponse: attribution.auditResponse,
+    engineOrigin: 'codex-ingress',
+    usage: tapped,
+    rawUsage,
+  });
+}
+
 export function recordAnthropicNonStreamUsage(
   recorder: UsageRecorderImport,
   bodyText: string,
@@ -72,21 +93,29 @@ export function recordAnthropicNonStreamUsage(
 ): void {
   try {
     const parsed = JSON.parse(bodyText) as Record<string, unknown>;
-    const tapped = readAnthropicUsage(parsed.usage as Record<string, unknown> | undefined);
-    if (!tapped) return;
-    recorder.record({
-      messageId: null,
-      parentMessageId: null,
-      sessionId: attribution.sessionId,
-      providerId: attribution.providerId,
-      model: attribution.model,
-      apiKeyId: attribution.apiKeyId,
-      engineOrigin: 'codex-ingress',
-      usage: tapped,
-      rawUsage: parsed.usage,
-      auditResponse: attribution.auditResponse,
-    });
+    emitAnthropicUsageRecord(
+      recorder,
+      parsed.usage as Record<string, unknown> | undefined,
+      attribution,
+    );
   } catch {
     // Unparseable body / no usage — skip silently.
+  }
+}
+
+/**
+ * Record one Anthropic usage event from a raw combined `usage` object tapped out
+ * of a STREAMING `message_start`+`message_delta` pair (the ingress merges the
+ * piecewise input/output usage before calling this). Never throws.
+ */
+export function recordAnthropicStreamUsage(
+  recorder: UsageRecorderImport,
+  rawUsage: Record<string, unknown> | undefined,
+  attribution: AnthropicUsageAttribution,
+): void {
+  try {
+    emitAnthropicUsageRecord(recorder, rawUsage, attribution);
+  } catch {
+    // never throw on usage accounting
   }
 }

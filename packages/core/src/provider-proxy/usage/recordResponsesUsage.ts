@@ -48,6 +48,28 @@ function readResponsesUsage(usage: Record<string, unknown> | undefined): {
   };
 }
 
+/** Record one Responses-API usage event from an already-parsed raw `usage` object. */
+function emitResponsesUsageRecord(
+  recorder: UsageRecorderImport,
+  rawUsage: Record<string, unknown> | undefined,
+  attribution: ResponsesUsageAttribution,
+): void {
+  const tapped = readResponsesUsage(rawUsage);
+  if (!tapped) return;
+  recorder.record({
+    messageId: null,
+    parentMessageId: null,
+    sessionId: attribution.sessionId,
+    providerId: attribution.providerId,
+    model: attribution.model,
+    apiKeyId: attribution.apiKeyId,
+    auditResponse: attribution.auditResponse,
+    engineOrigin: 'codex-ingress',
+    usage: tapped,
+    rawUsage,
+  });
+}
+
 /**
  * Parse a non-stream Responses-API JSON body and, when a usage block is present,
  * record one usage event with origin `'codex-ingress'`. Never throws.
@@ -59,21 +81,30 @@ export function recordResponsesNonStreamUsage(
 ): void {
   try {
     const parsed = JSON.parse(bodyText) as Record<string, unknown>;
-    const tapped = readResponsesUsage(parsed.usage as Record<string, unknown> | undefined);
-    if (!tapped) return;
-    recorder.record({
-      messageId: null,
-      parentMessageId: null,
-      sessionId: attribution.sessionId,
-      providerId: attribution.providerId,
-      model: attribution.model,
-      apiKeyId: attribution.apiKeyId,
-      auditResponse: attribution.auditResponse,
-      engineOrigin: 'codex-ingress',
-      usage: tapped,
-      rawUsage: parsed.usage,
-    });
+    emitResponsesUsageRecord(
+      recorder,
+      parsed.usage as Record<string, unknown> | undefined,
+      attribution,
+    );
   } catch {
     // Unparseable body / no usage — skip silently.
+  }
+}
+
+/**
+ * Record one Responses-API usage event from a raw `usage` object tapped out of a
+ * STREAMING `response.completed` event. The non-stream tap only sees buffered
+ * bodies, so streaming turns — all of Codex, which forces `stream:true` — went
+ * unrecorded before this (dashboard showed 0 requests / 0 tokens). Never throws.
+ */
+export function recordResponsesStreamUsage(
+  recorder: UsageRecorderImport,
+  rawUsage: Record<string, unknown> | undefined,
+  attribution: ResponsesUsageAttribution,
+): void {
+  try {
+    emitResponsesUsageRecord(recorder, rawUsage, attribution);
+  } catch {
+    // never throw on usage accounting
   }
 }

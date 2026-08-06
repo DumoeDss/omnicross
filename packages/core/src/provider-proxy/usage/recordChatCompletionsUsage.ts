@@ -54,6 +54,28 @@ function readChatCompletionsUsage(usage: Record<string, unknown> | undefined): {
   };
 }
 
+/** Record one Chat-Completions usage event from an already-parsed raw `usage` object. */
+function emitChatCompletionsUsageRecord(
+  recorder: UsageRecorderImport,
+  rawUsage: Record<string, unknown> | undefined,
+  attribution: ChatCompletionsUsageAttribution,
+): void {
+  const tapped = readChatCompletionsUsage(rawUsage);
+  if (!tapped) return;
+  recorder.record({
+    messageId: null,
+    parentMessageId: null,
+    sessionId: attribution.sessionId,
+    providerId: attribution.providerId,
+    model: attribution.model,
+    apiKeyId: attribution.apiKeyId,
+    auditResponse: attribution.auditResponse,
+    engineOrigin: 'codex-ingress',
+    usage: tapped,
+    rawUsage,
+  });
+}
+
 /**
  * Parse a non-stream Chat-Completions JSON body and, when a usage block is
  * present, record one usage event. Never throws.
@@ -65,21 +87,29 @@ export function recordChatCompletionsNonStreamUsage(
 ): void {
   try {
     const parsed = JSON.parse(bodyText) as Record<string, unknown>;
-    const tapped = readChatCompletionsUsage(parsed.usage as Record<string, unknown> | undefined);
-    if (!tapped) return;
-    recorder.record({
-      messageId: null,
-      parentMessageId: null,
-      sessionId: attribution.sessionId,
-      providerId: attribution.providerId,
-      model: attribution.model,
-      apiKeyId: attribution.apiKeyId,
-      auditResponse: attribution.auditResponse,
-      engineOrigin: 'codex-ingress',
-      usage: tapped,
-      rawUsage: parsed.usage,
-    });
+    emitChatCompletionsUsageRecord(
+      recorder,
+      parsed.usage as Record<string, unknown> | undefined,
+      attribution,
+    );
   } catch {
     // Unparseable body / no usage — skip silently.
+  }
+}
+
+/**
+ * Record one Chat-Completions usage event from a raw `usage` object tapped out
+ * of a STREAMING chunk (only present when the client sent
+ * `stream_options.include_usage`). Never throws.
+ */
+export function recordChatCompletionsStreamUsage(
+  recorder: UsageRecorderImport,
+  rawUsage: Record<string, unknown> | undefined,
+  attribution: ChatCompletionsUsageAttribution,
+): void {
+  try {
+    emitChatCompletionsUsageRecord(recorder, rawUsage, attribution);
+  } catch {
+    // never throw on usage accounting
   }
 }

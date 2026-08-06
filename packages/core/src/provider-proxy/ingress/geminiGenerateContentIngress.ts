@@ -48,7 +48,7 @@ import type {
   ResolvedTransformerChain,
 } from '../../transformer';
 import type { ProviderProxyDeps, RouteContext } from '../types';
-import { recordGeminiNonStreamUsage } from '../usage/recordGeminiUsage';
+import { recordGeminiNonStreamUsage, recordGeminiStreamUsage } from '../usage/recordGeminiUsage';
 
 import {
   getGeminiEndpointTransformer,
@@ -160,16 +160,37 @@ export async function handleGeminiGenerateContentRequest(
 
     const providerResponse = await runPipelineWithPoolReporting(geminiBody, plan);
 
-    const bodyText = await relayResponse(res, providerResponse.response, isStream);
+    const usageAttribution = {
+      sessionId: route.sessionId,
+      providerId: route.providerId ?? 'gemini',
+      model: resolvedModel,
+      apiKeyId: route.apiKeyId ?? null,
+      // request-audit-log: correlate this request's tokens/cost to its audit record.
+      auditResponse: res,
+    };
+    // Streaming usage tap: Gemini streams carry `usageMetadata` on the chunks.
+    const usageRecorder = deps.usageRecorder;
+    const usageTap = usageRecorder
+      ? {
+          extractUsage(event: Record<string, unknown>): Record<string, unknown> | null | undefined {
+            return (
+              event['usageMetadata'] as Record<string, unknown> | undefined
+            ) ?? null;
+          },
+          onUsage(rawUsage: Record<string, unknown>): void {
+            recordGeminiStreamUsage(usageRecorder, rawUsage, usageAttribution);
+          },
+        }
+      : undefined;
+    const bodyText = await relayResponse(
+      res,
+      providerResponse.response,
+      isStream,
+      undefined,
+      usageTap,
+    );
     if (bodyText && deps.usageRecorder) {
-      recordGeminiNonStreamUsage(deps.usageRecorder, bodyText, {
-        sessionId: route.sessionId,
-        providerId: route.providerId ?? 'gemini',
-        model: resolvedModel,
-        apiKeyId: route.apiKeyId ?? null,
-        // request-audit-log: correlate this request's tokens/cost to its audit record.
-        auditResponse: res,
-      });
+      recordGeminiNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
     const errMsg = serializeError(err);

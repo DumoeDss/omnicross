@@ -56,6 +56,28 @@ function readGeminiUsage(usage: Record<string, unknown> | undefined): {
   };
 }
 
+/** Record one Gemini usage event from an already-parsed raw `usageMetadata` object. */
+function emitGeminiUsageRecord(
+  recorder: UsageRecorderImport,
+  rawUsageMetadata: Record<string, unknown> | undefined,
+  attribution: GeminiUsageAttribution,
+): void {
+  const tapped = readGeminiUsage(rawUsageMetadata);
+  if (!tapped) return;
+  recorder.record({
+    messageId: null,
+    parentMessageId: null,
+    sessionId: attribution.sessionId,
+    providerId: attribution.providerId,
+    model: attribution.model,
+    apiKeyId: attribution.apiKeyId,
+    auditResponse: attribution.auditResponse,
+    engineOrigin: 'codex-ingress',
+    usage: tapped,
+    rawUsage: rawUsageMetadata,
+  });
+}
+
 /**
  * Parse a non-stream Gemini `generateContent` JSON body and, when a
  * `usageMetadata` block is present, record one usage event. Never throws.
@@ -67,21 +89,28 @@ export function recordGeminiNonStreamUsage(
 ): void {
   try {
     const parsed = JSON.parse(bodyText) as Record<string, unknown>;
-    const tapped = readGeminiUsage(parsed.usageMetadata as Record<string, unknown> | undefined);
-    if (!tapped) return;
-    recorder.record({
-      messageId: null,
-      parentMessageId: null,
-      sessionId: attribution.sessionId,
-      providerId: attribution.providerId,
-      model: attribution.model,
-      apiKeyId: attribution.apiKeyId,
-      auditResponse: attribution.auditResponse,
-      engineOrigin: 'codex-ingress',
-      usage: tapped,
-      rawUsage: parsed.usageMetadata,
-    });
+    emitGeminiUsageRecord(
+      recorder,
+      parsed.usageMetadata as Record<string, unknown> | undefined,
+      attribution,
+    );
   } catch {
     // Unparseable body / no usage — skip silently.
+  }
+}
+
+/**
+ * Record one Gemini usage event from a raw `usageMetadata` object tapped out of a
+ * STREAMING `streamGenerateContent` chunk. Never throws.
+ */
+export function recordGeminiStreamUsage(
+  recorder: UsageRecorderImport,
+  rawUsageMetadata: Record<string, unknown> | undefined,
+  attribution: GeminiUsageAttribution,
+): void {
+  try {
+    emitGeminiUsageRecord(recorder, rawUsageMetadata, attribution);
+  } catch {
+    // never throw on usage accounting
   }
 }
