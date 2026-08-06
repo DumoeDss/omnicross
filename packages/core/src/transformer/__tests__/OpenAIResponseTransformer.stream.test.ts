@@ -181,4 +181,56 @@ describe('OpenAIResponseTransformer — OpenAI-chat tool_calls → Responses fun
     expect(fc.call_id).toBe('call_xyz');
     expect(fc.arguments).toBe('{"city":"Tokyo"}');
   });
+
+  it('wraps a text reply in output_item.added/done so codex renders it', async () => {
+    // Regression: a plain-text assistant reply MUST be wrapped in an
+    // output_item.added -> output_text.delta -> output_item.done lifecycle.
+    // codex builds its message item from those item events; without them the
+    // text deltas arrive (token_count increments) but `last_agent_message`
+    // stays null and nothing renders.
+    const openaiFrames = [
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"glm-5.2","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}\n\n',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"glm-5.2","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}\n\n',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","model":"glm-5.2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":8,"completion_tokens":2,"total_tokens":10}}\n\n',
+      'data: [DONE]\n\n',
+    ];
+
+    const out = await transformer.transformResponseIn(sseResponse(openaiFrames), mockContext);
+    const events = await drainSseEvents(out);
+
+    // output_item.added opens the assistant message item at index 0 BEFORE text.
+    const added = events.find((e) => e.type === 'response.output_item.added');
+    expect(added).toBeDefined();
+    expect(added!.output_index).toBe(0);
+    expect(added!.item.type).toBe('message');
+    expect(added!.item.role).toBe('assistant');
+
+    const addedIdx = events.indexOf(added!);
+    const firstDeltaIdx = events.findIndex((e) => e.type === 'response.output_text.delta');
+    expect(firstDeltaIdx).toBeGreaterThan(addedIdx);
+
+    // Text deltas assemble the full content and carry output_index/content_index.
+    const deltas = events.filter((e) => e.type === 'response.output_text.delta');
+    expect(deltas.map((e) => e.delta).join('')).toBe('Hello!');
+    for (const d of deltas) {
+      expect(d.output_index).toBe(0);
+      expect(d.content_index).toBe(0);
+    }
+
+    // output_item.done closes the message at index 0 with the final content.
+    const done = events.find(
+      (e) => e.type === 'response.output_item.done' && e.item?.type === 'message',
+    );
+    expect(done).toBeDefined();
+    expect(done!.output_index).toBe(0);
+    expect(done!.item.content[0].text).toBe('Hello!');
+
+    // response.completed still carries the assembled message in its output.
+    const completed = events.find((e) => e.type === 'response.completed');
+    const msg = (completed!.response.output ?? []).find(
+      (o: Record<string, unknown>) => o.type === 'message',
+    );
+    expect(msg).toBeDefined();
+    expect((msg as { content: Array<{ text: string }> }).content[0].text).toBe('Hello!');
+  });
 });
