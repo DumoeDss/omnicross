@@ -37,6 +37,12 @@ import type {
   RequestConfig,
   ResolvedTransformerChain,
 } from '../../transformer';
+import {
+  codexAcceptHeader,
+  DEFAULT_CODEX_CLI_HEADERS,
+  extractCodexClientHeaders,
+} from '../identity/codexCliHeaders';
+import { fillMissingHeaders } from '../identity/headerMerge';
 import { deriveGatewaySessionKey, type SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import { recordResponsesNonStreamUsage, recordResponsesStreamUsage } from '../usage/recordResponsesUsage';
@@ -82,6 +88,13 @@ interface ResponsesCallPlan {
   readonly upstreamUrl: string;
   /** upstream-proxy ctx: the subscription provider id, or `'byo'` for a BYO plan. */
   readonly proxyProviderId: string;
+  /**
+   * The caller's forwardable Codex CLI headers (`originator` / UA / `version` /
+   * `openai-beta` / `session_id`). Populated for the codex SUBSCRIPTION plan
+   * only; a BYO plan leaves it undefined so its outbound headers stay
+   * byte-identical.
+   */
+  readonly callerClientHeaders?: Record<string, string>;
 }
 
 /**
@@ -121,7 +134,7 @@ export async function handleOpenAIResponsesRequest(
   try {
     const plan =
       route.authMode === 'subscription'
-        ? await buildSubscriptionPlan(res, route, deps, resolvedModel, isStream, sessionKey)
+        ? await buildSubscriptionPlan(res, route, deps, resolvedModel, isStream, sessionKey, requestHeaders)
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
@@ -268,6 +281,7 @@ async function buildSubscriptionPlan(
   resolvedModel: string,
   isStream: boolean,
   sessionKey: string,
+  requestHeaders: SessionRequestHeaders,
 ): Promise<ResponsesCallPlan | null> {
   const profile = route.subscriptionProfile;
   if (!profile) {
@@ -342,6 +356,12 @@ async function buildSubscriptionPlan(
           : upstreamUrl,
     upstreamUrl,
     proxyProviderId: profile.authStrategy.providerId,
+    // Only the codex backend understands these; other subscription providers
+    // (gemini Code Assist) share this relay and must not receive them.
+    callerClientHeaders:
+      profile.authStrategy.providerId === 'codex'
+        ? extractCodexClientHeaders(requestHeaders)
+        : undefined,
   };
 }
 
@@ -436,6 +456,19 @@ async function runPipeline(
         for (const [key, value] of Object.entries(config.headers as Record<string, string | undefined>)) {
           if (value !== undefined && !(key in headers)) headers[key] = value;
         }
+      }
+      // Codex CLI client markers — SUBSCRIPTION ONLY. This relay is shared with
+      // BYO OpenAI-compatible endpoints, which must stay byte-identical (sending
+      // them `originator: codex_cli_rs` would be wrong). Before this the codex
+      // subscription relay sent only `content-type` + `Authorization`, carrying
+      // none of the markers a real codex CLI sends.
+      //
+      // `fillMissingHeaders` never overwrites, so a genuine Codex CLI's own
+      // values win and the defaults only cover what it did not send.
+      if (plan.proxyProviderId === 'codex') {
+        fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
+        fillMissingHeaders(headers, DEFAULT_CODEX_CLI_HEADERS);
+        fillMissingHeaders(headers, { accept: codexAcceptHeader(isStream) });
       }
       return headers;
     },
