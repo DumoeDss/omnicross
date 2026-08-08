@@ -77,24 +77,69 @@ function withStatus(message: string, response: { ok: boolean; status: number }):
 }
 
 /**
+ * Bounded wait for a token-endpoint response. A token exchange that never gets
+ * an answer (proxy hung on the CONNECT, route black-holed, server that accepts
+ * the TCP connection but never replies) would otherwise leave the OAuth flow
+ * `pending` until the caller's outer session TTL — the user just sees an endless
+ * spinner. Generous: token endpoints answer in 1–5s; 30s comfortably covers a
+ * slow proxy while still failing this decade.
+ */
+const DEFAULT_TOKEN_TIMEOUT_MS = 30_000;
+
+/**
+ * Run `fetchImpl(url, init)` with an abort timeout. On timeout the call is
+ * aborted and rejected with an explicit `timed out` Error (so the OAuth layer
+ * surfaces a real reason, not a silent hang). A failure for any OTHER reason
+ * (DNS, connection refused, the caller's own non-2xx handling downstream) is
+ * rethrown unchanged — only an abort WE triggered is translated.
+ */
+async function fetchWithTimeout(
+  fetchImpl: FetchLike,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (controller.signal.aborted) {
+      throw new Error(`token endpoint timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * POST a `x-www-form-urlencoded` body and parse the JSON response (UTF-8 body
  * accumulation → `JSON.parse` → `data.error` reject → parse-failure reject) over
  * an injected `FetchLike`. `parseErrorMessage` is the per-method catch string.
+ * `timeoutMs` bounds the wait so a hung endpoint fails fast (see
+ * `fetchWithTimeout`).
  */
 export async function postForm(
   fetchImpl: FetchLike,
   url: string,
   params: URLSearchParams,
   parseErrorMessage: string,
+  timeoutMs: number = DEFAULT_TOKEN_TIMEOUT_MS,
 ): Promise<TokenResponseBody> {
   // Mirror `net.request({ method:'POST' })` + `setHeader('Content-Type', …)` +
   // `req.write(params.toString())`. The response body is read as a single UTF-8
   // string (parity with `responseData += chunk.toString()`), then parsed.
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
+  const response = await fetchWithTimeout(
+    fetchImpl,
+    url,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    },
+    timeoutMs,
+  );
 
   const responseData = await response.text();
 
@@ -133,12 +178,18 @@ export async function postJson(
   body: Record<string, unknown>,
   parseErrorMessage: string,
   extraHeaders: Record<string, string> = {},
+  timeoutMs: number = DEFAULT_TOKEN_TIMEOUT_MS,
 ): Promise<TokenResponseBody> {
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...extraHeaders },
-    body: JSON.stringify(body),
-  });
+  const response = await fetchWithTimeout(
+    fetchImpl,
+    url,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
+      body: JSON.stringify(body),
+    },
+    timeoutMs,
+  );
 
   const responseData = await response.text();
 
