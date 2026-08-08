@@ -836,6 +836,9 @@
       "revoke": "Revoke",
       "revokeConfirmTitle": "Revoke this key?",
       "revokeConfirmDesc": "Revoking \"{{name}}\" immediately stops it from authenticating. This cannot be undone.",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Permanently delete this key?",
+      "deleteConfirmDesc": "Deleting \"{{name}}\" removes it from the list entirely. This cannot be undone.",
       "created": {
         "title": "Key created",
         "warning": "Copy this key now — it will not be shown again. Store it securely.",

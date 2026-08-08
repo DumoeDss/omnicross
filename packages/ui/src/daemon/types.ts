@@ -344,6 +344,11 @@ export interface AgentApiServiceApi {
   listKeys(): Promise<OutboundApiKeyInfo[]>;
   createKey(name: string): Promise<CreateKeyResult>;
   revokeKey(id: string): Promise<MutationResult>;
+  /**
+   * Permanently remove a key row (`DELETE /keys/:id`) — a hard delete, intended
+   * for cleaning up already-revoked keys. Irreversible; the UI confirms.
+   */
+  deleteKey(id: string): Promise<MutationResult>;
   setKeyEnabled(id: string, enabled: boolean): Promise<MutationResult>;
   /**
    * Reveal the stored plaintext of a key (`GET /keys/:id/reveal`) — the operator

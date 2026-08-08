@@ -718,6 +718,13 @@ export interface OutboundKeyDb {
    * master key.
    */
   outboundApiKeysReveal(id: string): Promise<string | null>;
+  /**
+   * Permanently remove a key row (hard delete), returning whether a row was
+   * removed. Unlike {@link outboundApiKeysRevoke} (a soft revoke that keeps the
+   * row for history), this purges the row entirely — intended for cleaning up
+   * already-revoked keys. Irreversible; the caller confirms.
+   */
+  outboundApiKeysDelete(id: string): Promise<boolean>;
 }
 
 /**

@@ -65,6 +65,8 @@ export interface UseApiServiceResult {
   /** Reveal a key's stored plaintext (view-key affordance); no state mutation. */
   revealKey: (id: string) => Promise<{ success: boolean; key?: string; message?: string }>;
   revokeKey: (id: string) => Promise<void>;
+  /** Permanently remove a key row (hard delete); refreshes the key list. */
+  deleteKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
   setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
   setKeyPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
@@ -279,6 +281,18 @@ export function useApiService(): UseApiServiceResult {
     }
   }, []);
 
+  const deleteKey = useCallback(async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.deleteKey(id);
+      if (!result.success) setError(result.message ?? 'request failed');
+      setKeys(await agent.apiService.listKeys());
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const setKeyEnabled = useCallback(async (id: string, enabled: boolean) => {
     setBusy(true);
     setError(null);
@@ -455,6 +469,7 @@ export function useApiService(): UseApiServiceResult {
     createKey,
     revealKey,
     revokeKey,
+    deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
     setKeyPolicy,

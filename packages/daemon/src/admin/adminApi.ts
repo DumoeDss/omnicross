@@ -1626,6 +1626,12 @@ async function handleKeys(
     const ok = await deps.keyDb.outboundApiKeysRevoke(id);
     return writeJson(res, ok ? 200 : 404, { ok });
   }
+  // DELETE /keys/:id → permanently remove a key row (hard delete). Intended for
+  // cleaning up already-revoked keys; unlike revoke (soft), this purges the row.
+  if (method === 'DELETE' && id && !action) {
+    const ok = await deps.keyDb.outboundApiKeysDelete(id);
+    return writeJson(res, ok ? 200 : 404, { ok });
+  }
   if (method === 'POST' && id && action === 'enabled') {
     const body = await readJsonBody(req);
     const enabled = body['enabled'] === true;
