@@ -24,8 +24,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AccountAllowance } from '@/features/accounts/AccountAllowance';
-import { AccountDetailsDrawer } from '@/features/accounts/AccountDetailsDrawer';
 import {
   accountSchedulingState,
   DEFAULT_ACCOUNT_FILTERS,
@@ -46,6 +44,7 @@ import { useLlmProvidersData } from '@/shared/state/settingsStore';
 import type { AppRoute, RouteNavigate, UpstreamKind } from '@/shared/state/hashRoute';
 import { cn } from '@/shared/utils/utils';
 
+import { AccountResourceDetails } from './AccountResourceDetails';
 import { AddAccountDialog } from './AddAccountDialog';
 import {
   DownstreamRoutesWorkspace,
@@ -243,7 +242,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     ?? resources[0]
     ?? null;
 
-  const navigateSelection = (resource: UpstreamResource, accountTab?: AppRoute['accountTab'], replace = false) => {
+  const navigateSelection = (resource: UpstreamResource, replace = false) => {
     const next: AppRoute = {
       page: 'upstreams',
       upstreamFilter: kindFilter,
@@ -253,7 +252,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     if (resource.kind === 'account') {
       next.accountProvider = resource.providerId;
       next.accountId = resource.account.id;
-      next.accountTab = accountTab;
     } else if (resource.kind === 'account-group') {
       next.upstreamProviderId = resource.providerId;
       next.upstreamGroup = resource.group;
@@ -266,7 +264,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   useEffect(() => {
     if (activeTab === 'routes') return;
     if (!selectedResource || selectedKey === selectedResource.key) return;
-    navigateSelection(selectedResource, undefined, true);
+    navigateSelection(selectedResource, true);
   // Selection is canonicalized only when resources/load state invalidates it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedResource?.key, selectedKey]);
@@ -279,9 +277,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     };
     onNavigate(next, { replace: true });
   };
-
-  const selectedAccount = selectedResource?.kind === 'account' ? selectedResource.account : null;
-  const drawerOpen = Boolean(selectedAccount && route.accountTab);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -432,7 +427,22 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
             <ScrollArea className="h-full">
               <div className="space-y-5 p-5 md:p-6">
                 {selectedResource.kind === 'account'
-                  ? <AccountResourceDetails account={selectedResource.account} onManage={() => navigateSelection(selectedResource, 'overview')} />
+                  ? (
+                    <AccountResourceDetails
+                      account={selectedResource.account}
+                      busy={accountsApi.busy}
+                      onPatch={(patch) => accountsApi.patchAccount(selectedResource.account.providerId, selectedResource.account.id, patch)}
+                      onSetProxy={(proxy) => accountsApi.setAccountProxy(selectedResource.account.providerId, selectedResource.account.id, proxy)}
+                      onSetSupportedModels={(models) => accountsApi.setAccountSupportedModels(selectedResource.account.providerId, selectedResource.account.id, models)}
+                      onTest={() => accountsApi.testAccount(selectedResource.account.providerId, selectedResource.account.id)}
+                      onLoadEvents={() => accountsApi.listAccountEvents(selectedResource.account.providerId, selectedResource.account.id)}
+                      onRefreshAllowance={selectedResource.account.providerId === 'claude' ? () => accountsApi.refreshAccountAllowance(selectedResource.account.id) : undefined}
+                      onRemove={() => {
+                        void accountsApi.removeAccount(selectedResource.account.providerId, selectedResource.account.id);
+                        onNavigate({ page: 'upstreams', upstreamFilter: kindFilter, upstreamQuery: query || undefined }, { replace: true });
+                      }}
+                    />
+                  )
                   : <GroupResourceDetails resource={selectedResource} />}
               </div>
             </ScrollArea>
@@ -451,26 +461,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           <div className="min-h-0 flex-1"><ProviderSettings embedded mode="create" /></div>
         </DialogContent>
       </Dialog>
-
-      {drawerOpen && selectedAccount ? (
-        <AccountDetailsDrawer
-          account={selectedAccount}
-          busy={accountsApi.busy}
-          activeTab={route.accountTab ?? 'overview'}
-          onOpenChange={(open) => { if (!open && selectedResource?.kind === 'account') navigateSelection(selectedResource); }}
-          onTabChange={(tab) => { if (selectedResource?.kind === 'account') navigateSelection(selectedResource, tab); }}
-          onPatch={(patch) => accountsApi.patchAccount(selectedAccount.providerId, selectedAccount.id, patch)}
-          onSetProxy={(proxy) => accountsApi.setAccountProxy(selectedAccount.providerId, selectedAccount.id, proxy)}
-          onSetSupportedModels={(models) => accountsApi.setAccountSupportedModels(selectedAccount.providerId, selectedAccount.id, models)}
-          onTest={() => accountsApi.testAccount(selectedAccount.providerId, selectedAccount.id)}
-          onLoadEvents={() => accountsApi.listAccountEvents(selectedAccount.providerId, selectedAccount.id)}
-          onRefreshAllowance={selectedAccount.providerId === 'claude' ? () => accountsApi.refreshAccountAllowance(selectedAccount.id) : undefined}
-          onRemove={() => {
-            void accountsApi.removeAccount(selectedAccount.providerId, selectedAccount.id);
-            onNavigate({ page: 'upstreams', upstreamFilter: kindFilter, upstreamQuery: query || undefined }, { replace: true });
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -518,36 +508,6 @@ function ResourceRow({ resource, selected, bindingCount, onClick }: { resource: 
   );
 }
 
-function AccountResourceDetails({ account, onManage }: { account: ManagedAccountRow; onManage: () => void }) {
-  const t = useTranslation();
-  return (
-    <>
-      <section className="rounded-xl border border-border/70 bg-surface-1/50 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <UserRound className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">{account.label || account.id}</h2>
-              <Badge variant={account.schedulable ? 'success' : 'secondary'}>{t(`accounts.management.schedulingState.${accountSchedulingState(account)}`)}</Badge>
-            </div>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">{account.providerId} · {account.id}</p>
-          </div>
-          <Button size="sm" variant="outline" onClick={onManage}>{t('upstreams.manageAccount')}</Button>
-        </div>
-        <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-4">
-          <Info label={t('accounts.management.fields.credential')} value={t(`accounts.status.${account.status}`)} />
-          <Info label={t('accounts.management.fields.health')} value={t(`accounts.health.${account.health ?? 'healthy'}`)} />
-          <Info label={t('accounts.management.fields.group')} value={account.group} />
-          <Info label={t('accounts.management.fields.priority')} value={String(account.allowanceEffectivePriority ?? account.priority ?? 50)} />
-        </dl>
-      </section>
-      <section className="rounded-xl border border-border/70 bg-surface-1/50 p-4 md:p-5">
-        <AccountAllowance providerId={account.providerId} snapshot={account.allowance} loading={false} />
-      </section>
-    </>
-  );
-}
-
 function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource, { kind: 'account-group' | 'account-pool' }> }) {
   const t = useTranslation();
   const schedulable = resource.accounts.filter((account) => account.schedulable).length;
@@ -570,8 +530,4 @@ function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource
       </div>
     </section>
   );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-0.5 truncate text-foreground">{value}</dd></div>;
 }

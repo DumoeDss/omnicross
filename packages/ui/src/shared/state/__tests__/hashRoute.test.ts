@@ -66,7 +66,7 @@ describe('hashRoute', () => {
     });
   });
 
-  it('round-trips account selection, detail tab, meaningful filters, and unsafe text safely', () => {
+  it('round-trips account selection, meaningful filters, and unsafe text safely', () => {
     const route = {
       page: 'upstreams' as const,
       upstreamKind: 'account' as const,
@@ -74,7 +74,6 @@ describe('hashRoute', () => {
       upstreamQuery: 'email + label',
       accountProvider: 'claude' as const,
       accountId: 'account/one?region=cn&中文',
-      accountTab: 'diagnostics' as const,
       accountFilters: {
         query: 'email + label',
         provider: 'codex' as const,
@@ -91,18 +90,6 @@ describe('hashRoute', () => {
     expect(hash).toContain('accountId=account%2Fone%3Fregion%3Dcn%26%E4%B8%AD%E6%96%87');
     expect(hash).toContain('accountHealth=rate_limited');
     expect(parseHashRoute(hash)).toEqual(route);
-
-    // Regression: `overview` is the drawer's default open state and must
-    // round-trip. Serializing it away re-closed the drawer on navigate, so
-    // "Manage account" appeared to do nothing.
-    const overviewRoute = {
-      page: 'upstreams' as const,
-      upstreamKind: 'account' as const,
-      accountProvider: 'claude' as const,
-      accountId: 'one',
-      accountTab: 'overview' as const,
-    };
-    expect(parseHashRoute(routeToHash(overviewRoute))).toEqual(overviewRoute);
   });
 
   it('redirects legacy account/provider bookmarks and rejects invalid selections', () => {
@@ -112,9 +99,8 @@ describe('hashRoute', () => {
       upstreamFilter: 'account',
       accountProvider: 'codex',
       accountId: 'one',
-      accountTab: 'overview',
       accountFilters: { query: '', provider: 'all', sort: 'priority', direction: 'asc' },
-    })).toBe('#/upstreams?kind=account&filter=account&accountProvider=codex&accountId=one&detail=overview');
+    })).toBe('#/upstreams?kind=account&filter=account&accountProvider=codex&accountId=one');
 
     expect(parseHashRoute('#/accounts?accountProvider=unknown&accountId=one&detail=wat&provider=unknown&health=wat&sort=wat')).toEqual({ page: 'upstreams', upstreamFilter: 'account' });
     expect(parseHashRoute('#/accounts?accountProvider=claude&detail=diagnostics&q=needle')).toEqual({
@@ -134,7 +120,7 @@ describe('hashRoute', () => {
   });
 
   it('provides pure selection helpers for async reconciliation and closing', () => {
-    const route = { page: 'upstreams' as const, upstreamKind: 'account' as const, accountProvider: 'gemini' as const, accountId: 'gone', accountTab: 'allowance' as const, accountFilters: { query: 'keep' } };
+    const route = { page: 'upstreams' as const, upstreamKind: 'account' as const, accountProvider: 'gemini' as const, accountId: 'gone', accountFilters: { query: 'keep' } };
     expect(selectedAccountFromRoute(route)).toEqual({ providerId: 'gemini', accountId: 'gone' });
     expect(withoutSelectedAccount(route)).toEqual({ page: 'upstreams', upstreamKind: 'account', accountFilters: { query: 'keep' } });
     expect(selectedAccountFromRoute({ page: 'upstreams', accountProvider: 'gemini' })).toBeNull();
