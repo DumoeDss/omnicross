@@ -66,7 +66,7 @@ describe('hashRoute', () => {
     });
   });
 
-  it('round-trips account selection, detail tab, meaningful filters, and unsafe text safely', () => {
+  it('round-trips account selection, meaningful filters, and unsafe text safely', () => {
     const route = {
       page: 'upstreams' as const,
       upstreamKind: 'account' as const,
@@ -74,7 +74,6 @@ describe('hashRoute', () => {
       upstreamQuery: 'email + label',
       accountProvider: 'claude' as const,
       accountId: 'account/one?region=cn&中文',
-      accountTab: 'diagnostics' as const,
       accountFilters: {
         query: 'email + label',
         provider: 'codex' as const,
@@ -100,7 +99,6 @@ describe('hashRoute', () => {
       upstreamFilter: 'account',
       accountProvider: 'codex',
       accountId: 'one',
-      accountTab: 'overview',
       accountFilters: { query: '', provider: 'all', sort: 'priority', direction: 'asc' },
     })).toBe('#/upstreams?kind=account&filter=account&accountProvider=codex&accountId=one');
 
@@ -122,7 +120,7 @@ describe('hashRoute', () => {
   });
 
   it('provides pure selection helpers for async reconciliation and closing', () => {
-    const route = { page: 'upstreams' as const, upstreamKind: 'account' as const, accountProvider: 'gemini' as const, accountId: 'gone', accountTab: 'allowance' as const, accountFilters: { query: 'keep' } };
+    const route = { page: 'upstreams' as const, upstreamKind: 'account' as const, accountProvider: 'gemini' as const, accountId: 'gone', accountFilters: { query: 'keep' } };
     expect(selectedAccountFromRoute(route)).toEqual({ providerId: 'gemini', accountId: 'gone' });
     expect(withoutSelectedAccount(route)).toEqual({ page: 'upstreams', upstreamKind: 'account', accountFilters: { query: 'keep' } });
     expect(selectedAccountFromRoute({ page: 'upstreams', accountProvider: 'gemini' })).toBeNull();

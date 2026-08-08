@@ -13,15 +13,6 @@ export type PageId =
   | 'usage-stats'
   | 'settings';
 
-export type AccountDetailTabId =
-  | 'overview'
-  | 'routes'
-  | 'allowance'
-  | 'scheduling'
-  | 'network'
-  | 'diagnostics'
-  | 'danger';
-
 export type AccountRouteFilters = Partial<AccountFilters>;
 export type UpstreamKind = 'account' | 'account-group' | 'account-pool' | 'provider';
 export type UpstreamsTab = 'resources' | 'routes';
@@ -31,7 +22,6 @@ export interface AppRoute {
   tab?: ApiServiceTabId | SettingsTabId;
   accountProvider?: SubscriptionProviderId;
   accountId?: string;
-  accountTab?: AccountDetailTabId;
   accountFilters?: AccountRouteFilters;
   upstreamKind?: UpstreamKind;
   upstreamFilter?: UpstreamKind | 'all';
@@ -74,15 +64,6 @@ const SETTINGS_TABS = new Set<SettingsTabId>([
   'pricing',
 ]);
 const ACCOUNT_PROVIDERS = new Set<SubscriptionProviderId>(['claude', 'codex', 'gemini', 'opencodego']);
-const ACCOUNT_DETAIL_TABS = new Set<AccountDetailTabId>([
-  'overview',
-  'routes',
-  'allowance',
-  'scheduling',
-  'network',
-  'diagnostics',
-  'danger',
-]);
 const ACCOUNT_HEALTH = new Set<NonNullable<AccountFilters['health']>>([
   'healthy',
   'rate_limited',
@@ -304,12 +285,10 @@ function parseUpstreamsQuery(params: URLSearchParams, base: AppRoute): AppRoute 
 
   const provider = enumValue(singleQueryValue(params, 'accountProvider'), ACCOUNT_PROVIDERS);
   const accountId = singleQueryValue(params, 'accountId');
-  const accountTab = enumValue(singleQueryValue(params, 'detail'), ACCOUNT_DETAIL_TABS);
   if (provider && isSafeRouteText(accountId)) {
     route.accountProvider = provider;
     route.accountId = accountId;
     route.upstreamKind = 'account';
-    if (accountTab) route.accountTab = accountTab;
   }
   const accountFilters = accountFiltersFromUpstreamsQuery(params);
   if (accountFilters) route.accountFilters = accountFilters;
@@ -322,7 +301,7 @@ export function selectedAccountFromRoute(route: AppRoute): AccountRouteSelection
 }
 
 export function withoutSelectedAccount(route: AppRoute): AppRoute {
-  const { accountProvider: _provider, accountId: _id, accountTab: _tab, ...rest } = route;
+  const { accountProvider: _provider, accountId: _id, ...rest } = route;
   return rest;
 }
 
@@ -361,9 +340,6 @@ function appendUpstreamsQuery(params: URLSearchParams, route: AppRoute): void {
   if (selection) {
     params.set('accountProvider', selection.providerId);
     params.set('accountId', selection.accountId);
-    if (route.accountTab && ACCOUNT_DETAIL_TABS.has(route.accountTab) && route.accountTab !== 'overview') {
-      params.set('detail', route.accountTab);
-    }
   }
   appendAccountFiltersQuery(params, route);
 }
