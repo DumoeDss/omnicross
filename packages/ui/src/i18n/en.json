@@ -843,6 +843,9 @@
         "copied": "Copied",
         "dismiss": "Done"
       },
+      "reveal": "View key",
+      "revealError": "Failed to reveal this key.",
+      "revealHint": "Decrypted on demand — copy it and treat it as securely as the original.",
       "bindings": {
         "title": "Downstream interfaces",
         "count": "Bound to {{count}} downstreams",

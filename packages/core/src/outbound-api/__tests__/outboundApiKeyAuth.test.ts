@@ -80,6 +80,7 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
       row.activatedAt = activatedAt;
       return true;
     },
+    outboundApiKeysReveal: async () => null,
   };
 }
 
@@ -245,5 +246,44 @@ describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
     if (res.status !== 'ok') return;
     expect(res.key.costLimits).toEqual({ dailyUsd: 5, totalUsd: 100 });
     expect(res.key.rateLimit).toEqual({ maxRequests: 10, windowMs: 1_000 });
+  });
+});
+
+describe('createNamedKey / createIntegrationKey pass plaintext for revealable storage', () => {
+  /** Stub that captures the `plaintext` handed to `outboundApiKeysCreate`. */
+  function capturingDb(): OutboundKeyDb & { captured: { plaintext?: string } } {
+    const captured: { plaintext?: string } = {};
+    return {
+      ...makeStubDb(),
+      captured,
+      outboundApiKeysCreate: async (input) => {
+        captured.plaintext = input.plaintext;
+        return {
+          id: input.id,
+          name: input.name,
+          keyHash: input.keyHash,
+          keyPrefix: input.keyPrefix,
+          enabled: true,
+          createdAt: input.createdAt ?? Date.now(),
+          lastUsedAt: null,
+          revokedAt: null,
+          kind: input.kind,
+          allowedEndpoints: input.allowedEndpoints,
+          loopbackOnly: input.loopbackOnly,
+        };
+      },
+    };
+  }
+
+  it('createNamedKey hands the generated secret to the DB as `plaintext`', async () => {
+    const db = capturingDb();
+    const created = await createNamedKey(db, 'revealable');
+    expect(db.captured.plaintext).toBe(created.plaintextOnce);
+  });
+
+  it('createIntegrationKey also passes the secret as `plaintext`', async () => {
+    const db = capturingDb();
+    const created = await createIntegrationKey(db, 'integration');
+    expect(db.captured.plaintext).toBe(created.plaintextOnce);
   });
 });

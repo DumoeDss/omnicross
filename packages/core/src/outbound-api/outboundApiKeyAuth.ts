@@ -86,6 +86,7 @@ export async function createNamedKey(
     name,
     keyHash: hashKey(secret),
     keyPrefix: prefix,
+    plaintext: secret,
   });
   return {
     id: row.id,
@@ -116,6 +117,7 @@ export async function createIntegrationKey(
     kind: 'integration',
     allowedEndpoints: [...new Set(allowedEndpoints)],
     loopbackOnly: true,
+    plaintext: secret,
   });
   return {
     id: row.id,

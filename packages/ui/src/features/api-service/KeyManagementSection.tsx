@@ -9,7 +9,7 @@
  * on dismiss).
  */
 
-import { ArrowRight, Check, Copy, KeyRound, Link2, Plus, Route, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, Copy, Eye, KeyRound, Link2, Plus, Route, SlidersHorizontal, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +39,7 @@ interface KeyManagementSectionProps {
   busy: boolean;
   createdKey: OutboundApiKeyCreated | null;
   onCreate: (name: string) => Promise<boolean>;
+  onReveal: (id: string) => Promise<{ success: boolean; key?: string; message?: string }>;
   onRevoke: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
@@ -149,11 +150,44 @@ function CreatedKeyReveal({
   );
 }
 
+/**
+ * Inline "view key" reveal — the on-demand decrypted value of an EXISTING key
+ * (vs. CreatedKeyReveal, which shows the one-time plaintext of a freshly created
+ * key). The value is held only in memory until dismissed; copy reuses the
+ * created-key i18n strings for consistency.
+ */
+function KeyReveal({ value, onDismiss }: { value: string; onDismiss: () => void }) {
+  const t = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(value).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div className="mt-2 space-y-1.5 rounded-md border border-primary/50 bg-primary-soft/20 p-2.5" role="status">
+      <p className="text-xs text-muted-foreground">{t('apiService.keys.revealHint')}</p>
+      <div className="flex items-center gap-2">
+        <code className="min-w-0 flex-1 truncate rounded bg-surface-2/70 px-2 py-1 text-xs text-foreground">{value}</code>
+        <Button variant="outline" size="sm" onClick={copy}>
+          {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? t('apiService.keys.created.copied') : t('apiService.keys.created.copy')}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDismiss}>
+          {t('apiService.keys.created.dismiss')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function KeyManagementSection({
   keys,
   busy,
   createdKey,
   onCreate,
+  onReveal,
   onRevoke,
   onToggle,
   onSetMaxConcurrency,
@@ -169,12 +203,29 @@ export function KeyManagementSection({
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
+  // Inline "view key" reveal — the decrypted value is fetched on demand and held
+  // only in memory until dismissed (never stored client-side), mirroring the
+  // provider-key reveal. One key revealed at a time.
+  const [reveal, setReveal] = useState<
+    | { id: string; status: 'loading' | 'ok' | 'error'; value?: string; message?: string }
+    | null
+  >(null);
 
   const handleCreate = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     const ok = await onCreate(trimmed);
     if (ok) setName('');
+  };
+
+  const handleReveal = async (k: OutboundApiKeyInfo) => {
+    setReveal({ id: k.id, status: 'loading' });
+    const result = await onReveal(k.id);
+    if (result.success && result.key) {
+      setReveal({ id: k.id, status: 'ok', value: result.key });
+    } else {
+      setReveal({ id: k.id, status: 'error', message: result.message ?? t('apiService.keys.revealError') });
+    }
   };
 
   return (
@@ -229,7 +280,22 @@ export function KeyManagementSection({
                       <Badge variant="secondary">{t('apiService.keys.disabled')}</Badge>
                     )}
                   </div>
-                  <code className="text-xs text-muted-foreground">{k.keyPrefix}…</code>
+                  <div className="flex items-center gap-1.5">
+                    <code className="text-xs text-muted-foreground">{k.keyPrefix}…</code>
+                    {k.revealable ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={reveal?.id === k.id && reveal.status === 'loading'}
+                        onClick={() => void handleReveal(k)}
+                        aria-label={t('apiService.keys.reveal')}
+                        title={t('apiService.keys.reveal')}
+                      >
+                        <Eye className="h-3 w-3" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
                 {!k.revoked ? (
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -351,6 +417,15 @@ export function KeyManagementSection({
                     await onSetPolicy(k.id, policy);
                   }}
                 />
+              ) : null}
+              {reveal?.id === k.id ? (
+                reveal.status === 'ok' && reveal.value ? (
+                  <KeyReveal value={reveal.value} onDismiss={() => setReveal(null)} />
+                ) : reveal.status === 'error' ? (
+                  <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                    {reveal.message}
+                  </p>
+                ) : null
               ) : null}
             </li>
             );

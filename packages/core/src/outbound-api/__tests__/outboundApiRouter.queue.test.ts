@@ -121,6 +121,7 @@ function mkDeps(r: OutboundKeyDbRow | null): OutboundApiDeps {
     outboundApiKeysSetMaxConcurrency: async () => true,
     outboundApiKeysSetPolicy: async () => true,
     outboundApiKeysMarkActivated: async () => true,
+    outboundApiKeysReveal: async () => null,
   };
   const provider = {
     id: 'openai',
