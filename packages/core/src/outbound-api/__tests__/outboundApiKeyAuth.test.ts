@@ -81,6 +81,12 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
       return true;
     },
     outboundApiKeysReveal: async () => null,
+    outboundApiKeysDelete: async (id) => {
+      const idx = store.findIndex((r) => r.id === id);
+      if (idx < 0) return false;
+      store.splice(idx, 1);
+      return true;
+    },
   };
 }
 

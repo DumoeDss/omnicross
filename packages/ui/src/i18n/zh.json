@@ -833,6 +833,9 @@
       "revoke": "吊销",
       "revokeConfirmTitle": "吊销此密钥？",
       "revokeConfirmDesc": "吊销“{{name}}”后它将立即无法用于认证。此操作不可撤销。",
+      "delete": "删除",
+      "deleteConfirmTitle": "永久删除此密钥？",
+      "deleteConfirmDesc": "删除“{{name}}”会将其从列表中彻底移除。此操作不可撤销。",
       "created": {
         "title": "密钥已创建",
         "warning": "请立即复制此密钥——它不会再次显示。请妥善保存。",

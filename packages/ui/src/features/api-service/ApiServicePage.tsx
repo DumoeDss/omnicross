@@ -55,6 +55,7 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
     createKey,
     revealKey,
     revokeKey,
+    deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
     setKeyPolicy,
@@ -160,6 +161,7 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
                   onCreate={createKey}
                   onReveal={revealKey}
                   onRevoke={revokeKey}
+                  onDelete={deleteKey}
                   onToggle={setKeyEnabled}
                   onSetMaxConcurrency={setKeyMaxConcurrency}
                   onSetPolicy={setKeyPolicy}

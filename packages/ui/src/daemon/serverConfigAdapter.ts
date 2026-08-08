@@ -130,6 +130,18 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async deleteKey(id: string): Promise<MutationResult> {
+      try {
+        const data = await adminClient.delete<{ ok: boolean }>(
+          `/keys/${encodeURIComponent(id)}`,
+        );
+        if (!data.ok) return { success: false, message: 'key not found' };
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to delete key');
+      }
+    },
+
     async setKeyEnabled(id: string, enabled: boolean): Promise<MutationResult> {
       try {
         const data = await adminClient.post<{ ok: boolean; enabled: boolean }>(

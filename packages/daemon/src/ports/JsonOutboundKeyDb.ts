@@ -92,6 +92,15 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     return this.secretBox.decrypt(row.keySecret);
   }
 
+  async outboundApiKeysDelete(id: string): Promise<boolean> {
+    const rows = this.readRows();
+    const idx = rows.findIndex((r) => r.id === id);
+    if (idx < 0) return false;
+    rows.splice(idx, 1);
+    this.writeRows(rows);
+    return true;
+  }
+
   async outboundApiKeysRevoke(id: string): Promise<boolean> {
     return this.mutateRow(id, (row) => {
       if (row.revokedAt !== null) return false;

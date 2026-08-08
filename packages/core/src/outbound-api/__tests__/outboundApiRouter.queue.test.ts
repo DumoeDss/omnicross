@@ -122,6 +122,7 @@ function mkDeps(r: OutboundKeyDbRow | null): OutboundApiDeps {
     outboundApiKeysSetPolicy: async () => true,
     outboundApiKeysMarkActivated: async () => true,
     outboundApiKeysReveal: async () => null,
+    outboundApiKeysDelete: async () => true,
   };
   const provider = {
     id: 'openai',

@@ -75,6 +75,7 @@ function makeDeps(row: OutboundKeyDbRow, tracker: OutboundApiDeps['keySpendTrack
     outboundApiKeysSetPolicy: async () => true,
     outboundApiKeysMarkActivated: async () => true,
     outboundApiKeysReveal: async () => null,
+    outboundApiKeysDelete: async () => true,
   };
   return {
     db,

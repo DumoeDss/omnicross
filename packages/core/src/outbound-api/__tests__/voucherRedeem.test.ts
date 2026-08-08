@@ -162,6 +162,7 @@ function mkKeyDb(
     },
     outboundApiKeysMarkActivated: async () => true,
     outboundApiKeysReveal: async () => null,
+    outboundApiKeysDelete: async () => true,
   };
   return { db, state, setPolicyCalls };
 }
@@ -650,6 +651,7 @@ describe('redeem through the full router — auth required', () => {
       outboundApiKeysSetPolicy: async () => true,
       outboundApiKeysMarkActivated: async () => true,
       outboundApiKeysReveal: async () => null,
+      outboundApiKeysDelete: async () => true,
     };
     const deps: OutboundApiDeps = {
       db: keyDb,

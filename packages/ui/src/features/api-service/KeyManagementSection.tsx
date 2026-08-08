@@ -41,6 +41,7 @@ interface KeyManagementSectionProps {
   onCreate: (name: string) => Promise<boolean>;
   onReveal: (id: string) => Promise<{ success: boolean; key?: string; message?: string }>;
   onRevoke: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
@@ -189,6 +190,7 @@ export function KeyManagementSection({
   onCreate,
   onReveal,
   onRevoke,
+  onDelete,
   onToggle,
   onSetMaxConcurrency,
   onSetPolicy,
@@ -200,6 +202,7 @@ export function KeyManagementSection({
   const t = useTranslation();
   const [name, setName] = useState('');
   const [revokeTarget, setRevokeTarget] = useState<OutboundApiKeyInfo | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OutboundApiKeyInfo | null>(null);
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
@@ -341,7 +344,22 @@ export function KeyManagementSection({
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </Button>
-                ) : null}
+                ) : (
+                  // A revoked key keeps its row for history; this permanently
+                  // removes it (hard delete). Offered ONLY on revoked keys so an
+                  // active key must be revoked first (a deliberate two-step).
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={busy}
+                    onClick={() => setDeleteTarget(k)}
+                    aria-label={t('apiService.keys.delete')}
+                    title={t('apiService.keys.delete')}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                )}
               </div>
               {!k.revoked ? (
                 <div className="mt-2 border-t border-border/60 pt-2">
@@ -448,6 +466,24 @@ export function KeyManagementSection({
         onConfirm={() => {
           if (revokeTarget) void onRevoke(revokeTarget.id);
           setRevokeTarget(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={t('apiService.keys.deleteConfirmTitle')}
+        description={
+          deleteTarget ? t('apiService.keys.deleteConfirmDesc', { name: deleteTarget.name }) : undefined
+        }
+        confirmLabel={t('apiService.keys.delete')}
+        cancelLabel={t('common.cancel')}
+        variant="destructive"
+        onConfirm={() => {
+          if (deleteTarget) void onDelete(deleteTarget.id);
+          setDeleteTarget(null);
         }}
       />
     </section>
