@@ -361,7 +361,11 @@ function appendUpstreamsQuery(params: URLSearchParams, route: AppRoute): void {
   if (selection) {
     params.set('accountProvider', selection.providerId);
     params.set('accountId', selection.accountId);
-    if (route.accountTab && ACCOUNT_DETAIL_TABS.has(route.accountTab) && route.accountTab !== 'overview') {
+    // `detail` doubles as the account-drawer open signal: a present value
+    // (including the default `overview`) means the drawer is open, while its
+    // absence means closed. Omitting `overview` here used to round-trip the
+    // open state away, so the drawer could never open on its default tab.
+    if (route.accountTab && ACCOUNT_DETAIL_TABS.has(route.accountTab)) {
       params.set('detail', route.accountTab);
     }
   }

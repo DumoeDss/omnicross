@@ -26,6 +26,17 @@ const CALLBACK_PATH = '/auth/callback';
 /** Bounded wait so a never-completed login can't hang the listener forever. */
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 
+/**
+ * Response headers for the callback page. `Connection: close` is load-bearing:
+ * without it the browser keeps the HTTP/1.1 socket alive after rendering the
+ * page, which is what gates `server.close()`'s completion (see `finish`). With
+ * it, Node tears the socket down as soon as the response is flushed.
+ */
+const HTML_HEADERS: Readonly<Record<string, string>> = {
+  'Content-Type': 'text/html',
+  Connection: 'close',
+};
+
 /** Minimal browser-facing HTML (no token material — just a close prompt). */
 function pageHtml(message: string): string {
   return `<!doctype html><meta charset="utf-8"><title>omnicross login</title><body style="font-family:sans-serif;padding:2rem"><h2>${message}</h2><p>You can close this window and return to the terminal.</p></body>`;
@@ -34,7 +45,7 @@ function pageHtml(message: string): string {
 /**
  * Listen ONCE on `127.0.0.1:1455` for the codex OAuth callback, validate the
  * returned `state` against `expectedState`, and resolve the authorization
- * `code`. Always closes the server before settling.
+ * `code`. Settles the promise first, then always closes the server.
  */
 export function awaitLoopbackCode(
   expectedState: string,
@@ -48,13 +59,27 @@ export function awaitLoopbackCode(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      server.close(() => fn());
+      // Settle the promise BEFORE tearing the listener down. Previously this was
+      // `server.close(() => fn())`, so resolve/reject was gated on server.close's
+      // callback — which fires only once EVERY lingering connection closes. The
+      // browser holds the HTTP/1.1 keep-alive socket open after rendering our
+      // response, so the token exchange never started until that socket tore down
+      // (observed in production: a codex login only completed after the user
+      // closed the browser tab, dropping the keep-alive). Resolve now so the
+      // exchange starts at once; the teardown below is fire-and-forget.
+      fn();
+      // `Connection: close` (in HTML_HEADERS) makes Node drop the socket right
+      // after the response is flushed, so server.close() completes promptly and
+      // port 1455 frees for the next sign-in. We deliberately do NOT call
+      // `closeAllConnections()` here — it destroys sockets mid-write and could
+      // truncate the response the browser hasn't fully received yet.
+      server.close();
     };
 
     const server = createServer((req, res) => {
       const url = new URL(req.url ?? '', `http://${LOOPBACK_HOST}:${LOOPBACK_PORT}`);
       if (url.pathname !== CALLBACK_PATH) {
-        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.writeHead(404, HTML_HEADERS);
         res.end(pageHtml('Not found'));
         return;
       }
@@ -63,19 +88,19 @@ export function awaitLoopbackCode(
       const state = url.searchParams.get('state');
 
       if (!code) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.writeHead(400, HTML_HEADERS);
         res.end(pageHtml('Login failed: missing authorization code.'));
         finish(server, () => reject(new Error('login: callback did not include an authorization code')));
         return;
       }
       if (state !== expectedState) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.writeHead(400, HTML_HEADERS);
         res.end(pageHtml('Login failed: state mismatch.'));
         finish(server, () => reject(new Error('login: callback state did not match (possible CSRF) — aborting')));
         return;
       }
 
-      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.writeHead(200, HTML_HEADERS);
       res.end(pageHtml('Login complete.'));
       finish(server, () => resolve(code));
     });

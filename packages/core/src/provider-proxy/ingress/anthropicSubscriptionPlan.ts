@@ -48,6 +48,13 @@ import type {
   RequestConfig,
   ResolvedTransformerChain,
 } from '../../transformer';
+import {
+  buildAnthropicBeta,
+  DEFAULT_ANTHROPIC_VERSION,
+  DEFAULT_CLAUDE_CODE_HEADERS,
+  fillMissingHeaders,
+  FORCED_ACCEPT_ENCODING,
+} from '../identity/claudeCodeHeaders';
 import { applyFingerprint } from '../identity/fingerprintHeaders';
 import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import { collectMatchText, deriveSubscriptionSessionKey } from '../matchText';
@@ -77,6 +84,15 @@ export interface AnthropicByoOptions {
    * flag-off ⇒ the outbound headers stay byte-identical.
    */
   readonly callerIdentity?: Record<string, string>;
+  /**
+   * The caller's forwardable Claude Code client headers (UA / `x-app` /
+   * `x-stainless-*` / accept*), extracted UNGATED at the ingress. Distinct from
+   * `callerIdentity`, which exists only for the opt-in fingerprint freeze/replay:
+   * these are simply the client's OWN headers passed along so the relayed request
+   * still looks like the Claude Code invocation it came from. Absent ⇒ the
+   * defaults in `DEFAULT_CLAUDE_CODE_HEADERS` fill in.
+   */
+  readonly callerClientHeaders?: Record<string, string>;
 }
 
 /**
@@ -473,7 +489,8 @@ async function runSubscriptionSameFormatFetch(
   // strict no-op when the flag is disabled (default) or the account is unknown ⇒
   // outbound headers stay BYTE-IDENTICAL. It NEVER overwrites auth/content-type
   // and NEVER fabricates a stainless value.
-  if (plan.isSubscription && plan.transformerProvider.name === 'claude') {
+  const isClaudeSubscription = plan.isSubscription && plan.transformerProvider.name === 'claude';
+  if (isClaudeSubscription) {
     applyFingerprint(
       getSharedIdentityStore(),
       headers,
@@ -482,6 +499,28 @@ async function runSubscriptionSameFormatFetch(
       options.callerIdentity,
     );
   }
+  // Anthropic wire headers. This relay previously sent ONLY `content-type` +
+  // `Authorization`: everything else was expected from `applyFingerprint`, which
+  // is a strict no-op while the (default-OFF) fingerprint feature is disabled. So
+  // a stock install sent NO `anthropic-version` and Anthropic answered
+  // `400 anthropic-version: header is required`.
+  //
+  // SCOPING: this function also serves opencodego (another anthropic-wire
+  // subscription). `anthropic-version` and the encoding guard apply to ANY
+  // anthropic-wire upstream, but the Claude Code identity and the
+  // `oauth-2025-04-20` beta are anthropic.com/Claude-Code specific — sending
+  // them to a third-party Claude-compatible endpoint would be wrong, so they are
+  // gated on the claude subscription.
+  if (isClaudeSubscription) {
+    // Order matters. The frozen fingerprint above already had its say, and
+    // `fillMissingHeaders` never overwrites — so precedence reads
+    // auth > frozen fingerprint > caller's real headers > Claude Code defaults.
+    fillMissingHeaders(headers, options.callerClientHeaders ?? {});
+    fillMissingHeaders(headers, DEFAULT_CLAUDE_CODE_HEADERS);
+  }
+  fillMissingHeaders(headers, { 'anthropic-version': DEFAULT_ANTHROPIC_VERSION });
+  // Never let the upstream answer with a body we cannot decode (see the constant).
+  headers['accept-encoding'] = FORCED_ACCEPT_ENCODING;
   // Rewrite `body.model` ONLY when a per-account remap was reported AND the remap
   // applies to this plan's provider (claude — model-INDEPENDENT upstream URL; see
   // `outboundRemapApplies`). Otherwise the body is forwarded BYTE-FOR-BYTE (map-less
@@ -491,6 +530,17 @@ async function runSubscriptionSameFormatFetch(
   const applyRemap = remappedModel !== undefined && outboundRemapApplies(plan);
   const outboundBody = applyRemap ? rewriteBodyModel(rawBody, remappedModel as string) : rawBody;
   const outboundModel = applyRemap ? (remappedModel as string) : plan.resolvedModel;
+  // PROTOCOL, not fingerprint — set whenever this is the claude subscription.
+  // `oauth-2025-04-20` is the load-bearing flag: that path authenticates with a
+  // subscription OAuth token, not an API key. Keyed off the model ACTUALLY sent,
+  // so a per-account remap onto (or off) haiku picks the matching baseline. A
+  // non-claude anthropic-wire upstream (opencodego) keeps whatever the caller
+  // sent, since these flags are anthropic.com-specific.
+  if (isClaudeSubscription) {
+    headers['anthropic-beta'] = buildAnthropicBeta(outboundModel, options.callerAnthropicBeta);
+  } else if (options.callerAnthropicBeta) {
+    fillMissingHeaders(headers, { 'anthropic-beta': options.callerAnthropicBeta });
+  }
   console.info(
     `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${outboundModel} stream=${plan.isStream}`,
   );

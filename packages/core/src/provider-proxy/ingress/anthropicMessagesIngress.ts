@@ -48,6 +48,7 @@
 
 import type http from 'node:http';
 
+import { extractClaudeClientHeaders } from '../identity/claudeCodeHeaders';
 import { captureCallerIdentity } from '../identity/fingerprintHeaders';
 import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import type { ProviderProxyDeps, RouteContext } from '../types';
@@ -103,7 +104,16 @@ export async function handleAnthropicMessagesRequest(
     // relay's own claude-scoped gate is unchanged, so behavior when enabled is
     // identical.
     const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
-    await handleAnthropicMessagesByo(res, rawBody, route, deps, { callerAnthropicBeta, callerIdentity });
+    // UNGATED, unlike `captureCallerIdentity`: forwarding the client's OWN
+    // Claude Code headers (UA / x-app / x-stainless-* / accept*) is not
+    // fingerprint synthesis, and the subscription relay needs them regardless of
+    // whether the opt-in freeze/replay feature is on.
+    const callerClientHeaders = extractClaudeClientHeaders(req.headers);
+    await handleAnthropicMessagesByo(res, rawBody, route, deps, {
+      callerAnthropicBeta,
+      callerIdentity,
+      callerClientHeaders,
+    });
     return;
   }
 
