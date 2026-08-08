@@ -340,6 +340,9 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     id: row.id,
     name: row.name,
     keyPrefix: row.keyPrefix,
+    // True only when a reversible `keySecret` envelope was persisted at creation
+    // — gates the UI "view key" eye. Legacy hash-only rows read as absent.
+    revealable: Boolean(row.keySecret),
     enabled: row.enabled,
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
@@ -1598,6 +1601,23 @@ async function handleKeys(
       createdAt: created.createdAt,
       plaintextOnce: created.plaintextOnce,
     });
+  }
+
+  // GET /keys/:id/reveal → the DECRYPTED key plaintext, for the operator "view
+  // key" affordance. Mirrors /providers/:id/reveal-key: the secret crosses OUT
+  // here BY DESIGN, only on this explicit per-key request (never in the list).
+  // Null covers both "missing" and "exists but not revealable (legacy hash-only
+  // row)"; a list probe distinguishes them for a precise status code.
+  if (method === 'GET' && rest.length === 2 && rest[1] === 'reveal') {
+    const revealed = await deps.keyDb.outboundApiKeysReveal(rest[0]);
+    if (revealed !== null) return writeJson(res, 200, { key: revealed });
+    const exists = (await deps.keyDb.outboundApiKeysList()).some((r) => r.id === rest[0]);
+    if (!exists) return writeJsonError(res, 404, `key '${rest[0]}' not found`);
+    return writeJsonError(
+      res,
+      409,
+      `key '${rest[0]}' is not revealable (created before revealable key storage)`,
+    );
   }
 
   const id = rest[0];

@@ -62,6 +62,8 @@ export interface UseApiServiceResult {
   setNetworkBinding: (networkBinding: boolean) => Promise<void>;
   updateBindings: (bindings: GatewayBinding[]) => Promise<void>;
   createKey: (name: string) => Promise<boolean>;
+  /** Reveal a key's stored plaintext (view-key affordance); no state mutation. */
+  revealKey: (id: string) => Promise<{ success: boolean; key?: string; message?: string }>;
   revokeKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
   setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
@@ -258,6 +260,13 @@ export function useApiService(): UseApiServiceResult {
     }
   }, []);
 
+  // The reveal is a pure read (no config mutation) — like queryAudit, it does NOT
+  // go through runWrite nor flip busy; the caller renders the returned key inline.
+  const revealKey = useCallback(
+    (id: string) => agent.apiService.revealKey(id),
+    [],
+  );
+
   const revokeKey = useCallback(async (id: string) => {
     setBusy(true);
     setError(null);
@@ -444,6 +453,7 @@ export function useApiService(): UseApiServiceResult {
     setNetworkBinding,
     updateBindings,
     createKey,
+    revealKey,
     revokeKey,
     setKeyEnabled,
     setKeyMaxConcurrency,

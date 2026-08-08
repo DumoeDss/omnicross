@@ -840,6 +840,9 @@
         "copied": "已复制",
         "dismiss": "完成"
       },
+      "reveal": "查看密钥",
+      "revealError": "查看密钥失败。",
+      "revealHint": "按需解密——请像对待原始密钥一样妥善保管。",
       "bindings": {
         "title": "下游接口",
         "count": "已绑定 {{count}} 个下游接口",

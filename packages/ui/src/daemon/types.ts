@@ -346,6 +346,15 @@ export interface AgentApiServiceApi {
   revokeKey(id: string): Promise<MutationResult>;
   setKeyEnabled(id: string, enabled: boolean): Promise<MutationResult>;
   /**
+   * Reveal the stored plaintext of a key (`GET /keys/:id/reveal`) — the operator
+   * "view key" affordance, mirroring the provider key reveal. Succeeds only for
+   * keys persisted with a reversible `keySecret` (created after revealable key
+   * storage); a legacy hash-only key resolves `{ success: false }`. The UI gates
+   * the affordance on each key's `revealable` flag so this is only invoked for
+   * revealable keys.
+   */
+  revealKey(id: string): Promise<{ success: boolean; key?: string; message?: string }>;
+  /**
    * Persist the voucher segment (`PUT /server` with `{ voucher }`,
    * voucher-redemption #9). Pass `undefined` to reset to defaults (disabled).
    * Carries no secret.

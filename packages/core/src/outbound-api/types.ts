@@ -495,6 +495,13 @@ export interface OutboundApiKeyInfo {
   id: string;
   name: string;
   keyPrefix: string;
+  /**
+   * Whether the operator "view key" affordance is available for this key — true
+   * only when a reversibly-encrypted `keySecret` was persisted at creation.
+   * Legacy hash-only rows (and any DB without a `SecretBox`) read as absent ⇒
+   * not revealable. Optional so a pre-upgrade daemon response type-checks.
+   */
+  revealable?: boolean;
   enabled: boolean;
   createdAt: number;
   lastUsedAt: number | null;
@@ -598,6 +605,15 @@ export interface OutboundKeyDbRow {
   name: string;
   keyHash: string;
   keyPrefix: string;
+  /**
+   * OPTIONAL reversibly-encrypted plaintext of the secret (an `enc:v1:…`
+   * envelope produced by the daemon's `SecretBox`). Absent on legacy rows
+   * (created before revealable storage) AND on any DB constructed without a
+   * `SecretBox` — in both cases the key is NOT revealable. The hash above
+   * remains the auth lookup index; this field only powers the operator
+   * "view key" affordance.
+   */
+  keySecret?: string;
   enabled: boolean;
   createdAt: number;
   lastUsedAt: number | null;
@@ -656,6 +672,14 @@ export interface OutboundKeyDb {
     kind?: 'client' | 'integration';
     allowedEndpoints?: OutboundEndpoint[];
     loopbackOnly?: boolean;
+    /**
+     * The generated plaintext secret. When the DB holds a `SecretBox` it
+     * persists a reversibly-encrypted copy as `keySecret` (enabling the
+     * "view key" affordance); when no box is wired the plaintext is dropped
+     * (byte-identical to the legacy hash-only storage). The hash above — NOT
+     * this field — remains the auth lookup index.
+     */
+    plaintext?: string;
   }): Promise<OutboundKeyDbRow>;
   outboundApiKeysRevoke(id: string): Promise<boolean>;
   outboundApiKeysTouchLastUsed(id: string): Promise<boolean>;
@@ -686,6 +710,14 @@ export interface OutboundKeyDb {
    * idempotent).
    */
   outboundApiKeysMarkActivated(id: string, activatedAt: number): Promise<boolean>;
+  /**
+   * Reveal the stored plaintext for a key (the operator "view key" affordance),
+   * or `null` when the key is missing OR was persisted without a `keySecret`
+   * (legacy hash-only rows / a DB constructed without a `SecretBox`). The
+   * daemon-owned DB decrypts its stored envelope; core never handles the
+   * master key.
+   */
+  outboundApiKeysReveal(id: string): Promise<string | null>;
 }
 
 /**

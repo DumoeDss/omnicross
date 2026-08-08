@@ -9,6 +9,11 @@
  * `keyHash` + display `keyPrefix` and returns the one-time plaintext; the hot
  * auth path uses core's `hashKey(presented)` + `outboundApiKeysGetByHash`.
  *
+ * OPTIONAL reversible storage: when constructed with a `SecretBox`, each created
+ * key ALSO persists its plaintext as a `keySecret` `enc:` envelope, powering the
+ * operator "view key" affordance (`outboundApiKeysReveal`). The hash remains the
+ * auth index; without a box the store is hash-only (byte-identical to legacy).
+ *
  * @module @omnicross/daemon/ports/JsonOutboundKeyDb
  */
 
@@ -16,8 +21,21 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import type { OutboundKeyDb, OutboundKeyDbRow, OutboundKeyPolicy } from '@omnicross/core';
 
+import type { SecretBox } from '../secrets/SecretBox';
+
 export class JsonOutboundKeyDb implements OutboundKeyDb {
-  constructor(private readonly keysPath: string) {}
+  /**
+   * @param secretBox OPTIONAL reversible-secret codec. When present, a created
+   * key's plaintext is persisted as a `keySecret` `enc:` envelope (enabling the
+   * operator "view key" affordance via `outboundApiKeysReveal`). When absent the
+   * store stays hash-only (byte-identical to the legacy behavior) and reveal
+   * always returns `null`. Existing 1-arg call sites (tests, lightweight
+   * embedders) keep working.
+   */
+  constructor(
+    private readonly keysPath: string,
+    private readonly secretBox?: SecretBox,
+  ) {}
 
   async outboundApiKeysList(): Promise<OutboundKeyDbRow[]> {
     return this.readRows();
@@ -40,6 +58,7 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     kind?: 'client' | 'integration';
     allowedEndpoints?: import('@omnicross/core').OutboundEndpoint[];
     loopbackOnly?: boolean;
+    plaintext?: string;
   }): Promise<OutboundKeyDbRow> {
     const rows = this.readRows();
     const row: OutboundKeyDbRow = {
@@ -55,9 +74,22 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
       allowedEndpoints: input.allowedEndpoints,
       loopbackOnly: input.loopbackOnly,
     };
+    // Reversible storage for the "view key" affordance. Only when both a
+    // plaintext and a SecretBox are present — otherwise the row stays
+    // hash-only (byte-identical to the legacy shape; reveal returns null).
+    if (input.plaintext && this.secretBox) {
+      row.keySecret = this.secretBox.encrypt(input.plaintext);
+    }
     rows.push(row);
     this.writeRows(rows);
     return row;
+  }
+
+  async outboundApiKeysReveal(id: string): Promise<string | null> {
+    const rows = this.readRows();
+    const row = rows.find((r) => r.id === id);
+    if (!row || !row.keySecret || !this.secretBox) return null;
+    return this.secretBox.decrypt(row.keySecret);
   }
 
   async outboundApiKeysRevoke(id: string): Promise<boolean> {

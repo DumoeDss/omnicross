@@ -143,6 +143,17 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async revealKey(id: string): Promise<{ success: boolean; key?: string; message?: string }> {
+      try {
+        const data = await adminClient.get<{ key: string }>(
+          `/keys/${encodeURIComponent(id)}/reveal`,
+        );
+        return { success: true, key: data.key ?? '' };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to reveal key' };
+      }
+    },
+
     async setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult> {
       try {
         const data = await adminClient.post<{ ok: boolean; maxConcurrency?: number | null }>(

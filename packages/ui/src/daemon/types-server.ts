@@ -435,6 +435,12 @@ export interface OutboundApiKeyInfo {
   id: string;
   name: string;
   keyPrefix: string;
+  /**
+   * Whether the operator "view key" affordance is available — true only when a
+   * reversible secret was persisted at creation. Absent on pre-upgrade daemon
+   * responses and legacy hash-only rows (read as not revealable).
+   */
+  revealable?: boolean;
   enabled: boolean;
   createdAt: number;
   lastUsedAt: number | null;

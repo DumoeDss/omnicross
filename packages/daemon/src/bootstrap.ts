@@ -302,7 +302,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   );
 
   const llmConfig = new ConfigFileProviderConfigSource(decryptedConfig);
-  const keyDb = new JsonOutboundKeyDb(paths.keysPath);
+  // The key store owns the reversible "view key" codec: a created key's
+  // plaintext is persisted as a `keySecret` envelope (decoded on
+  // `outboundApiKeysReveal`). Mirrors how the credential/settings stores below
+  // take the same `secretBox`.
+  const keyDb = new JsonOutboundKeyDb(paths.keysPath, secretBox);
   // Voucher (redemption-card) store (voucher-redemption #9) — a sibling
   // `vouchers.json`, the SAME update-capable JSON mechanism as the key store so
   // the redeem status CAS works. Constructed always; the redeem endpoint + admin
