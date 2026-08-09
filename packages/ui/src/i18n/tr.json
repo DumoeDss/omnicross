@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Erişim anahtarları",
-      "description": "Harici çağrıcıların Bearer token olarak gönderdiği adlandırılmış anahtarlar. Tam anahtar yalnızca oluşturulurken bir kez gösterilir.",
+      "description": "Harici çağrıcıların Bearer token olarak gönderdiği adlandırılmış anahtarlar. Tam anahtar, anahtar listesinden istediğiniz zaman tekrar görüntülenebilir.",
       "namePlaceholder": "Anahtar adı (örn. my-cli)",
       "create": "Anahtar oluştur",
       "empty": "Henüz erişim anahtarı yok.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "\"{{name}}\" iptal edildiğinde kimlik doğrulaması hemen durur. Bu işlem geri alınamaz.",
       "created": {
         "title": "Anahtar oluşturuldu",
-        "warning": "Bu anahtarı şimdi kopyalayın — bir daha gösterilmeyecek. Güvenli bir yerde saklayın.",
+        "warning": "Bu anahtarı şimdi kopyalayın ve güvenli bir yerde saklayın — anahtar listesinden istediğiniz zaman tekrar görüntüleyebilirsiniz.",
         "copy": "Kopyala",
         "copied": "Kopyalandı",
         "dismiss": "Tamam"

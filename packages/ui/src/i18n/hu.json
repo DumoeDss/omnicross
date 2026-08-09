@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Hozzáférési kulcsok",
-      "description": "Névvel ellátott kulcsok, amelyeket a külső hívók Bearer tokenként küldenek. A teljes kulcs csak a létrehozáskor jelenik meg.",
+      "description": "Névvel ellátott kulcsok, amelyeket a külső hívók Bearer tokenként küldenek. A teljes kulcs a kulcslistáról bármikor újra megtekinthető.",
       "namePlaceholder": "Kulcs neve (pl. saját-cli)",
       "create": "Kulcs létrehozása",
       "empty": "Még nincsenek hozzáférési kulcsok.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "A „{{name}}“ visszavonása azonnal megakadályozza a hitelesítését. Ez a művelet nem vonható vissza.",
       "created": {
         "title": "Kulcs létrehozva",
-        "warning": "Másolja le ezt a kulcsot most — nem jelenik meg újra. Tárolja biztonságosan.",
+        "warning": "Másolja le ezt a kulcsot most és tárolja biztonságosan — a kulcslistáról bármikor újra megtekintheti.",
         "copy": "Másolás",
         "copied": "Másolva",
         "dismiss": "Kész"

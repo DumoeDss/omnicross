@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Zugriffsschlüssel",
-      "description": "Benannte Schlüssel, die externe Aufrufer als Bearer-Token senden. Der vollständige Schlüssel wird nur einmal bei der Erstellung angezeigt.",
+      "description": "Benannte Schlüssel, die externe Aufrufer als Bearer-Token senden. Der vollständige Schlüssel kann jederzeit wieder aus der Schlüsselliste angezeigt werden.",
       "namePlaceholder": "Schlüsselname (z. B. mein-cli)",
       "create": "Schlüssel erstellen",
       "empty": "Noch keine Zugriffsschlüssel vorhanden.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Das Widerrufen von \"{{name}}\" verhindert sofort die Authentifizierung damit. Dies kann nicht rückgängig gemacht werden.",
       "created": {
         "title": "Schlüssel erstellt",
-        "warning": "Kopieren Sie diesen Schlüssel jetzt — er wird nicht erneut angezeigt. Bewahren Sie ihn sicher auf.",
+        "warning": "Kopieren Sie diesen Schlüssel jetzt und bewahren Sie ihn sicher auf — Sie können ihn jederzeit wieder aus der Schlüsselliste anzeigen.",
         "copy": "Kopieren",
         "copied": "Kopiert",
         "dismiss": "Fertig"

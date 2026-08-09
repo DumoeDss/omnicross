@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Käyttöavaimet",
-      "description": "Nimetyt avaimet, jotka ulkoiset kutsujat lähettävät Bearer-tokenina. Koko avain näytetään vain kerran luomisen yhteydessä.",
+      "description": "Nimetyt avaimet, jotka ulkoiset kutsujat lähettävät Bearer-tokenina. Koko avain voidaan näyttää uudelleen milloin tahansa avainluettelosta.",
       "namePlaceholder": "Avaimen nimi (esim. oma-cli)",
       "create": "Luo avain",
       "empty": "Ei käyttöavaimia vielä.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "\"{{name}}\"-avaimen peruuttaminen estää todentamisen välittömästi. Tätä ei voi kumota.",
       "created": {
         "title": "Avain luotu",
-        "warning": "Kopioi tämä avain nyt — sitä ei näytetä uudelleen. Säilytä se turvallisesti.",
+        "warning": "Kopioi tämä avain nyt ja säilytä se turvallisesti — voit näyttää sen uudelleen milloin tahansa avainluettelosta.",
         "copy": "Kopioi",
         "copied": "Kopioitu",
         "dismiss": "Valmis"

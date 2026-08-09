@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Chei de acces",
-      "description": "Chei cu nume trimise de apelatorii externi ca token Bearer. Cheia completă este afișată o singură dată la creare.",
+      "description": "Chei cu nume trimise de apelatorii externi ca token Bearer. Cheia completă poate fi vizualizată din nou oricând din lista de chei.",
       "namePlaceholder": "Numele cheii (ex.: cli-ul-meu)",
       "create": "Creare cheie",
       "empty": "Nicio cheie de acces încă.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Revocarea \"{{name}}\" oprește imediat autentificarea. Această acțiune nu poate fi anulată.",
       "created": {
         "title": "Cheie creată",
-        "warning": "Copiați această cheie acum — nu va mai fi afișată. Stocați-o în siguranță.",
+        "warning": "Copiați această cheie acum și stocați-o în siguranță — o puteți vizualiza din nou oricând din lista de chei.",
         "copy": "Copiere",
         "copied": "Copiat",
         "dismiss": "Gata"

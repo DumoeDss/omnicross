@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Adgangsnøgler",
-      "description": "Navngivne nøgler, som eksterne kaldere sender som Bearer-token. Den fulde nøgle vises kun én gang ved oprettelse.",
+      "description": "Navngivne nøgler, som eksterne kaldere sender som Bearer-token. Den fulde nøgle kan når som helst ses igen fra nøglelisten.",
       "namePlaceholder": "Nøglenavn (f.eks. min-cli)",
       "create": "Opret nøgle",
       "empty": "Ingen adgangsnøgler endnu.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Tilbagekaldelse af \"{{name}}\" stopper straks dens godkendelse. Dette kan ikke fortrydes.",
       "created": {
         "title": "Nøgle oprettet",
-        "warning": "Kopiér denne nøgle nu — den vises ikke igen. Opbevar den sikkert.",
+        "warning": "Kopiér denne nøgle nu og opbevar den sikkert — du kan når som helst se den igen fra nøglelisten.",
         "copy": "Kopiér",
         "copied": "Kopieret",
         "dismiss": "Færdig"

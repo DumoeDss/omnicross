@@ -822,7 +822,7 @@
     },
     "keys": {
       "title": "访问密钥",
-      "description": "外部调用方作为 Bearer 令牌发送的命名密钥。完整密钥仅在创建时显示一次。",
+      "description": "外部调用方作为 Bearer 令牌发送的命名密钥。创建后可在密钥列表中随时查看完整密钥。",
       "namePlaceholder": "密钥名称（如 my-cli）",
       "create": "创建密钥",
       "empty": "尚无访问密钥。",
@@ -838,7 +838,7 @@
       "deleteConfirmDesc": "删除“{{name}}”会将其从列表中彻底移除。此操作不可撤销。",
       "created": {
         "title": "密钥已创建",
-        "warning": "请立即复制此密钥——它不会再次显示。请妥善保存。",
+        "warning": "请立即复制此密钥并妥善保存——之后仍可在密钥列表中重新查看。",
         "copy": "复制",
         "copied": "已复制",
         "dismiss": "完成"

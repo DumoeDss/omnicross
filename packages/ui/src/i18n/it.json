@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Chiavi di accesso",
-      "description": "Chiavi nominate che le chiamate esterne inviano come token Bearer. La chiave completa viene mostrata solo una volta alla creazione.",
+      "description": "Chiavi nominate che le chiamate esterne inviano come token Bearer. La chiave completa può essere visualizzata di nuovo in qualsiasi momento dall'elenco delle chiavi.",
       "namePlaceholder": "Nome chiave (es. il-mio-cli)",
       "create": "Crea chiave",
       "empty": "Nessuna chiave di accesso ancora.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "La revoca di \"{{name}}\" la blocca immediatamente dall'autenticazione. Questa operazione è irreversibile.",
       "created": {
         "title": "Chiave creata",
-        "warning": "Copia questa chiave ora — non verrà mostrata di nuovo. Conservala al sicuro.",
+        "warning": "Copia questa chiave ora e conservala al sicuro — puoi visualizzarla di nuovo in qualsiasi momento dall'elenco delle chiavi.",
         "copy": "Copia",
         "copied": "Copiato",
         "dismiss": "Fatto"

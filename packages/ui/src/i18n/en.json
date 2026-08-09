@@ -825,7 +825,7 @@
     },
     "keys": {
       "title": "Access keys",
-      "description": "Named keys external callers send as a Bearer token. The full key is shown only once at creation.",
+      "description": "Named keys external callers send as a Bearer token. The full key can be viewed again anytime from the key list.",
       "namePlaceholder": "Key name (e.g. my-cli)",
       "create": "Create key",
       "empty": "No access keys yet.",
@@ -841,7 +841,7 @@
       "deleteConfirmDesc": "Deleting \"{{name}}\" removes it from the list entirely. This cannot be undone.",
       "created": {
         "title": "Key created",
-        "warning": "Copy this key now — it will not be shown again. Store it securely.",
+        "warning": "Copy this key now and store it securely — you can view it again anytime from the key list.",
         "copy": "Copy",
         "copied": "Copied",
         "dismiss": "Done"

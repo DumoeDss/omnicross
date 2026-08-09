@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Åtkomstnycklar",
-      "description": "Namngivna nycklar som externa anropare skickar som en Bearer-token. Den fullständiga nyckeln visas bara en gång vid skapandet.",
+      "description": "Namngivna nycklar som externa anropare skickar som en Bearer-token. Den fullständiga nyckeln kan visas igen när som helst från nyckellistan.",
       "namePlaceholder": "Nyckelnamn (t.ex. mitt-cli)",
       "create": "Skapa nyckel",
       "empty": "Inga åtkomstnycklar ännu.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Återkallande av \"{{name}}\" stoppar omedelbart autentisering. Detta kan inte ångras.",
       "created": {
         "title": "Nyckel skapad",
-        "warning": "Kopiera den här nyckeln nu — den visas inte igen. Förvara den säkert.",
+        "warning": "Kopiera den här nyckeln nu och förvara den säkert — du kan visa den igen när som helst från nyckellistan.",
         "copy": "Kopiera",
         "copied": "Kopierad",
         "dismiss": "Klar"
