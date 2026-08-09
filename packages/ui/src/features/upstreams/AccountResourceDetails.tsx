@@ -11,7 +11,12 @@ import { Switch } from '@/components/ui/switch';
 import { AccountAllowance } from '@/features/accounts/AccountAllowance';
 import { SupportedModelsEditor } from '@/features/accounts/SupportedModelsEditor';
 import { accountSchedulingState, type ManagedAccountRow } from '@/features/accounts/accountManagementModel';
-import type { AccountManagementPatch, AccountProbeRecord, ProxyConfig } from '@/daemon/types';
+import type {
+  AccountConnectionTestResult,
+  AccountManagementPatch,
+  AccountProbeRecord,
+  ProxyConfig,
+} from '@/daemon/types';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
 
@@ -23,7 +28,7 @@ export interface AccountResourceDetailsProps {
   onSetSupportedModels: (
     supportedModels: string[] | Record<string, string> | undefined,
   ) => Promise<{ success: boolean; message?: string }>;
-  onTest: () => Promise<{ success: boolean; ok?: boolean; message?: string }>;
+  onTest: () => Promise<AccountConnectionTestResult>;
   onLoadEvents: () => Promise<{ success: boolean; events: AccountProbeRecord[]; message?: string }>;
   onRefreshAllowance?: () => Promise<{ success: boolean; message?: string }>;
   onRemove: () => void;
@@ -54,15 +59,16 @@ export function AccountResourceDetails({
   const [modelsOpen, setModelsOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [dangerOpen, setDangerOpen] = useState(false);
+  const persistedTags = account.tags.join(', ');
 
   useEffect(() => {
     setLabel(account.label ?? '');
     setGroup(account.group ?? account.providerId);
-    setTags(account.tags.join(', '));
+    setTags(persistedTags);
     setPriority(String(account.priority ?? 50));
     setEvents([]);
     setDiagnostic(null);
-  }, [account]);
+  }, [account.id, account.providerId, account.label, account.group, persistedTags, account.priority]);
 
   const saveOverview = () => {
     const patch: AccountManagementPatch = {
@@ -79,7 +85,12 @@ export function AccountResourceDetails({
     setDiagnostic(null);
     const result = await onTest();
     setDiagnostic(result.success && result.ok
-      ? { kind: 'ok', text: t('accounts.management.diagnostics.testPassed') }
+      ? {
+          kind: 'ok',
+          text: result.tier === 'generation' && result.model
+            ? t('accounts.management.diagnostics.generationPassed', { model: result.model })
+            : t('accounts.management.diagnostics.testPassed'),
+        }
       : { kind: 'error', text: result.message ?? t('accounts.management.diagnostics.testFailed') });
     const refreshed = await onLoadEvents();
     if (refreshed.success) setEvents(refreshed.events);

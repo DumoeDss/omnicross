@@ -93,5 +93,22 @@ describe('claude strategy — account pool', () => {
     expect(await bearer(strategy)).toBe('Bearer AT-A');
     expect(tokens.getValidClaudeAccessToken).toHaveBeenCalledTimes(1);
     expect(tokens.getAccessTokenForAccount).not.toHaveBeenCalled();
+    expect(tokens.touchAccountLastUsed).toHaveBeenCalledWith(
+      'claude',
+      'A',
+      expect.any(String),
+    );
+  });
+
+  it('records last-used when the pool selects the active account', async () => {
+    const tokens = makeStore([{ id: 'A', token: 'AT-A' }, { id: 'B', token: 'AT-B' }], 'A');
+    const strategy = new SubscriptionAccountService(tokens).getStrategy('claude')!;
+
+    expect(await bearer(strategy)).toBe('Bearer AT-A');
+    expect(tokens.touchAccountLastUsed).toHaveBeenCalledWith(
+      'claude',
+      'A',
+      expect.any(String),
+    );
   });
 });

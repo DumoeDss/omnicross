@@ -41,6 +41,12 @@ import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/Subscri
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
 import * as accountMulti from './ports/account-multi';
+import {
+  buildCodexGenerationProbeInit,
+  CODEX_GENERATION_PROBE_MODEL,
+  CODEX_GENERATION_PROBE_URL,
+  readCodexGenerationProbeStream,
+} from './probe/CodexGenerationProbe';
 import { type ProbePlan, probePlanFor } from './probe/ProbeStrategy';
 
 const KEY_SEP = '\0';
@@ -65,7 +71,15 @@ export interface ProbeRecord {
   /** Upstream round-trip latency (ms); absent for a local-tier record. */
   latencyMs?: number;
   /** Which tier produced this record. */
-  tier: 'local' | 'upstream';
+  tier: 'local' | 'upstream' | 'generation';
+}
+
+/** Secret-free outcome returned by the manual account connection-test route. */
+export interface AccountConnectionProbeOutcome {
+  ok: boolean;
+  marked: boolean;
+  tier: ProbeRecord['tier'];
+  model?: string;
 }
 
 /** Per-account probe history for the authed admin surface (names account ids). */
@@ -91,6 +105,11 @@ export interface ProbeCredentialStore {
     providerId: SubscriptionProviderId,
     accountId: string,
   ): Promise<string | null>;
+  /** Optional serving-parity retry seam for an upstream Codex 401. */
+  refreshAccountToken?(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ): Promise<boolean>;
 }
 
 /** Proxy-aware upstream fetch signature (#3 `fetchUpstream`). */
@@ -199,7 +218,7 @@ export class AccountHealthProbeScheduler implements AccountProbeHistoryReader {
   async probeAccount(
     providerId: SubscriptionProviderId,
     accountId: string,
-  ): Promise<{ ok: boolean; marked: boolean }> {
+  ): Promise<AccountConnectionProbeOutcome> {
     const now = this.now();
     let token: string | null = null;
     let readThrew = false;
@@ -213,7 +232,7 @@ export class AccountHealthProbeScheduler implements AccountProbeHistoryReader {
     }
     if (readThrew) {
       this.record(providerId, accountId, { ts: now, ok: false, status: null, tier: 'local' });
-      return { ok: false, marked: false };
+      return { ok: false, marked: false, tier: 'local' };
     }
 
     // Local tier — a DEFINITIVELY absent/unrefreshable token ⇒ dead ⇒ synthesized
@@ -221,7 +240,7 @@ export class AccountHealthProbeScheduler implements AccountProbeHistoryReader {
     if (!token) {
       this.health.recordUpstreamOutcome(providerId, accountId, { status: 401, now });
       this.record(providerId, accountId, { ts: now, ok: false, status: 401, tier: 'local' });
-      return { ok: false, marked: true };
+      return { ok: false, marked: true, tier: 'local' };
     }
 
     const plan = this.planFor(providerId);
@@ -230,7 +249,7 @@ export class AccountHealthProbeScheduler implements AccountProbeHistoryReader {
       // Do NOT touch the tracker: mere token-presence must not CLEAR a genuine
       // traffic-driven mark (we did not confirm the token actually works upstream).
       this.record(providerId, accountId, { ts: now, ok: true, tier: 'local' });
-      return { ok: true, marked: false };
+      return { ok: true, marked: false, tier: 'local' };
     }
 
     // Upstream tier — minimal authed GET through #3's proxy-aware fetch.
@@ -258,7 +277,75 @@ export class AccountHealthProbeScheduler implements AccountProbeHistoryReader {
       latencyMs,
       tier: 'upstream',
     });
-    return { ok: status !== null && status < 400, marked };
+    return { ok: status !== null && status < 400, marked, tier: 'upstream' };
+  }
+
+  /**
+   * Manual connection test. Codex performs a real, quota-consuming generation;
+   * every other provider keeps its existing cheap probe. Scheduled sweeps never
+   * call this method, so they remain non-billable.
+   */
+  async testAccountConnection(
+    providerId: SubscriptionProviderId,
+    accountId: string,
+  ): Promise<AccountConnectionProbeOutcome> {
+    if (providerId !== 'codex') return this.probeAccount(providerId, accountId);
+
+    const now = this.now();
+    let token: string | null;
+    try {
+      token = await this.store.getAccessTokenForAccount(providerId, accountId);
+    } catch {
+      this.record(providerId, accountId, { ts: now, ok: false, status: null, tier: 'local' });
+      return { ok: false, marked: false, tier: 'local', model: CODEX_GENERATION_PROBE_MODEL };
+    }
+    if (!token) {
+      this.health.recordUpstreamOutcome(providerId, accountId, { status: 401, now });
+      this.record(providerId, accountId, { ts: now, ok: false, status: 401, tier: 'local' });
+      return { ok: false, marked: true, tier: 'local', model: CODEX_GENERATION_PROBE_MODEL };
+    }
+
+    const startedAt = this.now();
+    let attempt = await this.runCodexGenerationAttempt(accountId, token);
+
+    // Serving parity: a stale-but-refreshable access token gets one refresh and
+    // one retry. The response and token are never exposed through the admin API.
+    if (attempt.status === 401 && this.store.refreshAccountToken) {
+      try {
+        if (await this.store.refreshAccountToken(providerId, accountId)) {
+          const refreshed = await this.store.getAccessTokenForAccount(providerId, accountId);
+          if (refreshed) attempt = await this.runCodexGenerationAttempt(accountId, refreshed);
+        }
+      } catch {
+        // The decisive first 401 remains the outcome; the refresh failure itself
+        // is credential-store detail and must not leak into diagnostics.
+      }
+    }
+
+    const latencyMs = this.now() - startedAt;
+    const ok = attempt.status !== null
+      && attempt.status >= 200
+      && attempt.status < 300
+      && attempt.completed;
+    let marked = false;
+    if (ok) {
+      this.health.clearTransientMark(providerId, accountId);
+    } else if (attempt.status === 401 || attempt.status === 403) {
+      marked = this.applyOutcome(providerId, accountId, attempt.status, attempt.bodyText, now);
+    }
+    this.record(providerId, accountId, {
+      ts: now,
+      ok,
+      status: attempt.status,
+      latencyMs,
+      tier: 'generation',
+    });
+    return {
+      ok,
+      marked,
+      tier: 'generation',
+      model: CODEX_GENERATION_PROBE_MODEL,
+    };
   }
 
   /** Per-account rolling history for the authed admin surface (design D5). */
@@ -334,6 +421,29 @@ export class AccountHealthProbeScheduler implements AccountProbeHistoryReader {
       return (await res.text()).slice(0, MAX_BODY_SNIFF);
     } catch {
       return '';
+    }
+  }
+
+  private async runCodexGenerationAttempt(accountId: string, token: string): Promise<{
+    status: number | null;
+    completed: boolean;
+    bodyText?: string;
+  }> {
+    try {
+      const timeoutMs = Math.max(this.config.timeoutMs, 15_000);
+      const response = await this.fetchImpl(
+        CODEX_GENERATION_PROBE_URL,
+        buildCodexGenerationProbeInit(token, AbortSignal.timeout(timeoutMs)),
+        { providerId: 'codex', accountId, redactBodies: true },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        const bodyText = response.status === 403 ? await this.readBounded(response) : undefined;
+        return { status: response.status, completed: false, bodyText };
+      }
+      const stream = await readCodexGenerationProbeStream(response);
+      return { status: response.status, completed: stream.completed };
+    } catch {
+      return { status: null, completed: false };
     }
   }
 

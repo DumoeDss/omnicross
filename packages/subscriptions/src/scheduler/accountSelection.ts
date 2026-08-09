@@ -142,6 +142,7 @@ function hasUsableToken(token: string | null): token is string {
  * strict endpoint binding (especially for model maps and allowance pauses).
  */
 async function resolveStrictPreferredToken(
+  selector: SubscriptionAccountSelector | undefined,
   tokens: SubscriptionCredentialStore,
   providerId: SubscriptionProviderId,
   preferredId: string,
@@ -202,6 +203,7 @@ async function resolveStrictPreferredToken(
   }
 
   const remapped = remapReportForAccount(supportedModelsById.get(preferredId), ctx.resolvedModel);
+  if (selector) maybeTouchLastUsed(selector, tokens, providerId, preferredId);
   ctx.reportSelection?.(preferredId, preferredId === activeAccountId, remapped);
   return token;
 }
@@ -341,7 +343,7 @@ export async function resolveSelectedToken(
       ? ctx.preferredAccountGroup.trim()
       : undefined;
   if (preferredId && ctx && ctx.boundAccountFallbackPolicy !== 'pool') {
-    return resolveStrictPreferredToken(tokens, providerId, preferredId, activeGetter, ctx);
+    return resolveStrictPreferredToken(selector, tokens, providerId, preferredId, activeGetter, ctx);
   }
   if (selector && tokens.getAccessTokenForAccount) {
     const config = await tokens.getFullConfig();
@@ -477,7 +479,12 @@ export async function resolveSelectedToken(
       if (activeAllowance.action === 'pause') {
         throw new AccountAllowanceExhaustedError(providerId, activeAllowance.resumeAt);
       }
-      report?.(activeAccountId, true, remapFor(activeAccountId));
+      const token = await activeGetter();
+      if (hasUsableToken(token)) {
+        maybeTouchLastUsed(selector, tokens, providerId, activeAccountId);
+        report?.(activeAccountId, true, remapFor(activeAccountId));
+      }
+      return token;
     }
     return activeGetter();
   }

@@ -365,10 +365,21 @@ export function createAccountsAdapter(): AgentAccountsApi {
       accountId: string,
     ): Promise<AccountConnectionTestResult> {
       try {
-        const data = await adminClient.post<{ ok: boolean; marked: boolean }>(
+        const data = await adminClient.post<{
+          ok: boolean;
+          marked: boolean;
+          tier?: import('./types-accounts').AccountProbeRecord['tier'];
+          model?: string;
+        }>(
           `/accounts/${encodeURIComponent(providerId)}/${encodeURIComponent(accountId)}/test`,
         );
-        return { success: true, ok: data.ok, marked: data.marked };
+        return {
+          success: true,
+          ok: data.ok,
+          marked: data.marked,
+          tier: data.tier,
+          model: data.model,
+        };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'account test failed' };
       }

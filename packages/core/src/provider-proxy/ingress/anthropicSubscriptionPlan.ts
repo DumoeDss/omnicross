@@ -433,7 +433,18 @@ export async function runPipeline(
       return fetchUpstream(
         url,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { providerId: proxyProviderId(plan), accountId: proxyAccountId },
+        {
+          providerId: proxyProviderId(plan),
+          accountId: proxyAccountId,
+          routeActivity: plan.isSubscription
+            ? {
+                endpoint: 'messages',
+                sessionKey: plan.sessionKey,
+                sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
+                model: resolvedModel,
+              }
+            : undefined,
+        },
       ).then((r) => {
         rawStatus = r.status;
         return r;
@@ -547,7 +558,18 @@ async function runSubscriptionSameFormatFetch(
   const response = await fetchUpstream(
     plan.upstreamUrl,
     { method: 'POST', headers, body: outboundBody },
-    { providerId: proxyProviderId(plan), accountId: proxyAccountId },
+    {
+      providerId: proxyProviderId(plan),
+      accountId: proxyAccountId,
+      routeActivity: plan.isSubscription
+        ? {
+            endpoint: 'messages',
+            sessionKey: plan.sessionKey,
+            sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
+            model: outboundModel,
+          }
+        : undefined,
+    },
   );
   return { response, rawStatus: response.status };
 }

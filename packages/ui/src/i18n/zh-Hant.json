@@ -1151,7 +1151,7 @@
         "label": "帳號名稱", "group": "群組", "tags": "標籤", "tagsPlaceholder": "正式環境, 團隊A", "credential": "憑證", "health": "健康狀態", "scheduling": "排程", "lastUsed": "最近使用", "priority": "優先級",
         "allowanceAction": "限額策略", "effectivePriority": "生效優先級", "allowanceUsed": "限額已用", "allowanceResume": "限額重設"
       },
-      "diagnostics": { "testConnection": "測試連線", "testPassed": "連線測試通過。", "testFailed": "連線測試失敗。", "history": "最近探測", "empty": "暫無探測事件。", "loadFailed": "無法載入探測歷史。" },
+      "diagnostics": { "testConnection": "測試連線", "testPassed": "連線測試通過。", "generationPassed": "{{model}} 已傳回完整回應。", "testFailed": "連線測試失敗。", "history": "最近探測", "empty": "暫無探測事件。", "loadFailed": "無法載入探測歷史。" },
       "danger": { "title": "刪除帳號", "description": "刪除該帳號及其加密憑證，此操作無法復原。" }
     },
     "oauth": {

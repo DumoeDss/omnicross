@@ -15,7 +15,7 @@ export type PageId =
 
 export type AccountRouteFilters = Partial<AccountFilters>;
 export type UpstreamKind = 'account' | 'account-group' | 'account-pool' | 'provider';
-export type UpstreamsTab = 'resources' | 'routes';
+export type UpstreamsTab = 'resources' | 'routes' | 'activity';
 
 export interface AppRoute {
   page: PageId;
@@ -125,7 +125,7 @@ export const LEGACY_PAGE_REDIRECTS: Readonly<Record<string, AppRoute>> = {
 
 const UPSTREAM_KINDS = new Set<UpstreamKind>(['account', 'account-group', 'account-pool', 'provider']);
 const UPSTREAM_FILTERS = new Set<UpstreamKind | 'all'>(['all', ...UPSTREAM_KINDS]);
-const UPSTREAM_TABS = new Set<UpstreamsTab>(['resources', 'routes']);
+const UPSTREAM_TABS = new Set<UpstreamsTab>(['resources', 'routes', 'activity']);
 
 const MAX_ROUTE_TEXT_LENGTH = 512;
 

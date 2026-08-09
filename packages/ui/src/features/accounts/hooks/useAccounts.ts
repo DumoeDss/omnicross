@@ -34,6 +34,9 @@ const EMPTY: AccountsListResponse = {
   providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
 };
 
+/** Keep request-driven account metadata and passive Codex allowance observations live. */
+const ACCOUNT_READ_MODEL_POLL_MS = 30_000;
+
 export interface UseAccountsResult {
   loading: boolean;
   data: AccountsListResponse;
@@ -45,7 +48,7 @@ export interface UseAccountsResult {
   allowanceErrors: Record<string, string>;
   clearError: () => void;
   refresh: () => Promise<void>;
-  refreshAllowances: () => Promise<void>;
+  refreshAllowances: () => Promise<{ success: boolean; message?: string }>;
   /** Force-refresh a single Claude account without replacing unrelated snapshots. */
   refreshAccountAllowance: (
     accountId: string,
@@ -143,6 +146,9 @@ export function useAccounts(): UseAccountsResult {
       setAllowanceError(result.message ?? 'failed to load account allowances');
     }
     setAllowanceLoading(false);
+    return result.success
+      ? { success: true }
+      : { success: false, message: result.message ?? 'failed to load account allowances' };
   }, []);
 
   useEffect(() => {
@@ -168,6 +174,46 @@ export function useAccounts(): UseAccountsResult {
     })();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let polling = false;
+
+    const pollReadModels = async () => {
+      if (polling || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+      polling = true;
+      try {
+        const [nextAccounts, nextAllowances] = await Promise.allSettled([
+          agent.accounts.list(),
+          agent.accounts.listAllowances(),
+        ]);
+        if (cancelled) return;
+        if (nextAccounts.status === 'fulfilled') setData(nextAccounts.value);
+        if (nextAllowances.status === 'fulfilled') {
+          if (nextAllowances.value.success) {
+            setAllowances(nextAllowances.value.allowances);
+            setAllowanceError(null);
+          } else {
+            setAllowanceError(nextAllowances.value.message ?? 'failed to load account allowances');
+          }
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    const interval = globalThis.setInterval(() => void pollReadModels(), ACCOUNT_READ_MODEL_POLL_MS);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void pollReadModels();
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      cancelled = true;
+      globalThis.clearInterval(interval);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

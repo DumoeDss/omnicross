@@ -43,7 +43,11 @@ import {
   extractCodexClientHeaders,
 } from '../identity/codexCliHeaders';
 import { fillMissingHeaders } from '../identity/headerMerge';
-import { deriveGatewaySessionKey, type SessionRequestHeaders } from '../matchText';
+import {
+  deriveGatewaySessionKey,
+  type SessionKeySource,
+  type SessionRequestHeaders,
+} from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import { recordResponsesNonStreamUsage, recordResponsesStreamUsage } from '../usage/recordResponsesUsage';
 
@@ -75,6 +79,8 @@ interface ResponsesCallPlan {
   readonly auth: AuthSource;
   /** Stable per-conversation account-pool affinity key. */
   readonly sessionKey?: string;
+  /** Safe diagnostic describing which hashed session identifier won. */
+  readonly sessionSource?: SessionKeySource;
   /** Per-request preferred subscription account (subscription routes only). */
   readonly preferredAccountId?: string;
   readonly preferredAccountGroup?: string;
@@ -134,7 +140,16 @@ export async function handleOpenAIResponsesRequest(
   try {
     const plan =
       route.authMode === 'subscription'
-        ? await buildSubscriptionPlan(res, route, deps, resolvedModel, isStream, sessionKey, requestHeaders)
+        ? await buildSubscriptionPlan(
+            res,
+            route,
+            deps,
+            resolvedModel,
+            isStream,
+            sessionKey,
+            derivedSession.source,
+            requestHeaders,
+          )
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
@@ -281,6 +296,7 @@ async function buildSubscriptionPlan(
   resolvedModel: string,
   isStream: boolean,
   sessionKey: string,
+  sessionSource: SessionKeySource,
   requestHeaders: SessionRequestHeaders,
 ): Promise<ResponsesCallPlan | null> {
   const profile = route.subscriptionProfile;
@@ -338,6 +354,7 @@ async function buildSubscriptionPlan(
   return {
     auth,
     sessionKey,
+    sessionSource,
     preferredAccountId: route.preferredAccountId,
     preferredAccountGroup: route.preferredAccountGroup,
     boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
@@ -477,7 +494,18 @@ async function runPipeline(
       return fetchUpstream(
         url,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { providerId: plan.proxyProviderId, accountId: proxyAccountId },
+        {
+          providerId: plan.proxyProviderId,
+          accountId: proxyAccountId,
+          routeActivity: plan.proxyProviderId === 'byo'
+            ? undefined
+            : {
+                endpoint: 'responses',
+                sessionKey,
+                sessionSource: plan.sessionSource ?? 'none',
+                model: resolvedModel,
+              },
+        },
       ).then((r) => {
         rawStatus = r.status;
         return r;

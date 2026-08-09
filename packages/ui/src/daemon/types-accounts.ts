@@ -142,13 +142,15 @@ export interface AccountProbeRecord {
   ok: boolean;
   status?: number | null;
   latencyMs?: number;
-  tier: 'local' | 'upstream';
+  tier: 'local' | 'upstream' | 'generation';
 }
 
 export interface AccountConnectionTestResult {
   success: boolean;
   ok?: boolean;
   marked?: boolean;
+  tier?: AccountProbeRecord['tier'];
+  model?: string;
   message?: string;
 }
 

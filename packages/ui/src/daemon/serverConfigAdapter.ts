@@ -33,6 +33,7 @@ import type {
 } from './types';
 import type {
   AuditRecord,
+  AccountRouteActivityResponse,
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
@@ -329,6 +330,25 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return data.records ?? [];
       } catch {
         return [];
+      }
+    },
+
+    async queryAccountRouteActivity(query = {}): Promise<AccountRouteActivityResponse> {
+      const params = new URLSearchParams();
+      if (query.providerId) params.set('providerId', query.providerId);
+      if (query.accountId) params.set('accountId', query.accountId);
+      if (query.sessionKey) params.set('sessionKey', query.sessionKey);
+      if (typeof query.limit === 'number') params.set('limit', String(query.limit));
+      const qs = params.toString();
+      try {
+        const snapshot = await adminClient.get<Omit<AccountRouteActivityResponse, 'available'> & {
+          available?: boolean;
+        }>(
+          qs ? `/accounts/route-activity?${qs}` : '/accounts/route-activity',
+        );
+        return { ...snapshot, available: snapshot.available ?? true };
+      } catch {
+        return { available: false, records: [], capacity: 300, collectedAt: Date.now() };
       }
     },
 

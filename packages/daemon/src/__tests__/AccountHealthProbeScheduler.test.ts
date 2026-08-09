@@ -66,6 +66,15 @@ const upstreamClaude = (providerId: string): ProbePlan =>
     ? { kind: 'upstream', url: 'https://x/models', buildInit: (t) => ({ method: 'GET', headers: { Authorization: `Bearer ${t}` } }) }
     : { kind: 'local' };
 
+function codexCompletedSse(text = 'PONG'): string {
+  return [
+    'data: {"type":"response.created","response":{"status":"in_progress"}}',
+    `data: ${JSON.stringify({ type: 'response.output_text.delta', delta: text })}`,
+    'data: {"type":"response.completed","response":{"status":"completed"}}',
+    '',
+  ].join('\n\n');
+}
+
 function cfg(overrides: Partial<typeof DEFAULT_ACCOUNT_PROBE> = {}) {
   return { ...DEFAULT_ACCOUNT_PROBE, ...overrides };
 }
@@ -94,6 +103,136 @@ describe('AccountHealthProbeScheduler', () => {
     expect(store.getFullConfig).not.toHaveBeenCalled();
     expect(fetchImpl).not.toHaveBeenCalled();
     s.dispose();
+  });
+
+  it('manual Codex test performs a real bound-account luna generation while the cheap probe stays local', async () => {
+    const store = makeStore(tokensConfig(0, 1), { 'codex-1': 'CODEX-AT' });
+    const fetchMock = vi.fn(async () => new Response(codexCompletedSse(), {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    }));
+    const s = new AccountHealthProbeScheduler(
+      store,
+      new SubscriptionAccountHealth(),
+      noopLogger,
+      cfg(),
+      { fetchImpl: fetchMock as unknown as ProbeFetch },
+    );
+
+    const cheap = await s.probeAccount('codex', 'codex-1');
+    expect(cheap).toMatchObject({ ok: true, tier: 'local' });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const deep = await s.testAccountConnection('codex', 'codex-1');
+    expect(deep).toEqual({
+      ok: true,
+      marked: false,
+      tier: 'generation',
+      model: 'gpt-5.6-luna',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init, context] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://chatgpt.com/backend-api/codex/responses');
+    expect(context).toMatchObject({
+      providerId: 'codex',
+      accountId: 'codex-1',
+      redactBodies: true,
+    });
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer CODEX-AT');
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      model: 'gpt-5.6-luna',
+      reasoning: { effort: 'none' },
+      stream: true,
+      store: false,
+    });
+    expect(body).not.toHaveProperty('max_output_tokens');
+
+    const history = s.getAllHistory().find((entry) => entry.accountId === 'codex-1')!;
+    expect(history.records.map((record) => record.tier)).toEqual(['local', 'generation']);
+    expect(history.records.at(-1)).toMatchObject({ ok: true, status: 200 });
+  });
+
+  it('manual Codex test requires a completed response with actual output text', async () => {
+    const health = new SubscriptionAccountHealth();
+    health.recordUpstreamOutcome('codex', 'codex-1', { status: 401 });
+    const fetchImpl = vi.fn(async () => new Response(
+      'data: {"type":"response.completed","response":{"status":"completed","output":[]}}\n\n',
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+    )) as unknown as ProbeFetch;
+    const s = new AccountHealthProbeScheduler(
+      makeStore(tokensConfig(0, 1)),
+      health,
+      noopLogger,
+      cfg(),
+      { fetchImpl },
+    );
+
+    const result = await s.testAccountConnection('codex', 'codex-1');
+
+    expect(result).toMatchObject({ ok: false, marked: false, tier: 'generation' });
+    expect(health.isSchedulable('codex', 'codex-1')).toBe(false);
+    expect(s.getAllHistory()[0]!.records[0]).toMatchObject({
+      ok: false,
+      status: 200,
+      tier: 'generation',
+    });
+  });
+
+  it('manual Codex test refreshes and retries once after an upstream 401', async () => {
+    let token = 'STALE';
+    const store: ProbeCredentialStore = {
+      getFullConfig: vi.fn(async () => tokensConfig(0, 1)),
+      getAccessTokenForAccount: vi.fn(async () => token),
+      refreshAccountToken: vi.fn(async () => {
+        token = 'FRESH';
+        return true;
+      }),
+    };
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const auth = new Headers(init.headers).get('authorization');
+      return auth === 'Bearer STALE'
+        ? new Response('', { status: 401 })
+        : new Response(codexCompletedSse(), { status: 200 });
+    });
+    const health = new SubscriptionAccountHealth();
+    const s = new AccountHealthProbeScheduler(store, health, noopLogger, cfg(), {
+      fetchImpl: fetchMock as unknown as ProbeFetch,
+    });
+
+    const result = await s.testAccountConnection('codex', 'codex-1');
+
+    expect(result.ok).toBe(true);
+    expect(result.marked).toBe(false);
+    expect(store.refreshAccountToken).toHaveBeenCalledWith('codex', 'codex-1');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(health.isSchedulable('codex', 'codex-1')).toBe(true);
+  });
+
+  it('manual Codex auth failures mark the account, but rate limits do not', async () => {
+    const authHealth = new SubscriptionAccountHealth();
+    const authProbe = new AccountHealthProbeScheduler(
+      makeStore(tokensConfig(0, 1)),
+      authHealth,
+      noopLogger,
+      cfg(),
+      { fetchImpl: vi.fn(async () => new Response('', { status: 403 })) as unknown as ProbeFetch },
+    );
+    const authResult = await authProbe.testAccountConnection('codex', 'codex-1');
+    expect(authResult).toMatchObject({ ok: false, marked: true, tier: 'generation' });
+    expect(authHealth.isSchedulable('codex', 'codex-1')).toBe(false);
+
+    const rateHealth = new SubscriptionAccountHealth();
+    const rateProbe = new AccountHealthProbeScheduler(
+      makeStore(tokensConfig(0, 1)),
+      rateHealth,
+      noopLogger,
+      cfg(),
+      { fetchImpl: vi.fn(async () => new Response('', { status: 429 })) as unknown as ProbeFetch },
+    );
+    const rateResult = await rateProbe.testAccountConnection('codex', 'codex-1');
+    expect(rateResult).toMatchObject({ ok: false, marked: false, tier: 'generation' });
+    expect(rateHealth.isSchedulable('codex', 'codex-1')).toBe(true);
   });
 
   it('enabled: probes each eligible account and records history', async () => {

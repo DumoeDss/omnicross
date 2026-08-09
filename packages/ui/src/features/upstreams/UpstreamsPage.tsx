@@ -1,4 +1,5 @@
 import {
+  Activity,
   Boxes,
   ChevronRight,
   CircleDot,
@@ -11,7 +12,7 @@ import {
   UserRound,
   UsersRound,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ import type { AppRoute, RouteNavigate, UpstreamKind } from '@/shared/state/hashR
 import { cn } from '@/shared/utils/utils';
 
 import { AccountResourceDetails } from './AccountResourceDetails';
+import { AccountRouteActivityView } from './AccountRouteActivityView';
 import { AddAccountDialog } from './AddAccountDialog';
 import {
   DownstreamRoutesWorkspace,
@@ -63,6 +65,21 @@ type UpstreamResource =
   | { kind: 'account-group'; key: string; label: string; providerId: SubscriptionProviderId; group: string; accounts: ManagedAccountRow[] }
   | { kind: 'account-pool'; key: string; label: string; providerId: SubscriptionProviderId; accounts: ManagedAccountRow[] }
   | { kind: 'provider'; key: string; label: string; providerId: string; provider: LLMProvider };
+
+type AccountResource = Extract<UpstreamResource, { kind: 'account' }>;
+type AccountGroupResource = Extract<UpstreamResource, { kind: 'account-group' }>;
+type AccountPoolResource = Extract<UpstreamResource, { kind: 'account-pool' }>;
+type ProviderResource = Extract<UpstreamResource, { kind: 'provider' }>;
+
+interface AccountGroupBranch {
+  resource: AccountGroupResource;
+  accounts: AccountResource[];
+}
+
+interface AccountPoolBranch {
+  resource: AccountPoolResource;
+  groups: AccountGroupBranch[];
+}
 
 const resourceKey = {
   account: (providerId: string, accountId: string) => `account:${providerId}:${accountId}`,
@@ -94,6 +111,13 @@ function resourceIsEnabled(resource: UpstreamResource): boolean {
   if (resource.kind === 'provider') return resource.provider.enabled !== false;
   if (resource.kind === 'account') return resource.account.enabled !== false;
   return resource.accounts.some((account) => account.enabled !== false);
+}
+
+function resourceSearchText(resource: UpstreamResource): string {
+  if (resource.kind === 'account') {
+    return `${resource.label} ${resource.account.id} ${resource.account.group} ${resource.account.tags.join(' ')} ${resource.providerId}`;
+  }
+  return `${resource.label} ${resource.providerId}`;
 }
 
 function bindingTargetMatches(left: GatewayBindingTarget, right: GatewayBindingTarget): boolean {
@@ -139,6 +163,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   // Sidebar "enabled only" toggle — view state, deliberately NOT in the route:
   // it is a momentary lens on the list, not a location worth sharing/restoring.
   const [enabledOnly, setEnabledOnly] = useState(false);
+  const [expandedResourceKeys, setExpandedResourceKeys] = useState<Set<string>>(() => new Set());
+  const initializedAccountTree = useRef(false);
   const activeTab = route.upstreamTab ?? 'resources';
 
   const accountRows = useMemo(
@@ -200,8 +226,38 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
         provider,
       });
     }
-    return rows.sort((left, right) => left.label.localeCompare(right.label) || left.kind.localeCompare(right.kind));
-  }, [providersApi.providers, visibleAccountRows]);
+    const kindOrder: Record<UpstreamResource['kind'], number> = {
+      'account-pool': 0,
+      'account-group': 1,
+      account: 2,
+      provider: 3,
+    };
+    return rows.sort((left, right) => kindOrder[left.kind] - kindOrder[right.kind]
+      || left.label.localeCompare(right.label));
+  }, [providersApi.providers, t, visibleAccountRows]);
+
+  const accountTree = useMemo<AccountPoolBranch[]>(() => {
+    const pools: AccountPoolResource[] = [];
+    const groups: AccountGroupResource[] = [];
+    const accounts: AccountResource[] = [];
+    for (const resource of resources) {
+      if (resource.kind === 'account-pool') pools.push(resource);
+      else if (resource.kind === 'account-group') groups.push(resource);
+      else if (resource.kind === 'account') accounts.push(resource);
+    }
+    return pools.map((pool) => ({
+      resource: pool,
+      groups: groups
+        .filter((group) => group.providerId === pool.providerId)
+        .map((group) => ({
+          resource: group,
+          accounts: accounts
+            .filter((account) => account.providerId === pool.providerId && account.account.group === group.group)
+            .sort((left, right) => left.label.localeCompare(right.label)),
+        }))
+        .sort((left, right) => left.resource.label.localeCompare(right.resource.label)),
+    }));
+  }, [resources]);
 
   const downstreamResources = useMemo<DownstreamResourceOption[]>(
     () => resources.map((resource) => ({
@@ -222,6 +278,9 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     if (route.upstreamKind === 'account-group' && route.upstreamProviderId && route.upstreamGroup) {
       return resourceKey.group(route.upstreamProviderId, route.upstreamGroup);
     }
+    if (route.upstreamKind === 'account-pool' && route.upstreamProviderId) {
+      return resourceKey.pool(route.upstreamProviderId);
+    }
     if (route.upstreamKind === 'provider' && route.upstreamProviderId) {
       return resourceKey.provider(route.upstreamProviderId);
     }
@@ -230,13 +289,44 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
 
   const query = route.upstreamQuery ?? '';
   const kindFilter = route.upstreamFilter ?? 'all';
+  const eligibleResources = useMemo(() => resources
+    .filter((resource) => kindFilter === 'all' || resource.kind === kindFilter)
+    .filter((resource) => !enabledOnly || resourceIsEnabled(resource)), [enabledOnly, kindFilter, resources]);
   const filteredResources = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
-    return resources
-      .filter((resource) => kindFilter === 'all' || resource.kind === kindFilter)
-      .filter((resource) => !enabledOnly || resourceIsEnabled(resource))
-      .filter((resource) => !needle || `${resource.label} ${resource.providerId}`.toLocaleLowerCase().includes(needle));
-  }, [enabledOnly, kindFilter, query, resources]);
+    return eligibleResources
+      .filter((resource) => !needle || resourceSearchText(resource).toLocaleLowerCase().includes(needle));
+  }, [eligibleResources, query]);
+  const eligibleResourceKeys = useMemo(
+    () => new Set(eligibleResources.map((resource) => resource.key)),
+    [eligibleResources],
+  );
+  const filteredResourceKeys = useMemo(
+    () => new Set(filteredResources.map((resource) => resource.key)),
+    [filteredResources],
+  );
+  const visibleAccountTree = useMemo<AccountPoolBranch[]>(() => accountTree.flatMap((pool) => {
+    const poolMatchesQuery = filteredResourceKeys.has(pool.resource.key);
+    const groups = pool.groups.flatMap((group) => {
+      const groupMatchesQuery = filteredResourceKeys.has(group.resource.key);
+      const revealDescendants = Boolean(query.trim()) && (poolMatchesQuery || groupMatchesQuery);
+      const accounts = group.accounts.filter((account) => filteredResourceKeys.has(account.key)
+        || (revealDescendants && eligibleResourceKeys.has(account.key)));
+      const groupVisible = groupMatchesQuery
+        || accounts.length
+        || (poolMatchesQuery && eligibleResourceKeys.has(group.resource.key));
+      return groupVisible
+        ? [{ ...group, accounts }]
+        : [];
+    });
+    return poolMatchesQuery || groups.length
+      ? [{ ...pool, groups }]
+      : [];
+  }), [accountTree, eligibleResourceKeys, filteredResourceKeys, query]);
+  const visibleProviders = useMemo(
+    () => filteredResources.filter((resource): resource is ProviderResource => resource.kind === 'provider'),
+    [filteredResources],
+  );
   const selectedResource = resources.find((resource) => resource.key === selectedKey)
     ?? filteredResources[0]
     ?? resources[0]
@@ -262,12 +352,46 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   };
 
   useEffect(() => {
-    if (activeTab === 'routes') return;
+    if (activeTab !== 'resources') return;
     if (!selectedResource || selectedKey === selectedResource.key) return;
     navigateSelection(selectedResource, true);
   // Selection is canonicalized only when resources/load state invalidates it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedResource?.key, selectedKey]);
+
+  useEffect(() => {
+    if (initializedAccountTree.current || !accountTree.length) return;
+    initializedAccountTree.current = true;
+    setExpandedResourceKeys(new Set(accountTree.map((pool) => pool.resource.key)));
+  }, [accountTree]);
+
+  useEffect(() => {
+    if (!selectedResource || selectedResource.kind === 'provider' || selectedResource.kind === 'account-pool') return;
+    const ancestorKeys = [resourceKey.pool(selectedResource.providerId)];
+    if (selectedResource.kind === 'account') {
+      ancestorKeys.push(resourceKey.group(selectedResource.providerId, selectedResource.account.group));
+    }
+    setExpandedResourceKeys((current) => {
+      if (ancestorKeys.every((key) => current.has(key))) return current;
+      const next = new Set(current);
+      ancestorKeys.forEach((key) => next.add(key));
+      return next;
+    });
+  }, [selectedResource?.key]);
+
+  const toggleExpanded = (key: string) => {
+    setExpandedResourceKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const filterForcesExpanded = Boolean(query.trim()) || kindFilter === 'account';
+  const poolFilterForcesExpanded = filterForcesExpanded || kindFilter === 'account-group';
+  const bindingCountFor = (resource: UpstreamResource) => (gateway.config?.bindings ?? [])
+    .filter((binding) => bindingTargetMatches(binding.target, targetFor(resource))).length;
 
   const patchBrowse = (patch: { upstreamFilter?: UpstreamKind | 'all'; upstreamQuery?: string }) => {
     const next: AppRoute = {
@@ -311,8 +435,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       ) : null}
 
       <nav className="flex shrink-0 items-end gap-1 border-b border-border/70 bg-surface-0 px-5 md:px-6" aria-label={t('upstreams.tabs.label')}>
-        {(['resources', 'routes'] as const).map((tab) => {
-          const Icon = tab === 'resources' ? Server : Route;
+        {(['resources', 'routes', 'activity'] as const).map((tab) => {
+          const Icon = tab === 'resources' ? Server : tab === 'routes' ? Route : Activity;
           return (
             <button
               key={tab}
@@ -345,6 +469,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           onOpenApiKeys={() => onNavigate({ page: 'api-service', tab: 'access' })}
           onChange={gateway.updateBindings}
         />
+      ) : activeTab === 'activity' ? (
+        <AccountRouteActivityView accounts={accountRows} />
       ) : (
       <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden md:flex-row">
         <aside className="flex h-[42%] min-h-64 shrink-0 flex-col border-b border-border/70 bg-surface-1/40 md:h-full md:w-80 md:border-b-0 md:border-r">
@@ -392,17 +518,81 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
             </div>
           </div>
           <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-1 p-2">
-              {filteredResources.map((resource) => (
-                <ResourceRow
-                  key={resource.key}
-                  resource={resource}
-                  selected={selectedResource?.key === resource.key}
-                  bindingCount={(gateway.config?.bindings ?? []).filter((binding) => bindingTargetMatches(binding.target, targetFor(resource))).length}
-                  onClick={() => navigateSelection(resource)}
-                />
-              ))}
-              {!filteredResources.length ? (
+            <div className="p-2">
+              <div className="space-y-1">
+                {visibleAccountTree.map((pool) => {
+                  const poolExpanded = poolFilterForcesExpanded || expandedResourceKeys.has(pool.resource.key);
+                  const poolHasChildren = pool.groups.length > 0;
+                  return (
+                    <div key={pool.resource.key}>
+                      <ResourceRow
+                        resource={pool.resource}
+                        selected={selectedResource?.key === pool.resource.key}
+                        bindingCount={bindingCountFor(pool.resource)}
+                        expanded={poolHasChildren ? poolExpanded : undefined}
+                        onClick={() => {
+                          navigateSelection(pool.resource);
+                          if (poolHasChildren) toggleExpanded(pool.resource.key);
+                        }}
+                      />
+                      {poolHasChildren && poolExpanded ? (
+                        <div className="ml-4 border-l border-border/70 pl-2">
+                          {pool.groups.map((group) => {
+                            const groupExpanded = filterForcesExpanded || expandedResourceKeys.has(group.resource.key);
+                            const groupHasChildren = group.accounts.length > 0;
+                            return (
+                              <div key={group.resource.key}>
+                                <ResourceRow
+                                  resource={group.resource}
+                                  selected={selectedResource?.key === group.resource.key}
+                                  bindingCount={bindingCountFor(group.resource)}
+                                  expanded={groupHasChildren ? groupExpanded : undefined}
+                                  onClick={() => {
+                                    navigateSelection(group.resource);
+                                    if (groupHasChildren) toggleExpanded(group.resource.key);
+                                  }}
+                                />
+                                {groupHasChildren && groupExpanded ? (
+                                  <div className="ml-4 border-l border-border/50 pl-2">
+                                    {group.accounts.map((account) => (
+                                      <ResourceRow
+                                        key={account.key}
+                                        resource={account}
+                                        selected={selectedResource?.key === account.key}
+                                        bindingCount={bindingCountFor(account)}
+                                        onClick={() => navigateSelection(account)}
+                                      />
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {visibleProviders.length && visibleAccountTree.length ? (
+                <div className="mx-2 mb-1 mt-3 border-t border-border/70 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t('upstreams.filter.provider')}
+                </div>
+              ) : null}
+              <div className="space-y-1">
+                {visibleProviders.map((provider) => (
+                  <ResourceRow
+                    key={provider.key}
+                    resource={provider}
+                    selected={selectedResource?.key === provider.key}
+                    bindingCount={bindingCountFor(provider)}
+                    onClick={() => navigateSelection(provider)}
+                  />
+                ))}
+              </div>
+
+              {!visibleAccountTree.length && !visibleProviders.length ? (
                 <div className="px-4 py-10 text-center text-sm text-muted-foreground">{t('upstreams.empty')}</div>
               ) : null}
             </div>
@@ -436,7 +626,13 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                       onSetSupportedModels={(models) => accountsApi.setAccountSupportedModels(selectedResource.account.providerId, selectedResource.account.id, models)}
                       onTest={() => accountsApi.testAccount(selectedResource.account.providerId, selectedResource.account.id)}
                       onLoadEvents={() => accountsApi.listAccountEvents(selectedResource.account.providerId, selectedResource.account.id)}
-                      onRefreshAllowance={selectedResource.account.providerId === 'claude' ? () => accountsApi.refreshAccountAllowance(selectedResource.account.id) : undefined}
+                      onRefreshAllowance={
+                        selectedResource.account.providerId === 'claude'
+                          ? () => accountsApi.refreshAccountAllowance(selectedResource.account.id)
+                          : selectedResource.account.providerId === 'codex'
+                            ? accountsApi.refreshAllowances
+                            : undefined
+                      }
                       onRemove={() => {
                         void accountsApi.removeAccount(selectedResource.account.providerId, selectedResource.account.id);
                         onNavigate({ page: 'upstreams', upstreamFilter: kindFilter, upstreamQuery: query || undefined }, { replace: true });
@@ -465,11 +661,19 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   );
 }
 
-function ResourceRow({ resource, selected, bindingCount, onClick }: { resource: UpstreamResource; selected: boolean; bindingCount: number; onClick: () => void }) {
+function ResourceRow({ resource, selected, bindingCount, expanded, onClick }: {
+  resource: UpstreamResource;
+  selected: boolean;
+  bindingCount: number;
+  expanded?: boolean;
+  onClick: () => void;
+}) {
   const t = useTranslation();
   const Icon = resource.kind === 'account'
     ? UserRound
-    : resource.kind === 'account-group' || resource.kind === 'account-pool' ? UsersRound : Server;
+    : resource.kind === 'account-group'
+      ? UsersRound
+      : resource.kind === 'account-pool' ? Layers3 : Server;
   const status = resource.kind === 'account'
     ? t(`accounts.management.schedulingState.${accountSchedulingState(resource.account)}`)
     : resource.kind === 'account-group' || resource.kind === 'account-pool'
@@ -483,27 +687,41 @@ function ResourceRow({ resource, selected, bindingCount, onClick }: { resource: 
     <button
       type="button"
       className={cn(
-        'group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected ? 'bg-primary/10 text-foreground' : 'text-foreground hover:bg-surface-2/70',
       )}
       onClick={onClick}
+      aria-expanded={expanded}
     >
-      <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md border', selected ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-surface-0 text-muted-foreground')}>
+      {expanded === undefined ? (
+        <span className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      ) : (
+        <ChevronRight className={cn(
+          'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
+          expanded && 'rotate-90 text-foreground',
+        )} />
+      )}
+      <span className={cn(
+        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md border',
+        selected ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-surface-0 text-muted-foreground',
+      )}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{resource.label}</span>
-        <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className={cn('block truncate text-sm', resource.kind === 'account-pool' ? 'font-semibold' : 'font-medium')}>{resource.label}</span>
+        <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
           <span>{t(`upstreams.kind.${resource.kind}`)}</span><span>·</span><span>{status}</span>
         </span>
-        {bindingCount ? (
-          <span className="mt-1 inline-flex items-center gap-1 text-[10px] text-primary">
-            <KeyRound className="h-2.5 w-2.5" />→<CircleDot className="h-2.5 w-2.5" />
-            {t('upstreams.routeCount', { count: bindingCount })}
-          </span>
-        ) : null}
       </span>
-      <ChevronRight className={cn('h-4 w-4 shrink-0 transition-transform', selected ? 'text-primary' : 'text-muted-foreground group-hover:translate-x-0.5')} />
+      {bindingCount ? (
+        <span
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+          title={t('upstreams.routeCount', { count: bindingCount })}
+        >
+          <KeyRound className="h-2.5 w-2.5" />{bindingCount}
+        </span>
+      ) : null}
+      <span className={cn('h-5 w-0.5 shrink-0 rounded-full', selected ? 'bg-primary' : 'bg-transparent')} aria-hidden="true" />
     </button>
   );
 }

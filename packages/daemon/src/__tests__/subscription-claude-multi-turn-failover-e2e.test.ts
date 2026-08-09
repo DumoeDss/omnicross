@@ -18,6 +18,7 @@ import {
   getSharedAccountHealth,
   type AccountHealthDiagnostic,
 } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import { getSharedAccountRouteActivity } from '@omnicross/core/pipeline/AccountRouteActivity';
 import {
   setSubscriptionRegistryForOutbound,
   type SubscriptionRegistryLike,
@@ -165,6 +166,7 @@ describe('Claude: real daemon multi-turn health failover', () => {
 
   beforeEach(async () => {
     resetDaemonSingletonsForTests();
+    getSharedAccountRouteActivity().clear();
     tempRoot = mkdtempSync(join(tmpdir(), 'omnicross-claude-failover-'));
     upstream = await startMockUpstream();
 
@@ -275,5 +277,21 @@ describe('Claude: real daemon multi-turn health failover', () => {
       ] satisfies Array<Partial<AccountHealthDiagnostic>>),
     );
     expect(getSharedAccountHealth().getStatus('claude', cooledAccountId).state).toBe('rate_limited');
+
+    const alternateAccountId = cooledAccountId === accountAId ? accountBId : accountAId;
+    const activity = getSharedAccountRouteActivity()
+      .list({ providerId: 'claude', limit: 3 })
+      .reverse();
+    expect(activity).toHaveLength(3);
+    expect(activity.map((record) => record.affinity)).toEqual(['new', 'switched', 'sticky']);
+    expect(activity.map((record) => record.accountId)).toEqual([
+      cooledAccountId,
+      alternateAccountId,
+      alternateAccountId,
+    ]);
+    expect(activity.map((record) => record.status)).toEqual([429, 200, 200]);
+    expect(new Set(activity.map((record) => record.sessionKey)).size).toBe(1);
+    expect(activity.every((record) =>
+      record.endpoint === 'messages' && record.sessionSource === 'content-fingerprint')).toBe(true);
   });
 });

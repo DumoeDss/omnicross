@@ -31,6 +31,7 @@ import {
   REDACTED_BODY,
   setUpstreamTracePath,
 } from '../upstreamTrace';
+import { getSharedAccountRouteActivity } from '../AccountRouteActivity';
 
 /** The `dispatcher` the helper attaches (undici-specific, absent from DOM lib). */
 function dispatcherOf(init: RequestInit | undefined): unknown {
@@ -42,12 +43,14 @@ describe('fetchUpstream', () => {
 
   beforeEach(() => {
     __resetUpstreamProxyForTests();
+    getSharedAccountRouteActivity().clear();
     fetchMock = vi.fn(async () => new Response('ok'));
     vi.stubGlobal('fetch', fetchMock);
   });
 
   afterEach(() => {
     __resetUpstreamProxyForTests();
+    getSharedAccountRouteActivity().clear();
     vi.unstubAllGlobals();
   });
 
@@ -85,6 +88,35 @@ describe('fetchUpstream', () => {
     const init: RequestInit = { method: 'POST', headers: { a: '1' } };
     await fetchUpstream('https://api.example.com', init);
     expect('dispatcher' in init).toBe(false);
+  });
+
+  it('records the actual selected account without request content', async () => {
+    await fetchUpstream(
+      'https://chatgpt.com/backend-api/codex/responses',
+      { method: 'POST', body: 'SENTINEL-PROMPT' },
+      {
+        providerId: 'codex',
+        accountId: 'account-b',
+        routeActivity: {
+          endpoint: 'responses',
+          sessionKey: 'deadbeef',
+          sessionSource: 'session-header',
+          model: 'gpt-5-codex',
+        },
+      },
+    );
+
+    const records = getSharedAccountRouteActivity().list();
+    expect(records).toEqual([
+      expect.objectContaining({
+        providerId: 'codex',
+        accountId: 'account-b',
+        sessionKey: 'deadbeef',
+        status: 200,
+        affinity: 'new',
+      }),
+    ]);
+    expect(JSON.stringify(records)).not.toContain('SENTINEL-PROMPT');
   });
 });
 

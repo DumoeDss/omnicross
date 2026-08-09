@@ -66,6 +66,12 @@ describe('hashRoute', () => {
     });
   });
 
+  it('round-trips the account route activity workspace', () => {
+    const route = { page: 'upstreams' as const, upstreamTab: 'activity' as const };
+    expect(routeToHash(route)).toBe('#/upstreams?view=activity');
+    expect(parseHashRoute(routeToHash(route))).toEqual(route);
+  });
+
   it('round-trips account selection, meaningful filters, and unsafe text safely', () => {
     const route = {
       page: 'upstreams' as const,

@@ -26,6 +26,8 @@ import {
   setSubscriptionRegistryForOutbound,
   type SubscriptionRegistryLike,
 } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
+import { getSharedAccountRouteActivity } from '@omnicross/core/pipeline/AccountRouteActivity';
+import { deriveGatewaySessionKey } from '@omnicross/core/provider-proxy/matchText';
 import type { SubscriptionDispatchProfile } from '@omnicross/core/provider-proxy/types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -190,6 +192,7 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
 
   beforeEach(async () => {
     resetDaemonSingletonsForTests();
+    getSharedAccountRouteActivity().clear();
     tempRoot = mkdtempSync(join(tmpdir(), 'omnicross-codex-multi-turn-'));
 
     // Redirect the default read-only native credential reader to an isolated
@@ -332,6 +335,26 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
     expect(upstream!.hits.every((hit) => hit.authorization !== `Bearer ${namedKey}`)).toBe(true);
     expect(upstream!.hits.every((hit) => hit.headers['session-id'] === undefined)).toBe(true);
     expect(upstream!.hits.every((hit) => hit.headers['thread-id'] === undefined)).toBe(true);
+
+    // The operator activity view is fed by the same real fetches. It exposes
+    // only the hashed session key and the account id selected for each attempt.
+    const activity = getSharedAccountRouteActivity().list({ providerId: 'codex', limit: 300 });
+    const mainSessionKey = deriveGatewaySessionKey({}, {
+      'session-id': 'explicit-session-main',
+    }).key;
+    const mainActivity = activity.filter((record) => record.sessionKey === mainSessionKey);
+    const pinnedAccountId = pinnedBearer === `Bearer ${TOKEN_A}` ? accountA.id : accountB.id;
+    expect(activity).toHaveLength(26);
+    expect(activity.every((record) =>
+      record.endpoint === 'responses' &&
+      record.sessionSource === 'session-header' &&
+      record.status === 200)).toBe(true);
+    expect(mainActivity).toHaveLength(20);
+    expect(new Set(mainActivity.map((record) => record.accountId))).toEqual(
+      new Set([pinnedAccountId]),
+    );
+    expect(mainActivity.filter((record) => record.affinity === 'new')).toHaveLength(1);
+    expect(mainActivity.filter((record) => record.affinity === 'sticky')).toHaveLength(19);
 
     expect(readFileSync(nativeAuthPath, 'utf8')).toBe(NATIVE_AUTH_SENTINEL);
     expect(nativeFileSnapshot(nativeAuthPath)).toEqual(nativeBefore);

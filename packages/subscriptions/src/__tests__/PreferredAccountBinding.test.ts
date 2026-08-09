@@ -135,6 +135,11 @@ describe('preferred-account binding', () => {
     // Preferred = B (a non-active sibling) ⇒ B's token, resolved by id.
     expect(await bearer(strategy, { preferredAccountId: 'B' })).toBe('Bearer AT-B');
     expect(tokens.getAccessTokenForAccount).toHaveBeenCalledWith('claude', 'B');
+    expect(tokens.touchAccountLastUsed).toHaveBeenCalledWith(
+      'claude',
+      'B',
+      expect.any(String),
+    );
   });
 
   it('fails closed when the bound account is unhealthy', async () => {

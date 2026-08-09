@@ -12,6 +12,42 @@
 /** The four endpoint ids, 1:1 with the four wire-format ingress parsers. */
 export type OutboundEndpointId = 'chat' | 'responses' | 'messages' | 'gemini';
 
+export type AccountRouteSessionSource =
+  | 'session-header'
+  | 'thread-header'
+  | 'body-session-id'
+  | 'body-thread-id'
+  | 'prompt-cache-key'
+  | 'content-fingerprint'
+  | 'api-key-fallback'
+  | 'none';
+
+export type AccountRouteAffinity = 'new' | 'sticky' | 'switched' | 'untracked';
+
+/** Metadata-only recent subscription routing record from the daemon. */
+export interface AccountRouteActivityRecord {
+  id: string;
+  ts: number;
+  durationMs: number;
+  providerId: string;
+  accountId: string;
+  endpoint: 'responses' | 'messages';
+  sessionKey?: string;
+  sessionSource: AccountRouteSessionSource;
+  model: string;
+  status: number;
+  affinity: AccountRouteAffinity;
+  previousAccountId?: string;
+}
+
+export interface AccountRouteActivityResponse {
+  /** False when the connected daemon does not expose the activity endpoint. */
+  available: boolean;
+  records: AccountRouteActivityRecord[];
+  capacity: number;
+  collectedAt: number;
+}
+
 /** A `"providerId,modelId"` model reference. */
 export type ModelRef = string;
 

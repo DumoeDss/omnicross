@@ -667,6 +667,7 @@
     "kind": {
       "account": "Account",
       "account-group": "Account group",
+      "account-pool": "Account pool",
       "provider": "Provider"
     },
     "status": {
@@ -682,7 +683,41 @@
     "tabs": {
       "label": "Upstreams and routes",
       "resources": "Upstream resources",
-      "routes": "Downstreams and routes"
+      "routes": "Downstreams and routes",
+      "activity": "Routing activity"
+    },
+    "activity": {
+      "title": "Recent account routing",
+      "description": "See which managed account actually served each subscription request. Session identifiers are hashed; prompts, headers and tokens are never collected.",
+      "metadataOnly": "Metadata only",
+      "live": "Live",
+      "paused": "Paused",
+      "sessions": "Sessions in view",
+      "switches": "Account switches",
+      "issues": "Upstream issues",
+      "search": "Search account, model or session hash…",
+      "providerFilter": "Filter by provider",
+      "outcomeFilter": "Filter by outcome",
+      "allProviders": "All providers",
+      "session": "session",
+      "switched": "switched",
+      "networkError": "Network error",
+      "unavailable": "Routing activity is unavailable",
+      "unavailableHint": "Update or reconnect the daemon, then refresh this view. Existing account routing continues normally.",
+      "empty": "No account routing activity yet",
+      "emptyHint": "Start a Codex or Claude Code request through a subscription route. New activity appears here without enabling request-body capture.",
+      "filter": {
+        "all": "All outcomes",
+        "success": "Successful",
+        "issues": "Issues",
+        "switched": "Account switched"
+      },
+      "affinity": {
+        "new": "new session",
+        "sticky": "same account",
+        "switched": "account changed",
+        "untracked": "no session key"
+      }
     },
     "downstreams": {
       "listTitle": "Client applications",
@@ -1160,7 +1195,7 @@
         "label": "Account name", "group": "Group", "tags": "Tags", "tagsPlaceholder": "production, team-a", "credential": "Credential", "health": "Health", "scheduling": "Scheduling", "lastUsed": "Last used", "priority": "Priority",
         "allowanceAction": "Allowance policy", "effectivePriority": "Effective priority", "allowanceUsed": "Allowance used", "allowanceResume": "Allowance resets"
       },
-      "diagnostics": { "testConnection": "Test connection", "testPassed": "Connection test passed.", "testFailed": "Connection test failed.", "history": "Recent probes", "empty": "No probe events yet.", "loadFailed": "Probe history could not be loaded." },
+      "diagnostics": { "testConnection": "Test connection", "testPassed": "Connection test passed.", "generationPassed": "{{model}} returned a complete response.", "testFailed": "Connection test failed.", "history": "Recent probes", "empty": "No probe events yet.", "loadFailed": "Probe history could not be loaded." },
       "danger": { "title": "Delete account", "description": "Deletes this account and its encrypted credential. This cannot be undone." }
     },
     "oauth": {

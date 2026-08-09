@@ -4,7 +4,7 @@ import {
   __resetSharedAccountHealthForTests,
   getSharedAccountHealth,
 } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { handleAdminApi, type AdminApiDeps } from '../adminApi';
 
@@ -18,16 +18,57 @@ function response(): { res: http.ServerResponse; status: () => number; json: () 
   return { res, status: () => code, json: () => JSON.parse(body) as unknown };
 }
 
-function request(): http.IncomingMessage {
+function request(
+  method = 'GET',
+  url = '/admin/api/accounts/claude/account-a/diagnostics',
+): http.IncomingMessage {
   return {
-    method: 'GET',
-    url: '/admin/api/accounts/claude/account-a/diagnostics',
+    method,
+    url,
   } as http.IncomingMessage;
 }
 
 afterEach(() => __resetSharedAccountHealthForTests());
 
 describe('account diagnostics admin projection', () => {
+  it('routes a manual account test through the deep connection-test service', async () => {
+    const testAccountConnection = vi.fn(async () => ({
+      ok: true,
+      marked: false,
+      tier: 'generation' as const,
+      model: 'gpt-5.6-luna',
+    }));
+    const cheapProbe = vi.fn();
+    const deps = {
+      subscriptionTokenWriter: {
+        listSanitizedAccounts: async () => ({ codex: [{ id: 'account-a' }] }),
+      },
+      accountProbeService: {
+        getAllHistory: () => [],
+        probeAccount: cheapProbe,
+        testAccountConnection,
+      },
+    } as unknown as AdminApiDeps;
+    const out = response();
+
+    await handleAdminApi(
+      request('POST', '/admin/api/accounts/codex/account-a/test'),
+      out.res,
+      '/admin/api/accounts/codex/account-a/test',
+      deps,
+    );
+
+    expect(out.status()).toBe(200);
+    expect(out.json()).toEqual({
+      ok: true,
+      marked: false,
+      tier: 'generation',
+      model: 'gpt-5.6-luna',
+    });
+    expect(testAccountConnection).toHaveBeenCalledWith('codex', 'account-a');
+    expect(cheapProbe).not.toHaveBeenCalled();
+  });
+
   it('exposes existing health edges plus allowance policy history without secrets', async () => {
     const health = getSharedAccountHealth();
     health.recordUpstreamOutcome('claude', 'account-a', {

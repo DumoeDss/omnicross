@@ -33,6 +33,7 @@ import type {
   SubscriptionProviderId,
 } from './types-accounts';
 import type {
+  AccountRouteActivityResponse,
   AccountAllowanceSchedulingStatus,
   AllowanceSchedulingConfig,
   AuditRecord,
@@ -322,6 +323,13 @@ export interface AgentApiServiceApi {
     to?: number;
     limit?: number;
   }): Promise<AuditRecord[]>;
+  /** Read process-local, metadata-only subscription account routing activity. */
+  queryAccountRouteActivity(query?: {
+    providerId?: string;
+    accountId?: string;
+    sessionKey?: string;
+    limit?: number;
+  }): Promise<AccountRouteActivityResponse>;
   /**
    * Persist the billing segment (`PUT /server` with `{ billing }`,
    * billing-event-stream). Pass `undefined` to reset to defaults (disabled). The

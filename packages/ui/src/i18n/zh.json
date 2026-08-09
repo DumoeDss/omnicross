@@ -661,6 +661,7 @@
     "kind": {
       "account": "账号",
       "account-group": "账号组",
+      "account-pool": "账号池",
       "provider": "提供商"
     },
     "status": {
@@ -676,7 +677,41 @@
     "tabs": {
       "label": "上游与路由",
       "resources": "上游资源",
-      "routes": "下游与路由"
+      "routes": "下游与路由",
+      "activity": "路由活动"
+    },
+    "activity": {
+      "title": "最近账号路由",
+      "description": "查看每次订阅请求实际使用的托管账号。会话标识只保留哈希，不采集提示词、请求头或令牌。",
+      "metadataOnly": "仅元数据",
+      "live": "实时",
+      "paused": "已暂停",
+      "sessions": "视图中的会话",
+      "switches": "账号切换",
+      "issues": "上游异常",
+      "search": "搜索账号、模型或会话哈希…",
+      "providerFilter": "按提供方筛选",
+      "outcomeFilter": "按结果筛选",
+      "allProviders": "全部提供方",
+      "session": "会话",
+      "switched": "已切换",
+      "networkError": "网络错误",
+      "unavailable": "路由活动数据不可用",
+      "unavailableHint": "请更新或重新连接 daemon，然后刷新此视图；现有账号路由不会因此中断。",
+      "empty": "还没有账号路由活动",
+      "emptyHint": "通过订阅路由发起一次 Codex 或 Claude Code 请求；无需开启正文捕获，新活动会自动出现在这里。",
+      "filter": {
+        "all": "全部结果",
+        "success": "成功",
+        "issues": "异常",
+        "switched": "发生切换"
+      },
+      "affinity": {
+        "new": "新会话",
+        "sticky": "保持账号",
+        "switched": "账号已变化",
+        "untracked": "无会话标识"
+      }
     },
     "downstreams": {
       "listTitle": "客户端应用",
@@ -1157,7 +1192,7 @@
         "label": "账户名称", "group": "分组", "tags": "标签", "tagsPlaceholder": "生产环境, 团队A", "credential": "凭证", "health": "健康状态", "scheduling": "调度", "lastUsed": "最近使用", "priority": "优先级",
         "allowanceAction": "限额策略", "effectivePriority": "生效优先级", "allowanceUsed": "限额已用", "allowanceResume": "限额重置"
       },
-      "diagnostics": { "testConnection": "测试连接", "testPassed": "连接测试通过。", "testFailed": "连接测试失败。", "history": "最近探测", "empty": "暂无探测事件。", "loadFailed": "无法加载探测历史。" },
+      "diagnostics": { "testConnection": "测试连接", "testPassed": "连接测试通过。", "generationPassed": "{{model}} 已返回完整响应。", "testFailed": "连接测试失败。", "history": "最近探测", "empty": "暂无探测事件。", "loadFailed": "无法加载探测历史。" },
       "danger": { "title": "删除账户", "description": "删除该账户及其加密凭证，此操作不可撤销。" }
     },
     "oauth": {

@@ -45,6 +45,18 @@ import {
   writeUpstreamTrace,
 } from './upstreamTrace';
 import { getSharedAccountAllowanceStore } from './AccountAllowanceStore';
+import {
+  getSharedAccountRouteActivity,
+  type AccountRouteEndpoint,
+  type AccountRouteSessionSource,
+} from './AccountRouteActivity';
+
+export interface AccountRouteActivityContext {
+  endpoint: AccountRouteEndpoint;
+  sessionKey?: string;
+  sessionSource: AccountRouteSessionSource;
+  model: string;
+}
 
 /** The opaque call context the resolver maps to a proxy (precedence input). */
 export interface UpstreamProxyContext {
@@ -52,6 +64,8 @@ export interface UpstreamProxyContext {
   providerId?: string;
   /** The selected pooled account id (per-account override input). */
   accountId?: string;
+  /** Metadata-only live route activity. Never contains prompts, headers, or tokens. */
+  routeActivity?: AccountRouteActivityContext;
   /**
    * The target upstream URL. Injected by {@link fetchUpstream} so the resolver can
    * apply host-based bypass (loopback / `NO_PROXY`). Callers of the ingress helpers
@@ -256,11 +270,42 @@ export function fetchUpstream(
       return response;
     });
 
+  // Metadata-only recent route activity. The account id comes from the auth
+  // strategy's reportSelection callback, so it is the account actually used by
+  // this upstream attempt rather than the mutable active/default pointer.
+  const activity = ctx?.routeActivity;
+  const activityStartedAt = activity && ctx?.providerId && ctx.accountId ? Date.now() : 0;
+  const recordActivity = (status: number): void => {
+    if (!activity || !ctx?.providerId || !ctx.accountId) return;
+    getSharedAccountRouteActivity().record({
+      providerId: ctx.providerId,
+      accountId: ctx.accountId,
+      endpoint: activity.endpoint,
+      sessionKey: activity.sessionKey,
+      sessionSource: activity.sessionSource,
+      model: activity.model,
+      status,
+      durationMs: Math.max(0, Date.now() - activityStartedAt),
+      ts: activityStartedAt,
+    });
+  };
+  const doFetchWithActivity = (): Promise<Response> =>
+    doFetchWithAllowanceTap().then(
+      (response) => {
+        recordActivity(response.status);
+        return response;
+      },
+      (error: unknown) => {
+        recordActivity(0);
+        throw error;
+      },
+    );
+
   // Upstream-exchange trace (debugging). Only relay calls carry a `providerId`;
   // OAuth-refresh / webhook sends pass no ctx, so they are skipped (less noise).
   // Zero work when no trace path is installed. See `upstreamTrace.ts`.
   const tracePath = getUpstreamTracePath();
-  if (!tracePath || !ctx?.providerId) return doFetchWithAllowanceTap();
+  if (!tracePath || !ctx?.providerId) return doFetchWithActivity();
 
   const startedAt = Date.now();
   const method = typeof init.method === 'string' ? init.method : 'GET';
@@ -279,7 +324,7 @@ export function fetchUpstream(
   const providerId = ctx.providerId;
   const accountId = ctx.accountId;
 
-  return doFetchWithAllowanceTap()
+  return doFetchWithActivity()
     .then((res) => {
       // Tee the stream: the relay keeps streaming `res`; the clone is buffered
       // fully (a `text/event-stream` included) and written to the trace.

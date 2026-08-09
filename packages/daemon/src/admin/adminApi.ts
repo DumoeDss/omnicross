@@ -137,6 +137,10 @@ import {
   type AccountAllowanceAdminReader,
   handleAccountAllowanceApi,
 } from './accountAllowanceApi';
+import {
+  ACCOUNT_ROUTE_ACTIVITY_LIMIT,
+  getSharedAccountRouteActivity,
+} from '@omnicross/core/pipeline/AccountRouteActivity';
 
 /** Token-free subscription account list entry (passthrough from core's service). */
 export interface AdminAccountsLister {
@@ -199,6 +203,15 @@ export interface AdminApiDeps {
       providerId: import('@omnicross/contracts/subscription-types').SubscriptionProviderId,
       accountId: string,
     ): Promise<{ ok: boolean; marked: boolean }>;
+    testAccountConnection(
+      providerId: import('@omnicross/contracts/subscription-types').SubscriptionProviderId,
+      accountId: string,
+    ): Promise<{
+      ok: boolean;
+      marked: boolean;
+      tier: 'local' | 'upstream' | 'generation';
+      model?: string;
+    }>;
   };
   /**
    * Least-authority subscription-token WRITER (design D4) — ONLY the mutation
@@ -1908,6 +1921,30 @@ async function handleAccounts(
   rest: string[],
   deps: AdminApiDeps,
 ): Promise<void> {
+  // GET /accounts/route-activity — bounded, process-local, metadata-only history
+  // of the account that actually served each subscription upstream attempt.
+  // Session keys are already one-way hashes; prompts, headers and tokens never
+  // enter this store or response.
+  if (rest[0] === 'route-activity' && rest.length === 1) {
+    if (method !== 'GET') {
+      return writeJsonError(res, 405, `method ${method} not allowed on account route activity`);
+    }
+    const query = requestQuery(req);
+    const parsedLimit = Number(query.get('limit') ?? '100');
+    const records = getSharedAccountRouteActivity().list({
+      providerId: query.get('providerId') ?? undefined,
+      accountId: query.get('accountId') ?? undefined,
+      sessionKey: query.get('sessionKey') ?? undefined,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : 100,
+    });
+    return writeJson(res, 200, {
+      available: true,
+      records,
+      capacity: ACCOUNT_ROUTE_ACTIVITY_LIMIT,
+      collectedAt: Date.now(),
+    });
+  }
+
   // Account allowances are delegated to a focused handler before `allowances`
   // could be mistaken for a provider id. This surface never receives a token.
   if (rest[0] === 'allowances') {
@@ -2115,6 +2152,8 @@ async function handleAccounts(
       return writeJson(res, 200, { ok, account: status ?? undefined });
     }
 
+    // Manual account test. Codex uses a real luna generation; other providers
+    // retain the existing cheapest-first probe. The result remains secret-free.
     if (method === 'POST' && rest.length === 3 && rest[2] === 'test') {
       const accountId = rest[1];
       if (!deps.accountProbeService) return writeJsonError(res, 501, 'account probe service unavailable');
@@ -2122,8 +2161,13 @@ async function handleAccounts(
       if (!(listed[providerId] ?? []).some((account) => account.id === accountId)) {
         return writeJsonError(res, 404, `account '${accountId}' not found`);
       }
-      const result = await deps.accountProbeService.probeAccount(providerId, accountId);
-      return writeJson(res, 200, { ok: result.ok, marked: result.marked });
+      const result = await deps.accountProbeService.testAccountConnection(providerId, accountId);
+      return writeJson(res, 200, {
+        ok: result.ok,
+        marked: result.marked,
+        tier: result.tier,
+        model: result.model,
+      });
     }
 
     // POST /accounts/:providerId/:accountId/label { label } → rename one account
@@ -2303,9 +2347,6 @@ async function handleIntegrations(
       });
     }
 
-    // POST /accounts/:providerId/:accountId/test — run the existing cheapest-
-    // first probe for exactly one validated account. The result contains only
-    // booleans; diagnostics are read separately from the bounded event route.
     if (method === 'POST' && rest.length === 1 && rest[0] === 'rotate') {
       await manager.rotateGatewayKey();
       return writeJson(res, 200, { ok: true, integrations: await manager.listStatus() });
