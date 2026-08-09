@@ -288,7 +288,10 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   }, [route.accountId, route.accountProvider, route.upstreamGroup, route.upstreamKind, route.upstreamProviderId]);
 
   const query = route.upstreamQuery ?? '';
-  const kindFilter = route.upstreamFilter ?? 'all';
+  const requestedKindFilter = route.upstreamFilter ?? 'all';
+  const kindFilter = requestedKindFilter === 'account-group' || requestedKindFilter === 'account-pool'
+    ? 'account'
+    : requestedKindFilter;
   const eligibleResources = useMemo(() => resources
     .filter((resource) => kindFilter === 'all' || resource.kind === kindFilter)
     .filter((resource) => !enabledOnly || resourceIsEnabled(resource)), [enabledOnly, kindFilter, resources]);
@@ -389,7 +392,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   };
 
   const filterForcesExpanded = Boolean(query.trim()) || kindFilter === 'account';
-  const poolFilterForcesExpanded = filterForcesExpanded || kindFilter === 'account-group';
   const bindingCountFor = (resource: UpstreamResource) => (gateway.config?.bindings ?? [])
     .filter((binding) => bindingTargetMatches(binding.target, targetFor(resource))).length;
 
@@ -486,7 +488,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
             </div>
             <div className="flex items-center gap-2">
               <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-                {(['all', 'account', 'account-group', 'provider'] as const).map((kind) => (
+                {(['all', 'account', 'provider'] as const).map((kind) => (
                   <button
                     key={kind}
                     type="button"
@@ -521,7 +523,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
             <div className="p-2">
               <div className="space-y-1">
                 {visibleAccountTree.map((pool) => {
-                  const poolExpanded = poolFilterForcesExpanded || expandedResourceKeys.has(pool.resource.key);
+                  const poolExpanded = filterForcesExpanded || expandedResourceKeys.has(pool.resource.key);
                   const poolHasChildren = pool.groups.length > 0;
                   return (
                     <div key={pool.resource.key}>
