@@ -23,7 +23,7 @@ const rec = (over: Partial<AuditRecord> = {}): AuditRecord => ({
 const cfg = (over: Partial<AuditConfig> = {}): AuditConfig => ({
   enabled: true,
   captureBodies: false,
-  maxBodyBytes: 8192,
+  maxBodyBytes: -1,
   retentionDays: 7,
   trustForwardedFor: false,
   ...over,

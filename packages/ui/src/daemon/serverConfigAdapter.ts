@@ -300,7 +300,7 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
           audit: audit ?? {
             enabled: false,
             captureBodies: false,
-            maxBodyBytes: 8192,
+            maxBodyBytes: -1,
             retentionDays: 7,
             trustForwardedFor: false,
           },

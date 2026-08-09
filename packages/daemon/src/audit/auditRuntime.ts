@@ -13,16 +13,12 @@
  * hook returns to a strict no-op (byte-identical zero regression). Core imports
  * NOTHING from the daemon — the `setWebhookSink` precedent.
  *
- * It ALSO drives the upstream-exchange trace (`setUpstreamTracePath`): when
- * `captureBodies` is opted in, the trace file is resolved beside the audit store
- * and `fetchUpstream` records the full omnicross → provider leg (the codex
- * request/response the client-facing audit cannot see). Core imports NOTHING
- * from the daemon — the same module-slot precedent.
+ * Body snapshots have exactly one persistence path: the date-rotated audit
+ * writer. Applying audit config explicitly disables the legacy upstream trace so
+ * enabling `captureBodies` cannot duplicate every exchange into a second file.
  *
  * @module @omnicross/daemon/audit/auditRuntime
  */
-
-import { join } from 'node:path';
 
 import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import { setAuditCaptureConfig, setAuditSink } from '@omnicross/core/pipeline/auditSink';
@@ -33,30 +29,22 @@ import type { AuditWriter } from './AuditWriter';
 
 let writer: AuditWriter | null = null;
 let sweeper: AuditPruneSweeper | null = null;
-/** The audit store dir — sibling target for the upstream-trace file. */
-let auditDir = '';
 
-/**
- * Inject the live writer + prune sweeper + the audit store dir (bootstrap, once
- * per boot). The dir is used to resolve the upstream-trace file path.
- */
-export function setAuditRuntime(w: AuditWriter, s: AuditPruneSweeper, dir: string): void {
+/** Inject the live writer + prune sweeper (bootstrap, once per boot). */
+export function setAuditRuntime(w: AuditWriter, s: AuditPruneSweeper): void {
   writer = w;
   sweeper = s;
-  auditDir = dir;
 }
 
 /**
  * Apply the current audit config: when enabled, install the core capture config
  * + the writer sink and arm the prune sweeper; when disabled/absent, clear BOTH
  * core slots and dispose the sweeper. Idempotent — safe on every admin PUT.
- *
- * The upstream-exchange trace (the omnicross → provider leg the audit cannot
- * see — see `upstreamTrace.ts`) is gated on `captureBodies`: when body capture
- * is opted in, the trace file lives beside the audit store; otherwise the trace
- * is disabled (zero-regression no-op in `fetchUpstream`).
+ * The legacy upstream trace is always disabled: request/response bodies belong
+ * only to the date-rotated audit record and must not be written twice.
  */
 export function applyAuditConfig(config: AuditConfig | undefined): void {
+  setUpstreamTracePath(null);
   const enabled = config?.enabled === true && writer !== null;
   if (enabled && config) {
     setAuditCaptureConfig(config);
@@ -66,13 +54,9 @@ export function applyAuditConfig(config: AuditConfig | undefined): void {
       sweeper.configure(config);
       sweeper.start();
     }
-    // Enable the upstream trace exactly when bodies are captured. The audit
-    // segment carries no secret; the trace masks auth header VALUES itself.
-    setUpstreamTracePath(config.captureBodies ? join(auditDir, 'upstream-trace.jsonl') : null);
   } else {
     setAuditCaptureConfig(null);
     setAuditSink(null);
-    setUpstreamTracePath(null);
     if (sweeper) {
       if (config) sweeper.configure(config);
       sweeper.dispose();
@@ -88,5 +72,4 @@ export function resetAuditRuntimeForTests(): void {
   if (sweeper) sweeper.dispose();
   writer = null;
   sweeper = null;
-  auditDir = '';
 }

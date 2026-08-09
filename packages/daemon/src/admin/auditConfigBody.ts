@@ -37,9 +37,13 @@ export function validateAuditSegment(patch: Partial<OutboundApiServerConfig>): s
   const maxBodyBytes = audit['maxBodyBytes'];
   if (
     maxBodyBytes !== undefined &&
-    (typeof maxBodyBytes !== 'number' || !Number.isFinite(maxBodyBytes) || maxBodyBytes < 0)
+    (
+      typeof maxBodyBytes !== 'number' ||
+      !Number.isFinite(maxBodyBytes) ||
+      maxBodyBytes < -1
+    )
   ) {
-    errors.push('audit.maxBodyBytes must be a non-negative number');
+    errors.push('audit.maxBodyBytes must be -1 or a non-negative number');
   }
   const retentionDays = audit['retentionDays'];
   if (

@@ -221,9 +221,9 @@ export interface WebhookConfig {
 export interface AuditConfig {
   /** Master switch; false/absent ⇒ no capture (zero regression). */
   enabled: boolean;
-  /** Capture request/response bodies too (redacted+truncated); the sensitive second opt-in. */
+  /** Capture request/response bodies too (redacted and optionally truncated). */
   captureBodies: boolean;
-  /** Per-body truncation cap in bytes. */
+  /** Per-body truncation cap in bytes; `-1` means unlimited. */
   maxBodyBytes: number;
   /** TTL retention in days. */
   retentionDays: number;

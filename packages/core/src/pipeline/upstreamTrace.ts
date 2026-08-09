@@ -21,9 +21,10 @@
  * Tracing is fire-and-forget: a read/write failure is swallowed so the egress
  * path is never affected.
  *
- * The daemon installs the path via {@link setUpstreamTracePath} (gated on the
- * audit segment's `captureBodies`, hot-reloaded like the audit sink). Absent a
- * path the trace is a pure no-op — byte-identical zero regression.
+ * A diagnostic caller may explicitly install a path via
+ * {@link setUpstreamTracePath}. The daemon's audit runtime intentionally does
+ * not install one: audit bodies have a single persistence path. Absent an
+ * explicit path the trace is a pure no-op — byte-identical zero regression.
  *
  * Secret discipline: request/response AUTHORIZATION + api-key HEADER values are
  * masked (`***REDACTED***`) — they are OAuth bearer tokens, not the thing under

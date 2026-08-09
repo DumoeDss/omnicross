@@ -20,8 +20,9 @@
 /**
  * One per-request audit entry (design D1). The metadata fields are recorded
  * whenever audit is `enabled`; the two body snapshots are present ONLY when
- * `captureBodies` is ALSO on, and always after truncation + redaction. NO field
- * ever holds key material, an upstream token, or an Authorization/api-key header.
+ * `captureBodies` is ALSO on, and always after optional truncation + redaction.
+ * NO field ever holds key material, an upstream token, or an
+ * Authorization/api-key header.
  */
 export interface AuditRecord {
   /** Unique record id (a generated request id — NOT any secret). */
@@ -55,14 +56,13 @@ export interface AuditRecord {
   /** Sanitized error message (present only on a failed relay). */
   error?: string;
   /**
-   * Request body snapshot — present ONLY when `captureBodies`, truncated to the
-   * configured cap, and ALWAYS run through the secret-redaction pass first.
+   * Request body snapshot — present ONLY when `captureBodies`, optionally
+   * truncated to the configured cap, and ALWAYS run through secret redaction.
    */
   requestBody?: string;
   /**
-   * Response body snapshot — present ONLY when `captureBodies` AND the response
-   * was NON-streaming (a streaming response records metadata only), truncated +
-   * redacted like `requestBody`.
+   * Response body snapshot — present ONLY when `captureBodies`; streaming
+   * responses are included. Optionally truncated + redacted like `requestBody`.
    */
   responseBody?: string;
 }
@@ -76,9 +76,9 @@ export interface AuditRecord {
 export interface AuditConfig {
   /** Master switch; default FALSE (zero regression). */
   enabled: boolean;
-  /** Capture request/response bodies too (redacted+truncated); default FALSE. */
+  /** Capture request/response bodies too (redacted and optionally truncated); default FALSE. */
   captureBodies: boolean;
-  /** Per-body truncation cap in bytes; default 8192, clamped. */
+  /** Per-body truncation cap in bytes. `-1` disables truncation; default `-1`. */
   maxBodyBytes: number;
   /** TTL retention in days; default 7, clamped `[1, 365]`. */
   retentionDays: number;
@@ -95,7 +95,7 @@ export interface AuditConfig {
 export const DEFAULT_AUDIT_CONFIG: AuditConfig = {
   enabled: false,
   captureBodies: false,
-  maxBodyBytes: 8192,
+  maxBodyBytes: -1,
   retentionDays: 7,
   trustForwardedFor: false,
 };

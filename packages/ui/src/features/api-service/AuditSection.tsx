@@ -25,7 +25,7 @@ import type { AuditConfig, AuditRecord, OutboundApiServerConfig } from '@/daemon
 const DEFAULT_AUDIT: AuditConfig = {
   enabled: false,
   captureBodies: false,
-  maxBodyBytes: 8192,
+  maxBodyBytes: -1,
   retentionDays: 7,
   trustForwardedFor: false,
 };
@@ -101,6 +101,8 @@ export function AuditSection({ config, busy, onUpdate, onQuery }: AuditSectionPr
       >
         <Input
           type="number"
+          min={-1}
+          step={1}
           className="w-32"
           value={String(draft.maxBodyBytes)}
           disabled={busy || !draft.captureBodies}

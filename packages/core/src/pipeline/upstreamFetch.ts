@@ -25,11 +25,11 @@
  * FROZEN SEAM: `#7` (client fingerprint) attaches per-account TLS/agent behavior
  * at this SAME dispatcher point — do not fork a second egress path.
  *
- * DEBUG TRACE: when the daemon installs an upstream-trace path (gated on the
- * audit `captureBodies` opt-in), relay calls (`ctx.providerId` set) clone the
- * response and append the FULL exchange (request + verbatim response incl. SSE)
- * to the trace file. Absent a path (the default) it is a pure no-op — zero
- * regression. See `upstreamTrace.ts`.
+ * DEBUG TRACE: when a diagnostic caller explicitly installs an upstream-trace
+ * path, relay calls (`ctx.providerId` set) clone the response and append the
+ * FULL exchange (request + verbatim response incl. SSE) to the trace file. The
+ * daemon audit runtime never installs this path, preventing duplicate body
+ * storage. Absent a path (the default) it is a pure no-op — zero regression.
  *
  * @module @omnicross/core/pipeline/upstreamFetch
  */

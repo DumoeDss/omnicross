@@ -169,8 +169,9 @@ export function normalizeAccountProbe(
  * Fill + range-CLAMP the request-audit segment to the frozen defaults
  * (request-audit-log, design D2). Lenient like the other segment normalizers:
  * `enabled`/`captureBodies`/`trustForwardedFor` coerce to booleans (default
- * false), `maxBodyBytes` clamps to `[256, 1_048_576]`, `retentionDays` clamps to
- * `[1, 365]`. Default (all-off) ⇒ no capture ⇒ zero regression.
+ * false). `maxBodyBytes:-1` means unlimited; other finite values clamp to
+ * `[0, 1_048_576]`. `retentionDays` clamps to `[1, 365]`. Default (all-off) ⇒
+ * no capture ⇒ zero regression.
  */
 export function normalizeAudit(
   raw: Partial<OutboundApiServerConfig> | undefined | null,
@@ -179,14 +180,21 @@ export function normalizeAudit(
   return {
     enabled: a?.enabled === true,
     captureBodies: a?.captureBodies === true,
-    maxBodyBytes: Math.trunc(
-      clampNumber(a?.maxBodyBytes, 256, 1_048_576, DEFAULT_AUDIT_CONFIG.maxBodyBytes),
-    ),
+    maxBodyBytes: normalizeMaxBodyBytes(a?.maxBodyBytes),
     retentionDays: Math.trunc(
       clampNumber(a?.retentionDays, 1, 365, DEFAULT_AUDIT_CONFIG.retentionDays),
     ),
     trustForwardedFor: a?.trustForwardedFor === true,
   };
+}
+
+/** Normalize the audit body limit while preserving `-1` as the unlimited sentinel. */
+function normalizeMaxBodyBytes(value: unknown): number {
+  if (value === -1) return -1;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return DEFAULT_AUDIT_CONFIG.maxBodyBytes;
+  }
+  return Math.trunc(Math.min(1_048_576, value));
 }
 
 /**

@@ -13,10 +13,9 @@
  *    elapsed ms, and the fields the handler fills in (keyId / model / provider /
  *    error / bodies) — then hands it to the fire-and-forget `recordAudit`;
  *  - when `captureBodies` is ALSO on, wraps `res.write`/`res.end` to accumulate
- *    the response body. Bodies are captured IN FULL (no truncation) and a
- *    streaming `text/event-stream` response is captured too — the earlier
- *    metadata-only/bounded behavior made a codex (streaming) reply invisible,
- *    which defeated debugging. See `upstreamTrace.ts` for the upstream leg.
+ *    the response body, including a streaming `text/event-stream`. The default
+ *    `maxBodyBytes:-1` captures the full body; a non-negative limit retains only
+ *    a bounded UTF-8 prefix.
  *
  * Request HEADERS are NEVER read into a record (Authorization / x-api-key live
  * there). Every stored body passes through {@link redactAuditText}. The assembly
@@ -34,6 +33,36 @@ import { getAuditCaptureConfig, recordAudit } from '../pipeline/auditSink';
 import { readAuditUsage } from '../pipeline/auditUsageStash';
 
 import { redactAuditText } from './auditRedact';
+
+/** Return the largest prefix ending on a complete UTF-8 code point. */
+function completeUtf8PrefixLength(buf: Buffer): number {
+  if (buf.length === 0) return 0;
+  let leadIndex = buf.length - 1;
+  while (leadIndex >= 0 && (buf[leadIndex]! & 0xc0) === 0x80) leadIndex -= 1;
+  if (leadIndex < 0) return 0;
+
+  const lead = buf[leadIndex]!;
+  let expectedLength = 1;
+  if ((lead & 0xe0) === 0xc0) expectedLength = 2;
+  else if ((lead & 0xf0) === 0xe0) expectedLength = 3;
+  else if ((lead & 0xf8) === 0xf0) expectedLength = 4;
+  return buf.length - leadIndex < expectedLength ? leadIndex : buf.length;
+}
+
+/** Truncate a UTF-8 string without emitting a replacement character at the cut. */
+function truncateToBytes(text: string, maxBytes: number): string {
+  if (maxBytes < 0) return text;
+  const buf = Buffer.from(text, 'utf8');
+  if (buf.length <= maxBytes) return text;
+  const head = buf.subarray(0, maxBytes);
+  return head.subarray(0, completeUtf8PrefixLength(head)).toString('utf8');
+}
+
+/** Decode a captured byte prefix, dropping only an incomplete truncated tail. */
+function decodeCapturedBody(body: Buffer, truncated: boolean): string {
+  if (!truncated) return body.toString('utf8');
+  return body.subarray(0, completeUtf8PrefixLength(body)).toString('utf8');
+}
 
 /**
  * The mutable context the request handler enriches as it progresses. `null` is
@@ -80,24 +109,45 @@ export function beginAuditCapture(
   const config: AuditConfig | null = getAuditCaptureConfig();
   if (!config) return null;
 
-  let rawRequestBody: string | undefined;
+  let requestBody: string | undefined;
   const responseChunks: Buffer[] = [];
+  let responseBytes = 0;
+  let responseTruncated = false;
   let finished = false;
 
   const ctx: AuditCaptureContext = {
     setRequestBody(raw: string): void {
-      if (config.captureBodies) rawRequestBody = raw;
+      if (config.captureBodies) {
+        requestBody = truncateToBytes(redactAuditText(raw), config.maxBodyBytes);
+      }
     },
   };
 
   // Response-body capture is installed ONLY when bodies are opted in. It records
-  // the FULL body — streaming responses included (a codex reply is SSE; recording
-  // only metadata hid it). Every original call is delegated verbatim so the
-  // response itself is unaffected.
+  // streaming responses too. A non-negative limit bounds the retained prefix;
+  // `-1` deliberately retains the full response. The original response is always
+  // delegated verbatim.
   if (config.captureBodies) {
     installResponseCapture(res, {
       push(chunk: Buffer): void {
+        if (config.maxBodyBytes < 0) {
+          responseChunks.push(chunk);
+          responseBytes += chunk.length;
+          return;
+        }
+        const remaining = config.maxBodyBytes - responseBytes;
+        if (remaining <= 0) {
+          responseTruncated = true;
+          return;
+        }
+        if (chunk.length > remaining) {
+          responseChunks.push(chunk.subarray(0, remaining));
+          responseBytes += remaining;
+          responseTruncated = true;
+          return;
+        }
         responseChunks.push(chunk);
+        responseBytes += chunk.length;
       },
     });
   }
@@ -136,14 +186,13 @@ export function beginAuditCapture(
       }
       if (ctx.error) record.error = redactAuditText(ctx.error);
       if (config.captureBodies) {
-        // Bodies captured IN FULL (no truncation) so a large prompt / a full SSE
-        // stream is preserved for debugging. Secret shapes are still redacted.
-        if (rawRequestBody != null && rawRequestBody.length > 0) {
-          record.requestBody = redactAuditText(rawRequestBody);
+        if (requestBody != null && requestBody.length > 0) {
+          record.requestBody = requestBody;
         }
         if (responseChunks.length > 0) {
-          const body = Buffer.concat(responseChunks).toString('utf8');
-          record.responseBody = redactAuditText(body);
+          const captured = Buffer.concat(responseChunks, responseBytes);
+          const body = decodeCapturedBody(captured, responseTruncated);
+          record.responseBody = truncateToBytes(redactAuditText(body), config.maxBodyBytes);
         }
       }
       recordAudit(record);
@@ -162,11 +211,9 @@ interface ResponseCaptureSink {
 }
 
 /**
- * Wrap `res.write`/`res.end` to accumulate the response body IN FULL (streaming
- * responses included). Every original call is delegated verbatim so the response
- * itself is unaffected. Note: a very large streaming response is held in memory
- * until the record is emitted — `captureBodies` is an opt-in debug switch, so
- * this is the explicit trade for complete capture.
+ * Wrap `res.write`/`res.end` to capture the response body (streaming responses
+ * included). The sink applies the configured bound. Every original call is
+ * delegated verbatim so the client response is unaffected.
  */
 function installResponseCapture(res: http.ServerResponse, sink: ResponseCaptureSink): void {
   const capture = (chunk: unknown): void => {

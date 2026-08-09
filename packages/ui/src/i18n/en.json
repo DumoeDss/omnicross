@@ -1006,11 +1006,11 @@
       },
       "captureBodies": {
         "label": "Capture request/response bodies",
-        "description": "A separate, sensitive opt-in. Bodies are truncated and passed through a secret-redaction pass; request headers are never captured. Streaming responses record metadata only."
+        "description": "A separate, sensitive opt-in. Request and response bodies are written once to the daily audit and passed through secret redaction; request headers are never captured. Streaming response bodies are included."
       },
       "maxBodyBytes": {
         "label": "Max body bytes",
-        "description": "Truncation cap per captured body."
+        "description": "Truncation cap per captured body; -1 means unlimited."
       },
       "retentionDays": {
         "label": "Retention (days)",

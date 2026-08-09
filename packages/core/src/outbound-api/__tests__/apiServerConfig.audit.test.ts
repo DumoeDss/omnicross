@@ -7,7 +7,7 @@ describe('normalizeAudit', () => {
     expect(normalizeAudit(undefined)).toEqual({
       enabled: false,
       captureBodies: false,
-      maxBodyBytes: 8192,
+      maxBodyBytes: -1,
       retentionDays: 7,
       trustForwardedFor: false,
     });
@@ -30,11 +30,47 @@ describe('normalizeAudit', () => {
     expect(a.retentionDays).toBe(30);
   });
 
-  it('clamps maxBodyBytes and retentionDays to their valid ranges', () => {
-    const low = normalizeAudit({ audit: { enabled: true, captureBodies: false, maxBodyBytes: 1, retentionDays: 0, trustForwardedFor: false } });
-    expect(low.maxBodyBytes).toBe(256);
+  it('preserves the unlimited sentinel and clamps bounded values', () => {
+    const unlimited = normalizeAudit({
+      audit: {
+        enabled: true,
+        captureBodies: false,
+        maxBodyBytes: -1,
+        retentionDays: 7,
+        trustForwardedFor: false,
+      },
+    });
+    expect(unlimited.maxBodyBytes).toBe(-1);
+    const low = normalizeAudit({
+      audit: {
+        enabled: true,
+        captureBodies: false,
+        maxBodyBytes: 1,
+        retentionDays: 0,
+        trustForwardedFor: false,
+      },
+    });
+    expect(low.maxBodyBytes).toBe(1);
     expect(low.retentionDays).toBe(1);
-    const high = normalizeAudit({ audit: { enabled: true, captureBodies: false, maxBodyBytes: 99_999_999, retentionDays: 9999, trustForwardedFor: false } });
+    const invalid = normalizeAudit({
+      audit: {
+        enabled: true,
+        captureBodies: false,
+        maxBodyBytes: -2,
+        retentionDays: 7,
+        trustForwardedFor: false,
+      },
+    });
+    expect(invalid.maxBodyBytes).toBe(-1);
+    const high = normalizeAudit({
+      audit: {
+        enabled: true,
+        captureBodies: false,
+        maxBodyBytes: 99_999_999,
+        retentionDays: 9999,
+        trustForwardedFor: false,
+      },
+    });
     expect(high.maxBodyBytes).toBe(1_048_576);
     expect(high.retentionDays).toBe(365);
   });
@@ -62,11 +98,11 @@ describe('normalizeServerConfig — audit segment', () => {
 
 describe('mergeServerConfig — audit segment', () => {
   it('replaces the audit segment from a patch, keeping current when omitted', () => {
-    const current = normalizeServerConfig({ audit: { enabled: true, captureBodies: false, maxBodyBytes: 8192, retentionDays: 7, trustForwardedFor: false } });
+    const current = normalizeServerConfig({ audit: { enabled: true, captureBodies: false, maxBodyBytes: -1, retentionDays: 7, trustForwardedFor: false } });
     const kept = mergeServerConfig(current, { enabled: true });
     expect(kept.audit?.enabled).toBe(true);
     const swapped = mergeServerConfig(current, {
-      audit: { enabled: false, captureBodies: false, maxBodyBytes: 8192, retentionDays: 7, trustForwardedFor: false },
+      audit: { enabled: false, captureBodies: false, maxBodyBytes: -1, retentionDays: 7, trustForwardedFor: false },
     });
     expect(swapped.audit?.enabled).toBe(false);
   });

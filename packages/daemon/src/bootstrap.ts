@@ -644,7 +644,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // regression). The sweeper starts armed-off with the frozen defaults.
   const auditWriter = new AuditWriter(auditDir, logger);
   const auditPruneSweeper = new AuditPruneSweeper(auditDir, logger, DEFAULT_AUDIT_CONFIG);
-  setAuditRuntime(auditWriter, auditPruneSweeper, auditDir);
+  setAuditRuntime(auditWriter, auditPruneSweeper);
 
   // Billing event stream (billing-event-stream) — the durable-first publisher
   // (append `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POST) + its

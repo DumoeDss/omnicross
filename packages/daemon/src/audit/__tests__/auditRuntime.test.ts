@@ -26,7 +26,7 @@ const noopLogger: Logger = {
 const cfg = (over: Partial<AuditConfig> = {}): AuditConfig => ({
   enabled: true,
   captureBodies: false,
-  maxBodyBytes: 8192,
+  maxBodyBytes: -1,
   retentionDays: 7,
   trustForwardedFor: false,
   ...over,
@@ -47,7 +47,7 @@ beforeEach(() => {
   // Synchronous defer so recordAudit → writer append is observable inline.
   const writer = new AuditWriter(dir, noopLogger, (fn) => fn());
   const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg({ enabled: false }));
-  setAuditRuntime(writer, sweeper, dir);
+  setAuditRuntime(writer, sweeper);
 });
 afterEach(() => {
   resetAuditRuntimeForTests();
@@ -86,14 +86,11 @@ describe('applyAuditConfig', () => {
     expect(readdirSync(dir).some((f) => f.startsWith('audit-'))).toBe(false);
   });
 
-  it('enables the upstream trace exactly when captureBodies is on', () => {
-    // Bodies OFF (audit enabled, captureBodies false) ⇒ no upstream trace.
+  it('never enables the legacy upstream trace (body snapshots are stored once)', () => {
     applyAuditConfig(cfg({ captureBodies: false }));
     expect(getUpstreamTracePath()).toBeNull();
-    // Bodies ON ⇒ trace file resolved beside the audit store.
     applyAuditConfig(cfg({ captureBodies: true }));
-    expect(getUpstreamTracePath()).toBe(join(dir, 'upstream-trace.jsonl'));
-    // Disabling audit clears the trace too (zero-regression no-op in fetchUpstream).
+    expect(getUpstreamTracePath()).toBeNull();
     applyAuditConfig(cfg({ enabled: false, captureBodies: true }));
     expect(getUpstreamTracePath()).toBeNull();
   });

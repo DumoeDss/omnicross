@@ -15,7 +15,7 @@ import { beginAuditCapture } from '../auditCapture';
 const cfg = (over: Partial<AuditConfig> = {}): AuditConfig => ({
   enabled: true,
   captureBodies: false,
-  maxBodyBytes: 8192,
+  maxBodyBytes: -1,
   retentionDays: 7,
   trustForwardedFor: false,
   ...over,
@@ -169,16 +169,45 @@ describe('beginAuditCapture — body capture (opt-in)', () => {
     expect(rec.responseBody).not.toContain('leaked-tok-abc123');
   });
 
-  it('does NOT truncate a captured body (complete content for debugging)', () => {
+  it('truncates request and response bodies when maxBodyBytes is non-negative', () => {
     setAuditCaptureConfig(cfg({ captureBodies: true, maxBodyBytes: 10 }));
     const seen: AuditRecord[] = [];
     setAuditSink((rec) => seen.push(rec));
     const r = res();
     const ctx = beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, 1);
     ctx!.setRequestBody('x'.repeat(500));
+    r.write('abcdefgh');
+    r.end('ijkl');
     r.triggerClose();
-    // The full body is preserved — maxBodyBytes is no longer a truncation cap.
-    expect(seen[0].requestBody!.length).toBe(500);
+    expect(seen[0].requestBody).toBe('x'.repeat(10));
+    expect(seen[0].responseBody).toBe('abcdefghij');
+  });
+
+  it('does not truncate request or response bodies when maxBodyBytes is -1', () => {
+    setAuditCaptureConfig(cfg({ captureBodies: true, maxBodyBytes: -1 }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    const ctx = beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, 1);
+    ctx!.setRequestBody('x'.repeat(500));
+    r.end('y'.repeat(500));
+    r.triggerClose();
+    expect(seen[0].requestBody).toBe('x'.repeat(500));
+    expect(seen[0].responseBody).toBe('y'.repeat(500));
+  });
+
+  it('does not emit a replacement character when a byte limit cuts UTF-8', () => {
+    setAuditCaptureConfig(cfg({ captureBodies: true, maxBodyBytes: 4 }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    const ctx = beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, 1);
+    ctx!.setRequestBody('你好');
+    r.end('你好');
+    r.triggerClose();
+    expect(seen[0].requestBody).toBe('你');
+    expect(seen[0].responseBody).toBe('你');
+    expect(JSON.stringify(seen[0])).not.toContain('\uFFFD');
   });
 
   it('captures the FULL streaming response body (a codex SSE reply is visible)', () => {
