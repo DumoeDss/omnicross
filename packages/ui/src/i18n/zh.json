@@ -1587,6 +1587,7 @@
     "outputTokens": "输出 Token",
     "cacheReadTokens": "缓存读取",
     "cacheWriteTokens": "缓存写入",
+    "cacheHitRate": "缓存命中率",
     "reasoningTokens": "推理 Token",
     "byModel": "按模型",
     "byApiKey": "按 API 密钥",

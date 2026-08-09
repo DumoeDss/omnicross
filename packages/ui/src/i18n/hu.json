@@ -967,6 +967,7 @@
     "outputTokens": "Kimeneti tokenek",
     "cacheReadTokens": "Gyorsítótár-olvasás",
     "cacheWriteTokens": "Gyorsítótár-írás",
+    "cacheHitRate": "Gyorsítótár-találati arány",
     "reasoningTokens": "Gondolkodási tokenek",
     "byModel": "Modellenként",
     "byApiKey": "API-kulcsonként",

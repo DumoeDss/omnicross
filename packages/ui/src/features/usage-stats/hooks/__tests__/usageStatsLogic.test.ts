@@ -13,6 +13,7 @@ vi.mock('../../../../daemon/usagePricingAdapter', () => ({
 
 import * as adapter from '../../../../daemon/usagePricingAdapter';
 import {
+  cacheHitRate,
   computeCustomRange,
   computePresetRange,
   loadUsageData,
@@ -158,5 +159,24 @@ describe('sortByCostDesc', () => {
     const sorted = sortByCostDesc(input);
     expect(sorted.map((r) => r.costUsd)).toEqual([3, 2, 1]);
     expect(input.map((r) => r.costUsd)).toEqual([1, 3, 2]);
+  });
+});
+
+describe('cacheHitRate', () => {
+  it('is cacheRead / (input + cacheRead + cacheCreation), output excluded', () => {
+    // 50 read of 100 prompt-side (40 input + 50 read + 10 write) → 0.5
+    expect(cacheHitRate(40, 50, 10)).toBeCloseTo(0.5);
+  });
+
+  it('is 1 when every prompt-side token was a cache read', () => {
+    expect(cacheHitRate(0, 100, 0)).toBe(1);
+  });
+
+  it('is 0 when nothing was served from cache', () => {
+    expect(cacheHitRate(100, 0, 20)).toBe(0);
+  });
+
+  it('returns null when there are no prompt-side tokens (avoids misleading 0%)', () => {
+    expect(cacheHitRate(0, 0, 0)).toBeNull();
   });
 });

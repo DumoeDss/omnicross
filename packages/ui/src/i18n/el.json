@@ -967,6 +967,7 @@
     "outputTokens": "Token εξόδου",
     "cacheReadTokens": "Ανάγνωση cache",
     "cacheWriteTokens": "Εγγραφή cache",
+    "cacheHitRate": "Ποσοστό επιτυχιών προσωρινής μνήμης",
     "reasoningTokens": "Token συλλογισμού",
     "byModel": "Ανά μοντέλο",
     "byApiKey": "Ανά κλειδί API",

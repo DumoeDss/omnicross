@@ -967,6 +967,7 @@
     "outputTokens": "Utdata-token",
     "cacheReadTokens": "Cache-lesing",
     "cacheWriteTokens": "Cache-skriving",
+    "cacheHitRate": "Treffrate for hurtigbuffer",
     "reasoningTokens": "Resonnering-token",
     "byModel": "Per modell",
     "byApiKey": "Per API-nøkkel",

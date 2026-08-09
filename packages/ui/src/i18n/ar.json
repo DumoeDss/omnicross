@@ -967,6 +967,7 @@
     "outputTokens": "رموز الإخراج",
     "cacheReadTokens": "قراءة الذاكرة المؤقتة",
     "cacheWriteTokens": "كتابة الذاكرة المؤقتة",
+    "cacheHitRate": "معدل إصابة الذاكرة المؤقتة",
     "reasoningTokens": "رموز الاستدلال",
     "byModel": "حسب النموذج",
     "byApiKey": "حسب مفتاح API",

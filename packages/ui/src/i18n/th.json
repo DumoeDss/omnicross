@@ -967,6 +967,7 @@
     "outputTokens": "โทเคนเอาต์พุต",
     "cacheReadTokens": "อ่านแคช",
     "cacheWriteTokens": "เขียนแคช",
+    "cacheHitRate": "อัตรา hit ของแคช",
     "reasoningTokens": "โทเคนการคิดวิเคราะห์",
     "byModel": "ตามโมเดล",
     "byApiKey": "ตามคีย์ API",

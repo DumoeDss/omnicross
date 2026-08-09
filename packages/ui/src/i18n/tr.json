@@ -967,6 +967,7 @@
     "outputTokens": "Çıktı tokenları",
     "cacheReadTokens": "Önbellek okuma",
     "cacheWriteTokens": "Önbellek yazma",
+    "cacheHitRate": "Önbellek isabet oranı",
     "reasoningTokens": "Akıl yürütme tokenları",
     "byModel": "Modele göre",
     "byApiKey": "API anahtarına göre",

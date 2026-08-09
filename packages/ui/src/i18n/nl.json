@@ -967,6 +967,7 @@
     "outputTokens": "Uitvoertokens",
     "cacheReadTokens": "Cache lezen",
     "cacheWriteTokens": "Cache schrijven",
+    "cacheHitRate": "Cache-hitratio",
     "reasoningTokens": "Redeneertokens",
     "byModel": "Per model",
     "byApiKey": "Per API-sleutel",

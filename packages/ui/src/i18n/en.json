@@ -1587,6 +1587,7 @@
     "outputTokens": "Output tokens",
     "cacheReadTokens": "Cache read",
     "cacheWriteTokens": "Cache write",
+    "cacheHitRate": "Cache hit rate",
     "reasoningTokens": "Reasoning tokens",
     "byModel": "By model",
     "byApiKey": "By API key",

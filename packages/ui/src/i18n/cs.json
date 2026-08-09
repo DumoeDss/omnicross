@@ -967,6 +967,7 @@
     "outputTokens": "Výstupní tokeny",
     "cacheReadTokens": "Čtení cache",
     "cacheWriteTokens": "Zápis cache",
+    "cacheHitRate": "Míra zásahů mezipaměti",
     "reasoningTokens": "Tokeny uvažování",
     "byModel": "Podle modelu",
     "byApiKey": "Podle API klíče",
