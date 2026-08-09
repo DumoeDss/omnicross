@@ -356,6 +356,13 @@ export interface AuditRecord {
   responseBody?: string;
 }
 
+/** Metadata-only aggregate returned by `GET /admin/api/audit/stats`. */
+export interface AuditStats {
+  requestCount: number;
+  errorCount: number;
+  complete: boolean;
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;

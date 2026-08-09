@@ -1,9 +1,14 @@
 import { adminClient, DAEMON_BASE_URL } from '../../daemon/adminClient';
 import { daemonFetch } from '../../daemon/httpFetch';
 
-import type { AccountsListResponse, AccountAllowanceSnapshot } from '../../daemon/types-accounts';
 import type {
-  AuditRecord,
+  AccountsListResponse,
+  AccountAllowanceSnapshot,
+  SubscriptionAccountSanitized,
+  SubscriptionProviderId,
+} from '../../daemon/types-accounts';
+import type {
+  AuditStats,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
 } from '../../daemon/types-server';
@@ -18,7 +23,12 @@ import type { CliIntegrationsOverview } from '../../daemon/types';
 
 /** Keep a cold start finite even when one optional admin endpoint hangs. */
 export const OVERVIEW_SOURCE_TIMEOUT_MS = 6_000;
-const AUDIT_QUERY_LIMIT = 2_000;
+const SUBSCRIPTION_PROVIDERS: readonly SubscriptionProviderId[] = [
+  'claude',
+  'codex',
+  'gemini',
+  'opencodego',
+];
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'source unavailable';
@@ -91,16 +101,31 @@ async function readGatewayVersion(): Promise<string> {
   return body.version;
 }
 
-async function readAccounts(): Promise<AccountsListResponse> {
-  const body = await adminClient.get<unknown>('/accounts');
+/** Normalize the daemon's sparse provider projection into the UI's complete map. */
+export function normalizeOverviewAccounts(body: unknown): AccountsListResponse {
   if (!body || typeof body !== 'object') throw new Error('Account data was empty');
-  const accounts = body as AccountsListResponse;
-  const providerAccounts = accounts.providerAccounts;
-  const providers = ['claude', 'codex', 'gemini', 'opencodego'] as const;
-  if (!providerAccounts || typeof providerAccounts !== 'object' || providers.some((provider) => !Array.isArray(providerAccounts[provider]))) {
+  const raw = body as Partial<AccountsListResponse>;
+  if (!raw.providerAccounts || typeof raw.providerAccounts !== 'object') {
     throw new Error('Account data was incomplete');
   }
-  return accounts;
+  const sparse = raw.providerAccounts as Partial<
+    Record<SubscriptionProviderId, SubscriptionAccountSanitized[]>
+  >;
+  const providerAccounts = Object.fromEntries(
+    SUBSCRIPTION_PROVIDERS.map((provider) => [
+      provider,
+      Array.isArray(sparse[provider]) ? sparse[provider] : [],
+    ]),
+  ) as Record<SubscriptionProviderId, SubscriptionAccountSanitized[]>;
+  return {
+    ...raw,
+    accounts: Array.isArray(raw.accounts) ? raw.accounts : [],
+    providerAccounts,
+  };
+}
+
+async function readAccounts(): Promise<AccountsListResponse> {
+  return normalizeOverviewAccounts(await adminClient.get<unknown>('/accounts'));
 }
 
 async function readAllowances(): Promise<AccountAllowanceSnapshot[]> {
@@ -121,11 +146,16 @@ async function readAudit(now: number): Promise<OverviewAuditData> {
   const query = new URLSearchParams({
     from: String(localDayStart(now)),
     to: String(now),
-    limit: String(AUDIT_QUERY_LIMIT),
   });
-  const body = await adminClient.get<{ records?: AuditRecord[] }>(`/audit?${query.toString()}`);
-  if (!Array.isArray(body.records)) throw new Error('Request audit data was empty');
-  return { records: body.records, complete: body.records.length < AUDIT_QUERY_LIMIT };
+  const body = await adminClient.get<Partial<AuditStats>>(`/audit/stats?${query.toString()}`);
+  if (
+    typeof body.requestCount !== 'number' ||
+    typeof body.errorCount !== 'number' ||
+    typeof body.complete !== 'boolean'
+  ) {
+    throw new Error('Request audit stats were empty');
+  }
+  return body as AuditStats;
 }
 
 async function readUsage(): Promise<DashboardSummary> {

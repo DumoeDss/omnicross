@@ -37,7 +37,12 @@ import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ResolvedAdminConfig } from '../config';
 
 import { handleAccountProbes } from './accountProbesApi';
-import { type AuditQueryReader, handleAuditQuery } from './auditQueryApi';
+import {
+  type AuditQueryReader,
+  type AuditStatsReader,
+  handleAuditQuery,
+  handleAuditStatsQuery,
+} from './auditQueryApi';
 import { type BillingStatusReader, handleBillingStatus } from './billingStatusApi';
 import { handleWebhookTest } from './webhookTestApi';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
@@ -79,6 +84,8 @@ export interface AdminServerDeps extends AdminApiDeps {
    * unauthenticated, NEVER on `/health`.
    */
   auditReader?: AuditQueryReader;
+  /** Metadata-only audit aggregate used by the overview error-rate metric. */
+  auditStatsReader?: AuditStatsReader;
   /**
    * OPTIONAL billing delivery-status reader (billing-event-stream, design D5).
    * When wired (bootstrap → the ledger dir), the AUTHED `GET /admin/api/billing-status`
@@ -239,6 +246,14 @@ export class AdminServer {
     // carry IP/UA + possibly bodies → admin-only; NEVER unauth, NEVER on `/health`.
     if (path === '/admin/api/audit' && (req.method === 'GET' || req.method === 'HEAD')) {
       handleAuditQuery(req, res, this.deps.auditReader);
+      return;
+    }
+
+    if (
+      path === '/admin/api/audit/stats' &&
+      (req.method === 'GET' || req.method === 'HEAD')
+    ) {
+      await handleAuditStatsQuery(req, res, this.deps.auditStatsReader);
       return;
     }
 

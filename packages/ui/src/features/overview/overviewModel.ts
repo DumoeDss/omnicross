@@ -3,7 +3,7 @@ import type {
   CliIntegrationStatusKind,
   CliIntegrationsOverview,
 } from '../../daemon/types';
-import type { AuditRecord, GatewayBinding, OutboundApiKeyInfo, OutboundApiServerConfig, OutboundApiServerStatus } from '../../daemon/types-server';
+import type { AuditStats, GatewayBinding, OutboundApiKeyInfo, OutboundApiServerConfig, OutboundApiServerStatus } from '../../daemon/types-server';
 import type { DashboardSummary } from '../../daemon/types-usage-pricing';
 
 export type DataSourceState = 'loading' | 'ready' | 'unavailable';
@@ -15,11 +15,7 @@ export interface OverviewSource<T> {
   message?: string;
 }
 
-export interface OverviewAuditData {
-  records: AuditRecord[];
-  /** False means the bounded audit query may have been truncated. */
-  complete: boolean;
-}
+export type OverviewAuditData = AuditStats;
 
 export type OverviewGatewayStatus = OutboundApiServerStatus & { version?: string };
 
@@ -123,6 +119,7 @@ export interface OverviewModel {
     nearLimit: AllowanceWatchItem[];
     stale: AllowanceWatchItem[];
     unavailableCount: number;
+    unobservedCount: number;
     sourceState: DataSourceState;
   };
   today: {
@@ -211,16 +208,24 @@ function buildAllowanceWatch(
   source: OverviewSource<AccountAllowanceSnapshot[]>,
   threshold: number,
   accounts: AccountEntry[],
-): { nearLimit: AllowanceWatchItem[]; stale: AllowanceWatchItem[]; unavailableCount: number } {
-  if (source.state !== 'ready' || !source.data) return { nearLimit: [], stale: [], unavailableCount: 0 };
+): { nearLimit: AllowanceWatchItem[]; stale: AllowanceWatchItem[]; unavailableCount: number; unobservedCount: number } {
+  if (source.state !== 'ready' || !source.data) {
+    return { nearLimit: [], stale: [], unavailableCount: 0, unobservedCount: 0 };
+  }
 
   const nearLimit: AllowanceWatchItem[] = [];
   const stale: AllowanceWatchItem[] = [];
   const unavailableKeys = new Set<string>();
+  const unobservedKeys = new Set<string>();
 
   for (const snapshot of source.data) {
+    const key = allowanceKey(snapshot.providerId, snapshot.accountId);
+    if (snapshot.lastErrorCode === 'codex_allowance_not_observed') {
+      unobservedKeys.add(key);
+      continue;
+    }
     if (snapshot.windows.length === 0) {
-      unavailableKeys.add(allowanceKey(snapshot.providerId, snapshot.accountId));
+      unavailableKeys.add(key);
       continue;
     }
     const staleWindow = snapshot.windows.find((window) => window.state === 'stale');
@@ -258,10 +263,18 @@ function buildAllowanceWatch(
   for (const entry of accounts) {
     if (entry.providerId !== 'claude' && entry.providerId !== 'codex') continue;
     const key = allowanceKey(entry.providerId, entry.account.id);
-    if (!observedKeys.has(key)) unavailableKeys.add(key);
+    if (!observedKeys.has(key)) {
+      if (entry.providerId === 'codex') unobservedKeys.add(key);
+      else unavailableKeys.add(key);
+    }
   }
 
-  return { nearLimit, stale, unavailableCount: unavailableKeys.size };
+  return {
+    nearLimit,
+    stale,
+    unavailableCount: unavailableKeys.size,
+    unobservedCount: unobservedKeys.size,
+  };
 }
 
 function metric<T>(source: OverviewSource<unknown>, value: T | undefined): OverviewMetric<T> {
@@ -292,7 +305,7 @@ function auditErrorRate(
     return { errorRate: { state: 'unavailable' }, errorRateReason: 'audit-incomplete' };
   }
 
-  const auditedRequestCount = audit.data.records.length;
+  const auditedRequestCount = audit.data.requestCount;
   const requestCount = usage.state === 'ready' ? usage.data?.today.eventCount ?? 0 : undefined;
   if (auditedRequestCount === 0 && requestCount !== 0) {
     return {
@@ -302,7 +315,7 @@ function auditErrorRate(
     };
   }
 
-  const errorCount = audit.data.records.filter((record) => record.status >= 400 || Boolean(record.error)).length;
+  const errorCount = audit.data.errorCount;
   return {
     errorRate: { state: 'ready', value: auditedRequestCount === 0 ? 0 : errorCount / auditedRequestCount },
     errorCount,

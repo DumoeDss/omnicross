@@ -197,10 +197,16 @@ function AccountsEvidence({
   onNavigate: (route: AppRoute) => void;
 }) {
   const t = useTranslation();
-  const allowanceIncomplete = view.allowance.unavailableCount > 0;
-  const allowanceValue = view.allowance.sourceState === 'ready' && !allowanceIncomplete
+  const allowanceValue = view.allowance.sourceState === 'ready'
     ? t('overview.accounts.allowanceValue', { near: view.allowance.nearLimit.length, stale: view.allowance.stale.length })
     : sourceText(view.allowance.sourceState, t);
+  const allowanceDetail = view.allowance.sourceState !== 'ready'
+    ? undefined
+    : view.allowance.unavailableCount > 0
+      ? t('overview.accounts.allowanceUnavailable', { count: view.allowance.unavailableCount })
+      : view.allowance.unobservedCount > 0
+        ? t('overview.accounts.allowanceUnobserved', { count: view.allowance.unobservedCount })
+        : t('overview.accounts.allowanceThreshold', { threshold: view.allowance.threshold });
   return (
     <section className="rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5" aria-labelledby="account-evidence-title">
       <SectionHeading
@@ -227,9 +233,7 @@ function AccountsEvidence({
         <EvidenceRow
           label={t('overview.accounts.allowance')}
           value={allowanceValue}
-          detail={allowanceIncomplete
-            ? t('overview.accounts.allowanceUnavailable', { count: view.allowance.unavailableCount })
-            : view.allowance.sourceState === 'ready' ? t('overview.accounts.allowanceThreshold', { threshold: view.allowance.threshold }) : undefined}
+          detail={allowanceDetail}
           valueClassName="font-mono tabular-nums"
         />
         <EvidenceRow

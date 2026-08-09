@@ -48,6 +48,8 @@ describe('AuditPruneSweeper', () => {
     const yesterday = writeDateFile(now, -1); // 07-09 keep (retention 3 ⇒ 08,09,10)
     const old1 = writeDateFile(now, -5); // 07-05 prune
     const old2 = writeDateFile(now, -30); // 06-10 prune
+    const oldStats = old1.replace(/\.jsonl$/, '.stats.json');
+    writeFileSync(join(dir, oldStats), '{"requestCount":1}\n');
 
     const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg({ retentionDays: 3 }), 3600_000, () =>
       now.getTime(),
@@ -59,6 +61,7 @@ describe('AuditPruneSweeper', () => {
     expect(remaining).toContain(yesterday);
     expect(remaining).not.toContain(old1);
     expect(remaining).not.toContain(old2);
+    expect(remaining).not.toContain(oldStats);
   });
 
   it('retentionDays:1 keeps only today', async () => {

@@ -103,6 +103,7 @@ import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { AuditPruneSweeper } from './audit/AuditPruneSweeper';
 import { readAuditRecords } from './audit/auditReader';
+import { readAuditStats } from './audit/auditStats';
 import { resetAuditRuntimeForTests, setAuditRuntime } from './audit/auditRuntime';
 import { AuditWriter } from './audit/AuditWriter';
 import { BillingPublisher } from './billing/BillingPublisher';
@@ -618,6 +619,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // carries no path/store coupling. Records hold IP/UA/bodies → admin-only,
     // NEVER unauth, NEVER on `/health`. Routed in `AdminServer` (not `adminApi.ts`).
     auditReader: (query) => readAuditRecords(auditDir, query),
+    auditStatsReader: (query) => readAuditStats(auditDir, query),
     // billing-event-stream: the AUTHED `GET /admin/api/billing-status` returns the
     // secret-free total/delivered/pending counts of the durable ledger.
     billingStatusReader: () => readBillingStatus(billingDir),

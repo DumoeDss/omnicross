@@ -584,6 +584,7 @@
       "allowance": "額度觀察",
       "allowanceValue": "{{near}} 個接近上限 · {{stale}} 個過期",
       "allowanceUnavailable": "有 {{count}} 個帳號的額度快照無法取得",
+      "allowanceUnobserved": "有 {{count}} 個 Codex 帳號尚未觀察到額度，請先發出請求",
       "allowanceThreshold": "警告閾值 {{threshold}}%",
       "expiringSoon": "即將過期",
       "expiringSoonHint": "48 小時內到期的憑證",
@@ -598,7 +599,7 @@
       "source": "來自本機 Usage 記錄",
       "auditSource": "來自 {{count}} 筆稽核請求",
       "auditDisabled": "請求稽核未啟用；請在設定 → 資料中啟用後測量錯誤率。",
-      "auditIncomplete": "稽核讀取可能不完整，因此不會估算錯誤率。",
+      "auditIncomplete": "稽核中繼資料彙總不完整，因此不會估算錯誤率。",
       "noAuditedRequests": "沒有可用來與今日 Usage 比對的稽核請求。",
       "auditUnavailable": "無法讀取請求稽核，因此不會估算錯誤率。",
       "openUsage": "開啟 Usage"

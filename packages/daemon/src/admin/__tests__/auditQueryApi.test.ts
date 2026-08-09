@@ -4,7 +4,8 @@ import type { AuditRecord } from '@omnicross/contracts/audit-types';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AuditQuery } from '../../audit/auditReader';
-import { handleAuditQuery } from '../auditQueryApi';
+import type { AuditStatsQuery } from '../../audit/auditStats';
+import { handleAuditQuery, handleAuditStatsQuery } from '../auditQueryApi';
 
 function fakeReq(url: string): IncomingMessage {
   return { url, method: 'GET' } as unknown as IncomingMessage;
@@ -62,5 +63,23 @@ describe('handleAuditQuery', () => {
     const { res, body } = fakeRes();
     handleAuditQuery(fakeReq('/admin/api/audit'), res, undefined);
     expect((body() as { records: AuditRecord[] }).records).toEqual([]);
+  });
+});
+
+describe('handleAuditStatsQuery', () => {
+  it('parses the time window and returns metadata-only counts', async () => {
+    const seen: AuditStatsQuery[] = [];
+    const { res, body, status } = fakeRes();
+    await handleAuditStatsQuery(
+      fakeReq('/admin/api/audit/stats?from=100&to=200&limit=5'),
+      res,
+      async (query) => {
+        seen.push(query);
+        return { requestCount: 10, errorCount: 2, complete: true };
+      },
+    );
+    expect(status()).toBe(200);
+    expect(seen).toEqual([{ from: 100, to: 200 }]);
+    expect(body()).toEqual({ requestCount: 10, errorCount: 2, complete: true });
   });
 });

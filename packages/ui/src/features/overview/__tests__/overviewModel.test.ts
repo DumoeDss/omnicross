@@ -146,10 +146,8 @@ const baseIntegrations: CliIntegrationsOverview = {
 
 const baseAudit: OverviewAuditData = {
   complete: true,
-  records: [
-    { id: 'ok', ts: NOW - 1000, method: 'POST', path: '/v1/messages', status: 200, latencyMs: 20 },
-    { id: 'error', ts: NOW - 500, method: 'POST', path: '/v1/messages', status: 502, latencyMs: 20, error: 'upstream failed' },
-  ],
+  requestCount: 2,
+  errorCount: 1,
 };
 
 function healthySources(overrides: Partial<OverviewSources> = {}): OverviewSources {
@@ -291,7 +289,42 @@ describe('buildOverviewModel', () => {
     expect(view.issues.find((entry) => entry.id === 'integrationClaudeNeedsAttention')?.route).toEqual({ page: 'integrations' });
   });
 
-  it('keeps error rate explicitly unavailable when audit is disabled or capped', () => {
+  it('treats an unobserved Codex allowance as informational, not unavailable', () => {
+    const codexAccount: SubscriptionAccountSanitized = {
+      ...healthyAccount,
+      id: 'codex-1',
+      label: 'Codex',
+      group: 'codex',
+    };
+    const view = buildOverviewModel({
+      ...healthySources(),
+      accounts: source({
+        ...emptyAccounts,
+        providerAccounts: {
+          ...emptyAccounts.providerAccounts,
+          claude: [healthyAccount],
+          codex: [codexAccount],
+        },
+      }),
+      allowances: source([
+        ...baseAllowances,
+        {
+          providerId: 'codex',
+          accountId: 'codex-1',
+          source: 'response-headers',
+          observedAt: new Date(NOW).toISOString(),
+          windows: [],
+          lastErrorCode: 'codex_allowance_not_observed',
+        },
+      ]),
+    }, NOW);
+
+    expect(view.allowance.unobservedCount).toBe(1);
+    expect(view.allowance.unavailableCount).toBe(0);
+    expect(view.issues.find((entry) => entry.id === 'allowanceDataUnavailable')).toBeUndefined();
+  });
+
+  it('keeps error rate explicitly unavailable when audit is disabled or incomplete', () => {
     const disabled = buildOverviewModel({
       ...healthySources(),
       audit: unavailable('audit-disabled'),
@@ -300,11 +333,11 @@ describe('buildOverviewModel', () => {
     expect(disabled.today.errorRateReason).toBe('audit-disabled');
     expect(disabled.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'settings', tab: 'data' });
 
-    const capped = buildOverviewModel({
+    const incomplete = buildOverviewModel({
       ...healthySources(),
-      audit: source({ records: baseAudit.records, complete: false }),
+      audit: source({ ...baseAudit, complete: false }),
     }, NOW);
-    expect(capped.today.errorRateReason).toBe('audit-incomplete');
-    expect(capped.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'api-service', tab: 'activity' });
+    expect(incomplete.today.errorRateReason).toBe('audit-incomplete');
+    expect(incomplete.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'api-service', tab: 'activity' });
   });
 });

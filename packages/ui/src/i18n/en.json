@@ -590,6 +590,7 @@
       "allowance": "Allowance watch",
       "allowanceValue": "{{near}} near limit · {{stale}} stale",
       "allowanceUnavailable": "{{count}} account allowance snapshot(s) unavailable",
+      "allowanceUnobserved": "{{count}} Codex account(s) have not observed allowance yet; send a request first",
       "allowanceThreshold": "warning threshold {{threshold}}%",
       "expiringSoon": "Expiring soon",
       "expiringSoonHint": "Credentials expiring within 48 hours",
@@ -604,7 +605,7 @@
       "source": "From the local usage ledger",
       "auditSource": "From {{count}} audited requests",
       "auditDisabled": "Request audit is disabled; enable it in Settings → Data to measure failures.",
-      "auditIncomplete": "The bounded audit read may be incomplete, so the rate is not estimated.",
+      "auditIncomplete": "The audit metadata summary is incomplete, so the rate is not estimated.",
       "noAuditedRequests": "No audited requests were available to compare with today's usage.",
       "auditUnavailable": "Request audit could not be read; the rate is not estimated.",
       "openUsage": "Open Usage"

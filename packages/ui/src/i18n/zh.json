@@ -584,6 +584,7 @@
       "allowance": "额度观察",
       "allowanceValue": "{{near}} 个接近上限 · {{stale}} 个过期",
       "allowanceUnavailable": "有 {{count}} 个账号的额度快照不可用",
+      "allowanceUnobserved": "有 {{count}} 个 Codex 账号尚未观测到额度，请先发起请求",
       "allowanceThreshold": "警告阈值 {{threshold}}%",
       "expiringSoon": "即将过期",
       "expiringSoonHint": "48 小时内到期的凭证",
@@ -598,7 +599,7 @@
       "source": "来自本地 Usage 记录",
       "auditSource": "来自 {{count}} 条审计请求",
       "auditDisabled": "请求审计未启用；请在设置 → 数据中启用后测量失败率。",
-      "auditIncomplete": "审计读取可能不完整，因此不会估算错误率。",
+      "auditIncomplete": "审计元数据汇总不完整，因此不会估算错误率。",
       "noAuditedRequests": "没有可用于和今日 Usage 对比的审计请求。",
       "auditUnavailable": "无法读取请求审计，因此不会估算错误率。",
       "openUsage": "打开 Usage"

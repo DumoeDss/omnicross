@@ -14,13 +14,14 @@
  * @module @omnicross/daemon/audit/AuditWriter
  */
 
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { AuditRecord } from '@omnicross/contracts/audit-types';
 import type { Logger } from '@omnicross/core';
 
 import { auditFileName } from './auditFiles';
+import { updateAuditStatsAfterAppend } from './auditStats';
 
 export class AuditWriter {
   private dirEnsured = false;
@@ -59,6 +60,22 @@ export class AuditWriter {
       this.dirEnsured = true;
     }
     const file = join(this.auditDir, auditFileName(record.ts));
-    appendFileSync(file, JSON.stringify(record) + '\n', 'utf8');
+    const line = JSON.stringify(record) + '\n';
+    const auditBytesBefore = existsSync(file) ? statSync(file).size : 0;
+    appendFileSync(file, line, 'utf8');
+    try {
+      updateAuditStatsAfterAppend(
+        file,
+        auditBytesBefore,
+        auditBytesBefore + Buffer.byteLength(line, 'utf8'),
+        record,
+      );
+    } catch (error) {
+      // The raw audit line is canonical. A summary failure only makes the stats
+      // endpoint rebuild it later and must never fail audit persistence.
+      this.logger.warn('[AuditWriter] failed to update audit stats', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

@@ -21,6 +21,7 @@ import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import type { Logger } from '@omnicross/core';
 
 import { auditFileDateMs } from './auditFiles';
+import { auditStatsFileName } from './auditStats';
 
 const DAY_MS = 24 * 60 * 60_000;
 /** Prune cadence — hourly is ample for a day-granular TTL. */
@@ -90,6 +91,8 @@ export class AuditPruneSweeper {
         try {
           unlinkSync(join(this.auditDir, file));
           removed += 1;
+          const statsPath = join(this.auditDir, auditStatsFileName(file));
+          if (existsSync(statsPath)) unlinkSync(statsPath);
         } catch (error) {
           this.logger.warn('[AuditPruneSweeper] failed to unlink expired audit file', {
             file,

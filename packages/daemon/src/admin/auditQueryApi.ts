@@ -17,12 +17,15 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { AuditRecord } from '@omnicross/contracts/audit-types';
+import type { AuditRecord, AuditStats } from '@omnicross/contracts/audit-types';
 
 import type { AuditQuery } from '../audit/auditReader';
+import type { AuditStatsQuery } from '../audit/auditStats';
 
 /** The read surface the AdminServer consumes (bootstrap binds it to the store). */
 export type AuditQueryReader = (query: AuditQuery) => AuditRecord[];
+/** Metadata-only aggregate reader used by the overview. */
+export type AuditStatsReader = (query: AuditStatsQuery) => Promise<AuditStats> | AuditStats;
 
 /** Parse a finite integer query param, or `undefined` when absent/invalid. */
 function intParam(value: string | null): number | undefined {
@@ -55,4 +58,23 @@ export function handleAuditQuery(
   const records = reader ? reader(query) : [];
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ records }));
+}
+
+/** Serve lightweight request/error counts without returning captured bodies. */
+export async function handleAuditStatsQuery(
+  req: IncomingMessage,
+  res: ServerResponse,
+  reader: AuditStatsReader | undefined,
+): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const query: AuditStatsQuery = {};
+  const from = intParam(url.searchParams.get('from'));
+  if (from !== undefined) query.from = from;
+  const to = intParam(url.searchParams.get('to'));
+  if (to !== undefined) query.to = to;
+  const stats = reader
+    ? await reader(query)
+    : { requestCount: 0, errorCount: 0, complete: true };
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(stats));
 }

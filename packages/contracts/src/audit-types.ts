@@ -104,3 +104,11 @@ export const DEFAULT_AUDIT_CONFIG: AuditConfig = {
 export interface AuditQueryResult {
   records: AuditRecord[];
 }
+
+/** Metadata-only aggregate for an audit time window (body payloads are never returned). */
+export interface AuditStats {
+  requestCount: number;
+  errorCount: number;
+  /** False when the store could not produce an exact aggregate. */
+  complete: boolean;
+}
