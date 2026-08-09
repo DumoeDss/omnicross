@@ -69,6 +69,7 @@ const ACCOUNT_HEALTH = new Set<NonNullable<AccountFilters['health']>>([
   'rate_limited',
   'overloaded',
   'transient',
+  'quota_exhausted',
   'blocked',
 ]);
 const ACCOUNT_CREDENTIALS = new Set<AccountFilters['credential']>([

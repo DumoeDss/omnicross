@@ -32,6 +32,12 @@ export const OVERLOAD_ENABLED_DEFAULT = true;
 export const AUTH_ERROR_TTL_MS = 30 * 60_000;
 /** Transient cooldown for a 5xx response or network failure. */
 export const SERVER_ERROR_TTL_MS = 5 * 60_000;
+/**
+ * Hard cap on a quota-exhaustion cooldown (the weekly usage window is ~1 week).
+ * A parsed/supplied deadline farther than this into the future is clamped, so a
+ * bogus parse can never strand an account indefinitely.
+ */
+export const MAX_QUOTA_COOLDOWN_MS = 7 * 24 * 60 * 60_000;
 
 /** 403 response markers that indicate a permanently blocked account. */
 const BAN_BODY_MARKERS = [
@@ -47,12 +53,27 @@ export interface HealthRecord {
   overloadUntil?: number;
   /** From a final-401 / plain-403 / 5xx / thrown — transient cooldown until this. */
   tempUnavailableUntil?: number;
+  /**
+   * From a detected quota/usage-limit error (e.g. Codex weekly window exhausted).
+   * Intentionally NOT cleared by a 2xx: while the account's credits/window are
+   * exhausted, in-flight sessions on the SAME account keep returning 2xx (Codex
+   * does not kill them mid-session), which would otherwise immediately heal a
+   * transient/rate-limit mark and re-strand every NEW session onto this account.
+   * Self-heals only when the deadline elapses.
+   */
+  quotaExhaustedUntil?: number;
   /** From a 403-ban — permanent, self-heal never clears it. */
   blocked?: boolean;
 }
 
 /** The coarse health state surfaced to the admin accounts view (secret-free). */
-export type AccountHealthState = 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
+export type AccountHealthState =
+  | 'healthy'
+  | 'rate_limited'
+  | 'overloaded'
+  | 'transient'
+  | 'quota_exhausted'
+  | 'blocked';
 
 /** Admin-facing status projection for one account. */
 export interface AccountHealthStatus {
@@ -81,7 +102,12 @@ export interface AccountRecoveryEvent {
 export type AccountRecoveryListener = (event: AccountRecoveryEvent) => void;
 
 /** The coarse anomaly state an account transitioned into (secret-free). */
-export type AccountAnomalyState = 'blocked' | 'unauthorized' | 'rate_limited' | 'overloaded';
+export type AccountAnomalyState =
+  | 'blocked'
+  | 'unauthorized'
+  | 'rate_limited'
+  | 'overloaded'
+  | 'quota_exhausted';
 
 /**
  * The anomaly signal emitted when a HEALTHY account transitions to unhealthy —
@@ -221,6 +247,7 @@ function isRecordEmpty(record: HealthRecord): boolean {
     record.rateLimitEndAt === undefined &&
     record.overloadUntil === undefined &&
     record.tempUnavailableUntil === undefined &&
+    record.quotaExhaustedUntil === undefined &&
     !record.blocked
   );
 }
@@ -316,7 +343,11 @@ export class SubscriptionAccountHealth {
     if (status === null) {
       record.tempUnavailableUntil = now + this.serverErrorTtlMs;
     } else if (status >= 200 && status < 300) {
-      // Success recovery: clear rate-limit + transient; a ban survives (D3).
+      // Success recovery: clear rate-limit + transient; a ban survives (D3). A
+      // quota-exhaustion mark ALSO survives — an in-flight session's 2xx does not
+      // mean the account's window/credits recovered, and clearing it here would
+      // re-strand the next NEW session onto the exhausted account. Quota self-
+      // heals only at its deadline (clearExpired / sweepRecoveries).
       const wasUnhealthy =
         record.rateLimitEndAt !== undefined ||
         record.overloadUntil !== undefined ||
@@ -379,12 +410,53 @@ export class SubscriptionAccountHealth {
     }
   }
 
+  /**
+   * Mark an account quota/usage-exhausted until `untilEpochMs` (the Codex weekly
+   * usage-limit wall). Unlike the status-driven timers set by
+   * {@link recordUpstreamOutcome}, this mark is NOT cleared by a 2xx: in-flight
+   * sessions on the same account keep succeeding after the window is exhausted,
+   * so a traffic-driven clear would re-strand every NEW session onto this
+   * account. It excludes the account from NEW-session selection until the
+   * deadline elapses (existing sessions are unaffected — they already hold their
+   * token). Self-heals lazily on read and via {@link sweepRecoveries}.
+   * `untilEpochMs` is clamped to {@link MAX_QUOTA_COOLDOWN_MS}; an already-elapsed
+   * deadline is a no-op. Emits a `quota_exhausted` anomaly on the healthy→
+   * unhealthy edge.
+   */
+  markQuotaExhausted(
+    providerId: string,
+    accountId: string,
+    untilEpochMs: number,
+    now: number = this.now(),
+  ): void {
+    if (!Number.isFinite(untilEpochMs)) return;
+    const clamped = Math.min(untilEpochMs, now + MAX_QUOTA_COOLDOWN_MS);
+    if (clamped <= now) return;
+    const key = this.key(providerId, accountId);
+    const preExisting = this.records.get(key);
+    const record = preExisting ?? {};
+    const wasUnhealthyBefore = preExisting ? this.isUnhealthyAt(preExisting, now) : false;
+    record.quotaExhaustedUntil = clamped;
+    this.records.set(key, record);
+    if (!wasUnhealthyBefore) {
+      const anomaly: AccountAnomalyEvent = {
+        providerId,
+        accountId,
+        at: now,
+        state: 'quota_exhausted',
+      };
+      this.recordDiagnostic({ kind: 'health-anomaly', ...anomaly });
+      this.emitAnomaly(anomaly);
+    }
+  }
+
   /** Whether a record is unhealthy at `now`: blocked, or any timer still future. */
   private isUnhealthyAt(record: HealthRecord, now: number): boolean {
     if (record.blocked) return true;
     if (record.rateLimitEndAt !== undefined && now < record.rateLimitEndAt) return true;
     if (record.overloadUntil !== undefined && now < record.overloadUntil) return true;
     if (record.tempUnavailableUntil !== undefined && now < record.tempUnavailableUntil) return true;
+    if (record.quotaExhaustedUntil !== undefined && now < record.quotaExhaustedUntil) return true;
     return false;
   }
 
@@ -426,7 +498,8 @@ export class SubscriptionAccountHealth {
       const hadTimer =
         record.rateLimitEndAt !== undefined ||
         record.overloadUntil !== undefined ||
-        record.tempUnavailableUntil !== undefined;
+        record.tempUnavailableUntil !== undefined ||
+        record.quotaExhaustedUntil !== undefined;
       const active = this.clearExpired(record, now);
       if (hadTimer && !active && isRecordEmpty(record)) {
         const [pid, aid] = this.parseKey(key);
@@ -451,6 +524,9 @@ export class SubscriptionAccountHealth {
     const record = this.records.get(this.key(providerId, accountId));
     if (!record) return { state: 'healthy' };
     if (record.blocked) return { state: 'blocked' };
+    if (record.quotaExhaustedUntil !== undefined && now < record.quotaExhaustedUntil) {
+      return { state: 'quota_exhausted', cooldownUntil: record.quotaExhaustedUntil };
+    }
     if (record.rateLimitEndAt !== undefined && now < record.rateLimitEndAt) {
       return { state: 'rate_limited', cooldownUntil: record.rateLimitEndAt };
     }
@@ -551,6 +627,10 @@ export class SubscriptionAccountHealth {
     }
     if (record.tempUnavailableUntil !== undefined) {
       if (now >= record.tempUnavailableUntil) delete record.tempUnavailableUntil;
+      else active = true;
+    }
+    if (record.quotaExhaustedUntil !== undefined) {
+      if (now >= record.quotaExhaustedUntil) delete record.quotaExhaustedUntil;
       else active = true;
     }
     return active;

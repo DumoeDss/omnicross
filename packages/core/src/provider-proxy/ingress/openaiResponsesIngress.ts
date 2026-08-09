@@ -59,6 +59,10 @@ import {
   writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
+import {
+  isCodexUsageLimitError,
+  markCodexUsageLimitExhaustion,
+} from './codexUsageLimitDetection';
 
 /**
  * Match the codex `/responses` route: `POST` + any path ENDING IN `/responses`
@@ -75,7 +79,7 @@ export function isOpenAIResponsesRequest(
 }
 
 /** The auth-mode-resolved inputs for one `executeProviderCall` (mirrors the host's codex call plan). */
-interface ResponsesCallPlan {
+export interface ResponsesCallPlan {
   readonly auth: AuthSource;
   /** Stable per-conversation account-pool affinity key. */
   readonly sessionKey?: string;
@@ -153,10 +157,17 @@ export async function handleOpenAIResponsesRequest(
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
-    const providerResponse =
+    let providerResponse =
       route.authMode === 'subscription'
         ? await runPipelineWithSubscriptionRetry(responsesBody, plan)
         : await runPipelineWithPoolReporting(responsesBody, plan);
+    // Codex weekly usage-limit wall: BEFORE relaying, detect the wall, mark the
+    // serving account, and retry on another pool member so THIS request is served
+    // (not just the next one). The mark excludes the account from selection, and
+    // the affinity short-circuit only honors a sticky account while it is still
+    // schedulable — so the retry routes to a different account. Subscription codex
+    // only: BYO / non-codex never report an accountId and skip this untouched.
+    providerResponse = await retryAroundCodexUsageLimit(responsesBody, plan, providerResponse);
 
     // Passthrough (design D4): rewrite the response `model` back to the client's
     // ORIGINAL requested id (`route.requestedModel`) so Codex sees `gpt-5-codex-…`
@@ -434,7 +445,7 @@ async function resolveGeminiCodeAssistProject(
 async function runPipeline(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
   const executor = getSharedExecutor();
   const endpointTransformer = getResponsesEndpointTransformer();
   const { auth, sessionKey, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
@@ -514,7 +525,7 @@ async function runPipeline(
     runResponseChain: true,
   });
 
-  return { response, rawStatus };
+  return { response, rawStatus, accountId: proxyAccountId };
 }
 
 /**
@@ -530,7 +541,7 @@ async function runPipeline(
 async function runPipelineWithPoolReporting(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
   const first = await runPipeline(responsesBody, plan);
   const outcome = await plan.auth.onResult?.(first.rawStatus);
   if (outcome?.rebound) {
@@ -553,7 +564,7 @@ async function runPipelineWithPoolReporting(
 async function runPipelineWithSubscriptionRetry(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
   const first = await runPipeline(responsesBody, plan);
   if (first.rawStatus !== 401) return first;
 
@@ -564,4 +575,73 @@ async function runPipelineWithSubscriptionRetry(
   }
   console.log('[ProviderProxy:responses] 401 → token refreshed; retrying once');
   return runPipeline(responsesBody, plan);
+}
+
+/** The runPipeline result shape (shared by every wrapper above). */
+type PipelineResult = { response: Response; rawStatus: number | null; accountId: string | undefined };
+
+/**
+ * Cap on consecutive quota-exhausted accounts retried for ONE inbound request.
+ * Each retry is one upstream round-trip, so this bounds tail latency when several
+ * accounts are simultaneously exhausted (the common case is one). Accounts beyond
+ * this cap are marked on subsequent requests and converge out of rotation.
+ */
+const MAX_QUOTA_RETRIES = 3;
+
+/** Whether a result is a subscription-codex error worth inspecting for the wall. */
+function isCodexAccountError(plan: ResponsesCallPlan, result: PipelineResult): boolean {
+  return (
+    plan.proxyProviderId === 'codex' &&
+    !!result.accountId &&
+    result.rawStatus !== null &&
+    result.rawStatus >= 400
+  );
+}
+
+/**
+ * Re-create a Response from an already-consumed error body so `relayResponse`
+ * emits it verbatim (status + headers + body intact). Only used for the non-wall
+ * error branch, where the body was read to test for the usage-limit markers.
+ */
+function rebuildErrorResponse(original: Response, bodyText: string, status: number | null): Response {
+  return new Response(bodyText, {
+    status: status !== null && status >= 100 ? status : 500,
+    headers: original.headers,
+  });
+}
+
+/**
+ * Codex weekly usage-limit retry: if an attempt hit the wall, mark the serving
+ * account and re-run on another pool member, looping until one succeeds, a
+ * non-wall error surfaces, or {@link MAX_QUOTA_RETRIES} is reached. Runs BEFORE
+ * the relay so the client receives the successful retry rather than the wall.
+ *
+ * Body discipline: an error body is read only to test for the markers. A wall
+ * body is discarded (retried); a non-wall error body is rebuilt for the relay.
+ * The final result — whether a success (untouched) or the cap's last error
+ * (unread) — is relayed by the caller without double-consumption.
+ *
+ * Exported + `runAttempt`-injectable so the loop's body discipline can be tested
+ * without the full pipeline; production passes the real subscription wrapper.
+ */
+export async function retryAroundCodexUsageLimit(
+  responsesBody: Record<string, unknown>,
+  plan: ResponsesCallPlan,
+  first: PipelineResult,
+  runAttempt: (responsesBody: Record<string, unknown>, plan: ResponsesCallPlan) => Promise<PipelineResult> = runPipelineWithSubscriptionRetry,
+): Promise<PipelineResult> {
+  if (!isCodexAccountError(plan, first)) return first;
+  let current = first;
+  for (let attempt = 0; attempt < MAX_QUOTA_RETRIES; attempt++) {
+    const errorBody = await current.response.text().catch(() => '');
+    if (!isCodexUsageLimitError(errorBody)) {
+      return { ...current, response: rebuildErrorResponse(current.response, errorBody, current.rawStatus) };
+    }
+    markCodexUsageLimitExhaustion(current.accountId, errorBody);
+    const next = await runAttempt(responsesBody, plan);
+    if (!isCodexAccountError(plan, next)) return next; // success or non-codex/non-error → relay as-is
+    current = next; // another codex error → inspect it on the next iteration
+  }
+  // Cap reached: `current` is an unread codex error → the caller relays it.
+  return current;
 }

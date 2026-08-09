@@ -1421,6 +1421,7 @@
       "rate_limited": "已限流",
       "overloaded": "过载",
       "transient": "暂时不可用",
+      "quota_exhausted": "额度耗尽",
       "blocked": "已封禁",
       "until": "至 {{time}}"
     }

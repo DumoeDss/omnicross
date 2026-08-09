@@ -1424,6 +1424,7 @@
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",
       "transient": "Temporarily unavailable",
+      "quota_exhausted": "Quota exhausted",
       "blocked": "Blocked",
       "until": "Until {{time}}"
     }

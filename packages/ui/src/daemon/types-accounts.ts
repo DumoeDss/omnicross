@@ -78,7 +78,7 @@ export interface SubscriptionAccountSanitized {
   /** Credential-sync warning for this account (external-cli-sync). */
   syncWarning?: SyncWarningCode;
   /** Live scheduling-health state (subscription-account-health); in-memory. */
-  health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
+  health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'quota_exhausted' | 'blocked';
   /** ISO instant the current health cooldown elapses (absent for healthy/blocked). */
   cooldownUntil?: string;
   /** Secret-free per-account proxy view (upstream-proxy); password masked. */
