@@ -78,12 +78,12 @@ describe('resolveCodexQuotaDeadline', () => {
   it('falls back to the default TTL when no date and no snapshot are available', () => {
     const now = 5_000_000;
     const deadline = resolveCodexQuotaDeadline(ACCT, '{"error":"rate limited"}', now);
-    expect(deadline).toBe(now + 30 * 60_000);
+    expect(deadline).toBe(now + 5 * 60_000);
   });
 
-  it('prefers the allowance snapshot reset over the body date', () => {
+  it('prefers the allowance snapshot reset over the body date (when the window is exhausted)', () => {
     const now = 5_000_000;
-    // Seed a fresh codex snapshot: window resets 1 hour from now.
+    // Seed a fresh codex snapshot: window resets 1 hour from now, used 100%.
     getSharedAccountAllowanceStore().recordCodexHeaders(
       ACCT,
       { 'x-codex-primary-reset-after-seconds': '3600', 'x-codex-primary-used-percent': '100' },
@@ -95,10 +95,22 @@ describe('resolveCodexQuotaDeadline', () => {
     expect(deadline).toBeLessThan(now + 3700_000);
   });
 
+  it('does NOT borrow a low-usage window reset (a transient 429 gets the short default)', () => {
+    const now = 5_000_000;
+    // Window resets 1h from now but is only 10% used → not the weekly wall.
+    getSharedAccountAllowanceStore().recordCodexHeaders(
+      ACCT,
+      { 'x-codex-primary-reset-after-seconds': '3600', 'x-codex-primary-used-percent': '10' },
+      now,
+    );
+    const deadline = resolveCodexQuotaDeadline(ACCT, '{"error":"rate limited"}', now);
+    expect(deadline).toBe(now + 5 * 60_000); // default TTL, not the 1h reset
+  });
+
   it('treats a parsed date in the past as unusable (falls through to the TTL)', () => {
     const now = Date.parse('2027-01-01T00:00:00Z'); // body's "Aug 16, 2026" is now in the past
     const deadline = resolveCodexQuotaDeadline(ACCT, FULL_WALL_BODY, now);
-    expect(deadline).toBe(now + 30 * 60_000);
+    expect(deadline).toBe(now + 5 * 60_000);
   });
 });
 
