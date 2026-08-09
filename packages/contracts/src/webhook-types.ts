@@ -21,7 +21,12 @@
  */
 
 /** The coarse anomaly state an account transitioned into (secret-free). */
-export type WebhookAnomalyState = 'blocked' | 'unauthorized' | 'rate_limited' | 'overloaded';
+export type WebhookAnomalyState =
+  | 'blocked'
+  | 'unauthorized'
+  | 'rate_limited'
+  | 'overloaded'
+  | 'quota_exhausted';
 
 /** The cost-limit scope a key quota event refers to. */
 export type WebhookQuotaScope = 'daily' | 'weekly' | 'total';

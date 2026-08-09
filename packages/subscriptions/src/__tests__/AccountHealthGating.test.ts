@@ -152,3 +152,57 @@ describe('#1 [Minor] — null by-id token eviction + re-select', () => {
     expect(health.isSchedulable('claude', 'B')).toBe(false);
   });
 });
+
+describe('quota exhaustion — routes around, 2xx-resistant (the codex wall)', () => {
+  it('routes AROUND a quota-exhausted account to the healthy sibling', async () => {
+    const tokens = makeStore([{ id: 'A', token: 'AT-A' }, { id: 'B', token: 'AT-B' }], 'A');
+    const svc = new SubscriptionAccountService(tokens);
+    const strategy = svc.getStrategy('claude')!;
+
+    // A is quota-exhausted (e.g. codex weekly window) → every request serves B.
+    getSharedAccountHealth().markQuotaExhausted('claude', 'A', Date.now() + 3_600_000);
+
+    for (let i = 0; i < 4; i++) {
+      expect(await bearer(strategy)).toBe('Bearer AT-B');
+    }
+    expect(tokens.getAccessTokenForAccount).toHaveBeenCalledWith('claude', 'B');
+    expect(tokens.getAccessTokenForAccount).not.toHaveBeenCalledWith('claude', 'A');
+  });
+
+  it('an in-flight session 2xx on the exhausted account does NOT return it to rotation', async () => {
+    // The defining behavior: unlike a rate-limit mark (cleared by a 2xx), a quota
+    // mark survives the exhausted account's own in-flight successes — which is the
+    // whole reason new codex sessions keep getting stranded without this fix.
+    const tokens = makeStore([{ id: 'A', token: 'AT-A' }, { id: 'B', token: 'AT-B' }], 'A');
+    const svc = new SubscriptionAccountService(tokens);
+    const strategy = svc.getStrategy('claude')!;
+    const health = getSharedAccountHealth();
+
+    health.markQuotaExhausted('claude', 'A', Date.now() + 3_600_000);
+    expect(await bearer(strategy)).toBe('Bearer AT-B'); // A excluded
+
+    // A's in-flight session returns 2xx — must NOT clear the quota mark.
+    health.recordUpstreamOutcome('claude', 'A', { status: 200 });
+    expect(health.isSchedulable('claude', 'A')).toBe(false);
+    for (let i = 0; i < 4; i++) {
+      expect(await bearer(strategy)).toBe('Bearer AT-B'); // still only B
+    }
+  });
+
+  it('returns the account to rotation once the quota deadline elapses', async () => {
+    const tokens = makeStore([{ id: 'A', token: 'AT-A' }, { id: 'B', token: 'AT-B' }], 'A');
+    const svc = new SubscriptionAccountService(tokens);
+    const strategy = svc.getStrategy('claude')!;
+    const health = getSharedAccountHealth();
+
+    const soon = Date.now() + 1_000; // 1s out
+    health.markQuotaExhausted('claude', 'A', soon);
+    expect(await bearer(strategy)).toBe('Bearer AT-B'); // A excluded
+
+    // Wait for the deadline; the mark self-heals and A re-enters rotation.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const seen = new Set<string | undefined>();
+    for (let i = 0; i < 6; i++) seen.add(await bearer(strategy));
+    expect(seen).toEqual(new Set(['Bearer AT-A', 'Bearer AT-B']));
+  });
+});

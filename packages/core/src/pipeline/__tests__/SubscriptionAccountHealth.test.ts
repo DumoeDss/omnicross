@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  MAX_QUOTA_COOLDOWN_MS,
   resolveResetSeconds,
   SubscriptionAccountHealth,
 } from '../SubscriptionAccountHealth';
@@ -252,5 +253,83 @@ describe('SubscriptionAccountHealth — configure()', () => {
     health.recordUpstreamOutcome(P, A, { status: 529 });
     expect(health.isSchedulable(P, A)).toBe(false);
     expect(health.getStatus(P, A).cooldownUntil).toBe(1_000_000 + 120_000);
+  });
+});
+
+describe('SubscriptionAccountHealth — quota exhaustion (markQuotaExhausted)', () => {
+  it('marks the account quota_exhausted and excludes it from scheduling', () => {
+    const { health } = makeTracker();
+    health.markQuotaExhausted(P, A, 1_000_000 + 3_600_000);
+    expect(health.isSchedulable(P, A)).toBe(false);
+    expect(health.getStatus(P, A).state).toBe('quota_exhausted');
+    expect(health.getStatus(P, A).cooldownUntil).toBe(1_000_000 + 3_600_000);
+  });
+
+  it('a 2xx from the SAME account does NOT clear the quota mark (in-flight sessions)', () => {
+    // The defining behavior: Codex keeps in-flight sessions alive (2xx) after the
+    // window is exhausted. Those 2xx must not re-strand the next NEW session.
+    const { health } = makeTracker();
+    health.markQuotaExhausted(P, A, 1_000_000 + 3_600_000);
+    expect(health.isSchedulable(P, A)).toBe(false);
+
+    health.recordUpstreamOutcome(P, A, { status: 200 });
+    expect(health.isSchedulable(P, A)).toBe(false); // survives the 2xx
+    expect(health.getStatus(P, A).state).toBe('quota_exhausted');
+  });
+
+  it('clearTransientMark (a probe) does NOT clear the quota mark', () => {
+    const { health } = makeTracker();
+    health.markQuotaExhausted(P, A, 1_000_000 + 3_600_000);
+    expect(health.clearTransientMark(P, A)).toBe(false); // no transient to clear
+    expect(health.isSchedulable(P, A)).toBe(false);
+    expect(health.getStatus(P, A).state).toBe('quota_exhausted');
+  });
+
+  it('self-heals lazily once the deadline elapses', () => {
+    const { health, setNow } = makeTracker();
+    health.markQuotaExhausted(P, A, 1_000_000 + 3_600_000);
+    setNow(1_000_000 + 3_600_000); // deadline reached
+    expect(health.isSchedulable(P, A)).toBe(true);
+    expect(health.getStatus(P, A).state).toBe('healthy');
+  });
+
+  it('emits a recovery signal on the sweep once the deadline elapses', () => {
+    const { health } = makeTracker();
+    const seen: string[] = [];
+    health.onRecovered((e) => seen.push(e.accountId));
+
+    health.markQuotaExhausted(P, A, 1_000_000 + 3_600_000);
+    expect(health.sweepRecoveries(1_500_000)).toEqual([]); // not yet
+    expect(seen).toEqual([]);
+
+    const recovered = health.sweepRecoveries(1_000_000 + 3_600_000);
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0]).toMatchObject({ providerId: P, accountId: A, kind: 'rateLimitRecovery' });
+    expect(seen).toEqual([A]);
+  });
+
+  it('clamps an over-long deadline to MAX_QUOTA_COOLDOWN_MS', () => {
+    const { health } = makeTracker();
+    const far = 1_000_000 + 365 * 24 * 60 * 60_000; // ~1 year out
+    health.markQuotaExhausted(P, A, far);
+    expect(health.getStatus(P, A).cooldownUntil).toBe(1_000_000 + MAX_QUOTA_COOLDOWN_MS);
+  });
+
+  it('ignores an already-elapsed / non-finite deadline (no-op)', () => {
+    const { health } = makeTracker();
+    health.markQuotaExhausted(P, A, 500_000); // in the past
+    expect(health.isSchedulable(P, A)).toBe(true);
+    health.markQuotaExhausted(P, A, Number.NaN);
+    expect(health.isSchedulable(P, A)).toBe(true);
+  });
+
+  it('emits a quota_exhausted anomaly only on the healthy→unhealthy edge', () => {
+    const { health } = makeTracker();
+    const events: Array<{ accountId: string; state: string }> = [];
+    health.onAnomaly((e) => events.push({ accountId: e.accountId, state: e.state }));
+
+    health.markQuotaExhausted(P, A, 1_000_000 + 3_600_000);
+    health.markQuotaExhausted(P, A, 1_000_000 + 7_200_000); // already unhealthy ⇒ de-duped
+    expect(events).toEqual([{ accountId: A, state: 'quota_exhausted' }]);
   });
 });

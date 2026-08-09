@@ -310,7 +310,7 @@ export type SubscriptionAccountSanitized = {
    * currently excluded from the pool (multi-account) or would surface the
    * upstream's error (single-account). Secret-free.
    */
-  health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'blocked';
+  health?: 'healthy' | 'rate_limited' | 'overloaded' | 'transient' | 'quota_exhausted' | 'blocked';
   /**
    * ISO instant the current health cooldown elapses (absent for healthy /
    * permanently-blocked). Lets the admin view render "rate-limited until .

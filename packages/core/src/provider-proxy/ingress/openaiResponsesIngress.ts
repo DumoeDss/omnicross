@@ -59,6 +59,10 @@ import {
   writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
+import {
+  isCodexUsageLimitError,
+  markCodexUsageLimitExhaustion,
+} from './codexUsageLimitDetection';
 
 /**
  * Match the codex `/responses` route: `POST` + any path ENDING IN `/responses`
@@ -197,6 +201,21 @@ export async function handleOpenAIResponsesRequest(
     );
     if (bodyText && deps.usageRecorder) {
       recordResponsesNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
+    }
+    // Codex weekly usage-limit wall: mark the serving account so NEW sessions
+    // divert to the next account/route. The mark is 2xx-resistant (in-flight
+    // sessions on this account keep succeeding and would otherwise clear a
+    // transient mark). Runs AFTER the relay — the current request already
+    // received its error; this protects the next one. BYO and non-codex paths
+    // never report an accountId, so the call is a no-op there.
+    if (
+      route.authMode === 'subscription' &&
+      plan.proxyProviderId === 'codex' &&
+      providerResponse.rawStatus !== null &&
+      providerResponse.rawStatus >= 400 &&
+      isCodexUsageLimitError(bodyText)
+    ) {
+      markCodexUsageLimitExhaustion(providerResponse.accountId, bodyText ?? '');
     }
   } catch (err) {
     if (isBoundAccountSelectionError(err)) {
@@ -434,7 +453,7 @@ async function resolveGeminiCodeAssistProject(
 async function runPipeline(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
   const executor = getSharedExecutor();
   const endpointTransformer = getResponsesEndpointTransformer();
   const { auth, sessionKey, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
@@ -514,7 +533,7 @@ async function runPipeline(
     runResponseChain: true,
   });
 
-  return { response, rawStatus };
+  return { response, rawStatus, accountId: proxyAccountId };
 }
 
 /**
@@ -530,7 +549,7 @@ async function runPipeline(
 async function runPipelineWithPoolReporting(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
   const first = await runPipeline(responsesBody, plan);
   const outcome = await plan.auth.onResult?.(first.rawStatus);
   if (outcome?.rebound) {
@@ -553,7 +572,7 @@ async function runPipelineWithPoolReporting(
 async function runPipelineWithSubscriptionRetry(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
   const first = await runPipeline(responsesBody, plan);
   if (first.rawStatus !== 401) return first;
 
