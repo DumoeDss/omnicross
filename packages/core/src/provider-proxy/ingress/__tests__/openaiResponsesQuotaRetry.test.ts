@@ -61,16 +61,16 @@ describe('retryAroundCodexUsageLimit', () => {
     expect(await first.response.clone().text()).toBe('{"id":"resp_1","output":[]}');
   });
 
-  it('rebuilds a non-wall error body verbatim and does not retry', async () => {
+  it('leaves a non-429 error untouched (no mark, no retry, body intact)', async () => {
     const runAttempt = vi.fn();
     const first = errorResult('A', '{"error":{"message":"internal server error"}}', 500);
     const result = await retryAroundCodexUsageLimit(BODY, PLAN, first, runAttempt);
 
+    expect(result).toBe(first); // not a 429 → returned untouched
     expect(runAttempt).not.toHaveBeenCalled();
-    expect(result.rawStatus).toBe(500);
-    expect(result.response.status).toBe(500);
-    expect(await result.response.text()).toBe('{"error":{"message":"internal server error"}}');
     expect(getSharedAccountHealth().getStatus('codex', 'A').state).toBe('healthy');
+    // body never consumed → still readable for the relay
+    expect(await first.response.clone().text()).toBe('{"error":{"message":"internal server error"}}');
   });
 
   it('caps consecutive wall hits at MAX_QUOTA_RETRIES, marking each inspected account', async () => {

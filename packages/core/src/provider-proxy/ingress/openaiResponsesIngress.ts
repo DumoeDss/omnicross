@@ -59,10 +59,7 @@ import {
   writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
-import {
-  isCodexUsageLimitError,
-  markCodexUsageLimitExhaustion,
-} from './codexUsageLimitDetection';
+import { markCodexUsageLimitExhaustion } from './codexUsageLimitDetection';
 
 /**
  * Match the codex `/responses` route: `POST` + any path ENDING IN `/responses`
@@ -588,41 +585,36 @@ type PipelineResult = { response: Response; rawStatus: number | null; accountId:
  */
 const MAX_QUOTA_RETRIES = 3;
 
-/** Whether a result is a subscription-codex error worth inspecting for the wall. */
-function isCodexAccountError(plan: ResponsesCallPlan, result: PipelineResult): boolean {
+/**
+ * Whether a result is a subscription-codex 429 — the weekly usage-limit / quota
+ * wall status. The mark + retry fires on this; other errors (500/401/…) have
+ * their own handling and pass through untouched. `accountId` is set only on the
+ * subscription path (BYO never reports one), so BYO is excluded for free.
+ */
+function isCodexAccountQuota429(plan: ResponsesCallPlan, result: PipelineResult): boolean {
   return (
     plan.proxyProviderId === 'codex' &&
     !!result.accountId &&
-    result.rawStatus !== null &&
-    result.rawStatus >= 400
+    result.rawStatus === 429
   );
 }
 
 /**
- * Re-create a Response from an already-consumed error body so `relayResponse`
- * emits it verbatim (status + headers + body intact). Only used for the non-wall
- * error branch, where the body was read to test for the usage-limit markers.
- */
-function rebuildErrorResponse(original: Response, bodyText: string, status: number | null): Response {
-  return new Response(bodyText, {
-    status: status !== null && status >= 100 ? status : 500,
-    headers: original.headers,
-  });
-}
-
-/**
- * Codex weekly usage-limit retry: if an attempt hit the wall, mark the serving
- * account and re-run on another pool member, looping until one succeeds, a
- * non-wall error surfaces, or {@link MAX_QUOTA_RETRIES} is reached. Runs BEFORE
- * the relay so the client receives the successful retry rather than the wall.
+ * Codex weekly usage-limit retry: when an attempt returns 429, mark the serving
+ * account (deadline resolved from the allowance snapshot's exhausted window, the
+ * body's "try again" date, or a short default — see codexUsageLimitDetection)
+ * and re-run on another pool member, looping until one succeeds, a non-429
+ * surfaces, or {@link MAX_QUOTA_RETRIES} is reached. Runs BEFORE the relay so the
+ * client receives the successful retry rather than the wall.
  *
- * Body discipline: an error body is read only to test for the markers. A wall
- * body is discarded (retried); a non-wall error body is rebuilt for the relay.
- * The final result — whether a success (untouched) or the cap's last error
- * (unread) — is relayed by the caller without double-consumption.
+ * The mark is what makes the retry switch accounts: it gates the 429 account out
+ * of selection, and the affinity short-circuit only honors a sticky account while
+ * it is still schedulable. Detection keys off the 429 status + the structured
+ * allowance snapshot (NOT the body text — the Codex CLI renders the human message
+ * itself, so the raw 429 body need not carry the prose markers).
  *
- * Exported + `runAttempt`-injectable so the loop's body discipline can be tested
- * without the full pipeline; production passes the real subscription wrapper.
+ * Exported + `runAttempt`-injectable so the loop can be tested without the full
+ * pipeline; production passes the real subscription wrapper.
  */
 export async function retryAroundCodexUsageLimit(
   responsesBody: Record<string, unknown>,
@@ -630,18 +622,17 @@ export async function retryAroundCodexUsageLimit(
   first: PipelineResult,
   runAttempt: (responsesBody: Record<string, unknown>, plan: ResponsesCallPlan) => Promise<PipelineResult> = runPipelineWithSubscriptionRetry,
 ): Promise<PipelineResult> {
-  if (!isCodexAccountError(plan, first)) return first;
+  if (!isCodexAccountQuota429(plan, first)) return first;
   let current = first;
   for (let attempt = 0; attempt < MAX_QUOTA_RETRIES; attempt++) {
+    // `current` is a 429: read its body only to help resolve the cooldown
+    // deadline, then mark + discard it (the retry's result is what gets relayed).
     const errorBody = await current.response.text().catch(() => '');
-    if (!isCodexUsageLimitError(errorBody)) {
-      return { ...current, response: rebuildErrorResponse(current.response, errorBody, current.rawStatus) };
-    }
     markCodexUsageLimitExhaustion(current.accountId, errorBody);
     const next = await runAttempt(responsesBody, plan);
-    if (!isCodexAccountError(plan, next)) return next; // success or non-codex/non-error → relay as-is
-    current = next; // another codex error → inspect it on the next iteration
+    if (!isCodexAccountQuota429(plan, next)) return next; // success or non-429 → relay as-is
+    current = next; // another 429 (another exhausted account) → mark + retry again
   }
-  // Cap reached: `current` is an unread codex error → the caller relays it.
+  // Cap reached: `current` is an UNREAD 429 → the caller relays it verbatim.
   return current;
 }

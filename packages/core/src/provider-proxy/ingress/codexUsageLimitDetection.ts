@@ -37,8 +37,18 @@ const CODEX_USAGE_LIMIT_MARKERS = [
   'you have hit your usage limit',
 ] as const;
 
-/** Bounded default cooldown when no structured/parsed deadline is resolvable. */
-const DEFAULT_QUOTA_COOLDOWN_MS = 30 * 60_000;
+/** Bounded default cooldown when no structured/parsed deadline is resolvable
+ *  (a bare 429 with no allowance/window evidence). Short so an uncertain mark
+ *  self-heals fast while still letting the in-flight retry switch accounts. */
+const DEFAULT_QUOTA_COOLDOWN_MS = 5 * 60_000;
+
+/**
+ * A window at/above this `usedPercent` counts as the exhausted weekly window
+ * whose `resetsAt` is the authoritative quota deadline. Below this, a 429 is
+ * treated as a transient rate limit (short default cooldown) rather than the
+ * weekly wall.
+ */
+const QUOTA_EXHAUSTED_PERCENT = 90;
 
 /** Only scan the leading slice of a (potentially large) error body. */
 const BODY_SCAN_LIMIT = 4096;
@@ -65,19 +75,27 @@ function parseTryAgainDeadline(bodyText: string): number | undefined {
 }
 
 /**
- * The weekly-window reset from the passive allowance snapshot. Absolute and
- * unaffected by the usage-percent staleness flip, so it remains usable as a
- * deadline even after the account stops returning successful responses.
+ * The weekly-window reset from the passive allowance snapshot, but ONLY when a
+ * window is actually exhausted (`usedPercent` ≥ {@link QUOTA_EXHAUSTED_PERCENT}).
+ * A low-usage account's `resetsAt` must NOT be borrowed — that would stamp a
+ * multi-day cooldown onto a transient 429. Absolute and unaffected by the
+ * usage-percent staleness flip, so it remains usable as a deadline even after
+ * the account stops returning successful responses.
  */
 function deadlineFromAllowanceSnapshot(accountId: string, now: number): number | undefined {
   const snapshot = getSharedAccountAllowanceStore().get(PROVIDER_ID, accountId, now);
   if (!snapshot) return undefined;
-  for (const window of snapshot.windows) {
-    if (!window.resetsAt) continue;
-    const ms = Date.parse(window.resetsAt);
-    if (Number.isFinite(ms) && ms > now) return ms;
-  }
-  return undefined;
+  const candidates = snapshot.windows
+    .filter(
+      (w) =>
+        typeof w.usedPercent === 'number' &&
+        w.usedPercent >= QUOTA_EXHAUSTED_PERCENT &&
+        typeof w.resetsAt === 'string',
+    )
+    .map((w) => ({ ms: Date.parse(w.resetsAt as string), usedPercent: w.usedPercent as number }))
+    .filter((x) => Number.isFinite(x.ms) && x.ms > now)
+    .sort((a, b) => b.usedPercent - a.usedPercent);
+  return candidates[0]?.ms;
 }
 
 /** Resolve the quota cooldown deadline (epoch ms), never `NaN`. See module doc. */
