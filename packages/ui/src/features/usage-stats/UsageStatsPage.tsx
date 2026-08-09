@@ -6,11 +6,12 @@
  * usable.
  */
 
-import { BarChart3 } from 'lucide-react';
-import React from 'react';
+import { BarChart3, RefreshCw } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { ByApiKeyTable } from './components/ByApiKeyTable';
@@ -33,6 +34,27 @@ export function UsageStatsPage() {
 
   const hasEvents = (data?.totals.eventCount ?? 0) > 0;
 
+  // Manual refresh + optional 30s auto-refresh. All three data sources share
+  // one refresh; each hook already owns its loading/cancel-on-unmount, so this
+  // just bumps their reload ticks in step. The reload fns are stable
+  // (useCallback inside each hook), so `refreshAll` is stable too — the
+  // interval effect won't tear down and reset every render.
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const reloadStats = stats.reload;
+  const reloadDashboard = dashboard.reload;
+  const reloadTrend = trend.reload;
+  const refreshAll = useCallback(() => {
+    reloadStats();
+    reloadDashboard();
+    reloadTrend();
+  }, [reloadStats, reloadDashboard, reloadTrend]);
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = window.setInterval(refreshAll, 30_000);
+    return () => window.clearInterval(id);
+  }, [autoRefresh, refreshAll]);
+  const refreshing = loading || dashboard.loading || trend.loading;
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <ScrollArea className="flex-1">
@@ -46,7 +68,7 @@ export function UsageStatsPage() {
               <div className="min-w-0 flex-1">
                 <h2 className="text-base font-semibold text-foreground">{t('usageStats.dashboardTitle')}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{t('usageStats.dashboardDescription')}</p>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap items-center gap-3">
                   <DateRangePicker
                     preset={stats.preset}
                     customFrom={stats.customFrom}
@@ -55,6 +77,20 @@ export function UsageStatsPage() {
                     onCustomFromChange={stats.setCustomFrom}
                     onCustomToChange={stats.setCustomTo}
                   />
+                  <div className="ml-auto flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Switch
+                        checked={autoRefresh}
+                        onCheckedChange={setAutoRefresh}
+                        aria-label={t('usageStats.autoRefresh')}
+                      />
+                      {t('usageStats.autoRefresh')}
+                    </label>
+                    <Button variant="outline" size="sm" onClick={refreshAll} disabled={refreshing}>
+                      <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                      {t('usageStats.refresh')}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

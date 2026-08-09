@@ -968,6 +968,8 @@
     "cacheReadTokens": "Ανάγνωση cache",
     "cacheWriteTokens": "Εγγραφή cache",
     "cacheHitRate": "Ποσοστό επιτυχιών προσωρινής μνήμης",
+    "refresh": "Ανανέωση",
+    "autoRefresh": "Αυτόματη ανανέωση",
     "reasoningTokens": "Token συλλογισμού",
     "byModel": "Ανά μοντέλο",
     "byApiKey": "Ανά κλειδί API",

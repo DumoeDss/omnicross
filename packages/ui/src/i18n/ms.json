@@ -968,6 +968,8 @@
     "cacheReadTokens": "Baca cache",
     "cacheWriteTokens": "Tulis cache",
     "cacheHitRate": "Kadar hit cache",
+    "refresh": "Muat semula",
+    "autoRefresh": "Muat semula automatik",
     "reasoningTokens": "Token penaakulan",
     "byModel": "Mengikut model",
     "byApiKey": "Mengikut kunci API",

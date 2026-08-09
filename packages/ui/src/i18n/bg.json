@@ -968,6 +968,8 @@
     "cacheReadTokens": "Четене от кеш",
     "cacheWriteTokens": "Запис в кеш",
     "cacheHitRate": "Коефициент на попадения в кеша",
+    "refresh": "Обнови",
+    "autoRefresh": "Автоматично обновяване",
     "reasoningTokens": "Токени за разсъждение",
     "byModel": "По модел",
     "byApiKey": "По API ключ",

@@ -968,6 +968,8 @@
     "cacheReadTokens": "Lecture cache",
     "cacheWriteTokens": "Écriture cache",
     "cacheHitRate": "Taux de réussite du cache",
+    "refresh": "Actualiser",
+    "autoRefresh": "Actualisation automatique",
     "reasoningTokens": "Tokens de raisonnement",
     "byModel": "Par modèle",
     "byApiKey": "Par clé API",

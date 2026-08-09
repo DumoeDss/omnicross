@@ -968,6 +968,8 @@
     "cacheReadTokens": "Cache-lesing",
     "cacheWriteTokens": "Cache-skriving",
     "cacheHitRate": "Treffrate for hurtigbuffer",
+    "refresh": "Oppdater",
+    "autoRefresh": "Automatisk oppdatering",
     "reasoningTokens": "Resonnering-token",
     "byModel": "Per modell",
     "byApiKey": "Per API-nøkkel",

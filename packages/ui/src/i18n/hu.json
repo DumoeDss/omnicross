@@ -968,6 +968,8 @@
     "cacheReadTokens": "Gyorsítótár-olvasás",
     "cacheWriteTokens": "Gyorsítótár-írás",
     "cacheHitRate": "Gyorsítótár-találati arány",
+    "refresh": "Frissítés",
+    "autoRefresh": "Automatikus frissítés",
     "reasoningTokens": "Gondolkodási tokenek",
     "byModel": "Modellenként",
     "byApiKey": "API-kulcsonként",

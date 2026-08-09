@@ -968,6 +968,8 @@
     "cacheReadTokens": "Cache lezen",
     "cacheWriteTokens": "Cache schrijven",
     "cacheHitRate": "Cache-hitratio",
+    "refresh": "Vernieuwen",
+    "autoRefresh": "Automatisch vernieuwen",
     "reasoningTokens": "Redeneertokens",
     "byModel": "Per model",
     "byApiKey": "Per API-sleutel",

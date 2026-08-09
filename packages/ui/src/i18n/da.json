@@ -968,6 +968,8 @@
     "cacheReadTokens": "Cache-læsning",
     "cacheWriteTokens": "Cache-skrivning",
     "cacheHitRate": "Cache-trefferate",
+    "refresh": "Opdater",
+    "autoRefresh": "Auto-opdater",
     "reasoningTokens": "Ræsonnement-tokens",
     "byModel": "Pr. model",
     "byApiKey": "Pr. API-nøgle",

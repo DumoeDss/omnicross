@@ -968,6 +968,8 @@
     "cacheReadTokens": "Čtení cache",
     "cacheWriteTokens": "Zápis cache",
     "cacheHitRate": "Míra zásahů mezipaměti",
+    "refresh": "Aktualizovat",
+    "autoRefresh": "Automatická aktualizace",
     "reasoningTokens": "Tokeny uvažování",
     "byModel": "Podle modelu",
     "byApiKey": "Podle API klíče",

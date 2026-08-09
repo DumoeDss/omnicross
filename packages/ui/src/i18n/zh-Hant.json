@@ -1582,6 +1582,8 @@
     "cacheReadTokens": "快取讀取",
     "cacheWriteTokens": "快取寫入",
     "cacheHitRate": "快取命中率",
+    "refresh": "重新整理",
+    "autoRefresh": "自動重新整理",
     "reasoningTokens": "推理 Token",
     "byModel": "依模型",
     "byApiKey": "依 API 金鑰",

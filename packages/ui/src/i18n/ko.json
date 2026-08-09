@@ -968,6 +968,8 @@
     "cacheReadTokens": "캐시 읽기",
     "cacheWriteTokens": "캐시 쓰기",
     "cacheHitRate": "캐시 적중률",
+    "refresh": "새로고침",
+    "autoRefresh": "자동 새로고침",
     "reasoningTokens": "추론 토큰",
     "byModel": "모델별",
     "byApiKey": "API 키별",
