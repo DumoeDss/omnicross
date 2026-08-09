@@ -160,3 +160,27 @@ export function formatUsd(value: number, locale: string): string {
     maximumFractionDigits: 4,
   }).format(value);
 }
+
+/**
+ * Cache-read hit ratio in [0, 1] — the cost-oriented aggregate from
+ * `SessionCacheStats`: `ΣcacheRead / Σ(input + cacheRead + cacheCreation)`,
+ * where the denominator is the prompt-side total (output excluded). Returns
+ * `null` when there are no prompt-side tokens yet, so the cell can render `—`
+ * instead of a misleading 0%.
+ */
+export function cacheHitRate(
+  inputTokens: number,
+  cacheReadTokens: number,
+  cacheCreationTokens: number,
+): number | null {
+  const denom = inputTokens + cacheReadTokens + cacheCreationTokens;
+  return denom > 0 ? cacheReadTokens / denom : null;
+}
+
+/** Locale-aware percent for a ratio in [0, 1] (e.g. 0.423 → "42.3%"). */
+export function formatPercent(ratio: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'percent',
+    maximumFractionDigits: 1,
+  }).format(ratio);
+}

@@ -967,6 +967,7 @@
     "outputTokens": "Tokeni de ieșire",
     "cacheReadTokens": "Citire cache",
     "cacheWriteTokens": "Scriere cache",
+    "cacheHitRate": "Rată de hit cache",
     "reasoningTokens": "Tokeni de raționament",
     "byModel": "Pe model",
     "byApiKey": "Pe cheie API",

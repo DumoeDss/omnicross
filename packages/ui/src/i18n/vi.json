@@ -967,6 +967,7 @@
     "outputTokens": "Token đầu ra",
     "cacheReadTokens": "Đọc bộ nhớ đệm",
     "cacheWriteTokens": "Ghi bộ nhớ đệm",
+    "cacheHitRate": "Tỷ lệ cache hit",
     "reasoningTokens": "Token suy luận",
     "byModel": "Theo mô hình",
     "byApiKey": "Theo khóa API",

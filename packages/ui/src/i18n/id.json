@@ -967,6 +967,7 @@
     "outputTokens": "Token keluaran",
     "cacheReadTokens": "Baca cache",
     "cacheWriteTokens": "Tulis cache",
+    "cacheHitRate": "Tingkat hit cache",
     "reasoningTokens": "Token penalaran",
     "byModel": "Per model",
     "byApiKey": "Per kunci API",

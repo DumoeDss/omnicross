@@ -967,6 +967,7 @@
     "outputTokens": "Utdatatoken",
     "cacheReadTokens": "Cacheläsning",
     "cacheWriteTokens": "Cacheskrivning",
+    "cacheHitRate": "Träffrekvens för cache",
     "reasoningTokens": "Resonemangstoken",
     "byModel": "Per modell",
     "byApiKey": "Per API-nyckel",

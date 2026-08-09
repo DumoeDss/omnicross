@@ -967,6 +967,7 @@
     "outputTokens": "Выходные токены",
     "cacheReadTokens": "Чтение кэша",
     "cacheWriteTokens": "Запись кэша",
+    "cacheHitRate": "Доля попаданий в кэш",
     "reasoningTokens": "Токены рассуждений",
     "byModel": "По моделям",
     "byApiKey": "По API-ключам",

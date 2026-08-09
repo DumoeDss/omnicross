@@ -967,6 +967,7 @@
     "outputTokens": "Tokens de salida",
     "cacheReadTokens": "Lectura de caché",
     "cacheWriteTokens": "Escritura de caché",
+    "cacheHitRate": "Tasa de aciertos de caché",
     "reasoningTokens": "Tokens de razonamiento",
     "byModel": "Por modelo",
     "byApiKey": "Por clave API",

@@ -967,6 +967,7 @@
     "outputTokens": "Tulos-tokenit",
     "cacheReadTokens": "Välimuistin luku",
     "cacheWriteTokens": "Välimuistin kirjoitus",
+    "cacheHitRate": "Välimuistin osumaprosentti",
     "reasoningTokens": "Päättely-tokenit",
     "byModel": "Malleittain",
     "byApiKey": "API-avaimittain",

@@ -967,6 +967,7 @@
     "outputTokens": "Output-tokens",
     "cacheReadTokens": "Cache-læsning",
     "cacheWriteTokens": "Cache-skrivning",
+    "cacheHitRate": "Cache-trefferate",
     "reasoningTokens": "Ræsonnement-tokens",
     "byModel": "Pr. model",
     "byApiKey": "Pr. API-nøgle",
