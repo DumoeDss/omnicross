@@ -968,6 +968,8 @@
     "cacheReadTokens": "Välimuistin luku",
     "cacheWriteTokens": "Välimuistin kirjoitus",
     "cacheHitRate": "Välimuistin osumaprosentti",
+    "refresh": "Päivitä",
+    "autoRefresh": "Automaattinen päivitys",
     "reasoningTokens": "Päättely-tokenit",
     "byModel": "Malleittain",
     "byApiKey": "API-avaimittain",

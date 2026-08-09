@@ -968,6 +968,8 @@
     "cacheReadTokens": "Đọc bộ nhớ đệm",
     "cacheWriteTokens": "Ghi bộ nhớ đệm",
     "cacheHitRate": "Tỷ lệ cache hit",
+    "refresh": "Làm mới",
+    "autoRefresh": "Tự động làm mới",
     "reasoningTokens": "Token suy luận",
     "byModel": "Theo mô hình",
     "byApiKey": "Theo khóa API",

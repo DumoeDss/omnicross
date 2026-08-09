@@ -968,6 +968,8 @@
     "cacheReadTokens": "อ่านแคช",
     "cacheWriteTokens": "เขียนแคช",
     "cacheHitRate": "อัตรา hit ของแคช",
+    "refresh": "รีเฟรช",
+    "autoRefresh": "รีเฟรชอัตโนมัติ",
     "reasoningTokens": "โทเคนการคิดวิเคราะห์",
     "byModel": "ตามโมเดล",
     "byApiKey": "ตามคีย์ API",

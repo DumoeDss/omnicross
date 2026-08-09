@@ -968,6 +968,8 @@
     "cacheReadTokens": "Önbellek okuma",
     "cacheWriteTokens": "Önbellek yazma",
     "cacheHitRate": "Önbellek isabet oranı",
+    "refresh": "Yenile",
+    "autoRefresh": "Otomatik yenileme",
     "reasoningTokens": "Akıl yürütme tokenları",
     "byModel": "Modele göre",
     "byApiKey": "API anahtarına göre",

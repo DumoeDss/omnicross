@@ -1228,6 +1228,8 @@
     "cacheReadTokens": "キャッシュ読み取り",
     "cacheWriteTokens": "キャッシュ書き込み",
     "cacheHitRate": "キャッシュヒット率",
+    "refresh": "更新",
+    "autoRefresh": "自動更新",
     "reasoningTokens": "推論トークン",
     "byModel": "モデル別",
     "byApiKey": "API キー別",

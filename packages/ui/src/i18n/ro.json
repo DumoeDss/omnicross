@@ -968,6 +968,8 @@
     "cacheReadTokens": "Citire cache",
     "cacheWriteTokens": "Scriere cache",
     "cacheHitRate": "Rată de hit cache",
+    "refresh": "Actualizează",
+    "autoRefresh": "Actualizare automată",
     "reasoningTokens": "Tokeni de raționament",
     "byModel": "Pe model",
     "byApiKey": "Pe cheie API",

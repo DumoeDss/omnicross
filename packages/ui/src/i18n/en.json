@@ -1588,6 +1588,8 @@
     "cacheReadTokens": "Cache read",
     "cacheWriteTokens": "Cache write",
     "cacheHitRate": "Cache hit rate",
+    "refresh": "Refresh",
+    "autoRefresh": "Auto refresh",
     "reasoningTokens": "Reasoning tokens",
     "byModel": "By model",
     "byApiKey": "By API key",
