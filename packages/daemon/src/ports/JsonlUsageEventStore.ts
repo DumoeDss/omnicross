@@ -27,6 +27,7 @@ import type {
   MessageUsageRow,
   ModelUsageRow,
   SessionCacheStats,
+  UsageCacheKeySource,
   UsageDateRange,
   UsageEventInput,
   UsageEventRecord,
@@ -66,7 +67,11 @@ export class JsonlUsageEventStore implements UsageEventStore {
       costUsd: 0,
       costSavedByCacheUsd: 0,
       eventCount: 0,
+      cacheEligibleEventCount: 0,
+      coldCacheEventCount: 0,
+      medianCacheHitRate: null,
     };
+    const perEventHitRates: number[] = [];
     for (const row of this.readRows(range)) {
       totals.inputTokens += row.inputTokens;
       totals.outputTokens += row.outputTokens;
@@ -76,7 +81,15 @@ export class JsonlUsageEventStore implements UsageEventStore {
       totals.costUsd += row.costUsd;
       totals.costSavedByCacheUsd += row.costSavedByCacheUsd;
       totals.eventCount += 1;
+      const promptSideTokens =
+        row.inputTokens + row.cacheReadTokens + row.cacheCreationTokens;
+      if (promptSideTokens > 0) {
+        totals.cacheEligibleEventCount += 1;
+        if (row.cacheReadTokens === 0) totals.coldCacheEventCount += 1;
+        perEventHitRates.push(row.cacheReadTokens / promptSideTokens);
+      }
     }
+    totals.medianCacheHitRate = median(perEventHitRates);
     return totals;
   }
 
@@ -349,6 +362,16 @@ const NULLABLE_STRING_FIELDS = ['messageId', 'parentMessageId', 'sessionId', 'ap
 
 const isStringOrNull = (v: unknown): boolean => v === null || typeof v === 'string';
 
+const CACHE_KEY_SOURCES = new Set<UsageCacheKeySource>([
+  'client',
+  'session-header',
+  'thread-header',
+  'body-session-id',
+  'body-thread-id',
+  'content-fingerprint',
+  'none',
+]);
+
 /**
  * Full defensive row guard: a parseable-but-PARTIAL line (e.g. hand-edited or
  * produced by a different writer) must not poison aggregations with NaN.
@@ -362,6 +385,14 @@ function isUsageEventRecord(parsed: unknown): parsed is UsageEventRecord {
   if (typeof r['providerId'] !== 'string') return false;
   if (typeof r['model'] !== 'string') return false;
   if (typeof r['engineOrigin'] !== 'string') return false;
+  if (
+    r['cacheKeySource'] !== undefined &&
+    (typeof r['cacheKeySource'] !== 'string' ||
+      !CACHE_KEY_SOURCES.has(r['cacheKeySource'] as UsageCacheKeySource))
+  ) return false;
+  if (r['cacheKeyInjected'] !== undefined && typeof r['cacheKeyInjected'] !== 'boolean') {
+    return false;
+  }
   for (const f of NULLABLE_STRING_FIELDS) {
     if (!isStringOrNull(r[f])) return false;
   }
@@ -370,4 +401,14 @@ function isUsageEventRecord(parsed: unknown): parsed is UsageEventRecord {
     if (typeof v !== 'number' || !Number.isFinite(v)) return false;
   }
   return true;
+}
+
+/** Median of finite request ratios; null is the explicit empty-data state. */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  values.sort((a, b) => a - b);
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2 === 1
+    ? values[middle]
+    : (values[middle - 1] + values[middle]) / 2;
 }

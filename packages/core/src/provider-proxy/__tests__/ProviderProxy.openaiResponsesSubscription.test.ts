@@ -27,6 +27,7 @@ vi.mock('../../pipeline/executeProviderCall', () => ({
 }));
 
 import type { ProviderConfigSource } from '../../ports';
+import { ensureCodexPromptCacheKey } from '../ingress/openaiResponsesIngress';
 import { deriveGatewaySessionKey } from '../matchText';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext } from '../types';
@@ -62,6 +63,63 @@ function startUnauthorizedUpstream(): Promise<{
 function closeServer(server: Server): Promise<void> {
   return new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 }
+
+describe('Codex prompt-cache-key injection', () => {
+  it('preserves a client key and records it as client-owned', () => {
+    const body = { prompt_cache_key: 'client-cache-key', session_id: 'session-a' };
+    const result = ensureCodexPromptCacheKey(
+      body,
+      'codex',
+      deriveGatewaySessionKey(body),
+    );
+    expect(body.prompt_cache_key).toBe('client-cache-key');
+    expect(result).toEqual({ cacheKeySource: 'client', cacheKeyInjected: false });
+  });
+
+  it('injects an opaque stable key from explicit metadata or a content fingerprint', () => {
+    const sessionBody: Record<string, unknown> = { input: 'later text' };
+    const sessionDerived = deriveGatewaySessionKey(sessionBody, {
+      'session-id': 'private-session-id',
+    });
+    const sessionResult = ensureCodexPromptCacheKey(sessionBody, 'codex', sessionDerived);
+    expect(sessionResult).toEqual({ cacheKeySource: 'session-header', cacheKeyInjected: true });
+    expect(sessionBody.prompt_cache_key).toBe(
+      `omnicross:session-header:${sessionDerived.key}`,
+    );
+    expect(String(sessionBody.prompt_cache_key)).not.toContain('private-session-id');
+
+    const contentBody: Record<string, unknown> = {
+      input: [{ role: 'user', content: 'stable first request' }],
+    };
+    const contentDerived = deriveGatewaySessionKey(contentBody);
+    const contentResult = ensureCodexPromptCacheKey(contentBody, 'codex', contentDerived);
+    expect(contentResult).toEqual({
+      cacheKeySource: 'content-fingerprint',
+      cacheKeyInjected: true,
+    });
+    expect(contentBody.prompt_cache_key).toBe(
+      `omnicross:content-fingerprint:${contentDerived.key}`,
+    );
+  });
+
+  it('never injects a route/API-key fallback or a key for another provider', () => {
+    const fallbackBody: Record<string, unknown> = {};
+    const fallbackDerived = deriveGatewaySessionKey(fallbackBody, {}, {
+      fallbackKey: 'sensitive-api-key',
+    });
+    expect(ensureCodexPromptCacheKey(fallbackBody, 'codex', fallbackDerived)).toEqual({
+      cacheKeySource: 'none',
+      cacheKeyInjected: false,
+    });
+    expect(fallbackBody.prompt_cache_key).toBeUndefined();
+
+    const otherBody: Record<string, unknown> = { session_id: 'session-b' };
+    expect(
+      ensureCodexPromptCacheKey(otherBody, 'gemini', deriveGatewaySessionKey(otherBody)),
+    ).toEqual({ cacheKeySource: 'none', cacheKeyInjected: false });
+    expect(otherBody.prompt_cache_key).toBeUndefined();
+  });
+});
 
 describe('ProviderProxy subscription Responses session affinity', () => {
   let proxy: ProviderProxy | undefined;
@@ -155,6 +213,13 @@ describe('ProviderProxy subscription Responses session affinity', () => {
     expect(expectedSessionKey).not.toBe(expectedCacheKey);
     expect(appliedKeys).not.toContain('codex-session-one');
     expect(unauthorizedKeys).not.toContain('second-conversation-cache-key');
+    const forwardedBodies = executeProviderCallMock.mock.calls.map(
+      ([context]) => context.request as Record<string, unknown>,
+    );
+    expect(forwardedBodies.map((body) => body.prompt_cache_key)).toEqual([
+      'must-not-win-over-session-id',
+      'second-conversation-cache-key',
+    ]);
     // Session metadata is ingress-only. The upstream receives the auth strategy
     // headers, never Codex's raw session header.
     expect(receivedHeaders).toHaveLength(2);

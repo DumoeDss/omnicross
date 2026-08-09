@@ -177,6 +177,16 @@ export function cacheHitRate(
   return denom > 0 ? cacheReadTokens / denom : null;
 }
 
+/** Fraction of cache-eligible requests that read no tokens from cache. */
+export function coldCacheRequestRate(
+  coldCacheEventCount: number,
+  cacheEligibleEventCount: number,
+): number | null {
+  return cacheEligibleEventCount > 0
+    ? coldCacheEventCount / cacheEligibleEventCount
+    : null;
+}
+
 /** Locale-aware percent for a ratio in [0, 1] (e.g. 0.423 → "42.3%"). */
 export function formatPercent(ratio: number, locale: string): string {
   return new Intl.NumberFormat(locale, {

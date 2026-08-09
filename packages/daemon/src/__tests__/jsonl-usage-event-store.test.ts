@@ -122,6 +122,37 @@ describe('JsonlUsageEventStore', () => {
     expect(totals.costSavedByCacheUsd).toBeCloseTo(0.2);
   });
 
+  it('getTotals reports weighted inputs, per-request median, and cold-cache share inputs separately', async () => {
+    await store.insert(event({ ts: 1, inputTokens: 10, cacheReadTokens: 90, cacheCreationTokens: 0 }));
+    await store.insert(event({ ts: 2, inputTokens: 50, cacheReadTokens: 50, cacheCreationTokens: 0 }));
+    await store.insert(event({ ts: 3, inputTokens: 100, cacheReadTokens: 0, cacheCreationTokens: 0 }));
+    await store.insert(event({ ts: 4, inputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }));
+
+    const odd = await store.getTotals({ startTs: 0, endTs: 10 });
+    expect(odd.cacheEligibleEventCount).toBe(3);
+    expect(odd.coldCacheEventCount).toBe(1);
+    expect(odd.medianCacheHitRate).toBeCloseTo(0.5);
+    expect(odd.cacheReadTokens /
+      (odd.inputTokens + odd.cacheReadTokens + odd.cacheCreationTokens)).toBeCloseTo(140 / 300);
+
+    await store.insert(event({ ts: 5, inputTokens: 0, cacheReadTokens: 100, cacheCreationTokens: 0 }));
+    const even = await store.getTotals({ startTs: 0, endTs: 10 });
+    expect(even.cacheEligibleEventCount).toBe(4);
+    expect(even.coldCacheEventCount).toBe(1);
+    expect(even.medianCacheHitRate).toBeCloseTo(0.7);
+  });
+
+  it('keeps historical rows without cache-key provenance readable', async () => {
+    await store.insert(event({ ts: 1 }));
+    const persisted = JSON.parse(readFileSync(eventsPath, 'utf8').trim()) as Record<string, unknown>;
+    expect(persisted.cacheKeySource).toBeUndefined();
+    expect(persisted.cacheKeyInjected).toBeUndefined();
+    await expect(store.getTotals({ startTs: 0, endTs: 10 })).resolves.toMatchObject({
+      eventCount: 1,
+      cacheEligibleEventCount: 1,
+    });
+  });
+
   it('getByModel groups by (providerId, model) and flags unpriced via the injected lookup', async () => {
     await store.insert(event({ ts: 10 }));
     await store.insert(event({ ts: 11 }));

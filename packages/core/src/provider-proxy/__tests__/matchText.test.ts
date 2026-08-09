@@ -212,6 +212,8 @@ describe('deriveGatewaySessionKey - Responses account affinity', () => {
     });
     expect(header.source).toBe('session-header');
     expect(header.key).toBe(deriveGatewaySessionKey({ session_id: 'header-session' }).key);
+    expect(header.key).toMatch(/^[a-f0-9]{32}$/);
+    expect(header.key).not.toContain('header-session');
 
     expect(deriveGatewaySessionKey(all, { 'thread-id': 'thread' }).source).toBe('thread-header');
     expect(deriveGatewaySessionKey({ session_id: 's', conversation_id: 'c' }).source).toBe('body-session-id');

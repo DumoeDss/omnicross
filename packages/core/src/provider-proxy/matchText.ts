@@ -16,6 +16,8 @@
  * @module provider-proxy/matchText
  */
 
+import { createHash } from 'node:crypto';
+
 /** Per-message char cap for the bounded match-text slice (design.md §2). */
 export const MATCH_TEXT_PER_MESSAGE_CAP = 8192;
 /** Number of most-recent user/system messages scanned (design.md §2). */
@@ -118,8 +120,6 @@ export function deriveSubscriptionSessionKey(
   return fnv1a(anchor);
 }
 
-/** 32-bit FNV-1a hex digest — a small, dependency-free stable string hash for the
- *  session-affinity bucket key (NOT a security primitive). */
 /**
  * Source used to derive a gateway session-affinity key. The value is kept
  * deliberately small and non-sensitive: callers only receive the hashed key,
@@ -165,7 +165,7 @@ const SESSION_ID_CAP = 1024;
  * final fallback is route-scoped (api key/session + endpoint) so a request
  * with no usable metadata remains conservative and does not rotate accounts
  * on every turn. Raw ids and prompts are never returned or logged; only their
- * FNV-1a digest is exposed as `key`.
+ * truncated SHA-256 digest is exposed as `key`.
  */
 export function deriveGatewaySessionKey(
   body: Record<string, unknown>,
@@ -177,7 +177,7 @@ export function deriveGatewaySessionKey(
   // non-empty value, matching normal HTTP header semantics.
   const sessionHeader = firstHeaderValue(headers, ['session-id', 'session_id', 'x-session-id']);
   if (sessionHeader) {
-    return { key: fnv1a(sessionHeader), source: 'session-header' };
+    return { key: stableSessionDigest(sessionHeader), source: 'session-header' };
   }
 
   // Codex versions that do not emit `session-id` still carry the persistent
@@ -185,32 +185,32 @@ export function deriveGatewaySessionKey(
   // id, but above body metadata and the prompt cache key.
   const threadHeader = firstHeaderValue(headers, ['thread-id', 'thread_id', 'x-thread-id']);
   if (threadHeader) {
-    return { key: fnv1a(threadHeader), source: 'thread-header' };
+    return { key: stableSessionDigest(threadHeader), source: 'thread-header' };
   }
 
   const bodySessionId = scalarSessionValue(body.session_id);
   if (bodySessionId) {
-    return { key: fnv1a(bodySessionId), source: 'body-session-id' };
+    return { key: stableSessionDigest(bodySessionId), source: 'body-session-id' };
   }
 
   const bodyThreadId = scalarSessionValue(body.thread_id ?? body.threadId);
   if (bodyThreadId) {
-    return { key: fnv1a(bodyThreadId), source: 'body-thread-id' };
+    return { key: stableSessionDigest(bodyThreadId), source: 'body-thread-id' };
   }
 
   const conversationId = scalarSessionValue(body.conversation_id);
   if (conversationId) {
-    return { key: fnv1a(conversationId), source: 'body-session-id' };
+    return { key: stableSessionDigest(conversationId), source: 'body-session-id' };
   }
 
   const promptCacheKey = scalarSessionValue(body.prompt_cache_key);
   if (promptCacheKey) {
-    return { key: fnv1a(promptCacheKey), source: 'prompt-cache-key' };
+    return { key: stableSessionDigest(promptCacheKey), source: 'prompt-cache-key' };
   }
 
   const fingerprint = deriveResponsesContentFingerprint(body);
   if (fingerprint) {
-    return { key: fnv1a(fingerprint), source: 'content-fingerprint' };
+    return { key: stableSessionDigest(fingerprint), source: 'content-fingerprint' };
   }
 
   // The fallback is deliberately stable for the route/key, but never a raw
@@ -220,9 +220,18 @@ export function deriveGatewaySessionKey(
   const endpoint = options.endpoint?.trim() || 'responses';
   const fallback = options.fallbackKey?.trim() || 'anonymous';
   return {
-    key: fnv1a(`${endpoint}\u0000${fallback}`),
+    key: stableSessionDigest(`${endpoint}\u0000${fallback}`),
     source: 'api-key-fallback',
   };
+}
+
+/**
+ * Collision-resistant, bounded identifier for gateway affinity and cache keys.
+ * Truncating SHA-256 to 128 bits keeps generated prompt-cache keys compact while
+ * avoiding disclosure of raw session ids or prompt fingerprints.
+ */
+function stableSessionDigest(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 32);
 }
 
 /** Return the first non-empty value for a case-insensitive header name list. */
@@ -306,6 +315,7 @@ function deriveResponsesContentFingerprint(body: Record<string, unknown>): strin
   return `${stable.join('\u0000')}\u0000${firstUser}`;
 }
 
+/** Small stable hash retained for the legacy Anthropic affinity key. */
 function fnv1a(str: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {

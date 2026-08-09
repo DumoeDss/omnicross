@@ -11,6 +11,8 @@
  * @module provider-proxy/usage/recordResponsesUsage
  */
 
+import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
+
 import type { UsageRecorderImport } from '../types';
 
 interface ResponsesUsageAttribution {
@@ -18,6 +20,10 @@ interface ResponsesUsageAttribution {
   readonly providerId: string;
   readonly model: string;
   readonly apiKeyId: string | null;
+  /** Safe prompt-cache-key provenance; no raw key/session value is stored. */
+  readonly cacheKeySource?: UsageCacheKeySource;
+  /** True only when the gateway attached the prompt-cache key. */
+  readonly cacheKeyInjected?: boolean;
   /** request-audit-log: per-request audit correlation key (the response object). */
   readonly auditResponse?: object;
 }
@@ -63,6 +69,8 @@ function emitResponsesUsageRecord(
     providerId: attribution.providerId,
     model: attribution.model,
     apiKeyId: attribution.apiKeyId,
+    cacheKeySource: attribution.cacheKeySource,
+    cacheKeyInjected: attribution.cacheKeyInjected,
     auditResponse: attribution.auditResponse,
     engineOrigin: 'codex-ingress',
     usage: tapped,

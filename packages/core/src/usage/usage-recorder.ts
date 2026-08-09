@@ -14,6 +14,7 @@ import type {
   MessageUsageRow,
   ModelUsageRow,
   SessionCacheStats,
+  UsageCacheKeySource,
   UsageDateRange,
   UsageEventInput,
   UsageTimeBucket,
@@ -44,6 +45,10 @@ export interface UsageRecordInput {
   runId?: string | null;
   /** Host event-correlation id for this call. Optional / additive. */
   eventId?: string | null;
+  /** Safe prompt-cache-key provenance; raw key material is never recorded. */
+  cacheKeySource?: UsageCacheKeySource;
+  /** Whether the gateway, rather than the client, attached the cache key. */
+  cacheKeyInjected?: boolean;
   /**
    * OPTIONAL per-request audit correlation key (request-audit-log). When the
    * OUTBOUND relay taps set this to the request's `http.ServerResponse`, the
@@ -166,6 +171,12 @@ export class UsageRecorder {
       rawUsage: input.rawUsage != null ? safeStringify(input.rawUsage) : null,
       runId: input.runId ?? null,
       eventId: input.eventId ?? null,
+      ...(input.cacheKeySource !== undefined
+        ? { cacheKeySource: input.cacheKeySource }
+        : {}),
+      ...(input.cacheKeyInjected !== undefined
+        ? { cacheKeyInjected: input.cacheKeyInjected }
+        : {}),
     };
 
     try {

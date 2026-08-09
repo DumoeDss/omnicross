@@ -12,6 +12,19 @@
 import type { UsageEngineOrigin } from './usage-types';
 
 /**
+ * How the prompt-cache key attached to a request was obtained. Values describe
+ * only the extraction path; raw session ids and cache keys are never persisted.
+ */
+export type UsageCacheKeySource =
+  | 'client'
+  | 'session-header'
+  | 'thread-header'
+  | 'body-session-id'
+  | 'body-thread-id'
+  | 'content-fingerprint'
+  | 'none';
+
+/**
  * One captured LLM request, as persisted by the host store.
  *
  * `messageId` is nullable because indirect call paths (e.g. subagent-internal
@@ -42,6 +55,10 @@ export interface UsageEventRecord {
   runId?: string | null;
   /** Host event-correlation id for this LLM call. NULL when unknown. Additive / nullable. */
   eventId?: string | null;
+  /** Safe prompt-cache-key provenance; absent on historical/non-attributed rows. */
+  cacheKeySource?: UsageCacheKeySource;
+  /** True only when the gateway generated and attached the prompt-cache key. */
+  cacheKeyInjected?: boolean;
 }
 
 /** Input shape for inserting a new event. `id` and `ts` are filled by the recorder/store. */
@@ -72,6 +89,12 @@ export interface UsageTotals {
   costSavedByCacheUsd: number;
   /** Number of events contributing to these totals. */
   eventCount: number;
+  /** Events with at least one prompt-side token, eligible for cache-rate metrics. */
+  cacheEligibleEventCount: number;
+  /** Eligible events that read zero tokens from cache. */
+  coldCacheEventCount: number;
+  /** Median of per-event cache-read ratios; null when no event is eligible. */
+  medianCacheHitRate: number | null;
 }
 
 /** Granularity for a usage time-series query. `week` is NOT a bucket — a "week" view is a `day` bucket over a 7-day range. */

@@ -42,6 +42,9 @@ const totals: UsageTotals = {
   costUsd: 6,
   costSavedByCacheUsd: 7,
   eventCount: 8,
+  cacheEligibleEventCount: 6,
+  coldCacheEventCount: 2,
+  medianCacheHitRate: 0.75,
 };
 const modelRows: ModelUsageRow[] = [];
 const keyRows: ApiKeyUsageRow[] = [];
@@ -102,6 +105,8 @@ describe('UsageRecorder.recordAsync', () => {
       rawUsage: { a: 1 },
       runId: 'run-1',
       eventId: 'ev-1',
+      cacheKeySource: 'session-header',
+      cacheKeyInjected: true,
     });
 
     expect(id).toBe('row-1');
@@ -124,6 +129,8 @@ describe('UsageRecorder.recordAsync', () => {
       rawUsage: '{"a":1}',
       runId: 'run-1',
       eventId: 'ev-1',
+      cacheKeySource: 'session-header',
+      cacheKeyInjected: true,
     });
   });
 

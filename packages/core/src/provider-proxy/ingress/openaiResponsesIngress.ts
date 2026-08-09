@@ -18,6 +18,8 @@
 
 import type http from 'node:http';
 
+import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
+
 import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
@@ -45,6 +47,7 @@ import {
 import { fillMissingHeaders } from '../identity/headerMerge';
 import {
   deriveGatewaySessionKey,
+  type DerivedSessionKey,
   type SessionKeySource,
   type SessionRequestHeaders,
 } from '../matchText';
@@ -104,6 +107,55 @@ export interface ResponsesCallPlan {
   readonly callerClientHeaders?: Record<string, string>;
 }
 
+interface PromptCacheKeyAttribution {
+  readonly cacheKeySource: UsageCacheKeySource;
+  readonly cacheKeyInjected: boolean;
+}
+
+type InjectedCacheKeySource = Exclude<UsageCacheKeySource, 'client' | 'none'>;
+
+const SAFE_INJECTED_CACHE_KEY_SOURCES = new Set<SessionKeySource>([
+  'session-header',
+  'thread-header',
+  'body-session-id',
+  'body-thread-id',
+  'content-fingerprint',
+]);
+
+function isSafeInjectedCacheKeySource(
+  source: SessionKeySource,
+): source is InjectedCacheKeySource {
+  return SAFE_INJECTED_CACHE_KEY_SOURCES.has(source);
+}
+
+/**
+ * Preserve a caller-provided cache key, or attach a stable opaque key for a
+ * Codex request only when it was derived from conversation-specific metadata.
+ * Route/API-key fallbacks are deliberately excluded because they would merge
+ * unrelated conversations into one upstream cache namespace.
+ */
+export function ensureCodexPromptCacheKey(
+  body: Record<string, unknown>,
+  proxyProviderId: string,
+  derivedSession: DerivedSessionKey,
+): PromptCacheKeyAttribution {
+  if (typeof body.prompt_cache_key === 'string' && body.prompt_cache_key.trim()) {
+    return { cacheKeySource: 'client', cacheKeyInjected: false };
+  }
+  if (
+    proxyProviderId !== 'codex' ||
+    !isSafeInjectedCacheKeySource(derivedSession.source)
+  ) {
+    return { cacheKeySource: 'none', cacheKeyInjected: false };
+  }
+
+  body.prompt_cache_key = `omnicross:${derivedSession.source}:${derivedSession.key}`;
+  return {
+    cacheKeySource: derivedSession.source,
+    cacheKeyInjected: true,
+  };
+}
+
 /**
  * Handle one OpenAI-Responses request for the resolved `RouteContext`. The
  * route's `authMode` selects the BYO or subscription call plan; the shared core
@@ -154,6 +206,12 @@ export async function handleOpenAIResponsesRequest(
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
+    const cacheKeyAttribution = ensureCodexPromptCacheKey(
+      responsesBody,
+      plan.proxyProviderId,
+      derivedSession,
+    );
+
     let providerResponse =
       route.authMode === 'subscription'
         ? await runPipelineWithSubscriptionRetry(responsesBody, plan)
@@ -175,6 +233,8 @@ export async function handleOpenAIResponsesRequest(
       providerId: route.providerId ?? 'codex',
       model: resolvedModel,
       apiKeyId: route.apiKeyId ?? null,
+      cacheKeySource: cacheKeyAttribution.cacheKeySource,
+      cacheKeyInjected: cacheKeyAttribution.cacheKeyInjected,
       // request-audit-log: correlate this request's tokens/cost to its audit record.
       auditResponse: res,
     };

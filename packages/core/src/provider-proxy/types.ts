@@ -17,6 +17,7 @@
 import type http from 'node:http';
 
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
+import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
 import type {
   OpenCodeGoModelEntry,
   OpenCodeGoScenario,
@@ -522,6 +523,10 @@ export interface UsageRecordImportInput {
   rawUsage?: unknown;
   runId?: string | null;
   eventId?: string | null;
+  /** Safe prompt-cache-key provenance; raw key material is never recorded. */
+  cacheKeySource?: UsageCacheKeySource;
+  /** Whether the gateway, rather than the client, attached the cache key. */
+  cacheKeyInjected?: boolean;
   /**
    * OPTIONAL per-request audit correlation key (request-audit-log) — the outbound
    * relay taps set this to the request's `http.ServerResponse` so the recorder can

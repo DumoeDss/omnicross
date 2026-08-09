@@ -9,7 +9,13 @@ import React from 'react';
 import i18n from '@/i18n';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-import { formatTokens, formatUsd } from '../hooks/usageStatsLogic';
+import {
+  cacheHitRate,
+  coldCacheRequestRate,
+  formatPercent,
+  formatTokens,
+  formatUsd,
+} from '../hooks/usageStatsLogic';
 
 import type { UsageTotals } from '@/daemon/types-usage-pricing';
 
@@ -26,6 +32,17 @@ interface CardDef {
 export function TotalsSummary({ totals }: TotalsSummaryProps) {
   const t = useTranslation();
   const locale = i18n.language || 'en';
+  const weightedCacheHitRate = cacheHitRate(
+    totals.inputTokens,
+    totals.cacheReadTokens,
+    totals.cacheCreationTokens,
+  );
+  const coldCacheRate = coldCacheRequestRate(
+    totals.coldCacheEventCount,
+    totals.cacheEligibleEventCount,
+  );
+  const percentOrDash = (ratio: number | null): string =>
+    ratio === null ? '—' : formatPercent(ratio, locale);
 
   const cards: CardDef[] = [
     { labelKey: 'usageStats.totalCost', value: formatUsd(totals.costUsd, locale), highlight: true },
@@ -36,6 +53,18 @@ export function TotalsSummary({ totals }: TotalsSummaryProps) {
     { labelKey: 'usageStats.cacheReadTokens', value: formatTokens(totals.cacheReadTokens, locale) },
     { labelKey: 'usageStats.cacheWriteTokens', value: formatTokens(totals.cacheCreationTokens, locale) },
     { labelKey: 'usageStats.reasoningTokens', value: formatTokens(totals.reasoningTokens, locale) },
+    {
+      labelKey: 'usageStats.weightedCacheHitRate',
+      value: percentOrDash(weightedCacheHitRate),
+    },
+    {
+      labelKey: 'usageStats.medianRequestCacheHitRate',
+      value: percentOrDash(totals.medianCacheHitRate),
+    },
+    {
+      labelKey: 'usageStats.coldCacheRequestRate',
+      value: percentOrDash(coldCacheRate),
+    },
   ];
 
   return (

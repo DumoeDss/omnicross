@@ -83,4 +83,21 @@ describe('usage taps — apiKeyId forwarding', () => {
       expect(calls[0].apiKeyId).toBeNull();
     });
   }
+
+  it('Responses forwards prompt-cache-key provenance without raw key material', () => {
+    const { recorder, calls } = capturingRecorder();
+    recordResponsesNonStreamUsage(recorder, RESPONSES_BODY, {
+      sessionId: 's',
+      providerId: 'codex',
+      model: 'm',
+      apiKeyId: null,
+      cacheKeySource: 'content-fingerprint',
+      cacheKeyInjected: true,
+    });
+
+    expect(calls[0]).toMatchObject({
+      cacheKeySource: 'content-fingerprint',
+      cacheKeyInjected: true,
+    });
+  });
 });

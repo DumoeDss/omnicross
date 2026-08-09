@@ -29,6 +29,9 @@ export interface UsageTotals {
   costUsd: number;
   costSavedByCacheUsd: number;
   eventCount: number;
+  cacheEligibleEventCount: number;
+  coldCacheEventCount: number;
+  medianCacheHitRate: number | null;
 }
 
 /** One row of the per-model breakdown (`GET /usage/by-model`). */

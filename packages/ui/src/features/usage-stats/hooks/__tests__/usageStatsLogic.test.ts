@@ -14,6 +14,7 @@ vi.mock('../../../../daemon/usagePricingAdapter', () => ({
 import * as adapter from '../../../../daemon/usagePricingAdapter';
 import {
   cacheHitRate,
+  coldCacheRequestRate,
   computeCustomRange,
   computePresetRange,
   loadUsageData,
@@ -92,7 +93,7 @@ describe('loadUsageData', () => {
   const range = { startTs: 1, endTs: 2 };
 
   it('loads all three views in parallel for the same range', async () => {
-    const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, reasoningTokens: 0, costUsd: 0, costSavedByCacheUsd: 0, eventCount: 0 };
+    const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, reasoningTokens: 0, costUsd: 0, costSavedByCacheUsd: 0, eventCount: 0, cacheEligibleEventCount: 0, coldCacheEventCount: 0, medianCacheHitRate: null };
     mocked.getUsageTotals.mockResolvedValueOnce(totals);
     mocked.getUsageByModel.mockResolvedValueOnce([]);
     mocked.getUsageByApiKey.mockResolvedValueOnce([]);
@@ -178,5 +179,15 @@ describe('cacheHitRate', () => {
 
   it('returns null when there are no prompt-side tokens (avoids misleading 0%)', () => {
     expect(cacheHitRate(0, 0, 0)).toBeNull();
+  });
+});
+
+describe('coldCacheRequestRate', () => {
+  it('uses cache-eligible requests as the denominator', () => {
+    expect(coldCacheRequestRate(2, 8)).toBe(0.25);
+  });
+
+  it('returns null when there are no cache-eligible requests', () => {
+    expect(coldCacheRequestRate(0, 0)).toBeNull();
   });
 });
