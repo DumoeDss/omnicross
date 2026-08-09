@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Access key",
-      "description": "Key bernama yang dikirim pemanggil eksternal sebagai Bearer token. Key lengkap hanya ditampilkan sekali saat dibuat.",
+      "description": "Key bernama yang dikirim pemanggil eksternal sebagai Bearer token. Key lengkap dapat dilihat lagi kapan saja dari daftar key.",
       "namePlaceholder": "Nama key (mis. my-cli)",
       "create": "Buat key",
       "empty": "Belum ada access key.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Mencabut \"{{name}}\" segera menghentikan autentikasinya. Tindakan ini tidak dapat dibatalkan.",
       "created": {
         "title": "Key dibuat",
-        "warning": "Salin key ini sekarang — tidak akan ditampilkan lagi. Simpan dengan aman.",
+        "warning": "Salin key ini sekarang dan simpan dengan aman — Anda dapat melihatnya lagi kapan saja dari daftar key.",
         "copy": "Salin",
         "copied": "Disalin",
         "dismiss": "Selesai"

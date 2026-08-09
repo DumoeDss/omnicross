@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Access key",
-      "description": "Key được đặt tên để người gọi bên ngoài gửi dưới dạng Bearer token. Key đầy đủ chỉ hiển thị một lần khi tạo.",
+      "description": "Key được đặt tên để người gọi bên ngoài gửi dưới dạng Bearer token. Key đầy đủ có thể xem lại bất cứ lúc nào từ danh sách key.",
       "namePlaceholder": "Tên key (VD: my-cli)",
       "create": "Tạo key",
       "empty": "Chưa có access key nào.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Thu hồi \"{{name}}\" sẽ ngay lập tức ngừng xác thực. Không thể hoàn tác.",
       "created": {
         "title": "Đã tạo key",
-        "warning": "Sao chép key này ngay — sẽ không hiển thị lại. Hãy lưu trữ an toàn.",
+        "warning": "Sao chép key này ngay và lưu trữ an toàn — bạn có thể xem lại bất cứ lúc nào từ danh sách key.",
         "copy": "Sao chép",
         "copied": "Đã sao chép",
         "dismiss": "Xong"

@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Chaves de acesso",
-      "description": "Chaves nomeadas que clientes externos enviam como token Bearer. A chave completa é exibida apenas uma vez ao criar.",
+      "description": "Chaves nomeadas que clientes externos enviam como token Bearer. A chave completa pode ser visualizada novamente a qualquer momento na lista de chaves.",
       "namePlaceholder": "Nome da chave (ex.: meu-cli)",
       "create": "Criar chave",
       "empty": "Nenhuma chave de acesso ainda.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Revogar \"{{name}}\" impede imediatamente sua autenticação. Isso não pode ser desfeito.",
       "created": {
         "title": "Chave criada",
-        "warning": "Copie esta chave agora — ela não será exibida novamente. Armazene-a com segurança.",
+        "warning": "Copie esta chave agora e armazene-a com segurança — você pode visualizá-la novamente a qualquer momento na lista de chaves.",
         "copy": "Copiar",
         "copied": "Copiado",
         "dismiss": "Concluído"

@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Kunci akses",
-      "description": "Kunci bernama yang dihantar oleh pemanggil luaran sebagai token Bearer. Kunci penuh hanya ditunjukkan sekali semasa penciptaan.",
+      "description": "Kunci bernama yang dihantar oleh pemanggil luaran sebagai token Bearer. Kunci penuh boleh dilihat semula pada bila-bila masa dari senarai kunci.",
       "namePlaceholder": "Nama kunci (cth. my-cli)",
       "create": "Cipta kunci",
       "empty": "Tiada kunci akses lagi.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Membatalkan \"{{name}}\" serta-merta menghentikan pengesahannya. Ini tidak boleh dibuat asal.",
       "created": {
         "title": "Kunci dicipta",
-        "warning": "Salin kunci ini sekarang — ia tidak akan ditunjukkan lagi. Simpan dengan selamat.",
+        "warning": "Salin kunci ini sekarang dan simpan dengan selamat — anda boleh melihatnya semula pada bila-bila masa dari senarai kunci.",
         "copy": "Salin",
         "copied": "Disalin",
         "dismiss": "Selesai"

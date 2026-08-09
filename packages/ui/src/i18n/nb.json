@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Tilgangsnøkler",
-      "description": "Navngitte nøkler som eksterne anropere sender som en Bearer-token. Den fullstendige nøkkelen vises bare én gang ved opprettelse.",
+      "description": "Navngitte nøkler som eksterne anropere sender som en Bearer-token. Den fullstendige nøkkelen kan vises igjen når som helst fra nøkkellisten.",
       "namePlaceholder": "Nøkkelnavn (f.eks. mitt-cli)",
       "create": "Opprett nøkkel",
       "empty": "Ingen tilgangsnøkler ennå.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Tilbakekalling av \"{{name}}\" stopper umiddelbart autentisering. Dette kan ikke angres.",
       "created": {
         "title": "Nøkkel opprettet",
-        "warning": "Kopier denne nøkkelen nå — den vil ikke vises igjen. Oppbevar den trygt.",
+        "warning": "Kopier denne nøkkelen nå og oppbevar den trygt — du kan vise den igjen når som helst fra nøkkellisten.",
         "copy": "Kopier",
         "copied": "Kopiert",
         "dismiss": "Ferdig"

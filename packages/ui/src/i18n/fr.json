@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Clés d'accès",
-      "description": "Clés nommées que les appelants externes envoient en tant que token Bearer. La clé complète n'est affichée qu'une seule fois à la création.",
+      "description": "Clés nommées que les appelants externes envoient en tant que token Bearer. La clé complète peut être consultée à nouveau à tout moment depuis la liste des clés.",
       "namePlaceholder": "Nom de la clé (ex. : mon-cli)",
       "create": "Créer une clé",
       "empty": "Aucune clé d'accès pour l'instant.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "La révocation de « {{name}} » l'empêche immédiatement de s'authentifier. Cette action est irréversible.",
       "created": {
         "title": "Clé créée",
-        "warning": "Copiez cette clé maintenant — elle ne sera plus affichée. Conservez-la en lieu sûr.",
+        "warning": "Copiez cette clé maintenant et conservez-la en lieu sûr — vous pouvez la consulter à nouveau à tout moment depuis la liste des clés.",
         "copy": "Copier",
         "copied": "Copié",
         "dismiss": "Terminé"

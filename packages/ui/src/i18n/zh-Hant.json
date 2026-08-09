@@ -822,7 +822,7 @@
     },
     "keys": {
       "title": "存取金鑰",
-      "description": "外部呼叫者以 Bearer token 形式傳送的命名金鑰。完整金鑰僅在建立時顯示一次。",
+      "description": "外部呼叫者以 Bearer token 形式傳送的命名金鑰。完整金鑰可在建立後隨時從金鑰列表中查看。",
       "namePlaceholder": "金鑰名稱（如 my-cli）",
       "create": "建立金鑰",
       "empty": "尚無存取金鑰。",
@@ -835,7 +835,7 @@
       "revokeConfirmDesc": "撤銷「{{name}}」後，它將立即無法用於驗證。此操作無法復原。",
       "created": {
         "title": "金鑰已建立",
-        "warning": "請立即複製此金鑰——它不會再次顯示。請妥善保管。",
+        "warning": "請立即複製此金鑰並妥善保管——之後仍可從金鑰列表中重新查看。",
         "copy": "複製",
         "copied": "已複製",
         "dismiss": "完成"

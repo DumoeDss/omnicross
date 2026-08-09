@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Přístupové klíče",
-      "description": "Pojmenované klíče, které externí klienti odesílají jako Bearer token. Celý klíč je zobrazen pouze jednou při vytvoření.",
+      "description": "Pojmenované klíče, které externí klienti odesílají jako Bearer token. Celý klíč můžete kdykoli znovu zobrazit ze seznamu klíčů.",
       "namePlaceholder": "Název klíče (např. moje-cli)",
       "create": "Vytvořit klíč",
       "empty": "Zatím žádné přístupové klíče.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Odvoláním „{{name}}“ okamžitě zastavíte jeho ověřování. Tuto akci nelze vrátit zpět.",
       "created": {
         "title": "Klíč vytvořen",
-        "warning": "Zkopírujte tento klíč nyní — nebude znovu zobrazen. Uchovávejte ho bezpečně.",
+        "warning": "Zkopírujte tento klíč nyní a bezpečně ho uložte — kdykoli ho můžete znovu zobrazit ze seznamu klíčů.",
         "copy": "Kopírovat",
         "copied": "Zkopírováno",
         "dismiss": "Hotovo"

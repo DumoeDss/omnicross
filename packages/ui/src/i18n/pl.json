@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Klucze dostępu",
-      "description": "Nazwane klucze, które zewnętrzni klienci wysyłają jako token Bearer. Pełny klucz jest pokazywany tylko raz przy tworzeniu.",
+      "description": "Nazwane klucze, które zewnętrzni klienci wysyłają jako token Bearer. Pełny klucz można ponownie wyświetlić w dowolnym momencie z listy kluczy.",
       "namePlaceholder": "Nazwa klucza (np. moje-cli)",
       "create": "Utwórz klucz",
       "empty": "Brak kluczy dostępu.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Unieważnienie „{{name}}“ natychmiast uniemożliwia jego uwierzytelnianie. Tej operacji nie można cofnąć.",
       "created": {
         "title": "Klucz utworzony",
-        "warning": "Skopiuj ten klucz teraz — nie zostanie ponownie pokazany. Przechowuj go bezpiecznie.",
+        "warning": "Skopiuj ten klucz teraz i przechowuj go bezpiecznie — możesz go ponownie wyświetlić w dowolnym momencie z listy kluczy.",
         "copy": "Kopiuj",
         "copied": "Skopiowano",
         "dismiss": "Gotowe"

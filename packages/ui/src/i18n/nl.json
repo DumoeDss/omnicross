@@ -573,7 +573,7 @@
     },
     "keys": {
       "title": "Toegangssleutels",
-      "description": "Benoemde sleutels die externe aanroepers als Bearer-token sturen. De volledige sleutel wordt slechts eenmaal getoond bij aanmaak.",
+      "description": "Benoemde sleutels die externe aanroepers als Bearer-token sturen. De volledige sleutel kan op elk moment opnieuw worden bekeken vanuit de sleutellijst.",
       "namePlaceholder": "Sleutelnaam (bijv. mijn-cli)",
       "create": "Sleutel aanmaken",
       "empty": "Nog geen toegangssleutels.",
@@ -586,7 +586,7 @@
       "revokeConfirmDesc": "Het intrekken van \"{{name}}\" stopt de authenticatie onmiddellijk. Dit kan niet ongedaan worden gemaakt.",
       "created": {
         "title": "Sleutel aangemaakt",
-        "warning": "Kopieer deze sleutel nu — hij wordt niet opnieuw getoond. Bewaar hem veilig.",
+        "warning": "Kopieer deze sleutel nu en bewaar hem veilig — je kunt hem op elk moment opnieuw bekijken vanuit de sleutellijst.",
         "copy": "Kopiëren",
         "copied": "Gekopieerd",
         "dismiss": "Klaar"
