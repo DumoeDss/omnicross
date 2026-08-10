@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Υπερφόρτωση διακομιστή",
+      "overloaded": "υπερφορτωμένο",
+      "overloadTrend": "Τάση υπερφόρτωσης διακομιστή",
+      "overloadTrendHint": "Τα συμβάντα Codex `server_is_overloaded` / `slow_down` φτάνουν μέσα σε ροές 200. Είναι προβλήματα χωρητικότητας ανεξάρτητα από λογαριασμό, επομένως καταγράφονται, όχι επαναλαμβάνονται.",
+      "overloadUnavailable": "Η παρακολούθηση υπερφόρτωσης δεν είναι διαθέσιμη σε αυτήν την έκδοση daemon.",
+      "overloadNone": "Καμία υπερφόρτωση διακομιστή καταγράφηκε την τελευταία ώρα.",
+      "overloadTotal": "σύνολο",
+      "overloadJustNow": "μόλις τώρα",
+      "overloadMinsAgo": "{{n}} λεπτά πριν",
+      "overloadHoursAgo": "{{n}} ώρες πριν"
+    }
   }
 }

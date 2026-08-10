@@ -38,6 +38,13 @@ export interface AccountRouteActivityRecord {
   status: number;
   affinity: AccountRouteAffinity;
   previousAccountId?: string;
+  /**
+   * Post-hoc error observed inside the (200) stream — e.g. a Codex
+   * `response.failed` server-overload event. Present only when the daemon
+   * annotated the row after the fact; absent on healthy responses. Older
+   * daemons never set this.
+   */
+  streamError?: string;
 }
 
 export interface AccountRouteActivityResponse {
@@ -45,6 +52,26 @@ export interface AccountRouteActivityResponse {
   available: boolean;
   records: AccountRouteActivityRecord[];
   capacity: number;
+  collectedAt: number;
+}
+
+/** Metadata-only per-account tally of Codex server-overload events. */
+export interface OverloadCounterEntry {
+  providerId: string;
+  accountId: string;
+  endpoint: 'responses' | 'messages';
+  /** Lifetime count of overload events for this key. */
+  count: number;
+  firstTs: number;
+  lastTs: number;
+  /** Most-recent-first epoch-ms events (bounded), the sparkline's source. */
+  recent: number[];
+}
+
+export interface OverloadCounterResponse {
+  /** False when the connected daemon does not expose the overload endpoint. */
+  available: boolean;
+  entries: OverloadCounterEntry[];
   collectedAt: number;
 }
 

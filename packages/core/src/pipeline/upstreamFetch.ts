@@ -47,6 +47,7 @@ import {
 import { getSharedAccountAllowanceStore } from './AccountAllowanceStore';
 import {
   getSharedAccountRouteActivity,
+  type AccountRouteActivityRecord,
   type AccountRouteEndpoint,
   type AccountRouteSessionSource,
 } from './AccountRouteActivity';
@@ -56,6 +57,13 @@ export interface AccountRouteActivityContext {
   sessionKey?: string;
   sessionSource: AccountRouteSessionSource;
   model: string;
+  /**
+   * Invoked once with the freshly-recorded activity record. Lets a caller
+   * capture the record `id` so it can {@link AccountRouteActivityStore.amend}
+   * the SAME row later, once a post-hoc fact (e.g. an overload event buried in
+   * the 200 SSE body) becomes known during relay. Best-effort: never throws.
+   */
+  onRecorded?: (record: AccountRouteActivityRecord) => void;
 }
 
 /** The opaque call context the resolver maps to a proxy (precedence input). */
@@ -277,7 +285,7 @@ export function fetchUpstream(
   const activityStartedAt = activity && ctx?.providerId && ctx.accountId ? Date.now() : 0;
   const recordActivity = (status: number): void => {
     if (!activity || !ctx?.providerId || !ctx.accountId) return;
-    getSharedAccountRouteActivity().record({
+    const record = getSharedAccountRouteActivity().record({
       providerId: ctx.providerId,
       accountId: ctx.accountId,
       endpoint: activity.endpoint,
@@ -288,6 +296,11 @@ export function fetchUpstream(
       durationMs: Math.max(0, Date.now() - activityStartedAt),
       ts: activityStartedAt,
     });
+    try {
+      activity.onRecorded?.(record);
+    } catch {
+      /* a telemetry callback must never break egress */
+    }
   };
   const doFetchWithActivity = (): Promise<Response> =>
     doFetchWithAllowanceTap().then(

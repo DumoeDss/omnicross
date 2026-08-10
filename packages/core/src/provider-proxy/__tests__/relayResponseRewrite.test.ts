@@ -344,3 +344,20 @@ describe('relayResponse — streaming usage tap (usageTap)', () => {
     expect(res.body).toBe(sse);
   });
 });
+
+describe('relayResponse — onSseEvent observes every SSE event without altering bytes', () => {
+  it('delivers a response.failed overload event to the read-only observer', async () => {
+    const sse = [
+      `data: ${JSON.stringify({ type: 'response.created', response: { id: 'r1', model: 'gpt-5-codex' } })}\n\n`,
+      `data: ${JSON.stringify({ type: 'response.failed', response: { error: { code: 'server_is_overloaded', message: 'capacity' } } })}\n\n`,
+    ].join('');
+    const seen: Array<Record<string, unknown>> = [];
+    const res = new MockRes();
+    await relayResponse(asRes(res), sseResponse(sse, []), true, undefined, undefined, (event) => {
+      seen.push(event);
+    });
+    expect(seen.map((e) => e['type'])).toEqual(['response.created', 'response.failed']);
+    // Byte-identical relay: the read-only side channel never altered the output.
+    expect(res.body).toBe(sse);
+  });
+});

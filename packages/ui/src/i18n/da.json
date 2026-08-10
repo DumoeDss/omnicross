@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Serveroverbelastninger",
+      "overloaded": "overbelastet",
+      "overloadTrend": "Trend for serveroverbelastning",
+      "overloadTrendHint": "Codex `server_is_overloaded` / `slow_down`-hændelser ankommer inde i 200-strømme. De er kontouafhængige kapacitetsproblemer, så de registreres, ikke prøves igen.",
+      "overloadUnavailable": "Overvågning af overbelastning er ikke tilgængelig på denne daemon-version.",
+      "overloadNone": "Ingen serveroverbelastninger registreret den seneste time.",
+      "overloadTotal": "i alt",
+      "overloadJustNow": "lige nu",
+      "overloadMinsAgo": "{{n}} min siden",
+      "overloadHoursAgo": "{{n}} t siden"
+    }
   }
 }

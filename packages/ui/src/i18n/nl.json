@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Serveroverbelastingen",
+      "overloaded": "overbelast",
+      "overloadTrend": "Serveroverbelasting-trend",
+      "overloadTrendHint": "Codex `server_is_overloaded` / `slow_down`-gebeurtenissen arriveren binnen 200-streams. Het zijn accountonafhankelijke capaciteitsproblemen, dus ze worden vastgelegd, niet opnieuw geprobeerd.",
+      "overloadUnavailable": "Overbelastingsregistratie is niet beschikbaar op deze daemon-versie.",
+      "overloadNone": "Geen serveroverbelastingen geregistreerd in het afgelopen uur.",
+      "overloadTotal": "totaal",
+      "overloadJustNow": "zojuist",
+      "overloadMinsAgo": "{{n}} min geleden",
+      "overloadHoursAgo": "{{n}} u geleden"
+    }
   }
 }

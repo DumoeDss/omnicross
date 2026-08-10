@@ -33,6 +33,13 @@ export interface AccountRouteActivityInput {
   status: number;
   durationMs: number;
   ts?: number;
+  /**
+   * Post-hoc error observed AFTER the upstream status was recorded — e.g. a
+   * `200` whose SSE body carries a `response.failed` server-overload event.
+   * Never known at `record()` time; set later via {@link amend}. Absent on
+   * healthy responses.
+   */
+  streamError?: string;
 }
 
 export interface AccountRouteActivityRecord extends AccountRouteActivityInput {
@@ -104,6 +111,22 @@ export class AccountRouteActivityStore {
   clear(): void {
     this.records.length = 0;
     this.sequence = 0;
+  }
+
+  /**
+   * Backfill a field on an already-recorded entry. Used to annotate a record
+   * AFTER the upstream body streams — e.g. a `200` whose SSE body carries a
+   * `response.failed` overload event is only detectable mid-relay, long after
+   * `record()` stamped the 200 status. `patch` is intentionally narrow: only
+   * post-hoc-observable fields belong here, never the routing-decision fields.
+   * No-op when the id has already aged out of the bounded ring.
+   */
+  amend(
+    id: string,
+    patch: Partial<Pick<AccountRouteActivityRecord, 'streamError'>>,
+  ): void {
+    const record = this.records.find((r) => r.id === id);
+    if (record) Object.assign(record, patch);
   }
 }
 

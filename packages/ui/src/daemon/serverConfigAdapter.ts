@@ -42,6 +42,7 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
+  OverloadCounterResponse,
   VoucherCreated,
   VoucherInfo,
 } from './types-server';
@@ -349,6 +350,24 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return { ...snapshot, available: snapshot.available ?? true };
       } catch {
         return { available: false, records: [], capacity: 300, collectedAt: Date.now() };
+      }
+    },
+
+    async queryOverloadCounters(query = {}): Promise<OverloadCounterResponse> {
+      const params = new URLSearchParams();
+      if (query.providerId) params.set('providerId', query.providerId);
+      if (query.accountId) params.set('accountId', query.accountId);
+      const qs = params.toString();
+      try {
+        const snapshot = await adminClient.get<Omit<OverloadCounterResponse, 'available'> & {
+          available?: boolean;
+        }>(
+          qs ? `/accounts/overload-counters?${qs}` : '/accounts/overload-counters',
+        );
+        return { ...snapshot, available: snapshot.available ?? true };
+      } catch {
+        // Older daemons lack the endpoint; surface unavailable rather than erroring.
+        return { available: false, entries: [], collectedAt: Date.now() };
       }
     },
 

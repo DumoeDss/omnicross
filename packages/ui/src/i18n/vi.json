@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Quá tải máy chủ",
+      "overloaded": "quá tải",
+      "overloadTrend": "Xu hướng quá tải máy chủ",
+      "overloadTrendHint": "Sự kiện Codex `server_is_overloaded` / `slow_down` đến bên trong các luồng 200. Đây là vấn đề sức chứa không liên quan đến tài khoản, nên được ghi lại, không thử lại.",
+      "overloadUnavailable": "Theo dõi quá tải không khả dụng trên phiên bản daemon này.",
+      "overloadNone": "Không có quá tải máy chủ nào được ghi trong giờ qua.",
+      "overloadTotal": "tổng",
+      "overloadJustNow": "vừa xong",
+      "overloadMinsAgo": "{{n}} phút trước",
+      "overloadHoursAgo": "{{n}} giờ trước"
+    }
   }
 }

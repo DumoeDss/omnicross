@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "เซิร์ฟเวอร์ทำงานหนักเกิน",
+      "overloaded": "ทำงานหนักเกิน",
+      "overloadTrend": "แนวโน้มเซิร์ฟเวอร์ทำงานหนักเกิน",
+      "overloadTrendHint": "เหตุการณ์ Codex `server_is_overloaded` / `slow_down` มาภายในสตรีม 200 เป็นปัญหาความจุที่ไม่ขึ้นกับบัญชี จึงบันทึกไว้โดยไม่ลองใหม่",
+      "overloadUnavailable": "การติดตามการทำงานหนักเกินไม่พร้อมใช้งานในเวอร์ชัน daemon นี้",
+      "overloadNone": "ไม่มีเซิร์ฟเวอร์ทำงานหนักเกินบันทึกไว้ในชั่วโมงที่ผ่านมา",
+      "overloadTotal": "รวม",
+      "overloadJustNow": "เมื่อสักครู่",
+      "overloadMinsAgo": "{{n}} นาทีที่แล้ว",
+      "overloadHoursAgo": "{{n}} ชม. ที่แล้ว"
+    }
   }
 }

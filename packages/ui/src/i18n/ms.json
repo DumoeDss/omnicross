@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Beban berlebih pelayan",
+      "overloaded": "berlebih beban",
+      "overloadTrend": "Tren beban berlebih pelayan",
+      "overloadTrendHint": "Peristiwa Codex `server_is_overloaded` / `slow_down` tiba dalam strim 200. Ia adalah isu kapasiti tak bergantung pada akaun, jadi direkodkan, bukan dicuba semula.",
+      "overloadUnavailable": "Penjejakan beban berlebih tidak tersedia pada versi daemon ini.",
+      "overloadNone": "Tiada beban berlebih pelayan direkodkan dalam jam lepas.",
+      "overloadTotal": "jumlah",
+      "overloadJustNow": "baru sahaja",
+      "overloadMinsAgo": "{{n}} min lalu",
+      "overloadHoursAgo": "{{n}} jam lalu"
+    }
   }
 }

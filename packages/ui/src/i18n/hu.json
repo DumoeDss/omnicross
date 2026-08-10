@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Kiszolgáló-túlterhelések",
+      "overloaded": "túlterhelt",
+      "overloadTrend": "Kiszolgáló-túlterhelés trend",
+      "overloadTrendHint": "A Codex `server_is_overloaded` / `slow_down` események 200-as streamekben érkeznek. Fióktól független kapacitásproblémák, ezért rögzítésre kerülnek, nem újrapróbálva.",
+      "overloadUnavailable": "A túlterhelés-követés nem érhető el ezen a daemon-verzión.",
+      "overloadNone": "Az elmúlt órában nem történt kiszolgáló-túlterhelés.",
+      "overloadTotal": "összesen",
+      "overloadJustNow": "éppen most",
+      "overloadMinsAgo": "{{n}} perce",
+      "overloadHoursAgo": "{{n}} órája"
+    }
   }
 }

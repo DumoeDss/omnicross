@@ -141,6 +141,7 @@ import {
   ACCOUNT_ROUTE_ACTIVITY_LIMIT,
   getSharedAccountRouteActivity,
 } from '@omnicross/core/pipeline/AccountRouteActivity';
+import { getSharedOverloadCounter } from '@omnicross/core/pipeline/ServerOverloadCounter';
 
 /** Token-free subscription account list entry (passthrough from core's service). */
 export interface AdminAccountsLister {
@@ -1941,6 +1942,28 @@ async function handleAccounts(
       available: true,
       records,
       capacity: ACCOUNT_ROUTE_ACTIVITY_LIMIT,
+      collectedAt: Date.now(),
+    });
+  }
+
+  // GET /accounts/overload-counters — bounded, process-local, metadata-only tally
+  // of Codex server-overload events (`response.failed` with `server_is_overloaded`
+  // / `slow_down`) per provider+account+endpoint. These arrive inside 200 streams
+  // and so are invisible at the route-activity status layer; this counter is the
+  // operator's "how often is account X overloaded, and is it worsening" view.
+  // Counts + epoch timestamps only — no prompts, headers, or tokens.
+  if (rest[0] === 'overload-counters' && rest.length === 1) {
+    if (method !== 'GET') {
+      return writeJsonError(res, 405, `method ${method} not allowed on overload counters`);
+    }
+    const query = requestQuery(req);
+    const entries = getSharedOverloadCounter().list({
+      providerId: query.get('providerId') ?? undefined,
+      accountId: query.get('accountId') ?? undefined,
+    });
+    return writeJson(res, 200, {
+      available: true,
+      entries,
       collectedAt: Date.now(),
     });
   }

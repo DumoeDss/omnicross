@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Suprasarcini server",
+      "overloaded": "suprasolicitat",
+      "overloadTrend": "Tendință suprasarcini server",
+      "overloadTrendHint": "Evenimentele Codex `server_is_overloaded` / `slow_down` sosesc în interiorul fluxurilor 200. Sunt probleme de capacitate independente de cont, deci sunt înregistrate, nu reîncercate.",
+      "overloadUnavailable": "Monitorizarea suprasarcinilor nu este disponibilă pe această versiune de daemon.",
+      "overloadNone": "Nicio suprasarcină de server înregistrată în ultima oră.",
+      "overloadTotal": "total",
+      "overloadJustNow": "chiar acum",
+      "overloadMinsAgo": "acum {{n}} min",
+      "overloadHoursAgo": "acum {{n}} h"
+    }
   }
 }

@@ -760,6 +760,18 @@
       "deleteDescription": "刪除「{{name}}」。後續請求將使用其他符合的路由；沒有符合則失敗。",
       "signalPath": "{{key}} 到 {{endpoint}}，再到 {{resource}}，最後使用 {{model}}",
       "openFromUpstreams": "請在「下游與路由」中管理使用此帳號的路由。"
+    },
+    "activity": {
+      "overloadCount": "伺服器過載",
+      "overloaded": "已過載",
+      "overloadTrend": "伺服器過載趨勢",
+      "overloadTrendHint": "Codex 的 server_is_overloaded / slow_down 事件以 200 串流內部送達。它們是與帳號無關的容量問題，因此只記錄、不重試。",
+      "overloadUnavailable": "此 daemon 版本不支援過載追蹤。",
+      "overloadNone": "過去一小時內沒有伺服器過載記錄。",
+      "overloadTotal": "總計",
+      "overloadJustNow": "剛剛",
+      "overloadMinsAgo": "{{n}} 分鐘前",
+      "overloadHoursAgo": "{{n}} 小時前"
     }
   },
   "apiService": {

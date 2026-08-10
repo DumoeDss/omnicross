@@ -41,6 +41,7 @@ export default defineConfig({
     'pipeline/LlmConfigProviderAuth': 'src/pipeline/LlmConfigProviderAuth.ts',
     'pipeline/resolveProviderChain': 'src/pipeline/resolveProviderChain.ts',
     'pipeline/resolveSubscriptionChain': 'src/pipeline/resolveSubscriptionChain.ts',
+    'pipeline/ServerOverloadCounter': 'src/pipeline/ServerOverloadCounter.ts',
     'pipeline/SubscriptionAccountHealth': 'src/pipeline/SubscriptionAccountHealth.ts',
     'pipeline/SubscriptionAuthSource': 'src/pipeline/SubscriptionAuthSource.ts',
     'pipeline/SubscriptionAuthStrategy': 'src/pipeline/SubscriptionAuthStrategy.ts',

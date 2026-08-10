@@ -3,6 +3,7 @@ import {
   ArrowRight,
   CircleAlert,
   Clock3,
+  Flame,
   RefreshCw,
   Radio,
   ShieldCheck,
@@ -37,6 +38,12 @@ function statusKind(status: number): 'success' | 'warning' | 'error' {
   if (status >= 200 && status < 400) return 'success';
   if (status === 0 || status >= 500) return 'error';
   return 'warning';
+}
+
+/** A row counts as an issue when its status is non-success OR it carries a
+ *  post-hoc stream error (e.g. a 200 that failed mid-stream with overload). */
+function isIssue(record: AccountRouteActivityRecord): boolean {
+  return statusKind(record.status) !== 'success' || Boolean(record.streamError);
 }
 
 function shortSession(key: string | undefined): string {
@@ -92,8 +99,8 @@ export function AccountRouteActivityView({ accounts }: AccountRouteActivityViewP
     const needle = query.trim().toLocaleLowerCase();
     return snapshot.records.filter((record) => {
       if (provider !== 'all' && record.providerId !== provider) return false;
-      if (outcome === 'success' && statusKind(record.status) !== 'success') return false;
-      if (outcome === 'issues' && statusKind(record.status) === 'success') return false;
+      if (outcome === 'success' && isIssue(record)) return false;
+      if (outcome === 'issues' && !isIssue(record)) return false;
       if (outcome === 'switched' && record.affinity !== 'switched') return false;
       if (!needle) return true;
       const label = accountLabels.get(`${record.providerId}\0${record.accountId}`) ?? '';
@@ -106,7 +113,8 @@ export function AccountRouteActivityView({ accounts }: AccountRouteActivityViewP
   const stats = useMemo(() => ({
     sessions: new Set(snapshot.records.map((record) => `${record.providerId}\0${record.sessionKey ?? record.id}`)).size,
     switched: snapshot.records.filter((record) => record.affinity === 'switched').length,
-    issues: snapshot.records.filter((record) => statusKind(record.status) !== 'success').length,
+    issues: snapshot.records.filter((record) => isIssue(record)).length,
+    overloads: snapshot.records.filter((record) => Boolean(record.streamError)).length,
   }), [snapshot.records]);
 
   return (
@@ -146,10 +154,11 @@ export function AccountRouteActivityView({ accounts }: AccountRouteActivityViewP
           </div>
         </div>
 
-        <div className="mt-4 grid gap-px overflow-hidden rounded-lg border border-border/70 bg-border/70 sm:grid-cols-3">
+        <div className="mt-4 grid gap-px overflow-hidden rounded-lg border border-border/70 bg-border/70 sm:grid-cols-2 lg:grid-cols-4">
           <Metric icon={Clock3} label={t('upstreams.activity.sessions', 'Sessions in view')} value={stats.sessions} />
           <Metric icon={Shuffle} label={t('upstreams.activity.switches', 'Account switches')} value={stats.switched} tone={stats.switched ? 'warning' : undefined} />
           <Metric icon={CircleAlert} label={t('upstreams.activity.issues', 'Upstream issues')} value={stats.issues} tone={stats.issues ? 'error' : undefined} />
+          <Metric icon={Flame} label={t('upstreams.activity.overloadCount', 'Server overloads')} value={stats.overloads} tone={stats.overloads ? 'warning' : undefined} />
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -243,13 +252,16 @@ function Metric({
 
 function RouteActivityRow({ record, accountLabel }: { record: AccountRouteActivityRecord; accountLabel: string }) {
   const t = useTranslation();
-  const kind = statusKind(record.status);
   const switched = record.affinity === 'switched';
+  const overloaded = Boolean(record.streamError);
+  // A 200 whose stream carried a server-overload failure is NOT a success —
+  // surface it as a warning so it is not disguised as healthy green.
+  const kind = overloaded ? 'warning' : statusKind(record.status);
   const statusLabel = record.status === 0 ? t('upstreams.activity.networkError', 'Network error') : `HTTP ${record.status}`;
   return (
     <article className={cn(
       'grid gap-3 rounded-xl border bg-surface-0 px-4 py-3 shadow-sm shadow-black/[0.02] md:grid-cols-[7.5rem_minmax(10rem,1fr)_2.5rem_minmax(12rem,1fr)_7rem] md:items-center',
-      switched ? 'border-amber-500/40' : 'border-border/70',
+      switched || overloaded ? 'border-amber-500/40' : 'border-border/70',
     )}>
       <div className="text-[11px] text-muted-foreground">
         <div className="font-medium text-foreground">{new Date(record.ts).toLocaleTimeString()}</div>
@@ -265,6 +277,12 @@ function RouteActivityRow({ record, accountLabel }: { record: AccountRouteActivi
           {switched ? (
             <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-300">
               {t('upstreams.activity.switched', 'switched')}
+            </Badge>
+          ) : null}
+          {overloaded ? (
+            <Badge variant="outline" className="gap-1 border-rose-500/40 bg-rose-500/10 text-[10px] text-rose-700 dark:text-rose-300" title={record.streamError}>
+              <Flame className="h-3 w-3" />
+              {t('upstreams.activity.overloaded', 'overloaded')}
             </Badge>
           ) : null}
         </div>

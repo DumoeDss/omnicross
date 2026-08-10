@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Palvelimen ylikuormitukset",
+      "overloaded": "ylikuormitettu",
+      "overloadTrend": "Palvelimen ylikuormitustrendi",
+      "overloadTrendHint": "Codexin `server_is_overloaded` / `slow_down` -tapahtumat saapuvat 200-striimien sisällä. Ne ovat tilistä riippumattomia kapasiteettiongelmia, joten ne kirjataan, ei yritetä uudelleen.",
+      "overloadUnavailable": "Ylikuormituksen seuranta ei ole käytettävissä tässä daemon-versiossa.",
+      "overloadNone": "Viimeisen tunnin aikana ei kirjattu palvelimen ylikuormituksia.",
+      "overloadTotal": "yhteensä",
+      "overloadJustNow": "juuri nyt",
+      "overloadMinsAgo": "{{n}} min sitten",
+      "overloadHoursAgo": "{{n}} t sitten"
+    }
   }
 }

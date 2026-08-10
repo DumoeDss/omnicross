@@ -278,6 +278,15 @@ export async function relayResponse(
   isStream: boolean,
   rewriteModel?: string,
   usageTap?: StreamUsageTap,
+  /**
+   * Read-only observer invoked with every parsed SSE `data:` event during a
+   * streaming relay. Never affects the relayed bytes (it runs on the ORIGINAL
+   * line, independent of the model-rewrite / usage-tap paths). Used to detect
+   * in-band errors that arrive AFTER a `200` — e.g. a Codex `response.failed`
+   * server-overload event. When present, forces the line-based relay path so
+   * events are parsed even without a `rewriteModel`/`usageTap`.
+   */
+  onSseEvent?: (event: Record<string, unknown>) => void,
 ): Promise<string | null> {
   const contentType = providerResponse.headers.get('Content-Type') ?? '';
   const status =
@@ -300,19 +309,24 @@ export async function relayResponse(
       res.end();
       return null;
     }
-    if (rewriteModel || usageTap) {
-      // Line-based relay so we can rewrite model AND/OR tap usage from SSE events.
-      // The tap captures the LAST non-null usage the extractor returns; onUsage
-      // fires once at stream end (only if usage was seen).
+    if (rewriteModel || usageTap || onSseEvent) {
+      // Line-based relay so we can rewrite model AND/OR tap usage / observe
+      // events from SSE. The tap captures the LAST non-null usage the extractor
+      // returns; onUsage fires once at stream end (only if usage was seen).
       let capturedUsage: Record<string, unknown> | null = null;
       await relaySseBody(res, providerResponse.body, {
         rewriteModel,
-        onSseEvent: usageTap
-          ? (event) => {
-              const raw = usageTap.extractUsage(event);
-              if (raw) capturedUsage = raw;
-            }
-          : undefined,
+        onSseEvent:
+          onSseEvent || usageTap
+            ? (event) => {
+                // Observer first (read-only side channel), then usage extraction.
+                onSseEvent?.(event);
+                if (usageTap) {
+                  const raw = usageTap.extractUsage(event);
+                  if (raw) capturedUsage = raw;
+                }
+              }
+            : undefined,
       });
       if (capturedUsage) usageTap!.onUsage(capturedUsage);
       return null;

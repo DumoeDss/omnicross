@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Beban berlebih server",
+      "overloaded": "kelebihan beban",
+      "overloadTrend": "Tren beban berlebih server",
+      "overloadTrendHint": "Peristiwa Codex `server_is_overloaded` / `slow_down` datang di dalam stream 200. Ini adalah masalah kapasitas yang tidak bergantung pada akun, jadi dicatat, bukan dicoba ulang.",
+      "overloadUnavailable": "Pelacakan beban berlebih tidak tersedia di versi daemon ini.",
+      "overloadNone": "Tidak ada beban berlebih server tercatat dalam satu jam terakhir.",
+      "overloadTotal": "total",
+      "overloadJustNow": "baru saja",
+      "overloadMinsAgo": "{{n}} menit lalu",
+      "overloadHoursAgo": "{{n}} jam lalu"
+    }
   }
 }

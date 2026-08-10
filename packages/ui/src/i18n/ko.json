@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "서버 과부하",
+      "overloaded": "과부하",
+      "overloadTrend": "서버 과부하 추세",
+      "overloadTrendHint": "Codex의 server_is_overloaded / slow_down 이벤트는 200 스트림 내부로 전달됩니다. 계정과 무관한 용량 문제이므로 재시도하지 않고 기록만 합니다.",
+      "overloadUnavailable": "이 데몬 버전에서는 과부하 추적을 사용할 수 없습니다.",
+      "overloadNone": "최근 1시간 동안 서버 과부하가 기록되지 않았습니다.",
+      "overloadTotal": "총합",
+      "overloadJustNow": "방금",
+      "overloadMinsAgo": "{{n}}분 전",
+      "overloadHoursAgo": "{{n}}시간 전"
+    }
   }
 }

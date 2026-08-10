@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Sobrecargas do servidor",
+      "overloaded": "sobrecarregado",
+      "overloadTrend": "Tendência de sobrecarga do servidor",
+      "overloadTrendHint": "Os eventos `server_is_overloaded` / `slow_down` do Codex chegam dentro de fluxos 200. São problemas de capacidade independentes da conta, então são registrados, não repetidos.",
+      "overloadUnavailable": "O monitoramento de sobrecargas não está disponível nesta versão do daemon.",
+      "overloadNone": "Nenhuma sobrecarga do servidor registrada na última hora.",
+      "overloadTotal": "total",
+      "overloadJustNow": "agora mesmo",
+      "overloadMinsAgo": "há {{n}} min",
+      "overloadHoursAgo": "há {{n}} h"
+    }
   }
 }
