@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Przeciążenia serwera",
+      "overloaded": "przeciążony",
+      "overloadTrend": "Trend przeciążeń serwera",
+      "overloadTrendHint": "Zdarzenia Codex `server_is_overloaded` / `slow_down` docierają wewnątrz strumieni 200. To problemy pojemnościowe niezależne od konta, więc są rejestrowane, nie powtarzane.",
+      "overloadUnavailable": "Śledzenie przeciążeń jest niedostępne w tej wersji demona.",
+      "overloadNone": "Brak przeciążeń serwera w ostatniej godzinie.",
+      "overloadTotal": "łącznie",
+      "overloadJustNow": "przed chwilą",
+      "overloadMinsAgo": "{{n}} min temu",
+      "overloadHoursAgo": "{{n}} godz. temu"
+    }
   }
 }

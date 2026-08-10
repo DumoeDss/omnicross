@@ -22,16 +22,16 @@ const WALL_BODY = JSON.stringify({
   },
 });
 
-function wallResult(accountId: string, status = 429): { response: Response; rawStatus: number; accountId: string } {
-  return { response: new Response(WALL_BODY, { status, headers: { 'content-type': 'application/json' } }), rawStatus: status, accountId };
+function wallResult(accountId: string, status = 429): { response: Response; rawStatus: number; accountId: string; activityRecordId: undefined } {
+  return { response: new Response(WALL_BODY, { status, headers: { 'content-type': 'application/json' } }), rawStatus: status, accountId, activityRecordId: undefined };
 }
 
-function errorResult(accountId: string, body: string, status = 500): { response: Response; rawStatus: number; accountId: string } {
-  return { response: new Response(body, { status, headers: { 'content-type': 'application/json' } }), rawStatus: status, accountId };
+function errorResult(accountId: string, body: string, status = 500): { response: Response; rawStatus: number; accountId: string; activityRecordId: undefined } {
+  return { response: new Response(body, { status, headers: { 'content-type': 'application/json' } }), rawStatus: status, accountId, activityRecordId: undefined };
 }
 
-function successResult(accountId: string): { response: Response; rawStatus: number; accountId: string } {
-  return { response: new Response('{"id":"resp_1","output":[]}', { status: 200, headers: { 'content-type': 'application/json' } }), rawStatus: 200, accountId };
+function successResult(accountId: string): { response: Response; rawStatus: number; accountId: string; activityRecordId: undefined } {
+  return { response: new Response('{"id":"resp_1","output":[]}', { status: 200, headers: { 'content-type': 'application/json' } }), rawStatus: 200, accountId, activityRecordId: undefined };
 }
 
 beforeEach(() => __resetSharedAccountHealthForTests());

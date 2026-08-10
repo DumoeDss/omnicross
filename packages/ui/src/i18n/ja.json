@@ -601,6 +601,18 @@
       "deleteDescription": "「{{name}}」を削除します。リクエストは別の一致するルートを使用し、一致しなければ失敗します。",
       "signalPath": "{{key}} から {{endpoint}}、{{resource}}、{{model}} へ",
       "openFromUpstreams": "このアカウントのゲートウェイルートを管理するには、アップストリームから開いてください。"
+    },
+    "activity": {
+      "overloadCount": "サーバー過負荷",
+      "overloaded": "過負荷",
+      "overloadTrend": "サーバー過負荷の推移",
+      "overloadTrendHint": "Codex の server_is_overloaded / slow_down イベントは 200 ストリーム内で届きます。アカウントに依存しない容量の問題のため、再試行せず記録のみ行います。",
+      "overloadUnavailable": "このデーモンバージョンでは過負荷追跡を利用できません。",
+      "overloadNone": "過去1時間にサーバー過負荷は記録されていません。",
+      "overloadTotal": "合計",
+      "overloadJustNow": "たった今",
+      "overloadMinsAgo": "{{n}} 分前",
+      "overloadHoursAgo": "{{n}} 時間前"
     }
   },
   "apiService": {

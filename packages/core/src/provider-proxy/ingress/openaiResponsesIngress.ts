@@ -63,6 +63,32 @@ import {
   writeError,
 } from './providerProxyShared';
 import { markCodexUsageLimitExhaustion } from './codexUsageLimitDetection';
+import { getSharedAccountRouteActivity } from '../../pipeline/AccountRouteActivity';
+import { getSharedOverloadCounter } from '../../pipeline/ServerOverloadCounter';
+
+/**
+ * SSE `response.failed` `error.code` values that mean the Codex/OpenAI backend
+ * itself is overloaded (account-independent capacity) — NOT a quota/usage wall.
+ * Mirrors Codex CLI's own classifier (`codex-api/src/sse/responses.rs:669`).
+ * Delivered INSIDE a `200` stream, which is why the route-activity HTTP-status
+ * layer never sees them and the existing 429-quota retry does not fire.
+ */
+const SERVER_OVERLOADED_CODES = new Set(['server_is_overloaded', 'slow_down']);
+
+/**
+ * True when a parsed Responses-API SSE event is the server-overload failure.
+ * Detection only — the caller RECORDS/annotates but never retries (overload is
+ * account-independent; retrying on another account won't help and may worsen it).
+ * Exported for unit testing.
+ */
+export function isCodexServerOverloadEvent(event: Record<string, unknown>): boolean {
+  if (event['type'] !== 'response.failed') return false;
+  const error = (event['response'] as Record<string, unknown> | undefined)?.['error'] as
+    | Record<string, unknown>
+    | undefined;
+  const code = error?.['code'];
+  return typeof code === 'string' && SERVER_OVERLOADED_CODES.has(code);
+}
 
 /**
  * Match the codex `/responses` route: `POST` + any path ENDING IN `/responses`
@@ -256,12 +282,40 @@ export async function handleOpenAIResponsesRequest(
           },
         }
       : undefined;
+    // Server-overload visibility: a Codex `response.failed` overload event
+    // arrives INSIDE this 200 stream (see isCodexServerOverloadEvent). It is
+    // account-independent capacity — we do NOT retry/divert, but we DO record:
+    // backfill the route-activity row (so a 200 that failed mid-stream is no
+    // longer disguised as healthy) and tally it on the overload counter (trend).
+    // The flag makes each effect fire at most once per request even if multiple
+    // failure events appear in the stream.
+    const overloadActivityId = providerResponse.activityRecordId;
+    const overloadAccountId = providerResponse.accountId;
+    const overloadProviderId = plan.proxyProviderId;
+    let overloadRecorded = false;
+    const overloadDetector = (event: Record<string, unknown>): void => {
+      if (overloadRecorded || !isCodexServerOverloadEvent(event)) return;
+      overloadRecorded = true;
+      if (overloadActivityId) {
+        getSharedAccountRouteActivity().amend(overloadActivityId, {
+          streamError: 'server_overloaded',
+        });
+      }
+      if (overloadAccountId) {
+        getSharedOverloadCounter().recordOverload({
+          providerId: overloadProviderId,
+          accountId: overloadAccountId,
+          endpoint: 'responses',
+        });
+      }
+    };
     const bodyText = await relayResponse(
       res,
       providerResponse.response,
       isStream,
       route.requestedModel,
       usageTap,
+      overloadDetector,
     );
     if (bodyText && deps.usageRecorder) {
       recordResponsesNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
@@ -502,7 +556,7 @@ async function resolveGeminiCodeAssistProject(
 async function runPipeline(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
+): Promise<PipelineResult> {
   const executor = getSharedExecutor();
   const endpointTransformer = getResponsesEndpointTransformer();
   const { auth, sessionKey, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
@@ -513,6 +567,9 @@ async function runPipeline(
   // upstream-proxy: capture the selected pooled account so per-account proxy
   // resolves (no-op for BYO — LlmConfigProviderAuth never reports a selection).
   let proxyAccountId: string | undefined;
+  // route-activity record id for THIS attempt, captured from the fetch seam so a
+  // mid-stream overload event can later amend the row that stamped the 200.
+  let activityRecordId: string | undefined;
   const authHeaders: Record<string, string> = {};
   await auth.applyHeaders(authHeaders, {
     upstreamUrl,
@@ -572,6 +629,9 @@ async function runPipeline(
                 sessionKey,
                 sessionSource: plan.sessionSource ?? 'none',
                 model: resolvedModel,
+                onRecorded: (record) => {
+                  activityRecordId = record.id;
+                },
               },
         },
       ).then((r) => {
@@ -582,7 +642,7 @@ async function runPipeline(
     runResponseChain: true,
   });
 
-  return { response, rawStatus, accountId: proxyAccountId };
+  return { response, rawStatus, accountId: proxyAccountId, activityRecordId };
 }
 
 /**
@@ -598,7 +658,7 @@ async function runPipeline(
 async function runPipelineWithPoolReporting(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
+): Promise<PipelineResult> {
   const first = await runPipeline(responsesBody, plan);
   const outcome = await plan.auth.onResult?.(first.rawStatus);
   if (outcome?.rebound) {
@@ -621,7 +681,7 @@ async function runPipelineWithPoolReporting(
 async function runPipelineWithSubscriptionRetry(
   responsesBody: Record<string, unknown>,
   plan: ResponsesCallPlan,
-): Promise<{ response: Response; rawStatus: number | null; accountId: string | undefined }> {
+): Promise<PipelineResult> {
   const first = await runPipeline(responsesBody, plan);
   if (first.rawStatus !== 401) return first;
 
@@ -635,7 +695,18 @@ async function runPipelineWithSubscriptionRetry(
 }
 
 /** The runPipeline result shape (shared by every wrapper above). */
-type PipelineResult = { response: Response; rawStatus: number | null; accountId: string | undefined };
+type PipelineResult = {
+  response: Response;
+  rawStatus: number | null;
+  accountId: string | undefined;
+  /**
+   * The route-activity record id for THIS attempt, so a post-hoc mid-stream
+   * fact (e.g. an overload event in the 200 SSE body) can `amend` the SAME row
+   * that `fetchUpstream` stamped with the 200 status. Undefined on BYO / when
+   * no route-activity record was created.
+   */
+  activityRecordId: string | undefined;
+};
 
 /**
  * Cap on consecutive quota-exhausted accounts retried for ONE inbound request.

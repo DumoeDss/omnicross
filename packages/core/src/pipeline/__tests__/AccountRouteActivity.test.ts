@@ -43,4 +43,23 @@ describe('AccountRouteActivityStore', () => {
     all[0]!.accountId = 'mutated';
     expect(store.list({ limit: 1 })[0]?.accountId).not.toBe('mutated');
   });
+
+  it('amend backfills a post-hoc field on an existing record (copy-safe, no-op on unknown id)', () => {
+    const store = new AccountRouteActivityStore();
+    const recorded = store.record(input('account-a', 'session-a'));
+    expect(recorded.streamError).toBeUndefined();
+
+    store.amend(recorded.id, { streamError: 'server_overloaded' });
+
+    const listed = store.list({ limit: 1 });
+    expect(listed[0]?.streamError).toBe('server_overloaded');
+
+    // Copy-safety: mutating a listed copy does not affect the stored record.
+    listed[0]!.streamError = 'tampered';
+    expect(store.list({ limit: 1 })[0]?.streamError).toBe('server_overloaded');
+
+    // Unknown id (aged out of the ring) is a silent no-op.
+    store.amend('does-not-exist', { streamError: 'server_overloaded' });
+    expect(store.list()).toHaveLength(1);
+  });
 });

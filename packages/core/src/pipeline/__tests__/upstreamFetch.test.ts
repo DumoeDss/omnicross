@@ -118,6 +118,31 @@ describe('fetchUpstream', () => {
     ]);
     expect(JSON.stringify(records)).not.toContain('SENTINEL-PROMPT');
   });
+
+  it('invokes onRecorded with the freshly-recorded activity row (id usable for amend)', async () => {
+    const onRecorded = vi.fn();
+    await fetchUpstream(
+      'https://chatgpt.com/backend-api/codex/responses',
+      { method: 'POST' },
+      {
+        providerId: 'codex',
+        accountId: 'account-c',
+        routeActivity: {
+          endpoint: 'responses',
+          sessionSource: 'session-header',
+          model: 'gpt-5-codex',
+          onRecorded,
+        },
+      },
+    );
+    expect(onRecorded).toHaveBeenCalledTimes(1);
+    expect(onRecorded.mock.calls[0]?.[0]).toMatchObject({
+      providerId: 'codex',
+      accountId: 'account-c',
+      status: 200,
+    });
+    expect(typeof onRecorded.mock.calls[0]?.[0]?.id).toBe('string');
+  });
 });
 
 describe('credential-exchange trace redaction (ctx.redactBodies)', () => {

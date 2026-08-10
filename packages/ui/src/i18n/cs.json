@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Přetížení serveru",
+      "overloaded": "přetíženo",
+      "overloadTrend": "Trend přetížení serveru",
+      "overloadTrendHint": "Události Codex `server_is_overloaded` / `slow_down` přicházejí uvnitř streamů 200. Jde o problémy kapacity nezávislé na účtu, proto se zaznamenávají, neopakují.",
+      "overloadUnavailable": "Sledování přetížení není v této verzi daemonu k dispozici.",
+      "overloadNone": "Za poslední hodinu nebyla zaznamenána žádná přetížení serveru.",
+      "overloadTotal": "celkem",
+      "overloadJustNow": "právě teď",
+      "overloadMinsAgo": "před {{n}} min",
+      "overloadHoursAgo": "před {{n}} h"
+    }
   }
 }

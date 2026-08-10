@@ -45,6 +45,7 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
+  OverloadCounterResponse,
   ProxyConfig,
   VoucherCreated,
   VoucherInfo,
@@ -330,6 +331,11 @@ export interface AgentApiServiceApi {
     sessionKey?: string;
     limit?: number;
   }): Promise<AccountRouteActivityResponse>;
+  /** Read process-local, metadata-only per-account server-overload tally. */
+  queryOverloadCounters(query?: {
+    providerId?: string;
+    accountId?: string;
+  }): Promise<OverloadCounterResponse>;
   /**
    * Persist the billing segment (`PUT /server` with `{ billing }`,
    * billing-event-stream). Pass `undefined` to reset to defaults (disabled). The

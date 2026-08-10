@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Перевантаження сервера",
+      "overloaded": "перевантажено",
+      "overloadTrend": "Тренд перевантажень сервера",
+      "overloadTrendHint": "Події Codex `server_is_overloaded` / `slow_down` надходять усередині потоків 200. Це проблеми пропускної здатності, незалежні від акаунта, тому вони фіксуються, а не повторюються.",
+      "overloadUnavailable": "Відстеження перевантажень недоступне в цій версії демона.",
+      "overloadNone": "За останню годину перевантажень сервера не зафіксовано.",
+      "overloadTotal": "всього",
+      "overloadJustNow": "щойно",
+      "overloadMinsAgo": "{{n}} хв тому",
+      "overloadHoursAgo": "{{n}} год тому"
+    }
   }
 }

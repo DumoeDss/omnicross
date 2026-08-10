@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "زيادة تحميل الخادم",
+      "overloaded": "مثقل",
+      "overloadTrend": "اتجاه زيادة تحميل الخادم",
+      "overloadTrendHint": "تصل أحداث Codex `server_is_overloaded` / `slow_down` داخل تدفقات 200. وهي مشكلات سعة مستقلة عن الحساب، لذا يتم تسجيلها فقط دون إعادة المحاولة.",
+      "overloadUnavailable": "تتبع زيادة التحميل غير متوفر في إصدار daemon هذا.",
+      "overloadNone": "لا توجد زيادات تحميل خادم مسجلة في الساعة الماضية.",
+      "overloadTotal": "الإجمالي",
+      "overloadJustNow": "الآن",
+      "overloadMinsAgo": "قبل {{n}} دقيقة",
+      "overloadHoursAgo": "قبل {{n}} ساعة"
+    }
   }
 }

@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Претоварвания на сървъра",
+      "overloaded": "претоварен",
+      "overloadTrend": "Тенденция на претоварванията на сървъра",
+      "overloadTrendHint": "Събитията на Codex `server_is_overloaded` / `slow_down` идват вътре в потоци 200. Това са проблеми с капацитет, независими от профила, затова се записват, не се повтарят.",
+      "overloadUnavailable": "Проследяването на претоварвания не е налично на тази версия на daemon.",
+      "overloadNone": "Няма записани претоварвания на сървъра през последния час.",
+      "overloadTotal": "общо",
+      "overloadJustNow": "току-що",
+      "overloadMinsAgo": "преди {{n}} мин",
+      "overloadHoursAgo": "преди {{n}} ч"
+    }
   }
 }

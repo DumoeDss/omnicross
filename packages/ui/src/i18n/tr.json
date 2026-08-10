@@ -1063,5 +1063,19 @@
     "save": "Save proxy",
     "saveHint": "Upstream requests route through this proxy.",
     "disabledHint": "No proxy — upstream requests go direct."
+  },
+  "upstreams": {
+    "activity": {
+      "overloadCount": "Sunucu aşırı yükleri",
+      "overloaded": "aşırı yüklenmiş",
+      "overloadTrend": "Sunucu aşırı yük trendi",
+      "overloadTrendHint": "Codex `server_is_overloaded` / `slow_down` olayları 200 akışları içinde gelir. Hesaptan bağımsız kapasite sorunlarıdır, bu yüzden yeniden denenmez, kaydedilir.",
+      "overloadUnavailable": "Aşırı yük takibi bu daemon sürümünde kullanılamıyor.",
+      "overloadNone": "Son bir saatte kaydedilen sunucu aşırı yükü yok.",
+      "overloadTotal": "toplam",
+      "overloadJustNow": "az önce",
+      "overloadMinsAgo": "{{n}} dk önce",
+      "overloadHoursAgo": "{{n}} sa önce"
+    }
   }
 }
