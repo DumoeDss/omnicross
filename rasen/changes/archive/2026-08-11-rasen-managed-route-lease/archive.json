@@ -1,0 +1,41 @@
+{
+  "change": "rasen-managed-route-lease",
+  "archivedAt": "2026-08-11T14:33:22.406Z",
+  "codeCommit": "dd9c06d986eec2507dfb1b4e5399aafd3d5ff262",
+  "planningBranch": "main",
+  "planningTreeState": "dirty",
+  "evidence": [
+    {
+      "path": "evidence/review-loop-round-1-report.md",
+      "sha256": "72471bfb686df8e8101f151b6e18ecfda06096cdf6a0ae6da95bad4894eb234f"
+    },
+    {
+      "path": "evidence/review-loop-round-2-report.md",
+      "sha256": "f6532223b0d93c303a0057a82c2194bea18d25cf3b473319b49ef273a237f27f"
+    },
+    {
+      "path": "evidence/review-loop-round-3-final-report.md",
+      "sha256": "92eedcef40a73b812f8ddefe3dbbdce1d30f66475f35640fa5351096462ee448"
+    },
+    {
+      "path": "evidence/review-loop-round-3-report.md",
+      "sha256": "1baf5707f5ffcfc14e9b6c22c0d6c0feac9662195825e8f19a214498d4000828"
+    },
+    {
+      "path": "evidence/review-report.md",
+      "sha256": "87d9951d18818468845eaef74df35cd25d3676522441c5b432d2b8a9568b7298"
+    },
+    {
+      "path": "evidence/ship-log.md",
+      "sha256": "8ebf3a5d839799f1f2ef7d8798d3b17b8b5bad6f9bf81cbfca36460446f3a36b"
+    }
+  ],
+  "probes": [],
+  "handoffAbsorbed": null,
+  "ephemeraDiscarded": [
+    "auto-run.json"
+  ],
+  "missing": [
+    "verification-report"
+  ]
+}

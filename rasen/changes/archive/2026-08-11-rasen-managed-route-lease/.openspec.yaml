@@ -1,0 +1,15 @@
+schema: spec-driven
+created: 2026-08-11
+quality:
+  files:
+    - evidence/review-loop-round-1-report.md
+    - evidence/review-loop-round-2-report.md
+    - evidence/review-loop-round-3-final-report.md
+    - evidence/review-loop-round-3-report.md
+    - evidence/review-report.md
+  metrics:
+    evidence/review-loop-round-1-report.md: 0
+    evidence/review-loop-round-2-report.md: 0
+    evidence/review-loop-round-3-final-report.md: 0
+    evidence/review-loop-round-3-report.md: 0
+    evidence/review-report.md: 0

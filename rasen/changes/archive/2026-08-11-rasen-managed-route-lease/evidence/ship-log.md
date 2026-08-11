@@ -30,3 +30,8 @@ The sole skip is the explicit, local, non-billable real-macOS Terminal eventual-
 ## Delivery
 
 The ship stage creates a local feature-branch commit only. It does not push, open a pull request, tag, publish packages, create a release, deploy, or archive the change. The commit SHA is recorded in machine-local Rasen run-state and the lead's completion report after creation.
+
+## Archive
+**Date:** 2026-08-11T14:33:22.406Z
+**Outcome:** archived at E:\AI\ChatAI\Agents\VibeCodingProjects\elftia\elftia\omnicross\rasen\changes\archive\2026-08-11-rasen-managed-route-lease
+**Transaction:** 98d063dd-681b-4877-9f56-19ee6d3a3d42
