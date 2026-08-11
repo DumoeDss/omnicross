@@ -183,6 +183,32 @@ describe('SubscriptionAccountSelector — session affinity', () => {
     });
     expect(next?.accountId).not.toBe(stuck);
   });
+
+  it('evictAffinity drops a session→account binding so the session re-selects', () => {
+    const s = new SubscriptionAccountSelector();
+    const accounts = [acc('A'), acc('B')];
+    const first = s.select({ providerId: 'claude', accounts, sessionKey: 'sess-1', now: T0 });
+    const stuck = first!.accountId;
+    const other = stuck === 'A' ? 'B' : 'A';
+    s.evictAffinity('claude', stuck);
+    // Affinity was evicted → the session no longer sticks to `stuck` and re-selects
+    // (LRU: `stuck` is most-recently-used → the other account wins).
+    const next = s.select({ providerId: 'claude', accounts, sessionKey: 'sess-1', now: T0 + 1000 });
+    expect(next?.accountId).toBe(other);
+  });
+
+  it('evictAffinity is provider-scoped and leaves other providers sticky', () => {
+    const s = new SubscriptionAccountSelector();
+    const accounts = [acc('A'), acc('B')];
+    // Two providers, same session key, both initially sticky to A.
+    s.select({ providerId: 'claude', accounts, sessionKey: 'sess-1', now: T0 });
+    s.select({ providerId: 'codex', accounts, sessionKey: 'sess-1', now: T0 });
+    // Evict only the claude→A binding.
+    s.evictAffinity('claude', 'A');
+    expect(s.select({ providerId: 'claude', accounts, sessionKey: 'sess-1', now: T0 + 1000 })?.accountId).toBe('B');
+    // The codex affinity is untouched → still A.
+    expect(s.select({ providerId: 'codex', accounts, sessionKey: 'sess-1', now: T0 + 1000 })?.accountId).toBe('A');
+  });
 });
 
 describe('SubscriptionAccountSelector — duePersist throttle', () => {

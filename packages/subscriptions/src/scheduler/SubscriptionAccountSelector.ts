@@ -132,7 +132,12 @@ export class SubscriptionAccountSelector {
    * conversation).
    */
   evictAffinity(providerId: SubscriptionProviderId, accountId: string): void {
-    const prefix = `${providerId} `;
+    // Derive the prefix from `scopedKey` so its `\0` separator can never desync
+    // from the affinity key shape. A literal space here (`${providerId} `) matched
+    // NOTHING (keys are `${providerId}\0${sessionKey}`) and the eviction silently
+    // no-opped — sessions stayed sticky to a bad account forever (regression
+    // covered by the `evictAffinity` tests below).
+    const prefix = scopedKey(providerId, '');
     for (const [key, entry] of this.affinity) {
       if (entry.accountId === accountId && key.startsWith(prefix)) {
         this.affinity.delete(key);
