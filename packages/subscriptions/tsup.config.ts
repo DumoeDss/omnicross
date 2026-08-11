@@ -7,6 +7,10 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     oauth: 'src/oauth/index.ts',
+    // Consumed as a subpath by the daemon preflight (value import of
+    // `accountSupportsModel`). A subpath entry must be registered here or the
+    // `./*` exports wildcard resolves to a dist file that was never built.
+    'scheduler/accountModelMap': 'src/scheduler/accountModelMap.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
