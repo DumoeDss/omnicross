@@ -5,11 +5,11 @@
  *  (a) `buildCodexConfigOverrides` — the load-bearing `-c key=value` contract:
  *      the exact TOML keys + types the Codex CLI must receive to be redirected
  *      at the proxy (`model_provider`, `model_providers.<name>.base_url`,
- *      `wire_api="responses"`, UNQUOTED `requires_openai_auth=true`,
+ *      `wire_api="responses"`, dedicated route-token `env_key`, and
  *      `disable_response_storage=true`), with the listener base path appended.
  *  (b) `buildCodexLaunchConfig` (BYO) — drives a real resident `ProviderProxy`, returns
  *      `{ env, extraArgs, baseUrl, onSessionEnd }`; the overrides embed the
- *      booted port; the auth sentinel is set; `onSessionEnd` stops the listener.
+ *      booted port; the route token is environment-only; cleanup removes the route.
  *  (c) error semantics — missing provider / missing key (BYO) and missing
  *      subscription profile (subscription) throw BEFORE any listener is booted.
  *
@@ -82,9 +82,10 @@ describe('buildCodexConfigOverrides (the -c redirect contract)', () => {
     expect(overrideValue(overrides, `model_providers.${name}.wire_api`)).toBe('"responses"');
   });
 
-  it('sets requires_openai_auth as an UNQUOTED boolean (TOML-typed)', () => {
-    // Must be the bare token `true`, not the string `"true"`.
-    expect(overrideValue(overrides, `model_providers.${name}.requires_openai_auth`)).toBe('true');
+  it('uses the dedicated env_key and never requires OpenAI auth', () => {
+    expect(overrideValue(overrides, `model_providers.${name}.env_key`)).toBe('"OMNICROSS_CODEX_ROUTE_TOKEN"');
+    expect(overrideValue(overrides, `model_providers.${name}.requires_openai_auth`)).toBeUndefined();
+    expect(overrideValue(overrides, `model_providers.${name}.name`)).toBe('"OmniCross"');
   });
 
   it('disables server-side response storage (stateless upstream)', () => {
@@ -125,9 +126,10 @@ describe('buildCodexLaunchConfig (BYO — registers a route on the resident prox
     // baseUrl is the resident 127.0.0.1 listener.
     expect(launch.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
 
-    // OPENAI_API_KEY is now the minted route TOKEN (the CLI forwards it; the
-    // proxy looks it up + discards it, re-authing upstream).
-    expect(launch.env.OPENAI_API_KEY).toMatch(/^[0-9a-f]{64}$/);
+    // The dedicated provider env key carries the minted route token; the proxy
+    // looks it up, discards it, and re-authenticates upstream.
+    expect(launch.env.OMNICROSS_CODEX_ROUTE_TOKEN).toMatch(/^[0-9a-f]{64}$/);
+    expect(launch.env.OPENAI_API_KEY).toBeUndefined();
 
     // The base_url override embeds the resident listener + base path.
     const name = CODEX_PROXY_PROVIDER_NAME;
@@ -144,7 +146,7 @@ describe('buildCodexLaunchConfig (BYO — registers a route on the resident prox
     // transformer-matrix), so probe an unhandled path (`/openai/embeddings`).
     const res = await fetch(`${launch.baseUrl}/openai/embeddings`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${launch.env.OPENAI_API_KEY}` },
+      headers: { Authorization: `Bearer ${launch.env.OMNICROSS_CODEX_ROUTE_TOKEN}` },
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(404);
@@ -166,7 +168,7 @@ describe('buildCodexLaunchConfig (BYO — registers a route on the resident prox
     // now-stale token is rejected with 401 (no fallback — design D9).
     const after = await fetch(`${baseUrl}/openai/responses`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${launch.env.OPENAI_API_KEY}` },
+      headers: { Authorization: `Bearer ${launch.env.OMNICROSS_CODEX_ROUTE_TOKEN}` },
       body: '{}',
     });
     expect(after.status).toBe(401);
@@ -238,7 +240,7 @@ describe('buildCodexLaunchConfig (error semantics — fail before registering a 
       subscriptionProfile: profile,
     });
     expect(launch.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
-    expect(launch.env.OPENAI_API_KEY).toMatch(/^[0-9a-f]{64}$/);
+    expect(launch.env.OMNICROSS_CODEX_ROUTE_TOKEN).toMatch(/^[0-9a-f]{64}$/);
     expect(getProviderProxy().routeCount()).toBe(1);
     launch.onSessionEnd();
     expect(getProviderProxy().routeCount()).toBe(0);

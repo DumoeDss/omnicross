@@ -53,7 +53,10 @@ import {
   __resetProviderProxyForTests,
   getProviderProxy,
   type ProviderProxy,
+  RouteLeaseManager,
+  RouteLeaseTargetResolver,
 } from '@omnicross/core/provider-proxy';
+import { routeLeaseDescriptorPort } from '@omnicross/cli-launcher';
 import { KeySpendTracker } from '@omnicross/core/outbound-api';
 import { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import {
@@ -71,7 +74,7 @@ import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowanc
 import { AdminServer } from './admin/AdminServer';
 import { buildHealthReport } from './admin/health';
 import { DAEMON_VERSION } from './admin/version';
-import type { CommandRunner, PathProbe, TerminalOpener } from './admin/cliLaunch';
+import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener } from './admin/cliLaunch';
 import { OAuthSessionStore } from './admin/oauthSessions';
 import { awaitLoopbackCode } from './commands/loopbackCallback';
 import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
@@ -112,6 +115,7 @@ import { resetBillingRuntimeForTests, setBillingRuntime } from './billing/billin
 import { BillingRetrySweeper } from './billing/BillingRetrySweeper';
 import { decryptConfigSecrets, resolveMasterKey, SecretBox } from './secrets';
 import { TokenRefreshScheduler } from './TokenRefreshScheduler';
+import { createRouteLeaseSubscriptionPreflight } from './routeLeaseSubscriptionPreflight';
 import { WebhookDispatcher } from './webhook/WebhookDispatcher';
 import { resetWebhookRuntimeForTests, setWebhookRuntime } from './webhook/webhookRuntime';
 
@@ -164,6 +168,7 @@ export interface Daemon {
   readonly keyDb: JsonOutboundKeyDb;
   readonly settingsStore: JsonApiServerSettingsStore;
   readonly providerProxy: ProviderProxy;
+  readonly routeLeaseManager: RouteLeaseManager;
   readonly outboundApiServer: OutboundApiServer;
   /**
    * Multi-key load balancer. Wired into the proxy deps slot
@@ -446,6 +451,17 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // subscription slot lazily at request time, so this call is otherwise
   // unchanged.)
   const providerProxy = getProviderProxy({ llmConfig, apiKeyPool, usageRecorder });
+  const routeLeaseManager = new RouteLeaseManager(
+    providerProxy,
+    new RouteLeaseTargetResolver(llmConfig, {
+      providerKeys: apiKeyPool,
+      subscriptions: createRouteLeaseSubscriptionPreflight(credentialStore),
+    }),
+    routeLeaseDescriptorPort,
+    { logger },
+  );
+  providerProxy.registerBeforeStop(() => routeLeaseManager.shutdown());
+  providerProxy.registerBeforeStop(() => resetCliSessions());
 
   // Hot-reload × keyCache (design D4): flush the pool's keyCache after every
   // `reload(...)` so the next `loadKeys` reads the swapped catalog. The port
@@ -533,6 +549,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     keySpendReader: keySpendTracker,
     settingsStore,
     outboundApiServer,
+    routeLeaseManager,
     subscriptionAccounts,
     accountAllowanceService,
     allowanceRefreshScheduler: claudeAllowanceRefreshScheduler,
@@ -685,6 +702,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     keyDb,
     settingsStore,
     providerProxy,
+    routeLeaseManager,
     outboundApiServer,
     apiKeyPool,
     autoDisableStore,

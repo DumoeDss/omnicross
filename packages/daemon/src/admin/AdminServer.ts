@@ -45,6 +45,7 @@ import {
 } from './auditQueryApi';
 import { type BillingStatusReader, handleBillingStatus } from './billingStatusApi';
 import { handleWebhookTest } from './webhookTestApi';
+import { handleRouteLeaseApi } from './routeLeaseApi';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
 import { DAEMON_VERSION } from './version';
@@ -270,6 +271,16 @@ export class AdminServer {
     // `test` event to one destination via the live dispatcher; returns the outcome.
     if (path === '/admin/api/webhook-test' && req.method === 'POST') {
       await handleWebhookTest(req, res);
+      return;
+    }
+
+    // Route Lease control plane: auth has already passed above; the focused
+    // handler additionally checks the actual socket peer for loopback.
+    if (
+      path === '/admin/api/route-leases' ||
+      path.startsWith('/admin/api/route-leases/')
+    ) {
+      await handleRouteLeaseApi(req, res, path, this.deps);
       return;
     }
 

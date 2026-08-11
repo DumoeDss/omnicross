@@ -8,20 +8,15 @@
  * `codex-responses-ingress` change): the Codex CLI does NOT honor an
  * `OPENAI_BASE_URL` env var for base-url redirection. It is redirected via its
  * config — `~/.codex/config.toml`'s `[model_providers.<name>]` block
- * (`base_url`, `wire_api = "responses"`, `requires_openai_auth = true`) selected
- * by `model_provider = "<name>"`. Codex exposes those config keys as
- * command-line `-c key=value` overrides (the SAME mechanism the canvas-MCP and
- * builtin-MCP CLI injectors already use for `mcp_servers.*`), so this builder
- * returns the `-c` overrides as `extraArgs` rather than writing the user's
- * `~/.codex/config.toml` on disk. This keeps the redirection session-scoped and
- * leaves the user's real config untouched (no file management, no rollback risk).
+ * (`base_url`, `wire_api = "responses"`, and a dedicated `env_key`) selected by
+ * `model_provider = "<name>"`. Codex exposes those config keys as command-line
+ * `-c key=value` overrides (the SAME mechanism the canvas-MCP and builtin-MCP CLI
+ * injectors already use for `mcp_servers.*`), so this builder returns the `-c`
+ * overrides as `extraArgs` rather than writing the user's `~/.codex/config.toml`
+ * on disk. This keeps redirection session-scoped and leaves user config untouched.
  *
- * The API key the CLI sends is supplied through the `requires_openai_auth` env
- * (`OPENAI_API_KEY`) — a placeholder is sufficient because the proxy
- * re-authenticates every upstream call with the resolved provider/subscription
- * credential; the value the CLI forwards is never used upstream. We still inject
- * a sentinel so the CLI's `requires_openai_auth = true` precondition is met
- * without the CLI falling back to a real `~/.codex/auth.json`.
+ * The route token is supplied only through `OMNICROSS_CODEX_ROUTE_TOKEN`, named
+ * by the custom provider's `env_key`; no OpenAI login or auth file is required.
  *
  * What this builder returns (mirroring `ProviderEnvResult` from provider-env.ts):
  *   - `env`        — env vars merged into the Codex subprocess (the auth sentinel).
@@ -39,7 +34,11 @@ import { resolveProviderEndpoint } from '@omnicross/core/completion';
 import type { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
 import type { SubscriptionAuthProfile } from '@omnicross/core/pipeline/SubscriptionAuthSource';
 import type { RouteAuthMode, RouteContext } from '@omnicross/core/provider-proxy';
-import { getProviderProxy } from '@omnicross/core/provider-proxy';
+import {
+  getProviderProxy,
+  ROUTE_LEASE_CODEX_TOKEN_ENV,
+  type RuntimeLaunchDescriptor,
+} from '@omnicross/core/provider-proxy';
 
 /**
  * The provider/model-provider NAME the Codex CLI selects via `model_provider`.
@@ -85,21 +84,12 @@ export interface CodexLaunchConfigInputs {
  * Codex-specific `extraArgs` (config overrides) and the `baseUrl`.
  */
 export interface CodexLaunchConfig {
-  /**
-   * Env vars to merge into the Codex subprocess env. The Codex CLI's
-   * `requires_openai_auth = true` precondition is satisfied by a sentinel
-   * `OPENAI_API_KEY` (the value is never used upstream — the proxy re-auths).
-   */
+  /** Env vars to merge into the Codex subprocess env, including its route token. */
   readonly env: Record<string, string>;
   /**
    * `-c key=value` config overrides appended to the Codex argv. These override
-   * `~/.codex/config.toml` for THIS spawn only, pointing the CLI at the proxy:
-   *   `-c model_provider="omnicross"`
-   *   `-c model_providers.omnicross.name="omnicross"`
-   *   `-c model_providers.omnicross.base_url="http://127.0.0.1:<port>/openai"`
-   *   `-c model_providers.omnicross.wire_api="responses"`
-   *   `-c model_providers.omnicross.requires_openai_auth=true`
-   * (`requires_openai_auth` is an UNQUOTED boolean — TOML overrides are typed.)
+   * `~/.codex/config.toml` for THIS spawn only, pointing the CLI at the proxy and
+   * naming `OMNICROSS_CODEX_ROUTE_TOKEN` as the custom provider's `env_key`.
    */
   readonly extraArgs: string[];
   /** Stops the booted proxy listener. Best-effort; never throws. */
@@ -122,21 +112,30 @@ export function buildCodexConfigOverrides(baseUrl: string): string[] {
     '-c',
     `model_provider="${name}"`,
     '-c',
-    `model_providers.${name}.name="${name}"`,
+    `model_providers.${name}.name="OmniCross"`,
     '-c',
     `model_providers.${name}.base_url="${providerBaseUrl}"`,
     '-c',
     `model_providers.${name}.wire_api="responses"`,
-    // requires_openai_auth is a boolean — UNQUOTED so the TOML override is typed
-    // as a bool, not the string "true".
     '-c',
-    `model_providers.${name}.requires_openai_auth=true`,
+    `model_providers.${name}.env_key="${ROUTE_LEASE_CODEX_TOKEN_ENV}"`,
     // disable_response_storage: the CLI sends full context each turn (no
     // server-side response store) — required because the proxy upstream is
     // stateless w.r.t. Codex's response-id store (design Q3 contract).
     '-c',
     'disable_response_storage=true',
   ];
+}
+
+/** Pure, argv-safe Codex descriptor. It performs no route or process I/O. */
+export function buildCodexRuntimeLaunchDescriptor(
+  baseUrl: string,
+  routeToken: string,
+): RuntimeLaunchDescriptor {
+  return {
+    env: { [ROUTE_LEASE_CODEX_TOKEN_ENV]: routeToken },
+    extraArgs: buildCodexConfigOverrides(baseUrl),
+  };
 }
 
 /**
@@ -210,15 +209,9 @@ export async function buildCodexLaunchConfig(
     authMode,
   });
 
+  const descriptor = buildCodexRuntimeLaunchDescriptor(baseUrl, token);
   return {
-    env: {
-      // Satisfy the CLI's `requires_openai_auth = true` precondition. The CLI
-      // forwards this as the Responses-API key; the resident proxy uses it as
-      // the route TOKEN (looked up, then discarded) and re-authenticates
-      // upstream from the route's own provider/subscription credential.
-      OPENAI_API_KEY: token,
-    },
-    extraArgs: buildCodexConfigOverrides(baseUrl),
+    ...descriptor,
     baseUrl,
     onSessionEnd: () => {
       // Resident proxy stays up for the app session — only drop this run's route.

@@ -35,7 +35,21 @@ const TOKEN_BYTES = 32;
 interface RouteEntry {
   readonly context: RouteContext;
   idleTimer: NodeJS.Timeout | null;
-  readonly idleMs: number;
+  idleMs: number;
+  readonly onActivity?: (at: number) => void;
+  readonly onEvicted?: (reason: RouteEvictionReason) => void;
+  evicted: boolean;
+}
+
+export type RouteEvictionReason = 'idle' | 'removed' | 'cleared';
+
+/** Additive lease-aware registration options. Numeric callers remain supported. */
+export interface RouteRegistrationOptions {
+  readonly idleMs?: number;
+  /** Receives only a timestamp; the bearer token is deliberately not exposed. */
+  readonly onActivity?: (at: number) => void;
+  /** Called at most once after the entry is no longer reachable. */
+  readonly onEvicted?: (reason: RouteEvictionReason) => void;
 }
 
 /**
@@ -54,12 +68,18 @@ export class ProviderProxyRouteMap {
    * (`ANTHROPIC_AUTH_TOKEN` / `OPENAI_API_KEY`). Optionally override the idle
    * timeout (tests use a short one).
    */
-  addRoute(context: RouteContext, idleMs?: number): string {
+  addRoute(context: RouteContext, idleMsOrOptions?: number | RouteRegistrationOptions): string {
+    const options = typeof idleMsOrOptions === 'number'
+      ? { idleMs: idleMsOrOptions }
+      : (idleMsOrOptions ?? {});
     const token = randomBytes(TOKEN_BYTES).toString('hex');
     const entry: RouteEntry = {
       context,
       idleTimer: null,
-      idleMs: idleMs ?? this.defaultIdleMs,
+      idleMs: options.idleMs ?? this.defaultIdleMs,
+      onActivity: options.onActivity,
+      onEvicted: options.onEvicted,
+      evicted: false,
     };
     this.routes.set(token, entry);
     this.armIdleTimer(token, entry);
@@ -75,6 +95,11 @@ export class ProviderProxyRouteMap {
     if (!token) return undefined;
     const entry = this.routes.get(token);
     if (!entry) return undefined;
+    try {
+      entry.onActivity?.(Date.now());
+    } catch {
+      // Observability callbacks must never break serving.
+    }
     // Touch: re-arm the idle timer on each request (mirrors ACP's
     // clearIdleTimer-on-activity + armIdleTimer-after-turn).
     this.armIdleTimer(token, entry);
@@ -85,8 +110,17 @@ export class ProviderProxyRouteMap {
   removeRoute(token: string): boolean {
     const entry = this.routes.get(token);
     if (!entry) return false;
-    this.clearIdleTimer(entry);
     this.routes.delete(token);
+    this.evict(entry, 'removed');
+    return true;
+  }
+
+  /** Re-arm one existing route without rotating its token. */
+  renewRoute(token: string, idleMs?: number): boolean {
+    const entry = this.routes.get(token);
+    if (!entry) return false;
+    if (idleMs !== undefined) entry.idleMs = idleMs;
+    this.armIdleTimer(token, entry);
     return true;
   }
 
@@ -102,10 +136,11 @@ export class ProviderProxyRouteMap {
 
   /** Tear down every route (proxy stop / app teardown). */
   clear(): void {
-    for (const entry of this.routes.values()) {
-      this.clearIdleTimer(entry);
-    }
+    const entries = [...this.routes.values()];
     this.routes.clear();
+    for (const entry of entries) {
+      this.evict(entry, 'cleared');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -116,7 +151,8 @@ export class ProviderProxyRouteMap {
     this.clearIdleTimer(entry);
     entry.idleTimer = setTimeout(() => {
       // Reap: drop the entry. A later lookup with this token misses → reject.
-      this.routes.delete(token);
+      if (!this.routes.delete(token)) return;
+      this.evict(entry, 'idle');
     }, entry.idleMs);
     // Don't keep the event loop alive purely for the route reaper.
     entry.idleTimer.unref?.();
@@ -126,6 +162,17 @@ export class ProviderProxyRouteMap {
     if (entry.idleTimer) {
       clearTimeout(entry.idleTimer);
       entry.idleTimer = null;
+    }
+  }
+
+  private evict(entry: RouteEntry, reason: RouteEvictionReason): void {
+    if (entry.evicted) return;
+    entry.evicted = true;
+    this.clearIdleTimer(entry);
+    try {
+      entry.onEvicted?.(reason);
+    } catch {
+      // Cleanup callbacks are best-effort and isolated per route.
     }
   }
 }

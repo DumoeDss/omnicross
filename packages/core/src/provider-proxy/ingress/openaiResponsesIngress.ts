@@ -253,12 +253,13 @@ export async function handleOpenAIResponsesRequest(
     // Passthrough (design D4): rewrite the response `model` back to the client's
     // ORIGINAL requested id (`route.requestedModel`) so Codex sees `gpt-5-codex-…`
     // rather than the upstream provider model. `undefined` for internal traffic
-    // ⇒ byte-identical. Usage accounting STAYS on the upstream `resolvedModel`.
+    // ⇒ byte-identical. Usage accounting stays on the actual selected account model.
     const usageAttribution = {
       sessionId: route.sessionId,
       providerId: route.providerId ?? 'codex',
-      model: resolvedModel,
+      model: providerResponse.actualModel ?? resolvedModel,
       apiKeyId: route.apiKeyId ?? null,
+      routeLease: route.routeLease,
       cacheKeySource: cacheKeyAttribution.cacheKeySource,
       cacheKeyInjected: cacheKeyAttribution.cacheKeyInjected,
       // request-audit-log: correlate this request's tokens/cost to its audit record.
@@ -567,6 +568,7 @@ async function runPipeline(
   // upstream-proxy: capture the selected pooled account so per-account proxy
   // resolves (no-op for BYO — LlmConfigProviderAuth never reports a selection).
   let proxyAccountId: string | undefined;
+  let actualModel = resolvedModel;
   // route-activity record id for THIS attempt, captured from the fetch seam so a
   // mid-stream overload event can later amend the row that stamped the 200.
   let activityRecordId: string | undefined;
@@ -578,11 +580,14 @@ async function runPipeline(
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
-    reportSelection: (accountId) => {
+    reportSelection: (accountId, _isActive, remappedModel) => {
       proxyAccountId = accountId;
+      if (remappedModel) actualModel = remappedModel;
     },
   });
 
+  responsesBody.model = actualModel;
+  transformerProvider.models = [actualModel];
   let rawStatus: number | null = null;
 
   const { response } = await executeProviderCall({
@@ -615,7 +620,7 @@ async function runPipeline(
       return headers;
     },
     fetchFn: (url, headers, body) => {
-      console.log(`[ProviderProxy:responses] -> ${url} model=${resolvedModel} stream=${isStream}`);
+      console.log(`[ProviderProxy:responses] -> ${url} model=${actualModel} stream=${isStream}`);
       return fetchUpstream(
         url,
         { method: 'POST', headers, body: JSON.stringify(body) },
@@ -628,7 +633,7 @@ async function runPipeline(
                 endpoint: 'responses',
                 sessionKey,
                 sessionSource: plan.sessionSource ?? 'none',
-                model: resolvedModel,
+                model: actualModel,
                 onRecorded: (record) => {
                   activityRecordId = record.id;
                 },
@@ -642,7 +647,7 @@ async function runPipeline(
     runResponseChain: true,
   });
 
-  return { response, rawStatus, accountId: proxyAccountId, activityRecordId };
+  return { response, rawStatus, accountId: proxyAccountId, actualModel, activityRecordId };
 }
 
 /**
@@ -699,6 +704,7 @@ type PipelineResult = {
   response: Response;
   rawStatus: number | null;
   accountId: string | undefined;
+  actualModel?: string;
   /**
    * The route-activity record id for THIS attempt, so a post-hoc mid-stream
    * fact (e.g. an overload event in the 200 SSE body) can `amend` the SAME row

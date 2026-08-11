@@ -129,3 +129,40 @@ describe('ProviderProxyRouteMap — idle reaper (task 3.3)', () => {
     map.clear();
   });
 });
+
+describe('ProviderProxyRouteMap — lease lifecycle seams', () => {
+  it('reports activity without the token and renews without rotation', () => {
+    vi.useFakeTimers();
+    try {
+      const activity = vi.fn();
+      const evicted = vi.fn();
+      const map = new ProviderProxyRouteMap();
+      const token = map.addRoute(makeCtx('lease'), { idleMs: 1000, onActivity: activity, onEvicted: evicted });
+      expect(map.lookup(token)).toBeDefined();
+      expect(activity).toHaveBeenCalledTimes(1);
+      expect(activity.mock.calls[0]).toHaveLength(1);
+      expect(activity.mock.calls[0][0]).toEqual(expect.any(Number));
+      expect(map.renewRoute(token, 2000)).toBe(true);
+      vi.advanceTimersByTime(1000);
+      expect(map.has(token)).toBe(true);
+      vi.advanceTimersByTime(1000);
+      expect(map.has(token)).toBe(false);
+      expect(evicted).toHaveBeenCalledOnce();
+      expect(evicted).toHaveBeenCalledWith('idle');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('orders removal before one callback and isolates cleanup', () => {
+    const map = new ProviderProxyRouteMap();
+    const observed: boolean[] = [];
+    let first = '';
+    first = map.addRoute(makeCtx('first'), { onEvicted: () => observed.push(map.has(first)) });
+    const second = map.addRoute(makeCtx('second'));
+    expect(map.removeRoute(first)).toBe(true);
+    expect(observed).toEqual([false]);
+    expect(map.removeRoute(first)).toBe(false);
+    expect(map.has(second)).toBe(true);
+  });
+});

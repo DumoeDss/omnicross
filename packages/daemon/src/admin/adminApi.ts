@@ -39,6 +39,7 @@ import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/Ac
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
+import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
 import type { FetchLike } from '@omnicross/subscriptions';
 import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
@@ -189,6 +190,8 @@ export interface AdminApiDeps {
   readonly settingsStore: JsonApiServerSettingsStore;
   /** The running outbound server (status + live applyConfig). */
   readonly outboundApiServer: OutboundApiServer;
+  /** Process-local machine-managed routing leases (optional for light embedders). */
+  readonly routeLeaseManager?: RouteLeaseManager;
   /** Subscription accounts (token-free `listAll`). */
   readonly subscriptionAccounts: AdminAccountsLister;
   /**
@@ -2341,6 +2344,7 @@ async function handleCli(
     const result = await handleCliLaunch(cli, body, {
       llmConfig: deps.llmConfig,
       providers,
+      routeLeaseManager: deps.routeLeaseManager,
       opener: deps.cliTerminalOpener,
       probe: deps.cliPathProbe,
     });

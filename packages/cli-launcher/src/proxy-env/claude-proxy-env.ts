@@ -28,7 +28,7 @@
 import type { ProviderConfigSource, UsageRecorderImport } from '@omnicross/core';
 import { resolveProviderEndpoint } from '@omnicross/core/completion';
 import type { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
-import type { RouteContext } from '@omnicross/core/provider-proxy';
+import type { RouteContext, RuntimeLaunchDescriptor } from '@omnicross/core/provider-proxy';
 import { getProviderProxy } from '@omnicross/core/provider-proxy';
 
 import type { ChatCliLaunchConfig } from './cli-proxy-env';
@@ -53,6 +53,23 @@ export interface ClaudeCliLaunchConfigInputs {
   readonly sessionId?: string | null;
   /** Usage recorder — when set, anthropic-ingress usage is persisted. */
   readonly usageRecorder?: UsageRecorderImport | null;
+}
+
+/** Pure Claude descriptor. It never reads credentials, registers routes, or writes files. */
+export function buildClaudeRuntimeLaunchDescriptor(
+  baseUrl: string,
+  model: string,
+  routeToken: string,
+): RuntimeLaunchDescriptor {
+  return {
+    env: {
+      ANTHROPIC_BASE_URL: baseUrl,
+      ANTHROPIC_AUTH_TOKEN: routeToken,
+      ANTHROPIC_API_KEY: CLAUDE_PROXY_API_KEY_SENTINEL,
+      ANTHROPIC_MODEL: model,
+    },
+    extraArgs: [],
+  };
 }
 
 /**
@@ -102,15 +119,10 @@ export async function buildClaudeCliLaunchConfig(
   });
 
   // base = listener ROOT (the claude CLI appends `/v1/messages` itself).
-  const env: Record<string, string> = {
-    ANTHROPIC_BASE_URL: baseUrl,
-    ANTHROPIC_AUTH_TOKEN: token,
-    ANTHROPIC_API_KEY: CLAUDE_PROXY_API_KEY_SENTINEL,
-    ANTHROPIC_MODEL: inputs.model,
-  };
+  const descriptor = buildClaudeRuntimeLaunchDescriptor(baseUrl, inputs.model, token);
 
   return {
-    env,
+    env: descriptor.env,
     baseUrl,
     onSessionEnd: () => {
       try {

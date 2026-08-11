@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { getProviderProxy } from '@omnicross/core/provider-proxy';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetDaemonSingletonsForTests } from '../bootstrap';
 import { buildCliSpawnPlan, type LaunchDeps, runLaunch } from '../commands/launch';
@@ -62,6 +62,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   resetDaemonSingletonsForTests();
   rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -70,7 +71,7 @@ afterEach(() => {
 async function launchWithStub(cli: string, extra: string[] = []) {
   let captured: Parameters<NonNullable<LaunchDeps['spawnCli']>>[0] | null = null;
   const code = await runLaunch(
-    [cli, '--provider', cli === 'claude' ? 'anth' : 'mock', '--model', 'mock-model', '--config', configPath, ...masterKeyArg, ...extra],
+    [cli, '--provider', cli === 'claude' ? 'anth' : 'mock', '--model', cli === 'claude' ? 'claude-x' : 'mock-model', '--config', configPath, ...masterKeyArg, ...extra],
     {
       spawnCli: async (plan) => {
         captured = plan;
@@ -173,12 +174,20 @@ describe('runLaunch dispatch (spawn stub — env/argv per builder contract)', ()
     expect(getProviderProxy().routeCount()).toBe(0);
   });
 
-  it('codex → -c overrides in args + OPENAI_API_KEY token sentinel', async () => {
+  it('codex → exact custom-provider args + dedicated route-token env', async () => {
+    const inheritedOpenAiKey = 'ambient-openai-key-test-canary';
+    vi.stubEnv('OPENAI_API_KEY', inheritedOpenAiKey);
     const plan = await launchWithStub('codex');
     expect(plan.args).toContain('-c');
     expect(plan.args.join(' ')).toContain('model_provider="omnicross"');
     expect(plan.args.join(' ')).toContain('wire_api="responses"');
-    expect(plan.env['OPENAI_API_KEY']).toMatch(/^[0-9a-f]{64}$/);
+    expect(plan.env['OMNICROSS_CODEX_ROUTE_TOKEN']).toMatch(/^[0-9a-f]{64}$/);
+    // The launcher preserves the ambient child environment but does not replace
+    // or use OPENAI_API_KEY for Route Lease authority.
+    expect(plan.env['OPENAI_API_KEY']).toBe(inheritedOpenAiKey);
+    expect(plan.env['OPENAI_API_KEY']).not.toBe(plan.env['OMNICROSS_CODEX_ROUTE_TOKEN']);
+    expect(plan.args.join(' ')).toContain('env_key="OMNICROSS_CODEX_ROUTE_TOKEN"');
+    expect(plan.args.join(' ')).not.toContain('requires_openai_auth');
     expect(JSON.stringify(plan.env)).not.toContain(PROVIDER_REAL_KEY);
   });
 

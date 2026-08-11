@@ -34,6 +34,7 @@ export type {
 export type { ClaudeCliLaunchConfigInputs } from './proxy-env/claude-proxy-env';
 export {
   buildClaudeCliLaunchConfig,
+  buildClaudeRuntimeLaunchDescriptor,
   CLAUDE_PROXY_API_KEY_SENTINEL,
 } from './proxy-env/claude-proxy-env';
 export type {
@@ -56,6 +57,8 @@ export type {
 export {
   buildCodexConfigOverrides,
   buildCodexLaunchConfig,
+  buildCodexRuntimeLaunchDescriptor,
   CODEX_PROXY_BASE_PATH,
   CODEX_PROXY_PROVIDER_NAME,
 } from './proxy-env/codex-proxy-env';
+export { routeLeaseDescriptorPort } from './proxy-env/runtime-launch-descriptor';

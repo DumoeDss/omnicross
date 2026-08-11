@@ -168,6 +168,7 @@ export async function handleOpenAIChatRequest(
       providerId: route.providerId ?? 'openai',
       model: resolvedModel,
       apiKeyId: route.apiKeyId ?? null,
+      routeLease: route.routeLease,
       // request-audit-log: correlate this request's tokens/cost to its audit record.
       auditResponse: res,
     };

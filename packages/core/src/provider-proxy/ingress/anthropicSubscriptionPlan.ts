@@ -385,7 +385,7 @@ export async function runPipeline(
   anthropicBody: Record<string, unknown>,
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean) => void,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> {
   const executor = getSharedExecutor();
   const endpointTransformer = getAnthropicEndpointTransformer();
   const { auth, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
@@ -472,7 +472,7 @@ async function runSubscriptionSameFormatFetch(
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void,
   options: AnthropicByoOptions = {},
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; actualModel: string }> {
   // upstream-proxy: capture the effective account (per-account proxy override).
   // subscription-account-model-map (D3): capture the selected account's ACTUAL
   // upstream model when its `supportedModels` object remaps the request model.
@@ -571,7 +571,7 @@ async function runSubscriptionSameFormatFetch(
         : undefined,
     },
   );
-  return { response, rawStatus: response.status };
+  return { response, rawStatus: response.status, actualModel: outboundModel };
 }
 
 /**
@@ -625,7 +625,7 @@ async function runSubscriptionAttemptWith401Retry(
   relayBody: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions = {},
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> {
   // Per-request capture (subscription-account-health, D5): the strategy reports
   // the EFFECTIVE account id it resolved so we mark THAT account's health against
   // the FINAL upstream outcome. Fresh per call ⇒ no cross-request race.
@@ -633,7 +633,7 @@ async function runSubscriptionAttemptWith401Retry(
   const reportSelection = (accountId: string): void => {
     selectedAccountId = accountId;
   };
-  const runOnce = (): Promise<{ response: Response; rawStatus: number | null }> =>
+  const runOnce = (): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> =>
     plan.sameFormat
       ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection, options)
       : runPipeline(anthropicBody, plan, reportSelection);
@@ -679,7 +679,7 @@ async function readBoundedBody(response: Response, max = 2048): Promise<string |
 async function markSubscriptionHealth(
   plan: AnthropicCallPlan,
   selectedAccountId: string | undefined,
-  result: { response: Response; rawStatus: number | null },
+  result: { response: Response; rawStatus: number | null; actualModel?: string },
 ): Promise<void> {
   if (!plan.isSubscription || selectedAccountId === undefined) return;
   const providerId = plan.transformerProvider.name;
@@ -754,7 +754,7 @@ function recordBreakerOutcome(
  *  carries the LAST outcome so chain exhaustion surfaces it faithfully (re-throw a
  *  thrown last attempt → outer 502; relay a returned last attempt's Response). */
 type SubscriptionAttemptOutcome =
-  | { kind: 'result'; result: { response: Response; rawStatus: number | null } }
+  | { kind: 'result'; result: { response: Response; rawStatus: number | null; actualModel?: string } }
   | { kind: 'thrown'; error: unknown };
 
 /** Run one attempt, converting a THROWN relay/network error into a
@@ -782,7 +782,7 @@ function outcomeStatus(outcome: SubscriptionAttemptOutcome): number | null {
 
 /** Surface a terminal outcome: a returned result is relayed; a thrown error is
  *  RE-THROWN so the outer `catch` in `handleAnthropicMessagesByo` writes 502. */
-function settleOutcome(outcome: SubscriptionAttemptOutcome): { response: Response; rawStatus: number | null } {
+function settleOutcome(outcome: SubscriptionAttemptOutcome): { response: Response; rawStatus: number | null; actualModel?: string } {
   if (outcome.kind === 'thrown') throw outcome.error;
   return outcome.result;
 }
@@ -817,7 +817,7 @@ export async function runPipelineWithSubscriptionRetry(
   route: RouteContext,
   deps: ProviderProxyDeps,
   options: AnthropicByoOptions = {},
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> {
   const profile = route.subscriptionProfile;
   const scenario = initialPlan.scenario;
 

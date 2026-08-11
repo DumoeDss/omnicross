@@ -60,6 +60,15 @@ export type StreamEventCallback = (event: Record<string, unknown>) => void;
 export interface ProxyAttribution {
   sessionId?: string | null;
   apiKeyId?: string | null;
+  /** Token-free Route Lease attribution; never contains the bearer token. */
+  routeLease?: RouteLeaseUsageAttribution | null;
+}
+
+export interface RouteLeaseUsageAttribution {
+  readonly leaseId: string;
+  readonly consumer: string;
+  readonly runId?: string;
+  readonly stageId?: string;
 }
 
 /**
@@ -383,6 +392,8 @@ export interface RouteContext {
    * `route.apiKeyId ?? null`), exactly as before.
    */
   readonly apiKeyId?: string;
+  /** Safe process-local lease attribution. The route token is intentionally absent. */
+  readonly routeLease?: RouteLeaseUsageAttribution;
   /** Wire format this route's ingress decodes. */
   readonly ingressFormat: IngressFormat;
   /** Re-auth mode (BYO key vs subscription OAuth). */
@@ -522,6 +533,10 @@ export interface UsageRecordImportInput {
   usage: UsageTokens;
   rawUsage?: unknown;
   runId?: string | null;
+  /** Token-free managed-route attribution. */
+  routeLeaseId?: string | null;
+  routeLeaseConsumer?: string | null;
+  routeLeaseStageId?: string | null;
   eventId?: string | null;
   /** Safe prompt-cache-key provenance; raw key material is never recorded. */
   cacheKeySource?: UsageCacheKeySource;
