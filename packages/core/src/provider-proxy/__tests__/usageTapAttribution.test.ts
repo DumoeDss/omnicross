@@ -9,7 +9,7 @@ import { recordAnthropicNonStreamUsage } from '../usage/recordAnthropicUsage';
 import { recordChatCompletionsNonStreamUsage } from '../usage/recordChatCompletionsUsage';
 import { recordGeminiNonStreamUsage } from '../usage/recordGeminiUsage';
 import { recordResponsesNonStreamUsage } from '../usage/recordResponsesUsage';
-import type { UsageRecordImportInput, UsageRecorderImport } from '../types';
+import type { RouteLeaseUsageAttribution, UsageRecordImportInput, UsageRecorderImport } from '../types';
 
 function capturingRecorder(): { recorder: UsageRecorderImport; calls: UsageRecordImportInput[] } {
   const calls: UsageRecordImportInput[] = [];
@@ -23,46 +23,54 @@ const GEMINI_BODY = JSON.stringify({ usageMetadata: { promptTokenCount: 10, cand
 
 const cases: Array<{
   name: string;
-  run: (r: UsageRecorderImport, apiKeyId: string | null) => void;
+  run: (
+    r: UsageRecorderImport,
+    apiKeyId: string | null,
+    routeLease?: RouteLeaseUsageAttribution,
+  ) => void;
 }> = [
   {
     name: 'anthropic',
-    run: (r, apiKeyId) =>
+    run: (r, apiKeyId, routeLease) =>
       recordAnthropicNonStreamUsage(r, ANTHROPIC_BODY, {
         sessionId: 's',
         providerId: 'anthropic',
         model: 'm',
         apiKeyId,
+        routeLease,
       }),
   },
   {
     name: 'responses',
-    run: (r, apiKeyId) =>
+    run: (r, apiKeyId, routeLease) =>
       recordResponsesNonStreamUsage(r, RESPONSES_BODY, {
         sessionId: 's',
         providerId: 'codex',
         model: 'm',
         apiKeyId,
+        routeLease,
       }),
   },
   {
     name: 'chat',
-    run: (r, apiKeyId) =>
+    run: (r, apiKeyId, routeLease) =>
       recordChatCompletionsNonStreamUsage(r, CHAT_BODY, {
         sessionId: 's',
         providerId: 'openai',
         model: 'm',
         apiKeyId,
+        routeLease,
       }),
   },
   {
     name: 'gemini',
-    run: (r, apiKeyId) =>
+    run: (r, apiKeyId, routeLease) =>
       recordGeminiNonStreamUsage(r, GEMINI_BODY, {
         sessionId: 's',
         providerId: 'gemini',
         model: 'm',
         apiKeyId,
+        routeLease,
       }),
   },
 ];
@@ -81,6 +89,23 @@ describe('usage taps — apiKeyId forwarding', () => {
       c.run(recorder, null);
       expect(calls).toHaveLength(1);
       expect(calls[0].apiKeyId).toBeNull();
+    });
+
+    it(`${c.name} tap records token-free Route Lease attribution`, () => {
+      const { recorder, calls } = capturingRecorder();
+      c.run(recorder, null, {
+        leaseId: 'lease-1',
+        consumer: 'rasen',
+        runId: 'run-1',
+        stageId: 'apply',
+      });
+      expect(calls[0]).toMatchObject({
+        runId: 'run-1',
+        routeLeaseId: 'lease-1',
+        routeLeaseConsumer: 'rasen',
+        routeLeaseStageId: 'apply',
+      });
+      expect(JSON.stringify(calls[0])).not.toContain('routeToken');
     });
   }
 

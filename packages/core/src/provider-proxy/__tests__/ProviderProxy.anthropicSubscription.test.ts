@@ -340,6 +340,34 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
   }
 
   // 3.1 — claude pass-through: verbatim relay + OAuth bearer, no chain.
+  it('attributes usage to the account-remapped model actually sent upstream', async () => {
+    const records: Array<{ model: string }> = [];
+    const profile = claudeProfile(upstreamUrl('/v1/messages'));
+    profile.authStrategy = {
+      ...profile.authStrategy,
+      async applyHeaders(headers, hints) {
+        headers['Authorization'] = `Bearer ${CLAUDE_OAUTH}`;
+        hints?.reportSelection?.('account-a', true, 'claude-physical-model');
+      },
+    };
+    await startProxy({ usageRecorder: { record: (input) => records.push(input as { model: string }) } });
+    const token = proxy.addRoute(subRoute(profile));
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({
+        model: 'cli-model',
+        max_tokens: 16,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.models).toEqual(['claude-physical-model']);
+    expect(records).toHaveLength(1);
+    expect(records[0].model).toBe('claude-physical-model');
+  });
+
   it('claude pass-through → verbatim body + Bearer <oauth>, no transformer chain', async () => {
     await startProxy();
     const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'))));

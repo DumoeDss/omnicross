@@ -17,13 +17,14 @@
  * @module provider-proxy/usage/recordChatCompletionsUsage
  */
 
-import type { UsageRecorderImport } from '../types';
+import type { RouteLeaseUsageAttribution, UsageRecorderImport } from '../types';
 
 interface ChatCompletionsUsageAttribution {
   readonly sessionId: string | null;
   readonly providerId: string;
   readonly model: string;
   readonly apiKeyId: string | null;
+  readonly routeLease?: RouteLeaseUsageAttribution;
   /** request-audit-log: per-request audit correlation key (the response object). */
   readonly auditResponse?: object;
 }
@@ -69,6 +70,10 @@ function emitChatCompletionsUsageRecord(
     providerId: attribution.providerId,
     model: attribution.model,
     apiKeyId: attribution.apiKeyId,
+    runId: attribution.routeLease?.runId ?? null,
+    routeLeaseId: attribution.routeLease?.leaseId ?? null,
+    routeLeaseConsumer: attribution.routeLease?.consumer ?? null,
+    routeLeaseStageId: attribution.routeLease?.stageId ?? null,
     auditResponse: attribution.auditResponse,
     engineOrigin: 'codex-ingress',
     usage: tapped,

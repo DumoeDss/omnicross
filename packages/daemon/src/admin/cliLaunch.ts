@@ -19,7 +19,9 @@
 
 import { exec, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Socket } from 'node:net';
+import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
 import {
@@ -31,6 +33,13 @@ import {
   type ChatCliLaunchConfig,
 } from '@omnicross/cli-launcher';
 import type { ProviderConfigSource } from '@omnicross/core';
+import {
+  ROUTE_LEASE_REQUEST_SCHEMA,
+  RouteLeaseError,
+  type RouteLeaseManager,
+} from '@omnicross/core/provider-proxy';
+
+import { startTerminalLeaseRenewal } from '../routeLeaseRenewal';
 
 /** The CLIs the dashboard can launch (one per cli-launcher builder). */
 export const LAUNCHABLE_CLIS = [
@@ -176,6 +185,8 @@ export async function buildLaunchEnv(
 }
 
 /** Open a NEW terminal window running `command [extraArgs…]` with `env` injected. */
+export type TerminalCleanup = () => void;
+
 export type TerminalOpener = (input: {
   cli: string;
   command: string;
@@ -183,7 +194,8 @@ export type TerminalOpener = (input: {
   env: Record<string, string>;
   cwd?: string;
   platform: NodeJS.Platform;
-}) => void;
+  onFailure?: () => void;
+}) => void | TerminalCleanup;
 
 /** Single-quote a posix shell word. */
 function shq(s: string): string {
@@ -191,44 +203,195 @@ function shq(s: string): string {
 }
 
 /**
- * Default opener. win32: `cmd /c start "title" [/D cwd] cmd /k <cli> [args]` with
- * the route token riding the spawned process env (inherited — never on the
- * command line / disk). darwin/linux: a one-liner that exports the env then execs
- * the CLI in the platform terminal (best-effort; the token rides the script
- * string — local-only, ephemeral route token).
+ * Secret-free bootstrap used by macOS Terminal. The descriptor arrives over a
+ * private one-shot local socket, then only the final CLI child receives it.
  */
-export const defaultTerminalOpener: TerminalOpener = ({ cli, command, extraArgs, env, cwd, platform }) => {
+export const MAC_TERMINAL_BOOTSTRAP_SOURCE = `
+'use strict';
+const fs = require('node:fs');
+const net = require('node:net');
+const { spawn } = require('node:child_process');
+const [socketPath, launchDir, cwd, command, ...args] = process.argv.slice(2);
+let payload = '';
+const socket = net.createConnection(socketPath);
+socket.setEncoding('utf8');
+socket.on('data', (chunk) => { payload += chunk; });
+socket.on('end', () => {
+  const descriptor = JSON.parse(payload);
+  if (!descriptor || Array.isArray(descriptor) || Object.values(descriptor).some((value) => typeof value !== 'string')) {
+    throw new Error('invalid terminal launch descriptor');
+  }
+  try { fs.rmSync(launchDir, { recursive: true, force: true }); } catch {}
+  const child = spawn(command, args, {
+    cwd: cwd || undefined,
+    env: { ...process.env, ...descriptor },
+    stdio: 'inherit',
+  });
+  child.on('error', (error) => { console.error(error.message); process.exitCode = 1; });
+  child.on('exit', (code, signal) => {
+    if (signal) process.kill(process.pid, signal);
+    else process.exitCode = code == null ? 1 : code;
+  });
+});
+socket.on('error', (error) => { console.error(error.message); process.exitCode = 1; });
+`;
+
+const MAC_TERMINAL_IPC_TIMEOUT_MS = 120_000;
+type TerminalSpawn = typeof spawn;
+
+export interface MacTerminalIpcOptions {
+  socketPath?: string;
+  timeoutMs?: number;
+  onListening?: () => void;
+  onClaimed?: () => void;
+  onAccepted?: (socket: Socket) => void;
+  removeArtifacts?: (launchDir: string) => void;
+}
+
+/**
+ * Default opener. POSIX command strings contain command/cwd arguments but no
+ * environment values. macOS transfers its descriptor through private IPC
+ * because Launch Services does not propagate the `open` process environment.
+ */
+export function openTerminal(
+  { cli, command, extraArgs, env, cwd, platform, onFailure }: Parameters<TerminalOpener>[0],
+  spawnProcess: TerminalSpawn = spawn,
+  macIpc: MacTerminalIpcOptions = {},
+): () => void {
   const childEnv = { ...process.env, ...env };
   if (platform === 'win32') {
     const args = ['/c', 'start', `"omnicross ${cli}"`];
     if (cwd) args.push('/D', `"${cwd}"`);
     args.push('cmd', '/k', command, ...extraArgs);
-    spawn(process.env['ComSpec'] || 'cmd.exe', args, {
+    spawnProcess(process.env['ComSpec'] || 'cmd.exe', args, {
       env: childEnv,
       windowsVerbatimArguments: true,
       detached: true,
       stdio: 'ignore',
     }).unref();
-    return;
+    return () => {};
   }
 
-  const exportLine = Object.entries(env)
-    .map(([k, v]) => `export ${k}=${shq(v)}`)
-    .join('; ');
   const runLine = [command, ...extraArgs].map(shq).join(' ');
-  const script = `${exportLine}; ${cwd ? `cd ${shq(cwd)}; ` : ''}${runLine}`;
+  const script = `${cwd ? `cd ${shq(cwd)}; ` : ''}${runLine}`;
 
   if (platform === 'darwin') {
-    const osa = `tell application "Terminal" to do script ${JSON.stringify(script)}`;
-    spawn('osascript', ['-e', osa], { detached: true, stdio: 'ignore' }).unref();
-    return;
+    const launchDir = mkdtempSync(join(tmpdir(), 'omnicross-terminal-'));
+    const commandFile = join(launchDir, 'launch.command');
+    const bootstrapFile = join(launchDir, 'bootstrap.cjs');
+    const socketPath = macIpc.socketPath ?? join(launchDir, 'descriptor.sock');
+    const openerEnv = { ...process.env };
+    for (const key of Object.keys(env)) delete openerEnv[key];
+    let claimed = false;
+    let cleaned = false;
+    let failureNotified = false;
+    let timer: NodeJS.Timeout | undefined;
+    const notifyFailure = (): void => {
+      cleanup();
+      if (failureNotified) return;
+      failureNotified = true;
+      try {
+        onFailure?.();
+      } catch {}
+    };
+    const handleLaunchFailure = (): void => {
+      if (claimed) cleanup();
+      else notifyFailure();
+    };
+    const sockets = new Set<Socket>();
+    const server = createServer((socket) => {
+      socket.unref();
+      sockets.add(socket);
+      socket.once('close', () => sockets.delete(socket));
+      try {
+        macIpc.onAccepted?.(socket);
+      } catch {
+        cleanup();
+        return;
+      }
+      if (claimed || cleaned) {
+        socket.destroy();
+        return;
+      }
+      claimed = true;
+      try {
+        macIpc.onClaimed?.();
+        if (cleaned) return;
+        socket.end(JSON.stringify(env), cleanup);
+      } catch {
+        cleanup();
+      }
+    });
+    const cleanup = (): void => {
+      if (!cleaned) {
+        cleaned = true;
+        if (timer) clearTimeout(timer);
+        for (const socket of sockets) socket.destroy();
+        sockets.clear();
+        try {
+          server.close();
+        } catch {}
+      }
+      try {
+        if (macIpc.removeArtifacts) {
+          macIpc.removeArtifacts(launchDir);
+        } else {
+          rmSync(launchDir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 20,
+          });
+        }
+      } catch {}
+    };
+
+    try {
+      writeFileSync(bootstrapFile, MAC_TERMINAL_BOOTSTRAP_SOURCE, { encoding: 'utf8', mode: 0o700 });
+      writeFileSync(commandFile, `#!/bin/bash\nrm -f -- "$0"\nexec ${shq(process.execPath)} ${shq(bootstrapFile)} ${shq(socketPath)} ${shq(launchDir)} ${shq(cwd ?? '')} ${runLine}\n`, {
+        encoding: 'utf8',
+        mode: 0o700,
+      });
+      chmodSync(commandFile, 0o700);
+      chmodSync(bootstrapFile, 0o700);
+
+      server.once('error', handleLaunchFailure);
+      server.listen(socketPath, () => {
+        if (cleaned) return;
+        try {
+          macIpc.onListening?.();
+          if (cleaned) return;
+          if (process.platform !== 'win32') chmodSync(socketPath, 0o600);
+          const opener = spawnProcess('open', ['-n', '-a', 'Terminal', commandFile], {
+            env: openerEnv,
+            detached: true,
+            stdio: 'ignore',
+          });
+          opener.once('error', handleLaunchFailure);
+          opener.unref();
+          server.unref();
+        } catch {
+          handleLaunchFailure();
+        }
+      });
+      timer = setTimeout(handleLaunchFailure, macIpc.timeoutMs ?? MAC_TERMINAL_IPC_TIMEOUT_MS);
+      timer.unref?.();
+      return cleanup;
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
   }
   // linux (best-effort): the generic Debian alternative, keep the shell open.
-  spawn('x-terminal-emulator', ['-e', 'bash', '-lc', `${script}; exec bash`], {
+  spawnProcess('x-terminal-emulator', ['-e', 'bash', '-lc', `${script}; exec bash`], {
+    env: childEnv,
     detached: true,
     stdio: 'ignore',
   }).unref();
-};
+  return () => {};
+}
+
+export const defaultTerminalOpener: TerminalOpener = (input) => openTerminal(input);
 
 // ── Session registry + admin handlers ─────────────────────────────────────────
 //
@@ -241,6 +404,7 @@ interface CliSession {
   cli: LaunchCliId;
   providerId: string;
   model: string;
+  leaseId?: string;
   startedAt: string;
   onSessionEnd: () => void;
 }
@@ -335,10 +499,19 @@ export function handleCliStop(id: string): CliHandlerResult {
 export interface CliLaunchContext {
   llmConfig: ProviderConfigSource;
   providers: ProviderRowLike[];
+  /** Daemon-owned Route Lease service used by Claude/Codex launches. */
+  routeLeaseManager?: RouteLeaseManager;
   opener?: TerminalOpener;
   platform?: NodeJS.Platform;
   probe?: PathProbe;
 }
+
+interface LaunchMaterial {
+  readonly env: Record<string, string>;
+  readonly extraArgs?: string[];
+  readonly onSessionEnd: () => void;
+}
+
 
 /**
  * POST /cli/:cli/launch { providerId?, model?, cwd? } → register the resident
@@ -369,30 +542,82 @@ export async function handleCliLaunch(
     return { status: 400, body: errBody(err instanceof Error ? err.message : 'no launch target') };
   }
 
-  let launch: ChatCliLaunchConfig & { extraArgs?: string[] };
+  const id = randomUUID();
+  let leaseId: string | undefined;
+  let launch: LaunchMaterial;
   try {
-    launch = await buildLaunchEnv(cli, ctx.llmConfig, target);
+    if ((cli === 'claude' || cli === 'codex') && ctx.routeLeaseManager) {
+      const outcome = await ctx.routeLeaseManager.createFromRequest({
+        schemaVersion: ROUTE_LEASE_REQUEST_SCHEMA,
+        consumer: 'omnicross-terminal',
+        runtime: cli,
+        upstream: { kind: 'provider', providerId: target.providerId },
+        model: target.model,
+        execution: { sessionId: id },
+      }, `omnicross-terminal:${id}`);
+      leaseId = outcome.result.leaseId;
+      const stopRenewal = startTerminalLeaseRenewal(ctx.routeLeaseManager, leaseId);
+      launch = {
+        env: outcome.result.launch.env,
+        extraArgs: outcome.result.launch.extraArgs,
+        onSessionEnd: () => {
+          stopRenewal();
+          ctx.routeLeaseManager?.release(outcome.result.leaseId);
+        },
+      };
+    } else {
+      launch = await buildLaunchEnv(cli, ctx.llmConfig, target);
+    }
   } catch (err) {
-    return { status: 400, body: errBody(err instanceof Error ? err.message : 'failed to build launch env') };
+    const status = err instanceof RouteLeaseError ? err.status : 400;
+    return { status, body: errBody(err instanceof Error ? err.message : 'failed to build launch env') };
   }
 
   const cwd = typeof body['cwd'] === 'string' && body['cwd'].trim() ? body['cwd'].trim() : undefined;
   const opener = ctx.opener ?? defaultTerminalOpener;
+  let openerCleanup: TerminalCleanup | undefined;
+  let ended = false;
+  let published = false;
+  const onSessionEnd = (): void => {
+    if (ended) return;
+    ended = true;
+    if (published) sessions.delete(id);
+    try {
+      openerCleanup?.();
+    } finally {
+      launch.onSessionEnd();
+    }
+  };
   try {
-    opener({ cli, command: meta.command, extraArgs: launch.extraArgs ?? [], env: launch.env, cwd, platform });
+    const cleanup = opener({
+      cli,
+      command: meta.command,
+      extraArgs: launch.extraArgs ?? [],
+      env: launch.env,
+      cwd,
+      platform,
+      onFailure: onSessionEnd,
+    });
+    if (cleanup) openerCleanup = cleanup;
   } catch (err) {
-    launch.onSessionEnd();
+    onSessionEnd();
     return { status: 500, body: errBody(err instanceof Error ? err.message : 'failed to open terminal') };
   }
+  if (ended) {
+    openerCleanup?.();
+    return { status: 500, body: errBody('failed to open terminal') };
+  }
 
-  const id = randomUUID();
   sessions.set(id, {
     id,
     cli,
     providerId: target.providerId,
     model: target.model,
+    ...(leaseId ? { leaseId } : {}),
     startedAt: new Date().toISOString(),
-    onSessionEnd: launch.onSessionEnd,
+    onSessionEnd,
   });
+  published = true;
+  if (ended) sessions.delete(id);
   return { status: 200, body: { sessionId: id, providerId: target.providerId, model: target.model } };
 }

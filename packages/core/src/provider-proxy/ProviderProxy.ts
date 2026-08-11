@@ -25,7 +25,7 @@ import http from 'node:http';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
-import { ProviderProxyRouteMap } from './providerProxyRouteMap';
+import { ProviderProxyRouteMap, type RouteRegistrationOptions } from './providerProxyRouteMap';
 import { routeRequest } from './providerProxyRouter';
 import type { ProviderProxyDeps, RouteContext } from './types';
 
@@ -49,6 +49,7 @@ export class ProviderProxy {
   private server: http.Server | null = null;
   private port = 0;
   private readonly routes: ProviderProxyRouteMap;
+  private readonly beforeStop = new Set<() => void | Promise<void>>();
 
   constructor(
     private readonly deps: ProviderProxyDeps,
@@ -102,6 +103,13 @@ export class ProviderProxy {
 
   /** Stop the listener, clear all routes, and release the port. */
   async stop(): Promise<void> {
+    for (const cleanup of [...this.beforeStop]) {
+      try {
+        await cleanup();
+      } catch {
+        // One owner cleanup must not prevent route clearing or listener stop.
+      }
+    }
     this.routes.clear();
     const server = this.server;
     if (!server) return;
@@ -118,6 +126,17 @@ export class ProviderProxy {
   /** Base URL for injector wiring (`ANTHROPIC_BASE_URL` / codex `base_url`). */
   getBaseUrl(): string {
     return `http://127.0.0.1:${this.port}`;
+  }
+
+  /** Register daemon-owned cleanup that must run before route-map teardown. */
+  registerBeforeStop(cleanup: () => void | Promise<void>): () => void {
+    this.beforeStop.add(cleanup);
+    return () => this.beforeStop.delete(cleanup);
+  }
+
+  /** Whether the resident listener has completed binding. */
+  isReady(): boolean {
+    return this.server !== null && this.port > 0;
   }
 
   /**
@@ -139,8 +158,13 @@ export class ProviderProxy {
   }
 
   /** Register a route for one run; returns the crypto route token (task 2.2). */
-  addRoute(context: RouteContext, idleMs?: number): string {
-    return this.routes.addRoute(context, idleMs);
+  addRoute(context: RouteContext, idleMsOrOptions?: number | RouteRegistrationOptions): string {
+    return this.routes.addRoute(context, idleMsOrOptions);
+  }
+
+  /** Re-arm one route while retaining the exact same bearer token. */
+  renewRoute(token: string, idleMs?: number): boolean {
+    return this.routes.renewRoute(token, idleMs);
   }
 
   /** Remove a route at run end. Returns true if an entry existed. */

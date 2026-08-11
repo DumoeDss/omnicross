@@ -13,13 +13,14 @@
 
 import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
 
-import type { UsageRecorderImport } from '../types';
+import type { RouteLeaseUsageAttribution, UsageRecorderImport } from '../types';
 
 interface ResponsesUsageAttribution {
   readonly sessionId: string | null;
   readonly providerId: string;
   readonly model: string;
   readonly apiKeyId: string | null;
+  readonly routeLease?: RouteLeaseUsageAttribution;
   /** Safe prompt-cache-key provenance; no raw key/session value is stored. */
   readonly cacheKeySource?: UsageCacheKeySource;
   /** True only when the gateway attached the prompt-cache key. */
@@ -69,6 +70,10 @@ function emitResponsesUsageRecord(
     providerId: attribution.providerId,
     model: attribution.model,
     apiKeyId: attribution.apiKeyId,
+    runId: attribution.routeLease?.runId ?? null,
+    routeLeaseId: attribution.routeLease?.leaseId ?? null,
+    routeLeaseConsumer: attribution.routeLease?.consumer ?? null,
+    routeLeaseStageId: attribution.routeLease?.stageId ?? null,
     cacheKeySource: attribution.cacheKeySource,
     cacheKeyInjected: attribution.cacheKeyInjected,
     auditResponse: attribution.auditResponse,

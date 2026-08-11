@@ -37,10 +37,28 @@ export function __resetProviderProxyForTests(): void {
   instance = null;
 }
 
-export { ProviderProxy } from './ProviderProxy';
+export { isLoopbackAddress, ProviderProxy } from './ProviderProxy';
+export {
+  RouteLeaseManager,
+  SYSTEM_ROUTE_LEASE_CLOCK,
+  type RouteLeaseClock,
+  type RouteLeaseCreateOutcome,
+  type RouteLeaseLogger,
+  type RouteLeaseManagerOptions,
+  type RouteLeaseRoutePort,
+} from './RouteLeaseManager';
+export {
+  RouteLeaseTargetResolver,
+  type RouteLeaseProviderKeyPreflight,
+  type RouteLeaseSubscriptionPreflight,
+  type RouteLeaseTargetResolverOptions,
+} from './RouteLeaseTargetResolver';
+export * from './routeLeaseSchema';
 export {
   DEFAULT_ROUTE_IDLE_MS,
   ProviderProxyRouteMap,
+  type RouteEvictionReason,
+  type RouteRegistrationOptions,
 } from './providerProxyRouteMap';
 export { extractRouteToken } from './providerProxyRouter';
 export type {
@@ -55,6 +73,7 @@ export type {
   RetryCallback,
   RouteAuthMode,
   RouteContext,
+  RouteLeaseUsageAttribution,
   StreamEventCallback,
   SubscriptionDispatchProfile,
   SubscriptionRequestSummary,

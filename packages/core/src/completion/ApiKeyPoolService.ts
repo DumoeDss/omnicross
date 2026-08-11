@@ -39,6 +39,11 @@ export interface KeyHealthEntry {
 /** Provider-scoped map of keyId → live cooldown health (cooling keys only). */
 export type KeyHealthMap = Record<string, KeyHealthEntry>;
 
+export type ProviderKeyPoolAvailability =
+  | { readonly outcome: 'usable' }
+  | { readonly outcome: 'empty' | 'unavailable' }
+  | { readonly outcome: 'exhausted'; readonly retryAfterSeconds: number };
+
 /** Function type for loading API keys from the database */
 export type ApiKeysLoader = (providerId: string) => Promise<ApiKeyEntry[]>;
 
@@ -266,6 +271,50 @@ export class ApiKeyPoolService {
   async hasKeys(providerId: string): Promise<boolean> {
     const keys = await this.getAllKeys(providerId);
     return keys.length > 0;
+  }
+
+  /** Secret-free strict preflight for a named provider key. */
+  async hasUsableKey(providerId: string, keyId: string): Promise<boolean> {
+    const keys = await this.getAvailableKeys(providerId);
+    return keys.some((key) => key.id === keyId);
+  }
+
+  /** Secret-free existence/availability split for strict Route Lease targets. */
+  async getKeyAvailability(
+    providerId: string,
+    keyId: string,
+  ): Promise<'usable' | 'unavailable' | 'not-found'> {
+    const all = await this.getAllKeys(providerId);
+    if (!all.some((key) => key.id === keyId)) return 'not-found';
+    return (await this.getAvailableKeys(providerId)).some((key) => key.id === keyId)
+      ? 'usable'
+      : 'unavailable';
+  }
+
+  /** Secret-free preflight for at least one enabled, non-cooling pool key. */
+  async hasUsableKeys(providerId: string): Promise<boolean> {
+    return (await this.getAvailableKeys(providerId)).length > 0;
+  }
+
+  /** Preserve pool exhaustion and its earliest safe retry horizon for Route Lease. */
+  async getPoolAvailability(providerId: string): Promise<ProviderKeyPoolAvailability> {
+    const all = await this.getAllKeys(providerId);
+    if (all.length === 0) return { outcome: 'empty' };
+    if ((await this.getAvailableKeys(providerId)).length > 0) return { outcome: 'usable' };
+
+    const now = Date.now();
+    const coolingUntil = all
+      .filter((key) => key.enabled)
+      .map((key) => this.cooldowns.get(key.id)?.until ?? 0)
+      .filter((until) => until > now);
+    if (coolingUntil.length > 0) {
+      const earliest = Math.min(...coolingUntil);
+      return {
+        outcome: 'exhausted',
+        retryAfterSeconds: Math.max(1, Math.min(3600, Math.ceil((earliest - now) / 1000))),
+      };
+    }
+    return { outcome: 'unavailable' };
   }
 
   /**

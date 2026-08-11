@@ -138,11 +138,16 @@ export async function handleAnthropicMessagesByo(
     const upstreamSse = (upstreamResponse.headers.get('content-type') ?? '').includes(
       'text/event-stream',
     );
+    const actualModel =
+      'actualModel' in providerResponse && typeof providerResponse.actualModel === 'string'
+        ? providerResponse.actualModel
+        : undefined;
     const usageAttribution = {
       sessionId: route.sessionId,
       providerId: route.providerId ?? 'anthropic',
-      model: plan.resolvedModel,
+      model: actualModel ?? plan.resolvedModel,
       apiKeyId: route.apiKeyId ?? null,
+      routeLease: route.routeLease,
       // request-audit-log: correlate this request's tokens/cost to its audit record.
       auditResponse: res,
     };

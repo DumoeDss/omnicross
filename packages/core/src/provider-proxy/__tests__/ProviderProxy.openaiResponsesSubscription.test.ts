@@ -227,6 +227,71 @@ describe('ProviderProxy subscription Responses session affinity', () => {
     expect(receivedHeaders.every((headers) => headers['x-session-id'] === undefined)).toBe(true);
   });
 
+  it('sends and attributes the selected account remapped model', async () => {
+    let receivedBody: Record<string, unknown> | undefined;
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        receivedBody = JSON.parse(body) as Record<string, unknown>;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          id: 'resp-remap',
+          object: 'response',
+          status: 'completed',
+          model: 'codex-physical-model',
+          output: [],
+          usage: { input_tokens: 3, output_tokens: 2, total_tokens: 5 },
+        }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    upstream = server;
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/responses`;
+    const records: Array<{ model: string }> = [];
+    const authStrategy = {
+      providerId: 'codex',
+      kind: 'oauth-bearer',
+      async applyHeaders(headers: Record<string, string>, hints?: {
+        reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void;
+      }) {
+        headers.Authorization = 'Bearer test-token';
+        hints?.reportSelection?.('account-a', true, 'codex-physical-model');
+      },
+      async onUnauthorized() { return false; },
+      async describeStatus() { return { providerId: 'codex', configured: true }; },
+    };
+    const route: RouteContext = {
+      sessionId: 'remapped-model',
+      targetProviderFormat: 'openai-responses',
+      model: 'codex-logical-model',
+      ingressFormat: 'openai-responses',
+      authMode: 'subscription',
+      providerId: 'codex',
+      subscriptionProfile: {
+        authStrategy: authStrategy as never,
+        resolveUpstreamUrl: () => url,
+      },
+    };
+
+    proxy = new ProviderProxy({
+      llmConfig: makeLlmConfig(),
+      usageRecorder: { record: (input) => records.push(input as { model: string }) },
+    });
+    const port = await proxy.start();
+    const token = proxy.addRoute(route);
+    const response = await fetch(`http://127.0.0.1:${port}/openai/responses`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'client-model', input: 'hello' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(receivedBody?.model).toBe('codex-physical-model');
+    expect(records).toHaveLength(1);
+    expect(records[0].model).toBe('codex-physical-model');
+  });
+
   it('surfaces an all-accounts allowance pause as 429 without calling upstream', async () => {
     const authStrategy = {
       providerId: 'codex',

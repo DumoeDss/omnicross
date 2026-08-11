@@ -43,6 +43,12 @@ export interface UsageRecordInput {
   rawUsage?: unknown;
   /** Host run-correlation id. Optional / additive. */
   runId?: string | null;
+  /** Token-free process-local Route Lease id. */
+  routeLeaseId?: string | null;
+  /** Bounded logical Route Lease consumer. */
+  routeLeaseConsumer?: string | null;
+  /** Bounded Route Lease stage attribution. */
+  routeLeaseStageId?: string | null;
   /** Host event-correlation id for this call. Optional / additive. */
   eventId?: string | null;
   /** Safe prompt-cache-key provenance; raw key material is never recorded. */
@@ -170,6 +176,9 @@ export class UsageRecorder {
       costSavedByCacheUsd,
       rawUsage: input.rawUsage != null ? safeStringify(input.rawUsage) : null,
       runId: input.runId ?? null,
+      routeLeaseId: input.routeLeaseId ?? null,
+      routeLeaseConsumer: input.routeLeaseConsumer ?? null,
+      routeLeaseStageId: input.routeLeaseStageId ?? null,
       eventId: input.eventId ?? null,
       ...(input.cacheKeySource !== undefined
         ? { cacheKeySource: input.cacheKeySource }

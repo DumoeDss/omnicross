@@ -29,21 +29,22 @@
  */
 
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import {
   buildChatCliLaunchConfig,
-  buildClaudeCliLaunchConfig,
-  buildCodexLaunchConfig,
   buildGeminiCliLaunchConfig,
   type ChatCliBackendId,
   type ChatCliLaunchConfig,
 } from '@omnicross/cli-launcher';
+import { ROUTE_LEASE_REQUEST_SCHEMA } from '@omnicross/core/provider-proxy';
 
-import { buildDaemon, type DaemonPaths } from '../bootstrap';
+import { buildDaemon, type Daemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
+import { startTerminalLeaseRenewal } from '../routeLeaseRenewal';
 
 import { defaultKeysPath, defaultTokensPath } from './paths';
 
@@ -191,35 +192,20 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
   } catch (err) {
     // start() failed mid-bind — still release the pool's cleanup interval
     // (review T1: otherwise it only dies with the process).
-    daemon.apiKeyPool.dispose();
-    daemon.tokenRefreshScheduler.dispose();
-    daemon.claudeAllowanceRefreshScheduler.dispose();
-    daemon.accountHealthSweeper.dispose();
-    daemon.accountHealthProbeScheduler.dispose();
-    daemon.auditPruneSweeper.dispose();
-    daemon.billingRetrySweeper.dispose();
-    daemon.pricingRefreshScheduler.dispose();
+    await shutdownLaunchDaemon(daemon);
     throw err;
   }
 
   let launch: ChatCliLaunchConfig & { extraArgs?: string[] };
   try {
-    launch = await buildLaunchConfig(cli, daemon.llmConfig, {
+    launch = await buildLaunchConfig(cli, daemon, {
       providerId: values.provider,
       model: values.model,
     });
   } catch (err) {
     // Builder validation failed BEFORE any route was registered — still stop
     // the listener we started.
-    await daemon.providerProxy.stop();
-    daemon.apiKeyPool.dispose();
-    daemon.tokenRefreshScheduler.dispose();
-    daemon.claudeAllowanceRefreshScheduler.dispose();
-    daemon.accountHealthSweeper.dispose();
-    daemon.accountHealthProbeScheduler.dispose();
-    daemon.auditPruneSweeper.dispose();
-    daemon.billingRetrySweeper.dispose();
-    daemon.pricingRefreshScheduler.dispose();
+    await shutdownLaunchDaemon(daemon);
     throw err;
   }
 
@@ -240,27 +226,47 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
       cwd: values.cwd,
     });
   } finally {
-    launch.onSessionEnd();
-    await daemon.providerProxy.stop();
-    daemon.apiKeyPool.dispose();
-    daemon.tokenRefreshScheduler.dispose();
-    daemon.claudeAllowanceRefreshScheduler.dispose();
-    daemon.accountHealthSweeper.dispose();
-    daemon.accountHealthProbeScheduler.dispose();
-    daemon.auditPruneSweeper.dispose();
-    daemon.billingRetrySweeper.dispose();
-    daemon.pricingRefreshScheduler.dispose();
+    try {
+      launch.onSessionEnd();
+    } finally {
+      await shutdownLaunchDaemon(daemon);
+    }
   }
 }
 
 /** Dispatch to the per-CLI builder (design D2/D3). */
 async function buildLaunchConfig(
   cli: LaunchCliId,
-  llmConfig: Parameters<typeof buildClaudeCliLaunchConfig>[0]['llmConfig'],
+  daemon: Pick<Daemon, 'llmConfig' | 'providerProxy' | 'routeLeaseManager'>,
   opts: { providerId: string; model: string },
 ): Promise<ChatCliLaunchConfig & { extraArgs?: string[] }> {
+  if (cli === 'claude' || cli === 'codex') {
+    const internalId = randomUUID();
+    const outcome = await daemon.routeLeaseManager.createFromRequest({
+      schemaVersion: ROUTE_LEASE_REQUEST_SCHEMA,
+      consumer: 'omnicross-terminal',
+      runtime: cli,
+      upstream: { kind: 'provider', providerId: opts.providerId },
+      model: opts.model,
+      execution: { sessionId: `launch:${cli}:${internalId}` },
+    }, `omnicross-launch:${internalId}`);
+    const stopRenewal = startTerminalLeaseRenewal(
+      daemon.routeLeaseManager,
+      outcome.result.leaseId,
+    );
+    return {
+      baseUrl: daemon.providerProxy.getBaseUrl(),
+      env: outcome.result.launch.env,
+      extraArgs: outcome.result.launch.extraArgs,
+      onSessionEnd: () => {
+        stopRenewal();
+        daemon.routeLeaseManager.release(outcome.result.leaseId);
+      },
+    };
+  }
+
   const common = {
-    llmConfig,
+    llmConfig: daemon.llmConfig,
     providerId: opts.providerId,
     model: opts.model,
     // Stable, bounded session id — pool failover (poolseam) fires on launch
@@ -268,10 +274,6 @@ async function buildLaunchConfig(
     sessionId: `launch:${cli}`,
   };
   switch (cli) {
-    case 'claude':
-      return buildClaudeCliLaunchConfig(common);
-    case 'codex':
-      return buildCodexLaunchConfig(common);
     case 'gemini':
       return buildGeminiCliLaunchConfig(common);
     case 'qwen':
@@ -283,6 +285,19 @@ async function buildLaunchConfig(
       throw new Error(`Unsupported launch CLI: ${String(_exhaustive)}`);
     }
   }
+}
+
+async function shutdownLaunchDaemon(daemon: Daemon): Promise<void> {
+  daemon.routeLeaseManager.shutdown();
+  await daemon.providerProxy.stop();
+  daemon.apiKeyPool.dispose();
+  daemon.tokenRefreshScheduler.dispose();
+  daemon.claudeAllowanceRefreshScheduler.dispose();
+  daemon.accountHealthSweeper.dispose();
+  daemon.accountHealthProbeScheduler.dispose();
+  daemon.auditPruneSweeper.dispose();
+  daemon.billingRetrySweeper.dispose();
+  daemon.pricingRefreshScheduler.dispose();
 }
 
 /** Default spawn: stdio inherit (real TTY), signal forwarding, exit-code relay. */

@@ -53,6 +53,12 @@ export interface UsageEventRecord {
   rawUsage: string | null;
   /** Host run-correlation id (owning agent-run, when the host has one). Additive / nullable. */
   runId?: string | null;
+  /** Token-free process-local Route Lease id; never the route bearer token. */
+  routeLeaseId?: string | null;
+  /** Bounded logical Route Lease consumer. */
+  routeLeaseConsumer?: string | null;
+  /** Bounded Route Lease stage attribution. */
+  routeLeaseStageId?: string | null;
   /** Host event-correlation id for this LLM call. NULL when unknown. Additive / nullable. */
   eventId?: string | null;
   /** Safe prompt-cache-key provenance; absent on historical/non-attributed rows. */
