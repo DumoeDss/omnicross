@@ -515,6 +515,8 @@
     "primary": "主導覽",
     "overview": "總覽",
     "gateway": "閘道",
+    "accessKeys": "存取金鑰",
+    "routeActivity": "路由活動",
     "upstreams": "上游與路由",
     "integrations": "整合",
     "group": {
@@ -532,6 +534,10 @@
     "usageStats": "用量統計",
     "pricing": "模型價格",
     "dashboard": "儀表板"
+  },
+  "routeActivity": {
+    "title": "路由活動",
+    "description": "即時帳號路由與伺服器過載趨勢 —— 僅為元資料，不收集提示詞。"
   },
   "overview": {
     "eyebrow": "本機請求交換台",
@@ -588,7 +594,8 @@
       "allowanceThreshold": "警告閾值 {{threshold}}%",
       "expiringSoon": "即將過期",
       "expiringSoonHint": "48 小時內到期的憑證",
-      "open": "開啟帳號"
+      "open": "開啟帳號",
+      "weeklyQuota": "週額度"
     },
     "today": {
       "title": "今日交換記錄",
@@ -777,6 +784,7 @@
   "apiService": {
     "gatewayTitle": "閘道",
     "gatewayDescription": "說明並控制客戶端如何進入本機服務、經過路由並流轉。",
+    "accessDescription": "建立與管理用戶端用於閘道鑑權的存取金鑰。",
     "title": "API 服務",
     "description": "設定對外 API 伺服器、各端點的模型路由及命名存取金鑰。",
     "tabs": {

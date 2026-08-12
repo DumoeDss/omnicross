@@ -8,6 +8,7 @@ import type { SubscriptionProviderId } from '@/daemon/types';
 export type PageId =
   | 'overview'
   | 'api-service'
+  | 'route-activity'
   | 'upstreams'
   | 'integrations'
   | 'usage-stats'
@@ -15,7 +16,7 @@ export type PageId =
 
 export type AccountRouteFilters = Partial<AccountFilters>;
 export type UpstreamKind = 'account' | 'account-group' | 'account-pool' | 'provider';
-export type UpstreamsTab = 'resources' | 'routes' | 'activity';
+export type UpstreamsTab = 'resources' | 'routes';
 
 export interface AppRoute {
   page: PageId;
@@ -47,12 +48,13 @@ export type RouteNavigate = (route: AppRoute, options?: NavigateOptions) => void
 const PAGE_IDS = new Set<PageId>([
   'overview',
   'api-service',
+  'route-activity',
   'upstreams',
   'integrations',
   'usage-stats',
   'settings',
 ]);
-const API_TABS = new Set<ApiServiceTabId>(['overview', 'access', 'activity']);
+const API_TABS = new Set<ApiServiceTabId>(['overview', 'access']);
 const SETTINGS_TABS = new Set<SettingsTabId>([
   'general',
   'network',
@@ -101,7 +103,9 @@ export const DEFAULT_ROUTE: AppRoute = { page: 'overview' };
 export const LEGACY_API_TAB_REDIRECTS: Readonly<Record<string, AppRoute>> = {
   status: { page: 'api-service', tab: 'overview' },
   'access-keys': { page: 'api-service', tab: 'access' },
-  'live-traffic': { page: 'api-service', tab: 'activity' },
+  // The live-traffic / activity tab was lifted out into its own Run-group page.
+  'live-traffic': { page: 'route-activity' },
+  activity: { page: 'route-activity' },
   // The endpoint-routing tab is gone with the global fallback — model routing
   // now lives in the Upstreams page's downstream routes.
   routes: { page: 'upstreams' },
@@ -126,7 +130,7 @@ export const LEGACY_PAGE_REDIRECTS: Readonly<Record<string, AppRoute>> = {
 
 const UPSTREAM_KINDS = new Set<UpstreamKind>(['account', 'account-group', 'account-pool', 'provider']);
 const UPSTREAM_FILTERS = new Set<UpstreamKind | 'all'>(['all', ...UPSTREAM_KINDS]);
-const UPSTREAM_TABS = new Set<UpstreamsTab>(['resources', 'routes', 'activity']);
+const UPSTREAM_TABS = new Set<UpstreamsTab>(['resources', 'routes']);
 
 const MAX_ROUTE_TEXT_LENGTH = 512;
 
@@ -268,6 +272,10 @@ export function parseHashRoute(hash: string): AppRoute {
 }
 
 function parseUpstreamsQuery(params: URLSearchParams, base: AppRoute): AppRoute {
+  // The upstreams "routing activity" tab graduated to its own Run-group page.
+  if (singleQueryValue(params, 'view') === 'activity') {
+    return { page: 'route-activity' };
+  }
   const route: AppRoute = { ...base };
   const kind = enumValue(singleQueryValue(params, 'kind'), UPSTREAM_KINDS);
   const filter = enumValue(singleQueryValue(params, 'filter'), UPSTREAM_FILTERS);

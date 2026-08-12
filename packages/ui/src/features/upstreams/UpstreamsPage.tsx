@@ -1,5 +1,4 @@
 import {
-  Activity,
   Boxes,
   ChevronRight,
   CircleDot,
@@ -46,8 +45,6 @@ import type { AppRoute, RouteNavigate, UpstreamKind } from '@/shared/state/hashR
 import { cn } from '@/shared/utils/utils';
 
 import { AccountResourceDetails } from './AccountResourceDetails';
-import { AccountRouteActivityView } from './AccountRouteActivityView';
-import { OverloadTrendView } from './OverloadTrendView';
 import { AddAccountDialog } from './AddAccountDialog';
 import {
   DownstreamRoutesWorkspace,
@@ -438,8 +435,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       ) : null}
 
       <nav className="flex shrink-0 items-end gap-1 border-b border-border/70 bg-surface-0 px-5 md:px-6" aria-label={t('upstreams.tabs.label')}>
-        {(['resources', 'routes', 'activity'] as const).map((tab) => {
-          const Icon = tab === 'resources' ? Server : tab === 'routes' ? Route : Activity;
+        {(['resources', 'routes'] as const).map((tab) => {
+          const Icon = tab === 'resources' ? Server : Route;
           return (
             <button
               key={tab}
@@ -472,11 +469,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           onOpenApiKeys={() => onNavigate({ page: 'api-service', tab: 'access' })}
           onChange={gateway.updateBindings}
         />
-      ) : activeTab === 'activity' ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <OverloadTrendView accounts={accountRows} />
-          <AccountRouteActivityView accounts={accountRows} />
-        </div>
       ) : (
       <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden md:flex-row">
         <aside className="flex h-[42%] min-h-64 shrink-0 flex-col border-b border-border/70 bg-surface-1/40 md:h-full md:w-80 md:border-b-0 md:border-r">

@@ -1,4 +1,4 @@
-import type { AccountAllowanceSnapshot, AccountsListResponse, SubscriptionAccountSanitized } from '../../daemon/types-accounts';
+import type { AccountAllowanceSnapshot, AccountsListResponse, AllowanceWindowState, SubscriptionAccountSanitized } from '../../daemon/types-accounts';
 import type {
   CliIntegrationStatusKind,
   CliIntegrationsOverview,
@@ -43,7 +43,8 @@ export interface RequestPathStage {
 }
 
 export type OverviewRoute =
-  | { page: 'api-service'; tab: 'overview' | 'access' | 'activity' }
+  | { page: 'api-service'; tab: 'overview' | 'access' }
+  | { page: 'route-activity' }
   | { page: 'upstreams'; upstreamFilter?: 'account' }
   | { page: 'integrations' }
   | { page: 'usage-stats' }
@@ -93,6 +94,15 @@ export interface AllowanceWatchItem {
   kind: 'near-limit' | 'stale';
 }
 
+export interface AllowanceWeeklyItem {
+  providerId: string;
+  accountId: string;
+  label: string;
+  usedPercent?: number;
+  state: AllowanceWindowState;
+  resetsAt?: string;
+}
+
 export interface OverviewModel {
   stages: RequestPathStage[];
   pathOperational: boolean;
@@ -121,6 +131,7 @@ export interface OverviewModel {
     unavailableCount: number;
     unobservedCount: number;
     sourceState: DataSourceState;
+    weeklyTop: AllowanceWeeklyItem[];
   };
   today: {
     requests: OverviewMetric<number>;
@@ -277,6 +288,34 @@ function buildAllowanceWatch(
   };
 }
 
+/** Up to `limit` accounts ranked by weekly (seven-day) allowance usage. */
+function buildWeeklyTop(
+  source: OverviewSource<AccountAllowanceSnapshot[]>,
+  accounts: AccountEntry[],
+  limit = 3,
+): AllowanceWeeklyItem[] {
+  if (source.state !== 'ready' || !source.data) return [];
+  const labelFor = new Map(
+    accounts.map((entry) => [allowanceKey(entry.providerId, entry.account.id), entry.account.label || entry.account.id]),
+  );
+  const items: AllowanceWeeklyItem[] = [];
+  for (const snapshot of source.data) {
+    const weekly = snapshot.windows.find((window) => window.id === 'seven-day' || window.windowMinutes === 10_080);
+    if (!weekly) continue;
+    const key = allowanceKey(snapshot.providerId, snapshot.accountId);
+    items.push({
+      providerId: snapshot.providerId,
+      accountId: snapshot.accountId,
+      label: labelFor.get(key) ?? snapshot.accountId,
+      usedPercent: typeof weekly.usedPercent === 'number' ? Math.max(0, Math.min(100, weekly.usedPercent)) : undefined,
+      state: weekly.state,
+      resetsAt: weekly.resetsAt,
+    });
+  }
+  items.sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1));
+  return items.slice(0, limit);
+}
+
 function metric<T>(source: OverviewSource<unknown>, value: T | undefined): OverviewMetric<T> {
   return { state: source.state, ...(source.state === 'ready' && value !== undefined ? { value } : {}) };
 }
@@ -357,6 +396,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   const expiringSoonCount = rows.filter((account) => isExpiringSoon(account, now)).length;
   const allowanceThreshold = config?.allowanceScheduling?.demoteAtPercent ?? DEFAULT_ALLOWANCE_WARNING_PERCENT;
   const allowanceWatch = buildAllowanceWatch(input.allowances, allowanceThreshold, entries);
+  const weeklyTop = buildWeeklyTop(input.allowances, entries);
   const todayAudit = auditErrorRate(input.audit, input.usage);
   const integrations = integrationRows(input.integrations);
 
@@ -377,8 +417,11 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   if (input.gateway.config.state === 'unavailable') {
     // The config gap above already identifies the Gateway status destination;
     // do not turn the same missing read into a fabricated routing failure.
-  } else if (input.gateway.config.state === 'ready' && routeCount < 4) {
-    issues.push(issue('routingIncomplete', { page: 'upstreams' }, routeCount === 0 ? 'blocking' : 'warning'));
+  } else if (input.gateway.config.state === 'ready' && routeCount === 0) {
+    // A partially-covered gateway (1–3 of 4 wire formats) is intentionally not
+    // flagged — most deployments only expose a subset of the formats. Only a
+    // completely unrouted gateway blocks the request path.
+    issues.push(issue('routingIncomplete', { page: 'upstreams' }, 'blocking'));
   }
   if (input.accounts.state === 'unavailable') {
     issues.push(issue('accountDataUnavailable', { page: 'upstreams', upstreamFilter: 'account' }, 'warning'));
@@ -424,7 +467,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   if (todayAudit.errorRate.state === 'unavailable' && input.usage.state !== 'loading') {
     const auditRoute = todayAudit.errorRateReason === 'audit-disabled'
       ? { page: 'settings', tab: 'data' } as const
-      : { page: 'api-service', tab: 'activity' } as const;
+      : { page: 'route-activity' } as const;
     issues.push(issue('errorRateUnavailable', auditRoute, 'warning'));
   }
 
@@ -471,7 +514,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
         ? 'loading'
         : input.gateway.config.state === 'unavailable'
           ? 'unavailable'
-          : routeCount === 4 ? 'ready' : routeCount > 0 ? 'attention' : 'inactive',
+          : routeCount > 0 ? 'ready' : 'inactive',
       detail: input.gateway.config.state === 'ready' ? `${routeCount}/4` : null,
       detailState: input.gateway.config.state,
     },
@@ -520,6 +563,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
       threshold: allowanceThreshold,
       ...allowanceWatch,
       sourceState: input.allowances.state,
+      weeklyTop,
     },
     today: {
       requests: metric(input.usage, input.usage.data?.today.eventCount),

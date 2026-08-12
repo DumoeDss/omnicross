@@ -344,6 +344,52 @@ describe('buildOverviewModel', () => {
       audit: source({ ...baseAudit, complete: false }),
     }, NOW);
     expect(incomplete.today.errorRateReason).toBe('audit-incomplete');
-    expect(incomplete.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'api-service', tab: 'activity' });
+    expect(incomplete.issues.find((entry) => entry.id === 'errorRateUnavailable')?.route).toEqual({ page: 'route-activity' });
+  });
+
+  it('treats a partially-routed gateway as operational, not attention', () => {
+    // Only one of the four wire formats is routed — that is the common case and
+    // must read as healthy, not a yellow "incomplete" warning.
+    const partialConfig: OutboundApiServerConfig = { ...baseConfig, bindings: (baseConfig.bindings ?? []).slice(0, 1) };
+    const base = healthySources();
+    const view = buildOverviewModel({ ...base, gateway: { ...base.gateway, config: source(partialConfig) } }, NOW);
+
+    expect(view.routeCount).toBe(1);
+    expect(view.stages.find((stage) => stage.id === 'routing')?.state).toBe('ready');
+    expect(view.issues.find((entry) => entry.id === 'routingIncomplete')).toBeUndefined();
+    expect(view.pathOperational).toBe(true);
+    expect(view.overallState).toBe('operational');
+  });
+
+  it('flags an unrouted gateway as blocking', () => {
+    const emptyConfig: OutboundApiServerConfig = { ...baseConfig, bindings: [] };
+    const base = healthySources();
+    const view = buildOverviewModel({ ...base, gateway: { ...base.gateway, config: source(emptyConfig) } }, NOW);
+
+    expect(view.routeCount).toBe(0);
+    expect(view.stages.find((stage) => stage.id === 'routing')?.state).toBe('inactive');
+    const blocking = view.issues.find((entry) => entry.id === 'routingIncomplete');
+    expect(blocking).toBeDefined();
+    expect(blocking?.severity).toBe('blocking');
+  });
+
+  it('ranks account-pool accounts by weekly allowance usage', () => {
+    const second: SubscriptionAccountSanitized = { ...healthyAccount, id: 'claude-2', label: 'Secondary Claude' };
+    const base = healthySources();
+    const view = buildOverviewModel({
+      ...base,
+      accounts: source({
+        ...emptyAccounts,
+        providerAccounts: { ...emptyAccounts.providerAccounts, claude: [healthyAccount, second] },
+      }),
+      allowances: source([
+        { ...baseAllowances[0], windows: [{ id: 'seven-day', label: 'Weekly', scope: 'all', usedPercent: 30, state: 'fresh' }] },
+        { ...baseAllowances[0], accountId: 'claude-2', windows: [{ id: 'seven-day', label: 'Weekly', scope: 'all', usedPercent: 88, state: 'fresh' }] },
+      ]),
+    }, NOW);
+
+    expect(view.allowance.weeklyTop).toHaveLength(2);
+    expect(view.allowance.weeklyTop[0]).toMatchObject({ accountId: 'claude-2', usedPercent: 88, label: 'Secondary Claude' });
+    expect(view.allowance.weeklyTop[1]).toMatchObject({ accountId: 'claude-1', usedPercent: 30 });
   });
 });

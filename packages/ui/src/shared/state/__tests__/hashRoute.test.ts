@@ -11,11 +11,11 @@ import {
 
 describe('hashRoute', () => {
   it('restores pages and supported nested tabs', () => {
-    expect(parseHashRoute('#/api-service/activity')).toEqual({ page: 'api-service', tab: 'activity' });
+    expect(parseHashRoute('#/api-service/activity')).toEqual({ page: 'route-activity' });
     expect(parseHashRoute('#/settings/pricing')).toEqual({ page: 'settings', tab: 'pricing' });
     expect(parseHashRoute('#/settings/advanced')).toEqual({ page: 'settings', tab: 'advanced' });
     expect(routeToHash({ page: 'api-service', tab: 'status' })).toBe('#/api-service');
-    expect(routeToHash({ page: 'api-service', tab: 'live-traffic' })).toBe('#/api-service/activity');
+    expect(routeToHash({ page: 'route-activity' })).toBe('#/route-activity');
     expect(routeToHash({ page: 'settings', tab: 'pricing' })).toBe('#/settings/pricing');
   });
 
@@ -31,7 +31,7 @@ describe('hashRoute', () => {
     expect(parseHashRoute('#/api-service/endpoints')).toEqual({ page: 'upstreams' });
     expect(parseHashRoute('#/api-service/settings')).toEqual({ page: 'upstreams' });
     expect(parseHashRoute('#/api-service/access-keys')).toEqual({ page: 'api-service', tab: 'access' });
-    expect(parseHashRoute('#/api-service/live-traffic')).toEqual({ page: 'api-service', tab: 'activity' });
+    expect(parseHashRoute('#/api-service/live-traffic')).toEqual({ page: 'route-activity' });
     expect(parseHashRoute('#/api-service/access')).toEqual({ page: 'api-service', tab: 'access' });
     expect(parseHashRoute('#/api-service/network')).toEqual({ page: 'settings', tab: 'network' });
     expect(parseHashRoute('#/api-service/advanced')).toEqual({ page: 'settings', tab: 'advanced' });
@@ -42,6 +42,7 @@ describe('hashRoute', () => {
       'status',
       'access-keys',
       'live-traffic',
+      'activity',
       'routes',
       'endpoints',
       'settings',
@@ -66,10 +67,8 @@ describe('hashRoute', () => {
     });
   });
 
-  it('round-trips the account route activity workspace', () => {
-    const route = { page: 'upstreams' as const, upstreamTab: 'activity' as const };
-    expect(routeToHash(route)).toBe('#/upstreams?view=activity');
-    expect(parseHashRoute(routeToHash(route))).toEqual(route);
+  it('redirects the legacy upstreams routing-activity tab to the standalone page', () => {
+    expect(parseHashRoute('#/upstreams?view=activity')).toEqual({ page: 'route-activity' });
   });
 
   it('round-trips account selection, meaningful filters, and unsafe text safely', () => {

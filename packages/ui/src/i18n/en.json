@@ -517,6 +517,8 @@
     "more": "More",
     "overview": "Overview",
     "gateway": "Gateway",
+    "accessKeys": "Access keys",
+    "routeActivity": "Routing activity",
     "upstreams": "Upstreams & Routes",
     "integrations": "Integrations",
     "group": {
@@ -532,6 +534,10 @@
     "usageStats": "Usage",
     "pricing": "Pricing",
     "dashboard": "Dashboard"
+  },
+  "routeActivity": {
+    "title": "Routing activity",
+    "description": "Live account routing and server-overload trends — metadata only."
   },
   "overview": {
     "eyebrow": "Local request exchange",
@@ -594,7 +600,8 @@
       "allowanceThreshold": "warning threshold {{threshold}}%",
       "expiringSoon": "Expiring soon",
       "expiringSoonHint": "Credentials expiring within 48 hours",
-      "open": "Open Accounts"
+      "open": "Open Accounts",
+      "weeklyQuota": "Weekly quota"
     },
     "today": {
       "title": "Today's exchange",
@@ -816,6 +823,7 @@
   "apiService": {
     "gatewayTitle": "Gateway",
     "gatewayDescription": "Explain and control how clients enter, route, and flow through the local service.",
+    "accessDescription": "Create and manage the access keys clients use to authenticate with the gateway.",
     "title": "API Service",
     "description": "Configure the outbound API server, per-endpoint model routing, and named access keys.",
     "tabs": {

@@ -515,6 +515,8 @@
     "primary": "主导航",
     "overview": "总览",
     "gateway": "网关",
+    "accessKeys": "访问密钥",
+    "routeActivity": "路由活动",
     "upstreams": "上游与路由",
     "integrations": "集成",
     "group": {
@@ -532,6 +534,10 @@
     "usageStats": "用量统计",
     "pricing": "模型价格",
     "dashboard": "仪表板"
+  },
+  "routeActivity": {
+    "title": "路由活动",
+    "description": "实时账号路由与服务器过载趋势 —— 仅元数据，不收集提示词。"
   },
   "overview": {
     "eyebrow": "本地请求交换台",
@@ -588,7 +594,8 @@
       "allowanceThreshold": "警告阈值 {{threshold}}%",
       "expiringSoon": "即将过期",
       "expiringSoonHint": "48 小时内到期的凭证",
-      "open": "打开账号"
+      "open": "打开账号",
+      "weeklyQuota": "周额度"
     },
     "today": {
       "title": "今日交换记录",
@@ -810,6 +817,7 @@
   "apiService": {
     "gatewayTitle": "网关",
     "gatewayDescription": "说明并控制客户端如何进入本地服务、经过路由并流转。",
+    "accessDescription": "创建和管理客户端用于网关鉴权的访问密钥。",
     "title": "API 服务",
     "description": "配置对外 API 服务器、各端点的模型路由以及命名访问密钥。",
     "tabs": {

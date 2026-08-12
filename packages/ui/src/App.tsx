@@ -6,6 +6,7 @@ import { ApiServicePage } from '@/features/api-service';
 import type { ApiServiceTabId } from '@/features/api-service/apiServiceTabModel';
 import { CodeCliPage } from '@/features/code-cli';
 import { OverviewPage } from '@/features/overview';
+import { RouteActivityPage } from '@/features/route-activity/RouteActivityPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { UpstreamsPage } from '@/features/upstreams';
 import type { SettingsTabId } from '@/features/settings/settingsTabModel';
@@ -15,7 +16,8 @@ import { useHashRoute, type AppRoute, type RouteNavigate } from '@/shared/state/
 function renderPage(route: AppRoute, navigate: RouteNavigate) {
   switch (route.page) {
     case 'overview': return <OverviewPage onNavigate={navigate} />;
-    case 'api-service': return <ApiServicePage activeTab={(route.tab as ApiServiceTabId | undefined) ?? 'overview'} onTabChange={(tab) => navigate({ page: 'api-service', tab })} onNavigate={navigate} />;
+    case 'api-service': return <ApiServicePage activeTab={(route.tab as ApiServiceTabId | undefined) ?? 'overview'} onNavigate={navigate} />;
+    case 'route-activity': return <RouteActivityPage />;
     case 'upstreams': return <UpstreamsPage route={route} onNavigate={navigate} />;
     case 'integrations': return <CodeCliPage />;
     case 'usage-stats': return <UsageStatsPage />;
@@ -28,7 +30,7 @@ export default function App() {
   const [route, navigate] = useHashRoute();
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground md:flex-row">
-      <NavRail activePage={route.page} onNavigate={(page) => navigate({ page })} />
+      <NavRail route={route} onNavigate={navigate} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DaemonStatusBanner />
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{renderPage(route, navigate)}</main>
