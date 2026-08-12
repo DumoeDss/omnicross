@@ -18,28 +18,24 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 import type { RouteNavigate } from '@/shared/state/hashRoute';
 import type { GatewayBinding } from '@/daemon/types';
 
-import { ApiServiceTabs } from './ApiServiceTabs';
-import { API_SERVICE_TABS, normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
+import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
 import { routeForBinding, summarizeBindingCoverage } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
 import { KeyManagementSection } from './KeyManagementSection';
 import { QueueStatusSummary } from './QueueStatusSummary';
-import { QueueStatusView } from './QueueStatusView';
-import { RecentErrorsView } from './RecentErrorsView';
 import { ServerStatusBanner } from './ServerStatusBanner';
 import { VoucherSection } from './VoucherSection';
 
 interface ApiServicePageProps {
   activeTab?: ApiServiceTabId;
-  onTabChange?: (tab: ApiServiceTabId) => void;
   onNavigate?: RouteNavigate;
 }
 
-export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNavigate }: ApiServicePageProps) {
+export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServicePageProps) {
   const t = useTranslation();
-  const [localTab, setLocalTab] = React.useState<ApiServiceTabId>('overview');
-  const activeTab = normalizeApiServiceTab(controlledTab ?? localTab);
-  const setActiveTab = onTabChange ?? setLocalTab;
+  // The two gateway destinations (overview + access) are fully separated — each
+  // is reached only via the NavRail, with no in-page tab switcher between them.
+  const activeTab = normalizeApiServiceTab(controlledTab ?? 'overview');
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
   const {
     loading,
@@ -59,7 +55,6 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
     setKeyEnabled,
     setKeyMaxConcurrency,
     setKeyPolicy,
-    queryAudit,
     queueStatus,
     vouchers,
     createdVoucher,
@@ -68,9 +63,6 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
     generateVoucher,
     revokeVoucher,
   } = useApiService();
-  const tabLabels = Object.fromEntries(
-    API_SERVICE_TABS.map((tab) => [tab.id, t(tab.labelKey)]),
-  ) as Record<ApiServiceTabId, string>;
 
   React.useEffect(() => {
     scrollAreaRef.current
@@ -82,20 +74,17 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
     <div className="flex h-full flex-col overflow-hidden">
       <header className="border-b border-border/60 px-6 py-4">
         <div className="flex items-center gap-2">
-          <ServerCog className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h2 className="text-lg font-semibold text-foreground">{t('apiService.gatewayTitle')}</h2>
+          {activeTab === 'access'
+            ? <KeyRound className="h-5 w-5 text-primary" aria-hidden="true" />
+            : <ServerCog className="h-5 w-5 text-primary" aria-hidden="true" />}
+          <h2 className="text-lg font-semibold text-foreground">
+            {activeTab === 'access' ? t('nav.accessKeys') : t('apiService.gatewayTitle')}
+          </h2>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{t('apiService.gatewayDescription')}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {activeTab === 'access' ? t('apiService.accessDescription') : t('apiService.gatewayDescription')}
+        </p>
       </header>
-
-      {!loading && config ? (
-        <ApiServiceTabs
-          activeTab={activeTab}
-          ariaLabel={t('apiService.gatewayTitle')}
-          labels={tabLabels}
-          onChange={setActiveTab}
-        />
-      ) : null}
 
       <ScrollArea ref={scrollAreaRef} className="flex-1">
         <div className="mx-auto max-w-5xl space-y-5 px-6 py-5">
@@ -124,7 +113,7 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
                 <QueueStatusSummary
                   queueStatus={queueStatus}
                   running={status?.running ?? false}
-                  onOpenLiveTraffic={() => setActiveTab('activity')}
+                  onOpenLiveTraffic={() => onNavigate?.({ page: 'route-activity' })}
                 />
 
                 <BindingCoverage
@@ -180,26 +169,6 @@ export function ApiServicePage({ activeTab: controlledTab, onTabChange, onNaviga
                   onGenerate={generateVoucher}
                   onRevoke={revokeVoucher}
                   onDismissCreated={dismissCreatedVoucher}
-                />
-              </div>
-
-              <div
-                id="api-service-panel-activity"
-                role="tabpanel"
-                aria-labelledby="api-service-tab-activity"
-                tabIndex={0}
-                hidden={activeTab !== 'activity'}
-                className="space-y-6"
-              >
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">{t('apiService.liveTraffic.title')}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">{t('apiService.liveTraffic.description')}</p>
-                </div>
-                <QueueStatusView queueStatus={queueStatus} running={status?.running ?? false} />
-                <RecentErrorsView
-                  active={activeTab === 'activity'}
-                  auditEnabled={config.audit?.enabled === true}
-                  onQuery={queryAudit}
                 />
               </div>
 

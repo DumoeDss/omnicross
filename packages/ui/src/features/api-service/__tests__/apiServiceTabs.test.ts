@@ -12,7 +12,6 @@ describe('API service information architecture', () => {
     expect(API_SERVICE_TABS.map((tab) => tab.id)).toEqual([
       'overview',
       'access',
-      'activity',
     ]);
   });
 
@@ -32,11 +31,13 @@ describe('API service information architecture', () => {
       'bindingCoverage',
     ]);
     expect(sectionsForApiServiceTab('access')).toEqual(['accessKeys', 'vouchers']);
-    expect(sectionsForApiServiceTab('activity')).toEqual(['liveTrafficQueue', 'recentErrors']);
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('endpointRouting');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('networkBinding');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('requestQueue');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('upstreamProxy');
+    // The live-traffic / activity sections graduated to the Route Activity page.
+    expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('liveTrafficQueue');
+    expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('recentErrors');
   });
 
   it('normalizes old in-memory callers while hashes redirect at the route boundary', () => {
@@ -45,6 +46,5 @@ describe('API service information architecture', () => {
     expect(normalizeApiServiceTab('endpoints')).toBe('overview');
     expect(normalizeApiServiceTab('settings')).toBe('overview');
     expect(normalizeApiServiceTab('access-keys')).toBe('access');
-    expect(normalizeApiServiceTab('live-traffic')).toBe('activity');
   });
 });

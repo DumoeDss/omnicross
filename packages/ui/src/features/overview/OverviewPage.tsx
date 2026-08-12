@@ -27,6 +27,7 @@ import { cn } from '@/shared/utils/utils';
 import { useOverviewData } from './useOverviewData';
 import {
   buildOverviewModel,
+  type AllowanceWeeklyItem,
   type DataSourceState,
   type OverviewIssue,
   type OverviewMetric,
@@ -146,6 +147,52 @@ function EvidenceRow({
   );
 }
 
+function WeeklyAllowanceList({
+  items,
+  threshold,
+}: {
+  items: AllowanceWeeklyItem[];
+  threshold: number;
+}) {
+  const t = useTranslation();
+  if (!items.length) return null;
+  return (
+    <div className="grid gap-2 border-t border-border/60 py-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-start sm:gap-4">
+      <span className="text-xs text-muted-foreground">{t('overview.accounts.weeklyQuota')}</span>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const hasData = typeof item.usedPercent === 'number';
+          const percent = hasData ? (item.usedPercent as number) : 0;
+          const nearLimit = hasData && (item.usedPercent as number) >= threshold;
+          return (
+            <div key={`${item.providerId}:${item.accountId}`} className="min-w-0">
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="truncate text-muted-foreground" title={item.label}>{item.label}</span>
+                <span className={cn('shrink-0 font-mono tabular-nums', nearLimit ? 'text-warning' : 'text-foreground')}>
+                  {hasData ? t('accounts.allowance.used', { percent: Math.round(item.usedPercent as number) }) : t(`accounts.allowance.state.${item.state}`)}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-[width]',
+                    !hasData || item.state !== 'fresh'
+                      ? 'bg-muted-foreground/50'
+                      : nearLimit
+                        ? 'bg-warning'
+                        : 'bg-primary',
+                  )}
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function GatewayEvidence({
   view,
   onNavigate,
@@ -242,6 +289,7 @@ function AccountsEvidence({
           detail={view.accounts.expiringSoon.state === 'ready' ? t('overview.accounts.expiringSoonHint') : undefined}
           valueClassName="font-mono tabular-nums"
         />
+        <WeeklyAllowanceList items={view.allowance.weeklyTop} threshold={view.allowance.threshold} />
       </div>
     </section>
   );

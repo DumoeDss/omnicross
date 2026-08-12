@@ -1,36 +1,52 @@
-import { Activity, BarChart3, Boxes, Cable, Menu, ServerCog, Settings } from 'lucide-react';
+import { Activity, BarChart3, Boxes, Cable, KeyRound, Menu, Route, ServerCog, Settings } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { DAEMON_BASE_URL } from '@/daemon/adminClient';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTranslation } from '@/shared/state/LocaleContext';
-import type { PageId } from '@/shared/state/hashRoute';
+import type { AppRoute, PageId } from '@/shared/state/hashRoute';
 import { cn } from '@/shared/utils/utils';
 
-import { MOBILE_MORE_LABEL_KEY, MOBILE_PRIMARY_IDS, NAV_GROUPS } from './navModel';
+import { MOBILE_MORE_LABEL_KEY, MOBILE_PRIMARY_KEYS, NAV_GROUPS, type NavItemDef } from './navModel';
 
 const NAV_ICONS = {
   overview: Activity,
   gateway: ServerCog,
+  'access-keys': KeyRound,
+  'route-activity': Route,
   usage: BarChart3,
   upstreams: Boxes,
   integrations: Cable,
   settings: Settings,
 } as const;
 
-interface NavRailProps { activePage: PageId; onNavigate: (page: PageId) => void }
+/** An item is active when its page matches and (for tabbed pages) its tab matches. */
+function itemIsActive(item: NavItemDef, route: AppRoute): boolean {
+  if (item.page !== route.page) return false;
+  if (!item.tab) return true;
+  // api-service: an absent tab reads as the default 'overview' tab.
+  const activeTab = item.page === 'api-service' ? (route.tab ?? 'overview') : route.tab;
+  return activeTab === item.tab;
+}
+
+interface NavRailProps { route: AppRoute; onNavigate: (route: AppRoute) => void }
 
 const allNavItems = NAV_GROUPS.flatMap((group) => group.items);
-const mobilePrimaryItems = allNavItems.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id));
+const mobilePrimaryItems = allNavItems.filter((item) => MOBILE_PRIMARY_KEYS.includes(item.key));
 
-export function NavRail({ activePage, onNavigate }: NavRailProps) {
+export function NavRail({ route, onNavigate }: NavRailProps) {
   const t = useTranslation();
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
-  const mobileMoreActive = !MOBILE_PRIMARY_IDS.includes(activePage);
+  const mobileMoreActive = !mobilePrimaryItems.some((item) => itemIsActive(item, route));
   const mobileMoreLabel = t(MOBILE_MORE_LABEL_KEY);
 
-  const navigateFromMobile = (page: PageId) => {
-    onNavigate(page);
+  const go = (item: NavItemDef) => {
+    const next = { page: item.page } as AppRoute;
+    if (item.tab) next.tab = item.tab as AppRoute['tab'];
+    onNavigate(next);
+  };
+  const navigateFromMobile = (item: NavItemDef) => {
+    go(item);
     setMobileMoreOpen(false);
   };
 
@@ -51,12 +67,12 @@ export function NavRail({ activePage, onNavigate }: NavRailProps) {
               <p className="px-3 pb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">{t(`nav.group.${group.id}`)}</p>
               {group.items.map((item) => {
                 const Icon = NAV_ICONS[item.icon];
-                const active = item.id === activePage;
+                const active = itemIsActive(item, route);
                 return (
                   <button
-                    key={item.id}
+                    key={item.key}
                     type="button"
-                    onClick={() => onNavigate(item.id)}
+                    onClick={() => go(item)}
                     aria-current={active ? 'page' : undefined}
                     aria-label={t(item.labelKey)}
                     className={cn(
@@ -87,12 +103,12 @@ export function NavRail({ activePage, onNavigate }: NavRailProps) {
         <nav className="mx-auto grid max-w-xl grid-cols-5 gap-1 px-2 pt-1" aria-label={t('nav.primary')}>
           {mobilePrimaryItems.map((item) => {
             const Icon = NAV_ICONS[item.icon];
-            const active = item.id === activePage;
+            const active = itemIsActive(item, route);
             return (
               <button
-                key={item.id}
+                key={item.key}
                 type="button"
-                onClick={() => navigateFromMobile(item.id)}
+                onClick={() => navigateFromMobile(item)}
                 aria-current={active ? 'page' : undefined}
                 aria-label={t(item.labelKey)}
                 className={cn(
@@ -150,12 +166,12 @@ export function NavRail({ activePage, onNavigate }: NavRailProps) {
                 <div className="grid gap-1 sm:grid-cols-2">
                   {group.items.map((item) => {
                     const Icon = NAV_ICONS[item.icon];
-                    const active = item.id === activePage;
+                    const active = itemIsActive(item, route);
                     return (
                       <button
-                        key={item.id}
+                        key={item.key}
                         type="button"
-                        onClick={() => navigateFromMobile(item.id)}
+                        onClick={() => navigateFromMobile(item)}
                         aria-current={active ? 'page' : undefined}
                         aria-label={t(item.labelKey)}
                         className={cn(
@@ -180,4 +196,4 @@ export function NavRail({ activePage, onNavigate }: NavRailProps) {
 }
 
 export type { PageId } from '@/shared/state/hashRoute';
-export { MOBILE_MORE_LABEL_KEY, MOBILE_PRIMARY_IDS, NAV_GROUPS } from './navModel';
+export { MOBILE_MORE_LABEL_KEY, MOBILE_PRIMARY_KEYS, NAV_GROUPS } from './navModel';
