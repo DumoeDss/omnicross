@@ -246,6 +246,7 @@ export const DEFAULT_SEED_PRESET_IDS: readonly string[] = [
   // MiniMax + Xiaomi MiMo bumped up next to Kimi per UX preference —
   // popular Anthropic-format Chinese providers cluster together.
   'openrouter',
+  'openrouter-response',
   'zhipu',
   'zhipu-bigmodel',
   'kimi',

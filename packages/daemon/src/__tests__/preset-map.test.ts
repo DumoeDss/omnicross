@@ -60,6 +60,20 @@ describe('preset → daemon-row mapping', () => {
     expect(r.provider.apiFormat).toBe('openai-response');
   });
 
+  it('maps the OpenRouter Responses preset to its native Responses endpoint', () => {
+    const preset = getPresetById('openrouter-response')!;
+    expect(preset.apiFormat).toBe('openai-response');
+    expect(preset.api_base_url).toBe('https://openrouter.ai/api/v1');
+    const r = mapPresetToProvider(preset, { key: 'sk-or-x' });
+    if (!('provider' in r)) throw new Error('expected provider');
+    expect(r.provider).toMatchObject({
+      id: 'openrouter-response',
+      apiFormat: 'openai-response',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'sk-or-x',
+    });
+  });
+
   it('excludes azure-openai with a reason', () => {
     const preset = getPresetById('azure-openai')!;
     const r = mapPresetToProvider(preset, { key: 'sk-x' });

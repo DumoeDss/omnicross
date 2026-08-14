@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import type { ProviderConfigSource } from '../../ports';
+import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext, UsageRecorderImport } from '../types';
 
@@ -94,11 +95,22 @@ function makeLlmConfig(upstreamBase: string): ProviderConfigSource {
       models: ['provider-real-model'],
       enabled: true,
     },
+    'openrouter-response-prov': {
+      id: 'openrouter-response-prov',
+      name: 'OpenRouter (Responses API)',
+      apiFormat: 'openai-response',
+      api_base_url: upstreamBase,
+      api_key: PROVIDER_KEY,
+      models: ['anthropic/claude-sonnet-4-6'],
+      enabled: true,
+    },
   };
+  const responsesTransformer = new OpenAIResponseTransformer();
   return {
     getProvider: vi.fn(async (id: string) => providers[id] ?? null),
     resolveTransformerChain: vi.fn(async () => ({ providerTransformers: [], modelTransformers: [] })),
-    getMainTransformer: vi.fn(async () => null),
+    getMainTransformer: vi.fn(async (id: string) =>
+      id === 'openrouter-response-prov' ? responsesTransformer : null),
     getTransformerService: () => ({ getTransformer: () => undefined }),
   } as unknown as ProviderConfigSource;
 }
@@ -222,6 +234,44 @@ describe('Anthropic /v1/messages — response model passthrough + verbatim body 
     // Usage accounted on the UPSTREAM resolved model.
     expect(records).toHaveLength(1);
     expect(records[0].model).toBe('provider-real-model');
+  });
+
+  it('OpenRouter Responses preserves client-provided Claude explicit-cache fields', async () => {
+    await startProxy();
+    const model = 'anthropic/claude-sonnet-4-6';
+    const clientModel = 'gpt-5-codex';
+    const token = proxy.addRoute({
+      sessionId: 'sess-openrouter-responses',
+      targetProviderFormat: 'openai-responses',
+      model,
+      ingressFormat: 'openai-responses',
+      authMode: 'byo',
+      providerId: 'openrouter-response-prov',
+      requestedModel: clientModel,
+    });
+    const requestBody = {
+      model: clientModel,
+      input: [{
+        type: 'message',
+        role: 'user',
+        content: [{
+          type: 'input_text',
+          text: 'ping',
+          prompt_cache_breakpoint: { mode: 'explicit' },
+        }],
+      }],
+      cache_control: { type: 'ephemeral', ttl: '1h' },
+      provider: { order: ['Anthropic'], allow_fallbacks: false },
+    };
+
+    const res = await fetch(`${baseUrl}/v1/responses`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify(requestBody),
+    });
+    expect(res.status).toBe(200);
+
+    expect(JSON.parse(upstream.lastBody ?? '{}')).toEqual({ ...requestBody, model });
   });
 
   it('internal route (no requestedModel) → response model NOT rewritten (zero regression)', async () => {

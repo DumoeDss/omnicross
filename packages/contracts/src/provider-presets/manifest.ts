@@ -32,6 +32,7 @@ import ollama from './presets/ollama.json';
 import openai from './presets/openai.json';
 import openaiResponse from './presets/openai-response.json';
 import openrouter from './presets/openrouter.json';
+import openrouterResponse from './presets/openrouter-response.json';
 import perplexity from './presets/perplexity.json';
 import siliconflow from './presets/siliconflow.json';
 import tencent from './presets/tencent.json';
@@ -60,6 +61,7 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   openaiResponse,
   siliconflow,
   openrouter,
+  openrouterResponse,
   mistral,
   together,
   perplexity,
