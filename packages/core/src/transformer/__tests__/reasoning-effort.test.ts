@@ -49,6 +49,19 @@ describe('resolveReasoningEffort', () => {
   });
 
   it.each([
+    'gpt-5.6',
+    'gpt-5.6-sol',
+    'gpt-5.6-terra',
+    'gpt-5.6-luna',
+  ])('preserves canonical GPT-5.6 max for %s', (model) => {
+    expect(resolveReasoningEffort('max', model)).toBe('max');
+  });
+
+  it('keeps GPT-5.3-Codex capped at its documented xhigh maximum', () => {
+    expect(resolveReasoningEffort('max', 'gpt-5.3-codex')).toBe('xhigh');
+  });
+
+  it.each([
     ['xhigh', 'max'],
     ['medium', 'high'],
   ] as Array<[ThinkLevel, ThinkLevel]>)('maps sparse %s to nearest %s', (requested, expected) => {

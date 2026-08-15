@@ -823,6 +823,15 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       }, { name: 'codex', baseUrl: 'https://api.openai.com', apiKey: 'k', models: [] }, mockContext);
       expect(((body as Record<string, any>).body ?? body).reasoning.effort).toBe('xhigh');
     });
+
+    it('preserves Chat max when converting to a GPT-5.6 Responses target', async () => {
+      const body = await transformer.transformRequestIn({
+        model: 'gpt-5.6',
+        messages: [{ role: 'user', content: 'x' }],
+        reasoning_effort: 'max',
+      }, { name: 'codex', baseUrl: 'https://api.openai.com', apiKey: 'k', models: [] }, mockContext);
+      expect(((body as Record<string, any>).body ?? body).reasoning.effort).toBe('max');
+    });
   });
 
   // =========================================================================
