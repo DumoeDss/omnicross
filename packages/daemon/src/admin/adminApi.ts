@@ -56,6 +56,8 @@ import {
   loadConfig,
   migrateFormatAxis,
   saveConfig,
+  validateThinkingLevels,
+  validateThinkingTokenLimit,
   validateTransformerEntry,
 } from '../config';
 import type { AutoDisableStore } from '../pool/autoDisableStore';
@@ -1218,7 +1220,7 @@ function parseApiKeysInput(
  * explicit-`null`-clears contract before calling here). For a submitted entry,
  * the body's fields win; an OMITTED field on a provided entry falls back to the
  * prior same-id entry's value (so metadata the daemon stores but the client did
- * not echo is not silently dropped). Deny-by-default: only the named-five
+ * not echo is not silently dropped). Deny-by-default: only the allowlisted
  * allowlisted fields are ever copied; a bad entry (missing id) is skipped. An
  * empty/all-bad array collapses to `undefined` (same as "no metadata").
  */
@@ -1246,6 +1248,12 @@ function parseModelConfigsInput(
     else if (typeof prior?.vision === 'boolean') entry.vision = prior.vision;
     if (typeof m['reasoning'] === 'boolean') entry.reasoning = m['reasoning'];
     else if (typeof prior?.reasoning === 'boolean') entry.reasoning = prior.reasoning;
+    const thinkingLevels = validateThinkingLevels(m['thinkingLevels']);
+    if (thinkingLevels) entry.thinkingLevels = thinkingLevels;
+    else if (prior?.thinkingLevels) entry.thinkingLevels = prior.thinkingLevels;
+    const thinkingTokenLimit = validateThinkingTokenLimit(m['thinkingTokenLimit']);
+    if (thinkingTokenLimit) entry.thinkingTokenLimit = thinkingTokenLimit;
+    else if (prior?.thinkingTokenLimit) entry.thinkingTokenLimit = prior.thinkingTokenLimit;
     out.push(entry);
   }
   return out.length > 0 ? out : undefined;

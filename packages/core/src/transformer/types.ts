@@ -7,14 +7,14 @@
  * @module transformer/types
  */
 
+import type { ModelConfig } from '@omnicross/contracts/llm-config';
+import type { ThinkLevel } from '@omnicross/contracts/completion-types';
+
+export type { ThinkLevel } from '@omnicross/contracts/completion-types';
+
 // ============================================================================
 // Thinking / Reasoning Types
 // ============================================================================
-
-/**
- * Thinking effort level for reasoning models
- */
-export type ThinkLevel = 'none' | 'low' | 'medium' | 'high';
 
 /**
  * Thinking content with optional signature for extended context
@@ -150,6 +150,8 @@ export interface UnifiedChatRequest {
   tools?: UnifiedTool[];
   tool_choice?: ToolChoice;
   reasoning?: ReasoningConfig;
+  /** Native OpenAI Chat field retained by the identity-shaped ingress. */
+  reasoning_effort?: string;
   /**
    * Internal-only routing metadata. Populated by callers (CompletionService /
    * the host's engine adapters and proxy servers) so the usage-capture hook can attribute
@@ -302,6 +304,8 @@ export interface LLMProvider {
   baseUrl: string;
   apiKey: string;
   models: string[];
+  /** Effective per-model capability overrides used by target encoders. */
+  modelConfigs?: Array<Pick<ModelConfig, 'id'> & Partial<ModelConfig>>;
   transformer?: TransformerChainConfig;
   /**
    * Resolved Google **Code Assist** project id, threaded onto the transformer
@@ -353,6 +357,12 @@ export interface TransformerContext {
   logger?: TransformerLogger;
   /** Provider name */
   providerName?: string;
+  /**
+   * Native request format that supplied a recognized reasoning effort.
+   * Target encoders use this provenance to preserve same-format values while
+   * continuing to negotiate genuine cross-format conversions.
+   */
+  reasoningSourceFormat?: string;
   /** Additional context data */
   [key: string]: unknown;
 }

@@ -375,6 +375,8 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
       model: 'cli',
       max_tokens: 16,
       messages: [{ role: 'user', content: 'ping' }],
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'max' },
       // A server-tool block the unified pivot would strip — must survive verbatim.
       extra_server_tool: { type: 'server_tool_use', id: 'srv_1' },
     };
@@ -389,7 +391,10 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     expect(upstream.lastAuthHeader).toBe(`Bearer ${CLAUDE_OAUTH}`);
     // Verbatim: the server-tool `type` field survived (no Unified round-trip).
     const received = JSON.parse(upstream.lastBody ?? '{}') as typeof sentBody;
+    expect(upstream.lastBody).toBe(JSON.stringify(sentBody));
     expect(received.extra_server_tool.type).toBe('server_tool_use');
+    expect(received.thinking).toEqual({ type: 'adaptive' });
+    expect(received.output_config).toEqual({ effort: 'max' });
     // Response relayed unchanged (the Anthropic upstream body, not round-tripped).
     const json = (await res.json()) as { id?: string; type?: string };
     expect(json.id).toBe(ANTHROPIC_RESPONSE.id);

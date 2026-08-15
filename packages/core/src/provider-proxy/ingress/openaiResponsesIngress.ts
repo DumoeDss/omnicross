@@ -386,6 +386,7 @@ async function buildByoPlan(
     baseUrl: provider.api_base_url,
     apiKey,
     models: provider.models || [],
+    modelConfigs: provider.modelConfigs,
   };
 
   const byoUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });

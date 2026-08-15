@@ -56,6 +56,7 @@ import type {
   UnifiedChatRequest,
   UnifiedMessage,
 } from '../types';
+import { resolveRequestReasoning } from '../reasoning-effort';
 
 /** Message-level keys that must never reach an OpenAI chat upstream. */
 const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking'] as const;
@@ -99,7 +100,7 @@ export class OpenAITransformer implements Transformer {
    */
   async transformRequestIn(
     request: UnifiedChatRequest,
-    _provider: LLMProvider,
+    provider: LLMProvider,
     _context: TransformerContext,
   ): Promise<Record<string, unknown>> {
     const source = request as unknown as Record<string, unknown>;
@@ -134,9 +135,13 @@ export class OpenAITransformer implements Transformer {
 
     // `reasoning` → `reasoning_effort`. 'none' means "no thinking", which the
     // chat wire spells by omitting the field entirely.
-    const effort = request.reasoning?.effort;
-    if (typeof effort === 'string' && effort !== 'none') {
-      out.reasoning_effort = effort;
+    // A native Chat field with no decoded unified reasoning is already present
+    // in `out` and must remain byte/native-preserved on same-format paths.
+    const reasoning = request.reasoning ? resolveRequestReasoning(request, provider) : undefined;
+    if (reasoning?.effort && reasoning.effort !== 'none') {
+      out.reasoning_effort = reasoning.effort;
+    } else if (request.reasoning) {
+      delete out.reasoning_effort;
     }
 
     return out;

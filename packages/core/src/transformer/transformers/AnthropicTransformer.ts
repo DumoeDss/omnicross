@@ -144,10 +144,10 @@ export class AnthropicTransformer implements Transformer {
    */
   async transformRequestIn(
     request: UnifiedChatRequest,
-    _provider: LLMProvider,
+    provider: LLMProvider,
     _context: TransformerContext
   ): Promise<Record<string, unknown>> {
-    return buildAnthropicRequestBody(request);
+    return buildAnthropicRequestBody(request, provider);
   }
 
   /**

@@ -438,11 +438,13 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
         model: 'byo-model',
         max_tokens: 16,
         messages: [{ role: 'user', content: 'ping' }],
+        reasoning_effort: 'xhigh',
       }),
     });
 
     expect(res.status).toBe(200);
     expect(upstream.hits).toBe(1);
+    expect(JSON.parse(upstream.lastBody ?? '{}').reasoning_effort).toBe('xhigh');
     const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
     expect(json.choices?.[0]?.message?.content).toBe('byo-pong');
   });

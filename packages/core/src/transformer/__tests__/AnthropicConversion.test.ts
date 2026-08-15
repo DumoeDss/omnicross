@@ -421,7 +421,35 @@ describe('transformAnthropicRequestToUnified', () => {
       thinking: { type: 'enabled', budget_tokens: 8192 },
     });
 
-    expect(result.reasoning).toEqual({ effort: 'medium', enabled: true });
+    expect(result.reasoning).toEqual({ effort: 'medium', enabled: true, max_tokens: 8192 });
+  });
+
+  it('decodes adaptive effort, explicit disablement, and malformed values safely', () => {
+    const adaptive = transformAnthropicRequestToUnified({
+      model: 'claude-opus-4-6',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: 'hi' }],
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'MAX' },
+    });
+    expect(adaptive.reasoning).toEqual({ effort: 'max', enabled: true });
+
+    const disabled = transformAnthropicRequestToUnified({
+      model: 'claude',
+      max_tokens: 1024,
+      messages: [],
+      thinking: { type: 'disabled' },
+    });
+    expect(disabled.reasoning).toEqual({ effort: 'none', enabled: false });
+
+    const malformed = transformAnthropicRequestToUnified({
+      model: 'claude',
+      max_tokens: 1024,
+      messages: [],
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'turbo' },
+    });
+    expect(malformed.reasoning).toBeUndefined();
   });
 });
 
@@ -555,6 +583,71 @@ describe('buildAnthropicRequestBody', () => {
     const body = buildAnthropicRequestBody(request);
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 32768 });
     expect(body.temperature).toBe(1); // thinking forces temperature = 1
+  });
+
+  it('encodes adaptive thinking with negotiated effort for declared targets', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude-opus-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: { effort: 'minimal', enabled: true },
+    });
+    expect(body.thinking).toEqual({ type: 'adaptive' });
+    expect(body.output_config).toEqual({ effort: 'low' });
+    expect(body.temperature).toBeUndefined();
+  });
+
+  it('extracts native OpenAI Chat effort during cross-format adaptive encoding', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude-opus-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning_effort: 'xhigh',
+    });
+    expect(body.thinking).toEqual({ type: 'adaptive' });
+    expect(body.output_config).toEqual({ effort: 'xhigh' });
+  });
+
+  it('honors and clamps explicit legacy budgets against provider bounds', () => {
+    const provider = {
+      modelConfigs: [{
+        id: 'legacy-claude',
+        thinkingTokenLimit: { min: 1024, max: 4096 },
+      }],
+    };
+    const body = buildAnthropicRequestBody({
+      model: 'legacy-claude',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: { effort: 'high', enabled: true, max_tokens: 9000 },
+    }, provider);
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 });
+    expect(body.temperature).toBe(1);
+  });
+
+  it('uses legacy budget encoding when an empty row override shadows canonical levels', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude-opus-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: { effort: 'high', enabled: true, max_tokens: 2048 },
+    }, {
+      modelConfigs: [{
+        id: 'claude-opus-4-6',
+        thinkingLevels: [],
+        thinkingTokenLimit: { min: 1024, max: 4096 },
+      }],
+    });
+
+    expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 2048 });
+    expect(body).not.toHaveProperty('output_config');
+    expect(body.temperature).toBe(1);
+  });
+
+  it('does not promote disabled reasoning to adaptive or legacy thinking', () => {
+    const adaptive = buildAnthropicRequestBody({
+      model: 'claude-opus-4-6',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoning: { effort: 'none', enabled: false },
+    });
+    expect(adaptive).not.toHaveProperty('thinking');
+    expect(adaptive).not.toHaveProperty('output_config');
   });
 
   it('converts image_url data URIs to Anthropic image source', () => {

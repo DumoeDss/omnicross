@@ -756,6 +756,29 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(unified.reasoning!.enabled).toBe(true);
     });
 
+    it.each(['minimal', 'xhigh', 'max'] as const)(
+      'transformRequestOut: accepts extended effort %s',
+      async (effort) => {
+        const unified = await transformer.transformRequestOut({
+          model: 'unknown-target',
+          input: [{ role: 'user', content: 'think' }],
+          reasoning: { effort: effort.toUpperCase() },
+        }, mockContext);
+        expect(unified.reasoning).toEqual({ effort, enabled: true });
+      },
+    );
+
+    it('ignores malformed effort and decodes explicit none as disabled', async () => {
+      const malformed = await transformer.transformRequestOut({
+        model: 'm', input: [], reasoning: { effort: 'turbo' },
+      }, mockContext);
+      expect(malformed.reasoning).toBeUndefined();
+      const disabled = await transformer.transformRequestOut({
+        model: 'm', input: [], reasoning: { effort: 'none' },
+      }, mockContext);
+      expect(disabled.reasoning).toEqual({ effort: 'none', enabled: false });
+    });
+
     it('transformRequestIn (reverse): maps unified.reasoning.effort back to Responses reasoning', async () => {
       // transformRequestIn is the PROVIDER-encode direction (unified → Responses);
       // verifying it confirms effort survives a full effort round-trip.
@@ -790,6 +813,15 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       );
       const innerBody = (body as Record<string, any>).body ?? body;
       expect(innerBody.reasoning.effort).toBe('medium');
+    });
+
+    it('extracts native Chat effort and negotiates it for a Responses target', async () => {
+      const body = await transformer.transformRequestIn({
+        model: 'gpt-5.3-codex',
+        messages: [{ role: 'user', content: 'x' }],
+        reasoning_effort: 'xhigh',
+      }, { name: 'codex', baseUrl: 'https://api.openai.com', apiKey: 'k', models: [] }, mockContext);
+      expect(((body as Record<string, any>).body ?? body).reasoning.effort).toBe('xhigh');
     });
   });
 

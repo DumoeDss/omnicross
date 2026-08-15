@@ -205,7 +205,7 @@ export class GeminiCodeAssistTransformer implements Transformer {
     provider: LLMProvider,
     _context: TransformerContext,
   ): Promise<Record<string, unknown>> {
-    const inner = buildRequestBody(request);
+    const inner = buildRequestBody(request, provider);
 
     const envelope: Record<string, unknown> = {
       model: request.model,

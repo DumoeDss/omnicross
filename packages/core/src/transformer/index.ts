@@ -17,6 +17,14 @@ export { TransformerService } from './TransformerService';
 // (the daemon's `ConfigFileProviderConfigSource` calls this in its ctor) instead
 // of reaching into the deep `transformer/transformers` subpath.
 export { registerBuiltinTransformers } from './transformers';
+export {
+  extractReasoningIntent,
+  normalizeThinkLevel,
+  resolveReasoningEffort,
+  resolveRequestReasoning,
+  resolveTargetModelCapabilities,
+  THINK_LEVELS,
+} from './reasoning-effort';
 
 // Type exports
 export type {

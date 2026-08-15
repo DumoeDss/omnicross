@@ -8,7 +8,12 @@
  */
 
 import { resolveAnthropicMaxTokens } from '../../anthropicMaxTokens';
-import type { TextContent, UnifiedChatRequest } from '../types';
+import { EFFORT_RATIO, findTokenLimit } from '@omnicross/contracts/thinking-config';
+import type { LLMProvider, TextContent, UnifiedChatRequest } from '../types';
+import {
+  resolveRequestReasoning,
+  resolveTargetModelCapabilities,
+} from '../reasoning-effort';
 
 import type {
   AnthropicContent,
@@ -20,7 +25,10 @@ import type {
 /**
  * Build an Anthropic Messages API request body from a unified request.
  */
-export function buildAnthropicRequestBody(request: UnifiedChatRequest): Record<string, unknown> {
+export function buildAnthropicRequestBody(
+  request: UnifiedChatRequest,
+  provider?: Pick<LLMProvider, 'modelConfigs'>,
+): Record<string, unknown> {
   let systemContent: string | Array<{ type: 'text'; text: string; cache_control?: unknown }> | undefined;
   const anthropicMessages: AnthropicMessage[] = [];
 
@@ -195,13 +203,39 @@ export function buildAnthropicRequestBody(request: UnifiedChatRequest): Record<s
     }
   }
 
-  // Convert reasoning → thinking config
-  if (request.reasoning?.enabled) {
-    const budgetMap: Record<string, number> = { low: 2048, medium: 8192, high: 32768 };
-    const budget = request.reasoning.max_tokens || budgetMap[request.reasoning.effort || 'medium'] || 8192;
-    body.thinking = { type: 'enabled', budget_tokens: budget };
-    // When thinking is enabled, temperature must be 1 for Anthropic
-    body.temperature = 1;
+  // Convert reasoning immediately before the Anthropic wire boundary. Models
+  // declaring discrete levels use adaptive thinking; older targets retain the
+  // bounded budget_tokens contract.
+  const reasoning = resolveRequestReasoning(request, provider);
+  if (reasoning?.effort && reasoning.effort !== 'none') {
+    const capabilities = resolveTargetModelCapabilities(request.model, provider);
+    if (capabilities.thinkingLevels?.length) {
+      body.thinking = { type: 'adaptive' };
+      body.output_config = { effort: reasoning.effort };
+    } else {
+      const fallbackBudget: Record<string, number> = {
+        minimal: 1024,
+        low: 2048,
+        medium: 8192,
+        high: 32768,
+        xhigh: 32768,
+        max: 32768,
+      };
+      const limits = capabilities.thinkingTokenLimit ?? findTokenLimit(request.model);
+      const calculated = limits
+        ? Math.floor((limits.max - limits.min) * EFFORT_RATIO[reasoning.effort] + limits.min)
+        : fallbackBudget[reasoning.effort] ?? 8192;
+      const requestedBudget = typeof reasoning.max_tokens === 'number' &&
+        Number.isFinite(reasoning.max_tokens)
+        ? Math.floor(reasoning.max_tokens)
+        : calculated;
+      const min = Math.max(1024, limits?.min ?? 1024);
+      const max = Math.max(min, limits?.max ?? 128000);
+      const budget = Math.max(min, Math.min(max, requestedBudget));
+      body.thinking = { type: 'enabled', budget_tokens: budget };
+      // Legacy extended thinking requires temperature=1. Adaptive thinking does not.
+      body.temperature = 1;
+    }
   }
 
   return body;

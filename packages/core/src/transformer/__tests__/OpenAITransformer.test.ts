@@ -133,6 +133,26 @@ describe('OpenAITransformer — reasoning effort', () => {
     expect(out).not.toHaveProperty('reasoning_effort');
     expect(out).not.toHaveProperty('reasoning');
   });
+
+  it('negotiates exact minimal/xhigh and nearest sparse levels', async () => {
+    expect((await encode(req({
+      model: 'gpt-5.2',
+      reasoning: { effort: 'minimal', enabled: true },
+    }))).reasoning_effort).toBe('minimal');
+    expect((await encode(req({
+      model: 'gpt-5.3-codex',
+      reasoning: { effort: 'xhigh', enabled: true },
+    }))).reasoning_effort).toBe('xhigh');
+    expect((await encode(req({
+      model: 'deepseek-v4-pro',
+      reasoning: { effort: 'xhigh', enabled: true },
+    }))).reasoning_effort).toBe('max');
+  });
+
+  it('leaves native Chat reasoning_effort untouched without unified reasoning', async () => {
+    const out = await encode(req({ reasoning_effort: 'xhigh' }));
+    expect(out.reasoning_effort).toBe('xhigh');
+  });
 });
 
 describe('OpenAITransformer — blacklist discipline (no silent parameter loss)', () => {
