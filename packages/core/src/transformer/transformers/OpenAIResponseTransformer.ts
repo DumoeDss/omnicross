@@ -17,7 +17,11 @@ import type {
   UnifiedMessage,
   UnifiedTool,
 } from '../types';
-import { normalizeThinkLevel, resolveRequestReasoning } from '../reasoning-effort';
+import {
+  extractReasoningIntent,
+  normalizeThinkLevel,
+  resolveReasoningPlan,
+} from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
 
 // ============================================================================
@@ -169,11 +173,16 @@ export class OpenAIResponseTransformer implements Transformer {
     };
 
     // Map reasoning config
-    const reasoning = resolveRequestReasoning(request, provider, {
+    const reasoningPlan = resolveReasoningPlan({
+      intent: extractReasoningIntent(request),
+      model: request.model,
+      provider,
+      target: 'openai-responses',
+      requestMaxTokens: request.max_tokens,
       preserveNativeEffort: context.reasoningSourceFormat === this.name,
     });
-    if (reasoning?.effort && reasoning.effort !== 'none') {
-      body.reasoning = { effort: reasoning.effort, summary: 'auto' };
+    if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+      body.reasoning = { effort: reasoningPlan.effort, summary: 'auto' };
     }
 
     // Map tools

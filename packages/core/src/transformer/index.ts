@@ -21,9 +21,18 @@ export {
   extractReasoningIntent,
   normalizeThinkLevel,
   resolveReasoningEffort,
+  resolveReasoningPlan,
+  resolveReasoningTokenLimit,
   resolveRequestReasoning,
   resolveTargetModelCapabilities,
   THINK_LEVELS,
+} from './reasoning-effort';
+export type {
+  ReasoningIntent,
+  ReasoningPlan,
+  ReasoningProvider,
+  ReasoningTarget,
+  ResolveReasoningPlanInput,
 } from './reasoning-effort';
 
 // Type exports

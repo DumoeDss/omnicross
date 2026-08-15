@@ -7,13 +7,11 @@
  * @module transformer/transformers/utils/gemini.util
  */
 
-import { EFFORT_RATIO, findTokenLimit } from '@omnicross/contracts/thinking-config';
-
 import type { LLMProvider, ToolCall, UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '../../types';
 import {
+  extractReasoningIntent,
   normalizeThinkLevel,
-  resolveRequestReasoning,
-  resolveTargetModelCapabilities,
+  resolveReasoningPlan,
 } from '../../reasoning-effort';
 import { getThinkLevel } from '../AnthropicTypes';
 
@@ -258,40 +256,24 @@ export function buildRequestBody(
     generationConfig.maxOutputTokens = request.max_tokens;
   }
 
-  const reasoning = resolveRequestReasoning(request, provider, { preserveNativeEffort });
-  if (reasoning?.effort) {
-    const capabilities = resolveTargetModelCapabilities(request.model, provider);
-    const discreteLevels = capabilities.thinkingLevels;
-    if (discreteLevels?.length) {
-      if (reasoning.effort !== 'none' || discreteLevels.includes('none')) {
-        generationConfig.thinkingConfig = {
-          includeThoughts: reasoning.effort !== 'none',
-          thinkingLevel: reasoning.effort,
-        };
-      }
-    } else {
-      const fallback = request.model.toLowerCase().includes('pro')
-        ? { min: 128, max: 32768 }
-        : { min: 0, max: 24576 };
-      const limits = capabilities.thinkingTokenLimit ?? findTokenLimit(request.model) ?? fallback;
-      if (reasoning.effort === 'none') {
-        if (limits.min === 0) {
-          generationConfig.thinkingConfig = { includeThoughts: false, thinkingBudget: 0 };
-        }
-      } else {
-        const calculated = Math.floor(
-          (limits.max - limits.min) * EFFORT_RATIO[reasoning.effort] + limits.min,
-        );
-        const requestedBudget = typeof reasoning.max_tokens === 'number' &&
-          Number.isFinite(reasoning.max_tokens)
-          ? Math.floor(reasoning.max_tokens)
-          : calculated;
-        generationConfig.thinkingConfig = {
-          includeThoughts: true,
-          thinkingBudget: Math.max(limits.min, Math.min(limits.max, requestedBudget)),
-        };
-      }
-    }
+  const reasoningPlan = resolveReasoningPlan({
+    intent: extractReasoningIntent(request),
+    model: request.model,
+    provider,
+    target: 'gemini',
+    requestMaxTokens: request.max_tokens,
+    preserveNativeEffort,
+  });
+  if (reasoningPlan?.kind === 'level') {
+    generationConfig.thinkingConfig = {
+      includeThoughts: reasoningPlan.enabled,
+      thinkingLevel: reasoningPlan.effort,
+    };
+  } else if (reasoningPlan?.kind === 'budget') {
+    generationConfig.thinkingConfig = {
+      includeThoughts: reasoningPlan.enabled,
+      thinkingBudget: reasoningPlan.budgetTokens,
+    };
   }
 
   const body: GeminiRequestBody = {

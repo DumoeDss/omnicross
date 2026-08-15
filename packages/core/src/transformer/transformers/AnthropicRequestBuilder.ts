@@ -8,11 +8,10 @@
  */
 
 import { resolveAnthropicMaxTokens } from '../../anthropicMaxTokens';
-import { EFFORT_RATIO, findTokenLimit } from '@omnicross/contracts/thinking-config';
 import type { LLMProvider, TextContent, UnifiedChatRequest } from '../types';
 import {
-  resolveRequestReasoning,
-  resolveTargetModelCapabilities,
+  extractReasoningIntent,
+  resolveReasoningPlan,
 } from '../reasoning-effort';
 
 import type {
@@ -206,36 +205,20 @@ export function buildAnthropicRequestBody(
   // Convert reasoning immediately before the Anthropic wire boundary. Models
   // declaring discrete levels use adaptive thinking; older targets retain the
   // bounded budget_tokens contract.
-  const reasoning = resolveRequestReasoning(request, provider);
-  if (reasoning?.effort && reasoning.effort !== 'none') {
-    const capabilities = resolveTargetModelCapabilities(request.model, provider);
-    if (capabilities.thinkingLevels?.length) {
-      body.thinking = { type: 'adaptive' };
-      body.output_config = { effort: reasoning.effort };
-    } else {
-      const fallbackBudget: Record<string, number> = {
-        minimal: 1024,
-        low: 2048,
-        medium: 8192,
-        high: 32768,
-        xhigh: 32768,
-        max: 32768,
-      };
-      const limits = capabilities.thinkingTokenLimit ?? findTokenLimit(request.model);
-      const calculated = limits
-        ? Math.floor((limits.max - limits.min) * EFFORT_RATIO[reasoning.effort] + limits.min)
-        : fallbackBudget[reasoning.effort] ?? 8192;
-      const requestedBudget = typeof reasoning.max_tokens === 'number' &&
-        Number.isFinite(reasoning.max_tokens)
-        ? Math.floor(reasoning.max_tokens)
-        : calculated;
-      const min = Math.max(1024, limits?.min ?? 1024);
-      const max = Math.max(min, limits?.max ?? 128000);
-      const budget = Math.max(min, Math.min(max, requestedBudget));
-      body.thinking = { type: 'enabled', budget_tokens: budget };
-      // Legacy extended thinking requires temperature=1. Adaptive thinking does not.
-      body.temperature = 1;
-    }
+  const reasoningPlan = resolveReasoningPlan({
+    intent: extractReasoningIntent(request),
+    model: request.model,
+    provider,
+    target: 'anthropic',
+    requestMaxTokens: request.max_tokens,
+  });
+  if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+    body.thinking = { type: 'adaptive' };
+    body.output_config = { effort: reasoningPlan.effort };
+  } else if (reasoningPlan?.kind === 'budget' && reasoningPlan.enabled) {
+    body.thinking = { type: 'enabled', budget_tokens: reasoningPlan.budgetTokens };
+    // Legacy extended thinking requires temperature=1. Adaptive thinking does not.
+    body.temperature = 1;
   }
 
   return body;
