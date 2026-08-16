@@ -1,4 +1,4 @@
-﻿/**
+/**
  * StreamHandler - Handles SSE-based streaming completion for different API formats
  *
  * Extracted from CompletionService to handle stream-specific logic
@@ -11,7 +11,6 @@ import type {
   OpenAIChatRequest
 } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
-import { buildAnthropicThinking, getOpenAIReasoningEffort } from '@omnicross/contracts/thinking-config';
 import { streamSSEResponse } from '@omnicross/core/sse-parser';
 
 import { convertOpenAIToAnthropic } from '..';
@@ -27,6 +26,11 @@ import {
   type StreamCallbacks
 } from './';
 import { applyAugmentation } from './NativeSearchInjector';
+import {
+  buildAnthropicReasoningWire,
+  buildGeminiThinkingConfig,
+  resolveOpenAIEffort,
+} from './ReasoningRequestBuilder';
 
 /**
  * Stream OpenAI-compatible completion
@@ -50,11 +54,9 @@ export async function streamOpenAICompletion(
   };
 
   // Add reasoning_effort for OpenAI reasoning models (Chat Completions API format)
-  if (options.thinkLevel && options.thinkLevel !== 'none') {
-    const effort = getOpenAIReasoningEffort(options.thinkLevel);
-    if (effort) {
-      (request as unknown as Record<string, unknown>).reasoning_effort = effort;
-    }
+  const effort = resolveOpenAIEffort(provider, options, 'openai-chat');
+  if (effort) {
+    (request as unknown as Record<string, unknown>).reasoning_effort = effort;
   }
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: true });
@@ -129,32 +131,12 @@ export async function streamAnthropicCompletion(
   // Check if any messages have images
   const hasImages = options.messages.some(m => m.images && m.images.length > 0);
 
-  // For extended thinking, Anthropic has specific constraints:
-  // - max_tokens sets the combined limit for thinking + output
-  // - budget_tokens must be less than max_tokens
-  // - Some proxies have lower limits than official Anthropic API
-  // Cap max_tokens first, then calculate thinking budget based on that
-  const MAX_TOKENS_FOR_THINKING = 16384; // Safe limit for most proxies
-  let effectiveMaxTokens = options.maxTokens ?? 16384;
-
-  // Build thinking configuration if thinkLevel is set
-  // Use the capped max_tokens for budget calculation
-  const thinkingMaxTokens = options.thinkLevel && options.thinkLevel !== 'none'
-    ? Math.min(effectiveMaxTokens, MAX_TOKENS_FOR_THINKING)
-    : effectiveMaxTokens;
-
-  const thinkingConfig = options.thinkLevel && options.thinkLevel !== 'none'
-    ? buildAnthropicThinking(options.model, options.thinkLevel, thinkingMaxTokens)
-    : undefined;
-
-  // When thinking is enabled, use the capped max_tokens
-  if (thinkingConfig) {
-    effectiveMaxTokens = thinkingMaxTokens;
-  }
+  const reasoningWire = buildAnthropicReasoningWire(provider, options);
+  const effectiveMaxTokens = reasoningWire.effectiveMaxTokens;
 
   logger.debug('Anthropic thinking configuration', {
     thinkLevel: options.thinkLevel,
-    thinkingConfig,
+    thinkingConfig: reasoningWire.thinking,
     effectiveMaxTokens
   });
 
@@ -169,12 +151,18 @@ export async function streamAnthropicCompletion(
       model: options.model,
       max_tokens: effectiveMaxTokens,
       // Omit temperature when thinking is enabled (Anthropic will use default temperature=1)
-      ...(thinkingConfig ? {} : { temperature: options.temperature }),
+      ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
       ...(systemMessages.length > 0 ? { system: systemMessages.map(m => m.content).join('\n\n') } : {}),
       messages: nonSystemMessages.map(m => convertMessageToAnthropic(m)),
       stream: true,
-      ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+      ...(reasoningWire.thinking
+        ? { thinking: reasoningWire.thinking as AnthropicChatRequest['thinking'] }
+        : {}),
     };
+    if (reasoningWire.outputConfig) {
+      (anthropicRequest as unknown as Record<string, unknown>).output_config =
+        reasoningWire.outputConfig;
+    }
   } else {
     // Original flow for text-only messages
     // Convert to Anthropic format
@@ -191,15 +179,21 @@ export async function streamAnthropicCompletion(
       // Anthropic requires max_tokens; use adjusted value
       max_tokens: effectiveMaxTokens,
       // Omit temperature when thinking is enabled (Anthropic will use default temperature=1)
-      temperature: thinkingConfig ? undefined : options.temperature,
+      temperature: reasoningWire.legacyBudgetEnabled ? undefined : options.temperature,
       stream: true,
     };
 
     anthropicRequest = convertOpenAIToAnthropic(openaiRequest, config);
     // Add thinking config after conversion
-    if (thinkingConfig) {
-      anthropicRequest.thinking = thinkingConfig;
-      // Remove temperature if it was set during conversion
+    if (reasoningWire.thinking) {
+      (anthropicRequest as unknown as Record<string, unknown>).thinking = reasoningWire.thinking;
+    }
+    if (reasoningWire.outputConfig) {
+      (anthropicRequest as unknown as Record<string, unknown>).output_config =
+        reasoningWire.outputConfig;
+    }
+    if (reasoningWire.legacyBudgetEnabled) {
+      // Legacy extended thinking requires the default temperature of 1.
       delete anthropicRequest.temperature;
     }
   }
@@ -296,11 +290,13 @@ export async function streamGeminiCompletion(
     }
   }
 
+  const thinkingConfig = buildGeminiThinkingConfig(provider, options);
   const request: Record<string, unknown> = {
     contents,
     generationConfig: {
       ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
       ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      ...(thinkingConfig ? { thinkingConfig } : {}),
     },
   };
 
@@ -397,11 +393,9 @@ export async function streamOpenAIResponseCompletion(
   };
 
   // Add reasoning effort for reasoning models (Response API format)
-  if (options.thinkLevel && options.thinkLevel !== 'none') {
-    const effort = getOpenAIReasoningEffort(options.thinkLevel);
-    if (effort) {
-      request.reasoning = { effort, summary: 'auto' };
-    }
+  const responseEffort = resolveOpenAIEffort(provider, options, 'openai-responses');
+  if (responseEffort) {
+    request.reasoning = { effort: responseEffort, summary: 'auto' };
   }
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: true });

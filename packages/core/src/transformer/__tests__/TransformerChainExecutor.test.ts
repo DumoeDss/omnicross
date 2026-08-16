@@ -11,6 +11,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TransformerChainExecutor } from '../TransformerChainExecutor';
+import { GeminiTransformer } from '../transformers/GeminiTransformer';
+import { OpenAIResponseTransformer } from '../transformers/OpenAIResponseTransformer';
 import type {
   LLMProvider,
   ResolvedTransformerChain,
@@ -215,6 +217,90 @@ describe('TransformerChainExecutor', () => {
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.stringContaining('Bypass mode enabled')
       );
+    });
+
+    it('round-trips native Responses max through a same-format chain with an inert modifier', async () => {
+      const endpointTransformer = new OpenAIResponseTransformer();
+      const inertModifier = createMockTransformer('inert', {
+        transformRequestIn: vi.fn().mockImplementation(async (request) => request),
+      });
+      const chain: ResolvedTransformerChain = {
+        providerTransformers: [endpointTransformer, inertModifier],
+        modelTransformers: [],
+      };
+      const provider: LLMProvider = {
+        ...mockProvider,
+        models: ['gpt-5.3-codex'],
+      };
+
+      const result = await executor.executeRequestChain({
+        model: 'gpt-5.3-codex',
+        input: [{ role: 'user', content: 'Hello' }],
+        reasoning: { effort: 'max' },
+      }, provider, chain, { endpointTransformer });
+
+      expect(result.bypass).toBe(false);
+      expect(result.requestBody).toMatchObject({
+        reasoning: { effort: 'max', summary: 'auto' },
+      });
+      expect(inertModifier.transformRequestIn).toHaveBeenCalledOnce();
+    });
+
+    it('round-trips native Gemini xhigh through a same-format chain with an inert modifier', async () => {
+      const endpointTransformer = new GeminiTransformer();
+      const inertModifier = createMockTransformer('inert', {
+        transformRequestIn: vi.fn().mockImplementation(async (request) => request),
+      });
+      const chain: ResolvedTransformerChain = {
+        providerTransformers: [endpointTransformer, inertModifier],
+        modelTransformers: [],
+      };
+      const provider: LLMProvider = {
+        ...mockProvider,
+        models: ['gemini-3-flash'],
+      };
+
+      const result = await executor.executeRequestChain({
+        model: 'gemini-3-flash',
+        contents: [{ role: 'user', parts: [{ text: 'Hello' }] }],
+        generationConfig: {
+          thinkingConfig: { includeThoughts: true, thinkingLevel: 'xhigh' },
+        },
+      }, provider, chain, { endpointTransformer });
+
+      expect(result.bypass).toBe(false);
+      expect(result.requestBody).toMatchObject({
+        generationConfig: {
+          thinkingConfig: { includeThoughts: true, thinkingLevel: 'xhigh' },
+        },
+      });
+      expect(inertModifier.transformRequestIn).toHaveBeenCalledOnce();
+    });
+
+    it('still negotiates native effort when the target format changes', async () => {
+      const endpointTransformer = new OpenAIResponseTransformer();
+      const targetTransformer = new GeminiTransformer();
+      const chain: ResolvedTransformerChain = {
+        providerTransformers: [targetTransformer],
+        modelTransformers: [],
+      };
+      const provider: LLMProvider = {
+        ...mockProvider,
+        models: ['gemini-3-flash'],
+      };
+
+      const result = await executor.executeRequestChain({
+        model: 'gemini-3-flash',
+        input: [{ role: 'user', content: 'Hello' }],
+        reasoning: { effort: 'max' },
+      }, provider, chain, { endpointTransformer });
+
+      expect(result.bypass).toBe(false);
+      expect(result.requestBody).toMatchObject({
+        generationConfig: {
+          thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' },
+        },
+      });
     });
   });
 

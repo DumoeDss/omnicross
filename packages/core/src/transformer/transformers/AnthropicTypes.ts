@@ -75,8 +75,11 @@ export interface AnthropicRequest {
   }>;
   tool_choice?: { type: 'auto' | 'any' | 'tool'; name?: string };
   thinking?: {
-    type: 'enabled' | 'disabled';
+    type: 'enabled' | 'disabled' | 'adaptive';
     budget_tokens?: number;
+  };
+  output_config?: {
+    effort?: string;
   };
 }
 

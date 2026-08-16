@@ -177,7 +177,8 @@ export async function completeWithTransformers(
       name: provider.name,
       baseUrl: provider.api_base_url,
       apiKey,
-      models: provider.models || []
+      models: provider.models || [],
+      modelConfigs: provider.modelConfigs,
     };
 
     // Execute transformer chain (using shared executor)
@@ -373,7 +374,8 @@ export async function completeStreamWithTransformers(
       name: provider.name,
       baseUrl: provider.api_base_url,
       apiKey,
-      models: provider.models || []
+      models: provider.models || [],
+      modelConfigs: provider.modelConfigs,
     };
 
     // Execute transformer chain (using shared executor)

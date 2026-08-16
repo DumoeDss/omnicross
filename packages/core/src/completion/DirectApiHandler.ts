@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DirectApiHandler - Handles non-streaming (direct) completion API calls
  *
  * Extracted from CompletionService to handle direct (non-streaming)
@@ -12,7 +12,6 @@ import type {
   OpenAIChatResponse
 } from '@omnicross/contracts/completion-types';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
-import { getOpenAIReasoningEffort } from '@omnicross/contracts/thinking-config';
 
 import { convertAnthropicToOpenAI, convertOpenAIToAnthropic } from '..';
 import type { Logger } from '../ports/logger';
@@ -26,6 +25,11 @@ import {
   convertMessageToOpenAI,
   getProviderHeaders
 } from './';
+import {
+  buildAnthropicReasoningWire,
+  buildGeminiThinkingConfig,
+  resolveOpenAIEffort,
+} from './ReasoningRequestBuilder';
 
 /**
  * Call OpenAI-compatible completion API
@@ -46,11 +50,9 @@ export async function callOpenAICompletion(
   };
 
   // Add reasoning_effort for OpenAI reasoning models (Chat Completions API format)
-  if (options.thinkLevel && options.thinkLevel !== 'none') {
-    const effort = getOpenAIReasoningEffort(options.thinkLevel);
-    if (effort) {
-      (request as unknown as Record<string, unknown>).reasoning_effort = effort;
-    }
+  const effort = resolveOpenAIEffort(provider, options, 'openai-chat');
+  if (effort) {
+    (request as unknown as Record<string, unknown>).reasoning_effort = effort;
   }
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
@@ -103,19 +105,22 @@ export async function callAnthropicCompletion(
 ): Promise<CompletionResult> {
   // Check if any messages have images
   const hasImages = options.messages.some(m => m.images && m.images.length > 0);
+  const reasoningWire = buildAnthropicReasoningWire(provider, options);
 
   if (hasImages) {
     // Build Anthropic request directly with image support
     const systemMessages = options.messages.filter(m => m.role === 'system');
     const nonSystemMessages = options.messages.filter(m => m.role !== 'system');
 
-    const anthropicRequest = {
+    const anthropicRequest: Record<string, unknown> = {
       model: options.model,
-      max_tokens: options.maxTokens ?? 16384,
-      temperature: options.temperature,
+      max_tokens: reasoningWire.effectiveMaxTokens,
+      ...(reasoningWire.legacyBudgetEnabled ? {} : { temperature: options.temperature }),
       ...(systemMessages.length > 0 ? { system: systemMessages.map(m => m.content).join('\n\n') } : {}),
       messages: nonSystemMessages.map(m => convertMessageToAnthropic(m)),
       stream: false,
+      ...(reasoningWire.thinking ? { thinking: reasoningWire.thinking } : {}),
+      ...(reasoningWire.outputConfig ? { output_config: reasoningWire.outputConfig } : {}),
     };
 
     const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
@@ -166,8 +171,8 @@ export async function callAnthropicCompletion(
       content: m.content,
     })),
     // Anthropic requires max_tokens; use 16384 default if not explicitly set
-    max_tokens: options.maxTokens ?? 16384,
-    temperature: options.temperature,
+    max_tokens: reasoningWire.effectiveMaxTokens,
+    temperature: reasoningWire.legacyBudgetEnabled ? undefined : options.temperature,
     stream: false,
   };
 
@@ -176,6 +181,16 @@ export async function callAnthropicCompletion(
     defaultModel: options.model,
   };
   const anthropicRequest = convertOpenAIToAnthropic(openaiRequest, config);
+  const anthropicRequestBody = anthropicRequest as unknown as Record<string, unknown>;
+  if (reasoningWire.thinking) {
+    anthropicRequestBody.thinking = reasoningWire.thinking;
+  }
+  if (reasoningWire.outputConfig) {
+    anthropicRequestBody.output_config = reasoningWire.outputConfig;
+  }
+  if (reasoningWire.legacyBudgetEnabled) {
+    delete anthropicRequestBody.temperature;
+  }
 
   // Build the correct endpoint URL for Anthropic Messages API
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });
@@ -245,11 +260,13 @@ export async function callGeminiCompletion(
     }
   }
 
+  const thinkingConfig = buildGeminiThinkingConfig(provider, options);
   const request: Record<string, unknown> = {
     contents,
     generationConfig: {
       ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
       ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      ...(thinkingConfig ? { thinkingConfig } : {}),
     },
   };
 
@@ -348,11 +365,9 @@ export async function callOpenAIResponseCompletion(
   };
 
   // Add reasoning effort for reasoning models (Response API format)
-  if (options.thinkLevel && options.thinkLevel !== 'none') {
-    const effort = getOpenAIReasoningEffort(options.thinkLevel);
-    if (effort) {
-      request.reasoning = { effort, summary: 'auto' };
-    }
+  const responseEffort = resolveOpenAIEffort(provider, options, 'openai-responses');
+  if (responseEffort) {
+    request.reasoning = { effort: responseEffort, summary: 'auto' };
   }
 
   const apiUrl = buildProviderApiUrl(provider, { model: options.model, stream: false });

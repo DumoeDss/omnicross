@@ -1,18 +1,17 @@
 /**
  * thinking-config — dependency-light thinking-budget / reasoning-effort helpers.
  *
- * The PURE budget/effort functions the `@omnicross/*` packages consume
+ * The budget/effort functions the `@omnicross/*` packages consume
  * (`getOpenAIReasoningEffort`, `buildAnthropicThinking`, `calculateThinkingBudget`,
  * `getClaudeMaxTokens`, `isReasoningModel`, `DEFAULT_MAX_TOKENS`) plus the in-file
  * regex/numeric data they rely on.
  *
- * This module is intentionally import-closed (0 runtime deps): it OMITS any
- * global model-thinking-level cache + its initializing side-effect (which would
- * pull the full canonical-models / provider-presets closure into the import
- * graph) and the cache-fed lookups (`getAvailableThinkLevels` / `validateThinkLevel`),
- * none of which the `@omnicross/*` packages call.
+ * Canonical model metadata is the authoritative token-limit source. The regex
+ * table in this module remains a compatibility fallback for unregistered model
+ * ids; it is not a second model registry.
  */
 
+import { lookupCanonicalCapabilities } from './canonical-models';
 import type { ThinkLevel } from './completion-types';
 import type { ModelConfig } from './llm-config';
 
@@ -42,7 +41,7 @@ export const DEFAULT_MAX_TOKENS = 4096;
 // Per-model thinking-token limits (regex pattern → { min, max })
 // ============================================================================
 
-export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+export const LEGACY_THINKING_TOKEN_LIMITS: Record<string, { min: number; max: number }> = {
   // Gemini
   'gemini-2\\.5-flash-lite': { min: 512, max: 24576 },
   'gemini-.*-flash': { min: 0, max: 24576 },
@@ -109,6 +108,12 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'doubao.*think': { min: 0, max: 16384 },
 };
 
+/**
+ * @deprecated Use `findTokenLimit` for canonical-first lookup. This alias is
+ * retained for consumers that inspect the legacy regex fallback table.
+ */
+export const THINKING_TOKEN_MAP = LEGACY_THINKING_TOKEN_LIMITS;
+
 // ============================================================================
 // Reasoning-model detection
 // ============================================================================
@@ -152,8 +157,8 @@ export function canDisableThinking(modelId: string): boolean {
 }
 
 /**
- * Resolve the model's thinking-token limit. Prefers a declared
- * `ModelConfig.thinkingTokenLimit`, else falls back to a regex match.
+ * Resolve the model's thinking-token limit. Priority is an explicit model-row
+ * declaration, canonical metadata, then the legacy regex fallback table.
  */
 export function findTokenLimit(
   modelOrId: string | ModelConfig,
@@ -165,9 +170,25 @@ export function findTokenLimit(
     return findTokenLimit(modelOrId.id);
   }
 
-  const lowerModelId = modelOrId.toLowerCase();
+  const canonicalLimit = lookupCanonicalCapabilities(modelOrId)?.thinkingTokenLimit;
+  if (canonicalLimit) return canonicalLimit;
 
-  for (const [pattern, limit] of Object.entries(THINKING_TOKEN_MAP)) {
+  return findLegacyTokenLimit(modelOrId);
+}
+
+/**
+ * Match only the legacy regex compatibility table. New request builders should
+ * normally call `findTokenLimit`; the shared reasoning resolver uses this
+ * narrower helper after it has already merged provider and canonical metadata.
+ */
+export function findLegacyTokenLimit(
+  modelId: string,
+): { min: number; max: number } | null {
+  if (!modelId) return null;
+
+  const lowerModelId = modelId.toLowerCase();
+
+  for (const [pattern, limit] of Object.entries(LEGACY_THINKING_TOKEN_LIMITS)) {
     const regex = new RegExp(pattern, 'i');
     if (regex.test(lowerModelId)) {
       return limit;
@@ -227,7 +248,14 @@ export function getClaudeMaxTokens(
   return outputTokens > 0 ? outputTokens : undefined;
 }
 
-/** OpenAI reasoning_effort mapping (pass-through; `max` maps to `high`). */
+/**
+ * Context-free OpenAI reasoning_effort compatibility mapping.
+ *
+ * @deprecated This helper cannot determine whether a target model supports the
+ * requested effort. Internal request builders must use the model-aware core
+ * reasoning-plan resolver. Historical `max -> high` behavior is retained for
+ * external callers during the compatibility window.
+ */
 export function getOpenAIReasoningEffort(level: ThinkLevel): string | undefined {
   switch (level) {
     case 'none':

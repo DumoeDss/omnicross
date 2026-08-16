@@ -630,7 +630,16 @@ describe('provider per-model metadata (app-parity child 2)', () => {
       baseUrl: base(),
       models: ['m1'],
       modelConfigs: [
-        { id: 'm1', name: 'Model One', enabled: false, group: 'g1', vision: true, reasoning: false },
+        {
+          id: 'm1',
+          name: 'Model One',
+          enabled: false,
+          group: 'g1',
+          vision: true,
+          reasoning: false,
+          thinkingLevels: ['none', 'high', 'max'],
+          thinkingTokenLimit: { min: 128, max: 32768 },
+        },
       ],
     });
     expect(put.status).toBe(200);
@@ -641,13 +650,31 @@ describe('provider per-model metadata (app-parity child 2)', () => {
     expect(p['models']).toEqual(['m1']);
     const mc = p['modelConfigs'] as Array<Record<string, unknown>>;
     expect(mc).toEqual([
-      { id: 'm1', name: 'Model One', enabled: false, group: 'g1', vision: true, reasoning: false },
+      {
+        id: 'm1',
+        name: 'Model One',
+        enabled: false,
+        group: 'g1',
+        vision: true,
+        reasoning: false,
+        thinkingLevels: ['none', 'high', 'max'],
+        thinkingTokenLimit: { min: 128, max: 32768 },
+      },
     ]);
 
     // Disk round-trip (through validateModelConfigs in loadConfig).
     const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
     expect(persisted.modelConfigs).toEqual([
-      { id: 'm1', name: 'Model One', enabled: false, group: 'g1', vision: true, reasoning: false },
+      {
+        id: 'm1',
+        name: 'Model One',
+        enabled: false,
+        group: 'g1',
+        vision: true,
+        reasoning: false,
+        thinkingLevels: ['none', 'high', 'max'],
+        thinkingTokenLimit: { min: 128, max: 32768 },
+      },
     ]);
     expect(persisted.models).toEqual(['m1']);
   });
@@ -664,6 +691,57 @@ describe('provider per-model metadata (app-parity child 2)', () => {
     const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
     expect(persisted.modelConfigs).toBeUndefined();
     expect(persisted.models).toEqual(['m1', 'm2']);
+  });
+
+  it('drops malformed thinking capabilities at both Admin and load gateways', async () => {
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' }]);
+    const put = await adminFetch('PUT', '/admin/api/providers/a', {
+      apiFormat: 'openai',
+      baseUrl: base(),
+      models: ['m1', 'm2'],
+      modelConfigs: [
+        { id: 'm1', thinkingLevels: ['high', 'turbo'], thinkingTokenLimit: { min: -1, max: 10 } },
+        { id: 'm2', thinkingLevels: ['low'], thinkingTokenLimit: { min: 100, max: 10 } },
+      ],
+    });
+    expect(put.status).toBe(200);
+    expect(loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')?.modelConfigs)
+      .toEqual([{ id: 'm1' }, { id: 'm2', thinkingLevels: ['low'] }]);
+  });
+
+  it('round-trips and projects an empty thinkingLevels override', async () => {
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-a' }]);
+    const put = await adminFetch('PUT', '/admin/api/providers/a', {
+      apiFormat: 'anthropic',
+      baseUrl: base(),
+      models: ['claude-opus-4-6'],
+      modelConfigs: [{
+        id: 'claude-opus-4-6',
+        thinkingLevels: [],
+        thinkingTokenLimit: { min: 1024, max: 4096 },
+      }],
+    });
+    expect(put.status).toBe(200);
+
+    const list = await adminFetch('GET', '/admin/api/providers');
+    expect(findProvider(list.json, 'a')['modelConfigs']).toEqual([{
+      id: 'claude-opus-4-6',
+      thinkingLevels: [],
+      thinkingTokenLimit: { min: 1024, max: 4096 },
+    }]);
+    expect(loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')?.modelConfigs)
+      .toEqual([{
+        id: 'claude-opus-4-6',
+        thinkingLevels: [],
+        thinkingTokenLimit: { min: 1024, max: 4096 },
+      }]);
+
+    const provider = await daemon.llmConfig.getProvider('a');
+    expect(provider?.modelConfigs?.[0]).toMatchObject({
+      id: 'claude-opus-4-6',
+      thinkingLevels: [],
+      thinkingTokenLimit: { min: 1024, max: 4096 },
+    });
   });
 
   it('an omitted modelConfigs on a later edit keeps the stored metadata; explicit null clears it', async () => {
@@ -761,6 +839,27 @@ describe('provider per-model metadata (app-parity child 2)', () => {
     } finally {
       delete process.env['OMNI_MODELMETA_TEST_KEY'];
     }
+  });
+
+  it('projects thinking capability overrides into the core provider shape', async () => {
+    await bootDaemon((b) => [{
+      id: 'a',
+      apiFormat: 'openai',
+      baseUrl: b,
+      apiKey: 'sk-a',
+      models: ['m1'],
+      modelConfigs: [{
+        id: 'm1',
+        thinkingLevels: ['high', 'max'],
+        thinkingTokenLimit: { min: 512, max: 24576 },
+      }],
+    }]);
+    const provider = await daemon.llmConfig.getProvider('a');
+    expect(provider?.modelConfigs?.[0]).toMatchObject({
+      id: 'm1',
+      thinkingLevels: ['high', 'max'],
+      thinkingTokenLimit: { min: 512, max: 24576 },
+    });
   });
 });
 

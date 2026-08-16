@@ -7,7 +7,13 @@
  * @module transformer/transformers/utils/gemini.util
  */
 
-import type { ToolCall, UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '../../types';
+import type { LLMProvider, ToolCall, UnifiedChatRequest, UnifiedMessage, UnifiedTool } from '../../types';
+import {
+  extractReasoningIntent,
+  normalizeThinkLevel,
+  resolveReasoningPlan,
+} from '../../reasoning-effort';
+import { getThinkLevel } from '../AnthropicTypes';
 
 import { transformTool } from './gemini.schema';
 
@@ -100,7 +106,11 @@ export interface GeminiRequestBody {
  * @param request - Unified chat request
  * @returns Gemini-formatted request body
  */
-export function buildRequestBody(request: UnifiedChatRequest): GeminiRequestBody {
+export function buildRequestBody(
+  request: UnifiedChatRequest,
+  provider?: Pick<LLMProvider, 'modelConfigs'>,
+  preserveNativeEffort = false,
+): GeminiRequestBody {
   const tools: GeminiTool[] = [];
 
   // Convert tools to function declarations
@@ -246,30 +256,24 @@ export function buildRequestBody(request: UnifiedChatRequest): GeminiRequestBody
     generationConfig.maxOutputTokens = request.max_tokens;
   }
 
-  if (request.reasoning?.effort && request.reasoning.effort !== 'none') {
+  const reasoningPlan = resolveReasoningPlan({
+    intent: extractReasoningIntent(request),
+    model: request.model,
+    provider,
+    target: 'gemini',
+    requestMaxTokens: request.max_tokens,
+    preserveNativeEffort,
+  });
+  if (reasoningPlan?.kind === 'level') {
     generationConfig.thinkingConfig = {
-      includeThoughts: true,
+      includeThoughts: reasoningPlan.enabled,
+      thinkingLevel: reasoningPlan.effort,
     };
-
-    if (request.model.includes('gemini-3')) {
-      generationConfig.thinkingConfig.thinkingLevel = request.reasoning.effort;
-    } else {
-      // Calculate thinking budget based on model
-      const thinkingBudgets = request.model.includes('pro') ? [128, 32768] : [0, 24576];
-
-      const maxTokens = request.reasoning.max_tokens;
-      if (typeof maxTokens !== 'undefined') {
-        let thinkingBudget: number;
-        if (maxTokens >= thinkingBudgets[0] && maxTokens <= thinkingBudgets[1]) {
-          thinkingBudget = maxTokens;
-        } else if (maxTokens < thinkingBudgets[0]) {
-          thinkingBudget = thinkingBudgets[0];
-        } else {
-          thinkingBudget = thinkingBudgets[1];
-        }
-        generationConfig.thinkingConfig.thinkingBudget = thinkingBudget;
-      }
-    }
+  } else if (reasoningPlan?.kind === 'budget') {
+    generationConfig.thinkingConfig = {
+      includeThoughts: reasoningPlan.enabled,
+      thinkingBudget: reasoningPlan.budgetTokens,
+    };
   }
 
   const body: GeminiRequestBody = {
@@ -342,6 +346,21 @@ export function transformRequestOut(request: Record<string, unknown>): UnifiedCh
     stream,
     tool_choice: toolChoice as UnifiedChatRequest['tool_choice'],
   };
+
+  const thinkingConfig = generationConfig?.thinkingConfig;
+  const discreteEffort = normalizeThinkLevel(thinkingConfig?.thinkingLevel);
+  if (discreteEffort) {
+    unifiedRequest.reasoning = {
+      effort: discreteEffort,
+      enabled: discreteEffort !== 'none',
+    };
+  } else if (typeof thinkingConfig?.thinkingBudget === 'number' &&
+      Number.isFinite(thinkingConfig.thinkingBudget) && thinkingConfig.thinkingBudget >= 0) {
+    const budget = thinkingConfig.thinkingBudget;
+    unifiedRequest.reasoning = budget === 0
+      ? { effort: 'none', enabled: false, max_tokens: 0 }
+      : { effort: getThinkLevel(budget), enabled: true, max_tokens: budget };
+  }
 
   // Convert contents to messages
   if (Array.isArray(contents)) {

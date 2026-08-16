@@ -8,7 +8,11 @@
  */
 
 import { resolveAnthropicMaxTokens } from '../../anthropicMaxTokens';
-import type { TextContent, UnifiedChatRequest } from '../types';
+import type { LLMProvider, TextContent, UnifiedChatRequest } from '../types';
+import {
+  extractReasoningIntent,
+  resolveReasoningPlan,
+} from '../reasoning-effort';
 
 import type {
   AnthropicContent,
@@ -20,7 +24,10 @@ import type {
 /**
  * Build an Anthropic Messages API request body from a unified request.
  */
-export function buildAnthropicRequestBody(request: UnifiedChatRequest): Record<string, unknown> {
+export function buildAnthropicRequestBody(
+  request: UnifiedChatRequest,
+  provider?: Pick<LLMProvider, 'modelConfigs'>,
+): Record<string, unknown> {
   let systemContent: string | Array<{ type: 'text'; text: string; cache_control?: unknown }> | undefined;
   const anthropicMessages: AnthropicMessage[] = [];
 
@@ -195,12 +202,22 @@ export function buildAnthropicRequestBody(request: UnifiedChatRequest): Record<s
     }
   }
 
-  // Convert reasoning → thinking config
-  if (request.reasoning?.enabled) {
-    const budgetMap: Record<string, number> = { low: 2048, medium: 8192, high: 32768 };
-    const budget = request.reasoning.max_tokens || budgetMap[request.reasoning.effort || 'medium'] || 8192;
-    body.thinking = { type: 'enabled', budget_tokens: budget };
-    // When thinking is enabled, temperature must be 1 for Anthropic
+  // Convert reasoning immediately before the Anthropic wire boundary. Models
+  // declaring discrete levels use adaptive thinking; older targets retain the
+  // bounded budget_tokens contract.
+  const reasoningPlan = resolveReasoningPlan({
+    intent: extractReasoningIntent(request),
+    model: request.model,
+    provider,
+    target: 'anthropic',
+    requestMaxTokens: request.max_tokens,
+  });
+  if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+    body.thinking = { type: 'adaptive' };
+    body.output_config = { effort: reasoningPlan.effort };
+  } else if (reasoningPlan?.kind === 'budget' && reasoningPlan.enabled) {
+    body.thinking = { type: 'enabled', budget_tokens: reasoningPlan.budgetTokens };
+    // Legacy extended thinking requires temperature=1. Adaptive thinking does not.
     body.temperature = 1;
   }
 

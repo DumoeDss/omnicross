@@ -6,7 +6,8 @@
  * (`PROVIDER_TEMPLATES`, `BUILTIN_TRANSFORMERS`) the full form/dialogs reference,
  * plus a minimal `resolveModelCapabilities` passthrough. The app does NOT bundle
  * the canonical model-capability registry, so `resolveModelCapabilities` returns
- * no derived caps (honest: the daemon does not store per-model caps either).
+ * no derived caps. The daemon does round-trip explicit per-model thinking
+ * overrides, which arrive here as row overrides rather than inferred defaults.
  *
  * Keep this in sync with the upstream source only as needed — the app owns its copy.
  */
@@ -552,10 +553,11 @@ export const BUILTIN_TRANSFORMERS: TransformerInfo[] = [
 /**
  * Resolve a model's canonical capabilities.
  *
- * The app does NOT bundle the upstream canonical model-capability registry (the
- * daemon does not store per-model caps either), so this returns the
- * explicitly-set `rowOverride` caps only — no inferred defaults. Honest
- * passthrough: a model shows the caps the user/daemon set, nothing synthesized.
+ * The app does NOT bundle the upstream canonical model-capability registry, so
+ * this returns explicitly-set `rowOverride` caps only — including per-model
+ * thinking overrides round-tripped by the daemon — with no inferred defaults.
+ * Honest passthrough: a model shows the caps the user/daemon set, nothing
+ * synthesized.
  */
 export function resolveModelCapabilities(
   _modelId: string,

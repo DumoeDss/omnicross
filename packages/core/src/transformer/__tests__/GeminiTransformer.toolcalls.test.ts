@@ -92,6 +92,37 @@ function baseRequest(overrides: Partial<UnifiedChatRequest> = {}): UnifiedChatRe
 // ---------------------------------------------------------------------------
 
 describe('transformRequestOut (Gemini request → unified)', () => {
+  it('decodes discrete and legacy thinking configuration without includeThoughts inference', () => {
+    expect(transformRequestOut({
+      model: 'gemini-3-flash',
+      contents: [],
+      generationConfig: { thinkingConfig: { thinkingLevel: 'HIGH' } },
+    }).reasoning).toEqual({ effort: 'high', enabled: true });
+    expect(transformRequestOut({
+      model: 'gemini-2.5-flash',
+      contents: [],
+      generationConfig: { thinkingConfig: { thinkingBudget: 8192 } },
+    }).reasoning).toEqual({ effort: 'medium', enabled: true, max_tokens: 8192 });
+    expect(transformRequestOut({
+      model: 'gemini-2.5-flash',
+      contents: [],
+      generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+    }).reasoning).toEqual({ effort: 'none', enabled: false, max_tokens: 0 });
+    expect(transformRequestOut({
+      model: 'gemini-2.5-flash',
+      contents: [],
+      generationConfig: { thinkingConfig: { includeThoughts: true } },
+    }).reasoning).toBeUndefined();
+  });
+
+  it('does not enable malformed or absent thinking levels', () => {
+    expect(transformRequestOut({
+      model: 'gemini-3-flash', contents: [],
+      generationConfig: { thinkingConfig: { thinkingLevel: 'turbo' } },
+    }).reasoning).toBeUndefined();
+    expect(transformRequestOut({ model: 'gemini-3-flash', contents: [] }).reasoning).toBeUndefined();
+  });
+
   it('maps a model functionCall part to an assistant message with tool_calls', () => {
     const geminiReq = {
       model: 'gemini-2.5-pro',
@@ -376,6 +407,62 @@ describe('buildRequestBody (unified → Gemini request) tool handling', () => {
     expect(toolParts[0].functionResponse).toEqual({
       name: 'search',
       response: { result: '32 cats' },
+    });
+  });
+
+  it('encodes negotiated discrete levels and native disablement', () => {
+    const discrete = buildRequestBody(baseRequest({
+      model: 'gemini-3-flash',
+      reasoning: { effort: 'xhigh', enabled: true },
+    }));
+    expect(discrete.generationConfig?.thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingLevel: 'high',
+    });
+    const disabled = buildRequestBody(baseRequest({
+      model: 'gemini-3-flash',
+      reasoning: { effort: 'none', enabled: false },
+    }));
+    expect(disabled.generationConfig?.thinkingConfig).toEqual({
+      includeThoughts: false,
+      thinkingLevel: 'none',
+    });
+  });
+
+  it('uses legacy limits, clamps explicit budgets, and computes a default', () => {
+    const provider = {
+      modelConfigs: [{
+        id: 'legacy-gemini',
+        thinkingTokenLimit: { min: 100, max: 1000 },
+      }],
+    };
+    const explicit = buildRequestBody(baseRequest({
+      model: 'legacy-gemini',
+      reasoning: { effort: 'high', enabled: true, max_tokens: 5000 },
+    }), provider);
+    expect(explicit.generationConfig?.thinkingConfig?.thinkingBudget).toBe(1000);
+    const computed = buildRequestBody(baseRequest({
+      model: 'legacy-gemini',
+      reasoning: { effort: 'medium', enabled: true },
+    }), provider);
+    expect(computed.generationConfig?.thinkingConfig?.thinkingBudget).toBe(550);
+  });
+
+  it('uses legacy budget encoding when an empty row override shadows canonical levels', () => {
+    const body = buildRequestBody(baseRequest({
+      model: 'gemini-3-flash',
+      reasoning: { effort: 'xhigh', enabled: true, max_tokens: 4096 },
+    }), {
+      modelConfigs: [{
+        id: 'gemini-3-flash',
+        thinkingLevels: [],
+        thinkingTokenLimit: { min: 0, max: 24576 },
+      }],
+    });
+
+    expect(body.generationConfig?.thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 4096,
     });
   });
 });

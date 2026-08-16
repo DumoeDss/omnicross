@@ -26,6 +26,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
+import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { OutboundApiServerConfig } from '@omnicross/core';
 
 import { decryptConfigSecrets, encryptConfigSecrets, type SecretBox } from './secrets';
@@ -67,11 +68,11 @@ export interface DaemonApiKeyEntry {
 /**
  * Per-model metadata subset (app-parity child 2). A hand-authored SUBSET of the
  * app's `ModelConfig` (`app/src/shared-types/llm-config.ts`), carrying ONLY the
- * named-five fields the daemon stores + round-trips, keyed by the model `id`:
- * `name` (display name), `enabled`, `group`, `vision`, `reasoning`. The wider
+ * allowlisted fields the daemon stores + round-trips, keyed by the model `id`:
+ * display metadata plus target thinking capabilities. The wider
  * `ModelConfig` fields the discovery flow may send (`category`/`contextLength`/
  * `maxTokens`/`functionCall`/`webSearch`/`completionSettings`/`openRouterProvider`/
- * `thinkingLevels`/…) are NOT in this allowlist — they are DROPPED by
+ * fields are NOT in this allowlist — they are DROPPED by
  * deny-by-default (`validateModelConfigs`/`parseModelConfigsInput`).
  *
  * ENFORCEMENT (app-parity-2 child 2): `enabled` is now a DISCOVERY/advertisement
@@ -80,8 +81,8 @@ export interface DaemonApiKeyEntry {
  * advertisement, NOT a hard per-request block (core does not validate a requested
  * model against `models[]`, so a hardcoded disabled model id still reaches the
  * upstream, which rejects it). The admin management view (`toProviderView`) still
- * lists ALL models. The other fields (`name`/`group`/`vision`/`reasoning`) remain
- * display-only metadata (no core per-model capability binding on the BYO path).
+ * lists ALL models. `name`/`group`/`vision`/`reasoning` remain display metadata;
+ * thinking capabilities are projected into core for request negotiation.
  */
 export interface DaemonModelConfig {
   /** Model id — the metadata key (parallels an entry in the flat `models[]`). */
@@ -97,6 +98,10 @@ export interface DaemonModelConfig {
   vision?: boolean;
   /** Reasoning-capable hint (display only; not consumed by routing). */
   reasoning?: boolean;
+  /** Discrete reasoning efforts accepted by this target model. */
+  thinkingLevels?: ThinkLevel[];
+  /** Valid legacy thinking-budget bounds for this target model. */
+  thinkingTokenLimit?: { min: number; max: number };
 }
 
 /**
@@ -431,11 +436,40 @@ function validateApiKeys(raw: unknown): DaemonApiKeyEntry[] | undefined {
  * Shape-guard the optional `modelConfigs` array (app-parity child 2). Mirrors
  * `validateApiKeys` EXACTLY: a non-array collapses to `undefined`; each entry
  * MUST carry a non-empty string `id` (skip a bad entry — never throws); only the
- * named-five allowlisted fields are copied (`name`/`group` = non-empty-string-or-
- * omit, `enabled`/`vision`/`reasoning` = boolean-or-omit) — deny-by-default drops
+ * allowlisted fields are copied (`name`/`group` = non-empty-string-or-omit,
+ * booleans plus validated thinking capabilities) — deny-by-default drops
  * anything else; an empty/all-bad array also collapses to `undefined` so a row
  * with only flat `models[]` reads byte-identical to today (no metadata).
  */
+const THINK_LEVELS = new Set<ThinkLevel>([
+  'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
+]);
+
+export function validateThinkingLevels(raw: unknown): ThinkLevel[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  if (!raw.every((level): level is ThinkLevel =>
+    typeof level === 'string' && THINK_LEVELS.has(level as ThinkLevel))) {
+    return undefined;
+  }
+  return [...raw];
+}
+
+export function validateThinkingTokenLimit(
+  raw: unknown,
+): { min: number; max: number } | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const bounds = raw as Record<string, unknown>;
+  const min = bounds['min'];
+  const max = bounds['max'];
+  if (typeof min !== 'number' || !Number.isFinite(min) || !Number.isInteger(min) || min < 0) {
+    return undefined;
+  }
+  if (typeof max !== 'number' || !Number.isFinite(max) || !Number.isInteger(max) || max < min) {
+    return undefined;
+  }
+  return { min, max };
+}
+
 function validateModelConfigs(raw: unknown): DaemonModelConfig[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const out: DaemonModelConfig[] = [];
@@ -450,6 +484,10 @@ function validateModelConfigs(raw: unknown): DaemonModelConfig[] | undefined {
     if (typeof m['enabled'] === 'boolean') entry.enabled = m['enabled'];
     if (typeof m['vision'] === 'boolean') entry.vision = m['vision'];
     if (typeof m['reasoning'] === 'boolean') entry.reasoning = m['reasoning'];
+    const thinkingLevels = validateThinkingLevels(m['thinkingLevels']);
+    if (thinkingLevels) entry.thinkingLevels = thinkingLevels;
+    const thinkingTokenLimit = validateThinkingTokenLimit(m['thinkingTokenLimit']);
+    if (thinkingTokenLimit) entry.thinkingTokenLimit = thinkingTokenLimit;
     out.push(entry);
   }
   return out.length > 0 ? out : undefined;

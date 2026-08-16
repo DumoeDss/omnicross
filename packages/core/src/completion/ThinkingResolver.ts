@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ThinkingResolver - Handles thinking budget calculation and max tokens resolution
  *
  * Extracted from CompletionService to isolate thinking/reasoning
@@ -12,7 +12,7 @@ import {
   calculateThinkingBudget,
   DEFAULT_MAX_TOKENS,
   getClaudeMaxTokens,
-  isReasoningModel
+  isReasoningModel,
 } from '@omnicross/contracts/thinking-config';
 
 import type { Logger } from '../ports/logger';
@@ -127,19 +127,19 @@ export async function resolveThinkingBudget(
     budget_tokens?: number;
   } | undefined;
 }> {
-  // If thinking is disabled or model doesn't support it
+  // This exported compatibility API predates target-aware discrete plans. Keep
+  // its historical recognition and budget behavior; request builders use the
+  // shared ReasoningPlan resolver directly.
   if (thinkLevel === 'none' || !isReasoningModel(modelId)) {
     return {
       adjustedMaxTokens: maxTokens,
       thinkingBudget: undefined,
-      thinkingConfig: undefined
+      thinkingConfig: undefined,
     };
   }
 
-  // Calculate thinking budget based on model and level
   const thinkingBudget = calculateThinkingBudget(modelId, thinkLevel, maxTokens);
 
-  // Get provider to determine type
   const provider = await getProvider(providerId);
   const providerName = provider?.name?.toLowerCase() || '';
   const apiFormat = provider ? resolveApiFormat(provider) : 'openai';

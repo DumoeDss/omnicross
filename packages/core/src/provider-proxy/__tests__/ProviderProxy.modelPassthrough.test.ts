@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import type { ProviderConfigSource } from '../../ports';
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
+import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext, UsageRecorderImport } from '../types';
 
@@ -44,6 +45,11 @@ const RESPONSES_JSON = {
   usage: { input_tokens: 3, output_tokens: 2 },
 };
 
+const GEMINI_JSON = {
+  candidates: [{ content: { role: 'model', parts: [{ text: 'pong' }] }, finishReason: 'STOP' }],
+  usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 2, totalTokenCount: 5 },
+};
+
 interface MockUpstream {
   server: Server;
   port: number;
@@ -61,7 +67,14 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.lastBody = body;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       // Format-aware: `/responses` → Responses-shaped JSON; else Anthropic.
-      res.end(JSON.stringify((req.url ?? '').includes('/responses') ? RESPONSES_JSON : ANTHROPIC_RESPONSE));
+      const url = req.url ?? '';
+      res.end(JSON.stringify(
+        url.includes('/responses')
+          ? RESPONSES_JSON
+          : url.includes(':generateContent')
+            ? GEMINI_JSON
+            : ANTHROPIC_RESPONSE,
+      ));
     });
   });
   state.server = server;
@@ -104,13 +117,27 @@ function makeLlmConfig(upstreamBase: string): ProviderConfigSource {
       models: ['anthropic/claude-sonnet-4-6'],
       enabled: true,
     },
+    'gemini-prov': {
+      id: 'gemini-prov',
+      name: 'gemini',
+      apiFormat: 'google',
+      api_base_url: upstreamBase,
+      api_key: PROVIDER_KEY,
+      models: ['gemini-3-flash'],
+      enabled: true,
+    },
   };
   const responsesTransformer = new OpenAIResponseTransformer();
+  const geminiTransformer = new GeminiTransformer();
   return {
     getProvider: vi.fn(async (id: string) => providers[id] ?? null),
     resolveTransformerChain: vi.fn(async () => ({ providerTransformers: [], modelTransformers: [] })),
     getMainTransformer: vi.fn(async (id: string) =>
-      id === 'openrouter-response-prov' ? responsesTransformer : null),
+      id === 'openrouter-response-prov'
+        ? responsesTransformer
+        : id === 'gemini-prov'
+          ? geminiTransformer
+          : null),
     getTransformerService: () => ({ getTransformer: () => undefined }),
   } as unknown as ProviderConfigSource;
 }
@@ -261,6 +288,7 @@ describe('Anthropic /v1/messages — response model passthrough + verbatim body 
         }],
       }],
       cache_control: { type: 'ephemeral', ttl: '1h' },
+      reasoning: { effort: 'xhigh', summary: 'detailed' },
       provider: { order: ['Anthropic'], allow_fallbacks: false },
     };
 
@@ -272,6 +300,36 @@ describe('Anthropic /v1/messages — response model passthrough + verbatim body 
     expect(res.status).toBe(200);
 
     expect(JSON.parse(upstream.lastBody ?? '{}')).toEqual({ ...requestBody, model });
+  });
+
+  it('Gemini matching-format bypass retains native thinkingConfig', async () => {
+    await startProxy();
+    const token = proxy.addRoute({
+      sessionId: 'sess-gemini-native',
+      targetProviderFormat: 'gemini',
+      model: 'gemini-3-flash',
+      ingressFormat: 'gemini-generatecontent',
+      authMode: 'byo',
+      providerId: 'gemini-prov',
+    });
+    const nativeThinking = {
+      includeThoughts: true,
+      thinkingLevel: 'xhigh',
+      vendorExtension: 'keep-me',
+    };
+    const res = await fetch(`${baseUrl}/v1beta/models/gemini-3-flash:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': token },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+        generationConfig: { thinkingConfig: nativeThinking },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const sent = JSON.parse(upstream.lastBody ?? '{}') as {
+      generationConfig?: { thinkingConfig?: Record<string, unknown> };
+    };
+    expect(sent.generationConfig?.thinkingConfig).toEqual(nativeThinking);
   });
 
   it('internal route (no requestedModel) → response model NOT rewritten (zero regression)', async () => {

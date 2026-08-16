@@ -16,6 +16,7 @@
  */
 
 import type { UnifiedChatRequest, UnifiedMessage } from '../types';
+import { normalizeThinkLevel } from '../reasoning-effort';
 
 import { convertAnthropicToolsToOpenAI, isServerSideTool } from './AnthropicToolHandling';
 import type {
@@ -206,10 +207,20 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
 
   // Handle thinking config
   if (anthropicRequest.thinking) {
-    result.reasoning = {
-      effort: getThinkLevel(anthropicRequest.thinking.budget_tokens),
-      enabled: anthropicRequest.thinking.type === 'enabled',
-    };
+    if (anthropicRequest.thinking.type === 'disabled') {
+      result.reasoning = { effort: 'none', enabled: false };
+    } else if (anthropicRequest.thinking.type === 'adaptive') {
+      const effort = normalizeThinkLevel(anthropicRequest.output_config?.effort);
+      if (effort) result.reasoning = { effort, enabled: effort !== 'none' };
+    } else {
+      result.reasoning = {
+        effort: getThinkLevel(anthropicRequest.thinking.budget_tokens),
+        enabled: true,
+        ...(typeof anthropicRequest.thinking.budget_tokens === 'number'
+          ? { max_tokens: anthropicRequest.thinking.budget_tokens }
+          : {}),
+      };
+    }
   }
 
   // Handle tool choice

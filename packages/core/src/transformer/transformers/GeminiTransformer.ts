@@ -85,9 +85,13 @@ export class GeminiTransformer implements Transformer {
   async transformRequestIn(
     request: UnifiedChatRequest,
     provider: LLMProvider,
-    _context: TransformerContext
+    context: TransformerContext
   ): Promise<Record<string, unknown>> {
-    const body = buildRequestBody(request);
+    const body = buildRequestBody(
+      request,
+      provider,
+      context.reasoningSourceFormat === this.name,
+    );
 
     // Build the Gemini API URL
     const action = request.stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
@@ -116,9 +120,13 @@ export class GeminiTransformer implements Transformer {
    */
   async transformRequestOut(
     request: unknown,
-    _context: TransformerContext
+    context: TransformerContext
   ): Promise<UnifiedChatRequest> {
-    return toUnifiedRequest(request as Record<string, unknown>);
+    const unifiedRequest = toUnifiedRequest(request as Record<string, unknown>);
+    if (unifiedRequest.reasoning?.effort) {
+      context.reasoningSourceFormat = this.name;
+    }
+    return unifiedRequest;
   }
 
   /**

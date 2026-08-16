@@ -17,6 +17,11 @@ import type {
   UnifiedMessage,
   UnifiedTool,
 } from '../types';
+import {
+  extractReasoningIntent,
+  normalizeThinkLevel,
+  resolveReasoningPlan,
+} from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
 
 // ============================================================================
@@ -86,7 +91,7 @@ export class OpenAIResponseTransformer implements Transformer {
   async transformRequestIn(
     request: UnifiedChatRequest,
     provider: LLMProvider,
-    _context: TransformerContext
+    context: TransformerContext
   ): Promise<Record<string, unknown>> {
     // ChatGPT's codex backend (official chatgpt.com OR any third-party relay)
     // is a PRIVATE Responses variant: it REQUIRES `store:false`, REQUIRES typed
@@ -168,8 +173,16 @@ export class OpenAIResponseTransformer implements Transformer {
     };
 
     // Map reasoning config
-    if (request.reasoning?.effort && request.reasoning.effort !== 'none') {
-      body.reasoning = { effort: request.reasoning.effort, summary: 'auto' };
+    const reasoningPlan = resolveReasoningPlan({
+      intent: extractReasoningIntent(request),
+      model: request.model,
+      provider,
+      target: 'openai-responses',
+      requestMaxTokens: request.max_tokens,
+      preserveNativeEffort: context.reasoningSourceFormat === this.name,
+    });
+    if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
+      body.reasoning = { effort: reasoningPlan.effort, summary: 'auto' };
     }
 
     // Map tools
@@ -210,7 +223,7 @@ export class OpenAIResponseTransformer implements Transformer {
    */
   async transformRequestOut(
     request: unknown,
-    _context: TransformerContext
+    context: TransformerContext
   ): Promise<UnifiedChatRequest> {
     const req = request as ResponseApiRequest;
     const messages: UnifiedMessage[] = [];
@@ -344,10 +357,12 @@ export class OpenAIResponseTransformer implements Transformer {
       stream: req.stream,
     };
 
-    if (req.reasoning?.effort) {
+    const effort = normalizeThinkLevel(req.reasoning?.effort);
+    if (effort) {
+      context.reasoningSourceFormat = this.name;
       result.reasoning = {
-        effort: req.reasoning.effort as 'low' | 'medium' | 'high',
-        enabled: true,
+        effort,
+        enabled: effort !== 'none',
       };
     }
 

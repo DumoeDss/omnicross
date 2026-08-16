@@ -1,9 +1,14 @@
+import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import { DEFAULT_MAX_TOKENS } from '@omnicross/contracts/thinking-config';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Logger } from '../../ports/logger';
 import type { ProviderConfigSource } from '../../ports/provider-config-source';
-import { getRequiredMaxTokens, resolveEffectiveMaxTokens } from '../ThinkingResolver';
+import {
+  getRequiredMaxTokens,
+  resolveEffectiveMaxTokens,
+  resolveThinkingBudget,
+} from '../ThinkingResolver';
 
 function makeLogger(): Logger {
   return {
@@ -79,5 +84,89 @@ describe('ThinkingResolver max token semantics', () => {
     );
 
     expect(result).toBe(DEFAULT_MAX_TOKENS);
+  });
+});
+
+function provider(apiFormat: LLMProvider['apiFormat'], name: string): LLMProvider {
+  return {
+    id: name.toLowerCase(),
+    name,
+    apiFormat,
+    api_base_url: 'https://example.test/v1',
+    api_key: 'secret',
+    models: [],
+    enabled: true,
+  };
+}
+
+describe('ThinkingResolver public budget compatibility', () => {
+  it('does not invent a budget for non-reasoning OpenAI models', async () => {
+    const getProvider = vi.fn(async () => provider('openai', 'OpenAI'));
+    const result = await resolveThinkingBudget(
+      getProvider,
+      makeLogger(),
+      'openai',
+      'gpt-4o',
+      16_000,
+      'high',
+    );
+
+    expect(result).toEqual({
+      adjustedMaxTokens: 16_000,
+      thinkingBudget: undefined,
+      thinkingConfig: undefined,
+    });
+    expect(getProvider).not.toHaveBeenCalled();
+  });
+
+  it('retains a legacy budget for GPT-5.6 discrete reasoning callers', async () => {
+    const result = await resolveThinkingBudget(
+      async () => provider('openai', 'OpenAI'),
+      makeLogger(),
+      'openai',
+      'gpt-5.6',
+      16_000,
+      'high',
+    );
+
+    expect(result).toEqual({
+      adjustedMaxTokens: 16_000,
+      thinkingBudget: 12_000,
+      thinkingConfig: { type: 'enabled', budget_tokens: 12_000 },
+    });
+  });
+
+  it('retains Anthropic legacy adjustment and thinking config', async () => {
+    const result = await resolveThinkingBudget(
+      async () => provider('anthropic', 'Anthropic'),
+      makeLogger(),
+      'anthropic',
+      'claude-sonnet-4',
+      16_000,
+      'high',
+    );
+
+    expect(result).toEqual({
+      adjustedMaxTokens: 4000,
+      thinkingBudget: 12_000,
+      thinkingConfig: { type: 'enabled', budget_tokens: 12_000 },
+    });
+  });
+
+  it('retains Gemini legacy budget behavior without Anthropic adjustment', async () => {
+    const result = await resolveThinkingBudget(
+      async () => provider('google', 'Gemini'),
+      makeLogger(),
+      'gemini',
+      'gemini-2.5-flash',
+      16_000,
+      'high',
+    );
+
+    expect(result).toEqual({
+      adjustedMaxTokens: 16_000,
+      thinkingBudget: 12_000,
+      thinkingConfig: { type: 'enabled', budget_tokens: 12_000 },
+    });
   });
 });

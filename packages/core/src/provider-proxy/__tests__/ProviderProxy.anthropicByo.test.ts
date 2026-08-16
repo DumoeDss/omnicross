@@ -33,6 +33,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderConfigSource } from '../../ports';
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
+import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext, UsageRecorderImport } from '../types';
@@ -168,10 +169,12 @@ function makeLlmConfig(upstreamBase: string): ProviderConfigSource {
     'anthropic-prov': makeProvider(upstreamBase, 'anthropic'),
   };
   const gemini: Transformer = new GeminiTransformer();
+  const openai: Transformer = new OpenAITransformer();
   return {
     getProvider: vi.fn(async (id: string) => providers[id] ?? null),
     resolveTransformerChain: vi.fn(async () => ({ providerTransformers: [], modelTransformers: [] })),
-    getMainTransformer: vi.fn(async (id: string) => (id === 'gemini-prov' ? gemini : null)),
+    getMainTransformer: vi.fn(async (id: string) =>
+      id === 'gemini-prov' ? gemini : id === 'openai-prov' ? openai : null),
     getTransformerService: () => ({ getTransformer: () => undefined }),
   } as unknown as ProviderConfigSource;
 }
@@ -227,7 +230,13 @@ describe('ProviderProxy built-in Anthropic /v1/messages BYO (no factory)', () =>
     const res = await fetch(`${baseUrl}/v1/messages`, {
       method: 'POST',
       headers: bearer(token),
-      body: JSON.stringify({ model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+      body: JSON.stringify({
+        model: 'cli',
+        max_tokens: 16,
+        messages: [{ role: 'user', content: 'ping' }],
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'xhigh' },
+      }),
     });
 
     expect(res.status).toBe(200);
@@ -237,6 +246,10 @@ describe('ProviderProxy built-in Anthropic /v1/messages BYO (no factory)', () =>
     // Upstream got the OpenAI completion endpoint + the provider's REAL key.
     expect(upstream.hits).toBe(1);
     expect(upstream.lastAuthHeader).toBe(`Bearer ${PROVIDER_KEY}`);
+    const converted = JSON.parse(upstream.lastBody ?? '{}') as Record<string, unknown>;
+    expect(converted.reasoning_effort).toBe('xhigh');
+    expect(converted).not.toHaveProperty('thinking');
+    expect(converted).not.toHaveProperty('output_config');
   });
 
   // 7.2
@@ -287,10 +300,12 @@ describe('ProviderProxy built-in Anthropic /v1/messages BYO (no factory)', () =>
       route({ providerId: 'anthropic-prov', targetProviderFormat: 'anthropic' }),
     );
     const sentBody = {
-      model: 'cli',
+      model: 'mock-model',
       max_tokens: 16,
       messages: [{ role: 'user', content: 'ping' }],
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'max' },
       // A pre-built server-tool block the unified pivot would strip.
       extra_server_tool: { type: 'server_tool_use', id: 'srv_1' },
     };
@@ -305,8 +320,11 @@ describe('ProviderProxy built-in Anthropic /v1/messages BYO (no factory)', () =>
     // round-tripped through Unified).
     expect(upstream.hits).toBe(1);
     const received = JSON.parse(upstream.lastBody ?? '{}') as typeof sentBody;
+    expect(upstream.lastBody).toBe(JSON.stringify(sentBody));
     expect(received.tools[0].type).toBe('web_search_20250305');
     expect(received.extra_server_tool.type).toBe('server_tool_use');
+    expect(received.thinking).toEqual({ type: 'adaptive' });
+    expect(received.output_config).toEqual({ effort: 'max' });
     // The canonical anthropic key header was set; the caller's `anthropic-beta`
     // was forwarded/merged (LEAD OQ1).
     expect(upstream.lastApiKeyHeader).toBe(PROVIDER_KEY);

@@ -62,9 +62,9 @@ export type ResolvedModelCapabilities = KnownModelCapabilities;
 // ============================================================================
 
 const OPENAI_MODELS: Record<string, KnownModelCapabilities> = {
-  'gpt-5.6-sol': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
-  'gpt-5.6-terra': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
-  'gpt-5.6-luna': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.6-sol': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.6-terra': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.6-luna': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 0, max: 128000 } },
   'gpt-5.5': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
   'gpt-5.4': { category: 'reasoning', contextLength: 1050000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
   'gpt-5.4-mini': { category: 'reasoning', contextLength: 400000, maxTokens: 128000, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh'], thinkingTokenLimit: { min: 0, max: 128000 } },
@@ -295,11 +295,11 @@ export function normalizeModelId(rawId: string): string {
  * assertion at module load enforces this so the alias map can't drift to
  * point at non-existent entries.
  *
- * Currently covers DeepSeek's marketing names (`deepseek-chat` is the
- * marketing alias for the latest non-reasoning model — historically v3,
- * may rotate as new releases land).
+ * Includes official API aliases plus vendor marketing names. DeepSeek's
+ * `deepseek-chat` historically targets v3 and may rotate as new releases land.
  */
 export const MODEL_ALIASES: Record<string, string> = {
+  'gpt-5.6': 'gpt-5.6-sol',
   'deepseek-chat': 'deepseek-v3',
   'deepseek-reasoner': 'deepseek-r1',
 };

@@ -233,8 +233,8 @@ function toLLMProvider(row: DaemonProviderConfig): LLMProvider {
   // this gates ADVERTISEMENT, not a hard request block — core does not validate a
   // requested model against `models[]`, so a client hardcoding a disabled model id
   // still reaches the upstream (which rejects it). The other per-model fields
-  // (name / group / vision / reasoning) stay display-only metadata: the core
-  // `LLMProvider` has no per-model capability binding on the BYO path.
+  // (name / group / vision / reasoning) stay display-only metadata; thinking
+  // capability fields below are projected for target-effort negotiation.
   const allModels = row.models ?? [];
   const models = row.modelConfigs
     ? allModels.filter((id) => row.modelConfigs!.find((c) => c.id === id)?.enabled !== false)
@@ -246,6 +246,15 @@ function toLLMProvider(row: DaemonProviderConfig): LLMProvider {
     api_base_url: row.baseUrl,
     api_key: resolvePreferredApiKey(row),
     models,
+    modelConfigs: row.modelConfigs?.map((config) => ({
+      id: config.id,
+      name: config.name ?? config.id,
+      enabled: config.enabled ?? true,
+      vision: config.vision,
+      reasoning: config.reasoning,
+      thinkingLevels: config.thinkingLevels,
+      thinkingTokenLimit: config.thinkingTokenLimit,
+    })),
     enabled: true,
     transformer,
     // app-parity-2 child 3: POPULATE the coding-plan endpoint onto the core
