@@ -118,10 +118,13 @@ describe('markCodexUsageLimitExhaustion', () => {
   it('marks the known account quota-exhausted on the shared health tracker', () => {
     const now = Date.parse('2026-08-10T00:00:00Z');
     markCodexUsageLimitExhaustion(ACCT, FULL_WALL_BODY, now);
-    const status = getSharedAccountHealth().getStatus('codex', ACCT);
+    // Read back at the SAME fixed `now` — the mark's deadline (parsed from the
+    // body's Aug 16 hint) is only ~6 days out, so evaluating at the real clock
+    // would rot this test once that date passes.
+    const status = getSharedAccountHealth().getStatus('codex', ACCT, now);
     expect(status.state).toBe('quota_exhausted');
     expect(status.cooldownUntil).toBeGreaterThan(now);
-    expect(getSharedAccountHealth().isSchedulable('codex', ACCT)).toBe(false);
+    expect(getSharedAccountHealth().isSchedulable('codex', ACCT, now)).toBe(false);
   });
 
   it('is a no-op when no account id is known (BYO / unreported selection)', () => {
