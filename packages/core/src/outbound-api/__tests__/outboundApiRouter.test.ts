@@ -281,6 +281,111 @@ describe('handleOutboundRequest — auth', () => {
     expect(routeMap.size()).toBe(0);
   });
 
+  it('GET /v1/models advertises exact client model names from generic route mappings', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
+    const mappedConfig = {
+      endpoints: [],
+      bindings: [{
+        id: 'responses-mapped',
+        name: 'Responses mapped',
+        enabled: true,
+        keyScope: 'selected',
+        apiKeyIds: [enabledRow.id],
+        endpoint: 'responses',
+        target: { kind: 'provider', providerId: 'zhipu' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'mapped',
+        modelMappings: [
+          { source: 'gpt-5.6-sol', target: 'glm-5.3' },
+          { source: 'gpt-5.6-luna', target: 'glm-4.5-air' },
+          { source: '*', target: 'glm-5.3' },
+        ],
+      } satisfies GatewayBinding],
+    };
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, mappedConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.map((model) => model.id)).toEqual(['gpt-5.6-sol', 'gpt-5.6-luna']);
+  });
+
+  it('GET /v1/models advertises the target provider catalog for a passthrough route', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
+    const passthroughConfig = {
+      endpoints: [],
+      bindings: [{
+        id: 'chat-passthrough',
+        name: 'Chat passthrough',
+        enabled: true,
+        keyScope: 'selected',
+        apiKeyIds: [enabledRow.id],
+        endpoint: 'chat',
+        target: { kind: 'provider', providerId: 'openai' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'passthrough',
+      } satisfies GatewayBinding],
+    };
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, passthroughConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.map((model) => model.id)).toEqual(['gpt-4o']);
+  });
+
+  it('GET /v1/models advertises the built-in catalog for a subscription passthrough route', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
+    const passthroughConfig = {
+      endpoints: [],
+      bindings: [{
+        id: 'responses-subscription-passthrough',
+        name: 'Responses subscription passthrough',
+        enabled: true,
+        keyScope: 'selected',
+        apiKeyIds: [enabledRow.id],
+        endpoint: 'responses',
+        target: { kind: 'account', providerId: 'codex', accountId: 'account-a' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'passthrough',
+      } satisfies GatewayBinding],
+    };
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, passthroughConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.map((model) => model.id)).toEqual([
+      'gpt-5.6-luna',
+      'gpt-5.6-terra',
+      'gpt-5.6-sol',
+    ]);
+  });
+
   it('GET /v1/models allows a Responses-scoped integration key and filters its catalog', async () => {
     const routeMap = new ProviderProxyRouteMap();
     const deps = makeDeps({

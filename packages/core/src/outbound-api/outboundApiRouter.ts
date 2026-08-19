@@ -22,6 +22,7 @@
 import type http from 'node:http';
 import { Readable } from 'node:stream';
 
+import { SUBSCRIPTION_MODEL_CATALOG } from '@omnicross/contracts/subscription-model-catalog';
 import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
@@ -230,42 +231,65 @@ export function isModelsListRequest(url: string | undefined): boolean {
 }
 
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
-function writeModelsList(
+async function writeModelsList(
   res: http.ServerResponse,
+  llmConfig: OutboundApiDeps['llmConfig'],
   config: OutboundRequestConfig,
   apiKeyId: string,
   allowedEndpoints: readonly OutboundEndpoint[] | undefined,
-): void {
-  const refs: string[] = [];
-  const endpointConfigs: EndpointRoutingConfig[] = [];
+): Promise<void> {
+  const modelIds: string[] = [];
   for (const endpoint of ['chat', 'responses', 'messages', 'gemini'] as const) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
-    endpointConfigs.push(
-      ...candidateGatewayBindings(config.bindings, apiKeyId, endpoint).map((binding) =>
-        gatewayBindingToEndpointConfig(binding),
-      ),
-    );
-  }
-  for (const endpoint of endpointConfigs) {
-    if (allowedEndpoints && !allowedEndpoints.includes(endpoint.endpoint)) continue;
-    if (endpoint.endpoint === 'chat') refs.push(...(endpoint.models ?? []));
-    else if (endpoint.endpoint === 'messages' || endpoint.endpoint === 'responses') {
-      refs.push(...Object.values(endpoint.modelMap ?? {}));
-    } else {
-      if (endpoint.defaultModel) refs.push(endpoint.defaultModel);
-      if (endpoint.backgroundModel) refs.push(endpoint.backgroundModel);
+    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
+      if (binding.modelMode === 'passthrough') {
+        if (binding.target.kind === 'provider') {
+          const provider = await llmConfig.getProvider(binding.target.providerId);
+          modelIds.push(...(provider?.models ?? []));
+        } else if (Object.prototype.hasOwnProperty.call(
+          SUBSCRIPTION_MODEL_CATALOG,
+          binding.target.providerId,
+        )) {
+          modelIds.push(
+            ...SUBSCRIPTION_MODEL_CATALOG[
+              binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+            ],
+          );
+        }
+        continue;
+      }
+      if (binding.modelMappings?.length) {
+        modelIds.push(
+          ...binding.modelMappings
+            .map((mapping) => mapping.source.trim())
+            .filter((source) => source !== '' && !source.includes('*')),
+        );
+        continue;
+      }
+      const endpointConfig = gatewayBindingToEndpointConfig(binding);
+      const refs: string[] = [];
+      if (endpointConfig.endpoint === 'chat') refs.push(...(endpointConfig.models ?? []));
+      else if (endpointConfig.endpoint === 'messages' || endpointConfig.endpoint === 'responses') {
+        refs.push(...Object.values(endpointConfig.modelMap ?? {}));
+      } else {
+        if (endpointConfig.defaultModel) refs.push(endpointConfig.defaultModel);
+        if (endpointConfig.backgroundModel) refs.push(endpointConfig.backgroundModel);
+      }
+      modelIds.push(
+        ...refs
+          .map((ref) => parseModelRef(ref)?.modelId)
+          .filter((modelId): modelId is string => modelId !== undefined),
+      );
     }
   }
   const seen = new Set<string>();
-  const data = refs
-    .map((ref) => parseModelRef(ref))
-    .filter((p): p is NonNullable<typeof p> => p !== null)
-    .filter((p) => {
-      if (seen.has(p.modelId)) return false;
-      seen.add(p.modelId);
+  const data = modelIds
+    .filter((modelId) => {
+      if (seen.has(modelId)) return false;
+      seen.add(modelId);
       return true;
     })
-    .map((p) => ({ id: p.modelId, object: 'model', owned_by: 'omnicross' }));
+    .map((modelId) => ({ id: modelId, object: 'model', owned_by: 'omnicross' }));
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ object: 'list', data }));
 }
@@ -404,7 +428,7 @@ export async function handleOutboundRequest(
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
-    writeModelsList(res, config, verified.id, verified.allowedEndpoints);
+    await writeModelsList(res, deps.llmConfig, config, verified.id, verified.allowedEndpoints);
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
