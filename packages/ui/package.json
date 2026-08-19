@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/ui",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Omnicross Control Panel 鈥?the React frontend over the daemon admin HTTP API. Published as prebuilt static assets (dist/), served by @omnicross/daemon at /ui; also the frontend for the Tauri desktop shell.",
   "type": "module",
   "scripts": {
