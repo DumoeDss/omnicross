@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { allowanceKey, allowanceState, indexAllowances, mergeAllowances } from '../../allowanceLogic';
+import {
+  allowanceKey,
+  allowanceState,
+  indexAllowances,
+  mergeAllowances,
+  probeAndReloadCodexAllowance,
+} from '../../allowanceLogic';
 
 import type { AccountAllowanceSnapshot } from '@/daemon/types';
 
@@ -52,5 +58,33 @@ describe('account allowance logic', () => {
 
     expect(allowanceState(mixed)).toBe('fresh');
     expect(allowanceState(snapshot('claude', 'two', null, 'unavailable'))).toBe('unavailable');
+  });
+
+  it('runs a real Codex probe before reloading the allowance snapshot', async () => {
+    const calls: string[] = [];
+    const result = await probeAndReloadCodexAllowance(
+      async () => {
+        calls.push('probe');
+        return { success: true, ok: true, marked: false, tier: 'generation', model: 'gpt-5.6-luna' };
+      },
+      async () => {
+        calls.push('reload');
+        return { success: true };
+      },
+    );
+
+    expect(calls).toEqual(['probe', 'reload']);
+    expect(result).toEqual({ success: true });
+  });
+
+  it('still reloads after a failed Codex probe and surfaces the probe failure', async () => {
+    const reload = vi.fn(async () => ({ success: true }));
+    const result = await probeAndReloadCodexAllowance(
+      async () => ({ success: true, ok: false, marked: false, tier: 'generation' }),
+      reload,
+    );
+
+    expect(reload).toHaveBeenCalledOnce();
+    expect(result).toEqual({ success: false, message: 'Codex Luna allowance probe failed' });
   });
 });

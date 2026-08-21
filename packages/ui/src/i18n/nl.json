@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Luna gebruiken om dit quotum te vernieuwen?",
+      "codexRefreshConfirmDescription": "Er wordt met dit Codex-account een echte aanvraag naar gpt-5.6-luna verzonden om het meest recente quotum op te halen. Dit verbruikt een klein deel van het abonnementsquotum. Doorgaan?",
+      "codexRefreshConfirmAction": "Aanvraag verzenden en vernieuwen"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

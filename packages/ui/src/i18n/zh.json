@@ -1343,6 +1343,9 @@
       "loadFailed": "额度加载失败：{{error}}。现有账户数据不受影响。",
       "unavailableHint": "提供商没有返回此账户的额度信息。",
       "codexNotObserved": "尚未观测到额度响应头。请先用此账户发起一次 Codex 请求，再重新加载。",
+      "codexRefreshConfirmTitle": "使用 Luna 获取最新额度？",
+      "codexRefreshConfirmDescription": "将使用当前 Codex 账户向 gpt-5.6-luna 发送一条真实请求，以获取最新额度。这会消耗少量订阅额度。是否继续？",
+      "codexRefreshConfirmAction": "发送请求并刷新",
       "unsupportedProvider": "此提供商暂无受支持的额度数据来源。",
       "state": {
         "fresh": "最新",

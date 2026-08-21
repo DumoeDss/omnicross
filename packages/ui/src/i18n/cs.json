@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Použít Lunu k aktualizaci tohoto limitu?",
+      "codexRefreshConfirmDescription": "Pomocí tohoto účtu Codex bude na gpt-5.6-luna odeslán skutečný požadavek, aby se načetly nejnovější údaje o limitu. Tím se spotřebuje malá část předplacené kvóty. Pokračovat?",
+      "codexRefreshConfirmAction": "Odeslat požadavek a aktualizovat"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

@@ -628,7 +628,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                         selectedResource.account.providerId === 'claude'
                           ? () => accountsApi.refreshAccountAllowance(selectedResource.account.id)
                           : selectedResource.account.providerId === 'codex'
-                            ? accountsApi.refreshAllowances
+                            ? () => accountsApi.refreshCodexAccountAllowance(selectedResource.account.id)
                             : undefined
                       }
                       onRemove={() => {

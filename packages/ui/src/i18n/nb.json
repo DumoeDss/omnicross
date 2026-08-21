@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Bruke Luna til å oppdatere denne kvoten?",
+      "codexRefreshConfirmDescription": "En reell forespørsel blir sendt til gpt-5.6-luna med denne Codex-kontoen for å hente den nyeste kvoten. Dette bruker en liten del av abonnementskvoten. Vil du fortsette?",
+      "codexRefreshConfirmAction": "Send forespørsel og oppdater"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

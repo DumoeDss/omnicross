@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Gunakan Luna untuk menyegarkan kuota ini?",
+      "codexRefreshConfirmDescription": "Permintaan sebenar akan dihantar kepada gpt-5.6-luna menggunakan akaun Codex ini untuk mendapatkan kuota terkini. Ini akan menggunakan sedikit kuota langganan. Teruskan?",
+      "codexRefreshConfirmAction": "Hantar permintaan dan segarkan"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

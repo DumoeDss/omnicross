@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Utilizar o Luna para atualizar esta quota?",
+      "codexRefreshConfirmDescription": "Será enviado um pedido real ao gpt-5.6-luna com esta conta do Codex para obter a quota mais recente. Isto consumirá uma pequena parte da quota da subscrição. Continuar?",
+      "codexRefreshConfirmAction": "Enviar pedido e atualizar"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

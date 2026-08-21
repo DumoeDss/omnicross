@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Χρήση του Luna για ανανέωση αυτού του ορίου;",
+      "codexRefreshConfirmDescription": "Θα σταλεί ένα πραγματικό αίτημα στο gpt-5.6-luna με αυτόν τον λογαριασμό Codex, ώστε να ανακτηθεί το πιο πρόσφατο όριο. Αυτό θα καταναλώσει ένα μικρό μέρος του ορίου συνδρομής. Συνέχεια;",
+      "codexRefreshConfirmAction": "Αποστολή αιτήματος και ανανέωση"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

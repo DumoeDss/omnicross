@@ -1143,6 +1143,11 @@
       "notCaptured": "フィンガープリント未取得",
       "capturedAt": "{{time}} にクライアントフィンガープリントを取得しました"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Luna を使用してこの上限を更新しますか？",
+      "codexRefreshConfirmDescription": "この Codex アカウントで gpt-5.6-luna に実際のリクエストを送信し、最新の上限を取得します。サブスクリプションの利用枠を少量消費します。続行しますか？",
+      "codexRefreshConfirmAction": "リクエストを送信して更新"
+    },
     "health": {
       "rate_limited": "レート制限中",
       "overloaded": "過負荷",

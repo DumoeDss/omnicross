@@ -1346,6 +1346,9 @@
       "loadFailed": "Allowances could not be loaded: {{error}}. Existing account data is unaffected.",
       "unavailableHint": "The provider did not return allowance information for this account.",
       "codexNotObserved": "No allowance headers observed yet. Use this account for a Codex request, then reload.",
+      "codexRefreshConfirmTitle": "Use Luna to refresh this allowance?",
+      "codexRefreshConfirmDescription": "A real request will be sent to gpt-5.6-luna with this Codex account to retrieve the latest allowance. This consumes a small amount of subscription quota. Continue?",
+      "codexRefreshConfirmAction": "Send request and refresh",
       "unsupportedProvider": "This provider does not expose a supported allowance source.",
       "state": {
         "fresh": "Fresh",

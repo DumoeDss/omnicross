@@ -1304,6 +1304,9 @@
       "loadFailed": "額度載入失敗：{{error}}。既有帳號資料不受影響。",
       "unavailableHint": "提供者沒有回傳此帳號的額度資訊。",
       "codexNotObserved": "尚未觀測到額度回應標頭。請先用此帳號發起一次 Codex 請求，再重新載入。",
+      "codexRefreshConfirmTitle": "使用 Luna 取得最新額度？",
+      "codexRefreshConfirmDescription": "將使用目前的 Codex 帳號向 gpt-5.6-luna 傳送一筆真實請求，以取得最新額度。這會消耗少量訂閱額度。是否繼續？",
+      "codexRefreshConfirmAction": "傳送請求並重新整理",
       "unsupportedProvider": "此提供者目前沒有受支援的額度資料來源。",
       "state": {
         "fresh": "最新",

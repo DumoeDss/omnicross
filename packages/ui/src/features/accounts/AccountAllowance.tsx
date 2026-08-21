@@ -2,6 +2,7 @@ import { RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
 
@@ -50,6 +51,7 @@ export function AccountAllowance({
 }: AccountAllowanceProps) {
   const t = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
+  const [codexRefreshOpen, setCodexRefreshOpen] = useState(false);
   const supportsAllowance = providerId === 'claude' || providerId === 'codex';
   const summaryState: AllowanceWindowState = snapshot
     ? allowanceState(snapshot)
@@ -65,6 +67,14 @@ export function AccountAllowance({
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const requestRefresh = () => {
+    if (providerId === 'codex') {
+      setCodexRefreshOpen(true);
+      return;
+    }
+    void refresh();
   };
 
   return (
@@ -84,7 +94,7 @@ export function AccountAllowance({
             variant="ghost"
             className="h-6 px-2 text-xs"
             disabled={refreshing}
-            onClick={() => void refresh()}
+            onClick={requestRefresh}
           >
             <RefreshCw className={cn('mr-1 h-3 w-3', refreshing && 'animate-spin')} />
             {t('accounts.allowance.refresh')}
@@ -155,6 +165,16 @@ export function AccountAllowance({
         </p>
       ) : null}
       {error ? <p className="mt-1.5 text-xs text-destructive">{error}</p> : null}
+      <ConfirmDialog
+        open={codexRefreshOpen}
+        onOpenChange={setCodexRefreshOpen}
+        title={t('accounts.allowance.codexRefreshConfirmTitle')}
+        description={t('accounts.allowance.codexRefreshConfirmDescription')}
+        confirmLabel={t('accounts.allowance.codexRefreshConfirmAction')}
+        cancelLabel={t('common.cancel')}
+        variant="default"
+        onConfirm={() => void refresh()}
+      />
     </div>
   );
 }

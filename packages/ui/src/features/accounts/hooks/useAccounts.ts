@@ -12,7 +12,11 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { agent } from '@/shared/agent';
 
-import { allowanceKey, mergeAllowances } from '../allowanceLogic';
+import {
+  allowanceKey,
+  mergeAllowances,
+  probeAndReloadCodexAllowance,
+} from '../allowanceLogic';
 
 import type {
   AccountAllowanceSnapshot,
@@ -51,6 +55,10 @@ export interface UseAccountsResult {
   refreshAllowances: () => Promise<{ success: boolean; message?: string }>;
   /** Force-refresh a single Claude account without replacing unrelated snapshots. */
   refreshAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Run one confirmed Luna request for a Codex account, then reload its passive snapshot. */
+  refreshCodexAccountAllowance: (
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
   writeTokens: (payload: AccountTokenInput) => Promise<{ success: boolean; message?: string }>;
@@ -506,6 +514,29 @@ export function useAccounts(): UseAccountsResult {
     [refresh],
   );
 
+  const refreshCodexAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('codex', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await probeAndReloadCodexAllowance(
+        () => testAccount('codex', accountId),
+        refreshAllowances,
+      );
+      if (!result.success) {
+        setAllowanceErrors((current) => ({
+          ...current,
+          [key]: result.message ?? 'failed to refresh Codex allowance',
+        }));
+      }
+      return result;
+    },
+    [refreshAllowances, testAccount],
+  );
+
   const listAccountEvents = useCallback(
     (providerId: SubscriptionProviderId, accountId: string) =>
       agent.accounts.listAccountEvents(providerId, accountId),
@@ -551,6 +582,7 @@ export function useAccounts(): UseAccountsResult {
     refresh,
     refreshAllowances,
     refreshAccountAllowance,
+    refreshCodexAccountAllowance,
     writeTokens,
     appendTokens,
     setActive,

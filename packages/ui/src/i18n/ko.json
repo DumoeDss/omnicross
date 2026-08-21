@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Luna를 사용해 이 한도를 새로 고칠까요?",
+      "codexRefreshConfirmDescription": "이 Codex 계정으로 gpt-5.6-luna에 실제 요청을 보내 최신 한도를 가져옵니다. 구독 할당량이 소량 사용됩니다. 계속할까요?",
+      "codexRefreshConfirmAction": "요청 전송 및 새로 고침"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

@@ -287,7 +287,7 @@ export function AccountList({
                 loading={allowanceLoading}
                 error={allowanceErrors[allowanceKey(providerId, acc.id)]}
                 onRefresh={
-                  providerId === 'claude' && onRefreshAllowance
+                  (providerId === 'claude' || providerId === 'codex') && onRefreshAllowance
                     ? () => onRefreshAllowance(acc.id)
                     : undefined
                 }

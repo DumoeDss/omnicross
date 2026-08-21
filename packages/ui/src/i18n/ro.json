@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Folosiți Luna pentru a actualiza această cotă?",
+      "codexRefreshConfirmDescription": "Va fi trimisă o solicitare reală către gpt-5.6-luna cu acest cont Codex pentru a obține cea mai recentă cotă. Aceasta va consuma o mică parte din cota abonamentului. Continuați?",
+      "codexRefreshConfirmAction": "Trimiteți solicitarea și actualizați"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

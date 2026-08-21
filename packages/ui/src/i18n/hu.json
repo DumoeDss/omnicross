@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Frissíti ezt a keretet a Luna használatával?",
+      "codexRefreshConfirmDescription": "Valós kérés lesz elküldve a gpt-5.6-luna modellnek ezzel a Codex-fiókkal a legfrissebb keret lekéréséhez. Ez felhasznál egy kis részt az előfizetési keretből. Folytatja?",
+      "codexRefreshConfirmAction": "Kérés küldése és frissítés"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",

@@ -107,6 +107,7 @@ export function OAuthProviderCard({
     allowanceLoading,
     allowanceErrors,
     refreshAccountAllowance,
+    refreshCodexAccountAllowance,
     appendTokens,
     setActive,
     removeAccount,
@@ -267,7 +268,13 @@ export function OAuthProviderCard({
             allowances={allowances}
             allowanceLoading={allowanceLoading}
             allowanceErrors={allowanceErrors}
-            onRefreshAllowance={providerId === 'claude' ? refreshAccountAllowance : undefined}
+            onRefreshAllowance={
+              providerId === 'claude'
+                ? refreshAccountAllowance
+                : providerId === 'codex'
+                  ? refreshCodexAccountAllowance
+                  : undefined
+            }
             onSetActive={(id) => void setActive(providerId, id)}
             onRemove={(id) => void removeAccount(providerId, id)}
             onRename={(id, label) => renameAccount(providerId, id, label)}

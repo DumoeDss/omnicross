@@ -871,6 +871,11 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
+    "allowance": {
+      "codexRefreshConfirmTitle": "Dùng Luna để làm mới hạn mức này?",
+      "codexRefreshConfirmDescription": "Một yêu cầu thực sẽ được gửi đến gpt-5.6-luna bằng tài khoản Codex này để lấy hạn mức mới nhất. Thao tác này sẽ sử dụng một phần nhỏ hạn mức gói đăng ký. Tiếp tục?",
+      "codexRefreshConfirmAction": "Gửi yêu cầu và làm mới"
+    },
     "health": {
       "rate_limited": "Rate-limited",
       "overloaded": "Overloaded",
