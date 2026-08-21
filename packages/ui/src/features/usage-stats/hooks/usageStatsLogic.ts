@@ -161,6 +161,37 @@ export function formatUsd(value: number, locale: string): string {
   }).format(value);
 }
 
+export interface TableUsdDisplay {
+  /** Compact value rendered in the table cell. */
+  display: string;
+  /** Existing high-precision value exposed on hover. */
+  full: string;
+  /** Whether the compact value dropped fractional digits. */
+  truncated: boolean;
+}
+
+/**
+ * Keep table-sized USD amounts compact once the integer part reaches four
+ * digits. Truncation (toward zero) avoids visually overstating the amount;
+ * callers can expose `full` on hover.
+ */
+export function formatTableUsd(value: number, locale: string): TableUsdDisplay {
+  const full = formatUsd(value, locale);
+  if (Math.abs(value) < 1_000) {
+    return { display: full, full, truncated: false };
+  }
+
+  const truncatedValue = Math.trunc(value * 10) / 10;
+  const display = new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(truncatedValue);
+
+  return { display, full, truncated: true };
+}
+
 /**
  * Cache-read hit ratio in [0, 1] — the cost-oriented aggregate from
  * `SessionCacheStats`: `ΣcacheRead / Σ(input + cacheRead + cacheCreation)`,

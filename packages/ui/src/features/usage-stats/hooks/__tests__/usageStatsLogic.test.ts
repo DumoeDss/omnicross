@@ -17,6 +17,7 @@ import {
   coldCacheRequestRate,
   computeCustomRange,
   computePresetRange,
+  formatTableUsd,
   loadUsageData,
   partitionApiKeyRows,
   sortByCostDesc,
@@ -160,6 +161,29 @@ describe('sortByCostDesc', () => {
     const sorted = sortByCostDesc(input);
     expect(sorted.map((r) => r.costUsd)).toEqual([3, 2, 1]);
     expect(input.map((r) => r.costUsd)).toEqual([1, 3, 2]);
+  });
+});
+
+describe('formatTableUsd', () => {
+  it('keeps the existing precision below four integer digits', () => {
+    expect(formatTableUsd(999.9999, 'en-US')).toEqual({
+      display: '$999.9999',
+      full: '$999.9999',
+      truncated: false,
+    });
+  });
+
+  it('truncates four-digit amounts to one decimal and retains the full hover value', () => {
+    expect(formatTableUsd(1_492.2033, 'en-US')).toEqual({
+      display: '$1,492.2',
+      full: '$1,492.2033',
+      truncated: true,
+    });
+  });
+
+  it('truncates instead of rounding and applies the threshold by absolute value', () => {
+    expect(formatTableUsd(2_458.8864, 'en-US').display).toBe('$2,458.8');
+    expect(formatTableUsd(-1_000.19, 'en-US').display).toBe('-$1,000.1');
   });
 });
 
