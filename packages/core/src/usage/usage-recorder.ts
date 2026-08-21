@@ -81,11 +81,21 @@ export interface UsageRecorderOptions {
    * Absent ⇒ no-op (byte-identical for hosts/tests that do not wire it).
    */
   onRecord?: (apiKeyId: string, costUsd: number, now: number) => void;
+  /**
+   * OPTIONAL per-request hook (live-throughput). Called synchronously with the
+   * FINISHED row, immediately before the store insert, for EVERY recorded
+   * request — attributed or not. Distinct from `onRecord`, which is gated on
+   * `apiKeyId` and carries only the cost: a rate metric must see subscription-
+   * account traffic too, and needs the token counts. Absent ⇒ no-op
+   * (byte-identical for hosts/tests that do not wire it).
+   */
+  onEvent?: (row: UsageEventInput, at: number) => void;
 }
 
 export class UsageRecorder {
   private defer: (fn: () => void) => void;
   private onRecord?: (apiKeyId: string, costUsd: number, now: number) => void;
+  private onEvent?: (row: UsageEventInput, at: number) => void;
 
   constructor(
     private store: UsageEventStore,
@@ -95,6 +105,7 @@ export class UsageRecorder {
   ) {
     this.defer = options.defer ?? (fn => setTimeout(fn, 0));
     this.onRecord = options.onRecord;
+    this.onEvent = options.onEvent;
   }
 
   /**
@@ -187,6 +198,18 @@ export class UsageRecorder {
         ? { cacheKeyInjected: input.cacheKeyInjected }
         : {}),
     };
+
+    // Live throughput increment (live-throughput) — fired with the finished row
+    // before the store write, so an in-memory rate aggregate stays current
+    // without re-scanning the usage log. Guarded so a throwing hook never sinks
+    // the persist, exactly like the spend hook above.
+    if (this.onEvent) {
+      try {
+        this.onEvent(row, Date.now());
+      } catch {
+        /* a throughput-hook failure must never break usage persistence */
+      }
+    }
 
     try {
       return await this.store.insert(row);

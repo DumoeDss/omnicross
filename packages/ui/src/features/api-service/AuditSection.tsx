@@ -7,11 +7,12 @@
  * retention, and a trust-`X-Forwarded-For` switch. Edits are held in a local
  * draft; Save PUTs the whole segment. Below the settings, an authed viewer
  * queries `GET /admin/api/audit` by key id + limit and renders the returned
- * records (bodies shown only when they were captured). The segment carries NO
- * secret — nothing here is masked.
+ * metadata rows. Captured bodies are NOT part of a listing — they live in the
+ * per-session shard store and are fetched one record at a time. The segment
+ * carries NO secret — nothing here is masked.
  */
 
-import { FileClock, RefreshCw } from 'lucide-react';
+import { Archive, FileClock, RefreshCw } from 'lucide-react';
 import React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ const DEFAULT_AUDIT: AuditConfig = {
   captureBodies: false,
   maxBodyBytes: -1,
   retentionDays: 7,
+  compactStreamingBodies: false,
   trustForwardedFor: false,
 };
 
@@ -35,15 +37,18 @@ interface AuditSectionProps {
   busy: boolean;
   onUpdate: (audit: OutboundApiServerConfig['audit'] | undefined) => Promise<void>;
   onQuery: (query: { keyId?: string; limit?: number }) => Promise<AuditRecord[]>;
+  onCompact: () => Promise<{ days: number; shards: number; savedBytes: number }>;
 }
 
-export function AuditSection({ config, busy, onUpdate, onQuery }: AuditSectionProps) {
+export function AuditSection({ config, busy, onUpdate, onQuery, onCompact }: AuditSectionProps) {
   const t = useTranslation();
   const seeded: AuditConfig = config.audit ?? DEFAULT_AUDIT;
   const [draft, setDraft] = React.useState<AuditConfig>(seeded);
   const [records, setRecords] = React.useState<AuditRecord[] | null>(null);
   const [keyFilter, setKeyFilter] = React.useState('');
   const [querying, setQuerying] = React.useState(false);
+  const [compacting, setCompacting] = React.useState(false);
+  const [compactResult, setCompactResult] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setDraft(config.audit ?? DEFAULT_AUDIT);
@@ -52,6 +57,25 @@ export function AuditSection({ config, busy, onUpdate, onQuery }: AuditSectionPr
   const patch = (p: Partial<AuditConfig>): void => setDraft((d) => ({ ...d, ...p }));
 
   const save = (): Promise<void> => onUpdate(draft);
+
+  // Compaction rewrites CLOSED days only, so it is safe to trigger at any time.
+  const runCompact = async (): Promise<void> => {
+    setCompacting(true);
+    setCompactResult(null);
+    try {
+      const result = await onCompact();
+      const mb = (result.savedBytes / (1024 * 1024)).toFixed(1);
+      setCompactResult(
+        t('apiService.audit.compactNow.result', {
+          days: String(result.days),
+          shards: String(result.shards),
+          saved: `${mb} MB`,
+        }),
+      );
+    } finally {
+      setCompacting(false);
+    }
+  };
 
   const runQuery = async (): Promise<void> => {
     setQuerying(true);
@@ -112,6 +136,18 @@ export function AuditSection({ config, busy, onUpdate, onQuery }: AuditSectionPr
       </SettingRow>
 
       <SettingRow
+        label={t('apiService.audit.compactStreamingBodies.label')}
+        description={t('apiService.audit.compactStreamingBodies.description')}
+      >
+        <Switch
+          checked={draft.compactStreamingBodies}
+          disabled={busy || !draft.captureBodies}
+          onCheckedChange={(checked) => patch({ compactStreamingBodies: checked })}
+          aria-label={t('apiService.audit.compactStreamingBodies.label')}
+        />
+      </SettingRow>
+
+      <SettingRow
         label={t('apiService.audit.retentionDays.label')}
         description={t('apiService.audit.retentionDays.description')}
       >
@@ -141,7 +177,19 @@ export function AuditSection({ config, busy, onUpdate, onQuery }: AuditSectionPr
         <Button size="sm" disabled={busy} onClick={() => void save()}>
           {t('apiService.audit.save')}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || compacting || !draft.enabled}
+          onClick={() => void runCompact()}
+        >
+          <Archive className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          {t('apiService.audit.compactNow.label')}
+        </Button>
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        {compactResult ?? t('apiService.audit.compactNow.description')}
+      </p>
 
       {/* Viewer — authed query by key id (bodies shown only if captured). */}
       <div className="space-y-2 rounded-md border border-border/60 p-3">

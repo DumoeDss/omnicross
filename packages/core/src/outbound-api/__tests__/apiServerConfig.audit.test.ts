@@ -9,6 +9,7 @@ describe('normalizeAudit', () => {
       captureBodies: false,
       maxBodyBytes: -1,
       retentionDays: 7,
+      compactStreamingBodies: false,
       trustForwardedFor: false,
     });
   });
@@ -91,6 +92,7 @@ describe('normalizeServerConfig — audit segment', () => {
       captureBodies: true,
       maxBodyBytes: 2048,
       retentionDays: 14,
+      compactStreamingBodies: false,
       trustForwardedFor: false,
     });
   });

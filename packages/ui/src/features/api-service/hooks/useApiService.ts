@@ -88,6 +88,7 @@ export interface UseApiServiceResult {
     to?: number;
     limit?: number;
   }) => Promise<AuditRecord[]>;
+  compactAudit: () => Promise<{ days: number; shards: number; savedBytes: number }>;
   updateBillingConfig: (billing: OutboundApiServerConfig['billing'] | undefined) => Promise<void>;
   queryBillingStatus: () => Promise<BillingDeliveryStatus>;
   updateFingerprintConfig: (
@@ -394,6 +395,10 @@ export function useApiService(): UseApiServiceResult {
     [],
   );
 
+  // Compaction only rewrites CLOSED days, so it cannot race the live store and
+  // does not go through `runWrite` either.
+  const compactAudit = useCallback(() => agent.apiService.compactAudit(), []);
+
   const updateBillingConfig = useCallback(
     async (billing: OutboundApiServerConfig['billing'] | undefined) => {
       await runWrite(() => agent.apiService.updateBillingConfig(billing));
@@ -481,6 +486,7 @@ export function useApiService(): UseApiServiceResult {
     testWebhook,
     updateAuditConfig,
     queryAudit,
+    compactAudit,
     updateBillingConfig,
     queryBillingStatus,
     updateFingerprintConfig,

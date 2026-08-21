@@ -318,6 +318,11 @@ export interface AgentApiServiceApi {
    * Query the audit log (`GET /admin/api/audit`, request-audit-log) by key id +
    * time window. Authed-only on the daemon; returns records newest-first.
    */
+  /**
+   * Run cross-session body compaction now (`POST /admin/api/audit/compact`,
+   * audit-store-sharding). Closed days only; a day is compacted at most once.
+   */
+  compactAudit(): Promise<{ days: number; shards: number; savedBytes: number }>;
   queryAudit(query: {
     keyId?: string;
     from?: number;

@@ -11,6 +11,7 @@
  * @module @omnicross/daemon/cli
  */
 
+import { runAudit } from './commands/audit';
 import { runImportCcr } from './commands/import-ccr';
 import { runIntegrations } from './commands/integrations';
 import { runKeys } from './commands/keys';
@@ -55,6 +56,10 @@ Usage:
   omnicross secrets encrypt --config <p>   Encrypt all at-rest secrets in place.
   omnicross secrets status --config <p>    Report each secret field (no values shown).
   omnicross secrets rotate --config <p> --new-master-key-file <p>  Re-seal under a new master key.
+
+  omnicross audit sessions --config <p> [--date YYYY-MM-DD]        List captured body shards per session.
+  omnicross audit show --config <p> --session <key> [--id <recordId>]  Print reconstructed request/response bodies.
+  omnicross audit compact --config <p> [--date YYYY-MM-DD]         Run cross-session body compaction now.
 `;
 
 async function main(): Promise<void> {
@@ -86,6 +91,9 @@ async function main(): Promise<void> {
       return;
     case 'secrets':
       await runSecrets(rest);
+      return;
+    case 'audit':
+      await runAudit(rest);
       return;
     case undefined:
     case '-h':

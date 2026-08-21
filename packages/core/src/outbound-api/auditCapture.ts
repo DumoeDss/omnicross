@@ -33,6 +33,7 @@ import { getAuditCaptureConfig, recordAudit } from '../pipeline/auditSink';
 import { readAuditUsage } from '../pipeline/auditUsageStash';
 
 import { redactAuditText } from './auditRedact';
+import { compactSseBody } from './auditSseCompact';
 
 /** Return the largest prefix ending on a complete UTF-8 code point. */
 function completeUtf8PrefixLength(buf: Buffer): number {
@@ -78,6 +79,12 @@ export interface AuditCaptureContext {
   provider?: string;
   /** Sanitized error message (set on a relay/dispatch failure). */
   error?: string;
+  /**
+   * Derived conversation-session key (set by the router once the request body is
+   * parsed). Shards the audit body store and anchors its per-turn delta chain.
+   * A truncated digest — NEVER a raw client id.
+   */
+  sessionKey?: string;
   /** Stash the raw request body for capture (a no-op unless `captureBodies`). */
   setRequestBody(raw: string): void;
 }
@@ -185,14 +192,23 @@ export function beginAuditCapture(
         if (!record.provider && usage.provider) record.provider = usage.provider;
       }
       if (ctx.error) record.error = redactAuditText(ctx.error);
+      if (ctx.sessionKey) record.sessionKey = ctx.sessionKey;
       if (config.captureBodies) {
         if (requestBody != null && requestBody.length > 0) {
           record.requestBody = requestBody;
         }
         if (responseChunks.length > 0) {
           const captured = Buffer.concat(responseChunks, responseBytes);
-          const body = decodeCapturedBody(captured, responseTruncated);
+          const decoded = decodeCapturedBody(captured, responseTruncated);
+          // Compaction (opt-in) runs BEFORE redaction so every frame it retains
+          // still passes through the secret scan.
+          const body = config.compactStreamingBodies ? compactSseBody(decoded) : decoded;
           record.responseBody = truncateToBytes(redactAuditText(body), config.maxBodyBytes);
+        }
+        // The sink persists bodies to the per-session store rather than inline on
+        // the metadata line; this flag is how a query knows one exists.
+        if (record.requestBody !== undefined || record.responseBody !== undefined) {
+          record.hasBody = true;
         }
       }
       recordAudit(record);

@@ -29,6 +29,19 @@ export interface AuditRecord {
   id: string;
   /** Epoch ms the request was captured. */
   ts: number;
+  /**
+   * Derived conversation-session key (a truncated SHA-256 digest — NEVER a raw
+   * client id or prompt). Groups the turns of one conversation so the body store
+   * can shard by session and delta-encode each turn against the previous one.
+   * Absent on a pre-upgrade record and whenever no key could be derived.
+   */
+  sessionKey?: string;
+  /**
+   * True when a body snapshot for this record exists in the session body store.
+   * The metadata line itself never carries the payload — fetch it through the
+   * authed body query.
+   */
+  hasBody?: boolean;
   /** Outbound key id (attribution) — NEVER the key secret/hash. Null when unauthenticated. */
   keyId?: string | null;
   /** Client IP (PII). Socket address by default; a trusted forwarded header only when configured. */
@@ -83,6 +96,13 @@ export interface AuditConfig {
   /** TTL retention in days; default 7, clamped `[1, 365]`. */
   retentionDays: number;
   /**
+   * Collapse streaming text deltas in a captured response body into one contiguous
+   * block (default FALSE — the raw frame sequence is stored verbatim). Every
+   * NON-delta frame is kept either way, so `response.failed` / `error` / usage
+   * frames stay visible; only the per-token `*_delta` envelopes are merged.
+   */
+  compactStreamingBodies: boolean;
+  /**
    * Trust the `X-Forwarded-For` header for the client IP (LEAD OQ1 anti-spoof).
    * Default FALSE — the socket remote address is authoritative. Only set true
    * behind a trusted reverse proxy; a client-supplied XFF is NEVER trusted by
@@ -97,12 +117,25 @@ export const DEFAULT_AUDIT_CONFIG: AuditConfig = {
   captureBodies: false,
   maxBodyBytes: -1,
   retentionDays: 7,
+  compactStreamingBodies: false,
   trustForwardedFor: false,
 };
 
 /** One page of audit records the authed admin query returns (newest first). */
 export interface AuditQueryResult {
   records: AuditRecord[];
+}
+
+/**
+ * The reconstructed body pair for ONE audit record, returned by the authed body
+ * query. Bodies live in the per-session delta store rather than inline on the
+ * metadata line, so reading one is an explicit second call.
+ */
+export interface AuditBodyResult {
+  /** Reconstructed request body, or absent when none was captured. */
+  requestBody?: string;
+  /** Reconstructed response body, or absent when none was captured. */
+  responseBody?: string;
 }
 
 /** Metadata-only aggregate for an audit time window (body payloads are never returned). */

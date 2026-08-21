@@ -14,8 +14,9 @@ import {
   ServerCog,
   Users,
   WalletCards,
+  Zap,
 } from 'lucide-react';
-import React, { type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,15 @@ import type { AppRoute } from '@/shared/state/hashRoute';
 import { cn } from '@/shared/utils/utils';
 
 import { useOverviewData } from './useOverviewData';
+import { useLiveThroughput, THROUGHPUT_POLL_MS } from './useLiveThroughput';
+import {
+  buildThroughputView,
+  sparklinePoints,
+  DEFAULT_THROUGHPUT_WINDOW_MS,
+  THROUGHPUT_WINDOW_OPTIONS,
+  type ThroughputView,
+  type ThroughputWindowMs,
+} from './throughputModel';
 import {
   buildOverviewModel,
   type AllowanceWeeklyItem,
@@ -78,6 +88,22 @@ function formatPercent(value: number): string {
   return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 }).format(value);
 }
 
+/**
+ * A per-minute rate. Sub-10 rates keep a decimal — "0 req/min" would read as
+ * "idle" when the truth is "one request every few minutes".
+ */
+function formatRate(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value > 0 && value < 10 ? 1 : 0,
+  }).format(value);
+}
+
+const THROUGHPUT_WINDOW_KEY: Record<number, string> = {
+  60_000: 'overview.throughput.window1m',
+  300_000: 'overview.throughput.window5m',
+  900_000: 'overview.throughput.window15m',
+};
+
 function PathStage({ stage }: { stage: RequestPathStage }) {
   const t = useTranslation();
   const Icon = STAGE_ICONS[stage.id];
@@ -103,11 +129,14 @@ function SectionHeading({
   title,
   description,
   action,
+  titleId,
 }: {
   icon: typeof Activity;
   title: string;
   description: string;
   action?: ReactNode;
+  /** Set it to match the section's `aria-labelledby`, so the reference resolves. */
+  titleId?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-3">
@@ -116,7 +145,7 @@ function SectionHeading({
           <Icon className="h-4 w-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <h2 id={titleId} className="text-sm font-semibold text-foreground">{title}</h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
         </div>
       </div>
@@ -190,6 +219,139 @@ function WeeklyAllowanceList({
         })}
       </div>
     </div>
+  );
+}
+
+/** Token-throughput trend, oldest → newest. Purely decorative for the headline. */
+function ThroughputSparkline({ points, label }: { points: number[]; label: string }) {
+  const line = sparklinePoints(points, 100, 28);
+  if (!line) return null;
+  const flat = points.every((value) => value === 0);
+  return (
+    <svg
+      viewBox="0 0 100 28"
+      preserveAspectRatio="none"
+      className={cn('h-10 w-full', flat ? 'text-border' : 'text-primary')}
+      role="img"
+      aria-label={label}
+    >
+      <polyline
+        points={line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+function LiveThroughputEvidence({
+  view,
+  windowMs,
+  onWindowChange,
+  onNavigate,
+}: {
+  view: ThroughputView;
+  windowMs: ThroughputWindowMs;
+  onWindowChange: (next: ThroughputWindowMs) => void;
+  onNavigate: (route: AppRoute) => void;
+}) {
+  const t = useTranslation();
+  const ready = view.state === 'ready';
+  const windowLabel = t('overview.throughput.windowLabel', {
+    window: t(THROUGHPUT_WINDOW_KEY[view.windowMs] ?? THROUGHPUT_WINDOW_KEY[windowMs]!),
+  });
+  const headline = ready && view.tokensPerMinute !== undefined
+    ? formatRate(view.tokensPerMinute)
+    : sourceText(view.state, t);
+
+  // One hint line, most consequential caveat first: a read we cannot trust beats
+  // a partial count, which beats a short observation, which beats plain idle.
+  const hint = !ready
+    ? view.state === 'unavailable' ? t('overview.throughput.unavailableHint') : undefined
+    : !view.complete
+      ? t('overview.throughput.incomplete')
+      : view.warmingUp
+        ? t('overview.throughput.warmingUp')
+        : view.idle
+          ? t('overview.throughput.idle')
+          : t('overview.throughput.hint', { seconds: Math.round(THROUGHPUT_POLL_MS / 1000) });
+
+  return (
+    <section className="rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5" aria-labelledby="throughput-title">
+      <SectionHeading
+        icon={Zap}
+        titleId="throughput-title"
+        title={t('overview.throughput.title')}
+        description={t('overview.throughput.description')}
+        action={
+          <div className="flex shrink-0 items-center gap-1 rounded-md border border-border/70 bg-surface-2/40 p-0.5" role="group" aria-label={t('overview.throughput.windowAria')}>
+            {THROUGHPUT_WINDOW_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onWindowChange(option)}
+                aria-pressed={option === windowMs}
+                className={cn(
+                  'rounded px-2 py-1 font-mono text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  option === windowMs
+                    ? 'bg-surface-0 text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {t(THROUGHPUT_WINDOW_KEY[option]!)}
+              </button>
+            ))}
+          </div>
+        }
+      />
+      <div className="mt-4 grid gap-4 border-t border-border/60 pt-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span
+              className={cn(
+                'font-mono text-3xl font-semibold tabular-nums tracking-tight',
+                ready ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {headline}
+            </span>
+            {ready ? (
+              <span className="text-xs text-muted-foreground">{t('overview.throughput.tokensPerMinute')}</span>
+            ) : null}
+            <span className="font-mono text-[11px] text-muted-foreground">{windowLabel}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-muted-foreground">
+            {ready && view.requestsPerMinute !== undefined ? (
+              <span>{t('overview.throughput.requestsPerMinute', { value: formatRate(view.requestsPerMinute) })}</span>
+            ) : null}
+            {ready && view.inputTokensPerMinute !== undefined && view.outputTokensPerMinute !== undefined ? (
+              <span>
+                {t('overview.throughput.inputOutput', {
+                  input: formatRate(view.inputTokensPerMinute),
+                  output: formatRate(view.outputTokensPerMinute),
+                })}
+              </span>
+            ) : null}
+            {ready && view.costUsdPerMinute !== undefined ? (
+              <span>{t('overview.throughput.costPerMinute', { value: formatUsd(view.costUsdPerMinute) })}</span>
+            ) : null}
+          </div>
+          {hint ? <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{hint}</p> : null}
+        </div>
+        <div className="min-w-0">
+          {ready ? <ThroughputSparkline points={view.points} label={t('overview.throughput.trendLabel')} /> : null}
+          <div className="mt-1 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={() => onNavigate({ page: 'usage-stats' })}>
+              {t('overview.throughput.open')}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -454,6 +616,13 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
   const t = useTranslation();
   const data = useOverviewData();
   const view = buildOverviewModel(data.sources);
+  const throughput = useLiveThroughput();
+  // Window selection is client-side: one poll carries all three, so switching
+  // re-reads the response already in hand rather than hitting the daemon again.
+  const [throughputWindowMs, setThroughputWindowMs] = useState<ThroughputWindowMs>(
+    DEFAULT_THROUGHPUT_WINDOW_MS,
+  );
+  const throughputView = buildThroughputView(throughput.source, throughputWindowMs);
   const headerReady = view.overallState === 'operational';
   const headerClass = view.overallState === 'loading'
     ? STATE_CLASS.loading
@@ -473,7 +642,17 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
               <CircleDot className={cn('h-3.5 w-3.5', headerReady && 'motion-safe:animate-pulse')} aria-hidden="true" />
               {view.overallState === 'loading' ? t('overview.source.loading') : headerReady ? t('overview.operational') : t('overview.actionRequired')}
             </div>
-            <Button variant="outline" size="icon" disabled={data.refreshing} onClick={data.refresh} aria-label={t('overview.refresh')} title={t('overview.refresh')}>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={data.refreshing}
+              onClick={() => {
+                data.refresh();
+                throughput.refresh();
+              }}
+              aria-label={t('overview.refresh')}
+              title={t('overview.refresh')}
+            >
               <RefreshCw className={data.refreshing ? 'animate-spin' : undefined} aria-hidden="true" />
             </Button>
           </div>
@@ -497,6 +676,13 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
             ))}
           </div>
         </section>
+
+        <LiveThroughputEvidence
+          view={throughputView}
+          windowMs={throughputWindowMs}
+          onWindowChange={setThroughputWindowMs}
+          onNavigate={onNavigate}
+        />
 
         <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <GatewayEvidence view={view} onNavigate={onNavigate} />

@@ -1,11 +1,11 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import type { AuditRecord } from '@omnicross/contracts/audit-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { auditFileName } from '../auditFiles';
+import { AUDIT_META_FILE, auditDayDirName, auditFileName } from '../auditFiles';
 import { readAuditRecords } from '../auditReader';
 
 let dir: string;
@@ -93,5 +93,78 @@ describe('readAuditRecords', () => {
     );
     const rows = readAuditRecords(dir);
     expect(rows.map((r) => r.id)).toEqual(['good']);
+  });
+});
+
+describe('readAuditRecords — day-directory layout (audit-store-sharding)', () => {
+  const day = (ts: number): string => join(dir, auditDayDirName(ts), AUDIT_META_FILE);
+
+  function writeDay(records: AuditRecord[]): void {
+    const byDir = new Map<string, string[]>();
+    for (const r of records) {
+      const path = day(r.ts);
+      const lines = byDir.get(path) ?? [];
+      lines.push(JSON.stringify(r));
+      byDir.set(path, lines);
+    }
+    for (const [path, lines] of byDir) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, lines.join('\n') + '\n');
+    }
+  }
+
+  const at = (ts: number, over: Partial<AuditRecord> = {}): AuditRecord => ({
+    id: `r${ts}`, ts, method: 'POST', path: '/v1/messages', status: 200, latencyMs: 1, ...over,
+  });
+
+  it('reads the new layout newest-first', () => {
+    const base = new Date(2026, 7, 20, 9, 0, 0).getTime();
+    writeDay([at(base), at(base + 1000), at(base + 2000)]);
+    expect(readAuditRecords(dir).map((r) => r.ts)).toEqual([base + 2000, base + 1000, base]);
+  });
+
+  it('merges legacy flat files and day directories in one query', () => {
+    const newer = new Date(2026, 7, 20, 9, 0, 0).getTime();
+    const older = new Date(2026, 7, 18, 9, 0, 0).getTime();
+    writeDay([at(newer, { id: 'sharded' })]);
+    writeFileSync(join(dir, auditFileName(older)), JSON.stringify(at(older, { id: 'legacy' })) + '\n');
+    expect(readAuditRecords(dir).map((r) => r.id)).toEqual(['sharded', 'legacy']);
+  });
+
+  it('strips an inline legacy body but reports that one exists', () => {
+    const ts = new Date(2026, 7, 18, 9, 0, 0).getTime();
+    writeFileSync(
+      join(dir, auditFileName(ts)),
+      JSON.stringify(at(ts, { id: 'legacy', requestBody: 'x'.repeat(5000) })) + '\n',
+    );
+    const [row] = readAuditRecords(dir);
+    expect(row?.requestBody).toBeUndefined();
+    expect(row?.hasBody).toBe(true);
+  });
+
+  it('filters by sessionKey', () => {
+    const base = new Date(2026, 7, 20, 9, 0, 0).getTime();
+    const mine = 'c'.repeat(32);
+    writeDay([at(base, { sessionKey: mine }), at(base + 1, { sessionKey: 'd'.repeat(32) })]);
+    expect(readAuditRecords(dir, { sessionKey: mine }).map((r) => r.ts)).toEqual([base]);
+  });
+
+  it('stops opening older days once the limit is satisfied', () => {
+    const day1 = new Date(2026, 7, 20, 9, 0, 0).getTime();
+    const day0 = new Date(2026, 7, 19, 9, 0, 0).getTime();
+    writeDay([at(day1), at(day1 + 1), at(day1 + 2)]);
+    writeDay([at(day0)]);
+    const rows = readAuditRecords(dir, { limit: 2 });
+    expect(rows).toHaveLength(2);
+    // Both rows come from the newest day; the older day was never needed.
+    expect(rows.every((r) => r.ts >= day1)).toBe(true);
+  });
+
+  it('survives a torn final line in the new layout', () => {
+    const ts = new Date(2026, 7, 20, 9, 0, 0).getTime();
+    const path = day(ts);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(at(ts, { id: 'good' })) + '\n{"id":"torn"');
+    expect(readAuditRecords(dir).map((r) => r.id)).toEqual(['good']);
   });
 });

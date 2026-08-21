@@ -312,6 +312,21 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async compactAudit(): Promise<{ days: number; shards: number; savedBytes: number }> {
+      try {
+        const data = await adminClient.post<{ days?: number; shards?: number; savedBytes?: number }>(
+          '/audit/compact',
+        );
+        return {
+          days: data.days ?? 0,
+          shards: data.shards ?? 0,
+          savedBytes: data.savedBytes ?? 0,
+        };
+      } catch {
+        return { days: 0, shards: 0, savedBytes: 0 };
+      }
+    },
+
     async queryAudit(query: {
       keyId?: string;
       from?: number;

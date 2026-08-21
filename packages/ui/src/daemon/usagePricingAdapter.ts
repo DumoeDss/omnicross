@@ -23,6 +23,8 @@ import type {
   UsageDateRange,
   UsageTimeBucket,
   UsageTimeSeriesBucket,
+  UsageThroughputResult,
+  UsageThroughputSnapshot,
   UsageTotals,
 } from './types-usage-pricing';
 
@@ -66,6 +68,26 @@ export function getUsageTimeSeries(
 /** `GET /dashboard` — bare `DashboardSummary`. */
 export function getDashboardSummary(): Promise<DashboardSummary> {
   return adminClient.get<DashboardSummary>('/dashboard');
+}
+
+/**
+ * `GET /usage/throughput` — bare `UsageThroughputSnapshot`. Takes NO range: the
+ * daemon answers from an in-memory sliding window.
+ *
+ * A daemon predating the endpoint 404s, so the failure is degraded into
+ * `available: false` (same shape as `queryOverloadCounters`) rather than thrown:
+ * "this daemon cannot report a rate" must never be rendered as a rate of zero.
+ */
+export async function getUsageThroughput(): Promise<UsageThroughputResult> {
+  try {
+    const snapshot = await adminClient.get<UsageThroughputSnapshot>('/usage/throughput');
+    if (!snapshot || snapshot.available !== true || !Array.isArray(snapshot.windows)) {
+      return { available: false, collectedAt: Date.now() };
+    }
+    return snapshot;
+  } catch {
+    return { available: false, collectedAt: Date.now() };
+  }
 }
 
 /** `GET /pricing` — unwraps the `{ entries }` envelope. */

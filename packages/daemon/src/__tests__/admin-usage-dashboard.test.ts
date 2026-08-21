@@ -1,9 +1,11 @@
 /**
- * admin-usage-dashboard.test.ts — the two udash-api routes:
+ * admin-usage-dashboard.test.ts — the udash-api routes:
  *   - `GET /admin/api/usage/timeseries?startTs&endTs&bucket=` (zero-filled
  *     buckets; bad-bucket / bad-range / pathological-range 400s);
  *   - `GET /admin/api/dashboard` (counts-only summary; secret-free; running flag;
- *     405 on POST).
+ *     405 on POST);
+ *   - `GET /admin/api/usage/throughput` (live in-memory rates; takes NO range,
+ *     so it must bypass the shared range guard).
  *
  * Boots the full daemon in process (mirrors `admin-usage-pricing.test.ts`) with
  * an admin token so the auth gate is exercised.
@@ -281,6 +283,62 @@ describe('GET /admin/api/dashboard', () => {
 
   it('401s without the admin token', async () => {
     const r = await adminFetch('GET', '/admin/api/dashboard', undefined, { auth: false });
+    expect(r.status).toBe(401);
+  });
+});
+
+// ── Live throughput ────────────────────────────────────────────────────────
+
+interface ThroughputBody {
+  available: boolean;
+  collectedAt: number;
+  startedAt: number;
+  retentionMs: number;
+  bucketMs: number;
+  windows: Array<{
+    windowMs: number;
+    requests: number;
+    totalTokens: number;
+    tokensPerMinute: number;
+    requestsPerMinute: number;
+    complete: boolean;
+  }>;
+  buckets: Array<{ startTs: number; requests: number; tokens: number }>;
+}
+
+describe('GET /admin/api/usage/throughput', () => {
+  it('answers without a range and reports every configured window', async () => {
+    // Deliberately NO startTs/endTs: this view reads the in-memory window, so it
+    // must not fall into the shared range guard that 400s the other usage views.
+    const r = await adminFetch('GET', '/admin/api/usage/throughput');
+    expect(r.status).toBe(200);
+    const body = r.json as ThroughputBody;
+    expect(body.available).toBe(true);
+    expect(body.windows.map((w) => w.windowMs)).toEqual([60_000, 300_000, 900_000]);
+    expect(body.buckets).toHaveLength(30);
+    expect(body.bucketMs).toBe(body.retentionMs / 30);
+  });
+
+  it('counts a recorded request into the live window', async () => {
+    await seedEvent();
+    const r = await adminFetch('GET', '/admin/api/usage/throughput');
+    expect(r.status).toBe(200);
+    const minute = (r.json as ThroughputBody).windows.find((w) => w.windowMs === 60_000)!;
+    expect(minute.requests).toBe(1);
+    // seedEvent(): 10 input + 20 output, no cache tokens.
+    expect(minute.totalTokens).toBe(30);
+    expect(minute.tokensPerMinute).toBe(30);
+    expect(minute.requestsPerMinute).toBe(1);
+    expect(minute.complete).toBe(true);
+  });
+
+  it('405s a non-GET method', async () => {
+    const r = await adminFetch('POST', '/admin/api/usage/throughput', {});
+    expect(r.status).toBe(405);
+  });
+
+  it('401s without the admin token', async () => {
+    const r = await adminFetch('GET', '/admin/api/usage/throughput', undefined, { auth: false });
     expect(r.status).toBe(401);
   });
 });

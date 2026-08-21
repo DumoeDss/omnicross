@@ -37,6 +37,7 @@ import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { beginAuditCapture } from './auditCapture';
+import { deriveAuditSessionKey } from './auditSessionKey';
 import { beginBillingCapture } from './billingCapture';
 import {
   candidateBackgroundModelIds,
@@ -542,8 +543,16 @@ export async function handleOutboundRequest(
       return;
     }
     // AUDIT: stash the raw request body (a no-op unless `captureBodies`). Captured
-    // even for a routing error below so the audited request is complete.
-    if (audit) audit.setRequestBody(rawBody);
+    // even for a routing error below so the audited request is complete. The
+    // session key shards the body store and anchors its per-turn delta chain, so
+    // it is derived here — the first point a parsed body exists.
+    if (audit) {
+      audit.setRequestBody(rawBody);
+      audit.sessionKey = deriveAuditSessionKey(parsedBody, req.headers, {
+        fallbackKey: verified.id,
+        endpoint,
+      });
+    }
 
     // m4: Gemini carries its model in the URL path
     // (`/v1beta/models/<model>:generateContent`), not the body, so background-tier

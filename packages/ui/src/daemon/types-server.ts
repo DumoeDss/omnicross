@@ -254,6 +254,8 @@ export interface AuditConfig {
   maxBodyBytes: number;
   /** TTL retention in days. */
   retentionDays: number;
+  /** Merge streaming text deltas in a captured response body (default false). */
+  compactStreamingBodies: boolean;
   /** Trust `X-Forwarded-For` for the client IP (anti-spoof; default false). */
   trustForwardedFor: boolean;
 }
@@ -379,6 +381,11 @@ export interface AuditRecord {
   outputTokens?: number;
   costUsd?: number;
   error?: string;
+  /** Derived conversation-session key (a digest) grouping the turns of one chat. */
+  sessionKey?: string;
+  /** Whether a captured body exists in the per-session store for this record. */
+  hasBody?: boolean;
+  /** Only a pre-sharding record still carries a body inline. */
   requestBody?: string;
   responseBody?: string;
 }

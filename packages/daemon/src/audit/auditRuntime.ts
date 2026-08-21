@@ -57,6 +57,9 @@ export function applyAuditConfig(config: AuditConfig | undefined): void {
   } else {
     setAuditCaptureConfig(null);
     setAuditSink(null);
+    // Release the body-store encoding bases (audit-store-sharding): turning audit
+    // off should not keep tens of MB of retained request bodies resident.
+    writer?.reset();
     if (sweeper) {
       if (config) sweeper.configure(config);
       sweeper.dispose();
@@ -69,6 +72,7 @@ export function resetAuditRuntimeForTests(): void {
   setAuditCaptureConfig(null);
   setAuditSink(null);
   setUpstreamTracePath(null);
+  writer?.reset();
   if (sweeper) sweeper.dispose();
   writer = null;
   sweeper = null;

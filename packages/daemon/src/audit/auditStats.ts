@@ -17,7 +17,7 @@ import { basename, dirname, join } from 'node:path';
 
 import type { AuditRecord, AuditStats } from '@omnicross/contracts/audit-types';
 
-import { AUDIT_FILE_RE, auditFileDateMs } from './auditFiles';
+import { AUDIT_DAY_DIR_RE, AUDIT_META_FILE, auditFileDateMs } from './auditFiles';
 
 const SIDECAR_VERSION = 1;
 const META_PREFIX_BYTES = 64 * 1024;
@@ -114,8 +114,8 @@ function queryCovers(stats: PersistedAuditStats, from: number, to: number): bool
   );
 }
 
-function fileOverlaps(file: string, from: number, to: number): boolean {
-  const start = auditFileDateMs(file);
+function fileOverlaps(name: string, from: number, to: number): boolean {
+  const start = auditFileDateMs(name);
   if (start === null) return false;
   const date = new Date(start);
   const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
@@ -254,21 +254,34 @@ export async function readAuditStats(
   if (!existsSync(auditDir)) return { requestCount: 0, errorCount: 0, complete: true };
   const from = typeof query.from === 'number' ? query.from : -Infinity;
   const to = typeof query.to === 'number' ? query.to : Infinity;
-  let files: string[];
+  let sources: Array<{ auditPath: string; statsPath: string }>;
   try {
-    files = readdirSync(auditDir)
-      .filter((file) => AUDIT_FILE_RE.test(file) && fileOverlaps(file, from, to))
-      .sort();
+    // Both layouts contribute: a per-day DIRECTORY keeps its counts beside its
+    // `meta.jsonl`, a legacy flat file beside the file itself. Counting is
+    // unaffected by the re-layout because a metadata line still means one request.
+    sources = readdirSync(auditDir)
+      .filter((name) => fileOverlaps(name, from, to))
+      .sort()
+      .map((name) =>
+        AUDIT_DAY_DIR_RE.test(name)
+          ? {
+              auditPath: join(auditDir, name, AUDIT_META_FILE),
+              statsPath: join(auditDir, name, auditStatsFileName(AUDIT_META_FILE)),
+            }
+          : {
+              auditPath: join(auditDir, name),
+              statsPath: join(auditDir, auditStatsFileName(name)),
+            },
+      )
+      .filter((source) => existsSync(source.auditPath));
   } catch {
     return { requestCount: 0, errorCount: 0, complete: false };
   }
 
   const total: AuditStats = { requestCount: 0, errorCount: 0, complete: true };
-  for (const file of files) {
-    const auditPath = join(auditDir, file);
+  for (const { auditPath, statsPath } of sources) {
     try {
       const auditBytes = statSync(auditPath).size;
-      const statsPath = join(auditDir, auditStatsFileName(file));
       const persisted = readPersisted(statsPath);
       if (
         persisted &&

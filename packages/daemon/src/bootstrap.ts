@@ -58,7 +58,12 @@ import {
 } from '@omnicross/core/provider-proxy';
 import { routeLeaseDescriptorPort } from '@omnicross/cli-launcher';
 import { KeySpendTracker } from '@omnicross/core/outbound-api';
-import { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
+import {
+  __resetSharedUsageThroughputTrackerForTests,
+  getSharedUsageThroughputTracker,
+  PricingEngine,
+  UsageRecorder,
+} from '@omnicross/core/usage';
 import {
   type FetchLike,
   setSubscriptionAccountService,
@@ -105,6 +110,8 @@ import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstr
 import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { AuditPruneSweeper } from './audit/AuditPruneSweeper';
+import { readAuditBody } from './audit/auditBodyReader';
+import { compactAllClosedAuditDays } from './audit/auditDictionary';
 import { readAuditRecords } from './audit/auditReader';
 import { readAuditStats } from './audit/auditStats';
 import { resetAuditRuntimeForTests, setAuditRuntime } from './audit/auditRuntime';
@@ -442,8 +449,16 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // re-seeding from the durable store. Wired into the outbound deps below so the
   // wire layer's 402 cost check reads it O(1) with no per-request scan.
   const keySpendTracker = new KeySpendTracker(usageEventStore);
+  // Live throughput tracker (live-throughput) — a process-local sliding window
+  // of recent events feeding `GET /admin/api/usage/throughput`. It exists so the
+  // Overview's live rate widget never has to poll `usage/totals`, whose jsonl
+  // store re-reads the WHOLE event log synchronously on every call. Read from
+  // the admin API through the same shared-singleton seam the overload counter
+  // uses, so it needs no `AdminApiDeps` slot.
+  const usageThroughput = getSharedUsageThroughputTracker();
   const usageRecorder = new UsageRecorder(usageEventStore, pricingEngine, logger, {
     onRecord: (apiKeyId, costUsd, at) => keySpendTracker.add(apiKeyId, costUsd, at),
+    onEvent: (row, at) => usageThroughput.record(row, at),
   });
 
   // Resident ProviderProxy — pool wired into the `apiKeyPool` deps slot, the
@@ -637,6 +652,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // NEVER unauth, NEVER on `/health`. Routed in `AdminServer` (not `adminApi.ts`).
     auditReader: (query) => readAuditRecords(auditDir, query),
     auditStatsReader: (query) => readAuditStats(auditDir, query),
+    // audit-store-sharding: bodies live in per-session shards, so opening ONE
+    // record's payload is a separate authed call that replays its delta chain.
+    auditBodyReader: (query) => readAuditBody(auditDir, query),
+    // audit-store-sharding D8: the manual counterpart to the daily pass.
+    auditCompactor: () => compactAllClosedAuditDays(auditDir),
     // billing-event-stream: the AUTHED `GET /admin/api/billing-status` returns the
     // secret-free total/delivered/pending counts of the durable ledger.
     billingStatusReader: () => readBillingStatus(billingDir),
@@ -777,6 +797,9 @@ export function resetDaemonSingletonsForTests(): void {
   // recreate it with the config-relative persisted allowance adapter above.
   __resetSharedAccountAllowanceStoreForTests();
   __resetSharedAccountAllowanceSchedulingForTests();
+  // Drop the live-throughput window so a prior boot's recorded events cannot be
+  // read as this boot's request rate.
+  __resetSharedUsageThroughputTrackerForTests();
 }
 
 /**

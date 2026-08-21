@@ -549,6 +549,26 @@
     "requestPathHint": "依目前金鑰、閘道狀態、端點路由與帳號健康狀態產生。",
     "open": "開啟",
     "refresh": "重新整理",
+    "throughput": {
+      "title": "即時吞吐",
+      "description": "以滾動時間窗統計的速率，資料來自閘道實際完成的請求。",
+      "tokensPerMinute": "tokens/分鐘",
+      "requestsPerMinute": "{{value}} 請求/分鐘",
+      "inputOutput": "輸入 {{input}} · 輸出 {{output}}",
+      "costPerMinute": "{{value}}/分鐘",
+      "window1m": "1 分鐘",
+      "window5m": "5 分鐘",
+      "window15m": "15 分鐘",
+      "windowLabel": "最近 {{window}}",
+      "windowAria": "統計時間窗",
+      "hint": "每 {{seconds}} 秒重新整理一次。",
+      "idle": "此時間窗內沒有完成任何請求。",
+      "warmingUp": "守護行程的觀測時間尚不足一個時間窗，速率仍在累積。",
+      "incomplete": "已達守護行程的取樣上限，以下數值為下界。",
+      "unavailableHint": "目前的守護行程不提供即時吞吐資料。",
+      "trendLabel": "Token 吞吐趨勢",
+      "open": "開啟用量統計"
+    },
     "source": {
       "loading": "載入中",
       "unavailable": "無法取得",
@@ -989,6 +1009,10 @@
         "label": "內文最大位元組數",
         "description": "每筆內文的截斷上限；-1 表示不截斷。"
       },
+      "compactStreamingBodies": {
+        "label": "合併串流文字增量幀",
+        "description": "儲存時將串流回應中逐 token 的增量幀合併為一整段。錯誤、結束與用量幀一律原樣保留。可大幅縮小體積，代價是失去幀層級的時序細節。"
+      },
       "retentionDays": {
         "label": "保留天數",
         "description": "超過該天數的稽核檔案將被清理（整檔刪除）。"
@@ -998,6 +1022,11 @@
         "description": "使用 X-Forwarded-For 標頭作為用戶端 IP。僅在受信任的反向代理之後啟用——否則絕不信任用戶端提供的該標頭。"
       },
       "save": "儲存稽核設定",
+      "compactNow": {
+        "label": "立即壓縮",
+        "description": "內文儲存會在每日結束後自動壓縮。可立即執行以盡快回收空間；當天的資料不會被更動。",
+        "result": "已壓縮 {{days}} 天、{{shards}} 個分片，回收 {{saved}}。"
+      },
       "viewer": {
         "title": "稽核日誌檢視器",
         "keyPlaceholder": "依 key id 篩選（選填）",

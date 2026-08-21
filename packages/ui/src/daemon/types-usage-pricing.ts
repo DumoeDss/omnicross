@@ -103,6 +103,69 @@ export interface DashboardSummary {
   generatedAt: number;
 }
 
+/**
+ * One trailing window of the live throughput snapshot
+ * (`GET /admin/api/usage/throughput`). Mirrors the daemon's
+ * `UsageThroughputWindow`; keep in lockstep with the wire shape.
+ *
+ * `totalTokens` is input + output + cacheRead + cacheCreation. It deliberately
+ * EXCLUDES `reasoningTokens`, which providers report as a subset of the output
+ * tokens — adding them would double-count.
+ */
+export interface UsageThroughputWindow {
+  windowMs: number;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  requestsPerMinute: number;
+  /** The headline TPM. */
+  tokensPerMinute: number;
+  inputTokensPerMinute: number;
+  outputTokensPerMinute: number;
+  costUsdPerMinute: number;
+  /** False when the daemon's sample cap evicted events inside this window. */
+  complete: boolean;
+}
+
+/** One fixed-width bucket of the throughput trend series. */
+export interface UsageThroughputBucket {
+  startTs: number;
+  requests: number;
+  tokens: number;
+}
+
+/**
+ * Live throughput snapshot. Every rate divides by its FULL window, never by the
+ * daemon's uptime — a daemon that was down genuinely served nothing over that
+ * wall-clock window. `startedAt` is exposed so the UI can note that this process
+ * has been observing for less than a full window without altering the figure.
+ */
+export interface UsageThroughputSnapshot {
+  available: true;
+  collectedAt: number;
+  /** unix-millis the daemon began observing (effectively its start). */
+  startedAt: number;
+  retentionMs: number;
+  bucketMs: number;
+  /** Shortest window first. */
+  windows: UsageThroughputWindow[];
+  /** Oldest → newest, fixed length, zero-filled. */
+  buckets: UsageThroughputBucket[];
+}
+
+/** A daemon too old to serve `/usage/throughput` — reported, never faked as 0. */
+export interface UsageThroughputUnavailable {
+  available: false;
+  collectedAt: number;
+}
+
+export type UsageThroughputResult = UsageThroughputSnapshot | UsageThroughputUnavailable;
+
 /** Where a pricing entry came from. */
 export type PricingSource = 'builtin' | 'litellm' | 'openrouter' | 'user';
 

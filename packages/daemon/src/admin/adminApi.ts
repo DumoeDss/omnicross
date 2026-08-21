@@ -528,7 +528,10 @@ function writeResult(res: http.ServerResponse, result: UsagePricingResult): void
   writeJson(res, result.status, result.body);
 }
 
-/** `GET /admin/api/usage/{totals|by-model|by-api-key}?startTs&endTs` */
+/**
+ * `GET /admin/api/usage/{totals|by-model|by-api-key|timeseries}?startTs&endTs`,
+ * plus `GET /admin/api/usage/throughput` (live rates; takes no range).
+ */
 async function handleUsage(
   req: http.IncomingMessage,
   res: http.ServerResponse,

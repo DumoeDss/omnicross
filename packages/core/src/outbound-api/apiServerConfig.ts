@@ -170,7 +170,8 @@ export function normalizeAccountProbe(
  * (request-audit-log, design D2). Lenient like the other segment normalizers:
  * `enabled`/`captureBodies`/`trustForwardedFor` coerce to booleans (default
  * false). `maxBodyBytes:-1` means unlimited; other finite values clamp to
- * `[0, 1_048_576]`. `retentionDays` clamps to `[1, 365]`. Default (all-off) ⇒
+ * `[0, 1_048_576]`. `retentionDays` clamps to `[1, 365]`;
+ * `compactStreamingBodies` coerces to a boolean (default false). Default (all-off) ⇒
  * no capture ⇒ zero regression.
  */
 export function normalizeAudit(
@@ -184,6 +185,7 @@ export function normalizeAudit(
     retentionDays: Math.trunc(
       clampNumber(a?.retentionDays, 1, 365, DEFAULT_AUDIT_CONFIG.retentionDays),
     ),
+    compactStreamingBodies: a?.compactStreamingBodies === true,
     trustForwardedFor: a?.trustForwardedFor === true,
   };
 }

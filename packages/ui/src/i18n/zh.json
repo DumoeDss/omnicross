@@ -549,6 +549,26 @@
     "requestPathHint": "根据当前密钥、网关状态、端点路由与账号健康状态生成。",
     "open": "打开",
     "refresh": "刷新",
+    "throughput": {
+      "title": "实时吞吐",
+      "description": "按滚动时间窗统计的速率，数据来自网关已实际完成的请求。",
+      "tokensPerMinute": "tokens/分钟",
+      "requestsPerMinute": "{{value}} 请求/分钟",
+      "inputOutput": "输入 {{input}} · 输出 {{output}}",
+      "costPerMinute": "{{value}}/分钟",
+      "window1m": "1 分钟",
+      "window5m": "5 分钟",
+      "window15m": "15 分钟",
+      "windowLabel": "最近 {{window}}",
+      "windowAria": "统计时间窗",
+      "hint": "每 {{seconds}} 秒刷新一次。",
+      "idle": "该时间窗内没有完成任何请求。",
+      "warmingUp": "守护进程的观测时间尚不足一个时间窗，速率仍在累积。",
+      "incomplete": "已达到守护进程的采样上限，以下数值为下界。",
+      "unavailableHint": "当前守护进程不提供实时吞吐数据。",
+      "trendLabel": "Token 吞吐趋势",
+      "open": "打开用量统计"
+    },
     "source": {
       "loading": "正在加载",
       "unavailable": "不可用",
@@ -1028,6 +1048,10 @@
         "label": "正文最大字节数",
         "description": "每条正文的截断上限；-1 表示不截断。"
       },
+      "compactStreamingBodies": {
+        "label": "合并流式文本增量帧",
+        "description": "存储时把流式响应中逐 token 的增量帧合并为一整段。错误、结束和用量帧始终原样保留。可明显减小体积，代价是丢失帧级时序细节。"
+      },
       "retentionDays": {
         "label": "保留天数",
         "description": "超过该天数的审计文件将被清理（整文件删除）。"
@@ -1037,6 +1061,11 @@
         "description": "使用 X-Forwarded-For 头作为客户端 IP。仅在受信任的反向代理之后启用——否则绝不信任客户端提供的该头。"
       },
       "save": "保存审计设置",
+      "compactNow": {
+        "label": "立即压缩",
+        "description": "正文存储会在每天结束后自动压缩。可以立即执行以尽快回收空间；当天的数据不会被触碰。",
+        "result": "已压缩 {{days}} 天、{{shards}} 个分片，回收 {{saved}}。"
+      },
       "viewer": {
         "title": "审计日志查看器",
         "keyPlaceholder": "按 key id 过滤（可选）",

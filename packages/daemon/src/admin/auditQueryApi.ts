@@ -2,9 +2,9 @@
  * auditQueryApi — the AUTHED `GET /admin/api/audit?keyId=&from=&to=&limit=`
  * handler (request-audit-log, design D6).
  *
- * Audit records carry client IP / user-agent (PII) and, when body capture is on,
- * redacted bodies — so unlike the coarse `/health` boolean they are served ONLY
- * behind the admin auth gate. This lives in its OWN helper module (the
+ * Audit records carry client IP / user-agent (PII), and the sibling body query
+ * returns redacted request/response snapshots — so unlike the coarse `/health`
+ * boolean they are served ONLY behind the admin auth gate. This lives in its OWN helper module (the
  * #4/#8/#10 helper-module convention) so `adminApi.ts` — at its line cap — is not
  * touched: `AdminServer.dispatch` routes the path here directly, AFTER its auth
  * gate. NEVER unauthenticated, NEVER surfaced on `/health`.
@@ -17,8 +17,9 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { AuditRecord, AuditStats } from '@omnicross/contracts/audit-types';
+import type { AuditBodyResult, AuditRecord, AuditStats } from '@omnicross/contracts/audit-types';
 
+import type { AuditBodyQuery } from '../audit/auditBodyReader';
 import type { AuditQuery } from '../audit/auditReader';
 import type { AuditStatsQuery } from '../audit/auditStats';
 
@@ -26,6 +27,10 @@ import type { AuditStatsQuery } from '../audit/auditStats';
 export type AuditQueryReader = (query: AuditQuery) => AuditRecord[];
 /** Metadata-only aggregate reader used by the overview. */
 export type AuditStatsReader = (query: AuditStatsQuery) => Promise<AuditStats> | AuditStats;
+/** Reconstructs ONE record's bodies from the per-session shard store. */
+export type AuditBodyReader = (query: AuditBodyQuery) => AuditBodyResult;
+/** Runs the cross-session body compaction over every closed day. */
+export type AuditCompactor = () => { days: number; shards: number; savedBytes: number };
 
 /** Parse a finite integer query param, or `undefined` when absent/invalid. */
 function intParam(value: string | null): number | undefined {
@@ -58,6 +63,61 @@ export function handleAuditQuery(
   const records = reader ? reader(query) : [];
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ records }));
+}
+
+/**
+ * Serve ONE record's reconstructed bodies (audit-store-sharding, design D7).
+ * Bodies are deliberately a SECOND call: the listing stays bounded, and the
+ * expensive shard replay only happens for a record someone actually opened.
+ * `id` + `session` are required; `ts` is an optional hint that narrows the search
+ * to a single day directory. Unknown/missing bodies return `{}` rather than a 404
+ * — a pruned day is a normal outcome, not an error.
+ */
+export function handleAuditBodyQuery(
+  req: IncomingMessage,
+  res: ServerResponse,
+  reader: AuditBodyReader | undefined,
+): void {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const id = url.searchParams.get('id')?.trim();
+  const sessionKey = url.searchParams.get('session')?.trim();
+  if (!id || !sessionKey) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'id and session are required' }));
+    return;
+  }
+  const query: AuditBodyQuery = { id, sessionKey };
+  const ts = intParam(url.searchParams.get('ts'));
+  if (ts !== undefined) query.ts = ts;
+
+  const body = reader ? reader(query) : {};
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+/**
+ * Run the cross-session body compaction on demand (audit-store-sharding, design
+ * D8) instead of waiting for the daily sweep. Only CLOSED days are touched, so
+ * this can never race the writer. Idempotent — a day is compacted at most once,
+ * and re-running reports zero.
+ */
+export function handleAuditCompact(
+  res: ServerResponse,
+  compact: AuditCompactor | undefined,
+): void {
+  if (!compact) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ days: 0, shards: 0, savedBytes: 0 }));
+    return;
+  }
+  try {
+    const result = compact();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(result));
+  } catch (error) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'compaction failed' }));
+  }
 }
 
 /** Serve lightweight request/error counts without returning captured bodies. */

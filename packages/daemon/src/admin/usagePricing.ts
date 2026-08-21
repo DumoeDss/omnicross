@@ -9,6 +9,11 @@
  * DELETE goes through the CONCRETE `JsonPricingStore` (delete is store-local —
  * the core port is frozen) followed by an engine cache invalidation.
  *
+ * The one exception is `usage/throughput`, which reads the process-local
+ * in-memory `UsageThroughputTracker` instead of the store: a live rate widget
+ * polls every few seconds, and the JSONL store re-parses the whole event log
+ * synchronously per query, which would stall the relay event loop.
+ *
  * SECRET DISCIPLINE (IN-never-OUT): pricing rows and usage aggregates carry no
  * key material — none of these handlers reads a secret store or a config
  * secret field, so no GET can leak one. By-api-key label resolution reads ONLY
@@ -27,6 +32,7 @@ import type {
   PricingEntryInput,
 } from '@omnicross/contracts/pricing-types';
 import type { UsageDateRange, UsageTimeBucket } from '@omnicross/contracts/usage-stats-types';
+import { getSharedUsageThroughputTracker } from '@omnicross/core/usage';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 
 import { type DaemonConfig, loadConfig } from '../config';
@@ -92,12 +98,22 @@ const MAX_TIMESERIES_BUCKETS = 2000;
 
 // ── Usage stats ───────────────────────────────────────────────────────────────
 
-/** `GET /admin/api/usage/totals|by-model|by-api-key?startTs&endTs` */
+/**
+ * `GET /admin/api/usage/totals|by-model|by-api-key|timeseries?startTs&endTs`
+ * plus the range-FREE `GET /admin/api/usage/throughput`.
+ */
 export async function handleUsageGet(
   view: string | undefined,
   query: URLSearchParams,
   deps: UsagePricingDeps,
 ): Promise<UsagePricingResult> {
+  // Live throughput reads a process-local in-memory sliding window, not the
+  // event store, so it takes no `startTs`/`endTs`. It MUST be dispatched before
+  // `parseRange`, which 400s on a missing range.
+  if (view === 'throughput') {
+    return { status: 200, body: getSharedUsageThroughputTracker().snapshot() };
+  }
+
   const range = parseRange(query);
   if (!isRange(range)) return range;
 

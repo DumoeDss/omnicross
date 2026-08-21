@@ -549,6 +549,26 @@
     "requestPathHint": "Derived from current keys, Gateway status, endpoint routing and account health.",
     "open": "Open",
     "refresh": "Refresh",
+    "throughput": {
+      "title": "Live throughput",
+      "description": "Rate over a trailing window, measured from the requests this Gateway has actually completed.",
+      "tokensPerMinute": "tokens/min",
+      "requestsPerMinute": "{{value}} req/min",
+      "inputOutput": "in {{input}} · out {{output}}",
+      "costPerMinute": "{{value}}/min",
+      "window1m": "1m",
+      "window5m": "5m",
+      "window15m": "15m",
+      "windowLabel": "last {{window}}",
+      "windowAria": "Measurement window",
+      "hint": "Refreshed every {{seconds}}s.",
+      "idle": "No request completed in this window.",
+      "warmingUp": "The daemon has been observing for less than this window, so the rate is still filling in.",
+      "incomplete": "The daemon's sample cap was reached; these figures are a lower bound.",
+      "unavailableHint": "This daemon does not report live throughput.",
+      "trendLabel": "Token throughput trend",
+      "open": "Open usage stats"
+    },
     "source": {
       "loading": "Loading",
       "unavailable": "Unavailable",
@@ -1031,6 +1051,10 @@
         "label": "Max body bytes",
         "description": "Truncation cap per captured body; -1 means unlimited."
       },
+      "compactStreamingBodies": {
+        "label": "Merge streaming text deltas",
+        "description": "Collapse the per-token frames of a streamed response into a single block when storing it. Error, completion and usage frames are always kept verbatim. Saves space at the cost of frame-level timing detail."
+      },
       "retentionDays": {
         "label": "Retention (days)",
         "description": "Audit files older than this are pruned (whole-file delete)."
@@ -1040,6 +1064,11 @@
         "description": "Use the X-Forwarded-For header for the client IP. Enable ONLY behind a trusted reverse proxy — a client-supplied header is never trusted otherwise."
       },
       "save": "Save audit settings",
+      "compactNow": {
+        "label": "Compact now",
+        "description": "Body storage is compacted automatically once a day closes. Run it now to reclaim space immediately; the current day is never touched.",
+        "result": "Compacted {{days}} day(s), {{shards}} shard(s), {{saved}} reclaimed."
+      },
       "viewer": {
         "title": "Audit log viewer",
         "keyPlaceholder": "Filter by key id (optional)",

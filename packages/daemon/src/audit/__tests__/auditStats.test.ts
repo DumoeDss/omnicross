@@ -6,7 +6,7 @@ import type { AuditRecord } from '@omnicross/contracts/audit-types';
 import type { Logger } from '@omnicross/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { auditFileName } from '../auditFiles';
+import { AUDIT_META_FILE, auditDayDirName, auditFileName } from '../auditFiles';
 import { auditStatsFileName, readAuditStats } from '../auditStats';
 import { AuditWriter } from '../AuditWriter';
 
@@ -45,7 +45,9 @@ describe('readAuditStats', () => {
 
     const stats = await readAuditStats(dir, { from: ts, to: ts + 2 });
     expect(stats).toEqual({ requestCount: 3, errorCount: 2, complete: true });
-    expect(existsSync(join(dir, auditStatsFileName(auditFileName(ts))))).toBe(true);
+    expect(
+      existsSync(join(dir, auditDayDirName(ts), auditStatsFileName(AUDIT_META_FILE))),
+    ).toBe(true);
   });
 
   it('backfills a compact sidecar from legacy files without materializing bodies', async () => {

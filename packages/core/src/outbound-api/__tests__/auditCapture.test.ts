@@ -17,6 +17,7 @@ const cfg = (over: Partial<AuditConfig> = {}): AuditConfig => ({
   captureBodies: false,
   maxBodyBytes: -1,
   retentionDays: 7,
+  compactStreamingBodies: false,
   trustForwardedFor: false,
   ...over,
 });
@@ -338,5 +339,55 @@ describe('beginAuditCapture — secret discipline', () => {
     }
     // The key ID (attribution) is fine — it is not key material.
     expect(seen[0].keyId).toBe('key_1');
+  });
+});
+
+describe('beginAuditCapture — session key + body flag (audit-store-sharding)', () => {
+  afterEach(() => __resetAuditSinkForTests());
+
+  it('carries the handler-set session key onto the record', () => {
+    setAuditCaptureConfig(cfg());
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    const ctx = beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, Date.now());
+    ctx!.sessionKey = 'a'.repeat(32);
+    r.triggerClose();
+    expect(seen[0]?.sessionKey).toBe('a'.repeat(32));
+    expect(seen[0]?.hasBody).toBeUndefined();
+  });
+
+  it('flags that a body exists so a listing need not carry it', () => {
+    setAuditCaptureConfig(cfg({ captureBodies: true }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    const ctx = beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, Date.now());
+    ctx!.setRequestBody('{"messages":[]}');
+    r.triggerClose();
+    expect(seen[0]?.hasBody).toBe(true);
+    expect(seen[0]?.requestBody).toBe('{"messages":[]}');
+  });
+
+  it('compacts a streamed response only when the opt-in is on', () => {
+    const stream =
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}\n\n' +
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}\n\n';
+
+    const run = (compact: boolean): AuditRecord => {
+      setAuditCaptureConfig(cfg({ captureBodies: true, compactStreamingBodies: compact }));
+      const seen: AuditRecord[] = [];
+      setAuditSink((rec) => seen.push(rec));
+      const r = res();
+      beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, Date.now());
+      r.write(stream);
+      r.triggerClose();
+      return seen[0]!;
+    };
+
+    expect(run(false).responseBody).toBe(stream);
+    const compacted = run(true).responseBody!;
+    expect(compacted).toContain('"text":"ab"');
+    expect(compacted.length).toBeLessThan(stream.length);
   });
 });

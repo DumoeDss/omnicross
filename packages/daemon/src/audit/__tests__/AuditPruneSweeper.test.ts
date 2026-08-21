@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,6 +20,7 @@ const cfg = (over: Partial<AuditConfig> = {}): AuditConfig => ({
   captureBodies: false,
   maxBodyBytes: -1,
   retentionDays: 7,
+  compactStreamingBodies: false,
   trustForwardedFor: false,
   ...over,
 });
@@ -112,5 +113,74 @@ describe('AuditPruneSweeper', () => {
       expect(existsSync(join(dir, old))).toBe(false);
       sweeper.dispose();
     });
+  });
+});
+
+describe('AuditPruneSweeper — day directories and archiving (audit-store-sharding)', () => {
+  const NOW = new Date(2026, 7, 20, 15, 0, 0).getTime();
+  const dayAt = (offset: number): string => {
+    const d = new Date(2026, 7, 20 + offset);
+    const p = (n: number): string => String(n).padStart(2, '0');
+    return `audit-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+
+  /** Materialize a day directory with a metadata file and one body shard. */
+  function seedDay(offset: number, sessionKey = 'a'.repeat(32)): string {
+    const name = dayAt(offset);
+    mkdirSync(join(dir, name, 'bodies'), { recursive: true });
+    writeFileSync(join(dir, name, 'meta.jsonl'), '{"id":"x","ts":1,"method":"POST","path":"/","status":200}\n');
+    writeFileSync(join(dir, name, 'bodies', `${sessionKey}.jsonl`), '{"id":"x","ts":1,"res":"body"}\n');
+    return name;
+  }
+
+  it('removes an expired day directory whole, and keeps the ones inside retention', () => {
+    const expired = seedDay(-10);
+    const kept = seedDay(-1);
+    const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg({ retentionDays: 7 }), 60_000, () => NOW);
+
+    return sweeper.sweep().then((removed) => {
+      expect(removed).toBe(1);
+      expect(existsSync(join(dir, expired))).toBe(false);
+      expect(existsSync(join(dir, kept, 'meta.jsonl'))).toBe(true);
+    });
+  });
+
+  it('gzips a closed day\u2019s shards but never today\u2019s, and never meta.jsonl', async () => {
+    const yesterday = seedDay(-1);
+    const today = seedDay(0);
+    const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg(), 60_000, () => NOW);
+
+    const compressed = await sweeper.archive();
+    expect(compressed).toBe(1);
+
+    const shard = (day: string): string => join(dir, day, 'bodies', `${'a'.repeat(32)}.jsonl`);
+    expect(existsSync(`${shard(yesterday)}.gz`)).toBe(true);
+    expect(existsSync(shard(yesterday))).toBe(false);
+    // Today stays plain text so it can still be tailed while debugging.
+    expect(existsSync(shard(today))).toBe(true);
+    // The query hot path is never compressed.
+    expect(existsSync(join(dir, yesterday, 'meta.jsonl'))).toBe(true);
+    expect(existsSync(join(dir, yesterday, 'meta.jsonl.gz'))).toBe(false);
+  });
+
+  it('is idempotent and finishes an interrupted archive', async () => {
+    const yesterday = seedDay(-1);
+    const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg(), 60_000, () => NOW);
+    await sweeper.archive();
+    // A second pass has nothing left to do.
+    expect(await sweeper.archive()).toBe(0);
+
+    // Simulate a crash after the archive was written but before the source went.
+    writeFileSync(join(dir, yesterday, 'bodies', `${'a'.repeat(32)}.jsonl`), 'partial\n');
+    await sweeper.archive();
+    expect(existsSync(join(dir, yesterday, 'bodies', `${'a'.repeat(32)}.jsonl`))).toBe(false);
+  });
+
+  it('does nothing at all when audit is disabled', async () => {
+    const day = seedDay(-10);
+    const sweeper = new AuditPruneSweeper(dir, noopLogger, cfg({ enabled: false }), 60_000, () => NOW);
+    expect(await sweeper.sweep()).toBe(0);
+    expect(await sweeper.archive()).toBe(0);
+    expect(existsSync(join(dir, day))).toBe(true);
   });
 });

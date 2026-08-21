@@ -64,7 +64,13 @@ function OperationalSettingsPanel({ tab }: { tab: OperationalTab }) {
       content = (
         <div className="space-y-5">
           <DataMigrationSection />
-          <AuditSection config={service.config} busy={service.busy} onUpdate={service.updateAuditConfig} onQuery={service.queryAudit} />
+          <AuditSection
+            config={service.config}
+            busy={service.busy}
+            onUpdate={service.updateAuditConfig}
+            onQuery={service.queryAudit}
+            onCompact={service.compactAudit}
+          />
         </div>
       );
     } else if (tab === 'notifications') {

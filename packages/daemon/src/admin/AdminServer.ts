@@ -38,8 +38,12 @@ import type { ResolvedAdminConfig } from '../config';
 
 import { handleAccountProbes } from './accountProbesApi';
 import {
+  type AuditBodyReader,
+  type AuditCompactor,
   type AuditQueryReader,
   type AuditStatsReader,
+  handleAuditBodyQuery,
+  handleAuditCompact,
   handleAuditQuery,
   handleAuditStatsQuery,
 } from './auditQueryApi';
@@ -87,6 +91,13 @@ export interface AdminServerDeps extends AdminApiDeps {
   auditReader?: AuditQueryReader;
   /** Metadata-only audit aggregate used by the overview error-rate metric. */
   auditStatsReader?: AuditStatsReader;
+  /**
+   * Reconstructs one record's bodies from the per-session shard store
+   * (audit-store-sharding). Absent when audit was never enabled.
+   */
+  auditBodyReader?: AuditBodyReader;
+  /** Runs cross-session body compaction on demand (audit-store-sharding D8). */
+  auditCompactor?: AuditCompactor;
   /**
    * OPTIONAL billing delivery-status reader (billing-event-stream, design D5).
    * When wired (bootstrap → the ledger dir), the AUTHED `GET /admin/api/billing-status`
@@ -255,6 +266,19 @@ export class AdminServer {
       (req.method === 'GET' || req.method === 'HEAD')
     ) {
       await handleAuditStatsQuery(req, res, this.deps.auditStatsReader);
+      return;
+    }
+
+    // AUTHED body fetch for ONE record (audit-store-sharding, design D7). Same
+    // gate as the listing above — a body can hold prompts and PII.
+    if (path === '/admin/api/audit/body' && (req.method === 'GET' || req.method === 'HEAD')) {
+      handleAuditBodyQuery(req, res, this.deps.auditBodyReader);
+      return;
+    }
+
+    // AUTHED manual compaction trigger (audit-store-sharding, design D8).
+    if (path === '/admin/api/audit/compact' && req.method === 'POST') {
+      handleAuditCompact(res, this.deps.auditCompactor);
       return;
     }
 
