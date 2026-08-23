@@ -19,9 +19,11 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::update_manager::DesktopUpdateManager;
+
 const TRAY_ID: &str = "omnicross-tray";
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiSettings {
     #[serde(default)]
@@ -30,6 +32,8 @@ pub struct UiSettings {
     pub start_minimized: bool,
     #[serde(default = "default_language")]
     pub language: String,
+    #[serde(default)]
+    pub auto_download_updates: bool,
 }
 
 /// First-run default language: follow the system locale (`zh*` → Chinese),
@@ -51,6 +55,7 @@ impl Default for UiSettings {
             close_to_tray: false,
             start_minimized: false,
             language: default_language(),
+            auto_download_updates: false,
         }
     }
 }
@@ -72,6 +77,7 @@ pub struct UiSettingsView {
     start_minimized: bool,
     language: String,
     auto_start: bool,
+    auto_download_updates: bool,
 }
 
 fn settings_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
@@ -112,6 +118,7 @@ pub fn get_ui_settings<R: Runtime>(
         start_minimized: s.start_minimized,
         language: s.language,
         auto_start,
+        auto_download_updates: s.auto_download_updates,
     }
 }
 
@@ -124,6 +131,25 @@ pub struct UiSettingsPatch {
     start_minimized: Option<bool>,
     language: Option<String>,
     auto_start: Option<bool>,
+    auto_download_updates: Option<bool>,
+}
+
+fn apply_persistent_patch(settings: &mut UiSettings, patch: &UiSettingsPatch) -> bool {
+    if let Some(v) = patch.close_to_tray {
+        settings.close_to_tray = v;
+    }
+    if let Some(v) = patch.start_minimized {
+        settings.start_minimized = v;
+    }
+    let mut language_changed = false;
+    if let Some(v) = patch.language.as_ref() {
+        language_changed = v != &settings.language;
+        settings.language = v.clone();
+    }
+    if let Some(v) = patch.auto_download_updates {
+        settings.auto_download_updates = v;
+    }
+    language_changed
 }
 
 #[tauri::command]
@@ -132,28 +158,34 @@ pub fn set_ui_settings<R: Runtime>(
     state: State<'_, UiSettingsState>,
     patch: UiSettingsPatch,
 ) -> Result<(), String> {
-    let mut language_changed = false;
+    let auto_download_changed = patch.auto_download_updates;
+    let language_changed;
     {
         let mut s = state.0.lock().unwrap();
-        if let Some(v) = patch.close_to_tray {
-            s.close_to_tray = v;
-        }
-        if let Some(v) = patch.start_minimized {
-            s.start_minimized = v;
-        }
-        if let Some(v) = patch.language {
-            language_changed = v != s.language;
-            s.language = v;
-        }
+        language_changed = apply_persistent_patch(&mut s, &patch);
         persist(&app, &s);
     }
     if let Some(enable) = patch.auto_start {
         let manager = app.autolaunch();
-        let result = if enable { manager.enable() } else { manager.disable() };
+        let result = if enable {
+            manager.enable()
+        } else {
+            manager.disable()
+        };
         result.map_err(|e| e.to_string())?;
     }
     if language_changed {
         refresh_tray_menu(&app);
+    }
+    if let Some(enabled) = auto_download_changed {
+        if let Some(manager) = app.try_state::<DesktopUpdateManager>() {
+            let manager = manager.inner().clone();
+            if manager.preference_changed(enabled) {
+                tauri::async_runtime::spawn(async move {
+                    manager.download_automatically().await;
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -222,4 +254,65 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Resu
     }
     builder.build(app)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_json_defaults_auto_download_without_changing_existing_values() {
+        let settings: UiSettings =
+            serde_json::from_str(r#"{"closeToTray":true,"startMinimized":true,"language":"zh"}"#)
+                .unwrap();
+        assert!(settings.close_to_tray);
+        assert!(settings.start_minimized);
+        assert_eq!(settings.language, "zh");
+        assert!(!settings.auto_download_updates);
+    }
+
+    #[test]
+    fn settings_round_trip_preserves_auto_download() {
+        let settings = UiSettings {
+            close_to_tray: true,
+            start_minimized: false,
+            language: "en".into(),
+            auto_download_updates: true,
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("\"autoDownloadUpdates\":true"));
+        assert_eq!(serde_json::from_str::<UiSettings>(&json).unwrap(), settings);
+    }
+
+    #[test]
+    fn patch_changes_only_supplied_fields() {
+        let mut settings = UiSettings {
+            close_to_tray: true,
+            start_minimized: true,
+            language: "zh".into(),
+            auto_download_updates: false,
+        };
+        let changed = apply_persistent_patch(
+            &mut settings,
+            &UiSettingsPatch {
+                auto_download_updates: Some(true),
+                ..UiSettingsPatch::default()
+            },
+        );
+        assert!(!changed);
+        assert!(settings.close_to_tray);
+        assert!(settings.start_minimized);
+        assert_eq!(settings.language, "zh");
+        assert!(settings.auto_download_updates);
+    }
+
+    #[test]
+    fn corrupt_json_uses_safe_defaults() {
+        let settings = serde_json::from_str::<UiSettings>("{broken")
+            .ok()
+            .unwrap_or_default();
+        assert!(!settings.close_to_tray);
+        assert!(!settings.start_minimized);
+        assert!(!settings.auto_download_updates);
+    }
 }

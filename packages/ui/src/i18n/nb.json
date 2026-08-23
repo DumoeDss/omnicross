@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Bruker"
   },
+  "updates": {
+    "title": "Programoppdateringer",
+    "description": "Omnicross ser alltid etter stabile oppdateringer etter oppstart. Nedlasting er valgfritt, og installasjon krever alltid bekreftelse.",
+    "autoDownload": "Last ned oppdateringer automatisk",
+    "autoDownloadHint": "Last ned verifiserte oppdateringer i bakgrunnen når de blir funnet. Dette installerer eller starter aldri på nytt automatisk.",
+    "version": "Versjon",
+    "currentVersion": "Gjeldende versjon: {{version}}",
+    "latestVersion": "Nyeste versjon: {{version}}",
+    "checkNow": "Se etter oppdateringer",
+    "checking": "Ser etter oppdateringer…",
+    "upToDate": "Omnicross er oppdatert.",
+    "available": "Omnicross {{version}} er tilgjengelig.",
+    "downloading": "Laster ned oppdatering… {{percent}}%",
+    "ready": "Omnicross {{version}} er klar til installasjon.",
+    "failed": "Oppdateringshandlingen mislyktes.",
+    "download": "Last ned",
+    "retry": "Prøv igjen",
+    "installRestart": "Installer og start på nytt",
+    "releasePage": "Utgivelsesside"
+  },
   "proxy": {
     "field": {
       "type": "Type",

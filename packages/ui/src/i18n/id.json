@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Pengguna"
   },
+  "updates": {
+    "title": "Pembaruan aplikasi",
+    "description": "Omnicross selalu memeriksa pembaruan stabil setelah dimulai. Pengunduhan bersifat opsional dan penginstalan selalu memerlukan konfirmasi Anda.",
+    "autoDownload": "Unduh pembaruan secara otomatis",
+    "autoDownloadHint": "Unduh pembaruan yang telah diverifikasi di latar belakang setelah ditemukan. Ini tidak pernah menginstal atau memulai ulang secara otomatis.",
+    "version": "Versi",
+    "currentVersion": "Versi saat ini: {{version}}",
+    "latestVersion": "Versi terbaru: {{version}}",
+    "checkNow": "Periksa sekarang",
+    "checking": "Memeriksa…",
+    "upToDate": "Omnicross sudah terbaru.",
+    "available": "Omnicross {{version}} tersedia.",
+    "downloading": "Mengunduh pembaruan… {{percent}}%",
+    "ready": "Omnicross {{version}} siap diinstal.",
+    "failed": "Tindakan pembaruan gagal.",
+    "download": "Unduh",
+    "retry": "Coba lagi",
+    "installRestart": "Instal dan mulai ulang",
+    "releasePage": "Halaman rilis"
+  },
   "proxy": {
     "field": {
       "type": "Type",

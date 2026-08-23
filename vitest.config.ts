@@ -12,6 +12,8 @@ export default defineConfig({
       '@omnicross/subscriptions': '/packages/subscriptions/src',
       '@omnicross/cli-launcher': '/packages/cli-launcher/src',
       '@omnicross/daemon': '/packages/daemon/src',
+      '@shared': '/packages/ui/src/shared-types',
+      '@': '/packages/ui/src',
     },
   },
   test: {

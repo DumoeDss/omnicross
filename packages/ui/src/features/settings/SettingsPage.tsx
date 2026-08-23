@@ -1,7 +1,8 @@
-import { MinusSquare, Power, Settings as SettingsIcon } from 'lucide-react';
+import { Download, MinusSquare, Power, RefreshCw, Rocket, Settings as SettingsIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { SettingRow } from '@/components/ui/setting-row';
 import { Switch } from '@/components/ui/switch';
@@ -15,7 +16,11 @@ import { DataMigrationSection } from '@/features/provider-settings/DataMigration
 import { PricingPage } from '@/features/pricing';
 import i18n, { isLanguage, setLanguage, SUPPORTED_LANGUAGES, type Language } from '@/i18n';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { updateActions } from '@/shared/state/updateModel';
+import { useUpdateStatus } from '@/shared/state/useUpdateStatus';
+import { openExternal } from '@/shared/tauri/openExternal';
 import { getUiSettings, isDesktop, setUiSettings, type UiSettings } from '@/shared/tauri/uiSettings';
+import { checkForUpdates, downloadUpdate, installUpdate } from '@/shared/tauri/update';
 
 import { AllowanceSchedulingSection } from './AllowanceSchedulingSection';
 import { NetworkSettingsSection } from './NetworkSettingsSection';
@@ -102,6 +107,8 @@ function OperationalSettingsPanel({ tab }: { tab: OperationalTab }) {
 export function SettingsPage({ activeTab: controlledTab, onTabChange }: SettingsPageProps) {
   const t = useTranslation();
   const desktop = isDesktop();
+  const updateStatus = useUpdateStatus();
+  const updateUi = updateActions(updateStatus);
   const [localTab, setLocalTab] = useState<SettingsTabId>('general');
   const activeTab = normalizeSettingsTab(controlledTab ?? localTab);
   const setActiveTab = onTabChange ?? setLocalTab;
@@ -110,6 +117,7 @@ export function SettingsPage({ activeTab: controlledTab, onTabChange }: Settings
     closeToTray: false,
     startMinimized: false,
     autoStart: false,
+    autoDownloadUpdates: false,
     language: currentLang(),
   });
   const labels = Object.fromEntries(SETTINGS_TABS.map((tab) => [tab.id, t(tab.labelKey)])) as Record<SettingsTabId, string>;
@@ -186,6 +194,80 @@ export function SettingsPage({ activeTab: controlledTab, onTabChange }: Settings
                   <Switch checked={settings.closeToTray} disabled={!desktop} onCheckedChange={(value) => void update({ closeToTray: value })} />
                 </SettingRow>
               </section>
+              {desktop ? (
+                <section className="space-y-3 rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">{t('updates.title')}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{t('updates.description')}</p>
+                  </div>
+                  <SettingRow
+                    icon={Download}
+                    label={t('updates.autoDownload')}
+                    description={t('updates.autoDownloadHint')}
+                  >
+                    <Switch
+                      checked={settings.autoDownloadUpdates}
+                      onCheckedChange={(value) => void update({ autoDownloadUpdates: value })}
+                    />
+                  </SettingRow>
+                  <SettingRow
+                    label={t('updates.version')}
+                    description={updateStatus?.latestVersion
+                      ? t('updates.latestVersion', { version: updateStatus.latestVersion })
+                      : t('updates.currentVersion', { version: updateStatus?.currentVersion ?? '—' })}
+                  >
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {updateStatus?.currentVersion ?? '—'}
+                    </span>
+                  </SettingRow>
+                  {updateStatus?.state === 'upToDate' ? (
+                    <p className="text-xs text-muted-foreground">{t('updates.upToDate')}</p>
+                  ) : null}
+                  {updateStatus?.state === 'failed' && updateStatus.error ? (
+                    <p role="alert" className="text-xs text-destructive">{updateStatus.error.message}</p>
+                  ) : null}
+                  {updateStatus?.state === 'downloading' ? (
+                    <div className="space-y-1">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+                        <div className="h-full bg-primary transition-[width]" style={{ width: `${Math.round(updateStatus.progressPercent ?? 0)}%` }} />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t('updates.downloading', { percent: Math.round(updateStatus.progressPercent ?? 0) })}</p>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!updateUi.canCheck}
+                      onClick={() => void checkForUpdates()}
+                    >
+                      <RefreshCw className={updateStatus?.state === 'checking' ? 'animate-spin' : ''} aria-hidden="true" />
+                      {updateStatus?.state === 'checking' ? t('updates.checking') : t('updates.checkNow')}
+                    </Button>
+                    {updateUi.canDownload || updateUi.canRetry ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void (updateStatus?.error?.phase === 'check' ? checkForUpdates() : downloadUpdate())}
+                      >
+                        <Download aria-hidden="true" />
+                        {updateUi.canRetry ? t('updates.retry') : t('updates.download')}
+                      </Button>
+                    ) : null}
+                    {updateUi.canInstall ? (
+                      <Button size="sm" onClick={() => void installUpdate()}>
+                        <Rocket aria-hidden="true" />
+                        {t('updates.installRestart')}
+                      </Button>
+                    ) : null}
+                    {updateUi.canOpenRelease && updateStatus?.releaseUrl ? (
+                      <Button size="sm" variant="ghost" onClick={() => void openExternal(updateStatus.releaseUrl!)}>
+                        {t('updates.releasePage')}
+                      </Button>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
             </div>
           </ScrollArea>
         ))}

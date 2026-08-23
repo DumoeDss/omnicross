@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Người dùng"
   },
+  "updates": {
+    "title": "Bản cập nhật ứng dụng",
+    "description": "Omnicross luôn kiểm tra các bản cập nhật ổn định sau khi khởi động. Việc tải xuống là tùy chọn và quá trình cài đặt luôn cần bạn xác nhận.",
+    "autoDownload": "Tự động tải bản cập nhật",
+    "autoDownloadHint": "Tải các bản cập nhật đã được xác minh trong nền sau khi tìm thấy. Tính năng này không bao giờ tự động cài đặt hoặc khởi động lại.",
+    "version": "Phiên bản",
+    "currentVersion": "Phiên bản hiện tại: {{version}}",
+    "latestVersion": "Phiên bản mới nhất: {{version}}",
+    "checkNow": "Kiểm tra ngay",
+    "checking": "Đang kiểm tra…",
+    "upToDate": "Omnicross đã được cập nhật.",
+    "available": "Đã có Omnicross {{version}}.",
+    "downloading": "Đang tải bản cập nhật… {{percent}}%",
+    "ready": "Omnicross {{version}} đã sẵn sàng để cài đặt.",
+    "failed": "Thao tác cập nhật không thành công.",
+    "download": "Tải xuống",
+    "retry": "Thử lại",
+    "installRestart": "Cài đặt và khởi động lại",
+    "releasePage": "Trang phát hành"
+  },
   "proxy": {
     "field": {
       "type": "Type",

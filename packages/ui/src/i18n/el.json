@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Χρήστης"
   },
+  "updates": {
+    "title": "Ενημερώσεις εφαρμογής",
+    "description": "Το Omnicross ελέγχει πάντα για σταθερές ενημερώσεις μετά την εκκίνηση. Η λήψη είναι προαιρετική και η εγκατάσταση απαιτεί πάντα την επιβεβαίωσή σας.",
+    "autoDownload": "Αυτόματη λήψη ενημερώσεων",
+    "autoDownloadHint": "Λήψη επαληθευμένων ενημερώσεων στο παρασκήνιο όταν εντοπιστούν. Δεν γίνεται ποτέ αυτόματη εγκατάσταση ή επανεκκίνηση.",
+    "version": "Έκδοση",
+    "currentVersion": "Τρέχουσα έκδοση: {{version}}",
+    "latestVersion": "Νεότερη έκδοση: {{version}}",
+    "checkNow": "Έλεγχος τώρα",
+    "checking": "Γίνεται έλεγχος…",
+    "upToDate": "Το Omnicross είναι ενημερωμένο.",
+    "available": "Το Omnicross {{version}} είναι διαθέσιμο.",
+    "downloading": "Λήψη ενημέρωσης… {{percent}}%",
+    "ready": "Το Omnicross {{version}} είναι έτοιμο για εγκατάσταση.",
+    "failed": "Η ενέργεια ενημέρωσης απέτυχε.",
+    "download": "Λήψη",
+    "retry": "Επανάληψη",
+    "installRestart": "Εγκατάσταση και επανεκκίνηση",
+    "releasePage": "Σελίδα έκδοσης"
+  },
   "proxy": {
     "field": {
       "type": "Type",

@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { DaemonStatusBanner } from '@/components/DaemonStatusBanner';
+import { UpdateStatusBanner } from '@/components/UpdateStatusBanner';
 import { NavRail } from '@/components/nav/NavRail';
 import { ApiServicePage } from '@/features/api-service';
 import type { ApiServiceTabId } from '@/features/api-service/apiServiceTabModel';
@@ -33,6 +34,7 @@ export default function App() {
       <NavRail route={route} onNavigate={navigate} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DaemonStatusBanner />
+        <UpdateStatusBanner />
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{renderPage(route, navigate)}</main>
       </div>
     </div>

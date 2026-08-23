@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Kullanıcı"
   },
+  "updates": {
+    "title": "Uygulama güncellemeleri",
+    "description": "Omnicross, başlatıldıktan sonra kararlı güncellemeleri her zaman denetler. İndirme isteğe bağlıdır ve kurulum için her zaman onayınız gerekir.",
+    "autoDownload": "Güncellemeleri otomatik olarak indir",
+    "autoDownloadHint": "Doğrulanmış güncellemeleri bulunduktan sonra arka planda indirir. Güncellemeleri hiçbir zaman otomatik olarak kurmaz veya uygulamayı yeniden başlatmaz.",
+    "version": "Sürüm",
+    "currentVersion": "Geçerli sürüm: {{version}}",
+    "latestVersion": "En son sürüm: {{version}}",
+    "checkNow": "Şimdi denetle",
+    "checking": "Denetleniyor…",
+    "upToDate": "Omnicross güncel.",
+    "available": "Omnicross {{version}} kullanılabilir.",
+    "downloading": "Güncelleme indiriliyor… {{percent}}%",
+    "ready": "Omnicross {{version}} kurulmaya hazır.",
+    "failed": "Güncelleme işlemi başarısız oldu.",
+    "download": "İndir",
+    "retry": "Yeniden dene",
+    "installRestart": "Kur ve yeniden başlat",
+    "releasePage": "Sürüm sayfası"
+  },
   "proxy": {
     "field": {
       "type": "Type",

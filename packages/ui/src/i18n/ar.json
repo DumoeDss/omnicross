@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "المستخدم"
   },
+  "updates": {
+    "title": "تحديثات التطبيق",
+    "description": "يتحقق Omnicross دائمًا من التحديثات المستقرة بعد بدء التشغيل. التنزيل اختياري، ويتطلب التثبيت دائمًا تأكيدك.",
+    "autoDownload": "تنزيل التحديثات تلقائيًا",
+    "autoDownloadHint": "نزّل التحديثات التي تم التحقق منها في الخلفية بعد العثور عليها. لن يتم التثبيت أو إعادة التشغيل تلقائيًا.",
+    "version": "الإصدار",
+    "currentVersion": "الإصدار الحالي: {{version}}",
+    "latestVersion": "أحدث إصدار: {{version}}",
+    "checkNow": "تحقق الآن",
+    "checking": "جارٍ التحقق…",
+    "upToDate": "Omnicross محدّث.",
+    "available": "يتوفر Omnicross {{version}}.",
+    "downloading": "جارٍ تنزيل التحديث… {{percent}}%",
+    "ready": "Omnicross {{version}} جاهز للتثبيت.",
+    "failed": "فشلت عملية التحديث.",
+    "download": "تنزيل",
+    "retry": "إعادة المحاولة",
+    "installRestart": "تثبيت وإعادة تشغيل",
+    "releasePage": "صفحة الإصدار"
+  },
   "proxy": {
     "field": {
       "type": "Type",

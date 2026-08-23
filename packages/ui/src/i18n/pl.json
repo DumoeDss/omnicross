@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Użytkownik"
   },
+  "updates": {
+    "title": "Aktualizacje aplikacji",
+    "description": "Omnicross zawsze sprawdza dostępność stabilnych aktualizacji po uruchomieniu. Pobieranie jest opcjonalne, a instalacja zawsze wymaga potwierdzenia.",
+    "autoDownload": "Automatycznie pobieraj aktualizacje",
+    "autoDownloadHint": "Pobieraj zweryfikowane aktualizacje w tle po ich znalezieniu. Aktualizacje nigdy nie są automatycznie instalowane ani nie powodują automatycznego ponownego uruchomienia.",
+    "version": "Wersja",
+    "currentVersion": "Bieżąca wersja: {{version}}",
+    "latestVersion": "Najnowsza wersja: {{version}}",
+    "checkNow": "Sprawdź teraz",
+    "checking": "Sprawdzanie…",
+    "upToDate": "Omnicross jest aktualny.",
+    "available": "Dostępna jest wersja Omnicross {{version}}.",
+    "downloading": "Pobieranie aktualizacji… {{percent}}%",
+    "ready": "Omnicross {{version}} jest gotowy do instalacji.",
+    "failed": "Operacja aktualizacji nie powiodła się.",
+    "download": "Pobierz",
+    "retry": "Ponów",
+    "installRestart": "Zainstaluj i uruchom ponownie",
+    "releasePage": "Strona wydania"
+  },
   "proxy": {
     "field": {
       "type": "Type",

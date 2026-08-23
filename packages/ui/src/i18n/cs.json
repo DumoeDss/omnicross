@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Uživatel"
   },
+  "updates": {
+    "title": "Aktualizace aplikace",
+    "description": "Omnicross po spuštění vždy vyhledá stabilní aktualizace. Stažení je volitelné a instalace vždy vyžaduje vaše potvrzení.",
+    "autoDownload": "Automaticky stahovat aktualizace",
+    "autoDownloadHint": "Po nalezení stáhne ověřené aktualizace na pozadí. Nikdy je automaticky nenainstaluje ani nerestartuje aplikaci.",
+    "version": "Verze",
+    "currentVersion": "Aktuální verze: {{version}}",
+    "latestVersion": "Nejnovější verze: {{version}}",
+    "checkNow": "Zkontrolovat nyní",
+    "checking": "Kontrola…",
+    "upToDate": "Omnicross je aktuální.",
+    "available": "Je dostupný Omnicross {{version}}.",
+    "downloading": "Stahování aktualizace… {{percent}}%",
+    "ready": "Omnicross {{version}} je připraven k instalaci.",
+    "failed": "Akce aktualizace se nezdařila.",
+    "download": "Stáhnout",
+    "retry": "Zkusit znovu",
+    "installRestart": "Nainstalovat a restartovat",
+    "releasePage": "Stránka vydání"
+  },
   "proxy": {
     "field": {
       "type": "Type",

@@ -17,6 +17,7 @@
   "scripts": {
     "build": "npm run build -w @omnicross/contracts && npm run build -w @omnicross/core && npm run build -w @omnicross/subscriptions && npm run build -w @omnicross/cli-launcher && npm run build -w @omnicross/daemon && npm run build -w @omnicross/ui",
     "test": "vitest run",
+    "test:release-contract": "node --test scripts/__tests__/updater-contract.test.mjs",
     "build:daemon": "npm run build -w @omnicross/contracts && npm run build -w @omnicross/core && npm run build -w @omnicross/subscriptions && npm run build -w @omnicross/cli-launcher && npm run build -w @omnicross/daemon",
     "typecheck": "npm run typecheck -w @omnicross/contracts && npm run typecheck -w @omnicross/core && npm run typecheck -w @omnicross/subscriptions && npm run typecheck -w @omnicross/cli-launcher && npm run typecheck -w @omnicross/daemon && npm run typecheck -w @omnicross/ui",
     "clean": "node -e \"const{rmSync}=require('node:fs');for(const p of ['packages/contracts/dist','packages/core/dist','packages/subscriptions/dist','packages/cli-launcher/dist','packages/daemon/dist','packages/ui/dist'])rmSync(p,{recursive:true,force:true})\"",
