@@ -16,6 +16,13 @@ const validate = (manifest) => validateUpdaterManifest({
 });
 
 describe('updater release contract', () => {
+  it('resolves a draft release target commit without assuming its tag already exists', () => {
+    const workflow = readFileSync(join(import.meta.dirname, '..', '..', '.github', 'workflows', 'release.yml'), 'utf8');
+    assert.match(workflow, /\.target_commitish/);
+    assert.match(workflow, /repos\/\$GITHUB_REPOSITORY\/commits\/\$RELEASE_TARGET/);
+    assert.doesNotMatch(workflow, /git fetch --force origin "refs\/tags\/\$TAG:refs\/tags\/\$TAG"/);
+  });
+
   it('accepts a complete supported matrix', () => assert.equal(validate(load('complete.json')), true));
   it('rejects a missing target', () => assert.throws(() => validate(load('missing-target.json')), /platforms must be exactly/));
   it('rejects a missing signature', () => assert.throws(() => validate(load('missing-signature.json')), /signature is missing/));
