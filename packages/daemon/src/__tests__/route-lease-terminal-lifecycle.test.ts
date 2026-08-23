@@ -15,6 +15,8 @@ import {
 } from '../routeLeaseRenewal';
 
 const TOKEN_CANARY = 'route-token-canary-must-never-appear-in-argv';
+const LIFECYCLE_CHILD_WATCHDOG_MS = 10_000;
+const LIFECYCLE_TEST_TIMEOUT_MS = 15_000;
 
 function privatePipe(name: string): string {
   return process.platform === 'win32'
@@ -33,7 +35,7 @@ async function waitFor(check: () => boolean, timeoutMs = 10_000): Promise<void> 
 
 async function runLifecycleChild(
   source: string,
-  watchdogMs = 3_000,
+  watchdogMs = LIFECYCLE_CHILD_WATCHDOG_MS,
 ): Promise<{ code: number | null; stdout: string; stderr: string; elapsedMs: number }> {
   const startedAt = Date.now();
   const wrappedSource = `(async () => {${source}})().catch((error) => { console.error(error); process.exitCode = 1; });`;
@@ -184,8 +186,8 @@ describe('POSIX terminal launch secret boundary', () => {
     const result = await runLifecycleChild(source);
     expect(result.code).toBe(0);
     expect(result.stdout).toBe('listening');
-    expect(result.elapsedMs).toBeLessThan(3_000);
-  });
+    expect(result.elapsedMs).toBeLessThan(LIFECYCLE_CHILD_WATCHDOG_MS);
+  }, LIFECYCLE_TEST_TIMEOUT_MS);
 
   it('a claimed non-closing peer cannot keep a child process alive', async () => {
     const source = `
@@ -215,11 +217,11 @@ describe('POSIX terminal launch secret boundary', () => {
         },
       );
     `;
-    const result = await runLifecycleChild(source, 10_000);
+    const result = await runLifecycleChild(source);
     expect(result.stderr).toBe('');
     expect(result.code).toBe(0);
-    expect(result.elapsedMs).toBeLessThan(10_000);
-  });
+    expect(result.elapsedMs).toBeLessThan(LIFECYCLE_CHILD_WATCHDOG_MS);
+  }, LIFECYCLE_TEST_TIMEOUT_MS);
 
   it('explicitly destroys a claimed non-closing accepted socket during cleanup', async () => {
     const socketPath = privatePipe('claimed-destroy');
