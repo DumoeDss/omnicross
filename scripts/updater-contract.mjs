@@ -69,7 +69,7 @@ function selectUpdaterAssets(assetsDir) {
   return {
     'windows-x86_64': oneAsset(files, 'windows-x86_64', /_x64-setup\.exe$/i),
     'darwin-universal': oneAsset(files, 'darwin-universal', /_universal\.app\.tar\.gz$/i),
-    'linux-x86_64': oneAsset(files, 'linux-x86_64', /_(amd64|x86_64)\.AppImage\.tar\.gz$/),
+    'linux-x86_64': oneAsset(files, 'linux-x86_64', /_(amd64|x86_64)\.AppImage(?:\.tar\.gz)?$/),
   };
 }
 

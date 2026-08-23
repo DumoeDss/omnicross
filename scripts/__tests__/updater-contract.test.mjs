@@ -37,7 +37,7 @@ describe('updater release contract', () => {
     for (const name of [
       'Omnicross_1.2.3_x64-setup.exe',
       'Omnicross_1.2.3_universal.app.tar.gz',
-      'Omnicross_1.2.3_amd64.AppImage.tar.gz',
+      'Omnicross_1.2.3_amd64.AppImage',
     ]) {
       writeFileSync(join(assets, name), 'fixture');
       writeFileSync(join(assets, `${name}.sig`), `signature-for-${name}`);
