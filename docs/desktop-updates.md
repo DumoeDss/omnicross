@@ -22,7 +22,7 @@ In-app installation is deliberately limited to these signed targets:
 | --- | --- | --- |
 | `windows-x86_64` | Windows x64 NSIS | MSI |
 | `darwin-universal` | macOS universal `.app.tar.gz` | DMG |
-| `linux-x86_64` | Linux x86_64 AppImage archive | deb, rpm |
+| `linux-x86_64` | Linux x86_64 `.AppImage` | deb, rpm |
 
 An unsupported architecture or installed package never receives a mismatched
 installer; users can open the GitHub Release page instead.
@@ -57,7 +57,10 @@ transition release strands existing clients.
 1. Push a stable `vMAJOR.MINOR.PATCH` tag or invoke the Release workflow with
    that exact tag. Drafts and prereleases are never selected by `/releases/latest`.
 2. `prepare-release` validates tag/config parity, protected-secret presence, and
-   creates or reuses a **draft** release. It refuses an already-published tag.
+   creates or reuses a **draft** release. Drafts are untagged until publication,
+   so downstream jobs pin the Releases API `target_commitish` instead of assuming
+   `refs/tags/<version>` already exists. It refuses an already-published tag or a
+   same-name draft that points at a different commit.
 3. Three platform jobs build manual packages plus signed updater artifacts. They
    explicitly disable per-job updater JSON generation.
 4. After every platform succeeds, the sole `finalize-updater` job downloads all
@@ -83,6 +86,7 @@ node packages/ui/scripts/check-i18n.mjs
 
 The fixture suite rejects missing targets/signatures, mutable or non-HTTPS URLs,
 prerelease/mismatched tags, Tauri-version mismatches, modified signed bytes,
-wrong public keys, and malformed signatures. A real signed draft and
-install/relaunch smoke test still requires protected repository secrets plus
-Windows, macOS, and Linux packaging environments.
+wrong public keys, and malformed signatures. It covers Tauri's current direct
+`.AppImage` updater artifact and the legacy `.AppImage.tar.gz` form. A real
+signed draft and install/relaunch smoke test still requires protected repository
+secrets plus Windows, macOS, and Linux packaging environments.
