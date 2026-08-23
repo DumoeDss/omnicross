@@ -1,9 +1,12 @@
 node_modules/
+/apps/desktop/src-tauri/*.key
+/apps/desktop/src-tauri/*.key.password
 dist/
 *.log
 .DS_Store
 coverage/
 *.tsbuildinfo
+scripts/updater-signature-verifier/target/
 omnicross.dev.config.json
 # Daemon runtime state written next to the config file (so a repo-root dev
 # config drops these here) — generated, refreshed on every pricing sync.

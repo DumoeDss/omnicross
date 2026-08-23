@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "사용자"
   },
+  "updates": {
+    "title": "애플리케이션 업데이트",
+    "description": "Omnicross는 시작 후 항상 안정 버전 업데이트를 확인합니다. 다운로드는 선택 사항이며 설치에는 항상 사용자의 확인이 필요합니다.",
+    "autoDownload": "업데이트 자동 다운로드",
+    "autoDownloadHint": "검증된 업데이트가 발견되면 백그라운드에서 다운로드합니다. 자동으로 설치하거나 다시 시작하지 않습니다.",
+    "version": "버전",
+    "currentVersion": "현재 버전: {{version}}",
+    "latestVersion": "최신 버전: {{version}}",
+    "checkNow": "지금 확인",
+    "checking": "확인 중…",
+    "upToDate": "Omnicross가 최신 버전입니다.",
+    "available": "Omnicross {{version}} 버전을 사용할 수 있습니다.",
+    "downloading": "업데이트 다운로드 중… {{percent}}%",
+    "ready": "Omnicross {{version}} 버전을 설치할 준비가 되었습니다.",
+    "failed": "업데이트 작업에 실패했습니다.",
+    "download": "다운로드",
+    "retry": "다시 시도",
+    "installRestart": "설치 후 다시 시작",
+    "releasePage": "릴리스 페이지"
+  },
   "proxy": {
     "field": {
       "type": "Type",

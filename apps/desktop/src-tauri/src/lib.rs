@@ -8,13 +8,18 @@
 mod daemon_runtime;
 mod kill;
 mod ui_settings;
+mod update_manager;
 
 use std::process::Command;
-use tauri::{Manager, RunEvent, WindowEvent};
+use std::sync::Arc;
+use std::time::Duration;
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 use daemon_runtime::{adopt_or_spawn, daemon_status, DaemonRuntime};
-use ui_settings::{
-    get_ui_settings, load_settings, set_ui_settings, setup_tray, UiSettingsState,
+use ui_settings::{get_ui_settings, load_settings, set_ui_settings, setup_tray, UiSettingsState};
+use update_manager::{
+    check_for_updates, download_update, install_update, new_desktop_manager, update_status,
+    CheckPolicy, DesktopUpdateManager, UPDATE_STATUS_EVENT,
 };
 
 /// Ensure loopback hosts bypass any system/env HTTP proxy. The daemon is a
@@ -73,6 +78,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // OS login-item management (the `auto_start` setting). LaunchAgent on
         // macOS; the registry Run key on Windows. No extra launch args.
         .plugin(tauri_plugin_autostart::init(
@@ -85,6 +91,10 @@ pub fn run() {
             daemon_status,
             get_ui_settings,
             set_ui_settings,
+            update_status,
+            check_for_updates,
+            download_update,
+            install_update,
             open_external_url
         ])
         .on_window_event(|window, event| {
@@ -113,6 +123,16 @@ pub fn run() {
                 let state = app.state::<UiSettingsState>();
                 *state.0.lock().unwrap() = settings.clone();
             }
+
+            let publish_handle = handle.clone();
+            let update_manager = new_desktop_manager(
+                handle.clone(),
+                settings.auto_download_updates,
+                Arc::new(move |snapshot| {
+                    let _ = publish_handle.emit(UPDATE_STATUS_EVENT, snapshot);
+                }),
+            );
+            app.manage(update_manager.clone());
             if let Err(err) = setup_tray(&handle, &settings.language) {
                 eprintln!("[tray] failed to create system tray: {err}");
             }
@@ -128,6 +148,16 @@ pub fn run() {
             tauri::async_runtime::spawn_blocking(move || {
                 adopt_or_spawn(spawn_handle);
             });
+
+            // Packaged builds only: delay discovery and completely detach it
+            // from setup/window reveal/daemon startup. The manager bounds the
+            // metadata operation to eight seconds and suppresses startup errors.
+            if !cfg!(debug_assertions) {
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    update_manager.check(CheckPolicy::Silent).await;
+                });
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -137,6 +167,9 @@ pub fn run() {
             // daemons (spawned == false) are left running — shutdown() no-ops.
             if let RunEvent::Exit | RunEvent::ExitRequested { .. } = event {
                 app.state::<DaemonRuntime>().shutdown();
+                if let Some(manager) = app.try_state::<DesktopUpdateManager>() {
+                    manager.clear_pending();
+                }
             }
         });
 }

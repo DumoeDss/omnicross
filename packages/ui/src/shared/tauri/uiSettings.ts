@@ -13,6 +13,7 @@ export interface UiSettings {
   startMinimized: boolean;
   language: string;
   autoStart: boolean;
+  autoDownloadUpdates: boolean;
 }
 
 /** True only inside the Tauri desktop shell. */

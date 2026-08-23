@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Gebruiker"
   },
+  "updates": {
+    "title": "Applicatie-updates",
+    "description": "Omnicross controleert na het opstarten altijd op stabiele updates. Downloaden is optioneel en voor installatie is altijd uw bevestiging vereist.",
+    "autoDownload": "Updates automatisch downloaden",
+    "autoDownloadHint": "Download geverifieerde updates op de achtergrond nadat ze zijn gevonden. Updates worden nooit automatisch geïnstalleerd en de app wordt nooit automatisch opnieuw gestart.",
+    "version": "Versie",
+    "currentVersion": "Huidige versie: {{version}}",
+    "latestVersion": "Nieuwste versie: {{version}}",
+    "checkNow": "Nu controleren",
+    "checking": "Controleren…",
+    "upToDate": "Omnicross is up-to-date.",
+    "available": "Omnicross {{version}} is beschikbaar.",
+    "downloading": "Update downloaden… {{percent}}%",
+    "ready": "Omnicross {{version}} is klaar om te installeren.",
+    "failed": "De updateactie is mislukt.",
+    "download": "Downloaden",
+    "retry": "Opnieuw proberen",
+    "installRestart": "Installeren en opnieuw starten",
+    "releasePage": "Releasepagina"
+  },
   "proxy": {
     "field": {
       "type": "Type",

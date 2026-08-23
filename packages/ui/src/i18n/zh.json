@@ -1762,6 +1762,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "用户"
   },
+  "updates": {
+    "title": "应用更新",
+    "description": "Omnicross 启动后始终检查稳定版更新。下载可以选择开启，安装始终需要你明确确认。",
+    "autoDownload": "自动下载更新",
+    "autoDownloadHint": "发现更新后在后台下载并验证；不会自动安装或重启。",
+    "version": "版本",
+    "currentVersion": "当前版本：{{version}}",
+    "latestVersion": "最新版本：{{version}}",
+    "checkNow": "立即检查",
+    "checking": "正在检查…",
+    "upToDate": "Omnicross 已是最新版本。",
+    "available": "发现 Omnicross {{version}}。",
+    "downloading": "正在下载更新… {{percent}}%",
+    "ready": "Omnicross {{version}} 已准备好安装。",
+    "failed": "更新操作失败。",
+    "download": "下载",
+    "retry": "重试",
+    "installRestart": "安装并重启",
+    "releasePage": "发布页面"
+  },
   "proxy": {
     "field": {
       "type": "类型",

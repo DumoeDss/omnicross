@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Käyttäjä"
   },
+  "updates": {
+    "title": "Sovelluspäivitykset",
+    "description": "Omnicross tarkistaa aina käynnistyksen jälkeen vakaat päivitykset. Lataaminen on valinnaista, ja asennus vaatii aina vahvistuksesi.",
+    "autoDownload": "Lataa päivitykset automaattisesti",
+    "autoDownloadHint": "Lataa vahvistetut päivitykset taustalla, kun ne löytyvät. Päivityksiä ei koskaan asenneta eikä sovellusta käynnistetä uudelleen automaattisesti.",
+    "version": "Versio",
+    "currentVersion": "Nykyinen versio: {{version}}",
+    "latestVersion": "Uusin versio: {{version}}",
+    "checkNow": "Tarkista nyt",
+    "checking": "Tarkistetaan…",
+    "upToDate": "Omnicross on ajan tasalla.",
+    "available": "Omnicross {{version}} on saatavilla.",
+    "downloading": "Ladataan päivitystä… {{percent}}%",
+    "ready": "Omnicross {{version}} on valmis asennettavaksi.",
+    "failed": "Päivitystoiminto epäonnistui.",
+    "download": "Lataa",
+    "retry": "Yritä uudelleen",
+    "installRestart": "Asenna ja käynnistä uudelleen",
+    "releasePage": "Julkaisusivu"
+  },
   "proxy": {
     "field": {
       "type": "Type",

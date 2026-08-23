@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Pengguna"
   },
+  "updates": {
+    "title": "Kemas kini aplikasi",
+    "description": "Omnicross sentiasa menyemak kemas kini stabil selepas dimulakan. Muat turun adalah pilihan dan pemasangan sentiasa memerlukan pengesahan anda.",
+    "autoDownload": "Muat turun kemas kini secara automatik",
+    "autoDownloadHint": "Muat turun kemas kini yang disahkan di latar belakang selepas ditemui. Ini tidak akan memasang atau memulakan semula secara automatik.",
+    "version": "Versi",
+    "currentVersion": "Versi semasa: {{version}}",
+    "latestVersion": "Versi terkini: {{version}}",
+    "checkNow": "Semak sekarang",
+    "checking": "Sedang menyemak…",
+    "upToDate": "Omnicross adalah terkini.",
+    "available": "Omnicross {{version}} tersedia.",
+    "downloading": "Sedang memuat turun kemas kini… {{percent}}%",
+    "ready": "Omnicross {{version}} sedia untuk dipasang.",
+    "failed": "Tindakan kemas kini gagal.",
+    "download": "Muat turun",
+    "retry": "Cuba lagi",
+    "installRestart": "Pasang dan mulakan semula",
+    "releasePage": "Halaman keluaran"
+  },
   "proxy": {
     "field": {
       "type": "Type",

@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Felhasználó"
   },
+  "updates": {
+    "title": "Alkalmazásfrissítések",
+    "description": "Az Omnicross indítás után mindig ellenőrzi a stabil frissítéseket. A letöltés választható, a telepítéshez pedig mindig szükség van a megerősítésére.",
+    "autoDownload": "Frissítések automatikus letöltése",
+    "autoDownloadHint": "A megtalált és ellenőrzött frissítések letöltése a háttérben. A telepítés és az újraindítás soha nem történik automatikusan.",
+    "version": "Verzió",
+    "currentVersion": "Jelenlegi verzió: {{version}}",
+    "latestVersion": "Legújabb verzió: {{version}}",
+    "checkNow": "Ellenőrzés most",
+    "checking": "Ellenőrzés…",
+    "upToDate": "Az Omnicross naprakész.",
+    "available": "Elérhető az Omnicross {{version}}.",
+    "downloading": "Frissítés letöltése… {{percent}}%",
+    "ready": "Az Omnicross {{version}} telepítésre kész.",
+    "failed": "A frissítési művelet sikertelen volt.",
+    "download": "Letöltés",
+    "retry": "Újra",
+    "installRestart": "Telepítés és újraindítás",
+    "releasePage": "Kiadási oldal"
+  },
   "proxy": {
     "field": {
       "type": "Type",

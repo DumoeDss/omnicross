@@ -30,6 +30,9 @@ In dev, the shell spawns the daemon from the repo checkout
 
 ## Package (release build)
 
+Signed in-app updater targets, release-secret setup, draft finalization, and key
+rotation are documented in [`../../docs/desktop-updates.md`](../../docs/desktop-updates.md).
+
 ```bash
 npm run build:app   # at the repo root
 # or from this directory:

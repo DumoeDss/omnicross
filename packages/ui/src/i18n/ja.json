@@ -1340,6 +1340,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "ユーザー"
   },
+  "updates": {
+    "title": "アプリのアップデート",
+    "description": "Omnicross は起動後に常に安定版のアップデートを確認します。ダウンロードは任意で、インストールには必ず確認が必要です。",
+    "autoDownload": "アップデートを自動的にダウンロード",
+    "autoDownloadHint": "検証済みのアップデートが見つかったらバックグラウンドでダウンロードします。自動的にインストールまたは再起動することはありません。",
+    "version": "バージョン",
+    "currentVersion": "現在のバージョン: {{version}}",
+    "latestVersion": "最新バージョン: {{version}}",
+    "checkNow": "今すぐ確認",
+    "checking": "確認中…",
+    "upToDate": "Omnicross は最新です。",
+    "available": "Omnicross {{version}} を利用できます。",
+    "downloading": "アップデートをダウンロード中… {{percent}}%",
+    "ready": "Omnicross {{version}} はインストールの準備ができています。",
+    "failed": "アップデート操作に失敗しました。",
+    "download": "ダウンロード",
+    "retry": "再試行",
+    "installRestart": "インストールして再起動",
+    "releasePage": "リリースページ"
+  },
   "proxy": {
     "field": {
       "type": "種類",

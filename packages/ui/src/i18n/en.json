@@ -1762,6 +1762,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "User"
   },
+  "updates": {
+    "title": "Application updates",
+    "description": "Omnicross always checks for stable updates after startup. Downloads are optional and installation always requires your confirmation.",
+    "autoDownload": "Automatically download updates",
+    "autoDownloadHint": "Download verified updates in the background after they are found. This never installs or restarts automatically.",
+    "version": "Version",
+    "currentVersion": "Current version: {{version}}",
+    "latestVersion": "Latest version: {{version}}",
+    "checkNow": "Check now",
+    "checking": "Checking…",
+    "upToDate": "Omnicross is up to date.",
+    "available": "Omnicross {{version}} is available.",
+    "downloading": "Downloading update… {{percent}}%",
+    "ready": "Omnicross {{version}} is ready to install.",
+    "failed": "The update action failed.",
+    "download": "Download",
+    "retry": "Retry",
+    "installRestart": "Install and restart",
+    "releasePage": "Release page"
+  },
   "proxy": {
     "field": {
       "type": "Type",

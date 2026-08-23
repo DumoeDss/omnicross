@@ -1056,6 +1056,26 @@
     "sourceLitellm": "LiteLLM",
     "sourceUser": "Utilizator"
   },
+  "updates": {
+    "title": "Actualizări ale aplicației",
+    "description": "Omnicross verifică întotdeauna dacă există actualizări stabile după pornire. Descărcarea este opțională, iar instalarea necesită întotdeauna confirmarea dvs.",
+    "autoDownload": "Descarcă automat actualizările",
+    "autoDownloadHint": "Descarcă în fundal actualizările verificate după ce sunt găsite. Acest lucru nu instalează și nu repornește niciodată automat.",
+    "version": "Versiune",
+    "currentVersion": "Versiunea curentă: {{version}}",
+    "latestVersion": "Cea mai recentă versiune: {{version}}",
+    "checkNow": "Verifică acum",
+    "checking": "Se verifică…",
+    "upToDate": "Omnicross este actualizat.",
+    "available": "Omnicross {{version}} este disponibil.",
+    "downloading": "Se descarcă actualizarea… {{percent}}%",
+    "ready": "Omnicross {{version}} este pregătit pentru instalare.",
+    "failed": "Acțiunea de actualizare a eșuat.",
+    "download": "Descarcă",
+    "retry": "Reîncearcă",
+    "installRestart": "Instalează și repornește",
+    "releasePage": "Pagina versiunii"
+  },
   "proxy": {
     "field": {
       "type": "Type",

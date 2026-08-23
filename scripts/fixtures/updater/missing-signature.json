@@ -1,0 +1,8 @@
+{
+  "version": "1.2.3",
+  "platforms": {
+    "windows-x86_64": { "url": "https://github.com/Dumoedss/omnicross/releases/download/v1.2.3/Omnicross_1.2.3_x64-setup.exe", "signature": "signed-windows" },
+    "darwin-universal": { "url": "https://github.com/Dumoedss/omnicross/releases/download/v1.2.3/Omnicross_1.2.3_universal.app.tar.gz", "signature": "" },
+    "linux-x86_64": { "url": "https://github.com/Dumoedss/omnicross/releases/download/v1.2.3/Omnicross_1.2.3_amd64.AppImage.tar.gz", "signature": "signed-linux" }
+  }
+}
