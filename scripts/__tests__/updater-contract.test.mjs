@@ -20,6 +20,8 @@ describe('updater release contract', () => {
     const workflow = readFileSync(join(import.meta.dirname, '..', '..', '.github', 'workflows', 'release.yml'), 'utf8');
     assert.match(workflow, /\.target_commitish/);
     assert.match(workflow, /repos\/\$GITHUB_REPOSITORY\/commits\/\$RELEASE_TARGET/);
+    assert.match(workflow, /gh api --method POST "repos\/\$GITHUB_REPOSITORY\/releases"/);
+    assert.doesNotMatch(workflow, /gh release create/);
     assert.doesNotMatch(workflow, /git fetch --force origin "refs\/tags\/\$TAG:refs\/tags\/\$TAG"/);
   });
 
