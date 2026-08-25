@@ -92,10 +92,12 @@ export interface UsageThroughputWindow {
   totalTokens: number;
   costUsd: number;
   requestsPerMinute: number;
-  /** The headline TPM: `totalTokens` per minute over `windowMs`. */
+  /** `totalTokens` per minute over `windowMs`. */
   tokensPerMinute: number;
   inputTokensPerMinute: number;
   outputTokensPerMinute: number;
+  /** cacheRead + cacheCreation per minute over `windowMs`. */
+  cacheTokensPerMinute: number;
   costUsdPerMinute: number;
   /**
    * False when the sample cap evicted events that fall inside this window, so
@@ -109,7 +111,10 @@ export interface UsageThroughputBucket {
   /** Epoch-ms of the bucket's (grid-aligned) start. */
   startTs: number;
   requests: number;
+  /** input + output + cacheRead + cacheCreation (same basis as `totalTokens`). */
   tokens: number;
+  /** Output tokens alone, so a card headlining output can trend in step. */
+  outputTokens: number;
 }
 
 /** The `GET /admin/api/usage/throughput` payload. */
@@ -224,6 +229,7 @@ export class UsageThroughputTracker {
       tokensPerMinute: 0,
       inputTokensPerMinute: 0,
       outputTokensPerMinute: 0,
+      cacheTokensPerMinute: 0,
       costUsdPerMinute: 0,
       complete: this.evictedThroughTs === null || this.evictedThroughTs < startTs,
     };
@@ -246,6 +252,7 @@ export class UsageThroughputTracker {
     row.tokensPerMinute = row.totalTokens / minutes;
     row.inputTokensPerMinute = row.inputTokens / minutes;
     row.outputTokensPerMinute = row.outputTokens / minutes;
+    row.cacheTokensPerMinute = (row.cacheReadTokens + row.cacheCreationTokens) / minutes;
     row.costUsdPerMinute = row.costUsd / minutes;
     return row;
   }
@@ -256,7 +263,7 @@ export class UsageThroughputTracker {
     const startTs = endTs - THROUGHPUT_RETENTION_MS;
     const out: UsageThroughputBucket[] = [];
     for (let i = 0; i < THROUGHPUT_BUCKET_COUNT; i += 1) {
-      out.push({ startTs: startTs + i * bucketMs, requests: 0, tokens: 0 });
+      out.push({ startTs: startTs + i * bucketMs, requests: 0, tokens: 0, outputTokens: 0 });
     }
     for (let i = this.head; i < this.samples.length; i += 1) {
       const sample = this.samples[i]!;
@@ -264,6 +271,7 @@ export class UsageThroughputTracker {
       const bucket = out[Math.floor((sample.ts - startTs) / bucketMs)];
       if (!bucket) continue;
       bucket.requests += 1;
+      bucket.outputTokens += sample.outputTokens;
       bucket.tokens +=
         sample.inputTokens +
         sample.outputTokens +

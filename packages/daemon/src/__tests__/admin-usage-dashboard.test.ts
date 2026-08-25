@@ -300,10 +300,12 @@ interface ThroughputBody {
     requests: number;
     totalTokens: number;
     tokensPerMinute: number;
+    outputTokensPerMinute: number;
+    cacheTokensPerMinute: number;
     requestsPerMinute: number;
     complete: boolean;
   }>;
-  buckets: Array<{ startTs: number; requests: number; tokens: number }>;
+  buckets: Array<{ startTs: number; requests: number; tokens: number; outputTokens: number }>;
 }
 
 describe('GET /admin/api/usage/throughput', () => {
@@ -328,8 +330,14 @@ describe('GET /admin/api/usage/throughput', () => {
     // seedEvent(): 10 input + 20 output, no cache tokens.
     expect(minute.totalTokens).toBe(30);
     expect(minute.tokensPerMinute).toBe(30);
+    expect(minute.outputTokensPerMinute).toBe(20);
+    expect(minute.cacheTokensPerMinute).toBe(0);
     expect(minute.requestsPerMinute).toBe(1);
     expect(minute.complete).toBe(true);
+    const filled = (r.json as ThroughputBody).buckets.filter((b) => b.requests > 0);
+    expect(filled).toHaveLength(1);
+    expect(filled[0]!.tokens).toBe(30);
+    expect(filled[0]!.outputTokens).toBe(20);
   });
 
   it('405s a non-GET method', async () => {

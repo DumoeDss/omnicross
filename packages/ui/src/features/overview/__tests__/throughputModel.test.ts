@@ -26,14 +26,16 @@ function windowRow(
   const minutes = windowMs / 60_000;
   const inputTokens = overrides.inputTokens ?? 0;
   const outputTokens = overrides.outputTokens ?? 0;
-  const totalTokens = overrides.totalTokens ?? inputTokens + outputTokens;
+  const cacheReadTokens = overrides.cacheReadTokens ?? 0;
+  const cacheCreationTokens = overrides.cacheCreationTokens ?? 0;
+  const totalTokens = overrides.totalTokens ?? inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
   return {
     windowMs,
     requests: 0,
     inputTokens,
     outputTokens,
-    cacheReadTokens: 0,
-    cacheCreationTokens: 0,
+    cacheReadTokens,
+    cacheCreationTokens,
     reasoningTokens: 0,
     totalTokens,
     costUsd: 0,
@@ -41,6 +43,7 @@ function windowRow(
     tokensPerMinute: totalTokens / minutes,
     inputTokensPerMinute: inputTokens / minutes,
     outputTokensPerMinute: outputTokens / minutes,
+    cacheTokensPerMinute: (cacheReadTokens + cacheCreationTokens) / minutes,
     costUsdPerMinute: (overrides.costUsd ?? 0) / minutes,
     complete: true,
     ...overrides,
@@ -99,7 +102,13 @@ describe('buildThroughputView', () => {
         snapshot({
           windows: [
             windowRow(60_000, { requests: 2, inputTokens: 900, outputTokens: 300 }),
-            windowRow(300_000, { requests: 5, inputTokens: 3_000, outputTokens: 1_000 }),
+            windowRow(300_000, {
+              requests: 5,
+              inputTokens: 3_000,
+              outputTokens: 1_000,
+              cacheReadTokens: 5_000,
+              cacheCreationTokens: 1_000,
+            }),
             windowRow(900_000, { requests: 6, inputTokens: 3_600, outputTokens: 1_200 }),
           ],
         }),
@@ -110,9 +119,10 @@ describe('buildThroughputView', () => {
     expect(view.state).toBe('ready');
     expect(view.windowMs).toBe(300_000);
     expect(view.requests).toBe(5);
-    expect(view.tokensPerMinute).toBe(800);
+    expect(view.tokensPerMinute).toBe(2_000);
     expect(view.inputTokensPerMinute).toBe(600);
     expect(view.outputTokensPerMinute).toBe(200);
+    expect(view.cacheTokensPerMinute).toBe(1_200);
     expect(view.requestsPerMinute).toBe(1);
     expect(view.idle).toBe(false);
     expect(view.complete).toBe(true);
@@ -153,15 +163,27 @@ describe('buildThroughputView', () => {
     expect(view.complete).toBe(false);
   });
 
-  it('trims the trend series to the selected window', () => {
+  it('trims the trend series to the selected window and trends output tokens', () => {
+    const buckets = Array.from({ length: 30 }, (_unused, index) => ({
+      startTs: NOW - 900_000 + index * BUCKET_MS,
+      requests: index,
+      tokens: index * 10,
+      outputTokens: index * 2,
+    }));
+    const view = buildThroughputView(ready(snapshot({ buckets })), 300_000);
+    // 300s / 30s = 10 buckets, taken from the newest end.
+    expect(view.points).toHaveLength(10);
+    // Output, not the all-in total — the headline it must describe.
+    expect(view.points[view.points.length - 1]).toBe(58);
+  });
+
+  it('falls back to all-in bucket tokens when the daemon predates the output split', () => {
     const buckets = Array.from({ length: 30 }, (_unused, index) => ({
       startTs: NOW - 900_000 + index * BUCKET_MS,
       requests: index,
       tokens: index * 10,
     }));
     const view = buildThroughputView(ready(snapshot({ buckets })), 300_000);
-    // 300s / 30s = 10 buckets, taken from the newest end.
-    expect(view.points).toHaveLength(10);
     expect(view.points[view.points.length - 1]).toBe(290);
   });
 });
