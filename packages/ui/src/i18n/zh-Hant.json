@@ -552,9 +552,10 @@
     "throughput": {
       "title": "即時吞吐",
       "description": "以滾動時間窗統計的速率，資料來自閘道實際完成的請求。",
-      "tokensPerMinute": "tokens/分鐘",
+      "outputTokensPerMinute": "輸出 tokens/分鐘",
       "requestsPerMinute": "{{value}} 請求/分鐘",
       "inputOutput": "輸入 {{input}} · 輸出 {{output}}",
+      "inputOutputCache": "輸入 {{input}} · 輸出 {{output}} · 快取 {{cache}}",
       "costPerMinute": "{{value}}/分鐘",
       "window1m": "1 分鐘",
       "window5m": "5 分鐘",
@@ -566,7 +567,7 @@
       "warmingUp": "守護行程的觀測時間尚不足一個時間窗，速率仍在累積。",
       "incomplete": "已達守護行程的取樣上限，以下數值為下界。",
       "unavailableHint": "目前的守護行程不提供即時吞吐資料。",
-      "trendLabel": "Token 吞吐趨勢",
+      "trendLabel": "輸出 Token 吞吐趨勢",
       "open": "開啟用量統計"
     },
     "source": {

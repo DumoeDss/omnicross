@@ -264,8 +264,11 @@ function LiveThroughputEvidence({
   const windowLabel = t('overview.throughput.windowLabel', {
     window: t(THROUGHPUT_WINDOW_KEY[view.windowMs] ?? THROUGHPUT_WINDOW_KEY[windowMs]!),
   });
-  const headline = ready && view.tokensPerMinute !== undefined
-    ? formatRate(view.tokensPerMinute)
+  // The headline is OUTPUT tokens only: the all-in TPM is dominated by cache
+  // reads (easily 95% of agentic traffic), which read as a runaway counter.
+  // Cache volume gets its own place in the breakdown line below instead.
+  const headline = ready && view.outputTokensPerMinute !== undefined
+    ? formatRate(view.outputTokensPerMinute)
     : sourceText(view.state, t);
 
   // One hint line, most consequential caveat first: a read we cannot trust beats
@@ -320,7 +323,7 @@ function LiveThroughputEvidence({
               {headline}
             </span>
             {ready ? (
-              <span className="text-xs text-muted-foreground">{t('overview.throughput.tokensPerMinute')}</span>
+              <span className="text-xs text-muted-foreground">{t('overview.throughput.outputTokensPerMinute')}</span>
             ) : null}
             <span className="font-mono text-[11px] text-muted-foreground">{windowLabel}</span>
           </div>
@@ -330,10 +333,16 @@ function LiveThroughputEvidence({
             ) : null}
             {ready && view.inputTokensPerMinute !== undefined && view.outputTokensPerMinute !== undefined ? (
               <span>
-                {t('overview.throughput.inputOutput', {
-                  input: formatRate(view.inputTokensPerMinute),
-                  output: formatRate(view.outputTokensPerMinute),
-                })}
+                {view.cacheTokensPerMinute !== undefined
+                  ? t('overview.throughput.inputOutputCache', {
+                      input: formatRate(view.inputTokensPerMinute),
+                      output: formatRate(view.outputTokensPerMinute),
+                      cache: formatRate(view.cacheTokensPerMinute),
+                    })
+                  : t('overview.throughput.inputOutput', {
+                      input: formatRate(view.inputTokensPerMinute),
+                      output: formatRate(view.outputTokensPerMinute),
+                    })}
               </span>
             ) : null}
             {ready && view.costUsdPerMinute !== undefined ? (

@@ -44,6 +44,7 @@ describe('UsageThroughputTracker', () => {
       expect(row.totalTokens).toBe(0);
       expect(row.tokensPerMinute).toBe(0);
       expect(row.requestsPerMinute).toBe(0);
+      expect(row.cacheTokensPerMinute).toBe(0);
       expect(row.complete).toBe(true);
     }
   });
@@ -64,6 +65,8 @@ describe('UsageThroughputTracker', () => {
     const row = windowOf(tracker.snapshot(T0), 60_000);
     expect(row.totalTokens).toBe(1_275);
     expect(row.reasoningTokens).toBe(150);
+    // 50 cache-read + 25 cache-creation over one minute.
+    expect(row.cacheTokensPerMinute).toBe(75);
   });
 
   it('divides by the full window, not by how long the tracker has been alive', () => {
@@ -110,7 +113,7 @@ describe('UsageThroughputTracker', () => {
   it('returns a fixed-length, grid-aligned, oldest-first bucket series', () => {
     const tracker = new UsageThroughputTracker(T0);
     const now = T0 + 60_000;
-    tracker.record(event({ inputTokens: 10, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }), now - 1_000);
+    tracker.record(event({ inputTokens: 10, outputTokens: 4, cacheReadTokens: 0, cacheCreationTokens: 0 }), now - 1_000);
 
     const snapshot = tracker.snapshot(now);
     expect(snapshot.buckets).toHaveLength(THROUGHPUT_BUCKET_COUNT);
@@ -122,7 +125,10 @@ describe('UsageThroughputTracker', () => {
 
     const filled = snapshot.buckets.filter((bucket) => bucket.requests > 0);
     expect(filled).toHaveLength(1);
-    expect(filled[0]!.tokens).toBe(10);
+    expect(filled[0]!.tokens).toBe(14);
+    // Output is carried separately so an output headline can trend without
+    // rescaling the all-in total.
+    expect(filled[0]!.outputTokens).toBe(4);
 
     // Grid alignment is stable across polls: a later read inside the same bucket
     // must not shift the boundaries (otherwise a sparkline shimmers).

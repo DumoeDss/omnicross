@@ -37,6 +37,8 @@ export interface ThroughputView {
   requestsPerMinute?: number;
   inputTokensPerMinute?: number;
   outputTokensPerMinute?: number;
+  /** cacheRead + cacheCreation per minute; undefined on older daemons. */
+  cacheTokensPerMinute?: number;
   costUsdPerMinute?: number;
   /** Requests observed in the window (the rate's denominator-free raw count). */
   requests?: number;
@@ -108,12 +110,15 @@ export function buildThroughputView(
     requestsPerMinute: row.requestsPerMinute,
     inputTokensPerMinute: row.inputTokensPerMinute,
     outputTokensPerMinute: row.outputTokensPerMinute,
+    cacheTokensPerMinute: row.cacheTokensPerMinute,
     costUsdPerMinute: row.costUsdPerMinute,
     requests: row.requests,
     idle: row.requests === 0,
     complete: row.complete,
     warmingUp: data.collectedAt - data.startedAt < row.windowMs,
-    points: series.map((bucket) => bucket.tokens),
+    // The card headlines OUTPUT tokens, so the trend must show output per
+    // bucket; a daemon predating the per-bucket split falls back to totals.
+    points: series.map((bucket) => bucket.outputTokens ?? bucket.tokens),
   };
 }
 

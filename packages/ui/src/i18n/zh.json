@@ -552,9 +552,10 @@
     "throughput": {
       "title": "实时吞吐",
       "description": "按滚动时间窗统计的速率，数据来自网关已实际完成的请求。",
-      "tokensPerMinute": "tokens/分钟",
+      "outputTokensPerMinute": "输出 tokens/分钟",
       "requestsPerMinute": "{{value}} 请求/分钟",
       "inputOutput": "输入 {{input}} · 输出 {{output}}",
+      "inputOutputCache": "输入 {{input}} · 输出 {{output}} · 缓存 {{cache}}",
       "costPerMinute": "{{value}}/分钟",
       "window1m": "1 分钟",
       "window5m": "5 分钟",
@@ -566,7 +567,7 @@
       "warmingUp": "守护进程的观测时间尚不足一个时间窗，速率仍在累积。",
       "incomplete": "已达到守护进程的采样上限，以下数值为下界。",
       "unavailableHint": "当前守护进程不提供实时吞吐数据。",
-      "trendLabel": "Token 吞吐趋势",
+      "trendLabel": "输出 Token 吞吐趋势",
       "open": "打开用量统计"
     },
     "source": {

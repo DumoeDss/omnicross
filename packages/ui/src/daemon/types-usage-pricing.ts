@@ -123,10 +123,12 @@ export interface UsageThroughputWindow {
   totalTokens: number;
   costUsd: number;
   requestsPerMinute: number;
-  /** The headline TPM. */
+  /** The all-in TPM (input + output + cache). */
   tokensPerMinute: number;
   inputTokensPerMinute: number;
   outputTokensPerMinute: number;
+  /** cacheRead + cacheCreation per minute. Optional — added post-release. */
+  cacheTokensPerMinute?: number;
   costUsdPerMinute: number;
   /** False when the daemon's sample cap evicted events inside this window. */
   complete: boolean;
@@ -137,6 +139,8 @@ export interface UsageThroughputBucket {
   startTs: number;
   requests: number;
   tokens: number;
+  /** Output tokens alone. Optional — added post-release. */
+  outputTokens?: number;
 }
 
 /**
