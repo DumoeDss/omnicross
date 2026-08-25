@@ -2,12 +2,12 @@
  * ConfigurableLogger.test.ts — the configurable logger (configurable-logging).
  *
  * Covers: level filtering (below-threshold dropped), the JSON line shape, the
- * file sink (append + error-swallow), and the load-bearing ZERO-REGRESSION
- * assertion — `new ConfigurableLogger()` calls the SAME console method with the
- * SAME args as the legacy `ConsoleLogger`.
+ * file sink (append + error-swallow + size rotation), and the load-bearing
+ * ZERO-REGRESSION assertion — `new ConfigurableLogger()` calls the SAME console
+ * method with the SAME args as the legacy `ConsoleLogger`.
  */
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -192,5 +192,75 @@ describe('ConfigurableLogger — zero-regression vs ConsoleLogger', () => {
     const legacy = record(drive, new ConsoleLogger());
     const configurable = record(drive, new ConfigurableLogger());
     expect(configurable).toEqual(legacy);
+  });
+});
+
+
+describe('ConfigurableLogger — file sink rotation', () => {
+  /** Poll for a condition the rotation completes asynchronously (stream.end). */
+  const until = async (check: () => boolean, ms = 2_000): Promise<void> => {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      if (check()) return;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error('condition not met before timeout');
+  };
+
+  it('rotates the live file to <file>.1 once it passes maxFileBytes', async () => {
+    const file = join(tmpDir, 'daemon.log');
+    const log = new ConfigurableLogger({ file, format: 'json', maxFileBytes: 400, maxFiles: 3 });
+    for (let i = 0; i < 20; i++) log.info(`line-${i}`, { pad: 'x'.repeat(40) });
+
+    await until(() => existsSync(`${file}.1`));
+    expect(statSync(`${file}.1`).size).toBeGreaterThan(0);
+    await log.close();
+  });
+
+  it('keeps at most maxFiles generations', async () => {
+    const file = join(tmpDir, 'daemon.log');
+    const log = new ConfigurableLogger({ file, format: 'json', maxFileBytes: 200, maxFiles: 2 });
+    for (let i = 0; i < 200; i++) log.info(`line-${i}`, { pad: 'y'.repeat(60) });
+
+    await until(() => existsSync(`${file}.2`));
+    // .3 must never appear: the oldest generation is unlinked, not kept.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(existsSync(`${file}.3`)).toBe(false);
+    await log.close();
+  });
+
+  it('loses no line across a rotation', async () => {
+    const file = join(tmpDir, 'daemon.log');
+    const log = new ConfigurableLogger({ file, format: 'json', maxFileBytes: 500, maxFiles: 4 });
+    const total = 60;
+    for (let i = 0; i < total; i++) log.info(`msg-${i}`);
+    await until(() => existsSync(`${file}.1`));
+    await log.close();
+
+    const seen = new Set<string>();
+    for (const path of [file, `${file}.1`, `${file}.2`, `${file}.3`, `${file}.4`]) {
+      if (!existsSync(path)) continue;
+      for (const line of readFileSync(path, 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        seen.add((JSON.parse(line) as { msg: string }).msg);
+      }
+    }
+    for (let i = 0; i < total; i++) expect(seen.has(`msg-${i}`)).toBe(true);
+  });
+
+  it('seeds its byte counter from an existing file so a restart still rotates', async () => {
+    const file = join(tmpDir, 'daemon.log');
+    const first = new ConfigurableLogger({ file, format: 'json', maxFileBytes: 100_000 });
+    for (let i = 0; i < 20; i++) first.info(`seed-${i}`, { pad: 'z'.repeat(80) });
+    await first.close();
+    const seededSize = statSync(file).size;
+    expect(seededSize).toBeGreaterThan(400);
+
+    // A fresh logger over the SAME file with a cap below what is already there
+    // must rotate on its first write rather than restarting the count at zero.
+    const second = new ConfigurableLogger({ file, format: 'json', maxFileBytes: 400, maxFiles: 2 });
+    second.info('after-restart');
+    await until(() => existsSync(`${file}.1`));
+    await second.close();
   });
 });

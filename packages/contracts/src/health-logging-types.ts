@@ -66,9 +66,16 @@ export type LogFormat = 'text' | 'json';
  *  - `format` — `text` (human-readable, legacy shape) | `json` (structured lines).
  *  - `file`   — OPTIONAL append-only file sink path. A PLAIN config value (NOT a
  *               secret — never walked by the at-rest secret encryption).
+ *  - `maxFileBytes` / `maxFiles` — file-sink rotation (default 8 MB x 5). Only
+ *               meaningful alongside `file`. An uncapped daemon log is a slow
+ *               disk-fill, so the cap is a default rather than an opt-in.
  */
 export interface LoggingConfig {
   level?: LogLevel;
   format?: LogFormat;
   file?: string;
+  /** Size cap for one generation of the file sink, in bytes. Default 8 MB. */
+  maxFileBytes?: number;
+  /** Generations kept as `<file>.1` … `<file>.N`. Default 5. */
+  maxFiles?: number;
 }

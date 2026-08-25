@@ -20,9 +20,11 @@
  * @module @omnicross/daemon/bootstrap
  */
 
-import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
+import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
 import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
 import type { Logger } from '@omnicross/core';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
@@ -90,7 +92,9 @@ import {
   defaultAuditDir,
   defaultBillingDir,
   defaultAccountAllowancePath,
+  defaultDaemonLogPath,
   defaultIntegrationsPath,
+  defaultLogDir,
   defaultPricingPath,
   defaultPricingRefreshStatePath,
   defaultUsageEventsPath,
@@ -110,6 +114,11 @@ import { createUpstreamProxyResolver, setServerProxyConfig } from './proxy/upstr
 import { AccountHealthProbeScheduler } from './AccountHealthProbeScheduler';
 import { AccountHealthSweeper } from './AccountHealthSweeper';
 import { AuditPruneSweeper } from './audit/AuditPruneSweeper';
+import { migrateLegacyUsageEvents, type UsageMigrationResult } from './usage/usageMigrate';
+import {
+  DEFAULT_USAGE_RETENTION_DAYS,
+  UsagePruneSweeper,
+} from './usage/UsagePruneSweeper';
 import { readAuditBody } from './audit/auditBodyReader';
 import { compactAllClosedAuditDays } from './audit/auditDictionary';
 import { readAuditRecords } from './audit/auditReader';
@@ -252,6 +261,17 @@ export interface Daemon {
    */
   readonly auditPruneSweeper: AuditPruneSweeper;
   /**
+   * Retention for RAW usage rows (rollups are kept forever). Armed by `start`;
+   * `launch` leaves it off — a short-lived boot has no business pruning.
+   */
+  readonly usagePruneSweeper: UsagePruneSweeper;
+  /**
+   * Fold a legacy flat `usage-events.jsonl` into day shards. MUST be awaited
+   * before any listener binds: it moves files the query path reads, and a
+   * request served mid-migration would see a partial store.
+   */
+  readonly migrateUsageStore: () => Promise<UsageMigrationResult>;
+  /**
    * Durable-first billing publisher (billing-event-stream) — appends each event
    * to `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POSTs it.
    * Registered as the core billing sink (via the billing runtime slot) by
@@ -273,12 +293,53 @@ export interface Daemon {
  * start the listeners — the `start` command awaits `providerProxy.start()` then
  * `outboundApiServer.applyConfig(...)`.
  */
+/**
+ * Fill in the daemon's DEFAULT logging config over whatever the operator set.
+ *
+ * Explicit config always wins field-by-field; only the gaps are filled. The
+ * defaults are deliberately conservative about volume — `info`, not the
+ * constructor's `debug`, because the sink is now a real file and `debug` on a
+ * busy gateway is megabytes an hour of noise that buries the one line that
+ * mattered.
+ *
+ * Creating the directory here (rather than letting the lazy stream open fail)
+ * matters: `ConfigurableLogger` swallows sink errors by design, so a missing
+ * `logs/` would silently disable the very logging this exists to guarantee. A
+ * mkdir failure (read-only volume, permissions) is itself swallowed — the sink
+ * then self-disables and the console sink still carries everything.
+ */
+function resolveLoggingConfig(
+  configured: LoggingConfig | undefined,
+  configPath: string,
+): LoggingConfig {
+  const file = configured?.file ?? defaultDaemonLogPath(configPath);
+  try {
+    mkdirSync(configured?.file ? dirname(configured.file) : defaultLogDir(configPath), {
+      recursive: true,
+    });
+  } catch {
+    // Non-fatal: the sink self-disables and the console sink still gets it all.
+  }
+  return {
+    ...configured,
+    file,
+    level: configured?.level ?? 'info',
+    format: configured?.format ?? 'json',
+  };
+}
+
 export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // Configurable logger (configurable-logging) — level/format/file from
-  // `config.logging`. Absent config ⇒ console + all levels + text = byte-
-  // identical to the legacy `ConsoleLogger`. `logging.file` is a plain value
-  // (not a secret), so it is read straight off the loaded config.
-  const logger = new ConfigurableLogger(config.logging);
+  // `config.logging`. `logging.file` is a plain value (not a secret), so it is
+  // read straight off the loaded config.
+  //
+  // The file sink now defaults ON. It used to be opt-in, which read as harmless
+  // until you notice where the daemon's console actually goes: the desktop app
+  // spawns it with stdout discarded, so an unconfigured daemon logged to nowhere
+  // and a freeze left literally no evidence behind. A daemon that cannot explain
+  // its own death is worse than a few MB of rotated log, so absent config now
+  // means `<configDir>/logs/daemon.log` at `info` in `json`.
+  const logger = new ConfigurableLogger(resolveLoggingConfig(config.logging, paths.configPath));
 
   // At-rest encryption wiring (secrets design D3/D5/D7). Build the shared
   // `SecretBox` with a LAZY master-key resolver (env → keyfile → auto-gen 0600)
@@ -685,6 +746,26 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   const auditPruneSweeper = new AuditPruneSweeper(auditDir, logger, DEFAULT_AUDIT_CONFIG);
   setAuditRuntime(auditWriter, auditPruneSweeper);
 
+  // Usage retention. Shares the store's OWN rollup store so a pruned day is
+  // invalidated in the same cache the queries read from. Armed by `start.ts`.
+  const usagePruneSweeper = new UsagePruneSweeper(
+    usageEventStore.shardDir,
+    usageEventStore.rollupStore,
+    logger,
+    config.usage ?? { retentionDays: DEFAULT_USAGE_RETENTION_DAYS },
+  );
+  const migrateUsageStore = async (): Promise<UsageMigrationResult> => {
+    const result = await migrateLegacyUsageEvents({
+      eventsPath: usageEventStore.legacyEventsPath,
+      usageDir: usageEventStore.shardDir,
+      logger,
+    });
+    // The shard directory changed underneath the store; drop anything it had
+    // memoised about a layout that no longer exists.
+    if (result.migrated) usageEventStore.resetCaches();
+    return result;
+  };
+
   // Billing event stream (billing-event-stream) — the durable-first publisher
   // (append `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POST) + its
   // bounded retry sweep. Injected into the billing runtime slot; `start.ts` (boot)
@@ -742,6 +823,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     webhookDispatcher,
     auditWriter,
     auditPruneSweeper,
+    usagePruneSweeper,
+    migrateUsageStore,
     billingPublisher,
     billingRetrySweeper,
   };

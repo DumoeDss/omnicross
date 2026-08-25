@@ -63,6 +63,12 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // Ensure the built-in transformers are registered before any request routes.
   await daemon.llmConfig.ready();
 
+  // Fold a legacy flat `usage-events.jsonl` into day shards BEFORE any listener
+  // binds. It moves the files the usage queries read, so a request served
+  // mid-migration could see a half-built store. One-shot: after the first
+  // successful run the legacy file is gone and this is a single `stat`.
+  await daemon.migrateUsageStore();
+
   await daemon.providerProxy.start();
 
   const serverConfig = await loadServerConfig(daemon.settingsStore);
@@ -143,6 +149,12 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // runs one prune at boot). Absent/disabled ⇒ no sink ⇒ the capture hook is a
   // no-op (zero regression).
   applyAuditConfig(serverConfig.audit);
+
+  // Usage retention: prune RAW day shards past the configured window, keeping
+  // every per-day rollup forever. Runs one pass at boot. Rollups are what carry
+  // lifetime per-key spend across a prune, so this can never silently reset a
+  // key's budget.
+  daemon.usagePruneSweeper.start();
 
   // Billing event stream (billing-event-stream): register the core billing sink +
   // capture gate and arm the bounded retry sweep ONLY when the persisted `billing`

@@ -16,12 +16,13 @@
  * directly.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { usageDayKey, usageShardName } from '../usage/usageFiles';
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
 import { loadConfig } from '../config';
 import { JsonOutboundKeyDb } from '../ports/JsonOutboundKeyDb';
@@ -400,13 +401,17 @@ describe('keys list surfaces each key OWN spend (leak-safe)', () => {
     const { id: k2 } = await createKey();
 
     // Seed a durable usage row attributed to k1 (the spend tracker lazily seeds
-    // from this jsonl on the GET below).
-    const eventsPath = join(tmpDir, 'usage-events.jsonl');
+    // from the store on the GET below). Rows live in per-LOCAL-day shards, so the
+    // seed goes into today's shard — the legacy flat path is only read by the
+    // one-shot migration, which `bootDaemon` does not run.
+    const now = Date.now();
+    mkdirSync(join(tmpDir, 'usage'), { recursive: true });
+    const eventsPath = join(tmpDir, 'usage', usageShardName(usageDayKey(now)));
     writeFileSync(
       eventsPath,
       JSON.stringify({
         id: 'evt-1',
-        ts: Date.now(),
+        ts: now,
         messageId: null,
         parentMessageId: null,
         sessionId: null,

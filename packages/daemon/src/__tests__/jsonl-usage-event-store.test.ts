@@ -3,6 +3,12 @@
  * one-line append per insert, torn-line tolerance, endTs-exclusive ranges,
  * by-model grouping + injected unpriced lookup, by-api-key grouping with the
  * null (unattributed) group, session message rows + cache stats (0-guard).
+ *
+ * Rows live in per-LOCAL-day shards under `usage/`, so the assertions that touch
+ * bytes on disk go through `shardFor(ts)` rather than the constructor's legacy
+ * flat path. That indirection is load-bearing for the torn-line cases: appending
+ * junk to the old flat file would no longer be read by anything, and the test
+ * would pass without testing anything.
  */
 
 import { appendFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -13,6 +19,7 @@ import type { UsageEventInput } from '@omnicross/contracts/usage-stats-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { JsonlUsageEventStore } from '../ports/JsonlUsageEventStore';
+import { usageDayKey, usageShardName } from '../usage/usageFiles';
 
 let tmpDir: string;
 let eventsPath: string;
@@ -39,6 +46,10 @@ const event = (over: Partial<UsageEventInput> = {}): UsageEventInput => ({
   ...over,
 });
 
+/** The day shard a given event timestamp is appended to. */
+const shardFor = (ts: number): string =>
+  join(tmpDir, 'usage', usageShardName(usageDayKey(ts)));
+
 beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), 'omnicross-usage-store-'));
   eventsPath = join(tmpDir, 'usage-events.jsonl');
@@ -55,7 +66,7 @@ describe('JsonlUsageEventStore', () => {
     const id1 = await store.insert(event({ ts: 100 }));
     const id2 = await store.insert(event({ ts: 200 }));
     expect(id1).not.toBe(id2);
-    const lines = readFileSync(eventsPath, 'utf8').split('\n').filter((l) => l.trim());
+    const lines = readFileSync(shardFor(100), 'utf8').split('\n').filter((l) => l.trim());
     expect(lines).toHaveLength(2);
     expect((JSON.parse(lines[0]) as { id: string }).id).toBe(id1);
     expect((JSON.parse(lines[1]) as { ts: number }).ts).toBe(200);
@@ -64,7 +75,7 @@ describe('JsonlUsageEventStore', () => {
   it('stamps ts when absent', async () => {
     const before = Date.now();
     await store.insert(event());
-    const row = JSON.parse(readFileSync(eventsPath, 'utf8').trim()) as { ts: number };
+    const row = JSON.parse(readFileSync(shardFor(before), 'utf8').trim()) as { ts: number };
     expect(row.ts).toBeGreaterThanOrEqual(before);
   });
 
@@ -76,7 +87,7 @@ describe('JsonlUsageEventStore', () => {
 
   it('tolerates a torn/malformed final line', async () => {
     await store.insert(event({ ts: 100 }));
-    appendFileSync(eventsPath, '{"id":"torn","ts":1', 'utf8'); // torn write, no newline
+    appendFileSync(shardFor(100), '{"id":"torn","ts":1', 'utf8'); // torn write, no newline
     const totals = await store.getTotals({ startTs: 0, endTs: 1000 });
     expect(totals.eventCount).toBe(1);
     expect(totals.inputTokens).toBe(10);
@@ -87,14 +98,16 @@ describe('JsonlUsageEventStore', () => {
     // Valid JSON, but missing token/cost fields — without a full row guard
     // these would poison sums with NaN/undefined arithmetic.
     appendFileSync(
-      eventsPath,
+      shardFor(101),
       JSON.stringify({ id: 'partial', ts: 101, providerId: 'prov-a', model: 'model-x' }) + '\n',
       'utf8',
     );
     // Valid JSON, full shape, but a NON-NUMERIC cost field.
-    const goodRow = JSON.parse(readFileSync(eventsPath, 'utf8').split('\n')[0]) as Record<string, unknown>;
+    const goodRow = JSON.parse(
+      readFileSync(shardFor(100), 'utf8').split('\n')[0],
+    ) as Record<string, unknown>;
     appendFileSync(
-      eventsPath,
+      shardFor(102),
       JSON.stringify({ ...goodRow, id: 'bad-cost', ts: 102, costUsd: 'not-a-number' }) + '\n',
       'utf8',
     );
@@ -144,7 +157,7 @@ describe('JsonlUsageEventStore', () => {
 
   it('keeps historical rows without cache-key provenance readable', async () => {
     await store.insert(event({ ts: 1 }));
-    const persisted = JSON.parse(readFileSync(eventsPath, 'utf8').trim()) as Record<string, unknown>;
+    const persisted = JSON.parse(readFileSync(shardFor(1), 'utf8').trim()) as Record<string, unknown>;
     expect(persisted.cacheKeySource).toBeUndefined();
     expect(persisted.cacheKeyInjected).toBeUndefined();
     await expect(store.getTotals({ startTs: 0, endTs: 10 })).resolves.toMatchObject({
