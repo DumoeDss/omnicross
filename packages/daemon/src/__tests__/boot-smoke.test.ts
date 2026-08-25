@@ -26,6 +26,7 @@ import { join } from 'node:path';
 import { createNamedKey, loadServerConfig } from '@omnicross/core/outbound-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { usageDayKey, usageShardName } from '../usage/usageFiles';
 import { buildDaemon, type Daemon,resetDaemonSingletonsForTests } from '../bootstrap';
 import { loadConfig } from '../config';
 
@@ -269,15 +270,20 @@ describe('omnicross daemon boot smoke (standalone proof)', () => {
 // ── Usage/pricing serving-path wiring (usage-pricing child) ──────────────────
 
 describe('usage recorder serving-path wiring', () => {
-  it('boots with no pricing.json / usage-events.jsonl present (lazy creation)', () => {
+  /** The LOCAL-day shard a usage row recorded "now" is appended to. */
+  const todayShard = (): string =>
+    join(tmpDir, 'usage', usageShardName(usageDayKey(Date.now())));
+
+  it('boots with no pricing.json / usage store present (lazy creation)', () => {
     expect(existsSync(join(tmpDir, 'pricing.json'))).toBe(false);
     expect(existsSync(join(tmpDir, 'usage-events.jsonl'))).toBe(false);
+    expect(existsSync(join(tmpDir, 'usage'))).toBe(false);
     // The wired handles exist and the proxy deps slot carries the recorder.
     expect(daemon.usageRecorder).toBeDefined();
     expect(daemon.providerProxy.getDeps().usageRecorder).toBe(daemon.usageRecorder);
   });
 
-  it('a served chat request persists a COSTED usage-events.jsonl row', async () => {
+  it('a served chat request persists a COSTED usage day-shard row', async () => {
     // Price the mock model so the engine cost-stamps the event.
     await daemon.pricingEngine.upsertManual({
       providerId: 'mock',
@@ -294,7 +300,7 @@ describe('usage recorder serving-path wiring', () => {
     expect(res.status).toBe(200);
 
     // Recording is fire-and-forget (deferred) — poll briefly for the append.
-    const eventsPath = join(tmpDir, 'usage-events.jsonl');
+    const eventsPath = todayShard();
     let lines: string[] = [];
     for (let i = 0; i < 50; i++) {
       if (existsSync(eventsPath)) {
@@ -319,8 +325,9 @@ describe('usage recorder serving-path wiring', () => {
   });
 
   it('a usage-event append failure only warns (serving unaffected)', async () => {
-    // Make the append fail: occupy the events path with a DIRECTORY.
-    mkdirSync(join(tmpDir, 'usage-events.jsonl'));
+    // Make the append fail: occupy today's SHARD path with a DIRECTORY.
+    mkdirSync(join(tmpDir, 'usage'), { recursive: true });
+    mkdirSync(todayShard());
     const warnSpy = vi.spyOn(daemon.logger, 'warn');
 
     // Awaitable variant so the test can assert after the (failed) insert.

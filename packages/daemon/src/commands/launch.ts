@@ -188,6 +188,11 @@ export async function runLaunch(argv: string[], deps?: LaunchDeps): Promise<numb
   const daemon = buildDaemon(config, paths);
   try {
     await daemon.llmConfig.ready();
+    // Same one-shot usage migration the resident daemon runs, for the same
+    // reason: it must finish before the proxy listener accepts anything. The
+    // prune sweeper is deliberately NOT armed here — a short-lived boot has no
+    // business applying retention.
+    await daemon.migrateUsageStore();
     await daemon.providerProxy.start();
   } catch (err) {
     // start() failed mid-bind — still release the pool's cleanup interval
@@ -296,6 +301,7 @@ async function shutdownLaunchDaemon(daemon: Daemon): Promise<void> {
   daemon.accountHealthSweeper.dispose();
   daemon.accountHealthProbeScheduler.dispose();
   daemon.auditPruneSweeper.dispose();
+  daemon.usagePruneSweeper.dispose();
   daemon.billingRetrySweeper.dispose();
   daemon.pricingRefreshScheduler.dispose();
 }

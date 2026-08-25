@@ -26,6 +26,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
+import type { UsageRetentionConfig } from './usage/UsagePruneSweeper';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { OutboundApiServerConfig } from '@omnicross/core';
 
@@ -339,6 +340,12 @@ export interface DaemonConfig {
    * so it is never walked by `decryptConfigSecrets`/`encryptConfigSecrets`.
    */
   logging?: LoggingConfig;
+  /**
+   * Optional usage-retention config. Absent ⇒ the default 90-day window on RAW
+   * usage rows. Per-day ROLLUPS are never pruned regardless — they carry the
+   * lifetime per-key spend the outbound key policy seeds from.
+   */
+  usage?: UsageRetentionConfig;
 }
 
 /** Shape-guard the optional `admin` block — defensive, never throws on a
@@ -368,10 +375,22 @@ export function resolveAdminConfig(admin: DaemonAdminConfig | undefined): Resolv
 }
 
 /** Shape-guard the optional `logging` block (configurable-logging). Defensive:
- *  a non-object collapses to `undefined`; `level`/`format` are enum-or-omit and
- *  `file` is a non-empty-string-or-omit; an all-empty result collapses to
- *  `undefined` (reads as "no logging config" = the console/text/all-levels
- *  default, byte-identical to before). Never throws. NON-SECRET. */
+ *  a non-object collapses to `undefined`; `level`/`format` are enum-or-omit,
+ *  `file` is a non-empty-string-or-omit and the rotation knobs are
+ *  positive-finite-number-or-omit; an all-empty result collapses to `undefined`
+ *  (reads as "no logging config" — which `bootstrap.ts` then fills in with the
+ *  default on-disk sink). Never throws. NON-SECRET. */
+/** Shape-guard the optional `usage` block. `retentionDays` must be a positive
+ *  finite number (0 or negative reads as "keep raw rows forever"); anything else
+ *  collapses to `undefined` and the caller applies the default. Never throws. */
+function validateUsage(raw: unknown): UsageRetentionConfig | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const u = raw as Record<string, unknown>;
+  const days = u['retentionDays'];
+  if (typeof days !== 'number' || !Number.isFinite(days)) return undefined;
+  return { retentionDays: Math.max(0, Math.floor(days)) };
+}
+
 function validateLogging(raw: unknown): LoggingConfig | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const l = raw as Record<string, unknown>;
@@ -381,7 +400,13 @@ function validateLogging(raw: unknown): LoggingConfig | undefined {
   }
   if (l['format'] === 'text' || l['format'] === 'json') out.format = l['format'];
   if (typeof l['file'] === 'string' && l['file'].length > 0) out.file = l['file'];
-  return out.level !== undefined || out.format !== undefined || out.file !== undefined ? out : undefined;
+  if (typeof l['maxFileBytes'] === 'number' && Number.isFinite(l['maxFileBytes']) && l['maxFileBytes'] > 0) {
+    out.maxFileBytes = l['maxFileBytes'];
+  }
+  if (typeof l['maxFiles'] === 'number' && Number.isFinite(l['maxFiles']) && l['maxFiles'] > 0) {
+    out.maxFiles = Math.floor(l['maxFiles']);
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 const VALID_FORMATS: readonly DaemonApiFormat[] = [
@@ -767,6 +792,7 @@ export function validateConfig(raw: unknown): DaemonConfig {
   const server = obj['server'] as OutboundApiServerConfig | undefined;
   const admin = validateAdmin(obj['admin']);
   const logging = validateLogging(obj['logging']);
+  const usage = validateUsage(obj['usage']);
   return { providers, server, admin, logging };
 }
 

@@ -19,22 +19,44 @@
 // The daemon command is a `Vec<String>`: packaged builds run a BUNDLED private
 // node (`[bundled_node, entry]`) so the target machine needs no system Node.js;
 // dev builds and the env override use PATH `node` (`["node", entry]`).
+//
+// STDERR IS NOT OPTIONAL TO READ. The child's stderr is piped, and a piped
+// stream nobody reads is a deadlock waiting on the OS pipe buffer — see
+// `stderr_drain` for the full mechanism and the measurement. Every spawn path
+// here MUST hand the pipe to `stderr_drain::spawn_drain` immediately.
 
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::kill;
+use crate::stderr_drain::{self, StderrLog};
 
 const ADMIN_PORT: u16 = 8766;
 const PROBE_URL: &str = "http://127.0.0.1:8766/admin/api/status";
 const PROBE_TIMEOUT: Duration = Duration::from_millis(700);
-const WAIT_ATTEMPTS: u32 = 20;
+/// Attempts x WAIT_INTERVAL = the ceiling on "spawned but not answering yet".
+///
+/// This used to be 20 (5 seconds), which was fine when boot did nothing but bind
+/// a port. It is not fine now: the daemon folds a legacy flat `usage-events.jsonl`
+/// into day shards BEFORE binding anything, and that one-shot migration took
+/// ~17 s on a 157 MB file. At 5 s the app would tree-kill the daemon mid-
+/// migration, report a startup failure, and do the same thing on every relaunch —
+/// a permanent boot loop for exactly the users with the most history.
+///
+/// Waiting longer costs nothing for the common failure, because the loop returns
+/// IMMEDIATELY when the child exits (with its stderr tail as the reason). This
+/// ceiling only applies to a child that is alive and silent, which is precisely
+/// the case that deserves patience.
+const WAIT_ATTEMPTS: u32 = 480; // 2 minutes
 const WAIT_INTERVAL: Duration = Duration::from_millis(250);
+/// Grace for the drain thread to consume stderr still in flight when the child
+/// exits, so an early-exit reason is not reported as an empty tail.
+const STDERR_SETTLE: Duration = Duration::from_millis(150);
 
 /// Lifecycle state, serialized to the React shell as `{ state, reason?, port?, adopted? }`.
 #[derive(Clone, Serialize)]
@@ -73,6 +95,8 @@ struct RuntimeInner {
     /// True only when this app spawned the daemon (never kill an adopted one).
     spawned: bool,
     child: Option<Child>,
+    /// Drained stderr of the spawned child (None when adopted / not spawned).
+    stderr_log: Option<Arc<StderrLog>>,
 }
 
 impl DaemonRuntime {
@@ -82,6 +106,7 @@ impl DaemonRuntime {
                 status: DaemonStatus::new("probing"),
                 spawned: false,
                 child: None,
+                stderr_log: None,
             }),
         }
     }
@@ -106,6 +131,14 @@ impl DaemonRuntime {
         }
         guard.child = None;
         guard.spawned = false;
+        guard.stderr_log = None;
+    }
+
+    /// The tail of the spawned daemon's stderr, for surfacing a crash reason.
+    /// Empty when we adopted a daemon (its stderr belongs to whoever spawned it).
+    pub fn stderr_tail(&self, max_chars: usize) -> Option<String> {
+        let guard = self.inner.lock().expect("daemon runtime poisoned");
+        guard.stderr_log.as_ref().and_then(|log| log.tail(max_chars))
     }
 }
 
@@ -300,7 +333,9 @@ fn ensure_config(app: &AppHandle) -> Result<String, String> {
 
 /// Spawn `node <entry> start --config <cfg>` as a tracked child. Windows:
 /// CREATE_NO_WINDOW (no console pops up). Unix: own process group so kill-tree
-/// can signal the whole group. stderr is piped so a failed start yields a reason.
+/// can signal the whole group. stderr is piped so a failed start yields a reason
+/// — the caller MUST immediately start draining it (see `start_stderr_drain`),
+/// or the daemon deadlocks the moment the pipe buffer fills.
 fn spawn(cmd: &[String], config_path: &str) -> Result<Child, String> {
     let mut command = Command::new(&cmd[0]);
     command
@@ -329,19 +364,17 @@ fn spawn(cmd: &[String], config_path: &str) -> Result<Child, String> {
         .map_err(|e| format!("failed to spawn daemon ({}): {e}", cmd[0]))
 }
 
-/// Read a short tail of the child's stderr for a human failure reason.
-fn stderr_tail(child: &mut Child) -> Option<String> {
-    use std::io::Read;
-    let mut buf = String::new();
-    if let Some(mut err) = child.stderr.take() {
-        let _ = err.read_to_string(&mut buf);
-    }
-    let trimmed = buf.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.chars().rev().take(400).collect::<String>().chars().rev().collect())
-    }
+/// Take the child's stderr and start the drain thread that both keeps the pipe
+/// from filling and appends it to `<appDataDir>/logs/daemon-stderr.log`.
+fn start_stderr_drain(app: &AppHandle, child: &mut Child) -> Option<Arc<StderrLog>> {
+    let stderr = child.stderr.take()?;
+    let log_path = app
+        .path()
+        .app_data_dir()
+        .ok()?
+        .join("logs")
+        .join("daemon-stderr.log");
+    Some(stderr_drain::spawn_drain(stderr, log_path))
 }
 
 /// The adopt-or-spawn orchestration. Mutates the managed status as it goes.
@@ -427,11 +460,21 @@ pub fn adopt_or_spawn(app: AppHandle) {
         }
     };
 
+    // 4b. Start draining stderr IMMEDIATELY — before the wait loop, not after a
+    //     successful start. A daemon that logs heavily during boot could
+    //     otherwise fill the pipe and hang before it ever reaches the port.
+    let stderr_log = start_stderr_drain(&app, &mut child);
+
     // 5. wait_for_port: bounded re-probe; first success ⇒ running.
     for _ in 0..WAIT_ATTEMPTS {
-        // Child exited early ⇒ failed with its stderr tail.
+        // Child exited early ⇒ failed with its stderr tail. The drain thread
+        // owns the pipe now, so the reason comes out of its ring buffer; give it
+        // a moment to consume whatever was still in flight at exit.
         if let Ok(Some(exit)) = child.try_wait() {
-            let reason = stderr_tail(&mut child)
+            std::thread::sleep(STDERR_SETTLE);
+            let reason = stderr_log
+                .as_ref()
+                .and_then(|log| log.tail(400))
                 .unwrap_or_else(|| format!("daemon exited early ({exit})"));
             runtime.set_status(DaemonStatus::failed(reason));
             return;
@@ -441,6 +484,7 @@ pub fn adopt_or_spawn(app: AppHandle) {
             let mut guard = runtime.inner.lock().expect("daemon runtime poisoned");
             guard.child = Some(child);
             guard.spawned = true;
+            guard.stderr_log = stderr_log;
             guard.status = DaemonStatus::running(false);
             return;
         }
@@ -451,7 +495,10 @@ pub fn adopt_or_spawn(app: AppHandle) {
     kill::kill_tree(child.id());
     let _ = child.wait();
     runtime.set_status(DaemonStatus::failed(
-        "daemon did not become reachable on 127.0.0.1:8766 within the startup window".into(),
+        "daemon did not become reachable on 127.0.0.1:8766 within the startup window \
+         (2 minutes) - check logs/daemon.log and logs/daemon-stderr.log in the app data \
+         directory"
+            .into(),
     ));
 }
 
@@ -459,4 +506,11 @@ pub fn adopt_or_spawn(app: AppHandle) {
 #[tauri::command]
 pub fn daemon_status(runtime: tauri::State<'_, DaemonRuntime>) -> DaemonStatus {
     runtime.status()
+}
+
+/// Tauri command — the tail of the spawned daemon's stderr, for showing a crash
+/// reason in the shell. `None` when we adopted a daemon or it printed nothing.
+#[tauri::command]
+pub fn daemon_stderr_tail(runtime: tauri::State<'_, DaemonRuntime>) -> Option<String> {
+    runtime.stderr_tail(4_000)
 }

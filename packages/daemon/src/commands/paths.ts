@@ -58,6 +58,18 @@ export function defaultUsageEventsPath(configPath: string): string {
   return join(dirname(configPath), 'usage-events.jsonl');
 }
 
+/** Resolve the `logs/` directory that sits alongside a given config.json path.
+ *  Holds the daemon's own log sink plus the drained child stderr the desktop app
+ *  appends — the two halves of "what was this daemon doing when it died". */
+export function defaultLogDir(configPath: string): string {
+  return join(dirname(configPath), 'logs');
+}
+
+/** The daemon's default `logging.file` target inside {@link defaultLogDir}. */
+export function defaultDaemonLogPath(configPath: string): string {
+  return join(defaultLogDir(configPath), 'daemon.log');
+}
+
 /** Resolve the `audit/` directory (date-rotated audit jsonl files) that sits
  *  alongside a given config.json path (request-audit-log, design D4). */
 export function defaultAuditDir(configPath: string): string {

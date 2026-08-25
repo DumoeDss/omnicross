@@ -7,6 +7,7 @@
 
 mod daemon_runtime;
 mod kill;
+mod stderr_drain;
 mod ui_settings;
 mod update_manager;
 
@@ -15,7 +16,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
-use daemon_runtime::{adopt_or_spawn, daemon_status, DaemonRuntime};
+use daemon_runtime::{adopt_or_spawn, daemon_status, daemon_stderr_tail, DaemonRuntime};
 use ui_settings::{get_ui_settings, load_settings, set_ui_settings, setup_tray, UiSettingsState};
 use update_manager::{
     check_for_updates, download_update, install_update, new_desktop_manager, update_status,
@@ -89,6 +90,7 @@ pub fn run() {
         .manage(UiSettingsState::default())
         .invoke_handler(tauri::generate_handler![
             daemon_status,
+            daemon_stderr_tail,
             get_ui_settings,
             set_ui_settings,
             update_status,
