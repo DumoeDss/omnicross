@@ -72,8 +72,8 @@ export function ensureUpdateBridge(): Promise<void> {
         publish(payload);
       });
     } catch {
-      // A missing event API/permission leaves the updater quietly unavailable.
-      return;
+      // Live events are optional: the initial query and explicit commands can
+      // still keep the updater usable when event registration is unavailable.
     }
     try {
       const initial = await invoke<UpdateSnapshot>('update_status');

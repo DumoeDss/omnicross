@@ -16,6 +16,24 @@ const validate = (manifest) => validateUpdaterManifest({
 });
 
 describe('updater release contract', () => {
+  it('grants the main webview permission to subscribe to updater events', () => {
+    const capability = JSON.parse(readFileSync(join(
+      import.meta.dirname,
+      '..',
+      '..',
+      'apps',
+      'desktop',
+      'src-tauri',
+      'capabilities',
+      'daemon-http.json',
+    ), 'utf8'));
+    const permissions = capability.permissions.map((permission) => (
+      typeof permission === 'string' ? permission : permission.identifier
+    ));
+    assert.ok(permissions.includes('core:event:allow-listen'));
+    assert.ok(permissions.includes('core:event:allow-unlisten'));
+  });
+
   it('resolves a draft release target commit without assuming its tag already exists', () => {
     const workflow = readFileSync(join(import.meta.dirname, '..', '..', '.github', 'workflows', 'release.yml'), 'utf8');
     assert.match(workflow, /\.target_commitish/);

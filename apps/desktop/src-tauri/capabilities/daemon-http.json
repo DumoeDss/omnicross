@@ -4,6 +4,8 @@
   "description": "Allow the webview to call the local daemon admin API over loopback only.",
   "windows": ["main"],
   "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     {
       "identifier": "http:default",
       "allow": [

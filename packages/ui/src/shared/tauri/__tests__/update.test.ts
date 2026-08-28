@@ -80,10 +80,11 @@ describe('desktop update bridge', () => {
     expect(mocks.invoke).not.toHaveBeenCalled();
   });
 
-  it('quietly disables the bridge when native event registration is unavailable', async () => {
+  it('still loads the initial snapshot when native event registration is unavailable', async () => {
     mocks.listen.mockRejectedValueOnce(new Error('event permission unavailable'));
+    mocks.invoke.mockResolvedValueOnce(initial);
     await expect(ensureUpdateBridge()).resolves.toBeUndefined();
-    expect(getUpdateSnapshot()).toBeNull();
-    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.invoke).toHaveBeenCalledWith('update_status');
+    expect(getUpdateSnapshot()).toEqual(initial);
   });
 });
