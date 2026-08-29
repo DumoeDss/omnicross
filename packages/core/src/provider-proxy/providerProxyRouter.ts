@@ -23,6 +23,11 @@
 import type http from 'node:http';
 
 import {
+  classifyOpenAIOperation,
+  unsupportedOpenAIOperation,
+  writeOpenAIOperationError,
+} from '../openai-operation';
+import {
   handleAnthropicMessagesRequest,
   isAnthropicMessagesRequest,
 } from './ingress/anthropicMessagesIngress';
@@ -32,11 +37,9 @@ import {
 } from './ingress/geminiGenerateContentIngress';
 import {
   handleOpenAIChatRequest,
-  isOpenAIChatRequest,
 } from './ingress/openaiChatIngress';
 import {
   handleOpenAIResponsesRequest,
-  isOpenAIResponsesRequest,
 } from './ingress/openaiResponsesIngress';
 import { readBody, writeError } from './ingress/providerProxyShared';
 import type { ProviderProxyRouteMap } from './providerProxyRouteMap';
@@ -92,6 +95,26 @@ export async function routeRequest(
   // 2. Read body once, then dispatch by method+path to the matching parser.
   const method = req.method;
   const url = req.url;
+  const openAIOperation = classifyOpenAIOperation(method, url);
+
+  if (openAIOperation?.owner === 'extension') {
+    const registry = deps.openAIOperationRegistry;
+    if (!registry) {
+      writeOpenAIOperationError(res, unsupportedOpenAIOperation(openAIOperation));
+      return;
+    }
+    const handled = await registry.dispatch({
+      operation: openAIOperation,
+      request: req,
+      response: res,
+      route,
+      deps,
+    });
+    if (!handled) {
+      writeOpenAIOperationError(res, unsupportedOpenAIOperation(openAIOperation));
+    }
+    return;
+  }
 
   if (isAnthropicMessagesRequest(method, url)) {
     // Delegation path: the host's per-request handler reads the body
@@ -100,7 +123,7 @@ export async function routeRequest(
     return;
   }
 
-  if (isOpenAIResponsesRequest(method, url)) {
+  if (openAIOperation?.id === 'responses.create') {
     const rawBody = await readBody(req);
     // Preserve Codex's session-id compatibility headers for account-pool
     // affinity. The ingress treats this as metadata only and never forwards
@@ -109,7 +132,7 @@ export async function routeRequest(
     return;
   }
 
-  if (isOpenAIChatRequest(method, url)) {
+  if (openAIOperation?.id === 'chat.completions.create') {
     const rawBody = await readBody(req);
     await handleOpenAIChatRequest(res, rawBody, route, deps);
     return;
