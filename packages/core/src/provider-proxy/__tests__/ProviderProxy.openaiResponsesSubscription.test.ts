@@ -45,17 +45,29 @@ function startUnauthorizedUpstream(): Promise<{
   server: Server;
   url: string;
   receivedHeaders: IncomingHttpHeaders[];
+  receivedBodies: Array<Record<string, unknown>>;
 }> {
   const receivedHeaders: IncomingHttpHeaders[] = [];
+  const receivedBodies: Array<Record<string, unknown>> = [];
   const server = createServer((req, res) => {
     receivedHeaders.push(req.headers);
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'expired' }));
+    let rawBody = '';
+    req.on('data', (chunk) => { rawBody += chunk; });
+    req.on('end', () => {
+      receivedBodies.push(JSON.parse(rawBody) as Record<string, unknown>);
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'expired' }));
+    });
   });
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       const { port } = server.address() as AddressInfo;
-      resolve({ server, url: `http://127.0.0.1:${port}/responses`, receivedHeaders });
+      resolve({
+        server,
+        url: `http://127.0.0.1:${port}/responses`,
+        receivedHeaders,
+        receivedBodies,
+      });
     });
   });
 }
@@ -136,7 +148,7 @@ describe('ProviderProxy subscription Responses session affinity', () => {
   it('sends the same derived key to applyHeaders and 401 refresh, while distinct conversations differ', async () => {
     const appliedKeys: Array<string | undefined> = [];
     const unauthorizedKeys: Array<string | undefined> = [];
-    const { server, url, receivedHeaders } = await startUnauthorizedUpstream();
+    const { server, url, receivedHeaders, receivedBodies } = await startUnauthorizedUpstream();
     upstream = server;
 
     const authStrategy = {
@@ -163,6 +175,7 @@ describe('ProviderProxy subscription Responses session affinity', () => {
       authMode: 'subscription',
       subscriptionProfile: {
         authStrategy: authStrategy as never,
+        providerTransformerNames: ['openai-response'],
         resolveUpstreamUrl: () => url,
       },
     };
@@ -213,10 +226,7 @@ describe('ProviderProxy subscription Responses session affinity', () => {
     expect(expectedSessionKey).not.toBe(expectedCacheKey);
     expect(appliedKeys).not.toContain('codex-session-one');
     expect(unauthorizedKeys).not.toContain('second-conversation-cache-key');
-    const forwardedBodies = executeProviderCallMock.mock.calls.map(
-      ([context]) => context.request as Record<string, unknown>,
-    );
-    expect(forwardedBodies.map((body) => body.prompt_cache_key)).toEqual([
+    expect(receivedBodies.map((body) => body.prompt_cache_key)).toEqual([
       'must-not-win-over-session-id',
       'second-conversation-cache-key',
     ]);

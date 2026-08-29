@@ -105,6 +105,7 @@ export class OpenAIResponseTransformer implements Transformer {
     // guess. If a future public provider must honor max_output_tokens, add an
     // opt-out flag then.
     const input: Array<Record<string, unknown>> = [];
+    const codexTools = request.meta?.codexTools as ResponsesCodexToolState | undefined;
 
     for (const msg of request.messages) {
       if (msg.role === 'system') {
@@ -114,9 +115,12 @@ export class OpenAIResponseTransformer implements Transformer {
           content: [{ type: 'input_text', text: sysText }],
         });
       } else if (msg.role === 'tool') {
+        const callId = msg.tool_call_id;
         input.push({
-          type: 'function_call_output',
-          call_id: msg.tool_call_id,
+          type: codexTools?.customToolCallIds?.includes(callId ?? '')
+            ? 'custom_tool_call_output'
+            : 'function_call_output',
+          call_id: callId,
           output: typeof msg.content === 'string' ? msg.content : '',
         });
       } else {
@@ -131,22 +135,14 @@ export class OpenAIResponseTransformer implements Transformer {
           // Push the assistant text first, then each function_call
           input.push(entry);
           for (const tc of msg.tool_calls) {
-            // codex's function_call ITEM carries TWO ids: `id` (the item id,
-            // MUST begin with 'fc_') and `call_id` (the call handle a later
-            // function_call_output references). The unified tool_call only has
-            // the call_id, so synthesize an fc_ item id from it — codex
-            // correlates call↔output by `call_id`, never by the item id.
             const callId = tc.id;
-            const itemId = callId.startsWith('fc_')
-              ? callId
-              : `fc_${callId.replace(/^(call_|fc_)/, '')}`;
-            input.push({
-              type: 'function_call',
-              id: itemId,
-              call_id: callId,
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-            });
+            input.push(encodeToolCallItem(
+              callId,
+              tc.function.name,
+              tc.function.arguments,
+              'completed',
+              codexTools,
+            ));
           }
           continue;
         }
@@ -161,7 +157,7 @@ export class OpenAIResponseTransformer implements Transformer {
       // set to true" otherwise). Always force it; a non-streaming CLIENT is
       // served by aggregating the SSE upstream of the wire (the ingress buffers
       // it into a single message), not by asking codex for a non-streaming reply.
-      stream: true,
+      stream: context.responsesSourceFormat === this.name ? request.stream : true,
       // `store:false` is required by the codex backend and accepted by the
       // public Responses API (which defaults to store:true). Always set it so
       // codex relays (no discoverable url token) work without configuration.
@@ -170,6 +166,9 @@ export class OpenAIResponseTransformer implements Transformer {
       // it, and the public API falls back to its default when absent. If a
       // public provider ever needs it honored, gate that on an opt-out flag.
       ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+      ...(context.responsesSourceFormat === this.name && request.max_tokens !== undefined
+        ? { max_output_tokens: request.max_tokens }
+        : {}),
     };
 
     // Map reasoning config
@@ -182,17 +181,29 @@ export class OpenAIResponseTransformer implements Transformer {
       preserveNativeEffort: context.reasoningSourceFormat === this.name,
     });
     if (reasoningPlan?.kind === 'level' && reasoningPlan.enabled) {
-      body.reasoning = { effort: reasoningPlan.effort, summary: 'auto' };
+      body.reasoning = {
+        effort: reasoningPlan.effort,
+        summary: typeof context.responsesReasoningSummary === 'string'
+          ? context.responsesReasoningSummary
+          : 'auto',
+      };
     }
 
     // Map tools
     if (request.tools?.length) {
-      body.tools = request.tools.map((tool) => ({
-        type: 'function',
-        name: tool.function.name,
-        description: tool.function.description,
-        parameters: tool.function.parameters,
-      }));
+      body.tools = request.tools.map((tool) =>
+        codexTools?.customToolNames?.includes(tool.function.name)
+          ? {
+              type: 'custom',
+              name: tool.function.name,
+              description: tool.function.description,
+            }
+          : {
+              type: 'function',
+              name: tool.function.name,
+              description: tool.function.description,
+              parameters: tool.function.parameters,
+            });
     }
 
     // Map tool_choice
@@ -229,7 +240,11 @@ export class OpenAIResponseTransformer implements Transformer {
     const messages: UnifiedMessage[] = [];
     // codex ships its tool declarations inside an `additional_tools` INPUT item
     // rather than the top-level `tools` field; collected as we walk the input.
-    let codexTools: CodexToolDeclarations | null = null;
+    let codexTools = collectCodexTools({ tools: req.tools });
+    context.responsesSourceFormat = this.name;
+    if (typeof req.reasoning?.summary === 'string') {
+      context.responsesReasoningSummary = req.reasoning.summary;
+    }
 
     // The public Responses API carries the system prompt in `instructions`
     // (codex instead sends it as a `developer` message item). Dropping it lost
@@ -250,13 +265,14 @@ export class OpenAIResponseTransformer implements Transformer {
         // itself carries `role:'developer'` with no content and must not become
         // a message.
         if (itemType === 'additional_tools') {
-          codexTools = collectCodexTools(entry);
+          codexTools = mergeCodexTools(codexTools, collectCodexTools(entry));
           continue;
         }
 
         // A custom tool RESULT. Same array-vs-string `output` shape as
         // `function_call_output`, so it gets the same flattening.
         if (itemType === 'custom_tool_call_output') {
+          rememberCustomCall(codexTools, entry.call_id);
           messages.push({
             role: 'tool',
             content: flattenContent(entry.output),
@@ -270,6 +286,7 @@ export class OpenAIResponseTransformer implements Transformer {
         // `{input:…}` envelope declared by CUSTOM_TOOL_PARAMETERS. The response
         // encoder unwraps it again.
         if (itemType === 'custom_tool_call') {
+          rememberCustomCall(codexTools, entry.call_id ?? entry.id, entry.name);
           const toolCall = {
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
@@ -312,6 +329,7 @@ export class OpenAIResponseTransformer implements Transformer {
         // most-recent assistant message if it is the last pushed message (mirrors the
         // encode grouping); otherwise start a fresh assistant message.
         if (itemType === 'function_call') {
+          rememberToolNamespace(codexTools, entry.name, entry.namespace);
           const toolCall = {
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
@@ -369,21 +387,7 @@ export class OpenAIResponseTransformer implements Transformer {
     // Tools come from BOTH the standard top-level `tools` field and codex's
     // `additional_tools` input item; a client may use either.
     const tools: UnifiedTool[] = [];
-    if (req.tools?.length) {
-      tools.push(
-        ...req.tools
-          .filter((t) => t.type === 'function')
-          .map((t) => ({
-            type: 'function' as const,
-            function: {
-              name: (t.name as string) || '',
-              description: (t.description as string) || '',
-              parameters: (t.parameters || {}) as UnifiedTool['function']['parameters'],
-            },
-          }))
-      );
-    }
-    if (codexTools?.tools.length) {
+    if (codexTools.tools.length) {
       const declared = new Set(tools.map((t) => t.function.name));
       tools.push(...codexTools.tools.filter((t) => !declared.has(t.function.name)));
     }
@@ -391,17 +395,24 @@ export class OpenAIResponseTransformer implements Transformer {
 
     // Thread the custom-tool / namespace state to the response encoder. `meta`
     // is internal-only and never serialised into the outbound body.
-    if (codexTools?.customToolNames.length || Object.keys(codexTools?.toolNamespaces ?? {}).length) {
+    if (
+      codexTools.customToolNames.length ||
+      codexTools.customToolCallIds.length ||
+      Object.keys(codexTools.toolNamespaces).length
+    ) {
       result.meta = {
         ...result.meta,
         codexTools: {
-          ...(codexTools!.customToolNames.length
-            ? { customToolNames: codexTools!.customToolNames }
+          ...(codexTools.customToolNames.length
+            ? { customToolNames: codexTools.customToolNames }
             : {}),
-          ...(Object.keys(codexTools!.toolNamespaces).length
-            ? { toolNamespaces: codexTools!.toolNamespaces }
+          ...(codexTools.customToolCallIds.length
+            ? { customToolCallIds: codexTools.customToolCallIds }
             : {}),
-        },
+          ...(Object.keys(codexTools.toolNamespaces).length
+            ? { toolNamespaces: codexTools.toolNamespaces }
+            : {}),
+        } as ResponsesCodexToolState,
       };
     }
 
@@ -535,6 +546,9 @@ const CUSTOM_TOOL_PARAMETERS = {
 
 /** Request-scoped codex protocol state threaded from decode to encode. */
 type CodexToolState = UnifiedChatRequestMeta['codexTools'];
+type ResponsesCodexToolState = NonNullable<CodexToolState> & {
+  customToolCallIds?: string[];
+};
 
 /**
  * Unwrap a custom tool's free-form payload from the `{input:…}` JSON envelope
@@ -603,6 +617,8 @@ interface CodexToolDeclarations {
   tools: UnifiedTool[];
   /** Names declared `type:'custom'` — re-encoded as `custom_tool_call` on the way back. */
   customToolNames: string[];
+  /** Call handles whose request/output item must stay custom on re-encode. */
+  customToolCallIds: string[];
   /** Tool name → codex namespace, restored onto `function_call` items on the way back. */
   toolNamespaces: Record<string, string>;
 }
@@ -625,7 +641,12 @@ interface CodexToolDeclarations {
  * model could only ever answer in prose — codex's whole agent loop was dead.
  */
 function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclarations {
-  const result: CodexToolDeclarations = { tools: [], customToolNames: [], toolNamespaces: {} };
+  const result: CodexToolDeclarations = {
+    tools: [],
+    customToolNames: [],
+    customToolCallIds: [],
+    toolNamespaces: {},
+  };
 
   const visit = (declarations: unknown, namespace?: string): void => {
     if (!Array.isArray(declarations)) return;
@@ -670,6 +691,49 @@ function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclaration
 
   visit(entry.tools);
   return result;
+}
+
+function mergeCodexTools(
+  left: CodexToolDeclarations,
+  right: CodexToolDeclarations,
+): CodexToolDeclarations {
+  const tools = [...left.tools];
+  const names = new Set(tools.map((tool) => tool.function.name));
+  for (const tool of right.tools) {
+    if (!names.has(tool.function.name)) tools.push(tool);
+  }
+  return {
+    tools,
+    customToolNames: [...new Set([...left.customToolNames, ...right.customToolNames])],
+    customToolCallIds: [...new Set([...left.customToolCallIds, ...right.customToolCallIds])],
+    toolNamespaces: { ...left.toolNamespaces, ...right.toolNamespaces },
+  };
+}
+
+function rememberCustomCall(
+  state: CodexToolDeclarations,
+  rawCallId: unknown,
+  rawName?: unknown,
+): void {
+  if (typeof rawCallId === 'string' && rawCallId && !state.customToolCallIds.includes(rawCallId)) {
+    state.customToolCallIds.push(rawCallId);
+  }
+  if (typeof rawName === 'string' && rawName && !state.customToolNames.includes(rawName)) {
+    state.customToolNames.push(rawName);
+  }
+}
+
+function rememberToolNamespace(
+  state: CodexToolDeclarations,
+  rawName: unknown,
+  rawNamespace: unknown,
+): void {
+  if (
+    typeof rawName === 'string' && rawName &&
+    typeof rawNamespace === 'string' && rawNamespace
+  ) {
+    state.toolNamespaces[rawName] = rawNamespace;
+  }
 }
 
 /**

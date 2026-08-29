@@ -2,8 +2,8 @@
  * TransformerChainExecutor - Executes transformer chains for requests and responses
  *
  * Implements the transformer pipeline:
- * Request: transformRequestOut 鈫?Provider transformers 鈫?Model transformers 鈫?HTTP
- * Response: Model transformers (reverse) 鈫?Provider transformers (reverse) 鈫?transformResponseIn
+ * Request: transformRequestOut → Provider transformers → Model transformers → HTTP
+ * Response: Model transformers (reverse) → Provider transformers (reverse) → transformResponseIn
  *
  * @module transformer/TransformerChainExecutor
  */
@@ -93,6 +93,7 @@ export class TransformerChainExecutor {
     };
 
     let requestBody = request;
+    let endpointRequest: UnifiedChatRequest | undefined;
     let config: RequestConfig = {};
     let bypass = false;
 
@@ -129,6 +130,7 @@ export class TransformerChainExecutor {
         this.logger.error(`transformRequestOut error: ${this.getErrorMessage(error)}`);
         throw error;
       }
+      endpointRequest = requestBody as UnifiedChatRequest;
     }
 
     // Step 2: Execute provider-level transformers (transformRequestIn)
@@ -198,7 +200,7 @@ export class TransformerChainExecutor {
       );
     }
 
-    return { requestBody, config, bypass };
+    return { requestBody, endpointRequest, config, bypass };
   }
 
   /**

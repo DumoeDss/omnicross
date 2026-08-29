@@ -24,6 +24,7 @@ import type http from 'node:http';
 
 import {
   classifyOpenAIOperation,
+  OpenAIOperationError,
   unsupportedOpenAIOperation,
   writeOpenAIOperationError,
 } from '../openai-operation';
@@ -42,6 +43,10 @@ import {
   handleOpenAIResponsesRequest,
 } from './ingress/openaiResponsesIngress';
 import { readBody, writeError } from './ingress/providerProxyShared';
+import {
+  createResponsesAbortScope,
+  ResponsesRequestTimeoutError,
+} from './responses/responsesAbort';
 import type { ProviderProxyRouteMap } from './providerProxyRouteMap';
 import type { ProviderProxyDeps } from './types';
 
@@ -124,11 +129,27 @@ export async function routeRequest(
   }
 
   if (openAIOperation?.id === 'responses.create') {
-    const rawBody = await readBody(req);
-    // Preserve Codex's session-id compatibility headers for account-pool
-    // affinity. The ingress treats this as metadata only and never forwards
-    // the headers as credentials.
-    await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers);
+    const abortScope = createResponsesAbortScope({ request: req, response: res });
+    try {
+      const rawBody = await readBody(req, abortScope.signal);
+      // Preserve Codex's session-id compatibility headers for account-pool
+      // affinity. The ingress treats this as metadata only and never forwards
+      // the headers as credentials.
+      await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers, abortScope.signal);
+    } catch (error) {
+      if (abortScope.signal.reason instanceof ResponsesRequestTimeoutError) {
+        writeOpenAIOperationError(res, new OpenAIOperationError({
+          status: 504,
+          code: 'request_timeout',
+          message: 'Responses request timed out',
+          retryable: true,
+        }));
+      } else if (!abortScope.signal.aborted) {
+        throw error;
+      }
+    } finally {
+      abortScope.dispose();
+    }
     return;
   }
 

@@ -785,6 +785,13 @@ function makeReplayRequest(
   readable.url = req.url;
   readable.headers = req.headers;
   readable.httpVersion = req.httpVersion;
+  // The original request reached `end` before this replay was constructed, so
+  // its buffered body is truthfully complete. `Readable.from()` has no
+  // IncomingMessage completion metadata of its own; without this marker the
+  // operation registry interprets the replay's normal auto-destroy `close` as
+  // a client disconnect and aborts still-pending compact upstream work.
+  readable.complete = true;
+  readable.aborted = false;
   // The socket is referenced by some downstream loggers; reuse the live one.
   (readable as unknown as { socket: unknown }).socket = req.socket;
   return readable;
