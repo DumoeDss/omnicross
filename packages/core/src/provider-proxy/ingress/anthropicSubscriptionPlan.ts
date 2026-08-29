@@ -76,6 +76,14 @@ export interface AnthropicByoOptions {
    *  onto the outbound request on the same-format fast path (LEAD OQ1). */
   readonly callerAnthropicBeta?: string | null;
   /**
+   * The caller's request-side `anthropic-version` header value, forwarded
+   * VERBATIM onto the outbound request on the BYO same-format fast path
+   * (claude-api-protocol-fidelity, R5 — official gateway protocol: the version
+   * header is forwarded as-is). Absent ⇒ the official default `2023-06-01`
+   * (see `runSameFormatFetch`).
+   */
+  readonly callerAnthropicVersion?: string | null;
+  /**
    * The caller's WHITELISTED client-fingerprint headers (x-stainless-* / UA /
    * anthropic-beta / x-app / CC headers — NEVER auth/cookie), extracted at the
    * ingress (subscription-client-fingerprint #7). Consumed ONLY on the claude

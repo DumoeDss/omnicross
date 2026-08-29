@@ -4,6 +4,16 @@
  *
  * Internal helper of `./AnthropicConversion`; do not import the facade here.
  *
+ * BETA HEADER NOTE (claude-api-protocol-fidelity, R5 — explicit declaration):
+ * the TRANSLATION path (unified → target wire, this builder and its callers)
+ * does NOT forward the caller's `anthropic-beta` header. Cross-wire the beta
+ * flags have no meaning the target can act on, and the capabilities they gate
+ * (context_management, files, etc.) do not exist on the translated wire —
+ * corresponding request fields the upstream rejects come back as explicit
+ * errors rather than being silently downgraded. Only the SAME-FORMAT
+ * (Anthropic→Anthropic verbatim) path forwards/merges beta flags; see
+ * `runSameFormatFetch` / `buildAnthropicBeta`.
+ *
  * @module transformer/transformers/AnthropicRequestBuilder
  */
 

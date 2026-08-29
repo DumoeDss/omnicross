@@ -104,14 +104,20 @@ export async function handleAnthropicMessagesRequest(
   if (pathClass === 'count_tokens') {
     // Same request-side header extraction as the BYO branch below (the
     // subscription relay consumes callerAnthropicBeta / identity / client
-    // headers; the BYO count_tokens fetch consumes callerAnthropicBeta).
+    // headers; the BYO count_tokens fetch consumes callerAnthropicBeta and
+    // callerAnthropicVersion).
     const rawBody = await readBody(req);
     const callerBetaRaw = req.headers['anthropic-beta'];
     const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+    const callerVersionRaw = req.headers['anthropic-version'];
+    const callerAnthropicVersion = Array.isArray(callerVersionRaw)
+      ? callerVersionRaw.join(',')
+      : callerVersionRaw;
     const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
     const callerClientHeaders = extractClaudeClientHeaders(req.headers);
     await handleAnthropicCountTokens(res, rawBody, route, deps, {
       callerAnthropicBeta,
+      callerAnthropicVersion,
       callerIdentity,
       callerClientHeaders,
     });
@@ -128,10 +134,15 @@ export async function handleAnthropicMessagesRequest(
   if (!handlerFactory) {
     // Read the body HERE (the delegation path keeps passing the un-pre-read
     // `req`; only this fallthrough consumes the stream). Forward the caller's
-    // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1).
+    // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1)
+    // and `anthropic-version` verbatim (claude-api-protocol-fidelity, R5).
     const rawBody = await readBody(req);
     const callerBetaRaw = req.headers['anthropic-beta'];
     const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+    const callerVersionRaw = req.headers['anthropic-version'];
+    const callerAnthropicVersion = Array.isArray(callerVersionRaw)
+      ? callerVersionRaw.join(',')
+      : callerVersionRaw;
     // subscription-client-fingerprint #7: capture the caller's WHITELISTED
     // fingerprint headers here (the same seam that already reads `anthropic-beta`)
     // and thread them to the relay. Auth/cookie are never captured (the whitelist
@@ -147,6 +158,7 @@ export async function handleAnthropicMessagesRequest(
     const callerClientHeaders = extractClaudeClientHeaders(req.headers);
     await handleAnthropicMessagesByo(res, rawBody, route, deps, {
       callerAnthropicBeta,
+      callerAnthropicVersion,
       callerIdentity,
       callerClientHeaders,
     });

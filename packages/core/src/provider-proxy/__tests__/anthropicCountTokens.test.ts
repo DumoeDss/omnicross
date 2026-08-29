@@ -36,6 +36,11 @@ import { GeminiTransformer } from '../../transformer/transformers/GeminiTransfor
 import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
+import {
+  type CountTokensMode,
+  type CountTokensResolvedStrategy,
+  resolveCountTokensStrategy,
+} from '../ingress/anthropicCountTokens';
 import type {
   ProviderProxyDeps,
   RouteContext,
@@ -74,6 +79,7 @@ interface MockUpstream {
   lastBody: string | undefined;
   lastAuthHeader: string | undefined;
   lastApiKeyHeader: string | undefined;
+  lastVersionHeader: string | undefined;
   /** When set, count_tokens hits reply with this status + body. */
   countTokensFailure: { status: number; body: string } | undefined;
   /** When set, generation (`/v1/messages` exact) hits reply with this. */
@@ -89,6 +95,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     lastBody: undefined,
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
+    lastVersionHeader: undefined,
     countTokensFailure: undefined,
     messagesFailure: undefined,
   };
@@ -101,6 +108,7 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.lastBody = body;
       state.lastAuthHeader = req.headers['authorization'] as string | undefined;
       state.lastApiKeyHeader = req.headers['x-api-key'] as string | undefined;
+      state.lastVersionHeader = req.headers['anthropic-version'] as string | undefined;
       const url = req.url ?? '';
       if (url.endsWith('/count_tokens')) {
         const fail = state.countTokensFailure;
@@ -321,21 +329,146 @@ describe('Anthropic /v1/messages/count_tokens + resident routing/errors', () => 
     expect(upstream.hits).toBe(0);
   });
 
-  // ── reject ────────────────────────────────────────────────────────────────
+  // ── estimate (Change B default for translation upstreams) ────────────────
 
-  it('translation upstream (auto) → 404 not_found_error, zero upstream calls', async () => {
+  it('translation upstream (auto) → LOCAL estimate 200, marker header, zero upstream calls, zero usage', async () => {
     await startProxy();
     const token = proxy.addRoute(
       byoRoute({ providerId: 'openai-prov', targetProviderFormat: 'transform' }),
     );
+    const small = await post(
+      '/v1/messages/count_tokens',
+      token,
+      countTokensBody({ messages: [{ role: 'user', content: 'short one' }] }),
+    );
+    const big = await post(
+      '/v1/messages/count_tokens',
+      token,
+      countTokensBody({ messages: [{ role: 'user', content: 'a'.repeat(5000) }] }),
+    );
+
+    expect(small.status).toBe(200);
+    expect(big.status).toBe(200);
+    expect(small.headers.get('x-omnicross-count-estimate')).toBe('true');
+    expect(big.headers.get('x-omnicross-count-estimate')).toBe('true');
+    const smallJson = (await small.json()) as { input_tokens: number };
+    const bigJson = (await big.json()) as { input_tokens: number };
+    expect(smallJson.input_tokens).toBeGreaterThan(0);
+    expect(bigJson.input_tokens).toBeGreaterThan(smallJson.input_tokens);
+    expect(upstream.hits).toBe(0);
+    expect(usageEvents).toHaveLength(0);
+  });
+
+  it("explicit mode 'estimate' on a wire upstream → still local estimate, zero upstream calls", async () => {
+    await startProxy();
+    const token = proxy.addRoute(byoRoute({ anthropicCountTokensMode: 'estimate' }));
     const res = await post('/v1/messages/count_tokens', token, countTokensBody());
 
-    expect(res.status).toBe(404);
-    const json = (await res.json()) as { type: string; error: { type: string } };
-    expect(json.type).toBe('error');
-    expect(json.error.type).toBe('not_found_error');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-omnicross-count-estimate')).toBe('true');
+    const json = (await res.json()) as { input_tokens: number };
+    expect(json.input_tokens).toBeGreaterThan(0);
+    expect(upstream.hits).toBe(0);
+    expect(usageEvents).toHaveLength(0);
+  });
+
+  it("explicit mode 'estimate' short-circuits before plan building (no provider row needed)", async () => {
+    await startProxy();
+    const token = proxy.addRoute(
+      byoRoute({ providerId: undefined, anthropicCountTokensMode: 'estimate' }),
+    );
+    const res = await post('/v1/messages/count_tokens', token, countTokensBody());
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-omnicross-count-estimate')).toBe('true');
     expect(upstream.hits).toBe(0);
   });
+
+  it('estimate honors the route-stamped estimateBudgetMs (degrades, never fails)', async () => {
+    await startProxy();
+    const messages = Array.from({ length: 5000 }, () => ({ role: 'user', content: 'x'.repeat(1000) }));
+    const token = proxy.addRoute(
+      byoRoute({
+        providerId: 'openai-prov',
+        targetProviderFormat: 'transform',
+        anthropicCountTokensEstimateBudgetMs: 1,
+      }),
+    );
+    const res = await post('/v1/messages/count_tokens', token, countTokensBody({ messages }));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { input_tokens: number };
+    expect(json.input_tokens).toBeGreaterThan(0);
+    expect(upstream.hits).toBe(0);
+  });
+
+  it('subscription pass-through keeps the version behavior (caller forwarded, default 2023-06-01)', async () => {
+    const profile = claudeProfile(`http://127.0.0.1:${upstream.port}/v1/messages`);
+    const route = {
+      sessionId: 'sess-sub-v',
+      targetProviderFormat: 'transform' as const,
+      model: 'claude-sonnet-4-5',
+      ingressFormat: 'anthropic-messages' as const,
+      authMode: 'subscription' as const,
+      providerId: 'claude',
+      subscriptionProfile: profile,
+    };
+    await startProxy();
+    const token = proxy.addRoute(route);
+
+    // Caller's own version (in the forwardable client headers) passes through.
+    const withVersion = await fetch(`${baseUrl}/v1/messages/count_tokens`, {
+      method: 'POST',
+      headers: { ...bearer(token), 'anthropic-version': '2024-10-22' },
+      body: countTokensBody(),
+    });
+    expect(withVersion.status).toBe(200);
+    expect(upstream.lastVersionHeader).toBe('2024-10-22');
+
+    await post('/v1/messages/count_tokens', token, countTokensBody());
+    expect(upstream.lastVersionHeader).toBe('2023-06-01');
+  });
+
+  it('subscription translation profile (auto) → estimate 200, zero upstream calls', async () => {
+    await startProxy();
+    const profile: SubscriptionDispatchProfile = {
+      providerId: 'opencodego',
+      displayName: 'OpenCodeGo',
+      authStrategy: {
+        kind: 'static-bearer',
+        providerId: 'opencodego',
+        async applyHeaders(headers) {
+          headers['Authorization'] = 'Bearer oc-key';
+        },
+        async onUnauthorized() {
+          return false;
+        },
+        async describeStatus() {
+          return { providerId: 'opencodego', ok: true };
+        },
+      },
+      mode: 'transformer',
+      // Zen-responses shape: NOT a `/v1/messages` terminal → non-wire.
+      resolveUpstreamUrl: () => `http://127.0.0.1:${upstream.port}/v1/responses`,
+      providerTransformerNames: ['openai-response'],
+    };
+    const token = proxy.addRoute({
+      sessionId: 'sess-sub2',
+      targetProviderFormat: 'transform',
+      model: 'qwen3.7-max',
+      ingressFormat: 'anthropic-messages',
+      authMode: 'subscription',
+      providerId: 'opencodego',
+      subscriptionProfile: profile,
+    });
+    const res = await post('/v1/messages/count_tokens', token, countTokensBody());
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-omnicross-count-estimate')).toBe('true');
+    expect((await res.json() as { input_tokens: number }).input_tokens).toBeGreaterThan(0);
+    expect(upstream.hits).toBe(0);
+  });
+
+  // ── reject ────────────────────────────────────────────────────────────────
 
   it("explicit mode 'reject' on a wire upstream → 404, zero upstream calls", async () => {
     await startProxy();
@@ -398,46 +531,6 @@ describe('Anthropic /v1/messages/count_tokens + resident routing/errors', () => 
     expect(usageEvents).toHaveLength(0);
   });
 
-  it('subscription translation profile (non-wire upstream) → reject 404, zero calls', async () => {
-    await startProxy();
-    const profile: SubscriptionDispatchProfile = {
-      providerId: 'opencodego',
-      displayName: 'OpenCodeGo',
-      authStrategy: {
-        kind: 'static-bearer',
-        providerId: 'opencodego',
-        async applyHeaders(headers) {
-          headers['Authorization'] = 'Bearer oc-key';
-        },
-        async onUnauthorized() {
-          return false;
-        },
-        async describeStatus() {
-          return { providerId: 'opencodego', ok: true };
-        },
-      },
-      mode: 'transformer',
-      // Zen-responses shape: NOT a `/v1/messages` terminal → non-wire.
-      resolveUpstreamUrl: () => `http://127.0.0.1:${upstream.port}/v1/responses`,
-      providerTransformerNames: ['openai-response'],
-    };
-    const token = proxy.addRoute({
-      sessionId: 'sess-sub2',
-      targetProviderFormat: 'transform',
-      model: 'qwen3.7-max',
-      ingressFormat: 'anthropic-messages',
-      authMode: 'subscription',
-      providerId: 'opencodego',
-      subscriptionProfile: profile,
-    });
-    const res = await post('/v1/messages/count_tokens', token, countTokensBody());
-
-    expect(res.status).toBe(404);
-    const json = (await res.json()) as { error: { type: string } };
-    expect(json.error.type).toBe('not_found_error');
-    expect(upstream.hits).toBe(0);
-  });
-
   // ── resident-face routing + local errors ──────────────────────────────────
 
   it('unsupported subpath /v1/messages/batches → 404 not_found_error, zero upstream calls', async () => {
@@ -480,6 +573,69 @@ describe('Anthropic /v1/messages/count_tokens + resident routing/errors', () => 
     expect(json.error.type).toBe('provider_proxy_error');
   });
 
+  // ── anthropic-version fidelity on the BYO same-format path (R5) ──────────
+
+  it('generation path forwards the caller anthropic-version verbatim; absent → official default', async () => {
+    await startProxy();
+    const token = proxy.addRoute(byoRoute());
+
+    const withVersion = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: { ...bearer(token), 'anthropic-version': '2099-12-31' },
+      body: countTokensBody(),
+    });
+    expect(withVersion.status).toBe(200);
+    expect(upstream.lastVersionHeader).toBe('2099-12-31');
+
+    await post('/v1/messages', token, countTokensBody());
+    expect(upstream.lastVersionHeader).toBe('2023-06-01');
+  });
+
+  it('count_tokens passthrough shares the same version fidelity', async () => {
+    await startProxy();
+    const token = proxy.addRoute(byoRoute());
+    const res = await fetch(`${baseUrl}/v1/messages/count_tokens`, {
+      method: 'POST',
+      headers: { ...bearer(token), 'anthropic-version': '2023-06-01' },
+      body: countTokensBody(),
+    });
+    expect(res.status).toBe(200);
+    expect(upstream.paths[0]).toBe('/v1/messages/count_tokens');
+    expect(upstream.lastVersionHeader).toBe('2023-06-01');
+  });
+
+  it('same-format stream relay forwards an upstream ping frame byte-identically (zero injection)', async () => {
+    // The same-format relay pipes upstream SSE verbatim — synthetic frames are
+    // structurally impossible (the converter only runs on the translation path).
+    const sseServer = createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write('event: ping\ndata: {"type":"ping"}\n\n');
+      res.write(
+        `event: message_start\ndata: ${JSON.stringify({
+          type: 'message_start',
+          message: { id: 'm1', model: 'mock-model', usage: { input_tokens: 1 } },
+        })}\n\n`,
+      );
+      res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+    });
+    await new Promise<void>((resolve) => sseServer.listen(0, '127.0.0.1', resolve));
+    const ssePort = (sseServer.address() as AddressInfo).port;
+    const llmConfig = makeLlmConfig(`http://127.0.0.1:${ssePort}`);
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    const token = proxy.addRoute(byoRoute());
+    const res = await fetch(`http://127.0.0.1:${port}/v1/messages`, {
+      method: 'POST',
+      headers: { ...bearer(token) },
+      body: JSON.stringify({ model: 'mock-model', stream: true, max_tokens: 8, messages: [{ role: 'user', content: 'hi' }] }),
+    });
+    const text = await res.text();
+    expect(text.startsWith('event: ping\ndata: {"type":"ping"}')).toBe(true);
+    expect(text).toContain('message_start');
+    await proxy.stop();
+    await new Promise<void>((resolve) => sseServer.close(() => resolve()));
+  });
+
   // ── generation-path moat pins ─────────────────────────────────────────────
 
   it('upstream 400 on generation /v1/messages relays verbatim (moat pin)', async () => {
@@ -501,5 +657,38 @@ describe('Anthropic /v1/messages/count_tokens + resident routing/errors', () => 
     expect(upstream.paths).toEqual(['/v1/messages']);
     const json = (await res.json()) as { type: string };
     expect(json.type).toBe('message');
+  });
+});
+
+// ── Strategy resolution matrix (Change B: estimate + auto assembly) ─────────
+
+describe('resolveCountTokensStrategy (matrix)', () => {
+  it.each<[CountTokensMode | undefined, boolean, CountTokensResolvedStrategy]>([
+    // auto: wire → passthrough, non-wire → estimate (the B behavior change).
+    [undefined, true, 'passthrough'],
+    [undefined, false, 'estimate'],
+    ['auto', true, 'passthrough'],
+    ['auto', false, 'estimate'],
+    // Explicit estimate wins over wire (local estimation needs no upstream).
+    ['estimate', true, 'estimate'],
+    ['estimate', false, 'estimate'],
+    // Explicit reject is absolute.
+    ['reject', true, 'reject'],
+    ['reject', false, 'reject'],
+    // passthrough: wire → passthrough; non-wire → degrade to reject (+warn).
+    ['passthrough', true, 'passthrough'],
+    ['passthrough', false, 'reject'],
+  ])('mode=%s wire=%s → %s', (mode, wire, expected) => {
+    expect(resolveCountTokensStrategy(mode, wire)).toBe(expected);
+  });
+
+  it('passthrough-on-non-wire degradation logs a warning', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(resolveCountTokensStrategy('passthrough', false)).toBe('reject');
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('degrading to reject'));
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

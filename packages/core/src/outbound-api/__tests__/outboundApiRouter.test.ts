@@ -285,7 +285,11 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/models', method: 'GET' });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+    // claude-api-protocol-fidelity: an unrestricted key defaults to the
+    // Anthropic shape now — force OpenAI to keep testing the OpenAI writer
+    // (its default-shape behavior is covered in outboundAnthropicModels.test).
+    const openaiConfig = { ...config, anthropic: { modelsShape: 'openai' as const } };
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, openaiConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { object: string; data: Array<{ id: string; object: string }> };
     expect(body.object).toBe('list');
@@ -300,6 +304,8 @@ describe('handleOutboundRequest — auth', () => {
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
     const mappedConfig = {
       endpoints: [],
+      // Force the OpenAI writer (unrestricted keys default to Anthropic shape now).
+      anthropic: { modelsShape: 'openai' as const },
       bindings: [{
         id: 'responses-mapped',
         name: 'Responses mapped',
@@ -337,6 +343,8 @@ describe('handleOutboundRequest — auth', () => {
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
     const passthroughConfig = {
       endpoints: [],
+      // Force the OpenAI writer (unrestricted keys default to Anthropic shape now).
+      anthropic: { modelsShape: 'openai' as const },
       bindings: [{
         id: 'chat-passthrough',
         name: 'Chat passthrough',
@@ -369,6 +377,8 @@ describe('handleOutboundRequest — auth', () => {
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
     const passthroughConfig = {
       endpoints: [],
+      // Force the OpenAI writer (unrestricted keys default to Anthropic shape now).
+      anthropic: { modelsShape: 'openai' as const },
       bindings: [{
         id: 'responses-subscription-passthrough',
         name: 'Responses subscription passthrough',

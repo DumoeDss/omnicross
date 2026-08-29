@@ -34,6 +34,9 @@ import type {
   AccountHealthConfig,
   AccountProbeConfig,
   AllowanceSchedulingConfig,
+  AnthropicConfigSegment,
+  AnthropicCountTokensMode,
+  AnthropicModelsShape,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   FingerprintConfig,
@@ -255,6 +258,51 @@ export function normalizeVoucher(
   raw: Partial<OutboundApiServerConfig> | undefined | null,
 ): VoucherConfig {
   return { enabled: raw?.voucher?.enabled === true };
+}
+
+/** Frozen defaults for the Anthropic-protocol segment (§10 skeleton). */
+export const DEFAULT_ANTHROPIC_SEGMENT: AnthropicConfigSegment = {
+  countTokens: { mode: 'auto', estimateBudgetMs: 2000 },
+  modelsShape: 'auto',
+  heartbeatIntervalMs: 20_000,
+};
+
+const COUNT_TOKENS_MODES: readonly string[] = ['auto', 'passthrough', 'estimate', 'reject'];
+const MODELS_SHAPES: readonly string[] = ['auto', 'anthropic', 'openai'];
+
+/**
+ * Fill + clamp the Anthropic-protocol segment to the frozen defaults
+ * (claude-api-protocol-fidelity, §10). Lenient like the other segment
+ * normalizers: unknown enum values fall back to the default, numbers clamp.
+ * `estimateBudgetMs` clamps to 100..60000; `heartbeatIntervalMs` clamps to
+ * 0..600000 (≤0 = heartbeat off). Never throws.
+ */
+export function normalizeAnthropicSegment(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): AnthropicConfigSegment {
+  const a = raw?.anthropic;
+  return {
+    countTokens: {
+      mode: COUNT_TOKENS_MODES.includes(String(a?.countTokens?.mode))
+        ? (a?.countTokens?.mode as AnthropicCountTokensMode)
+        : DEFAULT_ANTHROPIC_SEGMENT.countTokens!.mode,
+      estimateBudgetMs: clampNumber(
+        a?.countTokens?.estimateBudgetMs,
+        100,
+        60_000,
+        DEFAULT_ANTHROPIC_SEGMENT.countTokens!.estimateBudgetMs!,
+      ),
+    },
+    modelsShape: MODELS_SHAPES.includes(String(a?.modelsShape))
+      ? (a?.modelsShape as AnthropicModelsShape)
+      : DEFAULT_ANTHROPIC_SEGMENT.modelsShape,
+    heartbeatIntervalMs: clampNumber(
+      a?.heartbeatIntervalMs,
+      0,
+      600_000,
+      DEFAULT_ANTHROPIC_SEGMENT.heartbeatIntervalMs!,
+    ),
+  };
 }
 
 /** Valid structured proxy types. */
@@ -811,6 +859,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     billing: normalizeBilling(undefined),
     fingerprint: normalizeFingerprint(undefined),
     voucher: normalizeVoucher(undefined),
+    anthropic: normalizeAnthropicSegment(undefined),
   };
 }
 
@@ -855,6 +904,7 @@ export function normalizeServerConfig(
     billing: normalizeBilling(raw),
     fingerprint: normalizeFingerprint(raw),
     voucher: normalizeVoucher(raw),
+    anthropic: normalizeAnthropicSegment(raw),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -913,5 +963,8 @@ export function mergeServerConfig(
     // Voucher is always-filled (normalizeVoucher synthesizes a default); a PUT
     // carrying it replaces the segment, else the current one is kept.
     voucher: patch.voucher ?? current.voucher,
+    // Anthropic segment is always-filled (normalizeAnthropicSegment synthesizes
+    // defaults); a PUT carrying it replaces the segment, else kept.
+    anthropic: patch.anthropic ?? current.anthropic,
   });
 }

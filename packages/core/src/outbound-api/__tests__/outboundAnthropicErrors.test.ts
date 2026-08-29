@@ -440,7 +440,9 @@ describe('outbound face — count_tokens concurrency-gate bypass', () => {
     (deps as { providerProxy: { getRouteMap: () => ProviderProxyRouteMap } }).providerProxy = {
       getRouteMap: () => routeMap,
     };
-    let captured: { anthropicCountTokensMode?: string } | undefined;
+    let captured:
+      | { anthropicCountTokensMode?: string; anthropicCountTokensEstimateBudgetMs?: number }
+      | undefined;
     h.dispatch = async (req: unknown, res: unknown) => {
       const headers = (req as { headers: Record<string, string> }).headers;
       const token = /^Bearer\s+(.+)$/i.exec(headers['authorization'] ?? '')?.[1];
@@ -460,14 +462,16 @@ describe('outbound face — count_tokens concurrency-gate bypass', () => {
       deps,
       {
         ...CONFIG,
-        anthropicCountTokens: { mode: 'reject' },
+        anthropic: { countTokens: { mode: 'reject', estimateBudgetMs: 500 } },
       },
       new OutboundRateLimiter(),
       new UserMessageSerialQueue(),
       new OutboundConcurrencyGate(),
     );
     expect(res.statusCode).toBe(200);
-    // The minted route carries the configured mode (undefined would mean 'auto').
+    // The minted route carries the configured mode + budget (undefined would
+    // mean 'auto' / the estimator default).
     expect(captured?.anthropicCountTokensMode).toBe('reject');
+    expect(captured?.anthropicCountTokensEstimateBudgetMs).toBe(500);
   });
 });

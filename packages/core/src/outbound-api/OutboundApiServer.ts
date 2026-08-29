@@ -35,10 +35,12 @@ import {
   isAnthropicProtocolResponse,
   writeAnthropicError,
 } from '../provider-proxy/ingress/anthropicErrorEnvelope';
+import { setAnthropicPingHeartbeatMs } from '../transformer/transformers/AnthropicOpenAIToAnthropicStream';
 import { handleOutboundRequest } from './outboundApiRouter';
 import { OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import { OutboundRateLimiter } from './outboundRateLimiter';
 import type {
+  AnthropicConfigSegment,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
@@ -70,6 +72,9 @@ export interface ApplyConfigInput {
   /** Voucher segment (voucher-redemption #9). Read live per request; absent ⇒
    *  disabled ⇒ the `/redeem` endpoint is inert (zero regression). */
   voucher?: VoucherConfig;
+  /** Anthropic-protocol segment (claude-api-protocol-fidelity, §10). Read live
+   *  per request; the heartbeat value is hot-applied to the stream synthesizer. */
+  anthropic?: AnthropicConfigSegment;
 }
 
 export class OutboundApiServer {
@@ -81,6 +86,7 @@ export class OutboundApiServer {
   private userMessageQueue: UserMessageQueueConfig | undefined;
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private voucherConfig: VoucherConfig | undefined;
+  private anthropicConfig: AnthropicConfigSegment | undefined;
   private readonly rateLimiter = new OutboundRateLimiter();
   /**
    * Redeem-attempt limiter (voucher-redemption #9, design D6) — a SEPARATE bucket
@@ -117,6 +123,11 @@ export class OutboundApiServer {
     this.userMessageQueue = input.userMessageQueue;
     this.concurrencyQueue = input.concurrencyQueue;
     this.voucherConfig = input.voucher;
+    // Anthropic segment is read live per request; the synthetic-ping heartbeat
+    // is HOT-APPLIED here (in-flight streams pick the new value at their next
+    // timer arm — a config change never interrupts them).
+    this.anthropicConfig = input.anthropic;
+    setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
     const wantAddr = input.networkBinding ? LAN_ADDR : LOOPBACK_ADDR;
     const wantPort = input.port ?? DEFAULT_OUTBOUND_PORT;
 
@@ -203,6 +214,7 @@ export class OutboundApiServer {
         userMessageQueue: this.userMessageQueue,
         concurrencyQueue: this.concurrencyQueue,
         voucher: this.voucherConfig,
+        anthropic: this.anthropicConfig,
       },
       this.rateLimiter,
       this.serialQueue,

@@ -5,6 +5,10 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
+import {
+  DEFAULT_ANTHROPIC_PING_HEARTBEAT_MS,
+  getAnthropicPingHeartbeatMs,
+} from '../../transformer/transformers/AnthropicOpenAIToAnthropicStream';
 import { formatUrls, OutboundApiServer } from '../OutboundApiServer';
 import type { EndpointRoutingConfig, OutboundApiDeps } from '../types';
 
@@ -48,6 +52,35 @@ describe('OutboundApiServer', () => {
     expect(status.running).toBe(false);
     expect(status.loopbackUrl).toBeNull();
     expect(status.formats).toBeNull();
+  });
+
+  // claude-api-protocol-fidelity (§10 hot-reload seam, review B-M3): applyConfig
+  // is the ONE place the synthetic-ping heartbeat is hot-set — both daemon call
+  // sites (boot + admin PUT) flow through it. enabled:false keeps these
+  // lifecycle-only (no listener binds), exercising the setter path that runs
+  // before the early return.
+  it('applyConfig hot-sets the synthetic-ping heartbeat from the anthropic segment', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: false,
+      networkBinding: false,
+      endpoints,
+      anthropic: { heartbeatIntervalMs: 33_000 },
+    });
+    expect(getAnthropicPingHeartbeatMs()).toBe(33_000);
+
+    // Re-apply with a different value (hot reload, no restart).
+    await server.applyConfig({
+      enabled: false,
+      networkBinding: false,
+      endpoints,
+      anthropic: { heartbeatIntervalMs: 0 },
+    });
+    expect(getAnthropicPingHeartbeatMs()).toBe(0);
+
+    // Absent segment → the official default (setter resets).
+    await server.applyConfig({ enabled: false, networkBinding: false, endpoints });
+    expect(getAnthropicPingHeartbeatMs()).toBe(DEFAULT_ANTHROPIC_PING_HEARTBEAT_MS);
   });
 
   it('binds loopback by default and reports the four format URLs', async () => {

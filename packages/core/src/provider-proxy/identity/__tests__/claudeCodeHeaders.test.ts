@@ -102,6 +102,21 @@ describe('buildAnthropicBeta', () => {
   it('an undefined model still yields the full baseline (never empty)', () => {
     expect(buildAnthropicBeta(undefined, null).length).toBeGreaterThan(0);
   });
+
+  // ── claude-api-protocol-fidelity (R5): NO whitelist — any flag passes. ────
+  it('an arbitrary FUTURE flag is forwarded unfiltered (official protocol forbids whitelists)', () => {
+    const out = buildAnthropicBeta('claude-sonnet-4-5', 'claude-code-20990101').split(',');
+    expect(out).toContain('claude-code-20990101');
+    // Baseline flags stay alongside the caller's, order-stable, deduped.
+    expect(out).toContain('oauth-2025-04-20');
+    expect(out.filter((f) => f === 'claude-code-20990101')).toHaveLength(1);
+  });
+
+  it('the oauth-2025-04-20 baseline survives when the caller sends unknown flags (subscription pin)', () => {
+    const out = buildAnthropicBeta('claude-haiku-4-5', 'some-brand-new-2099-flag').split(',');
+    expect(out).toContain('oauth-2025-04-20');
+    expect(out).toContain('some-brand-new-2099-flag');
+  });
 });
 
 describe('fillMissingHeaders', () => {

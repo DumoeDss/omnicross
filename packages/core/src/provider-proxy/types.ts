@@ -470,12 +470,18 @@ export interface RouteContext {
   readonly anthropicSdkHints?: AnthropicSdkHints | null;
   /**
    * count_tokens strategy for `/v1/messages/count_tokens` requests
-   * (claude-api-routing-errors). Absent ⇒ `'auto'`: Anthropic-wire upstream →
-   * passthrough, translation upstream → reject. Stamped onto the minted route
-   * by the outbound router for count_tokens requests only; resident direct
-   * traffic stays `'auto'`.
+   * (claude-api-routing-errors, widened in claude-api-protocol-fidelity).
+   * Absent ⇒ `'auto'`: Anthropic-wire upstream → passthrough, translation
+   * upstream → estimate. Stamped onto the minted route by the outbound router
+   * for count_tokens requests only; resident direct traffic stays `'auto'`.
    */
-  readonly anthropicCountTokensMode?: 'auto' | 'passthrough' | 'reject';
+  readonly anthropicCountTokensMode?: 'auto' | 'passthrough' | 'estimate' | 'reject';
+  /**
+   * Wall-clock budget (ms) for the local count_tokens estimate walk
+   * (`anthropic.countTokens.estimateBudgetMs`, §10). Absent ⇒ the estimator's
+   * 2000ms default.
+   */
+  readonly anthropicCountTokensEstimateBudgetMs?: number;
 }
 
 /**

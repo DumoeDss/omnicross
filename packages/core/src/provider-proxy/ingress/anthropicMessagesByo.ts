@@ -47,6 +47,7 @@ import {
   getProviderHeaders,
   resolveApiFormat,
 } from '../../completion';
+import { DEFAULT_ANTHROPIC_VERSION } from '../identity/claudeCodeHeaders';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
 import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
 import type {
@@ -345,6 +346,13 @@ export async function runSameFormatFetch(
   }
   // Additively merge the 1M-context flag when the route opted in (idempotent).
   injectExtendedContextBeta(headers, resolvedModel, extendedContextEnabled ?? false);
+
+  // R5 header fidelity: forward the caller's `anthropic-version` VERBATIM (the
+  // official gateway protocol), else the official documented default. This
+  // deliberately overwrites `getProviderHeaders`' value on the same-format
+  // path — a caller-negotiated version always wins.
+  const callerVersion = options.callerAnthropicVersion?.trim();
+  headers['anthropic-version'] = callerVersion || DEFAULT_ANTHROPIC_VERSION;
 
   const url = urlOverride ?? buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);

@@ -60,6 +60,7 @@ import { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
 import { parseModelRef, resolveRoute } from './routeResolver';
 import type {
+  AnthropicConfigSegment,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
@@ -107,13 +108,11 @@ export interface OutboundRequestConfig {
    */
   voucher?: VoucherConfig;
   /**
-   * Anthropic count_tokens segment (claude-api-routing-errors). `mode` defaults
-   * to `'auto'` — Anthropic-wire upstream → passthrough, translation upstream →
-   * reject. Threaded onto the minted route as `anthropicCountTokensMode` for
-   * count_tokens requests only; the full config skeleton lands in the follow-up
-   * change.
+   * Anthropic-protocol tuning segment (claude-api-protocol-fidelity, §10):
+   * count_tokens strategy/budget, /v1/models shape, synthetic-SSE heartbeat.
+   * Absent ⇒ the frozen defaults (auto / auto / 20000).
    */
-  anthropicCountTokens?: { mode?: 'auto' | 'passthrough' | 'reject' };
+  anthropic?: AnthropicConfigSegment;
 }
 
 /**
@@ -272,6 +271,135 @@ export function isModelsListRequest(url: string | undefined): boolean {
   if (!url) return false;
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
   return path.endsWith('/models');
+}
+
+/**
+ * Resolve the `GET /v1/models` response shape (claude-api-protocol-fidelity,
+ * R4). Explicit `anthropic`/`openai` config wins; `'auto'` (default) gives a
+ * key authorized for the messages endpoint (or an unrestricted key) the
+ * Anthropic list shape — dual-protocol keys prefer Anthropic — and everyone
+ * else keeps the OpenAI shape.
+ */
+export function resolveModelsShape(
+  modelsShape: AnthropicConfigSegment['modelsShape'] | undefined,
+  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+): 'anthropic' | 'openai' {
+  if (modelsShape === 'anthropic') return 'anthropic';
+  if (modelsShape === 'openai') return 'openai';
+  if (!allowedEndpoints || allowedEndpoints.length === 0) return 'anthropic';
+  return allowedEndpoints.includes('messages') ? 'anthropic' : 'openai';
+}
+
+/**
+ * `created_at` for the synthetic Anthropic models list (review B-M1). The
+ * entries are ROUTING CONFIG projections, not artifacts with real creation
+ * timestamps, so a per-process constant (server start) is the honest stable
+ * value: present (the SDK `Model` type declares it), ISO-8601, identical
+ * across entries, and carrying no provider/account data. Fresh per server
+ * restart — a client re-discovering after a restart sees it move, which is
+ * the truthful signal that the serving process changed.
+ */
+const ANTHROPIC_MODELS_CREATED_AT = new Date().toISOString();
+
+/** One Anthropic models-list entry (display_name only when the upstream is known). */
+interface AnthropicModelEntry {
+  id: string;
+  type: 'model';
+  display_name?: string;
+  created_at: string;
+}
+
+/** Parse the `limit` query param (positive int; absent/invalid → unlimited). */
+function parseModelsLimit(url: string | undefined): number | undefined {
+  const query = url?.split('?')[1];
+  if (!query) return undefined;
+  const raw = new URLSearchParams(query).get('limit');
+  if (raw === null) return undefined;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/**
+ * Serve the models visible to this key in the Anthropic `GET /v1/models` shape
+ * (R4): `data[].id` is the CLIENT-VISIBLE name the messages endpoint actually
+ * routes — binding `modelMappings` source aliases and CONFIGURED (non-empty
+ * ref) `modelMap` kind keys, both annotated `"<name> (via <upstream>)"` in
+ * `display_name` (the ModelRef's modelId only — never the providerId, account
+ * ids, or credentials) — plus passthrough subscription catalog ids
+ * (display omitted). Unconfigured kinds are NOT advertised. Deduped,
+ * insertion-stable, `limit`-respecting with `has_more`, direct 200 (no
+ * redirect, no upstream call).
+ */
+async function writeModelsListAnthropic(
+  res: http.ServerResponse,
+  llmConfig: OutboundApiDeps['llmConfig'],
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+  limit: number | undefined,
+): Promise<void> {
+  // The Anthropic shape only advertises the MESSAGES endpoint family (the
+  // endpoint Anthropic SDKs discover through it); a restricted key without
+  // messages authorization never reaches here (resolveModelsShape said openai).
+  void allowedEndpoints;
+  const entries: AnthropicModelEntry[] = [];
+  const seen = new Set<string>();
+  const push = (id: string | undefined, displayName?: string): void => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    entries.push(
+      displayName
+        ? { id, type: 'model', display_name: displayName, created_at: ANTHROPIC_MODELS_CREATED_AT }
+        : { id, type: 'model', created_at: ANTHROPIC_MODELS_CREATED_AT },
+    );
+  };
+  /** `"<name> (via <upstream modelId>)"` — the ModelRef's modelId ONLY (never
+   *  the providerId / account ids / credentials). `undefined` when the target
+   *  ref is unparseable (display omitted). */
+  const viaLabel = (name: string, ref: string | undefined): string | undefined => {
+    const modelId = ref ? parseModelRef(ref)?.modelId : undefined;
+    return modelId ? `${name} (via ${modelId})` : undefined;
+  };
+
+  for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, 'messages')) {
+    if (binding.modelMode === 'passthrough') {
+      if (binding.target.kind === 'provider') {
+        const provider = await llmConfig.getProvider(binding.target.providerId);
+        for (const id of provider?.models ?? []) push(id);
+      } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
+        for (const id of SUBSCRIPTION_MODEL_CATALOG[
+          binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+        ]) {
+          push(id);
+        }
+      }
+      continue;
+    }
+    if (binding.modelMappings?.length) {
+      for (const mapping of binding.modelMappings) {
+        const source = mapping.source.trim();
+        if (source === '' || source.includes('*')) continue;
+        push(source, viaLabel(source, mapping.target));
+      }
+      continue;
+    }
+    // Kind-mapped: advertise ONLY configured kinds (a blank ref is unroutable).
+    for (const [kind, ref] of Object.entries(binding.modelMap ?? {})) {
+      if (typeof ref !== 'string' || ref.trim() === '') continue;
+      push(kind, viaLabel(kind, ref));
+    }
+  }
+
+  const limited = limit !== undefined ? entries.slice(0, limit) : entries;
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      data: limited,
+      first_id: limited[0]?.id ?? null,
+      has_more: limited.length < entries.length,
+      last_id: limited[limited.length - 1]?.id ?? null,
+    }),
+  );
 }
 
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
@@ -483,7 +611,23 @@ export async function handleOutboundRequest(
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
-    await writeModelsList(res, deps.llmConfig, config, verified.id, verified.allowedEndpoints);
+    // R4: a messages-authorized key (auto) gets the Anthropic list shape so
+    // Anthropic SDK `models.list()` parses and Claude Code's gateway discovery
+    // sees the CLIENT-visible aliases; other keys keep the OpenAI shape.
+    if (
+      resolveModelsShape(config.anthropic?.modelsShape, verified.allowedEndpoints) === 'anthropic'
+    ) {
+      await writeModelsListAnthropic(
+        res,
+        deps.llmConfig,
+        config,
+        verified.id,
+        verified.allowedEndpoints,
+        parseModelsLimit(req.url),
+      );
+    } else {
+      await writeModelsList(res, deps.llmConfig, config, verified.id, verified.allowedEndpoints);
+    }
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
@@ -765,11 +909,16 @@ export async function handleOutboundRequest(
     // 5. DISPATCH — mint a route on the SHARED map, shim the auth header, delegate
     // to the existing routeRequest, and remove the route in a finally.
     const routeMap = deps.providerProxy.getRouteMap();
-    // count_tokens requests carry the configured strategy mode on the minted
-    // route (absent ⇒ 'auto'); generation requests mint the route unchanged.
+    // count_tokens requests carry the configured strategy mode + estimate
+    // budget on the minted route (absent ⇒ 'auto' / estimator default);
+    // generation requests mint the route unchanged.
     const token = routeMap.addRoute(
       isCountTokens
-        ? { ...resolved.route, anthropicCountTokensMode: config.anthropicCountTokens?.mode }
+        ? {
+            ...resolved.route,
+            anthropicCountTokensMode: config.anthropic?.countTokens?.mode,
+            anthropicCountTokensEstimateBudgetMs: config.anthropic?.countTokens?.estimateBudgetMs,
+          }
         : resolved.route,
     );
     try {

@@ -16,18 +16,19 @@
  *    baseline all inherited). The response — success OR failure — relays
  *    verbatim with its real status (an Anthropic-wire error body already IS
  *    the official shape; wrapping it would violate the verbatim moat).
- *  - **reject** (translation upstream, or explicit config): a clean Anthropic
- *    404 `not_found_error` with ZERO upstream calls — Claude Code treats it as
- *    "endpoint absent" and falls back to its local usage estimation.
+ *  - **estimate** (Change B; explicit config, or `auto` on a translation
+ *    upstream): a PURE-LOCAL heuristic estimate (`anthropicCountEstimate.ts`)
+ *    answered as `{"input_tokens":N}` with the `x-omnicross-count-estimate:
+ *    true` marker header — zero upstream calls, never recorded as usage.
+ *  - **reject** (explicit config, or `passthrough` degraded on a translation
+ *    upstream): a clean Anthropic 404 `not_found_error` with ZERO upstream
+ *    calls — Claude Code treats it as "endpoint absent" and falls back to its
+ *    local usage estimation.
  *
  * A free endpoint: no usage recording, no concurrency gate (the outbound face
  * bypasses its gate before dispatch), single attempt — no 401 refresh retry,
  * no subscription health marking (a failed count_tokens must not cool an
  * account that serves inference; the inference path drives those itself).
- *
- * `resolveCountTokensStrategy` deliberately returns a two-value union so the
- * follow-up change can widen it with `'estimate'` (and auto+non-wire →
- * estimate) without touching call sites.
  *
  * @module provider-proxy/ingress/anthropicCountTokens
  */
@@ -43,6 +44,10 @@ import type { ProviderProxyDeps, RouteContext } from '../types';
 
 import { buildByoPlan, runSameFormatFetch } from './anthropicMessagesByo';
 import {
+  DEFAULT_COUNT_ESTIMATE_BUDGET_MS,
+  estimateAnthropicInputTokens,
+} from './anthropicCountEstimate';
+import {
   type AnthropicByoOptions,
   type AnthropicCallPlan,
   buildSubscriptionPlan,
@@ -50,19 +55,25 @@ import {
 } from './anthropicSubscriptionPlan';
 import { relayResponse, writeBoundAccountError, writeError } from './providerProxyShared';
 
-/** The operator-facing strategy config (Change B extends with `'estimate'`). */
-export type CountTokensMode = 'auto' | 'passthrough' | 'reject';
+/** The operator-facing strategy config (§10 `anthropic.countTokens.mode`). */
+export type CountTokensMode = 'auto' | 'passthrough' | 'estimate' | 'reject';
 
-/** The resolved strategy for one request (Change B extends with `'estimate'`). */
-export type CountTokensResolvedStrategy = 'passthrough' | 'reject';
+/** The resolved strategy for one request. */
+export type CountTokensResolvedStrategy = 'passthrough' | 'estimate' | 'reject';
 
 /**
  * Resolve the count_tokens strategy from the configured mode and the SAME wire
  * signal the generation path uses (`plan.sameFormat` — BYO: provider format /
  * route hint `anthropic`; subscription: pass-through mode or a `/v1/messages`
- * upstream URL). `'auto'` (default) follows the wire; `'reject'` is absolute;
- * `'passthrough'` on a non-wire upstream degrades to `'reject'` (there is no
- * upstream count_tokens endpoint to relay to) with a warning log.
+ * upstream URL). Branch order (design D2):
+ *  - `reject` → reject (absolute);
+ *  - `estimate` → estimate (explicit config wins over wire — local estimation
+ *    needs no upstream);
+ *  - wire → passthrough;
+ *  - `passthrough` on non-wire → degrade to reject with a warning (no upstream
+ *    count_tokens endpoint exists to relay to);
+ *  - `auto` on non-wire → estimate (Change B behavior: Claude Code gets a
+ *    usable local estimate instead of A's 404).
  */
 export function resolveCountTokensStrategy(
   mode: CountTokensMode | undefined,
@@ -70,13 +81,15 @@ export function resolveCountTokensStrategy(
 ): CountTokensResolvedStrategy {
   const effectiveMode: CountTokensMode = mode ?? 'auto';
   if (effectiveMode === 'reject') return 'reject';
+  if (effectiveMode === 'estimate') return 'estimate';
   if (upstreamIsAnthropicWire) return 'passthrough';
   if (effectiveMode === 'passthrough') {
     console.warn(
       '[ProviderProxy:anthropic] count_tokens passthrough requested but the resolved upstream is not Anthropic wire — degrading to reject',
     );
+    return 'reject';
   }
-  return 'reject';
+  return 'estimate';
 }
 
 /**
@@ -100,6 +113,14 @@ export async function handleAnthropicCountTokens(
     return;
   }
 
+  // EXPLICIT estimate short-circuits before any plan building: local
+  // estimation needs no provider row, auth strategy, or upstream — a route
+  // that could not even build a plan still answers with an estimate.
+  if (route.anthropicCountTokensMode === 'estimate') {
+    writeCountTokensEstimate(res, body, route.anthropicCountTokensEstimateBudgetMs);
+    return;
+  }
+
   try {
     // Reuse the generation path's plan builders verbatim (model resolution,
     // pool-bound key / auth strategy, sameFormat signal). Their internal
@@ -117,6 +138,11 @@ export async function handleAnthropicCountTokens(
         404,
         'count_tokens is not available on this route (strategy: reject); clients fall back to inference-based usage estimation',
       );
+      return;
+    }
+    if (strategy === 'estimate') {
+      // auto on a translation upstream → local estimate (Change B default).
+      writeCountTokensEstimate(res, body, route.anthropicCountTokensEstimateBudgetMs);
       return;
     }
 
@@ -147,6 +173,26 @@ export async function handleAnthropicCountTokens(
     console.error('[ProviderProxy:anthropic] count_tokens error:', errMsg);
     writeError(res, isAccountAllowanceExhaustedError(err) ? 429 : 502, errMsg);
   }
+}
+
+/**
+ * Answer one count_tokens request with the LOCAL heuristic estimate: 200,
+ * `{"input_tokens":N}`, and the `x-omnicross-count-estimate: true` marker so a
+ * client can tell an estimate from an upstream count. Bypasses the relay
+ * machinery entirely and is never recorded as usage (not a real consumption).
+ */
+function writeCountTokensEstimate(
+  res: http.ServerResponse,
+  body: Record<string, unknown>,
+  budgetMs: number | undefined,
+): void {
+  const inputTokens = estimateAnthropicInputTokens(body, budgetMs ?? DEFAULT_COUNT_ESTIMATE_BUDGET_MS);
+  if (res.headersSent) return;
+  res.writeHead(200, {
+    'Content-Type': 'application/json',
+    'x-omnicross-count-estimate': 'true',
+  });
+  res.end(JSON.stringify({ input_tokens: inputTokens }));
 }
 
 /**
