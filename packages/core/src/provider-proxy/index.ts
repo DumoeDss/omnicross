@@ -61,6 +61,26 @@ export {
   type RouteRegistrationOptions,
 } from './providerProxyRouteMap';
 export { extractRouteToken } from './providerProxyRouter';
+export {
+  createResponsesCompactHandler,
+  registerResponsesCompactOperation,
+  type ResponsesCompactRegistrationOptions,
+} from './responses/responsesCompact';
+export {
+  getResponsesAffinityStore,
+  previousResponseNotFound,
+  ResponsesAffinityStore,
+  type ResponsesAffinityEntry,
+  type ResponsesAffinityRecord,
+  type ResponsesAffinityScope,
+  type ResponsesAffinityStoreOptions,
+  type ResponsesCredentialIdentity,
+} from './responses/responsesAffinity';
+export {
+  classifyResponsesProfile,
+  type ResponsesProfile,
+  type ResponsesProfileDeclaration,
+} from './responses/responsesProfile';
 export type {
   AnthropicIngressHandler,
   AnthropicIngressHandlerFactory,

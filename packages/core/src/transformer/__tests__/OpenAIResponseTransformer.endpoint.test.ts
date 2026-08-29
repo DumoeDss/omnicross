@@ -569,6 +569,26 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
         toolNamespaces: { spawn_agent: 'collaboration' },
       });
     });
+
+    it('records a namespace carried only by function-call history', async () => {
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [{
+            type: 'function_call',
+            call_id: 'call_z',
+            namespace: 'collaboration',
+            name: 'spawn_agent',
+            arguments: '{"task":"x"}',
+          }],
+        },
+        mockContext,
+      );
+
+      expect(unified.meta?.codexTools?.toolNamespaces).toEqual({
+        spawn_agent: 'collaboration',
+      });
+    });
   });
 
   // =========================================================================

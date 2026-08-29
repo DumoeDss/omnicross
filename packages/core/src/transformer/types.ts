@@ -492,6 +492,8 @@ export interface ResolvedTransformerChain {
 export interface TransformRequestResult {
   /** Transformed request body */
   requestBody: unknown;
+  /** Post-endpoint, pre-target Unified request, when an endpoint decoder ran. */
+  endpointRequest?: UnifiedChatRequest;
   /** Additional request configuration */
   config: RequestConfig;
   /** Whether to bypass further transformations */

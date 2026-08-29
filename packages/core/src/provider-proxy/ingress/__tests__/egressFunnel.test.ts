@@ -14,13 +14,14 @@ import { describe, expect, it } from 'vitest';
 const here = dirname(fileURLToPath(import.meta.url));
 const ingressDir = join(here, '..');
 const coreSrc = join(ingressDir, '..', '..');
+const responsesDir = join(ingressDir, '..', 'responses');
 
 /** Files that perform upstream egress and MUST funnel through `fetchUpstream`. */
 const EGRESS_FILES = [
   join(ingressDir, 'anthropicMessagesByo.ts'),
   join(ingressDir, 'anthropicSubscriptionPlan.ts'),
   join(ingressDir, 'openaiChatIngress.ts'),
-  join(ingressDir, 'openaiResponsesIngress.ts'),
+  join(responsesDir, 'responsesDriver.ts'),
   join(ingressDir, 'geminiGenerateContentIngress.ts'),
   join(coreSrc, 'auth', 'GeminiCodeAssistProjectResolver.ts'),
 ];

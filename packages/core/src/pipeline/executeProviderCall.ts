@@ -26,8 +26,8 @@
  *      mutated `prepareBody` output. Each site passes a DIFFERENT variable
  *      there today (proxy → post-transform `requestBody`; Adapter/Handler →
  *      the pre-transform `unifiedRequest`), so the core does not hard-code
- *      it — `responseChainRequest` is supplied by the caller when
- *      `runResponseChain` is true.
+ *      it — `responseChainRequest` may be supplied by the caller, while a
+ *      wire ingress can explicitly retain the post-endpoint Unified request.
  *
  *   2. The engine adapter and Handler check `response.ok` on the RAW fetch response
  *      BEFORE running the response chain. Those sites therefore set
@@ -125,12 +125,17 @@ export interface ProviderCallContext {
   runResponseChain?: boolean;
   /**
    * The first argument passed to `executeResponseChain` when
-   * `runResponseChain` is true. This is REQUIRED in that mode because the
-   * sites diverge on which variable they pass (proxy → post-transform
-   * `requestBody`; the unified ingresses → the pre-transform request). The
-   * core never assumes it equals `prepareBody`'s output.
+   * `runResponseChain` is true. Sites diverge on which variable they pass
+   * (proxy → post-transform `requestBody`; unified ingresses → the
+   * pre-transform request), so callers can supply it explicitly. The core
+   * never assumes it equals `prepareBody`'s output.
    */
   responseChainRequest?: UnifiedChatRequest;
+  /**
+   * Use the post-endpoint, pre-target Unified request for response encoding.
+   * Opt-in preserves the historical proxy fallback to final `requestBody`.
+   */
+  preserveEndpointRequestForResponseChain?: boolean;
 }
 
 /**
@@ -181,10 +186,11 @@ export async function executeProviderCall(
     fetchFn,
     runResponseChain = false,
     responseChainRequest,
+    preserveEndpointRequestForResponseChain = false,
   } = ctx;
 
   // 1. Request chain: endpoint.transformRequestOut → provider/model transformRequestIn.
-  const { requestBody, config } = await executor.executeRequestChain(
+  const { requestBody, endpointRequest, config } = await executor.executeRequestChain(
     request,
     provider,
     chain,
@@ -223,7 +229,11 @@ export async function executeProviderCall(
       // unified ingresses → their pre-transform request. The caller supplies
       // it via `responseChainRequest`; fall back to `requestBody` (the proxy
       // shape) so the contract is never silently `undefined`.
-      (responseChainRequest ?? (requestBody as UnifiedChatRequest)),
+      (
+        responseChainRequest ??
+        (preserveEndpointRequestForResponseChain ? endpointRequest : undefined) ??
+        (requestBody as UnifiedChatRequest)
+      ),
       fetched,
       provider,
       chain,
