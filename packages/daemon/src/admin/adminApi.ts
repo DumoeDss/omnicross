@@ -1909,6 +1909,10 @@ async function handleServer(
       // voucher-redemption #9: hot-apply the voucher flag so enabling the product
       // takes effect without a restart.
       voucher: merged.voucher,
+      // claude-api-protocol-fidelity (§10): hot-apply the Anthropic segment
+      // (count_tokens/models read live per request; heartbeat setter runs inside
+      // applyConfig).
+      anthropic: merged.anthropic,
     });
     return writeJson(res, 200, { server: merged });
   }

@@ -34,6 +34,13 @@ import {
   isBoundAccountSelectionError,
 } from '../pipeline/BoundAccountSelectionError';
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
+import { getSharedAccountAllowanceStore } from '../pipeline/AccountAllowanceStore';
+import { classifyAnthropicMessagesPath } from '../provider-proxy/ingress/anthropicPathMatch';
+import {
+  isAnthropicProtocolResponse,
+  markAnthropicProtocolResponse,
+  writeAnthropicError,
+} from '../provider-proxy/ingress/anthropicErrorEnvelope';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
@@ -55,6 +62,7 @@ import { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
 import { parseModelRef, resolveRoute } from './routeResolver';
 import type {
+  AnthropicConfigSegment,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
@@ -101,9 +109,22 @@ export interface OutboundRequestConfig {
    * key is ever mutated (byte-identical zero regression).
    */
   voucher?: VoucherConfig;
+  /**
+   * Anthropic-protocol tuning segment (claude-api-protocol-fidelity, §10):
+   * count_tokens strategy/budget, /v1/models shape, synthetic-SSE heartbeat.
+   * Absent ⇒ the frozen defaults (auto / auto / 20000).
+   */
+  anthropic?: AnthropicConfigSegment;
 }
 
-/** Write a JSON error response with a status + optional headers. */
+/**
+ * Write a JSON error response with a status + optional headers.
+ *
+ * On an Anthropic-protocol request (res marked at the pipeline entry — see
+ * `anthropicErrorEnvelope`) the body takes the Anthropic error shape so
+ * Anthropic SDK clients can type-parse it (details fold into `error`); every
+ * other path keeps the legacy `outbound_api_error` envelope byte-for-byte.
+ */
 function writeJsonError(
   res: http.ServerResponse,
   status: number,
@@ -111,6 +132,10 @@ function writeJsonError(
   headers: Record<string, string> = {},
   details: { code?: string; reason?: string } = {},
 ): void {
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, status, message, headers, details);
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   res.end(JSON.stringify({ error: { type: 'outbound_api_error', message, ...details } }));
@@ -128,13 +153,20 @@ function writeCostLimitError(
   limitUsd: number,
   spentUsd: number,
 ): void {
+  const message = `Cost limit reached for this key (${scope}): $${spentUsd.toFixed(4)} of $${limitUsd.toFixed(4)}`;
+  // Anthropic-protocol requests get the spend-cap semantics (`rate_limit_error`)
+  // with the scope/limit/spend fields folded into `error`.
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, 402, message, {}, { scope, limitUsd, spentUsd });
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(402, { 'Content-Type': 'application/json' });
   res.end(
     JSON.stringify({
       error: {
         type: 'outbound_api_error',
-        message: `Cost limit reached for this key (${scope}): $${spentUsd.toFixed(4)} of $${limitUsd.toFixed(4)}`,
+        message,
       },
       scope,
       limitUsd,
@@ -155,13 +187,18 @@ function writeModelNotAllowedError(
   model: string,
   mode: 'blacklist' | 'allowlist',
 ): void {
+  const message = `Model '${model}' is not permitted for this key (${mode})`;
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, 403, message, {}, { model, mode });
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(403, { 'Content-Type': 'application/json' });
   res.end(
     JSON.stringify({
       error: {
         type: 'outbound_api_error',
-        message: `Model '${model}' is not permitted for this key (${mode})`,
+        message,
       },
       model,
       mode,
@@ -206,10 +243,16 @@ export function selectEndpoint(
     return openAIOperation.policyFamily;
   }
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
-  // m3: require `/v1/messages` so selection AGREES with the shared dispatcher's
-  // `isAnthropicMessagesRequest` (`url.includes('/v1/messages')`). A bare
-  // `/messages` would otherwise be selected, mint a route, then 404 in dispatch.
-  if (path.includes('/v1/messages')) return 'messages';
+  // m3: the `/v1/messages` family routes through the SHARED classifier
+  // (`classifyAnthropicMessagesPath`), the same function the resident
+  // dispatcher's `isAnthropicMessagesRequest` derives from — selection and
+  // dispatch agree BY CONSTRUCTION. Only the root (`/v1/messages`, incl.
+  // prefix/query/trailing-slash tolerance and the unfolded doubled tail) and
+  // `count_tokens` (authorized like `messages`) select the endpoint; other
+  // `/v1/messages/*` subpaths and lookalikes (`/v1/messagesfoo`, bare
+  // `/messages`) select nothing.
+  const classified = classifyAnthropicMessagesPath(url);
+  if (classified === 'messages' || classified === 'count_tokens') return 'messages';
   const lastSeg = path.split('/').pop() ?? '';
   if (lastSeg.endsWith(':generateContent') || lastSeg.endsWith(':streamGenerateContent')) {
     return 'gemini';
@@ -235,6 +278,210 @@ export function isModelsListRequest(url: string | undefined): boolean {
   if (!url) return false;
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
   return path.endsWith('/models');
+}
+
+/**
+ * True for the EXACT `/api/oauth/usage` path (query + trailing slash tolerated)
+ * — the R9 usage-proxy route. Kept SEPARATE from the messages-family
+ * classifier: it is not a generation endpoint, and marking it is GATED on
+ * `anthropic.proxyOauthUsage` (config-off ⇒ the path keeps its current generic
+ * behavior byte-for-byte).
+ */
+export function isAnthropicOauthUsagePath(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
+  return path === '/api/oauth/usage';
+}
+
+/**
+ * Resolve the `GET /v1/models` response shape (claude-api-protocol-fidelity,
+ * R4). Explicit `anthropic`/`openai` config wins; `'auto'` (default) gives a
+ * key authorized for the messages endpoint (or an unrestricted key) the
+ * Anthropic list shape — dual-protocol keys prefer Anthropic — and everyone
+ * else keeps the OpenAI shape.
+ */
+export function resolveModelsShape(
+  modelsShape: AnthropicConfigSegment['modelsShape'] | undefined,
+  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+): 'anthropic' | 'openai' {
+  if (modelsShape === 'anthropic') return 'anthropic';
+  if (modelsShape === 'openai') return 'openai';
+  if (!allowedEndpoints || allowedEndpoints.length === 0) return 'anthropic';
+  return allowedEndpoints.includes('messages') ? 'anthropic' : 'openai';
+}
+
+/**
+ * `created_at` for the synthetic Anthropic models list (review B-M1). The
+ * entries are ROUTING CONFIG projections, not artifacts with real creation
+ * timestamps, so a per-process constant (server start) is the honest stable
+ * value: present (the SDK `Model` type declares it), ISO-8601, identical
+ * across entries, and carrying no provider/account data. Fresh per server
+ * restart — a client re-discovering after a restart sees it move, which is
+ * the truthful signal that the serving process changed.
+ */
+const ANTHROPIC_MODELS_CREATED_AT = new Date().toISOString();
+
+/** One Anthropic models-list entry (display_name only when the upstream is known). */
+interface AnthropicModelEntry {
+  id: string;
+  type: 'model';
+  display_name?: string;
+  created_at: string;
+}
+
+/** Parse the `limit` query param (positive int; absent/invalid → unlimited). */
+function parseModelsLimit(url: string | undefined): number | undefined {
+  const query = url?.split('?')[1];
+  if (!query) return undefined;
+  const raw = new URLSearchParams(query).get('limit');
+  if (raw === null) return undefined;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/**
+ * Serve the models visible to this key in the Anthropic `GET /v1/models` shape
+ * (R4): `data[].id` is the CLIENT-VISIBLE name the messages endpoint actually
+ * routes — binding `modelMappings` source aliases and CONFIGURED (non-empty
+ * ref) `modelMap` kind keys, both annotated `"<name> (via <upstream>)"` in
+ * `display_name` (the ModelRef's modelId only — never the providerId, account
+ * ids, or credentials) — plus passthrough subscription catalog ids
+ * (display omitted). Unconfigured kinds are NOT advertised. Deduped,
+ * insertion-stable, `limit`-respecting with `has_more`, direct 200 (no
+ * redirect, no upstream call).
+ */
+async function writeModelsListAnthropic(
+  res: http.ServerResponse,
+  llmConfig: OutboundApiDeps['llmConfig'],
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+  limit: number | undefined,
+): Promise<void> {
+  // The Anthropic shape only advertises the MESSAGES endpoint family (the
+  // endpoint Anthropic SDKs discover through it); a restricted key without
+  // messages authorization never reaches here (resolveModelsShape said openai).
+  void allowedEndpoints;
+  const entries: AnthropicModelEntry[] = [];
+  const seen = new Set<string>();
+  const push = (id: string | undefined, displayName?: string): void => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    entries.push(
+      displayName
+        ? { id, type: 'model', display_name: displayName, created_at: ANTHROPIC_MODELS_CREATED_AT }
+        : { id, type: 'model', created_at: ANTHROPIC_MODELS_CREATED_AT },
+    );
+  };
+  /** `"<name> (via <upstream modelId>)"` — the ModelRef's modelId ONLY (never
+   *  the providerId / account ids / credentials). `undefined` when the target
+   *  ref is unparseable (display omitted). */
+  const viaLabel = (name: string, ref: string | undefined): string | undefined => {
+    const modelId = ref ? parseModelRef(ref)?.modelId : undefined;
+    return modelId ? `${name} (via ${modelId})` : undefined;
+  };
+
+  for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, 'messages')) {
+    if (binding.modelMode === 'passthrough') {
+      if (binding.target.kind === 'provider') {
+        const provider = await llmConfig.getProvider(binding.target.providerId);
+        for (const id of provider?.models ?? []) push(id);
+      } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
+        for (const id of SUBSCRIPTION_MODEL_CATALOG[
+          binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+        ]) {
+          push(id);
+        }
+      }
+      continue;
+    }
+    if (binding.modelMappings?.length) {
+      for (const mapping of binding.modelMappings) {
+        const source = mapping.source.trim();
+        if (source === '' || source.includes('*')) continue;
+        push(source, viaLabel(source, mapping.target));
+      }
+      continue;
+    }
+    // Kind-mapped: advertise ONLY configured kinds (a blank ref is unroutable).
+    for (const [kind, ref] of Object.entries(binding.modelMap ?? {})) {
+      if (typeof ref !== 'string' || ref.trim() === '') continue;
+      push(kind, viaLabel(kind, ref));
+    }
+  }
+
+  const limited = limit !== undefined ? entries.slice(0, limit) : entries;
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      data: limited,
+      first_id: limited[0]?.id ?? null,
+      has_more: limited.length < entries.length,
+      last_id: limited[limited.length - 1]?.id ?? null,
+    }),
+  );
+}
+
+/** The api.anthropic.com usage wire keys ↔ the store's stable window ids. */
+const OAUTH_USAGE_WINDOW_IDS: ReadonlyArray<[wireKey: string, windowId: string]> = [
+  ['five_hour', 'five-hour'],
+  ['seven_day', 'seven-day'],
+  ['seven_day_sonnet', 'seven-day-sonnet'],
+];
+
+/**
+ * Serve `GET /api/oauth/usage` (R9) from the SHARED Claude allowance store —
+ * a pure cache read rendered back to the upstream wire shape
+ * (`{five_hour:{utilization,resets_at},seven_day:{…},seven_day_sonnet:{…}}`)
+ * so Claude Code's /usage parsing works unchanged. Requirements:
+ *  - the key must be bound to a Claude SUBSCRIPTION on the messages endpoint
+ *    (else Anthropic-shaped 404 `not_found_error` — the marked res shapes it);
+ *  - the account snapshot = the binding's preferred account when it matches,
+ *    else the FIRST snapshot with a fresh window (Q1);
+ *  - missing/stale/unavailable windows render `utilization: null` — the store
+ *    read NEVER triggers a collection or refresh;
+ *  - output is sanitized to the window fields only (no account ids, no
+ *    internal state labels).
+ */
+function handleOauthUsageProxy(
+  res: http.ServerResponse,
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+): void {
+  const claudeBinding = candidateGatewayBindings(config.bindings, apiKeyId, 'messages').find(
+    (binding) => binding.target.kind !== 'provider' && binding.target.providerId === 'claude',
+  );
+  if (!claudeBinding) {
+    writeJsonError(res, 404, 'No Claude subscription route is bound to this key');
+    return;
+  }
+
+  const snapshots = getSharedAccountAllowanceStore().list({ providerId: 'claude' });
+  const preferredAccountId =
+    claudeBinding.target.kind === 'account' ? claudeBinding.target.accountId : undefined;
+  const snapshot =
+    (preferredAccountId !== undefined
+      ? snapshots.find((s) => s.accountId === preferredAccountId)
+      : undefined) ??
+    snapshots.find((s) => s.windows.some((w) => w.state === 'fresh')) ??
+    snapshots[0];
+
+  const body: Record<string, { utilization: number | null; resets_at: string | null }> = {};
+  for (const [wireKey, windowId] of OAUTH_USAGE_WINDOW_IDS) {
+    const window = snapshot?.windows.find((w) => w.id === windowId);
+    // FRESH-ONLY rendering (review D-M1): a stale window's last-known numbers
+    // are expired data and a past `resets_at` is not truth either — both null
+    // until the background collector refreshes the snapshot. Missing /
+    // unavailable / unsupported windows are null the same way.
+    const usable = window?.state === 'fresh';
+    body[wireKey] = {
+      utilization: usable ? (window.usedPercent ?? null) : null,
+      resets_at: usable ? (window.resetsAt ?? null) : null,
+    };
+  }
+
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
 }
 
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
@@ -353,6 +600,23 @@ export async function handleOutboundRequest(
   // One clock for the whole request so expiry / rate / quota agree.
   const now = Date.now();
 
+  // ANTHROPIC-PROTOCOL MARK (claude-api-routing-errors, design D4). Classify
+  // the path FIRST — before auth — so every LOCAL error on a `/v1/messages*`
+  // request (incl. the 401/429 below) carries the Anthropic error envelope an
+  // Anthropic SDK can type-parse. Method is deliberately ignored: a
+  // `GET /v1/messages` gets an Anthropic-shaped 404 (harmless, more uniform).
+  // The classification result also drives the count_tokens bypass below.
+  // Relay paths never consult the mark — upstream errors stay verbatim.
+  const anthropicPathClass = classifyAnthropicMessagesPath(req.url);
+  const isCountTokens = anthropicPathClass === 'count_tokens';
+  if (anthropicPathClass !== null) markAnthropicProtocolResponse(res);
+  // R9 (claude-api-experience-extras): with the proxy ENABLED, the usage route
+  // also takes the Anthropic error envelope (auth 401 / unbound 404). GATED so
+  // config-off keeps the path byte-identical (never marked, never handled).
+  const proxyOauthUsageEnabled = config.anthropic?.proxyOauthUsage === true;
+  const isOauthUsagePath = proxyOauthUsageEnabled && isAnthropicOauthUsagePath(req.url);
+  if (isOauthUsagePath) markAnthropicProtocolResponse(res);
+
   // AUDIT (request-audit-log, design D5). Gated inside `beginAuditCapture` on the
   // core capture-config slot: audit-disabled ⇒ `null` (one slot read, no work,
   // zero regression). When enabled it registers a `res.close` listener that emits
@@ -427,6 +691,20 @@ export async function handleOutboundRequest(
     return;
   }
 
+  // 2a. USAGE PROXY (R9, claude-api-experience-extras) — placed AFTER auth +
+  // rate limit, BEFORE models-list/endpoint select. A PURE-CACHE read of the
+  // shared Claude allowance store: zero upstream calls, zero refreshes (the
+  // daemon's background scheduler keeps the cache warm; a cold/stale cache
+  // renders as `utilization: null` windows). Never enters the concurrency gate.
+  if (isOauthUsagePath) {
+    if (req.method !== 'GET') {
+      writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
+      return;
+    }
+    handleOauthUsageProxy(res, config, verified.id);
+    return;
+  }
+
   // 3. ENDPOINT SELECT. `GET <base>/models` is shared discovery metadata rather
   // than a chat-only operation. A scoped key may discover models for any endpoint
   // it can use, but never sees models belonging only to another endpoint.
@@ -435,7 +713,23 @@ export async function handleOutboundRequest(
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
-    await writeModelsList(res, deps.llmConfig, config, verified.id, verified.allowedEndpoints);
+    // R4: a messages-authorized key (auto) gets the Anthropic list shape so
+    // Anthropic SDK `models.list()` parses and Claude Code's gateway discovery
+    // sees the CLIENT-visible aliases; other keys keep the OpenAI shape.
+    if (
+      resolveModelsShape(config.anthropic?.modelsShape, verified.allowedEndpoints) === 'anthropic'
+    ) {
+      await writeModelsListAnthropic(
+        res,
+        deps.llmConfig,
+        config,
+        verified.id,
+        verified.allowedEndpoints,
+        parseModelsLimit(req.url),
+      );
+    } else {
+      await writeModelsList(res, deps.llmConfig, config, verified.id, verified.allowedEndpoints);
+    }
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
@@ -501,10 +795,11 @@ export async function handleOutboundRequest(
   // positive `maxConcurrency`. The acquired slot is held to request end and
   // released idempotently from BOTH the dispatch `finally` AND a `res.close`
   // listener to prevent slot leaks; a still-WAITING acquisition is cancelled
-  // when the client disconnects mid-queue.
+  // when the client disconnects mid-queue. count_tokens requests SKIP the gate
+  // entirely (a free endpoint — it must never queue behind generation).
   const concurrencyLimit = verified.maxConcurrency;
   let releaseConcurrency: (() => void) | null = null;
-  if (typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
+  if (!isCountTokens && typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
     const cq = config.concurrencyQueue ?? DEFAULT_CONCURRENCY_QUEUE;
     const acquisition = concurrencyGate.acquire(verified.id, concurrencyLimit, {
       maxQueueSizeFactor: cq.maxQueueSizeFactor,
@@ -677,6 +972,7 @@ export async function handleOutboundRequest(
     if (
       config.userMessageQueue?.enabled &&
       providerKey &&
+      !isCountTokens &&
       isUserMessageRequest(endpoint, parsedBody)
     ) {
       const umq = config.userMessageQueue;
@@ -715,7 +1011,26 @@ export async function handleOutboundRequest(
     // 5. DISPATCH — mint a route on the SHARED map, shim the auth header, delegate
     // to the existing routeRequest, and remove the route in a finally.
     const routeMap = deps.providerProxy.getRouteMap();
-    const token = routeMap.addRoute(resolved.route);
+    // count_tokens requests carry the configured strategy mode + estimate
+    // budget on the minted route (absent ⇒ 'auto' / estimator default);
+    // Anthropic-protocol GENERATION requests additionally carry the PDF
+    // extraction budget (translate-path document handling). All other requests
+    // mint the route unchanged.
+    const token = routeMap.addRoute(
+      isCountTokens
+        ? {
+            ...resolved.route,
+            anthropicCountTokensMode: config.anthropic?.countTokens?.mode,
+            anthropicCountTokensEstimateBudgetMs: config.anthropic?.countTokens?.estimateBudgetMs,
+            anthropicPdfTextExtractionBudgetMs: config.anthropic?.pdfTextExtraction?.budgetMs,
+          }
+        : anthropicPathClass !== null
+          ? {
+              ...resolved.route,
+              anthropicPdfTextExtractionBudgetMs: config.anthropic?.pdfTextExtraction?.budgetMs,
+            }
+          : resolved.route,
+    );
     try {
       shimAuthHeader(req, token);
       // We consumed the request stream once to detect the role. Every shared
@@ -785,6 +1100,13 @@ function makeReplayRequest(
   readable.url = req.url;
   readable.headers = req.headers;
   readable.httpVersion = req.httpVersion;
+  // The original request reached `end` before this replay was constructed, so
+  // its buffered body is truthfully complete. `Readable.from()` has no
+  // IncomingMessage completion metadata of its own; without this marker the
+  // operation registry interprets the replay's normal auto-destroy `close` as
+  // a client disconnect and aborts still-pending compact upstream work.
+  readable.complete = true;
+  readable.aborted = false;
   // The socket is referenced by some downstream loggers; reuse the live one.
   (readable as unknown as { socket: unknown }).socket = req.socket;
   return readable;

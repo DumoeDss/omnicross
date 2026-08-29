@@ -152,6 +152,24 @@ export interface UnifiedChatRequest {
   reasoning?: ReasoningConfig;
   /** Native OpenAI Chat field retained by the identity-shaped ingress. */
   reasoning_effort?: string;
+  // ── Sampling/stop/metadata hub fields (claude-api-transform-fidelity, R7).
+  //    Decoded from an Anthropic ingress; `undefined` = the caller did not
+  //    provide the field and every encoder's output must stay EXACTLY as
+  //    before this change (conditional construction everywhere). Encoders with
+  //    no representation for a field drop it + audit via `_transformWarnings`. ──
+  /** Anthropic `stop_sequences` → the OpenAI chat `stop` / Gemini `stopSequences`. */
+  stop?: string[];
+  top_p?: number;
+  /** Anthropic-only sampling knob; Gemini `topK`, OpenAI wires have none. */
+  top_k?: number;
+  /** Anthropic `metadata.user_id` → OpenAI chat `user`. */
+  metadata_user_id?: string;
+  /**
+   * Internal-only transform audit side channel (R7): field names dropped for a
+   * target wire, never values. Stripped at every encoder boundary — must never
+   * serialize into an upstream body. See `transformer/transformWarnings`.
+   */
+  _transformWarnings?: import('./transformWarnings').DroppedFieldEntry[];
   /**
    * Internal-only routing metadata. Populated by callers (CompletionService /
    * the host's engine adapters and proxy servers) so the usage-capture hook can attribute
@@ -492,6 +510,8 @@ export interface ResolvedTransformerChain {
 export interface TransformRequestResult {
   /** Transformed request body */
   requestBody: unknown;
+  /** Post-endpoint, pre-target Unified request, when an endpoint decoder ran. */
+  endpointRequest?: UnifiedChatRequest;
   /** Additional request configuration */
   config: RequestConfig;
   /** Whether to bypass further transformations */

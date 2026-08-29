@@ -94,6 +94,9 @@ export async function runStart(argv: string[]): Promise<StartResult> {
     // voucher-redemption #9: carry the persisted flag so `POST /redeem` works on
     // boot when the operator has enabled the product.
     voucher: serverConfig.voucher,
+    // claude-api-protocol-fidelity (§10): count_tokens strategy/budget,
+    // /v1/models shape, synthetic-ping heartbeat (hot-applied inside applyConfig).
+    anthropic: serverConfig.anthropic,
   });
 
   // Admin dashboard (RT3) — always-on by default; opt out via `--no-dashboard`

@@ -230,6 +230,45 @@ describe('beginAuditCapture — body capture (opt-in)', () => {
     expect(rec.responseBody).toContain('data: {"delta":"a"}');
     expect(rec.responseBody).toContain('data: {"delta":"b"}');
   });
+
+  it.each([
+    ['full SSE', false],
+    ['compacted SSE', true],
+  ] as const)('redacts encrypted_content from %s before persistence', (_name, compact) => {
+    setAuditCaptureConfig(cfg({
+      captureBodies: true,
+      compactStreamingBodies: compact,
+    }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, 1);
+    r.setHeader('content-type', 'text/event-stream');
+    r.write('event: response.output_item.done\n');
+    r.end('data: {"type":"response.output_item.done","item":{"type":"compaction","encrypted_content":"opaque-sse-secret","safe":{"visible":true}}}\n\n');
+    r.triggerClose();
+
+    expect(seen[0].responseBody).toContain('"visible":true');
+    expect(seen[0].responseBody).toContain('***REDACTED***');
+    expect(seen[0].responseBody).not.toContain('opaque-sse-secret');
+  });
+
+  it('redacts a byte-truncated encrypted_content string even when JSON parsing is impossible', () => {
+    const prefix = 'sensitive-prefix';
+    const stream = `data: {"encrypted_content":"${prefix}-tail-that-is-cut"}\n\n`;
+    const cutMidValue = Buffer.byteLength(stream.slice(0, stream.indexOf('-tail') + 3), 'utf8');
+    setAuditCaptureConfig(cfg({ captureBodies: true, maxBodyBytes: cutMidValue }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    beginAuditCapture(fakeReq(), r as unknown as http.ServerResponse, 1);
+    r.setHeader('content-type', 'text/event-stream');
+    r.end(stream);
+    r.triggerClose();
+
+    expect(seen[0].responseBody).not.toContain(prefix);
+    expect(seen[0].responseBody).toContain('***RED');
+  });
 });
 
 describe('beginAuditCapture — usage correlation', () => {

@@ -1,8 +1,9 @@
 /**
  * DashboardOverview.tsx — the top overview card grid over `DashboardSummary`:
- * today + all-time totals (requests/tokens/cost), provider/outbound-key/account
- * counts, and daemon server status/uptime. Range-independent (the summary hook
- * owns its own window); carries its own loading/error slot so a summary failure
+ * selected-range + all-time totals (requests/tokens/cost), provider/outbound-key/
+ * account counts, and daemon server status/uptime. The selected-range card
+ * follows the page picker; the remaining cards come from the range-independent
+ * summary endpoint. Carries its own loading/error slot so a summary failure
  * doesn't blank the range-driven tables below.
  */
 
@@ -17,12 +18,16 @@ import {
   formatCompactUsd,
   formatTokens,
   formatUsd,
+  type RangePreset,
 } from '../hooks/usageStatsLogic';
 
 import type { DashboardSummary, UsageTotals } from '@/daemon/types-usage-pricing';
 
 interface DashboardOverviewProps {
   summary: DashboardSummary | null;
+  preset: RangePreset;
+  rangeTotals: UsageTotals | null;
+  rangeLoading: boolean;
   loading: boolean;
   error: string | null;
   onReload: () => void;
@@ -81,7 +86,15 @@ function OverviewCard({ label, primary, primaryTitle, lines, accent }: OverviewC
   );
 }
 
-export function DashboardOverview({ summary, loading, error, onReload }: DashboardOverviewProps) {
+export function DashboardOverview({
+  summary,
+  preset,
+  rangeTotals,
+  rangeLoading,
+  loading,
+  error,
+  onReload,
+}: DashboardOverviewProps) {
   const t = useTranslation();
   const locale = i18n.language || 'en';
 
@@ -111,18 +124,27 @@ export function DashboardOverview({ summary, loading, error, onReload }: Dashboa
     value: `${formatCompactNumber(value, locale)} ${suffix}`,
     title: `${formatTokens(value, locale)} ${suffix}`,
   });
+  const selectedRangeTotals = preset === 'today'
+    ? summary.today
+    : rangeLoading ? null : rangeTotals;
+  const selectedRangeLabel = t({
+    today: 'usageStats.rangeToday',
+    '7d': 'usageStats.range7d',
+    '30d': 'usageStats.range30d',
+    custom: 'usageStats.rangeCustom',
+  }[preset]);
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       <OverviewCard
-        label={t('usageStats.today')}
-        primary={formatCompactUsd(summary.today.costUsd, locale)}
-        primaryTitle={formatUsd(summary.today.costUsd, locale)}
+        label={selectedRangeLabel}
+        primary={selectedRangeTotals ? formatCompactUsd(selectedRangeTotals.costUsd, locale) : '—'}
+        primaryTitle={selectedRangeTotals ? formatUsd(selectedRangeTotals.costUsd, locale) : undefined}
         accent
-        lines={[
-          compactCountLine(summary.today.eventCount, t('usageStats.requests')),
-          compactCountLine(totalTokens(summary.today), tokensLabel.toLowerCase()),
-        ]}
+        lines={selectedRangeTotals ? [
+          compactCountLine(selectedRangeTotals.eventCount, t('usageStats.requests')),
+          compactCountLine(totalTokens(selectedRangeTotals), tokensLabel.toLowerCase()),
+        ] : undefined}
       />
       <OverviewCard
         label={t('usageStats.allTime')}

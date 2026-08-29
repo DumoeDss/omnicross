@@ -57,12 +57,21 @@ import type {
   UnifiedMessage,
 } from '../types';
 import { extractReasoningIntent, resolveReasoningPlan } from '../reasoning-effort';
+import { recordDroppedField } from '../transformWarnings';
 
 /** Message-level keys that must never reach an OpenAI chat upstream. */
 const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking'] as const;
 
-/** Top-level keys that must never reach an OpenAI chat upstream. */
-const FOREIGN_BODY_KEYS = ['meta', 'reasoning', 'thinking'] as const;
+/**
+ * Top-level keys that must never reach an OpenAI chat upstream.
+ *
+ * R7 additions (`claude-api-transform-fidelity`): `top_k` (no chat-wire
+ * counterpart — audited via `_transformWarnings`), `metadata_user_id` (MAPPED
+ * to the chat wire's `user` below before the blacklist takes effect — listed
+ * so the hub spelling itself never leaks), and the internal `_transformWarnings`
+ * audit channel (never serialized anywhere).
+ */
+const FOREIGN_BODY_KEYS = ['meta', 'reasoning', 'thinking', 'top_k', 'metadata_user_id', '_transformWarnings'] as const;
 
 /**
  * Strip Anthropic prompt-cache markers from a content block array, and collapse
@@ -110,6 +119,15 @@ export class OpenAITransformer implements Transformer {
     for (const key of Object.keys(source)) {
       if ((FOREIGN_BODY_KEYS as readonly string[]).includes(key)) continue;
       out[key] = source[key];
+    }
+
+    // R7 field mapping + drop auditing (stop / top_p ride the blacklist
+    // passthrough above untouched — the chat wire has both fields natively).
+    if (request.metadata_user_id !== undefined) {
+      out.user = request.metadata_user_id;
+    }
+    if (request.top_k !== undefined) {
+      recordDroppedField(request, 'top_k', 'openai-chat');
     }
 
     if (Array.isArray(request.messages)) {

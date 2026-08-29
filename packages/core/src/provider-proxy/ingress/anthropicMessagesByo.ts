@@ -38,6 +38,9 @@ import type http from 'node:http';
 
 import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
+import { getSharedAccountRouteActivity } from '../../pipeline/AccountRouteActivity';
+import { getSharedAccountHealth } from '../../pipeline/SubscriptionAccountHealth';
+import { getSharedOverloadCounter } from '../../pipeline/ServerOverloadCounter';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
 
 import { serializeError } from '@omnicross/core/serializeError';
@@ -47,6 +50,7 @@ import {
   getProviderHeaders,
   resolveApiFormat,
 } from '../../completion';
+import { DEFAULT_ANTHROPIC_VERSION } from '../identity/claudeCodeHeaders';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
 import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
 import type {
@@ -59,10 +63,17 @@ import { recordAnthropicNonStreamUsage, recordAnthropicStreamUsage } from '../us
 import {
   type AnthropicByoOptions,
   type AnthropicCallPlan,
+  type AnthropicRunResult,
   buildSubscriptionPlan,
   runPipeline,
   runPipelineWithSubscriptionRetry,
 } from './anthropicSubscriptionPlan';
+import {
+  DocumentNotSupportedError,
+  prepareAnthropicTranslateBody,
+  UnsupportedContentBlockError,
+} from './anthropicTranslateBodyPrep';
+import { isCodexServerOverloadEvent } from './openaiResponsesIngress';
 import {
   aggregateAnthropicSseToJsonBody,
   relayResponse,
@@ -117,9 +128,28 @@ export async function handleAnthropicMessagesByo(
     // affects the transformer path.)
     anthropicBody.model = plan.resolvedModel;
 
+    // TRANSLATE-PATH content pre-pass (claude-api-transform-fidelity, D3):
+    // documents become extracted-text blocks, unrepresentable blocks 400 —
+    // BEFORE the pipeline (the decoder is sync/pure and cannot do budgeted
+    // async work). NEVER runs on the same-format verbatim path (the moat).
+    // BYO has a single static plan, so the initial sameFormat is final here;
+    // SUBSCRIPTION routes run the pre-pass per-ITERATION inside the fallback
+    // loop (review C-M3: the opencodego loop recomputes sameFormat per model —
+    // prepping to the INITIAL classification would re-drop documents on a
+    // translate flip, or leak mutations into a same-format iteration).
+    if (route.authMode !== 'subscription' && !plan.sameFormat) {
+      await prepareAnthropicTranslateBody(anthropicBody, route.anthropicPdfTextExtractionBudgetMs);
+    }
+    const prepareTranslateBody =
+      route.authMode === 'subscription'
+        ? async (body: Record<string, unknown>): Promise<void> => {
+            await prepareAnthropicTranslateBody(body, route.anthropicPdfTextExtractionBudgetMs);
+          }
+        : undefined;
+
     const providerResponse =
       route.authMode === 'subscription'
-        ? await runPipelineWithSubscriptionRetry(anthropicBody, rawBody, plan, route, deps, options)
+        ? await runPipelineWithSubscriptionRetry(anthropicBody, rawBody, plan, route, deps, options, prepareTranslateBody)
         : await runPipelineWithPoolReporting(anthropicBody, rawBody, plan, options);
 
     // Passthrough (design D4): rewrite the response `model` back to the client's
@@ -178,6 +208,69 @@ export async function handleAnthropicMessagesByo(
           },
         }
       : undefined;
+    // ── Mid-stream event observers (claude-api-transform-fidelity) ───────────
+    // R8: on the SUBSCRIPTION TRANSLATE plan mirror the responses ingress's
+    // overload detector — a Codex `response.failed` overload event inside a 200
+    // stream amends its route-activity row and tallies `endpoint:'messages'` on
+    // the shared overload counter. Detection only (never retry); once per
+    // request. Scoped to the `codex` provider (review C-m1): the event shape +
+    // the sniffed codes are codex-backend specific — a non-codex translate
+    // upstream never emits them, so wiring there could only ever false-positive.
+    const overloadActivityId = providerResponse.activityRecordId;
+    const overloadAccountId = providerResponse.accountId;
+    let overloadRecorded = false;
+    const codexOverloadDetector =
+      plan.isSubscription && !plan.sameFormat && plan.transformerProvider.name === 'codex'
+        ? (event: Record<string, unknown>): void => {
+            if (overloadRecorded) return;
+            // Two shapes reach this tap: the RAW codex event (`response.failed`
+            // with `error.code`, when the chain passes it through) and the
+            // CONVERTED Anthropic error event whose serialized message carries
+            // the codex overload code (B's official in-band error shape).
+            let hit = isCodexServerOverloadEvent(event);
+            if (!hit && event['type'] === 'error') {
+              const message = (event['error'] as Record<string, unknown> | undefined)?.['message'];
+              hit =
+                typeof message === 'string' &&
+                (message.includes('server_is_overloaded') || message.includes('slow_down'));
+            }
+            if (!hit) return;
+            overloadRecorded = true;
+            if (overloadActivityId) {
+              getSharedAccountRouteActivity().amend(overloadActivityId, {
+                streamError: 'server_overloaded',
+              });
+            }
+            if (overloadAccountId) {
+              getSharedOverloadCounter().recordOverload({
+                providerId: plan.transformerProvider.name,
+                accountId: overloadAccountId,
+                endpoint: 'messages',
+              });
+            }
+          }
+        : undefined;
+    // R11③: on the SUBSCRIPTION SAME-FORMAT relay an Anthropic in-band
+    // `overloaded_error` event (200 + official error event) marks the account
+    // with the same 529 overload-cooldown window as a real 529. Bytes relay
+    // unchanged (the observer is read-only); non-overloaded types never fire.
+    let inbandOverloadRecorded = false;
+    const inbandOverloadObserver =
+      plan.isSubscription && plan.sameFormat && overloadAccountId
+        ? (event: Record<string, unknown>): void => {
+            if (inbandOverloadRecorded || event['type'] !== 'error') return;
+            const errorType = (event['error'] as Record<string, unknown> | undefined)?.['type'];
+            if (errorType !== 'overloaded_error') return;
+            inbandOverloadRecorded = true;
+            getSharedAccountHealth().recordUpstreamOutcome(
+              plan.transformerProvider.name,
+              overloadAccountId,
+              { status: 529 },
+            );
+          }
+        : undefined;
+    const onSseEvent = codexOverloadDetector ?? inbandOverloadObserver;
+
     let bodyText: string | null;
     if (!isStream && upstreamSse) {
       bodyText = await aggregateAnthropicSseToJsonBody(upstreamResponse, route.requestedModel);
@@ -187,12 +280,19 @@ export async function handleAnthropicMessagesByo(
       );
       res.end(bodyText);
     } else {
-      bodyText = await relayResponse(res, upstreamResponse, isStream, route.requestedModel, usageTap);
+      bodyText = await relayResponse(res, upstreamResponse, isStream, route.requestedModel, usageTap, onSseEvent);
     }
     if (bodyText && deps.usageRecorder) {
       recordAnthropicNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
+    // Typed translate-path content errors (D3): explicit 400 with the stable
+    // code in the message — A's Anthropic-protocol mark shapes the envelope
+    // (`invalid_request_error`); nothing was silently dropped.
+    if (err instanceof DocumentNotSupportedError || err instanceof UnsupportedContentBlockError) {
+      writeError(res, 400, `${err.message} [code: ${err.code}]`);
+      return;
+    }
     if (isBoundAccountSelectionError(err)) {
       writeBoundAccountError(res, err);
       return;
@@ -203,8 +303,13 @@ export async function handleAnthropicMessagesByo(
   }
 }
 
-/** BYO-key plan — `LlmConfigProviderAuth` over the route's provider row. */
-async function buildByoPlan(
+/**
+ * BYO-key plan — `LlmConfigProviderAuth` over the route's provider row.
+ * Exported for the count_tokens handler, which reuses the SAME plan (model
+ * resolution, pool-bound key, chain, same-format signal) instead of building
+ * a parallel one.
+ */
+export async function buildByoPlan(
   res: http.ServerResponse,
   route: RouteContext,
   deps: ProviderProxyDeps,
@@ -298,12 +403,18 @@ async function buildByoPlan(
  * `anthropic-version`) + `injectExtendedContextBeta` (1M flag) + the caller's
  * forwarded `anthropic-beta` merged on top (LEAD OQ1). Still flows through
  * `runPipelineWithPoolReporting`, so ApiKeyPool failover is preserved.
+ *
+ * `urlOverride` (optional, last): POST a sibling endpoint under the same
+ * Anthropic root instead of the terminal `/v1/messages` — used by the
+ * count_tokens passthrough (`<upstream>/v1/messages/count_tokens`). Absent ⇒
+ * the generation URL, byte-identical to before.
  */
-async function runSameFormatFetch(
+export async function runSameFormatFetch(
   bodyToSend: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions,
   keyOverride?: string,
+  urlOverride?: string,
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const { provider, apiKey, resolvedModel, isStream, extendedContextEnabled } = plan;
   // BYO-only path: `buildByoPlan` always populates `provider`/`apiKey` (the
@@ -335,7 +446,14 @@ async function runSameFormatFetch(
   // Additively merge the 1M-context flag when the route opted in (idempotent).
   injectExtendedContextBeta(headers, resolvedModel, extendedContextEnabled ?? false);
 
-  const url = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
+  // R5 header fidelity: forward the caller's `anthropic-version` VERBATIM (the
+  // official gateway protocol), else the official documented default. This
+  // deliberately overwrites `getProviderHeaders`' value on the same-format
+  // path — a caller-negotiated version always wins.
+  const callerVersion = options.callerAnthropicVersion?.trim();
+  headers['anthropic-version'] = callerVersion || DEFAULT_ANTHROPIC_VERSION;
+
+  const url = urlOverride ?? buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);
   // upstream-proxy: BYO egress honors the global/provider proxy (providerId 'byo').
   const response = await fetchUpstream(
@@ -387,16 +505,14 @@ async function runPipelineWithPoolReporting(
   rawBody: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<AnthropicRunResult> {
   // D5: on the verbatim same-format path, POST the resolved provider model when
   // the route remapped it (else the raw client bytes verbatim). Computed once so
   // an ApiKeyPool rebind retry re-sends the identical body.
   const sameFormatBody = plan.sameFormat
     ? resolveSameFormatBody(anthropicBody, rawBody, plan)
     : rawBody;
-  const runOnce = (
-    keyOverride?: string,
-  ): Promise<{ response: Response; rawStatus: number | null }> =>
+  const runOnce = (keyOverride?: string): Promise<AnthropicRunResult> =>
     plan.sameFormat
       ? runSameFormatFetch(sameFormatBody, plan, options, keyOverride)
       : runPipeline(anthropicBody, plan);

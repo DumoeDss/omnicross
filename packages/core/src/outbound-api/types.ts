@@ -24,6 +24,7 @@ import type { Logger } from '../ports/logger';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { ProviderProxy } from '../provider-proxy';
 import type { ProviderProxyDeps } from '../provider-proxy';
+import type { CountTokensMode } from '../provider-proxy/ingress/anthropicCountTokens';
 import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
 
 import type { KeySpendReader } from './keySpendTracker';
@@ -351,6 +352,70 @@ export interface FingerprintConfig {
 }
 
 /**
+ * count_tokens strategy mode (§10 `anthropic.countTokens.mode`). ONE canonical
+ * union lives with the handler (`provider-proxy/ingress/anthropicCountTokens`);
+ * this alias re-exports it so the config-segment types and the runtime
+ * resolver can never drift apart (review B-M2).
+ */
+export type AnthropicCountTokensMode = CountTokensMode;
+
+/** `GET /v1/models` response shape selector (§10 `anthropic.modelsShape`). */
+export type AnthropicModelsShape = 'auto' | 'anthropic' | 'openai';
+
+/**
+ * Anthropic-protocol tuning segment (`claude-api-protocol-fidelity`, §10
+ * skeleton — count_tokens strategy/budget, /v1/models shape, synthetic-SSE
+ * heartbeat). Persisted + normalized like the other segments; read live per
+ * request (count_tokens/models) or hot-applied via the module setter
+ * (heartbeat). `proxyOauthUsage` / `apiHello` land in the follow-up change.
+ */
+export interface AnthropicConfigSegment {
+  /**
+   * `/v1/messages/count_tokens` strategy. `mode` absent ⇒ `'auto'`
+   * (Anthropic-wire upstream → passthrough; translation upstream → local
+   * estimate). `estimateBudgetMs` bounds the local estimator walk (default
+   * 2000; a pathological input degrades to a coarser estimate, never fails).
+   */
+  countTokens?: {
+    mode?: AnthropicCountTokensMode;
+    estimateBudgetMs?: number;
+  };
+  /**
+   * `GET /v1/models` response shape. `'auto'` (default): a key authorized for
+   * the messages endpoint gets the Anthropic list shape, everyone else keeps
+   * the OpenAI shape; `'anthropic'` / `'openai'` force one shape (escape
+   * hatch for dual-protocol consumers).
+   */
+  modelsShape?: AnthropicModelsShape;
+  /**
+   * Synthetic-SSE ping heartbeat interval (ms) for the TRANSLATION path only.
+   * Default 20000; ≤0 disables. Hot-applied at `applyConfig` — in-flight
+   * streams pick the new value at their next timer arm.
+   */
+  heartbeatIntervalMs?: number;
+  /**
+   * Translate-path PDF text extraction budget (`claude-api-transform-fidelity`,
+   * R7). `budgetMs` default 2000 — bounds the synchronous zero-dependency
+   * text-layer walk; over-budget documents 400 explicitly (never silently
+   * dropped, never unbounded work).
+   */
+  pdfTextExtraction?: { budgetMs?: number };
+  /**
+   * Serve `GET /api/oauth/usage` on the outbound listener as a PURE-CACHE read
+   * of the shared Claude allowance store (R9). Default FALSE — off, the path
+   * keeps its current generic 404 byte-for-byte. When on, a messages-authorized
+   * key bound to a Claude subscription receives the api.anthropic.com usage
+   * wire shape; NO upstream call or refresh is ever triggered by the query.
+   */
+  proxyOauthUsage?: boolean;
+  /**
+   * Answer `HEAD /api/hello` with a bare 200 at the listener level (R10 —
+   * clients probe "can this endpoint be safely rejected"). Default TRUE.
+   */
+  apiHello?: boolean;
+}
+
+/**
  * Layered upstream-proxy segment (upstream-proxy). Global + per-provider proxy
  * config for outbound EGRESS to upstreams (NOT the inbound listener). Resolved
  * with precedence account > provider > global > env; the per-account layer lives
@@ -465,6 +530,12 @@ export interface OutboundApiServerConfig {
    * byte-identical zero regression, purely additive on the #4 key-policy.
    */
   voucher?: VoucherConfig;
+  /**
+   * Anthropic-protocol tuning segment (claude-api-protocol-fidelity, §10).
+   * Optional in the persisted shape; `normalizeServerConfig` always fills it
+   * with the frozen defaults (auto/auto/20000).
+   */
+  anthropic?: AnthropicConfigSegment;
 }
 
 /** A live status snapshot the Settings tab renders. */

@@ -182,6 +182,20 @@ describe('selectEndpoint', () => {
     // The canonical path still matches (incl. with a provider-prefixed base).
     expect(selectEndpoint('POST', '/anthropic/v1/messages')).toBe('messages');
   });
+
+  it('claude-api-routing-errors: count_tokens selects the messages endpoint (authorized like it)', () => {
+    expect(selectEndpoint('POST', '/v1/messages/count_tokens')).toBe('messages');
+    expect(selectEndpoint('POST', '/v1/messages/count_tokens?beta=true')).toBe('messages');
+  });
+
+  it('claude-api-routing-errors: other /v1/messages subpaths and lookalikes select nothing', () => {
+    // Sub-resources must NOT enter the generation pipeline (audit F-1).
+    expect(selectEndpoint('POST', '/v1/messages/batches')).toBeNull();
+    expect(selectEndpoint('POST', '/v1/messages/batches/msg_123')).toBeNull();
+    expect(selectEndpoint('POST', '/v1/messages/count_tokensfoo')).toBeNull();
+    // Lookalike: no longer caught by the old substring match.
+    expect(selectEndpoint('POST', '/v1/messagesfoo')).toBeNull();
+  });
 });
 
 describe('extractGeminiModelFromUrl (m4)', () => {
@@ -277,7 +291,11 @@ describe('handleOutboundRequest — auth', () => {
     const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/models', method: 'GET' });
     const res = new MockRes();
     req.start();
-    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, config, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+    // claude-api-protocol-fidelity: an unrestricted key defaults to the
+    // Anthropic shape now — force OpenAI to keep testing the OpenAI writer
+    // (its default-shape behavior is covered in outboundAnthropicModels.test).
+    const openaiConfig = { ...config, anthropic: { modelsShape: 'openai' as const } };
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, openaiConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { object: string; data: Array<{ id: string; object: string }> };
     expect(body.object).toBe('list');
@@ -292,6 +310,8 @@ describe('handleOutboundRequest — auth', () => {
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
     const mappedConfig = {
       endpoints: [],
+      // Force the OpenAI writer (unrestricted keys default to Anthropic shape now).
+      anthropic: { modelsShape: 'openai' as const },
       bindings: [{
         id: 'responses-mapped',
         name: 'Responses mapped',
@@ -329,6 +349,8 @@ describe('handleOutboundRequest — auth', () => {
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
     const passthroughConfig = {
       endpoints: [],
+      // Force the OpenAI writer (unrestricted keys default to Anthropic shape now).
+      anthropic: { modelsShape: 'openai' as const },
       bindings: [{
         id: 'chat-passthrough',
         name: 'Chat passthrough',
@@ -361,6 +383,8 @@ describe('handleOutboundRequest — auth', () => {
     const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap });
     const passthroughConfig = {
       endpoints: [],
+      // Force the OpenAI writer (unrestricted keys default to Anthropic shape now).
+      anthropic: { modelsShape: 'openai' as const },
       bindings: [{
         id: 'responses-subscription-passthrough',
         name: 'Responses subscription passthrough',

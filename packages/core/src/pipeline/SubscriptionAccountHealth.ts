@@ -170,6 +170,13 @@ export interface RecordUpstreamOutcomeInput {
   retryAfterSeconds?: number | null;
   /** Bounded response body text for the 403-ban sniff (only read on a 403). */
   bodyText?: string;
+  /**
+   * DIAGNOSTIC-ONLY (claude-api-transform-fidelity, R11): the upstream error
+   * body's `error.type` on failure statuses (429/529/≥500). Logged, never
+   * consulted by any decision branch — a table-driven test pins that outcomes
+   * are identical with and without it.
+   */
+  upstreamErrorType?: string;
   /** Injectable clock (default the tracker's `now`). */
   now?: number;
 }
@@ -325,6 +332,14 @@ export class SubscriptionAccountHealth {
     const preExisting = this.records.get(key);
     const record = preExisting ?? {};
     const status = input.status;
+
+    // R11②: the upstream error TYPE is a log-only diagnostic — no decision
+    // branch below reads it (pinned by test). Structured + secret-free.
+    if (input.upstreamErrorType) {
+      console.info(
+        `[AccountHealth] upstream error type ${input.upstreamErrorType} (provider=${providerId} status=${String(status)})`,
+      );
+    }
 
     // Edge-trigger input for the ADDITIVE anomaly emit (webhook-notifications D3):
     // was the account already unhealthy BEFORE this marking? If so, escalating it

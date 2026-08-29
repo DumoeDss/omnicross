@@ -24,6 +24,7 @@ import type http from 'node:http';
 
 import {
   classifyOpenAIOperation,
+  OpenAIOperationError,
   unsupportedOpenAIOperation,
   writeOpenAIOperationError,
 } from '../openai-operation';
@@ -31,6 +32,10 @@ import {
   handleAnthropicMessagesRequest,
   isAnthropicMessagesRequest,
 } from './ingress/anthropicMessagesIngress';
+import { classifyAnthropicMessagesPath } from './ingress/anthropicPathMatch';
+import {
+  markAnthropicProtocolResponse,
+} from './ingress/anthropicErrorEnvelope';
 import {
   handleGeminiGenerateContentRequest,
   isGeminiGenerateContentRequest,
@@ -42,6 +47,10 @@ import {
   handleOpenAIResponsesRequest,
 } from './ingress/openaiResponsesIngress';
 import { readBody, writeError } from './ingress/providerProxyShared';
+import {
+  createResponsesAbortScope,
+  ResponsesRequestTimeoutError,
+} from './responses/responsesAbort';
 import type { ProviderProxyRouteMap } from './providerProxyRouteMap';
 import type { ProviderProxyDeps } from './types';
 
@@ -83,6 +92,15 @@ export async function routeRequest(
   routes: ProviderProxyRouteMap,
   deps: ProviderProxyDeps,
 ): Promise<void> {
+  // ANTHROPIC-PROTOCOL MARK (claude-api-routing-errors, design D4). Classify
+  // the path FIRST — before token auth — so every LOCAL error on a
+  // `/v1/messages*` request (incl. the 401 below) carries the Anthropic error
+  // envelope an Anthropic SDK can type-parse. Relay paths never consult the
+  // mark — upstream errors stay verbatim.
+  if (classifyAnthropicMessagesPath(req.url) !== null) {
+    markAnthropicProtocolResponse(res);
+  }
+
   // 1. Token auth (code-enforced isolation — no fallback on miss/expired).
   //    `Authorization: Bearer <token>` OR `x-goog-api-key: <token>` (gemini-CLI).
   const token = resolveRouteToken(req);
@@ -124,11 +142,27 @@ export async function routeRequest(
   }
 
   if (openAIOperation?.id === 'responses.create') {
-    const rawBody = await readBody(req);
-    // Preserve Codex's session-id compatibility headers for account-pool
-    // affinity. The ingress treats this as metadata only and never forwards
-    // the headers as credentials.
-    await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers);
+    const abortScope = createResponsesAbortScope({ request: req, response: res });
+    try {
+      const rawBody = await readBody(req, abortScope.signal);
+      // Preserve Codex's session-id compatibility headers for account-pool
+      // affinity. The ingress treats this as metadata only and never forwards
+      // the headers as credentials.
+      await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers, abortScope.signal);
+    } catch (error) {
+      if (abortScope.signal.reason instanceof ResponsesRequestTimeoutError) {
+        writeOpenAIOperationError(res, new OpenAIOperationError({
+          status: 504,
+          code: 'request_timeout',
+          message: 'Responses request timed out',
+          retryable: true,
+        }));
+      } else if (!abortScope.signal.aborted) {
+        throw error;
+      }
+    } finally {
+      abortScope.dispose();
+    }
     return;
   }
 

@@ -29,6 +29,7 @@ import type {
   AnthropicToolUseContent,
 } from './AnthropicTypes';
 import { flattenToolResultContent, formatBase64, getThinkLevel } from './AnthropicTypes';
+import { recordDroppedField } from '../transformWarnings';
 
 export { buildAnthropicRequestBody } from './AnthropicRequestBuilder';
 export {
@@ -43,6 +44,8 @@ export {
 export function transformAnthropicRequestToUnified(request: unknown): UnifiedChatRequest {
   const anthropicRequest = request as AnthropicRequest;
   const messages: UnifiedMessage[] = [];
+  /** Set when any assistant turn carried a redacted_thinking block (audit). */
+  let redactedSeen = false;
 
   // Handle system message
   if (anthropicRequest.system) {
@@ -161,20 +164,53 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
           }));
         }
 
-        // Extract thinking — preserve the block even when `signature` is
-        // absent. Some Anthropic-compatible providers (e.g. Xiaomi MiMo's
-        // `/anthropic/v1/messages`) omit the signature but still require the
-        // prior assistant's thinking content to be echoed back on the next
-        // tool_result turn — dropping it here yields a 400 "reasoning_content
-        // must be passed back" from upstream on multi-round tool calls.
-        const thinkingPart = msg.content.find(
-          (c: AnthropicContent) => c.type === 'thinking'
-        ) as AnthropicThinkingContent | undefined;
-        if (thinkingPart?.thinking) {
+        // Extract thinking — IN BLOCK ORDER (R7/D5). The old `find` kept only
+        // the FIRST thinking block and silently dropped the rest, and
+        // `redacted_thinking` blocks vanished entirely. Now every block is
+        // concatenated in order: `thinking` blocks contribute their content
+        // (the first block's `signature` is kept — Unified has one signature
+        // slot; later signatures are appended into the content so echo-back
+        // upstreams keep the full material), and each `redacted_thinking`
+        // contributes a `[redacted thinking omitted]` placeholder AT ITS
+        // POSITION plus a dropped_field audit entry.
+        // The block is preserved even when `signature` is absent: some
+        // Anthropic-compatible providers (e.g. Xiaomi MiMo's
+        // `/anthropic/v1/messages`) still require the prior assistant's
+        // thinking content echoed back on the next tool_result turn.
+        let thinkingText = '';
+        let firstSignature: string | undefined;
+        let sawRedacted = false;
+        for (const block of msg.content) {
+          if (block.type === 'thinking') {
+            const t = (block as AnthropicThinkingContent).thinking;
+            if (typeof t === 'string' && t.length > 0) {
+              if (thinkingText.length > 0) thinkingText += '\n';
+              thinkingText += t;
+            }
+            const signature = (block as AnthropicThinkingContent).signature;
+            if (signature) {
+              if (firstSignature === undefined) {
+                firstSignature = signature;
+              } else if (typeof t === 'string' && t.length > 0) {
+                // Later-block signatures have no separate slot; keep them in
+                // the content so nothing is lost (Q3 dialect handling).
+                thinkingText += `\n[signature: ${signature}]`;
+              }
+            }
+          } else if (block.type === 'redacted_thinking') {
+            sawRedacted = true;
+            if (thinkingText.length > 0) thinkingText += '\n';
+            thinkingText += '[redacted thinking omitted]';
+          }
+        }
+        if (thinkingText.length > 0) {
           assistantMessage.thinking = {
-            content: thinkingPart.thinking,
-            signature: thinkingPart.signature,
+            content: thinkingText,
+            signature: firstSignature,
           };
+        }
+        if (sawRedacted) {
+          redactedSeen = true;
         }
 
         messages.push(assistantMessage);
@@ -199,6 +235,25 @@ export function transformAnthropicRequestToUnified(request: unknown): UnifiedCha
     stream: anthropicRequest.stream,
     tools: functionTools?.length ? functionTools : undefined,
   };
+
+  // R7 sampling/stop/metadata hub fields — captured ONLY when the caller sent
+  // them, so encoder output is byte-identical for requests that omit them.
+  const raw = anthropicRequest as AnthropicRequest & {
+    stop_sequences?: unknown;
+    top_p?: unknown;
+    top_k?: unknown;
+    metadata?: { user_id?: unknown } | undefined;
+  };
+  if (Array.isArray(raw.stop_sequences)) {
+    result.stop = raw.stop_sequences.filter((s): s is string => typeof s === 'string');
+  }
+  if (typeof raw.top_p === 'number') result.top_p = raw.top_p;
+  if (typeof raw.top_k === 'number') result.top_k = raw.top_k;
+  if (typeof raw.metadata?.user_id === 'string') result.metadata_user_id = raw.metadata.user_id;
+
+  if (redactedSeen) {
+    recordDroppedField(result, 'redacted_thinking', 'unified');
+  }
 
   // Preserve server-side tools for round-trip through transformer pipeline
   if (serverSideTools.length > 0) {

@@ -5,6 +5,10 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
+import {
+  DEFAULT_ANTHROPIC_PING_HEARTBEAT_MS,
+  getAnthropicPingHeartbeatMs,
+} from '../../transformer/transformers/AnthropicOpenAIToAnthropicStream';
 import { formatUrls, OutboundApiServer } from '../OutboundApiServer';
 import type { EndpointRoutingConfig, OutboundApiDeps } from '../types';
 
@@ -48,6 +52,81 @@ describe('OutboundApiServer', () => {
     expect(status.running).toBe(false);
     expect(status.loopbackUrl).toBeNull();
     expect(status.formats).toBeNull();
+  });
+
+  // claude-api-experience-extras (R10): HEAD /api/hello at the LISTENER level —
+  // unauthenticated 200 by default; apiHello:false keeps the previous behavior.
+  it('HEAD /api/hello answers a bare unauthenticated 200 by default', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const res = await fetch(`http://127.0.0.1:${server.getStatus().port}/api/hello`, {
+      method: 'HEAD',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('');
+  });
+
+  it('apiHello:false keeps the pre-change behavior (auth-less request → 401)', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+      anthropic: { apiHello: false },
+    });
+    const res = await fetch(`http://127.0.0.1:${server.getStatus().port}/api/hello`, {
+      method: 'HEAD',
+    });
+    // HEAD carries no body — the status alone pins the fall-through (the auth
+    // gate answered, not the listener).
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/hello is NOT the hello route (falls through; not the listener 200)', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const res = await fetch(`http://127.0.0.1:${server.getStatus().port}/api/hello`);
+    expect(res.status).not.toBe(200); // listener serves HEAD only
+  });
+
+  it('GET|HEAD /health + /healthz behavior is unchanged', async () => {
+    server = new OutboundApiServer({ ...deps, healthReportProvider: () => ({ status: 'ok' } as never) });
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const base = `http://127.0.0.1:${server.getStatus().port}`;
+    expect((await fetch(`${base}/health`)).status).toBe(200);
+    expect((await fetch(`${base}/healthz`)).status).toBe(200);
+    const head = await fetch(`${base}/health`, { method: 'HEAD' });
+    expect(head.status).toBe(200);
+  });
+
+  // claude-api-protocol-fidelity (§10 hot-reload seam, review B-M3): applyConfig
+  // is the ONE place the synthetic-ping heartbeat is hot-set — both daemon call
+  // sites (boot + admin PUT) flow through it. enabled:false keeps these
+  // lifecycle-only (no listener binds), exercising the setter path that runs
+  // before the early return.
+  it('applyConfig hot-sets the synthetic-ping heartbeat from the anthropic segment', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: false,
+      networkBinding: false,
+      endpoints,
+      anthropic: { heartbeatIntervalMs: 33_000 },
+    });
+    expect(getAnthropicPingHeartbeatMs()).toBe(33_000);
+
+    // Re-apply with a different value (hot reload, no restart).
+    await server.applyConfig({
+      enabled: false,
+      networkBinding: false,
+      endpoints,
+      anthropic: { heartbeatIntervalMs: 0 },
+    });
+    expect(getAnthropicPingHeartbeatMs()).toBe(0);
+
+    // Absent segment → the official default (setter resets).
+    await server.applyConfig({ enabled: false, networkBinding: false, endpoints });
+    expect(getAnthropicPingHeartbeatMs()).toBe(DEFAULT_ANTHROPIC_PING_HEARTBEAT_MS);
   });
 
   it('binds loopback by default and reports the four format URLs', async () => {
