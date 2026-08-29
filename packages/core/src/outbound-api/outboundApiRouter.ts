@@ -27,6 +27,7 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
+import { classifyOpenAIOperation } from '../openai-operation';
 import { isAccountAllowanceExhaustedError } from '../pipeline/AccountAllowanceScheduling';
 import {
   boundAccountSelectionMessage,
@@ -228,15 +229,20 @@ export function isLoopbackPeer(address: string | undefined): boolean {
     normalized.startsWith('::ffff:127.');
 }
 
-/** Match an HTTP method+path to one of the four outbound endpoints. */
+/** Project a classified operation onto one of the four persisted endpoints. */
 export function selectEndpoint(
   method: string | undefined,
   url: string | undefined,
 ): OutboundEndpoint | null {
   if (method !== 'POST' || !url) return null;
+  const openAIOperation = classifyOpenAIOperation(method, url);
+  if (
+    openAIOperation?.policyFamily === 'chat' ||
+    openAIOperation?.policyFamily === 'responses'
+  ) {
+    return openAIOperation.policyFamily;
+  }
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
-  if (path.endsWith('/chat/completions')) return 'chat';
-  if (path.endsWith('/responses')) return 'responses';
   // m3: the `/v1/messages` family routes through the SHARED classifier
   // (`classifyAnthropicMessagesPath`), the same function the resident
   // dispatcher's `isAnthropicMessagesRequest` derives from — selection and
@@ -1094,6 +1100,13 @@ function makeReplayRequest(
   readable.url = req.url;
   readable.headers = req.headers;
   readable.httpVersion = req.httpVersion;
+  // The original request reached `end` before this replay was constructed, so
+  // its buffered body is truthfully complete. `Readable.from()` has no
+  // IncomingMessage completion metadata of its own; without this marker the
+  // operation registry interprets the replay's normal auto-destroy `close` as
+  // a client disconnect and aborts still-pending compact upstream work.
+  readable.complete = true;
+  readable.aborted = false;
   // The socket is referenced by some downstream loggers; reuse the live one.
   (readable as unknown as { socket: unknown }).socket = req.socket;
   return readable;

@@ -161,10 +161,16 @@ describe('selectEndpoint', () => {
   it('matches the four endpoints and 404s the rest', () => {
     expect(selectEndpoint('POST', '/v1/chat/completions')).toBe('chat');
     expect(selectEndpoint('POST', '/v1/responses')).toBe('responses');
+    expect(selectEndpoint('POST', '/openai/responses/compact/?model=gpt-5.6')).toBe('responses');
     expect(selectEndpoint('POST', '/v1/messages')).toBe('messages');
     expect(selectEndpoint('POST', '/v1beta/models/gemini-2.5-pro:generateContent')).toBe('gemini');
     expect(selectEndpoint('POST', '/v1beta/models/gemini-2.5-pro:streamGenerateContent')).toBe('gemini');
     expect(selectEndpoint('GET', '/v1/chat/completions')).toBeNull();
+    // Image operations are classified by the shared catalog but deliberately
+    // have no legacy endpoint-policy projection until the Images change wires
+    // an independent least-privilege scope.
+    expect(selectEndpoint('POST', '/v1/images/generations')).toBeNull();
+    expect(selectEndpoint('POST', '/v1/images/edits')).toBeNull();
     expect(selectEndpoint('POST', '/nope')).toBeNull();
   });
 

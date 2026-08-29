@@ -54,6 +54,50 @@ describe('redactAuditText', () => {
     expect(redactAuditText(clean)).toBe(clean);
   });
 
+  it('redacts every nested encrypted_content value while retaining compact structure', () => {
+    const captured = JSON.stringify({
+      object: 'response.compaction',
+      output: [
+        { type: 'message', content: [{ type: 'output_text', text: 'visible' }] },
+        { type: 'reasoning', encrypted_content: 'reasoning-secret', summary: [] },
+        {
+          type: 'compaction',
+          encrypted_content: { opaque: 'window-secret' },
+          nested: [{ encrypted_content: null, safe: 7 }],
+        },
+      ],
+      metadata: { safe: true },
+    });
+
+    const redacted = JSON.parse(redactAuditText(captured)) as {
+      output: Array<Record<string, unknown>>;
+      metadata: { safe: boolean };
+    };
+    expect(redacted.output).toHaveLength(3);
+    expect(redacted.output[0]).toEqual({
+      type: 'message',
+      content: [{ type: 'output_text', text: 'visible' }],
+    });
+    expect(redacted.output[1]).toMatchObject({
+      type: 'reasoning',
+      encrypted_content: AUDIT_REDACTED,
+      summary: [],
+    });
+    expect(redacted.output[2]).toEqual({
+      type: 'compaction',
+      encrypted_content: AUDIT_REDACTED,
+      nested: [{ encrypted_content: AUDIT_REDACTED, safe: 7 }],
+    });
+    expect(redacted.metadata).toEqual({ safe: true });
+    expect(JSON.stringify(redacted)).not.toContain('reasoning-secret');
+    expect(JSON.stringify(redacted)).not.toContain('window-secret');
+  });
+
+  it('preserves clean JSON formatting when no encrypted_content exists', () => {
+    const cleanJson = '{\n  "output": [{ "type": "message", "text": "visible" }]\n}';
+    expect(redactAuditText(cleanJson)).toBe(cleanJson);
+  });
+
   it('never throws on empty / odd input', () => {
     expect(redactAuditText('')).toBe('');
   });

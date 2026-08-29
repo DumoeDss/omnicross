@@ -23,6 +23,12 @@
 import type http from 'node:http';
 
 import {
+  classifyOpenAIOperation,
+  OpenAIOperationError,
+  unsupportedOpenAIOperation,
+  writeOpenAIOperationError,
+} from '../openai-operation';
+import {
   handleAnthropicMessagesRequest,
   isAnthropicMessagesRequest,
 } from './ingress/anthropicMessagesIngress';
@@ -36,13 +42,15 @@ import {
 } from './ingress/geminiGenerateContentIngress';
 import {
   handleOpenAIChatRequest,
-  isOpenAIChatRequest,
 } from './ingress/openaiChatIngress';
 import {
   handleOpenAIResponsesRequest,
-  isOpenAIResponsesRequest,
 } from './ingress/openaiResponsesIngress';
 import { readBody, writeError } from './ingress/providerProxyShared';
+import {
+  createResponsesAbortScope,
+  ResponsesRequestTimeoutError,
+} from './responses/responsesAbort';
 import type { ProviderProxyRouteMap } from './providerProxyRouteMap';
 import type { ProviderProxyDeps } from './types';
 
@@ -105,6 +113,26 @@ export async function routeRequest(
   // 2. Read body once, then dispatch by method+path to the matching parser.
   const method = req.method;
   const url = req.url;
+  const openAIOperation = classifyOpenAIOperation(method, url);
+
+  if (openAIOperation?.owner === 'extension') {
+    const registry = deps.openAIOperationRegistry;
+    if (!registry) {
+      writeOpenAIOperationError(res, unsupportedOpenAIOperation(openAIOperation));
+      return;
+    }
+    const handled = await registry.dispatch({
+      operation: openAIOperation,
+      request: req,
+      response: res,
+      route,
+      deps,
+    });
+    if (!handled) {
+      writeOpenAIOperationError(res, unsupportedOpenAIOperation(openAIOperation));
+    }
+    return;
+  }
 
   if (isAnthropicMessagesRequest(method, url)) {
     // Delegation path: the host's per-request handler reads the body
@@ -113,16 +141,32 @@ export async function routeRequest(
     return;
   }
 
-  if (isOpenAIResponsesRequest(method, url)) {
-    const rawBody = await readBody(req);
-    // Preserve Codex's session-id compatibility headers for account-pool
-    // affinity. The ingress treats this as metadata only and never forwards
-    // the headers as credentials.
-    await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers);
+  if (openAIOperation?.id === 'responses.create') {
+    const abortScope = createResponsesAbortScope({ request: req, response: res });
+    try {
+      const rawBody = await readBody(req, abortScope.signal);
+      // Preserve Codex's session-id compatibility headers for account-pool
+      // affinity. The ingress treats this as metadata only and never forwards
+      // the headers as credentials.
+      await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers, abortScope.signal);
+    } catch (error) {
+      if (abortScope.signal.reason instanceof ResponsesRequestTimeoutError) {
+        writeOpenAIOperationError(res, new OpenAIOperationError({
+          status: 504,
+          code: 'request_timeout',
+          message: 'Responses request timed out',
+          retryable: true,
+        }));
+      } else if (!abortScope.signal.aborted) {
+        throw error;
+      }
+    } finally {
+      abortScope.dispose();
+    }
     return;
   }
 
-  if (isOpenAIChatRequest(method, url)) {
+  if (openAIOperation?.id === 'chat.completions.create') {
     const rawBody = await readBody(req);
     await handleOpenAIChatRequest(res, rawBody, route, deps);
     return;

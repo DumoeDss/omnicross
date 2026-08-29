@@ -33,6 +33,7 @@ import type { SubscriptionAuthProfile } from '../pipeline/SubscriptionAuthSource
 import type { AuthStrategy } from '../pipeline/SubscriptionAuthStrategy';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { WebSearchBackend } from '../ports/web-search-backend';
+import type { OpenAIOperationRegistry } from '../openai-operation/openAIOperationRegistry';
 
 // ── Proxy callback / attribution / hint shapes (E1 type de-inversion) ────────
 // These generic proxy callback/attribution/hint contracts carry no host
@@ -499,6 +500,11 @@ export interface RouteContext {
  */
 export interface ProviderProxyDeps {
   readonly llmConfig: ProviderConfigSource;
+  /**
+   * Trusted handlers for OpenAI resource operations not owned by the built-in
+   * create ingresses. Optional so existing embedders stay source-compatible.
+   */
+  readonly openAIOperationRegistry?: OpenAIOperationRegistry | null;
   /**
    * Session-affine key selection + 429/529/401/403 failover. Centralized here
    * (task 2.8) so the next-batch cutover removes the per-proxy taps. Optional —

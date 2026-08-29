@@ -87,6 +87,22 @@ describe('relayResponse — failed upstream is relayed as an error, not as an em
     expect(returned).toBe(errorBody);
   });
 
+  it('an explicit successful JSON response keeps its content type when the client requested streaming', async () => {
+    const jsonBody = JSON.stringify({ id: 'resp_json_fallback', status: 'completed', output: [] });
+    const resp = new Response(jsonBody, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    });
+    const mock = new MockRes();
+
+    const returned = await relayResponse(asRes(mock), resp, /* isStream */ true);
+
+    expect(mock.statusCode).toBe(200);
+    expect(mock.headers['Content-Type']).toBe('application/json; charset=utf-8');
+    expect(mock.body).toBe(jsonBody);
+    expect(returned).toBe(jsonBody);
+  });
+
   it('a genuine SSE body still streams at a non-2xx status', async () => {
     const sse = 'data: {"type":"response.failed"}\n\n';
     const resp = new Response(sse, {

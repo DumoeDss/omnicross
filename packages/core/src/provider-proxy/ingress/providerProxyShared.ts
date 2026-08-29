@@ -78,13 +78,48 @@ export function getGeminiEndpointTransformer(): Transformer {
   return sharedGemini;
 }
 
-/** Read the full request body from an IncomingMessage. */
-export function readBody(req: http.IncomingMessage): Promise<string> {
+/** Read the full request body from an IncomingMessage with deterministic listener cleanup. */
+export function readBody(req: http.IncomingMessage, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-    req.on('error', reject);
+    let settled = false;
+    const cleanup = (): void => {
+      req.removeListener('data', onData);
+      req.removeListener('end', onEnd);
+      req.removeListener('error', onError);
+      req.removeListener('aborted', onAborted);
+      req.removeListener('close', onClose);
+      signal?.removeEventListener('abort', onSignalAbort);
+    };
+    const finish = (error?: unknown): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error !== undefined) reject(error);
+      else resolve(Buffer.concat(chunks).toString('utf-8'));
+    };
+    const abortError = (): unknown =>
+      signal?.reason instanceof Error
+        ? signal.reason
+        : new DOMException('The operation was aborted', 'AbortError');
+    const onData = (chunk: Buffer | string): void => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    };
+    const onEnd = (): void => finish();
+    const onError = (error: Error): void => finish(error);
+    const onAborted = (): void => finish(abortError());
+    const onClose = (): void => {
+      if (!req.complete) finish(abortError());
+    };
+    const onSignalAbort = (): void => finish(abortError());
+
+    req.on('data', onData);
+    req.once('end', onEnd);
+    req.once('error', onError);
+    req.once('aborted', onAborted);
+    req.once('close', onClose);
+    signal?.addEventListener('abort', onSignalAbort, { once: true });
+    if (signal?.aborted) onSignalAbort();
   });
 }
 
@@ -225,16 +260,27 @@ function tapSseDataLine(line: string, onEvent: (event: Record<string, unknown>) 
 async function relaySseBody(
   res: http.ServerResponse,
   body: ReadableStream<Uint8Array>,
-  options: { rewriteModel?: string; onSseEvent?: (event: Record<string, unknown>) => void },
+  options: {
+    rewriteModel?: string;
+    onSseEvent?: (event: Record<string, unknown>) => void;
+    signal?: AbortSignal;
+  },
 ): Promise<void> {
-  const { rewriteModel, onSseEvent } = options;
+  const { rewriteModel, onSseEvent, signal } = options;
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let cancelPromise: Promise<void> | undefined;
+  const cancel = (): void => {
+    cancelPromise ??= reader.cancel(signal?.reason).catch(() => undefined);
+  };
+  signal?.addEventListener('abort', cancel, { once: true });
+  if (signal?.aborted) cancel();
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      if (signal?.aborted) break;
       buffer += decoder.decode(value, { stream: true });
       let out = '';
       let nlIndex: number;
@@ -244,24 +290,130 @@ async function relaySseBody(
         if (onSseEvent) tapSseDataLine(linePart, onSseEvent);
         out += rewriteModel ? rewriteSseLine(linePart, rewriteModel) : linePart;
       }
-      if (out) res.write(out);
+      if (out && !res.destroyed && !res.writableEnded) res.write(out);
     }
     // Flush the trailing incomplete final line (no newline). `decoder.decode()`
     // with no args drains any held bytes — still rewriting/tapping a terminal event.
-    const tail = buffer + decoder.decode();
-    if (tail) {
+    const tail = signal?.aborted ? '' : buffer + decoder.decode();
+    if (tail && !res.destroyed && !res.writableEnded) {
       if (onSseEvent) tapSseDataLine(tail, onSseEvent);
       res.write(rewriteModel ? rewriteSseLine(tail, rewriteModel) : tail);
     }
   } finally {
+    signal?.removeEventListener('abort', cancel);
+    if (cancelPromise) await cancelPromise;
     reader.releaseLock();
-    res.end();
+    if (!res.destroyed && !res.writableEnded) res.end();
+  }
+}
+
+async function readResponseTextWithSignal(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!response.body || !signal) return response.text();
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let cancelPromise: Promise<void> | undefined;
+  const cancel = (): void => {
+    cancelPromise ??= reader.cancel(signal.reason).catch(() => undefined);
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  if (signal.aborted) cancel();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (signal.aborted) throw signal.reason;
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    if (cancelPromise) await cancelPromise;
+    reader.releaseLock();
+  }
+}
+
+const SAFE_RESPONSE_HEADERS = new Set([
+  'content-type',
+  'retry-after',
+  'x-request-id',
+  'openai-request-id',
+  'openai-processing-ms',
+  'openai-version',
+  'x-should-retry',
+]);
+
+/** Project only explicitly safe end-to-end upstream response metadata. */
+export function projectUpstreamResponseHeaders(
+  headers: Headers,
+  upstreamIsSse: boolean,
+): Record<string, string> {
+  const projected: Record<string, string> = {};
+  headers.forEach((value, rawName) => {
+    const name = rawName.toLowerCase();
+    if (
+      SAFE_RESPONSE_HEADERS.has(name) ||
+      name.startsWith('x-ratelimit-') ||
+      (upstreamIsSse && name === 'cache-control')
+    ) {
+      const outputName = name === 'content-type'
+        ? 'Content-Type'
+        : name === 'retry-after'
+          ? 'Retry-After'
+          : name === 'cache-control'
+            ? 'Cache-Control'
+            : name;
+      projected[outputName] = value;
+    }
+  });
+  if (upstreamIsSse && projected['Cache-Control'] === undefined) {
+    projected['Cache-Control'] = 'no-cache';
+  }
+  return projected;
+}
+
+/**
+ * Confirm the compatibility case where Codex omits Content-Type on an SSE
+ * response. The clone lets us inspect only the leading frame without consuming
+ * the stream relayed to the client; explicit upstream content types never use
+ * this heuristic.
+ */
+async function isHeaderlessSseResponse(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (!response.body) return false;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    reader = response.clone().body?.getReader();
+    if (!reader) return false;
+    const decoder = new TextDecoder();
+    let prefix = '';
+    while (prefix.length < 4096) {
+      if (signal?.aborted) return false;
+      const { done, value } = await reader.read();
+      if (done) break;
+      prefix += decoder.decode(value, { stream: true });
+      const candidate = prefix.replace(/^\uFEFF/, '').trimStart();
+      if (/^(?::|data:|event:|id:|retry:)/.test(candidate)) return true;
+      if (/^[{[]/.test(candidate)) return false;
+    }
+    return /^(?::|data:|event:|id:|retry:)/.test(prefix.replace(/^\uFEFF/, '').trimStart());
+  } catch {
+    return false;
+  } finally {
+    void reader?.cancel().catch(() => undefined);
+    reader?.releaseLock();
   }
 }
 
 /**
  * Relay an already-wire-shaped `Response` to the http `res`.
- * - `text/event-stream` (or `isStream`): pipe the ReadableStream chunk-by-chunk.
+ * - explicit `text/event-stream`, or a confirmed headerless SSE compatibility
+ *   response: pipe the ReadableStream chunk-by-chunk.
  * - else: read the JSON text and write it once, returning it so the caller can
  *   tap usage. Mirrors the host's codex relay.
  *
@@ -291,11 +443,17 @@ export async function relayResponse(
    * events are parsed even without a `rewriteModel`/`usageTap`.
    */
   onSseEvent?: (event: Record<string, unknown>) => void,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const contentType = providerResponse.headers.get('Content-Type') ?? '';
   const status =
     providerResponse.status && providerResponse.status >= 100 ? providerResponse.status : 200;
+  const explicitContentType = contentType.trim().length > 0;
   const upstreamIsSse = contentType.includes('text/event-stream');
+  const headerlessIsSse = !explicitContentType && isStream
+    ? await isHeaderlessSseResponse(providerResponse, signal)
+    : false;
+  const relayAsSse = upstreamIsSse || headerlessIsSse;
 
   // A FAILED response is never a stream, even when the client asked for one:
   // stamping `text/event-stream` onto a JSON error body makes an SSE client read
@@ -303,12 +461,12 @@ export async function relayResponse(
   // response.completed") instead of the actual error — which is how a plain
   // upstream 400 used to reach codex. Errors relay as their real body with their
   // real status; a genuine SSE body still takes the stream branch at any status.
-  if (upstreamIsSse || (isStream && status < 400)) {
-    res.writeHead(status, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
+  if (relayAsSse) {
+    const responseHeaders = projectUpstreamResponseHeaders(providerResponse.headers, true);
+    responseHeaders['Content-Type'] = upstreamIsSse && contentType
+      ? contentType
+      : 'text/event-stream';
+    res.writeHead(status, responseHeaders);
     if (!providerResponse.body) {
       res.end();
       return null;
@@ -320,6 +478,7 @@ export async function relayResponse(
       let capturedUsage: Record<string, unknown> | null = null;
       await relaySseBody(res, providerResponse.body, {
         rewriteModel,
+        signal,
         onSseEvent:
           onSseEvent || usageTap
             ? (event) => {
@@ -337,22 +496,33 @@ export async function relayResponse(
     }
     // No rewrite and no tap: raw byte pipe (byte-identical to pre-tap behavior).
     const reader = providerResponse.body.getReader();
+    let cancelPromise: Promise<void> | undefined;
+    const cancel = (): void => {
+      cancelPromise ??= reader.cancel(signal?.reason).catch(() => undefined);
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) cancel();
     try {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        res.write(value);
+        if (signal?.aborted) break;
+        if (!res.destroyed && !res.writableEnded) res.write(value);
       }
     } finally {
+      signal?.removeEventListener('abort', cancel);
+      if (cancelPromise) await cancelPromise;
       reader.releaseLock();
-      res.end();
+      if (!res.destroyed && !res.writableEnded) res.end();
     }
     return null;
   }
 
-  const bodyText = await providerResponse.text();
+  const bodyText = await readResponseTextWithSignal(providerResponse, signal);
   const clientText = rewriteModel ? rewriteJsonModel(bodyText, rewriteModel) : bodyText;
-  res.writeHead(status, { 'Content-Type': contentType.includes('json') ? contentType : 'application/json' });
+  const responseHeaders = projectUpstreamResponseHeaders(providerResponse.headers, false);
+  responseHeaders['Content-Type'] = contentType || 'application/json';
+  res.writeHead(status, responseHeaders);
   res.end(clientText);
   return bodyText;
 }
