@@ -911,15 +911,23 @@ export async function handleOutboundRequest(
     const routeMap = deps.providerProxy.getRouteMap();
     // count_tokens requests carry the configured strategy mode + estimate
     // budget on the minted route (absent ⇒ 'auto' / estimator default);
-    // generation requests mint the route unchanged.
+    // Anthropic-protocol GENERATION requests additionally carry the PDF
+    // extraction budget (translate-path document handling). All other requests
+    // mint the route unchanged.
     const token = routeMap.addRoute(
       isCountTokens
         ? {
             ...resolved.route,
             anthropicCountTokensMode: config.anthropic?.countTokens?.mode,
             anthropicCountTokensEstimateBudgetMs: config.anthropic?.countTokens?.estimateBudgetMs,
+            anthropicPdfTextExtractionBudgetMs: config.anthropic?.pdfTextExtraction?.budgetMs,
           }
-        : resolved.route,
+        : anthropicPathClass !== null
+          ? {
+              ...resolved.route,
+              anthropicPdfTextExtractionBudgetMs: config.anthropic?.pdfTextExtraction?.budgetMs,
+            }
+          : resolved.route,
     );
     try {
       shimAuthHeader(req, token);

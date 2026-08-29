@@ -178,6 +178,18 @@ export function buildAnthropicRequestBody(
     body.temperature = request.temperature;
   }
 
+  // R7 symmetric backfill (claude-api-transform-fidelity): decoded hub fields
+  // return to their Anthropic spellings — all conditional so an absent field
+  // changes nothing vs before this change.
+  if (request.stop !== undefined && request.stop.length > 0) {
+    body.stop_sequences = request.stop;
+  }
+  if (request.top_p !== undefined) body.top_p = request.top_p;
+  if (request.top_k !== undefined) body.top_k = request.top_k;
+  if (request.metadata_user_id !== undefined) {
+    body.metadata = { user_id: request.metadata_user_id };
+  }
+
   if (systemContent !== undefined) {
     body.system = systemContent;
   }

@@ -21,6 +21,8 @@ export type UsageEngineOrigin =
   | 'claude-sdk-direct'
   /** Codex CLI run as a model client through the Responses-API ingress. */
   | 'codex-ingress'
+  /** Claude-family client run through the `/v1/messages` ingress (claude-api-transform-fidelity, R11). */
+  | 'anthropic-messages-ingress'
   /** Additional engine origins defined by the embedding host's own engines. */
   | (string & {});
 

@@ -393,6 +393,13 @@ export interface AnthropicConfigSegment {
    * streams pick the new value at their next timer arm.
    */
   heartbeatIntervalMs?: number;
+  /**
+   * Translate-path PDF text extraction budget (`claude-api-transform-fidelity`,
+   * R7). `budgetMs` default 2000 — bounds the synchronous zero-dependency
+   * text-layer walk; over-budget documents 400 explicitly (never silently
+   * dropped, never unbounded work).
+   */
+  pdfTextExtraction?: { budgetMs?: number };
 }
 
 /**

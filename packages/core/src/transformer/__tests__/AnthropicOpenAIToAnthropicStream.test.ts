@@ -164,6 +164,24 @@ describe('in-band error event shape (R6)', () => {
       expect(err.error.type).toBe('overloaded_error');
     }
   });
+
+  it('a codex response.failed event surfaces as the official error event (R8)', async () => {
+    const src = makeSource();
+    src.send(
+      `data: ${JSON.stringify({
+        type: 'response.failed',
+        response: { error: { code: 'server_is_overloaded', message: 'The server is overloaded' } },
+      })}\n\n`,
+    );
+    src.close();
+    const text = await drain(convertOpenAIStreamToAnthropic(src.stream));
+    const err = dataEvents(text).find((e) => e['type'] === 'error') as {
+      error: { type: string; message: string };
+    };
+    expect(err).toBeDefined();
+    expect(err.error.type).toBe('overloaded_error');
+    expect(err.error.message).toContain('server_is_overloaded');
+  });
 });
 
 describe('stop_reason mapping (R6)', () => {

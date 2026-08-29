@@ -229,6 +229,24 @@ export function convertOpenAIStreamToAnthropic(
                 continue;
               }
 
+              // R8 (claude-api-transform-fidelity): the codex Responses backend
+              // reports failures (incl. `server_is_overloaded` capacity events)
+              // as `response.failed` INSIDE a 200 stream. Without this branch
+              // the event vanished and the client saw an empty SUCCESS; now it
+              // surfaces as the official in-band error event (message = the
+              // upstream `response.error` serialized verbatim, so downstream
+              // observers — the messages overload bridge — can classify it).
+              if (chunk.type === 'response.failed' && chunk.response?.error) {
+                safeEnqueue(`event: error\ndata: ${JSON.stringify({
+                  type: 'error',
+                  error: {
+                    type: sniffErrorType(chunk.response.error),
+                    message: JSON.stringify(chunk.response.error),
+                  },
+                })}\n\n`);
+                continue;
+              }
+
               model = chunk.model || model;
 
               // Send message start

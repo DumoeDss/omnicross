@@ -380,11 +380,12 @@ describe('normalizeAllowanceScheduling', () => {
 });
 
 describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
-  it('defaults: auto count_tokens (2000ms budget), auto models shape, 20000ms heartbeat', () => {
+  it('defaults: auto count_tokens (2000ms budget), auto models shape, 20000ms heartbeat, 2000ms pdf budget', () => {
     expect(normalizeAnthropicSegment(undefined)).toEqual({
       countTokens: { mode: 'auto', estimateBudgetMs: 2000 },
       modelsShape: 'auto',
       heartbeatIntervalMs: 20_000,
+      pdfTextExtraction: { budgetMs: 2000 },
     });
     expect(defaultServerConfig().anthropic).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
     expect(normalizeServerConfig(null).anthropic).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
@@ -397,12 +398,14 @@ describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
           countTokens: { mode: 'estimate', estimateBudgetMs: 999_999 },
           modelsShape: 'openai',
           heartbeatIntervalMs: 0,
+          pdfTextExtraction: { budgetMs: 999_999 },
         },
       }),
     ).toEqual({
       countTokens: { mode: 'estimate', estimateBudgetMs: 60_000 },
       modelsShape: 'openai',
       heartbeatIntervalMs: 0, // ≤0 is a legal "disabled" value
+      pdfTextExtraction: { budgetMs: 60_000 },
     });
   });
 
@@ -427,6 +430,7 @@ describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
       countTokens: { mode: 'reject', estimateBudgetMs: 2000 },
       modelsShape: 'openai',
       heartbeatIntervalMs: 30_000,
+      pdfTextExtraction: { budgetMs: 2000 },
     });
   });
 });

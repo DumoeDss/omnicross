@@ -482,6 +482,14 @@ export interface RouteContext {
    * 2000ms default.
    */
   readonly anthropicCountTokensEstimateBudgetMs?: number;
+  /**
+   * Budget (ms) for the translate-path PDF text extraction
+   * (`anthropic.pdfTextExtraction.budgetMs`, claude-api-transform-fidelity).
+   * Absent ⇒ the extractor's 2000ms default. Applies to GENERATION translate
+   * routes (documents in message content), stamped by the outbound router for
+   * Anthropic-protocol requests; resident direct traffic uses the default.
+   */
+  readonly anthropicPdfTextExtractionBudgetMs?: number;
 }
 
 /**

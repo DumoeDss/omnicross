@@ -389,11 +389,27 @@ function proxyProviderId(plan: AnthropicCallPlan): string {
   return plan.isSubscription ? plan.transformerProvider.name : 'byo';
 }
 
+/**
+ * One pipeline/same-format run's result, widened for the R8 bridge +
+ * in-band-overload observer (claude-api-transform-fidelity): the SELECTED
+ * account and its route-activity row id ride up to the relay call site so
+ * mid-stream events can annotate/record against the right row/account.
+ */
+export interface AnthropicRunResult {
+  response: Response;
+  rawStatus: number | null;
+  actualModel?: string;
+  /** Subscription account selected for the FINAL attempt (BYO: undefined). */
+  accountId?: string;
+  /** Route-activity row id of the final attempt (BYO / unrecorded: undefined). */
+  activityRecordId?: string;
+}
+
 export async function runPipeline(
   anthropicBody: Record<string, unknown>,
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean) => void,
-): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> {
+): Promise<AnthropicRunResult> {
   const executor = getSharedExecutor();
   const endpointTransformer = getAnthropicEndpointTransformer();
   const { auth, chain, transformerProvider, resolvedModel, isStream, resolveUrl, upstreamUrl } = plan;
@@ -419,6 +435,9 @@ export async function runPipeline(
   });
 
   let rawStatus: number | null = null;
+  // Route-activity row id for THIS attempt (R8 bridge): captured from the fetch
+  // seam so a mid-stream overload event can amend the row that stamped the 200.
+  let activityRecordId: string | undefined;
 
   const { response } = await executeProviderCall({
     executor,
@@ -450,6 +469,9 @@ export async function runPipeline(
                 sessionKey: plan.sessionKey,
                 sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
                 model: resolvedModel,
+                onRecorded: (record) => {
+                  activityRecordId = record.id;
+                },
               }
             : undefined,
         },
@@ -461,7 +483,7 @@ export async function runPipeline(
     runResponseChain: true,
   });
 
-  return { response, rawStatus };
+  return { response, rawStatus, accountId: proxyAccountId, activityRecordId };
 }
 
 /**
@@ -485,7 +507,7 @@ export async function runSubscriptionSameFormatFetch(
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void,
   options: AnthropicByoOptions = {},
   urlOverride?: string,
-): Promise<{ response: Response; rawStatus: number | null; actualModel: string }> {
+): Promise<AnthropicRunResult> {
   // upstream-proxy: capture the effective account (per-account proxy override).
   // subscription-account-model-map (D3): capture the selected account's ACTUAL
   // upstream model when its `supportedModels` object remaps the request model.
@@ -568,6 +590,8 @@ export async function runSubscriptionSameFormatFetch(
   console.info(
     `[ProviderProxy:anthropic] (subscription same-format) -> ${urlOverride ?? plan.upstreamUrl} model=${outboundModel} stream=${plan.isStream}`,
   );
+  // Route-activity row id for THIS attempt (R11③ in-band observer seam).
+  let activityRecordId: string | undefined;
   const response = await fetchUpstream(
     urlOverride ?? plan.upstreamUrl,
     { method: 'POST', headers, body: outboundBody },
@@ -580,11 +604,20 @@ export async function runSubscriptionSameFormatFetch(
             sessionKey: plan.sessionKey,
             sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
             model: outboundModel,
+            onRecorded: (record) => {
+              activityRecordId = record.id;
+            },
           }
         : undefined,
     },
   );
-  return { response, rawStatus: response.status, actualModel: outboundModel };
+  return {
+    response,
+    rawStatus: response.status,
+    actualModel: outboundModel,
+    accountId: proxyAccountId,
+    activityRecordId,
+  };
 }
 
 /**
@@ -638,7 +671,7 @@ async function runSubscriptionAttemptWith401Retry(
   relayBody: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions = {},
-): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> {
+): Promise<AnthropicRunResult> {
   // Per-request capture (subscription-account-health, D5): the strategy reports
   // the EFFECTIVE account id it resolved so we mark THAT account's health against
   // the FINAL upstream outcome. Fresh per call ⇒ no cross-request race.
@@ -646,7 +679,7 @@ async function runSubscriptionAttemptWith401Retry(
   const reportSelection = (accountId: string): void => {
     selectedAccountId = accountId;
   };
-  const runOnce = (): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> =>
+  const runOnce = (): Promise<AnthropicRunResult> =>
     plan.sameFormat
       ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection, options)
       : runPipeline(anthropicBody, plan, reportSelection);
@@ -692,7 +725,7 @@ async function readBoundedBody(response: Response, max = 2048): Promise<string |
 async function markSubscriptionHealth(
   plan: AnthropicCallPlan,
   selectedAccountId: string | undefined,
-  result: { response: Response; rawStatus: number | null; actualModel?: string },
+  result: AnthropicRunResult,
 ): Promise<void> {
   if (!plan.isSubscription || selectedAccountId === undefined) return;
   const providerId = plan.transformerProvider.name;
@@ -701,11 +734,29 @@ async function markSubscriptionHealth(
   // Read the body ONLY on a 403 (rare) for the ban sniff; a streaming/unreadable
   // 403 body falls back to transient (the safer failure direction).
   const bodyText = status === 403 ? await readBoundedBody(result.response) : undefined;
+  // R11② (claude-api-transform-fidelity): failure statuses contribute the
+  // upstream error body's `error.type` as a DIAGNOSTIC-ONLY field. Read via
+  // `response.clone()` (inside readBoundedBody) so the relayed bytes are
+  // untouched; parse failures are simply absent. Health DECISIONS never
+  // consult this field (table-pinned test).
+  let upstreamErrorType: string | undefined;
+  if (status !== null && (status === 429 || status === 529 || status >= 500)) {
+    const errorBody = await readBoundedBody(result.response, 512);
+    if (errorBody) {
+      try {
+        const parsed = JSON.parse(errorBody) as { error?: { type?: unknown } };
+        if (typeof parsed.error?.type === 'string') upstreamErrorType = parsed.error.type;
+      } catch {
+        // Non-JSON error body — no type to report.
+      }
+    }
+  }
   getSharedAccountHealth().recordUpstreamOutcome(providerId, selectedAccountId, {
     status,
     resetHeaderSeconds,
     retryAfterSeconds,
     bodyText,
+    ...(upstreamErrorType !== undefined ? { upstreamErrorType } : {}),
   });
 }
 
@@ -767,7 +818,7 @@ function recordBreakerOutcome(
  *  carries the LAST outcome so chain exhaustion surfaces it faithfully (re-throw a
  *  thrown last attempt → outer 502; relay a returned last attempt's Response). */
 type SubscriptionAttemptOutcome =
-  | { kind: 'result'; result: { response: Response; rawStatus: number | null; actualModel?: string } }
+  | { kind: 'result'; result: AnthropicRunResult }
   | { kind: 'thrown'; error: unknown };
 
 /** Run one attempt, converting a THROWN relay/network error into a
@@ -795,7 +846,7 @@ function outcomeStatus(outcome: SubscriptionAttemptOutcome): number | null {
 
 /** Surface a terminal outcome: a returned result is relayed; a thrown error is
  *  RE-THROWN so the outer `catch` in `handleAnthropicMessagesByo` writes 502. */
-function settleOutcome(outcome: SubscriptionAttemptOutcome): { response: Response; rawStatus: number | null; actualModel?: string } {
+function settleOutcome(outcome: SubscriptionAttemptOutcome): AnthropicRunResult {
   if (outcome.kind === 'thrown') throw outcome.error;
   return outcome.result;
 }
@@ -830,16 +881,46 @@ export async function runPipelineWithSubscriptionRetry(
   route: RouteContext,
   deps: ProviderProxyDeps,
   options: AnthropicByoOptions = {},
-): Promise<{ response: Response; rawStatus: number | null; actualModel?: string }> {
+  /**
+   * Translate-path content pre-pass (claude-api-transform-fidelity, review
+   * C-M3): invoked per TRANSLATE iteration on a DEEP CLONE of that attempt's
+   * body. Because the fallback loop recomputes `sameFormat` per model (a
+   * fallback may flip Anthropic-shape ↔ OpenAI-shape), the pre-pass must
+   * follow the per-ITERATION wire classification — prepping (or not) to the
+   * INITIAL plan would either re-silently-drop documents on a translate flip,
+   * or leak pre-pass mutations into a same-format iteration's bytes. The
+   * clone guarantees the shared `anthropicBody` a same-format iteration
+   * re-serializes is never mutated.
+   */
+  prepareTranslateBody?: (body: Record<string, unknown>) => Promise<void>,
+): Promise<AnthropicRunResult> {
   const profile = route.subscriptionProfile;
   const scenario = initialPlan.scenario;
+
+  /**
+   * Prepare a translate attempt's body: deep clone (JSON round-trip — these
+   * bodies are JSON by construction), then run the pre-pass on the clone.
+   * Typed pre-pass errors propagate to the caller's 400 mapping; the ORIGINAL
+   * body objects stay untouched for any same-format iteration.
+   */
+  const prepareTranslateAttempt = async (
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    if (!prepareTranslateBody) return body;
+    const clone = JSON.parse(JSON.stringify(body)) as Record<string, unknown>;
+    await prepareTranslateBody(clone);
+    return clone;
+  };
 
   // No fallback machinery (claude/codex/gemini, or a profile without a scenario):
   // exactly one attempt, byte-identical (verbatim `rawBody` on the same-format
   // path, the parsed `anthropicBody` on the transformer path). No breaker gating
   // and `recordModelOutcome` is unset on those profiles → a pure no-op record.
   if (!profile?.nextFallback || scenario === undefined) {
-    const loneOutcome = await runSubscriptionAttemptOutcome(anthropicBody, rawBody, initialPlan, options);
+    const loneBody = initialPlan.sameFormat
+      ? anthropicBody
+      : await prepareTranslateAttempt(anthropicBody);
+    const loneOutcome = await runSubscriptionAttemptOutcome(loneBody, rawBody, initialPlan, options);
     recordBreakerOutcome(profile, initialPlan.resolvedModel, outcomeStatus(loneOutcome));
     return settleOutcome(loneOutcome);
   }
@@ -869,7 +950,9 @@ export async function runPipelineWithSubscriptionRetry(
         `[ProviderProxy:anthropic] subscription primary ${initialPlan.resolvedModel} circuit open -> first admitting fallback ${firstAdmitting.modelId}`,
       );
       plan = gatedPlan;
-      firstBodyObj = { ...anthropicBody, model: firstAdmitting.modelId };
+      firstBodyObj = gatedPlan.sameFormat
+        ? { ...anthropicBody, model: firstAdmitting.modelId }
+        : await prepareTranslateAttempt({ ...anthropicBody, model: firstAdmitting.modelId });
       firstRelayBody = gatedPlan.sameFormat ? JSON.stringify(firstBodyObj) : rawBody;
     } else {
       // All circuits open (or the profile lost resolveUpstreamUrl): fail open —
@@ -880,6 +963,12 @@ export async function runPipelineWithSubscriptionRetry(
         `[ProviderProxy:anthropic] subscription all opencodego circuits open -> fail open to primary ${initialPlan.resolvedModel}`,
       );
     }
+  }
+
+  // Non-gated primary (or failed-open primary) on a TRANSLATE plan: prep the
+  // attempt body (C-M3). The gated branch already prepared its own body above.
+  if (plan === initialPlan && !initialPlan.sameFormat) {
+    firstBodyObj = await prepareTranslateAttempt(anthropicBody);
   }
 
   // First real attempt (the mapped primary, the gated first-admitting fallback,
@@ -912,11 +1001,14 @@ export async function runPipelineWithSubscriptionRetry(
     );
 
     // FALLBACK iteration: build a per-iteration body carrying the new model (a
-    // fresh shallow copy — NOT a mutation of the shared `anthropicBody` across an
-    // await, which would be a race-prone pattern). The transformer path serializes
-    // THIS object; the same-format relay forwards its JSON. The dispatcher's
+    // fresh copy — NOT a mutation of the shared `anthropicBody` across an await,
+    // which would be a race-prone pattern). A TRANSLATE iteration gets a deep
+    // clone + the content pre-pass (C-M3); a same-format iteration re-serializes
+    // the ORIGINAL, unmutated content. The dispatcher's
     // `req.anthropicBody.model = currentModel` rewrite is mirrored on the copy.
-    const fallbackBodyObj: Record<string, unknown> = { ...anthropicBody, model: next.modelId };
+    const fallbackBodyObj: Record<string, unknown> = nextPlan.sameFormat
+      ? { ...anthropicBody, model: next.modelId }
+      : await prepareTranslateAttempt({ ...anthropicBody, model: next.modelId });
     const fallbackRelayBody = nextPlan.sameFormat ? JSON.stringify(fallbackBodyObj) : rawBody;
 
     plan = nextPlan;
