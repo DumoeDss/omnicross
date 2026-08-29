@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { loadOverviewSources } from './overviewData';
+import { loadOverviewAllowances, loadOverviewSources } from './overviewData';
 import type { OverviewSource, OverviewSources } from './overviewModel';
+
+/** Keep the account-pool allowance display current without reloading the full Overview. */
+export const OVERVIEW_ALLOWANCE_POLL_MS = 30_000;
 
 function loadingSource<T>(previous?: OverviewSource<T>): OverviewSource<T> {
   return {
@@ -51,6 +54,36 @@ export function useOverviewData(): UseOverviewDataResult {
       cancelled = true;
     };
   }, [refreshTick]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let polling = false;
+
+    const pollAllowances = async () => {
+      if (polling || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+      polling = true;
+      try {
+        const allowances = await loadOverviewAllowances();
+        if (!cancelled) {
+          setSources((previous) => ({ ...previous, allowances }));
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    const interval = globalThis.setInterval(() => void pollAllowances(), OVERVIEW_ALLOWANCE_POLL_MS);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void pollAllowances();
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      cancelled = true;
+      globalThis.clearInterval(interval);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   const refresh = useCallback(() => setRefreshTick((value) => value + 1), []);
   const loading = useMemo(
