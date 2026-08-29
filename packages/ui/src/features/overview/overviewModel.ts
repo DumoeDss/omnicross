@@ -289,6 +289,17 @@ function buildAllowanceWatch(
 }
 
 /** Up to `limit` accounts ranked by weekly (seven-day) allowance usage. */
+function weeklyAccountLabel(provider: string, label: string): string {
+  const accountLabel = label.trim();
+  const providerId = provider.trim();
+  const normalizedLabel = accountLabel.toLowerCase();
+  const normalizedProvider = providerId.toLowerCase();
+  if (normalizedLabel === normalizedProvider || normalizedLabel.startsWith(`${normalizedProvider}-`)) {
+    return accountLabel;
+  }
+  return `${providerId}-${accountLabel}`;
+}
+
 function buildWeeklyTop(
   source: OverviewSource<AccountAllowanceSnapshot[]>,
   accounts: AccountEntry[],
@@ -296,7 +307,10 @@ function buildWeeklyTop(
 ): AllowanceWeeklyItem[] {
   if (source.state !== 'ready' || !source.data) return [];
   const labelFor = new Map(
-    accounts.map((entry) => [allowanceKey(entry.providerId, entry.account.id), entry.account.label || entry.account.id]),
+    accounts.map((entry) => [
+      allowanceKey(entry.providerId, entry.account.id),
+      weeklyAccountLabel(entry.providerId, entry.account.label?.trim() || entry.account.id),
+    ]),
   );
   const items: AllowanceWeeklyItem[] = [];
   for (const snapshot of source.data) {
@@ -306,7 +320,7 @@ function buildWeeklyTop(
     items.push({
       providerId: snapshot.providerId,
       accountId: snapshot.accountId,
-      label: labelFor.get(key) ?? snapshot.accountId,
+      label: labelFor.get(key) ?? weeklyAccountLabel(snapshot.providerId, snapshot.accountId),
       usedPercent: typeof weekly.usedPercent === 'number' ? Math.max(0, Math.min(100, weekly.usedPercent)) : undefined,
       state: weekly.state,
       resetsAt: weekly.resetsAt,

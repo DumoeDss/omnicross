@@ -151,6 +151,15 @@ export function formatTokens(value: number, locale: string): string {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value);
 }
 
+/** Compact, locale-aware magnitude for constrained cards and chart axes. */
+export function formatCompactNumber(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 /** USD with 2–4 fraction digits (small per-request costs need the precision). */
 export function formatUsd(value: number, locale: string): string {
   return new Intl.NumberFormat(locale, {
@@ -158,6 +167,32 @@ export function formatUsd(value: number, locale: string): string {
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
+  }).format(value);
+}
+
+/**
+ * Compact aggregated USD while retaining the existing precision for amounts
+ * below $1,000. Callers should expose `formatUsd` as the hover value.
+ */
+export function formatCompactUsd(value: number, locale: string): string {
+  if (Math.abs(value) < 1_000) return formatUsd(value, locale);
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+/** Axis labels always prioritize a short magnitude over accounting precision. */
+export function formatAxisUsd(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
   }).format(value);
 }
 

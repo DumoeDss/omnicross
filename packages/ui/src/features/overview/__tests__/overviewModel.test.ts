@@ -374,13 +374,14 @@ describe('buildOverviewModel', () => {
   });
 
   it('ranks account-pool accounts by weekly allowance usage', () => {
-    const second: SubscriptionAccountSanitized = { ...healthyAccount, id: 'claude-2', label: 'Secondary Claude' };
+    const primary: SubscriptionAccountSanitized = { ...healthyAccount, label: 'claude-primary' };
+    const second: SubscriptionAccountSanitized = { ...healthyAccount, id: 'claude-2', label: 'sayo' };
     const base = healthySources();
     const view = buildOverviewModel({
       ...base,
       accounts: source({
         ...emptyAccounts,
-        providerAccounts: { ...emptyAccounts.providerAccounts, claude: [healthyAccount, second] },
+        providerAccounts: { ...emptyAccounts.providerAccounts, claude: [primary, second] },
       }),
       allowances: source([
         { ...baseAllowances[0], windows: [{ id: 'seven-day', label: 'Weekly', scope: 'all', usedPercent: 30, state: 'fresh' }] },
@@ -389,7 +390,7 @@ describe('buildOverviewModel', () => {
     }, NOW);
 
     expect(view.allowance.weeklyTop).toHaveLength(2);
-    expect(view.allowance.weeklyTop[0]).toMatchObject({ accountId: 'claude-2', usedPercent: 88, label: 'Secondary Claude' });
-    expect(view.allowance.weeklyTop[1]).toMatchObject({ accountId: 'claude-1', usedPercent: 30 });
+    expect(view.allowance.weeklyTop[0]).toMatchObject({ accountId: 'claude-2', usedPercent: 88, label: 'claude-sayo' });
+    expect(view.allowance.weeklyTop[1]).toMatchObject({ accountId: 'claude-1', usedPercent: 30, label: 'claude-primary' });
   });
 });

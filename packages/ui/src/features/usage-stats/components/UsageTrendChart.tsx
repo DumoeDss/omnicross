@@ -24,7 +24,12 @@ import { Button } from '@/components/ui/button';
 import i18n from '@/i18n';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-import { formatTokens, formatUsd } from '../hooks/usageStatsLogic';
+import {
+  formatAxisUsd,
+  formatCompactNumber,
+  formatTokens,
+  formatUsd,
+} from '../hooks/usageStatsLogic';
 import { getChartTheme } from './chartTheme';
 
 import type { UsageTimeBucket, UsageTimeSeriesBucket } from '@/daemon/types-usage-pricing';
@@ -128,7 +133,7 @@ export function UsageTrendChart({
                   tick={{ fill: theme.muted, fontSize: 11 }}
                   stroke={theme.border}
                   width={48}
-                  tickFormatter={(v: number) => formatTokens(v, locale)}
+                  tickFormatter={(v: number) => formatCompactNumber(v, locale)}
                 />
                 <YAxis
                   yAxisId="cost"
@@ -136,7 +141,7 @@ export function UsageTrendChart({
                   tick={{ fill: theme.muted, fontSize: 11 }}
                   stroke={theme.border}
                   width={56}
-                  tickFormatter={(v: number) => formatUsd(v, locale)}
+                  tickFormatter={(v: number) => formatAxisUsd(v, locale)}
                 />
                 <Tooltip content={<TrendTooltip />} />
                 <Line
