@@ -266,6 +266,8 @@ export const DEFAULT_ANTHROPIC_SEGMENT: AnthropicConfigSegment = {
   modelsShape: 'auto',
   heartbeatIntervalMs: 20_000,
   pdfTextExtraction: { budgetMs: 2000 },
+  proxyOauthUsage: false,
+  apiHello: true,
 };
 
 const COUNT_TOKENS_MODES: readonly string[] = ['auto', 'passthrough', 'estimate', 'reject'];
@@ -311,6 +313,8 @@ export function normalizeAnthropicSegment(
         DEFAULT_ANTHROPIC_SEGMENT.pdfTextExtraction!.budgetMs!,
       ),
     },
+    proxyOauthUsage: a?.proxyOauthUsage === true,
+    apiHello: a?.apiHello !== false,
   };
 }
 

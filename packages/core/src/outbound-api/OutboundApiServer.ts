@@ -87,6 +87,8 @@ export class OutboundApiServer {
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private voucherConfig: VoucherConfig | undefined;
   private anthropicConfig: AnthropicConfigSegment | undefined;
+  /** R10 `/api/hello` switch (§10 `anthropic.apiHello`, default true). */
+  private apiHelloEnabled = true;
   private readonly rateLimiter = new OutboundRateLimiter();
   /**
    * Redeem-attempt limiter (voucher-redemption #9, design D6) — a SEPARATE bucket
@@ -127,6 +129,7 @@ export class OutboundApiServer {
     // is HOT-APPLIED here (in-flight streams pick the new value at their next
     // timer arm — a config change never interrupts them).
     this.anthropicConfig = input.anthropic;
+    this.apiHelloEnabled = input.anthropic?.apiHello !== false;
     setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
     const wantAddr = input.networkBinding ? LAN_ADDR : LOOPBACK_ADDR;
     const wantPort = input.port ?? DEFAULT_OUTBOUND_PORT;
@@ -204,6 +207,12 @@ export class OutboundApiServer {
     // traffic port. Only mounted when the daemon wired a provider; otherwise the
     // path falls through to normal auth (zero-regression).
     if (this.deps.healthReportProvider && this.tryServeHealth(req, res)) return;
+    // R10 (claude-api-experience-extras): `HEAD /api/hello` — clients probe
+    // whether the endpoint can be safely rejected; a bare unauthenticated 200
+    // is the friendly answer. Sits beside /health at the LISTENER level (before
+    // key auth) but honors its own switch (default ON; `apiHello:false` keeps
+    // the previous fall-through behavior).
+    if (this.tryServeApiHello(req, res)) return;
     handleOutboundRequest(
       req,
       res,
@@ -236,6 +245,21 @@ export class OutboundApiServer {
         }
       }
     });
+  }
+
+  /**
+   * Serve `HEAD /api/hello` (exact path, query tolerated) with a bare 200 —
+   * returning true when it handled the request. Unauthenticated by design and
+   * gated on `anthropic.apiHello` (default true).
+   */
+  private tryServeApiHello(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    if (!this.apiHelloEnabled) return false;
+    if (req.method !== 'HEAD') return false;
+    const path = (req.url ?? '/').split('?')[0]?.replace(/\/+$/, '') || '/';
+    if (path !== '/api/hello') return false;
+    res.writeHead(200);
+    res.end();
+    return true;
   }
 
   /**

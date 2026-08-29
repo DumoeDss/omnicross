@@ -400,6 +400,19 @@ export interface AnthropicConfigSegment {
    * dropped, never unbounded work).
    */
   pdfTextExtraction?: { budgetMs?: number };
+  /**
+   * Serve `GET /api/oauth/usage` on the outbound listener as a PURE-CACHE read
+   * of the shared Claude allowance store (R9). Default FALSE — off, the path
+   * keeps its current generic 404 byte-for-byte. When on, a messages-authorized
+   * key bound to a Claude subscription receives the api.anthropic.com usage
+   * wire shape; NO upstream call or refresh is ever triggered by the query.
+   */
+  proxyOauthUsage?: boolean;
+  /**
+   * Answer `HEAD /api/hello` with a bare 200 at the listener level (R10 —
+   * clients probe "can this endpoint be safely rejected"). Default TRUE.
+   */
+  apiHello?: boolean;
 }
 
 /**

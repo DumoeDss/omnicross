@@ -33,6 +33,7 @@ import {
   isBoundAccountSelectionError,
 } from '../pipeline/BoundAccountSelectionError';
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
+import { getSharedAccountAllowanceStore } from '../pipeline/AccountAllowanceStore';
 import { classifyAnthropicMessagesPath } from '../provider-proxy/ingress/anthropicPathMatch';
 import {
   isAnthropicProtocolResponse,
@@ -274,6 +275,19 @@ export function isModelsListRequest(url: string | undefined): boolean {
 }
 
 /**
+ * True for the EXACT `/api/oauth/usage` path (query + trailing slash tolerated)
+ * — the R9 usage-proxy route. Kept SEPARATE from the messages-family
+ * classifier: it is not a generation endpoint, and marking it is GATED on
+ * `anthropic.proxyOauthUsage` (config-off ⇒ the path keeps its current generic
+ * behavior byte-for-byte).
+ */
+export function isAnthropicOauthUsagePath(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
+  return path === '/api/oauth/usage';
+}
+
+/**
  * Resolve the `GET /v1/models` response shape (claude-api-protocol-fidelity,
  * R4). Explicit `anthropic`/`openai` config wins; `'auto'` (default) gives a
  * key authorized for the messages endpoint (or an unrestricted key) the
@@ -402,6 +416,68 @@ async function writeModelsListAnthropic(
   );
 }
 
+/** The api.anthropic.com usage wire keys ↔ the store's stable window ids. */
+const OAUTH_USAGE_WINDOW_IDS: ReadonlyArray<[wireKey: string, windowId: string]> = [
+  ['five_hour', 'five-hour'],
+  ['seven_day', 'seven-day'],
+  ['seven_day_sonnet', 'seven-day-sonnet'],
+];
+
+/**
+ * Serve `GET /api/oauth/usage` (R9) from the SHARED Claude allowance store —
+ * a pure cache read rendered back to the upstream wire shape
+ * (`{five_hour:{utilization,resets_at},seven_day:{…},seven_day_sonnet:{…}}`)
+ * so Claude Code's /usage parsing works unchanged. Requirements:
+ *  - the key must be bound to a Claude SUBSCRIPTION on the messages endpoint
+ *    (else Anthropic-shaped 404 `not_found_error` — the marked res shapes it);
+ *  - the account snapshot = the binding's preferred account when it matches,
+ *    else the FIRST snapshot with a fresh window (Q1);
+ *  - missing/stale/unavailable windows render `utilization: null` — the store
+ *    read NEVER triggers a collection or refresh;
+ *  - output is sanitized to the window fields only (no account ids, no
+ *    internal state labels).
+ */
+function handleOauthUsageProxy(
+  res: http.ServerResponse,
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+): void {
+  const claudeBinding = candidateGatewayBindings(config.bindings, apiKeyId, 'messages').find(
+    (binding) => binding.target.kind !== 'provider' && binding.target.providerId === 'claude',
+  );
+  if (!claudeBinding) {
+    writeJsonError(res, 404, 'No Claude subscription route is bound to this key');
+    return;
+  }
+
+  const snapshots = getSharedAccountAllowanceStore().list({ providerId: 'claude' });
+  const preferredAccountId =
+    claudeBinding.target.kind === 'account' ? claudeBinding.target.accountId : undefined;
+  const snapshot =
+    (preferredAccountId !== undefined
+      ? snapshots.find((s) => s.accountId === preferredAccountId)
+      : undefined) ??
+    snapshots.find((s) => s.windows.some((w) => w.state === 'fresh')) ??
+    snapshots[0];
+
+  const body: Record<string, { utilization: number | null; resets_at: string | null }> = {};
+  for (const [wireKey, windowId] of OAUTH_USAGE_WINDOW_IDS) {
+    const window = snapshot?.windows.find((w) => w.id === windowId);
+    // FRESH-ONLY rendering (review D-M1): a stale window's last-known numbers
+    // are expired data and a past `resets_at` is not truth either — both null
+    // until the background collector refreshes the snapshot. Missing /
+    // unavailable / unsupported windows are null the same way.
+    const usable = window?.state === 'fresh';
+    body[wireKey] = {
+      utilization: usable ? (window.usedPercent ?? null) : null,
+      resets_at: usable ? (window.resetsAt ?? null) : null,
+    };
+  }
+
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
 async function writeModelsList(
   res: http.ServerResponse,
@@ -528,6 +604,12 @@ export async function handleOutboundRequest(
   const anthropicPathClass = classifyAnthropicMessagesPath(req.url);
   const isCountTokens = anthropicPathClass === 'count_tokens';
   if (anthropicPathClass !== null) markAnthropicProtocolResponse(res);
+  // R9 (claude-api-experience-extras): with the proxy ENABLED, the usage route
+  // also takes the Anthropic error envelope (auth 401 / unbound 404). GATED so
+  // config-off keeps the path byte-identical (never marked, never handled).
+  const proxyOauthUsageEnabled = config.anthropic?.proxyOauthUsage === true;
+  const isOauthUsagePath = proxyOauthUsageEnabled && isAnthropicOauthUsagePath(req.url);
+  if (isOauthUsagePath) markAnthropicProtocolResponse(res);
 
   // AUDIT (request-audit-log, design D5). Gated inside `beginAuditCapture` on the
   // core capture-config slot: audit-disabled ⇒ `null` (one slot read, no work,
@@ -600,6 +682,20 @@ export async function handleOutboundRequest(
     writeJsonError(res, 429, 'Rate limit exceeded', {
       'Retry-After': String(decision.retryAfterSeconds),
     });
+    return;
+  }
+
+  // 2a. USAGE PROXY (R9, claude-api-experience-extras) — placed AFTER auth +
+  // rate limit, BEFORE models-list/endpoint select. A PURE-CACHE read of the
+  // shared Claude allowance store: zero upstream calls, zero refreshes (the
+  // daemon's background scheduler keeps the cache warm; a cold/stale cache
+  // renders as `utilization: null` windows). Never enters the concurrency gate.
+  if (isOauthUsagePath) {
+    if (req.method !== 'GET') {
+      writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
+      return;
+    }
+    handleOauthUsageProxy(res, config, verified.id);
     return;
   }
 

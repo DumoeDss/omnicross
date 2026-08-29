@@ -380,12 +380,14 @@ describe('normalizeAllowanceScheduling', () => {
 });
 
 describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
-  it('defaults: auto count_tokens (2000ms budget), auto models shape, 20000ms heartbeat, 2000ms pdf budget', () => {
+  it('defaults: auto count_tokens (2000ms budget), auto models shape, 20000ms heartbeat, 2000ms pdf budget, proxy off, hello on', () => {
     expect(normalizeAnthropicSegment(undefined)).toEqual({
       countTokens: { mode: 'auto', estimateBudgetMs: 2000 },
       modelsShape: 'auto',
       heartbeatIntervalMs: 20_000,
       pdfTextExtraction: { budgetMs: 2000 },
+      proxyOauthUsage: false,
+      apiHello: true,
     });
     expect(defaultServerConfig().anthropic).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
     expect(normalizeServerConfig(null).anthropic).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
@@ -406,7 +408,17 @@ describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
       modelsShape: 'openai',
       heartbeatIntervalMs: 0, // ≤0 is a legal "disabled" value
       pdfTextExtraction: { budgetMs: 60_000 },
+      proxyOauthUsage: false,
+      apiHello: true,
     });
+  });
+
+  it('proxyOauthUsage/apiHello accept booleans (hello false is honored)', () => {
+    expect(
+      normalizeAnthropicSegment({
+        anthropic: { proxyOauthUsage: true, apiHello: false },
+      }),
+    ).toMatchObject({ proxyOauthUsage: true, apiHello: false });
   });
 
   it('falls back to defaults on unknown enum values / junk numbers', () => {
@@ -431,6 +443,8 @@ describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
       modelsShape: 'openai',
       heartbeatIntervalMs: 30_000,
       pdfTextExtraction: { budgetMs: 2000 },
+      proxyOauthUsage: false,
+      apiHello: true,
     });
   });
 });

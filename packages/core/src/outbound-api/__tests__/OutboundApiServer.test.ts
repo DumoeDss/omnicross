@@ -54,6 +54,52 @@ describe('OutboundApiServer', () => {
     expect(status.formats).toBeNull();
   });
 
+  // claude-api-experience-extras (R10): HEAD /api/hello at the LISTENER level —
+  // unauthenticated 200 by default; apiHello:false keeps the previous behavior.
+  it('HEAD /api/hello answers a bare unauthenticated 200 by default', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const res = await fetch(`http://127.0.0.1:${server.getStatus().port}/api/hello`, {
+      method: 'HEAD',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('');
+  });
+
+  it('apiHello:false keeps the pre-change behavior (auth-less request → 401)', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+      anthropic: { apiHello: false },
+    });
+    const res = await fetch(`http://127.0.0.1:${server.getStatus().port}/api/hello`, {
+      method: 'HEAD',
+    });
+    // HEAD carries no body — the status alone pins the fall-through (the auth
+    // gate answered, not the listener).
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/hello is NOT the hello route (falls through; not the listener 200)', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const res = await fetch(`http://127.0.0.1:${server.getStatus().port}/api/hello`);
+    expect(res.status).not.toBe(200); // listener serves HEAD only
+  });
+
+  it('GET|HEAD /health + /healthz behavior is unchanged', async () => {
+    server = new OutboundApiServer({ ...deps, healthReportProvider: () => ({ status: 'ok' } as never) });
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const base = `http://127.0.0.1:${server.getStatus().port}`;
+    expect((await fetch(`${base}/health`)).status).toBe(200);
+    expect((await fetch(`${base}/healthz`)).status).toBe(200);
+    const head = await fetch(`${base}/health`, { method: 'HEAD' });
+    expect(head.status).toBe(200);
+  });
+
   // claude-api-protocol-fidelity (§10 hot-reload seam, review B-M3): applyConfig
   // is the ONE place the synthetic-ping heartbeat is hot-set — both daemon call
   // sites (boot + admin PUT) flow through it. enabled:false keeps these
