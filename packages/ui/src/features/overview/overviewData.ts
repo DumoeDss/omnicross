@@ -134,6 +134,11 @@ async function readAllowances(): Promise<AccountAllowanceSnapshot[]> {
   return body.allowances;
 }
 
+/** Refresh the independently polled account-allowance source. */
+export function loadOverviewAllowances(): Promise<OverviewSource<AccountAllowanceSnapshot[]>> {
+  return readOverviewSource(readAllowances);
+}
+
 async function readIntegrations(): Promise<CliIntegrationsOverview> {
   const body = await adminClient.get<unknown>('/integrations');
   if (!body || typeof body !== 'object' || !Array.isArray((body as Partial<CliIntegrationsOverview>).integrations)) {
@@ -179,7 +184,7 @@ export async function loadOverviewSources(now = Date.now()): Promise<OverviewSou
     readOverviewSource(readGatewayKeys),
     readOverviewSource(readGatewayVersion),
     readOverviewSource(readAccounts),
-    readOverviewSource(readAllowances),
+    loadOverviewAllowances(),
     readOverviewSource(readUsage),
     readOverviewSource(readIntegrations),
     readOverviewSource(() => readAudit(now)),
