@@ -12,7 +12,12 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 import i18n from '@/i18n';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-import { formatUsd, modelShares, type ModelShare } from '../hooks/usageStatsLogic';
+import {
+  formatCompactUsd,
+  formatUsd,
+  modelShares,
+  type ModelShare,
+} from '../hooks/usageStatsLogic';
 import { getChartTheme } from './chartTheme';
 
 import type { ModelUsageRow } from '@/daemon/types-usage-pricing';
@@ -89,8 +94,12 @@ export function ModelDistributionChart({ rows }: ModelDistributionChartProps) {
                     <span className="min-w-0 flex-1 truncate text-foreground" title={label}>
                       {label}
                     </span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {formatUsd(s.costUsd, locale)}
+                    <span
+                      className="shrink-0 font-mono tabular-nums text-muted-foreground"
+                      title={formatUsd(s.costUsd, locale)}
+                      aria-label={formatUsd(s.costUsd, locale)}
+                    >
+                      {formatCompactUsd(s.costUsd, locale)}
                     </span>
                     <span className="w-12 shrink-0 text-right tabular-nums text-muted-foreground">
                       {(s.share * 100).toFixed(1)}%

@@ -425,6 +425,8 @@ function AccountsEvidence({
       : view.allowance.unobservedCount > 0
         ? t('overview.accounts.allowanceUnobserved', { count: view.allowance.unobservedCount })
         : t('overview.accounts.allowanceThreshold', { threshold: view.allowance.threshold });
+  const showAbnormal = view.accounts.abnormal.state !== 'ready' || (view.accounts.abnormal.value ?? 0) > 0;
+  const showExpiringSoon = view.accounts.expiringSoon.state !== 'ready' || (view.accounts.expiringSoon.value ?? 0) > 0;
   return (
     <section className="rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5" aria-labelledby="account-evidence-title">
       <SectionHeading
@@ -442,25 +444,28 @@ function AccountsEvidence({
           detail={view.accounts.total.state === 'ready' ? t('overview.accounts.total', { count: view.accounts.total.value }) : undefined}
           valueClassName="font-mono tabular-nums"
         />
-        <EvidenceRow
-          label={t('overview.accounts.abnormal')}
-          value={metricText(view.accounts.abnormal, t, formatCount)}
-          detail={view.accounts.abnormal.state === 'ready' && view.accounts.abnormal.value === 0 ? t('overview.accounts.none') : undefined}
-          valueClassName={view.accounts.abnormal.state === 'ready' && (view.accounts.abnormal.value ?? 0) > 0 ? 'font-mono tabular-nums text-warning' : 'font-mono tabular-nums'}
-        />
+        <WeeklyAllowanceList items={view.allowance.weeklyTop} threshold={view.allowance.threshold} />
+        {showAbnormal ? (
+          <EvidenceRow
+            label={t('overview.accounts.abnormal')}
+            value={metricText(view.accounts.abnormal, t, formatCount)}
+            valueClassName={view.accounts.abnormal.state === 'ready' ? 'font-mono tabular-nums text-warning' : 'font-mono tabular-nums'}
+          />
+        ) : null}
         <EvidenceRow
           label={t('overview.accounts.allowance')}
           value={allowanceValue}
           detail={allowanceDetail}
           valueClassName="font-mono tabular-nums"
         />
-        <EvidenceRow
-          label={t('overview.accounts.expiringSoon')}
-          value={metricText(view.accounts.expiringSoon, t, formatCount)}
-          detail={view.accounts.expiringSoon.state === 'ready' ? t('overview.accounts.expiringSoonHint') : undefined}
-          valueClassName="font-mono tabular-nums"
-        />
-        <WeeklyAllowanceList items={view.allowance.weeklyTop} threshold={view.allowance.threshold} />
+        {showExpiringSoon ? (
+          <EvidenceRow
+            label={t('overview.accounts.expiringSoon')}
+            value={metricText(view.accounts.expiringSoon, t, formatCount)}
+            detail={view.accounts.expiringSoon.state === 'ready' ? t('overview.accounts.expiringSoonHint') : undefined}
+            valueClassName="font-mono tabular-nums text-warning"
+          />
+        ) : null}
       </div>
     </section>
   );
@@ -639,41 +644,33 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-5 md:px-7 md:py-7">
-        <header className="flex flex-col gap-3 border-b border-border/70 pb-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-primary">{t('overview.eyebrow')}</p>
-            <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-foreground md:text-3xl">{t('overview.title')}</h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t('overview.description')}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-xs', headerClass)} aria-live="polite">
-              <CircleDot className={cn('h-3.5 w-3.5', headerReady && 'motion-safe:animate-pulse')} aria-hidden="true" />
-              {view.overallState === 'loading' ? t('overview.source.loading') : headerReady ? t('overview.operational') : t('overview.actionRequired')}
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              disabled={data.refreshing}
-              onClick={() => {
-                data.refresh();
-                throughput.refresh();
-              }}
-              aria-label={t('overview.refresh')}
-              title={t('overview.refresh')}
-            >
-              <RefreshCw className={data.refreshing ? 'animate-spin' : undefined} aria-hidden="true" />
-            </Button>
-          </div>
-        </header>
-
+      <div className="mx-auto max-w-6xl space-y-5 px-4 py-4 md:px-7 md:py-6">
         <section aria-labelledby="request-path-title">
-          <div className="mb-3 flex items-end justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 id="request-path-title" className="text-sm font-semibold text-foreground">{t('overview.requestPath')}</h2>
+              <h1 id="request-path-title" className="text-sm font-semibold text-foreground">{t('overview.requestPath')}</h1>
               <p className="mt-1 text-xs text-muted-foreground">{t('overview.requestPathHint')}</p>
             </div>
-            {view.gateway.address.state === 'ready' && view.gateway.address.value ? <code className="hidden max-w-[45%] truncate font-mono text-[11px] text-muted-foreground md:block">{view.gateway.address.value}</code> : null}
+            <div className="flex min-w-0 items-center gap-2">
+              {view.gateway.address.state === 'ready' && view.gateway.address.value ? <code className="hidden max-w-56 truncate font-mono text-[11px] text-muted-foreground xl:block">{view.gateway.address.value}</code> : null}
+              <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-xs', headerClass)} aria-live="polite">
+                <CircleDot className={cn('h-3.5 w-3.5', headerReady && 'motion-safe:animate-pulse')} aria-hidden="true" />
+                {view.overallState === 'loading' ? t('overview.source.loading') : headerReady ? t('overview.operational') : t('overview.actionRequired')}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={data.refreshing}
+                onClick={() => {
+                  data.refresh();
+                  throughput.refresh();
+                }}
+                aria-label={t('overview.refresh')}
+                title={t('overview.refresh')}
+              >
+                <RefreshCw className={data.refreshing ? 'animate-spin' : undefined} aria-hidden="true" />
+              </Button>
+            </div>
           </div>
           <div className="relative grid gap-2 rounded-xl border border-border/70 bg-surface-2/30 p-2 md:grid-cols-4">
             <div className={cn('pointer-events-none absolute left-[12.5%] right-[12.5%] top-[2.1rem] hidden h-px bg-border md:block', view.pathOperational && 'request-path-live')} aria-hidden="true" />
@@ -686,6 +683,11 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           </div>
         </section>
 
+        <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+          <GatewayEvidence view={view} onNavigate={onNavigate} />
+          <AccountsEvidence view={view} onNavigate={onNavigate} />
+        </div>
+
         <LiveThroughputEvidence
           view={throughputView}
           windowMs={throughputWindowMs}
@@ -693,12 +695,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           onNavigate={onNavigate}
         />
 
-        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <GatewayEvidence view={view} onNavigate={onNavigate} />
-          <AccountsEvidence view={view} onNavigate={onNavigate} />
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <TodayEvidence view={view} onNavigate={onNavigate} />
           <IntegrationsEvidence view={view} onNavigate={onNavigate} />
         </div>

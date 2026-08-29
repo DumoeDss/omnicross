@@ -1,7 +1,7 @@
 /**
  * TotalsSummary.tsx — summary cards over `UsageTotals`: total cost, cache
  * savings, event count, and the five token classes. Locale-aware number
- * formatting; USD with 2–4 fraction digits (small costs need the precision).
+ * formatting; constrained values use compact magnitudes with exact hover text.
  */
 
 import React from 'react';
@@ -12,6 +12,8 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 import {
   cacheHitRate,
   coldCacheRequestRate,
+  formatCompactNumber,
+  formatCompactUsd,
   formatPercent,
   formatTokens,
   formatUsd,
@@ -26,6 +28,7 @@ interface TotalsSummaryProps {
 interface CardDef {
   labelKey: string;
   value: string;
+  fullValue?: string;
   highlight?: boolean;
 }
 
@@ -43,16 +46,30 @@ export function TotalsSummary({ totals }: TotalsSummaryProps) {
   );
   const percentOrDash = (ratio: number | null): string =>
     ratio === null ? '—' : formatPercent(ratio, locale);
+  const compactCountCard = (labelKey: string, value: number): CardDef => ({
+    labelKey,
+    value: formatCompactNumber(value, locale),
+    fullValue: formatTokens(value, locale),
+  });
 
   const cards: CardDef[] = [
-    { labelKey: 'usageStats.totalCost', value: formatUsd(totals.costUsd, locale), highlight: true },
-    { labelKey: 'usageStats.cacheSavings', value: formatUsd(totals.costSavedByCacheUsd, locale) },
-    { labelKey: 'usageStats.events', value: formatTokens(totals.eventCount, locale) },
-    { labelKey: 'usageStats.inputTokens', value: formatTokens(totals.inputTokens, locale) },
-    { labelKey: 'usageStats.outputTokens', value: formatTokens(totals.outputTokens, locale) },
-    { labelKey: 'usageStats.cacheReadTokens', value: formatTokens(totals.cacheReadTokens, locale) },
-    { labelKey: 'usageStats.cacheWriteTokens', value: formatTokens(totals.cacheCreationTokens, locale) },
-    { labelKey: 'usageStats.reasoningTokens', value: formatTokens(totals.reasoningTokens, locale) },
+    {
+      labelKey: 'usageStats.totalCost',
+      value: formatCompactUsd(totals.costUsd, locale),
+      fullValue: formatUsd(totals.costUsd, locale),
+      highlight: true,
+    },
+    {
+      labelKey: 'usageStats.cacheSavings',
+      value: formatCompactUsd(totals.costSavedByCacheUsd, locale),
+      fullValue: formatUsd(totals.costSavedByCacheUsd, locale),
+    },
+    compactCountCard('usageStats.events', totals.eventCount),
+    compactCountCard('usageStats.inputTokens', totals.inputTokens),
+    compactCountCard('usageStats.outputTokens', totals.outputTokens),
+    compactCountCard('usageStats.cacheReadTokens', totals.cacheReadTokens),
+    compactCountCard('usageStats.cacheWriteTokens', totals.cacheCreationTokens),
+    compactCountCard('usageStats.reasoningTokens', totals.reasoningTokens),
     {
       labelKey: 'usageStats.weightedCacheHitRate',
       value: percentOrDash(weightedCacheHitRate),
@@ -80,9 +97,11 @@ export function TotalsSummary({ totals }: TotalsSummaryProps) {
           <p
             className={
               card.highlight
-                ? 'mt-1 text-lg font-semibold text-primary'
-                : 'mt-1 text-lg font-semibold text-foreground'
+                ? 'mt-1 truncate font-mono text-lg font-semibold tabular-nums text-primary'
+                : 'mt-1 truncate font-mono text-lg font-semibold tabular-nums text-foreground'
             }
+            title={card.fullValue}
+            aria-label={card.fullValue ?? card.value}
           >
             {card.value}
           </p>

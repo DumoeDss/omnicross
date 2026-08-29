@@ -17,6 +17,9 @@ import {
   coldCacheRequestRate,
   computeCustomRange,
   computePresetRange,
+  formatAxisUsd,
+  formatCompactNumber,
+  formatCompactUsd,
   formatTableUsd,
   loadUsageData,
   partitionApiKeyRows,
@@ -184,6 +187,25 @@ describe('formatTableUsd', () => {
   it('truncates instead of rounding and applies the threshold by absolute value', () => {
     expect(formatTableUsd(2_458.8864, 'en-US').display).toBe('$2,458.8');
     expect(formatTableUsd(-1_000.19, 'en-US').display).toBe('-$1,000.1');
+  });
+});
+
+describe('compact dashboard formatting', () => {
+  it('uses localized magnitude suffixes for constrained count displays', () => {
+    expect(formatCompactNumber(3_152_015_756, 'en-US')).toBe('3.2B');
+    expect(formatCompactNumber(3_152_015_756, 'zh-CN')).toBe('31.5亿');
+    expect(formatCompactNumber(999, 'en-US')).toBe('999');
+  });
+
+  it('compacts aggregated USD but keeps small amounts precise', () => {
+    expect(formatCompactUsd(37_935.7236, 'en-US')).toBe('$37.9K');
+    expect(formatCompactUsd(37_935.7236, 'zh-CN')).toBe('US$3.8万');
+    expect(formatCompactUsd(5.6107, 'en-US')).toBe('$5.6107');
+  });
+
+  it('uses short currency values on chart axes regardless of precision', () => {
+    expect(formatAxisUsd(4_000, 'en-US')).toBe('$4K');
+    expect(formatAxisUsd(0, 'en-US')).toBe('$0');
   });
 });
 
