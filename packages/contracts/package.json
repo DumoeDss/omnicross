@@ -75,6 +75,11 @@
       "import": "./dist/health-logging-types.js",
       "require": "./dist/health-logging-types.cjs"
     },
+    "./image-generation-types": {
+      "types": "./dist/image-generation-types.d.ts",
+      "import": "./dist/image-generation-types.js",
+      "require": "./dist/image-generation-types.cjs"
+    },
     "./llm-config": {
       "types": "./dist/llm-config.d.ts",
       "import": "./dist/llm-config.js",
