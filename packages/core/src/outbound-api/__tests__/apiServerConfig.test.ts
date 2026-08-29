@@ -9,12 +9,14 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ACCOUNT_PROBE,
   DEFAULT_ALLOWANCE_SCHEDULING,
+  DEFAULT_ANTHROPIC_SEGMENT,
   DEFAULT_CONCURRENCY_QUEUE,
   DEFAULT_USER_MESSAGE_QUEUE,
   defaultServerConfig,
   mergeServerConfig,
   normalizeAccountProbe,
   normalizeAllowanceScheduling,
+  normalizeAnthropicSegment,
   normalizeEndpointConfig,
   normalizeServerConfig,
 } from '../apiServerConfig';
@@ -374,5 +376,75 @@ describe('normalizeAllowanceScheduling', () => {
         priorityPenalty: 0,
       } as unknown as typeof DEFAULT_ALLOWANCE_SCHEDULING,
     })).toEqual({ ...DEFAULT_ALLOWANCE_SCHEDULING, priorityPenalty: 1 });
+  });
+});
+
+describe('anthropic segment (claude-api-protocol-fidelity, §10)', () => {
+  it('defaults: auto count_tokens (2000ms budget), auto models shape, 20000ms heartbeat, 2000ms pdf budget, proxy off, hello on', () => {
+    expect(normalizeAnthropicSegment(undefined)).toEqual({
+      countTokens: { mode: 'auto', estimateBudgetMs: 2000 },
+      modelsShape: 'auto',
+      heartbeatIntervalMs: 20_000,
+      pdfTextExtraction: { budgetMs: 2000 },
+      proxyOauthUsage: false,
+      apiHello: true,
+    });
+    expect(defaultServerConfig().anthropic).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
+    expect(normalizeServerConfig(null).anthropic).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
+  });
+
+  it('accepts valid values and clamps the numeric knobs', () => {
+    expect(
+      normalizeAnthropicSegment({
+        anthropic: {
+          countTokens: { mode: 'estimate', estimateBudgetMs: 999_999 },
+          modelsShape: 'openai',
+          heartbeatIntervalMs: 0,
+          pdfTextExtraction: { budgetMs: 999_999 },
+        },
+      }),
+    ).toEqual({
+      countTokens: { mode: 'estimate', estimateBudgetMs: 60_000 },
+      modelsShape: 'openai',
+      heartbeatIntervalMs: 0, // ≤0 is a legal "disabled" value
+      pdfTextExtraction: { budgetMs: 60_000 },
+      proxyOauthUsage: false,
+      apiHello: true,
+    });
+  });
+
+  it('proxyOauthUsage/apiHello accept booleans (hello false is honored)', () => {
+    expect(
+      normalizeAnthropicSegment({
+        anthropic: { proxyOauthUsage: true, apiHello: false },
+      }),
+    ).toMatchObject({ proxyOauthUsage: true, apiHello: false });
+  });
+
+  it('falls back to defaults on unknown enum values / junk numbers', () => {
+    expect(
+      normalizeAnthropicSegment({
+        anthropic: {
+          countTokens: { mode: 'sometimes', estimateBudgetMs: Number.NaN },
+          modelsShape: 'xml',
+          heartbeatIntervalMs: Number.NaN,
+        } as unknown as never,
+      }),
+    ).toEqual(DEFAULT_ANTHROPIC_SEGMENT);
+  });
+
+  it('mergeServerConfig keeps the current segment when the patch omits it', () => {
+    const current = normalizeServerConfig({
+      anthropic: { countTokens: { mode: 'reject' }, modelsShape: 'openai', heartbeatIntervalMs: 30_000 },
+    });
+    const merged = mergeServerConfig(current, { networkBinding: true });
+    expect(merged.anthropic).toEqual({
+      countTokens: { mode: 'reject', estimateBudgetMs: 2000 },
+      modelsShape: 'openai',
+      heartbeatIntervalMs: 30_000,
+      pdfTextExtraction: { budgetMs: 2000 },
+      proxyOauthUsage: false,
+      apiHello: true,
+    });
   });
 });

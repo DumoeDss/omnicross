@@ -75,6 +75,11 @@ export default defineConfig({
     'transformer/types': 'src/transformer/types.ts',
     'transformer/transformers': 'src/transformer/transformers/index.ts',
     'transformer/transformers/AnthropicTransformer': 'src/transformer/transformers/AnthropicTransformer.ts',
+    // claude-api-protocol-fidelity: the daemon hot-sets the synthetic-ping
+    // heartbeat via this module-level setter at applyConfig. Registered here
+    // per the "new subpath exports MUST be registered in tsup.config" rule.
+    'transformer/transformers/AnthropicOpenAIToAnthropicStream':
+      'src/transformer/transformers/AnthropicOpenAIToAnthropicStream.ts',
     'transformer/transformers/GeminiCodeAssistTransformer': 'src/transformer/transformers/GeminiCodeAssistTransformer.ts',
     'transformer/transformers/GeminiTransformer': 'src/transformer/transformers/GeminiTransformer.ts',
     'transformer/transformers/OpenAIResponseTransformer': 'src/transformer/transformers/OpenAIResponseTransformer.ts',

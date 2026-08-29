@@ -60,4 +60,11 @@ describe('normalizeDoubledEndpointPath', () => {
   it('leaves the voucher redeem route unchanged', () => {
     expect(normalizeDoubledEndpointPath('/redeem')).toBe('/redeem');
   });
+
+  it('leaves the count_tokens subpath unchanged (folding is exact-doubled-suffix only)', () => {
+    expect(normalizeDoubledEndpointPath('/v1/messages/count_tokens')).toBe('/v1/messages/count_tokens');
+    expect(normalizeDoubledEndpointPath('/v1/messages/count_tokens?beta=true')).toBe(
+      '/v1/messages/count_tokens?beta=true',
+    );
+  });
 });

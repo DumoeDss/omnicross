@@ -31,10 +31,16 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import { serializeError } from '@omnicross/core/serializeError';
 
 import { KeyedMutex } from './keyedMutex';
+import {
+  isAnthropicProtocolResponse,
+  writeAnthropicError,
+} from '../provider-proxy/ingress/anthropicErrorEnvelope';
+import { setAnthropicPingHeartbeatMs } from '../transformer/transformers/AnthropicOpenAIToAnthropicStream';
 import { handleOutboundRequest } from './outboundApiRouter';
 import { OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import { OutboundRateLimiter } from './outboundRateLimiter';
 import type {
+  AnthropicConfigSegment,
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
@@ -66,6 +72,9 @@ export interface ApplyConfigInput {
   /** Voucher segment (voucher-redemption #9). Read live per request; absent ⇒
    *  disabled ⇒ the `/redeem` endpoint is inert (zero regression). */
   voucher?: VoucherConfig;
+  /** Anthropic-protocol segment (claude-api-protocol-fidelity, §10). Read live
+   *  per request; the heartbeat value is hot-applied to the stream synthesizer. */
+  anthropic?: AnthropicConfigSegment;
 }
 
 export class OutboundApiServer {
@@ -77,6 +86,9 @@ export class OutboundApiServer {
   private userMessageQueue: UserMessageQueueConfig | undefined;
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private voucherConfig: VoucherConfig | undefined;
+  private anthropicConfig: AnthropicConfigSegment | undefined;
+  /** R10 `/api/hello` switch (§10 `anthropic.apiHello`, default true). */
+  private apiHelloEnabled = true;
   private readonly rateLimiter = new OutboundRateLimiter();
   /**
    * Redeem-attempt limiter (voucher-redemption #9, design D6) — a SEPARATE bucket
@@ -113,6 +125,12 @@ export class OutboundApiServer {
     this.userMessageQueue = input.userMessageQueue;
     this.concurrencyQueue = input.concurrencyQueue;
     this.voucherConfig = input.voucher;
+    // Anthropic segment is read live per request; the synthetic-ping heartbeat
+    // is HOT-APPLIED here (in-flight streams pick the new value at their next
+    // timer arm — a config change never interrupts them).
+    this.anthropicConfig = input.anthropic;
+    this.apiHelloEnabled = input.anthropic?.apiHello !== false;
+    setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
     const wantAddr = input.networkBinding ? LAN_ADDR : LOOPBACK_ADDR;
     const wantPort = input.port ?? DEFAULT_OUTBOUND_PORT;
 
@@ -189,6 +207,12 @@ export class OutboundApiServer {
     // traffic port. Only mounted when the daemon wired a provider; otherwise the
     // path falls through to normal auth (zero-regression).
     if (this.deps.healthReportProvider && this.tryServeHealth(req, res)) return;
+    // R10 (claude-api-experience-extras): `HEAD /api/hello` — clients probe
+    // whether the endpoint can be safely rejected; a bare unauthenticated 200
+    // is the friendly answer. Sits beside /health at the LISTENER level (before
+    // key auth) but honors its own switch (default ON; `apiHello:false` keeps
+    // the previous fall-through behavior).
+    if (this.tryServeApiHello(req, res)) return;
     handleOutboundRequest(
       req,
       res,
@@ -199,6 +223,7 @@ export class OutboundApiServer {
         userMessageQueue: this.userMessageQueue,
         concurrencyQueue: this.concurrencyQueue,
         voucher: this.voucherConfig,
+        anthropic: this.anthropicConfig,
       },
       this.rateLimiter,
       this.serialQueue,
@@ -208,11 +233,33 @@ export class OutboundApiServer {
     ).catch((err) => {
       const message = serializeError(err);
       this.logError('[OutboundApiServer] unhandled error:', message);
+      // Last-resort 500: consults the Anthropic-protocol mark (set at the
+      // handleOutboundRequest entry) so an Anthropic request gets the Anthropic
+      // shape; every other path keeps the legacy envelope.
       if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
+        if (isAnthropicProtocolResponse(res)) {
+          writeAnthropicError(res, 500, message);
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
+        }
       }
     });
+  }
+
+  /**
+   * Serve `HEAD /api/hello` (exact path, query tolerated) with a bare 200 —
+   * returning true when it handled the request. Unauthenticated by design and
+   * gated on `anthropic.apiHello` (default true).
+   */
+  private tryServeApiHello(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+    if (!this.apiHelloEnabled) return false;
+    if (req.method !== 'HEAD') return false;
+    const path = (req.url ?? '/').split('?')[0]?.replace(/\/+$/, '') || '/';
+    if (path !== '/api/hello') return false;
+    res.writeHead(200);
+    res.end();
+    return true;
   }
 
   /**

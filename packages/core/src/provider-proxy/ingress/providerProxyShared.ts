@@ -22,6 +22,10 @@ import {
   boundAccountSelectionMessage,
   type BoundAccountSelectionError,
 } from '../../pipeline/BoundAccountSelectionError';
+import {
+  isAnthropicProtocolResponse,
+  writeAnthropicError,
+} from './anthropicErrorEnvelope';
 import { TransformerChainExecutor } from '../../transformer';
 import { AnthropicTransformer } from '../../transformer/transformers/AnthropicTransformer';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
@@ -640,8 +644,19 @@ export async function aggregateAnthropicSseToJsonBody(
   return JSON.stringify(message);
 }
 
-/** Write a JSON error response if the headers have not been sent. */
+/**
+ * Write a JSON error response if the headers have not been sent.
+ *
+ * On an Anthropic-protocol request (res marked at the pipeline entry — see
+ * `anthropicErrorEnvelope`) the body takes the Anthropic error shape so
+ * Anthropic SDK clients can type-parse it; every other path keeps the legacy
+ * `provider_proxy_error` envelope byte-for-byte.
+ */
 export function writeError(res: http.ServerResponse, status: number, message: string): void {
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, status, message);
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: { type: 'provider_proxy_error', message } }));
@@ -650,7 +665,9 @@ export function writeError(res: http.ServerResponse, status: number, message: st
 /**
  * Map a strict bound-account failure to a stable structured response. The body
  * carries only the fixed code/reason/message; account ids, tokens, and upstream
- * error text never cross the wire.
+ * error text never cross the wire. On a marked Anthropic-protocol response the
+ * stable `code`/`reason` fields fold INTO the Anthropic `error` object and the
+ * `Retry-After` header is preserved.
  */
 export function writeBoundAccountError(
   res: http.ServerResponse,
@@ -663,6 +680,15 @@ export function writeBoundAccountError(
     if (Number.isFinite(resumeMs)) {
       headers['Retry-After'] = String(Math.max(1, Math.ceil((resumeMs - Date.now()) / 1000)));
     }
+  }
+  if (isAnthropicProtocolResponse(res)) {
+    // `writeAnthropicError` sets its own Content-Type; keep only Retry-After.
+    const { 'Content-Type': _ct, ...anthropicHeaders } = headers;
+    writeAnthropicError(res, error.status, boundAccountSelectionMessage(error.reason), anthropicHeaders, {
+      code: error.code,
+      reason: error.reason,
+    });
+    return;
   }
   res.writeHead(error.status, headers);
   res.end(

@@ -23,6 +23,7 @@ import {
   resolveReasoningPlan,
 } from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
+import { recordDroppedField } from '../transformWarnings';
 
 // ============================================================================
 // Response API Types
@@ -162,14 +163,26 @@ export class OpenAIResponseTransformer implements Transformer {
       // public Responses API (which defaults to store:true). Always set it so
       // codex relays (no discoverable url token) work without configuration.
       store: false,
-      // `max_output_tokens` is intentionally omitted: the codex backend rejects
-      // it, and the public API falls back to its default when absent. If a
-      // public provider ever needs it honored, gate that on an opt-out flag.
+      // `max_output_tokens`: the codex backend REJECTS it, so it maps only when
+      // the client already speaks the Responses wire (public providers); the
+      // public API falls back to its default when absent.
       ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+      // R7 (claude-api-transform-fidelity): the Responses wire HAS `top_p`, so
+      // the decoded hub value maps through — conditionally (absent ⇒ absent).
+      ...(request.top_p !== undefined ? { top_p: request.top_p } : {}),
       ...(context.responsesSourceFormat === this.name && request.max_tokens !== undefined
         ? { max_output_tokens: request.max_tokens }
         : {}),
     };
+
+    // R7 drops: the Responses API has NO `stop`/`top_k`/`user-id` parameters
+    // (Q1 — the requirements text asserted a stop counterpart; the real API has
+    // none, so these are audited rather than fabricated).
+    if (request.stop !== undefined) recordDroppedField(request, 'stop', 'openai-responses');
+    if (request.top_k !== undefined) recordDroppedField(request, 'top_k', 'openai-responses');
+    if (request.metadata_user_id !== undefined) {
+      recordDroppedField(request, 'metadata_user_id', 'openai-responses');
+    }
 
     // Map reasoning config
     const reasoningPlan = resolveReasoningPlan({
@@ -1031,6 +1044,24 @@ function convertResponseApiStreamToOpenAI(
                     finish_reason: 'stop',
                   }]);
                   break;
+
+                case 'response.failed': {
+                  // R8 (claude-api-transform-fidelity): the codex backend
+                  // reports failures (incl. `server_is_overloaded` capacity
+                  // events) as `response.failed` INSIDE a 200 stream. It used
+                  // to fall through to `default` and vanish — the client saw
+                  // an empty success. Emit it as a chat-wire `error` chunk so
+                  // the Anthropic stream converter renders the official
+                  // in-band error event (and the messages overload bridge can
+                  // classify the code) instead of swallowing it.
+                  safeEnqueue(
+                    `data: ${JSON.stringify({
+                      error: event.response?.error ?? { message: 'response.failed' },
+                    })}\n\n`,
+                  );
+                  safeEnqueue('data: [DONE]\n\n');
+                  break;
+                }
 
                 default:
                   break;

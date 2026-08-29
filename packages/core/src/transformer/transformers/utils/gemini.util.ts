@@ -14,6 +14,7 @@ import {
   resolveReasoningPlan,
 } from '../../reasoning-effort';
 import { getThinkLevel } from '../AnthropicTypes';
+import { recordDroppedField } from '../../transformWarnings';
 
 import { transformTool } from './gemini.schema';
 
@@ -84,6 +85,10 @@ export interface GeminiGenerationConfig {
     thinkingLevel?: string;
     thinkingBudget?: number;
   };
+  // R7 (claude-api-transform-fidelity): decoded sampling/stop knobs.
+  stopSequences?: string[];
+  topP?: number;
+  topK?: number;
 }
 
 export interface GeminiToolConfig {
@@ -254,6 +259,18 @@ export function buildRequestBody(
 
   if (request.max_tokens !== undefined) {
     generationConfig.maxOutputTokens = request.max_tokens;
+  }
+
+  // R7 (claude-api-transform-fidelity): decoded sampling/stop knobs — all
+  // conditionally present, so a request that omits them builds the exact same
+  // body as before this change.
+  if (request.stop !== undefined && request.stop.length > 0) {
+    generationConfig.stopSequences = request.stop;
+  }
+  if (request.top_p !== undefined) generationConfig.topP = request.top_p;
+  if (request.top_k !== undefined) generationConfig.topK = request.top_k;
+  if (request.metadata_user_id !== undefined) {
+    recordDroppedField(request, 'metadata_user_id', 'gemini');
   }
 
   const reasoningPlan = resolveReasoningPlan({

@@ -27,7 +27,11 @@ export function getProviderHeaders(provider: LLMProvider, apiKey: string): Recor
         ...(provider.useBearer
           ? { Authorization: `Bearer ${apiKey}` }
           : { 'x-api-key': apiKey }),
-        'anthropic-version': '2025-01-10', // Required for extended thinking feature
+        // Official documented version date (claude-api-protocol-fidelity, R5);
+        // the former non-official future-dated value was removed. The BYO
+        // same-format path additionally forwards the caller's own
+        // `anthropic-version` verbatim when present (see `runSameFormatFetch`).
+        'anthropic-version': '2023-06-01',
       };
       break;
     case 'google':

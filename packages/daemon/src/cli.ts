@@ -12,6 +12,7 @@
  */
 
 import { runAudit } from './commands/audit';
+import { runDoctor } from './commands/doctor';
 import { runImportCcr } from './commands/import-ccr';
 import { runIntegrations } from './commands/integrations';
 import { runKeys } from './commands/keys';
@@ -60,6 +61,11 @@ Usage:
   omnicross audit sessions --config <p> [--date YYYY-MM-DD]        List captured body shards per session.
   omnicross audit show --config <p> --session <key> [--id <recordId>]  Print reconstructed request/response bodies.
   omnicross audit compact --config <p> [--date YYYY-MM-DD]         Run cross-session body compaction now.
+
+  omnicross doctor claude --config <p> [--live --url <u> --key <k>]
+                                           Check Claude gateway readiness (routing, count_tokens,
+                                           models shape, heartbeat, /api/* flags); --live probes a
+                                           running gateway with one free count_tokens call.
 `;
 
 async function main(): Promise<void> {
@@ -94,6 +100,9 @@ async function main(): Promise<void> {
       return;
     case 'audit':
       await runAudit(rest);
+      return;
+    case 'doctor':
+      process.exitCode = await runDoctor(rest);
       return;
     case undefined:
     case '-h':

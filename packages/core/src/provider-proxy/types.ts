@@ -469,6 +469,28 @@ export interface RouteContext {
    * Ignored for the OpenAI Responses ingress.
    */
   readonly anthropicSdkHints?: AnthropicSdkHints | null;
+  /**
+   * count_tokens strategy for `/v1/messages/count_tokens` requests
+   * (claude-api-routing-errors, widened in claude-api-protocol-fidelity).
+   * Absent ⇒ `'auto'`: Anthropic-wire upstream → passthrough, translation
+   * upstream → estimate. Stamped onto the minted route by the outbound router
+   * for count_tokens requests only; resident direct traffic stays `'auto'`.
+   */
+  readonly anthropicCountTokensMode?: 'auto' | 'passthrough' | 'estimate' | 'reject';
+  /**
+   * Wall-clock budget (ms) for the local count_tokens estimate walk
+   * (`anthropic.countTokens.estimateBudgetMs`, §10). Absent ⇒ the estimator's
+   * 2000ms default.
+   */
+  readonly anthropicCountTokensEstimateBudgetMs?: number;
+  /**
+   * Budget (ms) for the translate-path PDF text extraction
+   * (`anthropic.pdfTextExtraction.budgetMs`, claude-api-transform-fidelity).
+   * Absent ⇒ the extractor's 2000ms default. Applies to GENERATION translate
+   * routes (documents in message content), stamped by the outbound router for
+   * Anthropic-protocol requests; resident direct traffic uses the default.
+   */
+  readonly anthropicPdfTextExtractionBudgetMs?: number;
 }
 
 /**

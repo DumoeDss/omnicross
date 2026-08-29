@@ -4,6 +4,16 @@
  *
  * Internal helper of `./AnthropicConversion`; do not import the facade here.
  *
+ * BETA HEADER NOTE (claude-api-protocol-fidelity, R5 — explicit declaration):
+ * the TRANSLATION path (unified → target wire, this builder and its callers)
+ * does NOT forward the caller's `anthropic-beta` header. Cross-wire the beta
+ * flags have no meaning the target can act on, and the capabilities they gate
+ * (context_management, files, etc.) do not exist on the translated wire —
+ * corresponding request fields the upstream rejects come back as explicit
+ * errors rather than being silently downgraded. Only the SAME-FORMAT
+ * (Anthropic→Anthropic verbatim) path forwards/merges beta flags; see
+ * `runSameFormatFetch` / `buildAnthropicBeta`.
+ *
  * @module transformer/transformers/AnthropicRequestBuilder
  */
 
@@ -166,6 +176,18 @@ export function buildAnthropicRequestBody(
 
   if (request.temperature !== undefined) {
     body.temperature = request.temperature;
+  }
+
+  // R7 symmetric backfill (claude-api-transform-fidelity): decoded hub fields
+  // return to their Anthropic spellings — all conditional so an absent field
+  // changes nothing vs before this change.
+  if (request.stop !== undefined && request.stop.length > 0) {
+    body.stop_sequences = request.stop;
+  }
+  if (request.top_p !== undefined) body.top_p = request.top_p;
+  if (request.top_k !== undefined) body.top_k = request.top_k;
+  if (request.metadata_user_id !== undefined) {
+    body.metadata = { user_id: request.metadata_user_id };
   }
 
   if (systemContent !== undefined) {

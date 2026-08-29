@@ -12,11 +12,10 @@
  * therefore gets its own reader; everything else mirrors
  * `recordResponsesNonStreamUsage` / `recordGeminiNonStreamUsage`. Never throws.
  *
- * NOTE: `engineOrigin` reuses `'codex-ingress'` — the only non-Anthropic ingress
- * origin the `UsageRecordImportInput` union exposes today (same placeholder
- * `recordGeminiUsage` / `recordResponsesUsage` use). Widening that enum (e.g. a
- * dedicated `'anthropic-ingress'`) is a usage-recorder concern out of this
- * change's scope; the attribution is non-load-bearing for routing. FLAGGED.
+ * NOTE: `engineOrigin` is `'anthropic-messages-ingress'`
+ * (claude-api-transform-fidelity, R11) — it formerly reused `'codex-ingress'`
+ * as a placeholder before the union gained a dedicated value. Historical
+ * events keep the old value (no backfill); release note covers the migration.
  *
  * @module provider-proxy/usage/recordAnthropicUsage
  */
@@ -63,7 +62,7 @@ function readAnthropicUsage(usage: Record<string, unknown> | undefined): {
 
 /**
  * Parse a non-stream Anthropic Messages JSON body and, when a `usage` block is
- * present, record one usage event with origin `'codex-ingress'`. Never
+ * present, record one usage event with origin `'anthropic-messages-ingress'`. Never
  * throws.
  */
 function emitAnthropicUsageRecord(
@@ -85,7 +84,7 @@ function emitAnthropicUsageRecord(
     routeLeaseConsumer: attribution.routeLease?.consumer ?? null,
     routeLeaseStageId: attribution.routeLease?.stageId ?? null,
     auditResponse: attribution.auditResponse,
-    engineOrigin: 'codex-ingress',
+    engineOrigin: 'anthropic-messages-ingress',
     usage: tapped,
     rawUsage,
   });
