@@ -16,3 +16,6 @@ pricing-refresh.json
 # Local agent tooling and embedded workflow workspace
 /.claude/
 /rasen/
+/.codex/
+/.rasen/
+/.ua/
