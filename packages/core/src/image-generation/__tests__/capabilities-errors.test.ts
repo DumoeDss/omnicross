@@ -25,6 +25,9 @@ const allCapabilities: ImageCapabilityValues = {
   transparentBackground: true,
   flexibleSizes: true,
   outputFormats: ['png', 'jpeg', 'webp'],
+  qualityLevels: ['auto', 'low', 'medium', 'high'],
+  moderationModes: ['auto', 'low'],
+  outputCompression: { supported: true, formats: ['jpeg', 'webp'], min: 0, max: 100 },
   responsesTool: true,
   multiTurnEdit: true,
   supportsFileId: true,
@@ -36,6 +39,22 @@ function layer(
   values: Partial<ImageCapabilityValues> = allCapabilities,
 ): ImageCapabilityEvidenceLayer {
   return { kind, source: `${kind}-test`, verifiedAt: 900, expiresAt: 2_000, values };
+}
+
+function compression(value: unknown): ImageCapabilityValues['outputCompression'] {
+  return value as ImageCapabilityValues['outputCompression'];
+}
+
+function resolveCompression(
+  account: unknown,
+  adapter: unknown = allCapabilities.outputCompression,
+  upstream: unknown = allCapabilities.outputCompression,
+) {
+  return resolveImageCapabilities({
+    adapter: layer('adapter', { ...allCapabilities, outputCompression: compression(adapter) }),
+    account: layer('account', { ...allCapabilities, outputCompression: compression(account) }),
+    upstream: layer('upstream', { ...allCapabilities, outputCompression: compression(upstream) }),
+  }, 1_000).outputCompression;
 }
 
 describe('resolveImageCapabilities', () => {
@@ -65,6 +84,14 @@ describe('resolveImageCapabilities', () => {
     expect(result.available).toBe(true);
     expect(result.models).toEqual(['gpt-image-2']);
     expect(result.outputFormats).toEqual(['png']);
+    expect(result.qualityLevels).toEqual(['auto', 'high', 'low', 'medium']);
+    expect(result.moderationModes).toEqual(['auto', 'low']);
+    expect(result.outputCompression).toEqual({
+      supported: true,
+      formats: ['jpeg', 'webp'],
+      min: 0,
+      max: 100,
+    });
     expect(result.maxInputImages).toBe(4);
     expect(result.maxOutputImages).toBe(1);
     expect(result.transparentBackground).toBe(false);
@@ -101,6 +128,68 @@ describe('resolveImageCapabilities', () => {
     }, 1_000);
     expect(result.models).toContain('gpt-image-2');
     expect(result.transparentBackground).toBe(false);
+  });
+
+  it.each([
+    ['quality', { qualityLevels: [] }, 'no_common_quality_levels'],
+    ['moderation', { moderationModes: [] }, 'no_common_moderation_modes'],
+  ])('fails closed for empty %s evidence', async (_name, override, reason) => {
+    const result = resolveImageCapabilities({
+      adapter: layer('adapter'),
+      account: layer('account', { ...allCapabilities, ...override }),
+      upstream: layer('upstream'),
+    }, 1_000);
+    expect(result).toMatchObject({ available: false, reason });
+  });
+
+  it('fails output compression closed for unknown or empty semantics', () => {
+    const unknown = resolveImageCapabilities({
+      adapter: layer('adapter'),
+      account: layer('account', { ...allCapabilities, outputCompression: undefined }),
+      upstream: layer('upstream'),
+    }, 1_000);
+    expect(unknown.outputCompression).toEqual({ supported: false });
+
+    const empty = resolveImageCapabilities({
+      adapter: layer('adapter'),
+      account: layer('account', {
+        ...allCapabilities,
+        outputCompression: { supported: true, formats: [], min: 0, max: 100 },
+      }),
+      upstream: layer('upstream'),
+    }, 1_000);
+    expect(empty.outputCompression).toEqual({ supported: false });
+  });
+
+  it.each([
+    ['unsupported format', { supported: true, formats: ['jpeg', 'gif'], min: 0, max: 100 }],
+    ['duplicate formats', { supported: true, formats: ['jpeg', 'jpeg'], min: 0, max: 100 }],
+    ['negative minimum', { supported: true, formats: ['jpeg'], min: -1, max: 100 }],
+    ['over-limit maximum', { supported: true, formats: ['jpeg'], min: 0, max: 101 }],
+    ['reversed range', { supported: true, formats: ['jpeg'], min: 80, max: 20 }],
+    ['non-integer bound', { supported: true, formats: ['jpeg'], min: 0.5, max: 100 }],
+    ['malformed affirmative shape', { supported: true }],
+  ])('fails output compression closed for an affirmative layer with %s', (_name, invalid) => {
+    expect(resolveCompression(invalid)).toEqual({ supported: false });
+  });
+
+  it('fails output compression closed for valid disjoint formats or ranges', () => {
+    expect(resolveCompression(
+      { supported: true, formats: ['jpeg'], min: 0, max: 100 },
+      { supported: true, formats: ['webp'], min: 0, max: 100 },
+    )).toEqual({ supported: false });
+    expect(resolveCompression(
+      { supported: true, formats: ['jpeg'], min: 60, max: 100 },
+      { supported: true, formats: ['jpeg'], min: 0, max: 40 },
+    )).toEqual({ supported: false });
+  });
+
+  it('intersects valid output compression layers only after validating each layer', () => {
+    expect(resolveCompression(
+      { supported: true, formats: ['jpeg', 'webp'], min: 25, max: 90 },
+      { supported: true, formats: ['png', 'jpeg', 'webp'], min: 0, max: 100 },
+      { supported: true, formats: ['jpeg'], min: 40, max: 80 },
+    )).toEqual({ supported: true, formats: ['jpeg'], min: 40, max: 80 });
   });
 });
 

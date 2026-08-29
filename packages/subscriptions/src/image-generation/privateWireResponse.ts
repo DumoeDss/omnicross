@@ -67,17 +67,34 @@ function protocolChanged(cause?: unknown): never {
   throw new ImageGenerationError('upstream_protocol_changed', { cause });
 }
 
-function decodeStrictBase64(value: unknown): Uint8Array {
-  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_CANDIDATE_RESPONSE_BYTES) {
+/** Private-module test seam; not exported from the subscriptions package barrel. */
+export function decodeCandidateBase64ForTests(value: unknown): Uint8Array {
+  if (typeof value !== 'string' || value.length === 0 || value.length % 4 !== 0) {
     return protocolChanged();
   }
-  if (value.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
-    return protocolChanged();
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  const decodedLength = (value.length / 4) * 3 - padding;
+  if (decodedLength <= 0 || decodedLength > MAX_DECODED_IMAGE_BYTES) return protocolChanged();
+
+  const alphabetEnd = value.length - padding;
+  for (let index = 0; index < alphabetEnd; index += 1) {
+    const code = value.charCodeAt(index);
+    const allowed =
+      (code >= 0x41 && code <= 0x5a) ||
+      (code >= 0x61 && code <= 0x7a) ||
+      (code >= 0x30 && code <= 0x39) ||
+      code === 0x2b ||
+      code === 0x2f;
+    if (!allowed) return protocolChanged();
   }
+  for (let index = alphabetEnd; index < value.length; index += 1) {
+    if (value.charCodeAt(index) !== 0x3d) return protocolChanged();
+  }
+  if (padding === 1 && value.charCodeAt(value.length - 2) === 0x3d) return protocolChanged();
+
   const decoded = Buffer.from(value, 'base64');
   if (
-    decoded.byteLength === 0 ||
-    decoded.byteLength > MAX_DECODED_IMAGE_BYTES ||
+    decoded.byteLength !== decodedLength ||
     decoded.toString('base64') !== value
   ) return protocolChanged();
   return new Uint8Array(decoded);
@@ -148,7 +165,7 @@ function assertCompleteContainer(bytes: Uint8Array, format: ImageOutputFormat): 
 }
 
 async function createAsset(value: unknown, format: ImageOutputFormat): Promise<ImageAsset> {
-  const bytes = decodeStrictBase64(value);
+  const bytes = decodeCandidateBase64ForTests(value);
   assertCompleteContainer(bytes, format);
   const input = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   try {

@@ -31,6 +31,16 @@ export type ImageBackground = 'auto' | 'opaque' | 'transparent';
 export type ImageModeration = 'auto' | 'low';
 export type ImageAction = 'generate' | 'edit';
 
+/** Truthful provider support for the numeric output_compression request. */
+export type ImageOutputCompressionCapability =
+  | { readonly supported: false }
+  | {
+      readonly supported: true;
+      readonly formats: readonly ImageOutputFormat[];
+      readonly min: number;
+      readonly max: number;
+    };
+
 export type ImageSize =
   | { readonly kind: 'auto' }
   | { readonly kind: 'pixels'; readonly width: number; readonly height: number };
@@ -198,6 +208,9 @@ export interface ImageCapabilityValues {
   readonly transparentBackground: boolean;
   readonly flexibleSizes: boolean;
   readonly outputFormats: readonly ImageOutputFormat[];
+  readonly qualityLevels: readonly ImageQuality[];
+  readonly moderationModes: readonly ImageModeration[];
+  readonly outputCompression: ImageOutputCompressionCapability;
   readonly responsesTool: boolean;
   readonly multiTurnEdit: boolean;
   readonly supportsFileId: boolean;
@@ -222,6 +235,8 @@ export const IMAGE_CAPABILITY_UNAVAILABLE_REASONS = [
   'protocol_unverified',
   'no_common_models',
   'no_common_output_formats',
+  'no_common_quality_levels',
+  'no_common_moderation_modes',
 ] as const;
 
 export type ImageCapabilityUnavailableReason =

@@ -42,6 +42,9 @@ describe('Codex image capability evidence', () => {
       reason: 'account_unverified',
       streaming: false,
       transparentBackground: false,
+      qualityLevels: [],
+      moderationModes: [],
+      outputCompression: { supported: false },
     });
     expect(() => lease.start({
       action: 'generate', model: 'gpt-image-2', prompt: 'not dispatched', n: 1,

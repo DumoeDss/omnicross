@@ -10,6 +10,7 @@ This adapter is a dormant, fail-closed foundation. The repository contains no pe
 | Edit, mask, multiple references | Unsupported by this adapter slice | Implementation plus all three capability layers |
 | Partial image stream | Unverified / unsupported | Independently decodable upstream partials with provenance |
 | Transparent output | Unverified / unsupported | Verified alpha-bearing upstream output and capability evidence |
+| Quality, moderation, compression options | Locally expressible, not advertised | Exact option/range agreement from adapter, account, and observed-protocol evidence |
 | Usage and revised prompt | Omitted by default | Separate verified response-field evidence |
 | Codex host `$imagegen` | Not established | Current-host live end-to-end acceptance in a later Change |
 

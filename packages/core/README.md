@@ -8,6 +8,13 @@ Part of the [omnicross](https://github.com/Dumoedss/omnicross) monorepo — see 
 npm install @omnicross/core @omnicross/contracts
 ```
 
+The published core runtime remains supported on Node.js `>=20.9`. The monorepo's
+official OpenAI JavaScript SDK contract suite is contributor tooling, uses
+`openai@7.8.x`, and requires Node.js 22 or newer. Run it from the repository root
+with `npm run test:images-sdk-contract`; the command checks the Node major before
+loading the SDK. The SDK is intentionally not a runtime or package-local
+development dependency of `@omnicross/core`.
+
 ## License
 
 [MIT](LICENSE) 

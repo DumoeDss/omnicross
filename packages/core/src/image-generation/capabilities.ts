@@ -3,7 +3,10 @@ import type {
   ImageCapabilityEvidenceLayer,
   ImageCapabilityUnavailableReason,
   ImageCapabilityValues,
+  ImageModeration,
+  ImageOutputCompressionCapability,
   ImageOutputFormat,
+  ImageQuality,
 } from '@omnicross/contracts/image-generation-types';
 
 export interface ImageCapabilityEvidenceSet {
@@ -32,6 +35,31 @@ const NUMERIC_KEYS = [
   'maxPartialImages',
 ] as const satisfies readonly (keyof ImageCapabilityValues)[];
 
+const OUTPUT_COMPRESSION_FORMATS = new Set<ImageOutputFormat>(['png', 'jpeg', 'webp']);
+
+function isValidOutputCompressionCapability(
+  value: ImageOutputCompressionCapability | undefined,
+): value is Extract<ImageOutputCompressionCapability, { supported: true }> {
+  if (
+    !value ||
+    value.supported !== true ||
+    !Array.isArray(value.formats) ||
+    value.formats.length === 0 ||
+    value.formats.some((format) => !OUTPUT_COMPRESSION_FORMATS.has(format)) ||
+    new Set(value.formats).size !== value.formats.length ||
+    !Number.isInteger(value.min) ||
+    value.min < 0 ||
+    value.min > 100 ||
+    !Number.isInteger(value.max) ||
+    value.max < 0 ||
+    value.max > 100 ||
+    value.min > value.max
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function intersectStrings(layers: readonly ImageCapabilityEvidenceLayer[], key: 'models'): string[];
 function intersectStrings(
   layers: readonly ImageCapabilityEvidenceLayer[],
@@ -39,14 +67,49 @@ function intersectStrings(
 ): ImageOutputFormat[];
 function intersectStrings(
   layers: readonly ImageCapabilityEvidenceLayer[],
-  key: 'models' | 'outputFormats',
+  key: 'qualityLevels',
+): ImageQuality[];
+function intersectStrings(
+  layers: readonly ImageCapabilityEvidenceLayer[],
+  key: 'moderationModes',
+): ImageModeration[];
+function intersectStrings(
+  layers: readonly ImageCapabilityEvidenceLayer[],
+  key: 'models' | 'outputFormats' | 'qualityLevels' | 'moderationModes',
 ): string[] {
+  const allowed = key === 'outputFormats'
+    ? new Set(['png', 'jpeg', 'webp'])
+    : key === 'qualityLevels'
+      ? new Set(['auto', 'low', 'medium', 'high'])
+      : key === 'moderationModes'
+        ? new Set(['auto', 'low'])
+        : undefined;
   const sets = layers.map((layer) => {
     const value = layer.values?.[key];
-    return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+    return new Set(Array.isArray(value) ? value.filter((item): item is string => (
+      typeof item === 'string' && item.length > 0 && item.length <= 256 && (!allowed || allowed.has(item))
+    )) : []);
   });
   if (sets.length === 0) return [];
   return [...sets[0]!].filter((value) => sets.slice(1).every((set) => set.has(value))).sort();
+}
+
+function intersectOutputCompression(
+  layers: readonly ImageCapabilityEvidenceLayer[],
+): ImageOutputCompressionCapability {
+  const values = layers.map((layer) => layer.values?.outputCompression);
+  if (!values.every(isValidOutputCompressionCapability)) {
+    return { supported: false };
+  }
+  const formats = values[0]!.formats
+    .filter((format) => values.slice(1).every((value) => value.formats.includes(format)))
+    .sort();
+  const min = Math.max(...values.map((value) => value.min));
+  const max = Math.min(...values.map((value) => value.max));
+  if (formats.length === 0 || min > max) {
+    return { supported: false };
+  }
+  return { supported: true, formats, min, max };
 }
 
 function unavailableReason(
@@ -106,8 +169,13 @@ export function resolveImageCapabilities(
 
   const models = intersectStrings(layers, 'models');
   const outputFormats = intersectStrings(layers, 'outputFormats');
+  const qualityLevels = intersectStrings(layers, 'qualityLevels');
+  const moderationModes = intersectStrings(layers, 'moderationModes');
+  const outputCompression = intersectOutputCompression(layers);
   if (!reason && models.length === 0) reason = 'no_common_models';
   if (!reason && outputFormats.length === 0) reason = 'no_common_output_formats';
+  if (!reason && qualityLevels.length === 0) reason = 'no_common_quality_levels';
+  if (!reason && moderationModes.length === 0) reason = 'no_common_moderation_modes';
 
   const verifiedAt = layers
     .map((layer) => layer.verifiedAt)
@@ -116,9 +184,13 @@ export function resolveImageCapabilities(
   return {
     ...booleans,
     ...numbers,
-    available: !reason && booleans.available && models.length > 0 && outputFormats.length > 0,
+    available: !reason && booleans.available && models.length > 0 && outputFormats.length > 0 &&
+      qualityLevels.length > 0 && moderationModes.length > 0,
     models,
     outputFormats,
+    qualityLevels,
+    moderationModes,
+    outputCompression,
     reason,
     resolvedAt: now,
     oldestEvidenceAt: verifiedAt.length === layers.length ? Math.min(...verifiedAt) : undefined,

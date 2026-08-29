@@ -125,7 +125,16 @@ class CodexSubscriptionImageProvider implements ImageProvider {
         if (
           request.action !== 'generate' || request.stream || request.partialImages > 0 ||
           request.n !== 1 || !capabilities.models.includes(request.model) ||
-          !capabilities.outputFormats.includes(request.outputFormat)
+          !capabilities.outputFormats.includes(request.outputFormat) ||
+          !capabilities.qualityLevels.includes(request.quality) ||
+          !capabilities.moderationModes.includes(request.moderation) ||
+          (request.outputCompression !== undefined && (
+            !Number.isInteger(request.outputCompression) ||
+            capabilities.outputCompression.supported !== true ||
+            !capabilities.outputCompression.formats.includes(request.outputFormat) ||
+            request.outputCompression < capabilities.outputCompression.min ||
+            request.outputCompression > capabilities.outputCompression.max
+          ))
         ) {
           throw new ImageGenerationError('unsupported_capability');
         }

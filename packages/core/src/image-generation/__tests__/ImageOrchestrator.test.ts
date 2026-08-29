@@ -31,6 +31,9 @@ const capabilities: ImageCapabilities = {
   transparentBackground: true,
   flexibleSizes: true,
   outputFormats: ['png', 'webp'],
+  qualityLevels: ['auto', 'low', 'medium', 'high'],
+  moderationModes: ['auto', 'low'],
+  outputCompression: { supported: true, formats: ['webp'], min: 0, max: 100 },
   responsesTool: false,
   multiTurnEdit: true,
   supportsFileId: true,
@@ -85,6 +88,36 @@ async function* eventStream(...events: ImageProviderEvent<ReturnType<typeof asse
   for (const event of events) yield event;
 }
 
+function heldAfterEvents(...events: ImageProviderEvent<ReturnType<typeof asset>>[]) {
+  type Event = ImageProviderEvent<ReturnType<typeof asset>>;
+  let nextIndex = 0;
+  let resolveHeldRead: ((result: IteratorResult<Event>) => void) | undefined;
+  let markHeld: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    markHeld = resolve;
+  });
+  const returnIterator = vi.fn(async (): Promise<IteratorResult<Event>> => {
+    resolveHeldRead?.({ done: true, value: undefined });
+    return { done: true, value: undefined };
+  });
+  const iterator: AsyncIterator<Event> = {
+    next: vi.fn((): Promise<IteratorResult<Event>> => {
+      if (nextIndex < events.length) {
+        return Promise.resolve({ done: false, value: events[nextIndex++]! });
+      }
+      markHeld?.();
+      return new Promise((resolve) => {
+        resolveHeldRead = resolve;
+      });
+    }),
+    return: returnIterator,
+  };
+  const iterable: AsyncIterable<Event> = {
+    [Symbol.asyncIterator]: () => iterator,
+  };
+  return { events: iterable, held, returnIterator };
+}
+
 describe('ImageOrchestrator lifecycle', () => {
   it('forwards accepted/partial/completed in order and releases exactly once', async () => {
     const partial = asset([1, 2]);
@@ -98,7 +131,45 @@ describe('ImageOrchestrator lifecycle', () => {
     const result = await collect(orchestrator.run(request, context(), { providerId: 'fake' }));
     expect(result.map((event) => event.type)).toEqual(['accepted', 'partial_image', 'completed']);
     expect(fake.start).toHaveBeenCalledOnce();
+    expect(fake.cancel).not.toHaveBeenCalled();
     expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('cancels and releases exactly once when a consumer returns before a provider terminal', async () => {
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 10 },
+      { type: 'partial_image', outputIndex: 0, partialImageIndex: 0, image: { artifact: asset() } },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    ));
+    const orchestrator = new ImageOrchestrator({ registry: fake.registry });
+    for await (const event of orchestrator.run(request, context(), { providerId: 'fake' })) {
+      expect(event.type).toBe('accepted');
+      break;
+    }
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('does not cancel a provider that has already completed or failed', async () => {
+    const completed = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    ));
+    await collect(new ImageOrchestrator({ registry: completed.registry }).run(
+      request, context(), { providerId: 'fake' },
+    ));
+    expect(completed.cancel).not.toHaveBeenCalled();
+    expect(completed.release).toHaveBeenCalledOnce();
+
+    const failed = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'failed', error: serializeImageGenerationError(new ImageGenerationError('image_generation_failed')) },
+    ));
+    await collect(new ImageOrchestrator({ registry: failed.registry }).run(
+      request, context(), { providerId: 'fake' },
+    ));
+    expect(failed.cancel).not.toHaveBeenCalled();
+    expect(failed.release).toHaveBeenCalledOnce();
   });
 
   it('rebuilds provider events and drops non-contract runtime fields', async () => {
@@ -157,6 +228,8 @@ describe('ImageOrchestrator lifecycle', () => {
       .rejects.toMatchObject({ code: 'image_generation_failed', retrySafety: 'after_acceptance' });
     expect(fake.acquire).toHaveBeenCalledOnce();
     expect(fake.start).toHaveBeenCalledOnce();
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
   });
 
   it('keeps pre-accept transport failure retry-unknown and does not retry it', async () => {
@@ -170,6 +243,8 @@ describe('ImageOrchestrator lifecycle', () => {
       .rejects.toMatchObject({ code: 'image_generation_failed', retrySafety: 'unknown' });
     expect(fake.acquire).toHaveBeenCalledOnce();
     expect(fake.start).toHaveBeenCalledOnce();
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
   });
 
   it('keeps an unknown start failure retry-unknown', async () => {
@@ -191,12 +266,118 @@ describe('ImageOrchestrator lifecycle', () => {
     ['stream', { streaming: false }],
     ['partial', { maxPartialImages: 0 }],
     ['transparency', { transparentBackground: false }],
+    ['quality', { qualityLevels: ['low'] }],
+    ['moderation', { moderationModes: ['low'] }],
   ])('does not start for unsupported %s requirements', async (name, override) => {
     const fake = setup(eventStream(), { ...capabilities, ...override } as ImageCapabilities);
     const orchestrator = new ImageOrchestrator({ registry: fake.registry });
     const changed = name === 'transparency' ? { ...request, background: 'transparent' as const } : request;
     await expect(collect(orchestrator.run(changed, context(), { providerId: 'fake' }))).rejects.toBeInstanceOf(ImageGenerationError);
     expect(fake.start).not.toHaveBeenCalled();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('requires affirmative output-compression semantics before start', async () => {
+    const unsupportedCompression = setup(eventStream(), {
+      ...capabilities,
+      outputCompression: { supported: false },
+    });
+    const compressed = { ...request, outputFormat: 'webp' as const, outputCompression: 75 };
+    await expect(collect(new ImageOrchestrator({ registry: unsupportedCompression.registry }).run(
+      compressed, context(), { providerId: 'fake' },
+    ))).rejects.toMatchObject({ code: 'unsupported_capability', param: 'output_compression' });
+    expect(unsupportedCompression.start).not.toHaveBeenCalled();
+
+    const supportedCompression = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: new InMemoryImageAsset(Uint8Array.of(1), {
+        mimeType: 'image/webp', width: 1, height: 1, hasAlpha: true,
+      }) }] },
+    ));
+    await expect(collect(new ImageOrchestrator({ registry: supportedCompression.registry }).run(
+      compressed, context(), { providerId: 'fake' },
+    ))).resolves.toHaveLength(2);
+    expect(supportedCompression.start).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['format', { outputFormat: 'webp' as const }, asset()],
+    ['width', { size: { kind: 'pixels' as const, width: 2, height: 1 } }, asset()],
+    ['height', { size: { kind: 'pixels' as const, width: 1, height: 2 } }, asset()],
+    ['alpha', { background: 'transparent' as const }, new InMemoryImageAsset(Uint8Array.of(1), {
+      mimeType: 'image/png', width: 1, height: 1, hasAlpha: false,
+    })],
+  ])('rejects final artifact %s drift before completion', async (_name, override, final) => {
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: final }] },
+    ));
+    const store = new InMemoryImageReferenceStore();
+    const save = vi.spyOn(store, 'save');
+    await expect(collect(new ImageOrchestrator({ registry: fake.registry, referenceStore: store }).run(
+      { ...request, ...override }, context(), {
+        providerId: 'fake',
+        retention: { enabled: true, ttlMs: 1_000 },
+      },
+    ))).rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+    expect(save).not.toHaveBeenCalled();
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('validates every final artifact in a multi-output completion', async () => {
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [
+        { artifact: asset() },
+        { artifact: new InMemoryImageAsset(Uint8Array.of(2), {
+          mimeType: 'image/webp', width: 1, height: 1, hasAlpha: true,
+        }) },
+      ] },
+    ));
+    await expect(collect(new ImageOrchestrator({ registry: fake.registry }).run(
+      { ...request, n: 2 }, context(), { providerId: 'fake' },
+    ))).rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('enforces the requested partial budget independently for each output', async () => {
+    const exact = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'partial_image', outputIndex: 0, partialImageIndex: 0, image: { artifact: asset() } },
+      { type: 'partial_image', outputIndex: 1, partialImageIndex: 0, image: { artifact: asset() } },
+      { type: 'partial_image', outputIndex: 0, partialImageIndex: 1, image: { artifact: asset() } },
+      { type: 'partial_image', outputIndex: 1, partialImageIndex: 1, image: { artifact: asset() } },
+      { type: 'completed', images: [{ artifact: asset() }, { artifact: asset() }] },
+    ));
+    await expect(collect(new ImageOrchestrator({ registry: exact.registry }).run(
+      { ...request, n: 2, partialImages: 2 }, context(), { providerId: 'fake' },
+    ))).resolves.toHaveLength(6);
+    expect(exact.cancel).not.toHaveBeenCalled();
+
+    const exceeded = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'partial_image', outputIndex: 0, partialImageIndex: 0, image: { artifact: asset() } },
+      { type: 'partial_image', outputIndex: 1, partialImageIndex: 0, image: { artifact: asset() } },
+      { type: 'partial_image', outputIndex: 0, partialImageIndex: 1, image: { artifact: asset() } },
+    ));
+    await expect(collect(new ImageOrchestrator({ registry: exceeded.registry }).run(
+      { ...request, n: 2, partialImages: 1 }, context(), { providerId: 'fake' },
+    ))).rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+    expect(exceeded.cancel).toHaveBeenCalledOnce();
+    expect(exceeded.release).toHaveBeenCalledOnce();
+  });
+
+  it('rejects every partial when the requested budget is zero and cancels the nonterminal job', async () => {
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'partial_image', outputIndex: 0, partialImageIndex: 0, image: { artifact: asset() } },
+    ));
+    await expect(collect(new ImageOrchestrator({ registry: fake.registry }).run(
+      { ...request, partialImages: 0 }, context(), { providerId: 'fake' },
+    ))).rejects.toMatchObject({ code: 'upstream_protocol_changed' });
+    expect(fake.cancel).toHaveBeenCalledOnce();
     expect(fake.release).toHaveBeenCalledOnce();
   });
 
@@ -232,9 +413,10 @@ describe('ImageOrchestrator lifecycle', () => {
 });
 
 describe('ImageOrchestrator cancellation, retention, and telemetry', () => {
-  it('passes the caller abort signal into acquisition and cancels before start', async () => {
+  it('surfaces an abort during acquisition without starting or cancelling a job', async () => {
     const controller = new AbortController();
-    const start = vi.fn();
+    const cancel = vi.fn(async () => undefined);
+    const start = vi.fn((): ImageJob => ({ events: eventStream(), cancel }));
     const provider: ImageProvider = {
       id: 'acquire-abort',
       acquire: vi.fn((providerContext) => new Promise((_resolve, reject) => {
@@ -246,6 +428,7 @@ describe('ImageOrchestrator cancellation, retention, and telemetry', () => {
     controller.abort(new Error('client cancelled acquisition'));
     await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
     expect(start).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
   });
 
   it('cancels an active job at most once and forwards no later binary output', async () => {
@@ -272,6 +455,76 @@ describe('ImageOrchestrator cancellation, retention, and telemetry', () => {
     await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
     expect(seen).toEqual(['accepted']);
     expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('does not cancel after receiving a valid completed terminal before iterator teardown', async () => {
+    const controller = new AbortController();
+    const controlled = heldAfterEvents(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    );
+    const fake = setup(controlled.events);
+    const running = collect(new ImageOrchestrator({ registry: fake.registry }).run(
+      request, context(controller), { providerId: 'fake' },
+    ));
+    await controlled.held;
+    controller.abort(new Error('client disconnected after completion'));
+
+    await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(fake.cancel).not.toHaveBeenCalled();
+    expect(controlled.returnIterator).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('does not cancel after receiving a valid failed terminal before iterator teardown', async () => {
+    const controller = new AbortController();
+    const controlled = heldAfterEvents(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'failed', error: serializeImageGenerationError(new ImageGenerationError('image_generation_failed')) },
+    );
+    const fake = setup(controlled.events);
+    const running = collect(new ImageOrchestrator({ registry: fake.registry }).run(
+      request, context(controller), { providerId: 'fake' },
+    ));
+    await controlled.held;
+    controller.abort(new Error('client disconnected after failure'));
+
+    await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(fake.cancel).not.toHaveBeenCalled();
+    expect(controlled.returnIterator).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('cancels started pre-accept work exactly once before iterator teardown', async () => {
+    const controller = new AbortController();
+    const controlled = heldAfterEvents();
+    const fake = setup(controlled.events);
+    const running = collect(new ImageOrchestrator({ registry: fake.registry }).run(
+      request, context(controller), { providerId: 'fake' },
+    ));
+    await controlled.held;
+    controller.abort(new Error('client disconnected before acceptance'));
+
+    await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(controlled.returnIterator).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('cancels accepted nonterminal work exactly once before iterator teardown', async () => {
+    const controller = new AbortController();
+    const controlled = heldAfterEvents({ type: 'accepted', acceptedAt: 1 });
+    const fake = setup(controlled.events);
+    const running = collect(new ImageOrchestrator({ registry: fake.registry }).run(
+      request, context(controller), { providerId: 'fake' },
+    ));
+    await controlled.held;
+    controller.abort(new Error('client disconnected during generation'));
+
+    await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(fake.cancel).toHaveBeenCalledOnce();
+    expect(controlled.returnIterator).toHaveBeenCalledOnce();
     expect(fake.release).toHaveBeenCalledOnce();
   });
 

@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ImageGenerationError } from '@omnicross/core/image-generation';
 
 import { mapCandidateCodexImageFailure, parseRetryAfter } from '../privateWireErrors';
 import {
+  decodeCandidateBase64ForTests,
   parseCandidateCodexImageResponse,
   selectVerifiedCandidateResponseMetadata,
 } from '../privateWireResponse';
@@ -18,6 +19,43 @@ function responseBody(result: string): string {
 }
 
 describe('private candidate wire parsers', () => {
+  it('accepts the exact 50 MiB decoded Base64 limit without stack-sensitive validation', () => {
+    const decodedBytes = 50 * 1024 * 1024;
+    const encoded = `${'A'.repeat(Math.ceil(decodedBytes / 3) * 4 - 1)}=`;
+    const result = decodeCandidateBase64ForTests(encoded);
+    expect(result.byteLength).toBe(decodedBytes);
+  });
+
+  it('rejects limit-plus-one before Buffer allocation or alphabet scanning', () => {
+    const decodedBytes = 50 * 1024 * 1024 + 1;
+    const encoded = 'A'.repeat(Math.ceil(decodedBytes / 3) * 4);
+    const from = vi.spyOn(Buffer, 'from');
+    expect(() => decodeCandidateBase64ForTests(encoded)).toThrow(
+      expect.objectContaining({ code: 'upstream_protocol_changed' }),
+    );
+    expect(from).not.toHaveBeenCalled();
+    from.mockRestore();
+  });
+
+  it.each(['A===', '=AAA', 'AA=A', 'AAAA====', 'AAAA\nAA=='])('rejects malformed padding/alphabet %j', (encoded) => {
+    expect(() => decodeCandidateBase64ForTests(encoded)).toThrow(
+      expect.objectContaining({ code: 'upstream_protocol_changed' }),
+    );
+  });
+
+  it('scans a very large malformed alphabet linearly without leaking a raw RangeError', () => {
+    const encoded = `${'A'.repeat(8 * 1024 * 1024 - 2)}*=`;
+    let thrown: unknown;
+    try {
+      decodeCandidateBase64ForTests(encoded);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ImageGenerationError);
+    expect(thrown).toMatchObject({ code: 'upstream_protocol_changed' });
+    expect(thrown).not.toBeInstanceOf(RangeError);
+  });
+
   it.each([
     ['HTML', '<html>SECRET_PROMPT_SENTINEL</html>'],
     ['invalid JSON', '{"output": SECRET_BASE64_SENTINEL'],

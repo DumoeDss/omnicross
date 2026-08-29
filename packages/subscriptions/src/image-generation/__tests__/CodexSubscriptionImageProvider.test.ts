@@ -42,6 +42,9 @@ const supported: ImageCapabilityValues = {
   transparentBackground: false,
   flexibleSizes: true,
   outputFormats: ['png', 'jpeg', 'webp'],
+  qualityLevels: ['auto', 'low', 'medium', 'high'],
+  moderationModes: ['auto', 'low'],
+  outputCompression: { supported: true, formats: ['jpeg', 'webp'], min: 0, max: 100 },
   responsesTool: false,
   multiTurnEdit: false,
   supportsFileId: false,
@@ -150,6 +153,55 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     const provider = createCodexSubscriptionImageProvider({ authStrategy: makeAuth({ credential: false }) });
     await expect(provider.acquire(context())).rejects.toMatchObject({ code: 'upstream_auth_required' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['quality', { qualityLevels: ['auto'] }, { quality: 'high' as const }],
+    ['moderation', { moderationModes: ['auto'] }, { moderation: 'low' as const }],
+    ['compression', { outputCompression: { supported: false as const } }, {
+      outputFormat: 'webp' as const,
+      outputCompression: 75,
+    }],
+  ])('rejects unverified %s options before egress', async (_name, capabilityOverride, requestOverride) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const restricted = { ...supported, ...capabilityOverride } as ImageCapabilityValues;
+    const restrictedEvidence: CodexImageCapabilityEvidenceSource = {
+      async resolve() {
+        return {
+          account: { ...evidenceLayer('account'), values: restricted },
+          upstream: { ...evidenceLayer('upstream'), values: restricted },
+        };
+      },
+    };
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(),
+      evidenceSource: restrictedEvidence,
+      now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    expect(() => lease.start({ ...request, ...requestOverride })).toThrow(/capability/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await lease.release();
+  });
+
+  it('accepts explicitly evidenced quality, moderation, and compression without claiming default entitlement', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(), evidenceSource: evidence, now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    const job = lease.start({
+      ...request,
+      quality: 'high',
+      moderation: 'low',
+      outputFormat: 'webp',
+      outputCompression: 75,
+    });
+    await job.cancel();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await lease.release();
   });
 
   it.each([
