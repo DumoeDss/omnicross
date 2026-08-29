@@ -100,6 +100,9 @@ export function UsageStatsPage() {
               blank the range-driven views below. */}
           <DashboardOverview
             summary={dashboard.summary}
+            preset={stats.preset}
+            rangeTotals={!loading && !error && range !== null ? data?.totals ?? null : null}
+            rangeLoading={loading}
             loading={dashboard.loading}
             error={dashboard.error}
             onReload={dashboard.reload}
