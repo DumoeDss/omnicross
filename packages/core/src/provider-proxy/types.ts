@@ -468,6 +468,14 @@ export interface RouteContext {
    * Ignored for the OpenAI Responses ingress.
    */
   readonly anthropicSdkHints?: AnthropicSdkHints | null;
+  /**
+   * count_tokens strategy for `/v1/messages/count_tokens` requests
+   * (claude-api-routing-errors). Absent ⇒ `'auto'`: Anthropic-wire upstream →
+   * passthrough, translation upstream → reject. Stamped onto the minted route
+   * by the outbound router for count_tokens requests only; resident direct
+   * traffic stays `'auto'`.
+   */
+  readonly anthropicCountTokensMode?: 'auto' | 'passthrough' | 'reject';
 }
 
 /**

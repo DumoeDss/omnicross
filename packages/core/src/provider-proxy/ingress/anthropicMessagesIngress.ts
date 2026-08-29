@@ -54,14 +54,23 @@ import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 
 import { handleAnthropicMessagesByo } from './anthropicMessagesByo';
+import { handleAnthropicCountTokens } from './anthropicCountTokens';
+import { classifyAnthropicMessagesPath } from './anthropicPathMatch';
 import { readBody, resolvePoolBoundKey, writeError } from './providerProxyShared';
 
-/** Match `POST` + any path containing `/v1/messages` (parity with the host handler). */
+/**
+ * Match `POST` + any path in the Anthropic Messages family. Derived from the
+ * SHARED classifier (`classifyAnthropicMessagesPath`) — the same function the
+ * outbound server's `selectEndpoint` derives from — so the two serving faces
+ * agree BY CONSTRUCTION. Subpaths (`/v1/messages/*`) intentionally match here
+ * so they enter this ingress and receive an Anthropic-shaped 404; lookalikes
+ * (`/v1/messagesfoo`) do not.
+ */
 export function isAnthropicMessagesRequest(
   method: string | undefined,
   url: string | undefined,
 ): boolean {
-  return method === 'POST' && !!url && url.includes('/v1/messages');
+  return method === 'POST' && classifyAnthropicMessagesPath(url) !== null;
 }
 
 /**
@@ -82,6 +91,33 @@ export async function handleAnthropicMessagesRequest(
   route: RouteContext,
   deps: ProviderProxyDeps,
 ): Promise<void> {
+  // Sub-resource dispatch (claude-api-routing-errors). The outbound face
+  // rejects unsupported subpaths pre-dispatch; the resident face has no
+  // pre-dispatch stage, so the check lives HERE. `writeError` consults the
+  // entry mark (set in `routeRequest`) → the 404 is Anthropic-shaped
+  // `not_found_error`, with zero upstream calls.
+  const pathClass = classifyAnthropicMessagesPath(req.url);
+  if (pathClass === 'unsupported-subpath') {
+    writeError(res, 404, `Unsupported Anthropic subpath: ${req.method} ${req.url}`);
+    return;
+  }
+  if (pathClass === 'count_tokens') {
+    // Same request-side header extraction as the BYO branch below (the
+    // subscription relay consumes callerAnthropicBeta / identity / client
+    // headers; the BYO count_tokens fetch consumes callerAnthropicBeta).
+    const rawBody = await readBody(req);
+    const callerBetaRaw = req.headers['anthropic-beta'];
+    const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+    const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
+    const callerClientHeaders = extractClaudeClientHeaders(req.headers);
+    await handleAnthropicCountTokens(res, rawBody, route, deps, {
+      callerAnthropicBeta,
+      callerIdentity,
+      callerClientHeaders,
+    });
+    return;
+  }
+
   const handlerFactory = deps.anthropicIngressHandlerFactory;
 
   // ── factory ABSENT → built-in factory-less BYO path (was 502). ─────────────

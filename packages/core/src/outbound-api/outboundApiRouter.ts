@@ -33,6 +33,12 @@ import {
   isBoundAccountSelectionError,
 } from '../pipeline/BoundAccountSelectionError';
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
+import { classifyAnthropicMessagesPath } from '../provider-proxy/ingress/anthropicPathMatch';
+import {
+  isAnthropicProtocolResponse,
+  markAnthropicProtocolResponse,
+  writeAnthropicError,
+} from '../provider-proxy/ingress/anthropicErrorEnvelope';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
@@ -100,9 +106,24 @@ export interface OutboundRequestConfig {
    * key is ever mutated (byte-identical zero regression).
    */
   voucher?: VoucherConfig;
+  /**
+   * Anthropic count_tokens segment (claude-api-routing-errors). `mode` defaults
+   * to `'auto'` — Anthropic-wire upstream → passthrough, translation upstream →
+   * reject. Threaded onto the minted route as `anthropicCountTokensMode` for
+   * count_tokens requests only; the full config skeleton lands in the follow-up
+   * change.
+   */
+  anthropicCountTokens?: { mode?: 'auto' | 'passthrough' | 'reject' };
 }
 
-/** Write a JSON error response with a status + optional headers. */
+/**
+ * Write a JSON error response with a status + optional headers.
+ *
+ * On an Anthropic-protocol request (res marked at the pipeline entry — see
+ * `anthropicErrorEnvelope`) the body takes the Anthropic error shape so
+ * Anthropic SDK clients can type-parse it (details fold into `error`); every
+ * other path keeps the legacy `outbound_api_error` envelope byte-for-byte.
+ */
 function writeJsonError(
   res: http.ServerResponse,
   status: number,
@@ -110,6 +131,10 @@ function writeJsonError(
   headers: Record<string, string> = {},
   details: { code?: string; reason?: string } = {},
 ): void {
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, status, message, headers, details);
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers });
   res.end(JSON.stringify({ error: { type: 'outbound_api_error', message, ...details } }));
@@ -127,13 +152,20 @@ function writeCostLimitError(
   limitUsd: number,
   spentUsd: number,
 ): void {
+  const message = `Cost limit reached for this key (${scope}): $${spentUsd.toFixed(4)} of $${limitUsd.toFixed(4)}`;
+  // Anthropic-protocol requests get the spend-cap semantics (`rate_limit_error`)
+  // with the scope/limit/spend fields folded into `error`.
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, 402, message, {}, { scope, limitUsd, spentUsd });
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(402, { 'Content-Type': 'application/json' });
   res.end(
     JSON.stringify({
       error: {
         type: 'outbound_api_error',
-        message: `Cost limit reached for this key (${scope}): $${spentUsd.toFixed(4)} of $${limitUsd.toFixed(4)}`,
+        message,
       },
       scope,
       limitUsd,
@@ -154,13 +186,18 @@ function writeModelNotAllowedError(
   model: string,
   mode: 'blacklist' | 'allowlist',
 ): void {
+  const message = `Model '${model}' is not permitted for this key (${mode})`;
+  if (isAnthropicProtocolResponse(res)) {
+    writeAnthropicError(res, 403, message, {}, { model, mode });
+    return;
+  }
   if (res.headersSent) return;
   res.writeHead(403, { 'Content-Type': 'application/json' });
   res.end(
     JSON.stringify({
       error: {
         type: 'outbound_api_error',
-        message: `Model '${model}' is not permitted for this key (${mode})`,
+        message,
       },
       model,
       mode,
@@ -200,10 +237,16 @@ export function selectEndpoint(
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
   if (path.endsWith('/chat/completions')) return 'chat';
   if (path.endsWith('/responses')) return 'responses';
-  // m3: require `/v1/messages` so selection AGREES with the shared dispatcher's
-  // `isAnthropicMessagesRequest` (`url.includes('/v1/messages')`). A bare
-  // `/messages` would otherwise be selected, mint a route, then 404 in dispatch.
-  if (path.includes('/v1/messages')) return 'messages';
+  // m3: the `/v1/messages` family routes through the SHARED classifier
+  // (`classifyAnthropicMessagesPath`), the same function the resident
+  // dispatcher's `isAnthropicMessagesRequest` derives from — selection and
+  // dispatch agree BY CONSTRUCTION. Only the root (`/v1/messages`, incl.
+  // prefix/query/trailing-slash tolerance and the unfolded doubled tail) and
+  // `count_tokens` (authorized like `messages`) select the endpoint; other
+  // `/v1/messages/*` subpaths and lookalikes (`/v1/messagesfoo`, bare
+  // `/messages`) select nothing.
+  const classified = classifyAnthropicMessagesPath(url);
+  if (classified === 'messages' || classified === 'count_tokens') return 'messages';
   const lastSeg = path.split('/').pop() ?? '';
   if (lastSeg.endsWith(':generateContent') || lastSeg.endsWith(':streamGenerateContent')) {
     return 'gemini';
@@ -346,6 +389,17 @@ export async function handleOutboundRequest(
 ): Promise<void> {
   // One clock for the whole request so expiry / rate / quota agree.
   const now = Date.now();
+
+  // ANTHROPIC-PROTOCOL MARK (claude-api-routing-errors, design D4). Classify
+  // the path FIRST — before auth — so every LOCAL error on a `/v1/messages*`
+  // request (incl. the 401/429 below) carries the Anthropic error envelope an
+  // Anthropic SDK can type-parse. Method is deliberately ignored: a
+  // `GET /v1/messages` gets an Anthropic-shaped 404 (harmless, more uniform).
+  // The classification result also drives the count_tokens bypass below.
+  // Relay paths never consult the mark — upstream errors stay verbatim.
+  const anthropicPathClass = classifyAnthropicMessagesPath(req.url);
+  const isCountTokens = anthropicPathClass === 'count_tokens';
+  if (anthropicPathClass !== null) markAnthropicProtocolResponse(res);
 
   // AUDIT (request-audit-log, design D5). Gated inside `beginAuditCapture` on the
   // core capture-config slot: audit-disabled ⇒ `null` (one slot read, no work,
@@ -495,10 +549,11 @@ export async function handleOutboundRequest(
   // positive `maxConcurrency`. The acquired slot is held to request end and
   // released idempotently from BOTH the dispatch `finally` AND a `res.close`
   // listener to prevent slot leaks; a still-WAITING acquisition is cancelled
-  // when the client disconnects mid-queue.
+  // when the client disconnects mid-queue. count_tokens requests SKIP the gate
+  // entirely (a free endpoint — it must never queue behind generation).
   const concurrencyLimit = verified.maxConcurrency;
   let releaseConcurrency: (() => void) | null = null;
-  if (typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
+  if (!isCountTokens && typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
     const cq = config.concurrencyQueue ?? DEFAULT_CONCURRENCY_QUEUE;
     const acquisition = concurrencyGate.acquire(verified.id, concurrencyLimit, {
       maxQueueSizeFactor: cq.maxQueueSizeFactor,
@@ -671,6 +726,7 @@ export async function handleOutboundRequest(
     if (
       config.userMessageQueue?.enabled &&
       providerKey &&
+      !isCountTokens &&
       isUserMessageRequest(endpoint, parsedBody)
     ) {
       const umq = config.userMessageQueue;
@@ -709,7 +765,13 @@ export async function handleOutboundRequest(
     // 5. DISPATCH — mint a route on the SHARED map, shim the auth header, delegate
     // to the existing routeRequest, and remove the route in a finally.
     const routeMap = deps.providerProxy.getRouteMap();
-    const token = routeMap.addRoute(resolved.route);
+    // count_tokens requests carry the configured strategy mode on the minted
+    // route (absent ⇒ 'auto'); generation requests mint the route unchanged.
+    const token = routeMap.addRoute(
+      isCountTokens
+        ? { ...resolved.route, anthropicCountTokensMode: config.anthropicCountTokens?.mode }
+        : resolved.route,
+    );
     try {
       shimAuthHeader(req, token);
       // We consumed the request stream once to detect the role. Every shared

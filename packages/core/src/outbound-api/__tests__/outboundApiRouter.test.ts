@@ -176,6 +176,20 @@ describe('selectEndpoint', () => {
     // The canonical path still matches (incl. with a provider-prefixed base).
     expect(selectEndpoint('POST', '/anthropic/v1/messages')).toBe('messages');
   });
+
+  it('claude-api-routing-errors: count_tokens selects the messages endpoint (authorized like it)', () => {
+    expect(selectEndpoint('POST', '/v1/messages/count_tokens')).toBe('messages');
+    expect(selectEndpoint('POST', '/v1/messages/count_tokens?beta=true')).toBe('messages');
+  });
+
+  it('claude-api-routing-errors: other /v1/messages subpaths and lookalikes select nothing', () => {
+    // Sub-resources must NOT enter the generation pipeline (audit F-1).
+    expect(selectEndpoint('POST', '/v1/messages/batches')).toBeNull();
+    expect(selectEndpoint('POST', '/v1/messages/batches/msg_123')).toBeNull();
+    expect(selectEndpoint('POST', '/v1/messages/count_tokensfoo')).toBeNull();
+    // Lookalike: no longer caught by the old substring match.
+    expect(selectEndpoint('POST', '/v1/messagesfoo')).toBeNull();
+  });
 });
 
 describe('extractGeminiModelFromUrl (m4)', () => {

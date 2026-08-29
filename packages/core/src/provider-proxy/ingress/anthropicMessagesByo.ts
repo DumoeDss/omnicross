@@ -203,8 +203,13 @@ export async function handleAnthropicMessagesByo(
   }
 }
 
-/** BYO-key plan — `LlmConfigProviderAuth` over the route's provider row. */
-async function buildByoPlan(
+/**
+ * BYO-key plan — `LlmConfigProviderAuth` over the route's provider row.
+ * Exported for the count_tokens handler, which reuses the SAME plan (model
+ * resolution, pool-bound key, chain, same-format signal) instead of building
+ * a parallel one.
+ */
+export async function buildByoPlan(
   res: http.ServerResponse,
   route: RouteContext,
   deps: ProviderProxyDeps,
@@ -298,12 +303,18 @@ async function buildByoPlan(
  * `anthropic-version`) + `injectExtendedContextBeta` (1M flag) + the caller's
  * forwarded `anthropic-beta` merged on top (LEAD OQ1). Still flows through
  * `runPipelineWithPoolReporting`, so ApiKeyPool failover is preserved.
+ *
+ * `urlOverride` (optional, last): POST a sibling endpoint under the same
+ * Anthropic root instead of the terminal `/v1/messages` — used by the
+ * count_tokens passthrough (`<upstream>/v1/messages/count_tokens`). Absent ⇒
+ * the generation URL, byte-identical to before.
  */
-async function runSameFormatFetch(
+export async function runSameFormatFetch(
   bodyToSend: string,
   plan: AnthropicCallPlan,
   options: AnthropicByoOptions,
   keyOverride?: string,
+  urlOverride?: string,
 ): Promise<{ response: Response; rawStatus: number | null }> {
   const { provider, apiKey, resolvedModel, isStream, extendedContextEnabled } = plan;
   // BYO-only path: `buildByoPlan` always populates `provider`/`apiKey` (the
@@ -335,7 +346,7 @@ async function runSameFormatFetch(
   // Additively merge the 1M-context flag when the route opted in (idempotent).
   injectExtendedContextBeta(headers, resolvedModel, extendedContextEnabled ?? false);
 
-  const url = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
+  const url = urlOverride ?? buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);
   // upstream-proxy: BYO egress honors the global/provider proxy (providerId 'byo').
   const response = await fetchUpstream(

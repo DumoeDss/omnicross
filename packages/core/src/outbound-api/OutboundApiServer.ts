@@ -31,6 +31,10 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import { serializeError } from '@omnicross/core/serializeError';
 
 import { KeyedMutex } from './keyedMutex';
+import {
+  isAnthropicProtocolResponse,
+  writeAnthropicError,
+} from '../provider-proxy/ingress/anthropicErrorEnvelope';
 import { handleOutboundRequest } from './outboundApiRouter';
 import { OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import { OutboundRateLimiter } from './outboundRateLimiter';
@@ -208,9 +212,16 @@ export class OutboundApiServer {
     ).catch((err) => {
       const message = serializeError(err);
       this.logError('[OutboundApiServer] unhandled error:', message);
+      // Last-resort 500: consults the Anthropic-protocol mark (set at the
+      // handleOutboundRequest entry) so an Anthropic request gets the Anthropic
+      // shape; every other path keeps the legacy envelope.
       if (!res.headersSent) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
+        if (isAnthropicProtocolResponse(res)) {
+          writeAnthropicError(res, 500, message);
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: { type: 'outbound_api_error', message } }));
+        }
       }
     });
   }

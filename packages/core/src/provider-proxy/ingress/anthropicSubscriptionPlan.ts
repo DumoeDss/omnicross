@@ -466,12 +466,17 @@ export async function runPipeline(
  * because the upstream ends in `/v1/messages`). The caller's `anthropic-beta`
  * merge (RT1 OQ1) is DEFERRED on this path — the body is forwarded as-is and the
  * upstream applies its defaults.
+ *
+ * `urlOverride` (optional, last): POST a sibling endpoint under the same
+ * Anthropic root instead of `plan.upstreamUrl` — used by the count_tokens
+ * passthrough. Absent ⇒ `plan.upstreamUrl`, byte-identical to before.
  */
-async function runSubscriptionSameFormatFetch(
+export async function runSubscriptionSameFormatFetch(
   rawBody: string,
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean, remappedModel?: string) => void,
   options: AnthropicByoOptions = {},
+  urlOverride?: string,
 ): Promise<{ response: Response; rawStatus: number | null; actualModel: string }> {
   // upstream-proxy: capture the effective account (per-account proxy override).
   // subscription-account-model-map (D3): capture the selected account's ACTUAL
@@ -553,10 +558,10 @@ async function runSubscriptionSameFormatFetch(
     fillMissingHeaders(headers, { 'anthropic-beta': options.callerAnthropicBeta });
   }
   console.info(
-    `[ProviderProxy:anthropic] (subscription same-format) -> ${plan.upstreamUrl} model=${outboundModel} stream=${plan.isStream}`,
+    `[ProviderProxy:anthropic] (subscription same-format) -> ${urlOverride ?? plan.upstreamUrl} model=${outboundModel} stream=${plan.isStream}`,
   );
   const response = await fetchUpstream(
-    plan.upstreamUrl,
+    urlOverride ?? plan.upstreamUrl,
     { method: 'POST', headers, body: outboundBody },
     {
       providerId: proxyProviderId(plan),

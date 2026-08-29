@@ -25,6 +25,7 @@ import http from 'node:http';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
+import { writeError } from './ingress/providerProxyShared';
 import { ProviderProxyRouteMap, type RouteRegistrationOptions } from './providerProxyRouteMap';
 import { routeRequest } from './providerProxyRouter';
 import type { ProviderProxyDeps, RouteContext } from './types';
@@ -78,9 +79,10 @@ export class ProviderProxy {
         routeRequest(req, res, this.routes, this.deps).catch((err) => {
           const errMsg = serializeError(err);
           console.error('[ProviderProxy] Unhandled error:', errMsg);
+          // Last-resort 500: consults the Anthropic-protocol mark (set at the
+          // routeRequest entry) so an Anthropic request gets the Anthropic shape.
           if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: { type: 'provider_proxy_error', message: errMsg } }));
+            writeError(res, 500, errMsg);
           }
         });
       });
