@@ -27,6 +27,7 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
+import { classifyOpenAIOperation } from '../openai-operation';
 import { isAccountAllowanceExhaustedError } from '../pipeline/AccountAllowanceScheduling';
 import {
   boundAccountSelectionMessage,
@@ -191,15 +192,20 @@ export function isLoopbackPeer(address: string | undefined): boolean {
     normalized.startsWith('::ffff:127.');
 }
 
-/** Match an HTTP method+path to one of the four outbound endpoints. */
+/** Project a classified operation onto one of the four persisted endpoints. */
 export function selectEndpoint(
   method: string | undefined,
   url: string | undefined,
 ): OutboundEndpoint | null {
   if (method !== 'POST' || !url) return null;
+  const openAIOperation = classifyOpenAIOperation(method, url);
+  if (
+    openAIOperation?.policyFamily === 'chat' ||
+    openAIOperation?.policyFamily === 'responses'
+  ) {
+    return openAIOperation.policyFamily;
+  }
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
-  if (path.endsWith('/chat/completions')) return 'chat';
-  if (path.endsWith('/responses')) return 'responses';
   // m3: require `/v1/messages` so selection AGREES with the shared dispatcher's
   // `isAnthropicMessagesRequest` (`url.includes('/v1/messages')`). A bare
   // `/messages` would otherwise be selected, mint a route, then 404 in dispatch.

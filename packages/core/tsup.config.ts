@@ -11,6 +11,7 @@ export default defineConfig({
     ApiConverter: 'src/ApiConverter.ts',
     'auth/GeminiCodeAssistProjectResolver': 'src/auth/GeminiCodeAssistProjectResolver.ts',
     completion: 'src/completion/index.ts',
+    'openai-operation': 'src/openai-operation/index.ts',
     'completion/ApiKeyPoolService': 'src/completion/ApiKeyPoolService.ts',
     'completion/BuiltinToolExecutor': 'src/completion/BuiltinToolExecutor.ts',
     'completion/CompletionService': 'src/completion/CompletionService.ts',

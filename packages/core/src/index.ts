@@ -58,6 +58,9 @@ export * from './completion'
 // ── Provider proxy (resident loopback ingress) ───────────────────────────────
 export * from './provider-proxy'
 
+// ── OpenAI operation classification + trusted extension handler seam ────────
+export * from './openai-operation'
+
 // ── Outbound API server (external-facing wire-format ingress) ────────────────
 export * from './outbound-api'
 
