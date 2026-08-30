@@ -1,0 +1,22 @@
+{
+  "change": "codex-hosted-tools-and-images",
+  "archivedAt": "2026-08-30T22:01:33.129Z",
+  "codeCommit": "a0555e75aaa62c0b1cf62284c9139f7def0bf9a0",
+  "planningBranch": "feat/codex-hosted-tools-and-images",
+  "planningTreeState": "clean",
+  "evidence": [
+    {
+      "path": "evidence/ship-log.md",
+      "sha256": "da916b8d4810c60c126abfb247927b199c7a4722cbd018fd5ceba93d596c6624"
+    }
+  ],
+  "probes": [],
+  "handoffAbsorbed": [],
+  "ephemeraDiscarded": [
+    "auto-run.json",
+    "portfolio-run.json"
+  ],
+  "missing": [
+    "verification-report"
+  ]
+}
