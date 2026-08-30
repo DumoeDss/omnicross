@@ -1,0 +1,44 @@
+{
+  "change": "codex-images-production-wiring",
+  "archivedAt": "2026-08-30T22:01:00.894Z",
+  "codeCommit": "a0555e75aaa62c0b1cf62284c9139f7def0bf9a0",
+  "planningBranch": "feat/codex-hosted-tools-and-images",
+  "planningTreeState": "clean",
+  "evidence": [
+    {
+      "path": "evidence/handoff/hosted-responses-image-integration.md",
+      "sha256": "272f2739d4e1307d382ba20c9fe5770e5570df77feb5d0218438f9bfc30f8a71"
+    },
+    {
+      "path": "evidence/review-cycle-report.md",
+      "sha256": "aa56c7d46dfaed6a298e0f9a21eeae3c84c7499b3092f59b4f91f996e636e587"
+    },
+    {
+      "path": "evidence/review-report.md",
+      "sha256": "f2fa18464bf79c07ef175f186a8591ef273c4e7984cf19fe17e1f63e86237c52"
+    },
+    {
+      "path": "evidence/ship-log.md",
+      "sha256": "df7df0e500f3141007b280f1bfa05fc3ac39d3672d9f915109ffd01a05b516db"
+    },
+    {
+      "path": "evidence/verification.md",
+      "sha256": "5a894ffdc995fd6031b635308c085517385d364a59ea3e9e4de32c63a9d944c8"
+    }
+  ],
+  "probes": [],
+  "handoffAbsorbed": [
+    {
+      "file": "handoff/hosted-responses-image-integration.md",
+      "outcome": "preserved"
+    },
+    {
+      "file": "handoff/local-completion.md",
+      "outcome": "absorbed"
+    }
+  ],
+  "ephemeraDiscarded": [],
+  "missing": [
+    "verification-report"
+  ]
+}
