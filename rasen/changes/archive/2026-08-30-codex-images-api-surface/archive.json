@@ -1,0 +1,38 @@
+{
+  "change": "codex-images-api-surface",
+  "archivedAt": "2026-08-30T21:59:59.667Z",
+  "codeCommit": "a0555e75aaa62c0b1cf62284c9139f7def0bf9a0",
+  "planningBranch": "feat/codex-hosted-tools-and-images",
+  "planningTreeState": "clean",
+  "evidence": [
+    {
+      "path": "evidence/apply-evidence.md",
+      "sha256": "b73c382716de011095a69c3a6cb75b39cef6d5a68b206e0e363c9044dbdec5c6"
+    },
+    {
+      "path": "evidence/review-cycle-report.md",
+      "sha256": "2a326951e9d466f2538b5241ff3b7f5d266d48c4fde53374adfec38b47cad09c"
+    },
+    {
+      "path": "evidence/review-report.md",
+      "sha256": "82028aba439fd807bfeac82031de8c3bf963f3caa2d3dc504356a9f9bace5b10"
+    },
+    {
+      "path": "evidence/ship-log.md",
+      "sha256": "f32046034d8a7ae9b370ff4b1d3a1a3faf5052b92380b0b9f9a9919fac2085c5"
+    }
+  ],
+  "probes": [],
+  "handoffAbsorbed": [
+    {
+      "file": "handoff/implementer-1.md",
+      "outcome": "absorbed"
+    }
+  ],
+  "ephemeraDiscarded": [
+    "auto-run.json"
+  ],
+  "missing": [
+    "verification-report"
+  ]
+}
