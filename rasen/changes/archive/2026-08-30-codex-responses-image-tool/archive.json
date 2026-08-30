@@ -1,0 +1,37 @@
+{
+  "change": "codex-responses-image-tool",
+  "archivedAt": "2026-08-30T22:00:29.739Z",
+  "codeCommit": "a0555e75aaa62c0b1cf62284c9139f7def0bf9a0",
+  "planningBranch": "feat/codex-hosted-tools-and-images",
+  "planningTreeState": "clean",
+  "evidence": [
+    {
+      "path": "evidence/apply-evidence.md",
+      "sha256": "2281a041fbffffcf14fe8a265dff59c9535e5b7e21031a150f2d0977a8fd3b25"
+    },
+    {
+      "path": "evidence/review-cycle-report.md",
+      "sha256": "12c057caacead7468f68d2e0de21ba147bba47e45ff8a3eabb6682e666706681"
+    },
+    {
+      "path": "evidence/review-report.md",
+      "sha256": "1bb512ce5e1da4314e8b82d166df6f4c2775b8d899eceb923d898730021d1fd2"
+    },
+    {
+      "path": "evidence/ship-log.md",
+      "sha256": "45392e8199784a20c9e1c97007ef490d1532c939fae18a1f28890e18c867ef9e"
+    },
+    {
+      "path": "evidence/verification-closeout.md",
+      "sha256": "6b9ff44ee9b76a6b882298a7a6dd577c7efe157975e77e78abcd89875508f776"
+    }
+  ],
+  "probes": [],
+  "handoffAbsorbed": [],
+  "ephemeraDiscarded": [
+    "auto-run.json"
+  ],
+  "missing": [
+    "verification-report"
+  ]
+}
