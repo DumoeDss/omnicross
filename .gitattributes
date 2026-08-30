@@ -1,1 +1,3 @@
 scripts/fixtures/updater/signed/Omnicross_* text eol=lf
+rasen/changes/archive/** text eol=lf
+rasen/specs/** text eol=lf

@@ -1,0 +1,5070 @@
+{
+  "schemaVersion": 2,
+  "transactionId": "d8cd44d8-1e02-4b33-92c5-08fea85ecf41",
+  "planHash": "7e879acf3b26f3408b289118f564be0be5666a94f6461488c5c74abecee32f1d",
+  "change": "codex-image-provider-foundation",
+  "phase": "complete",
+  "activePath": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\changes\\codex-image-provider-foundation",
+  "stagePath": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\changes\\archive\\.rasen-archive-stage-d8cd44d8-1e02-4b33-92c5-08fea85ecf41",
+  "finalPath": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\changes\\archive\\2026-08-30-codex-image-provider-foundation",
+  "ephemeraDisposed": [],
+  "phaseFingerprints": {
+    "payload-copied": {
+      "state": "verified",
+      "scope": "stage",
+      "before": {
+        "algorithm": "sha256",
+        "digest": "ef6e3c29db9bb9831dfda3ea7697098e15d159738d7a092291fd2013061bdae5",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "handoff",
+            "kind": "directory"
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4183",
+            "sha256": "0e4358ce8a4aa686bef0e1e5514ac6af850c9e340c453141c25ee812e149a33e"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "2251799825221070",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "d35555f0f27f71be338f21080fb1f732776346b287de948627811b512ab78740",
+        "authorityEntries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825221067",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274801940659",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825649169",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4785074616052821",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825219341",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4503599639346998",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274802359823",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224755793435",
+              "mode": "33206",
+              "size": "4183",
+              "mtimeNs": "1788010505001815000",
+              "ctimeNs": "1788010505001815000"
+            }
+          },
+          {
+            "path": "handoff",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3940649675506775",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274801940568",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825221068",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825230002",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825230001",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825229993",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825229992",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274801940647",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2251799825220925",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "expectedAfter": {
+        "algorithm": "sha256",
+        "digest": "ef6e3c29db9bb9831dfda3ea7697098e15d159738d7a092291fd2013061bdae5",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "handoff",
+            "kind": "directory"
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4183",
+            "sha256": "0e4358ce8a4aa686bef0e1e5514ac6af850c9e340c453141c25ee812e149a33e"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "aaf3ea7e93596cfb1a3c8bb8d1894c1965c9aec9ab054a0a1ab3ef9666163362",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586260",
+              "mode": "33206",
+              "size": "4183",
+              "mtimeNs": "1788010505001815000",
+              "ctimeNs": "1788010505001815000"
+            }
+          },
+          {
+            "path": "handoff",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875601",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "observedAfter": {
+        "algorithm": "sha256",
+        "digest": "ef6e3c29db9bb9831dfda3ea7697098e15d159738d7a092291fd2013061bdae5",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "handoff",
+            "kind": "directory"
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4183",
+            "sha256": "0e4358ce8a4aa686bef0e1e5514ac6af850c9e340c453141c25ee812e149a33e"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "aaf3ea7e93596cfb1a3c8bb8d1894c1965c9aec9ab054a0a1ab3ef9666163362",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586260",
+              "mode": "33206",
+              "size": "4183",
+              "mtimeNs": "1788010505001815000",
+              "ctimeNs": "1788010505001815000"
+            }
+          },
+          {
+            "path": "handoff",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875601",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      }
+    },
+    "handoff-finalized": {
+      "state": "verified",
+      "scope": "stage",
+      "before": {
+        "algorithm": "sha256",
+        "digest": "ef6e3c29db9bb9831dfda3ea7697098e15d159738d7a092291fd2013061bdae5",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "handoff",
+            "kind": "directory"
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4183",
+            "sha256": "0e4358ce8a4aa686bef0e1e5514ac6af850c9e340c453141c25ee812e149a33e"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "aaf3ea7e93596cfb1a3c8bb8d1894c1965c9aec9ab054a0a1ab3ef9666163362",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "handoff/shipper-1.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586260",
+              "mode": "33206",
+              "size": "4183",
+              "mtimeNs": "1788010505001815000",
+              "ctimeNs": "1788010505001815000"
+            }
+          },
+          {
+            "path": "handoff",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875601",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "expectedAfter": {
+        "algorithm": "sha256",
+        "digest": "2d93f0a00677fca454d6ddcf90d6e4aa4219e70ce22e093d1aaf8212fff1aeca",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "77b43eef81e40fcfd807531351fdaa5b0176f5dc624d8fdddaffe9bbb9da1afd",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "observedAfter": {
+        "algorithm": "sha256",
+        "digest": "2d93f0a00677fca454d6ddcf90d6e4aa4219e70ce22e093d1aaf8212fff1aeca",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "77b43eef81e40fcfd807531351fdaa5b0176f5dc624d8fdddaffe9bbb9da1afd",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      }
+    },
+    "evidence-finalized": {
+      "state": "verified",
+      "scope": "stage",
+      "before": {
+        "algorithm": "sha256",
+        "digest": "2d93f0a00677fca454d6ddcf90d6e4aa4219e70ce22e093d1aaf8212fff1aeca",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "40",
+            "sha256": "f4a1a5ebcaf832a382f8bba53f7c81d9fa7e1a92b3d01f6b7d8fc34e77619b07"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4497",
+            "sha256": "68c087e633aae0c6a6308c34299d1c21b81f1f09f59744e37fd435fb37565aa4"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "77b43eef81e40fcfd807531351fdaa5b0176f5dc624d8fdddaffe9bbb9da1afd",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "40",
+              "mtimeNs": "1787992465881882700",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4497",
+              "mtimeNs": "1788011295303027300",
+              "ctimeNs": "1788011295303027300"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "expectedAfter": {
+        "algorithm": "sha256",
+        "digest": "60841403e96556fd52df2b7b591dbc62ac9ae540da1e384eb1c34342bed7368e",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "925962f57a11b62c2105a07bd0c7a01dc1c3414e3fce496ef477fdebe47441fc",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "observedAfter": {
+        "algorithm": "sha256",
+        "digest": "60841403e96556fd52df2b7b591dbc62ac9ae540da1e384eb1c34342bed7368e",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "925962f57a11b62c2105a07bd0c7a01dc1c3414e3fce496ef477fdebe47441fc",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      }
+    },
+    "final-reserved": {
+      "state": "verified",
+      "scope": "final",
+      "before": {
+        "algorithm": "sha256",
+        "digest": "60841403e96556fd52df2b7b591dbc62ac9ae540da1e384eb1c34342bed7368e",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "5910974518403432",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "925962f57a11b62c2105a07bd0c7a01dc1c3414e3fce496ef477fdebe47441fc",
+        "authorityEntries": [
+          {
+            "path": ".rasen-archive-stage-owner.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692782",
+              "mode": "33206",
+              "size": "369",
+              "mtimeNs": "1788127168224403700",
+              "ctimeNs": "1788127168224403700"
+            }
+          },
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586223",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "3096224751296892",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586244",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586247",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875596",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875599",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586241",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2814749774586269",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875615",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875630",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875623",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875634",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875632",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875619",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "2533274797875640",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "expectedAfter": {
+        "algorithm": "sha256",
+        "digest": "60841403e96556fd52df2b7b591dbc62ac9ae540da1e384eb1c34342bed7368e",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "8162774332088768",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "89e98c0ffa4db00bff0204c876815358ee1c767b7bbbf4f9609b6f222b561c9f",
+        "authorityEntries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692876",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403535",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271574",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403545",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692892",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692897",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4503599634850259",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692903",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692905",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982253",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982252",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692914",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982255",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982250",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982260",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "observedAfter": {
+        "algorithm": "sha256",
+        "digest": "60841403e96556fd52df2b7b591dbc62ac9ae540da1e384eb1c34342bed7368e",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "8162774332088768",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "89e98c0ffa4db00bff0204c876815358ee1c767b7bbbf4f9609b6f222b561c9f",
+        "authorityEntries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692876",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403535",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271574",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403545",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692892",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692897",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4503599634850259",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692903",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692905",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982253",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982252",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692914",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982255",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982250",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982260",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      }
+    },
+    "accounting-finalized": {
+      "state": "verified",
+      "scope": "final",
+      "before": {
+        "algorithm": "sha256",
+        "digest": "60841403e96556fd52df2b7b591dbc62ac9ae540da1e384eb1c34342bed7368e",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "8162774332088768",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "89e98c0ffa4db00bff0204c876815358ee1c767b7bbbf4f9609b6f222b561c9f",
+        "authorityEntries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692876",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403535",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271574",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403545",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692892",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692897",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4503599634850259",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692903",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692905",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982253",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982252",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692914",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982255",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982250",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982260",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "expectedAfter": {
+        "algorithm": "sha256",
+        "digest": "b9b1ef84d78ee75112c9e423743bfe70575f83616c08d396c176d54664a40a1c",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "archive.json",
+            "kind": "file",
+            "executable": false,
+            "size": "1017",
+            "sha256": "dbdb4cb96eed23199de8668edea440230360cd2778c5a500408c17923c971a04"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "8162774332088768",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "ebbe370de931b839b4a33bd5b7fbd184a86b082b8c79fb368c4111c4fa639b88",
+        "authorityEntries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692876",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "archive.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271611",
+              "mode": "33206",
+              "size": "1017",
+              "mtimeNs": "1788127172466355900",
+              "ctimeNs": "1788127172536727000"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403535",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271574",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403545",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692892",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692897",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4503599634850259",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692903",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692905",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982253",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982252",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692914",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982255",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982250",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982260",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      },
+      "observedAfter": {
+        "algorithm": "sha256",
+        "digest": "b9b1ef84d78ee75112c9e423743bfe70575f83616c08d396c176d54664a40a1c",
+        "entries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "executable": false,
+            "size": "211",
+            "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+          },
+          {
+            "path": "archive.json",
+            "kind": "file",
+            "executable": false,
+            "size": "1017",
+            "sha256": "dbdb4cb96eed23199de8668edea440230360cd2778c5a500408c17923c971a04"
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "executable": false,
+            "size": "15067",
+            "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+          },
+          {
+            "path": "evidence",
+            "kind": "directory"
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4996",
+            "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "13310",
+            "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "executable": false,
+            "size": "14001",
+            "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "executable": false,
+            "size": "4840",
+            "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "executable": false,
+            "size": "3088",
+            "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "executable": false,
+            "size": "170",
+            "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+          },
+          {
+            "path": "specs",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6857",
+            "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory"
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "executable": false,
+            "size": "9321",
+            "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "executable": false,
+            "size": "6766",
+            "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+          }
+        ],
+        "rootIdentity": {
+          "dev": "3122291782",
+          "ino": "8162774332088768",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        },
+        "authorityDigest": "ebbe370de931b839b4a33bd5b7fbd184a86b082b8c79fb368c4111c4fa639b88",
+        "authorityEntries": [
+          {
+            "path": ".openspec.yaml",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692876",
+              "mode": "33206",
+              "size": "211",
+              "mtimeNs": "1788127169119436900",
+              "ctimeNs": "1788127169119436900"
+            }
+          },
+          {
+            "path": "archive.json",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271611",
+              "mode": "33206",
+              "size": "1017",
+              "mtimeNs": "1788127172466355900",
+              "ctimeNs": "1788127172536727000"
+            }
+          },
+          {
+            "path": "design.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403535",
+              "mode": "33206",
+              "size": "15067",
+              "mtimeNs": "1787993028612148700",
+              "ctimeNs": "1787993028612148700"
+            }
+          },
+          {
+            "path": "evidence/apply-evidence.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5066549588271574",
+              "mode": "33206",
+              "size": "4996",
+              "mtimeNs": "1788009164053495700",
+              "ctimeNs": "1788009164053495700"
+            }
+          },
+          {
+            "path": "evidence/review-cycle-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5910974518403545",
+              "mode": "33206",
+              "size": "13310",
+              "mtimeNs": "1788010886633780800",
+              "ctimeNs": "1788010886633780800"
+            }
+          },
+          {
+            "path": "evidence/review-report.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692892",
+              "mode": "33206",
+              "size": "14001",
+              "mtimeNs": "1787996164947156600",
+              "ctimeNs": "1787996164947156600"
+            }
+          },
+          {
+            "path": "evidence/ship-log.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692897",
+              "mode": "33206",
+              "size": "4840",
+              "mtimeNs": "1788127169104192000",
+              "ctimeNs": "1788127169104192000"
+            }
+          },
+          {
+            "path": "evidence",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "4503599634850259",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "proposal.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692903",
+              "mode": "33206",
+              "size": "3088",
+              "mtimeNs": "1787992778396550300",
+              "ctimeNs": "1787992778396550300"
+            }
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692905",
+              "mode": "33206",
+              "size": "170",
+              "mtimeNs": "1787992465882889100",
+              "ctimeNs": "1787992465896674700"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982253",
+              "mode": "33206",
+              "size": "6857",
+              "mtimeNs": "1787993028611584400",
+              "ctimeNs": "1787993028611584400"
+            }
+          },
+          {
+            "path": "specs/codex-subscription-image-adapter",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982252",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation/spec.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5629499541692914",
+              "mode": "33206",
+              "size": "9321",
+              "mtimeNs": "1787993028609511100",
+              "ctimeNs": "1787993028609511100"
+            }
+          },
+          {
+            "path": "specs/image-provider-foundation",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982255",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "specs",
+            "kind": "directory",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982250",
+              "mode": "16822",
+              "size": "0",
+              "mtimeNs": "0",
+              "ctimeNs": "0"
+            }
+          },
+          {
+            "path": "tasks.md",
+            "kind": "file",
+            "identity": {
+              "dev": "3122291782",
+              "ino": "5348024564982260",
+              "mode": "33206",
+              "size": "6766",
+              "mtimeNs": "1787994993990284100",
+              "ctimeNs": "1787994993990284100"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "finalReservation": {
+    "state": "owned",
+    "identity": {
+      "dev": "3122291782",
+      "ino": "8162774332088768",
+      "mode": "16822",
+      "size": "0",
+      "mtimeNs": "0",
+      "ctimeNs": "0"
+    },
+    "entries": [
+      {
+        "path": ".openspec.yaml",
+        "kind": "file",
+        "expected": {
+          "path": ".openspec.yaml",
+          "kind": "file",
+          "executable": false,
+          "size": "211",
+          "sha256": "6593fdb4823d5ebbd626cfddfedebd3cd90dafb54bcf42ce167359d236fed795"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5629499541692876",
+          "mode": "33206",
+          "size": "211",
+          "mtimeNs": "1788127169119436900",
+          "ctimeNs": "1788127169119436900"
+        }
+      },
+      {
+        "path": ".rasen-archive-owner.json",
+        "kind": "file",
+        "state": "copied",
+        "expected": {
+          "path": ".rasen-archive-owner.json",
+          "kind": "file",
+          "executable": false,
+          "size": "356",
+          "sha256": "1812876b8cdece989e7f5a53732653ec1cc44ba7442a59688b82728dfbc4df17"
+        },
+        "identity": {
+          "dev": "3122291782",
+          "ino": "8162774332088771",
+          "mode": "33206",
+          "size": "356",
+          "mtimeNs": "1788127170155446500",
+          "ctimeNs": "1788127170155446500"
+        }
+      },
+      {
+        "path": "design.md",
+        "kind": "file",
+        "expected": {
+          "path": "design.md",
+          "kind": "file",
+          "executable": false,
+          "size": "15067",
+          "sha256": "af0bfd7c33eb83dc7d02d40d0348843c4a25a2ac4f87c05ad2dd301561e933ce"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5910974518403535",
+          "mode": "33206",
+          "size": "15067",
+          "mtimeNs": "1787993028612148700",
+          "ctimeNs": "1787993028612148700"
+        }
+      },
+      {
+        "path": "evidence",
+        "kind": "directory",
+        "expected": {
+          "path": "evidence",
+          "kind": "directory"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "4503599634850259",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        }
+      },
+      {
+        "path": "evidence/apply-evidence.md",
+        "kind": "file",
+        "expected": {
+          "path": "evidence/apply-evidence.md",
+          "kind": "file",
+          "executable": false,
+          "size": "4996",
+          "sha256": "7741acd5d03d50748f8c415170519080d8d52e3c6c294f7c713789ea6ed5a42a"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5066549588271574",
+          "mode": "33206",
+          "size": "4996",
+          "mtimeNs": "1788009164053495700",
+          "ctimeNs": "1788009164053495700"
+        }
+      },
+      {
+        "path": "evidence/review-cycle-report.md",
+        "kind": "file",
+        "expected": {
+          "path": "evidence/review-cycle-report.md",
+          "kind": "file",
+          "executable": false,
+          "size": "13310",
+          "sha256": "ce9c9a1489bf167381a9dc9459a86212fc03dc56ea6e34216c72f7f4e1f1f139"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5910974518403545",
+          "mode": "33206",
+          "size": "13310",
+          "mtimeNs": "1788010886633780800",
+          "ctimeNs": "1788010886633780800"
+        }
+      },
+      {
+        "path": "evidence/review-report.md",
+        "kind": "file",
+        "expected": {
+          "path": "evidence/review-report.md",
+          "kind": "file",
+          "executable": false,
+          "size": "14001",
+          "sha256": "9c7af422535d1d0509143ec99927a7ee350ec87b3514f06a62fd13833df3f1c5"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5629499541692892",
+          "mode": "33206",
+          "size": "14001",
+          "mtimeNs": "1787996164947156600",
+          "ctimeNs": "1787996164947156600"
+        }
+      },
+      {
+        "path": "evidence/ship-log.md",
+        "kind": "file",
+        "expected": {
+          "path": "evidence/ship-log.md",
+          "kind": "file",
+          "executable": false,
+          "size": "4840",
+          "sha256": "7621ec4c638a7f91e5e48c5f5c27e935fdbca36fd9be8df11e3621507f215b54"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5629499541692897",
+          "mode": "33206",
+          "size": "4840",
+          "mtimeNs": "1788127169104192000",
+          "ctimeNs": "1788127169104192000"
+        }
+      },
+      {
+        "path": "proposal.md",
+        "kind": "file",
+        "expected": {
+          "path": "proposal.md",
+          "kind": "file",
+          "executable": false,
+          "size": "3088",
+          "sha256": "4ae2cb948c5438b34490d50968f800dc95474c833adc096287089ae4eb8bb770"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5629499541692903",
+          "mode": "33206",
+          "size": "3088",
+          "mtimeNs": "1787992778396550300",
+          "ctimeNs": "1787992778396550300"
+        }
+      },
+      {
+        "path": "README.md",
+        "kind": "file",
+        "expected": {
+          "path": "README.md",
+          "kind": "file",
+          "executable": false,
+          "size": "170",
+          "sha256": "3514383fbb53e78483815acf5aec825ac226c77e23ac5becc9fdf085a05843fc"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5629499541692905",
+          "mode": "33206",
+          "size": "170",
+          "mtimeNs": "1787992465882889100",
+          "ctimeNs": "1787992465896674700"
+        }
+      },
+      {
+        "path": "specs",
+        "kind": "directory",
+        "expected": {
+          "path": "specs",
+          "kind": "directory"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5348024564982250",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        }
+      },
+      {
+        "path": "specs/codex-subscription-image-adapter",
+        "kind": "directory",
+        "expected": {
+          "path": "specs/codex-subscription-image-adapter",
+          "kind": "directory"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5348024564982252",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        }
+      },
+      {
+        "path": "specs/codex-subscription-image-adapter/spec.md",
+        "kind": "file",
+        "expected": {
+          "path": "specs/codex-subscription-image-adapter/spec.md",
+          "kind": "file",
+          "executable": false,
+          "size": "6857",
+          "sha256": "0e4f2000b4ce373f848d20851213a7779ed90d192d80be616f378fecbccd0771"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5348024564982253",
+          "mode": "33206",
+          "size": "6857",
+          "mtimeNs": "1787993028611584400",
+          "ctimeNs": "1787993028611584400"
+        }
+      },
+      {
+        "path": "specs/image-provider-foundation",
+        "kind": "directory",
+        "expected": {
+          "path": "specs/image-provider-foundation",
+          "kind": "directory"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5348024564982255",
+          "mode": "16822",
+          "size": "0",
+          "mtimeNs": "0",
+          "ctimeNs": "0"
+        }
+      },
+      {
+        "path": "specs/image-provider-foundation/spec.md",
+        "kind": "file",
+        "expected": {
+          "path": "specs/image-provider-foundation/spec.md",
+          "kind": "file",
+          "executable": false,
+          "size": "9321",
+          "sha256": "00c5e8e6559dcefbbb3c5ee5e69bf00c113c70d2814f6a1f9ce7dce8baf1f95f"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5629499541692914",
+          "mode": "33206",
+          "size": "9321",
+          "mtimeNs": "1787993028609511100",
+          "ctimeNs": "1787993028609511100"
+        }
+      },
+      {
+        "path": "tasks.md",
+        "kind": "file",
+        "expected": {
+          "path": "tasks.md",
+          "kind": "file",
+          "executable": false,
+          "size": "6766",
+          "sha256": "5248a25fef5cefbe2fdcaa92f671c81093665c79b075ffbfc15bb9a6aa98945c"
+        },
+        "state": "copied",
+        "identity": {
+          "dev": "3122291782",
+          "ino": "5348024564982260",
+          "mode": "33206",
+          "size": "6766",
+          "mtimeNs": "1787994993990284100",
+          "ctimeNs": "1787994993990284100"
+        }
+      }
+    ]
+  },
+  "specProgress": [
+    {
+      "actionId": "9b573102f8d96d6680e248ab4194beb95f99d3db3ed7cb1f4d762c5412209254",
+      "action": "create",
+      "target": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\specs\\codex-subscription-image-adapter\\spec.md",
+      "backupOrQuarantine": null,
+      "temporary": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\specs\\codex-subscription-image-adapter\\.rasen-archive-spec-d8cd44d8-1e02-4b33-92c5-08fea85ecf41-9b573102f8d9\\result.tmp",
+      "state": "complete",
+      "claimIdentity": {
+        "dev": "3122291782",
+        "ino": "3659174704718225",
+        "mode": "16822",
+        "size": "0",
+        "mtimeNs": "0",
+        "ctimeNs": "0"
+      },
+      "temporaryIdentity": {
+        "dev": "3122291782",
+        "ino": "4503599634850168",
+        "mode": "33206",
+        "size": "7008",
+        "mtimeNs": "1788127169420687900",
+        "ctimeNs": "1788127169420687900"
+      },
+      "publishedIdentity": {
+        "dev": "3122291782",
+        "ino": "4503599634850168",
+        "mode": "33206",
+        "size": "7008",
+        "mtimeNs": "1788127169420687900",
+        "ctimeNs": "1788127169508213100"
+      }
+    },
+    {
+      "actionId": "cbabd8de5838130bc80f171ff13a9f7bda7b3e6ee6e63136b9af9673b3a4d102",
+      "action": "create",
+      "target": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\specs\\image-provider-foundation\\spec.md",
+      "backupOrQuarantine": null,
+      "temporary": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\specs\\image-provider-foundation\\.rasen-archive-spec-d8cd44d8-1e02-4b33-92c5-08fea85ecf41-cbabd8de5838\\result.tmp",
+      "state": "complete",
+      "claimIdentity": {
+        "dev": "3122291782",
+        "ino": "5348024564982205",
+        "mode": "16822",
+        "size": "0",
+        "mtimeNs": "0",
+        "ctimeNs": "0"
+      },
+      "temporaryIdentity": {
+        "dev": "3122291782",
+        "ino": "6192449495114132",
+        "mode": "33206",
+        "size": "9465",
+        "mtimeNs": "1788127169799667700",
+        "ctimeNs": "1788127169799667700"
+      },
+      "publishedIdentity": {
+        "dev": "3122291782",
+        "ino": "6192449495114132",
+        "mode": "33206",
+        "size": "9465",
+        "mtimeNs": "1788127169799667700",
+        "ctimeNs": "1788127169862499200"
+      }
+    }
+  ],
+  "cleanerProgress": [],
+  "sourceProgress": {
+    "state": "removed",
+    "quarantine": "E:\\AI\\ChatAI\\Agents\\VibeCodingProjects\\elftia\\elftia\\omnicross--codex-hosted-tools-and-images\\rasen\\changes\\.rasen-archive-source-d8cd44d8-1e02-4b33-92c5-08fea85ecf41\\codex-image-provider-foundation",
+    "claimIdentity": {
+      "dev": "3122291782",
+      "ino": "12103424006037958",
+      "mode": "16822",
+      "size": "0",
+      "mtimeNs": "0",
+      "ctimeNs": "0"
+    }
+  },
+  "updatedAt": "2026-08-30T21:59:33.211Z"
+}

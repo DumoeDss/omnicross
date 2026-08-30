@@ -1,0 +1,48 @@
+## 1. Define the hosted contribution boundary
+
+- [x] 1.1 Create `packages/core/src/image-generation/responses/types.ts` with closed image declaration/action/options, admission and selection-summary types, trusted runtime/context inputs, response-global output/sequence allocator, wire-safe partial/completed/failed event unions, call bindings, request scope, and non-self-registering contribution interfaces; exclude HTTP handlers, credentials, raw provider references, content-bearing audit fields, and private wire shapes.
+- [x] 1.2 Create `packages/core/src/image-generation/responses/normalizeResponsesImageTool.ts` to inspect only `tools`, `tool_choice`, `stream`, syntactic `previous_response_id`, and supported image call-ID input items; reject duplicate/unknown image declarations while returning indexes/metadata that leave all unrelated tools and request fields untouched.
+- [x] 1.3 Implement selection-policy validation for omitted/`auto`, generic `required`, forced image, forced non-image, undeclared selection, and zero-selection cases; use `invalid_image_request` for client declaration errors and sanitized stable protocol failures when a model-selected plan violates its accepted contract.
+- [x] 1.4 Reuse or safely extract the existing pure Images option validation for size/quality/format/compression/background/partial rules, add `action: auto | generate | edit`, keep the trusted runtime image model separate from the top-level Responses model, and add normalization/selection table tests proving provider acquisition remains zero on invalid input.
+
+## 2. Implement tenant-scoped Responses image state
+
+- [x] 2.1 Create `packages/core/src/image-generation/responses/ResponsesImageStateStore.ts` defining atomic response commit, direct call and previous-response resolution, lease, deletion, and cleanup ports over opaque `ig_` call IDs and existing `ImageReferenceId` values, with no credential/content/path/provider-reference fields.
+- [x] 2.2 Implement a deterministic-clock bounded in-memory state store with tenant isolation, ordered response call lists, exact-write idempotency/conflict rejection, per-call/response expiry, owner-only bounded tombstones, capacity/LRU behavior, and idempotent active leases that prevent cleanup removal.
+- [x] 2.3 Add state-store tests for atomic multiple-call commits, inherited call carry-forward, direct/response lookup order, exact replay versus conflict, missing/capacity-evicted/cross-tenant not-found, owning-tenant expiry, bounded tombstone expiry, delete/cleanup, and active-lease pinning.
+
+## 3. Build the request scope and multi-turn resolver
+
+- [x] 3.1 Create `packages/core/src/image-generation/responses/ResponsesImageGenerationContribution.ts` with a frozen factory and `createRequestScope`; validate positive provider/model/TTL/output limits and trusted nonempty tenant/request identity before any state or provider call.
+- [x] 3.2 Resolve an affinity-authorized previous response plus explicit call IDs through `ResponsesImageStateStore`, deduplicate with explicit request order first, resolve the resulting reference IDs through the injected `ImageReferenceStore`, verify metadata/artifact agreement, and hold both lease layers until scope disposal.
+- [x] 3.3 Implement generate/edit/auto resolution: generate never forwards assets, edit requires at least one retained artifact, auto edits iff assets exist, missing/expired explicit references fail stably, and every selected call normalizes to `n=1`, trusted image model, moderation `auto`, and provider streaming only when real partials were requested.
+- [x] 3.4 Implement scope-wide pending bindings, inherited context, atomic `commit(responseId)`, exact idempotency, and idempotent `dispose()` rollback that deletes only newly retained uncommitted references while preserving inherited references; add tests for text-only carry-forward, failed multi-call rollback, commit failure, double disposal, and no-context no-op commit.
+
+## 4. Execute and map completed image calls
+
+- [x] 4.1 Implement one-at-a-time `executeSelectedCall` using `ImageOrchestrator.run` directly with the trusted request/tenant/signal/session/account hints, provider ID, and enabled reference retention; never invoke an Images HTTP handler and never add a second provider-cancel path.
+- [x] 4.2 Generate one unpredictable stable `ig_` ID per selected call, reserve one allocator output index before execution, require exactly one validated completed image plus one retained reference, and accumulate the binding only after output mapping succeeds.
+- [x] 4.3 Implement a request-global decoded-byte budget covering every partial and final asset across all selected calls; reserve declared bytes before `readImageAssetBytes`, enforce per-artifact/aggregate limits and metadata-exact reads, check abort before delivery, and Base64-encode only at this final wire boundary.
+- [x] 4.4 Map success to a completed `image_generation_call` item with Base64 `result` and truthful optional `revised_prompt`; convert orchestrator failed events and unexpected throws to one allow-listed stable failed terminal without empty completed results, raw causes, usage invention, or content-bearing diagnostics.
+- [x] 4.5 Add execution tests for exact decoded final bytes, trusted image model versus main model, generate/edit/auto requests, multiple distinct calls, mixed output indexes starting above zero, truthful revised prompt, unsupported capability/model/options, provider failed/throw terminals, retention mismatch, per-image/aggregate output limits, and secret sentinels.
+
+## 5. Map real partials and cancellation
+
+- [x] 5.1 Map each real orchestrator partial to `response.image_generation_call.partial_image` with the stable call ID/output index, provider partial index, bounded Base64, and a response-global sequence number from the injected allocator; validate safe strictly increasing allocations locally and omit optional actual-option claims that the provider did not verify.
+- [x] 5.2 Ensure non-stream/nonzero-partial requests and unsupported provider partial capability fail closed, no final image is repeated as a synthetic partial, and no asset is pulled/encoded after abort or consumer termination.
+- [x] 5.3 Add tests with interleaved synthetic non-image sequence allocations and multiple image calls proving globally monotonic sequence/output/item identities, real-only partial bytes, malformed allocator rejection, provider partial-count/order enforcement, and final result presence only in the completed item.
+- [x] 5.4 Add cancellation/cleanup race tests for abort before acquisition, after job creation but before acceptance, during partial asset read, after provider terminal, iterator early return, and containing-response failure; await authoritative provider/scope idle and assert nonterminal cancel exactly once, terminal cancel zero, no later Base64 event, and all state/image leases released.
+
+## 6. Export and prove the integrator seam
+
+- [x] 6.1 Add `packages/core/src/image-generation/responses/index.ts` and safe exports from `packages/core/src/image-generation/index.ts`/the root core barrel for the factory, contribution/request-scope interfaces, event/item types, and state-store port/test implementation; do not export private mutable entries or self-register anything.
+- [x] 6.2 Add a root-public-export test and an integration-contract harness that simulates the final order: inspect request, obtain an explicit fake main-model selection, validate it, create one request scope, execute zero/one/many calls through a shared allocator, commit before exposing success, and dispose in `finally`.
+- [x] 6.3 Cover auto text-only, generic-required-other-tool, generic-required-none, forced image, forced image without declaration, edit without images, previous-response continuation, direct call ID, cross-tenant direct ID, owner expiry, a text-only middle turn, multiple/mixed outputs, and structured failure in the harness without editing or importing a private hook from forbidden ingress files.
+- [x] 6.4 Add a negative production-capability test using the current fail-closed Codex image evidence and document that fake-provider protocol success does not establish subscription entitlement, private-wire stability, usage, moderation, transparency, partial support, or Codex host `$imagegen` availability.
+
+## 7. Verify and hand off the Responses child
+
+- [x] 7.1 Run the focused Responses image normalizer/state/contribution/public-export suites plus the existing image orchestrator, capability/error, reference-store, Images API output/security, and Responses profile/affinity/public-export regressions directly affected by the new seam.
+- [x] 7.2 Run `npm run typecheck -w @omnicross/core` and the core ESM/CJS/DTS build; run contracts checks only if a contracts file/export changes, and avoid repeating full expensive checks unless a subsequent edit can affect them.
+- [x] 7.3 Run `rasen validate codex-responses-image-tool --type change --strict --json`; strictly decode every candidate-tree text file including untracked files as UTF-8, reject BOM/U+FFFD/mojibake, run `git diff --check`, secret-scan prompt/Base64/token/Cookie/reference sentinels, and prove zero authored changes under `packages/core/src/openai-operation/**`, any `openaiResponsesIngress.ts`, or `providerProxyShared.ts`.
+- [x] 7.4 Write apply/verification evidence with baseline `eb2d20a8278870f36af2996914b831f7b8446484`, exact hosted contribution and final-integrator call order, item/output/sequence ownership, state/reference TTL/lease/cleanup behavior, commands/results, capability matrix, unsupported items, and 1–3 durable findings for the production-wiring planner; do not commit or modify portfolio/run-state from the worker.
