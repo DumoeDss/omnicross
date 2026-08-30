@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   ImageCapabilities,
   ImageProviderEvent,
+  ImageReferenceId,
   NormalizedImageEditRequest,
   NormalizedImageGenerateRequest,
 } from '@omnicross/contracts/image-generation-types';
@@ -16,7 +17,11 @@ import type {
   ImageProviderLease,
 } from '../ImageProvider';
 import { ImageProviderRegistry } from '../ImageProviderRegistry';
-import { InMemoryImageAsset, InMemoryImageReferenceStore } from '../ports';
+import {
+  InMemoryImageAsset,
+  InMemoryImageReferenceStore,
+  type ImageTelemetryRecord,
+} from '../ports';
 
 const capabilities: ImageCapabilities = {
   available: true,
@@ -70,6 +75,28 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   const values: T[] = [];
   for await (const value of iterable) values.push(value);
   return values;
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function delayedTelemetry() {
+  const entered = deferred();
+  const release = deferred();
+  const records: ImageTelemetryRecord[] = [];
+  const sink = {
+    record: vi.fn(async (record: ImageTelemetryRecord) => {
+      entered.resolve();
+      await release.promise;
+      records.push(record);
+    }),
+  };
+  return { entered, release, records, sink };
 }
 
 function setup(events: AsyncIterable<ImageProviderEvent<ReturnType<typeof asset>>>, caps = capabilities) {
@@ -525,6 +552,241 @@ describe('ImageOrchestrator cancellation, retention, and telemetry', () => {
     await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
     expect(fake.cancel).toHaveBeenCalledOnce();
     expect(controlled.returnIterator).toHaveBeenCalledOnce();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back a reference saved after aborting delayed post-terminal retention', async () => {
+    const controller = new AbortController();
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    ));
+    const store = new InMemoryImageReferenceStore();
+    const saveEntered = deferred();
+    const releaseSave = deferred();
+    const originalSave = store.save.bind(store);
+    let savedReferenceId: ImageReferenceId | undefined;
+    vi.spyOn(store, 'save').mockImplementation(async (input) => {
+      const metadata = await originalSave(input);
+      savedReferenceId = metadata.referenceId;
+      saveEntered.resolve();
+      await releaseSave.promise;
+      return metadata;
+    });
+    const remove = vi.spyOn(store, 'delete');
+    const sink = { record: vi.fn(async () => undefined) };
+    const running = collect(new ImageOrchestrator({
+      registry: fake.registry,
+      referenceStore: store,
+      telemetrySink: sink,
+    }).run(request, context(controller), {
+      providerId: 'fake',
+      retention: { enabled: true, ttlMs: 1_000 },
+    }));
+
+    await saveEntered.promise;
+    controller.abort(new Error('client disconnected during retention'));
+    releaseSave.resolve();
+
+    await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(savedReferenceId).toBeDefined();
+    expect(await store.resolve('tenant-a', savedReferenceId!)).toEqual({ status: 'not_found' });
+    expect(remove).toHaveBeenCalledOnce();
+    expect(sink.record).toHaveBeenCalledOnce();
+    expect(sink.record.mock.calls[0]![0]).toMatchObject({
+      terminal: 'cancelled',
+      errorCode: 'request_cancelled',
+    });
+    expect(sink.record.mock.calls[0]![0]).not.toHaveProperty('retentionRollbackFailures');
+    const audit = JSON.stringify(sink.record.mock.calls[0]![0]);
+    expect(audit).not.toContain(request.prompt);
+    expect(audit).not.toContain('tenant-a');
+    expect(audit).not.toContain(savedReferenceId!);
+    expect(fake.cancel).not.toHaveBeenCalled();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('preserves a normally completed reference after delayed retention', async () => {
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    ));
+    const store = new InMemoryImageReferenceStore();
+    const saveEntered = deferred();
+    const releaseSave = deferred();
+    const originalSave = store.save.bind(store);
+    vi.spyOn(store, 'save').mockImplementation(async (input) => {
+      const metadata = await originalSave(input);
+      saveEntered.resolve();
+      await releaseSave.promise;
+      return metadata;
+    });
+    const remove = vi.spyOn(store, 'delete');
+    const running = collect(new ImageOrchestrator({
+      registry: fake.registry,
+      referenceStore: store,
+    }).run(request, context(), {
+      providerId: 'fake',
+      retention: { enabled: true, ttlMs: 1_000 },
+    }));
+
+    await saveEntered.promise;
+    releaseSave.resolve();
+    const result = await running;
+    const completed = result.at(-1);
+    expect(completed?.type).toBe('completed');
+    if (completed?.type !== 'completed') throw new Error('expected completion');
+    const retained = await store.resolve('tenant-a', completed.references![0]!.referenceId);
+    expect(retained.status).toBe('found');
+    if (retained.status === 'found') await retained.lease.release();
+    expect(remove).not.toHaveBeenCalled();
+    expect(fake.cancel).not.toHaveBeenCalled();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it('exposes normal completion before awaiting one delayed completed audit', async () => {
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    ));
+    const store = new InMemoryImageReferenceStore();
+    const remove = vi.spyOn(store, 'delete');
+    const telemetry = delayedTelemetry();
+    const iterator = new ImageOrchestrator({
+      registry: fake.registry,
+      referenceStore: store,
+      telemetrySink: telemetry.sink,
+    }).run(request, context(), {
+      providerId: 'fake',
+      retention: { enabled: true, ttlMs: 1_000 },
+    })[Symbol.asyncIterator]();
+
+    expect((await iterator.next()).value).toMatchObject({ type: 'accepted' });
+    const exposed = await iterator.next();
+    expect(exposed.done).toBe(false);
+    expect(exposed.value).toMatchObject({ type: 'completed' });
+    if (exposed.done || exposed.value.type !== 'completed') throw new Error('expected completion');
+    const referenceId = exposed.value.references![0]!.referenceId;
+    expect(telemetry.sink.record).not.toHaveBeenCalled();
+
+    const finishing = iterator.next();
+    await telemetry.entered.promise;
+    expect(telemetry.records).toEqual([]);
+    telemetry.release.resolve();
+    await expect(finishing).resolves.toEqual({ done: true, value: undefined });
+
+    expect(telemetry.sink.record).toHaveBeenCalledOnce();
+    expect(telemetry.records).toHaveLength(1);
+    expect(telemetry.records[0]).toMatchObject({ terminal: 'completed' });
+    expect(telemetry.records[0]!.errorCode).toBeUndefined();
+    expect(JSON.stringify(telemetry.records[0])).not.toContain(referenceId);
+    const retained = await store.resolve('tenant-a', referenceId);
+    expect(retained.status).toBe('found');
+    if (retained.status === 'found') await retained.lease.release();
+    expect(remove).not.toHaveBeenCalled();
+    expect(fake.cancel).not.toHaveBeenCalled();
+    expect(fake.release).toHaveBeenCalledOnce();
+  });
+
+  it.each(['immediately after exposure', 'during delayed telemetry'] as const)(
+    'does not reclassify an exposed completion when aborted %s',
+    async (abortTiming) => {
+      const controller = new AbortController();
+      const fake = setup(eventStream(
+        { type: 'accepted', acceptedAt: 1 },
+        { type: 'completed', images: [{ artifact: asset() }] },
+      ));
+      const store = new InMemoryImageReferenceStore();
+      const remove = vi.spyOn(store, 'delete');
+      const telemetry = delayedTelemetry();
+      const iterator = new ImageOrchestrator({
+        registry: fake.registry,
+        referenceStore: store,
+        telemetrySink: telemetry.sink,
+      }).run(request, context(controller), {
+        providerId: 'fake',
+        retention: { enabled: true, ttlMs: 1_000 },
+      })[Symbol.asyncIterator]();
+
+      expect((await iterator.next()).value).toMatchObject({ type: 'accepted' });
+      const exposed = await iterator.next();
+      expect(exposed.done).toBe(false);
+      expect(exposed.value).toMatchObject({ type: 'completed' });
+      if (exposed.done || exposed.value.type !== 'completed') throw new Error('expected completion');
+      const referenceId = exposed.value.references![0]!.referenceId;
+      if (abortTiming === 'immediately after exposure') {
+        controller.abort(new Error('disconnect immediately after exposure'));
+      }
+
+      const finishing = iterator.next();
+      await telemetry.entered.promise;
+      if (abortTiming === 'during delayed telemetry') {
+        controller.abort(new Error('disconnect during completed audit'));
+      }
+      telemetry.release.resolve();
+      await expect(finishing).resolves.toEqual({ done: true, value: undefined });
+
+      expect(telemetry.sink.record).toHaveBeenCalledOnce();
+      expect(telemetry.records).toHaveLength(1);
+      expect(telemetry.records[0]).toMatchObject({ terminal: 'completed' });
+      expect(telemetry.records[0]!.errorCode).toBeUndefined();
+      expect(JSON.stringify(telemetry.records[0])).not.toContain(referenceId);
+      const retained = await store.resolve('tenant-a', referenceId);
+      expect(retained.status).toBe('found');
+      if (retained.status === 'found') await retained.lease.release();
+      expect(remove).not.toHaveBeenCalled();
+      expect(fake.cancel).not.toHaveBeenCalled();
+      expect(fake.release).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('keeps cancellation stable and reports only a count when retention rollback fails', async () => {
+    const controller = new AbortController();
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 1 },
+      { type: 'completed', images: [{ artifact: asset() }] },
+    ));
+    const store = new InMemoryImageReferenceStore();
+    const saveEntered = deferred();
+    const releaseSave = deferred();
+    const originalSave = store.save.bind(store);
+    let savedReferenceId: ImageReferenceId | undefined;
+    vi.spyOn(store, 'save').mockImplementation(async (input) => {
+      const metadata = await originalSave(input);
+      savedReferenceId = metadata.referenceId;
+      saveEntered.resolve();
+      await releaseSave.promise;
+      return metadata;
+    });
+    const remove = vi.spyOn(store, 'delete').mockRejectedValue(new Error('delete failed'));
+    const sink = { record: vi.fn(async () => undefined) };
+    const running = collect(new ImageOrchestrator({
+      registry: fake.registry,
+      referenceStore: store,
+      telemetrySink: sink,
+    }).run(request, context(controller), {
+      providerId: 'fake',
+      retention: { enabled: true, ttlMs: 1_000 },
+    }));
+
+    await saveEntered.promise;
+    controller.abort(new Error('client disconnected during retention'));
+    releaseSave.resolve();
+
+    await expect(running).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(remove).toHaveBeenCalledOnce();
+    expect(sink.record).toHaveBeenCalledOnce();
+    const telemetry = sink.record.mock.calls[0]![0];
+    expect(telemetry).toMatchObject({
+      terminal: 'cancelled',
+      errorCode: 'request_cancelled',
+      retentionRollbackFailures: 1,
+    });
+    const serialized = JSON.stringify(telemetry);
+    expect(serialized).not.toContain(request.prompt);
+    expect(serialized).not.toContain('tenant-a');
+    expect(serialized).not.toContain(savedReferenceId!);
+    expect(fake.cancel).not.toHaveBeenCalled();
     expect(fake.release).toHaveBeenCalledOnce();
   });
 

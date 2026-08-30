@@ -239,6 +239,8 @@ export interface ImageTelemetryRecord {
   readonly errorCode?: ImageGenerationErrorCode;
   readonly usage?: ImageUsage;
   readonly usageUnavailable: boolean;
+  /** Count-only cleanup signal; never contains tenant or reference identifiers. */
+  readonly retentionRollbackFailures?: number;
 }
 
 export interface ImageTelemetrySink {

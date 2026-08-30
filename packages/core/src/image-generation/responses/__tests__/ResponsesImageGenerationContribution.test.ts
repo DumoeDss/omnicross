@@ -15,6 +15,8 @@ import {
   InMemoryImageReferenceStore,
   type ImageAsset,
   type ImageReferenceStore,
+  type ImageTelemetryRecord,
+  type ImageTelemetrySink,
 } from '../../ports';
 import { createResponsesImageGenerationContribution } from '../ResponsesImageGenerationContribution';
 import {
@@ -80,6 +82,14 @@ function deferred() {
   return { promise, resolve };
 }
 
+function afterMicrotasks(depth: number, action: () => void): Promise<void> {
+  let scheduled = Promise.resolve();
+  for (let index = 0; index < depth; index += 1) {
+    scheduled = scheduled.then(() => undefined);
+  }
+  return scheduled.then(action);
+}
+
 function stateStoreWith(
   base: ResponsesImageStateStore,
   overrides: Partial<ResponsesImageStateStore>,
@@ -123,6 +133,7 @@ interface HarnessOptions {
   readonly referenceStore?: ImageReferenceStore;
   readonly stateStore?: ResponsesImageStateStore;
   readonly now?: () => number;
+  readonly telemetrySink?: ImageTelemetrySink;
   readonly eventFactory?: (
     request: ImageProviderRequest,
     callIndex: number,
@@ -133,6 +144,7 @@ function createHarness(options: HarnessOptions = {}) {
   const requests: ImageProviderRequest[] = [];
   const output = asset([1, 2, 3, 4]);
   const cancel = vi.fn(async () => undefined);
+  const release = vi.fn(async () => undefined);
   const start = vi.fn((request: ImageProviderRequest): ImageJob => {
     requests.push(request);
     const index = requests.length - 1;
@@ -148,7 +160,7 @@ function createHarness(options: HarnessOptions = {}) {
     providerId: 'fake-images',
     capabilities: options.capabilities ?? supported,
     start,
-    release: vi.fn(async () => undefined),
+    release,
   }));
   const provider: ImageProvider = { id: 'fake-images', acquire };
   const referenceStore = options.referenceStore ?? new InMemoryImageReferenceStore(options.now);
@@ -156,6 +168,7 @@ function createHarness(options: HarnessOptions = {}) {
   const orchestrator = new ImageOrchestrator({
     registry: new ImageProviderRegistry([provider]),
     referenceStore,
+    telemetrySink: options.telemetrySink,
     now: options.now,
   });
   let callNumber = 0;
@@ -176,6 +189,7 @@ function createHarness(options: HarnessOptions = {}) {
     acquire,
     start,
     cancel,
+    release,
   };
 }
 
@@ -1283,6 +1297,276 @@ describe('Responses image contribution execution and integration contract', () =
       });
       expect(harness.start).toHaveBeenCalledOnce();
     }
+  });
+
+  it('awaits delayed retention rollback during idempotent scope disposal', async () => {
+    const base = new InMemoryImageReferenceStore();
+    const saveEntered = deferred();
+    const releaseSave = deferred();
+    let savedReferenceId: ImageReferenceId | undefined;
+    const remove = vi.fn((tenantId: string, referenceId: ImageReferenceId) => (
+      base.delete(tenantId, referenceId)
+    ));
+    const referenceStore = referenceStoreWith(base, {
+      save: async (input) => {
+        const metadata = await base.save(input);
+        savedReferenceId = metadata.referenceId;
+        saveEntered.resolve();
+        await releaseSave.promise;
+        return metadata;
+      },
+      delete: remove,
+    });
+    const harness = createHarness({ referenceStore });
+    const scope = await harness.contribution.createRequestScope({
+      admission: admission(harness.contribution),
+      runtime: runtime(),
+    });
+    const running = collect(scope.executeSelectedCall({ prompt: 'dispose during retention' }, allocator()));
+
+    await saveEntered.promise;
+    const disposeOne = scope.dispose();
+    const disposeTwo = scope.dispose();
+    expect(disposeOne).toBe(disposeTwo);
+    releaseSave.resolve();
+
+    await expect(disposeOne).resolves.toBeUndefined();
+    const result = await running;
+    expect(result.at(-1)).toMatchObject({
+      kind: 'failed',
+      error: { code: 'request_cancelled' },
+    });
+    expect(savedReferenceId).toBeDefined();
+    expect(await base.resolve('tenant-a', savedReferenceId!)).toEqual({ status: 'not_found' });
+    expect(harness.cancel).not.toHaveBeenCalled();
+    expect(harness.release).toHaveBeenCalledOnce();
+    expect(remove).toHaveBeenCalledOnce();
+    expect(scope.dispose()).toBe(disposeOne);
+    expect(remove).toHaveBeenCalledOnce();
+  });
+
+  it.each([2, 3])(
+    'claims an exposed reference before observing disposal at microtask depth %i',
+    async (depth) => {
+      const base = new InMemoryImageReferenceStore();
+      const saveEntered = deferred();
+      const releaseSave = deferred();
+      const audits: ImageTelemetryRecord[] = [];
+      let savedReferenceId: ImageReferenceId | undefined;
+      const remove = vi.fn((tenantId: string, referenceId: ImageReferenceId) => (
+        base.delete(tenantId, referenceId)
+      ));
+      const referenceStore = referenceStoreWith(base, {
+        save: async (input) => {
+          const metadata = await base.save(input);
+          savedReferenceId = metadata.referenceId;
+          saveEntered.resolve();
+          await releaseSave.promise;
+          return metadata;
+        },
+        delete: remove,
+      });
+      const telemetrySink: ImageTelemetrySink = {
+        record: vi.fn(async (record) => { audits.push(record); }),
+      };
+      const harness = createHarness({ referenceStore, telemetrySink });
+      const scope = await harness.contribution.createRequestScope({
+        admission: admission(harness.contribution),
+        runtime: runtime(),
+      });
+      const running = collect(scope.executeSelectedCall(
+        { prompt: `dispose at microtask depth ${depth}` },
+        allocator(),
+      ));
+      let disposeOne: Promise<void> | undefined;
+      let disposeTwo: Promise<void> | undefined;
+
+      await saveEntered.promise;
+      releaseSave.resolve();
+      const disposalScheduled = afterMicrotasks(depth, () => {
+        disposeOne = scope.dispose();
+        disposeTwo = scope.dispose();
+      });
+
+      await disposalScheduled;
+      if (!disposeOne) throw new Error('expected disposal to be scheduled');
+      expect(disposeTwo).toBe(disposeOne);
+      await expect(disposeOne).resolves.toBeUndefined();
+      const result = await running;
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        kind: 'failed',
+        error: { code: 'request_cancelled' },
+      });
+      expect(result.some((event) => 'kind' in event && event.kind === 'completed')).toBe(false);
+      expect(savedReferenceId).toBeDefined();
+      expect(await base.resolve('tenant-a', savedReferenceId!)).toEqual({ status: 'not_found' });
+      expect(audits).toHaveLength(1);
+      expect(audits[0]).toMatchObject({ terminal: 'completed' });
+      expect(audits[0]!.errorCode).toBeUndefined();
+      expect(harness.cancel).not.toHaveBeenCalled();
+      expect(harness.release).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('rolls back exactly once when disposal aborts after the exposed reference is claimed', async () => {
+    const base = new InMemoryImageReferenceStore();
+    const resolveEntered = deferred();
+    const releaseResolve = deferred();
+    const audits: ImageTelemetryRecord[] = [];
+    let firstResolve = true;
+    let savedReferenceId: ImageReferenceId | undefined;
+    const remove = vi.fn((tenantId: string, referenceId: ImageReferenceId) => (
+      base.delete(tenantId, referenceId)
+    ));
+    const referenceStore = referenceStoreWith(base, {
+      save: async (input) => {
+        const metadata = await base.save(input);
+        savedReferenceId = metadata.referenceId;
+        return metadata;
+      },
+      resolve: async (tenantId, referenceId) => {
+        const resolved = await base.resolve(tenantId, referenceId);
+        if (firstResolve) {
+          firstResolve = false;
+          resolveEntered.resolve();
+          await releaseResolve.promise;
+        }
+        return resolved;
+      },
+      delete: remove,
+    });
+    const telemetrySink: ImageTelemetrySink = {
+      record: vi.fn(async (record) => { audits.push(record); }),
+    };
+    const harness = createHarness({ referenceStore, telemetrySink });
+    const scope = await harness.contribution.createRequestScope({
+      admission: admission(harness.contribution),
+      runtime: runtime(),
+    });
+    const running = collect(scope.executeSelectedCall(
+      { prompt: 'dispose after synchronous ownership claim' },
+      allocator(),
+    ));
+
+    // The consumer resolves only after synchronously claiming the exposed ID.
+    await resolveEntered.promise;
+    const disposeOne = scope.dispose();
+    const disposeTwo = scope.dispose();
+    expect(disposeTwo).toBe(disposeOne);
+    releaseResolve.resolve();
+
+    await expect(disposeOne).resolves.toBeUndefined();
+    const result = await running;
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      kind: 'failed',
+      error: { code: 'request_cancelled' },
+    });
+    expect(savedReferenceId).toBeDefined();
+    expect(await base.resolve('tenant-a', savedReferenceId!)).toEqual({ status: 'not_found' });
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ terminal: 'completed' });
+    expect(harness.cancel).not.toHaveBeenCalled();
+    expect(harness.release).toHaveBeenCalledOnce();
+    expect(remove).toHaveBeenCalledOnce();
+  });
+
+  it('transfers a synchronously claimed reference to successful committed state', async () => {
+    const harness = createHarness();
+    const remove = vi.spyOn(harness.referenceStore, 'delete');
+    const scope = await harness.contribution.createRequestScope({
+      admission: admission(harness.contribution),
+      runtime: runtime(),
+    });
+    const done = completed(await collect(scope.executeSelectedCall(
+      { prompt: 'commit claimed reference' },
+      allocator(),
+    )));
+
+    await scope.commit('resp_claimed_reference');
+    await scope.dispose();
+
+    expect(remove).not.toHaveBeenCalled();
+    const state = await harness.stateStore.resolveCall('tenant-a', done.item.id);
+    expect(state.status).toBe('found');
+    if (state.status === 'found') {
+      const retained = await harness.referenceStore.resolve(
+        'tenant-a',
+        state.lease.binding.referenceId,
+      );
+      expect(retained.status).toBe('found');
+      if (retained.status === 'found') await retained.lease.release();
+      await state.lease.release();
+    }
+  });
+
+  it('redacts rollback delete failures after ownership claim without changing cancellation', async () => {
+    const base = new InMemoryImageReferenceStore();
+    const resolveEntered = deferred();
+    const releaseResolve = deferred();
+    const audits: ImageTelemetryRecord[] = [];
+    let firstResolve = true;
+    let savedReferenceId: ImageReferenceId | undefined;
+    const remove = vi.fn(async () => {
+      throw new Error('Bearer SECRET_ROLLBACK tenant-a raw-reference-private');
+    });
+    const referenceStore = referenceStoreWith(base, {
+      save: async (input) => {
+        const metadata = await base.save(input);
+        savedReferenceId = metadata.referenceId;
+        return metadata;
+      },
+      resolve: async (tenantId, referenceId) => {
+        const resolved = await base.resolve(tenantId, referenceId);
+        if (firstResolve) {
+          firstResolve = false;
+          resolveEntered.resolve();
+          await releaseResolve.promise;
+        }
+        return resolved;
+      },
+      delete: remove,
+    });
+    const telemetrySink: ImageTelemetrySink = {
+      record: vi.fn(async (record) => { audits.push(record); }),
+    };
+    const harness = createHarness({ referenceStore, telemetrySink });
+    const scope = await harness.contribution.createRequestScope({
+      admission: admission(harness.contribution),
+      runtime: runtime(),
+    });
+    const running = collect(scope.executeSelectedCall(
+      { prompt: 'sensitive rollback prompt' },
+      allocator(),
+    ));
+
+    await resolveEntered.promise;
+    const disposing = scope.dispose();
+    releaseResolve.resolve();
+
+    await expect(disposing).resolves.toBeUndefined();
+    const result = await running;
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      kind: 'failed',
+      error: { code: 'request_cancelled' },
+    });
+    expect(remove).toHaveBeenCalledOnce();
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ terminal: 'completed' });
+    const serialized = JSON.stringify({ result, audits });
+    expect(serialized).not.toContain('SECRET_ROLLBACK');
+    expect(serialized).not.toContain('raw-reference-private');
+    expect(serialized).not.toContain('sensitive rollback prompt');
+    expect(serialized).not.toContain(savedReferenceId!);
+    expect(harness.cancel).not.toHaveBeenCalled();
+    expect(harness.release).toHaveBeenCalledOnce();
+    expect(savedReferenceId).toBeDefined();
+    const retained = await base.resolve('tenant-a', savedReferenceId!);
+    expect(retained.status).toBe('found');
+    if (retained.status === 'found') await retained.lease.release();
   });
 
   it('stops Base64 mapping when aborted during a partial asset read', async () => {

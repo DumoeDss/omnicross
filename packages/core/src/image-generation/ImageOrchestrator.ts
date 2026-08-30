@@ -49,6 +49,12 @@ export interface ImageOrchestratorOptions {
   readonly now?: () => number;
 }
 
+interface ImageRetentionAttempt {
+  readonly references: ImageReferenceMetadata[];
+  rollbackFailures: number;
+  rollbackPromise?: Promise<void>;
+}
+
 function unsupported(param?: string): never {
   throw new ImageGenerationError('unsupported_capability', { param });
 }
@@ -252,6 +258,11 @@ export class ImageOrchestrator {
     let finalUsage: ImageProviderCompletedEvent<ImageAsset>['usage'];
     let accepted = false;
     let providerTerminal = false;
+    let completionExposed = false;
+    const retentionAttempt: ImageRetentionAttempt = {
+      references: [],
+      rollbackFailures: 0,
+    };
 
     const releaseOnce = async (): Promise<void> => {
       if (!lease || releaseStarted) return;
@@ -298,9 +309,16 @@ export class ImageOrchestrator {
         errorCode: terminalCode,
         usage: finalUsage,
         usageUnavailable: finalUsage === undefined,
+        ...(retentionAttempt.rollbackFailures > 0
+          ? { retentionRollbackFailures: retentionAttempt.rollbackFailures }
+          : {}),
       });
     };
 
+    const rollbackRetainedOnce = (): Promise<void> => this.#rollbackRetained(
+      context.tenantId,
+      retentionAttempt,
+    );
     const onAbort = (): void => {
       void cancelStartedNonterminalOnce();
     };
@@ -354,6 +372,7 @@ export class ImageOrchestrator {
               pendingTerminal,
               context,
               options.retention,
+              retentionAttempt,
             );
             const completed: ImageProviderCompletedEvent<ImageAsset> = {
               ...terminalWithoutUsage,
@@ -363,7 +382,13 @@ export class ImageOrchestrator {
             finalImages = completed.images.map((image) => image.artifact);
             finalUsage = completed.usage;
             terminalKind = 'completed';
-            await sendTelemetry();
+            if (context.signal.aborted) {
+              await rollbackRetainedOnce();
+              throw cancellationError(context.signal.reason);
+            }
+            // No await may occur between this ownership-transfer point and yield.
+            // Terminal telemetry is finalized when the consumer resumes or closes the iterator.
+            completionExposed = true;
             yield completed;
           } else {
             const safeError = imageGenerationErrorFromPublic(pendingTerminal.error);
@@ -449,16 +474,19 @@ export class ImageOrchestrator {
         }
       }
     } catch (error) {
+      if (completionExposed) throw error;
       const normalized = context.signal.aborted
         ? cancellationError(context.signal.reason)
         : normalizeImageGenerationError(error, 'image_generation_failed', {
             retrySafety: acceptedAt == null ? 'unknown' : 'after_acceptance',
           });
+      if (normalized.code === 'request_cancelled') await rollbackRetainedOnce();
       terminalCode = normalized.code;
       terminalKind = normalized.code === 'request_cancelled' ? 'cancelled' : 'failed';
       await sendTelemetry();
       throw normalized;
     } finally {
+      if (completionExposed) await sendTelemetry();
       context.signal.removeEventListener('abort', onAbort);
       await cancelStartedNonterminalOnce();
       try {
@@ -475,6 +503,7 @@ export class ImageOrchestrator {
     event: ImageProviderCompletedEvent<ImageAsset>,
     context: ImageProviderContext,
     retention: ImageRetentionPolicy | undefined,
+    attempt: ImageRetentionAttempt,
   ): Promise<ImageReferenceMetadata[]> {
     if (!retention?.enabled) return [];
     if (!this.#referenceStore) {
@@ -486,21 +515,42 @@ export class ImageOrchestrator {
     const references: ImageReferenceMetadata[] = [];
     for (const image of event.images) {
       const asset = image.artifact;
-      references.push(
-        await this.#referenceStore.save({
-          tenantId: context.tenantId,
-          ttlMs: retention.ttlMs,
-          artifact: asset,
-          providerReference: image.providerReference,
-          metadata: {
-            mimeType: asset.mimeType,
-            byteLength: asset.byteLength,
-            width: asset.width,
-            height: asset.height,
-          },
-        }),
-      );
+      const reference = await this.#referenceStore.save({
+        tenantId: context.tenantId,
+        ttlMs: retention.ttlMs,
+        artifact: asset,
+        providerReference: image.providerReference,
+        metadata: {
+          mimeType: asset.mimeType,
+          byteLength: asset.byteLength,
+          width: asset.width,
+          height: asset.height,
+        },
+      });
+      references.push(reference);
+      attempt.references.push(reference);
+      if (context.signal.aborted) {
+        await this.#rollbackRetained(context.tenantId, attempt);
+        throw cancellationError(context.signal.reason);
+      }
     }
     return references;
+  }
+
+  async #rollbackRetained(tenantId: string, attempt: ImageRetentionAttempt): Promise<void> {
+    attempt.rollbackPromise ??= (async () => {
+      const store = this.#referenceStore;
+      if (!store) return;
+      for (const reference of attempt.references) {
+        try {
+          if (!await store.delete(tenantId, reference.referenceId)) {
+            attempt.rollbackFailures += 1;
+          }
+        } catch {
+          attempt.rollbackFailures += 1;
+        }
+      }
+    })();
+    await attempt.rollbackPromise;
   }
 }

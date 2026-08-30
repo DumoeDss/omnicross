@@ -378,6 +378,16 @@ class RequestScope implements ResponsesImageRequestScope {
       providerIterator = iterator;
       while (true) {
         const next = await iterator.next();
+        if (
+          !next.done &&
+          next.value.type === 'completed' &&
+          next.value.images.length === 1 &&
+          next.value.references?.length === 1
+        ) {
+          // Producer exposure transfers rollback ownership synchronously. Disposal may
+          // already have aborted the scope before this continuation gets to observe it.
+          this.#newReferenceIds.add(next.value.references[0]!.referenceId);
+        }
         if (next.done) throw new ImageGenerationError('upstream_protocol_changed');
         const event = next.value;
         assertNotAborted(this.#scopeController.signal);
@@ -422,7 +432,6 @@ class RequestScope implements ResponsesImageRequestScope {
         }
         const image = event.images[0]!;
         const reference = event.references[0]!;
-        this.#newReferenceIds.add(reference.referenceId);
         const retained = await this.#deps.referenceStore.resolve(
           this.#runtime.tenantId,
           reference.referenceId,
