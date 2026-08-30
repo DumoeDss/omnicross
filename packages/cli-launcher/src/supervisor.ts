@@ -13,8 +13,7 @@ import { serializeError } from '@omnicross/core/serializeError';
 
 import type { ChildAdapterHandle } from './child-adapter';
 import { createChildAdapter } from './child-adapter';
-import type * as PtyAdapterModule from './pty-adapter';
-import type { PtyAdapterHandle } from './pty-adapter';
+import { createPtyAdapter, type PtyAdapterHandle } from './pty-adapter';
 import { createRunRegistry } from './run-registry';
 import type {
   ManagedRun,
@@ -80,7 +79,6 @@ export function createProcessSupervisor(): ProcessSupervisor {
     let adapter: ChildAdapterHandle | PtyAdapterHandle;
     try {
       if (input.mode === 'pty') {
-        const { createPtyAdapter } = require('./pty-adapter') as typeof PtyAdapterModule;
         adapter = createPtyAdapter(input);
       } else {
         adapter = createChildAdapter(input);

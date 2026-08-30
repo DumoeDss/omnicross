@@ -9,9 +9,21 @@
  * @module pty-adapter
  */
 
+import { createRequire } from 'node:module';
+import { isAbsolute } from 'node:path';
+
 import type * as NodePty from 'node-pty';
 
 import type { SpawnPtyInput } from './types';
+
+// Keep the optional native dependency lazy while supporting both emitted
+// formats. An ESM import launched by `node -e` can see __filename as "[eval]",
+// so only a real absolute CJS module filename is safe as the require base.
+const requireFromThisModule = createRequire(
+  typeof __filename === 'string' && isAbsolute(__filename)
+    ? __filename
+    : import.meta.url,
+);
 
 // ── Public Handle ────────────────────────────────────────────
 
@@ -58,8 +70,7 @@ export function buildPtyEnv(
 
 export function createPtyAdapter(input: SpawnPtyInput): PtyAdapterHandle {
   // Lazy-load node-pty so the module is only required when PTY mode is used.
-   
-  const nodePty = require('node-pty') as typeof NodePty;
+  const nodePty = requireFromThisModule('node-pty') as typeof NodePty;
 
   const shell =
     input.shell ??

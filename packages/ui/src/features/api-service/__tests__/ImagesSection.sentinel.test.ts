@@ -42,14 +42,14 @@ describe('ImagesSection sensitive DTO rendering', () => {
     }] as SubscriptionAccountSanitized[];
 
     const markup = renderToStaticMarkup(
-      <ImagesSection
-        config={config}
-        capability={null}
-        status={null}
-        accounts={accounts}
-        busy={false}
-        onUpdate={async () => undefined}
-      />,
+      React.createElement(ImagesSection, {
+        config,
+        capability: null,
+        status: null,
+        accounts,
+        busy: false,
+        onUpdate: async () => undefined,
+      }),
     );
 
     expect(markup).toContain('Studio account');
