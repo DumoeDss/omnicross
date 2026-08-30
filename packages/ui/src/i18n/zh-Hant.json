@@ -882,6 +882,16 @@
         "copied": "已複製",
         "dismiss": "完成"
       },
+      "permissions": {
+        "title": "端點權限",
+        "legacy": "舊版預設值",
+        "chat": "聊天",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "圖像",
+        "hint": "Responses 與圖像是獨立權限。舊版金鑰保留四個文字端點，但不會自動取得圖像權限。"
+      },
       "bindings": {
         "title": "下游介面",
         "count": "已綁定 {{count}} 個下游介面",
@@ -915,6 +925,60 @@
         "modelRestrictionList": "模型",
         "modelRestrictionListHint": "每行一個模型 ID",
         "modelRestrictionEmptyAllowlistWarning": "啟用的白名單若為空將拒絕所有請求。"
+      }
+    },
+    "images": {
+      "title": "圖像生成",
+      "description": "管理預設關閉的 Images 端點，並查看由新鮮證據支持的執行狀態。",
+      "unsupportedDaemon": "目前守護程序尚未提供 Images 設定。",
+      "enable": "啟用 Images 端點",
+      "entitlementWarning": "啟用設定不代表訂閱具有使用資格；實際可用性需要所選帳號的新鮮證據。",
+      "track": {
+        "configured": "已設定",
+        "effective": "實際狀態",
+        "on": "已啟用",
+        "off": "已停用",
+        "available": "可用",
+        "unavailable": "不可用",
+        "unknown": "沒有新鮮的能力證據"
+      },
+      "account": {
+        "label": "帳號選擇",
+        "pool": "可用帳號池",
+        "group": "群組：{{group}}",
+        "account": "Codex 帳號 {{number}}",
+        "fallback": "回退策略",
+        "strict": "嚴格選擇",
+        "poolFallback": "允許帳號池回退"
+      },
+      "features": {
+        "title": "已驗證功能矩陣",
+        "generate": "生成",
+        "edit": "編輯",
+        "maskEdit": "遮罩編輯",
+        "streaming": "串流輸出",
+        "transparentBackground": "透明背景",
+        "responsesTool": "Responses 工具",
+        "supported": "支援",
+        "unsupported": "不支援"
+      },
+      "evidence": "新鮮證據於 {{age}} 秒前觀測。",
+      "noEvidence": "沒有新鮮證據。輪詢此頁面絕不會生成圖像。",
+      "resources": {
+        "title": "執行資源利用率",
+        "queue": "佇列",
+        "temporary": "暫存",
+        "references": "保留的引用",
+        "bytes": "暫存 {{temporary}} · 引用 {{references}}",
+        "unavailable": "Images 執行階段離線時無法取得資源利用率。"
+      },
+      "remote": {
+        "enabledWarning": "遠端 URL 僅透過加固的解析器策略啟用。",
+        "disabled": "遠端圖像 URL 已停用。"
+      },
+      "storage": {
+        "custom": "已設定私有自訂儲存根目錄；其路徑已隱藏。",
+        "privateDefault": "圖像產物使用守護程序的私有應用程式資料儲存。"
       }
     },
     "queue": {

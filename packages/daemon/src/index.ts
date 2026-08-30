@@ -44,6 +44,43 @@ export { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
 export { JsonOutboundKeyDb } from './ports/JsonOutboundKeyDb';
 export { JsonSubscriptionCredentialStore } from './ports/JsonSubscriptionCredentialStore';
 
+// ── Production Images runtime ─────────────────────────────────────────────────
+export {
+  createTrustedImageApiRuntimeResolver,
+  type TrustedImageApiRuntimeResolver,
+  type TrustedImageApiRuntimeResolverOptions,
+} from './image-generation/ImageApiRuntimeResolver';
+export {
+  createImageRuntimeGeneration,
+  type ImageRuntimeGenerationFactoryOptions,
+  type ImageRuntimeGenerationSharedStorage,
+  type ImageRuntimeMetadataObservability,
+  type ProductionImageRuntimeComponents,
+  type ProductionImageRuntimeGeneration,
+} from './image-generation/ImageRuntimeGenerationFactory';
+export {
+  ImageObservability,
+  type ImageApiMetricDimensions,
+  type ImageApiMetricSnapshot,
+  type ImageExecutionMetricDimensions,
+  type ImageExecutionMetricSnapshot,
+  type ImageHistogramSnapshot,
+  type ImageObservabilityOptions,
+  type ImageObservabilitySnapshot,
+} from './image-generation/ImageObservability';
+export {
+  createHostedImageContributionFactory,
+  type HostedImageContributionFactory,
+  ImageRuntimeManager,
+  type HostedImageRuntimeGenerationLease,
+  type ImageRuntimeCapabilityInspection,
+  type ImageRuntimeManagerStatus,
+  type ImageRuntimeResourceStatus,
+  type ImageRuntimeSafeUnavailableReason,
+  type PreparedImageRuntimeChange,
+  type PreparedImageRuntimeGeneration,
+} from './image-generation/ImageRuntimeManager';
+
 // ── CCR importer ────────────────────────────────────────────────────────────────
 export {
   type CcrConfig,

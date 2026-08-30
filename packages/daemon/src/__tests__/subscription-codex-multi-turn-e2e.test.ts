@@ -187,12 +187,14 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
   let gatewayUrl: string;
   let namedKey: string;
   let nativeAuthPath: string;
+  let previousResponseIds: Map<string, string>;
   let originalHome: string | undefined;
   let originalUserProfile: string | undefined;
 
   beforeEach(async () => {
     resetDaemonSingletonsForTests();
     getSharedAccountRouteActivity().clear();
+    previousResponseIds = new Map();
     tempRoot = mkdtempSync(join(tmpdir(), 'omnicross-codex-multi-turn-'));
 
     // Redirect the default read-only native credential reader to an isolated
@@ -208,7 +210,12 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
     expect(externalStorePath('codex')).toBe(nativeAuthPath);
 
     upstream = await startMockUpstream();
-    const configPath = join(tempRoot, 'config.json');
+    // Keep daemon-private application data separate from the fake HOME. The
+    // Images path guard intentionally rejects an application root broad enough
+    // to contain the user's home directory.
+    const daemonDataRoot = join(tempRoot, 'daemon-data');
+    mkdirSync(daemonDataRoot, { recursive: true });
+    const configPath = join(daemonDataRoot, 'config.json');
     writeConfig(configPath);
     daemon = buildDaemon(loadConfig(configPath), {
       configPath,
@@ -275,12 +282,15 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
       },
       body: JSON.stringify({
         model: 'gpt-5-codex',
-        previous_response_id: turn === 1 ? undefined : `resp-client-${turn - 1}`,
+        previous_response_id: previousResponseIds.get(sessionId),
         input: [{ role: 'user', content: `turn ${turn} for ${sessionId}` }],
       }),
     });
-    expect(response.status).toBe(200);
-    await response.arrayBuffer();
+    const responseBody = await response.text();
+    expect(response.status, responseBody).toBe(200);
+    const responseId = (JSON.parse(responseBody) as { id?: unknown }).id;
+    expect(responseId).toEqual(expect.any(String));
+    previousResponseIds.set(sessionId, responseId as string);
     return upstream!.hits.at(-1)!.authorization!;
   }
 

@@ -52,3 +52,28 @@ export type { AuthApplyHints, AuthStrategy } from './auth';
 // by a desktop host + the daemon login/refresh paths. Network goes
 // through the injected `FetchLike` port (no electron / host imports under oauth/).
 export { claudeOAuth, codexOAuth, type FetchLike, geminiOAuth } from './oauth';
+
+// Dormant, fail-closed image provider. Private subscription wire modules are
+// deliberately not re-exported.
+export { createCodexSubscriptionImageProvider } from './image-generation/CodexSubscriptionImageProvider';
+export type { CodexSubscriptionImageProviderOptions } from './image-generation/CodexSubscriptionImageProvider';
+export type {
+  ImageExecutionAccountKey,
+  ImageExecutionScheduler,
+  ImageExecutionSchedulerGrant,
+  ImageExecutionSchedulerRequest,
+} from './image-generation/ImageExecutionScheduler';
+export type {
+  CodexImageCapabilityEvidence,
+  CodexImageCapabilityEvidenceRequest,
+  CodexImageCapabilityEvidenceSource,
+} from './image-generation/capabilityEvidence';
+export { createCodexImageLiveVerifier } from './image-generation/CodexImageLiveVerifier';
+export type {
+  CodexImageCapabilityObservation,
+  CodexImageCapabilityObservedResponseFields,
+  CodexImageCapabilityTestedRequest,
+  CodexImageLiveVerificationRequest,
+  CodexImageLiveVerifier,
+  CodexImageLiveVerifierOptions,
+} from './image-generation/CodexImageLiveVerifier';

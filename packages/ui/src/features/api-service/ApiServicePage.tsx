@@ -21,6 +21,7 @@ import type { GatewayBinding } from '@/daemon/types';
 import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
 import { routeForBinding, summarizeBindingCoverage } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
+import { ImagesSection } from './ImagesSection';
 import { KeyManagementSection } from './KeyManagementSection';
 import { QueueStatusSummary } from './QueueStatusSummary';
 import { ServerStatusBanner } from './ServerStatusBanner';
@@ -41,7 +42,9 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     loading,
     config,
     status,
+    imageCapability,
     keys,
+    accounts,
     busy,
     error,
     createdKey,
@@ -54,7 +57,9 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
+    setKeyPermissions,
     setKeyPolicy,
+    updateImagesConfig,
     queueStatus,
     vouchers,
     createdVoucher,
@@ -133,6 +138,15 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                     aria-label={t('apiService.enable.label')}
                   />
                 </SettingRow>
+
+                <ImagesSection
+                  config={config.images}
+                  capability={imageCapability}
+                  status={status}
+                  accounts={accounts.providerAccounts.codex}
+                  busy={busy}
+                  onUpdate={updateImagesConfig}
+                />
               </div>
 
               <div
@@ -153,6 +167,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   onDelete={deleteKey}
                   onToggle={setKeyEnabled}
                   onSetMaxConcurrency={setKeyMaxConcurrency}
+                  onSetPermissions={setKeyPermissions}
                   onSetPolicy={setKeyPolicy}
                   onDismissCreated={dismissCreatedKey}
                   bindings={config.bindings ?? []}

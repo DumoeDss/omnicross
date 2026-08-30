@@ -59,8 +59,10 @@ describe('KeySpendTracker', () => {
   });
 
   it('single-pass seed matches per-window sums (daily ⊆ weekly ⊆ total)', async () => {
-    const day = startOfLocalDay(Date.now());
-    const now = day + 12 * 3_600_000;
+    // Use a fixed Wednesday so "this week, before today" exists even when the
+    // test suite itself runs on Sunday (the local week starts on Sunday).
+    const now = new Date(2024, 0, 10, 12).getTime();
+    const day = startOfLocalDay(now);
     const week = startOfLocalWeek(now);
     const seeder = makeSeeder([
       { apiKeyId: 'k', ts: week - 100, cost: 5 }, // before this week → total only

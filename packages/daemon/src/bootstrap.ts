@@ -26,7 +26,7 @@ import { dirname } from 'node:path';
 import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
 import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
-import type { Logger } from '@omnicross/core';
+import { OpenAIOperationRegistry, type Logger } from '@omnicross/core';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
 import {
@@ -79,6 +79,7 @@ import { AccountAllowanceService } from './allowance/AccountAllowanceService';
 import { ClaudeAllowanceRefreshScheduler } from './allowance/ClaudeAllowanceRefreshScheduler';
 import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowancePersistence';
 import { AdminServer } from './admin/AdminServer';
+import type { AdminApiDeps } from './admin/adminApi';
 import { buildHealthReport } from './admin/health';
 import { DAEMON_VERSION } from './admin/version';
 import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener } from './admin/cliLaunch';
@@ -101,6 +102,33 @@ import {
   defaultVouchersPath,
 } from './commands/paths';
 import { IntegrationManager, IntegrationStateStore } from './integrations';
+import {
+  createImageDoctorService,
+  type ImageDoctorService,
+} from './image-generation/ImageDoctorService';
+import { FileCodexImageCapabilityEvidenceManifestOwner } from './image-generation/FileCodexImageCapabilityEvidenceSource';
+import { ImageCleanupService } from './image-generation/ImageCleanupService';
+import {
+  createImageRuntimeConfigController,
+  imageStoragePolicy,
+} from './image-generation/ImageRuntimeConfigController';
+import {
+  createImageRuntimeGeneration,
+  type SyntheticVerifiedImageProviderTestSeam,
+} from './image-generation/ImageRuntimeGenerationFactory';
+import { ImageObservability } from './image-generation/ImageObservability';
+import { ImageStartupReconciler } from './image-generation/ImageStartupReconciler';
+import { DaemonImageActiveScopeRegistry } from './image-generation/imageTemporaryResources';
+import {
+  createHostedImageContributionFactory,
+  type HostedImageContributionFactory,
+  ImageRuntimeManager,
+} from './image-generation/ImageRuntimeManager';
+import {
+  ImageStorageMountCatalog,
+  MountedImageReferenceStore,
+  MountedResponsesImageStateStore,
+} from './image-generation/ImageStorageMountCatalog';
 import { ConfigFileProviderConfigSource } from './ports/ConfigFileProviderConfigSource';
 import { ConfigurableLogger } from './ports/ConfigurableLogger';
 import { JsonApiServerSettingsStore } from './ports/JsonApiServerSettingsStore';
@@ -174,6 +202,16 @@ export interface DaemonPaths {
    * never invoke a real package manager. Absent → the real `exec`-based runner.
    */
   cliCommandRunner?: CommandRunner;
+  /** TEST/COMPOSITION SEAM: prepared Images runtime generation for config transactions. */
+  imageRuntimeConfig?: AdminApiDeps['imageRuntimeConfig'];
+  /** TEST/COMPOSITION SEAM: metadata-only Images status reader. */
+  imageRuntimeStatus?: AdminApiDeps['imageRuntimeStatus'];
+  /** TEST/COMPOSITION SEAM: metadata-only successful Images config audit sink. */
+  imageConfigAudit?: AdminApiDeps['imageConfigAudit'];
+  /** TEST ONLY: deterministic Tier-A provider inside the production Images composition. */
+  testOnlySyntheticVerifiedImageProvider?: SyntheticVerifiedImageProviderTestSeam;
+  /** TEST SEAM: inject an atomic settings replacement fault. */
+  settingsAtomicReplace?: (targetPath: string, contents: Uint8Array) => void;
 }
 
 /** The constructed daemon handles the CLI commands operate on. */
@@ -183,6 +221,18 @@ export interface Daemon {
   readonly llmConfig: ConfigFileProviderConfigSource;
   readonly keyDb: JsonOutboundKeyDb;
   readonly settingsStore: JsonApiServerSettingsStore;
+  /** App-session extension-operation registry shared with the resident proxy. */
+  readonly openAIOperationRegistry: OpenAIOperationRegistry;
+  /** Stable Images forwarders and generation lifecycle owner for this app session. */
+  readonly imageRuntimeManager: ImageRuntimeManager;
+  /** Bounded process-local metadata aggregation shared by every runtime generation. */
+  readonly imageObservability: ImageObservability;
+  /** Startup reconciliation plus recurring bounded cleanup for Images state. */
+  readonly imageCleanupService: ImageCleanupService;
+  /** Local-only diagnostics plus the explicit consuming Images verifier. */
+  readonly imageDoctor: ImageDoctorService;
+  /** Dormant hosted-image lease factory for a later Responses integrator. */
+  readonly hostedImageContributionFactory: HostedImageContributionFactory;
   readonly providerProxy: ProviderProxy;
   readonly routeLeaseManager: RouteLeaseManager;
   readonly outboundApiServer: OutboundApiServer;
@@ -288,6 +338,86 @@ export interface Daemon {
   readonly billingRetrySweeper: BillingRetrySweeper;
 }
 
+interface ImageRuntimeBootstrapSession {
+  readonly openAIOperationRegistry: OpenAIOperationRegistry;
+  readonly imageRuntimeManager: ImageRuntimeManager;
+  attachBeforeStop(unregister: () => void): void;
+  dispose(): Promise<void>;
+}
+
+let activeImageRuntimeBootstrapSession: ImageRuntimeBootstrapSession | undefined;
+
+function createImageRuntimeBootstrapSession(
+  initialGeneration?: ConstructorParameters<typeof ImageRuntimeManager>[0],
+): ImageRuntimeBootstrapSession {
+  const openAIOperationRegistry = new OpenAIOperationRegistry();
+  const imageRuntimeManager = new ImageRuntimeManager(initialGeneration);
+  const unregisterContributions: Array<() => void> = [];
+  try {
+    for (const contribution of imageRuntimeManager.contributions.all) {
+      unregisterContributions.push(openAIOperationRegistry.register(
+        contribution.operationId,
+        contribution.handler,
+      ));
+    }
+  } catch (error) {
+    for (const unregister of unregisterContributions) unregister();
+    void imageRuntimeManager.dispose().catch(() => undefined);
+    throw error;
+  }
+
+  let unregisterBeforeStop: (() => void) | undefined;
+  let disposePromise: Promise<void> | undefined;
+  let session!: ImageRuntimeBootstrapSession;
+  session = {
+    openAIOperationRegistry,
+    imageRuntimeManager,
+    attachBeforeStop: (unregister): void => {
+      if (disposePromise) {
+        unregister();
+        return;
+      }
+      if (unregisterBeforeStop) {
+        throw new TypeError('image runtime bootstrap cleanup is already attached');
+      }
+      unregisterBeforeStop = unregister;
+    },
+    dispose: (): Promise<void> => {
+      if (disposePromise) return disposePromise;
+
+      // Registration removal and the manager's disposed flag are synchronous so
+      // the synchronous singleton reset cannot expose stale handlers/acquisitions
+      // while generation-owned resources finish their asynchronous cleanup.
+      for (const unregister of unregisterContributions.splice(0)) unregister();
+      unregisterBeforeStop?.();
+      unregisterBeforeStop = undefined;
+      if (activeImageRuntimeBootstrapSession === session) {
+        activeImageRuntimeBootstrapSession = undefined;
+      }
+      disposePromise = imageRuntimeManager.dispose();
+      return disposePromise;
+    },
+  };
+  return session;
+}
+
+function installImageRuntimeBootstrapSession(
+  initialGeneration?: ConstructorParameters<typeof ImageRuntimeManager>[0],
+): ImageRuntimeBootstrapSession {
+  if (activeImageRuntimeBootstrapSession) {
+    throw new Error('buildDaemon: an image runtime bootstrap session is already active');
+  }
+  const session = createImageRuntimeBootstrapSession(initialGeneration);
+  activeImageRuntimeBootstrapSession = session;
+  return session;
+}
+
+function resetImageRuntimeBootstrapSession(): void {
+  const session = activeImageRuntimeBootstrapSession;
+  if (!session) return;
+  void session.dispose().catch(() => undefined);
+}
+
 /**
  * Construct the standalone daemon from a loaded config + on-disk paths. Does NOT
  * start the listeners — the `start` command awaits `providerProxy.start()` then
@@ -389,7 +519,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // upstream-proxy: pass the box so the settings-store path (admin PUT) encrypts
   // `server.proxy.*` passwords at rest + decrypts on read (other server fields
   // are non-secret). Mirrors config.ts's proxy-secret handling.
-  const settingsStore = new JsonApiServerSettingsStore(paths.configPath, secretBox);
+  const settingsStore = new JsonApiServerSettingsStore(
+    paths.configPath,
+    secretBox,
+    paths.settingsAtomicReplace,
+  );
   const integrationStateStore = new IntegrationStateStore(
     defaultIntegrationsPath(paths.configPath),
     secretBox,
@@ -522,11 +656,165 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     onEvent: (row, at) => usageThroughput.record(row, at),
   });
 
+  // Long-lived mounted storage is app-session state, shared by HTTP and hosted
+  // generations. Construct it before the first generation and proxy capture.
+  const initialImagesConfig = normalizeServerConfig(decryptedConfig.server).images!;
+  const imageObservability = new ImageObservability();
+  const imageRuntimeObservability = Object.freeze({
+    telemetrySink: imageObservability.telemetrySink,
+    audit: imageObservability.audit,
+  });
+  let imageStorageCatalog: ImageStorageMountCatalog;
+  let mountedImageReferenceStore: MountedImageReferenceStore;
+  let mountedResponsesImageStateStore: MountedResponsesImageStateStore;
+  let activeImageTemporaryScopes: DaemonImageActiveScopeRegistry;
+  let imageEvidenceManifestOwner: FileCodexImageCapabilityEvidenceManifestOwner;
+  let releaseInitialImageStorageBackend: (() => void) | undefined;
+  let initialImageGeneration: ReturnType<typeof createImageRuntimeGeneration>;
+  try {
+    imageStorageCatalog = new ImageStorageMountCatalog({
+      pathOptions: { configPath: paths.configPath },
+      activeStorageRoot: initialImagesConfig.references.storageRoot,
+      referenceLimits: {
+        ttlMs: initialImagesConfig.references.ttlMs,
+        maxArtifactBytes: initialImagesConfig.references.maxArtifactBytes,
+        maxTotalBytes: initialImagesConfig.references.maxTotalBytes,
+        maxTenantBytes: initialImagesConfig.references.maxTenantBytes,
+        maxEntries: initialImagesConfig.references.maxEntries,
+        maxTombstones: initialImagesConfig.references.maxTombstones,
+        tombstoneTtlMs: initialImagesConfig.references.tombstoneTtlMs,
+      },
+      responsesStateLimits: {
+        maxCalls: initialImagesConfig.references.maxCalls,
+        maxResponses: initialImagesConfig.references.maxResponses,
+        maxTombstones: initialImagesConfig.references.maxTombstones,
+        tombstoneTtlMs: initialImagesConfig.references.tombstoneTtlMs,
+      },
+      secretBox,
+      reconcileCorruptManifests: true,
+    });
+    mountedImageReferenceStore = new MountedImageReferenceStore(imageStorageCatalog);
+    mountedResponsesImageStateStore = new MountedResponsesImageStateStore(imageStorageCatalog);
+    activeImageTemporaryScopes = new DaemonImageActiveScopeRegistry(imageStorageCatalog.active().resolver);
+    imageEvidenceManifestOwner = new FileCodexImageCapabilityEvidenceManifestOwner({
+      paths: imageStorageCatalog.active().resolver,
+    });
+    releaseInitialImageStorageBackend = imageStorageCatalog.retainBackend(
+      imageStorageCatalog.active(),
+    );
+    const initialStoragePolicy = imageStoragePolicy(initialImagesConfig);
+    const initialReferenceStore = mountedImageReferenceStore.bindWriteBackend(
+      imageStorageCatalog.active(),
+      initialStoragePolicy.referenceLimits,
+    );
+    const initialStateStore = mountedResponsesImageStateStore.bindWriteBackend(
+      imageStorageCatalog.active(),
+      initialStoragePolicy.responsesStateLimits,
+    );
+    initialImageGeneration = createImageRuntimeGeneration({
+      generationId: 'image-runtime-1',
+      config: initialImagesConfig,
+      subscriptionAccounts,
+      storage: {
+        paths: imageStorageCatalog.active().resolver,
+        referenceStore: initialReferenceStore,
+        stateStore: initialStateStore,
+      },
+      observability: imageRuntimeObservability,
+      activeTemporaryScopes: activeImageTemporaryScopes,
+      evidenceSource: imageEvidenceManifestOwner.createSource(initialImagesConfig.evidenceTtlMs),
+      releaseStorageBackend: releaseInitialImageStorageBackend,
+      ...(paths.testOnlySyntheticVerifiedImageProvider
+        ? { testOnlySyntheticVerifiedProvider: paths.testOnlySyntheticVerifiedImageProvider }
+        : {}),
+    });
+  } catch (error) {
+    releaseInitialImageStorageBackend?.();
+    apiKeyPool.dispose();
+    pricingRefreshScheduler.dispose();
+    claudeAllowanceRefreshScheduler.dispose();
+    throw error;
+  }
+
+  // App-session Images composition MUST precede the first singleton proxy call:
+  // the proxy captures deps only on construction. Stable forwarding handlers
+  // remain registered for the session while runtime generations can be swapped.
+  let imageRuntimeSession: ImageRuntimeBootstrapSession;
+  try {
+    imageRuntimeSession = installImageRuntimeBootstrapSession(initialImageGeneration);
+  } catch (error) {
+    apiKeyPool.dispose();
+    pricingRefreshScheduler.dispose();
+    claudeAllowanceRefreshScheduler.dispose();
+    throw error;
+  }
+  const { openAIOperationRegistry, imageRuntimeManager } = imageRuntimeSession;
+  const hostedImageContributionFactory = createHostedImageContributionFactory(imageRuntimeManager);
+  const imageDoctor = createImageDoctorService({
+    keyDb,
+    subscriptionAccounts,
+    storageCatalog: imageStorageCatalog,
+    createEvidenceStore: (_paths, config) =>
+      imageEvidenceManifestOwner.createSource(config.evidenceTtlMs),
+  });
+  const imageStartupReconciler = new ImageStartupReconciler({
+    catalog: imageStorageCatalog,
+    temporaryPaths: imageStorageCatalog.active().resolver,
+    staleTemporaryAfterMs: initialImagesConfig.temporary.staleAfterMs,
+    activeTemporaryScopes: activeImageTemporaryScopes,
+  });
+  const imageCleanupService = new ImageCleanupService({
+    reconciler: imageStartupReconciler,
+    catalog: imageStorageCatalog,
+    intervalMs: Math.min(
+      initialImagesConfig.temporary.cleanupIntervalMs,
+      initialImagesConfig.references.cleanupIntervalMs,
+    ),
+    evidence: imageEvidenceManifestOwner,
+  });
+  const imageRuntimeConfig = paths.imageRuntimeConfig ?? createImageRuntimeConfigController({
+    manager: imageRuntimeManager,
+    subscriptionAccounts,
+    storageCatalog: imageStorageCatalog,
+    referenceStore: mountedImageReferenceStore,
+    stateStore: mountedResponsesImageStateStore,
+    observability: imageRuntimeObservability,
+    activeTemporaryScopes: activeImageTemporaryScopes,
+    evidenceOwner: imageEvidenceManifestOwner,
+    cleanupService: imageCleanupService,
+    firstGenerationNumber: 2,
+    ...(paths.testOnlySyntheticVerifiedImageProvider
+      ? { testOnlySyntheticVerifiedProvider: paths.testOnlySyntheticVerifiedImageProvider }
+      : {}),
+  });
+
   // Resident ProviderProxy — pool wired into the `apiKeyPool` deps slot, the
-  // usage recorder into `usageRecorder`. NO Anthropic factory. (Reads the
-  // subscription slot lazily at request time, so this call is otherwise
-  // unchanged.)
-  const providerProxy = getProviderProxy({ llmConfig, apiKeyPool, usageRecorder });
+  // usage recorder into `usageRecorder`, and the app-session operation registry
+  // into the extension-dispatch slot. NO Anthropic factory.
+  let providerProxy: ProviderProxy;
+  try {
+    providerProxy = getProviderProxy({
+      llmConfig,
+      apiKeyPool,
+      usageRecorder,
+      openAIOperationRegistry,
+    });
+    if (providerProxy.getDeps().openAIOperationRegistry !== openAIOperationRegistry) {
+      throw new Error(
+        'buildDaemon: existing ProviderProxy was constructed without this app-session operation registry',
+      );
+    }
+    imageRuntimeSession.attachBeforeStop(
+      providerProxy.registerBeforeStop(() => imageRuntimeSession.dispose()),
+    );
+    providerProxy.registerBeforeStop(() => imageCleanupService.stop());
+  } catch (error) {
+    void imageRuntimeSession.dispose().catch(() => undefined);
+    apiKeyPool.dispose();
+    pricingRefreshScheduler.dispose();
+    claudeAllowanceRefreshScheduler.dispose();
+    throw error;
+  }
   const routeLeaseManager = new RouteLeaseManager(
     providerProxy,
     new RouteLeaseTargetResolver(llmConfig, {
@@ -595,6 +883,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     llmConfig,
     providerProxy,
     proxyDeps: providerProxy.getDeps(),
+    imageModelCatalog: imageRuntimeManager,
     healthReportProvider: getHealthReport,
     // outbound-key-policy: the wire layer's 402 cost check reads per-key spend.
     keySpendTracker,
@@ -625,6 +914,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     keySpendReader: keySpendTracker,
     settingsStore,
     outboundApiServer,
+    imageRuntimeConfig,
+    imageRuntimeStatus: paths.imageRuntimeStatus ?? imageRuntimeManager,
+    imageConfigAudit: paths.imageConfigAudit ?? ((record) => {
+      imageObservability.recordConfigurationAudit(record);
+    }),
     routeLeaseManager,
     subscriptionAccounts,
     accountAllowanceService,
@@ -802,6 +1096,12 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     llmConfig,
     keyDb,
     settingsStore,
+    openAIOperationRegistry,
+    imageRuntimeManager,
+    imageObservability,
+    imageCleanupService,
+    imageDoctor,
+    hostedImageContributionFactory,
     providerProxy,
     routeLeaseManager,
     outboundApiServer,
@@ -847,6 +1147,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
  * module singleton), so it needs no reset here — the test stops it in `afterEach`
  * via `daemon.adminServer.stop()`. */
 export function resetDaemonSingletonsForTests(): void {
+  resetImageRuntimeBootstrapSession();
   __resetProviderProxyForTests();
   __resetOutboundApiServerForTests();
   setSubscriptionRegistryForOutbound(null);

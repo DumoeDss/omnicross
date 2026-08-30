@@ -23,12 +23,14 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  ImagesCapabilityStatus,
   MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
+  OutboundPermissionId,
   OutboundQueueStatus,
   VoucherCreated,
   VoucherGenerateInput,
@@ -47,6 +49,7 @@ export interface UseApiServiceResult {
   loading: boolean;
   config: OutboundApiServerConfig | null;
   status: OutboundApiServerStatus | null;
+  imageCapability: ImagesCapabilityStatus | null;
   keys: OutboundApiKeyInfo[];
   modelOptions: ModelRefOption[];
   /** Subscription accounts (per-provider) for the subscription-mode account picker. */
@@ -69,11 +72,15 @@ export interface UseApiServiceResult {
   deleteKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
   setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
+  setKeyPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   setKeyPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   updateQueueConfig: (patch: {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }) => Promise<void>;
+  updateImagesConfig: (
+    config: NonNullable<OutboundApiServerConfig['images']>,
+  ) => Promise<void>;
   updateAllowanceSchedulingConfig: (
     config: NonNullable<OutboundApiServerConfig['allowanceScheduling']>,
   ) => Promise<void>;
@@ -121,6 +128,7 @@ export function useApiService(): UseApiServiceResult {
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<OutboundApiServerConfig | null>(null);
   const [status, setStatus] = useState<OutboundApiServerStatus | null>(null);
+  const [imageCapability, setImageCapability] = useState<ImagesCapabilityStatus | null>(null);
   const [keys, setKeys] = useState<OutboundApiKeyInfo[]>([]);
   const [providers, setProviders] = useState<LLMProvider[]>([]);
   const [accounts, setAccounts] = useState<AccountsListResponse>({
@@ -138,14 +146,16 @@ export function useApiService(): UseApiServiceResult {
   busyRef.current = busy;
 
   const refreshAll = useCallback(async () => {
-    const [cfg, st, ks, vs] = await Promise.all([
+    const [cfg, st, imageStatus, ks, vs] = await Promise.all([
       agent.apiService.getConfig(),
       agent.apiService.getStatus(),
+      agent.apiService.getImagesCapability(),
       agent.apiService.listKeys(),
       agent.apiService.listVouchers(),
     ]);
     setConfig(cfg);
     setStatus(st);
+    setImageCapability(imageStatus);
     setKeys(ks);
     setVouchers(vs);
   }, []);
@@ -160,6 +170,7 @@ export function useApiService(): UseApiServiceResult {
       const attempts = isTauri() ? 20 : 1;
       let cfg: OutboundApiServerConfig | null = null;
       let st: OutboundApiServerStatus | null = null;
+      let imageStatus: ImagesCapabilityStatus | null = null;
       let ks: OutboundApiKeyInfo[] = [];
       let vs: VoucherInfo[] = [];
       let provs: LLMProvider[] = [];
@@ -168,9 +179,10 @@ export function useApiService(): UseApiServiceResult {
         providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
       };
       for (let attempt = 0; attempt < attempts; attempt += 1) {
-        [cfg, st, ks, vs, provs, accts] = await Promise.all([
+        [cfg, st, imageStatus, ks, vs, provs, accts] = await Promise.all([
           agent.apiService.getConfig(),
           agent.apiService.getStatus(),
+          agent.apiService.getImagesCapability(),
           agent.apiService.listKeys(),
           agent.apiService.listVouchers(),
           agent.llmConfig.getProviders().catch(() => [] as LLMProvider[]),
@@ -184,6 +196,7 @@ export function useApiService(): UseApiServiceResult {
       if (cancelled) return;
       setConfig(cfg);
       setStatus(st);
+      setImageCapability(imageStatus);
       setKeys(ks);
       setVouchers(vs);
       setProviders(provs);
@@ -203,9 +216,15 @@ export function useApiService(): UseApiServiceResult {
     const POLL_MS = 10_000;
     const id = window.setInterval(() => {
       if (busyRef.current) return;
-      void agent.apiService.getStatus().then((st) => {
+      void Promise.all([
+        agent.apiService.getStatus(),
+        agent.apiService.getImagesCapability(),
+      ]).then(([st, imageStatus]) => {
         // Guard against a write landing between the fetch and the resolve.
-        if (!busyRef.current && st) setStatus(st);
+        if (!busyRef.current && st) {
+          setStatus(st);
+          setImageCapability(imageStatus);
+        }
       });
     }, POLL_MS);
     return () => window.clearInterval(id);
@@ -318,6 +337,21 @@ export function useApiService(): UseApiServiceResult {
     }
   }, []);
 
+  const setKeyPermissions = useCallback(async (
+    id: string,
+    permissions: OutboundPermissionId[],
+  ) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.setKeyPermissions(id, permissions);
+      if (!result.success) setError(result.message ?? 'request failed');
+      setKeys(await agent.apiService.listKeys());
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const setKeyPolicy = useCallback(async (id: string, policy: OutboundKeyPolicyPatch) => {
     setBusy(true);
     setError(null);
@@ -336,6 +370,13 @@ export function useApiService(): UseApiServiceResult {
       concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
     }) => {
       await runWrite(() => agent.apiService.updateQueueConfig(patch));
+    },
+    [runWrite],
+  );
+
+  const updateImagesConfig = useCallback(
+    async (images: NonNullable<OutboundApiServerConfig['images']>) => {
+      await runWrite(() => agent.apiService.updateImagesConfig(images));
     },
     [runWrite],
   );
@@ -460,6 +501,7 @@ export function useApiService(): UseApiServiceResult {
     loading,
     config,
     status,
+    imageCapability,
     keys,
     modelOptions,
     accounts,
@@ -477,8 +519,10 @@ export function useApiService(): UseApiServiceResult {
     deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
+    setKeyPermissions,
     setKeyPolicy,
     updateQueueConfig,
+    updateImagesConfig,
     updateAllowanceSchedulingConfig,
     getAllowanceSchedulingStatus,
     updateProxyConfig,

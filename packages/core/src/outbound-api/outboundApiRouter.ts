@@ -27,7 +27,11 @@ import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
 
-import { classifyOpenAIOperation } from '../openai-operation';
+import {
+  classifyOpenAIOperation,
+  unsupportedOpenAIOperation,
+  writeOpenAIOperationError,
+} from '../openai-operation';
 import { isAccountAllowanceExhaustedError } from '../pipeline/AccountAllowanceScheduling';
 import {
   boundAccountSelectionMessage,
@@ -42,6 +46,7 @@ import {
   writeAnthropicError,
 } from '../provider-proxy/ingress/anthropicErrorEnvelope';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
+import type { RouteContext } from '../provider-proxy/types';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { beginAuditCapture } from './auditCapture';
@@ -68,6 +73,7 @@ import type {
   GatewayBinding,
   OutboundApiDeps,
   OutboundEndpoint,
+  OutboundPermission,
   UserMessageQueueConfig,
 } from './types';
 import type { KeyedMutex } from './keyedMutex';
@@ -296,16 +302,17 @@ export function isAnthropicOauthUsagePath(url: string | undefined): boolean {
 /**
  * Resolve the `GET /v1/models` response shape (claude-api-protocol-fidelity,
  * R4). Explicit `anthropic`/`openai` config wins; `'auto'` (default) gives a
- * key authorized for the messages endpoint (or an unrestricted key) the
- * Anthropic list shape — dual-protocol keys prefer Anthropic — and everyone
- * else keeps the OpenAI shape.
+ * explicitly Images-authorized key the OpenAI shape; otherwise a key authorized
+ * for messages (or an unrestricted legacy key) gets Anthropic shape and everyone
+ * else keeps OpenAI shape. Explicit configuration still wins.
  */
 export function resolveModelsShape(
   modelsShape: AnthropicConfigSegment['modelsShape'] | undefined,
-  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+  allowedEndpoints: readonly OutboundPermission[] | undefined,
 ): 'anthropic' | 'openai' {
   if (modelsShape === 'anthropic') return 'anthropic';
   if (modelsShape === 'openai') return 'openai';
+  if (allowedEndpoints?.includes('images')) return 'openai';
   if (!allowedEndpoints || allowedEndpoints.length === 0) return 'anthropic';
   return allowedEndpoints.includes('messages') ? 'anthropic' : 'openai';
 }
@@ -355,7 +362,7 @@ async function writeModelsListAnthropic(
   llmConfig: OutboundApiDeps['llmConfig'],
   config: OutboundRequestConfig,
   apiKeyId: string,
-  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+  allowedEndpoints: readonly OutboundPermission[] | undefined,
   limit: number | undefined,
 ): Promise<void> {
   // The Anthropic shape only advertises the MESSAGES endpoint family (the
@@ -490,7 +497,8 @@ async function writeModelsList(
   llmConfig: OutboundApiDeps['llmConfig'],
   config: OutboundRequestConfig,
   apiKeyId: string,
-  allowedEndpoints: readonly OutboundEndpoint[] | undefined,
+  allowedEndpoints: readonly OutboundPermission[] | undefined,
+  imageModels: readonly string[] = [],
 ): Promise<void> {
   const modelIds: string[] = [];
   for (const endpoint of ['chat', 'responses', 'messages', 'gemini'] as const) {
@@ -536,6 +544,7 @@ async function writeModelsList(
       );
     }
   }
+  modelIds.push(...imageModels.filter((modelId) => modelId === 'gpt-image-2'));
   const seen = new Set<string>();
   const data = modelIds
     .filter((modelId) => {
@@ -569,6 +578,29 @@ function shimAuthHeader(req: http.IncomingMessage, routeToken: string): void {
   req.headers['authorization'] = `Bearer ${routeToken}`;
   delete req.headers['x-goog-api-key'];
   delete req.headers['x-api-key'];
+}
+
+/** Remove the external named-key credential before trusted local Images dispatch. */
+function stripPresentedAuthHeaders(req: http.IncomingMessage): void {
+  delete req.headers['authorization'];
+  delete req.headers['x-goog-api-key'];
+  delete req.headers['x-api-key'];
+}
+
+/**
+ * Minimal structural route for extension dispatch. Images runtime resolution
+ * trusts only `apiKeyId`; provider/model/account policy comes from the pinned
+ * runtime generation rather than caller headers or text-route bindings.
+ */
+function trustedImageRoute(apiKeyId: string): RouteContext {
+  return {
+    sessionId: `outbound:images:${apiKeyId}`,
+    targetProviderFormat: 'openai-responses',
+    model: 'image-runtime-configured',
+    apiKeyId,
+    ingressFormat: 'openai-responses',
+    authMode: 'subscription',
+  };
 }
 
 /**
@@ -609,6 +641,10 @@ export async function handleOutboundRequest(
   // Relay paths never consult the mark — upstream errors stay verbatim.
   const anthropicPathClass = classifyAnthropicMessagesPath(req.url);
   const isCountTokens = anthropicPathClass === 'count_tokens';
+  const classifiedOperation = classifyOpenAIOperation(req.method, req.url);
+  const imageOperation = classifiedOperation?.policyFamily === 'images'
+    ? classifiedOperation
+    : null;
   if (anthropicPathClass !== null) markAnthropicProtocolResponse(res);
   // R9 (claude-api-experience-extras): with the proxy ENABLED, the usage route
   // also takes the Anthropic error envelope (auth 401 / unbound 404). GATED so
@@ -623,7 +659,9 @@ export async function handleOutboundRequest(
   // the record fire-and-forget at response end, covering EVERY exit path below
   // (incl. the 401/429/402/403 early-returns). The handler enriches it (keyId /
   // model / provider / body / error) as it progresses. NEVER captures headers.
-  const audit = beginAuditCapture(req, res, now);
+  const audit = beginAuditCapture(req, res, now, {
+    suppressBodies: imageOperation !== null,
+  });
 
   // BILLING (billing-event-stream, design D4). Gated inside `beginBillingCapture`
   // on the core billing-config slot: billing-disabled ⇒ `null` (one slot read, no
@@ -705,6 +743,37 @@ export async function handleOutboundRequest(
     return;
   }
 
+  // 2b. IMAGES OWN-BODY DISPATCH. The shared classifier identifies the two
+  // closed Images operations. Explicit Images permission is required even for
+  // legacy unrestricted rows, whose effective permissions remain text-only.
+  // This branch intentionally precedes text binding, cost/model policy, generic
+  // concurrency, JSON buffering/replay, and text ingress. The registered image
+  // contribution receives the original request stream after the external named
+  // key headers have been removed from its trusted local context.
+  if (imageOperation) {
+    if (!verified.allowedEndpoints.includes('images')) {
+      writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
+      return;
+    }
+    const registry = deps.proxyDeps.openAIOperationRegistry;
+    if (!registry) {
+      writeOpenAIOperationError(res, unsupportedOpenAIOperation(imageOperation));
+      return;
+    }
+    stripPresentedAuthHeaders(req);
+    const handled = await registry.dispatch({
+      operation: imageOperation,
+      request: req,
+      response: res,
+      route: trustedImageRoute(verified.id),
+      deps: deps.proxyDeps,
+    });
+    if (!handled) {
+      writeOpenAIOperationError(res, unsupportedOpenAIOperation(imageOperation));
+    }
+    return;
+  }
+
   // 3. ENDPOINT SELECT. `GET <base>/models` is shared discovery metadata rather
   // than a chat-only operation. A scoped key may discover models for any endpoint
   // it can use, but never sees models belonging only to another endpoint.
@@ -728,7 +797,22 @@ export async function handleOutboundRequest(
         parseModelsLimit(req.url),
       );
     } else {
-      await writeModelsList(res, deps.llmConfig, config, verified.id, verified.allowedEndpoints);
+      let imageModels: readonly string[] = [];
+      if (verified.allowedEndpoints.includes('images') && deps.imageModelCatalog) {
+        try {
+          imageModels = await deps.imageModelCatalog.listAvailableModels(verified.id);
+        } catch {
+          // Discovery is fail-closed: capability inspection never breaks the list route.
+        }
+      }
+      await writeModelsList(
+        res,
+        deps.llmConfig,
+        config,
+        verified.id,
+        verified.allowedEndpoints,
+        imageModels,
+      );
     }
     return;
   }

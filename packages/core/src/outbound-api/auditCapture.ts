@@ -89,6 +89,12 @@ export interface AuditCaptureContext {
   setRequestBody(raw: string): void;
 }
 
+/** Per-request capture policy selected before any response wrapper is installed. */
+export interface AuditCaptureOptions {
+  /** Preserve metadata while structurally preventing request/response body capture. */
+  suppressBodies?: boolean;
+}
+
 /** Resolve the client IP: socket by default; a trusted `X-Forwarded-For` only when configured. */
 function resolveClientIp(req: http.IncomingMessage, trustForwardedFor: boolean): string | undefined {
   if (trustForwardedFor) {
@@ -112,9 +118,11 @@ export function beginAuditCapture(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   now: number,
+  options?: AuditCaptureOptions,
 ): AuditCaptureContext | null {
   const config: AuditConfig | null = getAuditCaptureConfig();
   if (!config) return null;
+  const captureBodies = config.captureBodies && options?.suppressBodies !== true;
 
   let requestBody: string | undefined;
   const responseChunks: Buffer[] = [];
@@ -124,7 +132,7 @@ export function beginAuditCapture(
 
   const ctx: AuditCaptureContext = {
     setRequestBody(raw: string): void {
-      if (config.captureBodies) {
+      if (captureBodies) {
         requestBody = truncateToBytes(redactAuditText(raw), config.maxBodyBytes);
       }
     },
@@ -134,7 +142,7 @@ export function beginAuditCapture(
   // streaming responses too. A non-negative limit bounds the retained prefix;
   // `-1` deliberately retains the full response. The original response is always
   // delegated verbatim.
-  if (config.captureBodies) {
+  if (captureBodies) {
     installResponseCapture(res, {
       push(chunk: Buffer): void {
         if (config.maxBodyBytes < 0) {
@@ -193,7 +201,7 @@ export function beginAuditCapture(
       }
       if (ctx.error) record.error = redactAuditText(ctx.error);
       if (ctx.sessionKey) record.sessionKey = ctx.sessionKey;
-      if (config.captureBodies) {
+      if (captureBodies) {
         if (requestBody != null && requestBody.length > 0) {
           record.requestBody = requestBody;
         }

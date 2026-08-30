@@ -16,7 +16,7 @@ import { EventEmitter } from 'node:events';
 import type http from 'node:http';
 import { Readable } from 'node:stream';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
 import { handleOutboundRequest, resolveModelsShape } from '../outboundApiRouter';
@@ -65,7 +65,14 @@ const enabledRow: OutboundKeyDbRow = {
   revokedAt: null,
 };
 
-function mkDeps(row: OutboundKeyDbRow, models: string[] = ['deepseek-v3', 'deepseek-r1']): OutboundApiDeps {
+function mkDeps(
+  row: OutboundKeyDbRow,
+  options: {
+    providerModels?: string[];
+    imageModels?: readonly string[];
+    onListImages?: (apiKeyId: string) => void;
+  } = {},
+): OutboundApiDeps {
   const db: OutboundKeyDb = {
     outboundApiKeysList: async () => [],
     outboundApiKeysGetByHash: async () => row,
@@ -79,7 +86,12 @@ function mkDeps(row: OutboundKeyDbRow, models: string[] = ['deepseek-v3', 'deeps
     outboundApiKeysReveal: async () => null,
     outboundApiKeysDelete: async () => true,
   };
-  const provider = { id: 'deepseek', name: 'DeepSeek', models, enabled: true };
+  const provider = {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    models: options.providerModels ?? ['deepseek-v3', 'deepseek-r1'],
+    enabled: true,
+  };
   return {
     db,
     llmConfig: { getProvider: async () => provider } as unknown as OutboundApiDeps['llmConfig'],
@@ -87,6 +99,16 @@ function mkDeps(row: OutboundKeyDbRow, models: string[] = ['deepseek-v3', 'deeps
       getRouteMap: () => new ProviderProxyRouteMap(),
     } as unknown as OutboundApiDeps['providerProxy'],
     proxyDeps: { llmConfig: { getProvider: async () => provider }, apiKeyPool: null } as unknown,
+    ...(options.imageModels !== undefined
+      ? {
+          imageModelCatalog: {
+            listAvailableModels: async (apiKeyId: string) => {
+              options.onListImages?.(apiKeyId);
+              return options.imageModels!;
+            },
+          },
+        }
+      : {}),
   } as unknown as OutboundApiDeps;
 }
 
@@ -119,13 +141,20 @@ async function callModels(opts: {
   row?: OutboundKeyDbRow;
   bindings?: GatewayBinding[];
   anthropic?: Record<string, unknown>;
+  providerModels?: string[];
+  imageModels?: readonly string[];
+  onListImages?: (apiKeyId: string) => void;
 }): Promise<MockRes> {
   const res = new MockRes();
   const req = makeReq({ url: opts.url ?? '/v1/models' });
   await handleOutboundRequest(
     req,
     res as unknown as http.ServerResponse,
-    mkDeps(opts.row ?? enabledRow),
+    mkDeps(opts.row ?? enabledRow, {
+      providerModels: opts.providerModels,
+      imageModels: opts.imageModels,
+      onListImages: opts.onListImages,
+    }),
     {
       endpoints: [],
       bindings: opts.bindings ?? MESSAGES_BINDINGS,
@@ -141,14 +170,17 @@ async function callModels(opts: {
 // --- tests ---------------------------------------------------------------------
 
 describe('resolveModelsShape', () => {
-  it('auto: messages-authorized or unrestricted → anthropic; else openai', () => {
+  it('auto: explicit Images → OpenAI; otherwise messages/unrestricted → Anthropic', () => {
     expect(resolveModelsShape(undefined, undefined)).toBe('anthropic');
     expect(resolveModelsShape('auto', ['messages'])).toBe('anthropic');
     expect(resolveModelsShape('auto', ['messages', 'chat'])).toBe('anthropic');
+    expect(resolveModelsShape('auto', ['messages', 'images'])).toBe('openai');
+    expect(resolveModelsShape('auto', ['images'])).toBe('openai');
     expect(resolveModelsShape('auto', ['chat', 'responses'])).toBe('openai');
   });
   it('explicit config overrides authorization', () => {
     expect(resolveModelsShape('anthropic', ['chat'])).toBe('anthropic');
+    expect(resolveModelsShape('anthropic', ['messages', 'images'])).toBe('anthropic');
     expect(resolveModelsShape('openai', ['messages'])).toBe('openai');
   });
 });
@@ -229,6 +261,87 @@ describe('GET /v1/models — Anthropic shape', () => {
 });
 
 describe('GET /v1/models — OpenAI shape pins', () => {
+  it('adds one image model only for explicit Images permission and effective capability', async () => {
+    const listed = vi.fn();
+    const res = await callModels({
+      row: { ...enabledRow, allowedEndpoints: ['chat', 'images'] },
+      bindings: [binding({ id: 'b-chat', endpoint: 'chat', modelMode: 'passthrough' })],
+      providerModels: ['gpt-image-2', 'deepseek-v3'],
+      imageModels: ['gpt-image-2'],
+      onListImages: listed,
+    });
+    const json = JSON.parse(res.body) as { object: string; data: Array<{ id: string }> };
+    expect(json.object).toBe('list');
+    expect(json.data.map((entry) => entry.id)).toEqual(['gpt-image-2', 'deepseek-v3']);
+    expect(listed).toHaveBeenCalledOnce();
+    expect(listed).toHaveBeenCalledWith('oak_1');
+  });
+
+  it.each([
+    ['Responses-only', ['responses'] as const],
+    ['four-text-endpoint', ['chat', 'responses', 'messages', 'gemini'] as const],
+  ])('omits the image model and never inspects capability for a %s key', async (_label, permissions) => {
+    const listed = vi.fn();
+    const res = await callModels({
+      row: { ...enabledRow, allowedEndpoints: [...permissions] },
+      bindings: [],
+      imageModels: ['gpt-image-2'],
+      onListImages: listed,
+      anthropic: { modelsShape: 'openai' },
+    });
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(json.data).toEqual([]);
+    expect(listed).not.toHaveBeenCalled();
+  });
+
+  it('keeps a legacy absent permission list image-blind', async () => {
+    const listed = vi.fn();
+    const res = await callModels({
+      row: enabledRow,
+      bindings: [],
+      imageModels: ['gpt-image-2'],
+      onListImages: listed,
+      anthropic: { modelsShape: 'openai' },
+    });
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(json.data).toEqual([]);
+    expect(listed).not.toHaveBeenCalled();
+  });
+
+  it('omits the image model when enabled capability inspection is unavailable or stale', async () => {
+    const res = await callModels({
+      row: { ...enabledRow, allowedEndpoints: ['images'] },
+      bindings: [],
+      imageModels: [],
+    });
+    const json = JSON.parse(res.body) as { object: string; data: Array<{ id: string }> };
+    expect(json).toEqual({ object: 'list', data: [] });
+  });
+
+  it('keeps mixed Messages+Images auto discovery OpenAI-shaped', async () => {
+    const res = await callModels({
+      row: { ...enabledRow, allowedEndpoints: ['messages', 'images'] },
+      imageModels: ['gpt-image-2'],
+    });
+    const json = JSON.parse(res.body) as { object: string; data: Array<{ id: string }> };
+    expect(json.object).toBe('list');
+    expect(json.data.map((entry) => entry.id)).toContain('gpt-image-2');
+  });
+
+  it('forced Anthropic shape remains valid and does not inspect or expose the image model', async () => {
+    const listed = vi.fn();
+    const res = await callModels({
+      row: { ...enabledRow, allowedEndpoints: ['messages', 'images'] },
+      anthropic: { modelsShape: 'anthropic' },
+      imageModels: ['gpt-image-2'],
+      onListImages: listed,
+    });
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }>; first_id: string | null };
+    expect(json.first_id).not.toBeUndefined();
+    expect(json.data.map((entry) => entry.id)).not.toContain('gpt-image-2');
+    expect(listed).not.toHaveBeenCalled();
+  });
+
   it('a chat/responses-only key keeps the OpenAI shape (regression pin)', async () => {
     const res = await callModels({
       row: { ...enabledRow, allowedEndpoints: ['chat', 'responses'] },

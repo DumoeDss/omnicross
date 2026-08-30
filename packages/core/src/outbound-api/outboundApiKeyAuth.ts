@@ -16,6 +16,7 @@ import { computeKeyExpiry, type KeyCostLimits, type ModelRestriction } from './k
 import type {
   OutboundApiKeyCreated,
   OutboundEndpoint,
+  OutboundPermission,
   OutboundKeyDb,
   OutboundKeyDbRow,
 } from './types';
@@ -93,6 +94,7 @@ export async function createNamedKey(
     name: row.name,
     keyPrefix: row.keyPrefix,
     createdAt: row.createdAt,
+    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
     plaintextOnce: secret,
   };
 }
@@ -124,8 +126,52 @@ export async function createIntegrationKey(
     name: row.name,
     keyPrefix: row.keyPrefix,
     createdAt: row.createdAt,
+    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
     plaintextOnce: secret,
   };
+}
+
+export const LEGACY_OUTBOUND_PERMISSIONS: readonly OutboundPermission[] = Object.freeze([
+  'chat',
+  'responses',
+  'messages',
+  'gemini',
+]);
+
+const OUTBOUND_PERMISSION_SET = new Set<OutboundPermission>([
+  ...LEGACY_OUTBOUND_PERMISSIONS,
+  'images',
+]);
+
+/** Strict write-edge validator. Stored-row reads use fail-closed interpretation below. */
+export function validateOutboundPermissions(value: unknown): OutboundPermission[] {
+  if (!Array.isArray(value)) throw new TypeError('permissions must be an array');
+  const result: OutboundPermission[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string' || !OUTBOUND_PERMISSION_SET.has(item as OutboundPermission)) {
+      throw new TypeError('permissions contains an unknown value');
+    }
+    if (seen.has(item)) throw new TypeError('permissions must not contain duplicates');
+    seen.add(item);
+    result.push(item as OutboundPermission);
+  }
+  return result;
+}
+
+/**
+ * Authoritative legacy interpretation. Absence preserves only the four historic
+ * families; malformed persisted data denies all instead of widening access.
+ */
+export function effectiveOutboundPermissions(
+  value: unknown,
+): readonly OutboundPermission[] {
+  if (value === undefined) return LEGACY_OUTBOUND_PERMISSIONS;
+  try {
+    return validateOutboundPermissions(value);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -135,7 +181,7 @@ export async function createIntegrationKey(
 export interface VerifiedKey {
   id: string;
   kind?: 'client' | 'integration';
-  allowedEndpoints?: OutboundEndpoint[];
+  allowedEndpoints: OutboundPermission[];
   loopbackOnly?: boolean;
   /**
    * The key's per-key concurrency ceiling, carried from the row so the wire
@@ -209,7 +255,7 @@ function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   const key: VerifiedKey = {
     id: row.id,
     kind: row.kind,
-    allowedEndpoints: row.allowedEndpoints,
+    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
     loopbackOnly: row.loopbackOnly,
   };
   if (row.maxConcurrency !== undefined && row.maxConcurrency !== null) {

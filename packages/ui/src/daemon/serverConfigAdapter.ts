@@ -37,11 +37,13 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  ImagesCapabilityStatus,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
+  OutboundPermissionId,
   OverloadCounterResponse,
   VoucherCreated,
   VoucherInfo,
@@ -181,6 +183,27 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async getImagesCapability(): Promise<ImagesCapabilityStatus | null> {
+      try {
+        return await adminClient.get<ImagesCapabilityStatus>('/images/capabilities');
+      } catch {
+        return null;
+      }
+    },
+
+    async setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; allowedEndpoints?: OutboundPermissionId[] }>(
+          `/keys/${encodeURIComponent(id)}/permissions`,
+          { permissions },
+        );
+        if (!data.ok) return { success: false, message: 'key not found or revoked' };
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update key permissions');
+      }
+    },
+
     async setKeyPolicy(id: string, policy: OutboundKeyPolicyPatch): Promise<MutationResult> {
       try {
         const data = await adminClient.post<{ ok: boolean }>(
@@ -206,6 +229,18 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update queue configuration');
+      }
+    },
+
+    async updateImagesConfig(config): Promise<MutationResult> {
+      try {
+        const { storageRootConfigured: _storageRootConfigured, ...references } = config.references;
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          images: { ...config, references },
+        });
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update Images configuration');
       }
     },
 

@@ -72,6 +72,11 @@ export interface UpstreamProxyContext {
   providerId?: string;
   /** The selected pooled account id (per-account override input). */
   accountId?: string;
+  /**
+   * Irreversible account identity allowed in debug traces. The raw `accountId`
+   * remains available to proxy, allowance, and route-attribution internals only.
+   */
+  traceAccountFingerprint?: string;
   /** Metadata-only live route activity. Never contains prompts, headers, or tokens. */
   routeActivity?: AccountRouteActivityContext;
   /**
@@ -335,7 +340,7 @@ export function fetchUpstream(
       ? init.body
       : null;
   const providerId = ctx.providerId;
-  const accountId = ctx.accountId;
+  const accountId = ctx.traceAccountFingerprint ?? ctx.accountId;
 
   return doFetchWithActivity()
     .then((res) => {

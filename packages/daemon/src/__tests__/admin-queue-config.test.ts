@@ -121,7 +121,7 @@ async function getServer(): Promise<ServerBody['server']> {
 describe('PUT /admin/api/server queue segments', () => {
   it('accepts valid segments → merged, applied, and GET returns the normalized segment', async () => {
     await bootDaemon();
-    const applySpy = vi.spyOn(daemon.outboundApiServer, 'applyConfig');
+    const prepareSpy = vi.spyOn(daemon.outboundApiServer, 'prepareConfig');
 
     const r = await adminFetch('PUT', '/admin/api/server', {
       userMessageQueue: { enabled: true, delayMs: 300, waitTimeoutMs: 60000 },
@@ -133,8 +133,8 @@ describe('PUT /admin/api/server queue segments', () => {
     // Untouched segment stays at the frozen defaults.
     expect(server.concurrencyQueue).toEqual({ maxQueueSizeFactor: 2, minQueueSize: 4, waitTimeoutMs: 60000 });
 
-    // applyConfig received the merged segments.
-    expect(applySpy).toHaveBeenCalledWith(
+    // The transactional listener participant received the merged segments.
+    expect(prepareSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         userMessageQueue: { enabled: true, delayMs: 300, waitTimeoutMs: 60000 },
         concurrencyQueue: { maxQueueSizeFactor: 2, minQueueSize: 4, waitTimeoutMs: 60000 },

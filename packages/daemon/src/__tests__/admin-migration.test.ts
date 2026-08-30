@@ -21,7 +21,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadServerConfig } from '@omnicross/core/outbound-api';
+import { loadServerConfig, type OutboundApiServerConfig } from '@omnicross/core/outbound-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
@@ -403,6 +403,50 @@ describe('migration pack export/import (app-parity child 6)', () => {
     expect((second.json as { skipped: string[] }).skipped).toEqual(['src']);
     cfg = loadConfig(configPath);
     expect(cfg.providers.map((p) => p.id).sort()).toEqual(['keep', 'src']);
+
+    rmSync(srcDir, { recursive: true, force: true });
+  });
+
+  it('exports normalized Images config, restores it only in overwrite mode, and never rewrites key permissions', async () => {
+    await bootDaemon([]);
+    const sourceGet = await adminFetch('GET', '/admin/api/server');
+    const sourceServer = (sourceGet.json as { server: OutboundApiServerConfig }).server;
+    const enabledImages = { ...sourceServer.images!, enabled: true };
+    expect((await adminFetch('PUT', '/admin/api/server', { images: enabledImages })).status).toBe(200);
+    const exp = await adminFetch('POST', '/admin/api/export', { passphrase: PASSPHRASE });
+    const { pack } = exp.json as { pack: string };
+
+    await daemon.adminServer.stop();
+    await daemon.outboundApiServer.stop();
+    await daemon.providerProxy.stop();
+    daemon.apiKeyPool.dispose();
+    resetDaemonSingletonsForTests();
+    const srcDir = tmpDir;
+    await bootDaemon([]);
+
+    const created = await adminFetch('POST', '/admin/api/keys', { name: 'legacy-target-key' });
+    const keyId = (created.json as { id: string }).id;
+    const merged = await adminFetch('POST', '/admin/api/import', {
+      blob: pack,
+      passphrase: PASSPHRASE,
+      mode: 'merge',
+    });
+    expect(merged.status).toBe(200);
+    expect((await loadServerConfig(daemon.settingsStore)).images?.enabled).toBe(false);
+
+    const overwritten = await adminFetch('POST', '/admin/api/import', {
+      blob: pack,
+      passphrase: PASSPHRASE,
+      mode: 'overwrite',
+    });
+    expect(overwritten.status).toBe(200);
+    expect((await loadServerConfig(daemon.settingsStore)).images?.enabled).toBe(true);
+
+    const keys = await adminFetch('GET', '/admin/api/keys');
+    const target = (keys.json as {
+      keys: Array<{ id: string; allowedEndpoints: string[] }>;
+    }).keys.find((entry) => entry.id === keyId);
+    expect(target?.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini']);
 
     rmSync(srcDir, { recursive: true, force: true });
   });

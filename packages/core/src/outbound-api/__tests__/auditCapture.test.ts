@@ -150,6 +150,51 @@ describe('beginAuditCapture — metadata capture', () => {
 });
 
 describe('beginAuditCapture — body capture (opt-in)', () => {
+  it('suppresses Images bodies structurally while retaining metadata', () => {
+    setAuditCaptureConfig(cfg({ captureBodies: true }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    const originalWrite = r.write;
+    const originalEnd = r.end;
+    const ctx = beginAuditCapture(
+      fakeReq({ url: '/v1/images/generations?sentinel=query-secret' }),
+      r as unknown as http.ServerResponse,
+      1,
+      { suppressBodies: true },
+    );
+
+    expect(r.write).toBe(originalWrite);
+    expect(r.end).toBe(originalEnd);
+
+    ctx!.keyId = 'key_images';
+    ctx!.setRequestBody(
+      '--boundary\r\nContent-Disposition: form-data; name="image"; filename="private.png"\r\n' +
+      '\r\ndata:image/png;base64,BASE64-REQUEST-SENTINEL\r\n--boundary--\r\n',
+    );
+    r.setHeader('content-type', 'text/event-stream');
+    r.write('data: {"b64_json":"BASE64-RESPONSE-SENTINEL"}\n\n');
+    r.end('data: SSE-TERMINAL-SENTINEL\n\n');
+    r.triggerClose();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      method: 'POST',
+      path: '/v1/images/generations',
+      status: 200,
+      keyId: 'key_images',
+    });
+    expect(seen[0]?.requestBody).toBeUndefined();
+    expect(seen[0]?.responseBody).toBeUndefined();
+    expect(seen[0]?.hasBody).toBeUndefined();
+    const serialized = JSON.stringify(seen[0]);
+    expect(serialized).not.toContain('private.png');
+    expect(serialized).not.toContain('BASE64-REQUEST-SENTINEL');
+    expect(serialized).not.toContain('BASE64-RESPONSE-SENTINEL');
+    expect(serialized).not.toContain('SSE-TERMINAL-SENTINEL');
+    expect(serialized).not.toContain('query-secret');
+  });
+
   it('captures + redacts request and non-stream response bodies IN FULL', () => {
     setAuditCaptureConfig(cfg({ captureBodies: true }));
     const seen: AuditRecord[] = [];

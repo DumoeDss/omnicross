@@ -61,6 +61,8 @@ const LAN_ADDR = '0.0.0.0';
 export interface ApplyConfigInput {
   enabled: boolean;
   networkBinding: boolean;
+  /** Additive Images URL publication; serving still depends on runtime capability. */
+  imagesEnabled?: boolean;
   endpoints: EndpointRoutingConfig[];
   /** Independent resource bindings; absent preserves legacy endpoint routing. */
   bindings?: GatewayBinding[];
@@ -77,6 +79,26 @@ export interface ApplyConfigInput {
   anthropic?: AnthropicConfigSegment;
 }
 
+/** Prepared listener/config publication used by the daemon's settings transaction. */
+export interface PreparedOutboundApiConfig {
+  publish(): Promise<void>;
+  rollback(): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+interface OutboundRuntimeSnapshot {
+  readonly server: http.Server | null;
+  readonly boundPort: number;
+  readonly boundAddr: string;
+  readonly endpoints: EndpointRoutingConfig[];
+  readonly bindings: GatewayBinding[];
+  readonly userMessageQueue: UserMessageQueueConfig | undefined;
+  readonly concurrencyQueue: ConcurrencyQueueConfig | undefined;
+  readonly voucher: VoucherConfig | undefined;
+  readonly anthropic: AnthropicConfigSegment | undefined;
+  readonly imagesEnabled: boolean;
+}
+
 export class OutboundApiServer {
   private server: http.Server | null = null;
   private boundPort = 0;
@@ -87,6 +109,7 @@ export class OutboundApiServer {
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private voucherConfig: VoucherConfig | undefined;
   private anthropicConfig: AnthropicConfigSegment | undefined;
+  private imagesEnabled = false;
   /** R10 `/api/hello` switch (§10 `anthropic.apiHello`, default true). */
   private apiHelloEnabled = true;
   private readonly rateLimiter = new OutboundRateLimiter();
@@ -118,45 +141,94 @@ export class OutboundApiServer {
    * in place (read live per request — no restart).
    */
   async applyConfig(input: ApplyConfigInput): Promise<void> {
-    this.endpoints = input.endpoints;
-    this.bindings = input.bindings ?? [];
-    // Queue segments are read live per request (no restart on a queue-only
-    // change) — store them in place before the bindChanged early-return below.
-    this.userMessageQueue = input.userMessageQueue;
-    this.concurrencyQueue = input.concurrencyQueue;
-    this.voucherConfig = input.voucher;
-    // Anthropic segment is read live per request; the synthetic-ping heartbeat
-    // is HOT-APPLIED here (in-flight streams pick the new value at their next
-    // timer arm — a config change never interrupts them).
-    this.anthropicConfig = input.anthropic;
-    this.apiHelloEnabled = input.anthropic?.apiHello !== false;
-    setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
+    const prepared = await this.prepareConfig(input);
+    try {
+      await prepared.publish();
+    } catch (error) {
+      await prepared.dispose().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Prepare any new listener before persistence when the target can coexist with
+   * the current socket. A live fixed-port address-only change cannot be made
+   * failure-atomic on every supported platform because the replacement cannot
+   * coexist with the old socket, so reject it before persistence instead of
+   * performing a fallible close-then-bind during publication.
+   */
+  async prepareConfig(input: ApplyConfigInput): Promise<PreparedOutboundApiConfig> {
     const wantAddr = input.networkBinding ? LAN_ADDR : LOOPBACK_ADDR;
     const wantPort = input.port ?? DEFAULT_OUTBOUND_PORT;
-
-    if (!input.enabled) {
-      await this.stop();
-      return;
-    }
-
-    // No startup gate: routing lives in independent downstream routes that
-    // COMPOSE, so there is no server-wide model-completeness property to check
-    // before binding. An endpoint with no route that can serve a request answers
-    // per-request instead of blocking the whole listener.
     const running = this.server !== null;
-    const bindChanged = running && (this.boundAddr !== wantAddr || this.boundPort !== wantPort);
-    if (running && !bindChanged) {
-      // Only per-endpoint config changed — nothing to restart.
-      return;
+    const portMatches = wantPort === 0 || this.boundPort === wantPort;
+    const bindChanged = running && (this.boundAddr !== wantAddr || !portMatches);
+    const requiresSerialHandoff = Boolean(
+      input.enabled && running && bindChanged && this.boundPort === wantPort,
+    );
+    if (requiresSerialHandoff) {
+      throw new Error(
+        'outbound listener address changes on a live fixed port require disabling first or changing the port',
+      );
     }
-    if (running) await this.stop();
-    await this.start(wantAddr, wantPort);
+    const old = this.captureRuntimeSnapshot();
+    let preparedListener: { server: http.Server; port: number } | null = null;
+    if (input.enabled && (!running || bindChanged)) {
+      preparedListener = await this.listenDetached(wantAddr, wantPort, true);
+    }
+
+    let published = false;
+    const publish = async (): Promise<void> => {
+      if (published) return;
+      if (!input.enabled) {
+        this.installConfigSnapshot(input);
+        const previous = this.server;
+        this.server = null;
+        this.boundPort = 0;
+        if (previous) this.closePublishedServer(previous);
+        published = true;
+        return;
+      }
+      if (!bindChanged && running) {
+        this.installConfigSnapshot(input);
+        published = true;
+        return;
+      }
+      const replacement = preparedListener;
+      if (!replacement) throw new Error('prepared outbound listener is unavailable');
+      const previous = this.server;
+      this.installConfigSnapshot(input);
+      this.server = replacement.server;
+      this.boundAddr = wantAddr;
+      this.boundPort = replacement.port;
+      preparedListener = null;
+      this.announcePublishedListener(wantAddr, wantPort, replacement.port);
+      if (previous) this.closePublishedServer(previous);
+      published = true;
+    };
+
+    return {
+      publish,
+      rollback: async () => {
+        if (!published) return;
+        await this.restoreRuntimeSnapshot(old);
+        published = false;
+      },
+      dispose: async () => {
+        if (preparedListener) {
+          await this.closeServer(preparedListener.server);
+          preparedListener = null;
+        }
+      },
+    };
   }
 
   /** Start the listener on `bindAddr:port`, falling back on EADDRINUSE. */
   async start(bindAddr: string, port: number): Promise<number> {
     if (this.server) return this.boundPort;
-    const actualPort = await this.listen(bindAddr, port);
+    const listener = await this.listenDetached(bindAddr, port, true);
+    const actualPort = listener.port;
+    this.server = listener.server;
     this.boundAddr = bindAddr;
     this.boundPort = actualPort;
     if (actualPort !== port) this.onPortChange?.(actualPort);
@@ -165,16 +237,18 @@ export class OutboundApiServer {
   }
 
   /** Bind once; on EADDRINUSE retry with an ephemeral port (port 0). */
-  private listen(bindAddr: string, port: number): Promise<number> {
+  private listenDetached(
+    bindAddr: string,
+    port: number,
+    allowFallback: boolean,
+  ): Promise<{ server: http.Server; port: number }> {
     return new Promise((resolve, reject) => {
-      const server = http.createServer((req, res) => {
-        this.onRequest(req, res);
-      });
+      const server = this.createHttpServer();
       const onError = (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE' && port !== 0) {
+        if (allowFallback && err.code === 'EADDRINUSE' && port !== 0) {
           server.removeListener('error', onError);
           // Retry on an ephemeral port.
-          this.listen(bindAddr, 0).then(resolve, reject);
+          this.listenDetached(bindAddr, 0, false).then(resolve, reject);
           return;
         }
         reject(err);
@@ -185,13 +259,115 @@ export class OutboundApiServer {
         if (addr && typeof addr === 'object') {
           server.removeListener('error', onError);
           server.on('error', (e) => this.logError('[OutboundApiServer] server error', serializeError(e)));
-          this.server = server;
-          resolve(addr.port);
+          resolve({ server, port: addr.port });
         } else {
           reject(new Error('Failed to get outbound server address'));
         }
       });
     });
+  }
+
+  private createHttpServer(): http.Server {
+    return http.createServer((req, res) => {
+      this.onRequest(req, res);
+    });
+  }
+
+  private installConfigSnapshot(input: ApplyConfigInput): void {
+    this.endpoints = input.endpoints;
+    this.bindings = input.bindings ?? [];
+    this.userMessageQueue = input.userMessageQueue;
+    this.concurrencyQueue = input.concurrencyQueue;
+    this.voucherConfig = input.voucher;
+    this.anthropicConfig = input.anthropic;
+    this.imagesEnabled = input.imagesEnabled === true;
+    this.apiHelloEnabled = input.anthropic?.apiHello !== false;
+    setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
+  }
+
+  private captureRuntimeSnapshot(): OutboundRuntimeSnapshot {
+    return {
+      server: this.server,
+      boundPort: this.boundPort,
+      boundAddr: this.boundAddr,
+      endpoints: this.endpoints,
+      bindings: this.bindings,
+      userMessageQueue: this.userMessageQueue,
+      concurrencyQueue: this.concurrencyQueue,
+      voucher: this.voucherConfig,
+      anthropic: this.anthropicConfig,
+      imagesEnabled: this.imagesEnabled,
+    };
+  }
+
+  private installRuntimeSnapshot(snapshot: OutboundRuntimeSnapshot): void {
+    this.endpoints = snapshot.endpoints;
+    this.bindings = snapshot.bindings;
+    this.userMessageQueue = snapshot.userMessageQueue;
+    this.concurrencyQueue = snapshot.concurrencyQueue;
+    this.voucherConfig = snapshot.voucher;
+    this.anthropicConfig = snapshot.anthropic;
+    this.imagesEnabled = snapshot.imagesEnabled;
+    this.apiHelloEnabled = snapshot.anthropic?.apiHello !== false;
+    setAnthropicPingHeartbeatMs(snapshot.anthropic?.heartbeatIntervalMs);
+  }
+
+  private async restoreRuntimeSnapshot(snapshot: OutboundRuntimeSnapshot): Promise<void> {
+    const current = this.server;
+    if (current && current !== snapshot.server) await this.closeServer(current);
+    this.installRuntimeSnapshot(snapshot);
+    if (!snapshot.server) {
+      this.server = null;
+      this.boundAddr = LOOPBACK_ADDR;
+      this.boundPort = 0;
+      return;
+    }
+    if (snapshot.server.listening) {
+      this.server = snapshot.server;
+      this.boundAddr = snapshot.boundAddr;
+      this.boundPort = snapshot.boundPort;
+      return;
+    }
+    const restored = await this.listenDetached(snapshot.boundAddr, snapshot.boundPort, false);
+    this.server = restored.server;
+    this.boundAddr = snapshot.boundAddr;
+    this.boundPort = restored.port;
+  }
+
+  private closeServer(server: http.Server): Promise<void> {
+    if (!server.listening) return Promise.resolve();
+    return new Promise((resolve) => server.close(() => resolve()));
+  }
+
+  /** Publication already swapped the authoritative pointer; retirement cannot fail it. */
+  private closePublishedServer(server: http.Server): void {
+    if (!server.listening) return;
+    try {
+      server.close(() => {
+        try {
+          this.logInfo('[OutboundApiServer] Stopped');
+        } catch {
+          // Logging cannot turn a committed listener snapshot into a failure.
+        }
+      });
+    } catch {
+      // A prepared publication never reports failure after its snapshot swap.
+    }
+  }
+
+  private announcePublishedListener(bindAddr: string, requestedPort: number, actualPort: number): void {
+    if (actualPort !== requestedPort) {
+      try {
+        this.onPortChange?.(actualPort);
+      } catch {
+        // Publication hooks are advisory and cannot invalidate the committed socket swap.
+      }
+    }
+    try {
+      this.logInfo(`[OutboundApiServer] Listening on ${bindAddr}:${actualPort}`);
+    } catch {
+      // Logging cannot turn a committed listener snapshot into a failure.
+    }
   }
 
   /** Per-request handler. Auth is enforced on EVERY request (incl. loopback). */
@@ -324,6 +500,8 @@ export class OutboundApiServer {
     const isLan = this.boundAddr === LAN_ADDR;
     const lanIp = isLan ? firstLanIPv4() : null;
     const lanBase = lanIp ? `http://${lanIp}:${port}` : null;
+    const images = this.imagesEnabled ? imageFormatUrls(loopbackBase) : undefined;
+    const lanImages = this.imagesEnabled && lanBase ? imageFormatUrls(lanBase) : undefined;
     return {
       running: true,
       port,
@@ -331,6 +509,8 @@ export class OutboundApiServer {
       lanUrl: lanBase,
       formats: formatUrls(loopbackBase),
       lanFormats: lanBase ? formatUrls(lanBase) : null,
+      ...(images ? { images } : {}),
+      ...(lanImages ? { lanImages } : {}),
     };
   }
 
@@ -357,6 +537,13 @@ export function formatUrls(base: string): OutboundFormatUrls {
     responses: `${base}/v1/responses`,
     messages: `${base}/v1/messages`,
     gemini: `${base}/v1beta/models/{model}:generateContent`,
+  };
+}
+
+function imageFormatUrls(base: string): { generations: string; edits: string } {
+  return {
+    generations: `${base}/v1/images/generations`,
+    edits: `${base}/v1/images/edits`,
   };
 }
 

@@ -68,6 +68,12 @@ export {
   saveServerConfig,
 } from './apiServerConfig';
 export {
+  DEFAULT_IMAGES_SERVER_CONFIG,
+  IMAGE_SERVER_HARD_CEILINGS,
+  normalizeImagesServerConfig,
+  validateImagesServerConfig,
+} from './imagesServerConfig';
+export {
   candidateBackgroundModelIds,
   candidateGatewayBindings,
   gatewayBindingToEndpointConfig,
@@ -123,9 +129,12 @@ export {
 export {
   createIntegrationKey,
   createNamedKey,
+  effectiveOutboundPermissions,
   hashKey,
+  LEGACY_OUTBOUND_PERMISSIONS,
   type KeyVerification,
   randomBase62,
+  validateOutboundPermissions,
   verifyKey,
   verifyPresentedKey,
   type VerifiedKey,
@@ -163,6 +172,7 @@ export {
 } from './keySpendTracker';
 export type {
   ApplyConfigInput,
+  PreparedOutboundApiConfig,
 } from './OutboundApiServer';
 export {
   DEFAULT_OUTBOUND_PORT,
@@ -209,7 +219,9 @@ export type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundEndpoint,
+  OutboundPermission,
   OutboundFormatUrls,
+  ImagesServerConfig,
   OutboundKeyActivationMode,
   OutboundKeyDb,
   OutboundKeyDbRow,

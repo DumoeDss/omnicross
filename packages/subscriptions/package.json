@@ -23,7 +23,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.9"
   },
   "type": "module",
   "main": "dist/index.cjs",
@@ -54,6 +54,7 @@
   "dependencies": {
     "@omnicross/contracts": "^0.1.0",
     "@omnicross/core": "^0.1.0",
-    "js-tiktoken": "^1.0.21"
+    "js-tiktoken": "^1.0.21",
+    "sharp": "^0.35.4"
   }
 }

@@ -32,12 +32,17 @@
 
 import type { AccountTokensConfig } from '@omnicross/contracts/account-tokens-types';
 import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
+import {
+  normalizeServerConfig,
+  type OutboundApiServerConfig,
+} from '@omnicross/core/outbound-api';
 
 import { type DaemonConfig, type DaemonProviderConfig, loadConfig, saveConfig } from '../config';
 import { validateTokenBody } from '../admin/accountsWrite';
 import type { SubscriptionAccountAppender } from '../admin/accountsOAuth';
 import { DAEMON_PROVIDER_KEYS, type DaemonProvider } from '../ports/account-multi';
 import type { SubscriptionTokenBlock } from '../ports/JsonSubscriptionCredentialStore';
+import { validateImagesAdminConfig } from '../image-generation/imagesConfigValidation';
 
 import { openPack, sealPack } from './packCodec';
 
@@ -52,6 +57,8 @@ interface MigrationBundle {
   v: number;
   providers: DaemonProviderConfig[];
   tokens: AccountTokensConfig;
+  /** Optional for backwards compatibility with version-1 packs created before Images. */
+  server?: OutboundApiServerConfig;
 }
 
 /** The status-only import counts (the import response — never a secret). */
@@ -111,6 +118,7 @@ export async function gatherExport(deps: ExportDeps, passphrase: string): Promis
     v: BUNDLE_VERSION,
     providers: cfg.providers,
     tokens,
+    server: normalizeServerConfig(cfg.server),
   };
   // Seal — the bundle JSON + passphrase live only here and are dropped after.
   return sealPack(JSON.stringify(bundle), passphrase);
@@ -180,6 +188,18 @@ export async function applyImport(
   const rawProviders = Array.isArray(bundle.providers) ? bundle.providers : [];
   const rawTokens =
     bundle.tokens && typeof bundle.tokens === 'object' ? bundle.tokens : ({ updatedAt: '' } as AccountTokensConfig);
+  let validatedServer: OutboundApiServerConfig | undefined;
+  if (mode === 'overwrite' && bundle.server !== undefined) {
+    if (!bundle.server || typeof bundle.server !== 'object' || Array.isArray(bundle.server)) {
+      throw new Error('migration pack has an invalid server config');
+    }
+    const rawServer = bundle.server as unknown as Record<string, unknown>;
+    if (rawServer['images'] !== undefined) {
+      const imageErrors = validateImagesAdminConfig(rawServer['images']);
+      if (imageErrors.length > 0) throw new Error('migration pack has an invalid Images config');
+    }
+    validatedServer = normalizeServerConfig(bundle.server);
+  }
 
   // ── VALIDATE EVERYTHING FIRST (deny-by-default, collect; no write yet) ───────
   // Provider rows through the SAME write gateway the admin router uses. A
@@ -236,6 +256,7 @@ export async function applyImport(
     counts.providerKeys += 1;
     if (incoming.apiKeys) counts.poolKeys += incoming.apiKeys.length;
   }
+  if (validatedServer) cfg.server = validatedServer;
   // Persist the merged config (re-encrypts at-rest under the LOCAL box) + reload.
   saveConfig(deps.configPath, cfg);
   deps.llmConfig.reload(cfg);

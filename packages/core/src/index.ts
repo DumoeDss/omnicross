@@ -52,6 +52,9 @@ export type { UsageRecorderImport } from './provider-proxy/types'
 export type { CostCalculation, PricingEngineOptions, UsageRecorderOptions, UsageRecordInput } from './usage/index'
 export { PricingEngine, UsageRecorder } from './usage/index'
 
+// ── Provider-neutral image generation foundation ────────────────────────────
+export * from './image-generation'
+
 // ── Completion (CompletionService + LLM utilities) ───────────────────────────
 export * from './completion'
 

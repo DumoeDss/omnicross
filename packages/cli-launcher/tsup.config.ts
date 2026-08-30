@@ -14,8 +14,11 @@ export default defineConfig({
   dts: true,
   sourcemap: false,
   clean: true,
-  // ESM splitting shares internal modules across entries so module-level
-  // singletons (the ProcessSupervisor instance) stay single-instance.
-  // CJS keeps per-entry inlining (esbuild limitation; ESM-only consumers).
-  splitting: true,
+  // Optional native code must stay runtime-loaded. Bundling node-pty embeds its
+  // ESM-only import.meta shim into the CJS chunk and makes require() unparsable.
+  external: ['node-pty'],
+  // Keep both formats self-contained. Shared CJS chunks preserve import.meta
+  // syntax and become unparsable; the only duplicated entry module is the
+  // stateless PTY adapter, while the ProcessSupervisor singleton stays in index.
+  splitting: false,
 });

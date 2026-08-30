@@ -33,6 +33,55 @@ import type { VoucherDb } from './voucher';
 /** The four endpoints, 1:1 with the four wire-format ingress parsers. */
 export type OutboundEndpoint = 'chat' | 'responses' | 'messages' | 'gemini';
 
+/** Named-key authorization vocabulary. Images is deliberately not a text route. */
+export type OutboundPermission = OutboundEndpoint | 'images';
+
+export interface ImagesServerConfig {
+  enabled: boolean;
+  provider: 'codex-subscription';
+  defaultModel: string;
+  modelAliases: Record<string, string>;
+  account: {
+    id?: string;
+    group?: string;
+    fallback: 'strict' | 'pool';
+  };
+  queue: {
+    maxConcurrentJobsPerAccount: number;
+    maxQueuedJobs: number;
+    queueTimeoutMs: number;
+    generationTimeoutMs: number;
+  };
+  temporary: {
+    maxActiveScopes: number;
+    maxTotalBytes: number;
+    maxTenantBytes: number;
+    staleAfterMs: number;
+    cleanupIntervalMs: number;
+  };
+  limits: import('../image-generation/openai-images/types').ImageApiLimits;
+  references: {
+    ttlMs: number;
+    maxArtifactBytes: number;
+    maxTotalBytes: number;
+    maxTenantBytes: number;
+    maxEntries: number;
+    maxCalls: number;
+    maxResponses: number;
+    maxTombstones: number;
+    tombstoneTtlMs: number;
+    cleanupIntervalMs: number;
+    storageRoot?: string;
+  };
+  remote: { enabled: boolean };
+  evidenceTtlMs: number;
+}
+
+/** Non-consuming, account-bound image model discovery injected by the daemon. */
+export interface ImageModelCatalogReader {
+  listAvailableModels(apiKeyId: string): Promise<readonly string[]>;
+}
+
 /** A `"providerId,modelId"` model reference (mirrors `RouterConfig` vocab). */
 export type ModelRef = string;
 
@@ -536,6 +585,8 @@ export interface OutboundApiServerConfig {
    * with the frozen defaults (auto/auto/20000).
    */
   anthropic?: AnthropicConfigSegment;
+  /** Default-off Images serving policy; capability still requires fresh evidence. */
+  images?: ImagesServerConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */
@@ -551,6 +602,9 @@ export interface OutboundApiServerStatus {
   formats: OutboundFormatUrls | null;
   /** The four format endpoint URLs over the LAN (only when network binding on). */
   lanFormats: OutboundFormatUrls | null;
+  /** Additive Images endpoints; absent while Images is disabled. */
+  images?: { generations: string; edits: string } | null;
+  lanImages?: { generations: string; edits: string } | null;
 }
 
 /** The four format endpoint URLs for one base. */
@@ -579,8 +633,10 @@ export interface OutboundApiKeyInfo {
   revoked: boolean;
   /** Intended consumer. Existing rows default to a general client key. */
   kind?: 'client' | 'integration';
-  /** Optional endpoint allow-list. Absent means every outbound endpoint. */
-  allowedEndpoints?: OutboundEndpoint[];
+  /** Exact effective permission list; legacy absent rows project to text-only permissions. */
+  allowedEndpoints: OutboundPermission[];
+  /** True when the stored row omitted permissions and compatibility defaults were projected. */
+  legacyPermissions: boolean;
   /** When true the key is rejected unless the TCP peer is loopback. */
   loopbackOnly?: boolean;
   /**
@@ -663,6 +719,8 @@ export interface OutboundApiKeyCreated {
   name: string;
   keyPrefix: string;
   createdAt: number;
+  /** Exact effective permission list assigned to the new key. */
+  allowedEndpoints: OutboundPermission[];
   plaintextOnce: string;
 }
 
@@ -691,8 +749,8 @@ export interface OutboundKeyDbRow {
   revokedAt: number | null;
   /** Intended consumer. Existing rows without this field remain client keys. */
   kind?: 'client' | 'integration';
-  /** Optional endpoint allow-list for least-privilege integration keys. */
-  allowedEndpoints?: OutboundEndpoint[];
+  /** Persisted exact permission list. Absent is a legacy text-only row. */
+  allowedEndpoints?: OutboundPermission[];
   /** Restrict use to requests whose direct socket peer is loopback. */
   loopbackOnly?: boolean;
   /**
@@ -741,7 +799,7 @@ export interface OutboundKeyDb {
     keyPrefix: string;
     createdAt?: number;
     kind?: 'client' | 'integration';
-    allowedEndpoints?: OutboundEndpoint[];
+    allowedEndpoints?: OutboundPermission[];
     loopbackOnly?: boolean;
     /**
      * The generated plaintext secret. When the DB holds a `SecretBox` it
@@ -755,6 +813,8 @@ export interface OutboundKeyDb {
   outboundApiKeysRevoke(id: string): Promise<boolean>;
   outboundApiKeysTouchLastUsed(id: string): Promise<boolean>;
   outboundApiKeysSetEnabled(id: string, enabled: boolean): Promise<boolean>;
+  /** Atomically replace the exact key permission list. */
+  outboundApiKeysSetPermissions(id: string, permissions: OutboundPermission[]): Promise<boolean>;
   /**
    * Set (or clear) a key's per-key concurrency ceiling. `null` clears the field
    * → unlimited (gate bypassed). Mirrors `outboundApiKeysSetEnabled`; returns
@@ -818,6 +878,8 @@ export interface OutboundApiDeps {
   readonly providerProxy: ProviderProxy;
   /** The proxy's app-session deps (reused verbatim for `routeRequest`). */
   readonly proxyDeps: ProviderProxyDeps;
+  /** Optional fail-closed Images catalog; absent means no image model is advertised. */
+  readonly imageModelCatalog?: ImageModelCatalogReader;
   /**
    * OPTIONAL unauthenticated `/health` provider (daemon-health-endpoint, D1
    * secondary mount). When wired (by the daemon bootstrap — core NEVER imports

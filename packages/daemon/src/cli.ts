@@ -66,6 +66,10 @@ Usage:
                                            Check Claude gateway readiness (routing, count_tokens,
                                            models shape, heartbeat, /api/* flags); --live probes a
                                            running gateway with one free count_tokens call.
+  omnicross doctor images --config <p> [--live]
+                                           Check local Images config, roots, stores, permissions,
+                                           account and cached evidence. --live warns, then consumes
+                                           at most one minimal subscription image request.
 `;
 
 async function main(): Promise<void> {

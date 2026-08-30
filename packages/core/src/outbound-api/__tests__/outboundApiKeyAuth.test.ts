@@ -7,9 +7,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createIntegrationKey,
   createNamedKey,
+  effectiveOutboundPermissions,
   generateSecret,
   hashKey,
   keyPrefix,
+  validateOutboundPermissions,
   verifyKey,
   verifyPresentedKey,
 } from '../outboundApiKeyAuth';
@@ -61,6 +63,12 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
       row.enabled = enabled;
       return true;
     },
+    outboundApiKeysSetPermissions: async (id, permissions) => {
+      const row = store.find((r) => r.id === id);
+      if (!row || row.revokedAt !== null) return false;
+      row.allowedEndpoints = validateOutboundPermissions(permissions);
+      return true;
+    },
     outboundApiKeysSetMaxConcurrency: async (id, maxConcurrency) => {
       const row = store.find((r) => r.id === id);
       if (!row || row.revokedAt !== null) return false;
@@ -109,6 +117,7 @@ describe('outboundApiKeyAuth', () => {
     const db = makeStubDb();
     const created = await createNamedKey(db, 'My laptop');
     expect(created.name).toBe('My laptop');
+    expect(created.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini']);
     expect(created.plaintextOnce.startsWith('sk-omnicross-')).toBe(true);
     expect(db.rows).toHaveLength(1);
     // The stored row carries the hash, never the plaintext.
@@ -126,6 +135,7 @@ describe('outboundApiKeyAuth', () => {
       allowedEndpoints: ['responses', 'messages'],
       loopbackOnly: true,
     });
+    expect(created.allowedEndpoints).toEqual(['responses', 'messages']);
     const verified = await verifyPresentedKey(db, created.plaintextOnce);
     expect(verified).toMatchObject({
       kind: 'integration',
@@ -184,13 +194,16 @@ describe('outboundApiKeyAuth', () => {
 });
 
 describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
-  it('a policy-less key resolves ok with a byte-identical {id} verified key', async () => {
+  it('a policy-less legacy key resolves with the four text permissions only', async () => {
     const db = makeStubDb();
     const created = await createNamedKey(db, 'plain');
     const res = await verifyKey(db, created.plaintextOnce);
     expect(res.status).toBe('ok');
     if (res.status !== 'ok') return;
-    expect(res.key).toEqual({ id: created.id });
+    expect(res.key).toEqual({
+      id: created.id,
+      allowedEndpoints: ['chat', 'responses', 'messages', 'gemini'],
+    });
     expect(res.key.costLimits).toBeUndefined();
     expect(res.key.rateLimit).toBeUndefined();
   });
@@ -252,6 +265,60 @@ describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
     if (res.status !== 'ok') return;
     expect(res.key.costLimits).toEqual({ dailyUsd: 5, totalUsd: 100 });
     expect(res.key.rateLimit).toEqual({ maxRequests: 10, windowMs: 1_000 });
+  });
+});
+
+describe('outbound permission compatibility', () => {
+  it('interprets absent, empty, and explicit stored lists exactly', async () => {
+    const secret = 'sk-omnicross-permission-compat';
+    const base: OutboundKeyDbRow = {
+      id: 'k-permissions',
+      name: 'permissions',
+      keyHash: hashKey(secret),
+      keyPrefix: 'sk-omnicross-',
+      enabled: true,
+      createdAt: 1,
+      lastUsedAt: null,
+      revokedAt: null,
+    };
+
+    const absent = await verifyPresentedKey(makeStubDb([{ ...base }]), secret);
+    expect(absent?.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini']);
+
+    const empty = await verifyPresentedKey(makeStubDb([{ ...base, allowedEndpoints: [] }]), secret);
+    expect(empty?.allowedEndpoints).toEqual([]);
+
+    const explicit = await verifyPresentedKey(
+      makeStubDb([{ ...base, allowedEndpoints: ['responses', 'images'] }]),
+      secret,
+    );
+    expect(explicit?.allowedEndpoints).toEqual(['responses', 'images']);
+  });
+
+  it('fails malformed persisted lists closed without widening access', async () => {
+    const secret = 'sk-omnicross-malformed-permissions';
+    const malformed = {
+      id: 'k-malformed',
+      name: 'malformed',
+      keyHash: hashKey(secret),
+      keyPrefix: 'sk-omnicross-',
+      enabled: true,
+      createdAt: 1,
+      lastUsedAt: null,
+      revokedAt: null,
+      allowedEndpoints: ['responses', 'unknown'],
+    } as unknown as OutboundKeyDbRow;
+    const verified = await verifyPresentedKey(makeStubDb([malformed]), secret);
+    expect(verified?.allowedEndpoints).toEqual([]);
+    expect(effectiveOutboundPermissions('not-an-array')).toEqual([]);
+  });
+
+  it('strictly rejects unknown and duplicate permission updates while allowing deny-all', () => {
+    expect(validateOutboundPermissions([])).toEqual([]);
+    expect(validateOutboundPermissions(['images', 'responses'])).toEqual(['images', 'responses']);
+    expect(() => validateOutboundPermissions(['images', 'images'])).toThrow(/duplicates/);
+    expect(() => validateOutboundPermissions(['files'])).toThrow(/unknown/);
+    expect(() => validateOutboundPermissions(null)).toThrow(/array/);
   });
 });
 

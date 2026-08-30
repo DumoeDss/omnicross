@@ -924,6 +924,16 @@
       "reveal": "View key",
       "revealError": "Failed to reveal this key.",
       "revealHint": "Decrypted on demand — copy it and treat it as securely as the original.",
+      "permissions": {
+        "title": "Endpoint permissions",
+        "legacy": "Legacy defaults",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Images",
+        "hint": "Responses and Images are separate permissions. Legacy keys keep the four text endpoints but do not gain Images access."
+      },
       "bindings": {
         "title": "Downstream interfaces",
         "count": "Bound to {{count}} downstreams",
@@ -957,6 +967,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Image generation",
+      "description": "Control the default-off Images endpoints and inspect their evidence-backed runtime state.",
+      "unsupportedDaemon": "This daemon does not expose Images configuration yet.",
+      "enable": "Enable Images endpoints",
+      "entitlementWarning": "Enabled configuration does not prove subscription entitlement. Effective availability requires fresh evidence for the selected account.",
+      "track": {
+        "configured": "Configured",
+        "effective": "Effective",
+        "on": "Enabled",
+        "off": "Disabled",
+        "available": "Available",
+        "unavailable": "Unavailable",
+        "unknown": "No fresh capability evidence"
+      },
+      "account": {
+        "label": "Account selection",
+        "pool": "Eligible account pool",
+        "group": "Group: {{group}}",
+        "account": "Codex account {{number}}",
+        "fallback": "Fallback policy",
+        "strict": "Strict selection",
+        "poolFallback": "Allow pool fallback"
+      },
+      "features": {
+        "title": "Verified feature matrix",
+        "generate": "Generate",
+        "edit": "Edit",
+        "maskEdit": "Mask edit",
+        "streaming": "Streaming",
+        "transparentBackground": "Transparency",
+        "responsesTool": "Responses tool",
+        "supported": "Supported",
+        "unsupported": "Unsupported"
+      },
+      "evidence": "Fresh evidence observed {{age}} seconds ago.",
+      "noEvidence": "No fresh evidence is available. Polling this view never generates an image.",
+      "resources": {
+        "title": "Runtime utilization",
+        "queue": "Queue",
+        "temporary": "Temporary storage",
+        "references": "Retained references",
+        "bytes": "Temporary {{temporary}} · references {{references}}",
+        "unavailable": "Runtime utilization is unavailable while the Images runtime is offline."
+      },
+      "remote": {
+        "enabledWarning": "Remote URLs are enabled only through the hardened resolver policy.",
+        "disabled": "Remote image URLs are disabled."
+      },
+      "storage": {
+        "custom": "A private custom storage root is configured; its path is hidden.",
+        "privateDefault": "Artifacts use the daemon's private application-data storage."
       }
     },
     "queue": {

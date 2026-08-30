@@ -23,6 +23,7 @@ import type {
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundKeyPolicyPatch,
+  OutboundPermissionId,
   GatewayBinding,
 } from '@/daemon/types';
 
@@ -44,11 +45,38 @@ interface KeyManagementSectionProps {
   onDelete: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
+  onSetPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   onDismissCreated: () => void;
   bindings?: GatewayBinding[];
   onOpenBinding?: (binding: GatewayBinding) => void;
   onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
+}
+
+export const KEY_PERMISSION_OPTIONS: readonly OutboundPermissionId[] = Object.freeze([
+  'chat',
+  'responses',
+  'messages',
+  'gemini',
+  'images',
+]);
+
+/** Legacy absent lists preserve only the four historic text permissions. */
+export function effectiveKeyPermissions(
+  permissions: OutboundPermissionId[] | undefined,
+): readonly OutboundPermissionId[] {
+  return permissions ?? KEY_PERMISSION_OPTIONS.filter((permission) => permission !== 'images');
+}
+
+export function toggleKeyPermission(
+  permissions: OutboundPermissionId[] | undefined,
+  permission: OutboundPermissionId,
+  enabled: boolean,
+): OutboundPermissionId[] {
+  const selected = new Set(effectiveKeyPermissions(permissions));
+  if (enabled) selected.add(permission);
+  else selected.delete(permission);
+  return KEY_PERMISSION_OPTIONS.filter((candidate) => selected.has(candidate));
 }
 
 /**
@@ -193,6 +221,7 @@ export function KeyManagementSection({
   onDelete,
   onToggle,
   onSetMaxConcurrency,
+  onSetPermissions,
   onSetPolicy,
   onDismissCreated,
   bindings = [],
@@ -363,6 +392,41 @@ export function KeyManagementSection({
               </div>
               {!k.revoked ? (
                 <div className="mt-2 border-t border-border/60 pt-2">
+                  <div className="mb-2">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <KeyRound className="h-3 w-3" />
+                      {t('apiService.keys.permissions.title')}
+                      {k.legacyPermissions === true ? (
+                        <Badge variant="outline">{t('apiService.keys.permissions.legacy')}</Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-1.5 grid gap-1.5 sm:grid-cols-5">
+                      {KEY_PERMISSION_OPTIONS.map((permission) => (
+                        <label
+                          key={permission}
+                          className={permission === 'images'
+                            ? 'flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5 text-xs'
+                            : 'flex items-center gap-2 rounded-md border border-border/60 px-2 py-1.5 text-xs'}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={effectiveKeyPermissions(k.allowedEndpoints).includes(permission)}
+                            disabled={busy}
+                            onChange={(event) => void onSetPermissions(
+                              k.id,
+                              toggleKeyPermission(k.allowedEndpoints, permission, event.target.checked),
+                            )}
+                          />
+                          <span className="truncate text-foreground">
+                            {t(`apiService.keys.permissions.${permission}`)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground">
+                      {t('apiService.keys.permissions.hint')}
+                    </p>
+                  </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <Route className="h-3 w-3" />
                     {relatedBindings.length
