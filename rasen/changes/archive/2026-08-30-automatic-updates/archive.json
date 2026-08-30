@@ -1,0 +1,41 @@
+{
+  "change": "automatic-updates",
+  "archivedAt": "2026-08-30T22:02:56.834Z",
+  "codeCommit": "911fc614644e0292c28e604c92222c749af61944",
+  "planningBranch": "feat/automatic-updates",
+  "planningTreeState": "dirty",
+  "evidence": [
+    {
+      "path": "evidence/completion-audit.md",
+      "sha256": "e4c4e5ec89ceec8f2319e2384ee150508d583d991997a81461773957279ff6cd"
+    },
+    {
+      "path": "evidence/review-cycle-report.md",
+      "sha256": "15af8659d7a9616e69389aac5c6915c6022753f200a66b7620863f2cd0e3ea31"
+    },
+    {
+      "path": "evidence/review-report.md",
+      "sha256": "ea4041072e2c929731e2e6e4ec161e2f96dfb6d2064c511cb2b97ad6879ee83d"
+    },
+    {
+      "path": "evidence/ship-log.md",
+      "sha256": "9675d8fd2dee38c569208017f047d260ccca319f19727106522ff2c83e82f8f0"
+    },
+    {
+      "path": "evidence/signed-draft-smoke.md",
+      "sha256": "95212c9dd6430ac4bd086ec3bea4b62b83197d76f708d85f0c59ce3ff8ac6263"
+    },
+    {
+      "path": "evidence/verification.md",
+      "sha256": "ab82ac4e597c18b7b77ffc0531b939ac92cf50f937864dd1241d52fc1c692c23"
+    }
+  ],
+  "probes": [],
+  "handoffAbsorbed": [],
+  "ephemeraDiscarded": [
+    "auto-run.json"
+  ],
+  "missing": [
+    "verification-report"
+  ]
+}

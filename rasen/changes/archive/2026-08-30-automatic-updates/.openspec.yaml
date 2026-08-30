@@ -1,0 +1,11 @@
+schema: spec-driven
+created: 2026-08-23
+quality:
+  files:
+    - evidence/completion-audit.md
+    - evidence/review-cycle-report.md
+    - evidence/review-report.md
+  metrics:
+    evidence/completion-audit.md: 0
+    evidence/review-cycle-report.md: 0
+    evidence/review-report.md: 0
