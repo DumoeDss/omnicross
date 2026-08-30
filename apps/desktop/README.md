@@ -43,9 +43,11 @@ npm run build       # tauri build
 `npm pack`s all workspace packages and does a production `npm install` into
 `src-tauri/daemon-runtime/`). The install uses `--omit=optional`, so node-pty
 (a native addon the daemon never loads — pty mode is for embedded-terminal
-hosts) stays out; the staged tree is pure JS. It then **stages a private Node
-binary** (`scripts/stage-node.mjs`) into `daemon-runtime/runtime/` so the pure-JS
-daemon can run without any system Node.js. Then `tauri build` vite-builds
+hosts) stays out, then explicitly installs only the target-specific Sharp addon
+needed for image processing. It then **stages a private Node binary**
+(`scripts/stage-node.mjs`) into `daemon-runtime/runtime/` and verifies that this
+binary can load Sharp. The daemon can therefore run without any system Node.js.
+Then `tauri build` vite-builds
 `packages/ui` (via `beforeBuildCommand`), compiles the Rust shell in release
 mode, and produces:
 
@@ -62,7 +64,8 @@ to speed up packaging. To build just the exe without installers:
 
 > **Daemon runtime:** the installer **bundles both the daemon and a private Node
 > runtime**, so the target machine needs **nothing installed**. The staged
-> `daemon-runtime/` ships as a Tauri resource (pure JS, no native addons), with
+> `daemon-runtime/` ships as a Tauri resource (plus Sharp's target-specific
+> native addon), with
 > the platform's official `node` binary at `daemon-runtime/runtime/node[.exe]`
 > (staged by `scripts/stage-node.mjs`; macOS universal builds `lipo` the arm64 +
 > x64 node into one fat binary). At startup the shell resolves the daemon entry
