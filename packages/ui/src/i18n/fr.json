@@ -591,6 +591,16 @@
         "copied": "Copié",
         "dismiss": "Terminé"
       },
+      "permissions": {
+        "title": "Autorisations des points de terminaison",
+        "legacy": "Valeurs par défaut héritées",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Images",
+        "hint": "Responses et Images disposent d’autorisations distinctes. Les anciennes clés conservent les quatre points de terminaison texte, sans obtenir l’accès aux Images."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Génération d’images",
+      "description": "Contrôlez les points de terminaison Images, désactivés par défaut, et consultez leur état d’exécution fondé sur des preuves.",
+      "unsupportedDaemon": "Ce démon n’expose pas encore la configuration Images.",
+      "enable": "Activer les points de terminaison Images",
+      "entitlementWarning": "L’activation de la configuration ne prouve pas l’éligibilité de l’abonnement. La disponibilité effective exige des preuves récentes pour le compte sélectionné.",
+      "track": {
+        "configured": "Configuré",
+        "effective": "Effectif",
+        "on": "Activé",
+        "off": "Désactivé",
+        "available": "Disponible",
+        "unavailable": "Indisponible",
+        "unknown": "Aucune preuve récente de capacité"
+      },
+      "account": {
+        "label": "Sélection du compte",
+        "pool": "Groupe de comptes éligibles",
+        "group": "Groupe : {{group}}",
+        "account": "Compte Codex {{number}}",
+        "fallback": "Stratégie de repli",
+        "strict": "Sélection stricte",
+        "poolFallback": "Autoriser le repli sur le groupe"
+      },
+      "features": {
+        "title": "Matrice des fonctionnalités vérifiées",
+        "generate": "Générer",
+        "edit": "Modifier",
+        "maskEdit": "Modification avec masque",
+        "streaming": "Diffusion en continu",
+        "transparentBackground": "Transparence",
+        "responsesTool": "Outil Responses",
+        "supported": "Pris en charge",
+        "unsupported": "Non pris en charge"
+      },
+      "evidence": "Preuve récente observée il y a {{age}} secondes.",
+      "noEvidence": "Aucune preuve récente n’est disponible. L’actualisation de cette vue ne génère jamais d’image.",
+      "resources": {
+        "title": "Utilisation de l’environnement d’exécution",
+        "queue": "File d’attente",
+        "temporary": "Stockage temporaire",
+        "references": "Références conservées",
+        "bytes": "Temporaire {{temporary}} · références {{references}}",
+        "unavailable": "L’utilisation est indisponible lorsque l’environnement Images est hors ligne."
+      },
+      "remote": {
+        "enabledWarning": "Les URL distantes ne sont activées qu’au moyen de la stratégie de résolution renforcée.",
+        "disabled": "Les URL d’images distantes sont désactivées."
+      },
+      "storage": {
+        "custom": "Une racine de stockage privée personnalisée est configurée ; son chemin est masqué.",
+        "privateDefault": "Les artefacts utilisent le stockage privé des données d’application du démon."
       }
     },
     "queue": {

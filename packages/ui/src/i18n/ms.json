@@ -591,6 +591,16 @@
         "copied": "Disalin",
         "dismiss": "Selesai"
       },
+      "permissions": {
+        "title": "Kebenaran titik akhir",
+        "legacy": "Lalai lama",
+        "chat": "Sembang",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Imej",
+        "hint": "Responses dan Imej mempunyai kebenaran berasingan. Kunci lama mengekalkan empat titik akhir teks tetapi tidak mendapat akses Imej."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Penjanaan imej",
+      "description": "Kawal titik akhir Images yang dimatikan secara lalai dan semak status masa jalan yang disokong bukti.",
+      "unsupportedDaemon": "Daemon ini belum menyediakan konfigurasi Images.",
+      "enable": "Dayakan titik akhir Images",
+      "entitlementWarning": "Konfigurasi yang didayakan tidak membuktikan kelayakan langganan. Ketersediaan sebenar memerlukan bukti terkini untuk akaun yang dipilih.",
+      "track": {
+        "configured": "Dikonfigurasikan",
+        "effective": "Berkuat kuasa",
+        "on": "Didayakan",
+        "off": "Dilumpuhkan",
+        "available": "Tersedia",
+        "unavailable": "Tidak tersedia",
+        "unknown": "Tiada bukti keupayaan terkini"
+      },
+      "account": {
+        "label": "Pemilihan akaun",
+        "pool": "Kumpulan akaun yang layak",
+        "group": "Kumpulan: {{group}}",
+        "account": "Akaun Codex {{number}}",
+        "fallback": "Dasar pilihan sandaran",
+        "strict": "Pemilihan ketat",
+        "poolFallback": "Benarkan pilihan sandaran daripada kumpulan"
+      },
+      "features": {
+        "title": "Matriks ciri yang disahkan",
+        "generate": "Jana",
+        "edit": "Sunting",
+        "maskEdit": "Suntingan topeng",
+        "streaming": "Penstriman",
+        "transparentBackground": "Ketelusan",
+        "responsesTool": "Alat Responses",
+        "supported": "Disokong",
+        "unsupported": "Tidak disokong"
+      },
+      "evidence": "Bukti terkini diperhatikan {{age}} saat yang lalu.",
+      "noEvidence": "Tiada bukti terkini tersedia. Memuat semula paparan ini tidak pernah menjana imej.",
+      "resources": {
+        "title": "Penggunaan masa jalan",
+        "queue": "Baris gilir",
+        "temporary": "Storan sementara",
+        "references": "Rujukan yang disimpan",
+        "bytes": "Sementara {{temporary}} · rujukan {{references}}",
+        "unavailable": "Penggunaan tidak tersedia semasa masa jalan Images di luar talian."
+      },
+      "remote": {
+        "enabledWarning": "URL jauh hanya didayakan melalui dasar penyelesai yang diperkukuh.",
+        "disabled": "URL imej jauh dilumpuhkan."
+      },
+      "storage": {
+        "custom": "Akar storan peribadi tersuai telah dikonfigurasikan; laluannya disembunyikan.",
+        "privateDefault": "Artifak menggunakan storan data aplikasi peribadi daemon."
       }
     },
     "queue": {

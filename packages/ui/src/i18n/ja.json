@@ -687,6 +687,16 @@
         "copied": "コピーしました",
         "dismiss": "完了"
       },
+      "permissions": {
+        "title": "エンドポイント権限",
+        "legacy": "従来の既定値",
+        "chat": "チャット",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "画像",
+        "hint": "Responses と画像は別々の権限です。従来のキーは4つのテキストエンドポイントを維持しますが、画像へのアクセス権は追加されません。"
+      },
       "policy": {
         "title": "ポリシー",
         "expiryMode": "有効期限",
@@ -713,6 +723,60 @@
         "modelRestrictionList": "モデル",
         "modelRestrictionListHint": "1行に1つのモデルID",
         "modelRestrictionEmptyAllowlistWarning": "有効な許可リストが空の場合、すべてのリクエストを拒否します。"
+      }
+    },
+    "images": {
+      "title": "画像生成",
+      "description": "既定で無効な Images エンドポイントを管理し、証拠に基づくランタイム状態を確認します。",
+      "unsupportedDaemon": "このデーモンはまだ Images 設定を公開していません。",
+      "enable": "Images エンドポイントを有効にする",
+      "entitlementWarning": "設定を有効にしても、サブスクリプションの利用資格は証明されません。実際に利用するには、選択したアカウントの新しい証拠が必要です。",
+      "track": {
+        "configured": "設定済み",
+        "effective": "実効状態",
+        "on": "有効",
+        "off": "無効",
+        "available": "利用可能",
+        "unavailable": "利用不可",
+        "unknown": "新しい機能証拠がありません"
+      },
+      "account": {
+        "label": "アカウント選択",
+        "pool": "利用可能なアカウントプール",
+        "group": "グループ：{{group}}",
+        "account": "Codex アカウント {{number}}",
+        "fallback": "フォールバックポリシー",
+        "strict": "厳密な選択",
+        "poolFallback": "プールへのフォールバックを許可"
+      },
+      "features": {
+        "title": "検証済み機能マトリクス",
+        "generate": "生成",
+        "edit": "編集",
+        "maskEdit": "マスク編集",
+        "streaming": "ストリーミング",
+        "transparentBackground": "透明度",
+        "responsesTool": "Responses ツール",
+        "supported": "対応",
+        "unsupported": "非対応"
+      },
+      "evidence": "{{age}} 秒前に新しい証拠が確認されました。",
+      "noEvidence": "新しい証拠はありません。この画面を更新しても画像が生成されることはありません。",
+      "resources": {
+        "title": "ランタイム使用状況",
+        "queue": "キュー",
+        "temporary": "一時ストレージ",
+        "references": "保持中の参照",
+        "bytes": "一時 {{temporary}} · 参照 {{references}}",
+        "unavailable": "Images ランタイムがオフラインの間は使用状況を取得できません。"
+      },
+      "remote": {
+        "enabledWarning": "リモート URL は、強化されたリゾルバーポリシーを通じてのみ有効になります。",
+        "disabled": "リモート画像 URL は無効です。"
+      },
+      "storage": {
+        "custom": "非公開のカスタムストレージルートが設定されています。パスは表示されません。",
+        "privateDefault": "生成物はデーモンの非公開アプリケーションデータストレージを使用します。"
       }
     },
     "queue": {

@@ -591,6 +591,16 @@
         "copied": "Kopioitu",
         "dismiss": "Valmis"
       },
+      "permissions": {
+        "title": "Päätepisteiden käyttöoikeudet",
+        "legacy": "Vanhat oletukset",
+        "chat": "Keskustelu",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Kuvat",
+        "hint": "Responses ja Kuvat ovat erillisiä käyttöoikeuksia. Vanhat avaimet säilyttävät neljä tekstipäätepistettä, mutta eivät saa Kuvien käyttöoikeutta."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Kuvien luonti",
+      "description": "Hallitse oletuksena poistettuja Images-päätepisteitä ja tarkastele niiden näyttöön perustuvaa ajoaikaista tilaa.",
+      "unsupportedDaemon": "Tämä daemon ei vielä tarjoa Images-määritystä.",
+      "enable": "Ota Images-päätepisteet käyttöön",
+      "entitlementWarning": "Käytössä oleva määritys ei todista tilauksen käyttöoikeutta. Todellinen saatavuus edellyttää tuoretta näyttöä valitulta tililtä.",
+      "track": {
+        "configured": "Määritetty",
+        "effective": "Voimassa",
+        "on": "Käytössä",
+        "off": "Pois käytöstä",
+        "available": "Saatavilla",
+        "unavailable": "Ei saatavilla",
+        "unknown": "Ei tuoretta kapasiteettinäyttöä"
+      },
+      "account": {
+        "label": "Tilin valinta",
+        "pool": "Kelvollisten tilien joukko",
+        "group": "Ryhmä: {{group}}",
+        "account": "Codex-tili {{number}}",
+        "fallback": "Varakäytäntö",
+        "strict": "Tiukka valinta",
+        "poolFallback": "Salli varavalinta joukosta"
+      },
+      "features": {
+        "title": "Vahvistettu ominaisuusmatriisi",
+        "generate": "Luo",
+        "edit": "Muokkaa",
+        "maskEdit": "Maskimuokkaus",
+        "streaming": "Suoratoisto",
+        "transparentBackground": "Läpinäkyvyys",
+        "responsesTool": "Responses-työkalu",
+        "supported": "Tuettu",
+        "unsupported": "Ei tuettu"
+      },
+      "evidence": "Tuore näyttö havaittiin {{age}} sekuntia sitten.",
+      "noEvidence": "Tuoretta näyttöä ei ole saatavilla. Tämän näkymän päivittäminen ei koskaan luo kuvaa.",
+      "resources": {
+        "title": "Ajoajan käyttö",
+        "queue": "Jono",
+        "temporary": "Väliaikainen tallennustila",
+        "references": "Säilytetyt viitteet",
+        "bytes": "Väliaikainen {{temporary}} · viitteet {{references}}",
+        "unavailable": "Ajoajan käyttö ei ole saatavilla, kun Images-ajoympäristö on offline-tilassa."
+      },
+      "remote": {
+        "enabledWarning": "Etä-URL-osoitteet otetaan käyttöön vain vahvistetun ratkaisukäytännön kautta.",
+        "disabled": "Kuvien etä-URL-osoitteet on poistettu käytöstä."
+      },
+      "storage": {
+        "custom": "Yksityinen mukautettu tallennusjuuri on määritetty; sen polku on piilotettu.",
+        "privateDefault": "Artefaktit käyttävät daemonin yksityistä sovellustietojen tallennustilaa."
       }
     },
     "queue": {

@@ -591,6 +591,16 @@
         "copied": "Másolva",
         "dismiss": "Kész"
       },
+      "permissions": {
+        "title": "Végpontengedélyek",
+        "legacy": "Korábbi alapértékek",
+        "chat": "Csevegés",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Képek",
+        "hint": "A Responses és a Képek külön engedélyek. A korábbi kulcsok megtartják a négy szöveges végpontot, de nem kapnak hozzáférést a Képekhez."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Képgenerálás",
+      "description": "Kezelje az alapértelmezetten kikapcsolt Images-végpontokat, és tekintse meg a bizonyítékokkal alátámasztott futásidejű állapotukat.",
+      "unsupportedDaemon": "Ez a daemon még nem biztosít Images-konfigurációt.",
+      "enable": "Images-végpontok engedélyezése",
+      "entitlementWarning": "Az engedélyezett konfiguráció nem bizonyítja az előfizetési jogosultságot. A tényleges elérhetőséghez friss bizonyíték szükséges a kiválasztott fiókhoz.",
+      "track": {
+        "configured": "Konfigurálva",
+        "effective": "Tényleges",
+        "on": "Engedélyezve",
+        "off": "Letiltva",
+        "available": "Elérhető",
+        "unavailable": "Nem érhető el",
+        "unknown": "Nincs friss képességbizonyíték"
+      },
+      "account": {
+        "label": "Fiókválasztás",
+        "pool": "Jogosult fiókok készlete",
+        "group": "Csoport: {{group}}",
+        "account": "{{number}}. Codex-fiók",
+        "fallback": "Tartalék szabályzat",
+        "strict": "Szigorú kiválasztás",
+        "poolFallback": "Tartalék választás engedélyezése a készletből"
+      },
+      "features": {
+        "title": "Ellenőrzött funkciómátrix",
+        "generate": "Generálás",
+        "edit": "Szerkesztés",
+        "maskEdit": "Maszkos szerkesztés",
+        "streaming": "Adatfolyam",
+        "transparentBackground": "Átlátszóság",
+        "responsesTool": "Responses-eszköz",
+        "supported": "Támogatott",
+        "unsupported": "Nem támogatott"
+      },
+      "evidence": "Friss bizonyíték észlelve {{age}} másodperce.",
+      "noEvidence": "Nem érhető el friss bizonyíték. A nézet frissítése soha nem generál képet.",
+      "resources": {
+        "title": "Futásidejű kihasználtság",
+        "queue": "Várólista",
+        "temporary": "Ideiglenes tárhely",
+        "references": "Megőrzött hivatkozások",
+        "bytes": "Ideiglenes {{temporary}} · hivatkozások {{references}}",
+        "unavailable": "A kihasználtság nem érhető el, amikor az Images-futtatókörnyezet offline."
+      },
+      "remote": {
+        "enabledWarning": "A távoli URL-ek csak a megerősített feloldási szabályzaton keresztül engedélyezhetők.",
+        "disabled": "A távoli kép-URL-ek le vannak tiltva."
+      },
+      "storage": {
+        "custom": "Privát egyéni tárhelygyökér van beállítva; az elérési út rejtett.",
+        "privateDefault": "A műtermékek a daemon privát alkalmazásadat-tárhelyét használják."
       }
     },
     "queue": {

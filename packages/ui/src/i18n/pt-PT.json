@@ -591,6 +591,16 @@
         "copied": "Copiado",
         "dismiss": "Concluído"
       },
+      "permissions": {
+        "title": "Permissões dos endpoints",
+        "legacy": "Predefinições antigas",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Imagens",
+        "hint": "Responses e Imagens têm permissões distintas. As chaves antigas mantêm os quatro endpoints de texto, mas não obtêm acesso a Imagens."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Geração de imagens",
+      "description": "Controle os endpoints de Imagens, desativados por predefinição, e consulte o respetivo estado de execução sustentado por evidências.",
+      "unsupportedDaemon": "Este daemon ainda não disponibiliza a configuração de Imagens.",
+      "enable": "Ativar endpoints de Imagens",
+      "entitlementWarning": "Ativar a configuração não comprova o direito da subscrição. A disponibilidade efetiva exige evidências recentes da conta selecionada.",
+      "track": {
+        "configured": "Configurado",
+        "effective": "Efetivo",
+        "on": "Ativado",
+        "off": "Desativado",
+        "available": "Disponível",
+        "unavailable": "Indisponível",
+        "unknown": "Sem evidências recentes de capacidade"
+      },
+      "account": {
+        "label": "Seleção de conta",
+        "pool": "Conjunto de contas elegíveis",
+        "group": "Grupo: {{group}}",
+        "account": "Conta Codex {{number}}",
+        "fallback": "Política de recurso",
+        "strict": "Seleção estrita",
+        "poolFallback": "Permitir recurso ao conjunto"
+      },
+      "features": {
+        "title": "Matriz de funcionalidades verificadas",
+        "generate": "Gerar",
+        "edit": "Editar",
+        "maskEdit": "Edição com máscara",
+        "streaming": "Transmissão",
+        "transparentBackground": "Transparência",
+        "responsesTool": "Ferramenta Responses",
+        "supported": "Suportado",
+        "unsupported": "Não suportado"
+      },
+      "evidence": "Evidência recente observada há {{age}} segundos.",
+      "noEvidence": "Não existem evidências recentes disponíveis. Atualizar esta vista nunca gera uma imagem.",
+      "resources": {
+        "title": "Utilização do ambiente de execução",
+        "queue": "Fila",
+        "temporary": "Armazenamento temporário",
+        "references": "Referências mantidas",
+        "bytes": "Temporário {{temporary}} · referências {{references}}",
+        "unavailable": "A utilização não está disponível enquanto o ambiente de Imagens estiver offline."
+      },
+      "remote": {
+        "enabledWarning": "Os URL remotos só são ativados através da política de resolução reforçada.",
+        "disabled": "Os URL de imagens remotas estão desativados."
+      },
+      "storage": {
+        "custom": "Está configurada uma raiz de armazenamento privada personalizada; o caminho está oculto.",
+        "privateDefault": "Os artefactos utilizam o armazenamento privado de dados da aplicação do daemon."
       }
     },
     "queue": {

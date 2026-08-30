@@ -591,6 +591,16 @@
         "copied": "Skopiowano",
         "dismiss": "Gotowe"
       },
+      "permissions": {
+        "title": "Uprawnienia punktów końcowych",
+        "legacy": "Starsze ustawienia domyślne",
+        "chat": "Czat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Obrazy",
+        "hint": "Responses i Obrazy mają oddzielne uprawnienia. Starsze klucze zachowują cztery tekstowe punkty końcowe, ale nie uzyskują dostępu do Obrazów."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Generowanie obrazów",
+      "description": "Zarządzaj domyślnie wyłączonymi punktami końcowymi Images i sprawdzaj ich stan działania potwierdzony dowodami.",
+      "unsupportedDaemon": "Ten daemon nie udostępnia jeszcze konfiguracji Images.",
+      "enable": "Włącz punkty końcowe Images",
+      "entitlementWarning": "Włączenie konfiguracji nie potwierdza uprawnienia subskrypcji. Faktyczna dostępność wymaga świeżych dowodów dla wybranego konta.",
+      "track": {
+        "configured": "Skonfigurowano",
+        "effective": "Efektywne",
+        "on": "Włączone",
+        "off": "Wyłączone",
+        "available": "Dostępne",
+        "unavailable": "Niedostępne",
+        "unknown": "Brak świeżych dowodów możliwości"
+      },
+      "account": {
+        "label": "Wybór konta",
+        "pool": "Pula kwalifikujących się kont",
+        "group": "Grupa: {{group}}",
+        "account": "Konto Codex {{number}}",
+        "fallback": "Zasady wyboru zapasowego",
+        "strict": "Ścisły wybór",
+        "poolFallback": "Zezwól na wybór zapasowy z puli"
+      },
+      "features": {
+        "title": "Zweryfikowana macierz funkcji",
+        "generate": "Generowanie",
+        "edit": "Edycja",
+        "maskEdit": "Edycja z maską",
+        "streaming": "Strumieniowanie",
+        "transparentBackground": "Przezroczystość",
+        "responsesTool": "Narzędzie Responses",
+        "supported": "Obsługiwane",
+        "unsupported": "Nieobsługiwane"
+      },
+      "evidence": "Świeże dowody zaobserwowano {{age}} sekund temu.",
+      "noEvidence": "Brak świeżych dowodów. Odświeżanie tego widoku nigdy nie generuje obrazu.",
+      "resources": {
+        "title": "Wykorzystanie środowiska wykonawczego",
+        "queue": "Kolejka",
+        "temporary": "Pamięć tymczasowa",
+        "references": "Zachowane odwołania",
+        "bytes": "Tymczasowe {{temporary}} · odwołania {{references}}",
+        "unavailable": "Wykorzystanie jest niedostępne, gdy środowisko Images jest offline."
+      },
+      "remote": {
+        "enabledWarning": "Zdalne adresy URL są włączane wyłącznie przez wzmocnione zasady resolvera.",
+        "disabled": "Zdalne adresy URL obrazów są wyłączone."
+      },
+      "storage": {
+        "custom": "Skonfigurowano prywatny niestandardowy katalog główny pamięci; jego ścieżka jest ukryta.",
+        "privateDefault": "Artefakty korzystają z prywatnej pamięci danych aplikacji daemona."
       }
     },
     "queue": {

@@ -591,6 +591,16 @@
         "copied": "Zkopírováno",
         "dismiss": "Hotovo"
       },
+      "permissions": {
+        "title": "Oprávnění koncových bodů",
+        "legacy": "Původní výchozí hodnoty",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Obrázky",
+        "hint": "Responses a Obrázky mají samostatná oprávnění. Původní klíče si ponechají čtyři textové koncové body, ale nezískají přístup k Obrázkům."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Generování obrázků",
+      "description": "Spravujte ve výchozím stavu vypnuté koncové body Images a sledujte jejich běhový stav podložený důkazy.",
+      "unsupportedDaemon": "Tento daemon zatím neposkytuje konfiguraci Images.",
+      "enable": "Povolit koncové body Images",
+      "entitlementWarning": "Povolená konfigurace nedokládá oprávnění předplatného. Skutečná dostupnost vyžaduje čerstvé důkazy pro vybraný účet.",
+      "track": {
+        "configured": "Nakonfigurováno",
+        "effective": "Účinné",
+        "on": "Povoleno",
+        "off": "Zakázáno",
+        "available": "Dostupné",
+        "unavailable": "Nedostupné",
+        "unknown": "Žádné čerstvé důkazy o schopnosti"
+      },
+      "account": {
+        "label": "Výběr účtu",
+        "pool": "Fond způsobilých účtů",
+        "group": "Skupina: {{group}}",
+        "account": "Účet Codex {{number}}",
+        "fallback": "Zásady náhradního výběru",
+        "strict": "Přísný výběr",
+        "poolFallback": "Povolit náhradní výběr z fondu"
+      },
+      "features": {
+        "title": "Ověřená matice funkcí",
+        "generate": "Generovat",
+        "edit": "Upravit",
+        "maskEdit": "Úprava s maskou",
+        "streaming": "Streamování",
+        "transparentBackground": "Průhlednost",
+        "responsesTool": "Nástroj Responses",
+        "supported": "Podporováno",
+        "unsupported": "Nepodporováno"
+      },
+      "evidence": "Čerstvé důkazy byly zaznamenány před {{age}} sekundami.",
+      "noEvidence": "Nejsou dostupné žádné čerstvé důkazy. Obnovování tohoto zobrazení nikdy nevygeneruje obrázek.",
+      "resources": {
+        "title": "Využití běhového prostředí",
+        "queue": "Fronta",
+        "temporary": "Dočasné úložiště",
+        "references": "Uchované reference",
+        "bytes": "Dočasně {{temporary}} · reference {{references}}",
+        "unavailable": "Využití není dostupné, když je běhové prostředí Images offline."
+      },
+      "remote": {
+        "enabledWarning": "Vzdálené adresy URL jsou povoleny pouze prostřednictvím zesílených zásad resolveru.",
+        "disabled": "Vzdálené adresy URL obrázků jsou zakázány."
+      },
+      "storage": {
+        "custom": "Je nakonfigurován soukromý vlastní kořen úložiště; jeho cesta je skrytá.",
+        "privateDefault": "Artefakty používají soukromé úložiště aplikačních dat daemonu."
       }
     },
     "queue": {

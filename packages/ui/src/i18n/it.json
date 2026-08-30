@@ -591,6 +591,16 @@
         "copied": "Copiato",
         "dismiss": "Fatto"
       },
+      "permissions": {
+        "title": "Autorizzazioni degli endpoint",
+        "legacy": "Valori predefiniti legacy",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Immagini",
+        "hint": "Responses e Immagini hanno autorizzazioni separate. Le chiavi legacy mantengono i quattro endpoint di testo, ma non ottengono l’accesso alle Immagini."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Generazione di immagini",
+      "description": "Controlla gli endpoint Immagini, disattivati per impostazione predefinita, e verifica il loro stato di runtime supportato da evidenze.",
+      "unsupportedDaemon": "Questo daemon non espone ancora la configurazione Immagini.",
+      "enable": "Abilita gli endpoint Immagini",
+      "entitlementWarning": "L’abilitazione della configurazione non dimostra il diritto della sottoscrizione. La disponibilità effettiva richiede evidenze recenti per l’account selezionato.",
+      "track": {
+        "configured": "Configurato",
+        "effective": "Effettivo",
+        "on": "Abilitato",
+        "off": "Disabilitato",
+        "available": "Disponibile",
+        "unavailable": "Non disponibile",
+        "unknown": "Nessuna evidenza recente delle capacità"
+      },
+      "account": {
+        "label": "Selezione account",
+        "pool": "Pool di account idonei",
+        "group": "Gruppo: {{group}}",
+        "account": "Account Codex {{number}}",
+        "fallback": "Criterio di fallback",
+        "strict": "Selezione rigorosa",
+        "poolFallback": "Consenti fallback sul pool"
+      },
+      "features": {
+        "title": "Matrice delle funzionalità verificate",
+        "generate": "Genera",
+        "edit": "Modifica",
+        "maskEdit": "Modifica con maschera",
+        "streaming": "Streaming",
+        "transparentBackground": "Trasparenza",
+        "responsesTool": "Strumento Responses",
+        "supported": "Supportato",
+        "unsupported": "Non supportato"
+      },
+      "evidence": "Evidenza recente osservata {{age}} secondi fa.",
+      "noEvidence": "Non sono disponibili evidenze recenti. L’aggiornamento di questa vista non genera mai un’immagine.",
+      "resources": {
+        "title": "Utilizzo del runtime",
+        "queue": "Coda",
+        "temporary": "Archiviazione temporanea",
+        "references": "Riferimenti conservati",
+        "bytes": "Temporanei {{temporary}} · riferimenti {{references}}",
+        "unavailable": "L’utilizzo non è disponibile mentre il runtime Immagini è offline."
+      },
+      "remote": {
+        "enabledWarning": "Gli URL remoti vengono abilitati solo tramite il criterio di risoluzione rinforzato.",
+        "disabled": "Gli URL di immagini remote sono disabilitati."
+      },
+      "storage": {
+        "custom": "È configurata una radice di archiviazione privata personalizzata; il percorso è nascosto.",
+        "privateDefault": "Gli artefatti usano l’archiviazione privata dei dati applicativi del daemon."
       }
     },
     "queue": {

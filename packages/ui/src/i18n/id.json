@@ -591,6 +591,16 @@
         "copied": "Disalin",
         "dismiss": "Selesai"
       },
+      "permissions": {
+        "title": "Izin endpoint",
+        "legacy": "Default lama",
+        "chat": "Obrolan",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Gambar",
+        "hint": "Responses dan Gambar memiliki izin terpisah. Kunci lama tetap memiliki empat endpoint teks, tetapi tidak mendapatkan akses Gambar."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Pembuatan gambar",
+      "description": "Kelola endpoint Images yang secara default dinonaktifkan dan periksa status runtime yang didukung bukti.",
+      "unsupportedDaemon": "Daemon ini belum menyediakan konfigurasi Images.",
+      "enable": "Aktifkan endpoint Images",
+      "entitlementWarning": "Konfigurasi yang aktif tidak membuktikan hak langganan. Ketersediaan efektif memerlukan bukti terbaru untuk akun yang dipilih.",
+      "track": {
+        "configured": "Dikonfigurasi",
+        "effective": "Efektif",
+        "on": "Diaktifkan",
+        "off": "Dinonaktifkan",
+        "available": "Tersedia",
+        "unavailable": "Tidak tersedia",
+        "unknown": "Tidak ada bukti kemampuan terbaru"
+      },
+      "account": {
+        "label": "Pemilihan akun",
+        "pool": "Kumpulan akun yang memenuhi syarat",
+        "group": "Grup: {{group}}",
+        "account": "Akun Codex {{number}}",
+        "fallback": "Kebijakan cadangan",
+        "strict": "Pemilihan ketat",
+        "poolFallback": "Izinkan cadangan dari kumpulan"
+      },
+      "features": {
+        "title": "Matriks fitur terverifikasi",
+        "generate": "Buat",
+        "edit": "Edit",
+        "maskEdit": "Edit dengan mask",
+        "streaming": "Streaming",
+        "transparentBackground": "Transparansi",
+        "responsesTool": "Alat Responses",
+        "supported": "Didukung",
+        "unsupported": "Tidak didukung"
+      },
+      "evidence": "Bukti terbaru diamati {{age}} detik yang lalu.",
+      "noEvidence": "Tidak ada bukti terbaru. Memperbarui tampilan ini tidak pernah membuat gambar.",
+      "resources": {
+        "title": "Penggunaan runtime",
+        "queue": "Antrean",
+        "temporary": "Penyimpanan sementara",
+        "references": "Referensi tersimpan",
+        "bytes": "Sementara {{temporary}} · referensi {{references}}",
+        "unavailable": "Penggunaan tidak tersedia saat runtime Images luring."
+      },
+      "remote": {
+        "enabledWarning": "URL jarak jauh hanya diaktifkan melalui kebijakan resolver yang diperkuat.",
+        "disabled": "URL gambar jarak jauh dinonaktifkan."
+      },
+      "storage": {
+        "custom": "Root penyimpanan privat khusus telah dikonfigurasi; jalurnya disembunyikan.",
+        "privateDefault": "Artefak menggunakan penyimpanan data aplikasi privat milik daemon."
       }
     },
     "queue": {

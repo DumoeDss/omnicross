@@ -591,6 +591,16 @@
         "copied": "Kopierad",
         "dismiss": "Klar"
       },
+      "permissions": {
+        "title": "Slutpunktsbehörigheter",
+        "legacy": "Äldre standardvärden",
+        "chat": "Chatt",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Bilder",
+        "hint": "Responses och Bilder har separata behörigheter. Äldre nycklar behåller de fyra textslutpunkterna men får inte åtkomst till Bilder."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Bildgenerering",
+      "description": "Styr Images-slutpunkterna, som är inaktiverade som standard, och granska deras evidensbaserade körningsstatus.",
+      "unsupportedDaemon": "Den här daemonen erbjuder ännu ingen Images-konfiguration.",
+      "enable": "Aktivera Images-slutpunkter",
+      "entitlementWarning": "En aktiverad konfiguration bevisar inte abonnemangsbehörighet. Faktisk tillgänglighet kräver färska bevis för det valda kontot.",
+      "track": {
+        "configured": "Konfigurerad",
+        "effective": "Gällande",
+        "on": "Aktiverad",
+        "off": "Inaktiverad",
+        "available": "Tillgänglig",
+        "unavailable": "Otillgänglig",
+        "unknown": "Inga färska kapacitetsbevis"
+      },
+      "account": {
+        "label": "Kontoval",
+        "pool": "Pool med behöriga konton",
+        "group": "Grupp: {{group}}",
+        "account": "Codex-konto {{number}}",
+        "fallback": "Reservpolicy",
+        "strict": "Strikt val",
+        "poolFallback": "Tillåt reservval från poolen"
+      },
+      "features": {
+        "title": "Verifierad funktionsmatris",
+        "generate": "Generera",
+        "edit": "Redigera",
+        "maskEdit": "Maskredigering",
+        "streaming": "Strömning",
+        "transparentBackground": "Transparens",
+        "responsesTool": "Responses-verktyg",
+        "supported": "Stöds",
+        "unsupported": "Stöds inte"
+      },
+      "evidence": "Färska bevis observerades för {{age}} sekunder sedan.",
+      "noEvidence": "Inga färska bevis är tillgängliga. Uppdatering av den här vyn genererar aldrig en bild.",
+      "resources": {
+        "title": "Körningsutnyttjande",
+        "queue": "Kö",
+        "temporary": "Tillfällig lagring",
+        "references": "Bevarade referenser",
+        "bytes": "Tillfälligt {{temporary}} · referenser {{references}}",
+        "unavailable": "Körningsutnyttjande är inte tillgängligt när Images-körningen är offline."
+      },
+      "remote": {
+        "enabledWarning": "Fjärr-URL:er aktiveras endast via den härdade resolverpolicyn.",
+        "disabled": "Fjärr-URL:er för bilder är inaktiverade."
+      },
+      "storage": {
+        "custom": "En privat anpassad lagringsrot är konfigurerad; sökvägen är dold.",
+        "privateDefault": "Artefakter använder daemonens privata lagring för programdata."
       }
     },
     "queue": {

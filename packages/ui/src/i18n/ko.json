@@ -591,6 +591,16 @@
         "copied": "복사됨",
         "dismiss": "완료"
       },
+      "permissions": {
+        "title": "엔드포인트 권한",
+        "legacy": "기존 기본값",
+        "chat": "채팅",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "이미지",
+        "hint": "Responses와 이미지는 별도의 권한입니다. 기존 키는 네 개의 텍스트 엔드포인트를 유지하지만 이미지 접근 권한을 얻지는 않습니다."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "이미지 생성",
+      "description": "기본적으로 비활성화된 Images 엔드포인트를 제어하고 증거에 기반한 런타임 상태를 확인합니다.",
+      "unsupportedDaemon": "이 데몬은 아직 Images 구성을 제공하지 않습니다.",
+      "enable": "Images 엔드포인트 활성화",
+      "entitlementWarning": "구성을 활성화해도 구독 이용 권한이 입증되는 것은 아닙니다. 실제 사용 가능 여부에는 선택한 계정의 최신 증거가 필요합니다.",
+      "track": {
+        "configured": "구성됨",
+        "effective": "실제 상태",
+        "on": "활성화됨",
+        "off": "비활성화됨",
+        "available": "사용 가능",
+        "unavailable": "사용 불가",
+        "unknown": "최신 기능 증거 없음"
+      },
+      "account": {
+        "label": "계정 선택",
+        "pool": "사용 가능한 계정 풀",
+        "group": "그룹: {{group}}",
+        "account": "Codex 계정 {{number}}",
+        "fallback": "대체 정책",
+        "strict": "엄격한 선택",
+        "poolFallback": "풀 대체 허용"
+      },
+      "features": {
+        "title": "검증된 기능 매트릭스",
+        "generate": "생성",
+        "edit": "편집",
+        "maskEdit": "마스크 편집",
+        "streaming": "스트리밍",
+        "transparentBackground": "투명도",
+        "responsesTool": "Responses 도구",
+        "supported": "지원됨",
+        "unsupported": "지원되지 않음"
+      },
+      "evidence": "{{age}}초 전에 최신 증거가 관찰되었습니다.",
+      "noEvidence": "최신 증거가 없습니다. 이 화면을 새로 고쳐도 이미지가 생성되지 않습니다.",
+      "resources": {
+        "title": "런타임 사용량",
+        "queue": "대기열",
+        "temporary": "임시 저장소",
+        "references": "보관된 참조",
+        "bytes": "임시 {{temporary}} · 참조 {{references}}",
+        "unavailable": "Images 런타임이 오프라인이면 사용량을 확인할 수 없습니다."
+      },
+      "remote": {
+        "enabledWarning": "원격 URL은 강화된 리졸버 정책을 통해서만 활성화됩니다.",
+        "disabled": "원격 이미지 URL이 비활성화되어 있습니다."
+      },
+      "storage": {
+        "custom": "비공개 사용자 지정 저장소 루트가 구성되어 있으며 경로는 숨겨집니다.",
+        "privateDefault": "산출물은 데몬의 비공개 애플리케이션 데이터 저장소를 사용합니다."
       }
     },
     "queue": {

@@ -591,6 +591,16 @@
         "copied": "Kopiert",
         "dismiss": "Ferdig"
       },
+      "permissions": {
+        "title": "Endepunkttillatelser",
+        "legacy": "Eldre standarder",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Bilder",
+        "hint": "Responses og Bilder har separate tillatelser. Eldre nøkler beholder de fire tekstendepunktene, men får ikke tilgang til Bilder."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Bildegenerering",
+      "description": "Administrer Images-endepunktene, som er deaktivert som standard, og se den evidensbaserte kjøretidsstatusen.",
+      "unsupportedDaemon": "Denne daemonen tilbyr ennå ikke Images-konfigurasjon.",
+      "enable": "Aktiver Images-endepunkter",
+      "entitlementWarning": "Aktivert konfigurasjon beviser ikke abonnementsrettighet. Faktisk tilgjengelighet krever ferske bevis for den valgte kontoen.",
+      "track": {
+        "configured": "Konfigurert",
+        "effective": "Gjeldende",
+        "on": "Aktivert",
+        "off": "Deaktivert",
+        "available": "Tilgjengelig",
+        "unavailable": "Utilgjengelig",
+        "unknown": "Ingen ferske kapasitetsbevis"
+      },
+      "account": {
+        "label": "Kontovalg",
+        "pool": "Kvalifisert kontopulje",
+        "group": "Gruppe: {{group}}",
+        "account": "Codex-konto {{number}}",
+        "fallback": "Reserveløsning",
+        "strict": "Strengt valg",
+        "poolFallback": "Tillat reservevalg fra puljen"
+      },
+      "features": {
+        "title": "Verifisert funksjonsmatrise",
+        "generate": "Generer",
+        "edit": "Rediger",
+        "maskEdit": "Maskeredigering",
+        "streaming": "Strømming",
+        "transparentBackground": "Gjennomsiktighet",
+        "responsesTool": "Responses-verktøy",
+        "supported": "Støttet",
+        "unsupported": "Ikke støttet"
+      },
+      "evidence": "Ferske bevis ble observert for {{age}} sekunder siden.",
+      "noEvidence": "Ingen ferske bevis er tilgjengelige. Oppdatering av denne visningen genererer aldri et bilde.",
+      "resources": {
+        "title": "Kjøretidsutnyttelse",
+        "queue": "Kø",
+        "temporary": "Midlertidig lagring",
+        "references": "Beholdte referanser",
+        "bytes": "Midlertidig {{temporary}} · referanser {{references}}",
+        "unavailable": "Kjøretidsutnyttelse er utilgjengelig mens Images-kjøretiden er frakoblet."
+      },
+      "remote": {
+        "enabledWarning": "Eksterne URL-er aktiveres bare gjennom den herdede resolverpolicyen.",
+        "disabled": "Eksterne bilde-URL-er er deaktivert."
+      },
+      "storage": {
+        "custom": "En privat, egendefinert lagringsrot er konfigurert; banen er skjult.",
+        "privateDefault": "Artefakter bruker daemonens private lagring for programdata."
       }
     },
     "queue": {

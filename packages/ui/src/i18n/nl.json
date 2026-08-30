@@ -591,6 +591,16 @@
         "copied": "Gekopieerd",
         "dismiss": "Klaar"
       },
+      "permissions": {
+        "title": "Eindpuntmachtigingen",
+        "legacy": "Oude standaardinstellingen",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Afbeeldingen",
+        "hint": "Responses en Afbeeldingen hebben afzonderlijke machtigingen. Oude sleutels behouden de vier teksteindpunten, maar krijgen geen toegang tot Afbeeldingen."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Afbeeldingen genereren",
+      "description": "Beheer de standaard uitgeschakelde Images-eindpunten en bekijk hun door bewijs ondersteunde runtimestatus.",
+      "unsupportedDaemon": "Deze daemon biedt nog geen Images-configuratie.",
+      "enable": "Images-eindpunten inschakelen",
+      "entitlementWarning": "Een ingeschakelde configuratie bewijst geen abonnementsrecht. Effectieve beschikbaarheid vereist recent bewijs voor het geselecteerde account.",
+      "track": {
+        "configured": "Geconfigureerd",
+        "effective": "Effectief",
+        "on": "Ingeschakeld",
+        "off": "Uitgeschakeld",
+        "available": "Beschikbaar",
+        "unavailable": "Niet beschikbaar",
+        "unknown": "Geen recent capaciteitsbewijs"
+      },
+      "account": {
+        "label": "Accountselectie",
+        "pool": "Geschikte accountpool",
+        "group": "Groep: {{group}}",
+        "account": "Codex-account {{number}}",
+        "fallback": "Terugvalbeleid",
+        "strict": "Strikte selectie",
+        "poolFallback": "Terugval naar pool toestaan"
+      },
+      "features": {
+        "title": "Geverifieerde functiematrix",
+        "generate": "Genereren",
+        "edit": "Bewerken",
+        "maskEdit": "Bewerken met masker",
+        "streaming": "Streaming",
+        "transparentBackground": "Transparantie",
+        "responsesTool": "Responses-hulpmiddel",
+        "supported": "Ondersteund",
+        "unsupported": "Niet ondersteund"
+      },
+      "evidence": "Recent bewijs is {{age}} seconden geleden waargenomen.",
+      "noEvidence": "Er is geen recent bewijs beschikbaar. Het vernieuwen van deze weergave genereert nooit een afbeelding.",
+      "resources": {
+        "title": "Runtimegebruik",
+        "queue": "Wachtrij",
+        "temporary": "Tijdelijke opslag",
+        "references": "Bewaarde verwijzingen",
+        "bytes": "Tijdelijk {{temporary}} · verwijzingen {{references}}",
+        "unavailable": "Runtimegebruik is niet beschikbaar zolang de Images-runtime offline is."
+      },
+      "remote": {
+        "enabledWarning": "Externe URL’s worden alleen ingeschakeld via het versterkte resolverbeleid.",
+        "disabled": "Externe afbeeldings-URL’s zijn uitgeschakeld."
+      },
+      "storage": {
+        "custom": "Er is een persoonlijke aangepaste opslagroot geconfigureerd; het pad is verborgen.",
+        "privateDefault": "Artefacten gebruiken de persoonlijke toepassingsgegevensopslag van de daemon."
       }
     },
     "queue": {

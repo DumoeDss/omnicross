@@ -591,6 +591,16 @@
         "copied": "Copiat",
         "dismiss": "Gata"
       },
+      "permissions": {
+        "title": "Permisiuni pentru endpointuri",
+        "legacy": "Valori implicite vechi",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Imagini",
+        "hint": "Responses și Imagini au permisiuni separate. Cheile vechi păstrează cele patru endpointuri text, dar nu primesc acces la Imagini."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Generare de imagini",
+      "description": "Controlați endpointurile Images, dezactivate implicit, și consultați starea lor de execuție susținută de dovezi.",
+      "unsupportedDaemon": "Acest daemon nu oferă încă configurarea Images.",
+      "enable": "Activați endpointurile Images",
+      "entitlementWarning": "Activarea configurării nu dovedește dreptul abonamentului. Disponibilitatea efectivă necesită dovezi recente pentru contul selectat.",
+      "track": {
+        "configured": "Configurat",
+        "effective": "Efectiv",
+        "on": "Activat",
+        "off": "Dezactivat",
+        "available": "Disponibil",
+        "unavailable": "Indisponibil",
+        "unknown": "Nu există dovezi recente privind capabilitatea"
+      },
+      "account": {
+        "label": "Selectarea contului",
+        "pool": "Grup de conturi eligibile",
+        "group": "Grup: {{group}}",
+        "account": "Cont Codex {{number}}",
+        "fallback": "Politică de rezervă",
+        "strict": "Selecție strictă",
+        "poolFallback": "Permiteți selecția de rezervă din grup"
+      },
+      "features": {
+        "title": "Matrice de funcții verificate",
+        "generate": "Generare",
+        "edit": "Editare",
+        "maskEdit": "Editare cu mască",
+        "streaming": "Transmitere în flux",
+        "transparentBackground": "Transparență",
+        "responsesTool": "Instrument Responses",
+        "supported": "Acceptat",
+        "unsupported": "Neacceptat"
+      },
+      "evidence": "Dovezi recente observate acum {{age}} secunde.",
+      "noEvidence": "Nu sunt disponibile dovezi recente. Reîmprospătarea acestei vizualizări nu generează niciodată o imagine.",
+      "resources": {
+        "title": "Utilizarea mediului de execuție",
+        "queue": "Coadă",
+        "temporary": "Stocare temporară",
+        "references": "Referințe păstrate",
+        "bytes": "Temporar {{temporary}} · referințe {{references}}",
+        "unavailable": "Utilizarea nu este disponibilă cât timp mediul Images este offline."
+      },
+      "remote": {
+        "enabledWarning": "URL-urile la distanță sunt activate numai prin politica de rezoluție consolidată.",
+        "disabled": "URL-urile imaginilor la distanță sunt dezactivate."
+      },
+      "storage": {
+        "custom": "Este configurată o rădăcină de stocare privată personalizată; calea este ascunsă.",
+        "privateDefault": "Artefactele folosesc stocarea privată a datelor aplicației daemonului."
       }
     },
     "queue": {
