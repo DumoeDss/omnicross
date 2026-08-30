@@ -38,6 +38,8 @@ export interface ImageRetentionPolicy {
 export interface ImageOrchestratorRunOptions {
   readonly providerId: string;
   readonly retention?: ImageRetentionPolicy;
+  /** Hosted Responses execution must be affirmed by the same acquired capability snapshot. */
+  readonly requireResponsesTool?: boolean;
 }
 
 export interface ImageOrchestratorOptions {
@@ -309,6 +311,9 @@ export class ImageOrchestrator {
       lease = await this.#registry.require(options.providerId).acquire(context);
       if (context.signal.aborted) throw cancellationError(context.signal.reason);
       assertRequestSupported(request, lease.capabilities);
+      if (options.requireResponsesTool === true && lease.capabilities.responsesTool !== true) {
+        unsupported('tools');
+      }
       job = await lease.start(request);
       if (context.signal.aborted) throw cancellationError(context.signal.reason);
       iterator = job.events[Symbol.asyncIterator]();
