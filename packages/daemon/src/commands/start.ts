@@ -73,6 +73,11 @@ export async function runStart(argv: string[]): Promise<StartResult> {
 
   const serverConfig = await loadServerConfig(daemon.settingsStore);
 
+  // Images startup reconciliation must finish before either listener can admit
+  // work. The recurring timer is unref'ed and is stopped with the proxy/session.
+  await daemon.imageCleanupService.runOnce();
+  daemon.imageCleanupService.start();
+
   // Apply the persisted account-health config to the shared tracker (subscription-
   // account-health, LEAD OQ1) — the strategies/relay/sweeper already hold this
   // exact instance, so `configure` retunes the live 529 overload cooldown.
@@ -86,6 +91,7 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   await daemon.outboundApiServer.applyConfig({
     enabled: true,
     networkBinding: serverConfig.networkBinding,
+    imagesEnabled: serverConfig.images?.enabled === true,
     endpoints: serverConfig.endpoints,
     bindings: serverConfig.bindings,
     port: serverConfig.port,

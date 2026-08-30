@@ -58,7 +58,22 @@ export { claudeOAuth, codexOAuth, type FetchLike, geminiOAuth } from './oauth';
 export { createCodexSubscriptionImageProvider } from './image-generation/CodexSubscriptionImageProvider';
 export type { CodexSubscriptionImageProviderOptions } from './image-generation/CodexSubscriptionImageProvider';
 export type {
+  ImageExecutionAccountKey,
+  ImageExecutionScheduler,
+  ImageExecutionSchedulerGrant,
+  ImageExecutionSchedulerRequest,
+} from './image-generation/ImageExecutionScheduler';
+export type {
   CodexImageCapabilityEvidence,
   CodexImageCapabilityEvidenceRequest,
   CodexImageCapabilityEvidenceSource,
 } from './image-generation/capabilityEvidence';
+export { createCodexImageLiveVerifier } from './image-generation/CodexImageLiveVerifier';
+export type {
+  CodexImageCapabilityObservation,
+  CodexImageCapabilityObservedResponseFields,
+  CodexImageCapabilityTestedRequest,
+  CodexImageLiveVerificationRequest,
+  CodexImageLiveVerifier,
+  CodexImageLiveVerifierOptions,
+} from './image-generation/CodexImageLiveVerifier';

@@ -17,6 +17,7 @@ import {
 } from './errors';
 import type {
   ImageJob,
+  ImageJobObservabilitySnapshot,
   ImageProviderContext,
   ImageProviderLease,
   ImageProviderRequest,
@@ -53,6 +54,25 @@ interface ImageRetentionAttempt {
   readonly references: ImageReferenceMetadata[];
   rollbackFailures: number;
   rollbackPromise?: Promise<void>;
+}
+
+function safeJobObservability(job: ImageJob | undefined): ImageJobObservabilitySnapshot | undefined {
+  try {
+    const value = job?.observability?.snapshot();
+    if (!value) return undefined;
+    const finite = (input: number | undefined): number | undefined =>
+      typeof input === 'number' && Number.isFinite(input) && input >= 0
+        ? Math.min(Number.MAX_SAFE_INTEGER, input)
+        : undefined;
+    return {
+      queueWaitMs: finite(value.queueWaitMs),
+      generationStartedAt: finite(value.generationStartedAt),
+      retryCount: finite(value.retryCount),
+      authRefreshCount: finite(value.authRefreshCount),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function unsupported(param?: string): never {
@@ -245,6 +265,7 @@ export class ImageOrchestrator {
   ): AsyncIterable<ImageProviderEvent<ImageAsset>> {
     const startedAt = this.#now();
     let acceptedAt: number | undefined;
+    let firstPartialAt: number | undefined;
     let lease: ImageProviderLease | undefined;
     let job: ImageJob | undefined;
     let iterator: AsyncIterator<ImageProviderEvent<ImageAsset>> | undefined;
@@ -283,6 +304,7 @@ export class ImageOrchestrator {
       if (telemetrySent) return;
       telemetrySent = true;
       const editInputs = request.action === 'edit' ? request.images : [];
+      const jobObservability = safeJobObservability(job);
       await emitImageTelemetry(this.#telemetrySink, {
         requestId: context.requestId,
         providerId: options.providerId,
@@ -304,11 +326,27 @@ export class ImageOrchestrator {
         })),
         startedAt,
         acceptedAt,
+        firstPartialAt,
+        ...(jobObservability?.generationStartedAt !== undefined
+          ? { generationStartedAt: jobObservability.generationStartedAt }
+          : {}),
         finishedAt: this.#now(),
         terminal: terminalKind,
         errorCode: terminalCode,
         usage: finalUsage,
         usageUnavailable: finalUsage === undefined,
+        ...(jobObservability?.queueWaitMs !== undefined
+          ? { queueWaitMs: jobObservability.queueWaitMs }
+          : {}),
+        ...(jobObservability?.retryCount !== undefined
+          ? { retryCount: jobObservability.retryCount }
+          : {}),
+        ...(jobObservability?.authRefreshCount !== undefined
+          ? { authRefreshCount: jobObservability.authRefreshCount }
+          : {}),
+        ...(options.retention?.enabled
+          ? { referenceSaveCount: retentionAttempt.references.length }
+          : {}),
         ...(retentionAttempt.rollbackFailures > 0
           ? { retentionRollbackFailures: retentionAttempt.rollbackFailures }
           : {}),
@@ -418,6 +456,7 @@ export class ImageOrchestrator {
             break;
           case 'partial_image': {
             if (!accepted) throw new ImageGenerationError('upstream_protocol_changed');
+            firstPartialAt ??= this.#now();
             const image = sanitizeProviderOutput(event.image);
             if (
               !Number.isInteger(event.outputIndex) ||

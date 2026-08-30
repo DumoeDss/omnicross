@@ -6,6 +6,18 @@ export * from './ImageProviderRegistry';
 export * from './ports';
 export { createImageApiContributions } from './openai-images/contributions';
 export { createSafeRemoteImageResolver } from './openai-images/safeRemoteImageResolver';
+export {
+  createImageRequestResourceScope,
+  IMAGE_REQUEST_DIRECTORY_MARKER_CONTENT,
+  IMAGE_REQUEST_DIRECTORY_MARKER_NAME,
+  ImageRequestResourceScope,
+} from './openai-images/TemporaryImageAsset';
+export type {
+  CreateImageRequestResourceScopeOptions,
+  ImageRequestResourceOwnership,
+  ImageTemporaryResourceBudget,
+  ImageTemporaryResourceBudgetLease,
+} from './openai-images/TemporaryImageAsset';
 export type {
   ImageApiAuditRecord,
   ImageApiContributions,

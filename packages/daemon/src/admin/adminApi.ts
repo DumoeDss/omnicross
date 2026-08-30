@@ -19,6 +19,8 @@ import http from 'node:http';
 
 import {
   createNamedKey,
+  DEFAULT_IMAGES_SERVER_CONFIG,
+  effectiveOutboundPermissions,
   gatewayBindingToEndpointConfig,
   isKindMappedEndpoint,
   loadServerConfig,
@@ -27,13 +29,20 @@ import {
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
+  type OutboundPermission,
+  type ImagesServerConfig,
   type KeySpendReader,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   saveServerConfig,
+  validateOutboundPermissions,
   type VoucherDb,
 } from '@omnicross/core/outbound-api';
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import {
+  IMAGE_CAPABILITY_UNAVAILABLE_REASONS,
+  type ImageCapabilities,
+} from '@omnicross/contracts/image-generation-types';
 import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
@@ -43,6 +52,21 @@ import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
 import type { FetchLike } from '@omnicross/subscriptions';
 import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
+import { validateImagesAdminConfig } from '../image-generation/imagesConfigValidation';
+import type {
+  ImageRuntimeCapabilityInspection,
+  ImageRuntimeManagerStatus,
+  ImageRuntimeResourceStatus,
+} from '../image-generation/ImageRuntimeManager';
+import type {
+  ImageConfigurationAuditField,
+  ImageConfigurationAuditRecord,
+} from '../image-generation/ImageObservability';
+import {
+  applyServerConfigTransaction,
+  type PreparedServerConfigChange,
+  ServerConfigTransactionError,
+} from './serverConfigTransaction';
 
 import {
   type DaemonApiKeyEntry,
@@ -168,6 +192,12 @@ export interface PoolHealthReader {
   getKeyHealth(providerId: string): Promise<Record<string, PoolKeyHealth>>;
 }
 
+export interface AdminImagesStatusReader {
+  inspectCapability(apiKeyId: string): Promise<ImageRuntimeCapabilityInspection>;
+  status(): ImageRuntimeManagerStatus;
+  resourceStatus(): ImageRuntimeResourceStatus | undefined;
+}
+
 /** The live daemon handles the management API operates over. */
 export interface AdminApiDeps {
   /** Path to the daemon's `config.json` (provider catalog + `server` field). */
@@ -192,6 +222,16 @@ export interface AdminApiDeps {
   readonly settingsStore: JsonApiServerSettingsStore;
   /** The running outbound server (status + live applyConfig). */
   readonly outboundApiServer: OutboundApiServer;
+  /** True only when production composed the hardened per-hop remote resolver. */
+  readonly imageRemoteResolverAvailable?: boolean;
+  /** Optional production Images runtime generation participant. */
+  readonly imageRuntimeConfig?: {
+    prepareConfig(config: ImagesServerConfig): Promise<PreparedServerConfigChange>;
+  };
+  /** Narrow metadata-only reader for authenticated Images capability/status. */
+  readonly imageRuntimeStatus?: AdminImagesStatusReader;
+  /** Metadata-only successful Images configuration audit sink. */
+  readonly imageConfigAudit?: (record: ImageConfigurationAuditRecord) => void;
   /** Process-local machine-managed routing leases (optional for light embedders). */
   readonly routeLeaseManager?: RouteLeaseManager;
   /** Subscription accounts (token-free `listAll`). */
@@ -367,7 +407,8 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     lastUsedAt: row.lastUsedAt,
     revoked: row.revokedAt !== null,
     kind: row.kind,
-    allowedEndpoints: row.allowedEndpoints,
+    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
+    legacyPermissions: row.allowedEndpoints === undefined,
     loopbackOnly: row.loopbackOnly,
     maxConcurrency: row.maxConcurrency,
     // Key-policy envelope (outbound-key-policy) — all secret-free scalar fields;
@@ -487,6 +528,8 @@ export async function handleAdminApi(
         return await handleVoucher(req, res, method, rest, deps);
       case 'server':
         return await handleServer(req, res, method, deps);
+      case 'images':
+        return await handleImages(res, method, rest, deps);
       case 'accounts':
         return await handleAccounts(req, res, method, rest, deps);
       case 'cli':
@@ -1627,6 +1670,7 @@ async function handleKeys(
       name: created.name,
       keyPrefix: created.keyPrefix,
       createdAt: created.createdAt,
+      allowedEndpoints: created.allowedEndpoints,
       plaintextOnce: created.plaintextOnce,
     });
   }
@@ -1665,6 +1709,33 @@ async function handleKeys(
     const enabled = body['enabled'] === true;
     const ok = await deps.keyDb.outboundApiKeysSetEnabled(id, enabled);
     return writeJson(res, ok ? 200 : 404, { ok, enabled });
+  }
+  if (method === 'POST' && id && action === 'permissions') {
+    const body = await readJsonBody(req);
+    if (Object.keys(body).length !== 1 || !Object.prototype.hasOwnProperty.call(body, 'permissions')) {
+      return writeJsonError(res, 400, 'body must contain only permissions');
+    }
+    let permissions: OutboundPermission[];
+    try {
+      permissions = validateOutboundPermissions(body['permissions']);
+    } catch {
+      return writeJsonError(
+        res,
+        400,
+        'permissions must be an array of unique chat, responses, messages, gemini, or images values',
+      );
+    }
+
+    const before = (await deps.keyDb.outboundApiKeysList()).find((row) => row.id === id);
+    if (!before) return writeJson(res, 404, { ok: false });
+    if (before.revokedAt !== null) return writeJson(res, 409, { ok: false });
+
+    const ok = await deps.keyDb.outboundApiKeysSetPermissions(id, permissions);
+    if (!ok) {
+      const current = (await deps.keyDb.outboundApiKeysList()).find((row) => row.id === id);
+      return writeJson(res, current?.revokedAt !== null ? 409 : 404, { ok: false });
+    }
+    return writeJson(res, 200, { ok: true, allowedEndpoints: permissions });
   }
   if (method === 'POST' && id && action === 'max-concurrency') {
     const body = await readJsonBody(req);
@@ -1801,6 +1872,112 @@ function validateAllowanceSchedulingSegment(
   return errors;
 }
 
+function applyLiveServerConfigEffects(
+  config: OutboundApiServerConfig,
+  deps: AdminApiDeps,
+): void {
+  setServerProxyConfig(config.proxy);
+  getSharedAccountAllowanceScheduling().configure(config.allowanceScheduling);
+  deps.allowanceRefreshScheduler?.configure(config.allowanceScheduling);
+  applyWebhookConfig(config.webhook);
+  applyAuditConfig(config.audit);
+  applyBillingConfig(config.billing);
+}
+
+function outboundServerConfigInput(
+  config: OutboundApiServerConfig,
+): Parameters<OutboundApiServer['prepareConfig']>[0] {
+  return {
+    enabled: config.enabled,
+    networkBinding: config.networkBinding,
+    imagesEnabled: config.images?.enabled === true,
+    endpoints: config.endpoints,
+    bindings: config.bindings,
+    port: config.port,
+    userMessageQueue: config.userMessageQueue,
+    concurrencyQueue: config.concurrencyQueue,
+    voucher: config.voucher,
+    anthropic: config.anthropic,
+  };
+}
+
+function projectImagesConfigForAdmin(config: OutboundApiServerConfig): OutboundApiServerConfig {
+  if (!config.images) return config;
+  const { storageRoot, ...references } = config.images.references;
+  return {
+    ...config,
+    images: {
+      ...config.images,
+      references: {
+        ...references,
+        ...(storageRoot ? { storageRootConfigured: true } : {}),
+      },
+    } as OutboundApiServerConfig['images'],
+  };
+}
+
+/**
+ * Admin Images views omit the machine path. An Images PUT that omits the path
+ * therefore keeps the current root; explicit JSON null selects the daemon
+ * default. Strict validation still runs on the reconstructed complete segment.
+ */
+function preserveImagesStorageRoot(
+  value: unknown,
+  current: OutboundApiServerConfig['images'],
+): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const images = value as Record<string, unknown>;
+  const referencesValue = images['references'];
+  if (!referencesValue || typeof referencesValue !== 'object' || Array.isArray(referencesValue)) {
+    return value;
+  }
+  const references = { ...(referencesValue as Record<string, unknown>) };
+  if (Object.prototype.hasOwnProperty.call(references, 'storageRoot')) {
+    if (references['storageRoot'] === null) delete references['storageRoot'];
+  } else if (current?.references.storageRoot) {
+    references['storageRoot'] = current.references.storageRoot;
+  }
+  return { ...images, references };
+}
+
+function sameConfigValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function imageConfigurationAuditFields(
+  previous: ImagesServerConfig | undefined,
+  next: ImagesServerConfig | undefined,
+): ImageConfigurationAuditField[] {
+  const before = previous ?? DEFAULT_IMAGES_SERVER_CONFIG;
+  const after = next ?? DEFAULT_IMAGES_SERVER_CONFIG;
+  const fields: ImageConfigurationAuditField[] = [];
+  if (before.enabled !== after.enabled) fields.push('enablement');
+  if (before.provider !== after.provider) fields.push('provider');
+  if (
+    before.defaultModel !== after.defaultModel ||
+    !sameConfigValue(before.modelAliases, after.modelAliases)
+  ) fields.push('model');
+  if (!sameConfigValue(before.account, after.account)) fields.push('account');
+  if (!sameConfigValue(before.queue, after.queue)) fields.push('queue');
+  if (!sameConfigValue(before.temporary, after.temporary)) fields.push('temporary');
+  if (!sameConfigValue(before.limits, after.limits)) fields.push('limits');
+  const { storageRoot: beforeStorage, ...beforeRetention } = before.references;
+  const { storageRoot: afterStorage, ...afterRetention } = after.references;
+  if (!sameConfigValue(beforeRetention, afterRetention)) fields.push('retention');
+  if (beforeStorage !== afterStorage) fields.push('storage');
+  if (!sameConfigValue(before.remote, after.remote)) fields.push('remote');
+  if (before.evidenceTtlMs !== after.evidenceTtlMs) fields.push('evidence');
+  return fields;
+}
+
+function currentImageGenerationId(deps: AdminApiDeps): string | undefined {
+  try {
+    return deps.imageRuntimeStatus?.status().current.generationId;
+  } catch {
+    return undefined;
+  }
+}
+
 async function handleServer(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -1816,7 +1993,7 @@ async function handleServer(
     if (config.webhook) server = { ...server, webhook: redactWebhookConfig(config.webhook) };
     // billing-event-stream: mask the HMAC secret in the GET view — never leak plaintext.
     if (config.billing) server = { ...server, billing: redactBillingConfig(config.billing) };
-    return writeJson(res, 200, { server });
+    return writeJson(res, 200, { server: projectImagesConfigForAdmin(server) });
   }
   if (method === 'PUT') {
     const patch = (await readJsonBody(req)) as Partial<OutboundApiServerConfig>;
@@ -1872,49 +2049,71 @@ async function handleServer(
     if (patch.billing) {
       effectivePatch = { ...effectivePatch, billing: preserveBillingSecret(patch.billing, current.billing) };
     }
+    if (patch.images !== undefined) {
+      const images = preserveImagesStorageRoot(patch.images, current.images);
+      const imageErrors = validateImagesAdminConfig(images, {
+        remoteResolverAvailable: deps.imageRemoteResolverAvailable,
+      });
+      if (imageErrors.length > 0) {
+        return writeJsonError(res, 400, `invalid Images config: ${imageErrors.join('; ')}`);
+      }
+      effectivePatch = { ...effectivePatch, images: images as OutboundApiServerConfig['images'] };
+    }
     const merged = mergeServerConfig(current, effectivePatch);
-    // Always persist the (partial) config so the editor retains the user's
-    // in-progress mappings even when the config can't yet start the listener.
-    await saveServerConfig(deps.settingsStore, merged);
-    // upstream-proxy: hot-reload the live proxy segment (task 4.2) so a proxy edit
-    // takes effect without restart — swaps the resolver's server proxy AND bumps
-    // the core dispatcher generation (old dispatchers disposed).
-    setServerProxyConfig(merged.proxy);
-    getSharedAccountAllowanceScheduling().configure(merged.allowanceScheduling);
-    deps.allowanceRefreshScheduler?.configure(merged.allowanceScheduling);
-    // webhook-notifications: hot-reload the live webhook wiring so a config edit
-    // (un)registers the core sink + health subscriptions without a restart. The
-    // merged config carries DECRYPTED secrets (settings store decrypts on read).
-    applyWebhookConfig(merged.webhook);
-    // request-audit-log: hot-reload the live audit wiring so a config edit
-    // (un)registers the core capture config + sink and arms/disarms the TTL prune
-    // without a restart. The `audit` segment carries no secret.
-    applyAuditConfig(merged.audit);
-    // billing-event-stream: hot-reload the live billing wiring (sink + capture
-    // gate + retry sweep). The merged config carries the DECRYPTED HMAC secret.
-    applyBillingConfig(merged.billing);
-
-    // No completeness gate: routing lives in independent downstream routes that
-    // COMPOSE (one may serve `opus` while another serves `sonnet`), so there is
-    // no server-wide "all kinds must be mapped" property left to enforce. An
-    // endpoint with no route that can serve a request answers per-request.
-    await deps.outboundApiServer.applyConfig({
-      enabled: merged.enabled,
-      networkBinding: merged.networkBinding,
-      endpoints: merged.endpoints,
-      bindings: merged.bindings,
-      port: merged.port,
-      userMessageQueue: merged.userMessageQueue,
-      concurrencyQueue: merged.concurrencyQueue,
-      // voucher-redemption #9: hot-apply the voucher flag so enabling the product
-      // takes effect without a restart.
-      voucher: merged.voucher,
-      // claude-api-protocol-fidelity (§10): hot-apply the Anthropic segment
-      // (count_tokens/models read live per request; heartbeat setter runs inside
-      // applyConfig).
-      anthropic: merged.anthropic,
-    });
-    return writeJson(res, 200, { server: merged });
+    const priorImageGenerationId = currentImageGenerationId(deps);
+    try {
+      await applyServerConfigTransaction(current, merged, {
+        capturePersisted: () => deps.settingsStore.captureDocumentSnapshot(),
+        prepare: async (previous, next) => {
+          const changes: PreparedServerConfigChange[] = [];
+          try {
+            if (deps.imageRuntimeConfig && next.images) {
+              changes.push(await deps.imageRuntimeConfig.prepareConfig(next.images));
+            }
+            changes.push({
+              publish: () => applyLiveServerConfigEffects(next, deps),
+              rollback: () => applyLiveServerConfigEffects(previous, deps),
+              dispose: () => undefined,
+            });
+            changes.push(
+              await deps.outboundApiServer.prepareConfig(outboundServerConfigInput(next)),
+            );
+            return changes;
+          } catch (error) {
+            for (const change of [...changes].reverse()) {
+              try {
+                await change.dispose();
+              } catch {
+                // The transaction surfaces the original preparation failure.
+              }
+            }
+            throw error;
+          }
+        },
+        persist: (next) => saveServerConfig(deps.settingsStore, next),
+        restorePersisted: (snapshot) => deps.settingsStore.restoreDocumentSnapshot(snapshot),
+      });
+    } catch (error) {
+      if (error instanceof ServerConfigTransactionError) {
+        return writeJsonError(res, 500, error.message);
+      }
+      throw error;
+    }
+    const imageAuditFields = imageConfigurationAuditFields(current.images, merged.images);
+    if (imageAuditFields.length > 0) {
+      const nextImageGenerationId = currentImageGenerationId(deps);
+      try {
+        deps.imageConfigAudit?.({
+          outcome: 'applied',
+          fields: imageAuditFields,
+          ...(priorImageGenerationId ? { previousGenerationId: priorImageGenerationId } : {}),
+          ...(nextImageGenerationId ? { generationId: nextImageGenerationId } : {}),
+        });
+      } catch {
+        // Observability must never turn an already-committed transaction into a false failure.
+      }
+    }
+    return writeJson(res, 200, { server: projectImagesConfigForAdmin(merged) });
   }
   return writeJsonError(res, 405, `method ${method} not allowed on server`);
 }
@@ -2436,6 +2635,196 @@ function isIntegrationClient(value: string | undefined): value is IntegrationCli
   return value === 'codex' || value === 'claude';
 }
 
+const IMAGE_ADMIN_STATUS_TENANT = 'admin:image-capability-status';
+
+function safeStatusCount(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? Math.min(Number.MAX_SAFE_INTEGER, value)
+    : 0;
+}
+
+function safeStatusTimestamp(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+const SAFE_IMAGE_CAPABILITY_REASONS = new Set<string>([
+  ...IMAGE_CAPABILITY_UNAVAILABLE_REASONS,
+  'disabled',
+  'runtime_unavailable',
+]);
+
+function safeImageCapabilityReason(value: unknown): string {
+  return typeof value === 'string' && SAFE_IMAGE_CAPABILITY_REASONS.has(value)
+    ? value
+    : 'runtime_unavailable';
+}
+
+function safeImageGenerationId(value: unknown): string {
+  return typeof value === 'string' && /^image-runtime-\d+$/.test(value)
+    ? value
+    : 'image-runtime-unavailable';
+}
+
+function safeCapabilityValues(values: ImageCapabilities | undefined, configuredModel: string) {
+  const allowedFormats = new Set(['png', 'jpeg', 'webp']);
+  const allowedQuality = new Set(['auto', 'low', 'medium', 'high']);
+  const allowedModeration = new Set(['auto', 'low']);
+  const compression = values?.outputCompression;
+  return Object.freeze({
+    available: values?.available === true,
+    models: Object.freeze(values?.models.includes(configuredModel) ? [configuredModel] : []),
+    generate: values?.generate === true,
+    edit: values?.edit === true,
+    maskEdit: values?.maskEdit === true,
+    streaming: values?.streaming === true,
+    transparentBackground: values?.transparentBackground === true,
+    flexibleSizes: values?.flexibleSizes === true,
+    responsesTool: values?.responsesTool === true,
+    multiTurnEdit: values?.multiTurnEdit === true,
+    supportsFileId: values?.supportsFileId === true,
+    supportsImageUrl: values?.supportsImageUrl === true,
+    maxInputImages: safeStatusCount(values?.maxInputImages),
+    maxOutputImages: safeStatusCount(values?.maxOutputImages),
+    maxPartialImages: safeStatusCount(values?.maxPartialImages),
+    outputFormats: Object.freeze(
+      (values?.outputFormats ?? []).filter((value) => allowedFormats.has(value)),
+    ),
+    qualityLevels: Object.freeze(
+      (values?.qualityLevels ?? []).filter((value) => allowedQuality.has(value)),
+    ),
+    moderationModes: Object.freeze(
+      (values?.moderationModes ?? []).filter((value) => allowedModeration.has(value)),
+    ),
+    outputCompression: compression?.supported === true
+      ? Object.freeze({
+          supported: true as const,
+          formats: Object.freeze(compression.formats.filter((value) => allowedFormats.has(value))),
+          min: safeStatusCount(compression.min),
+          max: safeStatusCount(compression.max),
+        })
+      : Object.freeze({ supported: false as const }),
+  });
+}
+
+function safeRuntimeResources(resources: ImageRuntimeResourceStatus | undefined) {
+  if (!resources) return undefined;
+  return Object.freeze({
+    queue: Object.freeze({
+      activeJobs: safeStatusCount(resources.queue.activeJobs),
+      waitingJobs: safeStatusCount(resources.queue.waitingJobs),
+      activeAccounts: safeStatusCount(resources.queue.activeAccounts),
+      waitingAccounts: safeStatusCount(resources.queue.waitingAccounts),
+      waitingTenants: safeStatusCount(resources.queue.waitingTenants),
+      maxConcurrentJobsPerAccount: safeStatusCount(resources.queue.maxConcurrentJobsPerAccount),
+      maxQueuedJobs: safeStatusCount(resources.queue.maxQueuedJobs),
+      accepting: resources.queue.accepting === true,
+      shuttingDown: resources.queue.shuttingDown === true,
+    }),
+    temporary: Object.freeze({
+      activeScopes: safeStatusCount(resources.temporary.activeScopes),
+      totalBytes: safeStatusCount(resources.temporary.totalBytes),
+      tenantCount: safeStatusCount(resources.temporary.tenantCount),
+      maxActiveScopes: safeStatusCount(resources.temporary.maxActiveScopes),
+      maxTotalBytes: safeStatusCount(resources.temporary.maxTotalBytes),
+      maxTenantBytes: safeStatusCount(resources.temporary.maxTenantBytes),
+    }),
+    storage: Object.freeze({
+      mounts: safeStatusCount(resources.storage.mounts),
+      retiredMounts: safeStatusCount(resources.storage.retiredMounts),
+      referenceEntries: safeStatusCount(resources.storage.referenceEntries),
+      referenceBytes: safeStatusCount(resources.storage.referenceBytes),
+      referenceTombstones: safeStatusCount(resources.storage.referenceTombstones),
+      stateCalls: safeStatusCount(resources.storage.stateCalls),
+      stateResponses: safeStatusCount(resources.storage.stateResponses),
+      stateTombstones: safeStatusCount(resources.storage.stateTombstones),
+      pendingReferenceDeletes: safeStatusCount(resources.storage.pendingReferenceDeletes),
+      maxReferenceEntries: safeStatusCount(resources.storage.maxReferenceEntries),
+      maxReferenceBytes: safeStatusCount(resources.storage.maxReferenceBytes),
+      maxTenantReferenceBytes: safeStatusCount(resources.storage.maxTenantReferenceBytes),
+      maxStateCalls: safeStatusCount(resources.storage.maxStateCalls),
+      maxStateResponses: safeStatusCount(resources.storage.maxStateResponses),
+    }),
+  });
+}
+
+function imageEndpointUrls(base: string | null) {
+  return base
+    ? Object.freeze({
+        generations: `${base}/v1/images/generations`,
+        edits: `${base}/v1/images/edits`,
+      })
+    : null;
+}
+
+async function handleImages(
+  res: http.ServerResponse,
+  method: string,
+  rest: string[],
+  deps: AdminApiDeps,
+): Promise<void> {
+  if (rest.length !== 1 || rest[0] !== 'capabilities') {
+    return writeJsonError(res, 404, 'unknown Images admin resource');
+  }
+  if (method !== 'GET') {
+    return writeJsonError(res, 405, `method ${method} not allowed on Images capabilities`);
+  }
+  const reader = deps.imageRuntimeStatus;
+  if (!reader) return writeJsonError(res, 501, 'Images runtime status is not available');
+
+  const serverConfig = await loadServerConfig(deps.settingsStore);
+  const images = serverConfig.images ?? DEFAULT_IMAGES_SERVER_CONFIG;
+  const lifecycle = reader.status();
+  const capability = await reader.inspectCapability(IMAGE_ADMIN_STATUS_TENANT);
+  const resources = safeRuntimeResources(reader.resourceStatus());
+  const outbound = deps.outboundApiServer.getStatus();
+  const evidenceAt = safeStatusTimestamp(capability.capabilities?.oldestEvidenceAt);
+  const resolvedAt = safeStatusTimestamp(capability.capabilities?.resolvedAt);
+  const expiresAt = evidenceAt !== undefined &&
+    evidenceAt <= Number.MAX_SAFE_INTEGER - images.evidenceTtlMs
+    ? evidenceAt + images.evidenceTtlMs
+    : undefined;
+  const evidence = evidenceAt !== undefined && resolvedAt !== undefined
+    ? Object.freeze({
+        verifiedAt: evidenceAt,
+        ageMs: Math.max(0, resolvedAt - evidenceAt),
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+      })
+    : null;
+  const draining = lifecycle.draining.map((generation) => Object.freeze({
+    generationId: safeImageGenerationId(generation.generationId),
+    enabled: generation.enabled,
+    httpLeases: safeStatusCount(generation.httpLeases),
+    hostedLeases: safeStatusCount(generation.hostedLeases),
+  }));
+
+  return writeJson(res, 200, {
+    configured: {
+      enabled: images.enabled,
+      provider: images.provider,
+      model: images.defaultModel,
+      remoteUrlsEnabled: images.remote.enabled,
+      referenceTtlMs: images.references.ttlMs,
+    },
+    effective: {
+      available: capability.available === true,
+      reason: capability.available ? null : safeImageCapabilityReason(capability.reason),
+      evidence,
+      features: safeCapabilityValues(capability.capabilities, images.defaultModel),
+    },
+    runtime: {
+      disposed: lifecycle.disposed,
+      generationId: safeImageGenerationId(lifecycle.current.generationId),
+      drainingCount: draining.length,
+      draining,
+      ...(resources ? { resources } : {}),
+    },
+    endpoints: images.enabled ? imageEndpointUrls(outbound.loopbackUrl) : null,
+    lanEndpoints: images.enabled ? imageEndpointUrls(outbound.lanUrl) : null,
+  });
+}
+
 async function handleStatus(
   res: http.ServerResponse,
   method: string,
@@ -2479,14 +2868,35 @@ async function handleStatus(
       useSubscription,
     };
   });
+  const imageRuntime = serverConfig.images?.enabled && deps.imageRuntimeStatus
+    ? (() => {
+        const lifecycle = deps.imageRuntimeStatus!.status();
+        const resources = safeRuntimeResources(deps.imageRuntimeStatus!.resourceStatus());
+        return {
+          enabled: lifecycle.current.enabled,
+          generationId: lifecycle.current.generationId,
+          drainingCount: lifecycle.draining.length,
+          ...(resources ? { resources } : {}),
+        };
+      })()
+    : undefined;
   // Live queue-occupancy snapshot from the wire layer's frozen `getQueueStatus()`
   // — included only when the server is running (§4 allows omission otherwise), so
   // the field stays genuinely optional. Existing status fields are untouched.
   if (status.running) {
     const queueStatus = deps.outboundApiServer.getQueueStatus();
-    return writeJson(res, 200, { ...status, endpoints, queueStatus });
+    return writeJson(res, 200, {
+      ...status,
+      endpoints,
+      queueStatus,
+      ...(imageRuntime ? { imageRuntime } : {}),
+    });
   }
-  return writeJson(res, 200, { ...status, endpoints });
+  return writeJson(res, 200, {
+    ...status,
+    endpoints,
+    ...(imageRuntime ? { imageRuntime } : {}),
+  });
 }
 
 // ── Playground (same-origin proxy to /v1/*) ───────────────────────────────────

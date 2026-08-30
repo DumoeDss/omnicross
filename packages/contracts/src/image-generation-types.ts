@@ -126,6 +126,8 @@ export const IMAGE_GENERATION_ERROR_CODES = [
   'moderation_blocked',
   'upstream_rate_limited',
   'subscription_usage_limit_reached',
+  'image_queue_full',
+  'image_queue_timeout',
   'request_cancelled',
   'upstream_protocol_changed',
   'image_generation_failed',

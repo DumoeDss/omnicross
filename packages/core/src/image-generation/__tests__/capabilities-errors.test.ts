@@ -194,6 +194,17 @@ describe('resolveImageCapabilities', () => {
 });
 
 describe('ImageGenerationError', () => {
+  it.each([
+    ['image_queue_full', 429, 'The image execution queue is full.'],
+    ['image_queue_timeout', 504, 'The image execution queue timed out.'],
+  ] as const)('maps %s to its stable status and message', (code, httpStatus, message) => {
+    expect(new ImageGenerationError(code).toJSON()).toMatchObject({
+      code,
+      httpStatus,
+      message,
+    });
+  });
+
   it('never serializes causes, body excerpts, credentials, prompts, Base64, or account IDs', () => {
     const secrets = [
       'Bearer token-secret-sentinel',

@@ -21,6 +21,7 @@ import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 import type { AuthStrategy } from '../auth';
 import {
   createCodexImageAdapterEvidence,
+  type CodexImageCapabilityEvidence,
   type CodexImageCapabilityEvidenceSource,
   UnknownCodexImageCapabilityEvidenceSource,
 } from './capabilityEvidence';
@@ -34,10 +35,15 @@ import {
   readCandidateCodexImageResponseBody,
   selectVerifiedCandidateResponseMetadata,
 } from './privateWireResponse';
+import type {
+  ImageExecutionScheduler,
+  ImageExecutionSchedulerGrant,
+} from './ImageExecutionScheduler';
 
 export interface CodexSubscriptionImageProviderOptions {
   readonly authStrategy: AuthStrategy;
   readonly evidenceSource?: CodexImageCapabilityEvidenceSource;
+  readonly executionScheduler?: ImageExecutionScheduler;
   readonly generationTimeoutMs?: number;
   readonly now?: () => number;
 }
@@ -56,12 +62,14 @@ class CodexSubscriptionImageProvider implements ImageProvider {
   readonly id = PROVIDER_ID;
   readonly #auth: AuthStrategy;
   readonly #evidence: CodexImageCapabilityEvidenceSource;
+  readonly #executionScheduler?: ImageExecutionScheduler;
   readonly #generationTimeoutMs: number;
   readonly #now: () => number;
 
   constructor(options: CodexSubscriptionImageProviderOptions) {
     this.#auth = options.authStrategy;
     this.#evidence = options.evidenceSource ?? new UnknownCodexImageCapabilityEvidenceSource();
+    this.#executionScheduler = options.executionScheduler;
     this.#generationTimeoutMs = options.generationTimeoutMs ?? 180_000;
     this.#now = options.now ?? Date.now;
   }
@@ -82,6 +90,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
         sessionKey: context.sessionKey,
         preferredAccountId: context.preferredAccountId,
         preferredAccountGroup: context.preferredAccountGroup,
+        boundAccountFallbackPolicy: context.boundAccountFallbackPolicy,
         reportSelection: (accountId) => {
           selectedAccountId = accountId;
         },
@@ -98,7 +107,28 @@ class CodexSubscriptionImageProvider implements ImageProvider {
       throw new ImageGenerationError('request_cancelled', { cause: context.signal.reason });
     }
 
-    const evidence = await this.#evidence.resolve({ accountId: selectedAccountId, signal: context.signal });
+    let evidence: CodexImageCapabilityEvidence;
+    try {
+      evidence = await this.#evidence.resolve({
+        accountId: selectedAccountId,
+        signal: context.signal,
+      });
+    } catch (cause) {
+      if (context.signal.aborted) {
+        headers.Authorization = '';
+        selectedAccountId = undefined;
+        throw new ImageGenerationError('request_cancelled', { cause: context.signal.reason });
+      }
+      evidence = {
+        account: { kind: 'account', source: 'codex-image-entitlement-unknown' },
+        upstream: { kind: 'upstream', source: 'codex-image-protocol-unverified' },
+      };
+    }
+    if (context.signal.aborted) {
+      headers.Authorization = '';
+      selectedAccountId = undefined;
+      throw new ImageGenerationError('request_cancelled', { cause: context.signal.reason });
+    }
     const capabilities = resolveImageCapabilities({
       adapter: createCodexImageAdapterEvidence(this.#now()),
       account: evidence.account,
@@ -159,6 +189,10 @@ class CodexSubscriptionImageProvider implements ImageProvider {
   ): ImageJob {
     const controller = new AbortController();
     let cancelled = false;
+    let queueWaitMs: number | undefined;
+    let generationStartedAt: number | undefined;
+    let retryCount = 0;
+    let authRefreshCount = 0;
     const onCallerAbort = () => controller.abort(context.signal.reason);
     context.signal.addEventListener('abort', onCallerAbort, { once: true });
     const cancel = async (): Promise<void> => {
@@ -168,16 +202,45 @@ class CodexSubscriptionImageProvider implements ImageProvider {
     };
 
     const events = (async function* (self: CodexSubscriptionImageProvider) {
-      const timeout = setTimeout(
-        () => controller.abort(new ImageGenerationError('image_generation_timeout')),
-        self.#generationTimeoutMs,
-      );
+      let schedulerGrant: ImageExecutionSchedulerGrant | undefined;
+      let schedulerGrantReleased = false;
+      let schedulerGrantSignal: AbortSignal | undefined;
+      let onSchedulerAbort: (() => void) | undefined;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       let accepted = false;
       try {
+        if (controller.signal.aborted) throw controller.signal.reason;
+        if (self.#executionScheduler) {
+          const queueStartedAt = self.#now();
+          try {
+            const accountKey = self.#executionScheduler.deriveAccountKey(accountId);
+            schedulerGrant = await self.#executionScheduler.acquire({
+              tenantId: context.tenantId,
+              accountKey,
+              signal: controller.signal,
+            });
+          } finally {
+            queueWaitMs = Math.max(0, self.#now() - queueStartedAt);
+          }
+          schedulerGrantSignal = schedulerGrant.signal;
+          if (schedulerGrantSignal) {
+            onSchedulerAbort = () => controller.abort(schedulerGrantSignal?.reason);
+            if (schedulerGrantSignal.aborted) onSchedulerAbort();
+            else schedulerGrantSignal.addEventListener('abort', onSchedulerAbort, { once: true });
+          }
+        }
+        if (controller.signal.aborted) throw controller.signal.reason;
+
+        generationStartedAt = self.#now();
+        timeout = setTimeout(
+          () => controller.abort(new ImageGenerationError('image_generation_timeout')),
+          self.#generationTimeoutMs,
+        );
         const body = buildCandidateCodexImageRequest(request);
         let response: Response | undefined;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           if (controller.signal.aborted) throw controller.signal.reason;
+          if (attempt > 0) retryCount += 1;
           response = await fetchUpstream(
             CANDIDATE_CODEX_IMAGE_URL,
             {
@@ -196,6 +259,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
           if (response.status !== 401 || attempt === 1) break;
           const refreshed = await self.#auth.onUnauthorized(context.sessionKey);
           if (!refreshed) break;
+          authRefreshCount += 1;
           let refreshedAccount: string | undefined;
           const refreshedHeaders: Record<string, string> = {
             Accept: 'application/json',
@@ -206,6 +270,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
             resolvedModel: request.model,
             sessionKey: context.sessionKey,
             preferredAccountId: accountId,
+            boundAccountFallbackPolicy: context.boundAccountFallbackPolicy,
             reportSelection: (id) => { refreshedAccount = id; },
           });
           if (refreshedAccount !== accountId || !/^Bearer\s+\S+$/i.test(refreshedHeaders.Authorization ?? '')) {
@@ -244,12 +309,30 @@ class CodexSubscriptionImageProvider implements ImageProvider {
             });
         yield failed(normalized);
       } finally {
-        clearTimeout(timeout);
+        if (timeout !== undefined) clearTimeout(timeout);
+        if (schedulerGrantSignal && onSchedulerAbort) {
+          schedulerGrantSignal.removeEventListener('abort', onSchedulerAbort);
+        }
+        if (schedulerGrant && !schedulerGrantReleased) {
+          schedulerGrantReleased = true;
+          await schedulerGrant.release();
+        }
         context.signal.removeEventListener('abort', onCallerAbort);
       }
     })(this);
 
-    return { events, cancel };
+    return {
+      events,
+      cancel,
+      observability: {
+        snapshot: () => ({
+          queueWaitMs,
+          generationStartedAt,
+          retryCount,
+          authRefreshCount,
+        }),
+      },
+    };
   }
 }
 

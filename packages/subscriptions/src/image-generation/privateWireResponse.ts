@@ -15,6 +15,16 @@ export interface ParsedCandidateCodexImageResponse {
   readonly usage?: ImageUsage;
 }
 
+/** Private lifecycle helper used by consuming verification probes. */
+export function disposeCandidateCodexImageResponse(
+  parsed: ParsedCandidateCodexImageResponse | undefined,
+): void {
+  if (!parsed) return;
+  for (const image of parsed.images) {
+    if (image instanceof InMemoryImageAsset) image.dispose();
+  }
+}
+
 /** 50 MiB decoded image plus Base64/JSON overhead, with no unbounded body read. */
 const MAX_CANDIDATE_RESPONSE_BYTES = 70_000_000;
 const MAX_DECODED_IMAGE_BYTES = 50 * 1024 * 1024;

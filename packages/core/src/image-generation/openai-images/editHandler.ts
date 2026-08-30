@@ -19,6 +19,11 @@ function mediaType(value: string | undefined): string {
   return (value ?? '').split(';', 1)[0]!.trim().toLowerCase();
 }
 
+function isReferenceInput(value: unknown): boolean {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, 'file_id');
+}
+
 export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIOperationHandler {
   return async (context) => {
     const requestId = safeImageRequestId(deps.createRequestId?.());
@@ -26,13 +31,16 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
     let runtime: ImageApiRuntime | undefined;
     let request: NormalizedImageEditRequest<ImageAsset> | undefined;
     let scope: Awaited<ReturnType<typeof createImageRequestResourceScope>> | undefined;
+    let cleanupOutcome: 'completed' | 'failed' | undefined;
+    let observedReference = false;
+    const referenceOutcomes = { hits: 0, notFound: 0, expired: 0, failed: 0 };
     let terminal: 'completed' | 'failed' | 'cancelled' = 'failed';
     let terminalCode: string | undefined;
     try {
       runtime = await deps.resolveRuntime(context);
       validateRuntime(runtime);
       scope = deps.createResourceScope
-        ? await deps.createResourceScope(runtime.limits, context.signal)
+        ? await deps.createResourceScope(runtime.limits, context.signal, runtime.tenantId)
         : await createImageRequestResourceScope(runtime.limits, context.signal);
       const type = mediaType(context.request.headers['content-type']);
       if (type === 'application/json') {
@@ -55,11 +63,31 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
           record.images ?? record.image,
           runtime.limits.maxRemoteUrlBytes,
         );
+        const resolveObservedInput = async (input: unknown): Promise<ImageAsset> => {
+          const reference = isReferenceInput(input);
+          if (reference) observedReference = true;
+          try {
+            const asset = await resolveImageInput(input, runtime!, scope!, context.signal);
+            if (reference) referenceOutcomes.hits += 1;
+            return asset;
+          } catch (error) {
+            if (reference) {
+              if (error instanceof ImageGenerationError && error.code === 'image_reference_not_found') {
+                referenceOutcomes.notFound += 1;
+              } else if (error instanceof ImageGenerationError && error.code === 'image_reference_expired') {
+                referenceOutcomes.expired += 1;
+              } else {
+                referenceOutcomes.failed += 1;
+              }
+            }
+            throw error;
+          }
+        };
         const images: ImageAsset[] = [];
-        for (const input of inputs) images.push(await resolveImageInput(input, runtime, scope, context.signal));
+        for (const input of inputs) images.push(await resolveObservedInput(input));
         const mask = record.mask === undefined
           ? undefined
-          : await resolveImageInput(record.mask, runtime, scope, context.signal);
+          : await resolveObservedInput(record.mask);
         if (mask) assertCompatibleMask(images[0]!, mask);
         request = { action: 'edit', ...options, images, ...(mask ? { mask } : {}) };
       } else {
@@ -82,8 +110,11 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
           tenantId: runtime.tenantId,
           signal: context.signal,
           ...(context.route.sessionId ? { sessionKey: context.route.sessionId } : {}),
-          ...(context.route.preferredAccountId ? { preferredAccountId: context.route.preferredAccountId } : {}),
-          ...(context.route.preferredAccountGroup ? { preferredAccountGroup: context.route.preferredAccountGroup } : {}),
+          ...(runtime.preferredAccountId ? { preferredAccountId: runtime.preferredAccountId } : {}),
+          ...(runtime.preferredAccountGroup ? { preferredAccountGroup: runtime.preferredAccountGroup } : {}),
+          ...(runtime.boundAccountFallbackPolicy
+            ? { boundAccountFallbackPolicy: runtime.boundAccountFallbackPolicy }
+            : {}),
         },
         { providerId: runtime.providerId, ...(runtime.retention ? { retention: runtime.retention } : {}) },
       );
@@ -124,7 +155,14 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
       terminalCode = domainError.code;
       writeImageApiError(context.response, domainError, requestId);
     } finally {
-      await scope?.cleanup().catch(() => undefined);
+      if (scope) {
+        try {
+          await scope.cleanup();
+          cleanupOutcome = 'completed';
+        } catch {
+          cleanupOutcome = 'failed';
+        }
+      }
       await bestEffortAudit(deps, {
         requestId,
         operationId: 'images.edit',
@@ -145,6 +183,8 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
             }
           : {}),
         terminal,
+        ...(observedReference ? { referenceOutcomes } : {}),
+        ...(cleanupOutcome ? { cleanupOutcome } : {}),
         ...(terminalCode ? { errorCode: terminalCode } : {}),
       });
     }

@@ -225,6 +225,8 @@ export async function createImageContractHarness(options: {
           defaultModel: 'gpt-image-1',
           modelAliases: new Map([['latest-image', 'gpt-image-1']]),
           limits: resolvedLimits,
+          preferredAccountGroup: 'runtime-configured-group',
+          boundAccountFallbackPolicy: 'pool',
           ...(options.referenceStore ? { referenceStore: options.referenceStore } : {}),
           ...(options.remoteResolver ? { remoteResolver: options.remoteResolver } : {}),
         };
@@ -243,6 +245,8 @@ export async function createImageContractHarness(options: {
     ingressFormat: 'openai-responses',
     authMode: 'byo',
     providerId: 'unused-text-provider',
+    preferredAccountId: 'untrusted-route-account',
+    boundAccountFallbackPolicy: 'strict',
   };
   const token = routes.addRoute(route);
   const deps = {

@@ -15,10 +15,24 @@ export interface ImageProviderContext {
   readonly sessionKey?: string;
   readonly preferredAccountId?: string;
   readonly preferredAccountGroup?: string;
+  readonly boundAccountFallbackPolicy?: 'strict' | 'pool';
+}
+
+/** Optional numeric-only job observations exposed to the orchestrator. */
+export interface ImageJobObservabilitySnapshot {
+  readonly queueWaitMs?: number;
+  readonly generationStartedAt?: number;
+  readonly retryCount?: number;
+  readonly authRefreshCount?: number;
+}
+
+export interface ImageJobObservability {
+  snapshot(): ImageJobObservabilitySnapshot;
 }
 
 export interface ImageJob {
   readonly events: AsyncIterable<ImageProviderEvent<ImageAsset>>;
+  readonly observability?: ImageJobObservability;
   cancel(reason?: string): Promise<void>;
 }
 

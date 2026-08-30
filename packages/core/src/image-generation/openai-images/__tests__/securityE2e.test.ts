@@ -103,7 +103,13 @@ describe('Images HTTP security contracts', () => {
       expect(response.status).toBe(status);
       expect((await response.json() as { error: { code: string } }).error.code).toBe(code);
     }
+    await harness.waitForIdle();
     expect(harness.capture.starts).toBe(0);
+    expect(harness.capture.audits.map((audit) => audit.referenceOutcomes)).toEqual([
+      { hits: 0, notFound: 0, expired: 1, failed: 0 },
+      { hits: 0, notFound: 1, expired: 0, failed: 0 },
+      { hits: 0, notFound: 1, expired: 0, failed: 0 },
+    ]);
   });
 
   it('accepts ordered JSON images plus a distinct data-URL mask', async () => {
@@ -176,6 +182,10 @@ describe('Images HTTP security contracts', () => {
     await harness.waitForIdle();
     expect(harness.capture.starts).toBe(1);
     expect(releases).toBe(1);
+    expect(harness.capture.audits[0]).toMatchObject({
+      referenceOutcomes: { hits: 1, notFound: 0, expired: 0, failed: 0 },
+      cleanupOutcome: 'completed',
+    });
   });
 
   it('rejects forged/corrupt multipart bytes before provider acquisition', async () => {
@@ -272,6 +282,7 @@ describe('Images HTTP security contracts', () => {
     expect(harness.capture.audits[0]).toMatchObject({
       operationId: 'images.edit',
       inputCount: 1,
+      cleanupOutcome: 'completed',
       terminal: 'completed',
     });
   });

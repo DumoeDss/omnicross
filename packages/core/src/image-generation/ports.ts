@@ -61,6 +61,11 @@ export class InMemoryImageAsset implements ImageAsset {
       },
     });
   }
+
+  /** Best-effort zeroization for short-lived verified/probe artifacts. */
+  dispose(): void {
+    this.#bytes.fill(0);
+  }
 }
 
 export async function readImageAssetBytes(
@@ -234,11 +239,21 @@ export interface ImageTelemetryRecord {
   readonly outputs: readonly ImageTelemetryOutputMetadata[];
   readonly startedAt: number;
   readonly acceptedAt?: number;
+  readonly firstPartialAt?: number;
+  readonly generationStartedAt?: number;
   readonly finishedAt: number;
   readonly terminal: 'completed' | 'failed' | 'cancelled';
   readonly errorCode?: ImageGenerationErrorCode;
   readonly usage?: ImageUsage;
   readonly usageUnavailable: boolean;
+  /** Present only when the provider can report exact attempt counts. */
+  readonly retryCount?: number;
+  /** Present only when the provider can report exact successful refresh counts. */
+  readonly authRefreshCount?: number;
+  /** Present only when selected-account scheduling measured its own wait. */
+  readonly queueWaitMs?: number;
+  /** Present when retention was enabled; contains a count, never reference IDs. */
+  readonly referenceSaveCount?: number;
   /** Count-only cleanup signal; never contains tenant or reference identifiers. */
   readonly retentionRollbackFailures?: number;
 }

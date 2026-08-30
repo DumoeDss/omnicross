@@ -16,7 +16,10 @@
 
 import { parseArgs } from 'node:util';
 
-import { loadServerConfig } from '@omnicross/core/outbound-api';
+import {
+  DEFAULT_IMAGES_SERVER_CONFIG,
+  loadServerConfig,
+} from '@omnicross/core/outbound-api';
 import type {
   GatewayBinding,
   OutboundApiServerConfig,
@@ -24,6 +27,10 @@ import type {
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
+import type {
+  ImageDoctorLocalSnapshot,
+  ImageDoctorService,
+} from '../image-generation/ImageDoctorService';
 
 import { defaultKeysPath, defaultTokensPath } from './paths';
 
@@ -117,6 +124,81 @@ export function buildClaudeDoctorChecks(config: OutboundApiServerConfig): Doctor
   return checks;
 }
 
+/** Pure projection of the local-only Images diagnostic snapshot. */
+export function buildImagesDoctorChecks(snapshot: ImageDoctorLocalSnapshot): DoctorCheck[] {
+  const enabled = snapshot.config.enabled;
+  const accountOk = !enabled || snapshot.account.usable;
+  const evidenceOk = !enabled || (snapshot.evidence.valid && snapshot.evidence.freshEntries > 0);
+  return [
+    {
+      name: 'normalized Images config',
+      ok: snapshot.config.valid,
+      detail: snapshot.config.valid
+        ? `enabled=${enabled}, provider=${snapshot.config.provider}, model=${snapshot.config.model}`
+        : `invalid normalized configuration (${snapshot.config.errorCount} issue(s))`,
+    },
+    {
+      name: 'private roots',
+      ok: snapshot.roots.valid,
+      detail: `${snapshot.roots.verifiedAreas}/${snapshot.roots.expectedAreas} roots verified`,
+    },
+    {
+      name: 'persistent stores',
+      ok: snapshot.stores.valid,
+      warn: snapshot.stores.corruptManifestsQuarantined > 0,
+      detail:
+        `mounts=${snapshot.stores.mounts}, retired=${snapshot.stores.retiredMounts}, ` +
+        `references=${snapshot.stores.referenceEntries}/${snapshot.stores.referenceBytes}B, ` +
+        `state=${snapshot.stores.stateCalls} calls/${snapshot.stores.stateResponses} responses, ` +
+        `quarantined=${snapshot.stores.corruptManifestsQuarantined}`,
+    },
+    {
+      name: 'key permission schema',
+      ok: snapshot.permissions.valid,
+      detail:
+        `rows=${snapshot.permissions.rows}, legacy=${snapshot.permissions.legacyRows}, ` +
+        `invalid=${snapshot.permissions.invalidRows}, Images-authorized=${snapshot.permissions.imagesAuthorizedRows}`,
+    },
+    {
+      name: 'Codex account',
+      ok: accountOk,
+      warn: !snapshot.account.usable,
+      detail: snapshot.account.usable
+        ? 'eligible local credential is present'
+        : `${snapshot.account.reason}; Images live verification is unavailable`,
+    },
+    {
+      name: 'cached capability evidence',
+      ok: evidenceOk,
+      warn: snapshot.evidence.freshEntries === 0,
+      detail: snapshot.evidence.valid
+        ? `entries=${snapshot.evidence.entries}, fresh=${snapshot.evidence.freshEntries}, stale=${snapshot.evidence.staleEntries}`
+        : 'evidence store could not be read safely',
+    },
+  ];
+}
+
+/** Execute only the explicitly consuming Images verifier and print safe metadata. */
+export async function runImagesLiveDoctor(
+  config: OutboundApiServerConfig,
+  doctor: ImageDoctorService,
+  signal: AbortSignal = new AbortController().signal,
+): Promise<boolean> {
+  console.info(
+    '  [⚠] live Images verification may consume subscription quota; one minimal low-quality PNG request will be sent',
+  );
+  const result = await doctor.verifyLive(config.images ?? DEFAULT_IMAGES_SERVER_CONFIG, signal);
+  if (!result.ok) {
+    console.info(`  [✗] live Images verification: ${result.code}`);
+    return false;
+  }
+  console.info(
+    `  [✓] live Images verification: model=${result.model}, quality=${result.quality}, ` +
+      `format=${result.outputFormat}, freshEvidence=${result.freshEvidenceEntries}`,
+  );
+  return true;
+}
+
 /** The `--live` probe result (also consumed by tests via an injected fetch). */
 export interface LiveProbeResult {
   status: number | null;
@@ -174,8 +256,8 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
     allowPositionals: true,
   });
   const subject = positionals[0] ?? 'claude';
-  if (subject !== 'claude') {
-    throw new Error(`doctor: unknown subject '${subject}' (only 'claude' is supported)`);
+  if (subject !== 'claude' && subject !== 'images') {
+    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images')`);
   }
   const configPath = values.config;
   if (!configPath) {
@@ -192,36 +274,58 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
     masterKeyFilePath: values['master-key-file'],
   };
   const daemon = await buildDaemon(config, paths);
-  const serverConfig = await loadServerConfig(daemon.settingsStore);
+  try {
+    const serverConfig = await loadServerConfig(daemon.settingsStore);
 
-  const checks = buildClaudeDoctorChecks(serverConfig);
-  let hardFailure = false;
-  console.info(`omnicross doctor ${subject} — config: ${configPath}`);
-  for (const check of checks) {
-    const mark = check.ok ? (check.warn ? '⚠' : '✓') : '✗';
-    if (!check.ok) hardFailure = true;
-    console.info(`  [${mark}] ${check.name}: ${check.detail}`);
-  }
-
-  if (values.live) {
-    if (!values.key) {
-      console.error('  --live requires --key <outbound API key> (the same key a client would present)');
-      return 1;
+    const checks = subject === 'images'
+      ? buildImagesDoctorChecks(await daemon.imageDoctor.inspectLocal(
+          serverConfig.images ?? DEFAULT_IMAGES_SERVER_CONFIG,
+        ))
+      : buildClaudeDoctorChecks(serverConfig);
+    let hardFailure = false;
+    console.info(subject === 'images'
+      ? 'omnicross doctor images — local metadata only'
+      : `omnicross doctor ${subject} — config: ${configPath}`);
+    for (const check of checks) {
+      const mark = check.ok ? (check.warn ? '⚠' : '✓') : '✗';
+      if (!check.ok) hardFailure = true;
+      console.info(`  [${mark}] ${check.name}: ${check.detail}`);
     }
-    const url = values.url ?? 'http://127.0.0.1:8765';
-    const probe = await runLiveProbe(url, values.key, fetchImpl);
-    if (probe.error !== undefined) {
-      console.info(`  [✗] live probe (${url}): ${probe.error}`);
-      hardFailure = true;
-    } else {
-      const okStatus = probe.status !== null && probe.status >= 200 && probe.status < 300;
-      console.info(
-        `  [${okStatus ? '✓' : '✗'}] live probe (${url}) count_tokens: status ${probe.status}` +
-          `${probe.estimateHeader === 'true' ? ', local estimate (x-omnicross-count-estimate: true)' : ''}`,
-      );
-      if (!okStatus) hardFailure = true;
-    }
-  }
 
-  return hardFailure ? 1 : 0;
+    if (values.live && subject === 'images') {
+      if (!await runImagesLiveDoctor(serverConfig, daemon.imageDoctor)) hardFailure = true;
+    } else if (values.live) {
+      if (!values.key) {
+        console.error('  --live requires --key <outbound API key> (the same key a client would present)');
+        return 1;
+      }
+      const url = values.url ?? 'http://127.0.0.1:8765';
+      const probe = await runLiveProbe(url, values.key, fetchImpl);
+      if (probe.error !== undefined) {
+        console.info(`  [✗] live probe (${url}): ${probe.error}`);
+        hardFailure = true;
+      } else {
+        const okStatus = probe.status !== null && probe.status >= 200 && probe.status < 300;
+        console.info(
+          `  [${okStatus ? '✓' : '✗'}] live probe (${url}) count_tokens: status ${probe.status}` +
+            `${probe.estimateHeader === 'true' ? ', local estimate (x-omnicross-count-estimate: true)' : ''}`,
+        );
+        if (!okStatus) hardFailure = true;
+      }
+    }
+
+    return hardFailure ? 1 : 0;
+  } finally {
+    daemon.routeLeaseManager.shutdown();
+    await daemon.providerProxy.stop();
+    daemon.apiKeyPool.dispose();
+    daemon.tokenRefreshScheduler.dispose();
+    daemon.claudeAllowanceRefreshScheduler.dispose();
+    daemon.accountHealthSweeper.dispose();
+    daemon.accountHealthProbeScheduler.dispose();
+    daemon.auditPruneSweeper.dispose();
+    daemon.usagePruneSweeper.dispose();
+    daemon.billingRetrySweeper.dispose();
+    daemon.pricingRefreshScheduler.dispose();
+  }
 }

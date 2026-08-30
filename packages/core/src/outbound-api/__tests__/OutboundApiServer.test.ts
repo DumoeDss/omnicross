@@ -52,6 +52,8 @@ describe('OutboundApiServer', () => {
     expect(status.running).toBe(false);
     expect(status.loopbackUrl).toBeNull();
     expect(status.formats).toBeNull();
+    expect(status).not.toHaveProperty('images');
+    expect(status).not.toHaveProperty('lanImages');
   });
 
   // claude-api-experience-extras (R10): HEAD /api/hello at the LISTENER level —
@@ -140,6 +142,61 @@ describe('OutboundApiServer', () => {
     expect(status.lanUrl).toBeNull();
     expect(status.lanFormats).toBeNull();
     expect(status.formats).toEqual(formatUrls(`http://127.0.0.1:${status.port}`));
+    expect(status).not.toHaveProperty('images');
+    expect(status).not.toHaveProperty('lanImages');
+    expect(Object.keys(status).sort()).toEqual([
+      'formats',
+      'lanFormats',
+      'lanUrl',
+      'loopbackUrl',
+      'port',
+      'running',
+    ]);
+  });
+
+  it('adds exact loopback Images URLs only when Images serving is enabled', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: true,
+      networkBinding: false,
+      imagesEnabled: true,
+      endpoints,
+      port: 0,
+    });
+    const status = server.getStatus();
+    expect(status.images).toEqual({
+      generations: `${status.loopbackUrl}/v1/images/generations`,
+      edits: `${status.loopbackUrl}/v1/images/edits`,
+    });
+    expect(status).not.toHaveProperty('lanImages');
+    expect(status.formats).toEqual(formatUrls(status.loopbackUrl!));
+  });
+
+  it('hot-disables additive Images URLs without restarting the listener', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: true,
+      networkBinding: false,
+      imagesEnabled: true,
+      endpoints,
+      port: 0,
+    });
+    const before = server.getStatus();
+    expect(before.images).toBeDefined();
+
+    await server.applyConfig({
+      enabled: true,
+      networkBinding: false,
+      imagesEnabled: false,
+      endpoints,
+      port: before.port,
+    });
+    const after = server.getStatus();
+    expect(after.port).toBe(before.port);
+    expect(after.running).toBe(true);
+    expect(after.formats).toEqual(before.formats);
+    expect(after).not.toHaveProperty('images');
+    expect(after).not.toHaveProperty('lanImages');
   });
 
   it('binds 0.0.0.0 when network binding is enabled (loopback URL still shown)', async () => {
@@ -158,6 +215,85 @@ describe('OutboundApiServer', () => {
     expect(server.getStatus().running).toBe(true);
     await server.applyConfig({ enabled: false, networkBinding: false, endpoints, port: 0 });
     expect(server.getStatus().running).toBe(false);
+  });
+
+  it('prepares a listener without publishing it and disposes an unpublished socket', async () => {
+    server = new OutboundApiServer(deps);
+    const prepared = await server.prepareConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+    });
+    expect(server.getStatus().running).toBe(false);
+    await prepared.dispose();
+    expect(server.getStatus().running).toBe(false);
+
+    const replacement = await server.prepareConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+    });
+    expect(server.getStatus().running).toBe(false);
+    await replacement.publish();
+    expect(server.getStatus().running).toBe(true);
+  });
+
+  it('rolls a published snapshot back to the prior live config', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+      anthropic: { heartbeatIntervalMs: 12_000 },
+    });
+    const port = server.getStatus().port;
+    const prepared = await server.prepareConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+      anthropic: { heartbeatIntervalMs: 34_000 },
+    });
+    expect(getAnthropicPingHeartbeatMs()).toBe(12_000);
+    await prepared.publish();
+    expect(server.getStatus().port).toBe(port);
+    expect(getAnthropicPingHeartbeatMs()).toBe(34_000);
+    await prepared.rollback();
+    expect(server.getStatus().port).toBe(port);
+    expect(getAnthropicPingHeartbeatMs()).toBe(12_000);
+  });
+
+  it('rejects a live fixed-port address switch during prepare without disturbing the listener', async () => {
+    server = new OutboundApiServer(deps);
+    await server.applyConfig({ enabled: true, networkBinding: false, endpoints, port: 0 });
+    const before = server.getStatus();
+
+    await expect(server.prepareConfig({
+      enabled: true,
+      networkBinding: true,
+      endpoints,
+      port: before.port,
+    })).rejects.toThrow(/require disabling first or changing the port/);
+
+    expect(server.getStatus()).toEqual(before);
+    expect((await fetch(`http://127.0.0.1:${before.port}/api/hello`, { method: 'HEAD' })).status).toBe(200);
+  });
+
+  it('keeps prepared publication infallible when an advisory port-change hook throws', async () => {
+    server = new OutboundApiServer(deps, () => {
+      throw new Error('injected advisory hook failure');
+    });
+    const prepared = await server.prepareConfig({
+      enabled: true,
+      networkBinding: false,
+      endpoints,
+      port: 0,
+    });
+    await expect(prepared.publish()).resolves.toBeUndefined();
+    expect(server.getStatus().running).toBe(true);
   });
 });
 

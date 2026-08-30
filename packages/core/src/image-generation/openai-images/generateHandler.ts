@@ -19,6 +19,18 @@ function validateRuntime(runtime: ImageApiRuntime): void {
   ) {
     throw new ImageGenerationError('invalid_api_key');
   }
+  for (const hint of [runtime.preferredAccountId, runtime.preferredAccountGroup]) {
+    if (hint !== undefined && (typeof hint !== 'string' || !hint.trim() || hint.length > 256)) {
+      throw new ImageGenerationError('invalid_api_key');
+    }
+  }
+  if (
+    runtime.boundAccountFallbackPolicy !== undefined &&
+    runtime.boundAccountFallbackPolicy !== 'strict' &&
+    runtime.boundAccountFallbackPolicy !== 'pool'
+  ) {
+    throw new ImageGenerationError('invalid_api_key');
+  }
   assertFiniteImageApiLimits(runtime.limits);
 }
 
@@ -40,13 +52,14 @@ export function createImageGenerateHandler(deps: ImageApiContributionsDeps): Ope
     let runtime: ImageApiRuntime | undefined;
     let request: NormalizedImageGenerateRequest | undefined;
     let scope: Awaited<ReturnType<typeof createImageRequestResourceScope>> | undefined;
+    let cleanupOutcome: 'completed' | 'failed' | undefined;
     let terminal: 'completed' | 'failed' | 'cancelled' = 'failed';
     let terminalCode: string | undefined;
     try {
       runtime = await deps.resolveRuntime(context);
       validateRuntime(runtime);
       scope = deps.createResourceScope
-        ? await deps.createResourceScope(runtime.limits, context.signal)
+        ? await deps.createResourceScope(runtime.limits, context.signal, runtime.tenantId)
         : await createImageRequestResourceScope(runtime.limits, context.signal);
       const body = await readJsonBody(context.request, {
         maxBytes: runtime.limits.maxJsonBytes,
@@ -60,8 +73,11 @@ export function createImageGenerateHandler(deps: ImageApiContributionsDeps): Ope
           tenantId: runtime.tenantId,
           signal: context.signal,
           ...(context.route.sessionId ? { sessionKey: context.route.sessionId } : {}),
-          ...(context.route.preferredAccountId ? { preferredAccountId: context.route.preferredAccountId } : {}),
-          ...(context.route.preferredAccountGroup ? { preferredAccountGroup: context.route.preferredAccountGroup } : {}),
+          ...(runtime.preferredAccountId ? { preferredAccountId: runtime.preferredAccountId } : {}),
+          ...(runtime.preferredAccountGroup ? { preferredAccountGroup: runtime.preferredAccountGroup } : {}),
+          ...(runtime.boundAccountFallbackPolicy
+            ? { boundAccountFallbackPolicy: runtime.boundAccountFallbackPolicy }
+            : {}),
         },
         { providerId: runtime.providerId, ...(runtime.retention ? { retention: runtime.retention } : {}) },
       );
@@ -102,7 +118,14 @@ export function createImageGenerateHandler(deps: ImageApiContributionsDeps): Ope
       terminalCode = domainError.code;
       writeImageApiError(context.response, domainError, requestId);
     } finally {
-      await scope?.cleanup().catch(() => undefined);
+      if (scope) {
+        try {
+          await scope.cleanup();
+          cleanupOutcome = 'completed';
+        } catch {
+          cleanupOutcome = 'failed';
+        }
+      }
       await bestEffortAudit(deps, {
         requestId,
         operationId: 'images.generate',
@@ -121,6 +144,7 @@ export function createImageGenerateHandler(deps: ImageApiContributionsDeps): Ope
             }
           : {}),
         terminal,
+        ...(cleanupOutcome ? { cleanupOutcome } : {}),
         ...(terminalCode ? { errorCode: terminalCode } : {}),
       });
     }

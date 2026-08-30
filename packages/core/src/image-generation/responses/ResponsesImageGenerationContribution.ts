@@ -89,6 +89,13 @@ function assertRuntime(runtime: ResponsesImageTrustedRuntime): void {
       throw new ImageGenerationError('invalid_image_request');
     }
   }
+  if (
+    runtime.boundAccountFallbackPolicy !== undefined &&
+    runtime.boundAccountFallbackPolicy !== 'strict' &&
+    runtime.boundAccountFallbackPolicy !== 'pool'
+  ) {
+    throw new ImageGenerationError('invalid_image_request');
+  }
 }
 
 function linkAbortSignal(signal: AbortSignal): {
@@ -367,6 +374,9 @@ class RequestScope implements ResponsesImageRequestScope {
           : {}),
         ...(this.#runtime.preferredAccountGroup !== undefined
           ? { preferredAccountGroup: this.#runtime.preferredAccountGroup }
+          : {}),
+        ...(this.#runtime.boundAccountFallbackPolicy !== undefined
+          ? { boundAccountFallbackPolicy: this.#runtime.boundAccountFallbackPolicy }
           : {}),
       };
 

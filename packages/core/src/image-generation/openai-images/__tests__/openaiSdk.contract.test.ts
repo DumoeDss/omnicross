@@ -53,6 +53,11 @@ describe('OpenAI JavaScript SDK 7.8.0 Images contract', () => {
     });
     expect(harness.capture.contexts[0]?.tenantId).toBe(harness.tenantId);
     expect(harness.capture.contexts[0]?.tenantId).not.toBe(harness.token);
+    expect(harness.capture.contexts[0]).toMatchObject({
+      preferredAccountGroup: 'runtime-configured-group',
+      boundAccountFallbackPolicy: 'pool',
+    });
+    expect(harness.capture.contexts[0]).not.toHaveProperty('preferredAccountId');
   });
 
   it('supports official multipart single/multi-image edit and alpha mask ordering', async () => {
@@ -81,6 +86,14 @@ describe('OpenAI JavaScript SDK 7.8.0 Images contract', () => {
     if (request?.action !== 'edit') throw new Error('expected captured edit');
     expect(request.images.map((image) => image.mimeType)).toEqual(['image/png', 'image/jpeg']);
     expect(request.mask).toMatchObject({ mimeType: 'image/png', hasAlpha: true });
+    expect(harness.capture.contexts).toHaveLength(2);
+    for (const providerContext of harness.capture.contexts) {
+      expect(providerContext).toMatchObject({
+        preferredAccountGroup: 'runtime-configured-group',
+        boundAccountFallbackPolicy: 'pool',
+      });
+      expect(providerContext).not.toHaveProperty('preferredAccountId');
+    }
   });
 
   it.each([

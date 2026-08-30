@@ -136,6 +136,7 @@ export interface ResponsesImageTrustedRuntime {
   readonly sessionKey?: string;
   readonly preferredAccountId?: string;
   readonly preferredAccountGroup?: string;
+  readonly boundAccountFallbackPolicy?: 'strict' | 'pool';
 }
 
 export interface ResponsesImageRequestScopeInput {

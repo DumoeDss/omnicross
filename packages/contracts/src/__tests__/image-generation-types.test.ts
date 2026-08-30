@@ -69,6 +69,10 @@ describe('provider-neutral image contracts', () => {
     expect(Object.keys(error).sort()).toEqual(
       ['code', 'httpStatus', 'message', 'retrySafety', 'type'].sort(),
     );
+    expect(IMAGE_GENERATION_ERROR_CODES).toEqual(expect.arrayContaining([
+      'image_queue_full',
+      'image_queue_timeout',
+    ]));
   });
 
   it('contains no private Codex/ChatGPT wire fields', () => {

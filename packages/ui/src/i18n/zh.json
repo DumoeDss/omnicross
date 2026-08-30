@@ -921,6 +921,16 @@
       "reveal": "查看密钥",
       "revealError": "查看密钥失败。",
       "revealHint": "按需解密——请像对待原始密钥一样妥善保管。",
+      "permissions": {
+        "title": "端点权限",
+        "legacy": "旧版默认值",
+        "chat": "聊天",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "图像",
+        "hint": "Responses 与图像是独立权限。旧版密钥保留四个文本端点，但不会自动获得图像权限。"
+      },
       "bindings": {
         "title": "下游接口",
         "count": "已绑定 {{count}} 个下游接口",
@@ -954,6 +964,60 @@
         "modelRestrictionList": "模型",
         "modelRestrictionListHint": "每行一个模型 ID",
         "modelRestrictionEmptyAllowlistWarning": "启用的白名单若为空将拒绝所有请求。"
+      }
+    },
+    "images": {
+      "title": "图像生成",
+      "description": "管理默认关闭的 Images 端点，并查看由新鲜证据支持的运行状态。",
+      "unsupportedDaemon": "当前守护进程尚未提供 Images 配置。",
+      "enable": "启用 Images 端点",
+      "entitlementWarning": "启用配置并不代表订阅具有使用资格；实际可用性需要所选账号的新鲜证据。",
+      "track": {
+        "configured": "已配置",
+        "effective": "实际状态",
+        "on": "已启用",
+        "off": "已禁用",
+        "available": "可用",
+        "unavailable": "不可用",
+        "unknown": "没有新鲜的能力证据"
+      },
+      "account": {
+        "label": "账号选择",
+        "pool": "可用账号池",
+        "group": "分组：{{group}}",
+        "account": "Codex 账号 {{number}}",
+        "fallback": "回退策略",
+        "strict": "严格选择",
+        "poolFallback": "允许账号池回退"
+      },
+      "features": {
+        "title": "已验证功能矩阵",
+        "generate": "生成",
+        "edit": "编辑",
+        "maskEdit": "蒙版编辑",
+        "streaming": "流式输出",
+        "transparentBackground": "透明背景",
+        "responsesTool": "Responses 工具",
+        "supported": "支持",
+        "unsupported": "不支持"
+      },
+      "evidence": "新鲜证据于 {{age}} 秒前观测。",
+      "noEvidence": "没有新鲜证据。轮询此页面绝不会生成图像。",
+      "resources": {
+        "title": "运行资源利用率",
+        "queue": "队列",
+        "temporary": "临时存储",
+        "references": "保留的引用",
+        "bytes": "临时 {{temporary}} · 引用 {{references}}",
+        "unavailable": "Images 运行时离线期间无法获取资源利用率。"
+      },
+      "remote": {
+        "enabledWarning": "远程 URL 仅通过加固的解析器策略启用。",
+        "disabled": "远程图像 URL 已禁用。"
+      },
+      "storage": {
+        "custom": "已配置私有自定义存储根目录；其路径已隐藏。",
+        "privateDefault": "图像产物使用守护进程的私有应用数据存储。"
       }
     },
     "queue": {

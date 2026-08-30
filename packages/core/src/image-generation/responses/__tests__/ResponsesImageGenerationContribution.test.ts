@@ -208,6 +208,7 @@ function runtime(
     signal: controller.signal,
     sessionKey: 'session-safe',
     preferredAccountGroup: 'group-safe',
+    boundAccountFallbackPolicy: 'pool',
     ...override,
   };
 }
@@ -290,6 +291,10 @@ describe('Responses image contribution execution and integration contract', () =
       n: 1,
       moderation: 'auto',
       stream: false,
+    });
+    expect(harness.acquire.mock.calls[0]?.[0]).toMatchObject({
+      preferredAccountGroup: 'group-safe',
+      boundAccountFallbackPolicy: 'pool',
     });
     expect(JSON.stringify(done)).not.toContain('usage');
     expect(result.map(executionRecordType)).toEqual(['completed']);
@@ -913,6 +918,32 @@ describe('Responses image contribution execution and integration contract', () =
     expect(thrown.at(-1)).toMatchObject({ error: { code: 'image_generation_failed' } });
     expect(JSON.stringify(thrown)).not.toContain('SECRET_SENTINEL');
     expect(thrown.some((event) => 'kind' in event && event.kind === 'completed')).toBe(false);
+    await scope.dispose();
+  });
+
+  it.each([
+    'image_queue_full',
+    'image_queue_timeout',
+  ] as const)('preserves %s through hosted execution', async (code) => {
+    const harness = createHarness({
+      eventFactory: () => events({
+        type: 'failed',
+        error: serializeImageGenerationError(new ImageGenerationError(code, {
+          retrySafety: 'before_acceptance',
+        })),
+      }),
+    });
+    const inspected = admission(harness.contribution);
+    const scope = await harness.contribution.createRequestScope({
+      admission: inspected,
+      runtime: runtime(),
+    });
+    const result = await collect(scope.executeSelectedCall({ prompt: 'queued' }, allocator()));
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      kind: 'failed',
+      error: { code, retrySafety: 'before_acceptance' },
+    });
     await scope.dispose();
   });
 

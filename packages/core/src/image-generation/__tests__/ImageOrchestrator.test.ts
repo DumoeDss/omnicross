@@ -99,9 +99,17 @@ function delayedTelemetry() {
   return { entered, release, records, sink };
 }
 
-function setup(events: AsyncIterable<ImageProviderEvent<ReturnType<typeof asset>>>, caps = capabilities) {
+function setup(
+  events: AsyncIterable<ImageProviderEvent<ReturnType<typeof asset>>>,
+  caps = capabilities,
+  observability?: ImageJob['observability'],
+) {
   const cancel = vi.fn(async () => undefined);
-  const start = vi.fn((): ImageJob => ({ events, cancel }));
+  const start = vi.fn((): ImageJob => ({
+    events,
+    cancel,
+    ...(observability ? { observability } : {}),
+  }));
   const release = vi.fn(async () => undefined);
   const acquire = vi.fn(async (): Promise<ImageProviderLease> => ({
     providerId: 'fake', capabilities: caps, start, release,
@@ -820,6 +828,50 @@ describe('ImageOrchestrator cancellation, retention, and telemetry', () => {
     expect(JSON.stringify(telemetry)).not.toContain(request.prompt);
     expect(JSON.stringify(telemetry)).not.toContain('tenant-a');
     expect(JSON.stringify(telemetry)).not.toContain('base64');
+  });
+
+  it('forwards only numeric provider observations and first-partial timing to telemetry', async () => {
+    let now = 100;
+    const fake = setup(eventStream(
+      { type: 'accepted', acceptedAt: 116 },
+      {
+        type: 'partial_image',
+        outputIndex: 0,
+        partialImageIndex: 0,
+        image: { artifact: asset([1]) },
+      },
+      { type: 'completed', images: [{ artifact: asset([2]) }] },
+    ), capabilities, {
+      snapshot: () => ({
+        queueWaitMs: 5,
+        generationStartedAt: 115,
+        retryCount: 1,
+        authRefreshCount: 1,
+      }),
+    });
+    const sink = { record: vi.fn(async () => undefined) };
+    const orchestrator = new ImageOrchestrator({
+      registry: fake.registry,
+      telemetrySink: sink,
+      now: () => { now += 10; return now; },
+    });
+
+    await collect(orchestrator.run(
+      { ...request, stream: true, partialImages: 1 },
+      context(),
+      { providerId: 'fake' },
+    ));
+
+    expect(sink.record).toHaveBeenCalledOnce();
+    expect(sink.record.mock.calls[0]![0]).toMatchObject({
+      startedAt: 110,
+      firstPartialAt: 120,
+      finishedAt: 130,
+      generationStartedAt: 115,
+      queueWaitMs: 5,
+      retryCount: 1,
+      authRefreshCount: 1,
+    });
   });
 
   it('does not fail a successful generation when the telemetry sink throws', async () => {

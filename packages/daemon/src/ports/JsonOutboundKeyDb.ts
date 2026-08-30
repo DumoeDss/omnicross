@@ -17,11 +17,63 @@
  * @module @omnicross/daemon/ports/JsonOutboundKeyDb
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 
-import type { OutboundKeyDb, OutboundKeyDbRow, OutboundKeyPolicy } from '@omnicross/core';
+import {
+  validateOutboundPermissions,
+  type OutboundKeyDb,
+  type OutboundKeyDbRow,
+  type OutboundKeyPolicy,
+  type OutboundPermission,
+} from '@omnicross/core';
 
 import type { SecretBox } from '../secrets/SecretBox';
+
+type AtomicFileReplace = (targetPath: string, contents: string) => void;
+
+/** Same-directory temp-write + fsync + rename, so a failed write preserves the prior file. */
+function atomicReplaceUtf8(targetPath: string, contents: string): void {
+  const tempPath = join(
+    dirname(targetPath),
+    `.${basename(targetPath)}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`,
+  );
+  let fd: number | undefined;
+  try {
+    fd = openSync(tempPath, 'wx', 0o600);
+    writeFileSync(fd, contents, { encoding: 'utf8' });
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+    renameSync(tempPath, targetPath);
+  } catch (error) {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // Preserve the original write error.
+      }
+    }
+    if (existsSync(tempPath)) {
+      try {
+        unlinkSync(tempPath);
+      } catch {
+        // Preserve the original write error; stale temp cleanup is best-effort.
+      }
+    }
+    throw error;
+  }
+}
 
 export class JsonOutboundKeyDb implements OutboundKeyDb {
   /**
@@ -35,6 +87,7 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
   constructor(
     private readonly keysPath: string,
     private readonly secretBox?: SecretBox,
+    private readonly atomicReplace: AtomicFileReplace = atomicReplaceUtf8,
   ) {}
 
   async outboundApiKeysList(): Promise<OutboundKeyDbRow[]> {
@@ -56,7 +109,7 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     keyPrefix: string;
     createdAt?: number;
     kind?: 'client' | 'integration';
-    allowedEndpoints?: import('@omnicross/core').OutboundEndpoint[];
+    allowedEndpoints?: OutboundPermission[];
     loopbackOnly?: boolean;
     plaintext?: string;
   }): Promise<OutboundKeyDbRow> {
@@ -121,6 +174,18 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     return this.mutateRow(id, (row) => {
       if (row.revokedAt !== null) return false;
       row.enabled = enabled;
+      return true;
+    });
+  }
+
+  async outboundApiKeysSetPermissions(
+    id: string,
+    permissions: OutboundPermission[],
+  ): Promise<boolean> {
+    const exact = validateOutboundPermissions(permissions);
+    return this.mutateRow(id, (row) => {
+      if (row.revokedAt !== null) return false;
+      row.allowedEndpoints = [...exact];
       return true;
     });
   }
@@ -200,7 +265,7 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
   }
 
   private writeRows(rows: OutboundKeyDbRow[]): void {
-    writeFileSync(this.keysPath, JSON.stringify(rows, null, 2) + '\n', 'utf8');
+    this.atomicReplace(this.keysPath, JSON.stringify(rows, null, 2) + '\n');
   }
 }
 

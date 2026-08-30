@@ -38,6 +38,8 @@ const SAFE_STATUS: Readonly<Record<ImageGenerationErrorCode, number>> = {
   moderation_blocked: 422,
   upstream_rate_limited: 429,
   subscription_usage_limit_reached: 429,
+  image_queue_full: 429,
+  image_queue_timeout: 504,
   request_cancelled: 499,
   upstream_protocol_changed: 502,
   image_generation_failed: 502,

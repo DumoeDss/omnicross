@@ -40,10 +40,12 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  ImagesCapabilityStatus,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
   OutboundApiServerStatus,
+  OutboundPermissionId,
   OutboundKeyPolicyPatch,
   OverloadCounterResponse,
   ProxyConfig,
@@ -262,6 +264,8 @@ export type GenerateVoucherResult =
 export interface AgentApiServiceApi {
   getConfig(): Promise<OutboundApiServerConfig | null>;
   getStatus(): Promise<OutboundApiServerStatus | null>;
+  /** Non-consuming authenticated Images capability/runtime projection. */
+  getImagesCapability(): Promise<ImagesCapabilityStatus | null>;
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
   /** Replace the complete independent gateway-binding aggregate. */
@@ -272,6 +276,8 @@ export interface AgentApiServiceApi {
    * handling (`ok:false` → "key not found").
    */
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
+  /** Atomically replace one key's exact authorization list. */
+  setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult>;
   /**
    * Set a key's policy envelope (`POST /keys/:id/policy`, outbound-key-policy):
    * expiry / activation / cost limits / per-key rate. Each field is three-way
@@ -288,6 +294,8 @@ export interface AgentApiServiceApi {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
     concurrencyQueue?: OutboundApiServerConfig['concurrencyQueue'];
   }): Promise<MutationResult>;
+  /** Persist the complete strict Images configuration segment. */
+  updateImagesConfig(config: NonNullable<OutboundApiServerConfig['images']>): Promise<MutationResult>;
   /** Persist the default-off allowance-aware account scheduling policy. */
   updateAllowanceSchedulingConfig(config: AllowanceSchedulingConfig): Promise<MutationResult>;
   /** Read the secret-free recent demote/pause decisions; null means unsupported/unavailable. */

@@ -17,9 +17,13 @@ import type { OutboundApiServerConfig } from '@omnicross/core/outbound-api/types
 
 import {
   buildClaudeDoctorChecks,
+  buildImagesDoctorChecks,
   runDoctor,
+  runImagesLiveDoctor,
   runLiveProbe,
 } from '../commands/doctor';
+import { resetDaemonSingletonsForTests } from '../bootstrap';
+import type { ImageDoctorLocalSnapshot } from '../image-generation/ImageDoctorService';
 
 function config(over: Partial<OutboundApiServerConfig> = {}): OutboundApiServerConfig {
   return {
@@ -155,6 +159,89 @@ describe('runLiveProbe', () => {
   });
 });
 
+function imageSnapshot(over: Partial<ImageDoctorLocalSnapshot> = {}): ImageDoctorLocalSnapshot {
+  return {
+    config: { enabled: true, provider: 'codex-subscription', model: 'gpt-image-2', valid: true, errorCount: 0 },
+    roots: { valid: true, verifiedAreas: 5, expectedAreas: 5 },
+    stores: {
+      valid: true,
+      mounts: 1,
+      retiredMounts: 0,
+      referenceEntries: 0,
+      referenceBytes: 0,
+      stateCalls: 0,
+      stateResponses: 0,
+      corruptManifestsQuarantined: 0,
+    },
+    permissions: { valid: true, rows: 1, legacyRows: 0, invalidRows: 0, imagesAuthorizedRows: 1 },
+    account: { present: true, usable: true, reason: 'ready' },
+    evidence: { valid: true, entries: 1, freshEntries: 1, staleEntries: 0, bytes: 64 },
+    ...over,
+  };
+}
+
+describe('Images doctor projections', () => {
+  it('treats enabled missing-account and stale-evidence states as honest failures', () => {
+    const checks = buildImagesDoctorChecks(imageSnapshot({
+      account: { present: true, usable: false, reason: 'unavailable' },
+      evidence: { valid: true, entries: 1, freshEntries: 0, staleEntries: 1, bytes: 64 },
+    }));
+    expect(checks.find((check) => check.name === 'Codex account')).toMatchObject({
+      ok: false,
+      warn: true,
+    });
+    expect(checks.find((check) => check.name === 'cached capability evidence')).toMatchObject({
+      ok: false,
+      warn: true,
+    });
+  });
+
+  it('prints the quota warning before invoking live verification and emits only safe metadata', async () => {
+    const order: string[] = [];
+    vi.spyOn(console, 'info').mockImplementation((message) => {
+      order.push(String(message));
+    });
+    const doctor = {
+      inspectLocal: vi.fn(),
+      verifyLive: vi.fn(async () => {
+        order.push('VERIFY_CALLED');
+        return {
+          ok: true as const,
+          code: 'verified' as const,
+          model: 'gpt-image-2' as const,
+          quality: 'low' as const,
+          outputFormat: 'png' as const,
+          freshEvidenceEntries: 1,
+        };
+      }),
+    };
+    const ok = await runImagesLiveDoctor(config({ images: { enabled: true } as never }), doctor);
+    expect(ok).toBe(true);
+    expect(order[0]).toContain('consume subscription quota');
+    expect(order[1]).toBe('VERIFY_CALLED');
+    expect(doctor.verifyLive).toHaveBeenCalledOnce();
+    expect(order.join('\n')).not.toContain('account');
+    vi.restoreAllMocks();
+  });
+
+  it('prints only a stable live failure code', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const doctor = {
+      inspectLocal: vi.fn(),
+      verifyLive: vi.fn(async () => ({
+        ok: false as const,
+        code: 'upstream_protocol_changed' as const,
+      })),
+    };
+    const ok = await runImagesLiveDoctor(config({ images: { enabled: true } as never }), doctor);
+    expect(ok).toBe(false);
+    expect(console.info).toHaveBeenLastCalledWith(
+      '  [✗] live Images verification: upstream_protocol_changed',
+    );
+    vi.restoreAllMocks();
+  });
+});
+
 describe('runDoctor (config-file driven)', () => {
   let dir: string;
   let configPath: string;
@@ -168,6 +255,7 @@ describe('runDoctor (config-file driven)', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    resetDaemonSingletonsForTests();
   });
 
   it('without --live it makes ZERO fetches and exits by check results (empty routing → 1)', async () => {
@@ -179,6 +267,17 @@ describe('runDoctor (config-file driven)', () => {
     // A fresh config has no messages bindings → routing check fails → exit 1.
     expect(exit).toBe(1);
     expect(fetchMock).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it('Images doctor without --live performs zero fetches and reports local checks only', async () => {
+    const fetchMock = vi.fn() as unknown as typeof fetch;
+    const exit = await runDoctor(['images', '--config', configPath], fetchMock);
+    expect(exit).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(console.info).toHaveBeenCalledWith(expect.stringContaining('omnicross doctor images'));
+    expect(console.info).not.toHaveBeenCalledWith(expect.stringContaining('consume subscription quota'));
+    expect(JSON.stringify((console.info as ReturnType<typeof vi.fn>).mock.calls))
+      .not.toContain(configPath);
   }, 30_000);
 
   it('--live without --key prints guidance and exits 1 (no fetch)', async () => {

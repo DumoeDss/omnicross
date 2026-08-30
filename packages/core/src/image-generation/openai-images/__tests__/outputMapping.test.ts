@@ -215,6 +215,15 @@ describe('Images output bounds and SSE lifecycle', () => {
 });
 
 describe('Images wire error redaction', () => {
+  it.each([
+    ['image_queue_full', 429],
+    ['image_queue_timeout', 504],
+  ] as const)('maps %s to the stable OpenAI HTTP status', (code, status) => {
+    const mapped = serializeImageApiError(new ImageGenerationError(code));
+    expect(mapped.status).toBe(status);
+    expect(mapped.body.error.code).toBe(code);
+  });
+
   it('retains only allow-listed retry/moderation details and drops cause sentinels', () => {
     const sentinels = [
       'Bearer TOKEN_SECRET',

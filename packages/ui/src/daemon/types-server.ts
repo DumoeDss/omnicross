@@ -11,6 +11,8 @@
 
 /** The four endpoint ids, 1:1 with the four wire-format ingress parsers. */
 export type OutboundEndpointId = 'chat' | 'responses' | 'messages' | 'gemini';
+/** Named-key authorization vocabulary; Images is not a text routing endpoint. */
+export type OutboundPermissionId = OutboundEndpointId | 'images';
 
 export type AccountRouteSessionSource =
   | 'session-header'
@@ -397,6 +399,69 @@ export interface AuditStats {
   complete: boolean;
 }
 
+export interface ImageApiLimits {
+  maxJsonBytes: number;
+  maxMultipartBytes: number;
+  maxFileBytes: number;
+  maxTotalInputBytes: number;
+  maxFiles: number;
+  maxFields: number;
+  maxParts: number;
+  maxHeaderPairs: number;
+  maxFieldNameBytes: number;
+  maxFieldValueBytes: number;
+  maxPixels: number;
+  maxRawBytes: number;
+  maxOutputBytes: number;
+  maxTotalOutputBytes: number;
+  maxSpoolBytes: number;
+  maxRedirects: number;
+  maxRemoteUrlBytes: number;
+  maxRemoteHeaderBytes: number;
+  remoteConnectTimeoutMs: number;
+  remoteTotalTimeoutMs: number;
+}
+
+export interface ImagesServerConfig {
+  enabled: boolean;
+  provider: 'codex-subscription';
+  defaultModel: string;
+  modelAliases: Record<string, string>;
+  account: { id?: string; group?: string; fallback: 'strict' | 'pool' };
+  queue: {
+    maxConcurrentJobsPerAccount: number;
+    maxQueuedJobs: number;
+    queueTimeoutMs: number;
+    generationTimeoutMs: number;
+  };
+  temporary: {
+    maxActiveScopes: number;
+    maxTotalBytes: number;
+    maxTenantBytes: number;
+    staleAfterMs: number;
+    cleanupIntervalMs: number;
+  };
+  limits: ImageApiLimits;
+  references: {
+    ttlMs: number;
+    maxArtifactBytes: number;
+    maxTotalBytes: number;
+    maxTenantBytes: number;
+    maxEntries: number;
+    maxCalls: number;
+    maxResponses: number;
+    maxTombstones: number;
+    tombstoneTtlMs: number;
+    cleanupIntervalMs: number;
+    /** Write-only custom root. Admin reads omit the path. */
+    storageRoot?: string;
+    /** Safe admin-read marker; strip before writing the strict config segment. */
+    storageRootConfigured?: boolean;
+  };
+  remote: { enabled: boolean };
+  evidenceTtlMs: number;
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;
@@ -445,6 +510,8 @@ export interface OutboundApiServerConfig {
    * the admin generate/revoke surface are active.
    */
   voucher?: VoucherConfig;
+  /** Default-off Images policy; absent only on older daemons. */
+  images?: ImagesServerConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────
@@ -486,6 +553,104 @@ export interface OutboundQueueStatus {
   concurrency: Array<{ apiKeyId: string; active: number; waiting: number }>;
 }
 
+export interface ImageEndpointUrls {
+  generations: string;
+  edits: string;
+}
+
+export interface ImageRuntimeResourceStatus {
+  queue: {
+    activeJobs: number;
+    waitingJobs: number;
+    activeAccounts: number;
+    waitingAccounts: number;
+    waitingTenants: number;
+    maxConcurrentJobsPerAccount: number;
+    maxQueuedJobs: number;
+    accepting: boolean;
+    shuttingDown: boolean;
+  };
+  temporary: {
+    activeScopes: number;
+    totalBytes: number;
+    tenantCount: number;
+    maxActiveScopes: number;
+    maxTotalBytes: number;
+    maxTenantBytes: number;
+  };
+  storage: {
+    mounts: number;
+    retiredMounts: number;
+    referenceEntries: number;
+    referenceBytes: number;
+    referenceTombstones: number;
+    stateCalls: number;
+    stateResponses: number;
+    stateTombstones: number;
+    pendingReferenceDeletes: number;
+    maxReferenceEntries: number;
+    maxReferenceBytes: number;
+    maxTenantReferenceBytes: number;
+    maxStateCalls: number;
+    maxStateResponses: number;
+  };
+}
+
+export interface ImagesCapabilityStatus {
+  configured: {
+    enabled: boolean;
+    provider: 'codex-subscription';
+    model: string;
+    remoteUrlsEnabled: boolean;
+    referenceTtlMs: number;
+  };
+  effective: {
+    available: boolean;
+    reason: string | null;
+    evidence: { verifiedAt: number; ageMs: number; expiresAt?: number } | null;
+    features: {
+      available: boolean;
+      models: string[];
+      generate: boolean;
+      edit: boolean;
+      maskEdit: boolean;
+      maxInputImages: number;
+      maxOutputImages: number;
+      streaming: boolean;
+      maxPartialImages: number;
+      transparentBackground: boolean;
+      flexibleSizes: boolean;
+      outputFormats: string[];
+      qualityLevels: string[];
+      moderationModes: string[];
+      outputCompression: { supported: false } | {
+        supported: true;
+        formats: string[];
+        min: number;
+        max: number;
+      };
+      responsesTool: boolean;
+      multiTurnEdit: boolean;
+      supportsFileId: boolean;
+      supportsImageUrl: boolean;
+    };
+  };
+  runtime: {
+    disposed: boolean;
+    generationId: string;
+    drainingCount: number;
+    draining: Array<{
+      generationId: string;
+      enabled: boolean;
+      httpLeases: number;
+      hostedLeases: number;
+    }>;
+    resources?: ImageRuntimeResourceStatus;
+  };
+  endpoints: ImageEndpointUrls | null;
+  lanEndpoints: ImageEndpointUrls | null;
+}
+
 /** Live status snapshot (`GET /admin/api/status`). */
 export interface OutboundApiServerStatus {
   running: boolean;
@@ -495,6 +660,9 @@ export interface OutboundApiServerStatus {
   lanUrl: string | null;
   formats: OutboundFormatUrls | null;
   lanFormats: OutboundFormatUrls | null;
+  /** Additive Images URLs; absent on older daemons and while disabled. */
+  images?: ImageEndpointUrls;
+  lanImages?: ImageEndpointUrls;
   /** Read-only per-endpoint projection (see `OutboundStatusEndpoint`). */
   endpoints: OutboundStatusEndpoint[];
   /**
@@ -503,6 +671,13 @@ export interface OutboundApiServerStatus {
    * daemon omits it and the status view stays silent.
    */
   queueStatus?: OutboundQueueStatus;
+  /** Additive metadata-only Images runtime summary. */
+  imageRuntime?: {
+    enabled: boolean;
+    generationId: string;
+    drainingCount: number;
+    resources?: ImageRuntimeResourceStatus;
+  };
 }
 
 // ── Named keys (GET/POST /admin/api/keys + revoke/enabled) ────────────────────
@@ -523,7 +698,9 @@ export interface OutboundApiKeyInfo {
   lastUsedAt: number | null;
   revoked: boolean;
   kind?: 'client' | 'integration';
-  allowedEndpoints?: OutboundEndpointId[];
+  allowedEndpoints?: OutboundPermissionId[];
+  /** Explicit compatibility marker from upgraded daemons; never contains key material. */
+  legacyPermissions?: boolean;
   loopbackOnly?: boolean;
   /**
    * Per-key outbound concurrency ceiling (planning-context §COMMITTED §2). Absent
@@ -596,5 +773,6 @@ export interface OutboundApiKeyCreated {
   name: string;
   keyPrefix: string;
   createdAt: number;
+  allowedEndpoints?: OutboundPermissionId[];
   plaintextOnce: string;
 }

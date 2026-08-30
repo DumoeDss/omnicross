@@ -103,6 +103,9 @@ export interface ImageApiRuntime {
   readonly defaultModel: string;
   readonly modelAliases: ReadonlyMap<string, string>;
   readonly limits: ImageApiLimits;
+  readonly preferredAccountId?: string;
+  readonly preferredAccountGroup?: string;
+  readonly boundAccountFallbackPolicy?: 'strict' | 'pool';
   readonly referenceStore?: ImageReferenceStore;
   readonly remoteResolver?: RemoteImageAssetResolver;
   readonly fingerprintUser?: (value: string) => string;
@@ -124,6 +127,13 @@ export interface ImageApiAuditRecord {
   >;
   readonly inputCount?: number;
   readonly inputBytes?: number;
+  readonly referenceOutcomes?: {
+    readonly hits: number;
+    readonly notFound: number;
+    readonly expired: number;
+    readonly failed: number;
+  };
+  readonly cleanupOutcome?: 'completed' | 'failed';
   readonly terminal: 'completed' | 'failed' | 'cancelled';
   readonly errorCode?: string;
 }
@@ -136,6 +146,7 @@ export interface ImageApiContributionsDeps {
   readonly createResourceScope?: (
     limits: ImageApiLimits,
     signal: AbortSignal,
+    tenantId: string,
   ) => Promise<ImageRequestResourceScope>;
   readonly audit?: (record: ImageApiAuditRecord) => void | Promise<void>;
 }
