@@ -591,6 +591,16 @@
         "copied": "Đã sao chép",
         "dismiss": "Xong"
       },
+      "permissions": {
+        "title": "Quyền điểm cuối",
+        "legacy": "Mặc định cũ",
+        "chat": "Trò chuyện",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Hình ảnh",
+        "hint": "Responses và Hình ảnh có quyền riêng biệt. Khóa cũ giữ bốn điểm cuối văn bản nhưng không được cấp quyền truy cập Hình ảnh."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Tạo hình ảnh",
+      "description": "Kiểm soát các điểm cuối Images mặc định bị tắt và xem trạng thái thời gian chạy được chứng minh bằng bằng chứng.",
+      "unsupportedDaemon": "Daemon này chưa cung cấp cấu hình Images.",
+      "enable": "Bật các điểm cuối Images",
+      "entitlementWarning": "Cấu hình được bật không chứng minh quyền lợi thuê bao. Khả dụng thực tế cần bằng chứng mới cho tài khoản đã chọn.",
+      "track": {
+        "configured": "Đã cấu hình",
+        "effective": "Có hiệu lực",
+        "on": "Đã bật",
+        "off": "Đã tắt",
+        "available": "Khả dụng",
+        "unavailable": "Không khả dụng",
+        "unknown": "Không có bằng chứng năng lực mới"
+      },
+      "account": {
+        "label": "Chọn tài khoản",
+        "pool": "Nhóm tài khoản đủ điều kiện",
+        "group": "Nhóm: {{group}}",
+        "account": "Tài khoản Codex {{number}}",
+        "fallback": "Chính sách dự phòng",
+        "strict": "Lựa chọn nghiêm ngặt",
+        "poolFallback": "Cho phép dự phòng từ nhóm"
+      },
+      "features": {
+        "title": "Ma trận tính năng đã xác minh",
+        "generate": "Tạo",
+        "edit": "Chỉnh sửa",
+        "maskEdit": "Chỉnh sửa bằng mặt nạ",
+        "streaming": "Truyền trực tuyến",
+        "transparentBackground": "Độ trong suốt",
+        "responsesTool": "Công cụ Responses",
+        "supported": "Được hỗ trợ",
+        "unsupported": "Không được hỗ trợ"
+      },
+      "evidence": "Bằng chứng mới được ghi nhận cách đây {{age}} giây.",
+      "noEvidence": "Không có bằng chứng mới. Việc làm mới chế độ xem này không bao giờ tạo hình ảnh.",
+      "resources": {
+        "title": "Mức sử dụng thời gian chạy",
+        "queue": "Hàng đợi",
+        "temporary": "Bộ nhớ tạm thời",
+        "references": "Tham chiếu được giữ lại",
+        "bytes": "Tạm thời {{temporary}} · tham chiếu {{references}}",
+        "unavailable": "Không có thông tin sử dụng khi thời gian chạy Images ngoại tuyến."
+      },
+      "remote": {
+        "enabledWarning": "URL từ xa chỉ được bật thông qua chính sách phân giải tăng cường.",
+        "disabled": "URL hình ảnh từ xa đã bị tắt."
+      },
+      "storage": {
+        "custom": "Đã cấu hình thư mục gốc lưu trữ riêng tùy chỉnh; đường dẫn được ẩn.",
+        "privateDefault": "Hiện vật sử dụng bộ nhớ dữ liệu ứng dụng riêng của daemon."
       }
     },
     "queue": {

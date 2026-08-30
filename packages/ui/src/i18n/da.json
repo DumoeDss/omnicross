@@ -591,6 +591,16 @@
         "copied": "Kopieret",
         "dismiss": "Færdig"
       },
+      "permissions": {
+        "title": "Slutpunktstilladelser",
+        "legacy": "Ældre standarder",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Billeder",
+        "hint": "Responses og Billeder har separate tilladelser. Ældre nøgler beholder de fire tekstslutpunkter, men får ikke adgang til Billeder."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Billedgenerering",
+      "description": "Administrer de som standard deaktiverede Images-slutpunkter, og se deres evidensbaserede kørselsstatus.",
+      "unsupportedDaemon": "Denne daemon tilbyder endnu ikke Images-konfiguration.",
+      "enable": "Aktivér Images-slutpunkter",
+      "entitlementWarning": "En aktiveret konfiguration beviser ikke abonnementsadgang. Effektiv tilgængelighed kræver aktuelle beviser for den valgte konto.",
+      "track": {
+        "configured": "Konfigureret",
+        "effective": "Effektiv",
+        "on": "Aktiveret",
+        "off": "Deaktiveret",
+        "available": "Tilgængelig",
+        "unavailable": "Ikke tilgængelig",
+        "unknown": "Ingen aktuelle kapacitetsbeviser"
+      },
+      "account": {
+        "label": "Kontovalg",
+        "pool": "Pulje af kvalificerede konti",
+        "group": "Gruppe: {{group}}",
+        "account": "Codex-konto {{number}}",
+        "fallback": "Fallback-politik",
+        "strict": "Strengt valg",
+        "poolFallback": "Tillad fallback til puljen"
+      },
+      "features": {
+        "title": "Verificeret funktionsmatrix",
+        "generate": "Generér",
+        "edit": "Rediger",
+        "maskEdit": "Maskeredigering",
+        "streaming": "Streaming",
+        "transparentBackground": "Gennemsigtighed",
+        "responsesTool": "Responses-værktøj",
+        "supported": "Understøttet",
+        "unsupported": "Ikke understøttet"
+      },
+      "evidence": "Aktuelle beviser blev observeret for {{age}} sekunder siden.",
+      "noEvidence": "Der er ingen aktuelle beviser. Opdatering af denne visning genererer aldrig et billede.",
+      "resources": {
+        "title": "Kørselsudnyttelse",
+        "queue": "Kø",
+        "temporary": "Midlertidigt lager",
+        "references": "Bevarede referencer",
+        "bytes": "Midlertidigt {{temporary}} · referencer {{references}}",
+        "unavailable": "Kørselsudnyttelse er ikke tilgængelig, mens Images-kørselssystemet er offline."
+      },
+      "remote": {
+        "enabledWarning": "Fjern-URL’er aktiveres kun gennem den hærdede resolverpolitik.",
+        "disabled": "Fjern-URL’er til billeder er deaktiveret."
+      },
+      "storage": {
+        "custom": "En privat brugerdefineret lagerrod er konfigureret; stien er skjult.",
+        "privateDefault": "Artefakter bruger daemonens private lager til programdata."
       }
     },
     "queue": {

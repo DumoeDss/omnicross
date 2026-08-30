@@ -591,6 +591,16 @@
         "copied": "Kopyalandı",
         "dismiss": "Tamam"
       },
+      "permissions": {
+        "title": "Uç nokta izinleri",
+        "legacy": "Eski varsayılanlar",
+        "chat": "Sohbet",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Görseller",
+        "hint": "Responses ve Görseller ayrı izinlere sahiptir. Eski anahtarlar dört metin uç noktasını korur ancak Görseller erişimi kazanmaz."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Görsel oluşturma",
+      "description": "Varsayılan olarak kapalı Images uç noktalarını yönetin ve kanıta dayalı çalışma zamanı durumlarını inceleyin.",
+      "unsupportedDaemon": "Bu daemon henüz Images yapılandırmasını sunmuyor.",
+      "enable": "Images uç noktalarını etkinleştir",
+      "entitlementWarning": "Yapılandırmanın etkin olması abonelik hakkını kanıtlamaz. Gerçek kullanılabilirlik, seçilen hesap için güncel kanıt gerektirir.",
+      "track": {
+        "configured": "Yapılandırıldı",
+        "effective": "Geçerli",
+        "on": "Etkin",
+        "off": "Devre dışı",
+        "available": "Kullanılabilir",
+        "unavailable": "Kullanılamıyor",
+        "unknown": "Güncel yetenek kanıtı yok"
+      },
+      "account": {
+        "label": "Hesap seçimi",
+        "pool": "Uygun hesap havuzu",
+        "group": "Grup: {{group}}",
+        "account": "Codex hesabı {{number}}",
+        "fallback": "Yedek seçim politikası",
+        "strict": "Katı seçim",
+        "poolFallback": "Havuzdan yedek seçime izin ver"
+      },
+      "features": {
+        "title": "Doğrulanmış özellik matrisi",
+        "generate": "Oluştur",
+        "edit": "Düzenle",
+        "maskEdit": "Maskeyle düzenleme",
+        "streaming": "Akış",
+        "transparentBackground": "Şeffaflık",
+        "responsesTool": "Responses aracı",
+        "supported": "Destekleniyor",
+        "unsupported": "Desteklenmiyor"
+      },
+      "evidence": "Güncel kanıt {{age}} saniye önce gözlemlendi.",
+      "noEvidence": "Güncel kanıt yok. Bu görünümü yenilemek hiçbir zaman görsel oluşturmaz.",
+      "resources": {
+        "title": "Çalışma zamanı kullanımı",
+        "queue": "Kuyruk",
+        "temporary": "Geçici depolama",
+        "references": "Saklanan başvurular",
+        "bytes": "Geçici {{temporary}} · başvurular {{references}}",
+        "unavailable": "Images çalışma zamanı çevrimdışıyken kullanım bilgisi sunulmaz."
+      },
+      "remote": {
+        "enabledWarning": "Uzak URL’ler yalnızca güçlendirilmiş çözümleyici politikası üzerinden etkinleştirilir.",
+        "disabled": "Uzak görsel URL’leri devre dışıdır."
+      },
+      "storage": {
+        "custom": "Özel bir depolama kökü yapılandırıldı; yolu gizlidir.",
+        "privateDefault": "Yapıtlar daemonun özel uygulama verisi depolamasını kullanır."
       }
     },
     "queue": {

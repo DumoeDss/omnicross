@@ -591,6 +591,16 @@
         "copied": "Copiada",
         "dismiss": "Listo"
       },
+      "permissions": {
+        "title": "Permisos de los endpoints",
+        "legacy": "Valores predeterminados heredados",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Imágenes",
+        "hint": "Responses e Imágenes tienen permisos independientes. Las claves antiguas conservan los cuatro endpoints de texto, pero no obtienen acceso a Imágenes."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Generación de imágenes",
+      "description": "Controla los endpoints de Imágenes, desactivados de forma predeterminada, y consulta su estado de ejecución respaldado por pruebas.",
+      "unsupportedDaemon": "Este daemon todavía no expone la configuración de Imágenes.",
+      "enable": "Activar los endpoints de Imágenes",
+      "entitlementWarning": "Activar la configuración no demuestra que la suscripción tenga derecho de acceso. La disponibilidad efectiva requiere pruebas recientes de la cuenta seleccionada.",
+      "track": {
+        "configured": "Configurado",
+        "effective": "Efectivo",
+        "on": "Activado",
+        "off": "Desactivado",
+        "available": "Disponible",
+        "unavailable": "No disponible",
+        "unknown": "No hay pruebas recientes de capacidad"
+      },
+      "account": {
+        "label": "Selección de cuenta",
+        "pool": "Grupo de cuentas aptas",
+        "group": "Grupo: {{group}}",
+        "account": "Cuenta de Codex {{number}}",
+        "fallback": "Política de respaldo",
+        "strict": "Selección estricta",
+        "poolFallback": "Permitir respaldo mediante el grupo"
+      },
+      "features": {
+        "title": "Matriz de funciones verificadas",
+        "generate": "Generar",
+        "edit": "Editar",
+        "maskEdit": "Edición con máscara",
+        "streaming": "Transmisión",
+        "transparentBackground": "Transparencia",
+        "responsesTool": "Herramienta Responses",
+        "supported": "Compatible",
+        "unsupported": "No compatible"
+      },
+      "evidence": "Se observaron pruebas recientes hace {{age}} segundos.",
+      "noEvidence": "No hay pruebas recientes disponibles. Actualizar esta vista nunca genera una imagen.",
+      "resources": {
+        "title": "Uso del entorno de ejecución",
+        "queue": "Cola",
+        "temporary": "Almacenamiento temporal",
+        "references": "Referencias conservadas",
+        "bytes": "Temporal {{temporary}} · referencias {{references}}",
+        "unavailable": "El uso no está disponible mientras el entorno de Imágenes esté sin conexión."
+      },
+      "remote": {
+        "enabledWarning": "Las URL remotas solo se habilitan mediante la política de resolución reforzada.",
+        "disabled": "Las URL de imágenes remotas están desactivadas."
+      },
+      "storage": {
+        "custom": "Hay configurada una raíz de almacenamiento privada personalizada; su ruta está oculta.",
+        "privateDefault": "Los artefactos usan el almacenamiento privado de datos de la aplicación del daemon."
       }
     },
     "queue": {

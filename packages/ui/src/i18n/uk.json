@@ -591,6 +591,16 @@
         "copied": "Скопійовано",
         "dismiss": "Готово"
       },
+      "permissions": {
+        "title": "Дозволи кінцевих точок",
+        "legacy": "Попередні типові налаштування",
+        "chat": "Чат",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Зображення",
+        "hint": "Responses і Зображення мають окремі дозволи. Попередні ключі зберігають чотири текстові кінцеві точки, але не отримують доступу до Зображень."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Генерування зображень",
+      "description": "Керуйте вимкненими за замовчуванням кінцевими точками Images і переглядайте їхній стан, підтверджений доказами.",
+      "unsupportedDaemon": "Цей демон ще не надає конфігурацію Images.",
+      "enable": "Увімкнути кінцеві точки Images",
+      "entitlementWarning": "Увімкнена конфігурація не підтверджує право підписки. Фактична доступність потребує свіжих доказів для вибраного облікового запису.",
+      "track": {
+        "configured": "Налаштовано",
+        "effective": "Фактично",
+        "on": "Увімкнено",
+        "off": "Вимкнено",
+        "available": "Доступно",
+        "unavailable": "Недоступно",
+        "unknown": "Немає свіжих доказів можливості"
+      },
+      "account": {
+        "label": "Вибір облікового запису",
+        "pool": "Пул придатних облікових записів",
+        "group": "Група: {{group}}",
+        "account": "Обліковий запис Codex {{number}}",
+        "fallback": "Резервна політика",
+        "strict": "Суворий вибір",
+        "poolFallback": "Дозволити резервний вибір із пулу"
+      },
+      "features": {
+        "title": "Перевірена матриця функцій",
+        "generate": "Генерування",
+        "edit": "Редагування",
+        "maskEdit": "Редагування з маскою",
+        "streaming": "Потокове передавання",
+        "transparentBackground": "Прозорість",
+        "responsesTool": "Інструмент Responses",
+        "supported": "Підтримується",
+        "unsupported": "Не підтримується"
+      },
+      "evidence": "Свіжі докази отримано {{age}} секунд тому.",
+      "noEvidence": "Свіжі докази відсутні. Оновлення цього подання ніколи не генерує зображення.",
+      "resources": {
+        "title": "Використання середовища виконання",
+        "queue": "Черга",
+        "temporary": "Тимчасове сховище",
+        "references": "Збережені посилання",
+        "bytes": "Тимчасово {{temporary}} · посилання {{references}}",
+        "unavailable": "Дані про використання недоступні, поки середовище Images не в мережі."
+      },
+      "remote": {
+        "enabledWarning": "Віддалені URL вмикаються лише через посилену політику розпізнавання.",
+        "disabled": "Віддалені URL зображень вимкнено."
+      },
+      "storage": {
+        "custom": "Налаштовано приватний користувацький корінь сховища; його шлях приховано.",
+        "privateDefault": "Артефакти використовують приватне сховище даних застосунку демона."
       }
     },
     "queue": {

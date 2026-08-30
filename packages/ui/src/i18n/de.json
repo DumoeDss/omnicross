@@ -591,6 +591,16 @@
         "copied": "Kopiert",
         "dismiss": "Fertig"
       },
+      "permissions": {
+        "title": "Endpunktberechtigungen",
+        "legacy": "Legacy-Standardwerte",
+        "chat": "Chat",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "Bilder",
+        "hint": "Responses und Bilder sind separate Berechtigungen. Legacy-Schlüssel behalten die vier Textendpunkte, erhalten aber keinen Zugriff auf Bilder."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "Bilderzeugung",
+      "description": "Steuern Sie die standardmäßig deaktivierten Images-Endpunkte und prüfen Sie ihren durch Nachweise belegten Laufzeitstatus.",
+      "unsupportedDaemon": "Dieser Daemon stellt noch keine Images-Konfiguration bereit.",
+      "enable": "Images-Endpunkte aktivieren",
+      "entitlementWarning": "Eine aktivierte Konfiguration belegt keinen Abonnementanspruch. Die tatsächliche Verfügbarkeit erfordert aktuelle Nachweise für das ausgewählte Konto.",
+      "track": {
+        "configured": "Konfiguriert",
+        "effective": "Wirksam",
+        "on": "Aktiviert",
+        "off": "Deaktiviert",
+        "available": "Verfügbar",
+        "unavailable": "Nicht verfügbar",
+        "unknown": "Keine aktuellen Fähigkeitsnachweise"
+      },
+      "account": {
+        "label": "Kontoauswahl",
+        "pool": "Berechtigter Kontopool",
+        "group": "Gruppe: {{group}}",
+        "account": "Codex-Konto {{number}}",
+        "fallback": "Fallback-Richtlinie",
+        "strict": "Strikte Auswahl",
+        "poolFallback": "Fallback auf Kontopool erlauben"
+      },
+      "features": {
+        "title": "Verifizierte Funktionsmatrix",
+        "generate": "Erzeugen",
+        "edit": "Bearbeiten",
+        "maskEdit": "Maskenbearbeitung",
+        "streaming": "Streaming",
+        "transparentBackground": "Transparenz",
+        "responsesTool": "Responses-Werkzeug",
+        "supported": "Unterstützt",
+        "unsupported": "Nicht unterstützt"
+      },
+      "evidence": "Aktuelle Nachweise wurden vor {{age}} Sekunden beobachtet.",
+      "noEvidence": "Es sind keine aktuellen Nachweise verfügbar. Das Abfragen dieser Ansicht erzeugt niemals ein Bild.",
+      "resources": {
+        "title": "Laufzeitauslastung",
+        "queue": "Warteschlange",
+        "temporary": "Temporärer Speicher",
+        "references": "Aufbewahrte Referenzen",
+        "bytes": "Temporär {{temporary}} · Referenzen {{references}}",
+        "unavailable": "Die Laufzeitauslastung ist nicht verfügbar, solange die Images-Laufzeit offline ist."
+      },
+      "remote": {
+        "enabledWarning": "Remote-URLs werden nur über die gehärtete Resolver-Richtlinie aktiviert.",
+        "disabled": "Remote-Bild-URLs sind deaktiviert."
+      },
+      "storage": {
+        "custom": "Ein privates benutzerdefiniertes Speicherstammverzeichnis ist konfiguriert; sein Pfad wird ausgeblendet.",
+        "privateDefault": "Artefakte verwenden den privaten Anwendungsdatenspeicher des Daemons."
       }
     },
     "queue": {

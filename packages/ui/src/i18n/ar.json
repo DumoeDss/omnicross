@@ -591,6 +591,16 @@
         "copied": "تم النسخ",
         "dismiss": "تم"
       },
+      "permissions": {
+        "title": "أذونات نقاط النهاية",
+        "legacy": "الإعدادات الافتراضية القديمة",
+        "chat": "الدردشة",
+        "responses": "Responses",
+        "messages": "Messages",
+        "gemini": "Gemini",
+        "images": "الصور",
+        "hint": "تملك Responses والصور أذونات منفصلة. تحتفظ المفاتيح القديمة بنقاط النهاية النصية الأربع، لكنها لا تحصل على إذن الوصول إلى الصور."
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -617,6 +627,60 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      }
+    },
+    "images": {
+      "title": "إنشاء الصور",
+      "description": "تحكّم في نقاط نهاية Images المعطلة افتراضيًا وراجع حالة تشغيلها المدعومة بالأدلة.",
+      "unsupportedDaemon": "لا تعرض هذه الخدمة إعدادات Images حتى الآن.",
+      "enable": "تمكين نقاط نهاية Images",
+      "entitlementWarning": "لا يثبت تمكين الإعدادات أهلية الاشتراك. يتطلب التوفر الفعلي أدلة حديثة للحساب المحدد.",
+      "track": {
+        "configured": "مُعدّ",
+        "effective": "فعلي",
+        "on": "ممكّن",
+        "off": "معطّل",
+        "available": "متاح",
+        "unavailable": "غير متاح",
+        "unknown": "لا توجد أدلة حديثة على الإمكانية"
+      },
+      "account": {
+        "label": "اختيار الحساب",
+        "pool": "مجموعة الحسابات المؤهلة",
+        "group": "المجموعة: {{group}}",
+        "account": "حساب Codex رقم {{number}}",
+        "fallback": "سياسة الاختيار الاحتياطي",
+        "strict": "اختيار صارم",
+        "poolFallback": "السماح بالاختيار الاحتياطي من المجموعة"
+      },
+      "features": {
+        "title": "مصفوفة الميزات المتحقق منها",
+        "generate": "إنشاء",
+        "edit": "تحرير",
+        "maskEdit": "تحرير باستخدام قناع",
+        "streaming": "البث",
+        "transparentBackground": "الشفافية",
+        "responsesTool": "أداة Responses",
+        "supported": "مدعوم",
+        "unsupported": "غير مدعوم"
+      },
+      "evidence": "تم رصد أدلة حديثة قبل {{age}} ثانية.",
+      "noEvidence": "لا تتوفر أدلة حديثة. لا يؤدي تحديث هذا العرض إلى إنشاء صورة مطلقًا.",
+      "resources": {
+        "title": "استخدام بيئة التشغيل",
+        "queue": "قائمة الانتظار",
+        "temporary": "التخزين المؤقت",
+        "references": "المراجع المحفوظة",
+        "bytes": "مؤقت {{temporary}} · مراجع {{references}}",
+        "unavailable": "لا تتوفر بيانات الاستخدام عندما تكون بيئة Images غير متصلة."
+      },
+      "remote": {
+        "enabledWarning": "لا تُفعّل عناوين URL البعيدة إلا من خلال سياسة المحلل المحصّنة.",
+        "disabled": "عناوين URL البعيدة للصور معطلة."
+      },
+      "storage": {
+        "custom": "تم إعداد جذر تخزين خاص ومخصص؛ ومساره مخفي.",
+        "privateDefault": "تستخدم العناصر الناتجة مخزن بيانات التطبيق الخاص بالخدمة."
       }
     },
     "queue": {
