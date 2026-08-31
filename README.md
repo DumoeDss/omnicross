@@ -183,6 +183,8 @@ npm run build        # tsup per package → dist/ (ESM + CJS + .d.ts)
 
 Tests and typechecks resolve `@omnicross/*` imports to package **source** via aliases, so no prior build is needed. `npm run build` emits each package's `dist/` for publishing.
 
+Release maintainers must prepare one lockstep version before creating a tag; see [`docs/releasing.md`](docs/releasing.md). The release workflow rejects partial version bumps and publishes all six `@omnicross/*` packages only after every desktop target builds successfully.
+
 For Control Panel development, `npm run dev` (repo root) is the one-command loop: it seeds a gitignored `omnicross.dev.config.json` on first run, starts the daemon on `127.0.0.1:8766`, and starts the UI's Vite dev server on `http://localhost:1430` (Ctrl+C stops both). The dev server proxies `/admin/*` to the daemon server-side, so the browser stays same-origin — the daemon sends no CORS headers by design. The frontend itself is the `@omnicross/ui` workspace package — `npm run build -w @omnicross/ui` refreshes the daemon-served `dist/`. For the native window (requires Rust): `npm run dev:app` runs `tauri dev`, and `npm run build:app` packages the release executable + installers with the daemon runtime **and a private Node binary** bundled in (output under `apps/desktop/src-tauri/target/release/`; target machines need nothing installed — details in [`apps/desktop/README.md`](apps/desktop/README.md)).
 
 ## 📄 License
