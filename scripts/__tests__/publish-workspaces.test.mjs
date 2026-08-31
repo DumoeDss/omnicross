@@ -9,8 +9,9 @@ import { publishWorkspaces } from '../publish-workspaces.mjs';
 const repo = join(import.meta.dirname, '..', '..');
 const version = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).version;
 
-function registryRunner(initiallyPublished = []) {
+function registryRunner(initiallyPublished = [], { visibilityDelayLookups = 0 } = {}) {
   const published = new Set(initiallyPublished);
+  const delayedVisibility = new Map();
   const calls = [];
   return {
     calls,
@@ -21,11 +22,18 @@ function registryRunner(initiallyPublished = []) {
         if (!published.has(spec)) {
           return { status: 1, stdout: '', stderr: 'npm error code E404' };
         }
+        const remainingLookups = delayedVisibility.get(spec) ?? 0;
+        if (remainingLookups > 0) {
+          delayedVisibility.set(spec, remainingLookups - 1);
+          return { status: 1, stdout: '', stderr: 'npm error code E404' };
+        }
         return { status: 0, stdout: JSON.stringify(version), stderr: '' };
       }
       if (args[0] === 'publish') {
         const name = args[args.indexOf('--workspace') + 1];
-        published.add(`${name}@${version}`);
+        const spec = `${name}@${version}`;
+        published.add(spec);
+        delayedVisibility.set(spec, visibilityDelayLookups);
         return { status: 0, stdout: '', stderr: '' };
       }
       throw new Error(`unexpected npm command: ${args.join(' ')}`);
@@ -56,6 +64,22 @@ describe('workspace publication contract', () => {
       assert.ok(args.includes('public'));
       assert.ok(args.includes('--provenance'));
     }
+    for (const args of registry.calls.filter(([command]) => command === 'view')) {
+      assert.ok(args.includes('--prefer-online'));
+    }
+  });
+
+  it('waits for a successfully published package to become visible', async () => {
+    const registry = registryRunner([], { visibilityDelayLookups: 6 });
+
+    await publishWorkspaces({
+      root: repo,
+      version,
+      env: { NODE_AUTH_TOKEN: 'test-token' },
+      runNpm: registry.runNpm,
+      sleep: async () => {},
+      logger: { info() {} },
+    });
   });
 
   it('fails safely when authentication is absent or the registry lookup is inconclusive', async () => {

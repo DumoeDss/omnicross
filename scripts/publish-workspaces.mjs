@@ -12,6 +12,8 @@ import {
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const defaultRoot = resolve(scriptDir, '..');
+const PUBLISH_VISIBILITY_ATTEMPTS = 61;
+const PUBLISH_VISIBILITY_INTERVAL_MS = 10_000;
 
 function defaultRunNpm(args, { root, inherit = false, env = process.env } = {}) {
   const windows = process.platform === 'win32';
@@ -44,7 +46,7 @@ function parseVersion(stdout) {
 
 function lookupPublishedVersion({ name, version, root, env, runNpm }) {
   const spec = `${name}@${version}`;
-  const result = runNpm(['view', spec, 'version', '--json'], { root, env });
+  const result = runNpm(['view', spec, 'version', '--json', '--prefer-online'], { root, env });
   if (result.status === 0) {
     const publishedVersion = parseVersion(result.stdout);
     if (publishedVersion !== version) {
@@ -91,13 +93,18 @@ export async function publishWorkspaces({
     );
     if (result.status !== 0) throw new Error(`npm publish failed for ${name}@${expectedVersion}.`);
 
+    // npm can accept a publish for asynchronous processing before the exact
+    // version is visible. Keep polling online long enough for that processing
+    // window instead of treating a transient E404 as a failed publication.
     let visible = false;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < PUBLISH_VISIBILITY_ATTEMPTS; attempt += 1) {
       if (lookup()) {
         visible = true;
         break;
       }
-      if (attempt < 4) await sleep((attempt + 1) * 2_000);
+      if (attempt < PUBLISH_VISIBILITY_ATTEMPTS - 1) {
+        await sleep(PUBLISH_VISIBILITY_INTERVAL_MS);
+      }
     }
     if (!visible) throw new Error(`${name}@${expectedVersion} was not visible on npm after publication.`);
   }
