@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/subscriptions",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "description": "Omnicross subscription-as-provider auth strategies, OAuth flows, and the OpenCodeGo scenario dispatcher.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
@@ -52,8 +52,8 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
   },
   "dependencies": {
-    "@omnicross/contracts": "^0.1.10",
-    "@omnicross/core": "^0.1.10",
+    "@omnicross/contracts": "^0.2.0",
+    "@omnicross/core": "^0.2.0",
     "js-tiktoken": "^1.0.21",
     "sharp": "^0.35.4"
   }

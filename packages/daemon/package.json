@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/daemon",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "description": "Omnicross standalone daemon — the bare-Node embedder of @omnicross/core with an admin HTTP API + dashboard.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
@@ -54,10 +54,10 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
   },
   "dependencies": {
-    "@omnicross/contracts": "^0.1.10",
-    "@omnicross/core": "^0.1.10",
-    "@omnicross/subscriptions": "^0.1.10",
-    "@omnicross/cli-launcher": "^0.1.10",
-    "@omnicross/ui": "^0.1.10"
+    "@omnicross/contracts": "^0.2.0",
+    "@omnicross/core": "^0.2.0",
+    "@omnicross/subscriptions": "^0.2.0",
+    "@omnicross/cli-launcher": "^0.2.0",
+    "@omnicross/ui": "^0.2.0"
   }
 }
