@@ -38,7 +38,7 @@
   "homepage": "https://github.com/Dumoedss/omnicross#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Dumoedss/omnicross.git",
+    "url": "https://github.com/DumoeDss/omnicross",
     "directory": "packages/ui"
   },
   "publishConfig": {

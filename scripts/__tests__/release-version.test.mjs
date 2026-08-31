@@ -98,6 +98,19 @@ describe('unified release version contract', () => {
     );
   });
 
+  it('rejects repository URLs that npm provenance cannot verify', () => {
+    const root = copyReleaseFixture();
+    const contractsPath = join(root, 'packages/contracts/package.json');
+    const contracts = JSON.parse(readFileSync(contractsPath, 'utf8'));
+    contracts.repository.url = 'git+https://github.com/DumoeDss/omnicross.git';
+    writeFileSync(contractsPath, `${JSON.stringify(contracts, null, 2)}\n`, 'utf8');
+
+    assert.throws(
+      () => assertReleaseVersion({ root, version: contracts.version }),
+      /packages\/contracts\/package\.json repository\.url is .*expected https:\/\/github\.com\/DumoeDss\/omnicross/,
+    );
+  });
+
   it('keeps the checked-in release state internally consistent', () => {
     const version = readJson(repo, 'package.json').version;
     assert.doesNotThrow(() => assertReleaseVersion({ root: repo, version }));

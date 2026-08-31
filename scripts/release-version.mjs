@@ -13,6 +13,7 @@ const DEPENDENCY_SECTIONS = [
   'peerDependencies',
 ];
 const STABLE_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const NPM_PROVENANCE_REPOSITORY_URL = 'https://github.com/DumoeDss/omnicross';
 
 export const PUBLISHABLE_WORKSPACES = [
   { name: '@omnicross/contracts', path: 'packages/contracts' },
@@ -28,6 +29,10 @@ export const RELEASE_MANIFEST_PATHS = [
   'apps/desktop/package.json',
   ...PUBLISHABLE_WORKSPACES.map(({ path }) => `${path}/package.json`),
 ];
+const NPM_PROVENANCE_MANIFEST_PATHS = new Set([
+  'package.json',
+  ...PUBLISHABLE_WORKSPACES.map(({ path }) => `${path}/package.json`),
+]);
 export const TAURI_CONFIG_PATH = 'apps/desktop/src-tauri/tauri.conf.json';
 export const LOCKFILE_PATH = 'package-lock.json';
 
@@ -76,6 +81,15 @@ function collectReleaseVersionErrors(root, version) {
     manifests.set(relativePath, manifest);
     if (manifest.version !== expectedVersion) {
       errors.push(`${relativePath} version is ${JSON.stringify(manifest.version)}; expected ${expectedVersion}`);
+    }
+    if (
+      NPM_PROVENANCE_MANIFEST_PATHS.has(relativePath) &&
+      manifest.repository?.url !== NPM_PROVENANCE_REPOSITORY_URL
+    ) {
+      errors.push(
+        `${relativePath} repository.url is ${JSON.stringify(manifest.repository?.url)}; ` +
+        `expected ${NPM_PROVENANCE_REPOSITORY_URL}`,
+      );
     }
     for (const section of DEPENDENCY_SECTIONS) {
       for (const [name, range] of internalRanges(manifest, section)) {

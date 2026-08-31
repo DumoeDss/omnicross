@@ -7,7 +7,7 @@
   "author": "Sayo (https://github.com/Dumoedss)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Dumoedss/omnicross.git"
+    "url": "https://github.com/DumoeDss/omnicross"
   },
   "type": "module",
   "workspaces": [
