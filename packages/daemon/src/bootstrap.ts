@@ -53,6 +53,7 @@ import { __resetSharedIdentityStoreForTests } from '@omnicross/core/provider-pro
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import {
   __resetProviderProxyForTests,
+  createNativeResponsesHostedImageIngress,
   getProviderProxy,
   type ProviderProxy,
   RouteLeaseManager,
@@ -231,7 +232,7 @@ export interface Daemon {
   readonly imageCleanupService: ImageCleanupService;
   /** Local-only diagnostics plus the explicit consuming Images verifier. */
   readonly imageDoctor: ImageDoctorService;
-  /** Dormant hosted-image lease factory for a later Responses integrator. */
+  /** Generation-pinned hosted-image lease factory used by Native Responses. */
   readonly hostedImageContributionFactory: HostedImageContributionFactory;
   readonly providerProxy: ProviderProxy;
   readonly routeLeaseManager: RouteLeaseManager;
@@ -793,11 +794,15 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // into the extension-dispatch slot. NO Anthropic factory.
   let providerProxy: ProviderProxy;
   try {
+    const responsesHostedImageIngress = createNativeResponsesHostedImageIngress(
+      hostedImageContributionFactory,
+    );
     providerProxy = getProviderProxy({
       llmConfig,
       apiKeyPool,
       usageRecorder,
       openAIOperationRegistry,
+      responsesHostedImageIngress,
     });
     if (providerProxy.getDeps().openAIOperationRegistry !== openAIOperationRegistry) {
       throw new Error(

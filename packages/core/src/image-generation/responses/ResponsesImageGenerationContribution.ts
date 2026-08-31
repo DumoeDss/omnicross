@@ -179,6 +179,13 @@ async function createScope(
     } else if (input.authorizedPreviousResponseId !== undefined) {
       throw new ImageGenerationError('invalid_image_request', { param: 'previous_response_id' });
     }
+    if (
+      input.authorizedPreviousResponseKnownEmpty !== undefined &&
+      (typeof input.authorizedPreviousResponseKnownEmpty !== 'boolean' ||
+        input.authorizedPreviousResponseId === undefined)
+    ) {
+      throw new ImageGenerationError('invalid_image_request', { param: 'previous_response_id' });
+    }
     admission.explicitCallIds.forEach(addCallId);
 
     if (input.authorizedPreviousResponseId !== undefined) {
@@ -188,8 +195,14 @@ async function createScope(
       );
       if (response.status === 'found') responseLeases.push(response.lease);
       assertNotAborted(linked.controller.signal);
-      if (response.status !== 'found') referenceFailure(response.status);
-      response.lease.callIds.forEach(addCallId);
+      if (response.status === 'expired') referenceFailure(response.status);
+      if (
+        response.status === 'not_found' &&
+        input.authorizedPreviousResponseKnownEmpty !== true
+      ) {
+        referenceFailure(response.status);
+      }
+      if (response.status === 'found') response.lease.callIds.forEach(addCallId);
     }
 
     const resolvedInputs: ResolvedInput[] = [];
@@ -401,7 +414,18 @@ class RequestScope implements ResponsesImageRequestScope {
         if (next.done) throw new ImageGenerationError('upstream_protocol_changed');
         const event = next.value;
         assertNotAborted(this.#scopeController.signal);
-        if (event.type === 'accepted') continue;
+        if (event.type === 'accepted') {
+          yield Object.freeze({
+            kind: 'started' as const,
+            outputIndex,
+            item: Object.freeze({
+              id: callId,
+              type: 'image_generation_call' as const,
+              status: 'in_progress' as const,
+            }),
+          });
+          continue;
+        }
         if (event.type === 'partial_image') {
           const sequence = allocator.nextSequenceNumber();
           if (

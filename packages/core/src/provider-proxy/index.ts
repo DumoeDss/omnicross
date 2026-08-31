@@ -81,6 +81,15 @@ export {
   type ResponsesProfile,
   type ResponsesProfileDeclaration,
 } from './responses/responsesProfile';
+export {
+  createNativeResponsesHostedImageIngress,
+} from './responses/hosted-image/nativeResponsesHostedImageMediator';
+export type {
+  ResponsesHostedImageIngress,
+  ResponsesHostedImageRequestLease,
+  ResponsesHostedImageRuntimeFactory,
+  ResponsesHostedImageRuntimeLease,
+} from './responses/responsesHostedImageIngress';
 export type {
   AnthropicIngressHandler,
   AnthropicIngressHandlerFactory,

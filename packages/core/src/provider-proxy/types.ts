@@ -34,6 +34,7 @@ import type { AuthStrategy } from '../pipeline/SubscriptionAuthStrategy';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { WebSearchBackend } from '../ports/web-search-backend';
 import type { OpenAIOperationRegistry } from '../openai-operation/openAIOperationRegistry';
+import type { ResponsesHostedImageIngress } from './responses/responsesHostedImageIngress';
 
 // ── Proxy callback / attribution / hint shapes (E1 type de-inversion) ────────
 // These generic proxy callback/attribution/hint contracts carry no host
@@ -393,6 +394,13 @@ export interface RouteContext {
    * `route.apiKeyId ?? null`), exactly as before.
    */
   readonly apiKeyId?: string;
+  /** Explicit hosted-image authority projected from the verified `images` permission. */
+  readonly hostedImageGenerationAllowed?: boolean;
+  /**
+   * Per-request, one-way audit seam supplied by the outbound router. Hosted
+   * image admission invokes it before any mediated response bytes are relayed.
+   */
+  readonly suppressAuditBodies?: () => void;
   /** Safe process-local lease attribution. The route token is intentionally absent. */
   readonly routeLease?: RouteLeaseUsageAttribution;
   /** Wire format this route's ingress decodes. */
@@ -505,6 +513,8 @@ export interface ProviderProxyDeps {
    * create ingresses. Optional so existing embedders stay source-compatible.
    */
   readonly openAIOperationRegistry?: OpenAIOperationRegistry | null;
+  /** Optional Native Responses hosted-image mediator composed by the daemon. */
+  readonly responsesHostedImageIngress?: ResponsesHostedImageIngress | null;
   /**
    * Session-affine key selection + 429/529/401/403 failover. Centralized here
    * (task 2.8) so the next-batch cutover removes the per-proxy taps. Optional —

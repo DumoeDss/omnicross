@@ -143,6 +143,15 @@ describe('production image runtime generation factory', () => {
     expect(generation.imageApi.all.map((entry) => entry.operationId))
       .toEqual(['images.generate', 'images.edit']);
     expect(generation.hosted.toolType).toBe('image_generation');
+    expect(generation.hostedRuntime).toEqual({
+      providerId: 'codex-subscription',
+      imageModel: 'gpt-image-2',
+      referenceTtlMs: config().references.ttlMs,
+      maxOutputBytes: config().limits.maxOutputBytes,
+      maxTotalOutputBytes: config().limits.maxTotalOutputBytes,
+      preferredAccountGroup: 'configured-group',
+      boundAccountFallbackPolicy: 'pool',
+    });
     expect(generation.components.providerRegistry.list().map((provider) => provider.id))
       .toEqual(['codex-subscription']);
     expect(generation.components.referenceStore).toBe(sharedStorage.referenceStore);

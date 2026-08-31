@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   ImageApiContributions,
   ResponsesImageGenerationContribution,
+  ResponsesImageRequestScope,
 } from '@omnicross/core/image-generation';
 import {
   getOpenAIOperation,
@@ -12,6 +13,7 @@ import {
 
 import {
   ImageRuntimeManager,
+  type HostedImageRuntimePolicy,
   type PreparedImageRuntimeGeneration,
 } from '../ImageRuntimeManager';
 
@@ -50,6 +52,7 @@ function enabledGeneration(
     edit?: OpenAIOperationHandler;
     dispose?: ReturnType<typeof vi.fn>;
     hosted?: ResponsesImageGenerationContribution;
+    hostedRuntime?: HostedImageRuntimePolicy;
     inspectCapability?: NonNullable<
       Extract<PreparedImageRuntimeGeneration, { enabled: true }>['inspectCapability']
     >;
@@ -73,6 +76,15 @@ function enabledGeneration(
     enabled: true,
     imageApi,
     hosted: options.hosted ?? hosted(),
+    hostedRuntime: options.hostedRuntime ?? {
+      providerId: 'codex-subscription',
+      imageModel: 'gpt-image-2',
+      referenceTtlMs: 60_000,
+      maxOutputBytes: 1_024,
+      maxTotalOutputBytes: 2_048,
+      preferredAccountGroup: 'configured-group',
+      boundAccountFallbackPolicy: 'pool',
+    },
     ...(options.inspectCapability ? { inspectCapability: options.inspectCapability } : {}),
     dispose: options.dispose ?? vi.fn(async () => undefined),
   };
@@ -192,22 +204,75 @@ describe('ImageRuntimeManager', () => {
   it('pins hosted leases to their acquired generations across publication', async () => {
     const firstDispose = vi.fn(async () => undefined);
     const secondDispose = vi.fn(async () => undefined);
-    const firstHosted = hosted();
-    const secondHosted = hosted();
+    const scope = (): ResponsesImageRequestScope => ({
+      executeSelectedCall: vi.fn(),
+      commit: vi.fn(async () => undefined),
+      waitForIdle: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    } as unknown as ResponsesImageRequestScope);
+    const firstCreateRequestScope = vi.fn(async () => scope());
+    const secondCreateRequestScope = vi.fn(async () => scope());
+    const firstHosted = { ...hosted(), createRequestScope: firstCreateRequestScope };
+    const secondHosted = { ...hosted(), createRequestScope: secondCreateRequestScope };
     const manager = new ImageRuntimeManager(enabledGeneration('generation-a', {
       hosted: firstHosted,
+      hostedRuntime: {
+        providerId: 'codex-subscription',
+        imageModel: 'gpt-image-old',
+        referenceTtlMs: 10_000,
+        maxOutputBytes: 1_000,
+        maxTotalOutputBytes: 2_000,
+        preferredAccountGroup: 'old-group',
+        boundAccountFallbackPolicy: 'pool',
+      },
       dispose: firstDispose,
     }));
     const firstLease = await manager.acquireHosted();
     const replacement = manager.prepare(enabledGeneration('generation-b', {
       hosted: secondHosted,
+      hostedRuntime: {
+        providerId: 'codex-subscription',
+        imageModel: 'gpt-image-new',
+        referenceTtlMs: 20_000,
+        maxOutputBytes: 3_000,
+        maxTotalOutputBytes: 4_000,
+        preferredAccountGroup: 'new-group',
+        boundAccountFallbackPolicy: 'strict',
+      },
       dispose: secondDispose,
     }));
     replacement.publish();
     const secondLease = await manager.acquireHosted();
 
+    const openInput = {
+      admission: {} as never,
+      tenantId: 'tenant-safe',
+      requestId: 'request-old',
+      sessionKey: 'session-safe',
+      signal: new AbortController().signal,
+      mainProviderId: 'anthropic',
+    };
+    await firstLease.openRequest(openInput);
+    await secondLease.openRequest({ ...openInput, requestId: 'request-new' });
+
     expect(firstLease).toMatchObject({ generationId: 'generation-a', contribution: firstHosted });
     expect(secondLease).toMatchObject({ generationId: 'generation-b', contribution: secondHosted });
+    expect(firstCreateRequestScope.mock.calls[0]?.[0].runtime).toMatchObject({
+      imageModel: 'gpt-image-old',
+      referenceTtlMs: 10_000,
+      maxOutputBytes: 1_000,
+      maxTotalOutputBytes: 2_000,
+      preferredAccountGroup: 'old-group',
+      boundAccountFallbackPolicy: 'pool',
+    });
+    expect(secondCreateRequestScope.mock.calls[0]?.[0].runtime).toMatchObject({
+      imageModel: 'gpt-image-new',
+      referenceTtlMs: 20_000,
+      maxOutputBytes: 3_000,
+      maxTotalOutputBytes: 4_000,
+      preferredAccountGroup: 'new-group',
+      boundAccountFallbackPolicy: 'strict',
+    });
     expect(firstDispose).not.toHaveBeenCalled();
     await secondLease.release();
     expect(secondDispose).not.toHaveBeenCalled();

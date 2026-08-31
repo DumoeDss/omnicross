@@ -6,7 +6,12 @@ import {
   ImageGenerationError,
   type ImageApiContributions,
   type ImageOpenAIOperationContribution,
+  type ResponsesHostedToolSelection,
+  type ResponsesImageAdmission,
   type ResponsesImageGenerationContribution,
+  type ResponsesImageInspectionInput,
+  type ResponsesImageRequestScope,
+  type ResponsesImageTrustedRuntime,
 } from '@omnicross/core/image-generation';
 import {
   type OpenAIOperationHandlerContext,
@@ -21,6 +26,7 @@ export type PreparedImageRuntimeGeneration =
       readonly enabled: true;
       readonly imageApi: ImageApiContributions;
       readonly hosted: ResponsesImageGenerationContribution;
+      readonly hostedRuntime: HostedImageRuntimePolicy;
       readonly inspectCapability?: (
         apiKeyId: string,
       ) => Promise<Omit<ImageRuntimeCapabilityInspection, 'generationId'>>;
@@ -35,8 +41,39 @@ export type PreparedImageRuntimeGeneration =
 
 export interface HostedImageRuntimeGenerationLease {
   readonly generationId: string;
+  /** Compatibility/debug view; callers should prefer the deep methods below. */
   readonly contribution: ResponsesImageGenerationContribution;
+  inspectRequest(input: ResponsesImageInspectionInput): ResponsesImageAdmission;
+  validateSelection(
+    admission: ResponsesImageAdmission,
+    selection: ResponsesHostedToolSelection,
+  ): void;
+  openRequest(input: HostedImageOpenRequestInput): Promise<ResponsesImageRequestScope>;
   release(): Promise<void>;
+}
+
+export interface HostedImageRuntimePolicy {
+  readonly providerId: string;
+  readonly imageModel: string;
+  readonly referenceTtlMs: number;
+  readonly maxOutputBytes: number;
+  readonly maxTotalOutputBytes: number;
+  readonly preferredAccountId?: string;
+  readonly preferredAccountGroup?: string;
+  readonly boundAccountFallbackPolicy?: 'strict' | 'pool';
+}
+
+export interface HostedImageOpenRequestInput {
+  readonly admission: ResponsesImageAdmission;
+  readonly tenantId: string;
+  readonly requestId: string;
+  readonly sessionKey: string;
+  readonly signal: AbortSignal;
+  readonly authorizedPreviousResponseId?: string;
+  /** Trusted affinity fact forwarded unchanged into the contribution scope. */
+  readonly authorizedPreviousResponseKnownEmpty?: boolean;
+  readonly mainProviderId: string;
+  readonly selectedMainAccountId?: string;
 }
 
 /** Dormant integration seam for a later Native Responses owner. */
@@ -123,6 +160,7 @@ type GenerationPhase = 'prepared' | 'current' | 'draining' | 'disposing' | 'disp
 
 interface GenerationRecord {
   readonly generation: PreparedImageRuntimeGeneration;
+  readonly hostedRuntime?: HostedImageRuntimePolicy;
   phase: GenerationPhase;
   httpLeases: number;
   hostedLeases: number;
@@ -154,6 +192,9 @@ function deferredRecord(
   void disposed.catch(() => undefined);
   return {
     generation,
+    ...(generation.enabled
+      ? { hostedRuntime: snapshotHostedRuntimePolicy(generation.hostedRuntime) }
+      : {}),
     phase,
     httpLeases: 0,
     hostedLeases: 0,
@@ -162,6 +203,50 @@ function deferredRecord(
     resolveDisposed,
     rejectDisposed,
   };
+}
+
+function boundedText(value: unknown, max = 128): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= max;
+}
+
+function positiveInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) > 0;
+}
+
+function snapshotHostedRuntimePolicy(value: HostedImageRuntimePolicy): HostedImageRuntimePolicy {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !boundedText(value.providerId) ||
+    !boundedText(value.imageModel) ||
+    !positiveInteger(value.referenceTtlMs) ||
+    !positiveInteger(value.maxOutputBytes) ||
+    !positiveInteger(value.maxTotalOutputBytes) ||
+    value.maxTotalOutputBytes < value.maxOutputBytes ||
+    (value.preferredAccountId !== undefined && !boundedText(value.preferredAccountId, 512)) ||
+    (value.preferredAccountGroup !== undefined && !boundedText(value.preferredAccountGroup, 512)) ||
+    (value.boundAccountFallbackPolicy !== undefined &&
+      value.boundAccountFallbackPolicy !== 'strict' &&
+      value.boundAccountFallbackPolicy !== 'pool')
+  ) {
+    throw new TypeError('enabled image runtime hosted policy is invalid');
+  }
+  return Object.freeze({
+    providerId: value.providerId,
+    imageModel: value.imageModel,
+    referenceTtlMs: value.referenceTtlMs,
+    maxOutputBytes: value.maxOutputBytes,
+    maxTotalOutputBytes: value.maxTotalOutputBytes,
+    ...(value.preferredAccountId !== undefined
+      ? { preferredAccountId: value.preferredAccountId }
+      : {}),
+    ...(value.preferredAccountGroup !== undefined
+      ? { preferredAccountGroup: value.preferredAccountGroup }
+      : {}),
+    ...(value.boundAccountFallbackPolicy !== undefined
+      ? { boundAccountFallbackPolicy: value.boundAccountFallbackPolicy }
+      : {}),
+  });
 }
 
 function disabledGeneration(id: string): PreparedImageRuntimeGeneration {
@@ -186,10 +271,12 @@ function validateGeneration(generation: PreparedImageRuntimeGeneration): void {
       generation.imageApi.edit.operationId !== 'images.edit' ||
       typeof generation.imageApi.generate.handler !== 'function' ||
       typeof generation.imageApi.edit.handler !== 'function' ||
-      generation.hosted.toolType !== 'image_generation'
+      generation.hosted.toolType !== 'image_generation' ||
+      !generation.hostedRuntime
     ) {
       throw new TypeError('enabled image runtime generation is incomplete');
     }
+    snapshotHostedRuntimePolicy(generation.hostedRuntime);
   }
 }
 
@@ -293,14 +380,134 @@ export class ImageRuntimeManager {
       await this.#release(record, 'hosted');
       throw new ImageGenerationError('unsupported_capability');
     }
+    const contribution = record.generation.hosted;
+    const hostedRuntime = record.hostedRuntime!;
+    const scopes = new Set<ResponsesImageRequestScope>();
+    const openings = new Set<Promise<ResponsesImageRequestScope>>();
     let released = false;
+    let releasePromise: Promise<void> | undefined;
+    const wrapScope = (scope: ResponsesImageRequestScope): ResponsesImageRequestScope => {
+      let disposePromise: Promise<void> | undefined;
+      let wrapped!: ResponsesImageRequestScope;
+      wrapped = Object.freeze({
+        executeSelectedCall: (
+          call: Parameters<ResponsesImageRequestScope['executeSelectedCall']>[0],
+          allocator: Parameters<ResponsesImageRequestScope['executeSelectedCall']>[1],
+        ) => scope.executeSelectedCall(call, allocator),
+        commit: (responseId: string) => scope.commit(responseId),
+        waitForIdle: () => scope.waitForIdle(),
+        dispose: (): Promise<void> => {
+          if (disposePromise) return disposePromise;
+          disposePromise = (async () => {
+            try {
+              await scope.waitForIdle();
+              await scope.dispose();
+            } finally {
+              scopes.delete(wrapped);
+            }
+          })();
+          return disposePromise;
+        },
+      });
+      scopes.add(wrapped);
+      return wrapped;
+    };
     return Object.freeze({
       generationId: record.generation.id,
-      contribution: record.generation.hosted,
-      release: async (): Promise<void> => {
-        if (released) return;
+      contribution,
+      inspectRequest: (input: ResponsesImageInspectionInput): ResponsesImageAdmission =>
+        contribution.inspectRequest(input),
+      validateSelection: (
+        admission: ResponsesImageAdmission,
+        selection: ResponsesHostedToolSelection,
+      ): void => contribution.validateSelection(admission, selection),
+      openRequest: async (input: HostedImageOpenRequestInput): Promise<ResponsesImageRequestScope> => {
+        if (released) throw new ImageGenerationError('unsupported_capability');
+        if (!boundedText(input.mainProviderId)) {
+          throw new ImageGenerationError('invalid_image_request', { param: 'provider' });
+        }
+        if (
+          input.selectedMainAccountId !== undefined &&
+          !boundedText(input.selectedMainAccountId, 512)
+        ) {
+          throw new ImageGenerationError('invalid_image_request');
+        }
+        const selectedCodexAccount =
+          input.mainProviderId === 'codex' &&
+          hostedRuntime.providerId === 'codex-subscription' &&
+          input.selectedMainAccountId !== undefined
+            ? input.selectedMainAccountId
+            : undefined;
+        const runtime: ResponsesImageTrustedRuntime = Object.freeze({
+          tenantId: input.tenantId,
+          requestId: input.requestId,
+          providerId: hostedRuntime.providerId,
+          imageModel: hostedRuntime.imageModel,
+          referenceTtlMs: hostedRuntime.referenceTtlMs,
+          maxOutputBytes: hostedRuntime.maxOutputBytes,
+          maxTotalOutputBytes: hostedRuntime.maxTotalOutputBytes,
+          signal: input.signal,
+          sessionKey: input.sessionKey,
+          ...(selectedCodexAccount !== undefined
+            ? {
+                preferredAccountId: selectedCodexAccount,
+                boundAccountFallbackPolicy: 'strict' as const,
+              }
+            : {
+                ...(hostedRuntime.preferredAccountId !== undefined
+                  ? { preferredAccountId: hostedRuntime.preferredAccountId }
+                  : {}),
+                ...(hostedRuntime.preferredAccountGroup !== undefined
+                  ? { preferredAccountGroup: hostedRuntime.preferredAccountGroup }
+                  : {}),
+                ...(hostedRuntime.boundAccountFallbackPolicy !== undefined
+                  ? { boundAccountFallbackPolicy: hostedRuntime.boundAccountFallbackPolicy }
+                  : {}),
+              }),
+        });
+        const opening = contribution.createRequestScope({
+          admission: input.admission,
+          runtime,
+          ...(input.authorizedPreviousResponseId !== undefined
+            ? { authorizedPreviousResponseId: input.authorizedPreviousResponseId }
+            : {}),
+          ...(input.authorizedPreviousResponseKnownEmpty !== undefined
+            ? { authorizedPreviousResponseKnownEmpty: input.authorizedPreviousResponseKnownEmpty }
+            : {}),
+        }).then(wrapScope);
+        openings.add(opening);
+        let scope: ResponsesImageRequestScope;
+        try {
+          scope = await opening;
+        } finally {
+          openings.delete(opening);
+        }
+        if (released) throw new ImageGenerationError('unsupported_capability');
+        return scope;
+      },
+      release: (): Promise<void> => {
+        if (releasePromise) return releasePromise;
         released = true;
-        await this.#release(record, 'hosted');
+        releasePromise = (async () => {
+          await Promise.allSettled([...openings]);
+          const disposals = await Promise.allSettled(
+            [...scopes].map((scope) => scope.dispose()),
+          );
+          let releaseFailure: unknown;
+          try {
+            await this.#release(record, 'hosted');
+          } catch (error) {
+            releaseFailure = error;
+          }
+          const failures = disposals
+            .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+            .map((result) => result.reason);
+          if (releaseFailure !== undefined) failures.push(releaseFailure);
+          if (failures.length > 0) {
+            throw new AggregateError(failures, 'hosted image request disposal failed');
+          }
+        })();
+        return releasePromise;
       },
     });
   }

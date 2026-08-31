@@ -989,6 +989,7 @@ export async function handleOutboundRequest(
     // requested id through to the response `model` passthrough; the list-mapped
     // `chat` endpoint matches the requested id against its configured model list;
     // the role-based `gemini` endpoint keeps detecting default/background.
+    const hostedImageGenerationAllowed = verified.allowedEndpoints.includes('images');
     const resolved =
       isKindMappedEndpoint(endpoint) || endpoint === 'chat'
         ? await resolveRoute({
@@ -1002,6 +1003,7 @@ export async function handleOutboundRequest(
             requestedModel,
             // Attribution: stamp the verified named-key id onto the route.
             apiKeyId: verified.id,
+            hostedImageGenerationAllowed,
           })
         : await resolveRoute({
             config: effectiveEndpointConfig,
@@ -1011,6 +1013,7 @@ export async function handleOutboundRequest(
             sessionId,
             // Attribution: stamp the verified named-key id onto the route.
             apiKeyId: verified.id,
+            hostedImageGenerationAllowed,
           });
     if (!resolved.ok) {
       writeJsonError(res, resolved.error.status, resolved.error.message);
@@ -1100,20 +1103,23 @@ export async function handleOutboundRequest(
     // Anthropic-protocol GENERATION requests additionally carry the PDF
     // extraction budget (translate-path document handling). All other requests
     // mint the route unchanged.
+    const requestRoute = audit
+      ? { ...resolved.route, suppressAuditBodies: (): void => audit.suppressBodies() }
+      : resolved.route;
     const token = routeMap.addRoute(
       isCountTokens
         ? {
-            ...resolved.route,
+            ...requestRoute,
             anthropicCountTokensMode: config.anthropic?.countTokens?.mode,
             anthropicCountTokensEstimateBudgetMs: config.anthropic?.countTokens?.estimateBudgetMs,
             anthropicPdfTextExtractionBudgetMs: config.anthropic?.pdfTextExtraction?.budgetMs,
           }
         : anthropicPathClass !== null
           ? {
-              ...resolved.route,
+              ...requestRoute,
               anthropicPdfTextExtractionBudgetMs: config.anthropic?.pdfTextExtraction?.budgetMs,
             }
-          : resolved.route,
+          : requestRoute,
     );
     try {
       shimAuthHeader(req, token);

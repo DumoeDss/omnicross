@@ -120,3 +120,35 @@ describe('resolveRoute — apiKeyId attribution', () => {
     expect(result.route.anthropicSdkHints?.attribution?.apiKeyId).toBeNull();
   });
 });
+
+describe('resolveRoute — hosted image permission projection', () => {
+  it('stamps the explicit permission fact on a BYO route', async () => {
+    const result = await resolveRoute({
+      config: messages(MSG_MAP),
+      ingressFormat: 'anthropic-messages',
+      llmConfig,
+      requestedModel: 'claude-opus-4-8',
+      hostedImageGenerationAllowed: true,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.route.hostedImageGenerationAllowed).toBe(true);
+  });
+
+  it('stamps a denied permission fact on a subscription route', async () => {
+    const registry: SubscriptionRegistryLike = {
+      getProfile: (id) => (id === 'claude' ? fakeProfile('claude') : null),
+    };
+    setSubscriptionRegistryForOutbound(registry);
+
+    const result = await resolveRoute({
+      config: messages({ fable: 'claude,c', opus: 'claude,c', sonnet: 'claude,c', haiku: 'claude,c' }),
+      ingressFormat: 'anthropic-messages',
+      llmConfig: NO_BYO_LLM_CONFIG,
+      hostedImageGenerationAllowed: false,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.route.hostedImageGenerationAllowed).toBe(false);
+  });
+});

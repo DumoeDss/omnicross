@@ -195,6 +195,55 @@ describe('beginAuditCapture — body capture (opt-in)', () => {
     expect(serialized).not.toContain('query-secret');
   });
 
+  it('discards already captured bodies one-way while retaining metadata and usage', () => {
+    setAuditCaptureConfig(cfg({ captureBodies: true }));
+    const seen: AuditRecord[] = [];
+    setAuditSink((rec) => seen.push(rec));
+    const r = res();
+    const ctx = beginAuditCapture(
+      fakeReq({ url: '/v1/responses' }),
+      r as unknown as http.ServerResponse,
+      1,
+    );
+
+    ctx!.keyId = 'key_hosted_image';
+    ctx!.model = 'gpt-native';
+    ctx!.provider = 'native';
+    ctx!.setRequestBody('{"input":"PRIVATE-PROMPT-SENTINEL"}');
+    r.write('data: {"partial_image_b64":"EARLY-BASE64-SENTINEL"}\n\n');
+    stashAuditUsage(r, {
+      inputTokens: 11,
+      outputTokens: 7,
+      costUsd: 0.002,
+      model: 'gpt-native',
+      provider: 'native',
+    });
+
+    ctx!.suppressBodies();
+    ctx!.suppressBodies();
+    ctx!.setRequestBody('{"input":"LATE-PROMPT-SENTINEL"}');
+    r.end('data: {"type":"response.completed","result":"LATE-BASE64-SENTINEL"}\n\n');
+    r.triggerClose();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      keyId: 'key_hosted_image',
+      model: 'gpt-native',
+      provider: 'native',
+      inputTokens: 11,
+      outputTokens: 7,
+      costUsd: 0.002,
+    });
+    expect(seen[0]?.requestBody).toBeUndefined();
+    expect(seen[0]?.responseBody).toBeUndefined();
+    expect(seen[0]?.hasBody).toBeUndefined();
+    const serialized = JSON.stringify(seen[0]);
+    expect(serialized).not.toContain('PRIVATE-PROMPT-SENTINEL');
+    expect(serialized).not.toContain('EARLY-BASE64-SENTINEL');
+    expect(serialized).not.toContain('LATE-PROMPT-SENTINEL');
+    expect(serialized).not.toContain('LATE-BASE64-SENTINEL');
+  });
+
   it('captures + redacts request and non-stream response bodies IN FULL', () => {
     setAuditCaptureConfig(cfg({ captureBodies: true }));
     const seen: AuditRecord[] = [];
