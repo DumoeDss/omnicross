@@ -176,3 +176,101 @@ The contribution SHALL be publicly exported from the owned image-generation modu
 - **WHEN** the contribution and its tests are implemented
 - **THEN** no implementation edit is required under `packages/core/src/openai-operation/**`, any `openaiResponsesIngress.ts`, or `providerProxyShared.ts`
 
+### Requirement: Native Responses ingress executes the hosted image contribution
+The Native Responses create ingress SHALL recognize image-owned declarations, forced choices, explicit image-call references, and authorized inherited image context and SHALL route them through the injected hosted image mediator. Requests with no image-owned declaration/reference/context MUST retain the existing Responses path without acquiring an image runtime generation. A reduced-profile route or a Native route without an injected runtime MUST fail closed when image execution is requested.
+
+#### Scenario: Ordinary Responses request remains unchanged
+- **WHEN** a Native Responses request has no `image_generation` declaration, image-call reference, or inherited image context
+- **THEN** the ingress invokes the existing upstream/relay path and does not acquire the hosted image runtime
+
+#### Scenario: Hosted runtime is unavailable
+- **WHEN** a request declares or forces `image_generation` but no hosted image mediator/runtime is injected
+- **THEN** the ingress returns structured `unsupported_capability` before forwarding the declaration upstream
+
+#### Scenario: Reduced profile cannot host the image tool
+- **WHEN** a reduced Responses route receives an `image_generation` declaration or forced image choice
+- **THEN** it fails with `unsupported_capability` before main-model or image-provider execution
+
+### Requirement: Hosted image execution requires independent Images permission
+The authenticated outbound route SHALL carry a least-authority hosted-image permission fact derived only from the verified named key's explicit `images` permission. A key authorized only for `responses` MUST NOT execute `image_generation`, and raw bearer text, session metadata, model output, legacy text permissions, or configuration enablement MUST NOT satisfy this permission.
+
+#### Scenario: Responses-only key is denied
+- **WHEN** a key with `responses` permission but without `images` permission submits a Responses request that declares or forces `image_generation`
+- **THEN** the request fails with 403 before the main-model selector, runtime acquisition, or image provider is called
+
+#### Scenario: Explicit dual permission is admitted
+- **WHEN** the verified key has both `responses` and `images` permission and the image runtime is injected
+- **THEN** the request may enter hosted image admission while all capability/evidence checks remain fail closed
+
+### Requirement: Main-model image selection uses a real bounded selection adapter
+The mediator SHALL replace the image declaration only on the upstream request clone with a per-request non-colliding internal function whose closed arguments contain one bounded `prompt`. It SHALL map `auto`, generic `required`, forced image, forced other, and `none` choices without changing their selection semantics. Only a strictly valid internal function call actually returned by the main Responses model MAY become a `ResponsesSelectedImageCall`; the system MUST NOT infer selection or an image prompt from user natural language.
+
+#### Scenario: Automatic selection chooses text
+- **WHEN** an automatic request causes the main model to return no internal image-selection function call
+- **THEN** no image provider is called and the ordinary text/other-tool output is preserved
+
+#### Scenario: Forced image selects through the model
+- **WHEN** `tool_choice` forces `image_generation`
+- **THEN** the upstream request forces the private internal function and a valid returned `{prompt}` is validated and executed through the contribution
+
+#### Scenario: Selector output is malformed
+- **WHEN** the model returns invalid JSON, unknown fields, an empty/oversized prompt, a forged selector name, duplicate identity, or inconsistent tool selection
+- **THEN** the request fails with sanitized `upstream_protocol_changed` and does not expose the internal function name or arguments
+
+#### Scenario: Other tools remain model-selectable
+- **WHEN** image generation is declared with function, custom, or another hosted tool
+- **THEN** those declarations remain in their original order and a selected non-image tool is mapped back to its declared identity for contribution validation
+
+### Requirement: JSON and SSE mediation preserves official image output ordering
+For a successful non-stream response, the mediator SHALL replace each hidden selector function item at its existing output position with the contribution's completed `image_generation_call` item. For SSE, it SHALL suppress every internal selector event, reuse its reserved output index for the public image call, allocate globally monotonic sequence numbers for forwarded and synthesized events, forward only real partial images, and delay the unique terminal success until image state commit succeeds.
+
+#### Scenario: Non-stream image result is committed before exposure
+- **WHEN** the main model selects an image and the contribution completes it
+- **THEN** the response contains the exact Base64 result at the selector's mixed-output position only after `scope.commit(response.id)` succeeds
+
+#### Scenario: Streaming image events are official and ordered
+- **WHEN** the provider emits real partial images
+- **THEN** the client observes one public image item start, zero or more `response.image_generation_call.partial_image` events, the completed image item, and `response.completed` with strictly increasing sequence numbers and one stable output index/item ID
+
+#### Scenario: Internal selector wire is hidden
+- **WHEN** the upstream JSON or SSE contains the request-private selector function call and argument deltas
+- **THEN** no internal function name, call item, arguments, prompt, or completion receipt appears in the client response, errors, logs, audit, or usage snapshots
+
+#### Scenario: Commit or image execution fails
+- **WHEN** any selected call, output mapping, or image-state commit fails
+- **THEN** no successful terminal response or empty completed image item is emitted and the failure uses the normal sanitized Responses error path
+
+### Requirement: Hosted image continuation closes hidden function state safely
+After image state commit and before terminal success, the ingress SHALL record bounded hosted-image continuation metadata inside the already-authorized Responses affinity record. A subsequent authorized `previous_response_id` request SHALL add the corresponding internal `function_call_output` receipt to the upstream input while retaining the public image context locally. Receipts MUST contain only completion status and public call identity, MUST be consumed at most once per upstream continuation, and MUST NOT contain image bytes, prompts, credentials, paths, provider references, or cross-tenant metadata.
+
+#### Scenario: Previous response continues after image generation
+- **WHEN** an authorized child request uses the response ID of a locally completed image call
+- **THEN** the main-model request receives the bounded hidden function completion and the contribution resolves the same tenant's retained image context
+
+#### Scenario: Text-only middle turn carries image context
+- **WHEN** an authorized continuation after an image produces no new image
+- **THEN** its successful response carries the inherited local image context forward so a later edit can resolve it
+
+#### Scenario: Ordinary prior response has no image-state row
+- **WHEN** a newly admitted image request follows an affinity-authorized text-only response that never entered the hosted mediator
+- **THEN** missing local image state is treated as known empty context rather than cross-tenant authorization or expiry
+
+#### Scenario: Cross-tenant continuation is hidden
+- **WHEN** another outbound key supplies a response or image-call ID owned by a different tenant
+- **THEN** existing affinity/reference isolation rejects it before any receipt, image metadata, or provider work is exposed
+
+### Requirement: Runtime generation and request resources are pinned and finalized once
+The injected hosted runtime lease SHALL derive provider ID, image model, reference TTL, output budgets, and configured account policy from the same immutable runtime generation as the contribution. The ingress MUST pass the request cancellation signal, trusted tenant/session identity, and—when compatible—the main model's actually selected account. Every path SHALL dispose the request scope before releasing the generation lease, with idempotent exact-once observable ownership.
+
+#### Scenario: Main and image work share Codex account affinity
+- **WHEN** the main-model selection used a concrete Codex subscription account
+- **THEN** the pinned hosted runtime executes the image call with that account under strict binding rather than silently switching accounts
+
+#### Scenario: Hot reload occurs during a request
+- **WHEN** image configuration publishes a new runtime generation while a hosted request is active
+- **THEN** the active request keeps the old generation until scope disposal and a later request acquires the new generation
+
+#### Scenario: Client cancels during image streaming
+- **WHEN** the request signal aborts during selector mediation, provider execution, asset reading, or partial delivery
+- **THEN** no later Base64 is produced, uncommitted references roll back, provider cancellation occurs at most once, scope disposal completes, and the generation lease is released
+
