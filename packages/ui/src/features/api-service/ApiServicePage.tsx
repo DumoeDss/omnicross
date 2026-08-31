@@ -21,6 +21,7 @@ import type { GatewayBinding } from '@/daemon/types';
 import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
 import { routeForBinding, summarizeBindingCoverage } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
+import { useCliIntegrations } from '../code-cli/hooks/useCliIntegrations';
 import { ImagesSection } from './ImagesSection';
 import { KeyManagementSection } from './KeyManagementSection';
 import { QueueStatusSummary } from './QueueStatusSummary';
@@ -38,6 +39,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
   // is reached only via the NavRail, with no in-page tab switcher between them.
   const activeTab = normalizeApiServiceTab(controlledTab ?? 'overview');
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+  const cliIntegrations = useCliIntegrations();
   const {
     loading,
     config,
@@ -99,9 +101,9 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
             <p className="text-sm text-destructive">{t('apiService.loadError')}</p>
           ) : (
             <>
-              {error ? (
+              {error || cliIntegrations.error ? (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {error}
+                  {error ?? cliIntegrations.error}
                 </p>
               ) : null}
 
@@ -170,6 +172,8 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   onSetPermissions={setKeyPermissions}
                   onSetPolicy={setKeyPolicy}
                   onDismissCreated={dismissCreatedKey}
+                  integrations={cliIntegrations.overview?.integrations ?? []}
+                  onBindIntegration={cliIntegrations.bindKey}
                   bindings={config.bindings ?? []}
                   onOpenBinding={onNavigate ? (binding) => onNavigate(routeForBinding(binding)) : undefined}
                   onChangeBindings={updateBindings}

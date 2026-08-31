@@ -24,7 +24,7 @@ function paths() {
 }
 
 describe('native integration CLI commands', () => {
-  it('installs status/removes Codex TOML and file-backed API-key auth', async () => {
+  it('installs/status/removes Codex command auth and prints token only for the helper action', async () => {
     const p = paths();
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     await runIntegrations([
@@ -34,21 +34,25 @@ describe('native integration CLI commands', () => {
       '--target', p.codex,
     ]);
     expect(existsSync(p.codex)).toBe(true);
+    expect(readFileSync(p.codex, 'utf8')).toContain('[model_providers.omnicross.auth]');
     expect(readFileSync(p.codex, 'utf8')).not.toContain('sk-omnicross-');
-    const auth = JSON.parse(readFileSync(p.codexAuth, 'utf8')) as {
-      auth_mode: string;
-      OPENAI_API_KEY: string;
-    };
-    expect(auth.auth_mode).toBe('apikey');
-    expect(auth.OPENAI_API_KEY).toMatch(/^sk-omnicross-/);
-    expect(info).not.toHaveBeenCalledWith(expect.stringContaining('sk-omnicross-'));
+    expect(existsSync(p.codexAuth)).toBe(false);
+
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as typeof process.stdout.write);
+    await runIntegrations([
+      'token', 'codex', '--config', p.config, '--master-key-file', p.master,
+    ]);
+    expect(stdout).toHaveBeenCalledTimes(1);
+    const token = String(stdout.mock.calls[0]?.[0]).trim();
+    expect(token).toMatch(/^sk-omnicross-/);
+    expect(info).not.toHaveBeenCalledWith(expect.stringContaining(token));
 
     await runIntegrations(['remove', 'codex', '--config', p.config, '--master-key-file', p.master]);
     expect(existsSync(p.codex)).toBe(false);
     expect(existsSync(p.codexAuth)).toBe(false);
   });
 
-  it('master-key rotation re-seals integration state without changing Codex files', async () => {
+  it('master-key rotation re-seals key and integration stores without changing Codex config', async () => {
     const p = paths();
     vi.spyOn(console, 'info').mockImplementation(() => undefined);
     await runIntegrations([
@@ -58,7 +62,10 @@ describe('native integration CLI commands', () => {
       '--target', p.codex,
     ]);
     const beforeConfig = readFileSync(p.codex, 'utf8');
-    const beforeAuth = readFileSync(p.codexAuth, 'utf8');
+    const beforeBinding = new IntegrationStateStore(
+      defaultIntegrationsPath(p.config),
+      new SecretBox(resolveMasterKey({ keyFilePath: p.master })),
+    ).load().keyBindings?.codex;
 
     await runSecrets([
       'rotate', '--config', p.config,
@@ -66,15 +73,13 @@ describe('native integration CLI commands', () => {
       '--new-master-key-file', p.nextMaster,
     ]);
     expect(readFileSync(p.codex, 'utf8')).toBe(beforeConfig);
-    expect(readFileSync(p.codexAuth, 'utf8')).toBe(beforeAuth);
+    expect(existsSync(p.codexAuth)).toBe(false);
 
     const nextStore = new IntegrationStateStore(
       defaultIntegrationsPath(p.config),
       new SecretBox(resolveMasterKey({ keyFilePath: p.nextMaster })),
     );
-    expect(nextStore.load().gatewayKey?.secret).toBe(
-      (JSON.parse(beforeAuth) as { OPENAI_API_KEY: string }).OPENAI_API_KEY,
-    );
+    expect(nextStore.load().keyBindings?.codex).toEqual(beforeBinding);
     const oldStore = new IntegrationStateStore(
       defaultIntegrationsPath(p.config),
       new SecretBox(resolveMasterKey({ keyFilePath: p.master })),

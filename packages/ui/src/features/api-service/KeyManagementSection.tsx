@@ -20,6 +20,9 @@ import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import type {
+  CliIntegrationClient,
+  CliIntegrationStatus,
+  MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundKeyPolicyPatch,
@@ -51,7 +54,11 @@ interface KeyManagementSectionProps {
   bindings?: GatewayBinding[];
   onOpenBinding?: (binding: GatewayBinding) => void;
   onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
+  integrations?: CliIntegrationStatus[];
+  onBindIntegration?: (client: CliIntegrationClient, keyId: string) => Promise<MutationResult>;
 }
+
+const INTEGRATION_CLIENTS: readonly CliIntegrationClient[] = ['codex', 'claude'];
 
 export const KEY_PERMISSION_OPTIONS: readonly OutboundPermissionId[] = Object.freeze([
   'chat',
@@ -227,6 +234,8 @@ export function KeyManagementSection({
   bindings = [],
   onOpenBinding,
   onChangeBindings,
+  integrations = [],
+  onBindIntegration,
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
@@ -235,6 +244,10 @@ export function KeyManagementSection({
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
+  const [integrationTarget, setIntegrationTarget] = useState<{
+    client: CliIntegrationClient;
+    key: OutboundApiKeyInfo;
+  } | null>(null);
   // Inline "view key" reveal — the decrypted value is fetched on demand and held
   // only in memory until dismissed (never stored client-side), mirroring the
   // provider-key reveal. One key revealed at a time.
@@ -295,6 +308,13 @@ export function KeyManagementSection({
         <ul className="space-y-2">
           {keys.map((k) => {
             const relatedBindings = bindingsForClientKey(bindings, k.id);
+            const usedClients = integrations
+              .filter((integration) => integration.key?.id === k.id)
+              .map((integration) => integration.client);
+            const requiredPermissions = new Set(integrations
+              .filter((integration) => integration.key?.id === k.id)
+              .flatMap((integration) => integration.key?.requiredEndpoints ?? []));
+            const integrationEligible = k.enabled && !k.revoked && k.revealable === true;
             return (
             <li
               key={k.id}
@@ -328,6 +348,29 @@ export function KeyManagementSection({
                       </Button>
                     ) : null}
                   </div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {INTEGRATION_CLIENTS.map((client) => {
+                      const inUse = usedClients.includes(client);
+                      const name = client === 'codex' ? 'Codex' : 'Claude';
+                      return (
+                        <Button
+                          key={client}
+                          size="xs"
+                          variant={inUse ? 'secondary' : 'outline'}
+                          disabled={busy || inUse || !integrationEligible || !onBindIntegration}
+                          title={!integrationEligible
+                            ? t('apiService.keys.integrations.unavailable')
+                            : undefined}
+                          onClick={() => setIntegrationTarget({ client, key: k })}
+                        >
+                          <Link2 className="h-3 w-3" />
+                          {inUse
+                            ? t('apiService.keys.integrations.inUse')
+                            : t('apiService.keys.integrations.useFor', { name })}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
                 {!k.revoked ? (
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -357,7 +400,7 @@ export function KeyManagementSection({
                 {!k.revoked ? (
                   <Switch
                     checked={k.enabled}
-                    disabled={busy}
+                    disabled={busy || usedClients.length > 0}
                     onCheckedChange={(checked) => void onToggle(k.id, checked)}
                     aria-label={t('apiService.keys.toggle')}
                   />
@@ -367,7 +410,7 @@ export function KeyManagementSection({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    disabled={busy}
+                    disabled={busy || usedClients.length > 0}
                     onClick={() => setRevokeTarget(k)}
                     aria-label={t('apiService.keys.revoke')}
                   >
@@ -381,7 +424,7 @@ export function KeyManagementSection({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    disabled={busy}
+                    disabled={busy || usedClients.length > 0}
                     onClick={() => setDeleteTarget(k)}
                     aria-label={t('apiService.keys.delete')}
                     title={t('apiService.keys.delete')}
@@ -411,7 +454,12 @@ export function KeyManagementSection({
                           <input
                             type="checkbox"
                             checked={effectiveKeyPermissions(k.allowedEndpoints).includes(permission)}
-                            disabled={busy}
+                            disabled={busy || (
+                              eventPermissionIsRequired(
+                                effectiveKeyPermissions(k.allowedEndpoints).includes(permission),
+                                requiredPermissions.has(permission),
+                              )
+                            )}
                             onChange={(event) => void onSetPermissions(
                               k.id,
                               toggleKeyPermission(k.allowedEndpoints, permission, event.target.checked),
@@ -534,6 +582,33 @@ export function KeyManagementSection({
       />
 
       <ConfirmDialog
+        open={integrationTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setIntegrationTarget(null);
+        }}
+        title={integrationTarget
+          ? t('apiService.keys.integrations.confirmTitle', {
+              name: integrationTarget.client === 'codex' ? 'Codex' : 'Claude',
+            })
+          : ''}
+        description={integrationTarget
+          ? t('apiService.keys.integrations.confirmDescription', {
+              key: integrationTarget.key.name,
+              permissions: integrationTarget.client === 'codex' ? 'responses, images' : 'messages',
+            })
+          : undefined}
+        confirmLabel={t('apiService.keys.integrations.confirm')}
+        cancelLabel={t('common.cancel')}
+        variant="default"
+        onConfirm={() => {
+          if (integrationTarget && onBindIntegration) {
+            void onBindIntegration(integrationTarget.client, integrationTarget.key.id);
+          }
+          setIntegrationTarget(null);
+        }}
+      />
+
+      <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
@@ -552,4 +627,8 @@ export function KeyManagementSection({
       />
     </section>
   );
+}
+
+function eventPermissionIsRequired(checked: boolean, required: boolean): boolean {
+  return checked && required;
 }

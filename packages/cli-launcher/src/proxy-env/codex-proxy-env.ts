@@ -55,6 +55,18 @@ export const CODEX_PROXY_PROVIDER_NAME = 'omnicross';
  */
 export const CODEX_PROXY_BASE_PATH = '/openai';
 
+/**
+ * Non-secret capability marker recognized by Codex's standalone image-generation
+ * extension. Authentication still uses the route token named by `env_key`.
+ *
+ * Codex 0.151 only exposes `image_gen/imagegen` to a custom provider when it
+ * uses Codex-backend auth or the CCA actor-authorization provider shape. The
+ * latter requires this header to be present and `requires_openai_auth` to remain
+ * false. Omnicross uses the marker only to unlock the client-side tool; it does
+ * not treat it as a credential.
+ */
+const CODEX_IMAGE_GENERATION_CAPABILITY_MARKER = 'omnicross';
+
 /** Inputs for `buildCodexLaunchConfig` — mirrors provider-env.ts's positional args as a struct. */
 export interface CodexLaunchConfigInputs {
   readonly llmConfig: ProviderConfigSource;
@@ -119,6 +131,8 @@ export function buildCodexConfigOverrides(baseUrl: string): string[] {
     `model_providers.${name}.wire_api="responses"`,
     '-c',
     `model_providers.${name}.env_key="${ROUTE_LEASE_CODEX_TOKEN_ENV}"`,
+    '-c',
+    `model_providers.${name}.http_headers={"X-OpenAI-Actor-Authorization"="${CODEX_IMAGE_GENERATION_CAPABILITY_MARKER}"}`,
     // disable_response_storage: the CLI sends full context each turn (no
     // server-side response store) — required because the proxy upstream is
     // stateless w.r.t. Codex's response-id store (design Q3 contract).

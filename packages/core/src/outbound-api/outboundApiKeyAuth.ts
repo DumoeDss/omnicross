@@ -15,7 +15,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import { computeKeyExpiry, type KeyCostLimits, type ModelRestriction } from './keyPolicy';
 import type {
   OutboundApiKeyCreated,
-  OutboundEndpoint,
   OutboundPermission,
   OutboundKeyDb,
   OutboundKeyDbRow,
@@ -106,7 +105,7 @@ export async function createNamedKey(
 export async function createIntegrationKey(
   db: OutboundKeyDb,
   name: string,
-  allowedEndpoints: OutboundEndpoint[] = ['responses', 'messages'],
+  allowedEndpoints: OutboundPermission[] = ['responses', 'messages'],
 ): Promise<OutboundApiKeyCreated> {
   const secret = generateSecret();
   const id = newKeyId();

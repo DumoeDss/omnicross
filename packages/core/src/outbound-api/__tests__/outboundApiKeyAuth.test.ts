@@ -144,6 +144,17 @@ describe('outboundApiKeyAuth', () => {
     });
   });
 
+  it('allows a Codex integration key to include the Images permission', async () => {
+    const db = makeStubDb();
+    const created = await createIntegrationKey(db, 'Codex CLI', ['responses', 'images']);
+    expect(created.allowedEndpoints).toEqual(['responses', 'images']);
+    expect(db.rows[0]).toMatchObject({
+      kind: 'integration',
+      allowedEndpoints: ['responses', 'images'],
+      loopbackOnly: true,
+    });
+  });
+
   it('verify accepts an enabled key and bumps lastUsedAt', async () => {
     const db = makeStubDb();
     const created = await createNamedKey(db, 'k1');

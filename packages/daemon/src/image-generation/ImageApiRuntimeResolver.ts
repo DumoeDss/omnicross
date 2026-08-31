@@ -35,9 +35,20 @@ function trustedTenantId(value: unknown): string {
   return value;
 }
 
+function trustedRouteTenantId(
+  route: Parameters<ImageApiRuntimeResolver>[0]['route'],
+): string {
+  if (route.apiKeyId) return trustedTenantId(route.apiKeyId);
+  const leaseId = route.routeLease?.leaseId;
+  return trustedTenantId(leaseId ? `route-lease:${leaseId}` : undefined);
+}
+
 /**
- * Resolves only daemon-authenticated route state. Request headers, including an
- * inbound bearer, are deliberately outside the resolver's identity inputs.
+ * Resolves only daemon-authenticated route state. Named outbound keys retain
+ * their stable key-id tenant; ephemeral Route Lease traffic falls back to the
+ * authenticated lease id and remains isolated from other leases. Request
+ * headers, including an inbound bearer, are deliberately outside the resolver's
+ * identity inputs.
  */
 export function createTrustedImageApiRuntimeResolver(
   options: TrustedImageApiRuntimeResolverOptions,
@@ -70,7 +81,7 @@ export function createTrustedImageApiRuntimeResolver(
   return Object.freeze({
     resolve: (context: Parameters<ImageApiRuntimeResolver>[0]): ImageApiRuntime => {
       if (disposed) throw new ImageGenerationError('unsupported_capability');
-      const tenantId = trustedTenantId(context.route.apiKeyId);
+      const tenantId = trustedRouteTenantId(context.route);
       const fingerprintUser = (value: string): string => `hmac:${createHmac('sha256', hmacKey)
         .update(USER_FINGERPRINT_DOMAIN)
         .update(tenantId, 'utf8')

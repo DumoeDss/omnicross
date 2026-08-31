@@ -6,6 +6,10 @@ const CLAUDE_API_KEY_SENTINEL = 'omnicross-gateway';
 export interface CodexConfigInput {
   existing: string;
   gatewayBaseUrl: string;
+  authHelper: {
+    command: string;
+    args: string[];
+  };
 }
 
 /** Lossless outside the two managed regions; uninstall restores the exact snapshot. */
@@ -21,9 +25,8 @@ export function renderCodexConfig(input: CodexConfigInput): string {
   const lines = input.existing.replace(/\r\n/g, '\n').split('\n');
   const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
   const rootEnd = firstTable < 0 ? lines.length : firstTable;
-  const assignments: Record<'model_provider' | 'preferred_auth_method', number[]> = {
+  const assignments: Record<'model_provider', number[]> = {
     model_provider: [],
-    preferred_auth_method: [],
   };
   for (let index = 0; index < rootEnd; index += 1) {
     if (/^\s*#/.test(lines[index])) continue;
@@ -34,12 +37,8 @@ export function renderCodexConfig(input: CodexConfigInput): string {
   if (assignments.model_provider.length > 1) {
     throw new Error('Codex config has duplicate top-level model_provider keys');
   }
-  if (assignments.preferred_auth_method.length > 1) {
-    throw new Error('Codex config has duplicate top-level preferred_auth_method keys');
-  }
   const managedRoot: Record<keyof typeof assignments, string> = {
     model_provider: `model_provider = "${CODEX_PROVIDER}" # managed by Omnicross`,
-    preferred_auth_method: 'preferred_auth_method = "apikey" # managed by Omnicross',
   };
   const missing: string[] = [];
   for (const key of Object.keys(assignments) as Array<keyof typeof assignments>) {
@@ -58,17 +57,18 @@ export function renderCodexConfig(input: CodexConfigInput): string {
     'name = "Omnicross Local Gateway"',
     `base_url = ${tomlString(`${root}/v1`)}`,
     'wire_api = "responses"',
-    'requires_openai_auth = true',
     'supports_websockets = false',
+    'http_headers = { "X-OpenAI-Actor-Authorization" = "omnicross" }',
+    '',
+    `[model_providers.${CODEX_PROVIDER}.auth]`,
+    `command = ${tomlString(input.authHelper.command)}`,
+    `args = ${tomlString(input.authHelper.args)}`,
+    'timeout_ms = 5000',
+    'refresh_interval_ms = 0',
     CODEX_END,
     '',
   ].join('\n');
   return (base + block).replace(/\n/g, eol);
-}
-
-/** Render the file-backed API-key credential shape consumed by Codex. */
-export function renderCodexAuth(secret: string): string {
-  return JSON.stringify({ auth_mode: 'apikey', OPENAI_API_KEY: secret }, null, 2) + '\n';
 }
 
 export function renderClaudeSettings(existing: string, gatewayBaseUrl: string, secret: string): string {
@@ -108,6 +108,8 @@ export function restoreCodexBase(current: string, original: string): string {
   }
 
   const lines = normalized.split('\n');
+  // `preferred_auth_method` remains in this list only to restore installations
+  // created by the legacy auth.json adapter. New installs never manage it.
   for (const key of ['model_provider', 'preferred_auth_method'] as const) {
     const originalAssignment = rootAssignment(original, key);
     const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
@@ -154,7 +156,7 @@ export function containsPlaintextGatewayKey(content: string): boolean {
   return content.includes('sk-omnicross-');
 }
 
-function tomlString(value: string): string {
+function tomlString(value: string | string[]): string {
   return JSON.stringify(value);
 }
 

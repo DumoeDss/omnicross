@@ -1,4 +1,4 @@
-import { AlertTriangle, FileCog, Loader2, PlugZap, Search, Trash2, Wrench } from 'lucide-react';
+import { AlertTriangle, FileCog, KeyRound, Loader2, PlugZap, Search, Trash2, Wrench } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -122,6 +122,23 @@ export function PersistentIntegrationCard({
         <p className="text-xs text-muted-foreground">
           {t('codeCli.persistent.routesTo', { url: integration.gatewayBaseUrl })}
         </p>
+      ) : null}
+
+      {integration.key ? (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-surface-0/50 px-2.5 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-foreground">{integration.key.name}</p>
+              <code className="text-[11px] text-muted-foreground">{integration.key.keyPrefix}…</code>
+            </div>
+          </div>
+          <Badge variant={integration.key.ownership === 'selected' ? 'default' : 'outline'}>
+            {integration.key.ownership === 'selected'
+              ? t('codeCli.persistent.keySelected')
+              : t('codeCli.persistent.keyManaged')}
+          </Badge>
+        </div>
       ) : null}
 
       {view.canInstall ? (

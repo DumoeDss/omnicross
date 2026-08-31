@@ -51,4 +51,44 @@ describe('KeyManagementSection legacy permission badge', () => {
     expect(legacy).toContain('apiService.keys.permissions.images');
     expect(explicit).not.toContain('apiService.keys.permissions.legacy');
   });
+
+  it('shows bound CLI usage without exposing a token', () => {
+    const row = { ...key(false), revealable: true };
+    const html = renderToStaticMarkup(React.createElement(KeyManagementSection, {
+      keys: [row],
+      busy: false,
+      createdKey: null,
+      onCreate: async () => true,
+      onReveal: async () => ({ success: false }),
+      onRevoke: async () => undefined,
+      onDelete: async () => undefined,
+      onToggle: async () => undefined,
+      onSetMaxConcurrency: async () => undefined,
+      onSetPermissions: async () => undefined,
+      onSetPolicy: async () => undefined,
+      onDismissCreated: () => undefined,
+      onBindIntegration: async () => ({ success: true }),
+      integrations: [{
+        client: 'codex',
+        status: 'enabled',
+        configPath: 'config.toml',
+        key: {
+          id: row.id,
+          name: row.name,
+          keyPrefix: row.keyPrefix,
+          ownership: 'selected',
+          revealable: true,
+          enabled: true,
+          revoked: false,
+          allowedEndpoints: ['responses', 'images'],
+          requiredEndpoints: ['responses', 'images'],
+          loopbackOnly: false,
+        },
+      }],
+    }));
+
+    expect(html).toContain('apiService.keys.integrations.inUse');
+    expect(html).toContain('apiService.keys.integrations.useFor');
+    expect(html).not.toContain('sk-omnicross-secret');
+  });
 });

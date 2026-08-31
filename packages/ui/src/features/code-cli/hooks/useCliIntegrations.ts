@@ -9,7 +9,7 @@ import type {
   MutationResult,
 } from '@/daemon/types';
 
-export type IntegrationBusyTarget = CliIntegrationClient | 'rotate' | null;
+export type IntegrationBusyTarget = CliIntegrationClient | `bind-${CliIntegrationClient}` | 'rotate' | null;
 
 export interface UseCliIntegrationsResult {
   loading: boolean;
@@ -21,6 +21,7 @@ export interface UseCliIntegrationsResult {
   plan: (client: CliIntegrationClient, configPath?: string) => Promise<CliIntegrationPlanResult>;
   repair: (client: CliIntegrationClient) => Promise<MutationResult>;
   remove: (client: CliIntegrationClient) => Promise<MutationResult>;
+  bindKey: (client: CliIntegrationClient, keyId: string) => Promise<MutationResult>;
   rotate: () => Promise<MutationResult>;
 }
 
@@ -99,8 +100,11 @@ export function useCliIntegrations(): UseCliIntegrationsResult {
   const remove = useCallback((client: CliIntegrationClient) =>
     run(client, () => agent.cli.removeIntegration(client)), [run]);
 
+  const bindKey = useCallback((client: CliIntegrationClient, keyId: string) =>
+    run(`bind-${client}`, () => agent.cli.bindIntegrationKey(client, keyId)), [run]);
+
   const rotate = useCallback(() =>
     run('rotate', () => agent.cli.rotateIntegrationKey()), [run]);
 
-  return { loading, overview, busyTarget, error, refresh, install, plan, repair, remove, rotate };
+  return { loading, overview, busyTarget, error, refresh, install, plan, repair, remove, bindKey, rotate };
 }

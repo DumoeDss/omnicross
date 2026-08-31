@@ -38,6 +38,7 @@ export class IntegrationStateStore {
       gatewayKey: raw.gatewayKey
         ? { ...raw.gatewayKey, secret: this.box.decryptMaybe(raw.gatewayKey.secret) }
         : undefined,
+      keyBindings: raw.keyBindings ? cloneBindings(raw.keyBindings) : undefined,
       clients: decryptClients(raw.clients, this.box),
     };
   }
@@ -48,6 +49,7 @@ export class IntegrationStateStore {
       gatewayKey: state.gatewayKey
         ? { ...state.gatewayKey, secret: this.box.encrypt(state.gatewayKey.secret) }
         : undefined,
+      keyBindings: state.keyBindings ? cloneBindings(state.keyBindings) : undefined,
       clients: encryptClients(state.clients, this.box),
     };
     atomicWrite(this.path, JSON.stringify(encrypted, null, 2) + '\n');
@@ -99,12 +101,38 @@ function isState(value: unknown): value is IntegrationState {
     if (!key || typeof key !== 'object' || typeof key.id !== 'string' ||
       typeof key.secret !== 'string' || typeof key.createdAt !== 'number') return false;
   }
+  if (row.keyBindings !== undefined && !isKeyBindings(row.keyBindings)) return false;
   for (const client of ['codex', 'claude'] as IntegrationClientId[]) {
     const candidate = (row.clients as Record<string, unknown>)[client];
     if (candidate === undefined) continue;
     if (!isInstallRecord(candidate, client)) return false;
   }
   return true;
+}
+
+function isKeyBindings(value: unknown): value is NonNullable<IntegrationState['keyBindings']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const bindings = value as Record<string, unknown>;
+  for (const client of ['codex', 'claude'] as const) {
+    const candidate = bindings[client];
+    if (candidate === undefined) continue;
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+    const binding = candidate as Record<string, unknown>;
+    if (typeof binding.keyId !== 'string' ||
+      (binding.ownership !== 'managed' && binding.ownership !== 'selected')) return false;
+  }
+  return true;
+}
+
+function cloneBindings(
+  bindings: NonNullable<IntegrationState['keyBindings']>,
+): NonNullable<IntegrationState['keyBindings']> {
+  const out: NonNullable<IntegrationState['keyBindings']> = {};
+  for (const client of ['codex', 'claude'] as const) {
+    const binding = bindings[client];
+    if (binding) out[client] = { ...binding };
+  }
+  return out;
 }
 
 function isInstallRecord(value: unknown, client: IntegrationClientId): value is IntegrationInstallRecord {

@@ -52,7 +52,8 @@ Usage:
                                            Repair managed fields while preserving unrelated edits.
   omnicross integrations remove <codex|claude> --config <p>
                                            Restore the exact pre-install configuration.
-  omnicross integrations rotate --config <p>  Rotate the shared local integration key.
+  omnicross integrations token codex --config <p>  Print only Codex's bound token (command-auth helper).
+  omnicross integrations rotate --config <p>  Rotate Omnicross-managed integration keys.
   omnicross import-ccr <ccr.json> [--out <p>]  Translate a CCR config.
   omnicross secrets encrypt --config <p>   Encrypt all at-rest secrets in place.
   omnicross secrets status --config <p>    Report each secret field (no values shown).

@@ -138,6 +138,15 @@ export function createCliAdapter(): AgentCliApi {
       }
     },
 
+    async bindIntegrationKey(client: CliIntegrationClient, keyId: string): Promise<MutationResult> {
+      try {
+        await adminClient.post(`/integrations/${encodeURIComponent(client)}/key`, { keyId });
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to bind CLI integration key');
+      }
+    },
+
     async rotateIntegrationKey(): Promise<MutationResult> {
       try {
         await adminClient.post('/integrations/rotate', {});
