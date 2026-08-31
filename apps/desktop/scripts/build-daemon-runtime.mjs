@@ -18,9 +18,15 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import {
+  currentSharpRuntimeTarget,
+  resolveSharpRuntimePackageNames,
+  resolveSharpRuntimePackageSpecs,
+} from './sharp-runtime-packages.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..', '..');
@@ -77,6 +83,31 @@ writeFileSync(join(staging, 'package.json'), JSON.stringify(manifest, null, 2) +
 // normally still get node-pty by default (optionalDependencies semantics).
 console.info('[daemon-runtime] npm install (production deps, no optional)…');
 sh('npm install --omit=dev --omit=optional --no-audit --no-fund --install-links=false', staging);
+
+// Sharp publishes its native addon as an optional @img/* package. Keep the
+// broad optional-dependency omission (which intentionally excludes node-pty),
+// then add only the addon(s) required by the release target. Read exact versions
+// from the installed Sharp manifest so this staging rule cannot drift from a
+// future Sharp upgrade.
+const sharpManifestPath = join(staging, 'node_modules', 'sharp', 'package.json');
+if (!existsSync(sharpManifestPath)) {
+  throw new Error(`staging failed: ${sharpManifestPath} missing`);
+}
+const sharpManifest = JSON.parse(readFileSync(sharpManifestPath, 'utf8'));
+const sharpRuntimeTarget = currentSharpRuntimeTarget();
+const sharpPackageNames = resolveSharpRuntimePackageNames(sharpRuntimeTarget);
+const sharpPackageSpecs = resolveSharpRuntimePackageSpecs(sharpManifest, sharpPackageNames);
+console.info(`[daemon-runtime] installing target Sharp addon(s): ${sharpPackageSpecs.join(', ')}`);
+// A universal macOS bundle deliberately carries both CPU variants. npm rejects
+// the non-host variant unless platform checks are relaxed for this one install.
+const universalMacFlag =
+  sharpRuntimeTarget.platform === 'darwin' && sharpRuntimeTarget.nodeTarget === 'darwin-universal'
+    ? '--force '
+    : '';
+sh(
+  `npm install ${universalMacFlag}--omit=dev --omit=optional --no-audit --no-fund --no-save --install-links=false ${sharpPackageSpecs.join(' ')}`,
+  staging,
+);
 
 const entry = join(staging, 'node_modules', '@omnicross', 'daemon', 'dist', 'cli.js');
 if (!existsSync(entry)) throw new Error(`staging failed: ${entry} missing`);
