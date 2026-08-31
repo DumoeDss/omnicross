@@ -7,7 +7,7 @@
     "frontendDist": "../../../packages/ui/dist",
     "devUrl": "http://localhost:1430",
     "beforeDevCommand": "npm --prefix ../../packages/ui run dev",
-    "beforeBuildCommand": "npm --prefix ../../packages/ui run build"
+    "beforeBuildCommand": "node scripts/daemon-runtime-version.mjs && npm --prefix ../../packages/ui run build"
   },
   "app": {
     "windows": [

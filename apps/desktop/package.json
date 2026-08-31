@@ -8,8 +8,8 @@
     "tauri": "tauri",
     "dev": "npm --prefix ../.. run build:daemon && tauri dev",
     "build": "npm run stage-daemon && tauri build",
-    "stage-daemon": "node scripts/build-daemon-runtime.mjs && node scripts/stage-node.mjs && node scripts/verify-daemon-runtime.mjs",
-    "test:daemon-runtime-packaging": "node --test scripts/__tests__/sharp-runtime-packages.test.mjs"
+    "stage-daemon": "node scripts/daemon-runtime-version.mjs --source && node scripts/build-daemon-runtime.mjs && node scripts/stage-node.mjs && node scripts/verify-daemon-runtime.mjs && node scripts/daemon-runtime-version.mjs",
+    "test:daemon-runtime-packaging": "node --test scripts/__tests__/daemon-runtime-version.test.mjs scripts/__tests__/sharp-runtime-packages.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"
