@@ -31,6 +31,10 @@ describe('native Responses create/compact integration', () => {
   let upstream: Server | undefined;
 
   afterEach(async () => {
+    if (vi.isFakeTimers()) {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
     if (proxy) await proxy.stop();
     if (upstream) await close(upstream);
     proxy = undefined;
@@ -183,6 +187,48 @@ describe('native Responses create/compact integration', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('private, no-transform');
     expect(await response.text()).toBe(fixture);
+  });
+
+  it('keeps an active streaming create open beyond two minutes', async () => {
+    vi.useFakeTimers();
+    const created = 'event: response.created\ndata: {"type":"response.created","response":{"id":"resp-long","object":"response","status":"in_progress","output":[]}}\n\n';
+    const completed = 'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp-long","object":"response","status":"completed","output":[]}}\n\n';
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(created);
+      setTimeout(() => res.end(completed), 120_001);
+    });
+    upstream = server;
+    const port = await listen(server);
+    const authStrategy = {
+      providerId: 'codex', kind: 'oauth-bearer',
+      async applyHeaders(headers: Record<string, string>) { headers.Authorization = 'Bearer token'; },
+      async onUnauthorized() { return false; },
+      async describeStatus() { return { providerId: 'codex', configured: true }; },
+    };
+    const route: RouteContext = {
+      sessionId: 'long-native-sse', targetProviderFormat: 'openai-responses', model: 'gpt-native',
+      ingressFormat: 'openai-responses', authMode: 'subscription',
+      subscriptionProfile: {
+        authStrategy: authStrategy as never,
+        providerTransformerNames: ['openai-response'],
+        resolveUpstreamUrl: () => `http://127.0.0.1:${port}/responses`,
+      },
+    };
+    proxy = new ProviderProxy({ llmConfig: makeLlmConfig() });
+    const proxyPort = await proxy.start();
+    const token = proxy.addRoute(route);
+    const response = await fetch(`http://127.0.0.1:${proxyPort}/v1/responses`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'client', stream: true, input: 'take your time' }),
+    });
+    const body = response.text();
+
+    await vi.advanceTimersByTimeAsync(120_001);
+
+    expect(response.status).toBe(200);
+    await expect(body).resolves.toBe(created + completed);
   });
 
   it.each([

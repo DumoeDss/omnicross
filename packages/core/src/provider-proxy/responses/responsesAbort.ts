@@ -14,6 +14,7 @@ export class ResponsesRequestTimeoutError extends Error {
 export interface ResponsesAbortScope {
   readonly signal: AbortSignal;
   readonly timedOut: boolean;
+  disableTimeout(): void;
   dispose(): void;
 }
 
@@ -52,8 +53,15 @@ export function createResponsesAbortScope(options: ResponsesAbortScopeOptions): 
   if (options.parentSignal?.aborted) onParentAbort();
   if (options.request?.aborted || options.response?.destroyed) abort();
 
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const disableTimeout = (): void => {
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    timer = undefined;
+  };
   const timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_RESPONSES_TIMEOUT_MS);
-  const timer = setTimeout(() => {
+  timer = setTimeout(() => {
+    timer = undefined;
     timedOut = true;
     abort(new ResponsesRequestTimeoutError());
   }, timeoutMs);
@@ -62,10 +70,11 @@ export function createResponsesAbortScope(options: ResponsesAbortScopeOptions): 
   return {
     signal: controller.signal,
     get timedOut() { return timedOut; },
+    disableTimeout,
     dispose(): void {
       if (disposed) return;
       disposed = true;
-      clearTimeout(timer);
+      disableTimeout();
       options.parentSignal?.removeEventListener('abort', onParentAbort);
       options.request?.removeListener('aborted', onRequestAborted);
       options.request?.removeListener('close', onRequestClose);

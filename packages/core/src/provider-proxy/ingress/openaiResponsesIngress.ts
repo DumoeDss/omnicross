@@ -163,6 +163,7 @@ export async function handleOpenAIResponsesRequest(
   deps: ProviderProxyDeps,
   requestHeaders: SessionRequestHeaders = {},
   signal: AbortSignal = new AbortController().signal,
+  onStreamModeResolved?: (isStream: boolean) => void,
 ): Promise<void> {
   let parsedBody: unknown;
   try {
@@ -180,6 +181,7 @@ export async function handleOpenAIResponsesRequest(
     return;
   }
   const responsesBody = parsedBody as Record<string, unknown>;
+  onStreamModeResolved?.(responsesBody.stream === true);
 
   try {
     await handleResponsesOperation(

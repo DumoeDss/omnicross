@@ -148,7 +148,17 @@ export async function routeRequest(
       // Preserve Codex's session-id compatibility headers for account-pool
       // affinity. The ingress treats this as metadata only and never forwards
       // the headers as credentials.
-      await handleOpenAIResponsesRequest(res, rawBody, route, deps, req.headers, abortScope.signal);
+      await handleOpenAIResponsesRequest(
+        res,
+        rawBody,
+        route,
+        deps,
+        req.headers,
+        abortScope.signal,
+        (isStream) => {
+          if (isStream) abortScope.disableTimeout();
+        },
+      );
     } catch (error) {
       if (abortScope.signal.reason instanceof ResponsesRequestTimeoutError) {
         writeOpenAIOperationError(res, new OpenAIOperationError({
