@@ -193,6 +193,15 @@ function generation(
     enabled: true,
     imageApi,
     hosted: options.hosted ?? hosted(options.model ?? id),
+    hostedRuntime: {
+      providerId: 'codex-subscription',
+      imageModel: options.model ?? id,
+      referenceTtlMs: DEFAULT_IMAGES_SERVER_CONFIG.references.ttlMs,
+      maxOutputBytes: DEFAULT_IMAGES_SERVER_CONFIG.limits.maxOutputBytes,
+      maxTotalOutputBytes: DEFAULT_IMAGES_SERVER_CONFIG.limits.maxTotalOutputBytes,
+      preferredAccountGroup: 'configured-group',
+      boundAccountFallbackPolicy: 'pool',
+    },
     dispose,
   };
 }

@@ -49,8 +49,13 @@ import {
   buildResponsesCallPlan as buildSharedResponsesCallPlan,
   executeResponsesUpstream,
   resolveResponsesRouteProfile,
+  type ResponsesPipelineResult,
   type ResponsesOperationKind,
 } from '../responses/responsesDriver';
+import {
+  hasResponsesHostedImageWork,
+  type ResponsesHostedImageRequestLease,
+} from '../responses/responsesHostedImageIngress';
 export {
   retryAroundCodexUsageLimit,
   type ResponsesCallPlan,
@@ -277,10 +282,75 @@ export async function handleResponsesOperation(
   const cacheKeyAttribution = operation === 'create'
     ? ensureCodexPromptCacheKey(responsesBody, plan.proxyProviderId, derivedSession)
     : { cacheKeySource: 'none' as const, cacheKeyInjected: false };
-  let providerResponse;
+  const previousHostedImageState = affinity?.hostedImage;
+  const hasHostedImageWork = operation === 'create' && hasResponsesHostedImageWork(
+    responsesBody,
+    previousHostedImageState,
+  );
+  if (hasHostedImageWork && route.hostedImageGenerationAllowed !== true) {
+    throw new OpenAIOperationError({
+      status: 403,
+      code: 'insufficient_permissions',
+      message: 'The API key is not allowed to execute image generation',
+    });
+  }
+  if (hasHostedImageWork && resolved.profile !== 'native') {
+    throw unsupportedResponsesCapability('$.tools', 'requires a native Responses provider');
+  }
+  const hostedImageIngress = deps.responsesHostedImageIngress;
+  if (hasHostedImageWork && !hostedImageIngress) {
+    throw new OpenAIOperationError({
+      status: 422,
+      code: 'unsupported_capability',
+      message: 'Hosted image generation is unavailable',
+    });
+  }
+  if (hasHostedImageWork && !route.apiKeyId) {
+    throw new OpenAIOperationError({
+      status: 403,
+      code: 'insufficient_permissions',
+      message: 'Hosted image generation requires an authenticated outbound key',
+    });
+  }
+  let hostedImageRequest: ResponsesHostedImageRequestLease | null = null;
+  if (hasHostedImageWork) {
+    hostedImageRequest = await hostedImageIngress!.prepare({
+      body: responsesBody,
+      profile: resolved.profile,
+      operation,
+      hostedImageGenerationAllowed: true,
+      tenantId: route.apiKeyId,
+      sessionKey: derivedSession.key,
+      ...(previousResponseId ? { authorizedPreviousResponseId: previousResponseId } : {}),
+      ...(previousHostedImageState ? { previousHostedImageState } : {}),
+      mainProviderId: plan.proxyProviderId,
+      signal,
+    });
+    if (!hostedImageRequest) {
+      throw new OpenAIOperationError({
+        status: 422,
+        code: 'unsupported_capability',
+        message: 'Hosted image generation is unavailable',
+      });
+    }
+  }
+  let providerResponse: ResponsesPipelineResult;
   try {
-    providerResponse = await executeResponsesUpstream(responsesBody, plan, operation, signal);
+    if (hostedImageRequest) {
+      // The outbound audit hook may already hold the parsed Responses request.
+      // Admission is the irreversible privacy boundary: discard that body and
+      // prevent JSON/SSE response capture before any upstream or image bytes can
+      // be relayed. Metadata and usage correlation remain attached to `res`.
+      route.suppressAuditBodies?.();
+    }
+    providerResponse = await executeResponsesUpstream(
+      hostedImageRequest?.upstreamBody ?? responsesBody,
+      plan,
+      operation,
+      signal,
+    );
   } catch (error) {
+    await hostedImageRequest?.dispose();
     if (affinity && isBoundAccountSelectionError(error)) {
       throw previousResponseNotFound();
     }
@@ -312,14 +382,36 @@ export async function handleResponsesOperation(
 
   const successful = providerResponse.rawStatus !== null &&
     providerResponse.rawStatus >= 200 && providerResponse.rawStatus < 300;
+  let terminalHostedImageState:
+    import('../responses/responsesAffinity').ResponsesAffinityHostedImageState | undefined;
   const recordAffinity = (responseId: unknown): void => {
     if (!successful || typeof responseId !== 'string' || !responseId.trim()) return;
     affinityStore.record({
       ...affinityScope,
       responseId,
       credential: providerResponse.credential,
+      ...(terminalHostedImageState ? { hostedImage: terminalHostedImageState } : {}),
     });
   };
+  if (hostedImageRequest) {
+    try {
+      const response = await hostedImageRequest.wrapUpstreamResponse({
+        response: providerResponse.response,
+        rawStatus: providerResponse.rawStatus,
+        ...(providerResponse.accountId
+          ? { selectedMainAccountId: providerResponse.accountId }
+          : {}),
+        onTerminalSuccess: async (responseId, state) => {
+          terminalHostedImageState = state;
+          recordAffinity(responseId);
+        },
+      });
+      providerResponse = { ...providerResponse, response };
+    } catch (error) {
+      await hostedImageRequest.dispose();
+      throw error;
+    }
+  }
   let overloadRecorded = false;
   const observeSse = (event: Record<string, unknown>): void => {
     if (event.type === 'response.completed') {
@@ -338,15 +430,20 @@ export async function handleResponsesOperation(
       });
     }
   };
-  const bodyText = await relayResponse(
-    res,
-    providerResponse.response,
-    isStream,
-    route.requestedModel,
-    usageTap,
-    observeSse,
-    signal,
-  );
+  let bodyText: string | null;
+  try {
+    bodyText = await relayResponse(
+      res,
+      providerResponse.response,
+      isStream,
+      route.requestedModel,
+      usageTap,
+      observeSse,
+      signal,
+    );
+  } finally {
+    await hostedImageRequest?.dispose();
+  }
   if (!bodyText) return;
   if (usageRecorder) recordResponsesNonStreamUsage(usageRecorder, bodyText, usageAttribution);
   try {

@@ -27,6 +27,7 @@ export type {
   ResponsesImageExecutionEvent,
   ResponsesImageFailedRecord,
   ResponsesImageGenerationCallItem,
+  ResponsesImageGenerationCallStartedItem,
   ResponsesImageGenerationContribution,
   ResponsesImageGenerationContributionDeps,
   ResponsesImageInspectionInput,
@@ -35,6 +36,7 @@ export type {
   ResponsesImageRequestScope,
   ResponsesImageRequestScopeInput,
   ResponsesImageSelectionPolicy,
+  ResponsesImageStartedRecord,
   ResponsesImageTrustedRuntime,
   ResponsesSelectedImageCall,
 } from './types';

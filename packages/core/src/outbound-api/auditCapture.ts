@@ -87,6 +87,12 @@ export interface AuditCaptureContext {
   sessionKey?: string;
   /** Stash the raw request body for capture (a no-op unless `captureBodies`). */
   setRequestBody(raw: string): void;
+  /**
+   * Permanently discard and disable request/response body capture for this
+   * request while retaining metadata and usage attribution. Idempotent and
+   * intentionally one-way: a later caller cannot re-enable body persistence.
+   */
+  suppressBodies(): void;
 }
 
 /** Per-request capture policy selected before any response wrapper is installed. */
@@ -122,19 +128,28 @@ export function beginAuditCapture(
 ): AuditCaptureContext | null {
   const config: AuditConfig | null = getAuditCaptureConfig();
   if (!config) return null;
-  const captureBodies = config.captureBodies && options?.suppressBodies !== true;
+  const captureBodies = config.captureBodies;
 
   let requestBody: string | undefined;
   const responseChunks: Buffer[] = [];
   let responseBytes = 0;
   let responseTruncated = false;
+  let bodiesSuppressed = options?.suppressBodies === true;
   let finished = false;
 
   const ctx: AuditCaptureContext = {
     setRequestBody(raw: string): void {
-      if (captureBodies) {
+      if (captureBodies && !bodiesSuppressed) {
         requestBody = truncateToBytes(redactAuditText(raw), config.maxBodyBytes);
       }
+    },
+    suppressBodies(): void {
+      if (bodiesSuppressed) return;
+      bodiesSuppressed = true;
+      requestBody = undefined;
+      responseChunks.length = 0;
+      responseBytes = 0;
+      responseTruncated = false;
     },
   };
 
@@ -142,9 +157,10 @@ export function beginAuditCapture(
   // streaming responses too. A non-negative limit bounds the retained prefix;
   // `-1` deliberately retains the full response. The original response is always
   // delegated verbatim.
-  if (captureBodies) {
+  if (captureBodies && !bodiesSuppressed) {
     installResponseCapture(res, {
       push(chunk: Buffer): void {
+        if (bodiesSuppressed) return;
         if (config.maxBodyBytes < 0) {
           responseChunks.push(chunk);
           responseBytes += chunk.length;
@@ -201,7 +217,7 @@ export function beginAuditCapture(
       }
       if (ctx.error) record.error = redactAuditText(ctx.error);
       if (ctx.sessionKey) record.sessionKey = ctx.sessionKey;
-      if (captureBodies) {
+      if (captureBodies && !bodiesSuppressed) {
         if (requestBody != null && requestBody.length > 0) {
           record.requestBody = requestBody;
         }

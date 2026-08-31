@@ -45,8 +45,8 @@ export type ResponsesImageSelectionPolicy =
 
 /**
  * Closed identity for one non-image declaration. The declaration index is the
- * trust anchor: selected plans cannot invent a type/name or select one
- * declaration more than once.
+ * trust anchor: selected plans cannot invent a type/name. Multiple bounded
+ * calls may reuse one declaration while their wire item/call IDs stay unique.
  */
 export interface ResponsesHostedToolIdentity {
   readonly declarationIndex: number;
@@ -95,6 +95,12 @@ export interface ResponsesImageGenerationCallItem {
   readonly revised_prompt?: string;
 }
 
+export interface ResponsesImageGenerationCallStartedItem {
+  readonly id: ResponsesImageCallId;
+  readonly type: 'image_generation_call';
+  readonly status: 'in_progress';
+}
+
 export interface ResponsesImagePartialEvent {
   readonly type: 'response.image_generation_call.partial_image';
   readonly output_index: number;
@@ -102,6 +108,13 @@ export interface ResponsesImagePartialEvent {
   readonly sequence_number: number;
   readonly partial_image_index: number;
   readonly partial_image_b64: string;
+}
+
+/** Internal start record; the integrator owns official item-added SSE events. */
+export interface ResponsesImageStartedRecord {
+  readonly kind: 'started';
+  readonly outputIndex: number;
+  readonly item: ResponsesImageGenerationCallStartedItem;
 }
 
 /** Internal terminal record; the integrator owns official terminal SSE events. */
@@ -120,6 +133,7 @@ export interface ResponsesImageFailedRecord {
 }
 
 export type ResponsesImageExecutionEvent =
+  | ResponsesImageStartedRecord
   | ResponsesImagePartialEvent
   | ResponsesImageCompletedRecord
   | ResponsesImageFailedRecord;
@@ -144,6 +158,8 @@ export interface ResponsesImageRequestScopeInput {
   readonly runtime: ResponsesImageTrustedRuntime;
   /** Must already be authorized by the existing Responses affinity boundary. */
   readonly authorizedPreviousResponseId?: string;
+  /** True only when that authorized affinity record explicitly has no image context. */
+  readonly authorizedPreviousResponseKnownEmpty?: boolean;
 }
 
 export interface ResponsesImageRequestScope {

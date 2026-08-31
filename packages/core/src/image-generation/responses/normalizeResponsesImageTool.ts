@@ -26,6 +26,7 @@ const IMAGE_DECLARATION_KEYS = new Set([
 const CALL_ID_PATTERN = /^ig_[A-Za-z0-9_-]{16,128}$/;
 const RESPONSE_ID_PATTERN = /^resp_[A-Za-z0-9_-]{1,240}$/;
 const TOOL_IDENTITY_KEYS = new Set(['declarationIndex', 'type', 'name']);
+const MAX_SELECTED_TOOL_CALLS = 1_024;
 
 const NORMALIZATION_RUNTIME: ImageApiRuntime = {
   tenantId: 'responses-image-inspection',
@@ -270,17 +271,14 @@ export function validateResponsesImageSelection(
     !Number.isSafeInteger(selection.otherToolCount) ||
     selection.otherToolCount < 0 ||
     selection.otherToolCount !== selection.otherTools.length ||
-    selection.otherToolCount > admission.otherToolCount
+    selection.imageCalls.length + selection.otherToolCount > MAX_SELECTED_TOOL_CALLS
   ) {
     protocolFailure();
   }
   selection.imageCalls.forEach(validateSelectedCall);
   selection.otherTools.forEach(validateSelectedOtherTool);
   if (selection.imageCalls.length > 0 && !admission.declared) protocolFailure();
-  const selectedIndexes = new Set<number>();
   for (const selected of selection.otherTools) {
-    if (selectedIndexes.has(selected.declarationIndex)) protocolFailure();
-    selectedIndexes.add(selected.declarationIndex);
     if (!admission.otherTools.some((declared) => sameToolIdentity(declared, selected))) {
       protocolFailure();
     }
@@ -298,15 +296,19 @@ export function validateResponsesImageSelection(
     case 'forced_image':
       if (selection.imageCalls.length === 0 || selection.otherToolCount !== 0) protocolFailure();
       return;
-    case 'forced_other':
+    case 'forced_other': {
+      const forcedOtherPolicy = admission.selectionPolicy;
       if (
         selection.imageCalls.length > 0 ||
-        selection.otherTools.length !== 1 ||
-        !forcedOtherMatches(admission.selectionPolicy, selection.otherTools[0]!)
+        selection.otherTools.length === 0 ||
+        selection.otherTools.some(
+          (selected) => !forcedOtherMatches(forcedOtherPolicy, selected),
+        )
       ) {
         protocolFailure();
       }
       return;
+    }
     default:
       protocolFailure();
   }

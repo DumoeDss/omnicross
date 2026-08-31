@@ -74,6 +74,15 @@ function enabledGeneration(
     enabled: true,
     imageApi,
     hosted: hostedContribution(),
+    hostedRuntime: {
+      providerId: 'codex-subscription',
+      imageModel: 'gpt-image-2',
+      referenceTtlMs: 60_000,
+      maxOutputBytes: 1_024,
+      maxTotalOutputBytes: 2_048,
+      preferredAccountGroup: 'configured-group',
+      boundAccountFallbackPolicy: 'pool',
+    },
     dispose,
   };
 }
@@ -128,6 +137,8 @@ describe('daemon Images runtime bootstrap', () => {
 
     expect(built.providerProxy.getDeps().openAIOperationRegistry)
       .toBe(built.openAIOperationRegistry);
+    expect(built.providerProxy.getDeps().responsesHostedImageIngress)
+      .toEqual({ prepare: expect.any(Function) });
     expect(built.openAIOperationRegistry.has('images.generate')).toBe(true);
     expect(built.openAIOperationRegistry.has('images.edit')).toBe(true);
     expect(built.openAIOperationRegistry.has('responses.compact')).toBe(false);
@@ -157,6 +168,8 @@ describe('daemon Images runtime bootstrap', () => {
 
   it('unregisters both handlers before disposing the manager exactly once on stop', async () => {
     const built = buildFixture();
+    const hostedIngress = built.providerProxy.getDeps().responsesHostedImageIngress;
+    if (!hostedIngress) throw new Error('expected hosted image ingress');
     const generationDispose = vi.fn(async () => undefined);
     const prepared = built.imageRuntimeManager.prepare(enabledGeneration(
       'stop-cleanup',
@@ -173,6 +186,16 @@ describe('daemon Images runtime bootstrap', () => {
     expect(built.imageRuntimeManager.status().disposed).toBe(true);
     expect(managerDispose).toHaveBeenCalledOnce();
     expect(generationDispose).toHaveBeenCalledOnce();
+    await expect(hostedIngress.prepare({
+      body: { input: 'draw', tools: [{ type: 'image_generation' }] },
+      profile: 'native',
+      operation: 'create',
+      hostedImageGenerationAllowed: true,
+      tenantId: 'tenant-safe',
+      sessionKey: 'session-safe',
+      mainProviderId: 'codex',
+      signal: new AbortController().signal,
+    })).rejects.toMatchObject({ code: 'unsupported_capability' });
 
     await built.providerProxy.stop();
     resetDaemonSingletonsForTests();
@@ -183,6 +206,8 @@ describe('daemon Images runtime bootstrap', () => {
   it('synchronously retires a prior image session across repeated reset and rebuild', async () => {
     const first = buildFixture();
     const firstRegistry = first.openAIOperationRegistry;
+    const firstHostedIngress = first.providerProxy.getDeps().responsesHostedImageIngress;
+    if (!firstHostedIngress) throw new Error('expected first hosted image ingress');
     const generationDispose = vi.fn(async () => undefined);
     const resources = {
       storeHandle: true,
@@ -218,6 +243,8 @@ describe('daemon Images runtime bootstrap', () => {
     expect(rebuilt.imageRuntimeManager).not.toBe(first.imageRuntimeManager);
     expect(rebuilt.providerProxy.getDeps().openAIOperationRegistry)
       .toBe(rebuilt.openAIOperationRegistry);
+    expect(rebuilt.providerProxy.getDeps().responsesHostedImageIngress)
+      .not.toBe(firstHostedIngress);
     expect(rebuilt.openAIOperationRegistry.has('images.generate')).toBe(true);
     expect(rebuilt.openAIOperationRegistry.has('images.edit')).toBe(true);
 

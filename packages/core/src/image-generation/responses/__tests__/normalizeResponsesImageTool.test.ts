@@ -129,7 +129,7 @@ describe('Responses image selection policy', () => {
     })).not.toThrow();
   });
 
-  it('requires a forced non-image plan to match the declared index, type, and name exactly', () => {
+  it('requires every forced non-image call to match the declared index, type, and name exactly', () => {
     const forced = inspectResponsesImageRequest({
       tools: [
         { type: 'image_generation' },
@@ -140,8 +140,11 @@ describe('Responses image selection policy', () => {
     });
     expect(() => validateResponsesImageSelection(forced, {
       imageCalls: [],
-      otherToolCount: 1,
-      otherTools: [{ declarationIndex: 1, type: 'function', name: 'lookup' }],
+      otherToolCount: 2,
+      otherTools: [
+        { declarationIndex: 1, type: 'function', name: 'lookup' },
+        { declarationIndex: 1, type: 'function', name: 'lookup' },
+      ],
     })).not.toThrow();
     for (const identity of [
       { declarationIndex: 2, type: 'function', name: 'other' },
@@ -150,13 +153,39 @@ describe('Responses image selection policy', () => {
     ]) {
       expect(() => validateResponsesImageSelection(forced, {
         imageCalls: [],
-        otherToolCount: 1,
-        otherTools: [identity],
+        otherToolCount: 2,
+        otherTools: [
+          { declarationIndex: 1, type: 'function', name: 'lookup' },
+          identity,
+        ],
       })).toThrowError(expect.objectContaining({ code: 'upstream_protocol_changed' }));
     }
+    expect(() => validateResponsesImageSelection(forced, {
+      imageCalls: [],
+      otherToolCount: 0,
+      otherTools: [],
+    })).toThrowError(expect.objectContaining({ code: 'upstream_protocol_changed' }));
   });
 
-  it('rejects undeclared, over-counted, count-mismatched, and duplicate selected tools', () => {
+  it.each(['auto', 'required'] as const)(
+    'accepts repeated calls to one declared non-image tool under %s selection',
+    (toolChoice) => {
+      const admission = inspectResponsesImageRequest({
+        tools: [{ type: 'image_generation' }, { type: 'function', name: 'lookup' }],
+        tool_choice: toolChoice,
+      });
+      expect(() => validateResponsesImageSelection(admission, {
+        imageCalls: [],
+        otherToolCount: 2,
+        otherTools: [
+          { declarationIndex: 1, type: 'function', name: 'lookup' },
+          { declarationIndex: 1, type: 'function', name: 'lookup' },
+        ],
+      })).not.toThrow();
+    },
+  );
+
+  it('rejects undeclared, count-mismatched, and independently over-bounded selections', () => {
     const required = inspectResponsesImageRequest({
       tools: [{ type: 'image_generation' }, { type: 'function', name: 'lookup' }],
       tool_choice: 'required',
@@ -164,7 +193,6 @@ describe('Responses image selection policy', () => {
     const declared = { declarationIndex: 1, type: 'function', name: 'lookup' } as const;
     const invalidPlans = [
       { imageCalls: [], otherToolCount: 1, otherTools: [{ declarationIndex: 9, type: 'function', name: 'lookup' }] },
-      { imageCalls: [], otherToolCount: 2, otherTools: [declared, declared] },
       { imageCalls: [], otherToolCount: 2, otherTools: [declared] },
       { imageCalls: [], otherToolCount: 1, otherTools: [
         { declarationIndex: 1, type: 'function', name: 'lookup' },
@@ -175,20 +203,10 @@ describe('Responses image selection policy', () => {
       expect(() => validateResponsesImageSelection(required, plan))
         .toThrowError(expect.objectContaining({ code: 'upstream_protocol_changed' }));
     }
-    const duplicateCapableAdmission = inspectResponsesImageRequest({
-      tools: [
-        { type: 'function', name: 'lookup' },
-        { type: 'custom', name: 'render' },
-      ],
-      tool_choice: 'required',
-    });
-    expect(() => validateResponsesImageSelection(duplicateCapableAdmission, {
+    expect(() => validateResponsesImageSelection(required, {
       imageCalls: [],
-      otherToolCount: 2,
-      otherTools: [
-        { declarationIndex: 0, type: 'function', name: 'lookup' },
-        { declarationIndex: 0, type: 'function', name: 'lookup' },
-      ],
+      otherToolCount: 1_025,
+      otherTools: Array.from({ length: 1_025 }, () => declared),
     })).toThrowError(expect.objectContaining({ code: 'upstream_protocol_changed' }));
   });
 

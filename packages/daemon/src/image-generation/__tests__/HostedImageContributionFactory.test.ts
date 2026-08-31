@@ -30,7 +30,23 @@ function generation(
   hosted: ResponsesImageGenerationContribution,
   dispose = vi.fn(async () => undefined),
 ): PreparedImageRuntimeGeneration & { readonly enabled: true } {
-  return { id, enabled: true, imageApi: imageApi(), hosted, dispose };
+  return {
+    id,
+    enabled: true,
+    imageApi: imageApi(),
+    hosted,
+    hostedRuntime: {
+      providerId: 'codex-subscription',
+      imageModel: 'gpt-image-2',
+      referenceTtlMs: 60_000,
+      maxOutputBytes: 1_024,
+      maxTotalOutputBytes: 4_096,
+      preferredAccountId: 'configured-account',
+      preferredAccountGroup: 'configured-group',
+      boundAccountFallbackPolicy: 'pool',
+    },
+    dispose,
+  } as unknown as PreparedImageRuntimeGeneration & { readonly enabled: true };
 }
 
 function inertHosted(): ResponsesImageGenerationContribution {
@@ -81,6 +97,190 @@ describe('HostedImageContributionFactory', () => {
     expect(secondDispose).toHaveBeenCalledOnce();
   });
 
+  it('opens requests from immutable policy and only binds a selected account for Codex', async () => {
+    const openedScope = {
+      executeSelectedCall: vi.fn(),
+      commit: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+      waitForIdle: vi.fn(async () => undefined),
+    } as unknown as ResponsesImageRequestScope;
+    const hosted: ResponsesImageGenerationContribution = {
+      toolType: 'image_generation',
+      inspectRequest: vi.fn(() => ({ declared: true }) as never),
+      validateSelection: vi.fn(),
+      createRequestScope: vi.fn(async () => openedScope),
+    };
+    const prepared = generation('deep-lease', hosted);
+    const mutablePolicy = (prepared as unknown as {
+      hostedRuntime: { imageModel: string };
+    }).hostedRuntime;
+    const manager = new ImageRuntimeManager(prepared);
+    mutablePolicy.imageModel = 'mutated-after-publication';
+    const lease = await createHostedImageContributionFactory(manager).acquire();
+
+    const inspected = lease.inspectRequest({ tools: [{ type: 'image_generation' }] });
+    const selection = {
+      imageCalls: [{ prompt: 'selected by the main model' }],
+      otherToolCount: 0,
+      otherTools: [],
+    } as const;
+    lease.validateSelection(inspected, selection);
+    const controller = new AbortController();
+    const scope = await lease.openRequest({
+      admission: inspected,
+      tenantId: 'tenant-a',
+      requestId: 'request-a',
+      sessionKey: 'session-a',
+      signal: controller.signal,
+      authorizedPreviousResponseId: 'resp_previous',
+      authorizedPreviousResponseKnownEmpty: false,
+      mainProviderId: 'codex',
+      selectedMainAccountId: 'selected-main-account',
+    });
+
+    expect(hosted.inspectRequest).toHaveBeenCalledOnce();
+    expect(hosted.validateSelection).toHaveBeenCalledWith(inspected, selection);
+    expect(hosted.createRequestScope).toHaveBeenCalledWith({
+      admission: inspected,
+      authorizedPreviousResponseId: 'resp_previous',
+      authorizedPreviousResponseKnownEmpty: false,
+      runtime: {
+        tenantId: 'tenant-a',
+        requestId: 'request-a',
+        providerId: 'codex-subscription',
+        imageModel: 'gpt-image-2',
+        referenceTtlMs: 60_000,
+        maxOutputBytes: 1_024,
+        maxTotalOutputBytes: 4_096,
+        signal: controller.signal,
+        sessionKey: 'session-a',
+        preferredAccountId: 'selected-main-account',
+        boundAccountFallbackPolicy: 'strict',
+      },
+    });
+    const configuredScope = await lease.openRequest({
+      admission: inspected,
+      tenantId: 'tenant-a',
+      requestId: 'request-configured',
+      sessionKey: 'session-a',
+      signal: controller.signal,
+      mainProviderId: 'anthropic',
+      selectedMainAccountId: 'incompatible-main-account',
+    });
+    expect(hosted.createRequestScope).toHaveBeenLastCalledWith({
+      admission: inspected,
+      runtime: {
+        tenantId: 'tenant-a',
+        requestId: 'request-configured',
+        providerId: 'codex-subscription',
+        imageModel: 'gpt-image-2',
+        referenceTtlMs: 60_000,
+        maxOutputBytes: 1_024,
+        maxTotalOutputBytes: 4_096,
+        signal: controller.signal,
+        sessionKey: 'session-a',
+        preferredAccountId: 'configured-account',
+        preferredAccountGroup: 'configured-group',
+        boundAccountFallbackPolicy: 'pool',
+      },
+    });
+    expect(scope).toBeDefined();
+    await scope.dispose();
+    await configuredScope.dispose();
+    await lease.release();
+    await manager.dispose();
+  });
+
+  it('disposes every opened request scope before releasing a draining generation', async () => {
+    const order: string[] = [];
+    const scope: ResponsesImageRequestScope = {
+      executeSelectedCall: vi.fn(),
+      commit: vi.fn(async () => undefined),
+      waitForIdle: vi.fn(async () => { order.push('idle'); }),
+      dispose: vi.fn(async () => { order.push('scope-dispose'); }),
+    };
+    const hosted: ResponsesImageGenerationContribution = {
+      toolType: 'image_generation',
+      inspectRequest: vi.fn(() => ({ declared: false }) as never),
+      validateSelection: vi.fn(),
+      createRequestScope: vi.fn(async () => scope),
+    };
+    const manager = new ImageRuntimeManager(generation(
+      'dispose-order',
+      hosted,
+      vi.fn(async () => { order.push('generation-dispose'); }),
+    ));
+    const lease = await createHostedImageContributionFactory(manager).acquire();
+    await lease.openRequest({
+      admission: { declared: false } as never,
+      tenantId: 'tenant-a',
+      requestId: 'request-a',
+      sessionKey: 'session-a',
+      signal: new AbortController().signal,
+      mainProviderId: 'byo',
+    });
+    manager.prepare({
+      id: 'replacement-disabled',
+      enabled: false,
+      dispose: vi.fn(async () => undefined),
+    }).publish();
+
+    await lease.release();
+    await lease.release();
+    expect(order).toEqual(['idle', 'scope-dispose', 'generation-dispose']);
+    expect(scope.dispose).toHaveBeenCalledOnce();
+    await manager.dispose();
+  });
+
+  it('waits for in-flight scope construction before releasing its generation', async () => {
+    const order: string[] = [];
+    let resolveScope!: (scope: ResponsesImageRequestScope) => void;
+    const scopePromise = new Promise<ResponsesImageRequestScope>((resolve) => {
+      resolveScope = resolve;
+    });
+    const scope: ResponsesImageRequestScope = {
+      executeSelectedCall: vi.fn(),
+      commit: vi.fn(async () => undefined),
+      waitForIdle: vi.fn(async () => { order.push('idle'); }),
+      dispose: vi.fn(async () => { order.push('scope-dispose'); }),
+    };
+    const hosted: ResponsesImageGenerationContribution = {
+      toolType: 'image_generation',
+      inspectRequest: vi.fn(() => ({ declared: true }) as never),
+      validateSelection: vi.fn(),
+      createRequestScope: vi.fn(() => scopePromise),
+    };
+    const manager = new ImageRuntimeManager(generation(
+      'constructing-scope',
+      hosted,
+      vi.fn(async () => { order.push('generation-dispose'); }),
+    ));
+    const lease = await manager.acquireHosted();
+    const opening = lease.openRequest({
+      admission: { declared: true } as never,
+      tenantId: 'tenant-safe',
+      requestId: 'request-safe',
+      sessionKey: 'session-safe',
+      signal: new AbortController().signal,
+      mainProviderId: 'codex',
+      selectedMainAccountId: 'selected-account',
+    });
+    manager.prepare({
+      id: 'replacement-disabled',
+      enabled: false,
+      dispose: vi.fn(async () => undefined),
+    }).publish();
+    const releasing = lease.release();
+    await Promise.resolve();
+    expect(order).toEqual([]);
+
+    resolveScope(scope);
+    await expect(opening).rejects.toMatchObject({ code: 'unsupported_capability' });
+    await releasing;
+    expect(order).toEqual(['idle', 'scope-dispose', 'generation-dispose']);
+    await manager.dispose();
+  });
+
   it('fails closed against the default unavailable generation without executing a provider', async () => {
     const manager = new ImageRuntimeManager();
     const factory = createHostedImageContributionFactory(manager);
@@ -112,7 +312,15 @@ describe('HostedImageContributionFactory', () => {
 
     await expect((async () => {
       try {
-        await lease.contribution.createRequestScope({} as never);
+        await lease.openRequest({
+          admission: { declared: true } as never,
+          tenantId: 'tenant-safe',
+          requestId: 'request-safe',
+          sessionKey: 'session-safe',
+          signal: new AbortController().signal,
+          mainProviderId: 'codex',
+          selectedMainAccountId: 'selected-account',
+        });
       } finally {
         await lease.release();
         await lease.release();
@@ -224,10 +432,18 @@ async function runSyntheticFinalIntegrator(
   order.push('acquire');
   let scope: ResponsesImageRequestScope | undefined;
   try {
-    const admission = lease.contribution.inspectRequest({});
+    const admission = lease.inspectRequest({});
     const selection = { imageCalls: [{ prompt: 'synthetic' }], otherToolCount: 0, otherTools: [] };
-    lease.contribution.validateSelection(admission, selection);
-    scope = await lease.contribution.createRequestScope({} as never);
+    lease.validateSelection(admission, selection);
+    scope = await lease.openRequest({
+      admission,
+      tenantId: 'tenant-safe',
+      requestId: 'request-safe',
+      sessionKey: 'session-safe',
+      signal: new AbortController().signal,
+      mainProviderId: 'codex',
+      selectedMainAccountId: 'selected-account',
+    });
     for await (const _event of scope.executeSelectedCall(
       selection.imageCalls[0],
       { reserveOutputIndex: () => 0, nextSequenceNumber: () => 0 },

@@ -47,4 +47,110 @@ describe('ResponsesAffinityStore', () => {
       }));
     }
   });
+
+  it('preserves frozen hosted-image metadata through lookup and TTL refresh', () => {
+    let now = 100;
+    const store = new ResponsesAffinityStore({ ttlMs: 10, now: () => now });
+    store.record({
+      ...scope,
+      responseId: 'resp_image',
+      credential: { kind: 'subscription-account', id: 'account-a' },
+      hostedImage: {
+        hasImageContext: true,
+        pendingReceipts: [{
+          upstreamCallId: 'call_selector_1',
+          publicImageCallId: 'ig_1234567890abcdef',
+        }],
+      },
+    });
+
+    const first = store.lookup('resp_image', scope);
+    expect(first.hostedImage).toEqual({
+      hasImageContext: true,
+      pendingReceipts: [{
+        upstreamCallId: 'call_selector_1',
+        publicImageCallId: 'ig_1234567890abcdef',
+      }],
+    });
+    expect(Object.isFrozen(first.hostedImage)).toBe(true);
+    expect(Object.isFrozen(first.hostedImage?.pendingReceipts)).toBe(true);
+    expect(Object.isFrozen(first.hostedImage?.pendingReceipts[0])).toBe(true);
+
+    now = 109;
+    const refreshed = store.lookup('resp_image', scope);
+    expect(refreshed.hostedImage).toEqual(first.hostedImage);
+    expect(refreshed.expiresAt).toBe(119);
+  });
+
+  it('copies hosted-image metadata so caller mutation cannot alter stored affinity', () => {
+    const receipt = {
+      upstreamCallId: 'call_selector_1',
+      publicImageCallId: 'ig_1234567890abcdef',
+    };
+    const pendingReceipts = [receipt];
+    const hostedImage = { hasImageContext: true, pendingReceipts };
+    const store = new ResponsesAffinityStore();
+
+    store.record({
+      ...scope,
+      responseId: 'resp_image',
+      credential: { kind: 'byo-key', id: 'key-a' },
+      hostedImage,
+    });
+    receipt.upstreamCallId = 'call_mutated';
+    pendingReceipts.push({
+      upstreamCallId: 'call_added',
+      publicImageCallId: 'ig_fedcba0987654321',
+    });
+    hostedImage.hasImageContext = false;
+
+    expect(store.lookup('resp_image', scope).hostedImage).toEqual({
+      hasImageContext: true,
+      pendingReceipts: [{
+        upstreamCallId: 'call_selector_1',
+        publicImageCallId: 'ig_1234567890abcdef',
+      }],
+    });
+  });
+
+  it.each([
+    ['wrong state shape', { hasImageContext: 'yes', pendingReceipts: [] }],
+    ['unknown state field', { hasImageContext: false, pendingReceipts: [], token: 'secret-value' }],
+    ['malformed upstream id', {
+      hasImageContext: false,
+      pendingReceipts: [{ upstreamCallId: 'secret-value', publicImageCallId: 'ig_1234567890abcdef' }],
+    }],
+    ['malformed public id', {
+      hasImageContext: false,
+      pendingReceipts: [{ upstreamCallId: 'call_selector_1', publicImageCallId: 'ig_short' }],
+    }],
+    ['oversized receipt list', {
+      hasImageContext: false,
+      pendingReceipts: Array.from({ length: 17 }, (_, index) => ({
+        upstreamCallId: `call_selector_${index}`,
+        publicImageCallId: `ig_${String(index).padStart(16, '0')}`,
+      })),
+    }],
+  ])('rejects %s without retaining or disclosing malformed metadata', (_label, hostedImage) => {
+    const store = new ResponsesAffinityStore();
+    expect(() => store.record({
+      ...scope,
+      responseId: 'resp_invalid',
+      credential: { kind: 'provider-key', id: 'provider-a' },
+      hostedImage,
+    } as never)).toThrow(expect.objectContaining({
+      message: expect.not.stringContaining('secret-value'),
+    }));
+    expect(store.size).toBe(0);
+  });
+
+  it('keeps ordinary records source-compatible without hosted-image metadata', () => {
+    const store = new ResponsesAffinityStore();
+    store.record({
+      ...scope,
+      responseId: 'resp_text',
+      credential: { kind: 'provider-key', id: 'provider-a' },
+    });
+    expect(store.lookup('resp_text', scope).hostedImage).toBeUndefined();
+  });
 });

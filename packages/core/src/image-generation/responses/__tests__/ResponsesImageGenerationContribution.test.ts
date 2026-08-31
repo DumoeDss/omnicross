@@ -238,6 +238,14 @@ function completed(events: readonly ResponsesImageExecutionEvent[]) {
   return result;
 }
 
+function started(events: readonly ResponsesImageExecutionEvent[]) {
+  const result = events.find((event) => 'kind' in event && event.kind === 'started');
+  if (!result || !('kind' in result) || result.kind !== 'started') {
+    throw new Error('expected started image record');
+  }
+  return result;
+}
+
 async function seedCommittedImage(
   harness: ReturnType<typeof createHarness>,
   responseId: string,
@@ -275,7 +283,17 @@ describe('Responses image contribution execution and integration contract', () =
       { prompt: 'selected image prompt' },
       allocator(4, 20),
     ));
+    const opened = started(result);
     const done = completed(result);
+    expect(opened).toEqual({
+      kind: 'started',
+      outputIndex: 4,
+      item: {
+        id: 'ig_testcall00000001',
+        type: 'image_generation_call',
+        status: 'in_progress',
+      },
+    });
     expect(done.outputIndex).toBe(4);
     expect(done.item).toMatchObject({
       id: 'ig_testcall00000001',
@@ -297,7 +315,7 @@ describe('Responses image contribution execution and integration contract', () =
       boundAccountFallbackPolicy: 'pool',
     });
     expect(JSON.stringify(done)).not.toContain('usage');
-    expect(result.map(executionRecordType)).toEqual(['completed']);
+    expect(result.map(executionRecordType)).toEqual(['started', 'completed']);
     await scope.commit('resp_generated');
     await scope.commit('resp_generated');
     await scope.dispose();
@@ -513,6 +531,7 @@ describe('Responses image contribution execution and integration contract', () =
     const editScope = await harness.contribution.createRequestScope({
       admission: editAdmission,
       authorizedPreviousResponseId: 'resp_seed',
+      authorizedPreviousResponseKnownEmpty: false,
       runtime: runtime(),
     });
     await collect(editScope.executeSelectedCall({ prompt: 'edit seed' }, allocator(5)));
@@ -552,6 +571,7 @@ describe('Responses image contribution execution and integration contract', () =
     const middle = await harness.contribution.createRequestScope({
       admission: middleAdmission,
       authorizedPreviousResponseId: 'resp_first_turn',
+      authorizedPreviousResponseKnownEmpty: false,
       runtime: runtime(),
     });
     await middle.commit('resp_text_middle');
@@ -563,6 +583,7 @@ describe('Responses image contribution execution and integration contract', () =
     const later = await harness.contribution.createRequestScope({
       admission: laterAdmission,
       authorizedPreviousResponseId: 'resp_text_middle',
+      authorizedPreviousResponseKnownEmpty: false,
       runtime: runtime(),
     });
     await collect(later.executeSelectedCall({ prompt: 'edit later' }, allocator(9)));
@@ -571,7 +592,7 @@ describe('Responses image contribution execution and integration contract', () =
     expect(first.item.id).toMatch(/^ig_/);
   });
 
-  it('distinguishes authorized known-empty text chains from missing image state', async () => {
+  it('treats affinity-authorized missing image state as empty context', async () => {
     const harness = createHarness();
     const noImage = harness.contribution.inspectRequest({ tools: [] });
     harness.contribution.validateSelection(noImage, {
@@ -594,6 +615,7 @@ describe('Responses image contribution execution and integration contract', () =
     const middle = await harness.contribution.createRequestScope({
       admission: middleAdmission,
       authorizedPreviousResponseId: 'resp_text_first',
+      authorizedPreviousResponseKnownEmpty: true,
       runtime: runtime(),
     });
     await middle.commit('resp_text_middle_empty');
@@ -605,6 +627,7 @@ describe('Responses image contribution execution and integration contract', () =
     const generate = await harness.contribution.createRequestScope({
       admission: automatic,
       authorizedPreviousResponseId: 'resp_text_middle_empty',
+      authorizedPreviousResponseKnownEmpty: true,
       runtime: runtime(),
     });
     expect(completed(await collect(generate.executeSelectedCall(
@@ -619,6 +642,7 @@ describe('Responses image contribution execution and integration contract', () =
     const edit = await harness.contribution.createRequestScope({
       admission: forcedEdit,
       authorizedPreviousResponseId: 'resp_text_first',
+      authorizedPreviousResponseKnownEmpty: true,
       runtime: runtime(),
     });
     expect((await collect(edit.executeSelectedCall(
@@ -627,22 +651,32 @@ describe('Responses image contribution execution and integration contract', () =
     expect(harness.requests).toHaveLength(1);
     await edit.dispose();
 
-    await expect(harness.contribution.createRequestScope({
+    const crossTenantAuthorized = await harness.contribution.createRequestScope({
       admission: automatic,
       authorizedPreviousResponseId: 'resp_text_middle_empty',
+      authorizedPreviousResponseKnownEmpty: true,
       runtime: runtime(undefined, { tenantId: 'tenant-b' }),
-    })).rejects.toMatchObject({ code: 'image_reference_not_found' });
+    });
+    await crossTenantAuthorized.dispose();
     const missing = admission(harness.contribution, { action: 'auto' }, {
       previous_response_id: 'resp_not_recorded',
     });
-    await expect(harness.contribution.createRequestScope({
+    const missingScope = await harness.contribution.createRequestScope({
       admission: missing,
       authorizedPreviousResponseId: 'resp_not_recorded',
+      authorizedPreviousResponseKnownEmpty: true,
       runtime: runtime(),
-    })).rejects.toMatchObject({ code: 'image_reference_not_found' });
+    });
+    const missingResult = completed(await collect(missingScope.executeSelectedCall(
+      { prompt: 'generate after ordinary text response' },
+      allocator(10),
+    )));
+    expect(missingResult.item.status).toBe('completed');
+    expect(harness.requests.at(-1)?.action).toBe('generate');
+    await missingScope.dispose();
   });
 
-  it('does not reinterpret a capacity-evicted known-empty marker as fresh generation context', async () => {
+  it('treats an affinity-authorized capacity-evicted ordinary marker as empty context', async () => {
     const stateStore = new InMemoryResponsesImageStateStore({ maxResponses: 1 });
     const harness = createHarness({ stateStore });
     const noImage = harness.contribution.inspectRequest({ tools: [] });
@@ -654,12 +688,68 @@ describe('Responses image contribution execution and integration contract', () =
     const automatic = admission(harness.contribution, { action: 'auto' }, {
       previous_response_id: 'resp_evict_empty',
     });
-    await expect(harness.contribution.createRequestScope({
+    const continued = await harness.contribution.createRequestScope({
       admission: automatic,
       authorizedPreviousResponseId: 'resp_evict_empty',
+      authorizedPreviousResponseKnownEmpty: true,
+      runtime: runtime(),
+    });
+    expect(completed(await collect(continued.executeSelectedCall(
+      { prompt: 'generate after evicted text state' },
+      allocator(),
+    ))).item.status).toBe('completed');
+    expect(harness.requests.at(-1)?.action).toBe('generate');
+    await continued.dispose();
+  });
+
+  it('fails closed when an image-bearing middle response is capacity-evicted before a later edit', async () => {
+    const stateStore = new InMemoryResponsesImageStateStore({ maxResponses: 2 });
+    const harness = createHarness({ stateStore });
+    const seedAdmission = admission(harness.contribution);
+    const seed = await harness.contribution.createRequestScope({
+      admission: seedAdmission,
+      runtime: runtime(),
+    });
+    completed(await collect(seed.executeSelectedCall({ prompt: 'seed image context' }, allocator())));
+    await seed.commit('resp_image_parent');
+    await seed.dispose();
+
+    const middleAdmission = harness.contribution.inspectRequest({
+      previous_response_id: 'resp_image_parent',
+      tools: [],
+    });
+    const middle = await harness.contribution.createRequestScope({
+      admission: middleAdmission,
+      authorizedPreviousResponseId: 'resp_image_parent',
+      authorizedPreviousResponseKnownEmpty: false,
+      runtime: runtime(),
+    });
+    await middle.commit('resp_image_middle');
+    await middle.dispose();
+
+    const noImage = harness.contribution.inspectRequest({ tools: [] });
+    for (const responseId of ['resp_capacity_one', 'resp_capacity_two']) {
+      const replacement = await harness.contribution.createRequestScope({
+        admission: noImage,
+        runtime: runtime(),
+      });
+      await replacement.commit(responseId);
+      await replacement.dispose();
+    }
+    expect(await stateStore.resolveResponse('tenant-a', 'resp_image_middle'))
+      .toEqual({ status: 'not_found' });
+
+    const laterEdit = admission(harness.contribution, { action: 'edit' }, {
+      previous_response_id: 'resp_image_middle',
+    });
+    const providerCallsBeforeEdit = harness.requests.length;
+    await expect(harness.contribution.createRequestScope({
+      admission: laterEdit,
+      authorizedPreviousResponseId: 'resp_image_middle',
+      authorizedPreviousResponseKnownEmpty: false,
       runtime: runtime(),
     })).rejects.toMatchObject({ code: 'image_reference_not_found' });
-    expect(harness.start).not.toHaveBeenCalled();
+    expect(harness.requests).toHaveLength(providerCallsBeforeEdit);
   });
 
   it('hides cross-tenant call ids and exposes owner expiry without starting a provider', async () => {
@@ -912,8 +1002,8 @@ describe('Responses image contribution execution and integration contract', () =
     const inspected = admission(harness.contribution);
     const scope = await harness.contribution.createRequestScope({ admission: inspected, runtime: runtime() });
     const failed = await collect(scope.executeSelectedCall({ prompt: 'one' }, allocator()));
-    expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ error: { code: 'upstream_rate_limited' } });
+    expect(failed.map(executionRecordType)).toEqual(['started', 'failed']);
+    expect(failed.at(-1)).toMatchObject({ error: { code: 'upstream_rate_limited' } });
     const thrown = await collect(scope.executeSelectedCall({ prompt: 'two' }, allocator(4)));
     expect(thrown.at(-1)).toMatchObject({ error: { code: 'image_generation_failed' } });
     expect(JSON.stringify(thrown)).not.toContain('SECRET_SENTINEL');
@@ -962,6 +1052,7 @@ describe('Responses image contribution execution and integration contract', () =
     });
     const result = await collect(scope.executeSelectedCall({ prompt: 'bounded' }, allocator()));
     expect(result.map(executionRecordType)).toEqual([
+      'started',
       'response.image_generation_call.partial_image',
       'failed',
     ]);
@@ -977,8 +1068,8 @@ describe('Responses image contribution execution and integration contract', () =
       runtime: runtime(undefined, { maxOutputBytes: 3, maxTotalOutputBytes: 6 }),
     });
     const tooLarge = await collect(oversizedScope.executeSelectedCall({ prompt: 'large' }, allocator()));
-    expect(tooLarge).toHaveLength(1);
-    expect(tooLarge[0]).toMatchObject({ error: { code: 'image_too_large' } });
+    expect(tooLarge.map(executionRecordType)).toEqual(['started', 'failed']);
+    expect(tooLarge.at(-1)).toMatchObject({ error: { code: 'image_too_large' } });
     await oversizedScope.dispose();
 
     const duplicatePartial = createHarness({
@@ -995,6 +1086,7 @@ describe('Responses image contribution execution and integration contract', () =
     });
     const malformed = await collect(partialScope.executeSelectedCall({ prompt: 'order' }, allocator()));
     expect(malformed.map(executionRecordType)).toEqual([
+      'started',
       'response.image_generation_call.partial_image',
       'failed',
     ]);
@@ -1075,6 +1167,7 @@ describe('Responses image contribution execution and integration contract', () =
     const creating = harness.contribution.createRequestScope({
       admission: inspected,
       authorizedPreviousResponseId: responseId,
+      authorizedPreviousResponseKnownEmpty: false,
       runtime: runtime(controller),
     });
 
@@ -1424,8 +1517,8 @@ describe('Responses image contribution execution and integration contract', () =
       expect(disposeTwo).toBe(disposeOne);
       await expect(disposeOne).resolves.toBeUndefined();
       const result = await running;
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result.map(executionRecordType)).toEqual(['started', 'failed']);
+      expect(result.at(-1)).toMatchObject({
         kind: 'failed',
         error: { code: 'request_cancelled' },
       });
@@ -1490,8 +1583,8 @@ describe('Responses image contribution execution and integration contract', () =
 
     await expect(disposeOne).resolves.toBeUndefined();
     const result = await running;
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
+    expect(result.map(executionRecordType)).toEqual(['started', 'failed']);
+    expect(result.at(-1)).toMatchObject({
       kind: 'failed',
       error: { code: 'request_cancelled' },
     });
@@ -1579,8 +1672,8 @@ describe('Responses image contribution execution and integration contract', () =
 
     await expect(disposing).resolves.toBeUndefined();
     const result = await running;
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
+    expect(result.map(executionRecordType)).toEqual(['started', 'failed']);
+    expect(result.at(-1)).toMatchObject({
       kind: 'failed',
       error: { code: 'request_cancelled' },
     });
@@ -1636,8 +1729,8 @@ describe('Responses image contribution execution and integration contract', () =
     await openedPromise;
     controller.abort(new Error('disconnect during read'));
     const result = await running;
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ error: { code: 'request_cancelled' } });
+    expect(result.map(executionRecordType)).toEqual(['started', 'failed']);
+    expect(result.at(-1)).toMatchObject({ error: { code: 'request_cancelled' } });
     expect(JSON.stringify(result)).not.toContain(Buffer.from([1, 2]).toString('base64'));
     expect(harness.cancel).toHaveBeenCalledOnce();
     await scope.dispose();
@@ -1720,11 +1813,13 @@ describe('Responses image contribution execution and integration contract', () =
     const seen: ResponsesImageExecutionEvent[] = [];
     for await (const event of scope.executeSelectedCall({ prompt: 'early return' }, allocator())) {
       seen.push(event);
-      break;
+      if (executionRecordType(event) === 'response.image_generation_call.partial_image') break;
     }
     await scope.waitForIdle();
-    expect(seen).toHaveLength(1);
-    expect(executionRecordType(seen[0]!)).toBe('response.image_generation_call.partial_image');
+    expect(seen.map(executionRecordType)).toEqual([
+      'started',
+      'response.image_generation_call.partial_image',
+    ]);
     expect(harness.cancel).toHaveBeenCalledOnce();
     await scope.dispose();
   });

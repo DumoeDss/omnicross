@@ -216,6 +216,8 @@ export async function resolveRoute(args: {
    * proxy's internal route minting, so internal usage records `apiKeyId: null`.
    */
   apiKeyId?: string;
+  /** Least-authority fact derived by the authenticated outbound router. */
+  hostedImageGenerationAllowed?: boolean;
 }): Promise<RouteResolveResult> {
   const { config, ingressFormat, llmConfig } = args;
   const sessionId = args.sessionId ?? null;
@@ -298,6 +300,7 @@ export async function resolveRoute(args: {
         effectiveRole,
         requestedModel,
         apiKeyId: args.apiKeyId,
+        hostedImageGenerationAllowed: args.hostedImageGenerationAllowed,
       });
     }
     return {
@@ -342,6 +345,7 @@ export async function resolveRoute(args: {
     requestedModel,
     // Usage attribution: the verified named-key id (undefined for internal traffic).
     apiKeyId: args.apiKeyId,
+    hostedImageGenerationAllowed: args.hostedImageGenerationAllowed,
     anthropicSdkHints,
   };
 
@@ -382,9 +386,11 @@ async function resolveSubscriptionRoute(args: {
   requestedModel: string | undefined;
   /** The verified named-key id, threaded from `resolveRoute` for attribution. */
   apiKeyId: string | undefined;
+  /** Least-authority fact derived by the authenticated outbound router. */
+  hostedImageGenerationAllowed: boolean | undefined;
 }): Promise<RouteResolveResult> {
   const { config, providerId, modelId, ingressFormat, sessionId, effectiveRole } = args;
-  const { requestedModel, apiKeyId } = args;
+  const { requestedModel, apiKeyId, hostedImageGenerationAllowed } = args;
 
   // Gate 1: per-endpoint opt-in.
   if (!config.useSubscription) {
@@ -456,6 +462,7 @@ async function resolveSubscriptionRoute(args: {
     requestedModel,
     // Usage attribution: the verified named-key id (undefined for internal traffic).
     apiKeyId,
+    hostedImageGenerationAllowed,
     // Anthropic delegation carries the dispatch profile inside
     // `anthropicSdkHints.subscriptionProfile`. The Responses ingress reads the
     // TOP-LEVEL `route.subscriptionProfile`, and so does the built-in
