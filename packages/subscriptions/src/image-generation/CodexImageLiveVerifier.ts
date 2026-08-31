@@ -5,19 +5,23 @@ import type {
   ImageModeration,
   ImageOutputFormat,
   ImageQuality,
+  NormalizedImageEditRequest,
   NormalizedImageGenerateRequest,
 } from '@omnicross/contracts/image-generation-types';
 import {
   ImageGenerationError,
   normalizeImageGenerationError,
+  type ImageAsset,
 } from '@omnicross/core/image-generation';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
 import type { AuthStrategy } from '../auth';
 import { mapCandidateCodexImageFailure } from './privateWireErrors';
 import {
+  applyCandidateCodexImageActionHeaders,
   applyCandidateCodexImageHeaders,
   buildCandidateCodexImageRequest,
+  candidateCodexImageUrl,
   CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
   CANDIDATE_CODEX_IMAGE_URL,
 } from './privateWireRequest';
@@ -151,6 +155,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
     applyCandidateCodexImageHeaders(headers);
     let accountId: string | undefined;
     let parsed: ParsedCandidateCodexImageResponse | undefined;
+    let parsedEdit: ParsedCandidateCodexImageResponse | undefined;
     try {
       await this.#auth.applyHeaders(headers, {
         upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
@@ -170,7 +175,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
         {
           method: 'POST',
           headers: { ...headers },
-          body: buildCandidateCodexImageRequest(TESTED_REQUEST),
+          body: await buildCandidateCodexImageRequest(TESTED_REQUEST, controller.signal),
           signal: controller.signal,
         },
         {
@@ -184,6 +189,33 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
       if (!response.ok) throw mapCandidateCodexImageFailure(response, responseBody);
       parsed = await parseCandidateCodexImageResponse(responseBody, 1, 'png');
       if (controller.signal.aborted) throw controller.signal.reason;
+
+      const editRequest: NormalizedImageEditRequest<ImageAsset> = {
+        ...TESTED_REQUEST,
+        action: 'edit',
+        images: [parsed.images[0]!],
+      };
+      const editHeaders = { ...headers };
+      applyCandidateCodexImageActionHeaders(editHeaders, 'edit');
+      const editResponse = await fetchUpstream(
+        candidateCodexImageUrl('edit'),
+        {
+          method: 'POST',
+          headers: editHeaders,
+          body: await buildCandidateCodexImageRequest(editRequest, controller.signal),
+          signal: controller.signal,
+        },
+        {
+          providerId: 'codex',
+          accountId,
+          traceAccountFingerprint: traceAccountFingerprint(accountId),
+          redactBodies: true,
+        },
+      );
+      const editResponseBody = await readCandidateCodexImageResponseBody(editResponse);
+      if (!editResponse.ok) throw mapCandidateCodexImageFailure(editResponse, editResponseBody);
+      parsedEdit = await parseCandidateCodexImageResponse(editResponseBody, 1, 'png');
+      if (controller.signal.aborted) throw controller.signal.reason;
       return observation(accountId, parsed);
     } catch (cause) {
       if (controller.signal.aborted) {
@@ -196,6 +228,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
       });
     } finally {
       disposeCandidateCodexImageResponse(parsed);
+      disposeCandidateCodexImageResponse(parsedEdit);
       headers.Authorization = '';
       accountId = undefined;
       clearTimeout(timeout);

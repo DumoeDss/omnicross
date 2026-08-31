@@ -29,8 +29,10 @@ import {
 } from './capabilityEvidence';
 import { mapCandidateCodexImageFailure } from './privateWireErrors';
 import {
+  applyCandidateCodexImageActionHeaders,
   applyCandidateCodexImageHeaders,
   buildCandidateCodexImageRequest,
+  candidateCodexImageUrl,
   CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
   CANDIDATE_CODEX_IMAGE_URL,
 } from './privateWireRequest';
@@ -166,8 +168,13 @@ class CodexSubscriptionImageProvider implements ImageProvider {
         if (started) throw new ImageGenerationError('invalid_image_request');
         started = true;
         if (!capabilities.available) throw new ImageGenerationError('unsupported_capability');
+        const unsupportedAction = request.action === 'generate'
+          ? !capabilities.generate
+          : !capabilities.edit || request.images.length === 0 ||
+            request.images.length > capabilities.maxInputImages ||
+            (request.mask !== undefined && !capabilities.maskEdit);
         if (
-          request.action !== 'generate' || request.stream || request.partialImages > 0 ||
+          unsupportedAction || request.stream || request.partialImages > 0 ||
           request.n !== 1 || !capabilities.models.includes(request.model) ||
           !capabilities.outputFormats.includes(request.outputFormat) ||
           !capabilities.qualityLevels.includes(request.quality) ||
@@ -250,16 +257,19 @@ class CodexSubscriptionImageProvider implements ImageProvider {
           () => controller.abort(new ImageGenerationError('image_generation_timeout')),
           self.#generationTimeoutMs,
         );
-        const body = buildCandidateCodexImageRequest(request);
+        const body = await buildCandidateCodexImageRequest(request, controller.signal);
+        const upstreamUrl = candidateCodexImageUrl(request.action);
         let response: Response | undefined;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           if (controller.signal.aborted) throw controller.signal.reason;
           if (attempt > 0) retryCount += 1;
+          const requestHeaders = { ...leaseHeaders };
+          applyCandidateCodexImageActionHeaders(requestHeaders, request.action);
           response = await fetchUpstream(
-            CANDIDATE_CODEX_IMAGE_URL,
+            upstreamUrl,
             {
               method: 'POST',
-              headers: { ...leaseHeaders },
+              headers: requestHeaders,
               body,
               signal: controller.signal,
             },
@@ -278,7 +288,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
           const refreshedHeaders: Record<string, string> = {};
           applyCandidateCodexImageHeaders(refreshedHeaders);
           await self.#auth.applyHeaders(refreshedHeaders, {
-            upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
+            upstreamUrl,
             resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
             sessionKey: context.sessionKey,
             preferredAccountId: accountId,

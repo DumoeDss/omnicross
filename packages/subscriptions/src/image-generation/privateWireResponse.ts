@@ -252,6 +252,22 @@ export async function parseCandidateCodexImageResponse(
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return protocolChanged();
   const record = parsed as Record<string, unknown>;
+  if (Array.isArray(record.data)) {
+    if (record.data.length !== expectedCount) return protocolChanged();
+    const rows = record.data.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return protocolChanged();
+      return item as Record<string, unknown>;
+    });
+    const images = await Promise.all(rows.map((item) => createAsset(item.b64_json, expectedFormat)));
+    const revised = rows.length === 1 && typeof rows[0]?.revised_prompt === 'string'
+      ? rows[0].revised_prompt
+      : undefined;
+    return {
+      images,
+      revisedPrompt: revised,
+      usage: parseUsage(record.usage),
+    };
+  }
   if (!Array.isArray(record.output)) return protocolChanged();
   const calls = record.output.filter(
     (item): item is Record<string, unknown> =>

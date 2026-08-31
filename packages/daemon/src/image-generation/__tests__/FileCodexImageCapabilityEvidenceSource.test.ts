@@ -73,7 +73,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     expect(resident.status()).toMatchObject({ entries: 0, freshEntries: 0 });
 
     await doctorProcess.recordSuccessfulVerification(observation('resident-account'));
-    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v1.json');
+    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v2.json');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
       entries: Array<{ expiresAt: number }>;
     };
@@ -131,7 +131,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     await resident.recordSuccessfulVerification(observation('resident-account'));
 
     // Recreate the Round-3 row: original verification 100, prior physical floor 200.
-    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v1.json');
+    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v2.json');
     const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
       entries: Array<{ expiresAt: number }>;
     };
@@ -200,7 +200,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     });
     await resident.recordSuccessfulVerification(observation('resident-account'));
 
-    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v1.json');
+    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v2.json');
     const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
       entries: Array<{ expiresAt: number }>;
     };
@@ -243,7 +243,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     });
     await source.recordSuccessfulVerification(observation());
 
-    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v1.json');
+    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v2.json');
     const manifestText = readFileSync(manifestPath, 'utf8');
     expect(manifestText).not.toContain('RAW_ACCOUNT_ID_SENTINEL');
     expect(manifestText).not.toMatch(/Bearer|Cookie|prompt|base64|image bytes|requestBody|responseBody/i);
@@ -269,14 +269,15 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     });
     expect(evidence.account).toMatchObject({
       kind: 'account',
-      source: 'codex-image-live-verifier-v1',
+      source: 'codex-image-live-verifier-v2',
       verifiedAt: 1_000,
       expiresAt: 1_100,
       values: {
         available: true,
         models: ['gpt-image-2'],
         generate: true,
-        edit: false,
+        edit: true,
+        maxInputImages: 1,
         outputFormats: ['png'],
         qualityLevels: ['low'],
         moderationModes: ['auto'],
@@ -355,7 +356,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     });
     await source.recordSuccessfulVerification(observation('resident-account'));
 
-    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v1.json');
+    const manifestPath = join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v2.json');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
       entries: Array<{ expiresAt: number }>;
     };
@@ -433,7 +434,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
     expect(source.status().entries).toBe(0);
 
     writeFileSync(
-      join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v1.json'),
+      join(paths.paths.evidenceRoot, 'codex-image-capability-evidence.v2.json'),
       JSON.stringify({ version: 1, revision: 1, entries: [], prompt: 'PROMPT_SECRET_SENTINEL' }),
       'utf8',
     );

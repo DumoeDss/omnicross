@@ -9,10 +9,13 @@ import type {
   ImageCapabilityValues,
   ImageGenerationErrorCode,
   ImageProviderEvent,
+  NormalizedImageEditRequest,
   NormalizedImageGenerateRequest,
 } from '@omnicross/contracts/image-generation-types';
 import {
   ImageGenerationError,
+  InMemoryImageAsset,
+  type ImageAsset,
   type ImageProviderContext,
 } from '@omnicross/core/image-generation';
 import {
@@ -77,6 +80,17 @@ const evidence: CodexImageCapabilityEvidenceSource = {
     return { account: evidenceLayer('account'), upstream: evidenceLayer('upstream') };
   },
 };
+
+function evidenceFor(values: ImageCapabilityValues): CodexImageCapabilityEvidenceSource {
+  return {
+    async resolve() {
+      return {
+        account: { ...evidenceLayer('account'), values },
+        upstream: { ...evidenceLayer('upstream'), values },
+      };
+    },
+  };
+}
 
 function makeAuth(options: { credential?: boolean; refresh?: boolean } = {}): AuthStrategy & {
   applyHeaders: ReturnType<typeof vi.fn>;
@@ -290,6 +304,114 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
         output_format: 'png',
       }],
     });
+    await lease.release();
+  });
+
+  it('edits one reference image through the subscription image bridge', async () => {
+    const reference = new InMemoryImageAsset(Buffer.from(VALID_PNG, 'base64'), {
+      mimeType: 'image/png',
+      width: 2,
+      height: 1,
+    });
+    const editRequest: NormalizedImageEditRequest<typeof reference> = {
+      ...request,
+      action: 'edit',
+      images: [reference],
+    };
+    const editSupported = { ...supported, edit: true, maxInputImages: 1 };
+    const editEvidence = evidenceFor(editSupported);
+    let capturedUrl = '';
+    let capturedHeaders = new Headers();
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      capturedUrl = url;
+      capturedHeaders = new Headers(init.headers);
+      capturedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({
+        created: 1,
+        data: [{ b64_json: VALID_PNG }],
+      }), { status: 200 });
+    }));
+
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(),
+      evidenceSource: editEvidence,
+      now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    expect(lease.capabilities).toMatchObject({ edit: true, maxInputImages: 1 });
+    const events = await collectEvents(lease.start(editRequest).events);
+
+    expect(events.map((event) => event.type)).toEqual(['accepted', 'completed']);
+    expect(capturedUrl).toBe('https://chatgpt.com/backend-api/codex/images/edits');
+    expect(capturedHeaders.get('accept')).toBe('application/json');
+    expect(capturedBody).toEqual({
+      images: [{ image_url: `data:image/png;base64,${VALID_PNG}` }],
+      prompt: 'SECRET_PROMPT_SENTINEL',
+      background: 'auto',
+      model: 'gpt-image-2',
+      quality: 'auto',
+      size: 'auto',
+    });
+    await lease.release();
+  });
+
+  it('rejects an unsupported reference image type before egress', async () => {
+    const reference = new InMemoryImageAsset(new Uint8Array([1]), {
+      mimeType: 'image/gif',
+      width: 1,
+      height: 1,
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(),
+      evidenceSource: evidenceFor({ ...supported, edit: true, maxInputImages: 1 }),
+      now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    const events = await collectEvents(lease.start({
+      ...request,
+      action: 'edit',
+      images: [reference],
+    }).events);
+
+    expect(terminalCode(events)).toBe('unsupported_image_type');
+    expect(fetchMock).not.toHaveBeenCalled();
+    reference.dispose();
+    await lease.release();
+  });
+
+  it('rejects an oversized reference image before opening it or making an upstream request', async () => {
+    const open = vi.fn(async (): Promise<ReadableStream<Uint8Array>> => {
+      throw new Error('oversized input must not be opened');
+    });
+    const reference: ImageAsset = {
+      artifactId: 'oversized-reference' as ImageAsset['artifactId'],
+      mimeType: 'image/png',
+      byteLength: 50 * 1024 * 1024 + 1,
+      width: 1,
+      height: 1,
+      independentlyDecodable: true,
+      open,
+    };
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(),
+      evidenceSource: evidenceFor({ ...supported, edit: true, maxInputImages: 1 }),
+      now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    const events = await collectEvents(lease.start({
+      ...request,
+      action: 'edit',
+      images: [reference],
+    }).events);
+
+    expect(terminalCode(events)).toBe('image_too_large');
+    expect(open).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     await lease.release();
   });
 
@@ -646,7 +768,7 @@ describe('Codex subscription image execution scheduling', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(fetchMock).not.toHaveBeenCalled();
     grantAdmission({ release: releaseGrant });
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(50);
     expect(terminalCode(await collecting)).toBe('image_generation_timeout');

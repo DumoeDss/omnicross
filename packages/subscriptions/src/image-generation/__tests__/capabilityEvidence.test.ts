@@ -41,6 +41,8 @@ describe('Codex image capability evidence', () => {
       available: true,
       models: ['gpt-image-2'],
       generate: true,
+      edit: true,
+      maxInputImages: 1,
       responsesTool: true,
       streaming: false,
       transparentBackground: false,

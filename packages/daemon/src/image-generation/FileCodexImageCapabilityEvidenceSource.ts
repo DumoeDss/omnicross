@@ -32,9 +32,9 @@ import type {
 import type { DaemonImagePathResolver } from './imagePathResolver';
 import { loadOrCreateImageTenantHmacSalt } from './imageTenantHmac';
 
-const MANIFEST_VERSION = 1;
-const MANIFEST_NAME = 'codex-image-capability-evidence.v1.json';
-const SOURCE_VERSION = 'codex-image-live-verifier-v1';
+const MANIFEST_VERSION = 2;
+const MANIFEST_NAME = 'codex-image-capability-evidence.v2.json';
+const SOURCE_VERSION = 'codex-image-live-verifier-v2';
 const ACCOUNT_DOMAIN = Buffer.from('omnicross:codex-image-evidence:account:v1\0', 'utf8');
 const ACCOUNT_KEY = /^[a-f0-9]{64}$/u;
 const SIZE = /^(?:auto|[1-9][0-9]{1,4}x[1-9][0-9]{1,4})$/u;
@@ -185,9 +185,9 @@ function capabilityValues(entry: PersistedEvidenceEntry): ImageCapabilityValues 
     available: true,
     models: Object.freeze([entry.model]),
     generate: true,
-    edit: false,
+    edit: true,
     maskEdit: false,
-    maxInputImages: 0,
+    maxInputImages: 1,
     maxOutputImages: 1,
     streaming: false,
     maxPartialImages: 0,

@@ -42,12 +42,17 @@ function auth(): AuthStrategy & {
   };
 }
 
-async function waitForTraceRecord(path: string): Promise<Record<string, unknown>> {
+async function waitForTraceRecords(
+  path: string,
+  count: number,
+): Promise<Array<Record<string, unknown>>> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (existsSync(path)) {
-      const line = readFileSync(path, 'utf8').trim();
-      if (line) {
-        try { return JSON.parse(line) as Record<string, unknown>; } catch { /* retry */ }
+      const lines = readFileSync(path, 'utf8').trim().split(/\r?\n/u).filter(Boolean);
+      if (lines.length >= count) {
+        try {
+          return lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+        } catch { /* retry */ }
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -101,12 +106,47 @@ describe('CodexImageLiveVerifier', () => {
       preferredAccountId: 'unavailable',
       boundAccountFallbackPolicy: 'pool',
     })).resolves.toMatchObject({ accountId: 'healthy-sibling' });
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(applyHeaders.mock.calls.map((call) => call[1]?.boundAccountFallbackPolicy))
       .toEqual(['strict', 'pool']);
   });
 
-  it('makes one redacted minimal PNG request, returns narrow evidence, and destroys the artifact', async () => {
+  it('verifies a reference edit with the generated artifact before returning evidence', async () => {
+    const requests: Array<{ url: string; headers: Headers; body: Record<string, unknown> }> = [];
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      requests.push({
+        url,
+        headers: new Headers(init.headers),
+        body: JSON.parse(String(init.body)) as Record<string, unknown>,
+      });
+      return url.endsWith('/images/edits')
+        ? new Response(JSON.stringify({ created: 2, data: [{ b64_json: VALID_PNG }] }), { status: 200 })
+        : new Response(JSON.stringify({
+            output: [{ type: 'image_generation_call', status: 'completed', result: VALID_PNG }],
+          }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const verifier = createCodexImageLiveVerifier({ authStrategy: auth() });
+    await expect(verifier.verify({ signal: new AbortController().signal }))
+      .resolves.toMatchObject({ accountId: RAW_ACCOUNT_ID, model: 'gpt-image-2' });
+
+    expect(requests.map((item) => item.url)).toEqual([
+      'https://chatgpt.com/backend-api/codex/responses',
+      'https://chatgpt.com/backend-api/codex/images/edits',
+    ]);
+    expect(requests[1]?.headers.get('accept')).toBe('application/json');
+    expect(requests[1]?.body).toEqual({
+      images: [{ image_url: `data:image/png;base64,${VALID_PNG}` }],
+      prompt: 'A single solid black square.',
+      background: 'opaque',
+      model: 'gpt-image-2',
+      quality: 'low',
+      size: 'auto',
+    });
+  });
+
+  it('makes two redacted minimal PNG requests, returns narrow evidence, and destroys both artifacts', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'omnicross-image-live-verifier-'));
     const tracePath = join(directory, 'trace.jsonl');
     setUpstreamTracePath(tracePath);
@@ -116,11 +156,15 @@ describe('CodexImageLiveVerifier', () => {
       return undefined;
     });
     const dispose = vi.spyOn(InMemoryImageAsset.prototype, 'dispose');
-    let candidateHeaders = new Headers();
-    let candidateBody = '';
-    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
-      candidateHeaders = new Headers(init.headers);
-      candidateBody = String(init.body);
+    const candidateRequests: Array<{ url: string; headers: Headers; body: string }> = [];
+    const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      candidateRequests.push({ url, headers: new Headers(init.headers), body: String(init.body) });
+      if (url.endsWith('/images/edits')) {
+        return new Response(JSON.stringify({
+          created: 2,
+          data: [{ b64_json: VALID_PNG }],
+        }), { status: 200 });
+      }
       const sse = [
         `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG.slice(0, -4) })}`,
         `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG })}`,
@@ -144,14 +188,14 @@ describe('CodexImageLiveVerifier', () => {
     const verifier = createCodexImageLiveVerifier({ authStrategy: auth() });
     const result = await verifier.verify({ signal: new AbortController().signal });
 
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(proxyAccount).toBe(RAW_ACCOUNT_ID);
-    expect(candidateHeaders.get('authorization')).toBe('Bearer CREDENTIAL_SECRET_SENTINEL');
-    expect(candidateHeaders.get('accept')).toBe('text/event-stream');
-    expect(candidateHeaders.get('originator')).toBe('codex_cli_rs');
-    expect(candidateHeaders.get('user-agent')).toMatch(/^codex_cli_rs\//u);
-    expect(candidateHeaders.get('version')).toMatch(/^\d+\.\d+\.\d+$/u);
-    expect(JSON.parse(candidateBody)).toMatchObject({
+    expect(candidateRequests[0]?.headers.get('authorization')).toBe('Bearer CREDENTIAL_SECRET_SENTINEL');
+    expect(candidateRequests[0]?.headers.get('accept')).toBe('text/event-stream');
+    expect(candidateRequests[0]?.headers.get('originator')).toBe('codex_cli_rs');
+    expect(candidateRequests[0]?.headers.get('user-agent')).toMatch(/^codex_cli_rs\//u);
+    expect(candidateRequests[0]?.headers.get('version')).toMatch(/^\d+\.\d+\.\d+$/u);
+    expect(JSON.parse(candidateRequests[0]!.body)).toMatchObject({
       instructions: '',
       model: 'gpt-5.6-luna',
       input: [{
@@ -190,13 +234,16 @@ describe('CodexImageLiveVerifier', () => {
     expect(serializedResult).not.toContain('REVISED_PROMPT_SECRET_SENTINEL');
     expect(serializedResult).not.toContain(VALID_PNG);
     expect(serializedResult).not.toContain('CREDENTIAL_SECRET_SENTINEL');
-    expect(dispose).toHaveBeenCalledOnce();
+    expect(candidateRequests[1]?.headers.get('accept')).toBe('application/json');
+    expect(dispose).toHaveBeenCalledTimes(2);
 
-    const trace = await waitForTraceRecord(tracePath);
-    expect(trace.requestBody).toBe(REDACTED_BODY);
-    expect(trace.responseBody).toBe(REDACTED_BODY);
-    expect(trace.accountId).toMatch(/^sha256:[a-f0-9]{64}$/);
-    const serializedTrace = JSON.stringify(trace);
+    const traces = await waitForTraceRecords(tracePath, 2);
+    for (const trace of traces) {
+      expect(trace.requestBody).toBe(REDACTED_BODY);
+      expect(trace.responseBody).toBe(REDACTED_BODY);
+      expect(trace.accountId).toMatch(/^sha256:[a-f0-9]{64}$/);
+    }
+    const serializedTrace = JSON.stringify(traces);
     expect(serializedTrace).not.toContain(RAW_ACCOUNT_ID);
     expect(serializedTrace).not.toContain('CREDENTIAL_SECRET_SENTINEL');
     expect(serializedTrace).not.toContain('REVISED_PROMPT_SECRET_SENTINEL');

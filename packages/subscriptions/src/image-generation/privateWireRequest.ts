@@ -1,4 +1,9 @@
-import type { ImageProviderRequest } from '@omnicross/core/image-generation';
+import {
+  ImageGenerationError,
+  readImageAssetBytes,
+  type ImageAsset,
+  type ImageProviderRequest,
+} from '@omnicross/core/image-generation';
 import {
   codexAcceptHeader,
   DEFAULT_CODEX_CLI_HEADERS,
@@ -7,7 +12,9 @@ import {
 
 /** Codex subscription endpoint used by the image-generation bridge. */
 export const CANDIDATE_CODEX_IMAGE_URL = 'https://chatgpt.com/backend-api/codex/responses';
+export const CANDIDATE_CODEX_IMAGE_EDIT_URL = 'https://chatgpt.com/backend-api/codex/images/edits';
 export const CANDIDATE_CODEX_IMAGE_CARRIER_MODEL = 'gpt-5.6-luna';
+const MAX_INPUT_IMAGE_BYTES = 50 * 1024 * 1024;
 
 /** Private Codex image wire envelope. Never exported from the subscriptions package. */
 interface CandidateCodexImageRequest {
@@ -36,13 +43,61 @@ export function applyCandidateCodexImageHeaders(headers: Record<string, string>)
   });
 }
 
-export function buildCandidateCodexImageRequest(request: ImageProviderRequest): string {
-  if (request.action !== 'generate') {
-    throw new TypeError('The candidate Codex image wire supports generate only.');
+export function candidateCodexImageUrl(action: ImageProviderRequest['action']): string {
+  return action === 'edit' ? CANDIDATE_CODEX_IMAGE_EDIT_URL : CANDIDATE_CODEX_IMAGE_URL;
+}
+
+export function applyCandidateCodexImageActionHeaders(
+  headers: Record<string, string>,
+  action: ImageProviderRequest['action'],
+): void {
+  headers.accept = action === 'edit' ? 'application/json' : codexAcceptHeader(true);
+}
+
+async function encodeInputImage(asset: ImageAsset, signal?: AbortSignal): Promise<string> {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType)) {
+    throw new ImageGenerationError('unsupported_image_type', { param: 'image' });
+  }
+  let bytes: Uint8Array;
+  try {
+    bytes = await readImageAssetBytes(asset, MAX_INPUT_IMAGE_BYTES, signal);
+  } catch (cause) {
+    if (signal?.aborted) throw signal.reason;
+    if (cause instanceof RangeError) {
+      throw new ImageGenerationError('image_too_large', { param: 'image', cause });
+    }
+    throw cause;
+  }
+  try {
+    const base64 = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64');
+    return `data:${asset.mimeType};base64,${base64}`;
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+export async function buildCandidateCodexImageRequest(
+  request: ImageProviderRequest,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (request.action === 'edit') {
+    if (request.mask || request.images.length !== 1) {
+      throw new ImageGenerationError('unsupported_capability', { param: request.mask ? 'mask' : 'images' });
+    }
+    return JSON.stringify({
+      images: [{ image_url: await encodeInputImage(request.images[0]!, signal) }],
+      prompt: request.prompt,
+      background: request.background,
+      model: request.model,
+      quality: request.quality,
+      size: request.size.kind === 'pixels'
+        ? `${request.size.width}x${request.size.height}`
+        : 'auto',
+    });
   }
   const tool: Record<string, unknown> = {
     type: 'image_generation',
-    action: 'generate',
+    action: request.action,
     model: request.model,
     quality: request.quality,
     background: request.background,
