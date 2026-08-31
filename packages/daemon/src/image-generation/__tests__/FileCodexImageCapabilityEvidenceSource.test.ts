@@ -282,6 +282,7 @@ describe('FileCodexImageCapabilityEvidenceSource', () => {
         moderationModes: ['auto'],
         transparentBackground: false,
         flexibleSizes: false,
+        responsesTool: true,
       },
     });
     expect(evidence.upstream).toMatchObject({ kind: 'upstream', values: { available: true } });

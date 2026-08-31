@@ -204,7 +204,7 @@ function capabilityValues(entry: PersistedEvidenceEntry): ImageCapabilityValues 
           min: compression,
           max: compression,
         },
-    responsesTool: false,
+    responsesTool: true,
     multiTurnEdit: false,
     supportsFileId: false,
     supportsImageUrl: false,

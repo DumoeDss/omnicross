@@ -241,6 +241,9 @@ export async function parseCandidateCodexImageResponse(
   expectedFormat: ImageOutputFormat,
 ): Promise<ParsedCandidateCodexImageResponse> {
   if (!body.trim() || /^s*</.test(body)) return protocolChanged();
+  if (/^\s*(?:data|event):/u.test(body)) {
+    return parseCandidateCodexImageSse(body, expectedCount, expectedFormat);
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
@@ -267,5 +270,82 @@ export async function parseCandidateCodexImageResponse(
     images,
     revisedPrompt: revised,
     usage: parseUsage(record.usage),
+  };
+}
+
+async function parseCandidateCodexImageSse(
+  body: string,
+  expectedCount: number,
+  expectedFormat: ImageOutputFormat,
+): Promise<ParsedCandidateCodexImageResponse> {
+  const best = new Map<number, string>();
+  const completedEventResults: string[] = [];
+  let completedResponse: Record<string, unknown> | undefined;
+
+  for (const line of body.split(/\r?\n/u)) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let event: unknown;
+    try {
+      event = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    if (!event || typeof event !== 'object' || Array.isArray(event)) continue;
+    const record = event as Record<string, unknown>;
+    if (typeof record.partial_image_b64 === 'string') {
+      const index = record.partial_image_index === undefined ? 0 : record.partial_image_index;
+      if (!Number.isSafeInteger(index) || (index as number) < 0 || (index as number) >= expectedCount) continue;
+      const previous = best.get(index as number);
+      if (!previous || record.partial_image_b64.length >= previous.length) {
+        best.set(index as number, record.partial_image_b64);
+      }
+    }
+    if (record.type === 'response.completed') {
+      if (!record.response || typeof record.response !== 'object' || Array.isArray(record.response)) {
+        return protocolChanged();
+      }
+      completedResponse = record.response as Record<string, unknown>;
+    }
+    if (record.type === 'response.output_item.done' &&
+      record.item && typeof record.item === 'object' && !Array.isArray(record.item)) {
+      const item = record.item as Record<string, unknown>;
+      if (item.type === 'image_generation_call' &&
+        item.status === 'completed' && typeof item.result === 'string') {
+        completedEventResults.push(item.result);
+      }
+    }
+  }
+
+  const output = completedResponse?.output;
+  const calls = Array.isArray(output)
+    ? output.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item) &&
+          (item as Record<string, unknown>).type === 'image_generation_call',
+      )
+    : [];
+  const finalResults = calls.filter(
+    (call): call is Record<string, unknown> & { readonly result: string } =>
+      call.status === 'completed' && typeof call.result === 'string',
+  );
+  if (best.size !== expectedCount &&
+    completedEventResults.length !== expectedCount &&
+    finalResults.length !== expectedCount) {
+    return protocolChanged();
+  }
+  const images = await Promise.all(Array.from({ length: expectedCount }, async (_unused, index) => {
+    const encoded = best.get(index) ?? completedEventResults[index] ?? finalResults[index]?.result;
+    if (!encoded) return protocolChanged();
+    return createAsset(encoded, expectedFormat);
+  }));
+  const revised = calls.length === 1 && typeof calls[0]?.revised_prompt === 'string'
+    ? calls[0].revised_prompt
+    : undefined;
+  return {
+    images,
+    revisedPrompt: revised,
+    usage: parseUsage(completedResponse?.usage),
   };
 }

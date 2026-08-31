@@ -20,8 +20,7 @@
  *    OWN values are forwarded when present; {@link DEFAULT_CLAUDE_CODE_HEADERS}
  *    fills what the caller did not send.
  *
- * Modeled on claude-relay-service (`claudeRelayService._buildRequestHeaders`,
- * `claudeCodeHeadersService`, `utils/headerFilter.filterForClaude`).
+ * Modeled on observed Claude Code-compatible proxy behavior.
  *
  * NOTE ON `sanitizeFrozenHeaders`/`applyFingerprint`: those own the per-account
  * FROZEN identity and still take precedence — this module only ever fills a slot
@@ -41,12 +40,11 @@ export { fillMissingHeaders } from './headerMerge';
 
 /**
  * The `anthropic-version` used when the caller sent none. Matches the value the
- * real Claude Code CLI sends and claude-relay-service's `CLAUDE_API_VERSION`
- * default.
+ * real Claude Code CLI sends.
  */
 export const DEFAULT_ANTHROPIC_VERSION = '2023-06-01';
 
-/** `anthropic-beta` flags, per claude-relay-service's `_getBetaHeader`. */
+/** Stable `anthropic-beta` flags used by Claude Code-compatible requests. */
 const OAUTH_BETA = 'oauth-2025-04-20';
 const CLAUDE_CODE_BETA = 'claude-code-20250219';
 const INTERLEAVED_THINKING_BETA = 'interleaved-thinking-2025-05-14';
@@ -81,8 +79,7 @@ export const DEFAULT_CLAUDE_CODE_HEADERS: Readonly<Record<string, string>> = Obj
  * Force `identity` so the upstream (Cloudflare) cannot answer with a
  * gzip/zstd-compressed body that carries no `Content-Encoding`. That case
  * silently corrupts a streamed response when the bytes are decoded as UTF-8
- * text. claude-relay-service hit exactly this (their issue #1030) and forces the
- * same value.
+ * text. Known compatible relays avoid the ambiguity by forcing the same value.
  */
 export const FORCED_ACCEPT_ENCODING = 'identity';
 
@@ -129,12 +126,12 @@ export function extractClaudeClientHeaders(
 
 /**
  * Build the outbound `anthropic-beta`: the model-appropriate baseline plus every
- * flag the caller asked for, de-duplicated, order-stable. Mirrors
- * claude-relay-service's `_getBetaHeader`.
+ * flag the caller asked for, de-duplicated, order-stable.
  *
  * `oauth-2025-04-20` is the load-bearing one on this path — the relay
  * authenticates with a subscription OAuth token, not an API key. Haiku gets a
- * reduced baseline (no claude-code / tool-streaming flags), matching CRS.
+ * reduced baseline (no claude-code / tool-streaming flags), matching observed
+ * CLI-compatible behavior.
  */
 export function buildAnthropicBeta(
   model: string | undefined,

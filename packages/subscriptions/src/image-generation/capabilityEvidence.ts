@@ -43,7 +43,7 @@ export const CODEX_IMAGE_ADAPTER_VALUES: ImageCapabilityValues = {
   qualityLevels: ['auto', 'low', 'medium', 'high'],
   moderationModes: ['auto', 'low'],
   outputCompression: { supported: true, formats: ['jpeg', 'webp'], min: 0, max: 100 },
-  responsesTool: false,
+  responsesTool: true,
   multiTurnEdit: false,
   supportsFileId: false,
   supportsImageUrl: false,

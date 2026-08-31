@@ -212,7 +212,7 @@ describe('production image runtime generation factory', () => {
     expect(getStrategy).not.toHaveBeenCalled();
   });
 
-  it('inspects cached account-bound evidence without dispatching an image', async () => {
+  it('inspects the image bridge baseline and cached account-bound evidence without dispatching an image', async () => {
     let now = 1_000;
     const sharedStorage = storage(sandbox());
     const auth = authStrategy();
@@ -230,10 +230,10 @@ describe('production image runtime generation factory', () => {
 
     await expect(generation.inspectCapability('images-key')).resolves.toMatchObject({
       enabled: true,
-      available: false,
+      available: true,
       providerId: 'codex-subscription',
       model: 'gpt-image-2',
-      reason: 'account_unverified',
+      capabilities: { responsesTool: true },
     });
     await generation.components.evidenceSource.recordSuccessfulVerification({
       accountId: 'RAW_ACCOUNT_ID_SENTINEL',

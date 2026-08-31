@@ -90,6 +90,74 @@ describe('private candidate wire parsers', () => {
     });
   });
 
+  it('tolerates malformed SSE lines and completes from the longest partial', async () => {
+    const body = [
+      'event: response.image_generation_call.partial_image',
+      'data: {not-json}',
+      `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG.slice(0, -4) })}`,
+      `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG })}`,
+      'data: [DONE]',
+      '',
+    ].join('\n');
+    const parsed = await parseCandidateCodexImageResponse(body, 1, 'png');
+    expect(parsed.images[0]).toMatchObject({
+      mimeType: 'image/png',
+      width: 2,
+      height: 1,
+      independentlyDecodable: true,
+    });
+  });
+
+  it('accepts the current Codex SSE variant with the final result in response.completed', async () => {
+    const body = [
+      'event: response.completed',
+      `data: ${JSON.stringify({
+        type: 'response.completed',
+        response: {
+          output: [{
+            type: 'image_generation_call',
+            status: 'completed',
+            result: VALID_PNG,
+          }],
+        },
+      })}`,
+      'data: [DONE]',
+      '',
+    ].join('\n');
+    const parsed = await parseCandidateCodexImageResponse(body, 1, 'png');
+    expect(parsed.images[0]).toMatchObject({
+      mimeType: 'image/png',
+      width: 2,
+      height: 1,
+      independentlyDecodable: true,
+    });
+  });
+
+  it('accepts the live Codex result carried by response.output_item.done', async () => {
+    const body = [
+      'event: response.output_item.done',
+      `data: ${JSON.stringify({
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: {
+          type: 'image_generation_call',
+          status: 'completed',
+          result: VALID_PNG,
+        },
+      })}`,
+      `data: ${JSON.stringify({ type: 'response.completed', response: { output: [] } })}`,
+      'data: [DONE]',
+      '',
+    ].join('\n');
+    const parsed = await parseCandidateCodexImageResponse(body, 1, 'png');
+    expect(parsed.images[0]).toMatchObject({
+      mimeType: 'image/png',
+      width: 2,
+      height: 1,
+      independentlyDecodable: true,
+    });
+  });
+
   it.each([
     ['truncated PNG', VALID_PNG, 'png'],
     ['truncated JPEG', VALID_JPEG, 'jpeg'],

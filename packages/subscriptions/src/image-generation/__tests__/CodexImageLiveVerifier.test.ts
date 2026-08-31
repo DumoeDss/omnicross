@@ -116,20 +116,28 @@ describe('CodexImageLiveVerifier', () => {
       return undefined;
     });
     const dispose = vi.spyOn(InMemoryImageAsset.prototype, 'dispose');
-    let authorization = '';
+    let candidateHeaders = new Headers();
     let candidateBody = '';
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
-      authorization = new Headers(init.headers).get('authorization') ?? '';
+      candidateHeaders = new Headers(init.headers);
       candidateBody = String(init.body);
-      return new Response(JSON.stringify({
-        output: [{
-          type: 'image_generation_call',
-          status: 'completed',
-          result: VALID_PNG,
-          revised_prompt: 'REVISED_PROMPT_SECRET_SENTINEL',
-        }],
-        usage: { total_tokens: 7, generated_images: 1 },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      const sse = [
+        `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG.slice(0, -4) })}`,
+        `data: ${JSON.stringify({ partial_image_index: 0, partial_image_b64: VALID_PNG })}`,
+        `data: ${JSON.stringify({
+          type: 'response.completed',
+          response: {
+            output: [{
+              type: 'image_generation_call',
+              revised_prompt: 'REVISED_PROMPT_SECRET_SENTINEL',
+            }],
+            usage: { total_tokens: 7, generated_images: 1 },
+          },
+        })}`,
+        'data: [DONE]',
+        '',
+      ].join('\n\n');
+      return new Response(sse, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -138,13 +146,28 @@ describe('CodexImageLiveVerifier', () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(proxyAccount).toBe(RAW_ACCOUNT_ID);
-    expect(authorization).toBe('Bearer CREDENTIAL_SECRET_SENTINEL');
+    expect(candidateHeaders.get('authorization')).toBe('Bearer CREDENTIAL_SECRET_SENTINEL');
+    expect(candidateHeaders.get('accept')).toBe('text/event-stream');
+    expect(candidateHeaders.get('originator')).toBe('codex_cli_rs');
+    expect(candidateHeaders.get('user-agent')).toMatch(/^codex_cli_rs\//u);
+    expect(candidateHeaders.get('version')).toMatch(/^\d+\.\d+\.\d+$/u);
     expect(JSON.parse(candidateBody)).toMatchObject({
-      model: 'gpt-image-2',
-      input: 'A single solid black square.',
-      stream: false,
+      instructions: '',
+      model: 'gpt-5.6-luna',
+      input: [{
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: 'A single solid black square.' }],
+      }],
+      stream: true,
       store: false,
-      tools: [{ type: 'image_generation', quality: 'low', output_format: 'png' }],
+      tools: [{
+        type: 'image_generation',
+        action: 'generate',
+        model: 'gpt-image-2',
+        quality: 'low',
+        output_format: 'png',
+      }],
     });
     expect(result).toEqual({
       accountId: RAW_ACCOUNT_ID,

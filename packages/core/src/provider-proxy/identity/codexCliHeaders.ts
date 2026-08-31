@@ -14,12 +14,12 @@
  * shares this relay and must stay byte-identical — sending it `originator:
  * codex_cli_rs` would be wrong and could trip its own checks.
  *
- * Modeled on claude-relay-service (`routes/openaiRoutes.js`, the codex branch).
+ * Modeled on observed Codex CLI-compatible relay behavior.
  *
  * NOT DONE HERE (deliberate, see the relay call site):
- *  - `chatgpt-account-id`: CRS sends the ChatGPT account id parsed out of the
- *    OAuth `id_token`. Guessing it wrong risks a 403 on a path that currently
- *    works, so it is left to a follow-up that can verify the value.
+ *  - `chatgpt-account-id`: compatible implementations send the ChatGPT account
+ *    id parsed out of the OAuth `id_token`. Guessing it wrong risks a 403 on a
+ *    path that currently works, so it is left to a follow-up that can verify it.
  *  - forcing `store: false` on the body: a body mutation with its own regression
  *    surface, tracked separately.
  *
@@ -31,13 +31,16 @@ import {
   NEVER_FORWARD_HEADERS,
 } from './headerMerge';
 
+export { fillMissingHeaders } from './headerMerge';
+
 /**
  * Client markers a real `codex` CLI invocation carries. Used ONLY to fill a slot
  * the caller left empty — a forwarded real value always wins, so a genuine Codex
  * CLI keeps its own identity and only a caller that sent nothing gets these.
  *
  * `originator` is the load-bearing one: it is how the backend tells the Codex
- * CLI apart from a generic Responses client, and CRS sends it unconditionally.
+ * CLI apart from a generic Responses client, so compatible relays send it
+ * unconditionally.
  */
 export const DEFAULT_CODEX_CLI_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   originator: 'codex_cli_rs',
@@ -47,8 +50,8 @@ export const DEFAULT_CODEX_CLI_HEADERS: Readonly<Record<string, string>> = Objec
 
 /**
  * Caller headers forwarded verbatim to the Codex backend (positive allow-list,
- * mirroring the `allowedKeys` in CRS's codex branch plus the client identity
- * markers). Auth/cookie/host are excluded BY CONSTRUCTION.
+ * matching the verified Codex relay allow-list plus the client identity markers).
+ * Auth/cookie/host are excluded BY CONSTRUCTION.
  */
 const CODEX_FORWARD_ALLOWLIST: ReadonlySet<string> = new Set([
   'version',

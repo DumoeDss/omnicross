@@ -223,17 +223,73 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     await lease.release();
   });
 
-  it('keeps the production default fail-closed without evidence', async () => {
-    const fetchMock = vi.fn();
+  it('bootstraps the first real generation through the Codex image bridge', async () => {
+    let capturedHeaders = new Headers();
+    let capturedBody: Record<string, unknown> = {};
+    const sse = [
+      `data: ${JSON.stringify({
+        type: 'response.image_generation_call.partial_image',
+        partial_image_index: 0,
+        partial_image_b64: VALID_PNG.slice(0, -4),
+      })}`,
+      `data: ${JSON.stringify({
+        type: 'response.image_generation_call.partial_image',
+        partial_image_index: 0,
+        partial_image_b64: VALID_PNG,
+      })}`,
+      `data: ${JSON.stringify({
+        type: 'response.completed',
+        response: { usage: { total_tokens: 7 } },
+      })}`,
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      capturedHeaders = new Headers(init.headers);
+      capturedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return new Response(sse, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      });
+    });
     vi.stubGlobal('fetch', fetchMock);
     const provider = createCodexSubscriptionImageProvider({ authStrategy: makeAuth(), now: () => 1_000 });
     const lease = await provider.acquire(context());
     expect(lease.capabilities).toMatchObject({
-      available: false,
-      reason: 'account_unverified',
+      available: true,
+      models: ['gpt-image-2'],
+      generate: true,
     });
-    expect(() => lease.start(request)).toThrowError(/capability/i);
-    expect(fetchMock).not.toHaveBeenCalled();
+    const events = await collectEvents(lease.start(request).events);
+    expect(events.map((event) => event.type)).toEqual(['accepted', 'completed']);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(capturedHeaders.get('accept')).toBe('text/event-stream');
+    expect(capturedHeaders.get('originator')).toBe('codex_cli_rs');
+    expect(capturedHeaders.get('user-agent')).toMatch(/^codex_cli_rs\//u);
+    expect(capturedHeaders.get('version')).toMatch(/^\d+\.\d+\.\d+$/u);
+    expect(capturedBody).toMatchObject({
+      instructions: '',
+      model: 'gpt-5.6-luna',
+      stream: true,
+      store: false,
+      reasoning: { effort: 'medium', summary: 'auto' },
+      parallel_tool_calls: true,
+      include: ['reasoning.encrypted_content'],
+      tool_choice: { type: 'image_generation' },
+      input: [{
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: 'SECRET_PROMPT_SENTINEL' }],
+      }],
+      tools: [{
+        type: 'image_generation',
+        action: 'generate',
+        model: 'gpt-image-2',
+        quality: 'auto',
+        background: 'auto',
+        output_format: 'png',
+      }],
+    });
     await lease.release();
   });
 

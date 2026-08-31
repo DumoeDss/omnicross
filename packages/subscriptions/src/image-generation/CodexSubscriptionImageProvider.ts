@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type {
+  ImageCapabilities,
   ImageProviderCompletedEvent,
   ImageProviderFailedEvent,
 } from '@omnicross/contracts/image-generation-types';
@@ -21,13 +22,16 @@ import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 import type { AuthStrategy } from '../auth';
 import {
   createCodexImageAdapterEvidence,
+  CODEX_IMAGE_ADAPTER_VALUES,
   type CodexImageCapabilityEvidence,
   type CodexImageCapabilityEvidenceSource,
   UnknownCodexImageCapabilityEvidenceSource,
 } from './capabilityEvidence';
 import { mapCandidateCodexImageFailure } from './privateWireErrors';
 import {
+  applyCandidateCodexImageHeaders,
   buildCandidateCodexImageRequest,
+  CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
   CANDIDATE_CODEX_IMAGE_URL,
 } from './privateWireRequest';
 import {
@@ -79,14 +83,12 @@ class CodexSubscriptionImageProvider implements ImageProvider {
     if (this.#auth.providerId !== 'codex') throw new ImageGenerationError('upstream_auth_required');
 
     let selectedAccountId: string | undefined;
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
+    applyCandidateCodexImageHeaders(headers);
     try {
       await this.#auth.applyHeaders(headers, {
         upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
-        resolvedModel: 'gpt-image-2',
+        resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
         sessionKey: context.sessionKey,
         preferredAccountId: context.preferredAccountId,
         preferredAccountGroup: context.preferredAccountGroup,
@@ -120,8 +122,8 @@ class CodexSubscriptionImageProvider implements ImageProvider {
         throw new ImageGenerationError('request_cancelled', { cause: context.signal.reason });
       }
       evidence = {
-        account: { kind: 'account', source: 'codex-image-entitlement-unknown' },
-        upstream: { kind: 'upstream', source: 'codex-image-protocol-unverified' },
+        account: { kind: 'account', source: 'codex-image-evidence-source-failed' },
+        upstream: { kind: 'upstream', source: 'codex-image-evidence-source-failed' },
       };
     }
     if (context.signal.aborted) {
@@ -129,11 +131,23 @@ class CodexSubscriptionImageProvider implements ImageProvider {
       selectedAccountId = undefined;
       throw new ImageGenerationError('request_cancelled', { cause: context.signal.reason });
     }
-    const capabilities = resolveImageCapabilities({
+    const resolvedCapabilities = resolveImageCapabilities({
       adapter: createCodexImageAdapterEvidence(this.#now()),
       account: evidence.account,
       upstream: evidence.upstream,
     }, this.#now());
+    // The image bridge is a known local protocol. Unknown persisted entitlement
+    // means "try the real account", not "reject before contacting upstream".
+    // A real upstream denial is still surfaced by the stable 4xx mapping.
+    const bootstrapEligible =
+      evidence.account.source === 'codex-image-entitlement-unknown' &&
+      evidence.upstream.source === 'codex-image-protocol-unverified';
+    const capabilities: ImageCapabilities = resolvedCapabilities.available
+      ? resolvedCapabilities
+      : bootstrapEligible ? Object.freeze({
+          ...CODEX_IMAGE_ADAPTER_VALUES,
+          resolvedAt: this.#now(),
+        }) : resolvedCapabilities;
 
     let released = false;
     let started = false;
@@ -261,13 +275,11 @@ class CodexSubscriptionImageProvider implements ImageProvider {
           if (!refreshed) break;
           authRefreshCount += 1;
           let refreshedAccount: string | undefined;
-          const refreshedHeaders: Record<string, string> = {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          };
+          const refreshedHeaders: Record<string, string> = {};
+          applyCandidateCodexImageHeaders(refreshedHeaders);
           await self.#auth.applyHeaders(refreshedHeaders, {
             upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
-            resolvedModel: request.model,
+            resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
             sessionKey: context.sessionKey,
             preferredAccountId: accountId,
             boundAccountFallbackPolicy: context.boundAccountFallbackPolicy,

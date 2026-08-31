@@ -16,7 +16,9 @@ import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 import type { AuthStrategy } from '../auth';
 import { mapCandidateCodexImageFailure } from './privateWireErrors';
 import {
+  applyCandidateCodexImageHeaders,
   buildCandidateCodexImageRequest,
+  CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
   CANDIDATE_CODEX_IMAGE_URL,
 } from './privateWireRequest';
 import {
@@ -145,16 +147,14 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
       controller.abort(new ImageGenerationError('image_generation_timeout'));
     }, this.#generationTimeoutMs);
     timeout.unref();
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
+    applyCandidateCodexImageHeaders(headers);
     let accountId: string | undefined;
     let parsed: ParsedCandidateCodexImageResponse | undefined;
     try {
       await this.#auth.applyHeaders(headers, {
         upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
-        resolvedModel: TESTED_REQUEST.model,
+        resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
         sessionKey: request.sessionKey,
         preferredAccountId: request.preferredAccountId,
         preferredAccountGroup: request.preferredAccountGroup,

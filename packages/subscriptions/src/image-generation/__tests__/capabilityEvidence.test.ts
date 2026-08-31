@@ -28,7 +28,7 @@ describe('Codex image capability evidence', () => {
     expect(evidence.upstream.values).toBeUndefined();
   });
 
-  it('does not upgrade from text success, config toggles, or a gpt-image-2 name', async () => {
+  it('exposes only the known image bridge baseline before account evidence exists', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const provider = createCodexSubscriptionImageProvider({ authStrategy: auth(), now: () => 1_000 });
     const lease = await provider.acquire({
@@ -38,19 +38,22 @@ describe('Codex image capability evidence', () => {
       signal: new AbortController().signal,
     });
     expect(lease.capabilities).toMatchObject({
-      available: false,
-      reason: 'account_unverified',
+      available: true,
+      models: ['gpt-image-2'],
+      generate: true,
+      responsesTool: true,
       streaming: false,
       transparentBackground: false,
-      qualityLevels: [],
-      moderationModes: [],
-      outputCompression: { supported: false },
+      qualityLevels: ['auto', 'low', 'medium', 'high'],
+      moderationModes: ['auto', 'low'],
+      outputCompression: { supported: true },
     });
-    expect(() => lease.start({
+    const job = lease.start({
       action: 'generate', model: 'gpt-image-2', prompt: 'not dispatched', n: 1,
       quality: 'auto', size: { kind: 'auto' }, background: 'auto', outputFormat: 'png',
       moderation: 'auto', stream: false, partialImages: 0,
-    })).toThrow(/capability/i);
+    });
+    await job.cancel();
     expect(fetchSpy).not.toHaveBeenCalled();
     await lease.release();
     fetchSpy.mockRestore();
