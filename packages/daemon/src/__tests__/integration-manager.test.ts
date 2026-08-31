@@ -1,8 +1,9 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createIntegrationKey, createNamedKey } from '@omnicross/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultIntegrationsPath, defaultKeysPath } from '../commands/paths';
@@ -25,17 +26,16 @@ function fixture() {
   const configPath = join(root, 'config.json');
   mkdirSync(home, { recursive: true });
   writeFileSync(configPath, '{"providers":[]}\n', 'utf8');
-  const db = new JsonOutboundKeyDb(defaultKeysPath(configPath));
-  const store = new IntegrationStateStore(
-    defaultIntegrationsPath(configPath),
-    new SecretBox(randomBytes(32)),
-  );
+  const box = new SecretBox(randomBytes(32));
+  const db = new JsonOutboundKeyDb(defaultKeysPath(configPath), box);
+  const store = new IntegrationStateStore(defaultIntegrationsPath(configPath), box);
   const manager = new IntegrationManager({
     configPath,
     gatewayBaseUrl: 'http://127.0.0.1:8765',
     keyDb: db,
     stateStore: store,
     homeDir: home,
+    codexAuthHelper: { command: 'node.exe', args: ['omnicross.js', 'integrations', 'token', 'codex'] },
   });
   return { root, home, configPath, db, store, manager };
 }
@@ -73,7 +73,7 @@ describe('IntegrationManager', () => {
       .toBe('{"access_token":"credential snapshot"}');
   });
 
-  it('installs Codex API-key auth and restores the exact TOML and auth.json', async () => {
+  it('installs Codex command auth without touching auth.json, then restores the exact TOML', async () => {
     const f = fixture();
     const codexDir = join(f.home, '.codex');
     const codexPath = join(codexDir, 'config.toml');
@@ -85,24 +85,31 @@ describe('IntegrationManager', () => {
 
     const status = await f.manager.install('codex');
     expect(status.status).toBe('enabled');
+    expect(status.key).toMatchObject({
+      ownership: 'managed',
+      revealable: true,
+      allowedEndpoints: ['responses', 'images'],
+      requiredEndpoints: ['responses', 'images'],
+    });
     const installed = readFileSync(codexPath, 'utf8');
     expect(installed).toContain('model_provider = "omnicross"');
-    expect(installed).toContain('preferred_auth_method = "apikey"');
-    expect(installed).toContain('requires_openai_auth = true');
-    expect(installed).not.toContain('[model_providers.omnicross.auth]');
+    expect(installed).toContain('preferred_auth_method = "chatgpt"');
+    expect(installed).not.toContain('requires_openai_auth');
+    expect(installed).toContain('[model_providers.omnicross.auth]');
+    expect(installed).toContain('X-OpenAI-Actor-Authorization');
     expect(installed).not.toContain('sk-omnicross-');
-    const installedAuth = JSON.parse(readFileSync(join(codexDir, 'auth.json'), 'utf8')) as {
-      auth_mode: string;
-      OPENAI_API_KEY: string;
-    };
-    expect(installedAuth.auth_mode).toBe('apikey');
-    expect(installedAuth.OPENAI_API_KEY).toMatch(/^sk-omnicross-/);
+    expect(readFileSync(join(codexDir, 'auth.json'), 'utf8')).toBe(originalAuth);
+    expect(await f.manager.getIntegrationToken('codex')).toMatch(/^sk-omnicross-/);
 
     const stateOnDisk = readFileSync(defaultIntegrationsPath(f.configPath), 'utf8');
     expect(stateOnDisk).not.toContain('sk-omnicross-');
     expect(stateOnDisk).not.toContain('model_provider = \\"openai\\"');
     expect(stateOnDisk).not.toContain('native-token');
     expect(stateOnDisk).toContain('enc:v1:');
+    expect(f.store.load()).toMatchObject({
+      gatewayKey: undefined,
+      keyBindings: { codex: { ownership: 'managed' } },
+    });
 
     await f.manager.remove('codex');
     expect(readFileSync(codexPath, 'utf8')).toBe(original);
@@ -146,15 +153,15 @@ describe('IntegrationManager', () => {
     expect((await f.manager.listStatus())[0].status).toBe('configuration-drift');
   });
 
-  it('detects auth.json drift and refuses to overwrite it during removal', async () => {
+  it('never treats auth.json changes as integration drift and preserves them during removal', async () => {
     const f = fixture();
     await f.manager.install('codex');
     const authPath = join(f.home, '.codex', 'auth.json');
     writeFileSync(authPath, '{"auth_mode":"apikey","OPENAI_API_KEY":"user-replacement"}\n', 'utf8');
 
     const status = (await f.manager.listStatus()).find((entry) => entry.client === 'codex');
-    expect(status).toMatchObject({ status: 'configuration-drift' });
-    await expect(f.manager.remove('codex')).rejects.toBeInstanceOf(IntegrationConflictError);
+    expect(status).toMatchObject({ status: 'enabled' });
+    await f.manager.remove('codex');
     expect(readFileSync(authPath, 'utf8')).toContain('user-replacement');
   });
 
@@ -193,38 +200,39 @@ describe('IntegrationManager', () => {
     const installed = readFileSync(settingsPath, 'utf8');
     const state = f.store.load();
     delete state.gatewayKey;
+    if (state.keyBindings) delete state.keyBindings.claude;
     f.store.save(state);
 
     await expect(f.manager.repair('claude')).rejects.toBeInstanceOf(IntegrationConflictError);
     expect(readFileSync(settingsPath, 'utf8')).toBe(installed);
   });
 
-  it('rotates the shared key, updates Codex and Claude, and revokes the old row', async () => {
+  it('rotates per-client managed keys and revokes both old rows', async () => {
     const f = fixture();
     await f.manager.install('codex');
     await f.manager.install('claude');
-    const codexAuthPath = join(f.home, '.codex', 'auth.json');
     const settingsPath = join(f.home, '.claude', 'settings.json');
-    const oldCodexToken = (JSON.parse(readFileSync(codexAuthPath, 'utf8')) as { OPENAI_API_KEY: string })
-      .OPENAI_API_KEY;
-    const oldToken = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { env: Record<string, string> })
-      .env.ANTHROPIC_AUTH_TOKEN;
-    const oldKeyId = f.store.load().gatewayKey?.id;
+    const oldCodexToken = await f.manager.getIntegrationToken('codex');
+    const oldClaudeToken = await f.manager.getIntegrationToken('claude');
+    const oldBindings = f.store.load().keyBindings;
 
     const rotated = await f.manager.rotateGatewayKey();
-    const nextToken = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { env: Record<string, string> })
+    const nextClaudeToken = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { env: Record<string, string> })
       .env.ANTHROPIC_AUTH_TOKEN;
-    const nextCodexToken = (JSON.parse(readFileSync(codexAuthPath, 'utf8')) as { OPENAI_API_KEY: string })
-      .OPENAI_API_KEY;
-    expect(nextToken).not.toBe(oldToken);
+    const nextCodexToken = await f.manager.getIntegrationToken('codex');
+    expect(nextClaudeToken).not.toBe(oldClaudeToken);
     expect(nextCodexToken).not.toBe(oldCodexToken);
-    expect(nextCodexToken).toBe(nextToken);
-    expect(await f.manager.getGatewayToken()).toBe(nextToken);
-    expect(rotated.keyId).not.toBe(oldKeyId);
+    expect(nextCodexToken).not.toBe(nextClaudeToken);
+    expect(rotated.keyIds.codex).not.toBe(oldBindings?.codex?.keyId);
+    expect(rotated.keyIds.claude).not.toBe(oldBindings?.claude?.keyId);
     const rows = await f.db.outboundApiKeysList();
-    expect(rows.find((row) => row.id === oldKeyId)?.revokedAt).not.toBeNull();
-    expect(rows.find((row) => row.id === rotated.keyId)).toMatchObject({
-      kind: 'integration', loopbackOnly: true, allowedEndpoints: ['responses', 'messages'],
+    expect(rows.find((row) => row.id === oldBindings?.codex?.keyId)?.revokedAt).not.toBeNull();
+    expect(rows.find((row) => row.id === oldBindings?.claude?.keyId)?.revokedAt).not.toBeNull();
+    expect(rows.find((row) => row.id === rotated.keyIds.codex)).toMatchObject({
+      kind: 'integration', loopbackOnly: true, allowedEndpoints: ['responses', 'images'],
+    });
+    expect(rows.find((row) => row.id === rotated.keyIds.claude)).toMatchObject({
+      kind: 'integration', loopbackOnly: true, allowedEndpoints: ['messages'],
     });
   });
 
@@ -234,7 +242,7 @@ describe('IntegrationManager', () => {
     expect(existsSync(target)).toBe(false);
     await f.manager.install('codex');
     expect(existsSync(target)).toBe(true);
-    expect(existsSync(join(f.home, '.codex', 'auth.json'))).toBe(true);
+    expect(existsSync(join(f.home, '.codex', 'auth.json'))).toBe(false);
     await f.manager.remove('codex');
     expect(existsSync(target)).toBe(false);
     expect(existsSync(join(f.home, '.codex', 'auth.json'))).toBe(false);
@@ -250,7 +258,7 @@ describe('IntegrationManager', () => {
     })).toThrow(/loopback/);
   });
 
-  it('writes auth.json next to a custom Codex config target', async () => {
+  it('writes command auth to a custom Codex config target without creating auth.json', async () => {
     const f = fixture();
     const customDir = join(f.root, 'custom-codex-home');
     const customConfigPath = join(customDir, 'config.toml');
@@ -264,9 +272,98 @@ describe('IntegrationManager', () => {
 
     await manager.install('codex', customConfigPath);
     expect(existsSync(customConfigPath)).toBe(true);
-    expect(JSON.parse(readFileSync(join(customDir, 'auth.json'), 'utf8'))).toMatchObject({
-      auth_mode: 'apikey',
+    expect(readFileSync(customConfigPath, 'utf8')).toContain('[model_providers.omnicross.auth]');
+    expect(existsSync(join(customDir, 'auth.json'))).toBe(false);
+  });
+
+  it('binds a selected key, grants Codex image permission, and does not revoke it on removal', async () => {
+    const f = fixture();
+    await f.manager.install('codex');
+    const oldManagedId = f.store.load().keyBindings?.codex?.keyId;
+    const selected = await createNamedKey(f.db, 'My reusable key');
+
+    const status = await f.manager.bindIntegrationKey('codex', selected.id);
+    expect(status).toMatchObject({
+      status: 'enabled',
+      key: { id: selected.id, ownership: 'selected' },
     });
+    expect(await f.manager.getIntegrationToken('codex')).toBe(selected.plaintextOnce);
+    const rows = await f.db.outboundApiKeysList();
+    expect(rows.find((row) => row.id === selected.id)?.allowedEndpoints).toEqual([
+      'chat', 'responses', 'messages', 'gemini', 'images',
+    ]);
+    expect(rows.find((row) => row.id === oldManagedId)?.revokedAt).not.toBeNull();
+
+    await f.manager.remove('codex');
+    expect((await f.db.outboundApiKeysList()).find((row) => row.id === selected.id)).toMatchObject({
+      enabled: true,
+      revokedAt: null,
+    });
+  });
+
+  it('migrates a legacy shared key and restores the original Codex auth.json on repair', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    const codexPath = join(codexDir, 'config.toml');
+    const authPath = join(codexDir, 'auth.json');
+    mkdirSync(codexDir, { recursive: true });
+    const original = 'model_provider = "openai"\npreferred_auth_method = "chatgpt"\n';
+    const installed = [
+      'model_provider = "omnicross" # managed by Omnicross',
+      'preferred_auth_method = "apikey" # managed by Omnicross',
+      '',
+      '# >>> omnicross managed provider >>>',
+      '[model_providers.omnicross]',
+      'name = "Omnicross Local Gateway"',
+      'base_url = "http://127.0.0.1:8765/v1"',
+      'wire_api = "responses"',
+      'requires_openai_auth = true',
+      'supports_websockets = false',
+      '# <<< omnicross managed provider <<<',
+      '',
+    ].join('\n');
+    const originalAuth = '{"auth_mode":"chatgpt","tokens":{"access_token":"native"}}\n';
+    const legacy = await createIntegrationKey(f.db, 'Legacy shared integration');
+    const installedAuth = JSON.stringify({
+      auth_mode: 'apikey',
+      OPENAI_API_KEY: legacy.plaintextOnce,
+    }, null, 2) + '\n';
+    writeFileSync(codexPath, installed, 'utf8');
+    writeFileSync(authPath, installedAuth, 'utf8');
+    const digest = (value: string) => createHash('sha256').update(value).digest('hex');
+    f.store.save({
+      version: 1,
+      gatewayKey: { id: legacy.id, secret: legacy.plaintextOnce, createdAt: legacy.createdAt },
+      clients: {
+        codex: {
+          client: 'codex',
+          configPath: codexPath,
+          originalExisted: true,
+          originalContent: original,
+          originalHash: digest(original),
+          installedHash: digest(installed),
+          installedAt: 1,
+          gatewayBaseUrl: 'http://127.0.0.1:8765',
+          credentialFile: {
+            path: authPath,
+            originalExisted: true,
+            originalContent: originalAuth,
+            originalHash: digest(originalAuth),
+            installedHash: digest(installedAuth),
+          },
+        },
+      },
+    });
+
+    expect((await f.manager.listStatus())[0]).toMatchObject({ status: 'configuration-drift' });
+    expect(await f.manager.repair('codex')).toMatchObject({ status: 'enabled' });
+    expect(readFileSync(authPath, 'utf8')).toBe(originalAuth);
+    expect(readFileSync(codexPath, 'utf8')).toContain('[model_providers.omnicross.auth]');
+    expect(f.store.load()).toMatchObject({
+      gatewayKey: undefined,
+      keyBindings: { codex: { ownership: 'managed' } },
+    });
+    expect((await f.db.outboundApiKeysList()).find((row) => row.id === legacy.id)?.revokedAt).not.toBeNull();
   });
 
   it('rejects localhost names and URL query fragments for an unauthenticated gateway key', () => {

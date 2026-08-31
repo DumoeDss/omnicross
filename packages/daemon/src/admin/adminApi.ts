@@ -1695,18 +1695,26 @@ async function handleKeys(
   const id = rest[0];
   const action = rest[1];
   if (method === 'POST' && id && action === 'revoke') {
+    const bound = await integrationKeyRequirement(deps, id);
+    if (bound) return writeJsonError(res, 409, bound);
     const ok = await deps.keyDb.outboundApiKeysRevoke(id);
     return writeJson(res, ok ? 200 : 404, { ok });
   }
   // DELETE /keys/:id → permanently remove a key row (hard delete). Intended for
   // cleaning up already-revoked keys; unlike revoke (soft), this purges the row.
   if (method === 'DELETE' && id && !action) {
+    const bound = await integrationKeyRequirement(deps, id);
+    if (bound) return writeJsonError(res, 409, bound);
     const ok = await deps.keyDb.outboundApiKeysDelete(id);
     return writeJson(res, ok ? 200 : 404, { ok });
   }
   if (method === 'POST' && id && action === 'enabled') {
     const body = await readJsonBody(req);
     const enabled = body['enabled'] === true;
+    if (!enabled) {
+      const bound = await integrationKeyRequirement(deps, id);
+      if (bound) return writeJsonError(res, 409, bound);
+    }
     const ok = await deps.keyDb.outboundApiKeysSetEnabled(id, enabled);
     return writeJson(res, ok ? 200 : 404, { ok, enabled });
   }
@@ -1729,6 +1737,9 @@ async function handleKeys(
     const before = (await deps.keyDb.outboundApiKeysList()).find((row) => row.id === id);
     if (!before) return writeJson(res, 404, { ok: false });
     if (before.revokedAt !== null) return writeJson(res, 409, { ok: false });
+
+    const required = await integrationKeyRequirement(deps, id, permissions);
+    if (required) return writeJsonError(res, 409, required);
 
     const ok = await deps.keyDb.outboundApiKeysSetPermissions(id, permissions);
     if (!ok) {
@@ -2596,6 +2607,14 @@ async function handleIntegrations(
     if (!isIntegrationClient(client)) {
       return writeJsonError(res, 400, `unknown integration client '${client ?? ''}'`);
     }
+    if (method === 'POST' && rest[1] === 'key') {
+      const body = await readJsonBody(req);
+      if (Object.keys(body).length !== 1 || typeof body.keyId !== 'string' || !body.keyId.trim()) {
+        return writeJsonError(res, 400, 'body must contain a non-empty keyId string');
+      }
+      const status = await manager.bindIntegrationKey(client, body.keyId.trim());
+      return writeJson(res, 200, { integration: status });
+    }
     if (method === 'POST' && rest[1] === 'plan') {
       const body = await readJsonBody(req);
       const configPath = body.configPath;
@@ -2633,6 +2652,30 @@ async function handleIntegrations(
 
 function isIntegrationClient(value: string | undefined): value is IntegrationClientId {
   return value === 'codex' || value === 'claude';
+}
+
+async function integrationKeyRequirement(
+  deps: AdminApiDeps,
+  keyId: string,
+  proposedPermissions?: readonly OutboundPermission[],
+): Promise<string | undefined> {
+  const factory = deps.integrationManagerFactory;
+  if (!factory) return undefined;
+  const bound = (await factory().listStatus()).filter((status) => status.key?.id === keyId);
+  if (bound.length === 0) return undefined;
+  if (proposedPermissions) {
+    const missing = new Set<OutboundPermission>();
+    for (const status of bound) {
+      for (const required of status.key?.requiredEndpoints ?? []) {
+        if (!proposedPermissions.includes(required)) missing.add(required);
+      }
+    }
+    if (missing.size === 0) return undefined;
+    return `key '${keyId}' is bound to a CLI integration; required permissions cannot be removed: ${[
+      ...missing,
+    ].join(', ')}`;
+  }
+  return `key '${keyId}' is bound to a CLI integration; select another key or remove the integration first`;
 }
 
 const IMAGE_ADMIN_STATUS_TENANT = 'admin:image-capability-status';

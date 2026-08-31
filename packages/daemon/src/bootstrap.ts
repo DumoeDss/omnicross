@@ -101,7 +101,11 @@ import {
   defaultUsageEventsPath,
   defaultVouchersPath,
 } from './commands/paths';
-import { IntegrationManager, IntegrationStateStore } from './integrations';
+import {
+  currentProcessCodexAuthHelper,
+  IntegrationManager,
+  IntegrationStateStore,
+} from './integrations';
 import {
   createImageDoctorService,
   type ImageDoctorService,
@@ -979,6 +983,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
         gatewayBaseUrl: live.loopbackUrl ?? `http://127.0.0.1:${port}`,
         keyDb,
         stateStore: integrationStateStore,
+        codexAuthHelper: currentProcessCodexAuthHelper(paths.configPath, paths.masterKeyFilePath),
       });
     },
     // Usage/pricing admin surface (usage-pricing child): stats queries go

@@ -941,6 +941,14 @@
         "manage": "Manage downstream bindings",
         "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes."
       },
+      "integrations": {
+        "useFor": "Use for {{name}}",
+        "inUse": "In use",
+        "unavailable": "Only enabled, non-revoked, revealable keys can be used for CLI integrations.",
+        "confirmTitle": "Use this key for {{name}}?",
+        "confirmDescription": "Omnicross will bind \"{{key}}\" and add the required endpoint permissions: {{permissions}}. A previously selected user key will not be revoked.",
+        "confirm": "Bind key"
+      },
       "policy": {
         "title": "Policy",
         "expiryMode": "Expiry",
@@ -1566,7 +1574,9 @@
     },
     "persistent": {
       "title": "Persistent integration",
-      "description": "After enabling, ordinary codex or claude commands use Omnicross without a special launcher. The shared integration key stays hidden.",
+      "description": "After enabling, ordinary codex or claude commands use Omnicross without a special launcher. Each client uses its selected access key.",
+      "keySelected": "Selected key",
+      "keyManaged": "Omnicross managed",
       "gatewayRunning": "Gateway running",
       "gatewayStopped": "Gateway stopped",
       "gatewayStoppedHint": "The native CLI configuration is present, but requests cannot reach Omnicross until the outbound gateway is running.",
@@ -1588,10 +1598,10 @@
       "removeTitle": "Remove {{name}} integration?",
       "removeDescription": "Omnicross will restore the configuration captured before installation. If the file has changed since then, it will refuse to overwrite your edits.",
       "removeLocked": "Resolve the configuration drift before removing this integration.",
-      "rotate": "Rotate shared key",
-      "rotateTitle": "Rotate the shared integration key?",
-      "rotateDescription": "A new least-privilege key will replace the current one in every managed integration. The key is never displayed in the UI.",
-      "rotateLocked": "Resolve configuration drift before rotating the shared key.",
+      "rotate": "Rotate managed keys",
+      "rotateTitle": "Rotate managed integration keys?",
+      "rotateDescription": "New least-privilege keys will replace Omnicross-managed bindings. User-selected keys stay unchanged.",
+      "rotateLocked": "Resolve configuration drift before rotating managed keys.",
       "driftProtection": "This file changed after Omnicross installed it. Direct removal is locked to protect your edits; review the repair plan to reconcile only managed fields.",
       "attention": "This integration needs attention. Follow the status guidance, then refresh this page.",
       "status": {

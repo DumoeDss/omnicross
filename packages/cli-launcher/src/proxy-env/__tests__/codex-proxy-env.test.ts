@@ -5,7 +5,8 @@
  *  (a) `buildCodexConfigOverrides` — the load-bearing `-c key=value` contract:
  *      the exact TOML keys + types the Codex CLI must receive to be redirected
  *      at the proxy (`model_provider`, `model_providers.<name>.base_url`,
- *      `wire_api="responses"`, dedicated route-token `env_key`, and
+ *      `wire_api="responses"`, dedicated route-token `env_key`, the non-secret
+ *      actor-authorization capability marker for standalone image generation, and
  *      `disable_response_storage=true`), with the listener base path appended.
  *  (b) `buildCodexLaunchConfig` (BYO) — drives a real resident `ProviderProxy`, returns
  *      `{ env, extraArgs, baseUrl, onSessionEnd }`; the overrides embed the
@@ -86,6 +87,13 @@ describe('buildCodexConfigOverrides (the -c redirect contract)', () => {
     expect(overrideValue(overrides, `model_providers.${name}.env_key`)).toBe('"OMNICROSS_CODEX_ROUTE_TOKEN"');
     expect(overrideValue(overrides, `model_providers.${name}.requires_openai_auth`)).toBeUndefined();
     expect(overrideValue(overrides, `model_providers.${name}.name`)).toBe('"OmniCross"');
+  });
+
+  it('advertises standalone image generation without using the marker as a credential', () => {
+    expect(overrideValue(overrides, `model_providers.${name}.http_headers`)).toBe(
+      '{"X-OpenAI-Actor-Authorization"="omnicross"}'
+    );
+    expect(overrideValue(overrides, `model_providers.${name}.requires_openai_auth`)).toBeUndefined();
   });
 
   it('disables server-side response storage (stateless upstream)', () => {

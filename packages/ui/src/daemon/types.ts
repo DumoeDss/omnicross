@@ -579,6 +579,19 @@ export type CliIntegrationStatusKind =
   | 'configuration-missing'
   | 'key-missing';
 
+export interface CliIntegrationKeyStatus {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  ownership: 'managed' | 'selected';
+  revealable: boolean;
+  enabled: boolean;
+  revoked: boolean;
+  allowedEndpoints: OutboundPermissionId[];
+  requiredEndpoints: OutboundPermissionId[];
+  loopbackOnly: boolean;
+}
+
 /**
  * One persistent native-CLI integration. The shared gateway key is deliberately
  * absent from this DTO: neither the admin response nor the React layer may see it.
@@ -590,6 +603,7 @@ export interface CliIntegrationStatus {
   installedAt?: number;
   gatewayBaseUrl?: string;
   message?: string;
+  key?: CliIntegrationKeyStatus;
 }
 
 export interface CliIntegrationsOverview {
@@ -646,6 +660,8 @@ export interface AgentCliApi {
   removeIntegration(client: CliIntegrationClient): Promise<MutationResult>;
   /** Reconcile a moved or changed managed config while preserving unrelated settings. */
   repairIntegration(client: CliIntegrationClient): Promise<MutationResult>;
+  /** Bind a revealable access key; the daemon grants the client's required endpoints. */
+  bindIntegrationKey(client: CliIntegrationClient, keyId: string): Promise<MutationResult>;
   /** Rotate the shared least-privilege key. Its plaintext never crosses this API. */
   rotateIntegrationKey(): Promise<MutationResult>;
 }

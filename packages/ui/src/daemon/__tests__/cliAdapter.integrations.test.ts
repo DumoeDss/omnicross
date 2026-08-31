@@ -74,10 +74,8 @@ describe('CLI persistent integration adapter', () => {
       canApply: true,
       changes: [
         'model_provider',
-        'preferred_auth_method',
         'model_providers.omnicross',
-        'auth.json.auth_mode',
-        'auth.json.OPENAI_API_KEY',
+        'model_providers.omnicross.auth',
       ],
       warnings: [],
     };
@@ -108,6 +106,14 @@ describe('CLI persistent integration adapter', () => {
 
     expect(await createCliAdapter().repairIntegration('codex')).toEqual({ success: true });
     expect(mocked.post).toHaveBeenCalledWith('/integrations/codex/repair', {});
+  });
+
+  it('binds an access key by id without sending plaintext', async () => {
+    mocked.post.mockResolvedValueOnce({ integration: OVERVIEW.integrations[0] });
+
+    expect(await createCliAdapter().bindIntegrationKey('codex', 'oak_123')).toEqual({ success: true });
+    expect(mocked.post).toHaveBeenCalledWith('/integrations/codex/key', { keyId: 'oak_123' });
+    expect(JSON.stringify(mocked.post.mock.calls)).not.toContain('sk-omnicross-');
   });
 
   it('surfaces conflict errors without claiming success', async () => {

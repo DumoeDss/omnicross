@@ -1,8 +1,9 @@
 export { IntegrationManager, IntegrationConflictError } from './IntegrationManager';
 export { IntegrationStateStore } from './IntegrationStateStore';
+export { currentProcessCodexAuthHelper } from './codexAuthHelper';
+export type { CodexAuthHelperConfig } from './codexAuthHelper';
 export {
   renderClaudeSettings,
-  renderCodexAuth,
   renderCodexConfig,
   restoreClaudeBase,
   restoreCodexBase,
@@ -11,6 +12,9 @@ export type {
   IntegrationClientId,
   IntegrationClientStatus,
   IntegrationChangePlan,
+  IntegrationKeyBinding,
+  IntegrationKeyBindingStatus,
+  IntegrationKeyOwnership,
   IntegrationInstallRecord,
   IntegrationManagedFileRecord,
   IntegrationState,

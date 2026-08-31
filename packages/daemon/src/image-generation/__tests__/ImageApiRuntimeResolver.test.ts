@@ -30,10 +30,12 @@ function config(overrides: Partial<ImagesServerConfig> = {}): ImagesServerConfig
 function context(
   apiKeyId: string | undefined,
   bearer = 'Bearer RAW_INBOUND_BEARER_SENTINEL',
+  routeLeaseId?: string,
 ): OpenAIOperationHandlerContext {
   return {
     route: {
       apiKeyId,
+      ...(routeLeaseId ? { routeLease: { leaseId: routeLeaseId, consumer: 'test-consumer' } } : {}),
       preferredAccountId: 'UNTRUSTED_ROUTE_ACCOUNT_SENTINEL',
       preferredAccountGroup: 'UNTRUSTED_ROUTE_GROUP_SENTINEL',
       boundAccountFallbackPolicy: 'strict',
@@ -70,6 +72,23 @@ describe('trusted Images API runtime resolver', () => {
     expect(serialized).not.toContain('RAW_INBOUND_BEARER_SENTINEL');
     expect(serialized).not.toContain('UNTRUSTED_ROUTE_ACCOUNT_SENTINEL');
     expect(serialized).not.toContain('UNTRUSTED_HEADER_TENANT_SENTINEL');
+    resolver.dispose();
+  });
+
+  it('uses the authenticated Route Lease id when no outbound key id exists', async () => {
+    const resolver = createTrustedImageApiRuntimeResolver({
+      config: config(),
+      referenceStore: new InMemoryImageReferenceStore(),
+      hmacKey: Buffer.alloc(32, 9),
+    });
+    const runtime = await resolver.resolve(context(
+      undefined,
+      'Bearer UNTRUSTED_ROUTE_TOKEN_SENTINEL',
+      '12345678-1234-4234-8234-123456789abc',
+    ));
+
+    expect(runtime.tenantId).toBe('route-lease:12345678-1234-4234-8234-123456789abc');
+    expect(JSON.stringify(runtime)).not.toContain('UNTRUSTED_ROUTE_TOKEN_SENTINEL');
     resolver.dispose();
   });
 

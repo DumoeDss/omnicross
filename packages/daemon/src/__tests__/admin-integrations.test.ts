@@ -56,6 +56,7 @@ describe('admin native integrations routes', () => {
     const manager = {
       listStatus: vi.fn(async () => [status]),
       install: vi.fn(async () => status),
+      bindIntegrationKey: vi.fn(async () => status),
     };
     const listed = await call(manager, 'GET', '/admin/api/integrations');
     expect(listed.status).toBe(200);
@@ -65,6 +66,17 @@ describe('admin native integrations routes', () => {
       { configPath: 'D:\\codex\\config.toml' });
     expect(installed.status).toBe(200);
     expect(manager.install).toHaveBeenCalledWith('codex', 'D:\\codex\\config.toml');
+
+    const bound = await call(manager, 'POST', '/admin/api/integrations/codex/key', { keyId: 'oak_123' });
+    expect(bound.status).toBe(200);
+    expect(manager.bindIntegrationKey).toHaveBeenCalledWith('codex', 'oak_123');
+  });
+
+  it('rejects malformed key binding requests', async () => {
+    const manager = { bindIntegrationKey: vi.fn() };
+    const result = await call(manager, 'POST', '/admin/api/integrations/claude/key', { keyId: '' });
+    expect(result.status).toBe(400);
+    expect(manager.bindIntegrationKey).not.toHaveBeenCalled();
   });
 
   it('maps drift conflicts to 409 instead of overwriting', async () => {

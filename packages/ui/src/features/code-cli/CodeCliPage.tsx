@@ -72,7 +72,9 @@ export function CodeCliPage() {
 
   const integrationRows = integrations.overview?.integrations ?? [];
   const integrationMutationBusy = integrations.busyTarget !== null;
-  const canRotate = hasInstalledIntegration(integrationRows) && !hasRotationConflict(integrationRows);
+  const canRotate = hasInstalledIntegration(integrationRows)
+    && integrationRows.some((integration) => integration.key?.ownership === 'managed')
+    && !hasRotationConflict(integrationRows);
 
   const handleRotate = useCallback(async () => {
     const result = await integrations.rotate();

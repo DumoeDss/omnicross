@@ -938,6 +938,14 @@
         "manage": "管理下游绑定",
         "manageHint": "API Key 决定可以进入哪些下游接口；路由目标和模型映射仍在“上游与路由”中管理。"
       },
+      "integrations": {
+        "useFor": "用于 {{name}}",
+        "inUse": "正在使用",
+        "unavailable": "只有已启用、未吊销且可查看的密钥才能用于 CLI 集成。",
+        "confirmTitle": "将此密钥用于 {{name}}？",
+        "confirmDescription": "Omnicross 将绑定“{{key}}”并补充所需端点权限：{{permissions}}。此前由用户选择的密钥不会被吊销。",
+        "confirm": "绑定密钥"
+      },
       "policy": {
         "title": "策略",
         "expiryMode": "有效期",
@@ -1563,7 +1571,9 @@
     },
     "persistent": {
       "title": "持久接入",
-      "description": "启用后，直接运行普通 codex 或 claude 命令即可使用 Omnicross，无需专用启动器；共享接入密钥始终隐藏。",
+      "description": "启用后，直接运行普通 codex 或 claude 命令即可使用 Omnicross，无需专用启动器；每个客户端使用各自选择的访问密钥。",
+      "keySelected": "已选择密钥",
+      "keyManaged": "Omnicross 管理",
       "gatewayRunning": "网关运行中",
       "gatewayStopped": "网关已停止",
       "gatewayStoppedHint": "原生 CLI 配置仍然存在，但对外网关启动前，请求无法到达 Omnicross。",
@@ -1585,10 +1595,10 @@
       "removeTitle": "移除 {{name}} 接入？",
       "removeDescription": "Omnicross 会恢复安装前保存的配置。如果文件此后被修改，将拒绝覆盖你的改动。",
       "removeLocked": "请先解决配置漂移，再移除此接入。",
-      "rotate": "轮换共享密钥",
-      "rotateTitle": "轮换共享接入密钥？",
-      "rotateDescription": "新的最小权限密钥会替换所有托管接入中的现有密钥。UI 永远不会显示密钥内容。",
-      "rotateLocked": "请先解决配置漂移，再轮换共享密钥。",
+      "rotate": "轮换托管密钥",
+      "rotateTitle": "轮换托管接入密钥？",
+      "rotateDescription": "新的最小权限密钥会替换 Omnicross 托管的绑定；用户选择的密钥保持不变。",
+      "rotateLocked": "请先解决配置漂移，再轮换托管密钥。",
       "driftProtection": "Omnicross 安装后该文件又被修改。为保护你的改动，直接移除已锁定；你可以先查看修复计划，只协调托管字段。",
       "attention": "此接入需要处理。请按状态提示修复后刷新本页。",
       "status": {

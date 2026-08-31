@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
@@ -21,6 +21,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
 import { loadConfig } from '../config';
+import {
+  createSyntheticVerifiedImageCapture,
+  createSyntheticVerifiedImageProviderSeam,
+} from './syntheticVerifiedImageProvider';
 
 const OPT_IN = process.env.OMNICROSS_REAL_ROUTE_LEASE_E2E === '1';
 const ADMIN_TOKEN = 'real-cli-local-mock-admin-token';
@@ -44,6 +48,7 @@ interface RuntimeMock {
   errorHits: number;
   cancelHits: number;
   aborted: number;
+  imageToolAdvertisements: number;
 }
 
 interface LeaseCreate {
@@ -64,6 +69,7 @@ let daemon: Daemon;
 let adminBase = '';
 let codexMock: RuntimeMock;
 let claudeMock: RuntimeMock;
+let imageCapture: ReturnType<typeof createSyntheticVerifiedImageCapture>;
 
 function snapshot(path: string): FileSnapshot {
   if (!existsSync(path)) return { exists: false };
@@ -93,19 +99,45 @@ function snapshotRuntimeFiles(runtime: Runtime): Record<string, FileSnapshot> {
   return Object.fromEntries(runtimeFiles(runtime).map((path) => [path, snapshot(path)]));
 }
 
+function resolveCodexNativeBinary(shimDirectory: string): string | undefined {
+  if (process.platform !== 'win32') return undefined;
+  const target = process.arch === 'x64'
+    ? { packageName: 'codex-win32-x64', triple: 'x86_64-pc-windows-msvc' }
+    : process.arch === 'arm64'
+      ? { packageName: 'codex-win32-arm64', triple: 'aarch64-pc-windows-msvc' }
+      : undefined;
+  if (!target) return undefined;
+  const packageRoots = [
+    join(shimDirectory, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', target.packageName),
+    join(shimDirectory, 'node_modules', '@openai', target.packageName),
+  ];
+  for (const packageRoot of packageRoots) {
+    const candidate = join(packageRoot, 'vendor', target.triple, 'bin', 'codex.exe');
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
 function resolveBinary(name: Runtime): { path?: string; reason?: string } {
   const extensions = process.platform === 'win32'
     ? (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';').map((value) => value.toLowerCase())
     : [''];
+  let unsafeShim: string | undefined;
   for (const directory of (process.env.PATH || '').split(delimiter).filter(Boolean)) {
     for (const extension of extensions) {
       const candidate = join(directory, `${name}${extension}`);
       if (!existsSync(candidate)) continue;
       if (process.platform === 'win32' && ['.cmd', '.bat'].includes(extname(candidate).toLowerCase())) {
-        return { reason: `${name} is available only as a Windows command shim; quoted provider argv cannot be passed safely` };
+        const nativeCodex = name === 'codex' ? resolveCodexNativeBinary(directory) : undefined;
+        if (nativeCodex) return { path: nativeCodex };
+        unsafeShim ??= candidate;
+        continue;
       }
       return { path: candidate };
     }
+  }
+  if (unsafeShim) {
+    return { reason: `${name} is available only as a Windows command shim; quoted provider argv cannot be passed safely` };
   }
   return { reason: `${name} binary is unavailable on PATH` };
 }
@@ -132,8 +164,27 @@ function bodyText(body: Record<string, unknown>): string {
 function hasToolResult(runtime: Runtime, body: Record<string, unknown>): boolean {
   const text = bodyText(body);
   return runtime === 'codex'
-    ? /function_call_output|custom_tool_call_output/u.test(text)
+    ? /function_call_output|custom_tool_call_output|image_generation_call/u.test(text)
     : /tool_result/u.test(text);
+}
+
+function codexToolSpecs(body: Record<string, unknown>): Array<Record<string, unknown>> {
+  if (Array.isArray(body.tools)) return body.tools as Array<Record<string, unknown>>;
+  if (!Array.isArray(body.input)) return [];
+  const additionalTools = (body.input as Array<Record<string, unknown>>)
+    .find((item) => item.type === 'additional_tools');
+  return Array.isArray(additionalTools?.tools)
+    ? additionalTools.tools as Array<Record<string, unknown>>
+    : [];
+}
+
+function hasCodexImageTool(body: Record<string, unknown>): boolean {
+  return codexToolSpecs(body).some((entry) =>
+    entry.type === 'namespace'
+    && entry.name === 'image_gen'
+    && Array.isArray(entry.tools)
+    && (entry.tools as Array<Record<string, unknown>>).some((tool) => tool.name === 'imagegen')
+  );
 }
 
 function writeSse(res: ServerResponse, event: unknown): void {
@@ -215,6 +266,30 @@ function sendCodexTool(res: ServerResponse, body: Record<string, unknown>, model
   return true;
 }
 
+function sendCodexImageTool(res: ServerResponse, model: string): void {
+  const id = `resp_${Date.now()}`;
+  const itemId = `tool_${Date.now()}`;
+  const callId = `call_${Date.now()}`;
+  const args = JSON.stringify({ prompt: 'route-lease-image-tool one pixel validation image' });
+  const item = {
+    id: itemId,
+    type: 'function_call',
+    status: 'completed',
+    call_id: callId,
+    namespace: 'image_gen',
+    name: 'imagegen',
+    arguments: args,
+  };
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+  writeSse(res, { type: 'response.created', sequence_number: 0, response: { ...responseEnvelope(id, model), status: 'in_progress' } });
+  writeSse(res, { type: 'response.output_item.added', sequence_number: 1, output_index: 0, item: { ...item, status: 'in_progress', arguments: '' } });
+  writeSse(res, { type: 'response.function_call_arguments.delta', sequence_number: 2, item_id: itemId, output_index: 0, delta: args });
+  writeSse(res, { type: 'response.function_call_arguments.done', sequence_number: 3, item_id: itemId, output_index: 0, arguments: args });
+  writeSse(res, { type: 'response.output_item.done', sequence_number: 4, output_index: 0, item });
+  writeSse(res, { type: 'response.completed', sequence_number: 5, response: responseEnvelope(id, model, [item]) });
+  res.end();
+}
+
 function sendClaudeText(res: ServerResponse, model: string, text: string): void {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
   const id = `msg_${Date.now()}`;
@@ -252,6 +327,8 @@ async function handleMock(mock: RuntimeMock, req: IncomingMessage, res: ServerRe
   const text = bodyText(body);
   mock.hits += 1;
   req.on('aborted', () => { mock.aborted += 1; });
+  const hasImageTool = mock.runtime === 'codex' && hasCodexImageTool(body);
+  if (hasImageTool) mock.imageToolAdvertisements += 1;
   if (text.includes('route-lease-error')) {
     mock.errorHits += 1;
     res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '1' });
@@ -266,6 +343,15 @@ async function handleMock(mock: RuntimeMock, req: IncomingMessage, res: ServerRe
     } else {
       res.write(`event: message_start\ndata: ${JSON.stringify({ type: 'message_start', message: { id: `msg_${Date.now()}`, type: 'message', role: 'assistant', model: 'claude-frozen', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 0 } } })}\n\n`);
     }
+    return;
+  }
+  if (mock.runtime === 'codex' && text.includes('route-lease-image-tool')) {
+    if (!hasToolResult(mock.runtime, body) && hasImageTool) {
+      sendCodexImageTool(res, 'codex-frozen');
+      return;
+    }
+    mock.streamHits += 1;
+    sendCodexText(res, 'codex-frozen', 'route-lease-image-ok');
     return;
   }
   if (text.includes('route-lease-tool') && !hasToolResult(mock.runtime, body)) {
@@ -284,7 +370,16 @@ async function handleMock(mock: RuntimeMock, req: IncomingMessage, res: ServerRe
 
 function startMock(runtime: Runtime): Promise<RuntimeMock> {
   return new Promise((resolve) => {
-    const mock = { runtime, hits: 0, streamHits: 0, toolCalls: 0, errorHits: 0, cancelHits: 0, aborted: 0 } as RuntimeMock;
+    const mock = {
+      runtime,
+      hits: 0,
+      streamHits: 0,
+      toolCalls: 0,
+      errorHits: 0,
+      cancelHits: 0,
+      aborted: 0,
+      imageToolAdvertisements: 0,
+    } as RuntimeMock;
     const server = createServer((req, res) => { void handleMock(mock, req, res); });
     server.listen(0, '127.0.0.1', () => {
       Object.assign(mock, {
@@ -297,7 +392,10 @@ function startMock(runtime: Runtime): Promise<RuntimeMock> {
 }
 
 function stopServer(server: Server): Promise<void> {
-  return new Promise((resolve) => server.close(() => resolve()));
+  return new Promise((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+    server.closeAllConnections();
+  });
 }
 
 async function createLease(runtime: Runtime, key: string, ttlSeconds = 30): Promise<LeaseCreate> {
@@ -325,18 +423,26 @@ function runtimeArgs(runtime: Runtime, lease: LeaseCreate, prompt: string): stri
   if (runtime === 'codex') {
     return [
       'exec',
+      '--ephemeral',
+      '--ignore-user-config',
+      '--ignore-rules',
       '--skip-git-repo-check',
       '--sandbox',
       'read-only',
       '--model',
       'codex-frozen',
       ...lease.launch.extraArgs,
+      '-c',
+      'features.plugins=false',
       prompt,
     ];
   }
   return [
     '-p',
     prompt,
+    '--bare',
+    '--no-chrome',
+    '--no-session-persistence',
     '--model',
     'claude-frozen',
     '--output-format',
@@ -355,7 +461,16 @@ function spawnRuntime(
 ): ChildProcess {
   return spawn(binary, runtimeArgs(runtime, lease, prompt), {
     cwd: tmpDir,
-    env: { ...process.env, ...lease.launch.env },
+    env: {
+      ...process.env,
+      ...lease.launch.env,
+      ...(runtime === 'codex' ? { CODEX_HOME: join(tmpDir, 'codex-home') } : {}),
+      ...(runtime === 'claude' ? {
+        CLAUDE_CONFIG_DIR: join(tmpDir, 'claude-home'),
+        HOME: tmpDir,
+        USERPROFILE: tmpDir,
+      } : {}),
+    },
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -384,6 +499,16 @@ function collect(child: ChildProcess, timeoutMs = 20_000): Promise<SpawnResult> 
   });
 }
 
+async function waitFor(predicate: () => boolean, timeoutMs: number, intervalMs = 50): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error(`condition was not met within ${timeoutMs} ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 async function renew(leaseId: string): Promise<Response> {
   return fetch(`${adminBase}/admin/api/route-leases/${leaseId}/renew`, {
     method: 'POST',
@@ -403,13 +528,17 @@ beforeAll(async () => {
   if (!OPT_IN) return;
   resetDaemonSingletonsForTests();
   tmpDir = mkdtempSync(join(tmpdir(), 'omnicross-real-cli-route-lease-'));
+  mkdirSync(join(tmpDir, 'codex-home'), { recursive: true });
+  mkdirSync(join(tmpDir, 'claude-home'), { recursive: true });
   configPath = join(tmpDir, 'config.json');
   [codexMock, claudeMock] = await Promise.all([startMock('codex'), startMock('claude')]);
+  imageCapture = createSyntheticVerifiedImageCapture();
   writeFileSync(configPath, JSON.stringify({
     providers: [
       { id: 'codex-local', apiFormat: 'openai-response', baseUrl: codexMock.baseUrl, apiKey: 'local-codex-key', models: ['codex-frozen'] },
       { id: 'claude-local', apiFormat: 'anthropic', baseUrl: claudeMock.baseUrl, apiKey: 'local-claude-key', models: ['claude-frozen'] },
     ],
+    server: { images: { enabled: true } },
     admin: { port: 0, token: ADMIN_TOKEN },
   }, null, 2), 'utf8');
   daemon = buildDaemon(loadConfig(configPath), {
@@ -417,6 +546,8 @@ beforeAll(async () => {
     keysPath: join(tmpDir, 'keys.json'),
     tokensPath: join(tmpDir, 'tokens.json'),
     masterKeyFilePath: join(tmpDir, 'master.key'),
+    testOnlySyntheticVerifiedImageProvider:
+      createSyntheticVerifiedImageProviderSeam(imageCapture),
   });
   await daemon.llmConfig.ready();
   await daemon.providerProxy.start();
@@ -440,62 +571,86 @@ afterAll(async () => {
   }
   await Promise.all([stopServer(codexMock.server), stopServer(claudeMock.server)]);
   resetDaemonSingletonsForTests();
-  if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
+  if (tmpDir) rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 describe.skipIf(!OPT_IN)('real CLI Route Lease interoperability (explicit opt-in, local mocks only)', () => {
-  it.each(['codex', 'claude'] as const)('%s covers streaming, a tool round, error, cancellation, renew, release, and config non-pollution', async (runtime, context) => {
+  for (const runtime of ['codex', 'claude'] as const) {
     const binary = resolveBinary(runtime);
-    if (!binary.path) context.skip(binary.reason);
-    const executable = binary.path as string;
-    const before = snapshotRuntimeFiles(runtime);
-    const mock = runtime === 'codex' ? codexMock : claudeMock;
-    const lease = await createLease(runtime, `real-${runtime}-${Date.now()}`);
-    const token = runtime === 'codex'
-      ? lease.launch.env.OMNICROSS_CODEX_ROUTE_TOKEN
-      : lease.launch.env.ANTHROPIC_AUTH_TOKEN;
+    const skipReason = binary.reason ? ` (${binary.reason})` : '';
+    it.skipIf(!binary.path)(`${runtime} covers streaming, a tool round, error, cancellation, renew, release, and config non-pollution${skipReason}`, async () => {
+      const executable = binary.path;
+      if (!executable) throw new Error(binary.reason);
+      const before = snapshotRuntimeFiles(runtime);
+      const mock = runtime === 'codex' ? codexMock : claudeMock;
+      const lease = await createLease(runtime, `real-${runtime}-${Date.now()}`);
+      const token = runtime === 'codex'
+        ? lease.launch.env.OMNICROSS_CODEX_ROUTE_TOKEN
+        : lease.launch.env.ANTHROPIC_AUTH_TOKEN;
 
-    try {
-      const streamed = await collect(spawnRuntime(executable, runtime, lease, 'Return the text route-lease-stream.'));
-      expect(streamed.code, streamed.stderr).toBe(0);
-      expect(streamed.stdout + streamed.stderr).toContain('route-lease-stream-ok');
+      try {
+        const streamed = await collect(spawnRuntime(executable, runtime, lease, 'Return the text route-lease-stream.'));
+        expect(streamed.code, streamed.stderr).toBe(0);
+        expect(streamed.stdout + streamed.stderr).toContain('route-lease-stream-ok');
 
-      const tool = await collect(spawnRuntime(executable, runtime, lease, 'Use one available local shell tool for route-lease-tool, then finish.'));
-      expect(tool.code, tool.stderr).toBe(0);
-      expect(mock.toolCalls).toBeGreaterThan(0);
+        const tool = await collect(spawnRuntime(executable, runtime, lease, 'Use one available local shell tool for route-lease-tool, then finish.'));
+        expect(tool.code, tool.stderr).toBe(0);
+        expect(mock.toolCalls).toBeGreaterThan(0);
 
-      const errorChild = spawnRuntime(executable, runtime, lease, 'Trigger route-lease-error and stop.');
-      const errorResult = await collect(errorChild, 10_000).catch((error: unknown) => ({
-        code: null,
-        signal: null,
-        stdout: '',
-        stderr: error instanceof Error ? error.message : String(error),
-      }));
-      expect(mock.errorHits).toBeGreaterThan(0);
-      expect(errorResult.code).not.toBe(0);
+        if (runtime === 'codex') {
+          const advertisementsBefore = mock.imageToolAdvertisements;
+          const imageStartsBefore = imageCapture.starts;
+          const image = await collect(spawnRuntime(
+            executable,
+            runtime,
+            lease,
+            'Call image_gen/imagegen exactly once for route-lease-image-tool, then finish.'
+          ), 30_000);
+          expect(image.code, image.stderr).toBe(0);
+          expect(image.stdout + image.stderr).toContain('route-lease-image-ok');
+          expect(mock.imageToolAdvertisements).toBeGreaterThan(advertisementsBefore);
+          expect(imageCapture.starts).toBeGreaterThan(imageStartsBefore);
+        }
 
-      const cancelChild = spawnRuntime(executable, runtime, lease, 'Wait for route-lease-cancel.');
-      const cancelled = collect(cancelChild, 5_000);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const renewed = await renew(lease.leaseId);
-      expect(renewed.status).toBe(200);
-      cancelChild.kill();
-      await cancelled;
-      expect(mock.cancelHits).toBeGreaterThan(0);
-    } finally {
-      const released = await release(lease.leaseId);
-      expect(released.status).toBe(200);
-    }
+        const errorChild = spawnRuntime(executable, runtime, lease, 'Trigger route-lease-error and stop.');
+        const errorResult = await collect(errorChild, 10_000).catch((error: unknown) => ({
+          code: null,
+          signal: null,
+          stdout: '',
+          stderr: error instanceof Error ? error.message : String(error),
+        }));
+        expect(mock.errorHits).toBeGreaterThan(0);
+        expect(errorResult.code).not.toBe(0);
 
-    const oldTokenResponse = await fetch(`${daemon.providerProxy.getBaseUrl()}${runtime === 'codex' ? '/openai/responses' : '/v1/messages'}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: 'old-token-must-fail', input: 'ping', messages: [] }),
-    });
-    expect(oldTokenResponse.status).toBe(401);
-    expect(snapshotRuntimeFiles(runtime)).toEqual(before);
-  }, 90_000);
+        const cancelHitsBefore = mock.cancelHits;
+        const cancelChild = spawnRuntime(executable, runtime, lease, 'Wait for route-lease-cancel.');
+        const cancelled = collect(cancelChild, 10_000);
+        try {
+          await waitFor(() => mock.cancelHits > cancelHitsBefore, 5_000);
+          const renewed = await renew(lease.leaseId);
+          expect(renewed.status).toBe(200);
+          cancelChild.kill();
+          await cancelled;
+        } finally {
+          if (cancelChild.exitCode === null && cancelChild.signalCode === null) cancelChild.kill();
+          await cancelled.catch(() => undefined);
+        }
+        expect(mock.cancelHits).toBeGreaterThan(cancelHitsBefore);
+      } finally {
+        const released = await release(lease.leaseId);
+        expect(released.status).toBe(200);
+      }
+
+      const oldTokenResponse = await fetch(`${daemon.providerProxy.getBaseUrl()}${runtime === 'codex' ? '/openai/responses' : '/v1/messages'}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: 'old-token-must-fail', input: 'ping', messages: [] }),
+      });
+      expect(oldTokenResponse.status).toBe(401);
+      expect(snapshotRuntimeFiles(runtime)).toEqual(before);
+    }, 90_000);
+  }
 });
