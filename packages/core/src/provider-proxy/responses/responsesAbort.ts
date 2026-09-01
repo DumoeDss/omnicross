@@ -11,6 +11,28 @@ export class ResponsesRequestTimeoutError extends Error {
   }
 }
 
+/**
+ * Abort reason meaning "the DOWNSTREAM client withdrew this request" (its socket
+ * closed, or the response closed before it was written) - as opposed to a
+ * timeout, which is OUR decision and a genuine failure.
+ *
+ * Carried as the signal's `reason` so the shared egress seam can tell the two
+ * apart. `upstreamFetch` records a route-activity row for every failed attempt;
+ * a withdrawn request is not an account failure, and recording it paints a red
+ * "Network error" row indistinguishable from a real DNS/connection fault. That
+ * seam recognizes this by the stable `code` (the `isAccountAllowanceExhaustedError`
+ * idiom) rather than importing this class: `pipeline` must not depend on
+ * `provider-proxy`.
+ */
+export class ClientDisconnectError extends Error {
+  readonly name = 'ClientDisconnectError';
+  readonly code = 'client_disconnect';
+
+  constructor() {
+    super('The downstream client disconnected');
+  }
+}
+
 export interface ResponsesAbortScope {
   readonly signal: AbortSignal;
   readonly timedOut: boolean;
@@ -54,12 +76,14 @@ export function createRequestAbortScope(options: ResponsesAbortScopeOptions): Re
     if (!controller.signal.aborted) controller.abort(reason);
   };
   const onParentAbort = (): void => abort(abortReason(options.parentSignal!));
-  const onRequestAborted = (): void => abort();
+  const onRequestAborted = (): void => abort(new ClientDisconnectError());
   const onRequestClose = (): void => {
-    if (options.request?.aborted === true || options.request?.complete === false) abort();
+    if (options.request?.aborted === true || options.request?.complete === false) {
+      abort(new ClientDisconnectError());
+    }
   };
   const onResponseClose = (): void => {
-    if (!options.response?.writableEnded) abort();
+    if (!options.response?.writableEnded) abort(new ClientDisconnectError());
   };
 
   options.parentSignal?.addEventListener('abort', onParentAbort, { once: true });
@@ -67,7 +91,7 @@ export function createRequestAbortScope(options: ResponsesAbortScopeOptions): Re
   options.request?.once('close', onRequestClose);
   options.response?.once('close', onResponseClose);
   if (options.parentSignal?.aborted) onParentAbort();
-  if (options.request?.aborted || options.response?.destroyed) abort();
+  if (options.request?.aborted || options.response?.destroyed) abort(new ClientDisconnectError());
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const disableTimeout = (): void => {

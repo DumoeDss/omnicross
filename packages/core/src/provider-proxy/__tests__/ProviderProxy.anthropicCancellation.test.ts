@@ -27,6 +27,7 @@ import type { AddressInfo, Socket } from 'node:net';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getSharedAccountRouteActivity } from '../../pipeline/AccountRouteActivity';
 import type { ProviderConfigSource } from '../../ports';
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
@@ -241,14 +242,14 @@ function openStreamingClient(
 const CLAUDE_OAUTH = 'fake-claude-oauth';
 const CLAUDE_OAUTH_REFRESHED = 'fake-claude-oauth-2';
 
-function makeClaudeStrategy(): AuthStrategy {
+function makeClaudeStrategy(accountId = 'account-a'): AuthStrategy {
   let refreshed = false;
   return {
     kind: 'pass-through',
     providerId: 'claude',
     async applyHeaders(headers, hints) {
       headers['Authorization'] = `Bearer ${refreshed ? CLAUDE_OAUTH_REFRESHED : CLAUDE_OAUTH}`;
-      hints?.reportSelection?.('account-a', true);
+      hints?.reportSelection?.(accountId, true);
     },
     async onUnauthorized() {
       refreshed = true;
@@ -423,6 +424,64 @@ describe('Anthropic /v1/messages downstream cancellation', () => {
     expect(nextFallback).not.toHaveBeenCalled();
     expect(recordModelOutcome).not.toHaveBeenCalled();
     expect(upstream.hits).toBe(1);
+  }, 20_000);
+
+  it('records no route-activity row when the client withdraws the request', async () => {
+    await startProxy();
+    // Never answered, so the ONLY way this attempt settles is the hang-up - and
+    // it settles BEFORE response headers, which is the one window where the
+    // egress seam's failure path can still run.
+    upstream.hangWithoutResponding = true;
+    const accountId = `acct-withdraw-${String(Date.now())}`;
+    const profile = claudeProfile(upstreamUrl('/v1/messages'));
+    profile.authStrategy = makeClaudeStrategy(accountId);
+    const token = proxy.addRoute(subRoute(profile));
+
+    const target = new URL(`${baseUrl}/v1/messages`);
+    const req = httpRequest({
+      hostname: target.hostname,
+      port: target.port,
+      path: target.pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    });
+    req.on('error', () => undefined);
+    req.end(JSON.stringify({ model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }));
+
+    expect(await waitFor(() => upstream.hits === 1)).toBe(true);
+    req.destroy();
+    expect(await waitFor(() => upstream.timeline.includes('abort:0'))).toBe(true);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // A withdrawn request is not an account failure. Recording it would show a
+    // `status: 0` row, which the upstreams view paints as a red "Network error"
+    // — indistinguishable from the real DNS/connection faults an operator is
+    // hunting during a proxy incident.
+    const rows = getSharedAccountRouteActivity().list({ providerId: 'claude', accountId });
+    expect(rows).toEqual([]);
+  }, 20_000);
+
+  it('still records a route-activity row when the upstream itself fails', async () => {
+    await startProxy();
+    const accountId = `acct-netfail-${String(Date.now())}`;
+    const profile = claudeProfile(upstreamUrl('/v1/messages'));
+    profile.authStrategy = makeClaudeStrategy(accountId);
+    const token = proxy.addRoute(subRoute(profile));
+    // Close the upstream so the connection is refused: a genuine egress failure,
+    // NOT a client withdrawal. The skip above must not swallow this.
+    await upstream.stop();
+
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+    });
+    expect(res.status).toBe(502);
+    await res.text();
+
+    const rows = getSharedAccountRouteActivity().list({ providerId: 'claude', accountId });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe(0);
   }, 20_000);
 
   it('relays an undisturbed stream to completion (no premature cancellation)', async () => {
