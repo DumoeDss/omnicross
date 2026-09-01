@@ -80,6 +80,31 @@ markup in `bing-serp-untrusted-decoy.html`. Five `li.b_algo` entries covering:
 
 Targets are public documentation URLs; no capture-environment data is present.
 
+### `bing/bing-serp-empty.synthetic.html` — `synthetic`
+
+**Not a capture.** Added by the HTTP-slice change (阶段2) for the plan-mandated
+three-way outcome distinction: a *recognized* SERP with zero organic results must return
+`[]`, not the error an unrecognizable page produces. No such capture exists — every query
+tried against Bing returned results, and inducing a genuinely empty SERP means firing
+nonsense queries at a live engine until one lands, which is neither reliable nor polite.
+
+Structure is derived from the recognition marker the parser uses (`isBingSerp` → the
+`#b_results` container) exactly as it appears in the captured `bing-serp-normal.html`, with
+zero `li.b_algo` entries and a `.b_no` notice. It deliberately contains **no `h2 a[href]`
+anywhere**, because `bingResultLinks` falls back to a document-wide `h2 a[href]` query when
+no scoped result links exist — a stray heading link would make the page parse as a result
+instead of as empty. Fixed query: `zzqxwv nonexistent query string` (an invented
+non-word, not user-derived).
+
+### `duckduckgo/ddg-html-serp-empty.synthetic.html` — `synthetic`
+
+**Not a capture.** The DuckDuckGo half of the same three-way distinction, for the same
+reason. Structure derived from `isDuckDuckGoSerp`'s marker (the `#links` / `.results`
+container) as it appears in the captured `ddg-html-serp.html`, with zero `.result`
+containers. It contains no element carrying `result`, `result--web` or `web-result` and no
+`a.result-link`: any of those would make the page parse as a result set (or as the lite
+layout) rather than as empty, so the notice uses `no-results`. Same fixed query as above.
+
 ### `duckduckgo/ddg-html-serp.html` — `captured`
 
 | | |
@@ -133,11 +158,18 @@ The fixture is the body; the 202 status has to be supplied by the test's transpo
 | DDG html layout with `uddg` redirects | `duckduckgo/ddg-html-serp.html` | captured |
 | DDG lite layout (`a.result-link` table rows) | `duckduckgo/ddg-lite-serp.html` | captured |
 | Anti-bot / challenge response | `duckduckgo/ddg-lite-challenge-202.html` | captured (HTTP 202) |
+| Recognized SERP with zero organic results (Bing) | `bing/bing-serp-empty.synthetic.html` | **synthetic** |
+| Recognized SERP with zero organic results (DDG html) | `duckduckgo/ddg-html-serp-empty.synthetic.html` | **synthetic** |
 
-Nothing on the target list is MISSING. Every variant has live capture evidence; the one
-synthetic file exists because the only live `/ck/a` result-link page fails the trust check
-and so cannot double as the happy-path unwrap fixture. It is labeled `synthetic` everywhere
-(filename, in-file comment, and this README) rather than presented as capture evidence.
+Nothing on the target list is MISSING. Every *live-observable* variant has capture evidence;
+the three synthetic files exist for outcomes that cannot be captured honestly — the
+happy-path `/ck/a` unwrap (the only live `/ck/a` result-link page fails the trust check, so
+it cannot double as that fixture) and the two zero-result SERPs (a live engine cannot be
+made to return zero results on demand). Each is labeled `synthetic` everywhere — filename,
+in-file comment, and this README — rather than presented as capture evidence.
+
+There is deliberately **no** empty *lite*-layout fixture: the html endpoint is the
+authoritative one, and the lite layout's empty case adds no distinct parser path.
 
 ---
 
@@ -167,7 +199,8 @@ Trimmed sizes run from 0.5 KB (the challenge body) to 14 KB, against 14–110 KB
 
 ## Sanitization scan
 
-Run over all six fixture files before commit. Every pattern below reported **zero matches**;
+Run over all eight fixture files before commit (re-run by the HTTP-slice change after the
+two synthetic empty-SERP files were added). Every pattern below reported **zero matches**;
 the fixtures also contain zero `U+FFFD` replacement characters (encoding-corruption check).
 
 | # | Pattern (regex) | Purpose |
@@ -191,12 +224,14 @@ the fixtures also contain zero `U+FFFD` replacement characters (encoding-corrupt
 | 17 | `(?i)C:\\Users\\\|/Users/[A-Za-z0-9._-]+/` | capture-host user paths |
 
 ```
-files scanned: 6   total matches: 0
+files scanned: 8   total matches: 0
 ```
 
-**Queries.** Only three fixed, non-user-derived queries appear anywhere in this tree —
-`mozilla developer network http headers`, `hypertext transfer protocol`, and
-`weather forecast tomorrow`. None came from a user history, log, or audit source. An
+**Queries.** Only four fixed, non-user-derived queries appear anywhere in this tree —
+`mozilla developer network http headers`, `hypertext transfer protocol`,
+`weather forecast tomorrow`, and the invented non-word
+`zzqxwv nonexistent query string` used by the two synthetic empty-SERP files. None came
+from a user history, log, or audit source. An
 earlier `weather forecast tomorrow` capture against Bing was **discarded** rather than
 committed because Bing personalised the results with the capture host's approximate
 location; the committed Bing fixtures use queries that produce no such content.
@@ -216,3 +251,8 @@ use — not a loose reimplementation. Results:
 | `duckduckgo/ddg-html-serp.html` | html layout, 10 results parsed with `uddg` unwrapped |
 | `duckduckgo/ddg-lite-serp.html` | lite layout, 10 results parsed |
 | `duckduckgo/ddg-lite-challenge-202.html` | 0 results parsed — the failure fixture behaves as one |
+
+The two synthetic empty-SERP files were verified against the 阶段2 parsers instead (they
+postdate the transcription check above): each is **recognized** as its engine's SERP and
+yields **0 results**, so `search()` returns `[]` rather than throwing — see
+`packages/core/src/search/http/__tests__/providers.test.ts`.

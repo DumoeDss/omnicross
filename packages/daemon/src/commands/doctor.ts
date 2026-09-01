@@ -16,6 +16,16 @@
 
 import { parseArgs } from 'node:util';
 
+import { toSearchErrorShape } from '@omnicross/contracts/search-types';
+import type {
+  SearchProviderCapabilities,
+  SearchProviderContribution,
+  SearchProviderDiagnostic,
+  SearchProviderHealthStatus,
+  SearchProviderId,
+  SearchProviderSource,
+  SearchTransportKind,
+} from '@omnicross/contracts/search-types';
 import {
   DEFAULT_IMAGES_SERVER_CONFIG,
   loadServerConfig,
@@ -24,6 +34,7 @@ import type {
   GatewayBinding,
   OutboundApiServerConfig,
 } from '@omnicross/core/outbound-api/types';
+import { builtinHttpSearchContributions } from '@omnicross/core/search/http';
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
@@ -199,6 +210,183 @@ export async function runImagesLiveDoctor(
   return true;
 }
 
+/** One row of the offline `doctor search` snapshot. */
+export interface SearchDoctorRow {
+  providerId: SearchProviderId;
+  source: SearchProviderSource;
+  kind: SearchTransportKind;
+  capabilities: SearchProviderCapabilities;
+}
+
+/**
+ * Project the builtin HTTP search contributions into a printable snapshot.
+ *
+ * Pure and IO-free: it reads what the contributions DECLARE (`source`, `kind`,
+ * capabilities) and infers nothing from a provider id's spelling.
+ */
+export function buildSearchDoctorSnapshot(
+  contributions: SearchProviderContribution[] = builtinHttpSearchContributions(),
+): SearchDoctorRow[] {
+  return contributions.map((contribution) => ({
+    providerId: contribution.id,
+    source: contribution.source,
+    kind: contribution.kind,
+    capabilities: contribution.capabilities,
+  }));
+}
+
+/**
+ * The one fixed query `--live` sends.
+ *
+ * Public, low-sensitivity, and already committed in the fixture README — the
+ * live check must never send a user's query, and this is also the query the
+ * trust-passing Bing capture was taken with.
+ */
+export const SEARCH_DOCTOR_QUERY = 'mozilla developer network http headers';
+
+/** What one live provider check produced. */
+export type LiveSearchOutcome =
+  | { kind: 'results'; count: number }
+  | { kind: 'failure'; error: unknown };
+
+/**
+ * Map a live outcome onto the five diagnostic statuses. Pure — no clock, no
+ * network, no IO — so the whole table is unit-testable.
+ *
+ * `unconfigured` is unreachable here by design: these providers are keyless and
+ * fixed-host, so there is nothing to misconfigure in 阶段2.
+ */
+export function classifyLiveSearchOutcome(
+  providerId: SearchProviderId,
+  outcome: LiveSearchOutcome,
+  checkedAt: string,
+): SearchProviderDiagnostic {
+  if (outcome.kind === 'results') {
+    if (outcome.count > 0) return { providerId, status: 'healthy', checkedAt };
+    // A recognized SERP with zero results. There is NO error here — inventing
+    // one would recreate exactly the empty-vs-parser-failure conflation this
+    // slice exists to remove — so the diagnostic carries a reason only.
+    return {
+      providerId,
+      status: 'degraded',
+      checkedAt,
+      reason: 'reachable, but the engine returned no usable results (possible partial drift)',
+    };
+  }
+
+  const error = toSearchErrorShape(outcome.error);
+  const stage = error.details?.stage;
+  const { status, reason } = classifySearchFailure(stage, error.code);
+  return { providerId, status, checkedAt, reason, error };
+}
+
+function classifySearchFailure(
+  stage: string | undefined,
+  code: string,
+): { status: SearchProviderHealthStatus; reason: string } {
+  // Challenge and trust are network/engine verdicts about US, not breakage:
+  // a different egress path may well succeed, so they are `blocked`.
+  if (stage === 'challenge') {
+    return { status: 'blocked', reason: 'the engine served a bot challenge instead of results' };
+  }
+  if (stage === 'trust') {
+    return {
+      status: 'blocked',
+      reason: 'the engine served a page that failed the anti-decoy trust check',
+    };
+  }
+  if (code === 'parse_failed') {
+    return {
+      status: 'failed',
+      reason: 'the response was not recognizable as a search result page (parser drift suspected)',
+    };
+  }
+  if (code === 'timeout') {
+    return { status: 'failed', reason: 'the request exceeded its time budget' };
+  }
+  return { status: 'failed', reason: `the request failed (${code})` };
+}
+
+/** Run the fixed query once per provider, classifying whatever comes back. */
+export async function runSearchLiveChecks(
+  contributions: SearchProviderContribution[],
+  now: () => string = () => new Date().toISOString(),
+): Promise<SearchProviderDiagnostic[]> {
+  const diagnostics: SearchProviderDiagnostic[] = [];
+  for (const contribution of contributions) {
+    try {
+      const results = await contribution.provider.search(SEARCH_DOCTOR_QUERY, { maxResults: 5 });
+      diagnostics.push(
+        classifyLiveSearchOutcome(contribution.id, { kind: 'results', count: results.length }, now()),
+      );
+    } catch (error) {
+      diagnostics.push(classifyLiveSearchOutcome(contribution.id, { kind: 'failure', error }, now()));
+    }
+  }
+  return diagnostics;
+}
+
+function formatCapabilities(capabilities: SearchProviderCapabilities): string {
+  return [
+    `apiKey=${capabilities.requiresApiKey}`,
+    `cancellation=${capabilities.supportsCancellation}`,
+    `urlRead=${capabilities.supportsUrlRead}`,
+    `region=${capabilities.supportsRegion}`,
+    `language=${capabilities.supportsLanguage}`,
+    `timeRange=${capabilities.supportsTimeRange}`,
+    `maxResults=${capabilities.maxResults ?? 'unbounded'}`,
+  ].join(', ');
+}
+
+/**
+ * Format one diagnostic for the console.
+ *
+ * Provider id, status, reason and sanitized error fields only — never a result
+ * title, URL, snippet, or any part of a response body.
+ */
+function formatDiagnostic(diagnostic: SearchProviderDiagnostic): string {
+  const parts: string[] = [diagnostic.status];
+  if (diagnostic.reason) parts.push(diagnostic.reason);
+  if (diagnostic.error) {
+    const { code, details } = diagnostic.error;
+    parts.push(
+      `code=${code}, transport=${details?.transport ?? 'unknown'}, stage=${details?.stage ?? 'unknown'}`,
+    );
+  }
+  return parts.join(' — ');
+}
+
+/**
+ * Run `omnicross doctor search`.
+ *
+ * Offline mode needs no config and touches no network, so it never loads the
+ * daemon: keyless fixed-host providers have no persisted state to inspect.
+ */
+export async function runSearchDoctor(live: boolean): Promise<number> {
+  const contributions = builtinHttpSearchContributions();
+
+  console.info('omnicross doctor search — builtin HTTP search contributions (offline, no network)');
+  for (const row of buildSearchDoctorSnapshot(contributions)) {
+    console.info(
+      `  [✓] ${row.providerId}: source=${row.source}, kind=${row.kind}, ${formatCapabilities(row.capabilities)}`,
+    );
+  }
+  if (!live) return 0;
+
+  console.info(
+    `  [⚠] live search sends ONE fixed public query per provider ("${SEARCH_DOCTOR_QUERY}") to the engine itself`,
+  );
+  let hardFailure = false;
+  for (const diagnostic of await runSearchLiveChecks(contributions)) {
+    // `blocked`/`degraded` are honest observations about a hostile network, not
+    // Omnicross defects — only `failed` (drift, timeout, transport) exits 1.
+    const mark = diagnostic.status === 'healthy' ? '✓' : diagnostic.status === 'failed' ? '✗' : '⚠';
+    if (diagnostic.status === 'failed') hardFailure = true;
+    console.info(`  [${mark}] ${diagnostic.providerId}: ${formatDiagnostic(diagnostic)}`);
+  }
+  return hardFailure ? 1 : 0;
+}
+
 /** The `--live` probe result (also consumed by tests via an injected fetch). */
 export interface LiveProbeResult {
   status: number | null;
@@ -256,8 +444,10 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
     allowPositionals: true,
   });
   const subject = positionals[0] ?? 'claude';
+  // `search` inspects builtin code, not persisted state: no --config, no daemon.
+  if (subject === 'search') return runSearchDoctor(values.live === true);
   if (subject !== 'claude' && subject !== 'images') {
-    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images')`);
+    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images', 'search')`);
   }
   const configPath = values.config;
   if (!configPath) {

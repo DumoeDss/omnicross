@@ -71,6 +71,10 @@ Usage:
                                            Check local Images config, roots, stores, permissions,
                                            account and cached evidence. --live warns, then consumes
                                            at most one minimal subscription image request.
+  omnicross doctor search [--live]          List the builtin HTTP search providers and their declared
+                                           capabilities (offline, no config needed). --live sends ONE
+                                           fixed public query per provider and reports healthy /
+                                           degraded / blocked / failed.
 `;
 
 async function main(): Promise<void> {

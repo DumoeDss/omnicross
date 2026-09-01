@@ -64,6 +64,10 @@ export default defineConfig({
     'provider-proxy/matchText': 'src/provider-proxy/matchText.ts',
     'provider-proxy/ProviderProxy': 'src/provider-proxy/ProviderProxy.ts',
     'provider-proxy/types': 'src/provider-proxy/types.ts',
+    // search-phase1-http-slice: the keyless HTTP search providers. ONE entry for
+    // the whole tree — parsers/transport/trust are internals. The bare `search`
+    // subpath stays unclaimed for 阶段3's runtime index.
+    'search/http': 'src/search/http/index.ts',
     serializeError: 'src/serializeError.ts',
     'sse-parser': 'src/sse-parser.ts',
     transformer: 'src/transformer/index.ts',

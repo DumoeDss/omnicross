@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html><head><title>zzqxwv nonexistent query string at DuckDuckGo</title></head>
+<body>
+<!--
+  SYNTHETIC — not a capture. Hand-built for the recognized-but-empty case.
+
+  Same reason as the Bing empty fixture: a zero-result SERP cannot be captured
+  on demand without hammering a live engine with nonsense queries. Structure is
+  derived from the recognition marker `isDuckDuckGoSerp` uses — the
+  `#links`/`.results` container — as it appears in the captured
+  `ddg-html-serp.html`, with zero `.result` containers.
+
+  Deliberately contains NO element carrying `result`, `result--web` or
+  `web-result`, and no `a.result-link`: any of those would make the page parse
+  as a result set (or as the lite layout) instead of as empty. The no-results
+  notice uses `no-results` for exactly that reason.
+-->
+<div id="links" class="results">
+<div class="no-results">No results found for zzqxwv nonexistent query string.</div>
+</div>
+</body></html>

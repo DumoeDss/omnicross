@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>zzqxwv nonexistent query string - Search</title></head>
+<body>
+<!--
+  SYNTHETIC — not a capture. Hand-built for the recognized-but-empty case.
+
+  A genuinely empty Bing SERP could not be captured reliably (every query tried
+  returned results, and inducing zero results means sending nonsense queries at
+  a live engine repeatedly). Structure is derived from the recognition marker
+  `isBingSerp` uses — the `#b_results` container — as it appears in the captured
+  `bing-serp-normal.html`, with zero `li.b_algo` entries.
+
+  Deliberately contains NO `h2 a[href]` anywhere: `bingResultLinks` falls back to
+  a document-wide `h2 a[href]` query when no scoped result links exist, so a
+  stray heading link would make this page parse as a result rather than as empty.
+-->
+<ol id="b_results">
+<li class="b_no">
+<h3>There are no results for zzqxwv nonexistent query string</h3>
+<p>Check your spelling or try different keywords.</p>
+</li>
+</ol>
+</body></html>
