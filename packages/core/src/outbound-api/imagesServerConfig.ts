@@ -24,7 +24,7 @@ export const IMAGE_SERVER_HARD_CEILINGS = Object.freeze({
     cleanupIntervalMs: 60 * 60_000,
   }),
   limits: Object.freeze<ImageApiLimits>({
-    maxJsonBytes: 8 * MIB,
+    maxJsonBytes: 128 * MIB,
     maxMultipartBytes: GIB,
     maxFileBytes: 50 * MIB,
     maxTotalInputBytes: GIB,
@@ -151,6 +151,12 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
       DEFAULT_IMAGES_SERVER_CONFIG.limits[key],
       IMAGE_SERVER_HARD_CEILINGS.limits[key],
     );
+  }
+  // 0.2.0 persisted the then-default 1 MiB JSON limit. Codex now submits
+  // built-in edits as Base64 JSON, so migrate that exact legacy default while
+  // preserving deliberately configured non-default limits.
+  if (limitsRaw['maxJsonBytes'] === MIB) {
+    limits.maxJsonBytes = DEFAULT_IMAGES_SERVER_CONFIG.limits.maxJsonBytes;
   }
   limits.maxTotalInputBytes = Math.max(limits.maxTotalInputBytes, limits.maxFileBytes);
   limits.maxMultipartBytes = Math.max(limits.maxMultipartBytes, limits.maxTotalInputBytes);

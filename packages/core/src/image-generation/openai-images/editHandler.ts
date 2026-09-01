@@ -61,7 +61,7 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
         });
         const inputs = parseImageInputList(
           record.images ?? record.image,
-          runtime.limits.maxRemoteUrlBytes,
+          runtime.limits,
         );
         const resolveObservedInput = async (input: unknown): Promise<ImageAsset> => {
           const reference = isReferenceInput(input);

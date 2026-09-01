@@ -35,7 +35,10 @@ export interface ImageApiLimits {
 }
 
 export const DEFAULT_IMAGE_API_LIMITS: ImageApiLimits = Object.freeze({
-  maxJsonBytes: 1024 * 1024,
+  // Codex's built-in image tool sends edits as JSON data URLs rather than
+  // multipart files. Leave room for the Base64 expansion of the bounded
+  // aggregate input budget plus the small JSON/options envelope.
+  maxJsonBytes: 96 * 1024 * 1024,
   maxMultipartBytes: 64 * 1024 * 1024,
   maxFileBytes: 50 * 1024 * 1024,
   maxTotalInputBytes: 64 * 1024 * 1024,

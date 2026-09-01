@@ -134,6 +134,26 @@ describe('Images HTTP security contracts', () => {
     }
   });
 
+  it('accepts a Codex-style inline image larger than the remote URL limit', async () => {
+    const { harness } = await setup({ limits: { maxRemoteUrlBytes: 32 } });
+    const imageUrl = `data:image/png;base64,${harness.inputPng.toString('base64')}`;
+    expect(Buffer.byteLength(imageUrl, 'utf8')).toBeGreaterThan(32);
+    const response = await rawJson(harness, {
+      images: [{ image_url: imageUrl }],
+      prompt: 'Codex built-in edit envelope',
+      model: 'gpt-image-1',
+      quality: 'auto',
+      size: 'auto',
+    });
+    expect(response.status).toBe(200);
+    await harness.waitForIdle();
+    expect(harness.capture.requests[0]).toMatchObject({
+      action: 'edit',
+      quality: 'auto',
+      images: [expect.objectContaining({ mimeType: 'image/png' })],
+    });
+  });
+
   it('holds an active reference lease through provider execution and releases it in finally', async () => {
     const referenceId = 'active-reference' as ImageReferenceId;
     const asset = new InMemoryImageAsset(Uint8Array.of(1), {

@@ -177,7 +177,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
           unsupportedAction || request.stream || request.partialImages > 0 ||
           request.n !== 1 || !capabilities.models.includes(request.model) ||
           !capabilities.outputFormats.includes(request.outputFormat) ||
-          !capabilities.qualityLevels.includes(request.quality) ||
+          (request.quality !== 'auto' && !capabilities.qualityLevels.includes(request.quality)) ||
           !capabilities.moderationModes.includes(request.moderation) ||
           (request.outputCompression !== undefined && (
             !Number.isInteger(request.outputCompression) ||

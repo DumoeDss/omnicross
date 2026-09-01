@@ -14,7 +14,7 @@ function invalid(param = 'image'): never {
   throw new ImageGenerationError('invalid_image_request', { param });
 }
 
-function closedInput(value: unknown, maxRemoteUrlBytes: number): ClosedImageInput {
+function closedInput(value: unknown, limits: ImageApiRuntime['limits']): ClosedImageInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid();
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record);
@@ -22,8 +22,13 @@ function closedInput(value: unknown, maxRemoteUrlBytes: number): ClosedImageInpu
   const key = keys[0];
   if (key !== 'file_id' && key !== 'image_url') invalid();
   const item = record[key];
-  const maxBytes = key === 'file_id' ? 256 : maxRemoteUrlBytes;
-  if (typeof item !== 'string' || !item || Buffer.byteLength(item, 'utf8') > maxBytes) invalid();
+  if (typeof item !== 'string' || !item) invalid();
+  const maxBytes = key === 'file_id'
+    ? 256
+    : item.toLowerCase().startsWith('data:')
+      ? Math.ceil(limits.maxFileBytes / 3) * 4 + 64
+      : limits.maxRemoteUrlBytes;
+  if (Buffer.byteLength(item, 'utf8') > maxBytes) invalid();
   return { [key]: item } as ClosedImageInput;
 }
 
@@ -124,7 +129,7 @@ export async function resolveImageInput(
   scope: ImageRequestResourceScope,
   signal: AbortSignal,
 ): Promise<ImageAsset> {
-  const input = closedInput(value, runtime.limits.maxRemoteUrlBytes);
+  const input = closedInput(value, runtime.limits);
   if ('file_id' in input) return resolveReference(input.file_id, runtime, scope);
   if (input.image_url.toLowerCase().startsWith('data:')) {
     return resolveDataUrl(input.image_url, runtime, scope, signal);
@@ -150,9 +155,9 @@ export async function resolveImageInput(
   });
 }
 
-export function parseImageInputList(value: unknown, maxRemoteUrlBytes: number): readonly unknown[] {
+export function parseImageInputList(value: unknown, limits: ImageApiRuntime['limits']): readonly unknown[] {
   const list = Array.isArray(value) ? value : [value];
   if (list.length < 1 || list.length > 16) invalid();
-  for (const item of list) closedInput(item, maxRemoteUrlBytes);
+  for (const item of list) closedInput(item, limits);
   return list;
 }

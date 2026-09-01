@@ -131,6 +131,28 @@ describe('bounded JSON body reader', () => {
     );
   });
 
+  it('accepts the built-in Codex edit envelope for a 2.49 MiB image by default', async () => {
+    const encoded = 'A'.repeat(Math.ceil((2_490_000 / 3)) * 4);
+    const body = Buffer.from(JSON.stringify({
+      images: [{ image_url: `data:image/png;base64,${encoded}` }],
+      prompt: 'edit',
+      model: 'gpt-image-2',
+      quality: 'auto',
+      size: 'auto',
+    }));
+    const result = await readJsonBody(
+      request([body], {
+        'content-type': 'application/json',
+        'content-length': String(body.byteLength),
+      }),
+      {
+        maxBytes: DEFAULT_IMAGE_API_LIMITS.maxJsonBytes,
+        signal: new AbortController().signal,
+      },
+    );
+    expect(result).toMatchObject({ model: 'gpt-image-2', quality: 'auto' });
+  });
+
   it('propagates abort without parsing partial JSON', async () => {
     const controller = new AbortController();
     controller.abort(new Error('secret abort reason'));
@@ -337,6 +359,31 @@ describe('multipart edit ingestion', () => {
 });
 
 describe('closed JSON image inputs', () => {
+  it('does not apply the remote-URL length limit to an inline data URL', async () => {
+    const resource = await scope();
+    const bytes = await png();
+    const runtime: ImageApiRuntime = {
+      tenantId: 'tenant-a',
+      providerId: 'fake',
+      defaultModel: 'gpt-image-2',
+      modelAliases: new Map(),
+      limits: limits({ maxRemoteUrlBytes: 32 }),
+    };
+    const imageUrl = `data:image/png;base64,${bytes.toString('base64')}`;
+    expect(Buffer.byteLength(imageUrl, 'utf8')).toBeGreaterThan(runtime.limits.maxRemoteUrlBytes);
+    try {
+      const asset = await resolveImageInput(
+        { image_url: imageUrl },
+        runtime,
+        resource,
+        new AbortController().signal,
+      );
+      expect(asset).toMatchObject({ mimeType: 'image/png', width: 2, height: 2 });
+    } finally {
+      await resource.cleanup();
+    }
+  });
+
   it('decodes bounded data URLs through the common validator', async () => {
     const resource = await scope();
     const bytes = await png();

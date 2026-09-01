@@ -237,6 +237,24 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     await lease.release();
   });
 
+  it('allows auto quality after doctor has verified one concrete quality level', async () => {
+    const fetchMock = vi.fn(async () => new Response(
+      '{"error":{"code":"rate_limit"}}',
+      { status: 429 },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(),
+      evidenceSource: evidenceFor({ ...supported, qualityLevels: ['low'] }),
+      now: () => 1_000,
+    });
+    const lease = await provider.acquire(context());
+    const job = lease.start({ ...request, quality: 'auto' });
+    expect(terminalCode(await collectEvents(job.events))).toBe('upstream_rate_limited');
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await lease.release();
+  });
+
   it('bootstraps the first real generation through the Codex image bridge', async () => {
     let capturedHeaders = new Headers();
     let capturedBody: Record<string, unknown> = {};

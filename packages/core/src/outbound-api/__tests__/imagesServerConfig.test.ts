@@ -76,6 +76,18 @@ describe('Images server config normalization', () => {
     expect(merged.images?.enabled).toBe(true);
     expect(merged.images?.defaultModel).toBe('gpt-image-2');
   });
+
+  it('migrates the persisted 0.2.0 JSON limit used before Codex JSON edits', () => {
+    const normalized = normalizeImagesServerConfig({
+      ...validImagesConfig(),
+      limits: {
+        ...(validImagesConfig()['limits'] as Record<string, number>),
+        maxJsonBytes: 1024 * 1024,
+      },
+    });
+    expect(normalized.limits.maxJsonBytes)
+      .toBe(DEFAULT_IMAGES_SERVER_CONFIG.limits.maxJsonBytes);
+  });
 });
 
 describe('strict Images server config validation', () => {
