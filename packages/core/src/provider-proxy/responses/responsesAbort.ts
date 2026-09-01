@@ -22,15 +22,31 @@ export interface ResponsesAbortScopeOptions {
   readonly request?: http.IncomingMessage;
   readonly response?: http.ServerResponse;
   readonly parentSignal?: AbortSignal;
-  readonly timeoutMs?: number;
+  /**
+   * Total-duration guard. Omitted ⇒ {@link DEFAULT_RESPONSES_TIMEOUT_MS}.
+   * `null` ⇒ NO timer is ever armed — the scope aborts on disconnect only.
+   * That is the Anthropic ingress's shape: `/v1/messages` has never carried a
+   * total-duration cap (a long thinking turn is not a stall), and adding one
+   * here would truncate exactly the requests the cancellation work is meant to
+   * protect. Disconnect cancellation and duration limits stay separate concerns.
+   */
+  readonly timeoutMs?: number | null;
 }
 
 function abortReason(signal: AbortSignal): unknown {
   return 'reason' in signal ? signal.reason : undefined;
 }
 
-/** Compose request disconnect, response close, parent cancellation and timeout into one scope. */
-export function createResponsesAbortScope(options: ResponsesAbortScopeOptions): ResponsesAbortScope {
+/**
+ * Compose request disconnect, response close, parent cancellation and (optionally)
+ * a total-duration timeout into ONE scope.
+ *
+ * Ingress-agnostic despite the module name: the Responses ingress was simply the
+ * first caller. The Anthropic `/v1/messages` ingress composes the same scope with
+ * `timeoutMs: null` so a downstream hang-up cancels the upstream fetch/body while
+ * a long-running turn is never capped.
+ */
+export function createRequestAbortScope(options: ResponsesAbortScopeOptions): ResponsesAbortScope {
   const controller = new AbortController();
   let timedOut = false;
   let disposed = false;
@@ -59,13 +75,15 @@ export function createResponsesAbortScope(options: ResponsesAbortScopeOptions): 
     clearTimeout(timer);
     timer = undefined;
   };
-  const timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_RESPONSES_TIMEOUT_MS);
-  timer = setTimeout(() => {
-    timer = undefined;
-    timedOut = true;
-    abort(new ResponsesRequestTimeoutError());
-  }, timeoutMs);
-  timer.unref?.();
+  if (options.timeoutMs !== null) {
+    const timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_RESPONSES_TIMEOUT_MS);
+    timer = setTimeout(() => {
+      timer = undefined;
+      timedOut = true;
+      abort(new ResponsesRequestTimeoutError());
+    }, timeoutMs);
+    timer.unref?.();
+  }
 
   return {
     signal: controller.signal,
@@ -82,6 +100,12 @@ export function createResponsesAbortScope(options: ResponsesAbortScopeOptions): 
     },
   };
 }
+
+/**
+ * Historical name kept for the Responses ingress + its tests. Identical to
+ * {@link createRequestAbortScope}.
+ */
+export const createResponsesAbortScope = createRequestAbortScope;
 
 export function throwIfResponsesAborted(signal: AbortSignal): void {
   if (!signal.aborted) return;

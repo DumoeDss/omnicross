@@ -53,6 +53,8 @@ import { captureCallerIdentity } from '../identity/fingerprintHeaders';
 import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 
+import { createRequestAbortScope } from '../responses/responsesAbort';
+
 import { handleAnthropicMessagesByo } from './anthropicMessagesByo';
 import { handleAnthropicCountTokens } from './anthropicCountTokens';
 import { classifyAnthropicMessagesPath } from './anthropicPathMatch';
@@ -106,21 +108,31 @@ export async function handleAnthropicMessagesRequest(
     // subscription relay consumes callerAnthropicBeta / identity / client
     // headers; the BYO count_tokens fetch consumes callerAnthropicBeta and
     // callerAnthropicVersion).
-    const rawBody = await readBody(req);
-    const callerBetaRaw = req.headers['anthropic-beta'];
-    const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-    const callerVersionRaw = req.headers['anthropic-version'];
-    const callerAnthropicVersion = Array.isArray(callerVersionRaw)
-      ? callerVersionRaw.join(',')
-      : callerVersionRaw;
-    const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
-    const callerClientHeaders = extractClaudeClientHeaders(req.headers);
-    await handleAnthropicCountTokens(res, rawBody, route, deps, {
-      callerAnthropicBeta,
-      callerAnthropicVersion,
-      callerIdentity,
-      callerClientHeaders,
-    });
+    // Same cancellation scope as the generation branch below: count_tokens also
+    // relays an upstream call, so a client that gives up must not leave it running.
+    const scope = createRequestAbortScope({ request: req, response: res, timeoutMs: null });
+    try {
+      const rawBody = await readBody(req, scope.signal);
+      const callerBetaRaw = req.headers['anthropic-beta'];
+      const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+      const callerVersionRaw = req.headers['anthropic-version'];
+      const callerAnthropicVersion = Array.isArray(callerVersionRaw)
+        ? callerVersionRaw.join(',')
+        : callerVersionRaw;
+      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
+      const callerClientHeaders = extractClaudeClientHeaders(req.headers);
+      await handleAnthropicCountTokens(res, rawBody, route, deps, {
+        callerAnthropicBeta,
+        callerAnthropicVersion,
+        callerIdentity,
+        callerClientHeaders,
+        signal: scope.signal,
+      });
+    } catch (error) {
+      if (!scope.signal.aborted) throw error;
+    } finally {
+      scope.dispose();
+    }
     return;
   }
 
@@ -132,36 +144,56 @@ export async function handleAnthropicMessagesRequest(
   // own guards inside `handleAnthropicMessagesByo` (providerId, JSON, key), so it
   // is reached BEFORE those delegation-only guards.
   if (!handlerFactory) {
-    // Read the body HERE (the delegation path keeps passing the un-pre-read
-    // `req`; only this fallthrough consumes the stream). Forward the caller's
-    // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1)
-    // and `anthropic-version` verbatim (claude-api-protocol-fidelity, R5).
-    const rawBody = await readBody(req);
-    const callerBetaRaw = req.headers['anthropic-beta'];
-    const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-    const callerVersionRaw = req.headers['anthropic-version'];
-    const callerAnthropicVersion = Array.isArray(callerVersionRaw)
-      ? callerVersionRaw.join(',')
-      : callerVersionRaw;
-    // subscription-client-fingerprint #7: capture the caller's WHITELISTED
-    // fingerprint headers here (the same seam that already reads `anthropic-beta`)
-    // and thread them to the relay. Auth/cookie are never captured (the whitelist
-    // excludes them). GATED on the flag (`captureCallerIdentity`) — skipped entirely
-    // when replay is disabled (no wasted extraction on the default/BYO path); the
-    // relay's own claude-scoped gate is unchanged, so behavior when enabled is
-    // identical.
-    const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
-    // UNGATED, unlike `captureCallerIdentity`: forwarding the client's OWN
-    // Claude Code headers (UA / x-app / x-stainless-* / accept*) is not
-    // fingerprint synthesis, and the subscription relay needs them regardless of
-    // whether the opt-in freeze/replay feature is on.
-    const callerClientHeaders = extractClaudeClientHeaders(req.headers);
-    await handleAnthropicMessagesByo(res, rawBody, route, deps, {
-      callerAnthropicBeta,
-      callerAnthropicVersion,
-      callerIdentity,
-      callerClientHeaders,
-    });
+    // Downstream-cancellation scope (request disconnect / response close). The
+    // Codex Responses ingress has carried one since its own orphan-stream fix;
+    // WITHOUT it a Claude Code client that hangs up mid-turn left the UPSTREAM
+    // request running to completion, holding an egress socket — and, through a
+    // local proxy, a CONNECT tunnel — for the rest of the generation.
+    //
+    // `timeoutMs: null` is load-bearing: `/v1/messages` has never carried a
+    // total-duration cap and must not gain one here (a long thinking turn is not
+    // a stall). ONLY an actual disconnect aborts this scope.
+    const scope = createRequestAbortScope({ request: req, response: res, timeoutMs: null });
+    try {
+      // Read the body HERE (the delegation path keeps passing the un-pre-read
+      // `req`; only this fallthrough consumes the stream). Forward the caller's
+      // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1)
+      // and `anthropic-version` verbatim (claude-api-protocol-fidelity, R5).
+      const rawBody = await readBody(req, scope.signal);
+      const callerBetaRaw = req.headers['anthropic-beta'];
+      const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+      const callerVersionRaw = req.headers['anthropic-version'];
+      const callerAnthropicVersion = Array.isArray(callerVersionRaw)
+        ? callerVersionRaw.join(',')
+        : callerVersionRaw;
+      // subscription-client-fingerprint #7: capture the caller's WHITELISTED
+      // fingerprint headers here (the same seam that already reads `anthropic-beta`)
+      // and thread them to the relay. Auth/cookie are never captured (the whitelist
+      // excludes them). GATED on the flag (`captureCallerIdentity`) — skipped entirely
+      // when replay is disabled (no wasted extraction on the default/BYO path); the
+      // relay's own claude-scoped gate is unchanged, so behavior when enabled is
+      // identical.
+      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
+      // UNGATED, unlike `captureCallerIdentity`: forwarding the client's OWN
+      // Claude Code headers (UA / x-app / x-stainless-* / accept*) is not
+      // fingerprint synthesis, and the subscription relay needs them regardless of
+      // whether the opt-in freeze/replay feature is on.
+      const callerClientHeaders = extractClaudeClientHeaders(req.headers);
+      await handleAnthropicMessagesByo(res, rawBody, route, deps, {
+        callerAnthropicBeta,
+        callerAnthropicVersion,
+        callerIdentity,
+        callerClientHeaders,
+        signal: scope.signal,
+      });
+    } catch (error) {
+      // A disconnect surfaces as this scope's AbortError once the upstream fetch
+      // or body read tears down. Nobody is left to answer, so swallow it; any
+      // other fault still propagates to the caller's error handling.
+      if (!scope.signal.aborted) throw error;
+    } finally {
+      scope.dispose();
+    }
     return;
   }
 
