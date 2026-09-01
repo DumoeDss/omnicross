@@ -11,7 +11,13 @@
  * - undici `fetch`, with an `EnvHttpProxyAgent` dispatcher when the environment
  *   configures a proxy (cached per proxy signature).
  * - The pinned browser navigation header profile (see `./headers`).
- * - `redirect: 'manual'`, at most {@link MAX_REDIRECTS} hops.
+ * - `redirect: 'manual'`, at most {@link MAX_REDIRECTS} hops, with the initial
+ *   URL and every hop target checked against the search egress policy
+ *   (`../egress`). These two engines are fixed-host and keyless, so nothing an
+ *   attacker controls picks the URL — but a redirect target is upstream input,
+ *   and this is the seam 阶段2 identified and 阶段4 fills. The default policy
+ *   permits every public host, so the fixed engines and the live `cn.bing.com`
+ *   geo-redirect are unaffected.
  * - A byte cap enforced WHILE the body streams — an oversized page fails, it is
  *   never silently truncated (this diverges from Elftia, which truncates and
  *   parses the fragment; the spec requires a `body-cap` failure).
@@ -26,9 +32,10 @@
  * @module search/http/transport
  */
 
-import type { SearchProviderId } from '@omnicross/contracts/search-types';
+import { isSearchProviderError, type SearchProviderId } from '@omnicross/contracts/search-types';
 import { fetch as undiciFetch } from 'undici';
 
+import { validateEgressUrl, type SearchEgressPolicy } from '../egress';
 import { decodeSearchBody } from './body-decode';
 import { asSearchProviderError, hostOf, searchHttpError } from './errors';
 import { searchBrowserHeaders } from './headers';
@@ -37,6 +44,7 @@ import type {
   SearchHttpFetch,
   SearchHttpRequest,
   SearchHttpResource,
+  SearchHttpStage,
   SearchHttpTransport,
 } from './types';
 
@@ -58,6 +66,11 @@ export interface SearchHttpTransportOptions {
   env?: ProxyEnvironment;
   /** Redirect hop cap. Defaults to {@link MAX_REDIRECTS}. */
   maxRedirects?: number;
+  /**
+   * Egress policy for the initial URL and every redirect hop. Defaults to
+   * public-only, which is all these fixed-host engines ever need.
+   */
+  egressPolicy?: SearchEgressPolicy;
 }
 
 /** Build a transport. Tests inject `fetch`; production takes the default. */
@@ -66,6 +79,7 @@ export function createSearchHttpTransport(
 ): SearchHttpTransport {
   const fetchImpl = options.fetch ?? createUndiciFetch(options.env);
   const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS;
+  const egressPolicy = options.egressPolicy;
 
   return async (url, request) => {
     const context: AttemptContext = {
@@ -92,6 +106,7 @@ export function createSearchHttpTransport(
         controller.signal,
         maxRedirects,
         context,
+        egressPolicy,
       );
       context.host = hostOf(finalUrl);
 
@@ -162,8 +177,12 @@ async function fetchWithRedirectLimit(
   signal: AbortSignal,
   maxRedirects: number,
   context: AttemptContext,
+  egressPolicy: SearchEgressPolicy | undefined,
 ): Promise<{ response: Response; finalUrl: string }> {
   let currentUrl = url;
+  // The initial URL is built from a fixed engine host, so this is belt and
+  // braces; the hop below is the one that matters.
+  assertEgressAllowed(currentUrl, egressPolicy, 'connect', context);
 
   for (let redirects = 0; redirects <= maxRedirects; redirects += 1) {
     let response: Response;
@@ -198,10 +217,42 @@ async function fetchWithRedirectLimit(
     void response.body?.cancel().catch(() => undefined);
 
     if (redirects === maxRedirects) throw tooManyRedirects(maxRedirects, context);
-    currentUrl = new URL(location, currentUrl).href;
+    const nextUrl = new URL(location, currentUrl).href;
+    // A `location` is upstream-controlled input. This is the seam the 阶段2
+    // review named and 阶段4 fills: without it, a redirect walks anywhere.
+    assertEgressAllowed(nextUrl, egressPolicy, 'redirect', context);
+    currentUrl = nextUrl;
   }
 
   throw tooManyRedirects(maxRedirects, context);
+}
+
+/**
+ * Run the egress policy over one URL, restamped into this slice's error shape.
+ *
+ * The denial keeps its `policy_denied` code and its hostname-only message and
+ * gains the `transport`/`stage` fields every failure here carries. No new stage
+ * is introduced: a refused initial URL never connected (`connect`), and a
+ * refused hop failed while redirecting (`redirect`).
+ */
+function assertEgressAllowed(
+  url: string,
+  policy: SearchEgressPolicy | undefined,
+  stage: SearchHttpStage,
+  context: AttemptContext,
+): void {
+  try {
+    validateEgressUrl(url, policy, context.providerId);
+  } catch (error) {
+    if (!isSearchProviderError(error)) throw error;
+    throw searchHttpError(error.code, error.message, {
+      stage,
+      providerId: context.providerId,
+      retryable: false,
+      cause: error,
+      details: error.details,
+    });
+  }
 }
 
 function tooManyRedirects(maxRedirects: number, context: AttemptContext): Error {

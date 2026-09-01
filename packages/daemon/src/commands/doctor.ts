@@ -34,6 +34,14 @@ import type {
   GatewayBinding,
   OutboundApiServerConfig,
 } from '@omnicross/core/outbound-api/types';
+import {
+  apiSearchContributions,
+  JINA_CAPABILITIES,
+  SEARXNG_CAPABILITIES,
+  TAVILY_CAPABILITIES,
+  ZHIPU_CAPABILITIES,
+  type SearchApiProviderConfigs,
+} from '@omnicross/core/search/api';
 import { builtinHttpSearchContributions } from '@omnicross/core/search/http';
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
@@ -216,23 +224,157 @@ export interface SearchDoctorRow {
   source: SearchProviderSource;
   kind: SearchTransportKind;
   capabilities: SearchProviderCapabilities;
+  /** Offline-determinable status. Present only on `unconfigured` rows. */
+  status?: SearchProviderHealthStatus;
+  /** What is missing, for an `unconfigured` row. Never echoes a value. */
+  reason?: string;
 }
 
 /**
- * Project the builtin HTTP search contributions into a printable snapshot.
+ * Every API provider `doctor search` knows how to report on, with the
+ * offline-determinable answer to "is this configured?".
+ *
+ * `requires` is the setting whose ABSENCE makes the provider unconfigured. It
+ * is a predicate over the config, never a value read out of it: no part of this
+ * table ever touches a key or a host string.
+ */
+const API_DOCTOR_PROVIDERS: ReadonlyArray<{
+  id: SearchProviderId;
+  capabilities: SearchProviderCapabilities;
+  configured: (configs: SearchApiProviderConfigs) => boolean;
+  missingReason: string;
+}> = [
+  {
+    id: 'tavily',
+    capabilities: TAVILY_CAPABILITIES,
+    configured: (configs) => configs.tavily !== undefined,
+    missingReason: 'no API key configured',
+  },
+  {
+    id: 'jina',
+    capabilities: JINA_CAPABILITIES,
+    configured: (configs) => configs.jina !== undefined,
+    // Honest about the asymmetry: Jina CAN run keyless, but a provider nobody
+    // asked for is still not enabled.
+    missingReason: 'not configured (Jina can run without a key, but must be enabled explicitly)',
+  },
+  {
+    id: 'searxng',
+    capabilities: SEARXNG_CAPABILITIES,
+    configured: (configs) => configs.searxng !== undefined,
+    missingReason: 'no API host configured',
+  },
+  {
+    id: 'zhipu',
+    capabilities: ZHIPU_CAPABILITIES,
+    configured: (configs) => configs.zhipu !== undefined,
+    missingReason: 'no API key configured',
+  },
+  {
+    id: 'z.ai',
+    capabilities: ZHIPU_CAPABILITIES,
+    configured: (configs) => configs['z.ai'] !== undefined,
+    missingReason: 'no API key configured',
+  },
+];
+
+/**
+ * Project search contributions into a printable snapshot.
  *
  * Pure and IO-free: it reads what the contributions DECLARE (`source`, `kind`,
  * capabilities) and infers nothing from a provider id's spelling.
+ *
+ * Pass `apiConfigs` to also list the API providers that are NOT configured —
+ * the first real use of the `unconfigured` status. Omit it and the function
+ * behaves exactly as it did in 阶段2: it projects what it is handed, nothing
+ * more.
  */
 export function buildSearchDoctorSnapshot(
   contributions: SearchProviderContribution[] = builtinHttpSearchContributions(),
+  apiConfigs?: SearchApiProviderConfigs,
 ): SearchDoctorRow[] {
-  return contributions.map((contribution) => ({
+  const rows: SearchDoctorRow[] = contributions.map((contribution) => ({
     providerId: contribution.id,
     source: contribution.source,
     kind: contribution.kind,
     capabilities: contribution.capabilities,
   }));
+
+  if (apiConfigs === undefined) return rows;
+
+  for (const provider of API_DOCTOR_PROVIDERS) {
+    if (provider.configured(apiConfigs)) continue;
+    rows.push({
+      providerId: provider.id,
+      source: 'builtin',
+      kind: 'api',
+      capabilities: provider.capabilities,
+      status: 'unconfigured',
+      reason: provider.missingReason,
+    });
+  }
+  return rows;
+}
+
+/**
+ * The doctor-only environment convenience.
+ *
+ * This is NOT the configuration system, and it must not become one: 阶段5's
+ * daemon assembly reads real config from real storage and REPLACES this. It
+ * exists so `doctor search --live` can probe a keyed provider today, before
+ * that assembly lands.
+ *
+ * The values are read here, handed straight to `apiSearchContributions`, and
+ * never persisted, logged, or passed to any other subsystem. `z.ai` reads
+ * `Z_AI` because a dot is not valid in an environment variable name.
+ */
+export function readSearchApiConfigFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): SearchApiProviderConfigs {
+  const configs: SearchApiProviderConfigs = {};
+  const read = (name: string): string | undefined => {
+    const value = env[`OMNICROSS_SEARCH_${name}`]?.trim();
+    return value ? value : undefined;
+  };
+
+  const tavilyKey = read('TAVILY_API_KEY');
+  if (tavilyKey) {
+    configs.tavily = { apiKey: tavilyKey, ...optionalHost(read('TAVILY_API_HOST')) };
+  }
+
+  // Jina is the one provider a host alone can enable, because it runs keyless.
+  const jinaKey = read('JINA_API_KEY');
+  const jinaHost = read('JINA_API_HOST');
+  if (jinaKey || jinaHost) {
+    configs.jina = { ...(jinaKey ? { apiKey: jinaKey } : {}), ...optionalHost(jinaHost) };
+  }
+
+  const searxngHost = read('SEARXNG_API_HOST');
+  if (searxngHost) {
+    const username = read('SEARXNG_BASIC_AUTH_USERNAME');
+    const password = read('SEARXNG_BASIC_AUTH_PASSWORD');
+    configs.searxng = {
+      apiHost: searxngHost,
+      ...(username ? { basicAuthUsername: username } : {}),
+      ...(password ? { basicAuthPassword: password } : {}),
+    };
+  }
+
+  const zhipuKey = read('ZHIPU_API_KEY');
+  if (zhipuKey) {
+    configs.zhipu = { apiKey: zhipuKey, ...optionalHost(read('ZHIPU_API_HOST')) };
+  }
+
+  const zaiKey = read('Z_AI_API_KEY');
+  if (zaiKey) {
+    configs['z.ai'] = { apiKey: zaiKey, ...optionalHost(read('Z_AI_API_HOST')) };
+  }
+
+  return configs;
+}
+
+function optionalHost(apiHost: string | undefined): { apiHost?: string } {
+  return apiHost ? { apiHost } : {};
 }
 
 /**
@@ -293,6 +435,14 @@ function classifySearchFailure(
     return {
       status: 'blocked',
       reason: 'the engine served a page that failed the anti-decoy trust check',
+    };
+  }
+  // Like challenge/trust, an egress denial is a verdict about the request we
+  // were willing to make, not about the provider being broken.
+  if (code === 'policy_denied') {
+    return {
+      status: 'blocked',
+      reason: 'the egress policy refused the request target',
     };
   }
   if (code === 'parse_failed') {
@@ -360,15 +510,27 @@ function formatDiagnostic(diagnostic: SearchProviderDiagnostic): string {
  * Run `omnicross doctor search`.
  *
  * Offline mode needs no config and touches no network, so it never loads the
- * daemon: keyless fixed-host providers have no persisted state to inspect.
+ * daemon: keyless fixed-host providers have no persisted state to inspect, and
+ * the API providers are read from the documented diagnostic environment
+ * variables rather than from storage that does not exist yet.
+ *
+ * Nothing printed here is derived from a configured VALUE — only from whether
+ * one is present.
  */
-export async function runSearchDoctor(live: boolean): Promise<number> {
-  const contributions = builtinHttpSearchContributions();
+export async function runSearchDoctor(
+  live: boolean,
+  env: Record<string, string | undefined> = process.env,
+): Promise<number> {
+  const apiConfigs = readSearchApiConfigFromEnv(env);
+  const contributions = [...builtinHttpSearchContributions(), ...apiSearchContributions(apiConfigs)];
 
-  console.info('omnicross doctor search — builtin HTTP search contributions (offline, no network)');
-  for (const row of buildSearchDoctorSnapshot(contributions)) {
+  console.info('omnicross doctor search — builtin search contributions (offline, no network)');
+  for (const row of buildSearchDoctorSnapshot(contributions, apiConfigs)) {
+    const mark = row.status === 'unconfigured' ? '–' : '✓';
+    const suffix = row.status ? ` — ${row.status}: ${row.reason ?? ''}` : '';
     console.info(
-      `  [✓] ${row.providerId}: source=${row.source}, kind=${row.kind}, ${formatCapabilities(row.capabilities)}`,
+      `  [${mark}] ${row.providerId}: source=${row.source}, kind=${row.kind}, ` +
+        `${formatCapabilities(row.capabilities)}${suffix}`,
     );
   }
   if (!live) return 0;
@@ -376,6 +538,8 @@ export async function runSearchDoctor(live: boolean): Promise<number> {
   console.info(
     `  [⚠] live search sends ONE fixed public query per provider ("${SEARCH_DOCTOR_QUERY}") to the engine itself`,
   );
+  // Only CONFIGURED providers are probed: an unconfigured one has nothing to
+  // probe with, and asking it would just manufacture a `config_missing`.
   let hardFailure = false;
   for (const diagnostic of await runSearchLiveChecks(contributions)) {
     // `blocked`/`degraded` are honest observations about a hostile network, not

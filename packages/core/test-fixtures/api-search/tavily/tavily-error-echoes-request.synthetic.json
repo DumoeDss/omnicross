@@ -1,0 +1,6 @@
+{
+  "detail": {
+    "error": "Invalid value for 'search_depth'.",
+    "received_request": "{\"api_key\":\"__API_KEY__\",\"query\":\"mozilla developer network http headers\",\"max_results\":5,\"search_depth\":\"advanced\"}"
+  }
+}

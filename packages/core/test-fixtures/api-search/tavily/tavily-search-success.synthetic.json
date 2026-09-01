@@ -1,0 +1,23 @@
+{
+  "query": "mozilla developer network http headers",
+  "results": [
+    {
+      "title": "HTTP headers - HTTP | MDN",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+      "content": "HTTP headers let the client and the server pass additional information with a message in a request or response.",
+      "score": 0.98
+    },
+    {
+      "title": "HTTP request methods - HTTP | MDN",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods",
+      "content": "HTTP defines a set of request methods to indicate the purpose of the request.",
+      "score": 0.91
+    },
+    {
+      "title": "An overview of HTTP - HTTP | MDN",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview",
+      "content": "HTTP is a protocol for fetching resources such as HTML documents.",
+      "score": 0.87
+    }
+  ]
+}

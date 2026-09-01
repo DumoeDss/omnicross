@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "1302",
+    "message": "The API call rate has exceeded the account limit. Retry later or contact support."
+  }
+}

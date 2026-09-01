@@ -67,6 +67,11 @@ export default defineConfig({
     // search-phase1-orchestrator (阶段3): the search runtime — registry,
     // orchestrator, and the one entry protocol frontends and hosts call.
     search: 'src/search/index.ts',
+    // search-phase1-api-providers (阶段4): the keyed API search providers. ONE
+    // entry for the whole tree — adapters/transport/rotator are internals.
+    // (`search/egress.ts` needs no entry of its own: it ships through the bare
+    // `search` index above, which is where the HTTP slice imports it from too.)
+    'search/api': 'src/search/api/index.ts',
     // search-phase1-http-slice: the keyless HTTP search providers. ONE entry for
     // the whole tree — parsers/transport/trust are internals.
     'search/http': 'src/search/http/index.ts',

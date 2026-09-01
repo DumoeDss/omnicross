@@ -71,10 +71,16 @@ Usage:
                                            Check local Images config, roots, stores, permissions,
                                            account and cached evidence. --live warns, then consumes
                                            at most one minimal subscription image request.
-  omnicross doctor search [--live]          List the builtin HTTP search providers and their declared
+  omnicross doctor search [--live]          List the builtin search providers and their declared
                                            capabilities (offline, no config needed). --live sends ONE
                                            fixed public query per provider and reports healthy /
                                            degraded / blocked / failed.
+                                           Keyed API providers show as unconfigured unless enabled
+                                           through the DIAGNOSTIC-ONLY environment variables
+                                           OMNICROSS_SEARCH_{TAVILY,JINA,SEARXNG,ZHIPU,Z_AI}_API_KEY
+                                           / _API_HOST (plus SEARXNG_BASIC_AUTH_USERNAME/_PASSWORD).
+                                           These are read only by this command and are not the
+                                           configuration system.
 `;
 
 async function main(): Promise<void> {

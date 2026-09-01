@@ -265,7 +265,7 @@ describe('module boundaries', () => {
     const sources = readdirSync(root, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
       .map((entry) => readFileSync(`${root}/${entry.name}`, 'utf8'));
-    expect(sources.length).toBe(6);
+    expect(sources.length).toBe(7);
 
     const specifierPatterns = [
       /(?:^|\s)(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/gm,
@@ -277,6 +277,10 @@ describe('module boundaries', () => {
       '@omnicross/contracts/search-types',
       '@omnicross/contracts/search-compat',
       '@omnicross/contracts/websearch-types',
+      // 阶段4's egress policy builds an undici dispatcher whose connect-time
+      // lookup validates resolved addresses. `runtime.ts` already pulls undici
+      // transitively through `./http`, so this adds no weight to the subpath.
+      'undici',
     ]);
 
     const specifiers = sources.flatMap((source) =>

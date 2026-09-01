@@ -1,0 +1,23 @@
+{
+  "query": "mozilla developer network http headers",
+  "number_of_results": 3,
+  "results": [
+    {
+      "title": "HTTP headers - HTTP | MDN",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+      "content": "HTTP headers let the client and the server pass additional information with a message.",
+      "engine": "duckduckgo"
+    },
+    {
+      "title": "HTTP Semantics (RFC 9110)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "engine": "brave"
+    },
+    {
+      "title": "List of HTTP header fields",
+      "url": "https://en.wikipedia.org/wiki/List_of_HTTP_header_fields",
+      "content": "",
+      "engine": "wikipedia"
+    }
+  ]
+}

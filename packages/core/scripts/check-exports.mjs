@@ -34,6 +34,21 @@ const ENTRY_POINTS = {
     'SearchRegistryError',
     'searchRuntimeAsWebSearchBackend',
     'normalizeSearchResults',
+    // search-phase1-api-providers (阶段4): the egress policy ships through this
+    // existing subpath rather than claiming one of its own.
+    'validateEgressUrl',
+    'createEgressGuardedDispatcher',
+  ],
+  // search-phase1-api-providers (阶段4): the keyed API search providers.
+  '@omnicross/core/search/api': [
+    'apiSearchContributions',
+    'TavilySearchProvider',
+    'JinaSearchProvider',
+    'JinaReaderClient',
+    'SearxngSearchProvider',
+    'ZhipuSearchProvider',
+    'createSearchApiTransport',
+    'ApiKeyRotator',
   ],
   // search-phase1-http-slice (阶段2): the keyless HTTP search providers.
   '@omnicross/core/search/http': [

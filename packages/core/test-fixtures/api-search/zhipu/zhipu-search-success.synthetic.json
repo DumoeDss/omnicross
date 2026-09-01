@@ -1,0 +1,21 @@
+{
+  "id": "websearch-0000000000000000",
+  "created": 1767225600,
+  "request_id": "0000000000000000",
+  "search_result": [
+    {
+      "title": "HTTP headers - HTTP | MDN",
+      "link": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+      "content": "HTTP headers let the client and the server pass additional information with a message.",
+      "media": "MDN Web Docs",
+      "refer": "ref_1"
+    },
+    {
+      "title": "HTTP Semantics (RFC 9110)",
+      "link": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "content": "The Hypertext Transfer Protocol is a stateless application-level protocol.",
+      "publish_date": "2022-06-01",
+      "refer": "ref_2"
+    }
+  ]
+}
