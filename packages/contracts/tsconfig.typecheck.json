@@ -6,6 +6,11 @@
     "noEmit": true,
     "types": ["node"]
   },
+  // `src/**/__tests__/**` is deliberately NOT excluded here (it still is in
+  // tsconfig.json, which emits). Several contract tests assert closed unions and
+  // required fields with `@ts-expect-error`; vitest transpiles without type-checking,
+  // so this gate is the only thing that keeps those guards from silently rotting into
+  // no-ops. Re-adding the exclude disarms them.
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules", "src/**/__tests__/**"]
+  "exclude": ["dist", "node_modules"]
 }

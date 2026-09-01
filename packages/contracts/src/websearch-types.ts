@@ -89,12 +89,30 @@ export interface JinaReaderResponse {
   error?: string;
 }
 
-/** Check if provider is API type */
+/**
+ * Check if provider is API type
+ *
+ * @deprecated Classifying a provider from its id's spelling is not supported.
+ * Declare the transport explicitly instead: `SearchProviderContribution.kind`
+ * (`'api' | 'http' | 'local-browser' | 'native'`) and
+ * `SearchProviderContribution.source` in `@omnicross/contracts/search-types`.
+ * This helper has no callers and is kept only so the exported symbol set stays
+ * byte-compatible for downstream re-export shims.
+ */
 export function isApiProvider(id: WebSearchProviderId): boolean {
   return !id.startsWith('local-');
 }
 
-/** Check if provider is local type */
+/**
+ * Check if provider is local type
+ *
+ * @deprecated Classifying a provider from its id's spelling is not supported.
+ * Declare the origin explicitly instead: `SearchProviderContribution.source`
+ * (`'builtin' | 'host'`) and `SearchProviderContribution.kind` in
+ * `@omnicross/contracts/search-types`. This helper has no callers and is kept
+ * only so the exported symbol set stays byte-compatible for downstream
+ * re-export shims.
+ */
 export function isLocalProvider(id: WebSearchProviderId): boolean {
   return id.startsWith('local-');
 }
