@@ -363,6 +363,140 @@ function describeUnknownError(value: unknown): string {
 }
 
 /**
+ * The knobs a runtime uses to choose and order providers.
+ *
+ * These are plan §11.3's query-egress controls: a query reaches a provider only
+ * because policy allowed it, so "send this query to exactly one provider" is
+ * expressible (`fallbackEnabled: false`, or a one-id `allowed`) rather than
+ * implied. Every field is optional; the documented defaults are fallback on,
+ * every registered provider allowed, and an unbounded number of attempts.
+ */
+export interface SearchPolicy {
+  /** Try this provider first when the request pins none. Unknown ids are skipped, not errors. */
+  preferred?: SearchProviderId;
+  /** Restrict candidates to these ids. Omit to allow every registered provider. */
+  allowed?: SearchProviderId[];
+  /** Whether a failed candidate may be followed by another. Omit for `true`. */
+  fallbackEnabled?: boolean;
+  /** Upper bound on candidates attempted for one search. Omit for unbounded. */
+  maxAttempts?: number;
+}
+
+/** How one provider attempt ended. Empty results are a `success`. */
+export type SearchAttemptOutcome = 'success' | 'failed';
+
+/**
+ * One provider attempt, as recorded by the orchestrator.
+ *
+ * This is the structured record; it carries no query text and no result
+ * content, so it is safe to log or return to a caller verbatim.
+ */
+export interface SearchAttempt {
+  /** The provider that was attempted. */
+  providerId: SearchProviderId;
+  /** How the attempt ended. */
+  outcome: SearchAttemptOutcome;
+  /** Taxonomy code for a `failed` attempt. */
+  errorCode?: SearchErrorCode;
+  /** Results the attempt produced; `0` is a legitimate success. */
+  resultCount?: number;
+  /** Wall-clock duration of the attempt in milliseconds. */
+  durationMs: number;
+}
+
+/**
+ * A {@link SearchResponse} plus what the orchestrator did to produce it.
+ *
+ * `attempts` records provider EXECUTIONS in order; candidates that were never
+ * attempted (skipped by policy, cut off by `maxAttempts`) do not appear.
+ */
+export interface OrchestratedSearchResponse extends SearchResponse {
+  /** Every provider attempt, in the order they ran. */
+  attempts: SearchAttempt[];
+  /** Attempts beyond the first — `attempts.length - 1`, never negative. */
+  fallbackCount: number;
+}
+
+/**
+ * A registered provider as capability discovery sees it.
+ *
+ * Serializable by construction: the provider instance is deliberately absent,
+ * so a descriptor can cross a wire, land in doctor output, or reach a renderer
+ * without dragging an implementation (or its configuration) along.
+ */
+export interface SearchProviderDescriptor {
+  /** The id the provider is registered under. */
+  id: SearchProviderId;
+  /** Declared origin. */
+  source: SearchProviderSource;
+  /** Declared transport. */
+  kind: SearchTransportKind;
+  /** Declared capabilities. */
+  capabilities: SearchProviderCapabilities;
+}
+
+/**
+ * Who is registering a contribution.
+ *
+ * Minimal on purpose: the parameter exists today so a Phase-2 host registering
+ * its `local-*` providers does not force a signature change, and so registry
+ * policy has somewhere to read a caller identity from when it needs one.
+ */
+export interface SearchContributionContext {
+  /** Identifier of the embedding host making the registration. */
+  hostId?: string;
+}
+
+/**
+ * Fields every runtime event carries.
+ *
+ * `queryHash` — never the query — is the correlation key (plan §11.3). No
+ * variant of {@link SearchRuntimeEvent} declares a field for query text, a URL,
+ * or result content, and none ever should: these events are built to be logged.
+ */
+export interface SearchRuntimeEventBase {
+  /** Correlates every event of one search. Random per search. */
+  requestId: string;
+  /** Short one-way hash of the query, computed by the runtime. */
+  queryHash: string;
+  /** Wall-clock duration in milliseconds. */
+  durationMs: number;
+}
+
+/** One provider attempt, as observed. */
+export interface SearchAttemptEvent extends SearchRuntimeEventBase {
+  type: 'search_attempt';
+  /** The provider attempted, or the one a policy skipped. */
+  providerId: SearchProviderId;
+  /** How the attempt ended. */
+  outcome: SearchAttemptOutcome;
+  /** Taxonomy code for a `failed` attempt. */
+  errorCode?: SearchErrorCode;
+  /** Results the attempt produced. */
+  resultCount?: number;
+}
+
+/**
+ * The single terminal event of a search, emitted for success and failure alike.
+ *
+ * `providerId` is present exactly when a provider produced the response — its
+ * absence means no provider succeeded, which is what separates a failed search
+ * from a provider that authoritatively found nothing (present id, zero results).
+ */
+export interface SearchCompleteEvent extends SearchRuntimeEventBase {
+  type: 'search_complete';
+  /** The provider that produced the response, when one did. */
+  providerId?: SearchProviderId;
+  /** Results returned to the caller; `0` for a failed search. */
+  resultCount: number;
+  /** Attempts beyond the first. */
+  fallbackCount: number;
+}
+
+/** Everything a runtime observability listener can receive. */
+export type SearchRuntimeEvent = SearchAttemptEvent | SearchCompleteEvent;
+
+/**
  * Provider health as reported by doctor/diagnostics surfaces.
  *
  * `blocked` means an egress or policy decision stopped the provider — the

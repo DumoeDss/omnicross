@@ -2,28 +2,49 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import * as contractsBarrel from '@omnicross/contracts';
 import type {
+  OrchestratedSearchResponse as BarrelOrchestratedSearchResponse,
+  SearchAttempt as BarrelSearchAttempt,
+  SearchAttemptEvent as BarrelSearchAttemptEvent,
+  SearchAttemptOutcome as BarrelSearchAttemptOutcome,
+  SearchCompleteEvent as BarrelSearchCompleteEvent,
+  SearchContributionContext as BarrelSearchContributionContext,
+  SearchPolicy as BarrelSearchPolicy,
   SearchProviderContribution as BarrelSearchProviderContribution,
+  SearchProviderDescriptor as BarrelSearchProviderDescriptor,
   SearchResult as BarrelSearchResult,
+  SearchRuntimeEvent as BarrelSearchRuntimeEvent,
+  SearchRuntimeEventBase as BarrelSearchRuntimeEventBase,
 } from '@omnicross/contracts';
 
+import * as searchTypesModule from '../search-types';
 import {
   isKnownSearchProviderId,
   isSearchProviderError,
   SearchProviderError,
   toSearchErrorShape,
   type KnownSearchProviderId,
+  type OrchestratedSearchResponse,
+  type SearchAttempt,
+  type SearchAttemptEvent,
+  type SearchAttemptOutcome,
+  type SearchCompleteEvent,
+  type SearchContributionContext,
   type SearchErrorCode,
   type SearchErrorShape,
   type SearchOptions,
+  type SearchPolicy,
   type SearchProvider,
   type SearchProviderCapabilities,
   type SearchProviderContribution,
+  type SearchProviderDescriptor,
   type SearchProviderDiagnostic,
   type SearchProviderHealthStatus,
   type SearchProviderId,
   type SearchRequest,
   type SearchResponse,
   type SearchResult,
+  type SearchRuntimeEvent,
+  type SearchRuntimeEventBase,
 } from '../search-types';
 import type { WebSearchOptions, WebSearchResult } from '../websearch-types';
 
@@ -336,6 +357,199 @@ describe('diagnostics', () => {
   });
 });
 
+describe('orchestration vocabulary (阶段3 additive delta)', () => {
+  it('adds types only — the runtime export set of the module is unchanged', () => {
+    // The delta is additive and type-level. Types erase, so any change to this
+    // list means a VALUE was added or removed from a module whose consumers
+    // (core, daemon, and Elftia through the barrel) compile against it.
+    expect(Object.keys(searchTypesModule).sort()).toEqual([
+      'SearchProviderError',
+      'isKnownSearchProviderId',
+      'isSearchProviderError',
+      'toSearchErrorShape',
+    ]);
+  });
+
+  it('expresses the plan 11.3 egress knobs, all optional', () => {
+    const unrestricted: SearchPolicy = {};
+    const sensitive: SearchPolicy = { allowed: ['http-bing'], fallbackEnabled: false };
+    const bounded: SearchPolicy = { preferred: 'http-duckduckgo', maxAttempts: 2 };
+
+    expect(unrestricted.fallbackEnabled).toBeUndefined();
+    expect(sensitive.allowed).toEqual(['http-bing']);
+    expect(bounded.preferred).toBe('http-duckduckgo');
+
+    // The id space stays open here too — a host provider is a legal preference.
+    const hostPreferred: SearchPolicy = { preferred: 'local-google' };
+    expect(hostPreferred.preferred).toBe('local-google');
+
+    // @ts-expect-error the knob set is closed at four
+    const invented: SearchPolicy = { retries: 3 };
+    expect(invented).toEqual({ retries: 3 });
+  });
+
+  it('records an attempt without the query or its results', () => {
+    const succeeded: SearchAttempt = {
+      providerId: 'http-bing',
+      outcome: 'success',
+      resultCount: 0,
+      durationMs: 12,
+    };
+    const failed: SearchAttempt = {
+      providerId: 'http-duckduckgo',
+      outcome: 'failed',
+      errorCode: 'parse_failed',
+      durationMs: 34,
+    };
+
+    // An empty result set is a success, not a failure — the binding semantics
+    // 阶段2 established and 阶段3's orchestrator implements.
+    expect(succeeded.outcome).toBe('success');
+    expect(failed.errorCode).toBe('parse_failed');
+
+    const outcomes: SearchAttemptOutcome[] = ['success', 'failed'];
+    expect(new Set(outcomes).size).toBe(2);
+
+    // @ts-expect-error an attempt is a record, not a carrier for content
+    const leaky: SearchAttempt = { ...succeeded, query: 'secret query' };
+    expect(leaky.durationMs).toBe(12);
+
+    // @ts-expect-error `skipped` is not an outcome; policy skips are events only
+    const thirdOutcome: SearchAttemptOutcome = 'skipped';
+    expect(thirdOutcome).toBe('skipped');
+  });
+
+  it('extends the single-provider response with the walk that produced it', () => {
+    const response: OrchestratedSearchResponse = {
+      query: 'hypertext transfer protocol',
+      providerId: 'http-duckduckgo',
+      results: [{ title: 'HTTP', url: 'https://example.com/http', content: '' }],
+      attempts: [
+        { providerId: 'http-bing', outcome: 'failed', errorCode: 'timeout', durationMs: 15_000 },
+        { providerId: 'http-duckduckgo', outcome: 'success', resultCount: 1, durationMs: 900 },
+      ],
+      fallbackCount: 1,
+    };
+
+    // It IS a SearchResponse — every consumer of the narrow shape keeps working.
+    const narrow: SearchResponse = response;
+    expect(narrow.providerId).toBe('http-duckduckgo');
+    expect(response.attempts).toHaveLength(2);
+    expect(response.fallbackCount).toBe(response.attempts.length - 1);
+  });
+
+  it('describes a provider without shipping its implementation or config', () => {
+    const descriptor: SearchProviderDescriptor = {
+      id: 'http-bing',
+      source: 'builtin',
+      kind: 'http',
+      capabilities,
+    };
+
+    expect(Object.keys(descriptor).sort()).toEqual(['capabilities', 'id', 'kind', 'source']);
+    expect(JSON.parse(JSON.stringify(descriptor))).toEqual(descriptor);
+
+    const withInstance: SearchProviderDescriptor = {
+      ...descriptor,
+      // @ts-expect-error a descriptor is serializable — no provider instance rides along
+      provider: { id: 'http-bing', search: async () => [] },
+    };
+    expect(withInstance.id).toBe('http-bing');
+
+    // @ts-expect-error and never a credential
+    const withSecret: SearchProviderDescriptor = { ...descriptor, apiKey: 'sk-x' };
+    expect(withSecret.id).toBe('http-bing');
+  });
+
+  it('carries a registration context a Phase-2 host can fill in', () => {
+    const anonymous: SearchContributionContext = {};
+    const fromHost: SearchContributionContext = { hostId: 'elftia-desktop' };
+
+    expect(anonymous.hostId).toBeUndefined();
+    expect(fromHost.hostId).toBe('elftia-desktop');
+  });
+
+  it('declares events that cannot carry a query, a URL, or result content', () => {
+    const attempt: SearchAttemptEvent = {
+      type: 'search_attempt',
+      requestId: 'e3b0c442-98fc-4c14-9afb-f4c8996fb924',
+      queryHash: '9f86d081884c',
+      providerId: 'http-bing',
+      outcome: 'failed',
+      errorCode: 'upstream_unavailable',
+      durationMs: 42,
+    };
+    const complete: SearchCompleteEvent = {
+      type: 'search_complete',
+      requestId: 'e3b0c442-98fc-4c14-9afb-f4c8996fb924',
+      queryHash: '9f86d081884c',
+      providerId: 'http-duckduckgo',
+      resultCount: 3,
+      fallbackCount: 1,
+      durationMs: 913,
+    };
+
+    // Every field an event may carry, enumerated. A new field able to hold text
+    // fails this assertion before it can reach a log.
+    expect(Object.keys(attempt).sort()).toEqual([
+      'durationMs',
+      'errorCode',
+      'outcome',
+      'providerId',
+      'queryHash',
+      'requestId',
+      'type',
+    ]);
+    expect(Object.keys(complete).sort()).toEqual([
+      'durationMs',
+      'fallbackCount',
+      'providerId',
+      'queryHash',
+      'requestId',
+      'resultCount',
+      'type',
+    ]);
+
+    // @ts-expect-error the query never travels on the events channel — only its hash
+    const leakyAttempt: SearchAttemptEvent = { ...attempt, query: 'my private query' };
+    expect(leakyAttempt.queryHash).toBe('9f86d081884c');
+
+    // @ts-expect-error nor does a result URL
+    const leakyComplete: SearchCompleteEvent = { ...complete, url: 'https://example.com' };
+    expect(leakyComplete.resultCount).toBe(3);
+
+    // @ts-expect-error nor result content under any other name
+    const leakyBase: SearchRuntimeEventBase = { ...attempt, snippet: 'page text' };
+    expect(leakyBase.requestId).toBe(attempt.requestId);
+  });
+
+  it('discriminates the two event variants on `type`', () => {
+    const events: SearchRuntimeEvent[] = [
+      {
+        type: 'search_attempt',
+        requestId: 'r',
+        queryHash: 'h',
+        providerId: 'http-bing',
+        outcome: 'success',
+        resultCount: 2,
+        durationMs: 5,
+      },
+      { type: 'search_complete', requestId: 'r', queryHash: 'h', resultCount: 0, fallbackCount: 1, durationMs: 9 },
+    ];
+
+    const seen = events.map((event) =>
+      event.type === 'search_attempt' ? event.outcome : `complete:${event.providerId ?? 'none'}`,
+    );
+    // A complete event with no providerId means no provider succeeded — the one
+    // signal that separates a failed search from an authoritative empty one.
+    expect(seen).toEqual(['success', 'complete:none']);
+
+    // @ts-expect-error the event vocabulary is closed at two variants
+    const invented: SearchRuntimeEvent = { type: 'search_started', requestId: 'r', queryHash: 'h', durationMs: 0 };
+    expect(invented.type).toBe('search_started');
+  });
+});
+
 describe('barrel aggregation (collision canary)', () => {
   it('re-exports the new runtime values from @omnicross/contracts', () => {
     // The barrel's `export *` SILENTLY drops a name exported by two modules.
@@ -365,5 +579,25 @@ describe('barrel aggregation (collision canary)', () => {
     expectTypeOf<BarrelSearchResult>().toEqualTypeOf<SearchResult>();
     expectTypeOf<BarrelSearchProviderContribution>().toEqualTypeOf<SearchProviderContribution>();
     expect(contribution.source).toBe('host');
+  });
+
+  it('re-exports every orchestration name added by 阶段3', () => {
+    // Each new name has to resolve through the barrel as well as the subpath:
+    // `export *` drops a name exported by two modules SILENTLY, and a type-only
+    // collision is invisible at runtime. These equalities are the canary.
+    expectTypeOf<BarrelSearchPolicy>().toEqualTypeOf<SearchPolicy>();
+    expectTypeOf<BarrelSearchAttempt>().toEqualTypeOf<SearchAttempt>();
+    expectTypeOf<BarrelSearchAttemptOutcome>().toEqualTypeOf<SearchAttemptOutcome>();
+    expectTypeOf<BarrelOrchestratedSearchResponse>().toEqualTypeOf<OrchestratedSearchResponse>();
+    expectTypeOf<BarrelSearchProviderDescriptor>().toEqualTypeOf<SearchProviderDescriptor>();
+    expectTypeOf<BarrelSearchContributionContext>().toEqualTypeOf<SearchContributionContext>();
+    expectTypeOf<BarrelSearchRuntimeEvent>().toEqualTypeOf<SearchRuntimeEvent>();
+    expectTypeOf<BarrelSearchRuntimeEventBase>().toEqualTypeOf<SearchRuntimeEventBase>();
+    expectTypeOf<BarrelSearchAttemptEvent>().toEqualTypeOf<SearchAttemptEvent>();
+    expectTypeOf<BarrelSearchCompleteEvent>().toEqualTypeOf<SearchCompleteEvent>();
+
+    const viaBarrel: BarrelSearchPolicy = { preferred: 'http-bing', maxAttempts: 1 };
+    const viaSubpath: SearchPolicy = viaBarrel;
+    expect(viaSubpath.preferred).toBe('http-bing');
   });
 });

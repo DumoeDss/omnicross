@@ -7,9 +7,10 @@
  */
 
 import type { MCPCallToolResponse, MCPTool } from '@omnicross/contracts/mcp-types';
-import type { WebSearchProviderId } from '@omnicross/contracts/websearch-types';
+import { toSearchErrorShape } from '@omnicross/contracts/search-types';
 
 import type { WebSearchBackend } from '../ports/web-search-backend';
+import type { SearchRuntime } from '../search/runtime';
 import type { AnthropicTool, OpenAITool } from '../tool-types';
 
 // ---------------------------------------------------------------------------
@@ -18,14 +19,6 @@ import type { AnthropicTool, OpenAITool } from '../tool-types';
 
 const DEFAULT_SEARCH_COUNT = 5;
 const DEFAULT_FETCH_MAX_CHARS = 20_000;
-
-/** Provider fallback order (same as WebSearchServiceTool) */
-const FALLBACK_ORDER: WebSearchProviderId[] = [
-  'tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'bocha', 'grok',
-  'local-google', 'local-bing', 'local-baidu', 'local-duckduckgo',
-];
-
-const IMPLICIT_LOCAL_FALLBACK: WebSearchProviderId = 'local-google';
 
 // ---------------------------------------------------------------------------
 // Tool metadata (MCPTool format)
@@ -76,7 +69,17 @@ const WEB_FETCH_TOOL: MCPTool = {
 // ---------------------------------------------------------------------------
 
 export class BuiltinToolExecutor {
-  constructor(private webSearch: WebSearchBackend) {}
+  /**
+   * @param webSearch - the legacy port, still the `web_fetch` URL reader.
+   * @param runtime - the search runtime `web_search` delegates to. Optional so
+   *   the single-argument construction hosts already use keeps compiling; when
+   *   omitted, a default runtime over the builtin HTTP providers is built on
+   *   first use.
+   */
+  constructor(
+    private webSearch: WebSearchBackend,
+    private runtime?: SearchRuntime,
+  ) {}
 
   async execute(
     toolName: string,
@@ -106,57 +109,60 @@ export class BuiltinToolExecutor {
 
     const count = Math.min(Math.max(Number(args.count ?? DEFAULT_SEARCH_COUNT), 1), 10);
 
-    // Build provider chain (same logic as WebSearchServiceTool)
-    const chain = this.resolveProviderChain();
-    let lastError = '';
-
-    for (const providerId of chain) {
-      try {
-        const result = await this.webSearch.search(query, providerId, { maxResults: count });
-
-        if (!result.success) {
-          lastError = result.error || 'Unknown error';
-          console.log(`[BuiltinToolExecutor] Search provider ${providerId} failed: ${lastError}, trying next...`);
-          continue;
-        }
-
-        const items = result.results.slice(0, count);
-        if (items.length === 0) {
-          console.log(`[BuiltinToolExecutor] Search provider ${providerId} returned 0 results, trying next...`);
-          continue;
-        }
-
-        const text = items
-          .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content || ''}`)
-          .join('\n\n');
-
-        return { isError: false, content: [{ type: 'text', text }] };
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-        console.log(`[BuiltinToolExecutor] Search provider ${providerId} threw: ${lastError}, trying next...`);
-        continue;
-      }
+    // ONE call. Choosing a provider, ordering the candidates and falling back
+    // are the runtime's job — a loop here would be a second fallback policy,
+    // which is exactly what this tool used to carry and what plan 阶段3 removed.
+    let response;
+    try {
+      response = await (await this.getRuntime()).search({
+        query,
+        options: { maxResults: count },
+      });
+    } catch (err) {
+      const shape = toSearchErrorShape(err);
+      return {
+        isError: false,
+        content: [{ type: 'text', text: `Search failed (${shape.code}): ${shape.message}` }],
+      };
     }
 
-    return {
-      isError: false,
-      content: [{ type: 'text', text: lastError
-        ? `Search failed after trying ${chain.length} provider(s). Last error: ${lastError}`
-        : `No results found for "${query}" after trying ${chain.length} provider(s). Try rephrasing your search.` }],
-    };
+    if (response.results.length === 0) {
+      return {
+        isError: false,
+        content: [{ type: 'text', text:
+          `No results found for "${query}" after trying ${response.attempts.length} provider(s). Try rephrasing your search.` }],
+      };
+    }
+
+    const text = response.results
+      .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.content || ''}`)
+      .join('\n\n');
+
+    return { isError: false, content: [{ type: 'text', text }] };
   }
 
-  private resolveProviderChain(): WebSearchProviderId[] {
-    const chain: WebSearchProviderId[] = [];
-    for (const id of FALLBACK_ORDER) {
-      if (this.webSearch.isProviderEnabled(id)) {
-        chain.push(id);
-      }
-    }
-    if (!chain.includes(IMPLICIT_LOCAL_FALLBACK)) {
-      chain.push(IMPLICIT_LOCAL_FALLBACK);
-    }
-    return chain;
+  /** Memoized lazy construction, so concurrent first calls share one runtime. */
+  private runtimeInit?: Promise<SearchRuntime>;
+
+  /**
+   * The runtime `web_search` delegates to.
+   *
+   * Imported lazily so the search stack's transport and HTML parsing stay out
+   * of the module graph of every consumer that only wants the tool definitions
+   * — the same reason `builtin-web-fetch` is loaded on demand below.
+   *
+   * The PROMISE is memoized, not just its result: two concurrent first searches
+   * would otherwise each build a runtime and the later one would win. Harmless
+   * while the default runtime is stateless, but it stops being harmless the
+   * moment one holds a connection pool or a cache.
+   */
+  private getRuntime(): Promise<SearchRuntime> {
+    if (this.runtime !== undefined) return Promise.resolve(this.runtime);
+    this.runtimeInit ??= import('../search/runtime.js').then(({ createSearchRuntime }) => {
+      this.runtime = createSearchRuntime();
+      return this.runtime;
+    });
+    return this.runtimeInit;
   }
 
   // -----------------------------------------------------------------------
