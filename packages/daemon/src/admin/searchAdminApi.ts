@@ -1,7 +1,8 @@
 /**
- * searchAdminApi — the admin API's search surface (search-settings-ui, design D3).
+ * searchAdminApi — the admin API's search surface (search-settings-ui D3 +
+ * search-settings-tab D4).
  *
- * Two routes over the daemon's search state, dispatched from `adminApi.ts`'s
+ * Three routes over the daemon's search state, dispatched from `adminApi.ts`'s
  * `case 'search'`:
  *
  * - `GET /admin/api/search/diagnostics` — a READ-ONLY, secret-free, network-free
@@ -10,15 +11,27 @@
  *   config does not name — the doctor's classification), the effective frontend
  *   modes, and the explicit apply semantics (codex immediate, rest restart).
  * - `POST /admin/api/search/test { providerId }` — ONE live fixed-query check on
- *   a configured provider, classified by the doctor's pure functions.
+ *   a configured provider, classified by the doctor's pure functions. The
+ *   machine-facing health probe: it sends exactly `SEARCH_DOCTOR_QUERY`, never a
+ *   caller-supplied query, and never returns result content (plan §11.3 — its
+ *   contract is the automated doctor's fixed-query discipline).
+ * - `POST /admin/api/search/query { providerId, query }` — the INTERACTIVE
+ *   channel for the settings page's per-provider test panel (owner feedback
+ *   2026-09-02): ONE operator-typed query through ONE provider's contribution
+ *   built from the PERSISTED config, returning the doctor-classified diagnostic
+ *   PLUS the sanitized results. The two disciplines stay separate routes on
+ *   purpose: bending `/test` to accept a query would erase the boundary its
+ *   pinned tests and consumers depend on.
  *
- * SECRET SPINE: neither response ever carries a configured VALUE, a user query,
- * or result content (titles/URLs/snippets). The test endpoint sends exactly
- * `SEARCH_DOCTOR_QUERY` — never a caller-supplied query (plan §11.3: the admin
- * surface is not a query channel).
+ * SECRET SPINE (all three routes): no response ever carries a configured VALUE,
+ * and a failure response carries only the doctor's SANITIZED error shape — raw
+ * upstream error bodies (which may quote the stored key) never serialize. The
+ * query endpoint additionally sanitizes every returned result field BEFORE
+ * serialization (plan §11.1: search results are untrusted input), and the
+ * operator's query is never logged anywhere.
  *
  * The diagnostics dep is OPTIONAL (`AdminApiDeps.searchStatus`): light embedders
- * that wire no search runtime get 501 for both routes (the voucher/allowance
+ * that wire no search runtime get 501 for all routes (the voucher/allowance
  * optionality precedent) rather than a fabricated snapshot.
  *
  * @module @omnicross/daemon/admin/searchAdminApi
@@ -93,6 +106,44 @@ export interface SearchTestResponse {
   resultCount?: number;
 }
 
+/** One sanitized interactive-query result (plan §11.1: untrusted input). */
+export interface SearchQueryResultItem {
+  title: string;
+  url: string;
+  content: string;
+}
+
+/** `POST /admin/api/search/query` response body. */
+export interface SearchQueryResponse {
+  /** The doctor-classified diagnostic (status/reason/sanitized error shape). */
+  diagnostic: SearchProviderDiagnostic;
+  /** Sanitized result count on the success arm. */
+  resultCount?: number;
+  /** Sanitized results (≤5) on the success arm. Absent on the failure arm. */
+  results?: SearchQueryResultItem[];
+}
+
+// ── Interactive-query bounds + sanitization (plan §11.1) ─────────────────────
+
+/** An accepted interactive query: at most 256 UTF-16 code units. */
+const SEARCH_QUERY_MAX_CODE_UNITS = 256;
+/** Control characters (C0 + DEL) — never accepted in a query, never echoed. */
+const QUERY_CONTROL_CHARS = /[\u0000-\u001f\u007f]/u;
+/** Per-field code-unit caps for a serialized result field. */
+const SEARCH_RESULT_FIELD_CAPS = { title: 512, url: 2048, content: 1024 } as const;
+/** At most this many results cross the wire. */
+const SEARCH_QUERY_MAX_RESULTS = 5;
+
+/**
+ * Sanitize one result field before serialization: coerce to string (a hostile
+ * upstream may hand back anything), strip control characters, cap the length.
+ */
+function sanitizeResultField(value: unknown, cap: number): string {
+  const text =
+    typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
+  return text.replace(/[\u0000-\u001f\u007f]/gu, '').slice(0, cap);
+}
+
 function writeJson(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
@@ -102,13 +153,27 @@ function writeErr(res: http.ServerResponse, status: number, message: string): vo
   writeJson(res, status, { error: { type: 'admin_api_error', message } });
 }
 
+/**
+ * Body cap for the admin search POST routes — the in-repo idiom
+ * (`routeLeaseApi.ts` MAX_BODY_BYTES): 64 KiB, counted while streaming, with a
+ * structured 400 refusal on overflow. Both routes are new-in-0.2.1, so the cap
+ * changes no legacy behavior.
+ */
+const SEARCH_MAX_BODY_BYTES = 64 * 1024;
+
+/** Distinguishes the body-cap refusal from a transport failure in the handlers. */
+class SearchBodyTooLargeError extends Error {}
+
 async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
-  const raw = await new Promise<string>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (c: Buffer) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
-  });
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    bytes += buffer.length;
+    if (bytes > SEARCH_MAX_BODY_BYTES) throw new SearchBodyTooLargeError('request body is too large');
+    chunks.push(buffer);
+  }
+  const raw = Buffer.concat(chunks).toString('utf8');
   if (!raw.trim()) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -120,7 +185,23 @@ async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, u
   }
 }
 
-/** `case 'search'` — diagnostics + test. 501 for both when the dep is absent. */
+/** Read the POST body with the cap surfaced as a structured 400. */
+async function readBodyOrReject(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    return await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof SearchBodyTooLargeError) {
+      writeErr(res, 400, error.message);
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+/** `case 'search'` — diagnostics + test + query. 501 for all when the dep is absent. */
 export async function handleSearchAdmin(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -147,6 +228,15 @@ export async function handleSearchAdmin(
       return writeErr(res, 405, `method ${method} not allowed on search test`);
     }
     return handleSearchTest(req, res, deps);
+  }
+  if (rest.length === 1 && rest[0] === 'query') {
+    if (!deps.searchStatus) {
+      return writeErr(res, 501, 'Search status is not available in this build');
+    }
+    if (method !== 'POST') {
+      return writeErr(res, 405, `method ${method} not allowed on search query`);
+    }
+    return handleSearchQuery(req, res, deps);
   }
   return writeErr(res, 404, `unknown search route '/${rest.join('/')}'`);
 }
@@ -194,7 +284,8 @@ async function handleSearchTest(
   deps: SearchAdminDeps,
 ): Promise<void> {
   const status = deps.searchStatus!;
-  const body = await readJsonBody(req);
+  const body = await readBodyOrReject(req, res);
+  if (body === undefined) return;
   const providerId = body['providerId'];
   if (typeof providerId !== 'string' || providerId.length === 0) {
     return writeErr(res, 400, 'providerId must be a non-empty string');
@@ -250,6 +341,109 @@ async function handleSearchTest(
     // egress denials are `blocked` observations, not daemon failures.
     const diagnostic = classifyLiveSearchOutcome(contribution.id, { kind: 'failure', error }, checkedAt);
     const response: SearchTestResponse = { diagnostic };
+    return writeJson(res, 200, { result: response });
+  }
+}
+
+/**
+ * `POST /admin/api/search/query { providerId, query }` — the INTERACTIVE
+ * test-panel probe (search-settings-tab D4). Mirrors `handleSearchTest`'s
+ * one-off probe construction exactly (persisted config → egress policy →
+ * contributions → the ONE requested provider; no registry, no walk, no
+ * ordering), but sends the OPERATOR's query and returns the sanitized results.
+ *
+ * §11.1 discipline: every result field is coerced/stripped/capped BEFORE
+ * serialization (the UI renders untrusted text on top — two layers); the query
+ * is never logged; a failure carries the classified diagnostic only.
+ */
+async function handleSearchQuery(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  deps: SearchAdminDeps,
+): Promise<void> {
+  const status = deps.searchStatus!;
+  const body = await readBodyOrReject(req, res);
+  if (body === undefined) return;
+  const providerId = body['providerId'];
+  if (typeof providerId !== 'string' || providerId.length === 0) {
+    return writeErr(res, 400, 'providerId must be a non-empty string');
+  }
+  if (!KEYLESS_HTTP_PROVIDER_IDS.has(providerId) && !API_PROVIDER_IDS.has(providerId)) {
+    return writeErr(res, 404, `unknown search provider '${providerId}'`);
+  }
+  const query = body['query'];
+  if (typeof query !== 'string' || query.trim().length === 0) {
+    return writeErr(res, 400, 'query must be a non-empty string');
+  }
+  if (query.length > SEARCH_QUERY_MAX_CODE_UNITS) {
+    return writeErr(res, 400, `query must be at most ${SEARCH_QUERY_MAX_CODE_UNITS} characters`);
+  }
+  if (QUERY_CONTROL_CHARS.test(query)) {
+    return writeErr(res, 400, 'query must not contain control characters');
+  }
+
+  // Probe from the CURRENT PERSISTED config (same as `/test`) so a just-saved
+  // key is testable before restart — deliberately not the bootstrap runtime.
+  const persisted = await loadServerConfig(deps.settingsStore);
+  const search = persisted.search ?? DEFAULT_SEARCH_SERVER_CONFIG;
+  const providers = search.providers as Record<string, unknown>;
+  if (!KEYLESS_HTTP_PROVIDER_IDS.has(providerId) && providers[providerId] === undefined) {
+    // Structured refusal, no fabricated probe, no upstream request.
+    return writeErr(res, 400, `search provider '${providerId}' is not configured`);
+  }
+
+  const egressPolicy = searchEgressPolicyFrom(search);
+  const fetchImpl = status.testFetch;
+  const transport = fetchImpl ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy }) : undefined;
+  const contributions: SearchProviderContribution[] = [
+    ...builtinHttpSearchContributions(transport),
+    ...apiSearchContributions(search.providers, {
+      egressPolicy,
+      ...(fetchImpl ? { fetchImpl } : {}),
+    }),
+  ];
+  const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
+  if (!contribution) {
+    // Unreachable for validated ids, but a refusal beats a fabrication if the
+    // shape ever drifts.
+    return writeErr(res, 400, `search provider '${providerId}' is not configured`);
+  }
+
+  const checkedAt = new Date().toISOString();
+  try {
+    const results = await contribution.provider.search(query, { maxResults: 5 });
+    const sanitized: SearchQueryResultItem[] = results
+      .slice(0, SEARCH_QUERY_MAX_RESULTS)
+      .map((result) => ({
+        title: sanitizeResultField(result.title, SEARCH_RESULT_FIELD_CAPS.title),
+        url: sanitizeResultField(result.url, SEARCH_RESULT_FIELD_CAPS.url),
+        content: sanitizeResultField(result.content, SEARCH_RESULT_FIELD_CAPS.content),
+      }));
+    // An empty result list is a SUCCESS here (the orchestrator's empty-[]-is-
+    // success rule): the operator's query may legitimately match nothing, so
+    // the fixed-query doctor's zero-results-implies-drift `degraded` does NOT
+    // apply to the interactive channel — the panel renders an honest empty
+    // state, never an error.
+    const diagnostic: SearchProviderDiagnostic =
+      sanitized.length === 0
+        ? { providerId: contribution.id, status: 'healthy', checkedAt }
+        : classifyLiveSearchOutcome(
+            contribution.id,
+            { kind: 'results', count: sanitized.length },
+            checkedAt,
+          );
+    const response: SearchQueryResponse = {
+      diagnostic,
+      resultCount: sanitized.length,
+      results: sanitized,
+    };
+    return writeJson(res, 200, { result: response });
+  } catch (error) {
+    // Same honest classification as `/test`: challenge/trust/egress denials
+    // are `blocked` observations; the error shape is the doctor's SANITIZED
+    // one, so an upstream body quoting the stored key never serializes.
+    const diagnostic = classifyLiveSearchOutcome(contribution.id, { kind: 'failure', error }, checkedAt);
+    const response: SearchQueryResponse = { diagnostic };
     return writeJson(res, 200, { result: response });
   }
 }

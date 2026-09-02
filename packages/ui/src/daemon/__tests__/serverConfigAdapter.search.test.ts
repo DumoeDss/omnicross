@@ -183,44 +183,58 @@ describe('getSearchDiagnostics — older-daemon compatibility', () => {
   });
 });
 
-describe('testSearchProvider — result-shaped outcomes only', () => {
-  it('maps the daemon diagnostic + result count', async () => {
+describe('runSearchQuery — result-shaped outcomes only', () => {
+  it('round-trips the operator query and maps diagnostic + results back verbatim', async () => {
     mocked.post.mockResolvedValueOnce({
       result: {
         diagnostic: { providerId: 'tavily', status: 'healthy', checkedAt: '2026-09-02T00:00:00.000Z' },
-        resultCount: 5,
+        resultCount: 2,
+        results: [
+          { title: 'Result title', url: 'https://result.example.test/a', content: 'A snippet' },
+          { title: 'Another', url: 'https://result.example.test/b', content: 'Another snippet' },
+        ],
       },
     });
     const adapter = createApiServiceAdapter();
-    const outcome = await adapter.testSearchProvider('tavily');
-    expect(mocked.post).toHaveBeenCalledWith('/search/test', { providerId: 'tavily' });
+    const outcome = await adapter.runSearchQuery('tavily', 'omnicross search');
+    // The payload places providerId and query exactly where the daemon route
+    // reads them.
+    expect(mocked.post).toHaveBeenCalledWith('/search/query', {
+      providerId: 'tavily',
+      query: 'omnicross search',
+    });
     expect(outcome).toEqual({
       ok: true,
       result: {
-        providerId: 'tavily',
-        status: 'healthy',
-        checkedAt: '2026-09-02T00:00:00.000Z',
-        resultCount: 5,
+        diagnostic: { providerId: 'tavily', status: 'healthy', checkedAt: '2026-09-02T00:00:00.000Z' },
+        resultCount: 2,
+        results: [
+          { title: 'Result title', url: 'https://result.example.test/a', content: 'A snippet' },
+          { title: 'Another', url: 'https://result.example.test/b', content: 'Another snippet' },
+        ],
       },
     });
   });
 
-  it('renders a blocked network outcome as a successful call with the diagnostic', async () => {
+  it('renders a blocked network outcome as a successful call with the diagnostic and no results', async () => {
     mocked.post.mockResolvedValueOnce({
       result: {
         diagnostic: { providerId: 'searxng', status: 'blocked', reason: 'the egress policy refused the request target' },
       },
     });
     const adapter = createApiServiceAdapter();
-    const outcome = await adapter.testSearchProvider('searxng');
+    const outcome = await adapter.runSearchQuery('searxng', 'internal docs');
     expect(outcome.ok).toBe(true);
-    if (outcome.ok) expect(outcome.result.status).toBe('blocked');
+    if (outcome.ok) {
+      expect(outcome.result.diagnostic.status).toBe('blocked');
+      expect(outcome.result.results).toBeUndefined();
+    }
   });
 
   it('never throws — an endpoint refusal is an { ok:false } outcome', async () => {
     mocked.post.mockRejectedValueOnce(new Error("search provider 'z.ai' is not configured"));
     const adapter = createApiServiceAdapter();
-    const outcome = await adapter.testSearchProvider('z.ai');
+    const outcome = await adapter.runSearchQuery('z.ai', 'anything');
     expect(outcome).toEqual({ ok: false, error: "search provider 'z.ai' is not configured" });
   });
 });

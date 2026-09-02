@@ -31,7 +31,6 @@ export const API_SERVICE_SECTION_TAB = {
   serviceControls: 'overview',
   queueStatus: 'overview',
   bindingCoverage: 'overview',
-  searchSettings: 'overview',
   accessKeys: 'access',
   vouchers: 'access',
 } as const satisfies Record<string, ApiServiceTabId>;

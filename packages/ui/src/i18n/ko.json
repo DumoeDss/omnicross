@@ -512,7 +512,8 @@
     "settings": "설정",
     "usageStats": "사용량",
     "pricing": "가격",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "검색"
   },
   "apiService": {
     "title": "API 서비스",
@@ -742,110 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "검색 공급자",
+    "description": "웹 검색 런타임 구성: 공급자 자격 증명, 폴백 정책, 네트워크 이그레스, 프론트엔드별 실행 모드.",
+    "unsupportedDaemon": "이 데몬 버전은 검색 구성 섹션을 지원하지 않습니다.",
+    "diagnosticsUnsupported": "이 데몬 버전에서는 검색 진단을 사용할 수 없습니다. 공급자 구성은 계속 편집할 수 있습니다.",
+    "restartBanner": "변경 사항을 적용하려면 데몬을 다시 시작해야 합니다: {{providers}}",
+    "restartHint": "데몬 재시작 후 적용",
+    "immediateHint": "즉시 적용",
+    "modes": {
+      "title": "프론트엔드 모드",
+      "description": "각 프로토콜 프론트엔드에서 검색을 실행하는 주체.",
+      "codex": "Codex(/v1/alpha/search)",
+      "responses": "Responses(web_search)",
+      "anthropic": "Anthropic(web_search_*)"
     },
-    "search": {
-      "title": "검색 공급자",
-      "description": "웹 검색 런타임 구성: 공급자 자격 증명, 폴백 정책, 네트워크 이그레스, 프론트엔드별 실행 모드.",
-      "unsupportedDaemon": "이 데몬 버전은 검색 구성 섹션을 지원하지 않습니다.",
-      "diagnosticsUnsupported": "이 데몬 버전에서는 검색 진단을 사용할 수 없습니다. 공급자 구성은 계속 편집할 수 있습니다.",
-      "restartBanner": "변경 사항을 적용하려면 데몬을 다시 시작해야 합니다: {{providers}}",
-      "restartHint": "데몬 재시작 후 적용",
-      "immediateHint": "즉시 적용",
-      "modes": {
-        "title": "프론트엔드 모드",
-        "description": "각 프로토콜 프론트엔드에서 검색을 실행하는 주체.",
-        "codex": "Codex(/v1/alpha/search)",
-        "responses": "Responses(web_search)",
-        "anthropic": "Anthropic(web_search_*)"
+    "mode": {
+      "native": "네이티브(업스트림 실행)",
+      "managed": "관리형(게이트웨이 실행)",
+      "off": "끔"
+    },
+    "providers": {
+      "title": "공급자",
+      "tavily": {
+        "description": "검색 API. 넉넉한 무료 할당량, 키 필요."
       },
-      "mode": {
-        "native": "네이티브(업스트림 실행)",
-        "managed": "관리형(게이트웨이 실행)",
-        "off": "끔"
+      "jina": {
+        "description": "키 없이 사용 가능한 검색. 키로 속도 제한 완화."
       },
-      "providers": {
-        "title": "공급자",
-        "tavily": {
-          "description": "검색 API. 넉넉한 무료 할당량, 키 필요."
-        },
-        "jina": {
-          "description": "키 없이 사용 가능한 검색. 키로 속도 제한 완화."
-        },
-        "searxng": {
-          "description": "자체 호스팅 메타 검색. 인스턴스 호스트로 구성."
-        },
-        "zhipu": {
-          "description": "Zhipu 웹 검색 API. 키 필요."
-        },
-        "zai": {
-          "description": "Z.AI 웹 검색 API. 키 필요."
-        }
+      "searxng": {
+        "description": "자체 호스팅 메타 검색. 인스턴스 호스트로 구성."
       },
-      "keyless": {
-        "description": "키가 필요 없는 엔진으로 항상 사용 가능합니다. 구성이 필요 없습니다."
+      "zhipu": {
+        "description": "Zhipu 웹 검색 API. 키 필요."
       },
-      "status": {
-        "ready": "준비됨",
-        "unconfigured": "미구성",
-        "healthy": "정상",
-        "degraded": "성능 저하",
-        "blocked": "차단됨",
-        "failed": "실패"
-      },
-      "unconfiguredReason": {
-        "tavily": "API 키 구성이 필요합니다.",
-        "jina": "항목을 저장하면 활성화됩니다——Jina는 키 없이 실행할 수 있습니다.",
-        "searxng": "API 호스트 구성이 필요합니다.",
-        "zhipu": "API 키 구성이 필요합니다.",
-        "zai": "API 키 구성이 필요합니다."
-      },
-      "field": {
-        "apiKey": "API 키",
-        "apiKeyPlaceholder": "비워 두면 저장된 키 유지",
-        "apiKeyNew": "API 키 입력",
-        "apiKeyConfigured": "· 키 구성됨",
-        "apiHost": "API 호스트",
-        "apiHostPlaceholder": "선택적 호스트 재정의",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Basic 인증 사용자",
-        "basicAuthPassword": "Basic 인증 비밀번호",
-        "basicAuthPasswordPlaceholder": "비워 두면 저장된 비밀번호 유지",
-        "basicAuthPasswordConfigured": "· 비밀번호 구성됨"
-      },
-      "action": {
-        "test": "테스트",
-        "save": "검색 설정 저장",
-        "remove": "구성 제거",
-        "clearKey": "저장된 키 지우기",
-        "clearKeyPending": "· 키가 지워집니다",
-        "clearPassword": "저장된 비밀번호 지우기",
-        "undoClear": "지우기 취소"
-      },
-      "removedPending": "저장 시 이 구성이 제거됩니다.",
-      "testOutcome": {
-        "error": "테스트 실패: {{error}}",
-        "count": "{{count}}개 결과"
-      },
-      "policy": {
-        "title": "기본 정책",
-        "preferred": "선호 공급자",
-        "preferredDescription": "요청이 지정하지 않을 때 먼저 시도됩니다.",
-        "preferredNone": "선호 없음",
-        "allowed": "허용된 공급자",
-        "allowedDescription": "비워 두면 구성된 모든 공급자가 후보가 됩니다.",
-        "fallbackEnabled": "폴백",
-        "fallbackDescription": "실패한 후보 뒤에 다음 후보를 시도할 수 있습니다.",
-        "maxAttempts": "최대 시도 횟수",
-        "maxAttemptsDescription": "한 번의 검색에서 시도하는 공급자 상한(1–32)."
-      },
-      "egress": {
-        "title": "이그레스 허용 목록",
-        "description": "평소 거부되는 주소 클래스로 해석되도록 허용된 호스트 이름—— 내부 SearXNG용 예외 통로.",
-        "empty": "허용된 사설 호스트가 없습니다.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "추가",
-        "remove": "호스트 제거"
+      "zai": {
+        "description": "Z.AI 웹 검색 API. 키 필요."
       }
+    },
+    "keyless": {
+      "description": "키가 필요 없는 엔진으로 항상 사용 가능합니다. 구성이 필요 없습니다."
+    },
+    "status": {
+      "ready": "준비됨",
+      "unconfigured": "미구성",
+      "healthy": "정상",
+      "degraded": "성능 저하",
+      "blocked": "차단됨",
+      "failed": "실패"
+    },
+    "unconfiguredReason": {
+      "tavily": "API 키 구성이 필요합니다.",
+      "jina": "항목을 저장하면 활성화됩니다——Jina는 키 없이 실행할 수 있습니다.",
+      "searxng": "API 호스트 구성이 필요합니다.",
+      "zhipu": "API 키 구성이 필요합니다.",
+      "zai": "API 키 구성이 필요합니다."
+    },
+    "field": {
+      "apiKey": "API 키",
+      "apiKeyPlaceholder": "비워 두면 저장된 키 유지",
+      "apiKeyNew": "API 키 입력",
+      "apiKeyConfigured": "· 키 구성됨",
+      "apiHost": "API 호스트",
+      "apiHostPlaceholder": "선택적 호스트 재정의",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic 인증 사용자",
+      "basicAuthPassword": "Basic 인증 비밀번호",
+      "basicAuthPasswordPlaceholder": "비워 두면 저장된 비밀번호 유지",
+      "basicAuthPasswordConfigured": "· 비밀번호 구성됨"
+    },
+    "action": {
+      "test": "테스트",
+      "save": "검색 설정 저장",
+      "remove": "구성 제거",
+      "clearKey": "저장된 키 지우기",
+      "clearKeyPending": "· 키가 지워집니다",
+      "clearPassword": "저장된 비밀번호 지우기",
+      "undoClear": "지우기 취소"
+    },
+    "removedPending": "저장 시 이 구성이 제거됩니다.",
+    "testOutcome": {
+      "error": "테스트 실패: {{error}}",
+      "count": "{{count}}개 결과"
+    },
+    "policy": {
+      "title": "기본 정책",
+      "preferred": "선호 공급자",
+      "preferredDescription": "요청이 지정하지 않을 때 먼저 시도됩니다.",
+      "preferredNone": "선호 없음",
+      "allowed": "허용된 공급자",
+      "allowedDescription": "비워 두면 구성된 모든 공급자가 후보가 됩니다.",
+      "fallbackEnabled": "폴백",
+      "fallbackDescription": "실패한 후보 뒤에 다음 후보를 시도할 수 있습니다.",
+      "maxAttempts": "최대 시도 횟수",
+      "maxAttemptsDescription": "한 번의 검색에서 시도하는 공급자 상한(1–32)."
+    },
+    "egress": {
+      "title": "이그레스 허용 목록",
+      "description": "평소 거부되는 주소 클래스로 해석되도록 허용된 호스트 이름—— 내부 SearXNG용 예외 통로.",
+      "empty": "허용된 사설 호스트가 없습니다.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "추가",
+      "remove": "호스트 제거"
+    },
+    "page": {
+      "loading": "불러오는 중…"
+    },
+    "test": {
+      "queryPlaceholder": "이 공급자를 테스트할 검색어 입력",
+      "action": "검색",
+      "testing": "검색 중…",
+      "saveFirst": "먼저 저장하세요. 테스트는 저장된 구성으로 실행됩니다.",
+      "empty": "이 검색어에 대한 결과가 없습니다.",
+      "providerUsed": "{{provider}} 경유"
     }
   },
   "accounts": {

@@ -512,7 +512,8 @@
     "settings": "Tetapan",
     "usageStats": "Penggunaan",
     "pricing": "Harga",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Carian"
   },
   "apiService": {
     "title": "Perkhidmatan API",
@@ -742,110 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Penyedia carian",
+    "description": "Konfigurasi runtime carian web: kredensial penyedia, dasar fallback, trafik keluar rangkaian dan mod pelaksanaan setiap frontend.",
+    "unsupportedDaemon": "Versi daemon ini tidak menyokong bahagian konfigurasi carian.",
+    "diagnosticsUnsupported": "Diagnostik carian langsung tidak tersedia pada versi daemon ini; konfigurasi penyedia kekal boleh disunting sepenuhnya.",
+    "restartBanner": "Mulakan semula daemon diperlukan untuk perubahan berkuat kuasa: {{providers}}",
+    "restartHint": "Berkuat kuasa selepas daemon dimulakan semula",
+    "immediateHint": "Berkuat kuasa serta-merta",
+    "modes": {
+      "title": "Mod setiap frontend",
+      "description": "Siapa melaksanakan carian bagi setiap frontend protokol.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
     },
-    "search": {
-      "title": "Penyedia carian",
-      "description": "Konfigurasi runtime carian web: kredensial penyedia, dasar fallback, trafik keluar rangkaian dan mod pelaksanaan setiap frontend.",
-      "unsupportedDaemon": "Versi daemon ini tidak menyokong bahagian konfigurasi carian.",
-      "diagnosticsUnsupported": "Diagnostik carian langsung tidak tersedia pada versi daemon ini; konfigurasi penyedia kekal boleh disunting sepenuhnya.",
-      "restartBanner": "Mulakan semula daemon diperlukan untuk perubahan berkuat kuasa: {{providers}}",
-      "restartHint": "Berkuat kuasa selepas daemon dimulakan semula",
-      "immediateHint": "Berkuat kuasa serta-merta",
-      "modes": {
-        "title": "Mod setiap frontend",
-        "description": "Siapa melaksanakan carian bagi setiap frontend protokol.",
-        "codex": "Codex (/v1/alpha/search)",
-        "responses": "Responses (web_search)",
-        "anthropic": "Anthropic (web_search_*)"
+    "mode": {
+      "native": "Asli (dilaksanakan upstream)",
+      "managed": "Terurus (dilaksanakan gerbang)",
+      "off": "Mati"
+    },
+    "providers": {
+      "title": "Penyedia",
+      "tavily": {
+        "description": "API carian dengan kuota percuma besar; kunci diperlukan."
       },
-      "mode": {
-        "native": "Asli (dilaksanakan upstream)",
-        "managed": "Terurus (dilaksanakan gerbang)",
-        "off": "Mati"
+      "jina": {
+        "description": "Carian boleh tanpa kunci; kunci menaikkan had kadar."
       },
-      "providers": {
-        "title": "Penyedia",
-        "tavily": {
-          "description": "API carian dengan kuota percuma besar; kunci diperlukan."
-        },
-        "jina": {
-          "description": "Carian boleh tanpa kunci; kunci menaikkan had kadar."
-        },
-        "searxng": {
-          "description": "Metacarian swahos; dikonfigurasi melalui hos instance."
-        },
-        "zhipu": {
-          "description": "API carian web Zhipu; kunci diperlukan."
-        },
-        "zai": {
-          "description": "API carian web Z.AI; kunci diperlukan."
-        }
+      "searxng": {
+        "description": "Metacarian swahos; dikonfigurasi melalui hos instance."
       },
-      "keyless": {
-        "description": "Enjin tanpa kunci, sentiasa tersedia. Tidak perlu konfigurasi."
+      "zhipu": {
+        "description": "API carian web Zhipu; kunci diperlukan."
       },
-      "status": {
-        "ready": "Sedia",
-        "unconfigured": "Tidak dikonfigurasi",
-        "healthy": "Sihat",
-        "degraded": "Terjejas",
-        "blocked": "Disekat",
-        "failed": "Gagal"
-      },
-      "unconfiguredReason": {
-        "tavily": "Memerlukan kunci API dikonfigurasi.",
-        "jina": "Aktifkan dengan menyimpan entri — Jina boleh berjalan tanpa kunci.",
-        "searxng": "Memerlukan hos API dikonfigurasi.",
-        "zhipu": "Memerlukan kunci API dikonfigurasi.",
-        "zai": "Memerlukan kunci API dikonfigurasi."
-      },
-      "field": {
-        "apiKey": "Kunci API",
-        "apiKeyPlaceholder": "Kosong mengekalkan kunci tersimpan",
-        "apiKeyNew": "Masukkan kunci API",
-        "apiKeyConfigured": "· kunci dikonfigurasi",
-        "apiHost": "Hos API",
-        "apiHostPlaceholder": "Pilihan ganti hos",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Pengguna Basic",
-        "basicAuthPassword": "Kata laluan Basic",
-        "basicAuthPasswordPlaceholder": "Kosong mengekalkan kata laluan tersimpan",
-        "basicAuthPasswordConfigured": "· kata laluan dikonfigurasi"
-      },
-      "action": {
-        "test": "Uji",
-        "save": "Simpan tetapan carian",
-        "remove": "Buang konfigurasi",
-        "clearKey": "Padam kunci tersimpan",
-        "clearKeyPending": "· kunci akan dipadam",
-        "clearPassword": "Padam kata laluan tersimpan",
-        "undoClear": "Batalkan pemadaman"
-      },
-      "removedPending": "Konfigurasi akan dibuang semasa disimpan.",
-      "testOutcome": {
-        "error": "Ujian gagal: {{error}}",
-        "count": "{{count}} hasil"
-      },
-      "policy": {
-        "title": "Dasar lalai",
-        "preferred": "Penyedia diutamakan",
-        "preferredDescription": "Dicuba dahulu apabila permintaan tidak menetapkan satu.",
-        "preferredNone": "Tiada keutamaan",
-        "allowed": "Penyedia dibenarkan",
-        "allowedDescription": "Kosong bermakna setiap penyedia dikonfigurasi ialah calon.",
-        "fallbackEnabled": "Fallback",
-        "fallbackDescription": "Calon yang gagal boleh diikuti calon seterusnya.",
-        "maxAttempts": "Cubaan maks.",
-        "maxAttemptsDescription": "Had atas penyedia dicuba setiap carian (1–32)."
-      },
-      "egress": {
-        "title": "Senarai benar trafik keluar",
-        "description": "Nama hos yang dibenarkan menyelesaikan ke kelas alamat yang biasanya ditolak — laluan pengecualian untuk SearXNG dalaman.",
-        "empty": "Tiada hos peribadi dibenarkan.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "Tambah",
-        "remove": "Buang hos"
+      "zai": {
+        "description": "API carian web Z.AI; kunci diperlukan."
       }
+    },
+    "keyless": {
+      "description": "Enjin tanpa kunci, sentiasa tersedia. Tidak perlu konfigurasi."
+    },
+    "status": {
+      "ready": "Sedia",
+      "unconfigured": "Tidak dikonfigurasi",
+      "healthy": "Sihat",
+      "degraded": "Terjejas",
+      "blocked": "Disekat",
+      "failed": "Gagal"
+    },
+    "unconfiguredReason": {
+      "tavily": "Memerlukan kunci API dikonfigurasi.",
+      "jina": "Aktifkan dengan menyimpan entri — Jina boleh berjalan tanpa kunci.",
+      "searxng": "Memerlukan hos API dikonfigurasi.",
+      "zhipu": "Memerlukan kunci API dikonfigurasi.",
+      "zai": "Memerlukan kunci API dikonfigurasi."
+    },
+    "field": {
+      "apiKey": "Kunci API",
+      "apiKeyPlaceholder": "Kosong mengekalkan kunci tersimpan",
+      "apiKeyNew": "Masukkan kunci API",
+      "apiKeyConfigured": "· kunci dikonfigurasi",
+      "apiHost": "Hos API",
+      "apiHostPlaceholder": "Pilihan ganti hos",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Pengguna Basic",
+      "basicAuthPassword": "Kata laluan Basic",
+      "basicAuthPasswordPlaceholder": "Kosong mengekalkan kata laluan tersimpan",
+      "basicAuthPasswordConfigured": "· kata laluan dikonfigurasi"
+    },
+    "action": {
+      "test": "Uji",
+      "save": "Simpan tetapan carian",
+      "remove": "Buang konfigurasi",
+      "clearKey": "Padam kunci tersimpan",
+      "clearKeyPending": "· kunci akan dipadam",
+      "clearPassword": "Padam kata laluan tersimpan",
+      "undoClear": "Batalkan pemadaman"
+    },
+    "removedPending": "Konfigurasi akan dibuang semasa disimpan.",
+    "testOutcome": {
+      "error": "Ujian gagal: {{error}}",
+      "count": "{{count}} hasil"
+    },
+    "policy": {
+      "title": "Dasar lalai",
+      "preferred": "Penyedia diutamakan",
+      "preferredDescription": "Dicuba dahulu apabila permintaan tidak menetapkan satu.",
+      "preferredNone": "Tiada keutamaan",
+      "allowed": "Penyedia dibenarkan",
+      "allowedDescription": "Kosong bermakna setiap penyedia dikonfigurasi ialah calon.",
+      "fallbackEnabled": "Fallback",
+      "fallbackDescription": "Calon yang gagal boleh diikuti calon seterusnya.",
+      "maxAttempts": "Cubaan maks.",
+      "maxAttemptsDescription": "Had atas penyedia dicuba setiap carian (1–32)."
+    },
+    "egress": {
+      "title": "Senarai benar trafik keluar",
+      "description": "Nama hos yang dibenarkan menyelesaikan ke kelas alamat yang biasanya ditolak — laluan pengecualian untuk SearXNG dalaman.",
+      "empty": "Tiada hos peribadi dibenarkan.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Tambah",
+      "remove": "Buang hos"
+    },
+    "page": {
+      "loading": "Memuatkan…"
+    },
+    "test": {
+      "queryPlaceholder": "Taip pertanyaan untuk menguji penyedia ini",
+      "action": "Cari",
+      "testing": "Mencari…",
+      "saveFirst": "Simpan dahulu — ujian dijalankan pada konfigurasi tersimpan.",
+      "empty": "Tiada hasil untuk pertanyaan ini.",
+      "providerUsed": "melalui {{provider}}"
     }
   },
   "accounts": {

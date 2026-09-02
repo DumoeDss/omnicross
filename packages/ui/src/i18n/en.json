@@ -533,7 +533,8 @@
     "settings": "Settings",
     "usageStats": "Usage",
     "pricing": "Pricing",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Search"
   },
   "routeActivity": {
     "title": "Routing activity",
@@ -1283,110 +1284,121 @@
       "addDestination": "Add destination",
       "save": "Save webhooks",
       "testHint": "Save before testing — the test delivers to the saved destination."
+    }
+  },
+  "search": {
+    "title": "Search providers",
+    "description": "Web search runtime configuration: provider credentials, fallback policy, network egress, and per-frontend execution modes.",
+    "unsupportedDaemon": "This daemon version does not support the search configuration section.",
+    "diagnosticsUnsupported": "Live search diagnostics are unavailable on this daemon version; provider configuration remains fully editable.",
+    "restartBanner": "Daemon restart required for changes to take effect: {{providers}}",
+    "restartHint": "Applies on daemon restart",
+    "immediateHint": "Applies immediately",
+    "modes": {
+      "title": "Frontend modes",
+      "description": "Who executes search for each protocol frontend.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
     },
-    "search": {
-      "title": "Search providers",
-      "description": "Web search runtime configuration: provider credentials, fallback policy, network egress, and per-frontend execution modes.",
-      "unsupportedDaemon": "This daemon version does not support the search configuration section.",
-      "diagnosticsUnsupported": "Live search diagnostics are unavailable on this daemon version; provider configuration remains fully editable.",
-      "restartBanner": "Daemon restart required for changes to take effect: {{providers}}",
-      "restartHint": "Applies on daemon restart",
-      "immediateHint": "Applies immediately",
-      "modes": {
-        "title": "Frontend modes",
-        "description": "Who executes search for each protocol frontend.",
-        "codex": "Codex (/v1/alpha/search)",
-        "responses": "Responses (web_search)",
-        "anthropic": "Anthropic (web_search_*)"
+    "mode": {
+      "native": "Native (upstream executes)",
+      "managed": "Managed (gateway executes)",
+      "off": "Off"
+    },
+    "providers": {
+      "title": "Providers",
+      "tavily": {
+        "description": "Search API with a generous free tier; key required."
       },
-      "mode": {
-        "native": "Native (upstream executes)",
-        "managed": "Managed (gateway executes)",
-        "off": "Off"
+      "jina": {
+        "description": "Keyless-capable search; a key raises rate limits."
       },
-      "providers": {
-        "title": "Providers",
-        "tavily": {
-          "description": "Search API with a generous free tier; key required."
-        },
-        "jina": {
-          "description": "Keyless-capable search; a key raises rate limits."
-        },
-        "searxng": {
-          "description": "Self-hosted metasearch; configured by instance host."
-        },
-        "zhipu": {
-          "description": "Zhipu web search API; key required."
-        },
-        "zai": {
-          "description": "Z.AI web search API; key required."
-        }
+      "searxng": {
+        "description": "Self-hosted metasearch; configured by instance host."
       },
-      "keyless": {
-        "description": "Keyless engine, always available. No configuration required."
+      "zhipu": {
+        "description": "Zhipu web search API; key required."
       },
-      "status": {
-        "ready": "Ready",
-        "unconfigured": "Unconfigured",
-        "healthy": "Healthy",
-        "degraded": "Degraded",
-        "blocked": "Blocked",
-        "failed": "Failed"
-      },
-      "unconfiguredReason": {
-        "tavily": "Requires an API key to be configured.",
-        "jina": "Enable by saving an entry — Jina can run without a key.",
-        "searxng": "Requires an API host to be configured.",
-        "zhipu": "Requires an API key to be configured.",
-        "zai": "Requires an API key to be configured."
-      },
-      "field": {
-        "apiKey": "API key",
-        "apiKeyPlaceholder": "Blank keeps the stored key",
-        "apiKeyNew": "Enter API key",
-        "apiKeyConfigured": "· key configured",
-        "apiHost": "API host",
-        "apiHostPlaceholder": "Optional host override",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Basic-auth user",
-        "basicAuthPassword": "Basic-auth password",
-        "basicAuthPasswordPlaceholder": "Blank keeps the stored password",
-        "basicAuthPasswordConfigured": "· password configured"
-      },
-      "action": {
-        "test": "Test",
-        "save": "Save search settings",
-        "remove": "Remove configuration",
-        "clearKey": "Clear stored key",
-        "clearKeyPending": "· key will be cleared",
-        "clearPassword": "Clear stored password",
-        "undoClear": "Undo clear"
-      },
-      "removedPending": "The configuration will be removed on save.",
-      "testOutcome": {
-        "error": "Test failed: {{error}}",
-        "count": "{{count}} results"
-      },
-      "policy": {
-        "title": "Default policy",
-        "preferred": "Preferred provider",
-        "preferredDescription": "Tried first when a request pins none.",
-        "preferredNone": "No preference",
-        "allowed": "Allowed providers",
-        "allowedDescription": "Empty means every configured provider is a candidate.",
-        "fallbackEnabled": "Fallback",
-        "fallbackDescription": "A failed candidate may be followed by the next one.",
-        "maxAttempts": "Max attempts",
-        "maxAttemptsDescription": "Upper bound on providers tried for one search (1–32)."
-      },
-      "egress": {
-        "title": "Egress allowlist",
-        "description": "Hostnames allowed to resolve into otherwise-denied address classes — the escape hatch for an internal SearXNG.",
-        "empty": "No private hosts allowed.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "Add",
-        "remove": "Remove host"
+      "zai": {
+        "description": "Z.AI web search API; key required."
       }
+    },
+    "keyless": {
+      "description": "Keyless engine, always available. No configuration required."
+    },
+    "status": {
+      "ready": "Ready",
+      "unconfigured": "Unconfigured",
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "blocked": "Blocked",
+      "failed": "Failed"
+    },
+    "unconfiguredReason": {
+      "tavily": "Requires an API key to be configured.",
+      "jina": "Enable by saving an entry — Jina can run without a key.",
+      "searxng": "Requires an API host to be configured.",
+      "zhipu": "Requires an API key to be configured.",
+      "zai": "Requires an API key to be configured."
+    },
+    "field": {
+      "apiKey": "API key",
+      "apiKeyPlaceholder": "Blank keeps the stored key",
+      "apiKeyNew": "Enter API key",
+      "apiKeyConfigured": "· key configured",
+      "apiHost": "API host",
+      "apiHostPlaceholder": "Optional host override",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic-auth user",
+      "basicAuthPassword": "Basic-auth password",
+      "basicAuthPasswordPlaceholder": "Blank keeps the stored password",
+      "basicAuthPasswordConfigured": "· password configured"
+    },
+    "action": {
+      "test": "Test",
+      "save": "Save search settings",
+      "remove": "Remove configuration",
+      "clearKey": "Clear stored key",
+      "clearKeyPending": "· key will be cleared",
+      "clearPassword": "Clear stored password",
+      "undoClear": "Undo clear"
+    },
+    "removedPending": "The configuration will be removed on save.",
+    "testOutcome": {
+      "error": "Test failed: {{error}}",
+      "count": "{{count}} results"
+    },
+    "policy": {
+      "title": "Default policy",
+      "preferred": "Preferred provider",
+      "preferredDescription": "Tried first when a request pins none.",
+      "preferredNone": "No preference",
+      "allowed": "Allowed providers",
+      "allowedDescription": "Empty means every configured provider is a candidate.",
+      "fallbackEnabled": "Fallback",
+      "fallbackDescription": "A failed candidate may be followed by the next one.",
+      "maxAttempts": "Max attempts",
+      "maxAttemptsDescription": "Upper bound on providers tried for one search (1–32)."
+    },
+    "egress": {
+      "title": "Egress allowlist",
+      "description": "Hostnames allowed to resolve into otherwise-denied address classes — the escape hatch for an internal SearXNG.",
+      "empty": "No private hosts allowed.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Add",
+      "remove": "Remove host"
+    },
+    "page": {
+      "loading": "Loading…"
+    },
+    "test": {
+      "queryPlaceholder": "Type a query to test this provider",
+      "action": "Search",
+      "testing": "Searching…",
+      "saveFirst": "Save first — the test runs against the saved configuration.",
+      "empty": "No results for this query.",
+      "providerUsed": "via {{provider}}"
     }
   },
   "accounts": {

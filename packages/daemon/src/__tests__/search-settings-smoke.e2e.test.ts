@@ -20,7 +20,7 @@ import {
   createSearchSettingsDraft,
   pendingRestartProviderIds,
   searchDraftToPayload,
-} from '@/features/api-service/searchSettingsModel';
+} from '@/features/search/searchSettingsModel';
 import type { SearchServerConfig } from '@/daemon/types-server';
 
 import {
@@ -143,6 +143,36 @@ describe('search settings end-to-end smoke (task 6.2)', () => {
     expect(diagnostic.status).toBe('blocked');
     expect(diagnostic.reason).toContain('egress policy');
     expect(testRead.text).not.toContain(KEY_SENTINEL);
+
+    // ── 4b. The INTERACTIVE query endpoint (search-settings-tab): the test
+    // panel's channel. Same egress-refused probe (no network), and the refusal
+    // pre-flight validation paths never reach an upstream at all. ──
+    const queryRead = await adminFetch('POST', '/admin/api/search/query', {
+      providerId: 'searxng',
+      query: 'internal docs',
+    });
+    expect(queryRead.status).toBe(200);
+    const queryResult = (queryRead.json as {
+      result: { diagnostic: { status: string; reason?: string }; results?: unknown[] };
+    }).result;
+    expect(queryResult.diagnostic.status).toBe('blocked');
+    expect(queryResult.diagnostic.reason).toContain('egress policy');
+    expect(queryResult.results).toBeUndefined();
+    expect(queryRead.text).not.toContain(KEY_SENTINEL);
+
+    const unconfiguredQuery = await adminFetch('POST', '/admin/api/search/query', {
+      providerId: 'z.ai',
+      query: 'anything',
+    });
+    expect(unconfiguredQuery.status).toBe(400);
+    expect(unconfiguredQuery.text).toContain("'z.ai' is not configured");
+
+    const blankQuery = await adminFetch('POST', '/admin/api/search/query', {
+      providerId: 'searxng',
+      query: '   ',
+    });
+    expect(blankQuery.status).toBe(400);
+    expect(blankQuery.text).toContain('query');
 
     // ── 5. Masked round-trip edit keeps the stored key (nothing wiped). ──
     const editDraft = createSearchSettingsDraft(masked);

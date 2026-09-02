@@ -512,7 +512,8 @@
     "settings": "Einstellungen",
     "usageStats": "Nutzung",
     "pricing": "Preise",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Suche"
   },
   "apiService": {
     "title": "API-Dienst",
@@ -742,110 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Suchanbieter",
+    "description": "Konfiguration der Websuche-Laufzeit: Anbieter-Zugangsdaten, Fallback-Richtlinie, Netzwerk-Egress und Ausführungsmodi pro Frontend.",
+    "unsupportedDaemon": "Diese Daemon-Version unterstützt den Suchkonfigurationsabschnitt nicht.",
+    "diagnosticsUnsupported": "Live-Suchdiagnose ist in dieser Daemon-Version nicht verfügbar; die Anbieterkonfiguration bleibt vollständig bearbeitbar.",
+    "restartBanner": "Neustart des Daemons erforderlich, um Änderungen anzuwenden: {{providers}}",
+    "restartHint": "Wird nach Daemon-Neustart wirksam",
+    "immediateHint": "Wird sofort wirksam",
+    "modes": {
+      "title": "Frontend-Modi",
+      "description": "Wer die Suche für jedes Protokoll-Frontend ausführt.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
     },
-    "search": {
-      "title": "Suchanbieter",
-      "description": "Konfiguration der Websuche-Laufzeit: Anbieter-Zugangsdaten, Fallback-Richtlinie, Netzwerk-Egress und Ausführungsmodi pro Frontend.",
-      "unsupportedDaemon": "Diese Daemon-Version unterstützt den Suchkonfigurationsabschnitt nicht.",
-      "diagnosticsUnsupported": "Live-Suchdiagnose ist in dieser Daemon-Version nicht verfügbar; die Anbieterkonfiguration bleibt vollständig bearbeitbar.",
-      "restartBanner": "Neustart des Daemons erforderlich, um Änderungen anzuwenden: {{providers}}",
-      "restartHint": "Wird nach Daemon-Neustart wirksam",
-      "immediateHint": "Wird sofort wirksam",
-      "modes": {
-        "title": "Frontend-Modi",
-        "description": "Wer die Suche für jedes Protokoll-Frontend ausführt.",
-        "codex": "Codex (/v1/alpha/search)",
-        "responses": "Responses (web_search)",
-        "anthropic": "Anthropic (web_search_*)"
+    "mode": {
+      "native": "Nativ (Upstream führt aus)",
+      "managed": "Verwaltet (Gateway führt aus)",
+      "off": "Aus"
+    },
+    "providers": {
+      "title": "Anbieter",
+      "tavily": {
+        "description": "Such-API mit großzügigem Gratis-Kontingent; Schlüssel erforderlich."
       },
-      "mode": {
-        "native": "Nativ (Upstream führt aus)",
-        "managed": "Verwaltet (Gateway führt aus)",
-        "off": "Aus"
+      "jina": {
+        "description": "Suche ohne Schlüssel möglich; ein Schlüssel erhöht die Ratenlimits."
       },
-      "providers": {
-        "title": "Anbieter",
-        "tavily": {
-          "description": "Such-API mit großzügigem Gratis-Kontingent; Schlüssel erforderlich."
-        },
-        "jina": {
-          "description": "Suche ohne Schlüssel möglich; ein Schlüssel erhöht die Ratenlimits."
-        },
-        "searxng": {
-          "description": "Selbst gehostete Metasuche; über den Instanz-Host konfiguriert."
-        },
-        "zhipu": {
-          "description": "Zhipu-Websuche-API; Schlüssel erforderlich."
-        },
-        "zai": {
-          "description": "Z.AI-Websuche-API; Schlüssel erforderlich."
-        }
+      "searxng": {
+        "description": "Selbst gehostete Metasuche; über den Instanz-Host konfiguriert."
       },
-      "keyless": {
-        "description": "Schlüssellose Engine, immer verfügbar. Keine Konfiguration nötig."
+      "zhipu": {
+        "description": "Zhipu-Websuche-API; Schlüssel erforderlich."
       },
-      "status": {
-        "ready": "Bereit",
-        "unconfigured": "Nicht konfiguriert",
-        "healthy": "Fehlerfrei",
-        "degraded": "Beeinträchtigt",
-        "blocked": "Blockiert",
-        "failed": "Fehlgeschlagen"
-      },
-      "unconfiguredReason": {
-        "tavily": "Erfordert die Konfiguration eines API-Schlüssels.",
-        "jina": "Durch Speichern eines Eintrags aktivieren – Jina kann ohne Schlüssel laufen.",
-        "searxng": "Erfordert die Konfiguration eines API-Hosts.",
-        "zhipu": "Erfordert die Konfiguration eines API-Schlüssels.",
-        "zai": "Erfordert die Konfiguration eines API-Schlüssels."
-      },
-      "field": {
-        "apiKey": "API-Schlüssel",
-        "apiKeyPlaceholder": "Leer lässt den gespeicherten Schlüssel",
-        "apiKeyNew": "API-Schlüssel eingeben",
-        "apiKeyConfigured": "· Schlüssel konfiguriert",
-        "apiHost": "API-Host",
-        "apiHostPlaceholder": "Optionale Host-Überschreibung",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Basic-Auth-Benutzer",
-        "basicAuthPassword": "Basic-Auth-Passwort",
-        "basicAuthPasswordPlaceholder": "Leer lässt das gespeicherte Passwort",
-        "basicAuthPasswordConfigured": "· Passwort konfiguriert"
-      },
-      "action": {
-        "test": "Testen",
-        "save": "Sucheinstellungen speichern",
-        "remove": "Konfiguration entfernen",
-        "clearKey": "Gespeicherten Schlüssel löschen",
-        "clearKeyPending": "· Schlüssel wird gelöscht",
-        "clearPassword": "Gespeichertes Passwort löschen",
-        "undoClear": "Löschen aufheben"
-      },
-      "removedPending": "Die Konfiguration wird beim Speichern entfernt.",
-      "testOutcome": {
-        "error": "Test fehlgeschlagen: {{error}}",
-        "count": "{{count}} Ergebnisse"
-      },
-      "policy": {
-        "title": "Standardrichtlinie",
-        "preferred": "Bevorzugter Anbieter",
-        "preferredDescription": "Wird zuerst versucht, wenn eine Anfrage keinen festlegt.",
-        "preferredNone": "Keine Präferenz",
-        "allowed": "Erlaubte Anbieter",
-        "allowedDescription": "Leer bedeutet: jeder konfigurierte Anbieter ist ein Kandidat.",
-        "fallbackEnabled": "Fallback",
-        "fallbackDescription": "Nach einem fehlgeschlagenen Kandidaten darf der nächste folgen.",
-        "maxAttempts": "Maximale Versuche",
-        "maxAttemptsDescription": "Obergrenze der Anbieter pro Suche (1–32)."
-      },
-      "egress": {
-        "title": "Egress-Zulassungsliste",
-        "description": "Hostnamen, die in sonst verweigerte Adressklassen auflösen dürfen — der Ausnahmeweg für ein internes SearXNG.",
-        "empty": "Keine privaten Hosts erlaubt.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "Hinzufügen",
-        "remove": "Host entfernen"
+      "zai": {
+        "description": "Z.AI-Websuche-API; Schlüssel erforderlich."
       }
+    },
+    "keyless": {
+      "description": "Schlüssellose Engine, immer verfügbar. Keine Konfiguration nötig."
+    },
+    "status": {
+      "ready": "Bereit",
+      "unconfigured": "Nicht konfiguriert",
+      "healthy": "Fehlerfrei",
+      "degraded": "Beeinträchtigt",
+      "blocked": "Blockiert",
+      "failed": "Fehlgeschlagen"
+    },
+    "unconfiguredReason": {
+      "tavily": "Erfordert die Konfiguration eines API-Schlüssels.",
+      "jina": "Durch Speichern eines Eintrags aktivieren – Jina kann ohne Schlüssel laufen.",
+      "searxng": "Erfordert die Konfiguration eines API-Hosts.",
+      "zhipu": "Erfordert die Konfiguration eines API-Schlüssels.",
+      "zai": "Erfordert die Konfiguration eines API-Schlüssels."
+    },
+    "field": {
+      "apiKey": "API-Schlüssel",
+      "apiKeyPlaceholder": "Leer lässt den gespeicherten Schlüssel",
+      "apiKeyNew": "API-Schlüssel eingeben",
+      "apiKeyConfigured": "· Schlüssel konfiguriert",
+      "apiHost": "API-Host",
+      "apiHostPlaceholder": "Optionale Host-Überschreibung",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic-Auth-Benutzer",
+      "basicAuthPassword": "Basic-Auth-Passwort",
+      "basicAuthPasswordPlaceholder": "Leer lässt das gespeicherte Passwort",
+      "basicAuthPasswordConfigured": "· Passwort konfiguriert"
+    },
+    "action": {
+      "test": "Testen",
+      "save": "Sucheinstellungen speichern",
+      "remove": "Konfiguration entfernen",
+      "clearKey": "Gespeicherten Schlüssel löschen",
+      "clearKeyPending": "· Schlüssel wird gelöscht",
+      "clearPassword": "Gespeichertes Passwort löschen",
+      "undoClear": "Löschen aufheben"
+    },
+    "removedPending": "Die Konfiguration wird beim Speichern entfernt.",
+    "testOutcome": {
+      "error": "Test fehlgeschlagen: {{error}}",
+      "count": "{{count}} Ergebnisse"
+    },
+    "policy": {
+      "title": "Standardrichtlinie",
+      "preferred": "Bevorzugter Anbieter",
+      "preferredDescription": "Wird zuerst versucht, wenn eine Anfrage keinen festlegt.",
+      "preferredNone": "Keine Präferenz",
+      "allowed": "Erlaubte Anbieter",
+      "allowedDescription": "Leer bedeutet: jeder konfigurierte Anbieter ist ein Kandidat.",
+      "fallbackEnabled": "Fallback",
+      "fallbackDescription": "Nach einem fehlgeschlagenen Kandidaten darf der nächste folgen.",
+      "maxAttempts": "Maximale Versuche",
+      "maxAttemptsDescription": "Obergrenze der Anbieter pro Suche (1–32)."
+    },
+    "egress": {
+      "title": "Egress-Zulassungsliste",
+      "description": "Hostnamen, die in sonst verweigerte Adressklassen auflösen dürfen — der Ausnahmeweg für ein internes SearXNG.",
+      "empty": "Keine privaten Hosts erlaubt.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Hinzufügen",
+      "remove": "Host entfernen"
+    },
+    "page": {
+      "loading": "Wird geladen…"
+    },
+    "test": {
+      "queryPlaceholder": "Suchbegriff zum Testen dieses Anbieters eingeben",
+      "action": "Suchen",
+      "testing": "Suche läuft…",
+      "saveFirst": "Zuerst speichern – der Test läuft gegen die gespeicherte Konfiguration.",
+      "empty": "Keine Ergebnisse für diese Anfrage.",
+      "providerUsed": "über {{provider}}"
     }
   },
   "accounts": {

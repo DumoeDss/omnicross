@@ -512,7 +512,8 @@
     "settings": "Setări",
     "usageStats": "Utilizare",
     "pricing": "Prețuri",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Căutare"
   },
   "apiService": {
     "title": "Serviciu API",
@@ -742,110 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Furnizori de căutare",
+    "description": "Configurarea motorului de căutare web: date de conectare ale furnizorilor, politica de rezervă, traficul de ieșire și modurile de execuție per frontend.",
+    "unsupportedDaemon": "Această versiune a daemonului nu acceptă secțiunea de configurare a căutării.",
+    "diagnosticsUnsupported": "Diagnostica căutării în direct nu este disponibilă pe această versiune de daemon; configurația furnizorilor rămâne complet editabilă.",
+    "restartBanner": "Este necesară repornirea daemonului pentru ca modificările să intre în vigoare: {{providers}}",
+    "restartHint": "Intră în vigoare după repornirea daemonului",
+    "immediateHint": "Intră în vigoare imediat",
+    "modes": {
+      "title": "Moduri per frontend",
+      "description": "Cine execută căutarea pentru fiecare frontend de protocol.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
     },
-    "search": {
-      "title": "Furnizori de căutare",
-      "description": "Configurarea motorului de căutare web: date de conectare ale furnizorilor, politica de rezervă, traficul de ieșire și modurile de execuție per frontend.",
-      "unsupportedDaemon": "Această versiune a daemonului nu acceptă secțiunea de configurare a căutării.",
-      "diagnosticsUnsupported": "Diagnostica căutării în direct nu este disponibilă pe această versiune de daemon; configurația furnizorilor rămâne complet editabilă.",
-      "restartBanner": "Este necesară repornirea daemonului pentru ca modificările să intre în vigoare: {{providers}}",
-      "restartHint": "Intră în vigoare după repornirea daemonului",
-      "immediateHint": "Intră în vigoare imediat",
-      "modes": {
-        "title": "Moduri per frontend",
-        "description": "Cine execută căutarea pentru fiecare frontend de protocol.",
-        "codex": "Codex (/v1/alpha/search)",
-        "responses": "Responses (web_search)",
-        "anthropic": "Anthropic (web_search_*)"
+    "mode": {
+      "native": "Nativ (execută upstream-ul)",
+      "managed": "Gestionat (execută gateway-ul)",
+      "off": "Dezactivat"
+    },
+    "providers": {
+      "title": "Furnizori",
+      "tavily": {
+        "description": "API de căutare cu cotă gratuită generoasă; necesită cheie."
       },
-      "mode": {
-        "native": "Nativ (execută upstream-ul)",
-        "managed": "Gestionat (execută gateway-ul)",
-        "off": "Dezactivat"
+      "jina": {
+        "description": "Căutarea funcționează fără cheie; o cheie crește limitele."
       },
-      "providers": {
-        "title": "Furnizori",
-        "tavily": {
-          "description": "API de căutare cu cotă gratuită generoasă; necesită cheie."
-        },
-        "jina": {
-          "description": "Căutarea funcționează fără cheie; o cheie crește limitele."
-        },
-        "searxng": {
-          "description": "Metacăutare găzduită propriu; configurată prin gazda instanței."
-        },
-        "zhipu": {
-          "description": "API de căutare web Zhipu; necesită cheie."
-        },
-        "zai": {
-          "description": "API de căutare web Z.AI; necesită cheie."
-        }
+      "searxng": {
+        "description": "Metacăutare găzduită propriu; configurată prin gazda instanței."
       },
-      "keyless": {
-        "description": "Motor fără cheie, mereu disponibil. Nu necesită configurare."
+      "zhipu": {
+        "description": "API de căutare web Zhipu; necesită cheie."
       },
-      "status": {
-        "ready": "Gata",
-        "unconfigured": "Neconfigurat",
-        "healthy": "Sănătos",
-        "degraded": "Degradat",
-        "blocked": "Blocat",
-        "failed": "Eșuat"
-      },
-      "unconfiguredReason": {
-        "tavily": "Necesită configurarea unei chei API.",
-        "jina": "Activați salvând o intrare — Jina poate rula fără cheie.",
-        "searxng": "Necesită configurarea unei gazde API.",
-        "zhipu": "Necesită configurarea unei chei API.",
-        "zai": "Necesită configurarea unei chei API."
-      },
-      "field": {
-        "apiKey": "Cheie API",
-        "apiKeyPlaceholder": "Gol păstrează cheia salvată",
-        "apiKeyNew": "Introduceți cheia API",
-        "apiKeyConfigured": "· cheie configurată",
-        "apiHost": "Gazdă API",
-        "apiHostPlaceholder": "Suprascriere opțională a gazdei",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Utilizator Basic",
-        "basicAuthPassword": "Parolă Basic",
-        "basicAuthPasswordPlaceholder": "Gol păstrează parola salvată",
-        "basicAuthPasswordConfigured": "· parolă configurată"
-      },
-      "action": {
-        "test": "Testează",
-        "save": "Salvează setările de căutare",
-        "remove": "Elimină configurația",
-        "clearKey": "Șterge cheia salvată",
-        "clearKeyPending": "· cheia va fi ștearsă",
-        "clearPassword": "Șterge parola salvată",
-        "undoClear": "Anulează ștergerea"
-      },
-      "removedPending": "Configurația va fi eliminată la salvare.",
-      "testOutcome": {
-        "error": "Testul a eșuat: {{error}}",
-        "count": "{{count}} rezultate"
-      },
-      "policy": {
-        "title": "Politica implicită",
-        "preferred": "Furnizor preferat",
-        "preferredDescription": "Încercat primul când o cerere nu fixează unul.",
-        "preferredNone": "Fără preferință",
-        "allowed": "Furnizori permiși",
-        "allowedDescription": "Gol înseamnă că fiecare furnizor configurat este candidat.",
-        "fallbackEnabled": "Rezervă",
-        "fallbackDescription": "După un candidat eșuat poate urma următorul.",
-        "maxAttempts": "Încercări max.",
-        "maxAttemptsDescription": "Limita superioară a furnizorilor per căutare (1–32)."
-      },
-      "egress": {
-        "title": "Lista de ieșire permisă",
-        "description": "Nume de gazde cărora li se permite să se rezolve în clase de adrese altfel refuzate — poarta de excepție pentru un SearXNG intern.",
-        "empty": "Nicio gazdă privată permisă.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "Adaugă",
-        "remove": "Elimină gazda"
+      "zai": {
+        "description": "API de căutare web Z.AI; necesită cheie."
       }
+    },
+    "keyless": {
+      "description": "Motor fără cheie, mereu disponibil. Nu necesită configurare."
+    },
+    "status": {
+      "ready": "Gata",
+      "unconfigured": "Neconfigurat",
+      "healthy": "Sănătos",
+      "degraded": "Degradat",
+      "blocked": "Blocat",
+      "failed": "Eșuat"
+    },
+    "unconfiguredReason": {
+      "tavily": "Necesită configurarea unei chei API.",
+      "jina": "Activați salvând o intrare — Jina poate rula fără cheie.",
+      "searxng": "Necesită configurarea unei gazde API.",
+      "zhipu": "Necesită configurarea unei chei API.",
+      "zai": "Necesită configurarea unei chei API."
+    },
+    "field": {
+      "apiKey": "Cheie API",
+      "apiKeyPlaceholder": "Gol păstrează cheia salvată",
+      "apiKeyNew": "Introduceți cheia API",
+      "apiKeyConfigured": "· cheie configurată",
+      "apiHost": "Gazdă API",
+      "apiHostPlaceholder": "Suprascriere opțională a gazdei",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Utilizator Basic",
+      "basicAuthPassword": "Parolă Basic",
+      "basicAuthPasswordPlaceholder": "Gol păstrează parola salvată",
+      "basicAuthPasswordConfigured": "· parolă configurată"
+    },
+    "action": {
+      "test": "Testează",
+      "save": "Salvează setările de căutare",
+      "remove": "Elimină configurația",
+      "clearKey": "Șterge cheia salvată",
+      "clearKeyPending": "· cheia va fi ștearsă",
+      "clearPassword": "Șterge parola salvată",
+      "undoClear": "Anulează ștergerea"
+    },
+    "removedPending": "Configurația va fi eliminată la salvare.",
+    "testOutcome": {
+      "error": "Testul a eșuat: {{error}}",
+      "count": "{{count}} rezultate"
+    },
+    "policy": {
+      "title": "Politica implicită",
+      "preferred": "Furnizor preferat",
+      "preferredDescription": "Încercat primul când o cerere nu fixează unul.",
+      "preferredNone": "Fără preferință",
+      "allowed": "Furnizori permiși",
+      "allowedDescription": "Gol înseamnă că fiecare furnizor configurat este candidat.",
+      "fallbackEnabled": "Rezervă",
+      "fallbackDescription": "După un candidat eșuat poate urma următorul.",
+      "maxAttempts": "Încercări max.",
+      "maxAttemptsDescription": "Limita superioară a furnizorilor per căutare (1–32)."
+    },
+    "egress": {
+      "title": "Lista de ieșire permisă",
+      "description": "Nume de gazde cărora li se permite să se rezolve în clase de adrese altfel refuzate — poarta de excepție pentru un SearXNG intern.",
+      "empty": "Nicio gazdă privată permisă.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Adaugă",
+      "remove": "Elimină gazda"
+    },
+    "page": {
+      "loading": "Se încarcă…"
+    },
+    "test": {
+      "queryPlaceholder": "Introdu o interogare pentru a testa acest furnizor",
+      "action": "Caută",
+      "testing": "Se caută…",
+      "saveFirst": "Salvează întâi — testul rulează pe configurația salvată.",
+      "empty": "Niciun rezultat pentru această interogare.",
+      "providerUsed": "prin {{provider}}"
     }
   },
   "accounts": {

@@ -533,7 +533,8 @@
     "settings": "设置",
     "usageStats": "用量统计",
     "pricing": "模型价格",
-    "dashboard": "仪表板"
+    "dashboard": "仪表板",
+    "search": "搜索"
   },
   "routeActivity": {
     "title": "路由活动",
@@ -1280,110 +1281,121 @@
       "addDestination": "添加目标",
       "save": "保存 Webhook",
       "testHint": "测试前请先保存 —— 测试会投递到已保存的目标。"
+    }
+  },
+  "search": {
+    "title": "搜索提供方",
+    "description": "网页搜索运行时配置：提供方凭据、回退策略、网络出口与各前端执行模式。",
+    "unsupportedDaemon": "当前守护进程版本不支持搜索配置分区。",
+    "diagnosticsUnsupported": "当前守护进程版本不支持搜索诊断；提供方配置仍可完整编辑。",
+    "restartBanner": "需要重启守护进程才能生效：{{providers}}",
+    "restartHint": "重启守护进程后生效",
+    "immediateHint": "立即生效",
+    "modes": {
+      "title": "前端模式",
+      "description": "每个协议前端由谁执行搜索。",
+      "codex": "Codex（/v1/alpha/search）",
+      "responses": "Responses（web_search）",
+      "anthropic": "Anthropic（web_search_*）"
     },
-    "search": {
-      "title": "搜索提供方",
-      "description": "网页搜索运行时配置：提供方凭据、回退策略、网络出口与各前端执行模式。",
-      "unsupportedDaemon": "当前守护进程版本不支持搜索配置分区。",
-      "diagnosticsUnsupported": "当前守护进程版本不支持搜索诊断；提供方配置仍可完整编辑。",
-      "restartBanner": "需要重启守护进程才能生效：{{providers}}",
-      "restartHint": "重启守护进程后生效",
-      "immediateHint": "立即生效",
-      "modes": {
-        "title": "前端模式",
-        "description": "每个协议前端由谁执行搜索。",
-        "codex": "Codex（/v1/alpha/search）",
-        "responses": "Responses（web_search）",
-        "anthropic": "Anthropic（web_search_*）"
+    "mode": {
+      "native": "原生（上游执行）",
+      "managed": "托管（网关执行）",
+      "off": "关闭"
+    },
+    "providers": {
+      "title": "提供方",
+      "tavily": {
+        "description": "搜索 API，免费额度充足；需要密钥。"
       },
-      "mode": {
-        "native": "原生（上游执行）",
-        "managed": "托管（网关执行）",
-        "off": "关闭"
+      "jina": {
+        "description": "支持免密钥的搜索；配置密钥可提升限额。"
       },
-      "providers": {
-        "title": "提供方",
-        "tavily": {
-          "description": "搜索 API，免费额度充足；需要密钥。"
-        },
-        "jina": {
-          "description": "支持免密钥的搜索；配置密钥可提升限额。"
-        },
-        "searxng": {
-          "description": "自托管元搜索；按实例主机配置。"
-        },
-        "zhipu": {
-          "description": "智谱网页搜索 API；需要密钥。"
-        },
-        "zai": {
-          "description": "Z.AI 网页搜索 API；需要密钥。"
-        }
+      "searxng": {
+        "description": "自托管元搜索；按实例主机配置。"
       },
-      "keyless": {
-        "description": "免密钥引擎，始终可用，无需配置。"
+      "zhipu": {
+        "description": "智谱网页搜索 API；需要密钥。"
       },
-      "status": {
-        "ready": "就绪",
-        "unconfigured": "未配置",
-        "healthy": "健康",
-        "degraded": "降级",
-        "blocked": "受阻",
-        "failed": "失败"
-      },
-      "unconfiguredReason": {
-        "tavily": "需要配置 API 密钥。",
-        "jina": "保存条目即可启用——Jina 可免密钥运行。",
-        "searxng": "需要配置 API 主机。",
-        "zhipu": "需要配置 API 密钥。",
-        "zai": "需要配置 API 密钥。"
-      },
-      "field": {
-        "apiKey": "API 密钥",
-        "apiKeyPlaceholder": "留空保留已存密钥",
-        "apiKeyNew": "输入 API 密钥",
-        "apiKeyConfigured": "· 已配置密钥",
-        "apiHost": "API 主机",
-        "apiHostPlaceholder": "可选主机覆盖",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Basic 认证用户名",
-        "basicAuthPassword": "Basic 认证密码",
-        "basicAuthPasswordPlaceholder": "留空保留已存密码",
-        "basicAuthPasswordConfigured": "· 已配置密码"
-      },
-      "action": {
-        "test": "测试",
-        "save": "保存搜索设置",
-        "remove": "移除配置",
-        "clearKey": "清除已存密钥",
-        "clearKeyPending": "· 密钥将被清除",
-        "clearPassword": "清除已存密码",
-        "undoClear": "撤销清除"
-      },
-      "removedPending": "保存后将移除该配置。",
-      "testOutcome": {
-        "error": "测试失败：{{error}}",
-        "count": "{{count}} 条结果"
-      },
-      "policy": {
-        "title": "默认策略",
-        "preferred": "首选提供方",
-        "preferredDescription": "请求未指定提供方时优先尝试。",
-        "preferredNone": "无偏好",
-        "allowed": "允许的提供方",
-        "allowedDescription": "留空表示所有已配置提供方均为候选。",
-        "fallbackEnabled": "回退",
-        "fallbackDescription": "一个候选失败后可以尝试下一个。",
-        "maxAttempts": "最大尝试次数",
-        "maxAttemptsDescription": "单次搜索尝试的提供方上限（1–32）。"
-      },
-      "egress": {
-        "title": "出口允许列表",
-        "description": "允许解析到通常被拒绝地址类的主机名——内部 SearXNG 的例外通道。",
-        "empty": "未允许任何私网主机。",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "添加",
-        "remove": "移除主机"
+      "zai": {
+        "description": "Z.AI 网页搜索 API；需要密钥。"
       }
+    },
+    "keyless": {
+      "description": "免密钥引擎，始终可用，无需配置。"
+    },
+    "status": {
+      "ready": "就绪",
+      "unconfigured": "未配置",
+      "healthy": "健康",
+      "degraded": "降级",
+      "blocked": "受阻",
+      "failed": "失败"
+    },
+    "unconfiguredReason": {
+      "tavily": "需要配置 API 密钥。",
+      "jina": "保存条目即可启用——Jina 可免密钥运行。",
+      "searxng": "需要配置 API 主机。",
+      "zhipu": "需要配置 API 密钥。",
+      "zai": "需要配置 API 密钥。"
+    },
+    "field": {
+      "apiKey": "API 密钥",
+      "apiKeyPlaceholder": "留空保留已存密钥",
+      "apiKeyNew": "输入 API 密钥",
+      "apiKeyConfigured": "· 已配置密钥",
+      "apiHost": "API 主机",
+      "apiHostPlaceholder": "可选主机覆盖",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic 认证用户名",
+      "basicAuthPassword": "Basic 认证密码",
+      "basicAuthPasswordPlaceholder": "留空保留已存密码",
+      "basicAuthPasswordConfigured": "· 已配置密码"
+    },
+    "action": {
+      "test": "测试",
+      "save": "保存搜索设置",
+      "remove": "移除配置",
+      "clearKey": "清除已存密钥",
+      "clearKeyPending": "· 密钥将被清除",
+      "clearPassword": "清除已存密码",
+      "undoClear": "撤销清除"
+    },
+    "removedPending": "保存后将移除该配置。",
+    "testOutcome": {
+      "error": "测试失败：{{error}}",
+      "count": "{{count}} 条结果"
+    },
+    "policy": {
+      "title": "默认策略",
+      "preferred": "首选提供方",
+      "preferredDescription": "请求未指定提供方时优先尝试。",
+      "preferredNone": "无偏好",
+      "allowed": "允许的提供方",
+      "allowedDescription": "留空表示所有已配置提供方均为候选。",
+      "fallbackEnabled": "回退",
+      "fallbackDescription": "一个候选失败后可以尝试下一个。",
+      "maxAttempts": "最大尝试次数",
+      "maxAttemptsDescription": "单次搜索尝试的提供方上限（1–32）。"
+    },
+    "egress": {
+      "title": "出口允许列表",
+      "description": "允许解析到通常被拒绝地址类的主机名——内部 SearXNG 的例外通道。",
+      "empty": "未允许任何私网主机。",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "添加",
+      "remove": "移除主机"
+    },
+    "page": {
+      "loading": "加载中…"
+    },
+    "test": {
+      "queryPlaceholder": "输入查询内容以测试此服务商",
+      "action": "搜索",
+      "testing": "搜索中…",
+      "saveFirst": "请先保存——测试针对已保存的配置运行。",
+      "empty": "该查询没有结果。",
+      "providerUsed": "来自 {{provider}}"
     }
   },
   "accounts": {

@@ -19,7 +19,9 @@ function flatten(node: Json, prefix = ''): string[] {
   return keys;
 }
 
-const SEARCH_KEYS = flatten(en.apiService.search as unknown as Json);
+// search-settings-tab: the search tree moved from `apiService.search` to the
+// TOP-LEVEL `search` namespace (the standalone Search page's own tree).
+const SEARCH_KEYS = flatten(en.search as unknown as Json);
 const LOCALE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Every locale file, parsed — read via fs so the test also sees raw-file damage. */
@@ -35,7 +37,23 @@ function loadLocales(): Array<{ file: string; data: Json }> {
 describe('search settings translations', () => {
   it('defines the canonical tree as a full set of keys', () => {
     expect(SEARCH_KEYS.length).toBeGreaterThan(60);
-    for (const key of ['title', 'restartBanner', 'modes.codex', 'status.ready', 'field.apiKeyPlaceholder', 'policy.maxAttempts', 'egress.add']) {
+    for (const key of [
+      'title',
+      'restartBanner',
+      'modes.codex',
+      'status.ready',
+      'field.apiKeyPlaceholder',
+      'policy.maxAttempts',
+      'egress.add',
+      // search-settings-tab additions: the interactive test panel + page.
+      'page.loading',
+      'test.queryPlaceholder',
+      'test.action',
+      'test.testing',
+      'test.saveFirst',
+      'test.empty',
+      'test.providerUsed',
+    ]) {
       expect(SEARCH_KEYS).toContain(key);
     }
   });
@@ -44,9 +62,8 @@ describe('search settings translations', () => {
     const locales = loadLocales();
     expect(locales.length).toBe(31);
     for (const { file, data } of locales) {
-      const api = data.apiService as Json | undefined;
-      const search = api?.search as Json | undefined;
-      expect(search, `${file} must carry apiService.search`).toBeDefined();
+      const search = data.search as Json | undefined;
+      expect(search, `${file} must carry the top-level search tree`).toBeDefined();
       const flat = new Set(flatten(search as Json));
       for (const key of SEARCH_KEYS) {
         expect(flat.has(key), `${file} must define ${key}`).toBe(true);
@@ -60,12 +77,22 @@ describe('search settings translations', () => {
         }
       };
       walk(search as Json);
+      // The nav label rides every locale too.
+      expect(typeof (data.nav as Json).search === 'string' && ((data.nav as Json).search as string).length > 0)
+        .toBe(true);
+    }
+  });
+
+  it('removed the apiService.search subtree in the same edit (moved, not duplicated)', () => {
+    for (const { file, data } of loadLocales()) {
+      const api = data.apiService as Json | undefined;
+      expect(api?.search, `${file} must not keep apiService.search`).toBeUndefined();
     }
   });
 
   it('keeps the interpolation placeholders intact in every locale', () => {
     for (const { file, data } of loadLocales()) {
-      const search = (data.apiService as Json).search as Json;
+      const search = data.search as Json;
       const flat: Record<string, string> = {};
       const walk = (node: Json, prefix = ''): void => {
         for (const [key, value] of Object.entries(node)) {
@@ -78,6 +105,7 @@ describe('search settings translations', () => {
       expect(flat['restartBanner'], `${file} restartBanner`).toContain('{{providers}}');
       expect(flat['testOutcome.error'], `${file} testOutcome.error`).toContain('{{error}}');
       expect(flat['testOutcome.count'], `${file} testOutcome.count`).toContain('{{count}}');
+      expect(flat['test.providerUsed'], `${file} test.providerUsed`).toContain('{{provider}}');
     }
   });
 });

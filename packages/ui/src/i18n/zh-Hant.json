@@ -533,7 +533,8 @@
     "settings": "設定",
     "usageStats": "用量統計",
     "pricing": "模型價格",
-    "dashboard": "儀表板"
+    "dashboard": "儀表板",
+    "search": "搜尋"
   },
   "routeActivity": {
     "title": "路由活動",
@@ -1233,110 +1234,121 @@
       "addDestination": "新增目標",
       "save": "儲存 Webhook",
       "testHint": "測試前請先儲存 —— 測試會投遞到已儲存的目標。"
+    }
+  },
+  "search": {
+    "title": "搜尋供應方",
+    "description": "網頁搜尋執行時組態：供應方憑證、回退策略、網路出口與各前端執行模式。",
+    "unsupportedDaemon": "目前的守護程序版本不支援搜尋組態區段。",
+    "diagnosticsUnsupported": "目前的守護程序版本不支援搜尋診斷；供應方組態仍可完整編輯。",
+    "restartBanner": "需要重新啟動守護程序才會生效：{{providers}}",
+    "restartHint": "重新啟動守護程序後生效",
+    "immediateHint": "立即生效",
+    "modes": {
+      "title": "前端模式",
+      "description": "每個協定前端由誰執行搜尋。",
+      "codex": "Codex（/v1/alpha/search）",
+      "responses": "Responses（web_search）",
+      "anthropic": "Anthropic（web_search_*）"
     },
-    "search": {
-      "title": "搜尋供應方",
-      "description": "網頁搜尋執行時組態：供應方憑證、回退策略、網路出口與各前端執行模式。",
-      "unsupportedDaemon": "目前的守護程序版本不支援搜尋組態區段。",
-      "diagnosticsUnsupported": "目前的守護程序版本不支援搜尋診斷；供應方組態仍可完整編輯。",
-      "restartBanner": "需要重新啟動守護程序才會生效：{{providers}}",
-      "restartHint": "重新啟動守護程序後生效",
-      "immediateHint": "立即生效",
-      "modes": {
-        "title": "前端模式",
-        "description": "每個協定前端由誰執行搜尋。",
-        "codex": "Codex（/v1/alpha/search）",
-        "responses": "Responses（web_search）",
-        "anthropic": "Anthropic（web_search_*）"
+    "mode": {
+      "native": "原生（上游執行）",
+      "managed": "託管（閘道執行）",
+      "off": "關閉"
+    },
+    "providers": {
+      "title": "供應方",
+      "tavily": {
+        "description": "搜尋 API，免費額度充足；需要金鑰。"
       },
-      "mode": {
-        "native": "原生（上游執行）",
-        "managed": "託管（閘道執行）",
-        "off": "關閉"
+      "jina": {
+        "description": "支援免金鑰的搜尋；設定金鑰可提升限額。"
       },
-      "providers": {
-        "title": "供應方",
-        "tavily": {
-          "description": "搜尋 API，免費額度充足；需要金鑰。"
-        },
-        "jina": {
-          "description": "支援免金鑰的搜尋；設定金鑰可提升限額。"
-        },
-        "searxng": {
-          "description": "自架元搜尋；依實例主機設定。"
-        },
-        "zhipu": {
-          "description": "智譜網頁搜尋 API；需要金鑰。"
-        },
-        "zai": {
-          "description": "Z.AI 網頁搜尋 API；需要金鑰。"
-        }
+      "searxng": {
+        "description": "自架元搜尋；依實例主機設定。"
       },
-      "keyless": {
-        "description": "免金鑰引擎，隨時可用，無需設定。"
+      "zhipu": {
+        "description": "智譜網頁搜尋 API；需要金鑰。"
       },
-      "status": {
-        "ready": "就緒",
-        "unconfigured": "未設定",
-        "healthy": "健康",
-        "degraded": "降級",
-        "blocked": "受阻",
-        "failed": "失敗"
-      },
-      "unconfiguredReason": {
-        "tavily": "需要設定 API 金鑰。",
-        "jina": "儲存條目即可啟用——Jina 可免金鑰運行。",
-        "searxng": "需要設定 API 主機。",
-        "zhipu": "需要設定 API 金鑰。",
-        "zai": "需要設定 API 金鑰。"
-      },
-      "field": {
-        "apiKey": "API 金鑰",
-        "apiKeyPlaceholder": "留空保留已存金鑰",
-        "apiKeyNew": "輸入 API 金鑰",
-        "apiKeyConfigured": "· 已設定金鑰",
-        "apiHost": "API 主機",
-        "apiHostPlaceholder": "可選主機覆寫",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Basic 驗證使用者名稱",
-        "basicAuthPassword": "Basic 驗證密碼",
-        "basicAuthPasswordPlaceholder": "留空保留已存密碼",
-        "basicAuthPasswordConfigured": "· 已設定密碼"
-      },
-      "action": {
-        "test": "測試",
-        "save": "儲存搜尋設定",
-        "remove": "移除設定",
-        "clearKey": "清除已存金鑰",
-        "clearKeyPending": "· 金鑰將被清除",
-        "clearPassword": "清除已存密碼",
-        "undoClear": "撤銷清除"
-      },
-      "removedPending": "儲存後將移除該設定。",
-      "testOutcome": {
-        "error": "測試失敗：{{error}}",
-        "count": "{{count}} 筆結果"
-      },
-      "policy": {
-        "title": "預設策略",
-        "preferred": "首選供應方",
-        "preferredDescription": "請求未指定供應方時優先嘗試。",
-        "preferredNone": "無偏好",
-        "allowed": "允許的供應方",
-        "allowedDescription": "留空表示所有已設定供應方皆為候選。",
-        "fallbackEnabled": "回退",
-        "fallbackDescription": "一個候選失敗後可嘗試下一個。",
-        "maxAttempts": "最大嘗試次數",
-        "maxAttemptsDescription": "單次搜尋嘗試的供應方上限（1–32）。"
-      },
-      "egress": {
-        "title": "出口允許清單",
-        "description": "允許解析到通常被拒絕位址類別的主機名稱——內部 SearXNG 的例外通道。",
-        "empty": "未允許任何私網主機。",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "新增",
-        "remove": "移除主機"
+      "zai": {
+        "description": "Z.AI 網頁搜尋 API；需要金鑰。"
       }
+    },
+    "keyless": {
+      "description": "免金鑰引擎，隨時可用，無需設定。"
+    },
+    "status": {
+      "ready": "就緒",
+      "unconfigured": "未設定",
+      "healthy": "健康",
+      "degraded": "降級",
+      "blocked": "受阻",
+      "failed": "失敗"
+    },
+    "unconfiguredReason": {
+      "tavily": "需要設定 API 金鑰。",
+      "jina": "儲存條目即可啟用——Jina 可免金鑰運行。",
+      "searxng": "需要設定 API 主機。",
+      "zhipu": "需要設定 API 金鑰。",
+      "zai": "需要設定 API 金鑰。"
+    },
+    "field": {
+      "apiKey": "API 金鑰",
+      "apiKeyPlaceholder": "留空保留已存金鑰",
+      "apiKeyNew": "輸入 API 金鑰",
+      "apiKeyConfigured": "· 已設定金鑰",
+      "apiHost": "API 主機",
+      "apiHostPlaceholder": "可選主機覆寫",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic 驗證使用者名稱",
+      "basicAuthPassword": "Basic 驗證密碼",
+      "basicAuthPasswordPlaceholder": "留空保留已存密碼",
+      "basicAuthPasswordConfigured": "· 已設定密碼"
+    },
+    "action": {
+      "test": "測試",
+      "save": "儲存搜尋設定",
+      "remove": "移除設定",
+      "clearKey": "清除已存金鑰",
+      "clearKeyPending": "· 金鑰將被清除",
+      "clearPassword": "清除已存密碼",
+      "undoClear": "撤銷清除"
+    },
+    "removedPending": "儲存後將移除該設定。",
+    "testOutcome": {
+      "error": "測試失敗：{{error}}",
+      "count": "{{count}} 筆結果"
+    },
+    "policy": {
+      "title": "預設策略",
+      "preferred": "首選供應方",
+      "preferredDescription": "請求未指定供應方時優先嘗試。",
+      "preferredNone": "無偏好",
+      "allowed": "允許的供應方",
+      "allowedDescription": "留空表示所有已設定供應方皆為候選。",
+      "fallbackEnabled": "回退",
+      "fallbackDescription": "一個候選失敗後可嘗試下一個。",
+      "maxAttempts": "最大嘗試次數",
+      "maxAttemptsDescription": "單次搜尋嘗試的供應方上限（1–32）。"
+    },
+    "egress": {
+      "title": "出口允許清單",
+      "description": "允許解析到通常被拒絕位址類別的主機名稱——內部 SearXNG 的例外通道。",
+      "empty": "未允許任何私網主機。",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "新增",
+      "remove": "移除主機"
+    },
+    "page": {
+      "loading": "載入中…"
+    },
+    "test": {
+      "queryPlaceholder": "輸入查詢內容以測試此供應商",
+      "action": "搜尋",
+      "testing": "搜尋中…",
+      "saveFirst": "請先儲存——測試針對已儲存的設定執行。",
+      "empty": "該查詢沒有結果。",
+      "providerUsed": "來自 {{provider}}"
     }
   },
   "accounts": {

@@ -1,5 +1,13 @@
 /** @vitest-environment jsdom */
 
+/**
+ * SearchSettingsSection sentinel tests (moved from api-service; the section is
+ * the standalone Search page's body since search-settings-tab): the closed
+ * seven-id catalog renders with no dead/local ids, the unconfigured state is
+ * an honest empty state (now WITH the always-reachable entry fields — the D3
+ * fix), and a planted secret NEVER renders — not as text, not as an attribute,
+ * not in a placeholder.
+ */
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,11 +23,11 @@ vi.mock('@/shared/state/LocaleContext', () => ({
 
 import type {
   SearchDiagnosticsSnapshot,
+  SearchQueryOutcome,
   SearchServerConfig,
-  SearchTestOutcome,
 } from '@/daemon/types';
 
-import { SearchSection, SearchTestOutcomeView } from '../SearchSection';
+import { SearchSettingsSection } from '../SearchSettingsSection';
 
 /** A masked read carrying a PLANTED secret value — exactly what the daemon must
  *  never send but the sentinel guards against anyway. */
@@ -53,15 +61,17 @@ const diagnostics: SearchDiagnosticsSnapshot = {
   applySemantics: { codex: 'immediate', rest: 'restart' },
 };
 
-describe('SearchSection sensitive DTO rendering', () => {
+const unusedQuery = async (): Promise<SearchQueryOutcome> => ({ ok: false, error: 'unused' });
+
+describe('SearchSettingsSection sensitive DTO rendering', () => {
   it('renders the seven-card catalog and never the planted secret material', () => {
     const markup = renderToStaticMarkup(
-      React.createElement(SearchSection, {
+      React.createElement(SearchSettingsSection, {
         config: configWithSecret,
         diagnostics,
         busy: false,
         onUpdate: async () => undefined,
-        onTest: async (): Promise<SearchTestOutcome> => ({ ok: true, result: { providerId: 'tavily', status: 'healthy' } }),
+        onQuery: unusedQuery,
       }),
     );
 
@@ -75,7 +85,7 @@ describe('SearchSection sensitive DTO rendering', () => {
     expect(markup).not.toContain('claude');
 
     // Unconfigured is an honest empty state naming the missing field.
-    expect(markup).toContain('apiService.search.unconfiguredReason.zai');
+    expect(markup).toContain('search.unconfiguredReason.zai');
 
     // NEVER the secret material — not in text, not in an attribute, not in a
     // placeholder (the write-only inputs are empty by construction).
@@ -85,16 +95,15 @@ describe('SearchSection sensitive DTO rendering', () => {
 
   it('renders the unsupported notice (not an error) on a pre-Phase-1 daemon', () => {
     const markup = renderToStaticMarkup(
-      React.createElement(SearchSection, {
+      React.createElement(SearchSettingsSection, {
         config: undefined,
         diagnostics: null,
         busy: false,
         onUpdate: async () => undefined,
-        onTest: async (): Promise<SearchTestOutcome> => ({ ok: false, error: 'unsupported' }),
+        onQuery: unusedQuery,
       }),
     );
-    expect(markup).toContain('apiService.search.unsupportedDaemon');
-    expect(markup).toContain('apiService.search.title');
+    expect(markup).toContain('search.unsupportedDaemon');
   });
 
   it('renders the pending-restart banner naming saved-but-not-running providers', () => {
@@ -112,54 +121,28 @@ describe('SearchSection sensitive DTO rendering', () => {
       rows: diagnostics.rows.filter((row) => row.kind === 'http'),
     };
     const markup = renderToStaticMarkup(
-      React.createElement(SearchSection, {
+      React.createElement(SearchSettingsSection, {
         config: persisted,
         diagnostics: runningOnly,
         busy: false,
         onUpdate: async () => undefined,
-        onTest: async (): Promise<SearchTestOutcome> => ({ ok: false, error: 'unsupported' }),
+        onQuery: unusedQuery,
       }),
     );
-    expect(markup).toContain('apiService.search.restartBanner:Tavily, Zhipu');
+    expect(markup).toContain('search.restartBanner:Tavily, Zhipu');
   });
 
   it('labels the codex mode immediate and the other restart-required fields', () => {
     const markup = renderToStaticMarkup(
-      React.createElement(SearchSection, {
+      React.createElement(SearchSettingsSection, {
         config: configWithSecret,
         diagnostics,
         busy: false,
         onUpdate: async () => undefined,
-        onTest: async (): Promise<SearchTestOutcome> => ({ ok: false, error: 'unsupported' }),
+        onQuery: unusedQuery,
       }),
     );
-    expect(markup).toContain('apiService.search.immediateHint');
-    expect(markup).toContain('apiService.search.restartHint');
-  });
-
-  it('renders a blocked test outcome as an honest inline diagnostic, not an error', () => {
-    const markup = renderToStaticMarkup(
-      React.createElement(SearchTestOutcomeView, {
-        outcome: {
-          ok: true,
-          result: {
-            providerId: 'tavily',
-            status: 'blocked',
-            reason: 'the egress policy refused the request target',
-          },
-        },
-      }),
-    );
-    // The blocked outcome text renders inline; nothing claims malfunction.
-    expect(markup).toContain('the egress policy refused the request target');
-    expect(markup).toContain('apiService.search.status.blocked');
-
-    const failed = renderToStaticMarkup(
-      React.createElement(SearchTestOutcomeView, {
-        outcome: { ok: false, error: "search provider 'z.ai' is not configured" },
-      }),
-    );
-    expect(failed).toContain('apiService.search.testOutcome.error');
-    expect(failed).toContain('not configured');
+    expect(markup).toContain('search.immediateHint');
+    expect(markup).toContain('search.restartHint');
   });
 });

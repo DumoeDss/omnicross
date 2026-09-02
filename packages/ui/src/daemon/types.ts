@@ -50,6 +50,7 @@ import type {
   OverloadCounterResponse,
   ProxyConfig,
   SearchDiagnosticsSnapshot,
+  SearchQueryResult,
   SearchServerConfig,
   SearchTestResult,
   VoucherCreated,
@@ -76,6 +77,16 @@ export interface WebhookTestResult {
 /** Outcome of a search-provider fixed-query test (search-settings-ui). */
 export type SearchTestOutcome =
   | { ok: true; result: SearchTestResult }
+  | { ok: false; error: string };
+
+/**
+ * Outcome of an INTERACTIVE per-provider query (search-settings-tab): the
+ * diagnostic plus the sanitized results, or a refusal/error. Result-shaped,
+ * never thrown — a 4xx/5xx surfaces as `{ ok:false, error }` like the fixed-
+ * query test before it.
+ */
+export type SearchQueryOutcome =
+  | { ok: true; result: SearchQueryResult }
   | { ok: false; error: string };
 
 // ── Daemon wire DTOs ────────────────────────────────────────────────────────────
@@ -320,11 +331,14 @@ export interface AgentApiServiceApi {
    */
   getSearchDiagnostics(): Promise<SearchDiagnosticsSnapshot | null>;
   /**
-   * Run the daemon's fixed-query live test for one configured provider
-   * (`POST /admin/api/search/test`). Never throws to the page: failures (incl.
-   * the unconfigured/unknown refusal) surface as `{ ok:false, error }`.
+   * Run ONE operator-typed query through one provider's PERSISTED config
+   * (`POST /admin/api/search/query`, search-settings-tab — the interactive test
+   * panel's channel). Never throws to the page: failures (incl. the
+   * unconfigured/unknown refusal) surface as `{ ok:false, error }`. The
+   * daemon-side fixed-query probe (`POST /search/test`) stays available for
+   * automation and is deliberately left without a UI consumer.
    */
-  testSearchProvider(providerId: string): Promise<SearchTestOutcome>;
+  runSearchQuery(providerId: string, query: string): Promise<SearchQueryOutcome>;
   /** Persist the default-off allowance-aware account scheduling policy. */
   updateAllowanceSchedulingConfig(config: AllowanceSchedulingConfig): Promise<MutationResult>;
   /** Read the secret-free recent demote/pause decisions; null means unsupported/unavailable. */

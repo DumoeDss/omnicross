@@ -28,6 +28,7 @@ import type {
   CreateKeyResult,
   GenerateVoucherResult,
   MutationResult,
+  SearchQueryOutcome,
   VoucherGenerateInput,
   WebhookTestResult,
 } from './types';
@@ -46,6 +47,7 @@ import type {
   OutboundPermissionId,
   OverloadCounterResponse,
   SearchDiagnosticsSnapshot,
+  SearchQueryResult,
   SearchServerConfig,
   SearchTestResult,
   VoucherCreated,
@@ -334,24 +336,18 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
-    async testSearchProvider(providerId: string): Promise<import('./types').SearchTestOutcome> {
+    async runSearchQuery(providerId: string, query: string): Promise<SearchQueryOutcome> {
       try {
-        const data = await adminClient.post<{
-          result: { diagnostic: SearchTestResult; resultCount?: number };
-        }>('/search/test', { providerId });
-        return {
-          ok: true,
-          result: {
-            ...data.result.diagnostic,
-            ...(data.result.resultCount !== undefined
-              ? { resultCount: data.result.resultCount }
-              : {}),
-          },
-        };
+        const data = await adminClient.post<{ result: SearchQueryResult }>('/search/query', {
+          providerId,
+          query,
+        });
+        return { ok: true, result: data.result };
       } catch (err) {
         // Result-shaped failure, never a throw: an unconfigured/unknown
-        // provider refusal renders inline like a blocked network outcome.
-        return { ok: false, error: err instanceof Error ? err.message : 'search test failed' };
+        // provider refusal renders inline like a blocked network outcome
+        // (the fixed-query `testSearchProvider` idiom this replaces).
+        return { ok: false, error: err instanceof Error ? err.message : 'search query failed' };
       }
     },
 

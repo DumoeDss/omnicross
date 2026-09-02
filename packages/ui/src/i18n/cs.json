@@ -512,7 +512,8 @@
     "settings": "Nastavení",
     "usageStats": "Využití",
     "pricing": "Ceník",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Hledání"
   },
   "apiService": {
     "title": "Služba API",
@@ -742,110 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Poskytovatelé vyhledávání",
+    "description": "Konfigurace běhového prostředí webového vyhledávání: přihlašovací údaje poskytovatelů, zásada fallbacku, síťový výstupní provoz a režimy provádění pro jednotlivá frontendy.",
+    "unsupportedDaemon": "Tato verze démona nepodporuje sekci nastavení vyhledávání.",
+    "diagnosticsUnsupported": "Diagnostika vyhledávání není v této verzi démona k dispozici; nastavení poskytovatelů zůstává plně upravitelné.",
+    "restartBanner": "Pro uplatnění změn je vyžadován restart démona: {{providers}}",
+    "restartHint": "Uplatní se po restartu démona",
+    "immediateHint": "Uplatní se okamžitě",
+    "modes": {
+      "title": "Režimy frontendů",
+      "description": "Kdo provádí vyhledávání pro každý frontend protokolu.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
     },
-    "search": {
-      "title": "Poskytovatelé vyhledávání",
-      "description": "Konfigurace běhového prostředí webového vyhledávání: přihlašovací údaje poskytovatelů, zásada fallbacku, síťový výstupní provoz a režimy provádění pro jednotlivá frontendy.",
-      "unsupportedDaemon": "Tato verze démona nepodporuje sekci nastavení vyhledávání.",
-      "diagnosticsUnsupported": "Diagnostika vyhledávání není v této verzi démona k dispozici; nastavení poskytovatelů zůstává plně upravitelné.",
-      "restartBanner": "Pro uplatnění změn je vyžadován restart démona: {{providers}}",
-      "restartHint": "Uplatní se po restartu démona",
-      "immediateHint": "Uplatní se okamžitě",
-      "modes": {
-        "title": "Režimy frontendů",
-        "description": "Kdo provádí vyhledávání pro každý frontend protokolu.",
-        "codex": "Codex (/v1/alpha/search)",
-        "responses": "Responses (web_search)",
-        "anthropic": "Anthropic (web_search_*)"
+    "mode": {
+      "native": "Nativní (provádí upstream)",
+      "managed": "Spravované (provádí brána)",
+      "off": "Vypnuto"
+    },
+    "providers": {
+      "title": "Poskytovatelé",
+      "tavily": {
+        "description": "Vyhledávací API s velkorysým bezplatným limitem; vyžaduje klíč."
       },
-      "mode": {
-        "native": "Nativní (provádí upstream)",
-        "managed": "Spravované (provádí brána)",
-        "off": "Vypnuto"
+      "jina": {
+        "description": "Vyhledávání funguje i bez klíče; klíč zvyšuje limity."
       },
-      "providers": {
-        "title": "Poskytovatelé",
-        "tavily": {
-          "description": "Vyhledávací API s velkorysým bezplatným limitem; vyžaduje klíč."
-        },
-        "jina": {
-          "description": "Vyhledávání funguje i bez klíče; klíč zvyšuje limity."
-        },
-        "searxng": {
-          "description": "Vlastní metavyhledávač; konfiguruje se hostitelem instance."
-        },
-        "zhipu": {
-          "description": "Webové vyhledávací API Zhipu; vyžaduje klíč."
-        },
-        "zai": {
-          "description": "Webové vyhledávací API Z.AI; vyžaduje klíč."
-        }
+      "searxng": {
+        "description": "Vlastní metavyhledávač; konfiguruje se hostitelem instance."
       },
-      "keyless": {
-        "description": "Engine bez klíče, vždy dostupný. Nevyžaduje konfiguraci."
+      "zhipu": {
+        "description": "Webové vyhledávací API Zhipu; vyžaduje klíč."
       },
-      "status": {
-        "ready": "Připraven",
-        "unconfigured": "Nenakonfigurován",
-        "healthy": "Zdravý",
-        "degraded": "Zhoršený",
-        "blocked": "Blokován",
-        "failed": "Selhal"
-      },
-      "unconfiguredReason": {
-        "tavily": "Vyžaduje nastavení API klíče.",
-        "jina": "Aktivujte uložením záznamu — Jina umí běžet bez klíče.",
-        "searxng": "Vyžaduje nastavení API hostitele.",
-        "zhipu": "Vyžaduje nastavení API klíče.",
-        "zai": "Vyžaduje nastavení API klíče."
-      },
-      "field": {
-        "apiKey": "API klíč",
-        "apiKeyPlaceholder": "Prázdné ponechá uložený klíč",
-        "apiKeyNew": "Zadejte API klíč",
-        "apiKeyConfigured": "· klíč nastaven",
-        "apiHost": "API hostitel",
-        "apiHostPlaceholder": "Volitelné přepsání hostitele",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Uživatel Basic",
-        "basicAuthPassword": "Heslo Basic",
-        "basicAuthPasswordPlaceholder": "Prázdné ponechá uložené heslo",
-        "basicAuthPasswordConfigured": "· heslo nastaveno"
-      },
-      "action": {
-        "test": "Test",
-        "save": "Uložit nastavení vyhledávání",
-        "remove": "Odebrat konfiguraci",
-        "clearKey": "Vymazat uložený klíč",
-        "clearKeyPending": "· klíč bude vymazán",
-        "clearPassword": "Vymazat uložené heslo",
-        "undoClear": "Zrušit mazání"
-      },
-      "removedPending": "Konfigurace bude po uložení odebrána.",
-      "testOutcome": {
-        "error": "Test selhal: {{error}}",
-        "count": "{{count}} výsledků"
-      },
-      "policy": {
-        "title": "Výchozí zásada",
-        "preferred": "Preferovaný poskytovatel",
-        "preferredDescription": "Zkouší se první, když požadavek neurčí jinak.",
-        "preferredNone": "Bez preference",
-        "allowed": "Povolení poskytovatelé",
-        "allowedDescription": "Prázdné znamená, že kandidátem je každý nakonfigurovaný poskytovatel.",
-        "fallbackEnabled": "Fallback",
-        "fallbackDescription": "Po neúspěšném kandidátovi může následovat další.",
-        "maxAttempts": "Max. pokusů",
-        "maxAttemptsDescription": "Horní limit poskytovatelů na jedno vyhledávání (1–32)."
-      },
-      "egress": {
-        "title": "Povolený výstupní provoz",
-        "description": "Názvy hostitelů, kterým je dovoleno překládat se do jinak zakázaných tříd adres — výjimka pro interní SearXNG.",
-        "empty": "Nejsou povoleni žádní soukromí hostitelé.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "Přidat",
-        "remove": "Odebrat hostitele"
+      "zai": {
+        "description": "Webové vyhledávací API Z.AI; vyžaduje klíč."
       }
+    },
+    "keyless": {
+      "description": "Engine bez klíče, vždy dostupný. Nevyžaduje konfiguraci."
+    },
+    "status": {
+      "ready": "Připraven",
+      "unconfigured": "Nenakonfigurován",
+      "healthy": "Zdravý",
+      "degraded": "Zhoršený",
+      "blocked": "Blokován",
+      "failed": "Selhal"
+    },
+    "unconfiguredReason": {
+      "tavily": "Vyžaduje nastavení API klíče.",
+      "jina": "Aktivujte uložením záznamu — Jina umí běžet bez klíče.",
+      "searxng": "Vyžaduje nastavení API hostitele.",
+      "zhipu": "Vyžaduje nastavení API klíče.",
+      "zai": "Vyžaduje nastavení API klíče."
+    },
+    "field": {
+      "apiKey": "API klíč",
+      "apiKeyPlaceholder": "Prázdné ponechá uložený klíč",
+      "apiKeyNew": "Zadejte API klíč",
+      "apiKeyConfigured": "· klíč nastaven",
+      "apiHost": "API hostitel",
+      "apiHostPlaceholder": "Volitelné přepsání hostitele",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Uživatel Basic",
+      "basicAuthPassword": "Heslo Basic",
+      "basicAuthPasswordPlaceholder": "Prázdné ponechá uložené heslo",
+      "basicAuthPasswordConfigured": "· heslo nastaveno"
+    },
+    "action": {
+      "test": "Test",
+      "save": "Uložit nastavení vyhledávání",
+      "remove": "Odebrat konfiguraci",
+      "clearKey": "Vymazat uložený klíč",
+      "clearKeyPending": "· klíč bude vymazán",
+      "clearPassword": "Vymazat uložené heslo",
+      "undoClear": "Zrušit mazání"
+    },
+    "removedPending": "Konfigurace bude po uložení odebrána.",
+    "testOutcome": {
+      "error": "Test selhal: {{error}}",
+      "count": "{{count}} výsledků"
+    },
+    "policy": {
+      "title": "Výchozí zásada",
+      "preferred": "Preferovaný poskytovatel",
+      "preferredDescription": "Zkouší se první, když požadavek neurčí jinak.",
+      "preferredNone": "Bez preference",
+      "allowed": "Povolení poskytovatelé",
+      "allowedDescription": "Prázdné znamená, že kandidátem je každý nakonfigurovaný poskytovatel.",
+      "fallbackEnabled": "Fallback",
+      "fallbackDescription": "Po neúspěšném kandidátovi může následovat další.",
+      "maxAttempts": "Max. pokusů",
+      "maxAttemptsDescription": "Horní limit poskytovatelů na jedno vyhledávání (1–32)."
+    },
+    "egress": {
+      "title": "Povolený výstupní provoz",
+      "description": "Názvy hostitelů, kterým je dovoleno překládat se do jinak zakázaných tříd adres — výjimka pro interní SearXNG.",
+      "empty": "Nejsou povoleni žádní soukromí hostitelé.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Přidat",
+      "remove": "Odebrat hostitele"
+    },
+    "page": {
+      "loading": "Načítání…"
+    },
+    "test": {
+      "queryPlaceholder": "Zadejte dotaz a otestujte tohoto poskytovatele",
+      "action": "Hledat",
+      "testing": "Hledá se…",
+      "saveFirst": "Nejprve uložte — test běží proti uložené konfiguraci.",
+      "empty": "Pro tento dotaz nejsou žádné výsledky.",
+      "providerUsed": "prostřednictvím {{provider}}"
     }
   },
   "accounts": {

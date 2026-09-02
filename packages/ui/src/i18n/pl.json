@@ -512,7 +512,8 @@
     "settings": "Ustawienia",
     "usageStats": "Użycie",
     "pricing": "Cennik",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Wyszukiwanie"
   },
   "apiService": {
     "title": "Usługa API",
@@ -742,110 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Dostawcy wyszukiwania",
+    "description": "Konfiguracja środowiska wyszukiwania w sieci: dane uwierzytelniające dostawców, polityka awaryjna, ruch wychodzący i tryby wykonywania dla każdego frontendu.",
+    "unsupportedDaemon": "Ta wersja demona nie obsługuje sekcji konfiguracji wyszukiwania.",
+    "diagnosticsUnsupported": "Diagnostyka wyszukiwania na żywo jest niedostępna w tej wersji demona; konfiguracja dostawców pozostaje w pełni edytowalna.",
+    "restartBanner": "Aby zmiany weszły w życie, wymagany jest restart demona: {{providers}}",
+    "restartHint": "Wchodzi w życie po restarcie demona",
+    "immediateHint": "Wchodzi w życie natychmiast",
+    "modes": {
+      "title": "Tryby frontendów",
+      "description": "Kto wykonuje wyszukiwanie dla każdego frontendu protokołu.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
     },
-    "search": {
-      "title": "Dostawcy wyszukiwania",
-      "description": "Konfiguracja środowiska wyszukiwania w sieci: dane uwierzytelniające dostawców, polityka awaryjna, ruch wychodzący i tryby wykonywania dla każdego frontendu.",
-      "unsupportedDaemon": "Ta wersja demona nie obsługuje sekcji konfiguracji wyszukiwania.",
-      "diagnosticsUnsupported": "Diagnostyka wyszukiwania na żywo jest niedostępna w tej wersji demona; konfiguracja dostawców pozostaje w pełni edytowalna.",
-      "restartBanner": "Aby zmiany weszły w życie, wymagany jest restart demona: {{providers}}",
-      "restartHint": "Wchodzi w życie po restarcie demona",
-      "immediateHint": "Wchodzi w życie natychmiast",
-      "modes": {
-        "title": "Tryby frontendów",
-        "description": "Kto wykonuje wyszukiwanie dla każdego frontendu protokołu.",
-        "codex": "Codex (/v1/alpha/search)",
-        "responses": "Responses (web_search)",
-        "anthropic": "Anthropic (web_search_*)"
+    "mode": {
+      "native": "Natywny (wykonuje upstream)",
+      "managed": "Zarządzany (wykonuje brama)",
+      "off": "Wyłączony"
+    },
+    "providers": {
+      "title": "Dostawcy",
+      "tavily": {
+        "description": "API wyszukiwania z hojnym bezpłatnym limitem; wymaga klucza."
       },
-      "mode": {
-        "native": "Natywny (wykonuje upstream)",
-        "managed": "Zarządzany (wykonuje brama)",
-        "off": "Wyłączony"
+      "jina": {
+        "description": "Wyszukiwanie działa bez klucza; klucz podnosi limity."
       },
-      "providers": {
-        "title": "Dostawcy",
-        "tavily": {
-          "description": "API wyszukiwania z hojnym bezpłatnym limitem; wymaga klucza."
-        },
-        "jina": {
-          "description": "Wyszukiwanie działa bez klucza; klucz podnosi limity."
-        },
-        "searxng": {
-          "description": "Metawyszukiwarka self-hosted; konfigurowana hostem instancji."
-        },
-        "zhipu": {
-          "description": "API wyszukiwania Zhipu; wymaga klucza."
-        },
-        "zai": {
-          "description": "API wyszukiwania Z.AI; wymaga klucza."
-        }
+      "searxng": {
+        "description": "Metawyszukiwarka self-hosted; konfigurowana hostem instancji."
       },
-      "keyless": {
-        "description": "Silnik bez klucza, zawsze dostępny. Nie wymaga konfiguracji."
+      "zhipu": {
+        "description": "API wyszukiwania Zhipu; wymaga klucza."
       },
-      "status": {
-        "ready": "Gotowy",
-        "unconfigured": "Nieskonfigurowany",
-        "healthy": "Zdrowy",
-        "degraded": "Ograniczony",
-        "blocked": "Zablokowany",
-        "failed": "Niepowodzenie"
-      },
-      "unconfiguredReason": {
-        "tavily": "Wymaga skonfigurowania klucza API.",
-        "jina": "Aktywuj, zapisując wpis — Jina może działać bez klucza.",
-        "searxng": "Wymaga skonfigurowania hosta API.",
-        "zhipu": "Wymaga skonfigurowania klucza API.",
-        "zai": "Wymaga skonfigurowania klucza API."
-      },
-      "field": {
-        "apiKey": "Klucz API",
-        "apiKeyPlaceholder": "Puste zachowuje zapisany klucz",
-        "apiKeyNew": "Wprowadź klucz API",
-        "apiKeyConfigured": "· klucz skonfigurowany",
-        "apiHost": "Host API",
-        "apiHostPlaceholder": "Opcjonalne nadpisanie hosta",
-        "apiHostRequired": "https://searxng.example.org",
-        "basicAuthUsername": "Użytkownik Basic",
-        "basicAuthPassword": "Hasło Basic",
-        "basicAuthPasswordPlaceholder": "Puste zachowuje zapisane hasło",
-        "basicAuthPasswordConfigured": "· hasło skonfigurowane"
-      },
-      "action": {
-        "test": "Testuj",
-        "save": "Zapisz ustawienia wyszukiwania",
-        "remove": "Usuń konfigurację",
-        "clearKey": "Wyczyść zapisany klucz",
-        "clearKeyPending": "· klucz zostanie wyczyszczony",
-        "clearPassword": "Wyczyść zapisane hasło",
-        "undoClear": "Cofnij czyszczenie"
-      },
-      "removedPending": "Konfiguracja zostanie usunięta po zapisaniu.",
-      "testOutcome": {
-        "error": "Test nie powiódł się: {{error}}",
-        "count": "Wyniki: {{count}}"
-      },
-      "policy": {
-        "title": "Polityka domyślna",
-        "preferred": "Preferowany dostawca",
-        "preferredDescription": "Próbowany pierwszy, gdy żądanie go nie przypnie.",
-        "preferredNone": "Bez preferencji",
-        "allowed": "Dozwoleni dostawcy",
-        "allowedDescription": "Puste oznacza, że każdy skonfigurowany dostawca jest kandydatem.",
-        "fallbackEnabled": "Awaryjnie",
-        "fallbackDescription": "Po nieudanym kandydacie może nastąpić kolejny.",
-        "maxAttempts": "Maks. prób",
-        "maxAttemptsDescription": "Górna granica dostawców na jedno wyszukiwanie (1–32)."
-      },
-      "egress": {
-        "title": "Lista dozwolonego ruchu wychodzącego",
-        "description": "Nazwy hostów, które mogą rozwiązywać się do zwykle odrzucanych klas adresów — furtka dla wewnętrznego SearXNG.",
-        "empty": "Brak dozwolonych hostów prywatnych.",
-        "hostPlaceholder": "searx.internal.example.org",
-        "add": "Dodaj",
-        "remove": "Usuń host"
+      "zai": {
+        "description": "API wyszukiwania Z.AI; wymaga klucza."
       }
+    },
+    "keyless": {
+      "description": "Silnik bez klucza, zawsze dostępny. Nie wymaga konfiguracji."
+    },
+    "status": {
+      "ready": "Gotowy",
+      "unconfigured": "Nieskonfigurowany",
+      "healthy": "Zdrowy",
+      "degraded": "Ograniczony",
+      "blocked": "Zablokowany",
+      "failed": "Niepowodzenie"
+    },
+    "unconfiguredReason": {
+      "tavily": "Wymaga skonfigurowania klucza API.",
+      "jina": "Aktywuj, zapisując wpis — Jina może działać bez klucza.",
+      "searxng": "Wymaga skonfigurowania hosta API.",
+      "zhipu": "Wymaga skonfigurowania klucza API.",
+      "zai": "Wymaga skonfigurowania klucza API."
+    },
+    "field": {
+      "apiKey": "Klucz API",
+      "apiKeyPlaceholder": "Puste zachowuje zapisany klucz",
+      "apiKeyNew": "Wprowadź klucz API",
+      "apiKeyConfigured": "· klucz skonfigurowany",
+      "apiHost": "Host API",
+      "apiHostPlaceholder": "Opcjonalne nadpisanie hosta",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Użytkownik Basic",
+      "basicAuthPassword": "Hasło Basic",
+      "basicAuthPasswordPlaceholder": "Puste zachowuje zapisane hasło",
+      "basicAuthPasswordConfigured": "· hasło skonfigurowane"
+    },
+    "action": {
+      "test": "Testuj",
+      "save": "Zapisz ustawienia wyszukiwania",
+      "remove": "Usuń konfigurację",
+      "clearKey": "Wyczyść zapisany klucz",
+      "clearKeyPending": "· klucz zostanie wyczyszczony",
+      "clearPassword": "Wyczyść zapisane hasło",
+      "undoClear": "Cofnij czyszczenie"
+    },
+    "removedPending": "Konfiguracja zostanie usunięta po zapisaniu.",
+    "testOutcome": {
+      "error": "Test nie powiódł się: {{error}}",
+      "count": "Wyniki: {{count}}"
+    },
+    "policy": {
+      "title": "Polityka domyślna",
+      "preferred": "Preferowany dostawca",
+      "preferredDescription": "Próbowany pierwszy, gdy żądanie go nie przypnie.",
+      "preferredNone": "Bez preferencji",
+      "allowed": "Dozwoleni dostawcy",
+      "allowedDescription": "Puste oznacza, że każdy skonfigurowany dostawca jest kandydatem.",
+      "fallbackEnabled": "Awaryjnie",
+      "fallbackDescription": "Po nieudanym kandydacie może nastąpić kolejny.",
+      "maxAttempts": "Maks. prób",
+      "maxAttemptsDescription": "Górna granica dostawców na jedno wyszukiwanie (1–32)."
+    },
+    "egress": {
+      "title": "Lista dozwolonego ruchu wychodzącego",
+      "description": "Nazwy hostów, które mogą rozwiązywać się do zwykle odrzucanych klas adresów — furtka dla wewnętrznego SearXNG.",
+      "empty": "Brak dozwolonych hostów prywatnych.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Dodaj",
+      "remove": "Usuń host"
+    },
+    "page": {
+      "loading": "Ładowanie…"
+    },
+    "test": {
+      "queryPlaceholder": "Wpisz zapytanie, aby przetestować tego dostawcę",
+      "action": "Szukaj",
+      "testing": "Wyszukiwanie…",
+      "saveFirst": "Najpierw zapisz — test jest uruchamiany na zapisanej konfiguracji.",
+      "empty": "Brak wyników dla tego zapytania.",
+      "providerUsed": "przez {{provider}}"
     }
   },
   "accounts": {

@@ -29,9 +29,6 @@ describe('API service information architecture', () => {
       'serviceControls',
       'queueStatus',
       'bindingCoverage',
-      // search-settings-ui: the search-provider settings section rides the
-      // overview tab after Images.
-      'searchSettings',
     ]);
     expect(sectionsForApiServiceTab('access')).toEqual(['accessKeys', 'vouchers']);
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('endpointRouting');
@@ -41,6 +38,9 @@ describe('API service information architecture', () => {
     // The live-traffic / activity sections graduated to the Route Activity page.
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('liveTrafficQueue');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('recentErrors');
+    // search-settings-tab: the search settings graduated to the standalone
+    // Search page (`#/search`) — nothing search remains here.
+    expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('searchSettings');
   });
 
   it('normalizes old in-memory callers while hashes redirect at the route boundary', () => {

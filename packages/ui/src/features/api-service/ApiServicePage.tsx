@@ -25,7 +25,6 @@ import { useCliIntegrations } from '../code-cli/hooks/useCliIntegrations';
 import { ImagesSection } from './ImagesSection';
 import { KeyManagementSection } from './KeyManagementSection';
 import { QueueStatusSummary } from './QueueStatusSummary';
-import { SearchSection } from './SearchSection';
 import { ServerStatusBanner } from './ServerStatusBanner';
 import { VoucherSection } from './VoucherSection';
 
@@ -63,9 +62,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     setKeyPermissions,
     setKeyPolicy,
     updateImagesConfig,
-    searchDiagnostics,
-    updateSearchConfig,
-    testSearchProvider,
     queueStatus,
     vouchers,
     createdVoucher,
@@ -152,14 +148,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   accounts={accounts.providerAccounts.codex}
                   busy={busy}
                   onUpdate={updateImagesConfig}
-                />
-
-                <SearchSection
-                  config={config.search}
-                  diagnostics={searchDiagnostics}
-                  busy={busy}
-                  onUpdate={updateSearchConfig}
-                  onTest={testSearchProvider}
                 />
               </div>
 

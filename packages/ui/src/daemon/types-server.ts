@@ -582,6 +582,25 @@ export interface SearchTestResult {
   resultCount?: number;
 }
 
+/** One sanitized interactive-query result (untrusted input — render as text). */
+export interface SearchQueryResultItem {
+  title: string;
+  url: string;
+  content: string;
+}
+
+/**
+ * `POST /admin/api/search/query` result body (search-settings-tab): the
+ * doctor-classified diagnostic PLUS the sanitized results (≤5, per-field caps
+ * applied daemon-side before serialization). `results`/`resultCount` are
+ * present only on the success arm; a failure carries the diagnostic only.
+ */
+export interface SearchQueryResult {
+  diagnostic: SearchTestResult;
+  resultCount?: number;
+  results?: SearchQueryResultItem[];
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;

@@ -32,9 +32,6 @@ import type {
   OutboundKeyPolicyPatch,
   OutboundPermissionId,
   OutboundQueueStatus,
-  SearchDiagnosticsSnapshot,
-  SearchServerConfig,
-  SearchTestOutcome,
   VoucherCreated,
   VoucherGenerateInput,
   VoucherInfo,
@@ -84,12 +81,6 @@ export interface UseApiServiceResult {
   updateImagesConfig: (
     config: NonNullable<OutboundApiServerConfig['images']>,
   ) => Promise<void>;
-  /** Secret-free search diagnostics; null on a daemon that predates the endpoint. */
-  searchDiagnostics: SearchDiagnosticsSnapshot | null;
-  /** Persist the full search segment (layer-replaced; secrets write-only). */
-  updateSearchConfig: (search: NonNullable<OutboundApiServerConfig['search']>) => Promise<void>;
-  /** Run the daemon's fixed-query live test for one provider (non-mutating). */
-  testSearchProvider: (providerId: string) => Promise<SearchTestOutcome>;
   updateAllowanceSchedulingConfig: (
     config: NonNullable<OutboundApiServerConfig['allowanceScheduling']>,
   ) => Promise<void>;
@@ -138,7 +129,6 @@ export function useApiService(): UseApiServiceResult {
   const [config, setConfig] = useState<OutboundApiServerConfig | null>(null);
   const [status, setStatus] = useState<OutboundApiServerStatus | null>(null);
   const [imageCapability, setImageCapability] = useState<ImagesCapabilityStatus | null>(null);
-  const [searchDiagnostics, setSearchDiagnostics] = useState<SearchDiagnosticsSnapshot | null>(null);
   const [keys, setKeys] = useState<OutboundApiKeyInfo[]>([]);
   const [providers, setProviders] = useState<LLMProvider[]>([]);
   const [accounts, setAccounts] = useState<AccountsListResponse>({
@@ -156,20 +146,18 @@ export function useApiService(): UseApiServiceResult {
   busyRef.current = busy;
 
   const refreshAll = useCallback(async () => {
-    const [cfg, st, imageStatus, ks, vs, searchDiag] = await Promise.all([
+    const [cfg, st, imageStatus, ks, vs] = await Promise.all([
       agent.apiService.getConfig(),
       agent.apiService.getStatus(),
       agent.apiService.getImagesCapability(),
       agent.apiService.listKeys(),
       agent.apiService.listVouchers(),
-      agent.apiService.getSearchDiagnostics(),
     ]);
     setConfig(cfg);
     setStatus(st);
     setImageCapability(imageStatus);
     setKeys(ks);
     setVouchers(vs);
-    setSearchDiagnostics(searchDiag);
   }, []);
 
   useEffect(() => {
@@ -186,20 +174,18 @@ export function useApiService(): UseApiServiceResult {
       let ks: OutboundApiKeyInfo[] = [];
       let vs: VoucherInfo[] = [];
       let provs: LLMProvider[] = [];
-      let searchDiag: SearchDiagnosticsSnapshot | null = null;
       let accts: AccountsListResponse = {
         accounts: [],
         providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
       };
       for (let attempt = 0; attempt < attempts; attempt += 1) {
-        [cfg, st, imageStatus, ks, vs, provs, searchDiag, accts] = await Promise.all([
+        [cfg, st, imageStatus, ks, vs, provs, accts] = await Promise.all([
           agent.apiService.getConfig(),
           agent.apiService.getStatus(),
           agent.apiService.getImagesCapability(),
           agent.apiService.listKeys(),
           agent.apiService.listVouchers(),
           agent.llmConfig.getProviders().catch(() => [] as LLMProvider[]),
-          agent.apiService.getSearchDiagnostics(),
           agent.accounts.list().catch(() => accts),
         ]);
         if (cancelled || (cfg && st)) break;
@@ -214,7 +200,6 @@ export function useApiService(): UseApiServiceResult {
       setKeys(ks);
       setVouchers(vs);
       setProviders(provs);
-      setSearchDiagnostics(searchDiag);
       setAccounts(accts);
       setLoading(false);
     })();
@@ -396,21 +381,6 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
-  const updateSearchConfig = useCallback(
-    async (search: SearchServerConfig) => {
-      await runWrite(() => agent.apiService.updateSearchConfig(search));
-    },
-    [runWrite],
-  );
-
-  // The fixed-query search test does NOT go through `runWrite` (it mutates no
-  // config, it probes a provider) — the card renders the returned diagnostic
-  // inline (the webhook-test precedent).
-  const testSearchProvider = useCallback(
-    (providerId: string) => agent.apiService.testSearchProvider(providerId),
-    [],
-  );
-
   const updateBindings = useCallback(
     async (bindings: GatewayBinding[]) => {
       await runWrite(() => agent.apiService.updateBindings(bindings));
@@ -553,9 +523,6 @@ export function useApiService(): UseApiServiceResult {
     setKeyPolicy,
     updateQueueConfig,
     updateImagesConfig,
-    searchDiagnostics,
-    updateSearchConfig,
-    testSearchProvider,
     updateAllowanceSchedulingConfig,
     getAllowanceSchedulingStatus,
     updateProxyConfig,
