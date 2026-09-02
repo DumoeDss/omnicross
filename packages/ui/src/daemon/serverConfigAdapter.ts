@@ -45,6 +45,9 @@ import type {
   OutboundKeyPolicyPatch,
   OutboundPermissionId,
   OverloadCounterResponse,
+  SearchDiagnosticsSnapshot,
+  SearchServerConfig,
+  SearchTestResult,
   VoucherCreated,
   VoucherInfo,
 } from './types-server';
@@ -52,6 +55,47 @@ import type {
 /** The `PUT /server` response: the persisted config, echoed back. */
 interface ServerPutResponse {
   server: OutboundApiServerConfig;
+}
+
+/** The admin-read presence markers; view-only and never persisted as config. */
+const SEARCH_MARKER_KEYS = ['apiKeyConfigured', 'basicAuthPasswordConfigured'] as const;
+
+/** Deep-copy a provider entry without the admin-read marker fields. */
+function stripSearchEntryMarkers<T extends Record<string, unknown>>(entry: T): T {
+  const out = { ...entry };
+  for (const marker of SEARCH_MARKER_KEYS) delete out[marker];
+  return out;
+}
+
+/**
+ * Build the FULL `search` segment for a PUT (search-settings-ui).
+ *
+ * `mergeServerConfig` layer-replaces the section (`patch.search ??
+ * current.search`), so a segment missing a top-level member would WIPE it: a
+ * missing member is backfilled from the last-loaded masked config (trap #1,
+ * same discipline as `endpoints`). `providers` is the caller's COMPLETE
+ * intended set — the model builds it from the full masked read, so an entry
+ * ABSENT from it is a deliberate removal (removal is how a configuration
+ * including its secret is deleted; re-merging cached entries here would
+ * resurrect it). Markers are stripped on the way out; secret fields ride only
+ * when the caller set them (write-only — a masked read contributes none).
+ */
+function fullSearchSegment(
+  cached: SearchServerConfig | undefined,
+  incoming: SearchServerConfig,
+): SearchServerConfig {
+  const providers: SearchServerConfig['providers'] = {};
+  for (const [id, entry] of Object.entries(incoming.providers ?? {})) {
+    if (entry === null || entry === undefined) continue;
+    providers[id as keyof SearchServerConfig['providers']] =
+      stripSearchEntryMarkers(entry as unknown as Record<string, unknown>) as never;
+  }
+  return {
+    modes: incoming.modes ?? cached?.modes ?? { codex: 'off', responses: 'native', anthropic: 'native' },
+    providers,
+    egress: incoming.egress ?? cached?.egress ?? { allowedPrivateHosts: [] },
+    policy: incoming.policy ?? cached?.policy ?? { fallbackEnabled: true },
+  };
 }
 
 function fail(err: unknown, fallback: string): MutationResult {
@@ -250,6 +294,64 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return applyServerPut(data);
       } catch (err) {
         return fail(err, 'failed to update gateway bindings');
+      }
+    },
+
+    async updateSearchConfig(search: SearchServerConfig): Promise<MutationResult> {
+      try {
+        // search-settings-ui: LAYER-REPLACED segment — rebuild the FULL tree
+        // from the last-loaded masked config so untouched providers survive,
+        // strip the view-only markers, and let the daemon's write-only
+        // preservation re-attach stored secrets for omitted/blanked fields.
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          search: fullSearchSegment(cachedConfig?.search, search),
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update search configuration');
+      }
+    },
+
+    async getSearchDiagnostics(): Promise<SearchDiagnosticsSnapshot | null> {
+      try {
+        const data = await adminClient.get<{ diagnostics: SearchDiagnosticsSnapshot }>(
+          '/search/diagnostics',
+        );
+        return data.diagnostics ?? null;
+      } catch {
+        // Compatibility seam: older daemons do not expose diagnostics. The
+        // settings surface stays fully editable and labels the status area
+        // unsupported instead of treating this as a page failure.
+        //
+        // Review round 1 (t1) disposition — deliberately KEPT catch-all, the
+        // `getAllowanceSchedulingStatus` precedent: diagnostics are advisory
+        // reads, so a transient 500 or auth failure reading as "unsupported"
+        // costs only the status row (the editors and the test action remain
+        // fully functional), while distinguishing it would need a third UI
+        // state this page has no idiom for. Do not narrow without adding that
+        // state.
+        return null;
+      }
+    },
+
+    async testSearchProvider(providerId: string): Promise<import('./types').SearchTestOutcome> {
+      try {
+        const data = await adminClient.post<{
+          result: { diagnostic: SearchTestResult; resultCount?: number };
+        }>('/search/test', { providerId });
+        return {
+          ok: true,
+          result: {
+            ...data.result.diagnostic,
+            ...(data.result.resultCount !== undefined
+              ? { resultCount: data.result.resultCount }
+              : {}),
+          },
+        };
+      } catch (err) {
+        // Result-shaped failure, never a throw: an unconfigured/unknown
+        // provider refusal renders inline like a blocked network outcome.
+        return { ok: false, error: err instanceof Error ? err.message : 'search test failed' };
       }
     },
 

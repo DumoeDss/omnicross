@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Nhà cung cấp tìm kiếm",
+      "description": "Cấu hình thời gian chạy tìm kiếm web: thông tin xác thực của nhà cung cấp, chính sách dự phòng, lưu lượng mạng đi và chế độ thực thi cho từng frontend.",
+      "unsupportedDaemon": "Phiên bản daemon này không hỗ trợ phần cấu hình tìm kiếm.",
+      "diagnosticsUnsupported": "Chẩn đoán tìm kiếm trực tiếp không khả dụng trên phiên bản daemon này; cấu hình nhà cung cấp vẫn chỉnh sửa được đầy đủ.",
+      "restartBanner": "Cần khởi động lại daemon để thay đổi có hiệu lực: {{providers}}",
+      "restartHint": "Có hiệu lực sau khi khởi động lại daemon",
+      "immediateHint": "Có hiệu lực ngay",
+      "modes": {
+        "title": "Chế độ frontend",
+        "description": "Ai thực thi tìm kiếm cho từng frontend giao thức.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Gốc (upstream thực thi)",
+        "managed": "Quản lý (gateway thực thi)",
+        "off": "Tắt"
+      },
+      "providers": {
+        "title": "Nhà cung cấp",
+        "tavily": {
+          "description": "API tìm kiếm với hạn mức miễn phí hào phóng; cần khóa."
+        },
+        "jina": {
+          "description": "Tìm kiếm chạy được không cần khóa; khóa tăng giới hạn tốc độ."
+        },
+        "searxng": {
+          "description": "Metasearch tự lưu trữ; cấu hình qua máy chủ của phiên bản."
+        },
+        "zhipu": {
+          "description": "API tìm kiếm web Zhipu; cần khóa."
+        },
+        "zai": {
+          "description": "API tìm kiếm web Z.AI; cần khóa."
+        }
+      },
+      "keyless": {
+        "description": "Engine không cần khóa, luôn sẵn sàng. Không cần cấu hình."
+      },
+      "status": {
+        "ready": "Sẵn sàng",
+        "unconfigured": "Chưa cấu hình",
+        "healthy": "Khỏe mạnh",
+        "degraded": "Suy giảm",
+        "blocked": "Bị chặn",
+        "failed": "Thất bại"
+      },
+      "unconfiguredReason": {
+        "tavily": "Yêu cầu cấu hình khóa API.",
+        "jina": "Bật bằng cách lưu một mục — Jina có thể chạy không cần khóa.",
+        "searxng": "Yêu cầu cấu hình máy chủ API.",
+        "zhipu": "Yêu cầu cấu hình khóa API.",
+        "zai": "Yêu cầu cấu hình khóa API."
+      },
+      "field": {
+        "apiKey": "Khóa API",
+        "apiKeyPlaceholder": "Để trống giữ khóa đã lưu",
+        "apiKeyNew": "Nhập khóa API",
+        "apiKeyConfigured": "· đã cấu hình khóa",
+        "apiHost": "Máy chủ API",
+        "apiHostPlaceholder": "Ghi đè máy chủ (tùy chọn)",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Người dùng Basic",
+        "basicAuthPassword": "Mật khẩu Basic",
+        "basicAuthPasswordPlaceholder": "Để trống giữ mật khẩu đã lưu",
+        "basicAuthPasswordConfigured": "· đã cấu hình mật khẩu"
+      },
+      "action": {
+        "test": "Kiểm tra",
+        "save": "Lưu cài đặt tìm kiếm",
+        "remove": "Xóa cấu hình",
+        "clearKey": "Xóa khóa đã lưu",
+        "clearKeyPending": "· khóa sẽ bị xóa",
+        "clearPassword": "Xóa mật khẩu đã lưu",
+        "undoClear": "Hoàn tác xóa"
+      },
+      "removedPending": "Cấu hình sẽ bị xóa khi lưu.",
+      "testOutcome": {
+        "error": "Kiểm tra thất bại: {{error}}",
+        "count": "{{count}} kết quả"
+      },
+      "policy": {
+        "title": "Chính sách mặc định",
+        "preferred": "Nhà cung cấp ưu tiên",
+        "preferredDescription": "Được thử đầu tiên khi yêu cầu không ghim nhà cung cấp.",
+        "preferredNone": "Không ưu tiên",
+        "allowed": "Nhà cung cấp được phép",
+        "allowedDescription": "Trống nghĩa là mọi nhà cung cấp đã cấu hình đều là ứng viên.",
+        "fallbackEnabled": "Dự phòng",
+        "fallbackDescription": "Sau một ứng viên thất bại có thể thử ứng viên tiếp theo.",
+        "maxAttempts": "Số lần thử tối đa",
+        "maxAttemptsDescription": "Giới hạn trên số nhà cung cấp thử cho mỗi lần tìm (1–32)."
+      },
+      "egress": {
+        "title": "Danh sách cho phép lưu lượng đi",
+        "description": "Tên máy chủ được phép phân giải vào các lớp địa chỉ vốn bị từ chối — lối ngoại lệ cho SearXNG nội bộ.",
+        "empty": "Không có máy chủ riêng nào được phép.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Thêm",
+        "remove": "Xóa máy chủ"
+      }
     }
   },
   "accounts": {

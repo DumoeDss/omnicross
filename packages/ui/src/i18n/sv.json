@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Sökleverantörer",
+      "description": "Konfiguration av webbsökningskörningen: leverantörsuppgifter, fallback-princip, utgående nätverkstrafik och körningslägen per frontend.",
+      "unsupportedDaemon": "Denna daemonversion stöder inte sökkonfigurationssektionen.",
+      "diagnosticsUnsupported": "Live-sökdiagnostik är inte tillgänglig i denna daemonversion; leverantörskonfigurationen förblir fullt redigerbar.",
+      "restartBanner": "Omstart av daemonen krävs för att ändringarna ska träda i kraft: {{providers}}",
+      "restartHint": "Träder i kraft vid omstart av daemonen",
+      "immediateHint": "Träder i kraft omedelbart",
+      "modes": {
+        "title": "Frontendlägen",
+        "description": "Vem som kör sökningen för varje protokollfrontend.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Native (uppström kör)",
+        "managed": "Hanterad (gateway kör)",
+        "off": "Av"
+      },
+      "providers": {
+        "title": "Leverantörer",
+        "tavily": {
+          "description": "Sök-API med generös gratisnivå; nyckel krävs."
+        },
+        "jina": {
+          "description": "Sökning fungerar utan nyckel; en nyckel höjer gränserna."
+        },
+        "searxng": {
+          "description": "Egenvärd metasökning; konfigureras via instansens värd."
+        },
+        "zhipu": {
+          "description": "Zhipu webbsöknings-API; nyckel krävs."
+        },
+        "zai": {
+          "description": "Z.AI webbsöknings-API; nyckel krävs."
+        }
+      },
+      "keyless": {
+        "description": "Nyckelfri motor, alltid tillgänglig. Kräver ingen konfiguration."
+      },
+      "status": {
+        "ready": "Redo",
+        "unconfigured": "Okonfigurerad",
+        "healthy": "Frisk",
+        "degraded": "Försämrad",
+        "blocked": "Blockerad",
+        "failed": "Misslyckades"
+      },
+      "unconfiguredReason": {
+        "tavily": "Kräver att en API-nyckel konfigureras.",
+        "jina": "Aktivera genom att spara en post — Jina kan köras utan nyckel.",
+        "searxng": "Kräver att en API-värd konfigureras.",
+        "zhipu": "Kräver att en API-nyckel konfigureras.",
+        "zai": "Kräver att en API-nyckel konfigureras."
+      },
+      "field": {
+        "apiKey": "API-nyckel",
+        "apiKeyPlaceholder": "Tomt behåller den lagrade nyckeln",
+        "apiKeyNew": "Ange API-nyckel",
+        "apiKeyConfigured": "· nyckel konfigurerad",
+        "apiHost": "API-värd",
+        "apiHostPlaceholder": "Valfri värdåsidosättning",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Basic-auth-användare",
+        "basicAuthPassword": "Basic-auth-lösenord",
+        "basicAuthPasswordPlaceholder": "Tomt behåller det lagrade lösenordet",
+        "basicAuthPasswordConfigured": "· lösenord konfigurerat"
+      },
+      "action": {
+        "test": "Testa",
+        "save": "Spara sökinställningar",
+        "remove": "Ta bort konfiguration",
+        "clearKey": "Radera lagrad nyckel",
+        "clearKeyPending": "· nyckeln raderas",
+        "clearPassword": "Radera lagrat lösenord",
+        "undoClear": "Ångra radering"
+      },
+      "removedPending": "Konfigurationen tas bort vid sparande.",
+      "testOutcome": {
+        "error": "Testet misslyckades: {{error}}",
+        "count": "{{count}} träffar"
+      },
+      "policy": {
+        "title": "Standardprincip",
+        "preferred": "Föredragen leverantör",
+        "preferredDescription": "Prövas först när en förfrågan inte fastslår en.",
+        "preferredNone": "Ingen preferens",
+        "allowed": "Tillåtna leverantörer",
+        "allowedDescription": "Tomt innebär att varje konfigurerad leverantör är kandidat.",
+        "fallbackEnabled": "Fallback",
+        "fallbackDescription": "Efter en misslyckad kandidat får nästa följa.",
+        "maxAttempts": "Max försök",
+        "maxAttemptsDescription": "Övre gräns för leverantörer per sökning (1–32)."
+      },
+      "egress": {
+        "title": "Tillåten utgående lista",
+        "description": "Värdnamn som tillåts lösa upp i annars nekade adressklasser — undantagsvägen för en intern SearXNG.",
+        "empty": "Inga privata värdar tillåtna.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Lägg till",
+        "remove": "Ta bort värd"
+      }
     }
   },
   "accounts": {

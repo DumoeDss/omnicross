@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Zoekproviders",
+      "description": "Configuratie van de webzoek-runtime: inloggegevens van providers, fallbackbeleid, uitgaand netwerkverkeer en uitvoeringsmodi per frontend.",
+      "unsupportedDaemon": "Deze daemon-versie ondersteunt de zoekconfiguratiesectie niet.",
+      "diagnosticsUnsupported": "Live zoekdiagnose is niet beschikbaar op deze daemon-versie; de providerconfiguratie blijft volledig bewerkbaar.",
+      "restartBanner": "Herstart van de daemon is vereist om wijzigingen door te voeren: {{providers}}",
+      "restartHint": "Wordt van kracht na herstart van de daemon",
+      "immediateHint": "Wordt direct van kracht",
+      "modes": {
+        "title": "Frontend-modi",
+        "description": "Wie de zoekopdracht uitvoert per protocolfrontend.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Native (upstream voert uit)",
+        "managed": "Beheerd (gateway voert uit)",
+        "off": "Uit"
+      },
+      "providers": {
+        "title": "Providers",
+        "tavily": {
+          "description": "Zoek-API met ruim gratis quotum; sleutel vereist."
+        },
+        "jina": {
+          "description": "Zoeken kan zonder sleutel; een sleutel verhoogt de limieten."
+        },
+        "searxng": {
+          "description": "Zelf-gehoste metazoekmachine; geconfigureerd via de host van de instantie."
+        },
+        "zhipu": {
+          "description": "Zhipu-webzoek-API; sleutel vereist."
+        },
+        "zai": {
+          "description": "Z.AI-webzoek-API; sleutel vereist."
+        }
+      },
+      "keyless": {
+        "description": "Sleutelloze engine, altijd beschikbaar. Geen configuratie nodig."
+      },
+      "status": {
+        "ready": "Gereed",
+        "unconfigured": "Niet geconfigureerd",
+        "healthy": "Gezond",
+        "degraded": "Verminderd",
+        "blocked": "Geblokkeerd",
+        "failed": "Mislukt"
+      },
+      "unconfiguredReason": {
+        "tavily": "Vereist configuratie van een API-sleutel.",
+        "jina": "Activeer door een item op te slaan — Jina kan zonder sleutel draaien.",
+        "searxng": "Vereist configuratie van een API-host.",
+        "zhipu": "Vereist configuratie van een API-sleutel.",
+        "zai": "Vereist configuratie van een API-sleutel."
+      },
+      "field": {
+        "apiKey": "API-sleutel",
+        "apiKeyPlaceholder": "Leeg houdt de opgeslagen sleutel",
+        "apiKeyNew": "Voer API-sleutel in",
+        "apiKeyConfigured": "· sleutel geconfigureerd",
+        "apiHost": "API-host",
+        "apiHostPlaceholder": "Optionele hostoverschrijving",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Basic-auth-gebruiker",
+        "basicAuthPassword": "Basic-auth-wachtwoord",
+        "basicAuthPasswordPlaceholder": "Leeg houdt het opgeslagen wachtwoord",
+        "basicAuthPasswordConfigured": "· wachtwoord geconfigureerd"
+      },
+      "action": {
+        "test": "Testen",
+        "save": "Zoekinstellingen opslaan",
+        "remove": "Configuratie verwijderen",
+        "clearKey": "Opgeslagen sleutel wissen",
+        "clearKeyPending": "· sleutel wordt gewist",
+        "clearPassword": "Opgeslagen wachtwoord wissen",
+        "undoClear": "Wissen ongedaan maken"
+      },
+      "removedPending": "De configuratie wordt verwijderd bij opslaan.",
+      "testOutcome": {
+        "error": "Test mislukt: {{error}}",
+        "count": "{{count}} resultaten"
+      },
+      "policy": {
+        "title": "Standaardbeleid",
+        "preferred": "Voorkeursprovider",
+        "preferredDescription": "Wordt eerst geprobeerd als een verzoek er geen vastlegt.",
+        "preferredNone": "Geen voorkeur",
+        "allowed": "Toegestane providers",
+        "allowedDescription": "Leeg betekent dat elke geconfigureerde provider kandidaat is.",
+        "fallbackEnabled": "Fallback",
+        "fallbackDescription": "Na een mislukte kandidaat mag de volgende volgen.",
+        "maxAttempts": "Max. pogingen",
+        "maxAttemptsDescription": "Bovengrens van providers per zoekopdracht (1–32)."
+      },
+      "egress": {
+        "title": "Uitgaande toestaan-lijst",
+        "description": "Hostnamen die mogen resolven naar anders geweigerde adresklassen — de uitzonderingsroute voor intern SearXNG.",
+        "empty": "Geen privé-hosts toegestaan.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Toevoegen",
+        "remove": "Host verwijderen"
+      }
     }
   },
   "accounts": {

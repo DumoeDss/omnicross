@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Hakupalveluntarjoajat",
+      "description": "Verkkohaun ajonaikaisen ympäristön asetukset: palveluntarjoajien tunnukset, varapolitiikka, verkon lähtevä liikenne ja suoritustilat per frontend.",
+      "unsupportedDaemon": "Tämä daemon-versio ei tue hakuasetusten osiota.",
+      "diagnosticsUnsupported": "Live-hakudiagnostiikka ei ole käytettävissä tässä daemon-versiossa; palveluntarjoajien asetukset pysyvät täysin muokattavina.",
+      "restartBanner": "Muutosten voimaantulo vaatii daemonin uudelleenkäynnistyksen: {{providers}}",
+      "restartHint": "Tulee voimaan daemonin uudelleenkäynnistyksen jälkeen",
+      "immediateHint": "Tulee voimaan heti",
+      "modes": {
+        "title": "Frontend-tilat",
+        "description": "Kuka suorittaa haun kullekin protokolla-frontendille.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Natiivi (upstream suorittaa)",
+        "managed": "Hallittu (yhdyskäytävä suorittaa)",
+        "off": "Pois"
+      },
+      "providers": {
+        "title": "Palveluntarjoajat",
+        "tavily": {
+          "description": "Haku-API anteliaalla ilmaisella kiintiöllä; vaatii avaimen."
+        },
+        "jina": {
+          "description": "Haku toimii ilman avainta; avain nostaa rajoituksia."
+        },
+        "searxng": {
+          "description": "Itse ylläpidetty metahaku; määritetään instanssin isännällä."
+        },
+        "zhipu": {
+          "description": "Zhipun verkkohaku-API; vaatii avaimen."
+        },
+        "zai": {
+          "description": "Z.AI:n verkkohaku-API; vaatii avaimen."
+        }
+      },
+      "keyless": {
+        "description": "Aviton hakukone, aina käytettävissä. Ei vaadi asetuksia."
+      },
+      "status": {
+        "ready": "Valmis",
+        "unconfigured": "Ei määritetty",
+        "healthy": "Terve",
+        "degraded": "Heikentynyt",
+        "blocked": "Estetty",
+        "failed": "Epäonnistui"
+      },
+      "unconfiguredReason": {
+        "tavily": "Vaatii API-avaimen määrittämisen.",
+        "jina": "Ota käyttöön tallentamalla merkintä — Jina toimii ilman avainta.",
+        "searxng": "Vaatii API-isännän määrittämisen.",
+        "zhipu": "Vaatii API-avaimen määrittämisen.",
+        "zai": "Vaatii API-avaimen määrittämisen."
+      },
+      "field": {
+        "apiKey": "API-avain",
+        "apiKeyPlaceholder": "Tyhjä säilyttää tallennetun avaimen",
+        "apiKeyNew": "Syötä API-avain",
+        "apiKeyConfigured": "· avain määritetty",
+        "apiHost": "API-isäntä",
+        "apiHostPlaceholder": "Valinnainen isännän ohitus",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Basic-tunnus",
+        "basicAuthPassword": "Basic-salasana",
+        "basicAuthPasswordPlaceholder": "Tyhjä säilyttää tallennetun salasanan",
+        "basicAuthPasswordConfigured": "· salasana määritetty"
+      },
+      "action": {
+        "test": "Testaa",
+        "save": "Tallenna hakuasetukset",
+        "remove": "Poista määritys",
+        "clearKey": "Tyhjennä tallennettu avain",
+        "clearKeyPending": "· avain tyhjennetään",
+        "clearPassword": "Tyhjennä tallennettu salasana",
+        "undoClear": "Kumoa tyhjennys"
+      },
+      "removedPending": "Määritys poistetaan tallennettaessa.",
+      "testOutcome": {
+        "error": "Testi epäonnistui: {{error}}",
+        "count": "{{count}} tulosta"
+      },
+      "policy": {
+        "title": "Oletuspolitiikka",
+        "preferred": "Suosittu palveluntarjoaja",
+        "preferredDescription": "Kokeillaan ensin, kun pyyntö ei kiinnitä palveluntarjoajaa.",
+        "preferredNone": "Ei ensisijaista",
+        "allowed": "Sallitut palveluntarjoajat",
+        "allowedDescription": "Tyhjä tarkoittaa, että jokainen määritetty palveluntarjoaja on ehdokas.",
+        "fallbackEnabled": "Vara",
+        "fallbackDescription": "Epäonnistuneen ehdokkaan jälkeen saa seurata seuraava.",
+        "maxAttempts": "Enimmäisyritykset",
+        "maxAttemptsDescription": "Yläraja haussa kokeiltaville palveluntarjoajille (1–32)."
+      },
+      "egress": {
+        "title": "Sallittujen lähtevien luettelo",
+        "description": "Isäntänimet, joilla on lupa ratkaista muuten kiellettyihin osoiteluokkiin — poikkeustie sisäiselle SearXNG:lle.",
+        "empty": "Yksityisiä isäntiä ei sallita.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Lisää",
+        "remove": "Poista isäntä"
+      }
     }
   },
   "accounts": {

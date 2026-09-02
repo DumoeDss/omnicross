@@ -49,6 +49,9 @@ import type {
   OutboundKeyPolicyPatch,
   OverloadCounterResponse,
   ProxyConfig,
+  SearchDiagnosticsSnapshot,
+  SearchServerConfig,
+  SearchTestResult,
   VoucherCreated,
   VoucherInfo,
   VoucherType,
@@ -69,6 +72,11 @@ export interface WebhookTestResult {
   status?: number;
   error?: string;
 }
+
+/** Outcome of a search-provider fixed-query test (search-settings-ui). */
+export type SearchTestOutcome =
+  | { ok: true; result: SearchTestResult }
+  | { ok: false; error: string };
 
 // ── Daemon wire DTOs ────────────────────────────────────────────────────────────
 
@@ -296,6 +304,27 @@ export interface AgentApiServiceApi {
   }): Promise<MutationResult>;
   /** Persist the complete strict Images configuration segment. */
   updateImagesConfig(config: NonNullable<OutboundApiServerConfig['images']>): Promise<MutationResult>;
+  /**
+   * Persist the search segment (`PUT /server` with `{ search }`,
+   * search-settings-ui). LAYER-REPLACED like Images/proxy: the adapter rebuilds
+   * the FULL segment (markers stripped, untouched providers carried over from
+   * the last-loaded masked config) and the daemon preserves stored secrets for
+   * omitted/blanked fields. Editing one provider never wipes another's key.
+   */
+  updateSearchConfig(search: NonNullable<OutboundApiServerConfig['search']>): Promise<MutationResult>;
+  /**
+   * Read-only secret-free search diagnostics snapshot (`GET
+   * /admin/api/search/diagnostics`). `null` when the connected daemon predates
+   * the endpoint — the status area shows the unsupported notice, configuration
+   * remains fully editable.
+   */
+  getSearchDiagnostics(): Promise<SearchDiagnosticsSnapshot | null>;
+  /**
+   * Run the daemon's fixed-query live test for one configured provider
+   * (`POST /admin/api/search/test`). Never throws to the page: failures (incl.
+   * the unconfigured/unknown refusal) surface as `{ ok:false, error }`.
+   */
+  testSearchProvider(providerId: string): Promise<SearchTestOutcome>;
   /** Persist the default-off allowance-aware account scheduling policy. */
   updateAllowanceSchedulingConfig(config: AllowanceSchedulingConfig): Promise<MutationResult>;
   /** Read the secret-free recent demote/pause decisions; null means unsupported/unavailable. */

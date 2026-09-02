@@ -29,6 +29,9 @@ describe('API service information architecture', () => {
       'serviceControls',
       'queueStatus',
       'bindingCoverage',
+      // search-settings-ui: the search-provider settings section rides the
+      // overview tab after Images.
+      'searchSettings',
     ]);
     expect(sectionsForApiServiceTab('access')).toEqual(['accessKeys', 'vouchers']);
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('endpointRouting');

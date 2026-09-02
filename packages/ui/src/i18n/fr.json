@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Fournisseurs de recherche",
+      "description": "Configuration du moteur de recherche web : identifiants des fournisseurs, politique de repli, sortie réseau et modes d'exécution par frontend.",
+      "unsupportedDaemon": "Cette version du démon ne prend pas en charge la section de configuration de recherche.",
+      "diagnosticsUnsupported": "Les diagnostics de recherche en direct ne sont pas disponibles sur cette version du démon ; la configuration des fournisseurs reste entièrement modifiable.",
+      "restartBanner": "Un redémarrage du démon est requis pour appliquer les modifications : {{providers}}",
+      "restartHint": "Appliqué au redémarrage du démon",
+      "immediateHint": "Appliqué immédiatement",
+      "modes": {
+        "title": "Modes par frontend",
+        "description": "Qui exécute la recherche pour chaque frontend de protocole.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Natif (exécuté en amont)",
+        "managed": "Géré (exécuté par la passerelle)",
+        "off": "Désactivé"
+      },
+      "providers": {
+        "title": "Fournisseurs",
+        "tavily": {
+          "description": "API de recherche avec un quota gratuit généreux ; clé requise."
+        },
+        "jina": {
+          "description": "Recherche utilisable sans clé ; une clé augmente les limites."
+        },
+        "searxng": {
+          "description": "Métamoteur auto-hébergé ; configuré par l'hôte de l'instance."
+        },
+        "zhipu": {
+          "description": "API de recherche web Zhipu ; clé requise."
+        },
+        "zai": {
+          "description": "API de recherche web Z.AI ; clé requise."
+        }
+      },
+      "keyless": {
+        "description": "Moteur sans clé, toujours disponible. Aucune configuration requise."
+      },
+      "status": {
+        "ready": "Prêt",
+        "unconfigured": "Non configuré",
+        "healthy": "Sain",
+        "degraded": "Dégradé",
+        "blocked": "Bloqué",
+        "failed": "Échec"
+      },
+      "unconfiguredReason": {
+        "tavily": "Nécessite la configuration d'une clé d'API.",
+        "jina": "Activez en enregistrant une entrée — Jina peut fonctionner sans clé.",
+        "searxng": "Nécessite la configuration d'un hôte d'API.",
+        "zhipu": "Nécessite la configuration d'une clé d'API.",
+        "zai": "Nécessite la configuration d'une clé d'API."
+      },
+      "field": {
+        "apiKey": "Clé d'API",
+        "apiKeyPlaceholder": "Vide conserve la clé enregistrée",
+        "apiKeyNew": "Saisir la clé d'API",
+        "apiKeyConfigured": "· clé configurée",
+        "apiHost": "Hôte d'API",
+        "apiHostPlaceholder": "Remplacement d'hôte facultatif",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Utilisateur Basic",
+        "basicAuthPassword": "Mot de passe Basic",
+        "basicAuthPasswordPlaceholder": "Vide conserve le mot de passe enregistré",
+        "basicAuthPasswordConfigured": "· mot de passe configuré"
+      },
+      "action": {
+        "test": "Tester",
+        "save": "Enregistrer les réglages de recherche",
+        "remove": "Supprimer la configuration",
+        "clearKey": "Effacer la clé enregistrée",
+        "clearKeyPending": "· la clé sera effacée",
+        "clearPassword": "Effacer le mot de passe enregistré",
+        "undoClear": "Annuler l'effacement"
+      },
+      "removedPending": "La configuration sera supprimée à l'enregistrement.",
+      "testOutcome": {
+        "error": "Échec du test : {{error}}",
+        "count": "{{count}} résultats"
+      },
+      "policy": {
+        "title": "Politique par défaut",
+        "preferred": "Fournisseur préféré",
+        "preferredDescription": "Essayé en premier quand une requête nen fixe aucun.",
+        "preferredNone": "Aucune préférence",
+        "allowed": "Fournisseurs autorisés",
+        "allowedDescription": "Vide signifie que chaque fournisseur configuré est candidat.",
+        "fallbackEnabled": "Repli",
+        "fallbackDescription": "Un candidat en échec peut être suivi par le suivant.",
+        "maxAttempts": "Tentatives max.",
+        "maxAttemptsDescription": "Limite de fournisseurs essayés par recherche (1–32)."
+      },
+      "egress": {
+        "title": "Liste de sortie autorisée",
+        "description": "Noms d'hôtes autorisés à résoudre vers des classes d'adresses sinon refusées — la voie d'exception pour un SearXNG interne.",
+        "empty": "Aucun hôte privé autorisé.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Ajouter",
+        "remove": "Retirer l'hôte"
+      }
     }
   },
   "accounts": {

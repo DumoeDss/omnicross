@@ -462,6 +462,126 @@ export interface ImagesServerConfig {
   evidenceTtlMs: number;
 }
 
+// ── Search config (the masked `server.search` segment) ───────────────────────
+
+/** Who executes a search for one protocol frontend. */
+export type SearchFrontendMode = 'native' | 'managed' | 'off';
+export type SearchFrontendName = 'codex' | 'responses' | 'anthropic';
+export type SearchFrontendModes = Record<SearchFrontendName, SearchFrontendMode>;
+
+/** Tavily: key required, host overridable. */
+export interface TavilyProviderConfig {
+  /** Write-only on PUT (string sets, blank/omitted keeps); never in a read. */
+  apiKey?: string | null;
+  /** Admin-read marker; strip before writing. */
+  apiKeyConfigured?: boolean;
+  apiHost?: string;
+}
+/** Jina: key optional — the entry alone enables the keyless provider. */
+export interface JinaProviderConfig {
+  /** Write-only on PUT; JSON `null` explicitly clears this optional key. */
+  apiKey?: string | null;
+  /** Admin-read marker; strip before writing. */
+  apiKeyConfigured?: boolean;
+  apiHost?: string;
+}
+/** SearXNG: host required; Basic-auth pair optional, password secret. */
+export interface SearxngProviderConfig {
+  apiHost?: string;
+  basicAuthUsername?: string;
+  /** Write-only on PUT; JSON `null` explicitly clears this optional secret. */
+  basicAuthPassword?: string | null;
+  /** Admin-read marker; strip before writing. */
+  basicAuthPasswordConfigured?: boolean;
+}
+/** Zhipu and Z.AI: one wire contract, two ids. */
+export interface ZhipuProviderConfig {
+  /** Write-only on PUT (string sets, blank/omitted keeps); never in a read. */
+  apiKey?: string | null;
+  /** Admin-read marker; strip before writing. */
+  apiKeyConfigured?: boolean;
+  apiHost?: string;
+}
+
+/**
+ * The masked admin view of `server.search.providers`. The daemon NEVER sends
+ * `apiKey` / `basicAuthPassword` values — only the `*Configured` markers (the
+ * Images `storageRootConfigured` convention). Every marker is an admin-read
+ * projection; strip it before writing the segment back.
+ */
+export interface SearchApiProviderConfigs {
+  tavily?: TavilyProviderConfig;
+  jina?: JinaProviderConfig;
+  searxng?: SearxngProviderConfig;
+  zhipu?: ZhipuProviderConfig;
+  'z.ai'?: ZhipuProviderConfig;
+}
+
+/**
+ * The masked `search` segment as the admin GET/PUT-echo carries it. Secrets are
+ * write-only: the adapter rebuilds the FULL segment on PUT from the last loaded
+ * (masked) config and the daemon preserves omitted/blanked stored secrets.
+ */
+export interface SearchServerConfig {
+  modes: SearchFrontendModes;
+  providers: SearchApiProviderConfigs;
+  egress: { allowedPrivateHosts: string[] };
+  policy: {
+    preferred?: string;
+    allowed?: string[];
+    fallbackEnabled: boolean;
+    maxAttempts?: number;
+  };
+}
+
+/** One offline diagnostics row (the doctor's projection, secret-free). */
+export interface SearchDoctorRow {
+  providerId: string;
+  source: 'builtin' | 'host';
+  kind: 'api' | 'http' | 'local-browser' | 'native';
+  capabilities: {
+    requiresApiKey: boolean;
+    supportsCancellation: boolean;
+    supportsUrlRead: boolean;
+    supportsRegion: boolean;
+    supportsLanguage: boolean;
+    supportsTimeRange: boolean;
+    maxResults?: number;
+  };
+  /** Present only on `unconfigured` rows. */
+  status?: 'healthy' | 'degraded' | 'blocked' | 'failed' | 'unconfigured';
+  /** What is missing, for an `unconfigured` row. Never echoes a value. */
+  reason?: string;
+}
+
+/** `GET /admin/api/search/diagnostics` body (`null` on an older daemon). */
+export interface SearchDiagnosticsSnapshot {
+  rows: SearchDoctorRow[];
+  /** Effective modes: codex from the live config, the rest as bootstrapped. */
+  modes: SearchFrontendModes;
+  applySemantics: { codex: 'immediate'; rest: 'restart' };
+}
+
+/** The sanitized error shape a test diagnostic may carry (never a secret). */
+export interface SearchErrorShape {
+  code: string;
+  message: string;
+  providerId?: string;
+  retryable?: boolean;
+  details?: Record<string, string>;
+}
+
+/** One per-provider fixed-query test outcome (status only — never results). */
+export interface SearchTestResult {
+  providerId: string;
+  status: 'healthy' | 'degraded' | 'blocked' | 'failed';
+  checkedAt?: string;
+  reason?: string;
+  error?: SearchErrorShape;
+  /** Present on healthy/degraded outcomes. */
+  resultCount?: number;
+}
+
 /** The persisted server config (`{ server: ... }` from `GET /server`). */
 export interface OutboundApiServerConfig {
   enabled: boolean;
@@ -512,6 +632,12 @@ export interface OutboundApiServerConfig {
   voucher?: VoucherConfig;
   /** Default-off Images policy; absent only on older daemons. */
   images?: ImagesServerConfig;
+  /**
+   * Search runtime config (search-settings-ui). OPTIONAL — absent only on
+   * pre-Phase-1 daemons. Provider secrets are MASKED on GET (presence markers
+   * only); the daemon preserves stored secrets for omitted/blanked fields on PUT.
+   */
+  search?: SearchServerConfig;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

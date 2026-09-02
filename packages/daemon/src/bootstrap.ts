@@ -957,6 +957,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     }),
     routeLeaseManager,
     subscriptionAccounts,
+    // search-settings-ui D3: the daemon's ONE search runtime + its
+    // bootstrap-captured modes, for `GET /admin/api/search/diagnostics` and
+    // `POST /admin/api/search/test` (501 when a light embedder omits it).
+    searchStatus: { runtime: searchRuntime, modes: searchFrontendModes },
     accountAllowanceService,
     allowanceRefreshScheduler: claudeAllowanceRefreshScheduler,
     accountProbeService: accountHealthProbeScheduler,

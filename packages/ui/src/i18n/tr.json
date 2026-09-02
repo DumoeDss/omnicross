@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Arama sağlayıcıları",
+      "description": "Web arama çalışma zamanı yapılandırması: sağlayıcı kimlik bilgileri, yedek politika, giden ağ trafiği ve ön yüz başına yürütme modları.",
+      "unsupportedDaemon": "Bu daemon sürümü arama yapılandırma bölümünü desteklemiyor.",
+      "diagnosticsUnsupported": "Canlı arama tanılaması bu daemon sürümünde kullanılamıyor; sağlayıcı yapılandırması tamamen düzenlenebilir kalır.",
+      "restartBanner": "Değişikliklerin etkili olması için daemon yeniden başlatılmalıdır: {{providers}}",
+      "restartHint": "Daemon yeniden başlatıldığında etkili olur",
+      "immediateHint": "Anında etkili olur",
+      "modes": {
+        "title": "Ön yüz modları",
+        "description": "Her protokol ön yüzü için aramayı kim yürütür.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Yerel (upstream yürütür)",
+        "managed": "Yönetilen (ağ geçidi yürütür)",
+        "off": "Kapalı"
+      },
+      "providers": {
+        "title": "Sağlayıcılar",
+        "tavily": {
+          "description": "Cömert ücretsiz kotalı arama API'si; anahtar gerekir."
+        },
+        "jina": {
+          "description": "Anahtarsız da çalışan arama; anahtar hız sınırlarını yükseltir."
+        },
+        "searxng": {
+          "description": "Kendi sunucunuzda barındırılan meta arama; örnek ana bilgisayarıyla yapılandırılır."
+        },
+        "zhipu": {
+          "description": "Zhipu web arama API'si; anahtar gerekir."
+        },
+        "zai": {
+          "description": "Z.AI web arama API'si; anahtar gerekir."
+        }
+      },
+      "keyless": {
+        "description": "Anahtarsız motor, her zaman kullanılabilir. Yapılandırma gerektirmez."
+      },
+      "status": {
+        "ready": "Hazır",
+        "unconfigured": "Yapılandırılmamış",
+        "healthy": "Sağlıklı",
+        "degraded": "Bozulmuş",
+        "blocked": "Engellendi",
+        "failed": "Başarısız"
+      },
+      "unconfiguredReason": {
+        "tavily": "Bir API anahtarının yapılandırılmasını gerektirir.",
+        "jina": "Bir kayıt kaydederek etkinleştirin — Jina anahtarsız çalışabilir.",
+        "searxng": "Bir API ana bilgisayarının yapılandırılmasını gerektirir.",
+        "zhipu": "Bir API anahtarının yapılandırılmasını gerektirir.",
+        "zai": "Bir API anahtarının yapılandırılmasını gerektirir."
+      },
+      "field": {
+        "apiKey": "API anahtarı",
+        "apiKeyPlaceholder": "Boş bırakılırsa kayıtlı anahtar korunur",
+        "apiKeyNew": "API anahtarını girin",
+        "apiKeyConfigured": "· anahtar yapılandırıldı",
+        "apiHost": "API ana bilgisayarı",
+        "apiHostPlaceholder": "İsteğe bağlı ana bilgisayar geçersiz kılma",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Basic auth kullanıcısı",
+        "basicAuthPassword": "Basic auth parolası",
+        "basicAuthPasswordPlaceholder": "Boş bırakılırsa kayıtlı parola korunur",
+        "basicAuthPasswordConfigured": "· parola yapılandırıldı"
+      },
+      "action": {
+        "test": "Sına",
+        "save": "Arama ayarlarını kaydet",
+        "remove": "Yapılandırmayı kaldır",
+        "clearKey": "Kayıtlı anahtarı sil",
+        "clearKeyPending": "· anahtar silinecek",
+        "clearPassword": "Kayıtlı parolayı sil",
+        "undoClear": "Silmeyi geri al"
+      },
+      "removedPending": "Yapılandırma kaydedildiğinde kaldırılacak.",
+      "testOutcome": {
+        "error": "Sınama başarısız: {{error}}",
+        "count": "{{count}} sonuç"
+      },
+      "policy": {
+        "title": "Varsayılan politika",
+        "preferred": "Tercih edilen sağlayıcı",
+        "preferredDescription": "Bir istek sabitlemediğinde ilk denenir.",
+        "preferredNone": "Tercih yok",
+        "allowed": "İzin verilen sağlayıcılar",
+        "allowedDescription": "Boş, yapılandırılmış her sağlayıcının aday olduğu anlamına gelir.",
+        "fallbackEnabled": "Yedek",
+        "fallbackDescription": "Başarısız bir adayın ardından sıradaki denenebilir.",
+        "maxAttempts": "Azami deneme",
+        "maxAttemptsDescription": "Arama başına denenecek sağlayıcı üst sınırı (1–32)."
+      },
+      "egress": {
+        "title": "Giden izin listesi",
+        "description": "Aksi halde reddedilen adres sınıflarına çözümlenmesine izin verilen ana bilgisayar adları — iç SearXNG için istisna yolu.",
+        "empty": "Özel ana bilgisayara izin verilmiyor.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Ekle",
+        "remove": "Ana bilgisayarı kaldır"
+      }
     }
   },
   "accounts": {

@@ -20,6 +20,7 @@ import http from 'node:http';
 import {
   createNamedKey,
   DEFAULT_IMAGES_SERVER_CONFIG,
+  DEFAULT_SEARCH_SERVER_CONFIG,
   effectiveOutboundPermissions,
   gatewayBindingToEndpointConfig,
   isKindMappedEndpoint,
@@ -138,6 +139,8 @@ import {
   validateBillingSegment,
 } from './billingConfigBody';
 import { handleDashboard } from './dashboard';
+import { handleSearchAdmin, type SearchAdminRuntimeStatus } from './searchAdminApi';
+import { preserveSearchSecrets, redactSearchServerConfig } from './searchAdminView';
 import { parseKeyPolicyBody } from './keyPolicyBody';
 import { validateGatewayBindingsSegment } from './gatewayBindingBody';
 import { handleVoucher } from './voucherAdmin';
@@ -344,6 +347,13 @@ export interface AdminApiDeps {
   readonly cliCommandRunner?: CommandRunner;
   /** Factory so each request observes the outbound server's current loopback port. */
   readonly integrationManagerFactory?: () => IntegrationManager;
+  /**
+   * search-settings-ui D3: the daemon's ONE search runtime plus its
+   * bootstrap-captured frontend modes. Optional for lightweight embedders; the
+   * standalone daemon wires it and the `/admin/api/search` diagnostics/test
+   * routes return 501 when absent (the voucher/allowance optionality precedent).
+   */
+  readonly searchStatus?: SearchAdminRuntimeStatus;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -531,6 +541,8 @@ export async function handleAdminApi(
         return await handleServer(req, res, method, deps);
       case 'images':
         return await handleImages(res, method, rest, deps);
+      case 'search':
+        return await handleSearchAdmin(req, res, method, rest, deps);
       case 'accounts':
         return await handleAccounts(req, res, method, rest, deps);
       case 'cli':
@@ -2006,6 +2018,14 @@ async function handleServer(
     if (config.webhook) server = { ...server, webhook: redactWebhookConfig(config.webhook) };
     // billing-event-stream: mask the HMAC secret in the GET view — never leak plaintext.
     if (config.billing) server = { ...server, billing: redactBillingConfig(config.billing) };
+    // search-settings-ui: mask the search provider secrets the same way —
+    // presence markers carry "a key is stored", never values.
+    if (config.search) {
+      server = {
+        ...server,
+        search: redactSearchServerConfig(config.search) as unknown as OutboundApiServerConfig['search'],
+      };
+    }
     return writeJson(res, 200, { server: projectImagesConfigForAdmin(server) });
   }
   if (method === 'PUT') {
@@ -2076,11 +2096,25 @@ async function handleServer(
     // malformed section is REJECTED here rather than silently normalized, so an
     // operator learns about a typo at PUT time instead of discovering at
     // restart that a provider was quietly dropped.
+    // search-settings-ui D2: secrets are WRITE-ONLY. Strip the admin-view
+    // markers and re-attach stored values for omitted/blanked secret fields
+    // BEFORE validation, so editing a host/policy/mode never wipes a key and a
+    // masked round-trip (GET → edit → PUT) is lossless.
     if (patch.search !== undefined) {
-      const searchErrors = validateSearchServerConfig(patch.search);
+      // `loadServerConfig` normalizes `search` in, so the fallback is inert —
+      // typed optional, always present after a load.
+      const searchPatch = preserveSearchSecrets(
+        patch.search,
+        current.search ?? DEFAULT_SEARCH_SERVER_CONFIG,
+      );
+      const searchErrors = validateSearchServerConfig(searchPatch);
       if (searchErrors.length > 0) {
         return writeJsonError(res, 400, `invalid search config: ${searchErrors.join('; ')}`);
       }
+      effectivePatch = {
+        ...effectivePatch,
+        search: searchPatch as OutboundApiServerConfig['search'],
+      };
     }
     const merged = mergeServerConfig(current, effectivePatch);
     const priorImageGenerationId = currentImageGenerationId(deps);
@@ -2136,7 +2170,15 @@ async function handleServer(
         // Observability must never turn an already-committed transaction into a false failure.
       }
     }
-    return writeJson(res, 200, { server: projectImagesConfigForAdmin(merged) });
+    // search-settings-ui: the PUT echo masks search secrets exactly like the
+    // GET view — the merged config never crosses the wire with a secret VALUE.
+    const mergedForAdmin = merged.search
+      ? {
+          ...merged,
+          search: redactSearchServerConfig(merged.search) as unknown as OutboundApiServerConfig['search'],
+        }
+      : merged;
+    return writeJson(res, 200, { server: projectImagesConfigForAdmin(mergedForAdmin) });
   }
   return writeJsonError(res, 405, `method ${method} not allowed on server`);
 }

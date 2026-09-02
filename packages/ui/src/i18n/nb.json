@@ -742,6 +742,110 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "search": {
+      "title": "Søkeleverandører",
+      "description": "Konfigurasjon av nettlesesøks-kjøretiden: leverandørlegitimasjon, reservepolitikk, utgående nettverkstrafikk og kjøringsmoduser per frontend.",
+      "unsupportedDaemon": "Denne daemon-versjonen støtter ikke søkekonfigurasjonsdelen.",
+      "diagnosticsUnsupported": "Levende søkediagnostikk er ikke tilgjengelig i denne daemon-versjonen; leverandørkonfigurasjonen forblir fullt redigerbar.",
+      "restartBanner": "Omstart av daemonen kreves for at endringene skal tre i kraft: {{providers}}",
+      "restartHint": "Treffer i kraft ved omstart av daemonen",
+      "immediateHint": "Treffer i kraft umiddelbart",
+      "modes": {
+        "title": "Frontend-moduser",
+        "description": "Hvem utfører søket for hvert protokoll-frontend.",
+        "codex": "Codex (/v1/alpha/search)",
+        "responses": "Responses (web_search)",
+        "anthropic": "Anthropic (web_search_*)"
+      },
+      "mode": {
+        "native": "Innfødt (oppstrøm utfører)",
+        "managed": "Styrt (gatewayen utfører)",
+        "off": "Av"
+      },
+      "providers": {
+        "title": "Leverandører",
+        "tavily": {
+          "description": "Søke-API med generøs gratis kvote; nøkkel kreves."
+        },
+        "jina": {
+          "description": "Søk kan kjøres uten nøkkel; en nøkkel hever grensene."
+        },
+        "searxng": {
+          "description": "Selvdriftet metasøk; konfigureres via instansens vert."
+        },
+        "zhipu": {
+          "description": "Zhipu netsøk-API; nøkkel kreves."
+        },
+        "zai": {
+          "description": "Z.AI netsøk-API; nøkkel kreves."
+        }
+      },
+      "keyless": {
+        "description": "Nøkkelfri motor, alltid tilgjengelig. Krever ingen konfigurasjon."
+      },
+      "status": {
+        "ready": "Klar",
+        "unconfigured": "Ikke konfigurert",
+        "healthy": "Sunn",
+        "degraded": "Forringet",
+        "blocked": "Blokkert",
+        "failed": "Mislyktes"
+      },
+      "unconfiguredReason": {
+        "tavily": "Krever konfigurasjon av en API-nøkkel.",
+        "jina": "Aktiver ved å lagre en oppføring — Jina kan kjøre uten nøkkel.",
+        "searxng": "Krever konfigurasjon av en API-vert.",
+        "zhipu": "Krever konfigurasjon av en API-nøkkel.",
+        "zai": "Krever konfigurasjon av en API-nøkkel."
+      },
+      "field": {
+        "apiKey": "API-nøkkel",
+        "apiKeyPlaceholder": "Tomt beholder den lagrede nøkkelen",
+        "apiKeyNew": "Skriv inn API-nøkkel",
+        "apiKeyConfigured": "· nøkkel konfigurert",
+        "apiHost": "API-vert",
+        "apiHostPlaceholder": "Valgfri vertsoverskriving",
+        "apiHostRequired": "https://searxng.example.org",
+        "basicAuthUsername": "Basic-auth-bruker",
+        "basicAuthPassword": "Basic-auth-passord",
+        "basicAuthPasswordPlaceholder": "Tomt beholder det lagrede passordet",
+        "basicAuthPasswordConfigured": "· passord konfigurert"
+      },
+      "action": {
+        "test": "Test",
+        "save": "Lagre søkeinnstillinger",
+        "remove": "Fjern konfigurasjon",
+        "clearKey": "Tøm lagret nøkkel",
+        "clearKeyPending": "· nøkkelen tømmes",
+        "clearPassword": "Tøm lagret passord",
+        "undoClear": "Angre tømming"
+      },
+      "removedPending": "Konfigurasjonen fjernes ved lagring.",
+      "testOutcome": {
+        "error": "Testen mislyktes: {{error}}",
+        "count": "{{count}} treff"
+      },
+      "policy": {
+        "title": "Standardpolitikk",
+        "preferred": "Foretrukket leverandør",
+        "preferredDescription": "Prøves først når en forespørsel ikke fester en.",
+        "preferredNone": "Ingen preferanse",
+        "allowed": "Tillatte leverandører",
+        "allowedDescription": "Tomt betyr at enhver konfigurert leverandør er kandidat.",
+        "fallbackEnabled": "Reserve",
+        "fallbackDescription": "En mislykket kandidat kan etterfølges av den neste.",
+        "maxAttempts": "Maks. forsøk",
+        "maxAttemptsDescription": "Øvre grense for leverandører pr. søk (1–32)."
+      },
+      "egress": {
+        "title": "Tillatt utgående liste",
+        "description": "Vertsnavn som får løses opp i ellers avviste adresseklasser — unntaksveien for en intern SearXNG.",
+        "empty": "Ingen private verter tillatt.",
+        "hostPlaceholder": "searx.internal.example.org",
+        "add": "Legg til",
+        "remove": "Fjern vert"
+      }
     }
   },
   "accounts": {
