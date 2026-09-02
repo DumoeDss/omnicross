@@ -1,11 +1,8 @@
 /**
  * The Codex search route.
  *
- * **Honesty note, and it applies to every assertion in this file.** The Codex
- * `/v1/alpha/search` request-body and response schemas are UNVERIFIED (wire
- * baseline §1.2/§1.3). The golden expectations below pin OMNICROSS's OWN
- * emission so it cannot change unnoticed — they are not, and must never be
- * described as, evidence that a real codex-tui accepts these shapes.
+ * Codex request and response fixtures in this file mirror the 0.152.0 typed API
+ * and standalone-search integration tests.
  *
  * @module outbound-api/__tests__/searchRoute.test
  */
@@ -149,31 +146,50 @@ describe('default mode: structured unsupported, never a bare 404', () => {
 });
 
 describe('managed mode', () => {
-  it('runs exactly one runtime search and answers the documented shape', async () => {
+  it('accepts the Codex search request schema and answers the Codex response schema', async () => {
     const { res, captured } = fakeResponse();
     const runtime = stubRuntime(async (request) => okResponse(request.query));
 
     await handleCodexSearchRequest(
-      fakeRequest({ query: 'mozilla developer network http headers' }),
+      fakeRequest({
+        id: 'search-session',
+        model: 'mock-model',
+        commands: {
+          search_query: [{ q: 'mozilla developer network http headers' }],
+        },
+        settings: { allowed_callers: ['direct'] },
+      }),
       res,
       { mode: 'managed', runtime },
     );
 
     expect(runtime.search).toHaveBeenCalledTimes(1);
     expect(captured.status).toBe(200);
-    // GOLDEN — Omnicross's own emission, UNVERIFIED against Codex.
     expect(parseBody(captured)).toEqual({
       object: 'omnicross.search.results',
       query: 'mozilla developer network http headers',
       provider: 'http-bing',
+      output:
+        'Search results for "mozilla developer network http headers":\n\n' +
+        '[1] MDN HTTP headers\nURL: https://developer.mozilla.org/headers\nReference.',
       results: [
         {
+          type: 'text_result',
+          ref_id: 'turn0search0',
           title: 'MDN HTTP headers',
           url: 'https://developer.mozilla.org/headers',
-          content: 'Reference.',
+          snippet: 'Reference.',
         },
       ],
     });
+  });
+
+  it('parses a Codex commands.search_query entry directly', () => {
+    expect(
+      parseCodexSearchQuery({
+        commands: { search_query: [{ q: '  nested query  ' }] },
+      }),
+    ).toBe('nested query');
   });
 
   it('accepts every documented query spelling and no others', async () => {
@@ -287,7 +303,11 @@ describe('failure matrix', () => {
     await handleCodexSearchRequest(fakeRequest({ query: 'q' }), res, { mode: 'managed', runtime });
 
     expect(captured.status).toBe(200);
-    expect(parseBody(captured)).toMatchObject({ provider: 'http-duckduckgo', results: [] });
+    expect(parseBody(captured)).toMatchObject({
+      provider: 'http-duckduckgo',
+      output: 'No search results found for "q".',
+      results: [],
+    });
   });
 });
 
@@ -410,10 +430,16 @@ describe('audit capture eligibility (the evidence path the route unblocks)', () 
 });
 
 describe('toCodexSearchResponseBody', () => {
-  it('carries provider provenance and drops everything else', () => {
+  it('carries provider provenance and the fields required by Codex', () => {
     const body = toCodexSearchResponseBody(okResponse('q'));
 
-    expect(Object.keys(body).sort()).toEqual(['object', 'provider', 'query', 'results']);
+    expect(Object.keys(body).sort()).toEqual(['object', 'output', 'provider', 'query', 'results']);
     expect(body.provider).toBe('http-bing');
+    expect(body.output).toContain('MDN HTTP headers');
+    expect(body.results[0]).toMatchObject({
+      type: 'text_result',
+      ref_id: 'turn0search0',
+      snippet: 'Reference.',
+    });
   });
 });

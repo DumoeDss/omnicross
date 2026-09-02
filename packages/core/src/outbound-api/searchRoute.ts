@@ -1,26 +1,15 @@
 /**
  * The Codex search route — `POST /v1/alpha/search`.
  *
- * ## What is VERIFIED and what is not
+ * ## Compatibility source
  *
  * From `docs/design/search-baseline/wire-baseline.md` §1, over 11 real audit
  * records produced by `codex-tui` 0.151.0 and 0.152.0:
  *
- * - **VERIFIED**: the method, the path, the client user-agents, that every
- *   request carried a body, and that Omnicross answered 404 to all of them.
- * - **UNVERIFIED**: the request BODY schema. The captured bodies do not exist
- *   on disk and cannot be recovered — a request that 404s never reaches route
- *   resolution, so it never gets a `sessionKey`, and `AuditWriter.appendBody`
- *   drops a body without one.
- * - **UNVERIFIED**: the RESPONSE schema. No upstream ever answered one of these
- *   requests, so no successful shape exists anywhere to copy.
- *
- * **Nothing in this module claims Codex compatibility for either schema, and
- * nothing in its tests or fixtures may.** The golden fixtures pin OMNICROSS's
- * own emission so it cannot change unnoticed; they are not evidence that a real
- * client accepts it. `docs/design/codex-full-protocol-relay-requirements.md`
- * §7.2 is the standing rule: lock the protocol with a reproducible capture
- * before advertising the capability.
+ * The request and response contracts are pinned from the Codex 0.152.0 typed
+ * API definitions and standalone-search integration fixtures. Codex sends text
+ * queries under `commands.search_query[].q` and requires a string `output` in
+ * the JSON response; structured `results` are optional opaque DTOs.
  *
  * ## What this route does about that
  *
@@ -28,20 +17,16 @@
  * `unsupported_capability` error instead of the generic 404 (plan §15). That is
  * strictly more informative than today's behavior and claims nothing.
  *
- * Enabling `managed` accepts the deliberately NARROW request surface below —
- * a JSON object carrying a query string under one of a few plausible spellings
- * — and rejects everything else with a structured protocol error. It does not
- * implement a guessed full schema: fields we have no evidence for are ignored
- * rather than interpreted, because interpreting them would be inventing a
- * contract and then silently depending on it.
+ * Enabling `managed` accepts Codex text-search commands plus the legacy flat
+ * query spellings used by early Omnicross clients. Other Codex command kinds
+ * are rejected because the shared runtime currently exposes text search only.
  *
  * ## The designed side effect
  *
  * A dispatched request reaches route resolution and is given a `sessionKey`, so
  * the audit body store finally persists `/v1/alpha/search` exchanges. The
- * capture that 阶段0 proved impossible becomes possible the moment a real
- * client talks to an enabled route — that is the path by which both UNVERIFIED
- * schemas above eventually become verifiable.
+ * capture that 阶段0 proved impossible becomes possible when a real client talks
+ * to an enabled route.
  *
  * @module outbound-api/searchRoute
  */
@@ -71,11 +56,8 @@ const ROUTE_SUFFIX: readonly string[] = ['alpha', 'search'];
 /**
  * Request-body field spellings accepted as "the query".
  *
- * This list is a TOLERANCE, not a schema: the body schema is UNVERIFIED, so
- * rather than guess one field name and reject every other request, the route
- * accepts the small set of spellings a search endpoint plausibly uses and says
- * so out loud in its rejection message. Adding a spelling here is cheap;
- * inventing structure beyond a query string is not, and is not done.
+ * Codex uses `commands.search_query[].q`; these flat spellings remain as a
+ * backwards-compatible tolerance for early Omnicross clients.
  */
 export const TOLERATED_QUERY_FIELDS: readonly string[] = Object.freeze([
   'query',
@@ -202,57 +184,90 @@ export function parseCodexSearchQuery(parsed: unknown): string {
       message: 'Search request body must be a JSON object',
     });
   }
-  for (const field of TOLERATED_QUERY_FIELDS) {
-    const value = parsed[field];
-    if (typeof value !== 'string') continue;
-    const query = value.trim();
-    if (!query) continue;
-    if (query.length > MAX_QUERY_LENGTH) {
-      throw new OpenAIOperationError({
-        status: 400,
-        code: 'invalid_request',
-        message: `Search query exceeds ${MAX_QUERY_LENGTH} characters`,
-      });
+
+  const commands = parsed.commands;
+  if (isRecord(commands) && Array.isArray(commands.search_query)) {
+    for (const operation of commands.search_query) {
+      if (!isRecord(operation)) continue;
+      const query = validatedQuery(operation.q);
+      if (query) return query;
     }
-    return query;
+  }
+
+  for (const field of TOLERATED_QUERY_FIELDS) {
+    const query = validatedQuery(parsed[field]);
+    if (query) return query;
   }
   throw new OpenAIOperationError({
     status: 400,
     code: 'invalid_request',
     message:
       `Search request carries no query string; expected a non-empty ` +
+      `'commands.search_query[].q' or ` +
       `${TOLERATED_QUERY_FIELDS.map((field) => `'${field}'`).join(' / ')} field`,
   });
 }
 
+function validatedQuery(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const query = value.trim();
+  if (!query) return null;
+  if (query.length > MAX_QUERY_LENGTH) {
+    throw new OpenAIOperationError({
+      status: 400,
+      code: 'invalid_request',
+      message: `Search query exceeds ${MAX_QUERY_LENGTH} characters`,
+    });
+  }
+  return query;
+}
+
 /**
- * Omnicross's own response shape — **UNVERIFIED against Codex.**
- *
- * `object` is namespaced precisely so this cannot be mistaken for a shape
- * copied from a vendor: it says who made it up. `provider` is the provenance
- * the plan asks every search surface to carry.
+ * Codex-compatible response with additional Omnicross provenance fields.
+ * Codex ignores unknown fields and consumes `output` plus opaque `results`.
  */
 export interface CodexSearchResponseBody {
   readonly object: 'omnicross.search.results';
   readonly query: string;
   readonly provider: string;
-  readonly results: ReadonlyArray<{ title: string; url: string; content: string }>;
+  readonly output: string;
+  readonly results: ReadonlyArray<{
+    type: 'text_result';
+    ref_id: string;
+    title: string;
+    url: string;
+    snippet: string;
+  }>;
 }
 
 /** Project an orchestrated response onto the documented response shape. */
 export function toCodexSearchResponseBody(
   response: OrchestratedSearchResponse,
 ): CodexSearchResponseBody {
+  const results = response.results.map((result, index) => ({
+    type: 'text_result' as const,
+    ref_id: `turn0search${index}`,
+    title: result.title,
+    url: result.url,
+    snippet: result.content,
+  }));
   return {
     object: 'omnicross.search.results',
     query: response.query,
     provider: response.providerId,
-    results: response.results.map((result) => ({
-      title: result.title,
-      url: result.url,
-      content: result.content,
-    })),
+    output: formatCodexSearchOutput(response),
+    results,
   };
+}
+
+function formatCodexSearchOutput(response: OrchestratedSearchResponse): string {
+  if (response.results.length === 0) {
+    return `No search results found for "${response.query}".`;
+  }
+  const rendered = response.results.map(
+    (result, index) => `[${index + 1}] ${result.title}\nURL: ${result.url}\n${result.content}`,
+  );
+  return `Search results for "${response.query}":\n\n${rendered.join('\n\n')}`;
 }
 
 /** Map a runtime failure onto the local error envelope. */

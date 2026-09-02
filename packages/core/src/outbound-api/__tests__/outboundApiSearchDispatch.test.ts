@@ -6,8 +6,8 @@
  * that a dispatched request now carries a `sessionKey` — the missing link that
  * caused all 11 baselined `/v1/alpha/search` bodies to be dropped
  * (`AuditWriter.appendBody` discards a body with no session key, wire baseline
- * §1.2). The response shape itself is UNVERIFIED against Codex and is asserted
- * as Omnicross's own emission in `searchRoute.test.ts`.
+ * §1.2). The response shape is pinned against the Codex 0.152.0 contract and
+ * asserted as Omnicross's own emission in `searchRoute.test.ts`.
  *
  * @module outbound-api/__tests__/outboundApiSearchDispatch.test
  */
@@ -207,14 +207,25 @@ describe('POST /v1/alpha/search routing', () => {
   it('executes through the shared runtime when the codex mode is managed', async () => {
     const runtime = stubRuntime();
     const response = await execute(
-      new BodyRequest('/v1/alpha/search', JSON.stringify({ query: 'q' })),
+      new BodyRequest(
+        '/v1/alpha/search',
+        JSON.stringify({
+          id: 'search-session',
+          model: 'mock-model',
+          commands: { search_query: [{ q: 'q' }] },
+        }),
+      ),
       deps(runtime),
       normalizeSearchServerConfig({ modes: { codex: 'managed' } }),
     );
 
     expect(response.statusCode).toBe(200);
     expect(runtime.search).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(response.body)).toMatchObject({ provider: 'http-bing' });
+    expect(JSON.parse(response.body)).toMatchObject({
+      provider: 'http-bing',
+      output: expect.any(String),
+      results: [{ type: 'text_result', ref_id: 'turn0search0' }],
+    });
   });
 });
 
