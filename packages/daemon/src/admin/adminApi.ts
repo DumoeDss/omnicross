@@ -36,6 +36,7 @@ import {
   type OutboundKeyDbRow,
   saveServerConfig,
   validateOutboundPermissions,
+  validateSearchServerConfig,
   type VoucherDb,
 } from '@omnicross/core/outbound-api';
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
@@ -1909,6 +1910,7 @@ function outboundServerConfigInput(
     concurrencyQueue: config.concurrencyQueue,
     voucher: config.voucher,
     anthropic: config.anthropic,
+    search: config.search,
   };
 }
 
@@ -2069,6 +2071,16 @@ async function handleServer(
         return writeJsonError(res, 400, `invalid Images config: ${imageErrors.join('; ')}`);
       }
       effectivePatch = { ...effectivePatch, images: images as OutboundApiServerConfig['images'] };
+    }
+    // plan 阶段5: the search section gets the same treatment as images — a
+    // malformed section is REJECTED here rather than silently normalized, so an
+    // operator learns about a typo at PUT time instead of discovering at
+    // restart that a provider was quietly dropped.
+    if (patch.search !== undefined) {
+      const searchErrors = validateSearchServerConfig(patch.search);
+      if (searchErrors.length > 0) {
+        return writeJsonError(res, 400, `invalid search config: ${searchErrors.join('; ')}`);
+      }
     }
     const merged = mergeServerConfig(current, effectivePatch);
     const priorImageGenerationId = currentImageGenerationId(deps);

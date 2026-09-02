@@ -33,6 +33,19 @@ export {
   type SearchEgressPolicy,
 } from './egress';
 export {
+  DEFAULT_SEARCH_FRONTEND_MODES,
+  isSearchFrontendMode,
+  normalizeSearchFrontendModes,
+  SEARCH_FRONTEND_MODES,
+  SEARCH_UNSUPPORTED_CAPABILITY_CODE,
+  searchErrorHttpStatus,
+  SEARCH_FRONTEND_NAMES,
+  validateSearchFrontendModes,
+  type SearchFrontendMode,
+  type SearchFrontendModes,
+  type SearchFrontendName,
+} from './frontends';
+export {
   DEFAULT_NORMALIZED_MAX_RESULTS,
   isDirectResultUrl,
   normalizeSearchResults,

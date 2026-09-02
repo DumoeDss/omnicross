@@ -265,7 +265,7 @@ describe('module boundaries', () => {
     const sources = readdirSync(root, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
       .map((entry) => readFileSync(`${root}/${entry.name}`, 'utf8'));
-    expect(sources.length).toBe(7);
+    expect(sources.length).toBe(8);
 
     const specifierPatterns = [
       /(?:^|\s)(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/gm,

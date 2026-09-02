@@ -38,6 +38,14 @@ const ENTRY_POINTS = {
     // existing subpath rather than claiming one of its own.
     'validateEgressUrl',
     'createEgressGuardedDispatcher',
+    // search-phase1-protocol-frontends (阶段5): the per-frontend mode vocabulary
+    // ships through this same subpath. The daemon imports it from here, so a
+    // missing build output would break assembly with no test able to see it.
+    'DEFAULT_SEARCH_FRONTEND_MODES',
+    'SEARCH_FRONTEND_NAMES',
+    'normalizeSearchFrontendModes',
+    'validateSearchFrontendModes',
+    'searchErrorHttpStatus',
   ],
   // search-phase1-api-providers (阶段4): the keyed API search providers.
   '@omnicross/core/search/api': [

@@ -265,9 +265,12 @@ describe('The env convenience is confined to the doctor command', () => {
       .filter((file) => file.source.includes('OMNICROSS_SEARCH_'))
       .map((file) => file.path);
 
-    // The command itself, its usage text, and this test's own sibling suite.
+    // The command itself, its usage text, and the two suites that exercise the
+    // convenience. 阶段5 demoted it to a FALLBACK behind the daemon `search`
+    // config section, but did not widen where it may be read.
     expect(readers.sort()).toEqual([
       '__tests__/doctor-search-api.test.ts',
+      '__tests__/doctor-search-config.test.ts',
       'cli.ts',
       'commands/doctor.ts',
     ]);

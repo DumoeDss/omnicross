@@ -47,6 +47,7 @@ import type {
   OutboundApiDeps,
   OutboundApiServerStatus,
   OutboundFormatUrls,
+  SearchServerConfig,
   UserMessageQueueConfig,
 } from './types';
 import { UserMessageSerialQueue } from './userMessageSerialQueue';
@@ -77,6 +78,11 @@ export interface ApplyConfigInput {
   /** Anthropic-protocol segment (claude-api-protocol-fidelity, §10). Read live
    *  per request; the heartbeat value is hot-applied to the stream synthesizer. */
   anthropic?: AnthropicConfigSegment;
+  /**
+   * Search assembly segment (plan 阶段5). Read live per request for the Codex
+   * frontend's mode; the runtime itself is wired once through `deps`.
+   */
+  search?: SearchServerConfig;
 }
 
 /** Prepared listener/config publication used by the daemon's settings transaction. */
@@ -96,6 +102,7 @@ interface OutboundRuntimeSnapshot {
   readonly concurrencyQueue: ConcurrencyQueueConfig | undefined;
   readonly voucher: VoucherConfig | undefined;
   readonly anthropic: AnthropicConfigSegment | undefined;
+  readonly search: SearchServerConfig | undefined;
   readonly imagesEnabled: boolean;
 }
 
@@ -109,6 +116,7 @@ export class OutboundApiServer {
   private concurrencyQueue: ConcurrencyQueueConfig | undefined;
   private voucherConfig: VoucherConfig | undefined;
   private anthropicConfig: AnthropicConfigSegment | undefined;
+  private searchConfig: SearchServerConfig | undefined;
   private imagesEnabled = false;
   /** R10 `/api/hello` switch (§10 `anthropic.apiHello`, default true). */
   private apiHelloEnabled = true;
@@ -280,6 +288,7 @@ export class OutboundApiServer {
     this.concurrencyQueue = input.concurrencyQueue;
     this.voucherConfig = input.voucher;
     this.anthropicConfig = input.anthropic;
+    this.searchConfig = input.search;
     this.imagesEnabled = input.imagesEnabled === true;
     this.apiHelloEnabled = input.anthropic?.apiHello !== false;
     setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
@@ -296,6 +305,7 @@ export class OutboundApiServer {
       concurrencyQueue: this.concurrencyQueue,
       voucher: this.voucherConfig,
       anthropic: this.anthropicConfig,
+      search: this.searchConfig,
       imagesEnabled: this.imagesEnabled,
     };
   }
@@ -307,6 +317,7 @@ export class OutboundApiServer {
     this.concurrencyQueue = snapshot.concurrencyQueue;
     this.voucherConfig = snapshot.voucher;
     this.anthropicConfig = snapshot.anthropic;
+    this.searchConfig = snapshot.search;
     this.imagesEnabled = snapshot.imagesEnabled;
     this.apiHelloEnabled = snapshot.anthropic?.apiHello !== false;
     setAnthropicPingHeartbeatMs(snapshot.anthropic?.heartbeatIntervalMs);
@@ -400,6 +411,7 @@ export class OutboundApiServer {
         concurrencyQueue: this.concurrencyQueue,
         voucher: this.voucherConfig,
         anthropic: this.anthropicConfig,
+        search: this.searchConfig,
       },
       this.rateLimiter,
       this.serialQueue,

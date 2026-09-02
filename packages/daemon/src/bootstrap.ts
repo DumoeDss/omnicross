@@ -27,6 +27,7 @@ import { DEFAULT_AUDIT_CONFIG } from '@omnicross/contracts/audit-types';
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
 import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
 import { OpenAIOperationRegistry, type Logger } from '@omnicross/core';
+import type { SearchFrontendModes, SearchRuntime } from '@omnicross/core/search';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
 import {
@@ -35,6 +36,7 @@ import {
   DEFAULT_OUTBOUND_PORT,
   getOutboundApiServer,
   normalizeServerConfig,
+  validateSearchServerConfig,
   type OutboundApiServer,
 } from '@omnicross/core/outbound-api';
 import { setSubscriptionRegistryForOutbound } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
@@ -90,6 +92,7 @@ import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
 import { AutoDisableStore } from './pool/autoDisableStore';
 import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
 import { resolveEnvKey } from './pool/resolveEnvKey';
+import { buildSearchRuntime } from './search/SearchAssembly';
 import {
   defaultAuditDir,
   defaultBillingDir,
@@ -228,6 +231,13 @@ export interface Daemon {
   readonly settingsStore: JsonApiServerSettingsStore;
   /** App-session extension-operation registry shared with the resident proxy. */
   readonly openAIOperationRegistry: OpenAIOperationRegistry;
+  /**
+   * The ONE search runtime for this daemon (plan 阶段5 §6.3). The same object
+   * the Codex route, both managed frontends and the search doctor hold.
+   */
+  readonly searchRuntime: SearchRuntime;
+  /** Per-frontend search modes as loaded at bootstrap. */
+  readonly searchFrontendModes: SearchFrontendModes;
   /** Stable Images forwarders and generation lifecycle owner for this app session. */
   readonly imageRuntimeManager: ImageRuntimeManager;
   /** Bounded process-local metadata aggregation shared by every runtime generation. */
@@ -664,6 +674,19 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // Long-lived mounted storage is app-session state, shared by HTTP and hosted
   // generations. Construct it before the first generation and proxy capture.
   const initialImagesConfig = normalizeServerConfig(decryptedConfig.server).images!;
+  // plan 阶段5 §6.3: ONE search runtime per daemon. Built here, before the
+  // proxy, and handed to every consumer below (Codex route, both managed
+  // frontends, the Anthropic hint slot, doctor). A validation report is logged
+  // rather than thrown: a search misconfiguration must not stop the gateway
+  // from serving text.
+  const initialSearchConfig = normalizeServerConfig(decryptedConfig.server).search!;
+  for (const issue of validateSearchServerConfig(
+    (decryptedConfig.server as { search?: unknown } | undefined)?.search,
+  )) {
+    logger.warn('[search] ignoring invalid config: ' + issue);
+  }
+  const searchRuntime = buildSearchRuntime(initialSearchConfig, { logger });
+  const searchFrontendModes = initialSearchConfig.modes;
   const imageObservability = new ImageObservability();
   const imageRuntimeObservability = Object.freeze({
     telemetrySink: imageObservability.telemetrySink,
@@ -807,6 +830,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
       usageRecorder,
       openAIOperationRegistry,
       responsesHostedImageIngress,
+      searchRuntime,
+      searchFrontendModes,
     });
     if (providerProxy.getDeps().openAIOperationRegistry !== openAIOperationRegistry) {
       throw new Error(
@@ -899,6 +924,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // configurable-logging: route the server's OWN lifecycle + relay dispatch-error
     // lines through the injected logger (honors level/format/file sink).
     logger,
+    // plan 阶段5: the same instance the managed frontends hold.
+    searchRuntime,
   });
 
   // Request-audit store dir (request-audit-log) — sibling `audit/` of config.json.
@@ -1107,6 +1134,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     keyDb,
     settingsStore,
     openAIOperationRegistry,
+    searchRuntime,
+    searchFrontendModes,
     imageRuntimeManager,
     imageObservability,
     imageCleanupService,
