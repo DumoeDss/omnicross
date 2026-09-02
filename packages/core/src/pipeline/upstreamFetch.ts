@@ -149,6 +149,21 @@ export function bumpUpstreamProxyGeneration(): void {
   }
 }
 
+/**
+ * Whether this request's own signal was aborted because the downstream client
+ * withdrew it (as opposed to a timeout, which is a real failure).
+ *
+ * Duck-typed on the reason's stable `code` - the `isAccountAllowanceExhaustedError`
+ * idiom - because the error is minted in `provider-proxy` and this seam is in
+ * `pipeline`, which must not depend on it.
+ */
+function isClientDisconnectAbort(signal: AbortSignal | null | undefined): boolean {
+  if (!signal?.aborted) return false;
+  const reason: unknown = signal.reason;
+  if (!reason || typeof reason !== 'object') return false;
+  return (reason as { code?: unknown }).code === 'client_disconnect';
+}
+
 /** Normalize either `ProxyConfig` shape to a resolved proxy, or `undefined` when malformed. */
 function normalizeProxy(cfg: ProxyConfig): NormalizedProxy | undefined {
   if ('url' in cfg) {
@@ -314,7 +329,18 @@ export function fetchUpstream(
         return response;
       },
       (error: unknown) => {
-        recordActivity(0);
+        // A request the DOWNSTREAM client withdrew is not an upstream failure:
+        // the account did not fail, the caller went away. Recording it would
+        // paint a red "Network error" row in the upstreams view (status 0),
+        // indistinguishable from a real DNS/connection fault - precisely the
+        // distinction an operator needs during a proxy incident. Every OTHER
+        // rejection still records, a total-duration TIMEOUT included: that IS a
+        // failure worth seeing.
+        //
+        // Only reachable before the response headers arrive. A mid-stream
+        // hang-up aborts the BODY, long after `fetch` resolved and this handler's
+        // sibling already recorded the real status.
+        if (!isClientDisconnectAbort(init.signal)) recordActivity(0);
         throw error;
       },
     );

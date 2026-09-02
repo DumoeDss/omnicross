@@ -119,6 +119,69 @@ describe('fetchUpstream', () => {
     expect(JSON.stringify(records)).not.toContain('SENTINEL-PROMPT');
   });
 
+  // ---- Failed-attempt recording: who withdrew the request decides ----------
+  //
+  // A rejected upstream call normally records a `status: 0` row, which the
+  // upstreams view paints as a red "Network error". That is right for a real
+  // egress fault and for our OWN total-duration timeout, and WRONG for a request
+  // the downstream client withdrew: no account failed, the caller left. These
+  // two pin both directions so the discriminator cannot later be widened to a
+  // bare `signal.aborted` without a test objecting.
+
+  /** Mirrors the abort reason `createRequestAbortScope` uses for a disconnect. */
+  const clientDisconnectReason = Object.assign(new Error('The downstream client disconnected'), {
+    name: 'ClientDisconnectError',
+    code: 'client_disconnect',
+  });
+  /** Mirrors `ResponsesRequestTimeoutError` — OUR decision, a real failure. */
+  const timeoutReason = Object.assign(new Error('Responses request timed out'), {
+    name: 'ResponsesRequestTimeoutError',
+    code: 'request_timeout',
+  });
+
+  async function fetchRejectingWith(reason: unknown, accountId: string): Promise<void> {
+    fetchMock.mockRejectedValueOnce(reason);
+    const controller = new AbortController();
+    controller.abort(reason);
+    await fetchUpstream(
+      'https://chatgpt.com/backend-api/codex/responses',
+      { method: 'POST', signal: controller.signal },
+      {
+        providerId: 'codex',
+        accountId,
+        routeActivity: { endpoint: 'responses', sessionSource: 'none', model: 'gpt-5-codex' },
+      },
+    ).catch(() => undefined);
+  }
+
+  it('records NO activity row when the downstream client withdrew the request', async () => {
+    await fetchRejectingWith(clientDisconnectReason, 'account-withdrawn');
+    expect(getSharedAccountRouteActivity().list()).toEqual([]);
+  });
+
+  it('still records an activity row when OUR timeout aborted the request', async () => {
+    await fetchRejectingWith(timeoutReason, 'account-timed-out');
+    expect(getSharedAccountRouteActivity().list()).toEqual([
+      expect.objectContaining({ providerId: 'codex', accountId: 'account-timed-out', status: 0 }),
+    ]);
+  });
+
+  it('still records an activity row for a plain egress failure (no signal)', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await fetchUpstream(
+      'https://chatgpt.com/backend-api/codex/responses',
+      { method: 'POST' },
+      {
+        providerId: 'codex',
+        accountId: 'account-econnrefused',
+        routeActivity: { endpoint: 'responses', sessionSource: 'none', model: 'gpt-5-codex' },
+      },
+    ).catch(() => undefined);
+    expect(getSharedAccountRouteActivity().list()).toEqual([
+      expect.objectContaining({ accountId: 'account-econnrefused', status: 0 }),
+    ]);
+  });
+
   it('invokes onRecorded with the freshly-recorded activity row (id usable for amend)', async () => {
     const onRecorded = vi.fn();
     await fetchUpstream(

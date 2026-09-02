@@ -336,6 +336,31 @@ async function readResponseTextWithSignal(
   }
 }
 
+/**
+ * Release an upstream `Response` this request will NEVER relay — the one
+ * discarded by a 401-refresh retry, an ApiKeyPool rebind retry, or a fallback
+ * advance.
+ *
+ * Dropping the reference is NOT enough: an unread body keeps its undici socket
+ * (and the whole CONNECT tunnel through any egress proxy) checked out until the
+ * GC finalizer eventually reclaims it, so a retry-heavy period accumulates
+ * orphan connections against the proxy. Cancelling returns the socket
+ * immediately. Awaited so the release is ordered BEFORE the replacement attempt
+ * is issued; `cancel()` on an undici body is a local teardown and does no
+ * network I/O. Best-effort by construction — an already-locked/consumed body
+ * (e.g. one a health sniff read via `clone()`) and a cancel rejection are both
+ * no-ops, and a cleanup failure must never break serving.
+ */
+export async function cancelDiscardedResponse(response: Response | undefined): Promise<void> {
+  const body = response?.body;
+  if (!body || body.locked) return;
+  try {
+    await body.cancel();
+  } catch {
+    /* best-effort release — never break serving on a cleanup failure */
+  }
+}
+
 const SAFE_RESPONSE_HEADERS = new Set([
   'content-type',
   'retry-after',
@@ -545,8 +570,11 @@ export async function relayResponse(
 export async function aggregateAnthropicSseToJsonBody(
   response: Response,
   rewriteModel?: string,
+  signal?: AbortSignal,
 ): Promise<string> {
-  const text = await response.text();
+  // Signal-aware read: a downstream hang-up during the collapse must cancel the
+  // upstream body rather than buffer a stream nobody will receive.
+  const text = await readResponseTextWithSignal(response, signal);
   const message: Record<string, unknown> = {
     type: 'message',
     role: 'assistant',

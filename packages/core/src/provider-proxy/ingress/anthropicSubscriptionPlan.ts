@@ -65,6 +65,7 @@ import type {
 } from '../types';
 
 import {
+  cancelDiscardedResponse,
   getAnthropicEndpointTransformer,
   getSharedExecutor,
   writeError,
@@ -101,6 +102,15 @@ export interface AnthropicByoOptions {
    * defaults in `DEFAULT_CLAUDE_CODE_HEADERS` fill in.
    */
   readonly callerClientHeaders?: Record<string, string>;
+  /**
+   * The ingress request scope's cancellation signal (`createRequestAbortScope`
+   * over the downstream request/response). Threaded into EVERY upstream fetch
+   * and body read on this path so a client that hangs up mid-turn tears the
+   * upstream request down instead of leaving it running to completion. Absent ⇒
+   * the pre-change behavior (no cancellation), which is what the internal /
+   * delegated callers get.
+   */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -409,6 +419,7 @@ export async function runPipeline(
   anthropicBody: Record<string, unknown>,
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean) => void,
+  signal?: AbortSignal,
 ): Promise<AnthropicRunResult> {
   const executor = getSharedExecutor();
   const endpointTransformer = getAnthropicEndpointTransformer();
@@ -459,7 +470,7 @@ export async function runPipeline(
       console.info(`[ProviderProxy:anthropic] -> ${url} model=${resolvedModel} stream=${isStream}`);
       return fetchUpstream(
         url,
-        { method: 'POST', headers, body: JSON.stringify(body) },
+        { method: 'POST', headers, body: JSON.stringify(body), signal },
         {
           providerId: proxyProviderId(plan),
           accountId: proxyAccountId,
@@ -594,7 +605,7 @@ export async function runSubscriptionSameFormatFetch(
   let activityRecordId: string | undefined;
   const response = await fetchUpstream(
     urlOverride ?? plan.upstreamUrl,
-    { method: 'POST', headers, body: outboundBody },
+    { method: 'POST', headers, body: outboundBody, signal: options.signal },
     {
       providerId: proxyProviderId(plan),
       accountId: proxyAccountId,
@@ -682,7 +693,7 @@ async function runSubscriptionAttemptWith401Retry(
   const runOnce = (): Promise<AnthropicRunResult> =>
     plan.sameFormat
       ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection, options)
-      : runPipeline(anthropicBody, plan, reportSelection);
+      : runPipeline(anthropicBody, plan, reportSelection, options.signal);
 
   const first = await runOnce();
   let result = first;
@@ -690,6 +701,9 @@ async function runSubscriptionAttemptWith401Retry(
     const refreshed = await plan.auth.onUnauthorized?.(plan.sessionKey);
     if (refreshed) {
       console.info('[ProviderProxy:anthropic] 401 → token refreshed; retrying once');
+      // The 401 response is never relayed — release its socket BEFORE issuing the
+      // replacement, so a refresh storm cannot stack orphan upstream connections.
+      await cancelDiscardedResponse(first.response);
       result = await runOnce();
     } else {
       console.warn('[ProviderProxy:anthropic] 401 not recoverable (onUnauthorized returned false)');
@@ -896,6 +910,18 @@ export async function runPipelineWithSubscriptionRetry(
 ): Promise<AnthropicRunResult> {
   const profile = route.subscriptionProfile;
   const scenario = initialPlan.scenario;
+  /**
+   * The downstream client is gone (the ingress scope aborted). Its attempt threw
+   * an AbortError, which `runSubscriptionAttemptOutcome` normalizes to a
+   * `thrown` outcome — and a thrown outcome is fallback-ELIGIBLE. Left unguarded,
+   * one hang-up would therefore march the whole fallback chain, issuing a fresh
+   * upstream request per model for a response nobody will read: the exact
+   * connection pressure this change exists to remove. It would also record those
+   * aborts as model FAILURES on the circuit breaker, letting client behavior open
+   * a breaker on a healthy upstream. So an aborted scope both stops the loop and
+   * suppresses the breaker record.
+   */
+  const clientGone = (): boolean => options.signal?.aborted === true;
 
   /**
    * Prepare a translate attempt's body: deep clone (JSON round-trip — these
@@ -921,7 +947,7 @@ export async function runPipelineWithSubscriptionRetry(
       ? anthropicBody
       : await prepareTranslateAttempt(anthropicBody);
     const loneOutcome = await runSubscriptionAttemptOutcome(loneBody, rawBody, initialPlan, options);
-    recordBreakerOutcome(profile, initialPlan.resolvedModel, outcomeStatus(loneOutcome));
+    if (!clientGone()) recordBreakerOutcome(profile, initialPlan.resolvedModel, outcomeStatus(loneOutcome));
     return settleOutcome(loneOutcome);
   }
 
@@ -974,10 +1000,11 @@ export async function runPipelineWithSubscriptionRetry(
   // First real attempt (the mapped primary, the gated first-admitting fallback,
   // or the failed-open primary). Record its outcome to the breaker.
   let outcome = await runSubscriptionAttemptOutcome(firstBodyObj, firstRelayBody, plan, options);
-  recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
+  if (!clientGone()) recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
   if (!attempted.includes(plan.resolvedModel)) attempted.push(plan.resolvedModel);
 
   while (attempted.length < MAX_FALLBACK_ATTEMPTS) {
+    if (clientGone()) return settleOutcome(outcome);
     if (!isFallbackEligibleStatus(outcomeStatus(outcome))) return settleOutcome(outcome);
 
     const next = profile.nextFallback(scenario, attempted, route.subscriptionConfig as never);
@@ -993,6 +1020,11 @@ export async function runPipelineWithSubscriptionRetry(
       initialPlan.sessionKey,
     );
     if (!nextPlan) return settleOutcome(outcome); // profile lost resolveUpstreamUrl — surface last.
+
+    // The failing attempt's response is superseded by the fallback — release it
+    // before the next attempt so an exhausting chain holds ONE upstream
+    // connection at a time, not one per attempted model.
+    if (outcome.kind === 'result') await cancelDiscardedResponse(outcome.result.response);
 
     const sinceLabel =
       outcome.kind === 'thrown' ? 'thrown error' : `status ${String(outcome.result.rawStatus)}`;
@@ -1014,7 +1046,7 @@ export async function runPipelineWithSubscriptionRetry(
     plan = nextPlan;
     attempted.push(next.modelId);
     outcome = await runSubscriptionAttemptOutcome(fallbackBodyObj, fallbackRelayBody, plan, options);
-    recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
+    if (!clientGone()) recordBreakerOutcome(profile, plan.resolvedModel, outcomeStatus(outcome));
   }
 
   // Chain exhausted (cap reached): surface the LAST attempt's outcome.

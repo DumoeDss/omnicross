@@ -60,6 +60,8 @@ import {
   requestAbortSignal,
   resolveAnthropicSearchHintBackend,
 } from './anthropicManagedSearch';
+import { createRequestAbortScope } from '../responses/responsesAbort';
+
 import { handleAnthropicMessagesByo } from './anthropicMessagesByo';
 import { handleAnthropicCountTokens } from './anthropicCountTokens';
 import { classifyAnthropicMessagesPath } from './anthropicPathMatch';
@@ -116,21 +118,33 @@ export async function handleAnthropicMessagesRequest(
     // subscription relay consumes callerAnthropicBeta / identity / client
     // headers; the BYO count_tokens fetch consumes callerAnthropicBeta and
     // callerAnthropicVersion).
-    const rawBody = await readBody(request);
-    const callerBetaRaw = request.headers['anthropic-beta'];
-    const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-    const callerVersionRaw = request.headers['anthropic-version'];
-    const callerAnthropicVersion = Array.isArray(callerVersionRaw)
-      ? callerVersionRaw.join(',')
-      : callerVersionRaw;
-    const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
-    const callerClientHeaders = extractClaudeClientHeaders(request.headers);
-    await handleAnthropicCountTokens(res, rawBody, route, deps, {
-      callerAnthropicBeta,
-      callerAnthropicVersion,
-      callerIdentity,
-      callerClientHeaders,
-    });
+    // Same cancellation scope as the generation branch below: count_tokens also
+    // relays an upstream call, so a client that gives up must not leave it running.
+    // (`request === req` on this branch — the managed-search replay below never
+    // runs for count_tokens — but reads stay on `request` per the file invariant.)
+    const scope = createRequestAbortScope({ request: req, response: res, timeoutMs: null });
+    try {
+      const rawBody = await readBody(request, scope.signal);
+      const callerBetaRaw = request.headers['anthropic-beta'];
+      const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+      const callerVersionRaw = request.headers['anthropic-version'];
+      const callerAnthropicVersion = Array.isArray(callerVersionRaw)
+        ? callerVersionRaw.join(',')
+        : callerVersionRaw;
+      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
+      const callerClientHeaders = extractClaudeClientHeaders(request.headers);
+      await handleAnthropicCountTokens(res, rawBody, route, deps, {
+        callerAnthropicBeta,
+        callerAnthropicVersion,
+        callerIdentity,
+        callerClientHeaders,
+        signal: scope.signal,
+      });
+    } catch (error) {
+      if (!scope.signal.aborted) throw error;
+    } finally {
+      scope.dispose();
+    }
     return;
   }
 
@@ -171,36 +185,59 @@ export async function handleAnthropicMessagesRequest(
   // own guards inside `handleAnthropicMessagesByo` (providerId, JSON, key), so it
   // is reached BEFORE those delegation-only guards.
   if (!handlerFactory) {
-    // Read the body HERE (the delegation path keeps passing the un-pre-read
-    // `req`; only this fallthrough consumes the stream). Forward the caller's
-    // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1)
-    // and `anthropic-version` verbatim (claude-api-protocol-fidelity, R5).
-    const rawBody = await readBody(request);
-    const callerBetaRaw = request.headers['anthropic-beta'];
-    const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-    const callerVersionRaw = request.headers['anthropic-version'];
-    const callerAnthropicVersion = Array.isArray(callerVersionRaw)
-      ? callerVersionRaw.join(',')
-      : callerVersionRaw;
-    // subscription-client-fingerprint #7: capture the caller's WHITELISTED
-    // fingerprint headers here (the same seam that already reads `anthropic-beta`)
-    // and thread them to the relay. Auth/cookie are never captured (the whitelist
-    // excludes them). GATED on the flag (`captureCallerIdentity`) — skipped entirely
-    // when replay is disabled (no wasted extraction on the default/BYO path); the
-    // relay's own claude-scoped gate is unchanged, so behavior when enabled is
-    // identical.
-    const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
-    // UNGATED, unlike `captureCallerIdentity`: forwarding the client's OWN
-    // Claude Code headers (UA / x-app / x-stainless-* / accept*) is not
-    // fingerprint synthesis, and the subscription relay needs them regardless of
-    // whether the opt-in freeze/replay feature is on.
-    const callerClientHeaders = extractClaudeClientHeaders(request.headers);
-    await handleAnthropicMessagesByo(res, rawBody, route, deps, {
-      callerAnthropicBeta,
-      callerAnthropicVersion,
-      callerIdentity,
-      callerClientHeaders,
-    });
+    // Downstream-cancellation scope (request disconnect / response close). The
+    // Codex Responses ingress has carried one since its own orphan-stream fix;
+    // WITHOUT it a Claude Code client that hangs up mid-turn left the UPSTREAM
+    // request running to completion, holding an egress socket — and, through a
+    // local proxy, a CONNECT tunnel — for the rest of the generation.
+    //
+    // `timeoutMs: null` is load-bearing: `/v1/messages` has never carried a
+    // total-duration cap and must not gain one here (a long thinking turn is not
+    // a stall). ONLY an actual disconnect aborts this scope. The scope binds the
+    // RAW `req` (the caller's socket) even when `request` below is the
+    // managed-search replay — disconnect events live on the real connection.
+    const scope = createRequestAbortScope({ request: req, response: res, timeoutMs: null });
+    try {
+      // Read the body HERE (the delegation path keeps passing the un-pre-read
+      // stream; only this fallthrough consumes it — `request` may be the replay
+      // the managed-search lane handed back). Forward the caller's
+      // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1)
+      // and `anthropic-version` verbatim (claude-api-protocol-fidelity, R5).
+      const rawBody = await readBody(request, scope.signal);
+      const callerBetaRaw = request.headers['anthropic-beta'];
+      const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
+      const callerVersionRaw = request.headers['anthropic-version'];
+      const callerAnthropicVersion = Array.isArray(callerVersionRaw)
+        ? callerVersionRaw.join(',')
+        : callerVersionRaw;
+      // subscription-client-fingerprint #7: capture the caller's WHITELISTED
+      // fingerprint headers here (the same seam that already reads `anthropic-beta`)
+      // and thread them to the relay. Auth/cookie are never captured (the whitelist
+      // excludes them). GATED on the flag (`captureCallerIdentity`) — skipped entirely
+      // when replay is disabled (no wasted extraction on the default/BYO path); the
+      // relay's own claude-scoped gate is unchanged, so behavior when enabled is
+      // identical.
+      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
+      // UNGATED, unlike `captureCallerIdentity`: forwarding the client's OWN
+      // Claude Code headers (UA / x-app / x-stainless-* / accept*) is not
+      // fingerprint synthesis, and the subscription relay needs them regardless of
+      // whether the opt-in freeze/replay feature is on.
+      const callerClientHeaders = extractClaudeClientHeaders(request.headers);
+      await handleAnthropicMessagesByo(res, rawBody, route, deps, {
+        callerAnthropicBeta,
+        callerAnthropicVersion,
+        callerIdentity,
+        callerClientHeaders,
+        signal: scope.signal,
+      });
+    } catch (error) {
+      // A disconnect surfaces as this scope's AbortError once the upstream fetch
+      // or body read tears down. Nobody is left to answer, so swallow it; any
+      // other fault still propagates to the caller's error handling.
+      if (!scope.signal.aborted) throw error;
+    } finally {
+      scope.dispose();
+    }
     return;
   }
 

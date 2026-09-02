@@ -76,6 +76,7 @@ import {
 import { isCodexServerOverloadEvent } from './openaiResponsesIngress';
 import {
   aggregateAnthropicSseToJsonBody,
+  cancelDiscardedResponse,
   relayResponse,
   resolvePoolBoundKey,
   writeBoundAccountError,
@@ -273,19 +274,36 @@ export async function handleAnthropicMessagesByo(
 
     let bodyText: string | null;
     if (!isStream && upstreamSse) {
-      bodyText = await aggregateAnthropicSseToJsonBody(upstreamResponse, route.requestedModel);
+      bodyText = await aggregateAnthropicSseToJsonBody(
+        upstreamResponse,
+        route.requestedModel,
+        options.signal,
+      );
       res.writeHead(
         upstreamResponse.status && upstreamResponse.status >= 100 ? upstreamResponse.status : 200,
         { 'Content-Type': 'application/json' },
       );
       res.end(bodyText);
     } else {
-      bodyText = await relayResponse(res, upstreamResponse, isStream, route.requestedModel, usageTap, onSseEvent);
+      bodyText = await relayResponse(
+        res,
+        upstreamResponse,
+        isStream,
+        route.requestedModel,
+        usageTap,
+        onSseEvent,
+        options.signal,
+      );
     }
     if (bodyText && deps.usageRecorder) {
       recordAnthropicNonStreamUsage(deps.usageRecorder, bodyText, usageAttribution);
     }
   } catch (err) {
+    // The client hung up: the abort scope already cancelled the upstream fetch /
+    // body, and the thrown AbortError IS that teardown, not a pipeline failure.
+    // Nobody is left to answer, so neither log it as an error nor attempt a 502
+    // write onto a dead socket.
+    if (options.signal?.aborted) return;
     // Typed translate-path content errors (D3): explicit 400 with the stable
     // code in the message — A's Anthropic-protocol mark shapes the envelope
     // (`invalid_request_error`); nothing was silently dropped.
@@ -458,7 +476,7 @@ export async function runSameFormatFetch(
   // upstream-proxy: BYO egress honors the global/provider proxy (providerId 'byo').
   const response = await fetchUpstream(
     url,
-    { method: 'POST', headers, body: bodyToSend },
+    { method: 'POST', headers, body: bodyToSend, signal: options.signal },
     { providerId: 'byo' },
   );
   return { response, rawStatus: response.status };
@@ -495,10 +513,12 @@ function resolveSameFormatBody(
  * `runPipelineWithPoolReporting`: run; report the RAW upstream status to the pool
  * via `auth.onResult`; on a rebind re-run ONCE so headers are re-applied and the
  * rotated key is picked up. `onResult` no-ops without a pool/session (plain BYO
- * behaves exactly as before). Discarding the first (e.g. 429) response on rebind
- * is safe: the relay happens AFTER this wrapper returns, so the first response's
- * body was never read. BOTH the transformer path and the same-format fast path
- * flow through here, so failover is preserved on both.
+ * behaves exactly as before). The first (e.g. 429) response is DISCARDED on a
+ * rebind — the relay happens after this wrapper returns — so it is explicitly
+ * CANCELLED first: an unread body holds its upstream socket (and any egress
+ * proxy tunnel) until the GC finalizer runs, which is how a rebind-heavy period
+ * accumulates orphan connections. BOTH the transformer path and the same-format
+ * fast path flow through here, so failover is preserved on both.
  */
 async function runPipelineWithPoolReporting(
   anthropicBody: Record<string, unknown>,
@@ -515,7 +535,7 @@ async function runPipelineWithPoolReporting(
   const runOnce = (keyOverride?: string): Promise<AnthropicRunResult> =>
     plan.sameFormat
       ? runSameFormatFetch(sameFormatBody, plan, options, keyOverride)
-      : runPipeline(anthropicBody, plan);
+      : runPipeline(anthropicBody, plan, undefined, options.signal);
 
   const first = await runOnce();
   const outcome = await plan.auth.onResult?.(first.rawStatus);
@@ -525,6 +545,7 @@ async function runPipelineWithPoolReporting(
       first.rawStatus,
       '→ retrying once',
     );
+    await cancelDiscardedResponse(first.response);
     // Pass the rotated key into the same-format verbatim retry (it bypasses
     // `auth.applyHeaders`, so it cannot pick up the rotated key on its own).
     // The transformer path ignores the override and re-reads the rotated key via

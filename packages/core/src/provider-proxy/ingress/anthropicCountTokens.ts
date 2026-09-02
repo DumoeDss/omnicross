@@ -53,7 +53,12 @@ import {
   buildSubscriptionPlan,
   runSubscriptionSameFormatFetch,
 } from './anthropicSubscriptionPlan';
-import { relayResponse, writeBoundAccountError, writeError } from './providerProxyShared';
+import {
+  cancelDiscardedResponse,
+  relayResponse,
+  writeBoundAccountError,
+  writeError,
+} from './providerProxyShared';
 
 /** The operator-facing strategy config (§10 `anthropic.countTokens.mode`). */
 export type CountTokensMode = 'auto' | 'passthrough' | 'estimate' | 'reject';
@@ -163,8 +168,10 @@ export async function handleAnthropicCountTokens(
 
     // Verbatim relay: no model rewrite, no usage tap. An upstream failure keeps
     // its real status and body bytes (the moat — never wrapped).
-    await relayResponse(res, providerResponse.response, false);
+    await relayResponse(res, providerResponse.response, false, undefined, undefined, undefined, options.signal);
   } catch (err) {
+    // The client hung up; the scope already tore the upstream call down.
+    if (options.signal?.aborted) return;
     if (isBoundAccountSelectionError(err)) {
       writeBoundAccountError(res, err);
       return;
@@ -213,6 +220,8 @@ async function runByoCountTokensFetch(
   const first = await runOnce();
   const outcome = await plan.auth.onResult?.(first.rawStatus);
   if (outcome?.rebound) {
+    // Superseded by the rebound retry and never relayed — release its socket.
+    await cancelDiscardedResponse(first.response);
     console.info(
       '[ProviderProxy:anthropic] pool re-bound key after status',
       first.rawStatus,
