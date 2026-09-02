@@ -1,0 +1,9 @@
+{
+  "code": 200,
+  "status": 20000,
+  "data": {
+    "title": "HTTP headers - HTTP | MDN",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+    "content": "# HTTP headers\n\nHTTP headers let the client and the server pass additional information with a message in a request or response."
+  }
+}

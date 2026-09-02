@@ -30,6 +30,7 @@ import {
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
 import { normalizeImagesServerConfig } from './imagesServerConfig';
+import { normalizeSearchServerConfig } from './searchServerConfig';
 import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
 import type {
   AccountHealthConfig,
@@ -875,6 +876,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     voucher: normalizeVoucher(undefined),
     anthropic: normalizeAnthropicSegment(undefined),
     images: normalizeImagesServerConfig(undefined),
+    search: normalizeSearchServerConfig(undefined),
   };
 }
 
@@ -921,6 +923,7 @@ export function normalizeServerConfig(
     voucher: normalizeVoucher(raw),
     anthropic: normalizeAnthropicSegment(raw),
     images: normalizeImagesServerConfig(raw.images),
+    search: normalizeSearchServerConfig(raw.search),
   };
   // Proxy segment is only carried when valid — absent stays absent (direct fetch).
   const proxy = normalizeProxySegment(raw.proxy);
@@ -985,5 +988,8 @@ export function mergeServerConfig(
     // Images is a complete nested policy segment. Missing legacy data remains
     // default-disabled; a present PUT replaces the whole normalized segment.
     images: patch.images ?? current.images,
+    // Search is layer-replaced like Images: a PUT carrying `search` swaps the
+    // whole normalized segment, omitting it keeps the current one.
+    search: patch.search ?? current.search,
   });
 }

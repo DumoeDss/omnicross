@@ -512,7 +512,8 @@
     "settings": "Настройки",
     "usageStats": "Использование",
     "pricing": "Цены",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Поиск"
   },
   "apiService": {
     "title": "API-сервис",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Поисковые провайдеры",
+    "description": "Конфигурация среды веб-поиска: учётные данные провайдеров, политика резервирования, исходящий сетевой трафик и режимы выполнения для каждого фронтенда.",
+    "unsupportedDaemon": "Эта версия демона не поддерживает раздел настроек поиска.",
+    "diagnosticsUnsupported": "Диагностика поиска недоступна в этой версии демона; настройка провайдеров остаётся полностью доступной.",
+    "restartBanner": "Для применения изменений требуется перезапуск демона: {{providers}}",
+    "restartHint": "Применяется после перезапуска демона",
+    "immediateHint": "Применяется сразу",
+    "modes": {
+      "title": "Режимы фронтендов",
+      "description": "Кто выполняет поиск для каждого фронтенда протокола.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
+    },
+    "mode": {
+      "native": "Нативный (выполняет вышестоящий сервер)",
+      "managed": "Управляемый (выполняет шлюз)",
+      "off": "Отключено"
+    },
+    "providers": {
+      "title": "Провайдеры",
+      "tavily": {
+        "description": "Поисковый API со щедрым бесплатным лимитом; нужен ключ."
+      },
+      "jina": {
+        "description": "Поиск работает без ключа; ключ повышает лимиты."
+      },
+      "searxng": {
+        "description": "Самостоятельно размещаемый метапоиск; настраивается хостом экземпляра."
+      },
+      "zhipu": {
+        "description": "Веб-поиск Zhipu API; нужен ключ."
+      },
+      "zai": {
+        "description": "Веб-поиск Z.AI API; нужен ключ."
+      }
+    },
+    "keyless": {
+      "description": "Движок без ключа, всегда доступен. Настройка не требуется."
+    },
+    "status": {
+      "ready": "Готов",
+      "unconfigured": "Не настроен",
+      "healthy": "Исправен",
+      "degraded": "Деградация",
+      "blocked": "Заблокирован",
+      "failed": "Сбой"
+    },
+    "unconfiguredReason": {
+      "tavily": "Требуется настроить API-ключ.",
+      "jina": "Сохраните запись, чтобы включить — Jina может работать без ключа.",
+      "searxng": "Требуется настроить хост API.",
+      "zhipu": "Требуется настроить API-ключ.",
+      "zai": "Требуется настроить API-ключ."
+    },
+    "field": {
+      "apiKey": "API-ключ",
+      "apiKeyPlaceholder": "Пусто — сохраняется записанный ключ",
+      "apiKeyNew": "Введите API-ключ",
+      "apiKeyConfigured": "· ключ настроен",
+      "apiHost": "Хост API",
+      "apiHostPlaceholder": "Необязательное переопределение хоста",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Пользователь Basic",
+      "basicAuthPassword": "Пароль Basic",
+      "basicAuthPasswordPlaceholder": "Пусто — сохраняется записанный пароль",
+      "basicAuthPasswordConfigured": "· пароль настроен"
+    },
+    "action": {
+      "test": "Проверить",
+      "save": "Сохранить настройки поиска",
+      "remove": "Удалить конфигурацию",
+      "clearKey": "Стереть сохранённый ключ",
+      "clearKeyPending": "· ключ будет стёрт",
+      "clearPassword": "Стереть сохранённый пароль",
+      "undoClear": "Отменить стирание"
+    },
+    "removedPending": "Конфигурация будет удалена при сохранении.",
+    "testOutcome": {
+      "error": "Проверка не удалась: {{error}}",
+      "count": "{{count}} результатов"
+    },
+    "policy": {
+      "title": "Политика по умолчанию",
+      "preferred": "Предпочитаемый провайдер",
+      "preferredDescription": "Пробуется первым, если запрос не закрепляет провайдера.",
+      "preferredNone": "Без предпочтений",
+      "allowed": "Разрешённые провайдеры",
+      "allowedDescription": "Пусто — кандидатом является каждый настроенный провайдер.",
+      "fallbackEnabled": "Резервирование",
+      "fallbackDescription": "После неудачного кандидата может последовать следующий.",
+      "maxAttempts": "Макс. попыток",
+      "maxAttemptsDescription": "Верхний предел провайдеров на один поиск (1–32)."
+    },
+    "egress": {
+      "title": "Список разрешённого исходящего трафика",
+      "description": "Имена хостов, которым разрешено разрешаться в иначе запрещённые классы адресов — исключение для внутреннего SearXNG.",
+      "empty": "Частные хосты не разрешены.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Добавить",
+      "remove": "Удалить хост"
+    },
+    "page": {
+      "loading": "Загрузка…"
+    },
+    "test": {
+      "queryPlaceholder": "Введите запрос для тестирования этого провайдера",
+      "action": "Искать",
+      "testing": "Поиск…",
+      "saveFirst": "Сначала сохраните — тест выполняется по сохранённой конфигурации.",
+      "empty": "Нет результатов по этому запросу.",
+      "providerUsed": "через {{provider}}"
     }
   },
   "accounts": {

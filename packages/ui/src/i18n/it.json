@@ -512,7 +512,8 @@
     "settings": "Impostazioni",
     "usageStats": "Utilizzo",
     "pricing": "Prezzi",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Ricerca"
   },
   "apiService": {
     "title": "Servizio API",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Provider di ricerca",
+    "description": "Configurazione del runtime di ricerca web: credenziali dei provider, criterio di fallback, traffico in uscita e modalità di esecuzione per frontend.",
+    "unsupportedDaemon": "Questa versione del demone non supporta la sezione di configurazione della ricerca.",
+    "diagnosticsUnsupported": "La diagnostica della ricerca in tempo reale non è disponibile in questa versione del demone; la configurazione dei provider resta completamente modificabile.",
+    "restartBanner": "È necessario riavviare il demone perché le modifiche abbiano effetto: {{providers}}",
+    "restartHint": "Applicato al riavvio del demone",
+    "immediateHint": "Applicato immediatamente",
+    "modes": {
+      "title": "Modalità per frontend",
+      "description": "Chi esegue la ricerca per ciascun frontend di protocollo.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
+    },
+    "mode": {
+      "native": "Nativa (esegue upstream)",
+      "managed": "Gestita (esegue il gateway)",
+      "off": "Disattivata"
+    },
+    "providers": {
+      "title": "Provider",
+      "tavily": {
+        "description": "API di ricerca con generosa franchigia gratuita; richiede chiave."
+      },
+      "jina": {
+        "description": "Ricerca utilizzabile senza chiave; una chiave aumenta i limiti."
+      },
+      "searxng": {
+        "description": "Metamotore self-hosted; configurato tramite l'host dell'istanza."
+      },
+      "zhipu": {
+        "description": "API di ricerca web Zhipu; richiede chiave."
+      },
+      "zai": {
+        "description": "API di ricerca web Z.AI; richiede chiave."
+      }
+    },
+    "keyless": {
+      "description": "Motore senza chiave, sempre disponibile. Non richiede configurazione."
+    },
+    "status": {
+      "ready": "Pronto",
+      "unconfigured": "Non configurato",
+      "healthy": "Integro",
+      "degraded": "Danneggiato",
+      "blocked": "Bloccato",
+      "failed": "Non riuscito"
+    },
+    "unconfiguredReason": {
+      "tavily": "Richiede la configurazione di una chiave API.",
+      "jina": "Attiva salvando una voce — Jina può funzionare senza chiave.",
+      "searxng": "Richiede la configurazione di un host API.",
+      "zhipu": "Richiede la configurazione di una chiave API.",
+      "zai": "Richiede la configurazione di una chiave API."
+    },
+    "field": {
+      "apiKey": "Chiave API",
+      "apiKeyPlaceholder": "Vuoto mantiene la chiave memorizzata",
+      "apiKeyNew": "Inserisci la chiave API",
+      "apiKeyConfigured": "· chiave configurata",
+      "apiHost": "Host API",
+      "apiHostPlaceholder": "Sostituzione host facoltativa",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Utente Basic",
+      "basicAuthPassword": "Password Basic",
+      "basicAuthPasswordPlaceholder": "Vuoto mantiene la password memorizzata",
+      "basicAuthPasswordConfigured": "· password configurata"
+    },
+    "action": {
+      "test": "Prova",
+      "save": "Salva impostazioni di ricerca",
+      "remove": "Rimuovi configurazione",
+      "clearKey": "Cancella chiave memorizzata",
+      "clearKeyPending": "· la chiave verrà cancellata",
+      "clearPassword": "Cancella password memorizzata",
+      "undoClear": "Annulla cancellazione"
+    },
+    "removedPending": "La configurazione verrà rimossa al salvataggio.",
+    "testOutcome": {
+      "error": "Prova non riuscita: {{error}}",
+      "count": "{{count}} risultati"
+    },
+    "policy": {
+      "title": "Criterio predefinito",
+      "preferred": "Provider preferito",
+      "preferredDescription": "Provato per primo quando una richiesta non ne fissa uno.",
+      "preferredNone": "Nessuna preferenza",
+      "allowed": "Provider consentiti",
+      "allowedDescription": "Vuoto significa che ogni provider configurato è un candidato.",
+      "fallbackEnabled": "Fallback",
+      "fallbackDescription": "Dopo un candidato non riuscito può seguire il successivo.",
+      "maxAttempts": "Tentativi max",
+      "maxAttemptsDescription": "Limite superiore di provider provati per ricerca (1–32)."
+    },
+    "egress": {
+      "title": "Elenco uscita consentita",
+      "description": "Nomi host autorizzati a risolversi in classi di indirizzi altrimenti negate — la via d'eccezione per un SearXNG interno.",
+      "empty": "Nessun host privato consentito.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Aggiungi",
+      "remove": "Rimuovi host"
+    },
+    "page": {
+      "loading": "Caricamento…"
+    },
+    "test": {
+      "queryPlaceholder": "Digita una query per testare questo provider",
+      "action": "Cerca",
+      "testing": "Ricerca…",
+      "saveFirst": "Salva prima — il test viene eseguito sulla configurazione salvata.",
+      "empty": "Nessun risultato per questa query.",
+      "providerUsed": "tramite {{provider}}"
     }
   },
   "accounts": {

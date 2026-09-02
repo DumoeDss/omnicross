@@ -38,6 +38,7 @@ import {
   isBoundAccountSelectionError,
 } from '../pipeline/BoundAccountSelectionError';
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
+import { requestLifecycleSignal } from '../pipeline/requestLifecycleSignal';
 import { getSharedAccountAllowanceStore } from '../pipeline/AccountAllowanceStore';
 import { classifyAnthropicMessagesPath } from '../provider-proxy/ingress/anthropicPathMatch';
 import {
@@ -47,6 +48,7 @@ import {
 } from '../provider-proxy/ingress/anthropicErrorEnvelope';
 import { routeRequest } from '../provider-proxy/providerProxyRouter';
 import type { RouteContext } from '../provider-proxy/types';
+import { DEFAULT_SEARCH_FRONTEND_MODES } from '../search/frontends';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
 import { beginAuditCapture } from './auditCapture';
@@ -65,6 +67,7 @@ import { computeQuotaWarnings, markQuotaWarnedOnce } from './quotaWarn';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
 import { OutboundRateLimiter } from './outboundRateLimiter';
 import { detectRequestRole, endpointToIngressFormat, extractRequestedModel } from './roleDetection';
+import { handleCodexSearchRequest, isCodexSearchRequest } from './searchRoute';
 import { parseModelRef, resolveRoute } from './routeResolver';
 import type {
   AnthropicConfigSegment,
@@ -74,6 +77,7 @@ import type {
   OutboundApiDeps,
   OutboundEndpoint,
   OutboundPermission,
+  SearchServerConfig,
   UserMessageQueueConfig,
 } from './types';
 import type { KeyedMutex } from './keyedMutex';
@@ -121,6 +125,14 @@ export interface OutboundRequestConfig {
    * Absent ⇒ the frozen defaults (auto / auto / 20000).
    */
   anthropic?: AnthropicConfigSegment;
+  /**
+   * Search assembly segment (plan 阶段5). The router reads ONLY the Codex mode
+   * from it; the two managed protocol frontends read their own modes from the
+   * proxy deps, and provider/egress/policy are consumed once at bootstrap when
+   * the single runtime is built. Absent ⇒ the frontend defaults
+   * (`off`/`native`/`native`), which preserve today's behavior.
+   */
+  search?: SearchServerConfig;
 }
 
 /**
@@ -771,6 +783,50 @@ export async function handleOutboundRequest(
     if (!handled) {
       writeOpenAIOperationError(res, unsupportedOpenAIOperation(imageOperation));
     }
+    return;
+  }
+
+  // 2c. CODEX SEARCH ROUTE (plan 阶段5 / §8.2). Detected BEFORE endpoint select
+  // so it never reaches the generic 404 at the bottom of this function — the
+  // exact failure the plan calls out and §15 forbids. Placed after auth + rate
+  // limit like every other route, and before the models list so an operator
+  // cannot accidentally shadow it. Default mode `off` answers a structured
+  // `unsupported_capability`; `managed` executes through the shared runtime.
+  //
+  // Unlike the Images branch above, audit bodies are NOT suppressed: making the
+  // request body capturable is a DESIGNED outcome here (see `searchRoute.ts`),
+  // because the Codex request schema is UNVERIFIED and a routed request is the
+  // only way evidence for it can ever accumulate.
+  //
+  // GATING, decided deliberately: this route checks no `allowedEndpoints`
+  // permission, unlike Images. Search is not one of the four text endpoints and
+  // inventing a fifth permission value would ripple through the key schema, the
+  // admin surface and every stored key for a capability that is OFF by default
+  // and enabled process-wide by an operator editing config. The gate is
+  // therefore the MODE, not the key. Per-key gating is a real option if search
+  // ever becomes on-by-default; it is recorded as an open decision rather than
+  // an oversight (behavior-comparison-report.md §5.6).
+  if (isCodexSearchRequest(req.method, req.url)) {
+    await handleCodexSearchRequest(req, res, {
+      mode: config.search?.modes.codex ?? DEFAULT_SEARCH_FRONTEND_MODES.codex,
+      runtime: deps.searchRuntime ?? null,
+      // This handler EXECUTES rather than relays, and `handleOutboundRequest`
+      // has no signal of its own to hand down, so it builds one. Without it a
+      // client that hangs up mid-search keeps its query walking the remaining
+      // fallback providers — egress after cancellation.
+      signal: requestLifecycleSignal(req, res),
+      onRequestBody: (raw, parsed) => {
+        if (!audit) return;
+        audit.setRequestBody(raw);
+        // The session key is what `AuditWriter.appendBody` requires before it
+        // will persist a body at all — the missing link that dropped all 11
+        // baselined `/v1/alpha/search` bodies.
+        audit.sessionKey = deriveAuditSessionKey(parsed, req.headers, {
+          fallbackKey: verified.id,
+          endpoint: 'search',
+        });
+      },
+    });
     return;
   }
 

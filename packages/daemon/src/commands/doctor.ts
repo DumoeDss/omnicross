@@ -16,6 +16,10 @@
 
 import { parseArgs } from 'node:util';
 
+import type {
+  SearchProviderCapabilities,
+  SearchProviderDiagnostic,
+} from '@omnicross/contracts/search-types';
 import {
   DEFAULT_IMAGES_SERVER_CONFIG,
   loadServerConfig,
@@ -23,7 +27,18 @@ import {
 import type {
   GatewayBinding,
   OutboundApiServerConfig,
+  SearchServerConfig,
 } from '@omnicross/core/outbound-api/types';
+import {
+  apiSearchContributions,
+  type SearchApiProviderConfigs,
+} from '@omnicross/core/search/api';
+import { builtinHttpSearchContributions } from '@omnicross/core/search/http';
+import {
+  DEFAULT_SEARCH_FRONTEND_MODES,
+  SEARCH_FRONTEND_NAMES,
+  type SearchRuntime,
+} from '@omnicross/core/search';
 
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
@@ -31,8 +46,30 @@ import type {
   ImageDoctorLocalSnapshot,
   ImageDoctorService,
 } from '../image-generation/ImageDoctorService';
+import {
+  buildSearchDoctorSnapshot,
+  runSearchLiveChecks,
+  SEARCH_DOCTOR_QUERY,
+  type SearchProviderDeclaration,
+} from '../search/searchDoctorProjection';
 
 import { defaultKeysPath, defaultTokensPath } from './paths';
+
+// search-settings-ui: the pure search-doctor vocabulary moved to
+// `search/searchDoctorProjection.ts` (a leaf the admin router can import
+// without the bootstrap cycle). Re-exported here so existing importers — the
+// tests and the CLI — keep their `commands/doctor` surface unchanged.
+export {
+  buildSearchDoctorSnapshot,
+  classifyLiveSearchOutcome,
+  runSearchLiveChecks,
+  SEARCH_DOCTOR_QUERY,
+} from '../search/searchDoctorProjection';
+export type {
+  LiveSearchOutcome,
+  SearchDoctorRow,
+  SearchProviderDeclaration,
+} from '../search/searchDoctorProjection';
 
 /** One doctor finding. `warn` items print ⚠; out-of-range warns co-occur with `ok:false` and flip the exit code to 1. */
 export interface DoctorCheck {
@@ -199,6 +236,212 @@ export async function runImagesLiveDoctor(
   return true;
 }
 
+/**
+ * The doctor-only environment convenience — now a FALLBACK, not the source.
+ *
+ * 阶段5's daemon `search` config section is the configuration system; this is
+ * not, and must never become one. It survives only so an operator can probe a
+ * provider that the config does not carry, without editing config to do it:
+ * {@link resolveSearchApiConfigs} consults it strictly AFTER the config, per
+ * provider id.
+ *
+ * The values are read here, handed straight to `apiSearchContributions`, and
+ * never persisted, logged, or passed to any other subsystem. `z.ai` reads
+ * `Z_AI` because a dot is not valid in an environment variable name.
+ */
+export function readSearchApiConfigFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): SearchApiProviderConfigs {
+  const configs: SearchApiProviderConfigs = {};
+  const read = (name: string): string | undefined => {
+    const value = env[`OMNICROSS_SEARCH_${name}`]?.trim();
+    return value ? value : undefined;
+  };
+
+  const tavilyKey = read('TAVILY_API_KEY');
+  if (tavilyKey) {
+    configs.tavily = { apiKey: tavilyKey, ...optionalHost(read('TAVILY_API_HOST')) };
+  }
+
+  // Jina is the one provider a host alone can enable, because it runs keyless.
+  const jinaKey = read('JINA_API_KEY');
+  const jinaHost = read('JINA_API_HOST');
+  if (jinaKey || jinaHost) {
+    configs.jina = { ...(jinaKey ? { apiKey: jinaKey } : {}), ...optionalHost(jinaHost) };
+  }
+
+  const searxngHost = read('SEARXNG_API_HOST');
+  if (searxngHost) {
+    const username = read('SEARXNG_BASIC_AUTH_USERNAME');
+    const password = read('SEARXNG_BASIC_AUTH_PASSWORD');
+    configs.searxng = {
+      apiHost: searxngHost,
+      ...(username ? { basicAuthUsername: username } : {}),
+      ...(password ? { basicAuthPassword: password } : {}),
+    };
+  }
+
+  const zhipuKey = read('ZHIPU_API_KEY');
+  if (zhipuKey) {
+    configs.zhipu = { apiKey: zhipuKey, ...optionalHost(read('ZHIPU_API_HOST')) };
+  }
+
+  const zaiKey = read('Z_AI_API_KEY');
+  if (zaiKey) {
+    configs['z.ai'] = { apiKey: zaiKey, ...optionalHost(read('Z_AI_API_HOST')) };
+  }
+
+  return configs;
+}
+
+function optionalHost(apiHost: string | undefined): { apiHost?: string } {
+  return apiHost ? { apiHost } : {};
+}
+
+/**
+ * Resolve the API provider configs the doctor should report on: the daemon
+ * `search` section FIRST, the diagnostic environment variables only for
+ * providers the config does not name.
+ *
+ * Whole-entry precedence, not per-field: a config entry that exists is the
+ * operator's statement about that provider, and letting an environment variable
+ * silently override one of its fields would make `doctor` report on something
+ * the daemon would never actually run.
+ */
+export function resolveSearchApiConfigs(
+  configured: SearchApiProviderConfigs | undefined,
+  env: Record<string, string | undefined> = process.env,
+): SearchApiProviderConfigs {
+  const fromEnv = readSearchApiConfigFromEnv(env);
+  const resolved: SearchApiProviderConfigs = {};
+  const tavily = configured?.tavily ?? fromEnv.tavily;
+  if (tavily) resolved.tavily = tavily;
+  const jina = configured?.jina ?? fromEnv.jina;
+  if (jina) resolved.jina = jina;
+  const searxng = configured?.searxng ?? fromEnv.searxng;
+  if (searxng) resolved.searxng = searxng;
+  const zhipu = configured?.zhipu ?? fromEnv.zhipu;
+  if (zhipu) resolved.zhipu = zhipu;
+  const zai = configured?.['z.ai'] ?? fromEnv['z.ai'];
+  if (zai) resolved['z.ai'] = zai;
+  return resolved;
+}
+
+function formatCapabilities(capabilities: SearchProviderCapabilities): string {
+  return [
+    `apiKey=${capabilities.requiresApiKey}`,
+    `cancellation=${capabilities.supportsCancellation}`,
+    `urlRead=${capabilities.supportsUrlRead}`,
+    `region=${capabilities.supportsRegion}`,
+    `language=${capabilities.supportsLanguage}`,
+    `timeRange=${capabilities.supportsTimeRange}`,
+    `maxResults=${capabilities.maxResults ?? 'unbounded'}`,
+  ].join(', ');
+}
+
+/**
+ * Format one diagnostic for the console.
+ *
+ * Provider id, status, reason and sanitized error fields only — never a result
+ * title, URL, snippet, or any part of a response body.
+ */
+function formatDiagnostic(diagnostic: SearchProviderDiagnostic): string {
+  const parts: string[] = [diagnostic.status];
+  if (diagnostic.reason) parts.push(diagnostic.reason);
+  if (diagnostic.error) {
+    const { code, details } = diagnostic.error;
+    parts.push(
+      `code=${code}, transport=${details?.transport ?? 'unknown'}, stage=${details?.stage ?? 'unknown'}`,
+    );
+  }
+  return parts.join(' — ');
+}
+
+/** What `doctor search` reports on, when a daemon config was loaded. */
+export interface SearchDoctorSource {
+  /** The daemon `search` section. Its provider entries outrank the env fallback. */
+  readonly config?: SearchServerConfig;
+  /**
+   * The daemon's ONE assembled runtime. When present its `listProviders()` is
+   * the offline row source, so the report describes what the daemon would
+   * actually run rather than a look-alike rebuilt here.
+   */
+  readonly runtime?: SearchRuntime;
+}
+
+/**
+ * Run `omnicross doctor search`.
+ *
+ * CONFIG-FIRST: with a daemon config loaded, the `search` section supplies the
+ * provider entries, the egress allowlist and the frontend modes, and the
+ * documented environment variables fill in only the providers the config does
+ * not name. Without a config (`doctor search` with no `--config`) the env
+ * convenience is the only source, which keeps the zero-setup probe working.
+ *
+ * Nothing printed here is derived from a configured VALUE — only from whether
+ * one is present. That rule covers config-sourced values exactly as it covers
+ * environment ones.
+ */
+export async function runSearchDoctor(
+  live: boolean,
+  env: Record<string, string | undefined> = process.env,
+  source: SearchDoctorSource = {},
+): Promise<number> {
+  const apiConfigs = resolveSearchApiConfigs(source.config?.providers, env);
+  const egressPolicy = source.config && source.config.egress.allowedPrivateHosts.length > 0
+    ? { allowedPrivateHosts: [...source.config.egress.allowedPrivateHosts] }
+    : undefined;
+  // Live probing needs provider INSTANCES, which descriptors deliberately do
+  // not carry, so the probe set is built here. It is not a second fallback
+  // order: `--live` asks each provider in turn on purpose, and never
+  // orchestrates.
+  const contributions = [
+    ...builtinHttpSearchContributions(),
+    ...apiSearchContributions(apiConfigs, { ...(egressPolicy ? { egressPolicy } : {}) }),
+  ];
+  const declarations: ReadonlyArray<SearchProviderDeclaration> =
+    source.runtime?.listProviders() ?? contributions;
+
+  console.info('omnicross doctor search — builtin search contributions (offline, no network)');
+  const modes = source.config?.modes ?? DEFAULT_SEARCH_FRONTEND_MODES;
+  console.info(
+    `  [i] frontend modes: ${SEARCH_FRONTEND_NAMES.map((name) => `${name}=${modes[name]}`).join(', ')}`,
+  );
+  // The asymmetry is real and invisible otherwise: the Codex mode is read from
+  // the live server config on every request, while the Responses/Anthropic
+  // modes and the whole runtime (providers, egress allowlist, default policy)
+  // are captured once at bootstrap. An operator who edits those and sees
+  // nothing change deserves to be told why rather than to debug it.
+  console.info(
+    '  [i] codex mode applies immediately; responses/anthropic modes, provider config, ' +
+      'egress allowlist and policy apply on daemon restart',
+  );
+  for (const row of buildSearchDoctorSnapshot(declarations, apiConfigs)) {
+    const mark = row.status === 'unconfigured' ? '–' : '✓';
+    const suffix = row.status ? ` — ${row.status}: ${row.reason ?? ''}` : '';
+    console.info(
+      `  [${mark}] ${row.providerId}: source=${row.source}, kind=${row.kind}, ` +
+        `${formatCapabilities(row.capabilities)}${suffix}`,
+    );
+  }
+  if (!live) return 0;
+
+  console.info(
+    `  [⚠] live search sends ONE fixed public query per provider ("${SEARCH_DOCTOR_QUERY}") to the engine itself`,
+  );
+  // Only CONFIGURED providers are probed: an unconfigured one has nothing to
+  // probe with, and asking it would just manufacture a `config_missing`.
+  let hardFailure = false;
+  for (const diagnostic of await runSearchLiveChecks(contributions)) {
+    // `blocked`/`degraded` are honest observations about a hostile network, not
+    // Omnicross defects — only `failed` (drift, timeout, transport) exits 1.
+    const mark = diagnostic.status === 'healthy' ? '✓' : diagnostic.status === 'failed' ? '✗' : '⚠';
+    if (diagnostic.status === 'failed') hardFailure = true;
+    console.info(`  [${mark}] ${diagnostic.providerId}: ${formatDiagnostic(diagnostic)}`);
+  }
+  return hardFailure ? 1 : 0;
+}
+
 /** The `--live` probe result (also consumed by tests via an injected fetch). */
 export interface LiveProbeResult {
   status: number | null;
@@ -256,11 +499,15 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
     allowPositionals: true,
   });
   const subject = positionals[0] ?? 'claude';
-  if (subject !== 'claude' && subject !== 'images') {
-    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images')`);
+  if (subject !== 'claude' && subject !== 'images' && subject !== 'search') {
+    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images', 'search')`);
   }
   const configPath = values.config;
   if (!configPath) {
+    // `search` is the one subject that still works with no config at all: the
+    // builtin HTTP providers need none, and the env convenience exists exactly
+    // so a keyed provider can be probed without editing config first.
+    if (subject === 'search') return runSearchDoctor(values.live === true);
     throw new Error('doctor: --config <path> is required (the same config `omnicross start` uses)');
   }
 
@@ -276,6 +523,14 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
   const daemon = await buildDaemon(config, paths);
   try {
     const serverConfig = await loadServerConfig(daemon.settingsStore);
+
+    if (subject === 'search') {
+      // The daemon built exactly one runtime; report on THAT one.
+      return await runSearchDoctor(values.live === true, process.env, {
+        ...(serverConfig.search ? { config: serverConfig.search } : {}),
+        runtime: daemon.searchRuntime,
+      });
+    }
 
     const checks = subject === 'images'
       ? buildImagesDoctorChecks(await daemon.imageDoctor.inspectLocal(

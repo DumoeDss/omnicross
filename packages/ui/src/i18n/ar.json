@@ -512,7 +512,8 @@
     "settings": "الإعدادات",
     "usageStats": "الاستخدام",
     "pricing": "الأسعار",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "البحث"
   },
   "apiService": {
     "title": "خدمة API",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "مزوّدو البحث",
+    "description": "إعداد تشغيل البحث على الويب: بيانات اعتماد المزوّدين وسياسة الاحتياط وحركة الخروج الشبكية وأوضاع التنفيذ لكل واجهة أمامية.",
+    "unsupportedDaemon": "هذا الإصدار من الخادم لا يدعم قسم إعداد البحث.",
+    "diagnosticsUnsupported": "تشخيصات البحث المباشرة غير متاحة في هذا الإصدار من الخادم؛ يظل إعداد المزوّدين متاحًا بالكامل.",
+    "restartBanner": "يلزم إعادة تشغيل الخادم لتطبيق التغييرات: {{providers}}",
+    "restartHint": "يُطبَّق بعد إعادة تشغيل الخادم",
+    "immediateHint": "يُطبَّق فورًا",
+    "modes": {
+      "title": "أوضاع الواجهات الأمامية",
+      "description": "من ينفّذ البحث لكل واجهة أمامية للبروتوكول.",
+      "codex": "Codex ‏(/v1/alpha/search)",
+      "responses": "Responses ‏(web_search)",
+      "anthropic": "Anthropic ‏(web_search_*)"
+    },
+    "mode": {
+      "native": "أصلي (الجهة العليا تنفّذ)",
+      "managed": "مُدار (البوابة تنفّذ)",
+      "off": "معطّل"
+    },
+    "providers": {
+      "title": "المزوّدون",
+      "tavily": {
+        "description": "واجهة بحث بحصة مجانية سخية؛ يتطلب مفتاحًا."
+      },
+      "jina": {
+        "description": "بحث يعمل بدون مفتاح؛ المفتاح يرفع حدود المعدل."
+      },
+      "searxng": {
+        "description": "بحث ميتا مستضاف ذاتيًا؛ يُعدّ عبر مضيف المثيل."
+      },
+      "zhipu": {
+        "description": "واجهة بحث الويب من Zhipu؛ يتطلب مفتاحًا."
+      },
+      "zai": {
+        "description": "واجهة بحث الويب من Z.AI؛ يتطلب مفتاحًا."
+      }
+    },
+    "keyless": {
+      "description": "محرك بلا مفتاح ومتاح دائمًا. لا يحتاج إلى إعداد."
+    },
+    "status": {
+      "ready": "جاهز",
+      "unconfigured": "غير مُعد",
+      "healthy": "سليم",
+      "degraded": "متدهور",
+      "blocked": "محجوب",
+      "failed": "فاشل"
+    },
+    "unconfiguredReason": {
+      "tavily": "يلزم إعداد مفتاح API.",
+      "jina": "فعّله بحفظ إدخال — يمكن لـ Jina العمل بدون مفتاح.",
+      "searxng": "يلزم إعداد مضيف API.",
+      "zhipu": "يلزم إعداد مفتاح API.",
+      "zai": "يلزم إعداد مفتاح API."
+    },
+    "field": {
+      "apiKey": "مفتاح API",
+      "apiKeyPlaceholder": "تركه فارغًا يُبقي المفتاح المخزّن",
+      "apiKeyNew": "أدخل مفتاح API",
+      "apiKeyConfigured": "· المفتاح مُعد",
+      "apiHost": "مضيف API",
+      "apiHostPlaceholder": "تجاوز اختياري للمضيف",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "مستخدم المصادقة الأساسية",
+      "basicAuthPassword": "كلمة مرور المصادقة الأساسية",
+      "basicAuthPasswordPlaceholder": "تركها فارغة يُبقي كلمة المرور المخزّنة",
+      "basicAuthPasswordConfigured": "· كلمة المرور مُعدة"
+    },
+    "action": {
+      "test": "اختبار",
+      "save": "حفظ إعدادات البحث",
+      "remove": "إزالة الإعداد",
+      "clearKey": "مسح المفتاح المخزّن",
+      "clearKeyPending": "· سيُمسح المفتاح",
+      "clearPassword": "مسح كلمة المرور المخزّنة",
+      "undoClear": "تراجع عن المسح"
+    },
+    "removedPending": "سيُزال الإعداد عند الحفظ.",
+    "testOutcome": {
+      "error": "فشل الاختبار: {{error}}",
+      "count": "{{count}} نتائج"
+    },
+    "policy": {
+      "title": "السياسة الافتراضية",
+      "preferred": "المزوّد المفضل",
+      "preferredDescription": "يُجرَّب أولًا عندما لا يحدد الطلب مزوّدًا.",
+      "preferredNone": "بلا تفضيل",
+      "allowed": "المزوّدون المسموحون",
+      "allowedDescription": "الفراغ يعني أن كل مزوّد مُعد يصلح مرشحًا.",
+      "fallbackEnabled": "الاحتياط",
+      "fallbackDescription": "يجوز تجربة المرشح التالي بعد فشل مرشح.",
+      "maxAttempts": "أقصى عدد المحاولات",
+      "maxAttemptsDescription": "الحد الأعلى للمزوّدين المجرَّبين في بحث واحد (1–32)."
+    },
+    "egress": {
+      "title": "قائمة السماح بالخروج",
+      "description": "أسماء مضيفين يُسمح لها بالتحويل إلى فئات عناوين مرفوضة بطبيعتها — المنفذ الاستثنائي لـ SearXNG داخلي.",
+      "empty": "لا يُسمح بأي مضيف خاص.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "إضافة",
+      "remove": "إزالة المضيف"
+    },
+    "page": {
+      "loading": "جارٍ التحميل…"
+    },
+    "test": {
+      "queryPlaceholder": "أدخل استعلامًا لاختبار هذا المزوّد",
+      "action": "ابحث",
+      "testing": "جارٍ البحث…",
+      "saveFirst": "احفظ أولاً — يعمل الاختبار على التكوين المحفوظ.",
+      "empty": "لا توجد نتائج لهذا الاستعلام.",
+      "providerUsed": "عبر {{provider}}"
     }
   },
   "accounts": {

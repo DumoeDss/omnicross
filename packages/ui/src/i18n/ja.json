@@ -531,7 +531,8 @@
     "settings": "設定",
     "usageStats": "使用状況",
     "pricing": "料金",
-    "dashboard": "ダッシュボード"
+    "dashboard": "ダッシュボード",
+    "search": "検索"
   },
   "overview": {
     "accounts": {
@@ -1015,6 +1016,121 @@
       "addDestination": "宛先を追加",
       "save": "Webhook を保存",
       "testHint": "テスト前に保存してください —— テストは保存済みの宛先へ配信します。"
+    }
+  },
+  "search": {
+    "title": "検索プロバイダー",
+    "description": "ウェブ検索ランタイムの設定：プロバイダーの認証情報、フォールバック方針、ネットワーク出口、フロントエンドごとの実行モード。",
+    "unsupportedDaemon": "このデーモンのバージョンは検索設定セクションに対応していません。",
+    "diagnosticsUnsupported": "このデーモンのバージョンでは検索診断を利用できません。プロバイダー設定は引き続き編集できます。",
+    "restartBanner": "変更の反映にはデーモンの再起動が必要です：{{providers}}",
+    "restartHint": "デーモン再起動後に適用",
+    "immediateHint": "即時適用",
+    "modes": {
+      "title": "フロントエンドモード",
+      "description": "各プロトコルフロントエンドで検索を実行する主体。",
+      "codex": "Codex（/v1/alpha/search）",
+      "responses": "Responses（web_search）",
+      "anthropic": "Anthropic（web_search_*）"
+    },
+    "mode": {
+      "native": "ネイティブ（上流が実行）",
+      "managed": "マネージド（ゲートウェイが実行）",
+      "off": "オフ"
+    },
+    "providers": {
+      "title": "プロバイダー",
+      "tavily": {
+        "description": "検索 API。無料枠が大きく、キーが必要です。"
+      },
+      "jina": {
+        "description": "キーなしで動作する検索。キーでレート制限が緩和されます。"
+      },
+      "searxng": {
+        "description": "セルフホストのメタ検索。インスタンスのホストで設定します。"
+      },
+      "zhipu": {
+        "description": "智譜のウェブ検索 API。キーが必要です。"
+      },
+      "zai": {
+        "description": "Z.AI のウェブ検索 API。キーが必要です。"
+      }
+    },
+    "keyless": {
+      "description": "キー不要のエンジンで、常に利用可能です。設定は不要です。"
+    },
+    "status": {
+      "ready": "準備完了",
+      "unconfigured": "未設定",
+      "healthy": "正常",
+      "degraded": "劣化",
+      "blocked": "ブロック",
+      "failed": "失敗"
+    },
+    "unconfiguredReason": {
+      "tavily": "API キーの設定が必要です。",
+      "jina": "エントリを保存すると有効になります——Jina はキーなしで動作可能です。",
+      "searxng": "API ホストの設定が必要です。",
+      "zhipu": "API キーの設定が必要です。",
+      "zai": "API キーの設定が必要です。"
+    },
+    "field": {
+      "apiKey": "API キー",
+      "apiKeyPlaceholder": "空欄なら保存済みキーを保持",
+      "apiKeyNew": "API キーを入力",
+      "apiKeyConfigured": "· キー設定済み",
+      "apiHost": "API ホスト",
+      "apiHostPlaceholder": "任意のホスト上書き",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic 認証ユーザー",
+      "basicAuthPassword": "Basic 認証パスワード",
+      "basicAuthPasswordPlaceholder": "空欄なら保存済みパスワードを保持",
+      "basicAuthPasswordConfigured": "· パスワード設定済み"
+    },
+    "action": {
+      "test": "テスト",
+      "save": "検索設定を保存",
+      "remove": "設定を削除",
+      "clearKey": "保存済みキーを消去",
+      "clearKeyPending": "· キーを消去します",
+      "clearPassword": "保存済みパスワードを消去",
+      "undoClear": "消去を取り消す"
+    },
+    "removedPending": "保存時にこの設定を削除します。",
+    "testOutcome": {
+      "error": "テスト失敗：{{error}}",
+      "count": "{{count}} 件の結果"
+    },
+    "policy": {
+      "title": "既定の方針",
+      "preferred": "優先プロバイダー",
+      "preferredDescription": "リクエストが指定しないとき最初に試されます。",
+      "preferredNone": "優先なし",
+      "allowed": "許可するプロバイダー",
+      "allowedDescription": "空の場合、設定済みの全プロバイダーが候補になります。",
+      "fallbackEnabled": "フォールバック",
+      "fallbackDescription": "失敗した候選の次を試行できます。",
+      "maxAttempts": "最大試行数",
+      "maxAttemptsDescription": "1 回の検索で試すプロバイダーの上限（1〜32）。"
+    },
+    "egress": {
+      "title": "出口許可リスト",
+      "description": "通常は拒否されるアドスクララスへの解決を許可するホスト名——内部 SearXNG 用の例外通路。",
+      "empty": "許可されたプライベートホストはありません。",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "追加",
+      "remove": "ホストを削除"
+    },
+    "page": {
+      "loading": "読み込み中…"
+    },
+    "test": {
+      "queryPlaceholder": "このプロバイダーをテストするクエリを入力",
+      "action": "検索",
+      "testing": "検索中…",
+      "saveFirst": "先に保存してください。テストは保存済み設定に対して実行されます。",
+      "empty": "このクエリの結果はありません。",
+      "providerUsed": "{{provider}} 経由"
     }
   },
   "accounts": {

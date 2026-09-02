@@ -49,6 +49,10 @@ import type {
   OutboundKeyPolicyPatch,
   OverloadCounterResponse,
   ProxyConfig,
+  SearchDiagnosticsSnapshot,
+  SearchQueryResult,
+  SearchServerConfig,
+  SearchTestResult,
   VoucherCreated,
   VoucherInfo,
   VoucherType,
@@ -69,6 +73,21 @@ export interface WebhookTestResult {
   status?: number;
   error?: string;
 }
+
+/** Outcome of a search-provider fixed-query test (search-settings-ui). */
+export type SearchTestOutcome =
+  | { ok: true; result: SearchTestResult }
+  | { ok: false; error: string };
+
+/**
+ * Outcome of an INTERACTIVE per-provider query (search-settings-tab): the
+ * diagnostic plus the sanitized results, or a refusal/error. Result-shaped,
+ * never thrown — a 4xx/5xx surfaces as `{ ok:false, error }` like the fixed-
+ * query test before it.
+ */
+export type SearchQueryOutcome =
+  | { ok: true; result: SearchQueryResult }
+  | { ok: false; error: string };
 
 // ── Daemon wire DTOs ────────────────────────────────────────────────────────────
 
@@ -296,6 +315,30 @@ export interface AgentApiServiceApi {
   }): Promise<MutationResult>;
   /** Persist the complete strict Images configuration segment. */
   updateImagesConfig(config: NonNullable<OutboundApiServerConfig['images']>): Promise<MutationResult>;
+  /**
+   * Persist the search segment (`PUT /server` with `{ search }`,
+   * search-settings-ui). LAYER-REPLACED like Images/proxy: the adapter rebuilds
+   * the FULL segment (markers stripped, untouched providers carried over from
+   * the last-loaded masked config) and the daemon preserves stored secrets for
+   * omitted/blanked fields. Editing one provider never wipes another's key.
+   */
+  updateSearchConfig(search: NonNullable<OutboundApiServerConfig['search']>): Promise<MutationResult>;
+  /**
+   * Read-only secret-free search diagnostics snapshot (`GET
+   * /admin/api/search/diagnostics`). `null` when the connected daemon predates
+   * the endpoint — the status area shows the unsupported notice, configuration
+   * remains fully editable.
+   */
+  getSearchDiagnostics(): Promise<SearchDiagnosticsSnapshot | null>;
+  /**
+   * Run ONE operator-typed query through one provider's PERSISTED config
+   * (`POST /admin/api/search/query`, search-settings-tab — the interactive test
+   * panel's channel). Never throws to the page: failures (incl. the
+   * unconfigured/unknown refusal) surface as `{ ok:false, error }`. The
+   * daemon-side fixed-query probe (`POST /search/test`) stays available for
+   * automation and is deliberately left without a UI consumer.
+   */
+  runSearchQuery(providerId: string, query: string): Promise<SearchQueryOutcome>;
   /** Persist the default-off allowance-aware account scheduling policy. */
   updateAllowanceSchedulingConfig(config: AllowanceSchedulingConfig): Promise<MutationResult>;
   /** Read the secret-free recent demote/pause decisions; null means unsupported/unavailable. */

@@ -53,7 +53,15 @@ const MAX_PENDING_RECEIPTS = 16;
 const SELECTOR_ITEM_KEYS = new Set([
   'id', 'type', 'status', 'call_id', 'name', 'arguments',
 ]);
-const HOSTED_CALL_DECLARATION_TYPES: Readonly<Record<string, readonly string[]>> = {
+/**
+ * Which declaration types can produce which hosted output-item type.
+ *
+ * Exported because the hosted-SEARCH lane needs the same
+ * `web_search_call -> ['web_search_preview', 'web_search']` row (wire baseline
+ * R6): one table, so the two lanes cannot disagree about what a hosted search
+ * declaration looks like.
+ */
+export const HOSTED_CALL_DECLARATION_TYPES: Readonly<Record<string, readonly string[]>> = {
   web_search_call: ['web_search_preview', 'web_search'],
   file_search_call: ['file_search'],
   computer_call: ['computer_use_preview', 'computer_use'],

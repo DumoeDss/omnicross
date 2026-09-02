@@ -512,7 +512,8 @@
     "settings": "Налаштування",
     "usageStats": "Використання",
     "pricing": "Ціни",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Пошук"
   },
   "apiService": {
     "title": "API-сервіс",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Пошукові провайдери",
+    "description": "Налаштування середовища веб-пошуку: облікові дані провайдерів, політика резервування, вихідний мережевий трафік і режими виконання для кожного фронтенду.",
+    "unsupportedDaemon": "Ця версія демона не підтримує розділ налаштувань пошуку.",
+    "diagnosticsUnsupported": "Діагностика пошуку недоступна в цій версії демона; налаштування провайдерів залишається повністю редагованим.",
+    "restartBanner": "Щоб зміни набули чинності, потрібно перезапустити демона: {{providers}}",
+    "restartHint": "Набирає чинності після перезапуску демона",
+    "immediateHint": "Набирає чинності одразу",
+    "modes": {
+      "title": "Режими фронтендів",
+      "description": "Хто виконує пошук для кожного фронтенду протоколу.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
+    },
+    "mode": {
+      "native": "Нативний (виконує вищий сервер)",
+      "managed": "Керований (виконує шлюз)",
+      "off": "Вимкнено"
+    },
+    "providers": {
+      "title": "Провайдери",
+      "tavily": {
+        "description": "Пошуковий API зі щедрим безкоштовним лімітом; потрібен ключ."
+      },
+      "jina": {
+        "description": "Пошук працює без ключа; ключ підвищує ліміти."
+      },
+      "searxng": {
+        "description": "Самостійно розміщений метапошук; налаштовується хостом інстанції."
+      },
+      "zhipu": {
+        "description": "Веб-пошук Zhipu API; потрібен ключ."
+      },
+      "zai": {
+        "description": "Веб-пошук Z.AI API; потрібен ключ."
+      }
+    },
+    "keyless": {
+      "description": "Рушій без ключа, завжди доступний. Не потребує налаштування."
+    },
+    "status": {
+      "ready": "Готовий",
+      "unconfigured": "Неналаштований",
+      "healthy": "Справний",
+      "degraded": "Деградований",
+      "blocked": "Заблокований",
+      "failed": "Збій"
+    },
+    "unconfiguredReason": {
+      "tavily": "Потребує налаштування API-ключа.",
+      "jina": "Увімкніть, зберігши запис — Jina може працювати без ключа.",
+      "searxng": "Потребує налаштування хоста API.",
+      "zhipu": "Потребує налаштування API-ключа.",
+      "zai": "Потребує налаштування API-ключа."
+    },
+    "field": {
+      "apiKey": "API-ключ",
+      "apiKeyPlaceholder": "Порожньо — зберігається записаний ключ",
+      "apiKeyNew": "Введіть API-ключ",
+      "apiKeyConfigured": "· ключ налаштовано",
+      "apiHost": "Хост API",
+      "apiHostPlaceholder": "Необов'язкове перевизначення хоста",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Користувач Basic",
+      "basicAuthPassword": "Пароль Basic",
+      "basicAuthPasswordPlaceholder": "Порожньо — зберігається записаний пароль",
+      "basicAuthPasswordConfigured": "· пароль налаштовано"
+    },
+    "action": {
+      "test": "Перевірити",
+      "save": "Зберегти налаштування пошуку",
+      "remove": "Видалити налаштування",
+      "clearKey": "Стерти збережений ключ",
+      "clearKeyPending": "· ключ буде стерто",
+      "clearPassword": "Стерти збережений пароль",
+      "undoClear": "Скасувати стирання"
+    },
+    "removedPending": "Налаштування буде видалено під час збереження.",
+    "testOutcome": {
+      "error": "Перевірка не вдалася: {{error}}",
+      "count": "{{count}} результатів"
+    },
+    "policy": {
+      "title": "Політика за замовчуванням",
+      "preferred": "Пріоритетний провайдер",
+      "preferredDescription": "Пробується першим, якщо запит не закріплює провайдера.",
+      "preferredNone": "Без пріоритету",
+      "allowed": "Дозволені провайдери",
+      "allowedDescription": "Порожньо — кандидатом є кожен налаштований провайдер.",
+      "fallbackEnabled": "Резервування",
+      "fallbackDescription": "Після невдалого кандидата може наступити наступний.",
+      "maxAttempts": "Макс. спроб",
+      "maxAttemptsDescription": "Верхня межа провайдерів на один пошук (1–32)."
+    },
+    "egress": {
+      "title": "Список дозволеного вихідного трафіку",
+      "description": "Імена хостів, яким дозволено розв'язуватися в інакше заборонені класи адрес — виняток для внутрішнього SearXNG.",
+      "empty": "Приватні хости не дозволені.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Додати",
+      "remove": "Видалити хост"
+    },
+    "page": {
+      "loading": "Завантаження…"
+    },
+    "test": {
+      "queryPlaceholder": "Введіть запит, щоб протестувати цього провайдера",
+      "action": "Шукати",
+      "testing": "Пошук…",
+      "saveFirst": "Спочатку збережіть — тест виконується за збереженою конфігурацією.",
+      "empty": "Немає результатів для цього запиту.",
+      "providerUsed": "через {{provider}}"
     }
   },
   "accounts": {

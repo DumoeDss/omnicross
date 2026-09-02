@@ -8,6 +8,7 @@ import type { ApiServiceTabId } from '@/features/api-service/apiServiceTabModel'
 import { CodeCliPage } from '@/features/code-cli';
 import { OverviewPage } from '@/features/overview';
 import { RouteActivityPage } from '@/features/route-activity/RouteActivityPage';
+import { SearchPage } from '@/features/search';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { UpstreamsPage } from '@/features/upstreams';
 import type { SettingsTabId } from '@/features/settings/settingsTabModel';
@@ -21,6 +22,7 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
     case 'route-activity': return <RouteActivityPage />;
     case 'upstreams': return <UpstreamsPage route={route} onNavigate={navigate} />;
     case 'integrations': return <CodeCliPage />;
+    case 'search': return <SearchPage />;
     case 'usage-stats': return <UsageStatsPage />;
     case 'settings': return <SettingsPage activeTab={(route.tab as SettingsTabId | undefined) ?? 'general'} onTabChange={(tab) => navigate({ page: 'settings', tab })} />;
     default: return <OverviewPage onNavigate={navigate} />;

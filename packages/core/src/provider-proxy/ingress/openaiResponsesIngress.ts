@@ -56,6 +56,15 @@ import {
   hasResponsesHostedImageWork,
   type ResponsesHostedImageRequestLease,
 } from '../responses/responsesHostedImageIngress';
+import {
+  hasResponsesHostedSearchWork,
+  type ResponsesHostedSearchRequestLease,
+} from '../responses/responsesHostedSearchIngress';
+import {
+  createNativeResponsesSearchIngress,
+  responsesSearchDisabledError,
+} from '../responses/hosted-search/nativeResponsesSearchMediator';
+import { DEFAULT_SEARCH_FRONTEND_MODES } from '../../search/frontends';
 export {
   retryAroundCodexUsageLimit,
   type ResponsesCallPlan,
@@ -314,6 +323,57 @@ export async function handleResponsesOperation(
       message: 'Hosted image generation requires an authenticated outbound key',
     });
   }
+  // ── SEARCH MODE, resolved ONCE per request, before any wire bytes. ────────
+  // `native` (the DEFAULT) is a pure short-circuit — the relay below is
+  // byte-unchanged, and the managed mediator is never constructed. The two
+  // lanes share no emission code: managed search rewrites the upstream body and
+  // synthesizes its own output, native relays whatever the upstream produced.
+  const searchMode = operation === 'create'
+    ? deps.searchFrontendModes?.responses ?? DEFAULT_SEARCH_FRONTEND_MODES.responses
+    : 'native';
+  const wantsHostedSearch = operation === 'create' &&
+    hasResponsesHostedSearchWork(responsesBody);
+  if (wantsHostedSearch && searchMode === 'off') {
+    throw responsesSearchDisabledError();
+  }
+  let searchRequest: ResponsesHostedSearchRequestLease | null = null;
+  if (wantsHostedSearch && searchMode === 'managed') {
+    // TWO body-rewriting mediators cannot both own one request. Each prepares
+    // from the ORIGINAL body, so running both would send one rewrite upstream
+    // and silently drop the other's — the hosted-image declaration would reach
+    // a native upstream unrewritten (double execution, outside the image
+    // mediator's receipts) while its wrap parsed a turn that never contained
+    // its selector. Composition is not merely harder here, it is unverifiable:
+    // managed search forces the upstream turn non-streaming, which is not a
+    // shape the image lane's SSE path was built for, and the Responses
+    // hosted-search wire is UNVERIFIED, so there is nothing to validate a
+    // composed rewrite against. The combination is refused explicitly instead.
+    if (hasHostedImageWork) {
+      throw new OpenAIOperationError({
+        status: 422,
+        code: 'unsupported_capability',
+        message:
+          'A single Responses request cannot combine Omnicross-managed web search ' +
+          'with hosted image generation',
+      });
+    }
+    const runtime = deps.searchRuntime;
+    if (!runtime) {
+      throw new OpenAIOperationError({
+        status: 503,
+        code: 'unsupported_capability',
+        message: 'Managed hosted web search has no configured search runtime',
+      });
+    }
+    searchRequest = await createNativeResponsesSearchIngress(runtime).prepare({
+      body: responsesBody,
+      profile: resolved.profile,
+      operation,
+      mode: searchMode,
+      signal,
+    });
+  }
+
   let hostedImageRequest: ResponsesHostedImageRequestLease | null = null;
   if (hasHostedImageWork) {
     hostedImageRequest = await hostedImageIngress!.prepare({
@@ -345,8 +405,10 @@ export async function handleResponsesOperation(
       // be relayed. Metadata and usage correlation remain attached to `res`.
       route.suppressAuditBodies?.();
     }
+    // At most one lease exists (the combination is refused above), so this
+    // chain selects a rewrite rather than discarding one.
     providerResponse = await executeResponsesUpstream(
-      hostedImageRequest?.upstreamBody ?? responsesBody,
+      searchRequest?.upstreamBody ?? hostedImageRequest?.upstreamBody ?? responsesBody,
       plan,
       operation,
       signal,
@@ -413,6 +475,19 @@ export async function handleResponsesOperation(
       await hostedImageRequest.dispose();
       throw error;
     }
+  }
+  if (searchRequest) {
+    // Splice the managed search items into the finished turn. `searchRequest`
+    // and `hostedImageRequest` are mutually exclusive by construction — the
+    // combination is refused above — so this never runs over a body the image
+    // lane also rewrote.
+    providerResponse = {
+      ...providerResponse,
+      response: await searchRequest.wrapUpstreamResponse({
+        response: providerResponse.response,
+        rawStatus: providerResponse.rawStatus,
+      }),
+    };
   }
   let overloadRecorded = false;
   const observeSse = (event: Record<string, unknown>): void => {

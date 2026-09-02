@@ -27,6 +27,8 @@ export * from './mcp-types';
 export * from './message-blocks';
 export * from './pricing-types';
 export * from './provider-presets';
+export * from './search-compat';
+export * from './search-types';
 export * from './subscription-model-catalog';
 export * from './subscription-types';
 export * from './thinking-config';

@@ -20,6 +20,8 @@ export default defineConfig({
     'src/mcp-types.ts',
     'src/message-blocks.ts',
     'src/pricing-types.ts',
+    'src/search-compat.ts',
+    'src/search-types.ts',
     'src/subscription-model-catalog.ts',
     'src/subscription-types.ts',
     'src/thinking-config.ts',

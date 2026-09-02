@@ -10,7 +10,9 @@ describe('navigation model', () => {
   it('groups work by running, configuring and system concerns', () => {
     expect(NAV_GROUPS.map((group) => [group.id, group.items.map((item) => item.key)])).toEqual([
       ['run', ['overview', 'usage-stats', 'gateway', 'route-activity']],
-      ['configure', ['upstreams', 'access-keys', 'integrations']],
+      // search-settings-tab D1: the Search page is the configure group's first
+      // entry — a true sibling of the gateway item, not a section inside it.
+      ['configure', ['search', 'upstreams', 'access-keys', 'integrations']],
       ['system', ['settings']],
     ]);
   });
@@ -21,8 +23,11 @@ describe('navigation model', () => {
     expect(new Set(items.map((item) => item.key)).size).toBe(items.length);
     // … while the gateway page is reached via two entries (overview + access).
     const pages = new Set(items.map((item) => item.page));
-    expect(pages).toEqual(new Set(['overview', 'api-service', 'route-activity', 'upstreams', 'integrations', 'usage-stats', 'settings']));
+    expect(pages).toEqual(new Set(['overview', 'api-service', 'route-activity', 'upstreams', 'integrations', 'search', 'usage-stats', 'settings']));
     expect(items.filter((item) => item.page === 'api-service').map((item) => item.tab)).toEqual(['overview', 'access']);
+    // The search entry points at the standalone page with its own label key.
+    const search = items.find((item) => item.key === 'search');
+    expect(search).toMatchObject({ page: 'search', icon: 'search', labelKey: 'nav.search' });
 
     expect(MOBILE_PRIMARY_KEYS).toEqual(['overview', 'gateway', 'upstreams', 'usage-stats']);
     expect(MOBILE_PRIMARY_KEYS.every((key) => items.some((item) => item.key === key))).toBe(true);
@@ -38,7 +43,7 @@ describe('navigation model', () => {
 
   it('ships the new gateway-split and route-activity labels in the supported locales', () => {
     for (const locale of [en, zh, zhHant]) {
-      for (const key of ['accessKeys', 'routeActivity'] as const) {
+      for (const key of ['accessKeys', 'routeActivity', 'search'] as const) {
         expect(locale.nav[key]).toEqual(expect.any(String));
         expect((locale.nav[key] as string).trim()).not.toBe('');
       }

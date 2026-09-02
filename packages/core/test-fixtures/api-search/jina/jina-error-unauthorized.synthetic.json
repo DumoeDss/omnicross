@@ -1,0 +1,7 @@
+{
+  "code": 401,
+  "status": 40100,
+  "name": "AuthenticationFailedError",
+  "message": "Authentication failed: the supplied token was rejected.",
+  "readableMessage": "Authorization: Bearer __API_KEY__ was rejected."
+}

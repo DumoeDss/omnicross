@@ -1,0 +1,5 @@
+{
+  "error": "Forbidden",
+  "detail": "The JSON output format is disabled on this instance, or Basic authentication failed.",
+  "received_authorization": "Basic __BASIC_CREDENTIALS__"
+}

@@ -512,7 +512,8 @@
     "settings": "Beállítások",
     "usageStats": "Használat",
     "pricing": "Árak",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Keresés"
   },
   "apiService": {
     "title": "API szolgáltatás",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Keresésszolgáltatók",
+    "description": "A webes keresés futásidejű beállításai: szolgáltatói hitelesítő adatok, tartalék irányelv, kimenő hálózati forgalom és végrehajtási módok frontendenként.",
+    "unsupportedDaemon": "A démon e verziója nem támogatja a keresési beállítási szekciót.",
+    "diagnosticsUnsupported": "Az élő keresési diagnosztika nem érhető el a démon e verzióján; a szolgáltatók beállítása továbbra is teljesen szerkeszthető.",
+    "restartBanner": "A módosítások életbe lépéséhez a démon újraindítása szükséges: {{providers}}",
+    "restartHint": "A démon újraindítása után lép életbe",
+    "immediateHint": "Azonnal életbe lép",
+    "modes": {
+      "title": "Frontend-módok",
+      "description": "Ki hajtja végre a keresést az egyes protokoll-frontendeknél.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
+    },
+    "mode": {
+      "native": "Natív (a felső szint hajtja végre)",
+      "managed": "Kezelt (az átjáró hajtja végre)",
+      "off": "Kikapcsolva"
+    },
+    "providers": {
+      "title": "Szolgáltatók",
+      "tavily": {
+        "description": "Kereső-API bőkezű ingyenes kvótával; kulcs szükséges."
+      },
+      "jina": {
+        "description": "Kulcs nélkül is használható keresés; a kulcs emeli a limiteket."
+      },
+      "searxng": {
+        "description": "Saját üzemeltetésű metakeresés; a példány állomásnevével állítható be."
+      },
+      "zhipu": {
+        "description": "Zhipu webkereső API; kulcs szükséges."
+      },
+      "zai": {
+        "description": "Z.AI webkereső API; kulcs szükséges."
+      }
+    },
+    "keyless": {
+      "description": "Kulcs nélküli motor, mindig elérhető. Nem igényel beállítást."
+    },
+    "status": {
+      "ready": "Kész",
+      "unconfigured": "Nincs beállítva",
+      "healthy": "Egészséges",
+      "degraded": "Csökkentett",
+      "blocked": "Tiltott",
+      "failed": "Sikertelen"
+    },
+    "unconfiguredReason": {
+      "tavily": "API-kulcs beállítását igényli.",
+      "jina": "Bejegyzés mentésével engedélyezhető — a Jina kulcs nélkül is működik.",
+      "searxng": "API-állomás beállítását igényli.",
+      "zhipu": "API-kulcs beállítását igényli.",
+      "zai": "API-kulcs beállítását igényli."
+    },
+    "field": {
+      "apiKey": "API-kulcs",
+      "apiKeyPlaceholder": "Üresen hagyva megőrzi a tárolt kulcsot",
+      "apiKeyNew": "Adja meg az API-kulcsot",
+      "apiKeyConfigured": "· kulcs beállítva",
+      "apiHost": "API-állomás",
+      "apiHostPlaceholder": "Opcionális állomás felülírása",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic hitelesítő felhasználó",
+      "basicAuthPassword": "Basic hitelesítő jelszó",
+      "basicAuthPasswordPlaceholder": "Üresen hagyva megőrzi a tárolt jelszót",
+      "basicAuthPasswordConfigured": "· jelszó beállítva"
+    },
+    "action": {
+      "test": "Teszt",
+      "save": "Keresési beállítások mentése",
+      "remove": "Beállítás eltávolítása",
+      "clearKey": "Tárolt kulcs törlése",
+      "clearKeyPending": "· a kulcs törlésre kerül",
+      "clearPassword": "Tárolt jelszó törlése",
+      "undoClear": "Törlés visszavonása"
+    },
+    "removedPending": "A beállítás mentéskor eltávolításra kerül.",
+    "testOutcome": {
+      "error": "A teszt sikertelen: {{error}}",
+      "count": "{{count}} találat"
+    },
+    "policy": {
+      "title": "Alapértelmezett irányelv",
+      "preferred": "Preferált szolgáltató",
+      "preferredDescription": "Először ezt próbálja, ha a kérés nem rögzít szolgáltatót.",
+      "preferredNone": "Nincs elsődleges",
+      "allowed": "Engedélyezett szolgáltatók",
+      "allowedDescription": "Üresen minden beállított szolgáltató jelölt.",
+      "fallbackEnabled": "Tartalék",
+      "fallbackDescription": "Egy sikertelen jelölt után jöhet a következő.",
+      "maxAttempts": "Max. próbálkozás",
+      "maxAttemptsDescription": "Keresésenként kipróbált szolgáltatók felső határa (1–32)."
+    },
+    "egress": {
+      "title": "Kimenő forgalom engedélyezési listája",
+      "description": "Állomásnevek, amelyek feloldása egyébként tiltott címosztályokba engedélyezett — a belső SearXNG kivételkapuja.",
+      "empty": "Nincs engedélyezett privát állomás.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Hozzáadás",
+      "remove": "Állomás eltávolítása"
+    },
+    "page": {
+      "loading": "Betöltés…"
+    },
+    "test": {
+      "queryPlaceholder": "Írjon be egy lekérdezést a szolgáltató teszteléséhez",
+      "action": "Keresés",
+      "testing": "Keresés…",
+      "saveFirst": "Először mentse el — a teszt a mentett konfiguráción fut.",
+      "empty": "Nincs találat ehhez a lekérdezéshez.",
+      "providerUsed": "a(z) {{provider}} szolgáltatón keresztül"
     }
   },
   "accounts": {

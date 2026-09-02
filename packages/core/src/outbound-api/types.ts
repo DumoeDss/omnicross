@@ -27,6 +27,10 @@ import type { ProviderProxyDeps } from '../provider-proxy';
 import type { CountTokensMode } from '../provider-proxy/ingress/anthropicCountTokens';
 import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
 
+import type { SearchApiProviderConfigs } from '../search/api/types';
+import type { SearchFrontendModes } from '../search/frontends';
+import type { SearchRuntime } from '../search/runtime';
+
 import type { KeySpendReader } from './keySpendTracker';
 import type { VoucherDb } from './voucher';
 
@@ -35,6 +39,55 @@ export type OutboundEndpoint = 'chat' | 'responses' | 'messages' | 'gemini';
 
 /** Named-key authorization vocabulary. Images is deliberately not a text route. */
 export type OutboundPermission = OutboundEndpoint | 'images';
+
+/**
+ * The persisted `search` section (plan §6.3).
+ *
+ * Deliberately small. It carries the four things assembly cannot invent —
+ * which keyed providers exist, where they may egress, who executes per
+ * frontend, and the runtime's default policy — and nothing else. The
+ * provider-config SHAPES stay core-local (`@omnicross/core/search/api`); the
+ * 阶段4 deferral of promoting them into `@omnicross/contracts` is left standing
+ * because assembly turned out not to need it.
+ *
+ * **Secrets are values here, not references.** The
+ * `search-provider:<id>:apiKey` secret-ref scheme Elftia uses is host-side and
+ * belongs to the Phase-2 cutover; this phase reads what the config holds and
+ * never prints it.
+ */
+export interface SearchServerConfig {
+  /**
+   * Per-frontend execution modes. Always total after normalization.
+   *
+   * **These do not all apply at the same moment.** `modes.codex` is read from
+   * the live config on every request, so an admin PUT takes effect at once;
+   * `modes.responses` / `modes.anthropic` are captured into the proxy deps at
+   * bootstrap, as are `providers`, `egress` and `policy` (they build the ONE
+   * runtime), so changing those requires a daemon restart. `doctor search`
+   * prints this distinction rather than leaving an operator to discover it.
+   */
+  modes: SearchFrontendModes;
+  /** Configured API providers. A provider absent here is UNCONFIGURED, not broken. */
+  providers: SearchApiProviderConfigs;
+  /** SSRF egress policy knobs. */
+  egress: {
+    /**
+     * Hostnames allowed to resolve into an otherwise-denied address class —
+     * the internal-SearXNG escape hatch. Exact, case-insensitive matching.
+     */
+    allowedPrivateHosts: string[];
+  };
+  /**
+   * The runtime's DEFAULT policy. These are 阶段3's existing knobs surfaced as
+   * configuration; no new orchestration semantics are introduced here.
+   */
+  policy: {
+    preferred?: string;
+    allowed?: string[];
+    fallbackEnabled: boolean;
+    maxAttempts?: number;
+  };
+}
 
 export interface ImagesServerConfig {
   enabled: boolean;
@@ -587,6 +640,13 @@ export interface OutboundApiServerConfig {
   anthropic?: AnthropicConfigSegment;
   /** Default-off Images serving policy; capability still requires fresh evidence. */
   images?: ImagesServerConfig;
+  /**
+   * Search assembly (plan 阶段5/§6.3): which API providers exist, where they may
+   * egress, which frontend runs in which mode, and the runtime's default policy.
+   * Absent yields {@link DEFAULT_SEARCH_SERVER_CONFIG} — HTTP-only providers,
+   * modes `off`/`native`/`native`, public-only egress.
+   */
+  search?: SearchServerConfig;
 }
 
 /** A live status snapshot the Settings tab renders. */
@@ -905,4 +965,15 @@ export interface OutboundApiDeps {
    * embedders/tests that do not wire it).
    */
   readonly logger?: Logger;
+  /**
+   * OPTIONAL shared search runtime (plan 阶段5). When wired by the daemon
+   * bootstrap, `POST /v1/alpha/search` executes through it in managed mode.
+   * Absent ⇒ the route behaves exactly as mode `off`: a structured
+   * `unsupported_capability`, never a generic 404.
+   *
+   * There is exactly ONE of these per daemon, shared with both managed protocol
+   * frontends and with `doctor search`. A second instance anywhere would be a
+   * second provider order, which is what the whole extraction removes.
+   */
+  readonly searchRuntime?: SearchRuntime | null;
 }

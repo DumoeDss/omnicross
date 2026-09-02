@@ -197,6 +197,52 @@ describe('PUT /admin/api/server queue segments', () => {
   });
 });
 
+describe('PUT /admin/api/server search section', () => {
+  it('accepts a valid search section and persists the normalized shape', async () => {
+    await bootDaemon();
+
+    const r = await adminFetch('PUT', '/admin/api/server', {
+      search: {
+        modes: { codex: 'managed' },
+        providers: { tavily: { apiKey: 'tvly-fixture-not-a-real-key' } },
+      },
+    });
+    expect(r.status).toBe(200);
+
+    const server = await getServer();
+    expect(server.search.modes).toEqual({
+      codex: 'managed',
+      responses: 'native',
+      anthropic: 'native',
+    });
+  });
+
+  it('rejects a malformed search section with 400 instead of silently dropping it', async () => {
+    await bootDaemon();
+    const before = await getServer();
+
+    // A tavily entry with no key is unusable. The tolerant READ would drop it
+    // and boot happily; the admin surface must say so instead, exactly as it
+    // does for a malformed images section.
+    const r = await adminFetch('PUT', '/admin/api/server', {
+      search: { modes: { responses: 'nonsense' }, providers: { tavily: {} } },
+    });
+    expect(r.status).toBe(400);
+
+    expect(await getServer()).toEqual(before);
+  });
+
+  it('never echoes a configured value in the rejection message', async () => {
+    await bootDaemon();
+
+    const r = await adminFetch('PUT', '/admin/api/server', {
+      search: { providers: { searxng: { basicAuthPassword: 'searxng-put-secret' } } },
+    });
+    expect(r.status).toBe(400);
+    expect(r.text).not.toContain('searxng-put-secret');
+  });
+});
+
 describe('PUT /admin/api/server allowance scheduling', () => {
   it('persists a valid default-off policy segment', async () => {
     await bootDaemon();

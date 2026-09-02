@@ -8,6 +8,7 @@ export type NavIcon =
   | 'usage'
   | 'upstreams'
   | 'integrations'
+  | 'search'
   | 'settings';
 
 export interface NavItemDef {
@@ -35,6 +36,10 @@ export const NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'configure',
     items: [
+      // search-settings-tab D1: the search runtime is a first-class capability
+      // with its own configuration surface — a true sibling of the gateway
+      // entry, first in the configure group.
+      { key: 'search', page: 'search', icon: 'search', labelKey: 'nav.search' },
       { key: 'upstreams', page: 'upstreams', icon: 'upstreams', labelKey: 'nav.upstreams' },
       { key: 'access-keys', page: 'api-service', icon: 'access-keys', labelKey: 'nav.accessKeys', tab: 'access' },
       { key: 'integrations', page: 'integrations', icon: 'integrations', labelKey: 'nav.integrations' },

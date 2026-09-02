@@ -51,8 +51,15 @@ import type http from 'node:http';
 import { extractClaudeClientHeaders } from '../identity/claudeCodeHeaders';
 import { captureCallerIdentity } from '../identity/fingerprintHeaders';
 import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
+import { DEFAULT_SEARCH_FRONTEND_MODES } from '../../search/frontends';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 
+import {
+  handleAnthropicManagedSearch,
+  replayAnthropicRequest,
+  requestAbortSignal,
+  resolveAnthropicSearchHintBackend,
+} from './anthropicManagedSearch';
 import { createRequestAbortScope } from '../responses/responsesAbort';
 
 import { handleAnthropicMessagesByo } from './anthropicMessagesByo';
@@ -93,6 +100,9 @@ export async function handleAnthropicMessagesRequest(
   route: RouteContext,
   deps: ProviderProxyDeps,
 ): Promise<void> {
+  // Every body/header read below goes through `request`. It IS `req` unless
+  // the managed-search branch consumed the stream and handed back a replay.
+  let request: http.IncomingMessage = req;
   // Sub-resource dispatch (claude-api-routing-errors). The outbound face
   // rejects unsupported subpaths pre-dispatch; the resident face has no
   // pre-dispatch stage, so the check lives HERE. `writeError` consults the
@@ -110,17 +120,19 @@ export async function handleAnthropicMessagesRequest(
     // callerAnthropicVersion).
     // Same cancellation scope as the generation branch below: count_tokens also
     // relays an upstream call, so a client that gives up must not leave it running.
+    // (`request === req` on this branch — the managed-search replay below never
+    // runs for count_tokens — but reads stay on `request` per the file invariant.)
     const scope = createRequestAbortScope({ request: req, response: res, timeoutMs: null });
     try {
-      const rawBody = await readBody(req, scope.signal);
-      const callerBetaRaw = req.headers['anthropic-beta'];
+      const rawBody = await readBody(request, scope.signal);
+      const callerBetaRaw = request.headers['anthropic-beta'];
       const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-      const callerVersionRaw = req.headers['anthropic-version'];
+      const callerVersionRaw = request.headers['anthropic-version'];
       const callerAnthropicVersion = Array.isArray(callerVersionRaw)
         ? callerVersionRaw.join(',')
         : callerVersionRaw;
-      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
-      const callerClientHeaders = extractClaudeClientHeaders(req.headers);
+      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
+      const callerClientHeaders = extractClaudeClientHeaders(request.headers);
       await handleAnthropicCountTokens(res, rawBody, route, deps, {
         callerAnthropicBeta,
         callerAnthropicVersion,
@@ -134,6 +146,35 @@ export async function handleAnthropicMessagesRequest(
       scope.dispose();
     }
     return;
+  }
+
+  // ── SEARCH MODE, resolved ONCE, before any wire bytes. ────────────────────
+  // `native` (the default) is a pure short-circuit: no body read, no extra
+  // allocation, and the two branches below stay byte-identical to their
+  // pre-change behavior. Only a non-native mode enters the managed lane, and
+  // the two lanes share no emission code (hard constraint 6).
+  //
+  // A route that supplies its OWN `webSearchService` is a host declaring that
+  // it owns search for this request; the lane stands down so the delegated
+  // handler — the thing that hint has always fed — keeps doing the work.
+  const searchMode = deps.searchFrontendModes?.anthropic ?? DEFAULT_SEARCH_FRONTEND_MODES.anthropic;
+  const routeSuppliedSearchBackend = route.anthropicSdkHints?.webSearchService ?? null;
+  if (searchMode !== 'native' && !routeSuppliedSearchBackend) {
+    const preReadBody = await readBody(req);
+    let parsedForSearch: unknown;
+    try {
+      parsedForSearch = preReadBody ? JSON.parse(preReadBody) : {};
+    } catch {
+      parsedForSearch = undefined;
+    }
+    const handled = await handleAnthropicManagedSearch(res, parsedForSearch, {
+      mode: searchMode,
+      runtime: deps.searchRuntime ?? null,
+      signal: requestAbortSignal(req, res),
+    });
+    if (handled) return;
+    // Not ours: hand the branches below a request that can be read again.
+    request = replayAnthropicRequest(req, preReadBody);
   }
 
   const handlerFactory = deps.anthropicIngressHandlerFactory;
@@ -152,17 +193,20 @@ export async function handleAnthropicMessagesRequest(
     //
     // `timeoutMs: null` is load-bearing: `/v1/messages` has never carried a
     // total-duration cap and must not gain one here (a long thinking turn is not
-    // a stall). ONLY an actual disconnect aborts this scope.
+    // a stall). ONLY an actual disconnect aborts this scope. The scope binds the
+    // RAW `req` (the caller's socket) even when `request` below is the
+    // managed-search replay — disconnect events live on the real connection.
     const scope = createRequestAbortScope({ request: req, response: res, timeoutMs: null });
     try {
       // Read the body HERE (the delegation path keeps passing the un-pre-read
-      // `req`; only this fallthrough consumes the stream). Forward the caller's
+      // stream; only this fallthrough consumes it — `request` may be the replay
+      // the managed-search lane handed back). Forward the caller's
       // request-side `anthropic-beta` for the same-format fast path (LEAD OQ1)
       // and `anthropic-version` verbatim (claude-api-protocol-fidelity, R5).
-      const rawBody = await readBody(req, scope.signal);
-      const callerBetaRaw = req.headers['anthropic-beta'];
+      const rawBody = await readBody(request, scope.signal);
+      const callerBetaRaw = request.headers['anthropic-beta'];
       const callerAnthropicBeta = Array.isArray(callerBetaRaw) ? callerBetaRaw.join(',') : callerBetaRaw;
-      const callerVersionRaw = req.headers['anthropic-version'];
+      const callerVersionRaw = request.headers['anthropic-version'];
       const callerAnthropicVersion = Array.isArray(callerVersionRaw)
         ? callerVersionRaw.join(',')
         : callerVersionRaw;
@@ -173,12 +217,12 @@ export async function handleAnthropicMessagesRequest(
       // when replay is disabled (no wasted extraction on the default/BYO path); the
       // relay's own claude-scoped gate is unchanged, so behavior when enabled is
       // identical.
-      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), req.headers);
+      const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
       // UNGATED, unlike `captureCallerIdentity`: forwarding the client's OWN
       // Claude Code headers (UA / x-app / x-stainless-* / accept*) is not
       // fingerprint synthesis, and the subscription relay needs them regardless of
       // whether the opt-in freeze/replay feature is on.
-      const callerClientHeaders = extractClaudeClientHeaders(req.headers);
+      const callerClientHeaders = extractClaudeClientHeaders(request.headers);
       await handleAnthropicMessagesByo(res, rawBody, route, deps, {
         callerAnthropicBeta,
         callerAnthropicVersion,
@@ -251,12 +295,18 @@ export async function handleAnthropicMessagesRequest(
     preferredKeyId: route.preferredKeyId,
     boundKeyFallbackPolicy: route.boundKeyFallbackPolicy,
     maxConcurrency: hints.maxConcurrency,
-    webSearchService: hints.webSearchService ?? null,
+    // plan 阶段5: the slot is no longer dead. A route-supplied backend still
+    // wins; otherwise the shared runtime arrives here wrapped in the 阶段3
+    // compat adapter, which this is the first production consumer of.
+    webSearchService: resolveAnthropicSearchHintBackend(
+      hints.webSearchService,
+      deps.searchRuntime,
+    ),
     onRetry: hints.onRetry,
     onStreamEvent: hints.onStreamEvent,
     usageRecorder: hints.usageRecorder ?? null,
     attribution: hints.attribution ?? null,
   });
 
-  await handler.handle(req, res);
+  await handler.handle(request, res);
 }

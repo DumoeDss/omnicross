@@ -34,6 +34,8 @@ import type { AuthStrategy } from '../pipeline/SubscriptionAuthStrategy';
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { WebSearchBackend } from '../ports/web-search-backend';
 import type { OpenAIOperationRegistry } from '../openai-operation/openAIOperationRegistry';
+import type { SearchFrontendModes } from '../search/frontends';
+import type { SearchRuntime } from '../search/runtime';
 import type { ResponsesHostedImageIngress } from './responses/responsesHostedImageIngress';
 
 // ── Proxy callback / attribution / hint shapes (E1 type de-inversion) ────────
@@ -538,6 +540,19 @@ export interface ProviderProxyDeps {
    * ingress responds 502 (the factory is a hard dependency of THAT path only).
    */
   readonly anthropicIngressHandlerFactory?: AnthropicIngressHandlerFactory | null;
+  /**
+   * The ONE shared search runtime (plan 阶段5). Consumed by the managed
+   * Responses and Anthropic lanes; the same instance the outbound Codex route
+   * and `doctor search` see. Optional so embedders that never enable a managed
+   * mode compile and behave unchanged.
+   */
+  readonly searchRuntime?: SearchRuntime | null;
+  /**
+   * Per-frontend search modes, resolved ONCE per request from this snapshot
+   * before any wire bytes are emitted. Absent ⇒ the behavior-preserving
+   * defaults (`native` for both protocol frontends).
+   */
+  readonly searchFrontendModes?: SearchFrontendModes | null;
 }
 
 /**

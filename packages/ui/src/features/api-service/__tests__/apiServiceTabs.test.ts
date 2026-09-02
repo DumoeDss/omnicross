@@ -38,6 +38,9 @@ describe('API service information architecture', () => {
     // The live-traffic / activity sections graduated to the Route Activity page.
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('liveTrafficQueue');
     expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('recentErrors');
+    // search-settings-tab: the search settings graduated to the standalone
+    // Search page (`#/search`) — nothing search remains here.
+    expect(API_SERVICE_SECTION_TAB).not.toHaveProperty('searchSettings');
   });
 
   it('normalizes old in-memory callers while hashes redirect at the route boundary', () => {

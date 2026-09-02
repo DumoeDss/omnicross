@@ -74,6 +74,18 @@ export {
   validateImagesServerConfig,
 } from './imagesServerConfig';
 export {
+  DEFAULT_SEARCH_SERVER_CONFIG,
+  normalizeSearchApiProviderConfigs,
+  normalizeSearchServerConfig,
+  validateSearchServerConfig,
+} from './searchServerConfig';
+export {
+  codexSearchRoutePath,
+  handleCodexSearchRequest,
+  isCodexSearchRequest,
+  type CodexSearchRouteDeps,
+} from './searchRoute';
+export {
   candidateBackgroundModelIds,
   candidateGatewayBindings,
   gatewayBindingToEndpointConfig,
@@ -222,6 +234,7 @@ export type {
   OutboundPermission,
   OutboundFormatUrls,
   ImagesServerConfig,
+  SearchServerConfig,
   OutboundKeyActivationMode,
   OutboundKeyDb,
   OutboundKeyDbRow,

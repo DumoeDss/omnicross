@@ -512,7 +512,8 @@
     "settings": "Indstillinger",
     "usageStats": "Forbrug",
     "pricing": "Priser",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "Søgning"
   },
   "apiService": {
     "title": "API-tjeneste",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "Søgeudbydere",
+    "description": "Konfiguration af websøgningskørslen: udbyderlegitimationsoplysninger, fallback-politik, udgående netværkstrafik og udførelsestilstande pr. frontend.",
+    "unsupportedDaemon": "Denne daemon-version understøtter ikke sektionen til søgekonfiguration.",
+    "diagnosticsUnsupported": "Live-søgediagnostik er ikke tilgængelig i denne daemon-version; udbyderkonfigurationen forbliver fuldt redigerbar.",
+    "restartBanner": "Daemon-genstart kræves for at ændringerne træder i kraft: {{providers}}",
+    "restartHint": "Træder i kraft ved daemon-genstart",
+    "immediateHint": "Træder i kraft straks",
+    "modes": {
+      "title": "Frontend-tilstande",
+      "description": "Hvem udfører søgningen for hver protokolfrontend.",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
+    },
+    "mode": {
+      "native": "Indfødt (opstrøm udfører)",
+      "managed": "Styret (gateway udfører)",
+      "off": "Fra"
+    },
+    "providers": {
+      "title": "Udbydere",
+      "tavily": {
+        "description": "Søge-API med generøs gratis kvote; nøgle kræves."
+      },
+      "jina": {
+        "description": "Søgning uden nøgle muligt; en nøgle hæver rategrænserne."
+      },
+      "searxng": {
+        "description": "Selvhostet metasøgning; konfigureres via instansens vært."
+      },
+      "zhipu": {
+        "description": "Zhipu websøgnings-API; nøgle kræves."
+      },
+      "zai": {
+        "description": "Z.AI websøgnings-API; nøgle kræves."
+      }
+    },
+    "keyless": {
+      "description": "Nøglefri motor, altid tilgængelig. Kræver ingen konfiguration."
+    },
+    "status": {
+      "ready": "Klar",
+      "unconfigured": "Ikke konfigureret",
+      "healthy": "Sund",
+      "degraded": "Forringet",
+      "blocked": "Blokeret",
+      "failed": "Fejlet"
+    },
+    "unconfiguredReason": {
+      "tavily": "Kræver konfiguration af en API-nøgle.",
+      "jina": "Aktivér ved at gemme en post — Jina kan køre uden nøgle.",
+      "searxng": "Kræver konfiguration af en API-vært.",
+      "zhipu": "Kræver konfiguration af en API-nøgle.",
+      "zai": "Kræver konfiguration af en API-nøgle."
+    },
+    "field": {
+      "apiKey": "API-nøgle",
+      "apiKeyPlaceholder": "Tomt bevarer den gemte nøgle",
+      "apiKeyNew": "Indtast API-nøgle",
+      "apiKeyConfigured": "· nøgle konfigureret",
+      "apiHost": "API-vært",
+      "apiHostPlaceholder": "Valgfri tilsidesættelse af vært",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "Basic-auth-bruger",
+      "basicAuthPassword": "Basic-auth-adgangskode",
+      "basicAuthPasswordPlaceholder": "Tomt bevarer den gemte adgangskode",
+      "basicAuthPasswordConfigured": "· adgangskode konfigureret"
+    },
+    "action": {
+      "test": "Test",
+      "save": "Gem søgeindstillinger",
+      "remove": "Fjern konfiguration",
+      "clearKey": "Ryd gemt nøgle",
+      "clearKeyPending": "· nøglen ryddes",
+      "clearPassword": "Ryd gemt adgangskode",
+      "undoClear": "Fortryd rydning"
+    },
+    "removedPending": "Konfigurationen fjernes ved gem.",
+    "testOutcome": {
+      "error": "Test fejlede: {{error}}",
+      "count": "{{count}} resultater"
+    },
+    "policy": {
+      "title": "Standardpolitik",
+      "preferred": "Foretrukken udbyder",
+      "preferredDescription": "Prøves først, når en anmodning ikke fastlægger en.",
+      "preferredNone": "Ingen præference",
+      "allowed": "Tilladte udbydere",
+      "allowedDescription": "Tomt betyder, at enhver konfigureret udbyder er kandidat.",
+      "fallbackEnabled": "Fallback",
+      "fallbackDescription": "En mislykket kandidat kan efterfølges af den næste.",
+      "maxAttempts": "Maks. forsøg",
+      "maxAttemptsDescription": "Øvre grænse for udbydere pr. søgning (1–32)."
+    },
+    "egress": {
+      "title": "Tilladt udgående liste",
+      "description": "Værtsnavne, der må opløses til ellers afviste adresscklasser — undtagelsesvejen for en intern SearXNG.",
+      "empty": "Ingen private værter tilladt.",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "Tilføj",
+      "remove": "Fjern vært"
+    },
+    "page": {
+      "loading": "Indlæser…"
+    },
+    "test": {
+      "queryPlaceholder": "Skriv en forespørgsel for at teste denne udbyder",
+      "action": "Søg",
+      "testing": "Søger…",
+      "saveFirst": "Gem først — testen kører mod den gemte konfiguration.",
+      "empty": "Ingen resultater for denne forespørgsel.",
+      "providerUsed": "via {{provider}}"
     }
   },
   "accounts": {

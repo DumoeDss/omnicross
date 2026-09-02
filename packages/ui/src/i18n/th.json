@@ -512,7 +512,8 @@
     "settings": "การตั้งค่า",
     "usageStats": "การใช้งาน",
     "pricing": "ราคา",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "search": "ค้นหา"
   },
   "apiService": {
     "title": "บริการ API",
@@ -742,6 +743,121 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    }
+  },
+  "search": {
+    "title": "ผู้ให้บริการค้นหา",
+    "description": "การกำหนดค่ารันไทม์การค้นหาเว็บ: ข้อมูลรับรองผู้ให้บริการ นโยบายสำรอง การส่งออกเครือข่าย และโหมดการทำงานของแต่ละฟรอนต์เอนด์",
+    "unsupportedDaemon": "เวอร์ชันดีมอนนี้ไม่รองรับส่วนการตั้งค่าการค้นหา",
+    "diagnosticsUnsupported": "การวินิจฉัยการค้นหาแบบสดไม่พร้อมใช้งานในเวอร์ชันดีมอนนี้ แต่การตั้งค่าผู้ให้บริการยังแก้ไขได้ครบถ้วน",
+    "restartBanner": "ต้องรีสตาร์ทดีมอนเพื่อให้การเปลี่ยนแปลงมีผล: {{providers}}",
+    "restartHint": "มีผลหลังรีสตาร์ทดีมอน",
+    "immediateHint": "มีผลทันที",
+    "modes": {
+      "title": "โหมดของฟรอนต์เอนด์",
+      "description": "ใครเป็นผู้ประมวลผลการค้นหาของแต่ละฟรอนต์เอนด์โปรโตคอล",
+      "codex": "Codex (/v1/alpha/search)",
+      "responses": "Responses (web_search)",
+      "anthropic": "Anthropic (web_search_*)"
+    },
+    "mode": {
+      "native": "เนทีฟ (อัปสตรีมประมวลผล)",
+      "managed": "แบบจัดการ (เกตเวย์ประมวลผล)",
+      "off": "ปิด"
+    },
+    "providers": {
+      "title": "ผู้ให้บริการ",
+      "tavily": {
+        "description": "API ค้นหาพร้อมโควตาฟรีที่ล้นเหลือ ต้องใช้คีย์"
+      },
+      "jina": {
+        "description": "ค้นหาได้โดยไม่มีคีย์ การมีคีย์ช่วยเพิ่มขีดจำกัด"
+      },
+      "searxng": {
+        "description": "เมตาเสิร์ชที่โฮสต์เอง ตั้งค่าด้วยโฮสต์ของอินสแตนซ์"
+      },
+      "zhipu": {
+        "description": "API ค้นหาเว็บของ Zhipu ต้องใช้คีย์"
+      },
+      "zai": {
+        "description": "API ค้นหาเว็บของ Z.AI ต้องใช้คีย์"
+      }
+    },
+    "keyless": {
+      "description": "เอนจินแบบไม่ต้องใช้คีย์ พร้อมใช้เสมอ ไม่ต้องตั้งค่า"
+    },
+    "status": {
+      "ready": "พร้อม",
+      "unconfigured": "ยังไม่ได้ตั้งค่า",
+      "healthy": "ปกติ",
+      "degraded": "บกพร่อง",
+      "blocked": "ถูกบล็อก",
+      "failed": "ล้มเหลว"
+    },
+    "unconfiguredReason": {
+      "tavily": "ต้องตั้งค่าคีย์ API ก่อน",
+      "jina": "เปิดใช้ได้ด้วยการบันทึกรายการ — Jina ทำงานโดยไม่มีคีย์ได้",
+      "searxng": "ต้องตั้งค่าโฮสต์ API ก่อน",
+      "zhipu": "ต้องตั้งค่าคีย์ API ก่อน",
+      "zai": "ต้องตั้งค่าคีย์ API ก่อน"
+    },
+    "field": {
+      "apiKey": "คีย์ API",
+      "apiKeyPlaceholder": "เว้นว่างไว้เพื่อใช้คีย์ที่บันทึกแล้ว",
+      "apiKeyNew": "กรอกคีย์ API",
+      "apiKeyConfigured": "· ตั้งค่าคีย์แล้ว",
+      "apiHost": "โฮสต์ API",
+      "apiHostPlaceholder": "การแทนที่โฮสต์ (ไม่บังคับ)",
+      "apiHostRequired": "https://searxng.example.org",
+      "basicAuthUsername": "ผู้ใช้ Basic auth",
+      "basicAuthPassword": "รหัสผ่าน Basic auth",
+      "basicAuthPasswordPlaceholder": "เว้นว่างไว้เพื่อใช้รหัสผ่านที่บันทึกแล้ว",
+      "basicAuthPasswordConfigured": "· ตั้งค่ารหัสผ่านแล้ว"
+    },
+    "action": {
+      "test": "ทดสอบ",
+      "save": "บันทึกการตั้งค่าการค้นหา",
+      "remove": "ลบการตั้งค่า",
+      "clearKey": "ลบคีย์ที่บันทึกไว้",
+      "clearKeyPending": "· คีย์จะถูกลบ",
+      "clearPassword": "ลบรหัสผ่านที่บันทึกไว้",
+      "undoClear": "ยกเลิกการลบ"
+    },
+    "removedPending": "การตั้งค่าจะถูกลบเมื่อบันทึก",
+    "testOutcome": {
+      "error": "การทดสอบล้มเหลว: {{error}}",
+      "count": "{{count}} ผลลัพธ์"
+    },
+    "policy": {
+      "title": "นโยบายเริ่มต้น",
+      "preferred": "ผู้ให้บริการที่ต้องการ",
+      "preferredDescription": "ลองใช้เป็นอันดับแรกเมื่อคำขอไม่ได้ระบุ",
+      "preferredNone": "ไม่ระบุ",
+      "allowed": "ผู้ให้บริการที่อนุญาต",
+      "allowedDescription": "เว้นว่างหมายถึงผู้ให้บริการที่ตั้งค่าแล้วทุกรายเป็นตัวเลือก",
+      "fallbackEnabled": "สำรอง",
+      "fallbackDescription": "เมื่อตัวเลือกหนึ่งล้มเหลว อาจไปยังตัวเลือกถัดไป",
+      "maxAttempts": "จำนวนครั้งสูงสุด",
+      "maxAttemptsDescription": "ขีดจำกัดจำนวนผู้ให้บริการต่อการค้นหาหนึ่งครั้ง (1–32)"
+    },
+    "egress": {
+      "title": "รายการอนุญาตการส่งออก",
+      "description": "ชื่อโฮสต์ที่อนุญาตให้ชี้ไปยังกลุ่มที่อยู่ที่ปกติถูกปฏิเสธ — ทางออกพิเศษสำหรับ SearXNG ภายใน",
+      "empty": "ยังไม่อนุญาตโฮสต์ส่วนตัว",
+      "hostPlaceholder": "searx.internal.example.org",
+      "add": "เพิ่ม",
+      "remove": "ลบโฮสต์"
+    },
+    "page": {
+      "loading": "กำลังโหลด…"
+    },
+    "test": {
+      "queryPlaceholder": "พิมพ์คำค้นเพื่อทดสอบผู้ให้บริการนี้",
+      "action": "ค้นหา",
+      "testing": "กำลังค้นหา…",
+      "saveFirst": "บันทึกก่อน — การทดสอบทำงานกับค่าที่บันทึกไว้",
+      "empty": "ไม่พบผลลัพธ์สำหรับคำค้นนี้",
+      "providerUsed": "ผ่าน {{provider}}"
     }
   },
   "accounts": {

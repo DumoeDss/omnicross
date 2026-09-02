@@ -1,0 +1,22 @@
+{
+  "code": 200,
+  "status": 20000,
+  "data": [
+    {
+      "title": "HTTP headers - HTTP | MDN",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers",
+      "content": "HTTP headers let the client and the server pass additional information with a message."
+    },
+    {
+      "title": "List of HTTP header fields",
+      "url": "https://en.wikipedia.org/wiki/List_of_HTTP_header_fields",
+      "description": "This item carries only a description, never a content field."
+    },
+    {
+      "title": "HTTP Semantics (RFC 9110)",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "content": "",
+      "description": "Content is present but empty, so the description is used instead."
+    }
+  ]
+}

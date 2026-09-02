@@ -103,6 +103,8 @@ export async function runStart(argv: string[]): Promise<StartResult> {
     // claude-api-protocol-fidelity (§10): count_tokens strategy/budget,
     // /v1/models shape, synthetic-ping heartbeat (hot-applied inside applyConfig).
     anthropic: serverConfig.anthropic,
+    // plan 阶段5: the Codex frontend mode is read live per request from here.
+    search: serverConfig.search,
   });
 
   // Admin dashboard (RT3) — always-on by default; opt out via `--no-dashboard`

@@ -19,6 +19,14 @@ describe('hashRoute', () => {
     expect(routeToHash({ page: 'settings', tab: 'pricing' })).toBe('#/settings/pricing');
   });
 
+  it('resolves the standalone Search page; unknown tabs degrade to the page', () => {
+    // search-settings-tab D1: a tab-less top-level page — #/search falls out
+    // of the generic path handling with no special case.
+    expect(parseHashRoute('#/search')).toEqual({ page: 'search' });
+    expect(parseHashRoute('#/search/nope')).toEqual({ page: 'search' });
+    expect(routeToHash({ page: 'search' })).toBe('#/search');
+  });
+
   it('falls back safely for unknown pages and tabs', () => {
     expect(parseHashRoute('#/unknown/nope')).toEqual({ page: 'overview' });
     expect(parseHashRoute('#/api-service/nope')).toEqual({ page: 'api-service' });
