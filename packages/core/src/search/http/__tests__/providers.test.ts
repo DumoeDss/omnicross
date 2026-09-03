@@ -378,7 +378,7 @@ describe('builtin contributions', () => {
 });
 
 describe('module boundaries', () => {
-  it('imports no Elftia package, no Electron, and no HTTP client but undici', () => {
+  it('imports no Elftia package and no Electron; impit+undici are the only clients', () => {
     const root = fileURLToPath(new URL('..', import.meta.url));
     const sources = readdirSync(root, { recursive: true, encoding: 'utf8' })
       .filter((entry) => entry.endsWith('.ts') && !entry.includes('__tests__'))
@@ -387,7 +387,7 @@ describe('module boundaries', () => {
 
     // Every way a module can be pulled in — static, side-effect, dynamic, CJS.
     // Matching SPECIFIERS (not prose) keeps documentation free to name Electron
-    // and impit while explaining why neither is used.
+    // while explaining why it stays out.
     const specifierPatterns = [
       /(?:^|\s)(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/gm,
       /(?:^|\s)import\s*['"]([^'"]+)['"]/gm,
@@ -396,7 +396,12 @@ describe('module boundaries', () => {
     ];
     const allowedBareImports = new Set([
       '@omnicross/contracts/search-types',
+      '@omnicross/contracts/account-tokens-types',
       'undici',
+      // The browser-impersonating client (Elftia's verified transport), with
+      // undici as the explicit fallback when its platform binary is missing —
+      // the combination plan §阶段2 sanctions.
+      'impit',
       'jsdom',
       'entities',
     ]);
@@ -408,7 +413,7 @@ describe('module boundaries', () => {
     expect(specifiers.length).toBeGreaterThan(10);
 
     for (const specifier of specifiers) {
-      expect(specifier).not.toMatch(/elftia|electron|impit/i);
+      expect(specifier).not.toMatch(/elftia|electron/i);
       if (specifier.startsWith('.')) continue;
       expect(allowedBareImports.has(specifier) || specifier.startsWith('node:')).toBe(true);
     }

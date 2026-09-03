@@ -58,6 +58,7 @@ import {
 } from '../search/searchDoctorProjection';
 import {
   resolveSearchUpstreamDispatcher,
+  resolveSearchUpstreamProxyConfig,
   searchEgressPolicyFrom,
 } from '../search/SearchAssembly';
 
@@ -316,7 +317,10 @@ async function handleSearchTest(
   // same layered daemon proxy as the bootstrap runtime's searches.
   const transport = fetchImpl
     ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy })
-    : createSearchHttpTransport({ resolveProxyDispatcher: resolveSearchUpstreamDispatcher });
+    : createSearchHttpTransport({
+        resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
+        resolveProxyConfig: resolveSearchUpstreamProxyConfig,
+      });
   // Same construction the doctor probes with: the builtin http pair plus the
   // configured API providers. The ONLY provider exercised is the requested one.
   const contributions: SearchProviderContribution[] = [
@@ -407,7 +411,10 @@ async function handleSearchQuery(
   // same layered daemon proxy as the bootstrap runtime's searches.
   const transport = fetchImpl
     ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy })
-    : createSearchHttpTransport({ resolveProxyDispatcher: resolveSearchUpstreamDispatcher });
+    : createSearchHttpTransport({
+        resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
+        resolveProxyConfig: resolveSearchUpstreamProxyConfig,
+      });
   const contributions: SearchProviderContribution[] = [
     ...builtinHttpSearchContributions(transport),
     ...apiSearchContributions(search.providers, {

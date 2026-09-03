@@ -34,6 +34,11 @@ export interface SearchHttpErrorInit {
   cause?: unknown;
   /** Extra pre-sanitized context. Hostnames are fine; URLs and headers are not. */
   details?: Record<string, string>;
+  /**
+   * The client that actually served the request (`impit`/`undici`), when the
+   * failure site knows it. Defaults to the slice's transport id.
+   */
+  transport?: string;
 }
 
 /** Build a taxonomy-coded search failure with transport + stage attached. */
@@ -47,7 +52,11 @@ export function searchHttpError(
     retryable: init.retryable,
     cause: init.cause,
     // transport/stage last so a caller-supplied `details` can never shadow them.
-    details: { ...init.details, transport: SEARCH_HTTP_TRANSPORT_ID, stage: init.stage },
+    details: {
+      ...init.details,
+      transport: init.transport ?? SEARCH_HTTP_TRANSPORT_ID,
+      stage: init.stage,
+    },
   });
 }
 

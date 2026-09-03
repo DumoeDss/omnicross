@@ -8,10 +8,14 @@
  * `details.stage`.
  *
  * Fixed semantics:
- * - undici `fetch`, with a per-request proxy dispatcher: the layered
- *   `resolveProxyDispatcher` override first (the daemon's `fetchUpstream`
- *   resolver, so search follows `server.proxy`), else the `EnvHttpProxyAgent`
- *   the environment configures (cached per proxy signature).
+ * - impit first (Elftia's verified browser-impersonating client — a real
+ *   Chrome TLS/HTTP2 fingerprint; `followRedirects: false` keeps this
+ *   transport's manual, egress-validated walk in charge), with the layered
+ *   `resolveProxyConfig` as its proxy source. When the impit platform binary
+ *   is unavailable, the bounded undici path serves instead, with a per-request
+ *   proxy dispatcher: the layered `resolveProxyDispatcher` override first (the
+ *   daemon's `fetchUpstream` resolver), else the `EnvHttpProxyAgent` the
+ *   environment configures (cached per proxy signature).
  * - The pinned browser navigation header profile (see `./headers`).
  * - `redirect: 'manual'`, at most {@link MAX_REDIRECTS} hops, with the initial
  *   URL and every hop target checked against the search egress policy
@@ -35,12 +39,22 @@
  */
 
 import { isSearchProviderError, type SearchProviderId } from '@omnicross/contracts/search-types';
+import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
+import type { Impit } from 'impit';
 import { fetch as undiciFetch, type Dispatcher } from 'undici';
 
 import { validateEgressUrl, type SearchEgressPolicy } from '../egress';
 import { decodeSearchBody } from './body-decode';
 import { asSearchProviderError, hostOf, searchHttpError } from './errors';
 import { searchBrowserHeaders } from './headers';
+import {
+  fetchKindOf,
+  getImpitClient,
+  impitProxyUrlFrom,
+  tagFetchKind,
+  withImpersonatedHeaders,
+  type ImpitConstructor,
+} from './impit';
 import { getSearchProxyDispatcher, resolveSearchProxySettings, type ProxyEnvironment } from './proxy';
 import type {
   SearchHttpFetch,
@@ -74,6 +88,15 @@ export interface SearchHttpTransportOptions {
    * inside that resolver and falls through to the env layer unchanged.
    */
   resolveProxyDispatcher?: (url: string) => Dispatcher | undefined;
+  /**
+   * Layered proxy CONFIG for one request URL — the impit path's proxy source,
+   * because impit takes a proxy URL, not an undici dispatcher. The daemon
+   * passes its `fetchUpstream`-layered resolver, so `server.proxy` (socks5
+   * included) governs impersonated requests exactly like LLM egress.
+   */
+  resolveProxyConfig?: (url: string) => ProxyConfig | undefined;
+  /** Test seam for the impit constructor loader. Omit for the real import. */
+  loadImpit?: () => Promise<ImpitConstructor | undefined>;
   /** Redirect hop cap. Defaults to {@link MAX_REDIRECTS}. */
   maxRedirects?: number;
   /**
@@ -87,8 +110,7 @@ export interface SearchHttpTransportOptions {
 export function createSearchHttpTransport(
   options: SearchHttpTransportOptions = {},
 ): SearchHttpTransport {
-  const fetchImpl =
-    options.fetch ?? createUndiciFetch(options.env, options.resolveProxyDispatcher);
+  const fetchImpl = options.fetch ?? createProductionSearchFetch(options);
   const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS;
   const egressPolicy = options.egressPolicy;
 
@@ -149,6 +171,7 @@ export function createSearchHttpTransport(
           providerId: context.providerId,
           retryable: true,
           cause: error,
+          transport: fetchKindOf(error),
           details: { host: context.host },
         });
       }
@@ -167,6 +190,52 @@ export const defaultSearchHttpTransport: SearchHttpTransport = createSearchHttpT
 interface AttemptContext {
   providerId?: SearchProviderId;
   host: string;
+}
+
+/**
+ * The production fetch: impit (a current-Chrome TLS/HTTP2 fingerprint — the
+ * difference between a real SERP and a bot-decoy page) when its platform
+ * binary is importable, else the bounded undici path. Proxy precedence mirrors
+ * the LLM egress resolver: layered config first, env vars lowest, and the
+ * layered resolver makes its own loopback/`NO_PROXY` verdict per URL.
+ *
+ * Both primitives tag their rejections with the client that served, so a
+ * connect-stage failure reports WHICH transport died (plan §11.4).
+ */
+function createProductionSearchFetch(
+  options: Pick<
+    SearchHttpTransportOptions,
+    'env' | 'resolveProxyDispatcher' | 'resolveProxyConfig' | 'loadImpit'
+  >,
+): SearchHttpFetch {
+  return async (url, init) => {
+    const client = await getImpitClient(
+      impitProxyUrlFrom(options.resolveProxyConfig, url),
+      options.loadImpit,
+    ).catch(() => undefined);
+    if (client) {
+      try {
+        return (await client.fetch(
+          url,
+          withImpersonatedHeaders(init) as Parameters<Impit['fetch']>[1],
+        )) as unknown as Response;
+      } catch (error) {
+        tagFetchKind(error, 'impit');
+        throw error;
+      }
+    }
+    try {
+      const dispatcher = selectHttpDispatcher(options.env, url, options.resolveProxyDispatcher);
+      const requestInit = dispatcher ? { ...init, dispatcher } : init;
+      return (await undiciFetch(
+        url,
+        requestInit as Parameters<typeof undiciFetch>[1],
+      )) as unknown as Response;
+    } catch (error) {
+      tagFetchKind(error, 'undici');
+      throw error;
+    }
+  };
 }
 
 /** undici `fetch`, with the dispatcher the override or the environment picks. */
@@ -234,6 +303,7 @@ async function fetchWithRedirectLimit(
         providerId: context.providerId,
         retryable: true,
         cause: error,
+        transport: fetchKindOf(error),
         details: { host: context.host },
       });
     }

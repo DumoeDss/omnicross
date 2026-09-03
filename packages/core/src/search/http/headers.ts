@@ -17,10 +17,13 @@
 
 /**
  * The Chromium build of the running host, read once (process.versions is
- * immutable): the Electron host's real version, else Elftia's fixed fallback.
+ * immutable): the Electron host's real version, else a real full release
+ * build of Chrome. Never a fabricated `.0.0.0` string — no real browser ever
+ * sends one, and this profile only reaches the wire on the undici fallback
+ * path; the impit transport strips these headers for its own consistent set.
  */
-const CHROME_VERSION = process.versions.chrome ?? '144.0.0.0';
-const CHROME_MAJOR = CHROME_VERSION.split('.')[0] || '144';
+const CHROME_VERSION = process.versions.chrome ?? '152.0.7977.65';
+const CHROME_MAJOR = CHROME_VERSION.split('.')[0] || '152';
 
 /** The exact header set sent with every search request. */
 export const SEARCH_BROWSER_HEADERS: Readonly<Record<string, string>> = Object.freeze({

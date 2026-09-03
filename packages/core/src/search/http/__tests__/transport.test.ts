@@ -73,7 +73,7 @@ describe('search HTTP transport — success path', () => {
     expect(sent).toHaveLength(2);
     for (const headers of sent) {
       expect(headers['User-Agent']).toBe(SEARCH_BROWSER_HEADERS['User-Agent']);
-      expect(headers['User-Agent']).toContain('Chrome/144.0.0.0');
+      expect(headers['User-Agent']).toContain('Chrome/152.0.7977.65');
       expect(headers['Accept-Language']).toBe('en-US,en;q=0.9');
       expect(headers['Sec-Fetch-Mode']).toBe('navigate');
       // undici owns encoding negotiation and the decode; we must not claim it.

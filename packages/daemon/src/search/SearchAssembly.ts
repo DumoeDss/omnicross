@@ -33,6 +33,8 @@ import {
 
 import type { Logger } from '@omnicross/core';
 
+import { createUpstreamProxyResolver } from '../proxy/upstreamProxyResolver';
+
 /** Seams for tests; production passes only the config and a logger. */
 export interface SearchAssemblyOptions {
   /** Where runtime events go. Events carry a query HASH, never a query (§11.3). */
@@ -75,6 +77,19 @@ export function resolveSearchUpstreamDispatcher(
   return resolveUpstreamDispatcher({ url });
 }
 
+const searchUpstreamProxyConfig = createUpstreamProxyResolver();
+
+/**
+ * The same layered proxy verdict as {@link resolveSearchUpstreamDispatcher},
+ * as the CONFIG (not a built dispatcher) — the impit transport's proxy source,
+ * because impit takes a proxy URL, not an undici dispatcher. Socks5 included.
+ */
+export function resolveSearchUpstreamProxyConfig(
+  url: string,
+): ReturnType<typeof searchUpstreamProxyConfig> {
+  return searchUpstreamProxyConfig({ url });
+}
+
 /**
  * Every contribution the config asks for: the two keyless HTTP engines, plus
  * exactly the API providers that are configured.
@@ -88,7 +103,10 @@ export function searchContributionsFrom(
 ): SearchProviderContribution[] {
   return [
     ...builtinHttpSearchContributions(
-      createSearchHttpTransport({ resolveProxyDispatcher: resolveSearchUpstreamDispatcher }),
+      createSearchHttpTransport({
+        resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
+        resolveProxyConfig: resolveSearchUpstreamProxyConfig,
+      }),
     ),
     ...apiSearchContributions(config.providers, {
       egressPolicy: searchEgressPolicyFrom(config),
