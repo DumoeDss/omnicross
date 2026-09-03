@@ -4,19 +4,23 @@
  * This is the profile `packages/core/test-fixtures/http-search/` was captured
  * with, so changing it invalidates the fixtures as live-behavior evidence.
  *
- * Ported from Elftia's `webFetchHttp.browserHeaders()` with ONE deliberate
- * difference: the Chrome version is PINNED here instead of read from
- * `process.versions.chrome`. Elftia runs inside Electron and inherits a real
- * Chromium version; `@omnicross/core` runs in plain Node, where that field is
- * absent — pinning keeps the sent profile identical across every host and
- * matches the spec's "pinned Chrome desktop User-Agent".
+ * Ported verbatim from Elftia's `webFetchHttp.browserHeaders()` — a verified
+ * config; do not deviate from it. The Chromium version is read from the
+ * RUNTIME, exactly as Elftia does: `process.versions.chrome` inside an
+ * Electron host (a real, complete build number), and Elftia's own fixed
+ * fallback when no Chromium runtime reports one (plain Node). Never pin or
+ * invent a version string here — a fabricated build number is a bot
+ * fingerprint no real browser ever sends.
  *
  * @module search/http/headers
  */
 
-/** The Chrome build the committed fixtures were captured with. */
-const CHROME_VERSION = '144.0.0.0';
-const CHROME_MAJOR = CHROME_VERSION.split('.')[0];
+/**
+ * The Chromium build of the running host, read once (process.versions is
+ * immutable): the Electron host's real version, else Elftia's fixed fallback.
+ */
+const CHROME_VERSION = process.versions.chrome ?? '144.0.0.0';
+const CHROME_MAJOR = CHROME_VERSION.split('.')[0] || '144';
 
 /** The exact header set sent with every search request. */
 export const SEARCH_BROWSER_HEADERS: Readonly<Record<string, string>> = Object.freeze({
