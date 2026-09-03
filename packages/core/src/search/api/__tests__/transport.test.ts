@@ -12,6 +12,8 @@
 import { isSearchProviderError, type SearchProviderError } from '@omnicross/contracts/search-types';
 import { describe, expect, it } from 'vitest';
 
+import type { Dispatcher } from 'undici';
+
 import { ApiKeyRotator } from '../rotator';
 import {
   API_MAX_REDIRECTS,
@@ -618,6 +620,28 @@ describe('API transport — dispatcher precedence', () => {
     const proxied = selectApiDispatcher({ HTTPS_PROXY: 'http://proxy.test:8080' });
     expect(proxied.proxied).toBe(true);
     expect(proxied.dispatcher).not.toBe(selectApiDispatcher({}).dispatcher);
+  });
+
+  it('ranks the layered override above the env proxy and above the guarded direct path', () => {
+    const sentinel = { sentinel: true } as unknown as Dispatcher;
+    const seenUrls: string[] = [];
+    const override = (url: string): Dispatcher | undefined => {
+      seenUrls.push(url);
+      return url === 'https://api.tavily.test/search' ? sentinel : undefined;
+    };
+
+    expect(
+      selectApiDispatcher({ HTTPS_PROXY: 'http://env.test:1' }, undefined, {
+        url: 'https://api.tavily.test/search',
+        resolveProxyDispatcher: override,
+      }),
+    ).toEqual({ dispatcher: sentinel, proxied: true });
+    // A target the override declines keeps the pre-existing behavior: env
+    // proxy if set, guarded dispatcher otherwise.
+    expect(
+      selectApiDispatcher({}, undefined, { url: 'https://other.test/', resolveProxyDispatcher: override }),
+    ).toEqual(selectApiDispatcher({}));
+    expect(seenUrls).toEqual(['https://api.tavily.test/search', 'https://other.test/']);
   });
 });
 

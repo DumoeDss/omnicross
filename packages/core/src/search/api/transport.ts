@@ -67,6 +67,16 @@ export interface SearchApiTransportOptions {
   fetch?: SearchApiFetch;
   /** Environment to read proxy variables from. Defaults to `process.env`. */
   env?: ProxyEnvironment;
+  /**
+   * Layered proxy-dispatcher override for one request URL, AHEAD of the env
+   * layer (the daemon's `fetchUpstream` resolver, so search follows
+   * `server.proxy`). When it yields a dispatcher the connection is proxied —
+   * URL and per-hop egress validation still apply, address-level validation
+   * does not, the same documented limitation as the env proxy. When it yields
+   * `undefined` the env layer and then the egress-guarded dispatcher apply,
+   * exactly as before.
+   */
+  resolveProxyDispatcher?: (url: string) => Dispatcher | undefined;
   /** Egress policy. Defaults to public-only. */
   egressPolicy?: SearchEgressPolicy;
   /** Redirect hop cap. Defaults to {@link API_MAX_REDIRECTS}. */
@@ -78,7 +88,8 @@ export function createSearchApiTransport(
   options: SearchApiTransportOptions = {},
 ): SearchApiTransport {
   const policy = options.egressPolicy;
-  const fetchImpl = options.fetch ?? createUndiciApiFetch(options.env, policy);
+  const fetchImpl =
+    options.fetch ?? createUndiciApiFetch(options.env, policy, options.resolveProxyDispatcher);
   const maxRedirects = options.maxRedirects ?? API_MAX_REDIRECTS;
 
   return async (request) => {
@@ -175,7 +186,16 @@ interface ApiContext {
 export function selectApiDispatcher(
   env?: ProxyEnvironment,
   policy?: SearchEgressPolicy,
+  override?: {
+    /** The request's own URL — the layered resolver's loopback/`NO_PROXY` input. */
+    url: string;
+    resolveProxyDispatcher?: (url: string) => Dispatcher | undefined;
+  },
 ): { dispatcher: Dispatcher; proxied: boolean } {
+  if (override?.resolveProxyDispatcher) {
+    const dispatcher = override.resolveProxyDispatcher(override.url);
+    if (dispatcher) return { dispatcher, proxied: true };
+  }
   const proxy = resolveSearchProxySettings(env);
   if (proxy) return { dispatcher: getSearchProxyDispatcher(proxy), proxied: true };
   return { dispatcher: createEgressGuardedDispatcher(policy), proxied: false };
@@ -185,9 +205,10 @@ export function selectApiDispatcher(
 function createUndiciApiFetch(
   env?: ProxyEnvironment,
   policy?: SearchEgressPolicy,
+  resolveProxyDispatcher?: (url: string) => Dispatcher | undefined,
 ): SearchApiFetch {
   return async (url, init) => {
-    const { dispatcher } = selectApiDispatcher(env, policy);
+    const { dispatcher } = selectApiDispatcher(env, policy, { url, resolveProxyDispatcher });
     return (await undiciFetch(
       url,
       { ...init, dispatcher } as Parameters<typeof undiciFetch>[1],

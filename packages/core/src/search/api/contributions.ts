@@ -24,6 +24,8 @@ import type {
   SearchProviderContribution,
 } from '@omnicross/contracts/search-types';
 
+import type { Dispatcher } from 'undici';
+
 import type { SearchEgressPolicy } from '../egress';
 import { JinaSearchProvider, JINA_PROVIDER_ID } from './JinaSearchProvider';
 import { SearxngSearchProvider, SEARXNG_PROVIDER_ID } from './SearxngSearchProvider';
@@ -86,6 +88,11 @@ export interface ApiSearchContributionOptions {
   egressPolicy?: SearchEgressPolicy;
   /** Fetch primitive seam. Omit for the production undici transport. */
   fetchImpl?: SearchApiFetch;
+  /**
+   * Layered proxy-dispatcher override handed to the shared transport (the
+   * daemon's `fetchUpstream` resolver). Only meaningful without `fetchImpl`.
+   */
+  resolveProxyDispatcher?: (url: string) => Dispatcher | undefined;
 }
 
 /**
@@ -106,6 +113,7 @@ export function apiSearchContributions(
   const transport: SearchApiTransport = createSearchApiTransport({
     fetch: options.fetchImpl,
     egressPolicy: options.egressPolicy,
+    resolveProxyDispatcher: options.resolveProxyDispatcher,
   });
 
   const contributions: SearchProviderContribution[] = [];

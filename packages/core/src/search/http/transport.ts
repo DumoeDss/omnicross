@@ -8,8 +8,10 @@
  * `details.stage`.
  *
  * Fixed semantics:
- * - undici `fetch`, with an `EnvHttpProxyAgent` dispatcher when the environment
- *   configures a proxy (cached per proxy signature).
+ * - undici `fetch`, with a per-request proxy dispatcher: the layered
+ *   `resolveProxyDispatcher` override first (the daemon's `fetchUpstream`
+ *   resolver, so search follows `server.proxy`), else the `EnvHttpProxyAgent`
+ *   the environment configures (cached per proxy signature).
  * - The pinned browser navigation header profile (see `./headers`).
  * - `redirect: 'manual'`, at most {@link MAX_REDIRECTS} hops, with the initial
  *   URL and every hop target checked against the search egress policy
@@ -33,7 +35,7 @@
  */
 
 import { isSearchProviderError, type SearchProviderId } from '@omnicross/contracts/search-types';
-import { fetch as undiciFetch } from 'undici';
+import { fetch as undiciFetch, type Dispatcher } from 'undici';
 
 import { validateEgressUrl, type SearchEgressPolicy } from '../egress';
 import { decodeSearchBody } from './body-decode';
@@ -64,6 +66,14 @@ export interface SearchHttpTransportOptions {
   fetch?: SearchHttpFetch;
   /** Environment to read proxy variables from. Defaults to `process.env`. */
   env?: ProxyEnvironment;
+  /**
+   * Layered proxy-dispatcher override for one request URL, AHEAD of the env
+   * layer. The daemon passes `fetchUpstream`'s resolver here so search egress
+   * follows the same `server.proxy` stack (global config, socks5 included) as
+   * LLM upstream traffic; a `NO_PROXY`/loopback target yields `undefined`
+   * inside that resolver and falls through to the env layer unchanged.
+   */
+  resolveProxyDispatcher?: (url: string) => Dispatcher | undefined;
   /** Redirect hop cap. Defaults to {@link MAX_REDIRECTS}. */
   maxRedirects?: number;
   /**
@@ -77,7 +87,8 @@ export interface SearchHttpTransportOptions {
 export function createSearchHttpTransport(
   options: SearchHttpTransportOptions = {},
 ): SearchHttpTransport {
-  const fetchImpl = options.fetch ?? createUndiciFetch(options.env);
+  const fetchImpl =
+    options.fetch ?? createUndiciFetch(options.env, options.resolveProxyDispatcher);
   const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS;
   const egressPolicy = options.egressPolicy;
 
@@ -158,17 +169,39 @@ interface AttemptContext {
   host: string;
 }
 
-/** undici `fetch`, with a proxy dispatcher when the environment asks for one. */
-function createUndiciFetch(env?: ProxyEnvironment): SearchHttpFetch {
+/** undici `fetch`, with the dispatcher the override or the environment picks. */
+function createUndiciFetch(
+  env?: ProxyEnvironment,
+  resolveProxyDispatcher?: (url: string) => Dispatcher | undefined,
+): SearchHttpFetch {
   return async (url, init) => {
-    const proxy = resolveSearchProxySettings(env);
-    const dispatcher = proxy ? getSearchProxyDispatcher(proxy) : undefined;
+    const dispatcher = selectHttpDispatcher(env, url, resolveProxyDispatcher);
     const requestInit = dispatcher ? { ...init, dispatcher } : init;
     return (await undiciFetch(
       url,
       requestInit as Parameters<typeof undiciFetch>[1],
     )) as unknown as Response;
   };
+}
+
+/**
+ * Which dispatcher one http-search request gets: the layered override first,
+ * then the env proxy, then none. Exported so the precedence is ASSERTED by a
+ * test rather than left implicit (the API slice's `selectApiDispatcher`
+ * precedent). The override receives the exact request URL, because the
+ * daemon-side resolver makes its own loopback/`NO_PROXY` verdict per target.
+ */
+export function selectHttpDispatcher(
+  env: ProxyEnvironment | undefined,
+  url: string,
+  resolveProxyDispatcher?: (url: string) => Dispatcher | undefined,
+): Dispatcher | undefined {
+  return resolveProxyDispatcher?.(url) ?? envProxyDispatcher(env);
+}
+
+function envProxyDispatcher(env: ProxyEnvironment | undefined): Dispatcher | undefined {
+  const proxy = resolveSearchProxySettings(env);
+  return proxy ? getSearchProxyDispatcher(proxy) : undefined;
 }
 
 async function fetchWithRedirectLimit(

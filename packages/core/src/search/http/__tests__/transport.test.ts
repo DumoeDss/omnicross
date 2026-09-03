@@ -10,11 +10,12 @@
  */
 
 import { isSearchProviderError, type SearchProviderError } from '@omnicross/contracts/search-types';
+import type { Dispatcher } from 'undici';
 import { describe, expect, it } from 'vitest';
 
 import { SEARCH_BROWSER_HEADERS } from '../headers';
 import { getSearchProxyDispatcher, resolveSearchProxySettings } from '../proxy';
-import { createSearchHttpTransport, MAX_REDIRECTS } from '../transport';
+import { createSearchHttpTransport, MAX_REDIRECTS, selectHttpDispatcher } from '../transport';
 import { SEARCH_HTTP_TRANSPORT_ID, type SearchHttpFetch } from '../types';
 
 const REQUEST = { timeoutMs: 5_000, maxResponseBytes: 1024 * 1024, providerId: 'http-bing' };
@@ -340,6 +341,36 @@ describe('search HTTP transport — observability and sanitization', () => {
     // key is the settings signature, not object identity.
     expect(getSearchProxyDispatcher({ ...settings })).toBe(first);
     expect(getSearchProxyDispatcher({ ...settings, noProxy: 'localhost' })).not.toBe(first);
+  });
+
+  it('puts the layered override ahead of the env proxy, consulted with the exact URL', () => {
+    const sentinel = { sentinel: true } as unknown as Dispatcher;
+    const seenUrls: string[] = [];
+    const override = (url: string): Dispatcher | undefined => {
+      seenUrls.push(url);
+      return url === 'https://html.duckduckgo.com/html/' ? sentinel : undefined;
+    };
+
+    // Both vars set: with only HTTPS_PROXY the settings lack `httpProxy`, and
+    // undici's EnvHttpProxyAgent would then read THIS process's real env for
+    // the http half — a leak of the runner's machine into the fixture.
+    const env = { HTTPS_PROXY: 'http://env.test:1', HTTP_PROXY: 'http://env.test:1' };
+
+    // The override wins even when the env layer would also configure a proxy.
+    expect(
+      selectHttpDispatcher(env, 'https://html.duckduckgo.com/html/', override),
+    ).toBe(sentinel);
+    // A target the override declines falls back to the env layer…
+    expect(selectHttpDispatcher(env, 'https://other.test/', override)).toBe(
+      getSearchProxyDispatcher({ httpProxy: 'http://env.test:1', httpsProxy: 'http://env.test:1' }),
+    );
+    // …and to nothing at all when no layer applies.
+    expect(selectHttpDispatcher({}, 'https://other.test/', override)).toBeUndefined();
+    expect(seenUrls).toEqual([
+      'https://html.duckduckgo.com/html/',
+      'https://other.test/',
+      'https://other.test/',
+    ]);
   });
 
   it('resolves proxy environment variables in either case, preferring the specific over all_proxy', () => {

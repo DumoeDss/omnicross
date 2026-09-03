@@ -22,10 +22,14 @@ import type {
   SearchRuntimeEvent,
 } from '@omnicross/contracts/search-types';
 import type { SearchServerConfig } from '@omnicross/core/outbound-api/types';
+import { resolveUpstreamDispatcher } from '@omnicross/core/pipeline/upstreamFetch';
 import { createSearchRuntime, type SearchRuntime } from '@omnicross/core/search';
 import { apiSearchContributions } from '@omnicross/core/search/api';
 import type { SearchEgressPolicy } from '@omnicross/core/search';
-import { builtinHttpSearchContributions } from '@omnicross/core/search/http';
+import {
+  builtinHttpSearchContributions,
+  createSearchHttpTransport,
+} from '@omnicross/core/search/http';
 
 import type { Logger } from '@omnicross/core';
 
@@ -58,6 +62,20 @@ export function searchPolicyFrom(config: SearchServerConfig): SearchPolicy {
 }
 
 /**
+ * Route search egress through the SAME layered proxy stack as LLM upstream
+ * traffic (`fetchUpstream`: account > provider > server.proxy > env). The
+ * resolver's loopback/`NO_PROXY` verdicts apply per URL, and a config edit
+ * hot-reloads through its dispatcher generation bump. With no resolver
+ * registered (CLI/standalone use of core) or no layer matching the target, the
+ * transports' env layer applies unchanged — the Elftia baseline.
+ */
+export function resolveSearchUpstreamDispatcher(
+  url: string,
+): ReturnType<typeof resolveUpstreamDispatcher> {
+  return resolveUpstreamDispatcher({ url });
+}
+
+/**
  * Every contribution the config asks for: the two keyless HTTP engines, plus
  * exactly the API providers that are configured.
  *
@@ -69,9 +87,12 @@ export function searchContributionsFrom(
   config: SearchServerConfig,
 ): SearchProviderContribution[] {
   return [
-    ...builtinHttpSearchContributions(),
+    ...builtinHttpSearchContributions(
+      createSearchHttpTransport({ resolveProxyDispatcher: resolveSearchUpstreamDispatcher }),
+    ),
     ...apiSearchContributions(config.providers, {
       egressPolicy: searchEgressPolicyFrom(config),
+      resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
     }),
   ];
 }

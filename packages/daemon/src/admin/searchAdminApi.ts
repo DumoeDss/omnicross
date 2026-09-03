@@ -56,7 +56,10 @@ import {
   SEARCH_DOCTOR_QUERY,
   type SearchDoctorRow,
 } from '../search/searchDoctorProjection';
-import { searchEgressPolicyFrom } from '../search/SearchAssembly';
+import {
+  resolveSearchUpstreamDispatcher,
+  searchEgressPolicyFrom,
+} from '../search/SearchAssembly';
 
 /** The two provider ids that need no configuration entry to be testable. */
 const KEYLESS_HTTP_PROVIDER_IDS: ReadonlySet<string> = new Set(['http-bing', 'http-duckduckgo']);
@@ -309,14 +312,20 @@ async function handleSearchTest(
 
   const egressPolicy = searchEgressPolicyFrom(search);
   const fetchImpl = status.testFetch;
-  const transport = fetchImpl ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy }) : undefined;
+  // A test double replaces the whole fetch; production probes go through the
+  // same layered daemon proxy as the bootstrap runtime's searches.
+  const transport = fetchImpl
+    ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy })
+    : createSearchHttpTransport({ resolveProxyDispatcher: resolveSearchUpstreamDispatcher });
   // Same construction the doctor probes with: the builtin http pair plus the
   // configured API providers. The ONLY provider exercised is the requested one.
   const contributions: SearchProviderContribution[] = [
     ...builtinHttpSearchContributions(transport),
     ...apiSearchContributions(search.providers, {
       egressPolicy,
-      ...(fetchImpl ? { fetchImpl } : {}),
+      ...(fetchImpl
+        ? { fetchImpl }
+        : { resolveProxyDispatcher: resolveSearchUpstreamDispatcher }),
     }),
   ];
   const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
@@ -394,12 +403,18 @@ async function handleSearchQuery(
 
   const egressPolicy = searchEgressPolicyFrom(search);
   const fetchImpl = status.testFetch;
-  const transport = fetchImpl ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy }) : undefined;
+  // A test double replaces the whole fetch; production probes go through the
+  // same layered daemon proxy as the bootstrap runtime's searches.
+  const transport = fetchImpl
+    ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy })
+    : createSearchHttpTransport({ resolveProxyDispatcher: resolveSearchUpstreamDispatcher });
   const contributions: SearchProviderContribution[] = [
     ...builtinHttpSearchContributions(transport),
     ...apiSearchContributions(search.providers, {
       egressPolicy,
-      ...(fetchImpl ? { fetchImpl } : {}),
+      ...(fetchImpl
+        ? { fetchImpl }
+        : { resolveProxyDispatcher: resolveSearchUpstreamDispatcher }),
     }),
   ];
   const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
