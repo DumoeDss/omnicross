@@ -42,7 +42,7 @@ import http from 'node:http';
 import { DEFAULT_SEARCH_SERVER_CONFIG, loadServerConfig } from '@omnicross/core/outbound-api';
 import { apiSearchContributions } from '@omnicross/core/search/api';
 import { builtinHttpSearchContributions, createSearchHttpTransport } from '@omnicross/core/search/http';
-import type { SearchFrontendModes, SearchRuntime } from '@omnicross/core/search';
+import { createSearchRuntime, type SearchFrontendModes, type SearchRuntime } from '@omnicross/core/search';
 import type {
   SearchProviderContribution,
   SearchProviderDiagnostic,
@@ -57,9 +57,9 @@ import {
   type SearchDoctorRow,
 } from '../search/searchDoctorProjection';
 import {
-  resolveSearchUpstreamDispatcher,
-  resolveSearchUpstreamProxyConfig,
+  searchContributionsFrom,
   searchEgressPolicyFrom,
+  searchPolicyFrom,
 } from '../search/SearchAssembly';
 
 /** The two provider ids that need no configuration entry to be testable. */
@@ -121,6 +121,10 @@ export interface SearchQueryResultItem {
 export interface SearchQueryResponse {
   /** The doctor-classified diagnostic (status/reason/sanitized error shape). */
   diagnostic: SearchProviderDiagnostic;
+  /** The provider that actually served — the preferred one, or a fallback. */
+  providerUsed?: SearchProviderId;
+  /** Attempts beyond the first (0 = the preferred provider served). */
+  fallbackCount?: number;
   /** Sanitized result count on the success arm. */
   resultCount?: number;
   /** Sanitized results (≤5) on the success arm. Absent on the failure arm. */
@@ -281,6 +285,30 @@ async function handleSearchDiagnostics(
   return writeJson(res, 200, { diagnostics: snapshot });
 }
 
+/**
+ * Contributions built from the PERSISTED config, shared by both admin probe
+ * surfaces so a just-saved key is testable before a restart (design D3).
+ *
+ * A test double (`testFetch`) replaces both transports' fetch wholesale;
+ * production goes through the same layered daemon proxy (socks5 included,
+ * impit eligible) as the bootstrap runtime's searches.
+ */
+function persistedSearchContributions(
+  search: NonNullable<Awaited<ReturnType<typeof loadServerConfig>>['search']>,
+  fetchImpl: ((url: string, init: RequestInit) => Promise<Response>) | undefined,
+): SearchProviderContribution[] {
+  if (fetchImpl) {
+    const egressPolicy = searchEgressPolicyFrom(search);
+    return [
+      ...builtinHttpSearchContributions(
+        createSearchHttpTransport({ fetch: fetchImpl, egressPolicy }),
+      ),
+      ...apiSearchContributions(search.providers, { egressPolicy, fetchImpl }),
+    ];
+  }
+  return searchContributionsFrom(search);
+}
+
 /** `POST /admin/api/search/test { providerId }` — one fixed-query live check. */
 async function handleSearchTest(
   req: http.IncomingMessage,
@@ -311,27 +339,10 @@ async function handleSearchTest(
     return writeErr(res, 400, `search provider '${providerId}' is not configured`);
   }
 
-  const egressPolicy = searchEgressPolicyFrom(search);
   const fetchImpl = status.testFetch;
-  // A test double replaces the whole fetch; production probes go through the
-  // same layered daemon proxy as the bootstrap runtime's searches.
-  const transport = fetchImpl
-    ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy })
-    : createSearchHttpTransport({
-        resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
-        resolveProxyConfig: resolveSearchUpstreamProxyConfig,
-      });
   // Same construction the doctor probes with: the builtin http pair plus the
   // configured API providers. The ONLY provider exercised is the requested one.
-  const contributions: SearchProviderContribution[] = [
-    ...builtinHttpSearchContributions(transport),
-    ...apiSearchContributions(search.providers, {
-      egressPolicy,
-      ...(fetchImpl
-        ? { fetchImpl }
-        : { resolveProxyDispatcher: resolveSearchUpstreamDispatcher }),
-    }),
-  ];
+  const contributions = persistedSearchContributions(search, fetchImpl);
   const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
   if (!contribution) {
     // Unreachable for validated ids, but a refusal beats a fabrication if the
@@ -360,10 +371,13 @@ async function handleSearchTest(
 
 /**
  * `POST /admin/api/search/query { providerId, query }` — the INTERACTIVE
- * test-panel probe (search-settings-tab D4). Mirrors `handleSearchTest`'s
- * one-off probe construction exactly (persisted config → egress policy →
- * contributions → the ONE requested provider; no registry, no walk, no
- * ordering), but sends the OPERATOR's query and returns the sanitized results.
+ * test-panel probe (search-settings-tab D4). Builds a THROWAWAY runtime from
+ * the persisted config with the selected provider PREFERRED and fallback
+ * forced ON — Elftia's panel UX (`searchWithFallback`: the explicit selection
+ * first, then every other eligible provider). A provider that refuses the
+ * operator's query (a trust-checked decoy page, a bot challenge) therefore
+ * answers through the next one instead of surfacing `blocked`; `providerUsed`
+ * and `fallbackCount` say which provider actually served.
  *
  * §11.1 discipline: every result field is coerced/stripped/capped BEFORE
  * serialization (the UI renders untrusted text on top — two layers); the query
@@ -405,35 +419,23 @@ async function handleSearchQuery(
     return writeErr(res, 400, `search provider '${providerId}' is not configured`);
   }
 
-  const egressPolicy = searchEgressPolicyFrom(search);
   const fetchImpl = status.testFetch;
-  // A test double replaces the whole fetch; production probes go through the
-  // same layered daemon proxy as the bootstrap runtime's searches.
-  const transport = fetchImpl
-    ? createSearchHttpTransport({ fetch: fetchImpl, egressPolicy })
-    : createSearchHttpTransport({
-        resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
-        resolveProxyConfig: resolveSearchUpstreamProxyConfig,
-      });
-  const contributions: SearchProviderContribution[] = [
-    ...builtinHttpSearchContributions(transport),
-    ...apiSearchContributions(search.providers, {
-      egressPolicy,
-      ...(fetchImpl
-        ? { fetchImpl }
-        : { resolveProxyDispatcher: resolveSearchUpstreamDispatcher }),
-    }),
-  ];
-  const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
-  if (!contribution) {
-    // Unreachable for validated ids, but a refusal beats a fabrication if the
-    // shape ever drifts.
-    return writeErr(res, 400, `search provider '${providerId}' is not configured`);
-  }
+  const runtime = createSearchRuntime({
+    contributions: persistedSearchContributions(search, fetchImpl),
+    policy: {
+      ...searchPolicyFrom(search),
+      // The panel always walks: it answers "does a search WORK for this
+      // operator", not "does this one provider behave" — that is `/test`'s
+      // job. The persisted policy's allowlist still bounds the walk.
+      fallbackEnabled: true,
+      preferred: providerId as SearchProviderId,
+    },
+  });
 
   const checkedAt = new Date().toISOString();
   try {
-    const results = await contribution.provider.search(query, { maxResults: 5 });
+    const orchestrated = await runtime.search({ query, options: { maxResults: 5 } });
+    const results = orchestrated.results;
     const sanitized: SearchQueryResultItem[] = results
       .slice(0, SEARCH_QUERY_MAX_RESULTS)
       .map((result) => ({
@@ -448,14 +450,16 @@ async function handleSearchQuery(
     // state, never an error.
     const diagnostic: SearchProviderDiagnostic =
       sanitized.length === 0
-        ? { providerId: contribution.id, status: 'healthy', checkedAt }
+        ? { providerId: orchestrated.providerId, status: 'healthy', checkedAt }
         : classifyLiveSearchOutcome(
-            contribution.id,
+            orchestrated.providerId,
             { kind: 'results', count: sanitized.length },
             checkedAt,
           );
     const response: SearchQueryResponse = {
       diagnostic,
+      providerUsed: orchestrated.providerId,
+      fallbackCount: orchestrated.fallbackCount,
       resultCount: sanitized.length,
       results: sanitized,
     };
@@ -463,8 +467,10 @@ async function handleSearchQuery(
   } catch (error) {
     // Same honest classification as `/test`: challenge/trust/egress denials
     // are `blocked` observations; the error shape is the doctor's SANITIZED
-    // one, so an upstream body quoting the stored key never serializes.
-    const diagnostic = classifyLiveSearchOutcome(contribution.id, { kind: 'failure', error }, checkedAt);
+    // one, so an upstream body quoting the stored key never serializes. The
+    // diagnostic names the REQUESTED provider — the walk is exhausted, so no
+    // provider served.
+    const diagnostic = classifyLiveSearchOutcome(providerId as SearchProviderId, { kind: 'failure', error }, checkedAt);
     const response: SearchQueryResponse = { diagnostic };
     return writeJson(res, 200, { result: response });
   }

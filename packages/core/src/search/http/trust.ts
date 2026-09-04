@@ -13,6 +13,14 @@
  * Elftia's WebFetch of google.com pages, and no Google HTTP provider exists here
  * (`builtin-web-fetch` is out of this change's scope).
  *
+ * ONE divergence from the frozen baseline, recorded here because this file is
+ * now the single source of truth (Elftia consumes Omnicross's search runtime):
+ * substring matching runs on a SEPARATOR-FREE canonical form of the page text,
+ * so "Node.js" satisfies the query term "nodejs" and "GLM-4" the term "glm4".
+ * The baseline refused real SERPs over exactly that spelling gap — verified
+ * live 2026-09-04: the query `nodejs 文件读取` returned genuine results whose
+ * titles spell it "Node.js", and the check refused the page as a decoy.
+ *
  * @module search/http/trust
  */
 
@@ -86,30 +94,46 @@ export function bingTrustError(query: string, html: string): string | null {
   const terms = meaningfulQueryTerms(query);
   if (terms.length === 0) return null;
 
-  const titleSearchable = links
-    .map((link) => link.textContent ?? '')
-    .join(' ')
-    .normalize('NFKC')
-    .toLocaleLowerCase();
+  const titleSearchable = separatorFree(
+    links
+      .map((link) => link.textContent ?? '')
+      .join(' ')
+      .normalize('NFKC')
+      .toLocaleLowerCase(),
+  );
   if (!terms.some((term) => titleSearchable.includes(term))) {
     return 'Bing returned an untrusted search result page with zero query-term hits in result titles; refusing to return possible bot-decoy content.';
   }
 
-  const searchable = links
-    .map((link) => {
-      const container = link.closest('li.b_algo, .b_algo');
-      return `${link.textContent ?? ''} ${link.getAttribute('href') ?? ''} ${
-        container?.querySelector('.b_caption p, .b_algoSlug, p')?.textContent ?? ''
-      }`;
-    })
-    .join(' ')
-    .normalize('NFKC')
-    .toLocaleLowerCase();
+  const searchable = separatorFree(
+    links
+      .map((link) => {
+        const container = link.closest('li.b_algo, .b_algo');
+        return `${link.textContent ?? ''} ${link.getAttribute('href') ?? ''} ${
+          container?.querySelector('.b_caption p, .b_algoSlug, p')?.textContent ?? ''
+        }`;
+      })
+      .join(' ')
+      .normalize('NFKC')
+      .toLocaleLowerCase(),
+  );
   const coveredTerms = terms.filter((term) => searchable.includes(term));
   const requiredCoverage = terms.length === 1 ? 1 : 2;
   return new Set(coveredTerms).size >= requiredCoverage
     ? null
     : 'Bing returned an untrusted search result page; refusing to return possible bot-decoy content.';
+}
+
+/**
+ * The separator-free canonical form substring matching runs on.
+ *
+ * Separators INSIDE a word are spelling, not semantics: "Node.js" must satisfy
+ * "nodejs", "GLM-4" must satisfy "glm4". Whitespace is kept as a word boundary;
+ * everything outside letters and digits goes. Applied to the PAGE text only —
+ * query terms are already separator-free (the tokenizer splits on them).
+ */
+function separatorFree(text: string): string {
+  return text.replace(/[^\p{L}\p{N}\s]/gu, '');
 }
 
 /**

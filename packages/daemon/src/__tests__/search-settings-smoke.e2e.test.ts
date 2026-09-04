@@ -109,6 +109,11 @@ describe('search settings end-to-end smoke (task 6.2)', () => {
     const draft = createSearchSettingsDraft(initialSearch);
     draft.providers.tavily!.apiKeyInput = KEY_SENTINEL;
     draft.providers.searxng!.apiHost = 'http://127.0.0.1:9'; // egress-refused by design
+    // Bound the interactive walk to the refused provider: the e2e must stay
+    // hermetic (no real engine traffic), and a lone denied attempt surfaces
+    // the ORIGINAL error as `blocked` (exhaustion with one attempt is
+    // pass-through), which the assertions below pin.
+    draft.policy.allowed = ['searxng'];
     await uiSaveSearch(draft);
 
     // ── 2. GET never echoes the key; the store of record keeps it. ──

@@ -597,6 +597,10 @@ export interface SearchQueryResultItem {
  */
 export interface SearchQueryResult {
   diagnostic: SearchTestResult;
+  /** The provider that actually served — the preferred one, or a fallback. */
+  providerUsed?: string;
+  /** Attempts beyond the first (0 = the preferred provider served). */
+  fallbackCount?: number;
   resultCount?: number;
   results?: SearchQueryResultItem[];
 }

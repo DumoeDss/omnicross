@@ -1,5 +1,7 @@
 import type http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -518,29 +520,78 @@ describe('POST /admin/api/search/query (interactive test panel)', () => {
     expect(JSON.stringify(out.json())).not.toContain(KEY_SENTINEL);
   });
 
-  it('classifies an egress denial as blocked — an honest observation with no result content', async () => {
+  it('walks past an egress-denied preferred provider and answers through a fallback', async () => {
     // A persisted searxng host pointing at loopback: the egress policy refuses
-    // it before any connection (no fetch needed).
+    // it pre-flight (no fetch). The panel then walks to the http pair — the
+    // Elftia `searchWithFallback` UX — and duckduckgo serves the query.
     const persisted = {
       modes: modes(),
       providers: { searxng: { apiHost: 'http://127.0.0.1:8888' } },
       egress: { allowedPrivateHosts: [] },
       policy: { fallbackEnabled: true },
     };
+    const ddgSerp = readFileSync(
+      fileURLToPath(
+        new URL('../../../../core/test-fixtures/http-search/duckduckgo/ddg-html-serp.html', import.meta.url),
+      ),
+      'utf8',
+    );
+    const fetched: string[] = [];
+    const testFetch = vi.fn(async (url: string) => {
+      fetched.push(new URL(url).host);
+      // The same page for both engines: bing cannot recognize it (parse),
+      // duckduckgo can — so exactly one fallback candidate serves.
+      return new Response(ddgSerp, { status: 200, headers: { 'Content-Type': 'text/html' } });
+    });
     const out = response();
     await handleAdminApi(
       searchRequest('POST', { providerId: 'searxng', query: 'internal docs' }),
       out.res,
       '/admin/api/search/query',
-      queryDeps(undefined, persisted),
+      queryDeps(testFetch as unknown as (url: string, init: RequestInit) => Promise<Response>, persisted),
     );
 
     expect(out.status()).toBe(200);
     const result = (
-      out.json() as { result: { diagnostic: { status: string; reason?: string }; results?: unknown } }
+      out.json() as {
+        result: {
+          diagnostic: { status: string; providerId?: string };
+          providerUsed?: string;
+          fallbackCount?: number;
+          results?: Array<{ title: string }>;
+        };
+      }
     ).result;
-    expect(result.diagnostic.status).toBe('blocked');
-    expect(result.diagnostic.reason).toContain('egress policy');
+    expect(result.diagnostic.status).toBe('healthy');
+    expect(result.providerUsed).toBe('http-duckduckgo');
+    expect(result.fallbackCount).toBeGreaterThanOrEqual(1);
+    expect((result.results ?? []).length).toBeGreaterThan(0);
+    // The denied loopback target never produced a connection attempt.
+    expect(fetched).not.toContain('127.0.0.1');
+  });
+
+  it('classifies an exhausted walk as a failure naming the requested provider', async () => {
+    const persisted = {
+      modes: modes(),
+      providers: {},
+      egress: { allowedPrivateHosts: [] },
+      policy: { fallbackEnabled: true },
+    };
+    const testFetch = vi.fn(async () => new Response('gateway junk', { status: 502 }));
+    const out = response();
+    await handleAdminApi(
+      searchRequest('POST', { providerId: 'http-bing', query: 'anything' }),
+      out.res,
+      '/admin/api/search/query',
+      queryDeps(testFetch as unknown as (url: string, init: RequestInit) => Promise<Response>, persisted),
+    );
+
+    expect(out.status()).toBe(200);
+    const result = (
+      out.json() as { result: { diagnostic: { status: string; providerId?: string }; results?: unknown } }
+    ).result;
+    expect(result.diagnostic.status).toBe('failed');
+    expect(result.diagnostic.providerId).toBe('http-bing');
     expect(result.results).toBeUndefined();
   });
 
