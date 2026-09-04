@@ -9,6 +9,7 @@ import type { OutboundApiServerConfig } from '@omnicross/core/outbound-api/types
 import type { SearchFrontendModes } from '@omnicross/core/search';
 
 import { buildSearchRuntime } from '../../search/SearchAssembly';
+import { SEARCH_DOCTOR_QUERY } from '../../search/searchDoctorProjection';
 import { handleAdminApi, type AdminApiDeps } from '../adminApi';
 import type { JsonApiServerSettingsStore } from '../../ports/JsonApiServerSettingsStore';
 
@@ -167,7 +168,7 @@ describe('POST /admin/api/search/test', () => {
 
     // The fixed doctor query is the ONLY query — a caller-supplied one is ignored.
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.body).toContain('mozilla developer network http headers');
+    expect(calls[0]?.body).toContain(SEARCH_DOCTOR_QUERY);
     expect(JSON.stringify(calls[0]?.body)).not.toContain('USER_QUERY_SENTINEL');
     // No result title/URL/snippet ever echoes back.
     const serialized = JSON.stringify(out.json());

@@ -153,11 +153,16 @@ export function buildSearchDoctorSnapshot(
 /**
  * The one fixed query a live check sends.
  *
- * Public, low-sensitivity, and already committed in the fixture README — the
- * live check must never send a user's query, and this is also the query the
- * trust-passing Bing capture was taken with.
+ * Public, low-sensitivity, and committed in the fixture README — the live
+ * check must never send a user's query.
+ *
+ * Changed 2026-09-04 from `mozilla developer network http headers`: cn.bing.com
+ * brand-interprets THAT string into Mozilla-organization pages the anti-decoy
+ * check refuses, so a healthy provider reported `blocked` on CN egress. The
+ * replacement is one both engines answer with on-topic MDN results that PASS
+ * the trust check (verified live, Bing and DuckDuckGo, impit and undici).
  */
-export const SEARCH_DOCTOR_QUERY = 'mozilla developer network http headers';
+export const SEARCH_DOCTOR_QUERY = 'MDN HTTP headers documentation';
 
 /** What one live provider check produced. */
 export type LiveSearchOutcome =
