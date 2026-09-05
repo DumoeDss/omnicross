@@ -120,6 +120,7 @@ const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const ZHIPU_MODELS: Record<string, KnownModelCapabilities> = {
+  'glm-5.3': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
   'glm-5.2': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
   'glm-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
   'glm-5.1': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
