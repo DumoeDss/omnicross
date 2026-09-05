@@ -1,17 +1,12 @@
-# Codex subscription image adapter capability matrix
+# Codex subscription image adapter
 
-This adapter is a dormant, fail-closed foundation. The repository contains no permitted, sanitized successful ChatGPT/Codex subscription image exchange and no account-level image entitlement signal.
+The production adapter supports non-stream `gpt-image-2` generation and one-image edits. Generation uses the Codex Responses upstream; edits use the separate Codex Images Edits upstream. Mask edits, multiple reference images, and public partial-image streaming remain unsupported.
 
-| Capability | Production status | Evidence required to change it |
-|---|---|---|
-| Live subscription image entitlement | Unverified / unavailable | Fresh evidence for the selected account |
-| Candidate image wire protocol | Unverified / unavailable | Sanitized permitted exchange with protocol provenance |
-| Non-stream generation | Locally implemented, not advertised | Both account and observed-protocol evidence |
-| Edit, mask, multiple references | Unsupported by this adapter slice | Implementation plus all three capability layers |
-| Partial image stream | Unverified / unsupported | Independently decodable upstream partials with provenance |
-| Transparent output | Unverified / unsupported | Verified alpha-bearing upstream output and capability evidence |
-| Quality, moderation, compression options | Locally expressible, not advertised | Exact option/range agreement from adapter, account, and observed-protocol evidence |
-| Usage and revised prompt | Omitted by default | Separate verified response-field evidence |
-| Codex host `$imagegen` | Not established | Current-host live end-to-end acceptance in a later Change |
+Runtime availability is still fail-closed and account-bound. Adapter declarations, selected-account evidence, and observed-protocol evidence are resolved independently. An explicit live verification performs a minimal generation followed by an edit, then persists only HMAC-scoped account evidence. Text Responses success, a configuration toggle, or a model name alone never upgrades image capability.
 
-Text Responses success, a configuration toggle, public API documentation, or a `gpt-image-2` model name does not upgrade any row. Request/response bodies are always redacted at the shared proxy-aware egress seam.
+Request and response bodies, image Base64, credentials, and raw account identifiers are redacted at the shared proxy-aware egress seam.
+
+See the repository documentation:
+
+- [Image generation development guide](../../../../docs/image-generation-development.md)
+- [Image generation usage guide](../../../../docs/image-generation-usage.md)
