@@ -219,6 +219,11 @@ function WeeklyAllowanceList({
                   style={{ width: `${percent}%` }}
                 />
               </div>
+              {item.resetsAt ? (
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  {t('accounts.allowance.resetsAt', { time: new Date(item.resetsAt).toLocaleString() })}
+                </p>
+              ) : null}
             </div>
           );
         })}
@@ -262,6 +267,11 @@ function KeyQuotaList({ items, threshold }: { items: KeyQuotaDisplayItem[]; thre
                   style={{ width: `${percent}%` }}
                 />
               </div>
+              {item.resetsAt ? (
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  {t('accounts.allowance.resetsAt', { time: new Date(item.resetsAt).toLocaleString() })}
+                </p>
+              ) : null}
             </div>
           );
         })}

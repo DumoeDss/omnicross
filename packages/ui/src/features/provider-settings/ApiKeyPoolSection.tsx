@@ -258,6 +258,13 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
                                       style={{ width: `${percent ?? 0}%` }}
                                     />
                                   </div>
+                                  {window.resetsAt ? (
+                                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                      {t('accounts.allowance.resetsAt', {
+                                        time: new Date(window.resetsAt).toLocaleString(),
+                                      })}
+                                    </p>
+                                  ) : null}
                                 </div>
                               );
                             })}
