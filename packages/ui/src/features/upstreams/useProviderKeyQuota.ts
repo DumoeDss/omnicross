@@ -19,6 +19,7 @@ export interface KeyQuotaSummaryWindow {
   label: string;
   usedPercent: number | null;
   resetsAt?: string;
+  state?: string;
 }
 
 /** Compact chip label for a window id — universal shorthand, no locale churn
@@ -28,6 +29,45 @@ export function quotaChipLabel(id: string, label: string): string {
   if (id === 'seven-day' || id === 'weekly') return '7d';
   if (id === 'thirty-day' || id === 'monthly') return 'mo';
   return label;
+}
+
+/**
+ * Pure reduction shared by the upstreams chips and the overview account-pool
+ * card: the MOST-USED key per window id across one provider's key pool.
+ * Accepts any key-pool view rows carrying the secret-free `quota` DTO.
+ */
+export function reduceKeyQuotaWorst(
+  entries: ReadonlyArray<{ quota?: { windows: ReadonlyArray<{ id: string; label: string; usedPercent: number | null; windowMinutes?: number; resetsAt?: string; state?: string }> } | undefined }>,
+): KeyQuotaSummaryWindow[] {
+  const worst = new Map<string, KeyQuotaSummaryWindow>();
+  for (const entry of entries) {
+    for (const window of entry.quota?.windows ?? []) {
+      if (window.usedPercent === null || window.usedPercent === undefined) continue;
+      const existing = worst.get(window.id);
+      if (!existing || (existing.usedPercent ?? -1) < window.usedPercent) {
+        worst.set(window.id, {
+          id: window.id,
+          label: window.label,
+          usedPercent: window.usedPercent,
+          ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
+          ...(window.state ? { state: window.state } : {}),
+        });
+      }
+    }
+  }
+  return [...worst.values()];
+}
+
+/** Localized window label (same wording as the accounts allowance view). */
+export function localizedQuotaWindowLabel(
+  window: { id: string; label: string; windowMinutes?: number },
+  t: (key: string) => string,
+): string {
+  if (window.id === 'five-hour' || window.windowMinutes === 300) return t('accounts.allowance.fiveHour');
+  if (window.id === 'seven-day' || window.id === 'weekly' || window.windowMinutes === 10_080) {
+    return t('accounts.allowance.weekly');
+  }
+  return window.label;
 }
 
 /** Worst-case (most-used key) per window id across each provider's key pool. */
@@ -46,22 +86,8 @@ export function useProviderKeyQuotaSummaries(
         ids.map(async (providerId) => {
           try {
             const keys = await agent.llmConfig.getApiKeys(providerId);
-            const worst = new Map<string, KeyQuotaSummaryWindow>();
-            for (const entry of keys) {
-              for (const window of entry.quota?.windows ?? []) {
-                if (window.usedPercent === null || window.usedPercent === undefined) continue;
-                const existing = worst.get(window.id);
-                if (!existing || (existing.usedPercent ?? -1) < window.usedPercent) {
-                  worst.set(window.id, {
-                    id: window.id,
-                    label: window.label,
-                    usedPercent: window.usedPercent,
-                    ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
-                  });
-                }
-              }
-            }
-            if (worst.size > 0) next.set(providerId, [...worst.values()]);
+            const windows = reduceKeyQuotaWorst(keys);
+            if (windows.length > 0) next.set(providerId, windows);
           } catch {
             // quota is best-effort display — a failed keys read drops the chip
           }

@@ -1,5 +1,6 @@
 import { adminClient, DAEMON_BASE_URL } from '../../daemon/adminClient';
 import { daemonFetch } from '../../daemon/httpFetch';
+import { reduceKeyQuotaWorst } from '../upstreams/useProviderKeyQuota';
 
 import type {
   AccountsListResponse,
@@ -128,6 +129,45 @@ async function readAccounts(): Promise<AccountsListResponse> {
   return normalizeOverviewAccounts(await adminClient.get<unknown>('/accounts'));
 }
 
+/** One BYO provider's worst-key quota windows (secret-free DTO only). */
+export interface OverviewKeyQuotaEntry {
+  providerId: string;
+  providerLabel: string;
+  windows: ReturnType<typeof reduceKeyQuotaWorst>;
+}
+
+/**
+ * Read every BYO provider's key-pool plan quota (one providers list + one
+ * keys read per provider; the daemon's 5-minute quota cache absorbs repeats).
+ * Providers without a quota adapter simply contribute no entry.
+ */
+export async function readProviderKeyQuotas(): Promise<OverviewKeyQuotaEntry[]> {
+  const body = await adminClient.get<{ providers?: Array<{ id?: string; name?: string }> }>('/providers');
+  const providers = Array.isArray(body.providers) ? body.providers : [];
+  const entries = await Promise.all(
+    providers.map(async (provider): Promise<OverviewKeyQuotaEntry | null> => {
+      const providerId = typeof provider.id === 'string' && provider.id.trim() ? provider.id.trim() : '';
+      if (!providerId) return null;
+      try {
+        const keysBody = await adminClient.get<{
+          keys?: Array<{ quota?: Parameters<typeof reduceKeyQuotaWorst>[0][number]['quota'] }>;
+        }>(`/providers/${encodeURIComponent(providerId)}/keys`);
+        const windows = reduceKeyQuotaWorst(keysBody.keys ?? []);
+        if (windows.length === 0) return null;
+        return {
+          providerId,
+          providerLabel: typeof provider.name === 'string' && provider.name.trim() ? provider.name.trim() : providerId,
+          windows,
+        };
+      } catch {
+        // One provider's failed keys read must not sink the rest.
+        return null;
+      }
+    }),
+  );
+  return entries.flatMap((entry) => (entry ? [entry] : []));
+}
+
 async function readAllowances(): Promise<AccountAllowanceSnapshot[]> {
   const body = await adminClient.get<{ allowances?: AccountAllowanceSnapshot[] }>('/accounts/allowances');
   if (!Array.isArray(body.allowances)) throw new Error('Account allowance data was empty');
@@ -137,6 +177,11 @@ async function readAllowances(): Promise<AccountAllowanceSnapshot[]> {
 /** Refresh the independently polled account-allowance source. */
 export function loadOverviewAllowances(): Promise<OverviewSource<AccountAllowanceSnapshot[]>> {
   return readOverviewSource(readAllowances);
+}
+
+/** Refresh the independently polled BYO key-quota source (same cadence). */
+export function loadOverviewKeyQuotas(): Promise<OverviewSource<OverviewKeyQuotaEntry[]>> {
+  return readOverviewSource(readProviderKeyQuotas);
 }
 
 async function readIntegrations(): Promise<CliIntegrationsOverview> {
@@ -178,13 +223,14 @@ async function readUsage(): Promise<DashboardSummary> {
  * unavailable row; it cannot erase the other evidence on the page.
  */
 export async function loadOverviewSources(now = Date.now()): Promise<OverviewSources> {
-  const [config, status, keys, version, accounts, allowances, usage, integrations, audit] = await Promise.all([
+  const [config, status, keys, version, accounts, allowances, keyQuotas, usage, integrations, audit] = await Promise.all([
     readOverviewSource(readGatewayConfig),
     readOverviewSource(readGatewayStatus),
     readOverviewSource(readGatewayKeys),
     readOverviewSource(readGatewayVersion),
     readOverviewSource(readAccounts),
     loadOverviewAllowances(),
+    loadOverviewKeyQuotas(),
     readOverviewSource(readUsage),
     readOverviewSource(readIntegrations),
     readOverviewSource(() => readAudit(now)),
@@ -203,6 +249,7 @@ export async function loadOverviewSources(now = Date.now()): Promise<OverviewSou
     gateway: { config, status, keys, version },
     accounts,
     allowances,
+    keyQuotas,
     usage,
     integrations,
     audit: normalizedAudit,

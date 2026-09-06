@@ -620,7 +620,8 @@
       "expiringSoon": "即將過期",
       "expiringSoonHint": "48 小時內到期的憑證",
       "open": "開啟帳號",
-      "weeklyQuota": "週額度"
+      "weeklyQuota": "週額度",
+      "keyQuota": "金鑰配額"
     },
     "today": {
       "title": "今日交換記錄",

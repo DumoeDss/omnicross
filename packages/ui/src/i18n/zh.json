@@ -620,7 +620,8 @@
       "expiringSoon": "即将过期",
       "expiringSoonHint": "48 小时内到期的凭证",
       "open": "打开账号",
-      "weeklyQuota": "周额度"
+      "weeklyQuota": "周额度",
+      "keyQuota": "密钥配额"
     },
     "today": {
       "title": "今日交换记录",

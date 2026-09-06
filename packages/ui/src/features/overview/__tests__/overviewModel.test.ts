@@ -167,6 +167,7 @@ function healthySources(overrides: Partial<OverviewSources> = {}): OverviewSourc
     },
     accounts: source({ ...emptyAccounts, providerAccounts: { ...emptyAccounts.providerAccounts, claude: [healthyAccount] } }),
     allowances: source(baseAllowances),
+    keyQuotas: source([]),
     usage: source(baseUsage),
     integrations: source(baseIntegrations),
     audit: source(baseAudit),
@@ -238,6 +239,7 @@ describe('buildOverviewModel', () => {
       },
       accounts: unavailable(),
       allowances: unavailable(),
+      keyQuotas: unavailable(),
       usage: unavailable(),
       integrations: unavailable(),
       audit: unavailable(),
@@ -392,5 +394,46 @@ describe('buildOverviewModel', () => {
     expect(view.allowance.weeklyTop).toHaveLength(2);
     expect(view.allowance.weeklyTop[0]).toMatchObject({ accountId: 'claude-2', usedPercent: 88, label: 'claude-sayo' });
     expect(view.allowance.weeklyTop[1]).toMatchObject({ accountId: 'claude-1', usedPercent: 30, label: 'claude-primary' });
+  });
+
+  it('flattens BYO key-quota entries one row per window, worst-first and capped', () => {
+    const view = buildOverviewModel(healthySources({
+      keyQuotas: source([
+        {
+          providerId: 'zhipu',
+          providerLabel: 'z.ai',
+          windows: [
+            { id: 'five-hour', label: '5 hours', usedPercent: 64, resetsAt: '2026-09-07T05:00:00.000Z' },
+            { id: 'seven-day', label: '7 days', usedPercent: 32 },
+          ],
+        },
+        {
+          providerId: 'minimax-token-plan',
+          providerLabel: 'MiniMax',
+          windows: [{ id: 'five-hour', label: '5 hours', usedPercent: 95 }],
+        },
+        { providerId: 'deepseek', providerLabel: 'deepseek', windows: [] },
+      ]),
+    }), NOW);
+
+    expect(view.allowance.keyQuotaItems.map((item) => item.key)).toEqual([
+      'minimax-token-plan:five-hour',
+      'zhipu:five-hour',
+      'zhipu:seven-day',
+    ]);
+    expect(view.allowance.keyQuotaItems[0]).toMatchObject({
+      providerLabel: 'MiniMax',
+      windowId: 'five-hour',
+      usedPercent: 95,
+      state: 'fresh',
+    });
+    expect(view.allowance.keyQuotaSourceState).toBe('ready');
+  });
+
+  it('key-quota items stay empty when the source is unavailable or unready', () => {
+    expect(buildOverviewModel(healthySources({ keyQuotas: unavailable('boom') }), NOW).allowance.keyQuotaItems)
+      .toEqual([]);
+    expect(buildOverviewModel(healthySources({ keyQuotas: { state: 'loading' } }), NOW).allowance.keyQuotaItems)
+      .toEqual([]);
   });
 });

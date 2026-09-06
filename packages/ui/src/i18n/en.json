@@ -626,7 +626,8 @@
       "expiringSoon": "Expiring soon",
       "expiringSoonHint": "Credentials expiring within 48 hours",
       "open": "Open Accounts",
-      "weeklyQuota": "Weekly quota"
+      "weeklyQuota": "Weekly quota",
+      "keyQuota": "API key quotas"
     },
     "today": {
       "title": "Today's exchange",

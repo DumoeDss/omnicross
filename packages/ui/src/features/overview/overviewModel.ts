@@ -19,6 +19,13 @@ export type OverviewAuditData = AuditStats;
 
 export type OverviewGatewayStatus = OutboundApiServerStatus & { version?: string };
 
+/** One BYO provider's worst-key quota windows (see overviewData's reader). */
+export interface OverviewKeyQuotaEntry {
+  providerId: string;
+  providerLabel: string;
+  windows: Array<{ id: string; label: string; usedPercent: number | null; resetsAt?: string; state?: string }>;
+}
+
 export interface OverviewSources {
   gateway: {
     config: OverviewSource<OutboundApiServerConfig>;
@@ -28,6 +35,7 @@ export interface OverviewSources {
   };
   accounts: OverviewSource<AccountsListResponse>;
   allowances: OverviewSource<AccountAllowanceSnapshot[]>;
+  keyQuotas: OverviewSource<OverviewKeyQuotaEntry[]>;
   usage: OverviewSource<DashboardSummary>;
   integrations: OverviewSource<CliIntegrationsOverview>;
   audit: OverviewSource<OverviewAuditData>;
@@ -103,6 +111,18 @@ export interface AllowanceWeeklyItem {
   resetsAt?: string;
 }
 
+/** One BYO key-quota window row in the overview account-pool card. */
+export interface KeyQuotaDisplayItem {
+  key: string;
+  providerId: string;
+  providerLabel: string;
+  windowId: string;
+  windowLabel: string;
+  usedPercent: number | null;
+  state: AllowanceWindowState;
+  resetsAt?: string;
+}
+
 export interface OverviewModel {
   stages: RequestPathStage[];
   pathOperational: boolean;
@@ -132,6 +152,10 @@ export interface OverviewModel {
     unobservedCount: number;
     sourceState: DataSourceState;
     weeklyTop: AllowanceWeeklyItem[];
+    /** BYO provider-key plan quotas (z.ai coding plan, MiniMax Token Plan, …),
+     * flattened one row per window, worst-first. */
+    keyQuotaItems: KeyQuotaDisplayItem[];
+    keyQuotaSourceState: DataSourceState;
   };
   today: {
     requests: OverviewMetric<number>;
@@ -334,6 +358,34 @@ function metric<T>(source: OverviewSource<unknown>, value: T | undefined): Overv
   return { state: source.state, ...(source.state === 'ready' && value !== undefined ? { value } : {}) };
 }
 
+/** Flatten BYO key-quota entries one row per window, worst-first, capped. */
+function buildKeyQuotaItems(
+  source: OverviewSource<OverviewKeyQuotaEntry[]>,
+  limit = 4,
+): KeyQuotaDisplayItem[] {
+  if (source.state !== 'ready' || !source.data) return [];
+  const items: KeyQuotaDisplayItem[] = [];
+  for (const entry of source.data) {
+    for (const window of entry.windows) {
+      items.push({
+        key: `${entry.providerId}:${window.id}`,
+        providerId: entry.providerId,
+        providerLabel: entry.providerLabel,
+        windowId: window.id,
+        windowLabel: window.label,
+        usedPercent:
+          typeof window.usedPercent === 'number' ? Math.max(0, Math.min(100, window.usedPercent)) : null,
+        state: window.state === 'stale' || window.state === 'unavailable' || window.state === 'unsupported'
+          ? window.state
+          : 'fresh',
+        ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
+      });
+    }
+  }
+  items.sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1));
+  return items.slice(0, limit);
+}
+
 function issue(
   id: OverviewIssueId,
   route: OverviewRoute,
@@ -411,6 +463,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
   const allowanceThreshold = config?.allowanceScheduling?.demoteAtPercent ?? DEFAULT_ALLOWANCE_WARNING_PERCENT;
   const allowanceWatch = buildAllowanceWatch(input.allowances, allowanceThreshold, entries);
   const weeklyTop = buildWeeklyTop(input.allowances, entries);
+  const keyQuotaItems = buildKeyQuotaItems(input.keyQuotas);
   const todayAudit = auditErrorRate(input.audit, input.usage);
   const integrations = integrationRows(input.integrations);
 
@@ -578,6 +631,8 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
       ...allowanceWatch,
       sourceState: input.allowances.state,
       weeklyTop,
+      keyQuotaItems,
+      keyQuotaSourceState: input.keyQuotas.state,
     },
     today: {
       requests: metric(input.usage, input.usage.data?.today.eventCount),

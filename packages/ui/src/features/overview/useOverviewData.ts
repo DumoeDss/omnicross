@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { loadOverviewAllowances, loadOverviewSources } from './overviewData';
+import { loadOverviewAllowances, loadOverviewKeyQuotas, loadOverviewSources } from './overviewData';
 import type { OverviewSource, OverviewSources } from './overviewModel';
 
 /** Keep the account-pool allowance display current without reloading the full Overview. */
@@ -23,6 +23,7 @@ function loadingSources(previous?: OverviewSources): OverviewSources {
     },
     accounts: loadingSource(previous?.accounts),
     allowances: loadingSource(previous?.allowances),
+    keyQuotas: loadingSource(previous?.keyQuotas),
     usage: loadingSource(previous?.usage),
     integrations: loadingSource(previous?.integrations),
     audit: loadingSource(previous?.audit),
@@ -63,9 +64,14 @@ export function useOverviewData(): UseOverviewDataResult {
       if (polling || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
       polling = true;
       try {
-        const allowances = await loadOverviewAllowances();
+        // The key-quota source rides the same cadence — the daemon's 5-minute
+        // quota cache keeps the repeat reads cheap.
+        const [allowances, keyQuotas] = await Promise.all([
+          loadOverviewAllowances(),
+          loadOverviewKeyQuotas(),
+        ]);
         if (!cancelled) {
-          setSources((previous) => ({ ...previous, allowances }));
+          setSources((previous) => ({ ...previous, allowances, keyQuotas }));
         }
       } finally {
         polling = false;
@@ -93,6 +99,7 @@ export function useOverviewData(): UseOverviewDataResult {
       keys: sources.gateway.keys,
       accounts: sources.accounts,
       allowances: sources.allowances,
+      keyQuotas: sources.keyQuotas,
       usage: sources.usage,
       integrations: sources.integrations,
       audit: sources.audit,
