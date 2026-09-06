@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Buka halaman verifikasi, masukkan kode di bawah, dan setujui permintaan masuk."
     },
+    "grokOauth": {
+      "description": "Buka halaman verifikasi, masukkan kode di bawah, dan setujui permintaan masuk."
+    },
+    "copilotOauth": {
+      "description": "Buka github.com/login/device, masukkan kode di bawah, dan izinkan aplikasi Copilot CLI."
+    },
     "codexOauth": {
       "title": "Masuk ke {{name}}",
       "description": "Buka halaman masuk di browser Anda dan otorisasi. Daemon akan menangkap hasilnya secara otomatis — biarkan halaman ini terbuka hingga selesai. Token tidak pernah ditampilkan.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Kredensial langganan Moonshot Kimi Code yang diarahkan oleh daemon."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "Kredensial langganan xAI SuperGrok yang diarahkan oleh daemon."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "Kredensial langganan GitHub Copilot yang diarahkan oleh daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

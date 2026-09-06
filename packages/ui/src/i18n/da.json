@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Åbn bekræftelsessiden, indtast koden nedenfor, og godkend logonanmodningen."
     },
+    "grokOauth": {
+      "description": "Åbn bekræftelsessiden, indtast koden nedenfor, og godkend logonanmodningen."
+    },
+    "copilotOauth": {
+      "description": "Åbn github.com/login/device, indtast koden nedenfor, og godkend Copilot CLI-appen."
+    },
     "codexOauth": {
       "title": "Log ind på {{name}}",
       "description": "Åbn login-siden i din browser og autorisér. Dæmonen registrerer resultatet automatisk — hold dette åbent, indtil det er fuldført. Tokenet vises aldrig.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Moonshot Kimi Code-abonnementslegitimationsoplysninger dirigeret af daemonen."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "xAI SuperGrok-abonnementslegitimationsoplysninger dirigeret af daemonen."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "GitHub Copilot-abonnementslegitimationsoplysninger dirigeret af daemonen."
       },
       "opencodego": {
         "title": "OpenCodeGo",

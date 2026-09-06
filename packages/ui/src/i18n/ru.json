@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Откройте страницу подтверждения, введите код ниже и одобрите запрос на вход."
     },
+    "grokOauth": {
+      "description": "Откройте страницу подтверждения, введите код ниже и одобрите запрос на вход."
+    },
+    "copilotOauth": {
+      "description": "Откройте github.com/login/device, введите код ниже и авторизуйте приложение Copilot CLI."
+    },
     "codexOauth": {
       "title": "Войти в {{name}}",
       "description": "Откройте страницу входа в браузере и авторизуйтесь. Демон автоматически получит результат — не закрывайте эту страницу до завершения. Токен никогда не отображается.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Учётные данные подписки Moonshot Kimi Code, маршрутизируемые демоном."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "Учётные данные подписки xAI SuperGrok, маршрутизируемые демоном."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "Учётные данные подписки GitHub Copilot, маршрутизируемые демоном."
       },
       "opencodego": {
         "title": "OpenCodeGo",

@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Nyissa meg az ellenőrző oldalt, írja be az alábbi kódot, és hagyja jóvá a bejelentkezési kérést."
     },
+    "grokOauth": {
+      "description": "Nyissa meg az ellenőrző oldalt, írja be az alábbi kódot, és hagyja jóvá a bejelentkezési kérést."
+    },
+    "copilotOauth": {
+      "description": "Nyissa meg a github.com/login/device oldalt, írja be az alábbi kódot, és engedélyezze a Copilot CLI alkalmazást."
+    },
     "codexOauth": {
       "title": "Bejelentkezés ide: {{name}}",
       "description": "Nyissa meg a bejelentkezési oldalt a böngészőjében, és engedélyezze. A daemon automatikusan rögzíti az eredményt — tartsa nyitva ezt az oldalt, amíg be nem fejeződik. A token soha nem jelenik meg.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "A démon által irányított Moonshot Kimi Code-előfizetési hitelesítő adatok."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "A démon által irányított xAI SuperGrok-előfizetési hitelesítő adatok."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "A démon által irányított GitHub Copilot-előfizetési hitelesítő adatok."
       },
       "opencodego": {
         "title": "OpenCodeGo",

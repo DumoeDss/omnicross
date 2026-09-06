@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Öffne die Verifizierungsseite, gib den unten stehenden Code ein und genehmige die Anmeldung."
     },
+    "grokOauth": {
+      "description": "Öffne die Verifizierungsseite, gib den unten stehenden Code ein und genehmige die Anmeldung."
+    },
+    "copilotOauth": {
+      "description": "Öffne github.com/login/device, gib den unten stehenden Code ein und autorisiere die Copilot-CLI-App."
+    },
     "codexOauth": {
       "title": "Bei {{name}} anmelden",
       "description": "Öffnen Sie die Anmeldeseite in Ihrem Browser und autorisieren Sie. Der Daemon erfasst das Ergebnis automatisch — lassen Sie dieses Fenster geöffnet, bis der Vorgang abgeschlossen ist. Das Token wird nie angezeigt.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Von dem Daemon geroutete Moonshot-Kimi-Code-Abonnement-Zugangsdaten."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "Von dem Daemon geroutete xAI-SuperGrok-Abonnement-Zugangsdaten."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "Von dem Daemon geroutete GitHub-Copilot-Abonnement-Zugangsdaten."
       },
       "opencodego": {
         "title": "OpenCodeGo",

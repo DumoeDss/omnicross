@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Abra a página de verificação, introduza o código abaixo e aprove o pedido de início de sessão."
     },
+    "grokOauth": {
+      "description": "Abra a página de verificação, introduza o código abaixo e aprove o pedido de início de sessão."
+    },
+    "copilotOauth": {
+      "description": "Abra github.com/login/device, introduza o código abaixo e autorize a aplicação Copilot CLI."
+    },
     "codexOauth": {
       "title": "Iniciar sessão em {{name}}",
       "description": "Abra a página de início de sessão no seu browser e autorize. O daemon captura o resultado automaticamente — mantenha isto aberto até concluir. O token nunca é mostrado.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Credenciais de assinatura Moonshot Kimi Code encaminhadas pelo daemon."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "Credenciais de assinatura xAI SuperGrok encaminhadas pelo daemon."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "Credenciais de assinatura GitHub Copilot encaminhadas pelo daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

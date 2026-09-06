@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "인증 페이지를 열고 아래 코드를 입력한 후 로그인 요청을 승인하세요."
     },
+    "grokOauth": {
+      "description": "인증 페이지를 열고 아래 코드를 입력한 후 로그인 요청을 승인하세요."
+    },
+    "copilotOauth": {
+      "description": "github.com/login/device를 열고 아래 코드를 입력한 후 Copilot CLI 앱을 승인하세요."
+    },
     "codexOauth": {
       "title": "{{name}}에 로그인",
       "description": "브라우저에서 로그인 페이지를 열고 승인하세요. 데몬이 자동으로 결과를 캡처합니다 — 완료될 때까지 이 창을 열어 두세요. 토큰은 표시되지 않습니다.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "데몬이 라우팅하는 Moonshot Kimi Code 구독 자격 증명."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "데몬이 라우팅하는 xAI SuperGrok 구독 자격 증명."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "데몬이 라우팅하는 GitHub Copilot 구독 자격 증명."
       },
       "opencodego": {
         "title": "OpenCodeGo",

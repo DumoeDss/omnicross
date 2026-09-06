@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Mở trang xác minh, nhập mã bên dưới và phê duyệt yêu cầu đăng nhập."
     },
+    "grokOauth": {
+      "description": "Mở trang xác minh, nhập mã bên dưới và phê duyệt yêu cầu đăng nhập."
+    },
+    "copilotOauth": {
+      "description": "Mở github.com/login/device, nhập mã bên dưới và ủy quyền cho ứng dụng Copilot CLI."
+    },
     "codexOauth": {
       "title": "Đăng nhập vào {{name}}",
       "description": "Mở trang đăng nhập trong trình duyệt và ủy quyền. Daemon sẽ tự động nhận kết quả — giữ trang này mở cho đến khi hoàn tất. Token sẽ không được hiển thị.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Thông tin đăng ký Moonshot Kimi Code do daemon định tuyến."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "Thông tin đăng ký xAI SuperGrok do daemon định tuyến."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "Thông tin đăng ký GitHub Copilot do daemon định tuyến."
       },
       "opencodego": {
         "title": "OpenCodeGo",

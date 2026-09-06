@@ -880,6 +880,12 @@
     "kimiOauth": {
       "description": "Avaa vahvistussivu, syötä alla oleva koodi ja hyväksy kirjautumispyyntö."
     },
+    "grokOauth": {
+      "description": "Avaa vahvistussivu, syötä alla oleva koodi ja hyväksy kirjautumispyyntö."
+    },
+    "copilotOauth": {
+      "description": "Avaa github.com/login/device, syötä alla oleva koodi ja valtuuta Copilot CLI -sovellus."
+    },
     "codexOauth": {
       "title": "Kirjaudu sisään {{name}}",
       "description": "Avaa kirjautumissivu selaimessasi ja valtuuta. Demoni kaappaa tuloksen automaattisesti — pidä tämä auki, kunnes se on valmis. Tokenia ei koskaan näytetä.",
@@ -967,6 +973,14 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Daemonin reitittämät Moonshot Kimi Code -tilauksen tunnistetiedot."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "Daemonin reitittämät xAI SuperGrok -tilauksen tunnistetiedot."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "Daemonin reitittämät GitHub Copilot -tilauksen tunnistetiedot."
       },
       "opencodego": {
         "title": "OpenCodeGo",
