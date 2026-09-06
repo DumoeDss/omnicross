@@ -884,7 +884,8 @@
       "description": "Avaa vahvistussivu, syötä alla oleva koodi ja hyväksy kirjautumispyyntö."
     },
     "copilotOauth": {
-      "description": "Avaa github.com/login/device, syötä alla oleva koodi ja valtuuta Copilot CLI -sovellus."
+      "description": "Avaa github.com/login/device, syötä alla oleva koodi ja valtuuta Copilot CLI -sovellus.",
+      "enterpriseLabel": "GitHub Enterprise -verkkoalue (valinnainen)"
     },
     "codexOauth": {
       "title": "Kirjaudu sisään {{name}}",

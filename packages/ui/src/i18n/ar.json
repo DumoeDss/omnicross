@@ -884,7 +884,8 @@
       "description": "افتح صفحة التحقق وأدخل الرمز أدناه ووافق على طلب تسجيل الدخول."
     },
     "copilotOauth": {
-      "description": "افتح github.com/login/device وأدخل الرمز أدناه ووافق على تفويض تطبيق Copilot CLI."
+      "description": "افتح github.com/login/device وأدخل الرمز أدناه ووافق على تفويض تطبيق Copilot CLI.",
+      "enterpriseLabel": "نطاق GitHub Enterprise (اختياري)"
     },
     "codexOauth": {
       "title": "تسجيل الدخول إلى {{name}}",

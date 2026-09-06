@@ -12,15 +12,18 @@ import {
   awaitCopilotDeviceToken,
   COPILOT_API_HEADERS,
   COPILOT_OAUTH_CONFIG,
+  copilotOAuthUrls,
   discoverCopilotApiEndpoint,
   enableCopilotModel,
   fetchCopilotIdentity,
+  normalizeCopilotEnterpriseDomain,
   pollCopilotDeviceToken,
   refreshCopilotToken,
   requestCopilotDeviceAuthorization,
 } from '../flows/copilot';
 import {
   copilotBaseUrl,
+  copilotGitHubApiBase,
   copilotPathFor,
   copilotTransformerNamesForWire,
   copilotWireFor,
@@ -160,5 +163,75 @@ describe('copilot wire map', () => {
     expect(copilotBaseUrl(undefined)).toBe('https://api.githubcopilot.com');
     expect(copilotBaseUrl({ apiEndpoint: 'https://custom.example/copilot/' })).toBe('https://custom.example/copilot');
     expect(copilotBaseUrl({ enterpriseUrl: 'company.ghe.com' })).toBe('https://copilot-api.company.ghe.com');
+  });
+});
+
+describe('copilot GitHub Enterprise (GHE)', () => {
+  it('normalizes enterprise domains; empty/public hosts mean the personal flow', () => {
+    expect(normalizeCopilotEnterpriseDomain(undefined)).toBeUndefined();
+    expect(normalizeCopilotEnterpriseDomain('   ')).toBeUndefined();
+    expect(normalizeCopilotEnterpriseDomain('github.com')).toBeUndefined();
+    expect(normalizeCopilotEnterpriseDomain('https://www.github.com')).toBeUndefined();
+    expect(normalizeCopilotEnterpriseDomain('api.github.com')).toBeUndefined();
+    expect(normalizeCopilotEnterpriseDomain('Company.GHE.com')).toBe('company.ghe.com');
+    expect(normalizeCopilotEnterpriseDomain('https://company.ghe.com/')).toBe('company.ghe.com');
+    expect(() => normalizeCopilotEnterpriseDomain('not a domain')).toThrow(/invalid GitHub Enterprise domain/);
+  });
+
+  it('routes the device + token endpoints onto the GHE host', async () => {
+    expect(copilotOAuthUrls('company.ghe.com')).toEqual({
+      deviceEndpoint: 'https://company.ghe.com/login/device/code',
+      tokenEndpoint: 'https://company.ghe.com/login/oauth/access_token',
+    });
+    expect(copilotOAuthUrls(undefined)).toEqual({
+      deviceEndpoint: 'https://github.com/login/device/code',
+      tokenEndpoint: 'https://github.com/login/oauth/access_token',
+    });
+
+    const fetchImpl = fetchReturning([jsonResponse({
+      device_code: 'dev-1',
+      user_code: 'ABCD-1234',
+      verification_uri: 'https://company.ghe.com/login/device',
+      interval: 5,
+      expires_in: 900,
+    })]);
+    await requestCopilotDeviceAuthorization(fetchImpl, 'company.ghe.com');
+    expect(fetchImpl.urls[0]).toBe('https://company.ghe.com/login/device/code');
+
+    const poll = fetchReturning([jsonResponse({ error: 'authorization_pending' }, 200)]);
+    await pollCopilotDeviceToken('dev', poll, 'company.ghe.com');
+    expect(poll.urls[0]).toBe('https://company.ghe.com/login/oauth/access_token');
+  });
+
+  it('awaitCopilotDeviceToken threads enterpriseUrl to every poll', async () => {
+    const fetchImpl = fetchReturning([
+      jsonResponse({ error: 'authorization_pending' }, 200),
+      jsonResponse({ access_token: 'ghu_1' }, 200),
+    ]);
+    const result = await awaitCopilotDeviceToken(
+      { userCode: 'c', deviceCode: 'dev', verificationUri: 'u', interval: 5, expiresIn: 900 },
+      fetchImpl,
+      { sleep: async () => {}, enterpriseUrl: 'company.ghe.com' },
+    );
+    expect(result).toEqual({ accessToken: 'ghu_1' });
+    expect(fetchImpl.urls.every((u) => u === 'https://company.ghe.com/login/oauth/access_token')).toBe(true);
+  });
+
+  it('routes the identity + discovery probes through api.<domain>', async () => {
+    const identity = fetchReturning([jsonResponse({ login: 'octocat' })]);
+    await fetchCopilotIdentity('ghu_1', identity, 'company.ghe.com');
+    expect(identity.urls[0]).toBe('https://api.company.ghe.com/user');
+
+    const endpoint = fetchReturning([jsonResponse({ endpoints: { api: 'https://copilot-api.company.ghe.com' } })]);
+    expect(await discoverCopilotApiEndpoint('ghu_1', endpoint, 'company.ghe.com'))
+      .toBe('https://copilot-api.company.ghe.com');
+    expect(endpoint.urls[0]).toBe('https://api.company.ghe.com/copilot_internal/user');
+  });
+
+  it('copilotGitHubApiBase mirrors the allowance collector routing rules', () => {
+    expect(copilotGitHubApiBase(undefined)).toBe('https://api.github.com');
+    expect(copilotGitHubApiBase('company.ghe.com')).toBe('https://api.company.ghe.com');
+    expect(copilotGitHubApiBase('api.company.ghe.com')).toBe('https://api.company.ghe.com');
+    expect(copilotGitHubApiBase('https://api.company.ghe.com/')).toBe('https://api.company.ghe.com');
   });
 });

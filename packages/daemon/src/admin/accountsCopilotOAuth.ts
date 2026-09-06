@@ -9,7 +9,9 @@
  * `{ authUrl, userCode, sessionId }`, then drives the token poll + identity
  * read + endpoint discovery + policy-enable sweep ASYNC. The app opens
  * `authUrl`, shows the code, and POLLS `status` until `done`/`error` — the
- * same token-free shape as the codex loopback flow.
+ * same token-free shape as the codex loopback flow. An optional
+ * `enterpriseUrl` body field switches the whole chain onto a GitHub
+ * Enterprise host (device endpoints + REST probes + the stored token).
  *
  * SECRET SPINE (same invariant as the other device flows): the minted ghu_
  * token NEVER crosses to the client — it lands ONLY in the encrypted store.
@@ -46,17 +48,29 @@ export const DEFAULT_COPILOT_OAUTH_TTL_MS = 15 * 60_000;
 /**
  * `start` — request the device authorization, arm the async token poll,
  * return ONLY `{ authUrl, userCode, sessionId }`. Rejects (409) when a
- * copilot sign-in is already in flight; (502) when the device-authorization
- * request fails.
+ * copilot sign-in is already in flight; (400) on an unparseable
+ * `enterpriseUrl`; (502) when the device-authorization request fails.
  */
-export async function handleCopilotOAuthStart(deps: CopilotOAuthDeps): Promise<OAuthHandlerResult> {
+export async function handleCopilotOAuthStart(
+  deps: CopilotOAuthDeps,
+  enterpriseUrlInput?: unknown,
+): Promise<OAuthHandlerResult> {
   if (deps.copilotSessions.isBusy()) {
     return err(409, 'a copilot sign-in is already in progress — finish it in the browser or cancel it');
+  }
+  let enterpriseUrl: string | undefined;
+  if (typeof enterpriseUrlInput === 'string' && enterpriseUrlInput.trim()) {
+    try {
+      enterpriseUrl = copilotOAuth.normalizeCopilotEnterpriseDomain(enterpriseUrlInput);
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : 'invalid GitHub Enterprise domain';
+      return err(400, `copilot ${reason}`);
+    }
   }
   const fetchImpl = deps.oauthExchangeFetch('copilot');
   let authorization;
   try {
-    authorization = await copilotOAuth.requestCopilotDeviceAuthorization(fetchImpl);
+    authorization = await copilotOAuth.requestCopilotDeviceAuthorization(fetchImpl, enterpriseUrl);
   } catch (e) {
     const reason = e instanceof Error ? e.message : 'device authorization failed';
     return err(502, `copilot device authorization failed: ${reason}`);
@@ -64,7 +78,7 @@ export async function handleCopilotOAuthStart(deps: CopilotOAuthDeps): Promise<O
   const { sessionId, signal } = deps.copilotSessions.begin();
   // Poll ASYNC (fire-and-forget). The token NEVER crosses to the client —
   // captured + persisted entirely daemon-side; the app POLLS.
-  void runCopilotDevicePoll(sessionId, authorization.deviceCode, signal, deps)
+  void runCopilotDevicePoll(sessionId, authorization.deviceCode, signal, deps, enterpriseUrl)
     .catch((e: unknown) => {
       const reason = e instanceof Error ? e.message : 'copilot sign-in failed';
       deps.copilotSessions.settle(sessionId, 'error', reason);
@@ -75,6 +89,7 @@ export async function handleCopilotOAuthStart(deps: CopilotOAuthDeps): Promise<O
       authUrl: authorization.verificationUri,
       userCode: authorization.userCode,
       sessionId,
+      ...(enterpriseUrl ? { enterpriseUrl } : {}),
     },
   };
 }
@@ -84,6 +99,7 @@ async function runCopilotDevicePoll(
   deviceCode: string,
   signal: AbortSignal,
   deps: CopilotOAuthDeps,
+  enterpriseUrl?: string,
 ): Promise<void> {
   const fetchImpl = deps.oauthExchangeFetch('copilot');
   const result = await copilotOAuth.awaitCopilotDeviceToken(
@@ -91,6 +107,7 @@ async function runCopilotDevicePoll(
     fetchImpl,
     {
       deadlineMs: DEFAULT_COPILOT_OAUTH_TTL_MS,
+      ...(enterpriseUrl ? { enterpriseUrl } : {}),
       sleep: (ms) =>
         new Promise<void>((resolve, reject) => {
           const onAbort = () => {
@@ -105,10 +122,14 @@ async function runCopilotDevicePoll(
         }),
     },
   );
-  const identity = await copilotOAuth.fetchCopilotIdentity(result.accessToken, fetchImpl);
-  const apiEndpoint = await copilotOAuth.discoverCopilotApiEndpoint(result.accessToken, fetchImpl);
+  const identity = await copilotOAuth.fetchCopilotIdentity(result.accessToken, fetchImpl, enterpriseUrl);
+  const apiEndpoint = await copilotOAuth.discoverCopilotApiEndpoint(result.accessToken, fetchImpl, enterpriseUrl);
   // Best-effort policy-enable sweep — failures are non-fatal to the sign-in.
-  await copilotOAuth.enableAllCopilotModels(result.accessToken, { apiEndpoint }, fetchImpl);
+  await copilotOAuth.enableAllCopilotModels(
+    result.accessToken,
+    { apiEndpoint, ...(enterpriseUrl ? { enterpriseUrl } : {}) },
+    fetchImpl,
+  );
   const block: CopilotTokenConfig = {
     authMethod: 'oauth',
     status: 'authorized',
@@ -118,6 +139,7 @@ async function runCopilotDevicePoll(
     ...(identity.accountId ? { accountId: identity.accountId } : {}),
     ...(identity.email ? { email: identity.email } : {}),
     ...(apiEndpoint ? { apiEndpoint } : {}),
+    ...(enterpriseUrl ? { enterpriseUrl } : {}),
     lastRefreshedAt: new Date().toISOString(),
   };
   await deps.subscriptionAccountAppender.appendProviderAccount('copilot', block);

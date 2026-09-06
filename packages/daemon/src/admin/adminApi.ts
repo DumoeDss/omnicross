@@ -2546,7 +2546,10 @@ async function handleAccounts(
         return writeJson(res, result.status, result.body);
       }
       if (providerId === 'copilot') {
-        const result = await handleCopilotOAuthStart(deps);
+        // Optional GitHub Enterprise domain (validated in the handler; a
+        // non-string/absent body means the personal github.com flow).
+        const body = await readJsonBody(req);
+        const result = await handleCopilotOAuthStart(deps, body['enterpriseUrl']);
         return writeJson(res, result.status, result.body);
       }
       const result = handleOAuthStart(providerId, deps);

@@ -884,7 +884,8 @@
       "description": "Otevřete ověřovací stránku, zadejte níže uvedený kód a schvalte žádost o přihlášení."
     },
     "copilotOauth": {
-      "description": "Otevřete github.com/login/device, zadejte níže uvedený kód a autorizujte aplikaci Copilot CLI."
+      "description": "Otevřete github.com/login/device, zadejte níže uvedený kód a autorizujte aplikaci Copilot CLI.",
+      "enterpriseLabel": "Doména GitHub Enterprise (volitelné)"
     },
     "codexOauth": {
       "title": "Přihlásit se do {{name}}",

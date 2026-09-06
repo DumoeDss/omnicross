@@ -322,10 +322,15 @@ export function createAccountsAdapter(): AgentAccountsApi {
       }
     },
 
-    async startOAuth(providerId: SubscriptionProviderId): Promise<StartOAuthResult> {
+    async startOAuth(
+      providerId: SubscriptionProviderId,
+      options?: { enterpriseUrl?: string },
+    ): Promise<StartOAuthResult> {
       // Returns ONLY the public authorize URL + an opaque sessionId (no secret).
+      // `enterpriseUrl` (copilot GHE) is the only start option today.
       return adminClient.post<StartOAuthResult>(
         `/accounts/${encodeURIComponent(providerId)}/oauth/start`,
+        options?.enterpriseUrl ? { enterpriseUrl: options.enterpriseUrl } : undefined,
       );
     },
 

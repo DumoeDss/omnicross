@@ -80,6 +80,14 @@ describe('login arg validation', () => {
   it('missing --config throws', async () => {
     await expect(runLogin(['codex'])).rejects.toThrow(/--config <path> is required/);
   });
+  it('--enterprise on a non-copilot provider throws', async () => {
+    await expect(runLogin(['codex', '--config', configPath, '--enterprise', 'company.ghe.com']))
+      .rejects.toThrow(/--enterprise is only supported for the copilot provider/);
+  });
+  it('--enterprise with an unparseable domain throws', async () => {
+    await expect(runLogin(['copilot', '--config', configPath, '--enterprise', 'not a domain']))
+      .rejects.toThrow(/invalid GitHub Enterprise domain/);
+  });
 });
 
 describe('login codex (loopback)', () => {

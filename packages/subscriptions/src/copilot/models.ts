@@ -108,3 +108,21 @@ export function copilotBaseUrl(config: { apiEndpoint?: string; enterpriseUrl?: s
   }
   return 'https://api.githubcopilot.com';
 }
+
+/**
+ * The GitHub REST base for an account (identity / quota / discovery probes).
+ * GHE domains route to `api.<domain>` — the data-residency plane convention
+ * (e.g. `company.ghe.com` → `api.company.ghe.com`); an explicit scheme or
+ * `api.` prefix is honored verbatim, personal accounts stay on api.github.com.
+ * Self-hosted GHES `/api/v3` path-style hosts are NOT derived here — pass the
+ * full `api.<host>` (or scheme-qualified) form via `enterpriseUrl`.
+ */
+export function copilotGitHubApiBase(enterpriseUrl?: string): string {
+  const enterprise = enterpriseUrl?.trim().toLowerCase();
+  if (!enterprise) return 'https://api.github.com';
+  if (enterprise.startsWith('http://') || enterprise.startsWith('https://')) {
+    return enterprise.replace(/\/+$/, '');
+  }
+  if (enterprise.startsWith('api.')) return `https://${enterprise}`;
+  return `https://api.${enterprise}`;
+}

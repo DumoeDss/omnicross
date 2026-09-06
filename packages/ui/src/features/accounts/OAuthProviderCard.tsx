@@ -18,6 +18,7 @@ import { Edit2, ExternalLink, HardDriveDownload, Key, Plus } from 'lucide-react'
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { openExternal } from '@/shared/tauri/openExternal';
@@ -169,6 +170,9 @@ export function OAuthProviderCard({
   const [oauth, setOauth] = useState<StartOAuthResult | null>(null);
   const [authCode, setAuthCode] = useState('');
   const [accountLabel, setAccountLabel] = useState('');
+  // Copilot-only: optional GitHub Enterprise domain for the device sign-in
+  // (blank = the personal github.com flow).
+  const [copilotEnterprise, setCopilotEnterprise] = useState('');
   const [exchanging, setExchanging] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   // Per-card error — scoped to THIS provider so one card's failure never spills
@@ -195,7 +199,12 @@ export function OAuthProviderCard({
 
   const handleStartOAuth = async () => {
     setCardError(null);
-    const started = await startOAuth(providerId);
+    const started = await startOAuth(
+      providerId,
+      providerId === 'copilot' && copilotEnterprise.trim()
+        ? { enterpriseUrl: copilotEnterprise.trim() }
+        : undefined,
+    );
     if (started) {
       setOauth(started);
       if (isAsyncOAuth) void openExternal(started.authUrl);
@@ -406,6 +415,23 @@ export function OAuthProviderCard({
             />
             <p className="text-xs text-muted-foreground">{t(`accounts.authMethodDesc.${authMethod}`)}</p>
           </div>
+
+          {providerId === 'copilot' && authMethod === 'oauth' ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground" htmlFor={`copilot-enterprise-${entry.providerId}`}>
+                {t('accounts.copilotOauth.enterpriseLabel')}
+              </label>
+              <Input
+                id={`copilot-enterprise-${entry.providerId}`}
+                value={copilotEnterprise}
+                placeholder="company.ghe.com"
+                onChange={(e) => setCopilotEnterprise(e.target.value)}
+                disabled={busy}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+          ) : null}
 
           <Button
             className="w-full"

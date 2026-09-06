@@ -884,7 +884,8 @@
       "description": "인증 페이지를 열고 아래 코드를 입력한 후 로그인 요청을 승인하세요."
     },
     "copilotOauth": {
-      "description": "github.com/login/device를 열고 아래 코드를 입력한 후 Copilot CLI 앱을 승인하세요."
+      "description": "github.com/login/device를 열고 아래 코드를 입력한 후 Copilot CLI 앱을 승인하세요.",
+      "enterpriseLabel": "GitHub Enterprise 도메인 (선택 사항)"
     },
     "codexOauth": {
       "title": "{{name}}에 로그인",

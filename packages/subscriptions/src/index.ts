@@ -64,6 +64,7 @@ export {
 } from './oauth';
 export {
   copilotBaseUrl,
+  copilotGitHubApiBase,
   copilotPathFor,
   copilotTransformerNamesForWire,
   copilotWireFor,

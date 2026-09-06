@@ -22,16 +22,17 @@
  * pair is STATIC here — the same classification the official CLI sends, and
  * the one GitHub bills at a 0 premium multiplier.
  *
- * GitHub Enterprise domains are a follow-up (this flow targets github.com
- * personal accounts; `enterpriseUrl` on the token config still routes
- * inference through `copilot-api.<domain>` when present).
+ * GitHub Enterprise domains ride the SAME device flow on the enterprise host
+ * (`https://<domain>/login/{device/code,oauth/access_token}`); the stored
+ * `enterpriseUrl` additionally routes inference through `copilot-api.<domain>`
+ * and the REST probes (identity/quota) through `api.<domain>`.
  *
  * @module @omnicross/subscriptions/oauth/flows/copilot
  */
 
 import type { FetchLike } from '../fetchPort';
 
-import { copilotBaseUrl, copilotWireModelIds } from '../../copilot/models';
+import { copilotBaseUrl, copilotGitHubApiBase, copilotWireModelIds } from '../../copilot/models';
 
 /** The official Copilot CLI OAuth app (public client). */
 export const COPILOT_OAUTH_CONFIG = {
@@ -40,6 +41,51 @@ export const COPILOT_OAUTH_CONFIG = {
   deviceEndpoint: 'https://github.com/login/device/code',
   tokenEndpoint: 'https://github.com/login/oauth/access_token',
 } as const;
+
+/** Public GitHub hosts always mean the personal github.com flow. */
+const PUBLIC_GITHUB_HOSTS: ReadonlySet<string> = new Set([
+  'github.com',
+  'www.github.com',
+  'api.github.com',
+]);
+
+/**
+ * Normalize an operator-supplied GitHub Enterprise domain: accept a bare host
+ * or a full URL and keep ONLY the lowercase hostname. Empty input and the
+ * public github.com hosts mean the personal flow (`undefined`); anything that
+ * does not parse as a host THROWS (the caller surfaces the message).
+ */
+export function normalizeCopilotEnterpriseDomain(input: string | undefined): string | undefined {
+  const trimmed = input?.trim();
+  if (!trimmed) return undefined;
+  let hostname: string | null = null;
+  try {
+    hostname = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).hostname;
+  } catch {
+    hostname = null;
+  }
+  const host = (hostname ?? trimmed).toLowerCase();
+  if (!host || PUBLIC_GITHUB_HOSTS.has(host)) return undefined;
+  if (!/^[a-z0-9][a-z0-9.-]*$/.test(host)) {
+    throw new Error(`invalid GitHub Enterprise domain '${trimmed}'`);
+  }
+  return host;
+}
+
+/**
+ * Device-flow endpoints for a login — the GHE host, or the github.com default
+ * when `enterpriseUrl` is absent/normalized-away.
+ */
+export function copilotOAuthUrls(enterpriseUrl?: string): {
+  deviceEndpoint: string;
+  tokenEndpoint: string;
+} {
+  const host = normalizeCopilotEnterpriseDomain(enterpriseUrl) ?? 'github.com';
+  return {
+    deviceEndpoint: `https://${host}/login/device/code`,
+    tokenEndpoint: `https://${host}/login/oauth/access_token`,
+  };
+}
 
 /** GitHub's device-poll pacing: each wait scales ×1.2 (×1.4 after slow_down). */
 export const COPILOT_POLL_INITIAL_MULTIPLIER = 1.2;
@@ -128,8 +174,9 @@ async function postForm(
 /** Request a device code the user approves at `verification_uri`. */
 export async function requestCopilotDeviceAuthorization(
   fetchImpl: FetchLike,
+  enterpriseUrl?: string,
 ): Promise<CopilotDeviceAuthorization> {
-  const { status, body } = await postForm(fetchImpl, COPILOT_OAUTH_CONFIG.deviceEndpoint, new URLSearchParams({
+  const { status, body } = await postForm(fetchImpl, copilotOAuthUrls(enterpriseUrl).deviceEndpoint, new URLSearchParams({
     client_id: COPILOT_OAUTH_CONFIG.clientId,
     scope: COPILOT_OAUTH_CONFIG.scope,
   }));
@@ -153,8 +200,9 @@ export async function requestCopilotDeviceAuthorization(
 export async function pollCopilotDeviceToken(
   deviceCode: string,
   fetchImpl: FetchLike,
+  enterpriseUrl?: string,
 ): Promise<CopilotDevicePoll> {
-  const { status, body } = await postForm(fetchImpl, COPILOT_OAUTH_CONFIG.tokenEndpoint, new URLSearchParams({
+  const { status, body } = await postForm(fetchImpl, copilotOAuthUrls(enterpriseUrl).tokenEndpoint, new URLSearchParams({
     client_id: COPILOT_OAUTH_CONFIG.clientId,
     device_code: deviceCode,
     grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
@@ -187,6 +235,8 @@ export async function awaitCopilotDeviceToken(
     deadlineMs?: number;
     sleep?: (ms: number) => Promise<void>;
     onPending?: () => void;
+    /** GHE host — routes the token poll off github.com. */
+    enterpriseUrl?: string;
   } = {},
 ): Promise<{ accessToken: string }> {
   const sleep =
@@ -195,7 +245,11 @@ export async function awaitCopilotDeviceToken(
   let intervalMs = Math.max(1000, authorization.interval * 1000);
   let multiplier = COPILOT_POLL_INITIAL_MULTIPLIER;
   for (;;) {
-    const result = await pollCopilotDeviceToken(authorization.deviceCode, fetchImpl);
+    const result = await pollCopilotDeviceToken(
+      authorization.deviceCode,
+      fetchImpl,
+      options.enterpriseUrl,
+    );
     if (result.state === 'done') return { accessToken: result.accessToken };
     if (result.state === 'failed') throw new Error(result.message);
     if (result.state === 'slowDown') {
@@ -214,9 +268,10 @@ export async function awaitCopilotDeviceToken(
 export async function fetchCopilotIdentity(
   accessToken: string,
   fetchImpl: FetchLike,
+  enterpriseUrl?: string,
 ): Promise<{ accountId?: string; email?: string }> {
   try {
-    const response = await fetchImpl('https://api.github.com/user', {
+    const response = await fetchImpl(`${copilotGitHubApiBase(enterpriseUrl)}/user`, {
       method: 'GET',
       headers: {
         Accept: 'application/vnd.github+json',
@@ -244,9 +299,10 @@ export async function fetchCopilotIdentity(
 export async function discoverCopilotApiEndpoint(
   accessToken: string,
   fetchImpl: FetchLike,
+  enterpriseUrl?: string,
 ): Promise<string | undefined> {
   try {
-    const response = await fetchImpl('https://api.github.com/copilot_internal/user', {
+    const response = await fetchImpl(`${copilotGitHubApiBase(enterpriseUrl)}/copilot_internal/user`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',

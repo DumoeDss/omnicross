@@ -73,7 +73,7 @@ export interface LoginDeps {
   /** Drive the grok device flow to completion (start + poll until done). */
   awaitGrokDevice(fetchImpl: FetchLike): Promise<GrokLoginResult>;
   /** Drive the copilot device flow to completion (start + poll + enable sweep). */
-  awaitCopilotDevice(fetchImpl: FetchLike): Promise<CopilotLoginResult>;
+  awaitCopilotDevice(fetchImpl: FetchLike, enterpriseUrl?: string): Promise<CopilotLoginResult>;
   /** HTTP port injected into the credential store for the token exchange. */
   tokensFetch?: FetchLike;
 }
@@ -113,6 +113,8 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
       'master-key-file': { type: 'string' },
       // Optional user label for the appended account (multi-account).
       label: { type: 'string' },
+      // Optional GitHub Enterprise domain for `login copilot` (GHE accounts).
+      enterprise: { type: 'string' },
     },
     allowPositionals: true,
   });
@@ -127,6 +129,14 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
   if (!values.config) {
     throw new Error('login: --config <path> is required');
   }
+  // Validate BEFORE any store/IO work so a typo fails fast and scriptable.
+  if (values.enterprise !== undefined && provider !== 'copilot') {
+    throw new Error('login: --enterprise is only supported for the copilot provider');
+  }
+  const enterpriseDomain =
+    values.enterprise !== undefined
+      ? copilotOAuth.normalizeCopilotEnterpriseDomain(values.enterprise)
+      : undefined;
 
   const resolved: LoginDeps = {
     openBrowser: deps?.openBrowser ?? openBrowser,
@@ -134,7 +144,9 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
     awaitLoopback: deps?.awaitLoopback ?? ((state) => awaitLoopbackCode(state)),
     awaitKimiDevice: deps?.awaitKimiDevice ?? ((fetchImpl) => runKimiDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     awaitGrokDevice: deps?.awaitGrokDevice ?? ((fetchImpl) => runGrokDeviceFlow(fetchImpl, resolvedOpenBrowser)),
-    awaitCopilotDevice: deps?.awaitCopilotDevice ?? ((fetchImpl) => runCopilotDeviceFlow(fetchImpl, resolvedOpenBrowser)),
+    awaitCopilotDevice:
+      deps?.awaitCopilotDevice ??
+      ((fetchImpl, enterpriseUrl) => runCopilotDeviceFlow(fetchImpl, resolvedOpenBrowser, enterpriseUrl)),
     tokensFetch: deps?.tokensFetch,
   };
 
@@ -165,6 +177,7 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
       resolved,
       exchangeFetch,
       values.label,
+      enterpriseDomain,
     );
     // Masked confirmation ONLY — never a token.
     console.info(`Logged in to '${provider}' → ${tokensPath}`);
@@ -182,12 +195,13 @@ async function runProviderLogin(
   deps: LoginDeps,
   exchangeFetch: FetchLike,
   label?: string,
+  enterpriseUrl?: string,
 ): Promise<string | undefined> {
   if (provider === 'codex') return loginCodex(store, deps, exchangeFetch, label);
   if (provider === 'claude') return loginClaude(store, deps, exchangeFetch, label);
   if (provider === 'kimi') return loginKimi(store, deps, exchangeFetch, label);
   if (provider === 'grok') return loginGrok(store, deps, exchangeFetch, label);
-  if (provider === 'copilot') return loginCopilot(store, deps, exchangeFetch, label);
+  if (provider === 'copilot') return loginCopilot(store, deps, exchangeFetch, label, enterpriseUrl);
   return loginGemini(store, deps, exchangeFetch, label);
 }
 
@@ -400,13 +414,16 @@ async function loginGrok(
  * verification URL, poll until the user approves, then read the GitHub
  * identity, discover the plan-advertised API endpoint, and best-effort sweep
  * the policy-enable endpoint for the model roster (the Claude/Grok models
- * stay 403 until enabled).
+ * stay 403 until enabled). `enterpriseUrl` rides the whole chain on the GHE
+ * host (device + token endpoints, REST probes, policy sweep base).
  */
 async function runCopilotDeviceFlow(
   exchangeFetch: FetchLike,
   openBrowserFn: (url: string) => Promise<boolean>,
+  enterpriseUrl?: string,
 ): Promise<CopilotLoginResult> {
-  const authorization = await copilotOAuth.requestCopilotDeviceAuthorization(exchangeFetch);
+  if (enterpriseUrl) console.info(`Using GitHub Enterprise host: ${enterpriseUrl}`);
+  const authorization = await copilotOAuth.requestCopilotDeviceAuthorization(exchangeFetch, enterpriseUrl);
   const url = authorization.verificationUri;
   console.info('Open this URL in your browser and approve the request:');
   console.info(`  ${url}`);
@@ -414,13 +431,18 @@ async function runCopilotDeviceFlow(
   await openBrowserFn(url).catch(() => false);
   const result = await copilotOAuth.awaitCopilotDeviceToken(authorization, exchangeFetch, {
     onPending: () => process.stdout.write('.'),
+    ...(enterpriseUrl ? { enterpriseUrl } : {}),
   });
   console.info('');
-  const identity = await copilotOAuth.fetchCopilotIdentity(result.accessToken, exchangeFetch);
-  const apiEndpoint = await copilotOAuth.discoverCopilotApiEndpoint(result.accessToken, exchangeFetch);
+  const identity = await copilotOAuth.fetchCopilotIdentity(result.accessToken, exchangeFetch, enterpriseUrl);
+  const apiEndpoint = await copilotOAuth.discoverCopilotApiEndpoint(result.accessToken, exchangeFetch, enterpriseUrl);
   // Best-effort policy-enable sweep — failures are non-fatal.
   console.info('Enabling Copilot models (policy)...');
-  await copilotOAuth.enableAllCopilotModels(result.accessToken, { apiEndpoint }, exchangeFetch);
+  await copilotOAuth.enableAllCopilotModels(
+    result.accessToken,
+    { apiEndpoint, ...(enterpriseUrl ? { enterpriseUrl } : {}) },
+    exchangeFetch,
+  );
   return {
     accessToken: result.accessToken,
     expiresIn: Math.floor(copilotOAuth.COPILOT_FAR_FUTURE_MS / 1000),
@@ -434,8 +456,9 @@ async function loginCopilot(
   deps: LoginDeps,
   exchangeFetch: FetchLike,
   label?: string,
+  enterpriseUrl?: string,
 ): Promise<string> {
-  const result = await deps.awaitCopilotDevice(exchangeFetch);
+  const result = await deps.awaitCopilotDevice(exchangeFetch, enterpriseUrl);
   const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
   const block: CopilotTokenConfig = {
     authMethod: 'oauth',
@@ -448,6 +471,7 @@ async function loginCopilot(
     ...(result.accountId ? { accountId: result.accountId } : {}),
     ...(result.email ? { email: result.email } : {}),
     ...(result.apiEndpoint ? { apiEndpoint: result.apiEndpoint } : {}),
+    ...(enterpriseUrl ? { enterpriseUrl } : {}),
     lastRefreshedAt: new Date().toISOString(),
   };
   await store.appendProviderAccount('copilot', block, label);

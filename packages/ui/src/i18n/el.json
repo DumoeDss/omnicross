@@ -884,7 +884,8 @@
       "description": "Ανοίξτε τη σελίδα επαλήθευσης, εισαγάγετε τον παρακάτω κωδικό και εγκρίνετε το αίτημα σύνδεσης."
     },
     "copilotOauth": {
-      "description": "Ανοίξτε τη διεύθυνση github.com/login/device, εισαγάγετε τον παρακάτω κωδικό και εξουσιοδοτήστε την εφαρμογή Copilot CLI."
+      "description": "Ανοίξτε τη διεύθυνση github.com/login/device, εισαγάγετε τον παρακάτω κωδικό και εξουσιοδοτήστε την εφαρμογή Copilot CLI.",
+      "enterpriseLabel": "Τομέας GitHub Enterprise (προαιρετικό)"
     },
     "codexOauth": {
       "title": "Σύνδεση στο {{name}}",

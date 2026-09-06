@@ -884,7 +884,8 @@
       "description": "Ouvrez la page de vérification, saisissez le code ci-dessous et approuvez la demande de connexion."
     },
     "copilotOauth": {
-      "description": "Ouvrez github.com/login/device, saisissez le code ci-dessous et autorisez l’application Copilot CLI."
+      "description": "Ouvrez github.com/login/device, saisissez le code ci-dessous et autorisez l’application Copilot CLI.",
+      "enterpriseLabel": "Domaine GitHub Enterprise (optionnel)"
     },
     "codexOauth": {
       "title": "Se connecter à {{name}}",

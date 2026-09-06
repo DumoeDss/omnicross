@@ -493,6 +493,8 @@ export interface StartOAuthResult {
   sessionId: string;
   /** Kimi device flow: the code the user enters at the verification URL. */
   userCode?: string;
+  /** Copilot GHE sign-ins: the normalized enterprise domain the session rides on. */
+  enterpriseUrl?: string;
 }
 
 /**
@@ -587,7 +589,10 @@ export interface AgentAccountsApi {
   /** Refresh the ACTIVE account's OAuth token (claude/codex/gemini only). */
   refreshProvider(providerId: SubscriptionProviderId): Promise<RefreshResult>;
   clearProvider(providerId: SubscriptionProviderId): Promise<MutationResult>;
-  startOAuth(providerId: SubscriptionProviderId): Promise<StartOAuthResult>;
+  startOAuth(
+    providerId: SubscriptionProviderId,
+    options?: { enterpriseUrl?: string },
+  ): Promise<StartOAuthResult>;
   completeOAuth(
     providerId: SubscriptionProviderId,
     input: { sessionId: string; code: string; label?: string },

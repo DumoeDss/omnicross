@@ -884,7 +884,8 @@
       "description": "Doğrulama sayfasını açın, aşağıdaki kodu girin ve oturum açma isteğini onaylayın."
     },
     "copilotOauth": {
-      "description": "github.com/login/device adresini açın, aşağıdaki kodu girin ve Copilot CLI uygulamasını yetkilendirin."
+      "description": "github.com/login/device adresini açın, aşağıdaki kodu girin ve Copilot CLI uygulamasını yetkilendirin.",
+      "enterpriseLabel": "GitHub Enterprise etki alanı (isteğe bağlı)"
     },
     "codexOauth": {
       "title": "{{name}}'e giriş yap",

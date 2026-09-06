@@ -1157,7 +1157,8 @@
       "description": "確認ページを開き、下のコードを入力してサインイン要求を承認してください。"
     },
     "copilotOauth": {
-      "description": "github.com/login/device を開き、下のコードを入力して Copilot CLI アプリを承認してください。"
+      "description": "github.com/login/device を開き、下のコードを入力して Copilot CLI アプリを承認してください。",
+      "enterpriseLabel": "GitHub Enterprise ドメイン（任意）"
     },
     "codexOauth": {
       "title": "{{name}} にサインイン",

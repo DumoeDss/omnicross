@@ -884,7 +884,8 @@
       "description": "Mở trang xác minh, nhập mã bên dưới và phê duyệt yêu cầu đăng nhập."
     },
     "copilotOauth": {
-      "description": "Mở github.com/login/device, nhập mã bên dưới và ủy quyền cho ứng dụng Copilot CLI."
+      "description": "Mở github.com/login/device, nhập mã bên dưới và ủy quyền cho ứng dụng Copilot CLI.",
+      "enterpriseLabel": "Tên miền GitHub Enterprise (tùy chọn)"
     },
     "codexOauth": {
       "title": "Đăng nhập vào {{name}}",

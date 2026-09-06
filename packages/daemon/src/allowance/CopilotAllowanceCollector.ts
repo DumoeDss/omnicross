@@ -31,7 +31,7 @@ import {
   getSharedAccountAllowanceStore,
 } from '@omnicross/core/pipeline/AccountAllowanceStore';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
-import { COPILOT_GITHUB_HEADERS } from '@omnicross/subscriptions';
+import { COPILOT_GITHUB_HEADERS, copilotGitHubApiBase } from '@omnicross/subscriptions';
 
 export const COPILOT_ALLOWANCE_CACHE_MS = 5 * 60_000;
 
@@ -154,14 +154,8 @@ export function parseCopilotUserPayload(payload: unknown, now: number): Allowanc
 }
 
 /** The GitHub REST base for an account (GHE domains route to api.<domain>). */
-function githubApiBase(tokens: CopilotTokenConfig): string {
-  const enterprise = tokens.enterpriseUrl?.trim().toLowerCase();
-  if (!enterprise) return 'https://api.github.com';
-  if (enterprise.startsWith('http://') || enterprise.startsWith('https://')) {
-    return enterprise.replace(/\/+$/, '');
-  }
-  if (enterprise.startsWith('api.')) return `https://${enterprise}`;
-  return `https://api.${enterprise}`;
+function githubApiBase(tokens: Pick<CopilotTokenConfig, 'enterpriseUrl'>): string {
+  return copilotGitHubApiBase(tokens.enterpriseUrl);
 }
 
 export class CopilotAllowanceCollector {

@@ -884,7 +884,8 @@
       "description": "Отворете страницата за потвърждение, въведете кода по-долу и одобрете заявката за влизане."
     },
     "copilotOauth": {
-      "description": "Отворете github.com/login/device, въведете кода по-долу и упълномощете приложението Copilot CLI."
+      "description": "Отворете github.com/login/device, въведете кода по-долу и упълномощете приложението Copilot CLI.",
+      "enterpriseLabel": "Домейн на GitHub Enterprise (по желание)"
     },
     "codexOauth": {
       "title": "Влезте в {{name}}",

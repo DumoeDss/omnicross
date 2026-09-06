@@ -884,7 +884,8 @@
       "description": "Nyissa meg az ellenőrző oldalt, írja be az alábbi kódot, és hagyja jóvá a bejelentkezési kérést."
     },
     "copilotOauth": {
-      "description": "Nyissa meg a github.com/login/device oldalt, írja be az alábbi kódot, és engedélyezze a Copilot CLI alkalmazást."
+      "description": "Nyissa meg a github.com/login/device oldalt, írja be az alábbi kódot, és engedélyezze a Copilot CLI alkalmazást.",
+      "enterpriseLabel": "GitHub Enterprise-tartomány (opcionális)"
     },
     "codexOauth": {
       "title": "Bejelentkezés ide: {{name}}",

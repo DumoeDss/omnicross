@@ -884,7 +884,8 @@
       "description": "Öffne die Verifizierungsseite, gib den unten stehenden Code ein und genehmige die Anmeldung."
     },
     "copilotOauth": {
-      "description": "Öffne github.com/login/device, gib den unten stehenden Code ein und autorisiere die Copilot-CLI-App."
+      "description": "Öffne github.com/login/device, gib den unten stehenden Code ein und autorisiere die Copilot-CLI-App.",
+      "enterpriseLabel": "GitHub-Enterprise-Domain (optional)"
     },
     "codexOauth": {
       "title": "Bei {{name}} anmelden",

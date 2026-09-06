@@ -884,7 +884,8 @@
       "description": "Open de verificatiepagina, voer de onderstaande code in en keur het verzoek goed."
     },
     "copilotOauth": {
-      "description": "Open github.com/login/device, voer de onderstaande code in en machtig de Copilot CLI-app."
+      "description": "Open github.com/login/device, voer de onderstaande code in en machtig de Copilot CLI-app.",
+      "enterpriseLabel": "GitHub Enterprise-domein (optioneel)"
     },
     "codexOauth": {
       "title": "Aanmelden bij {{name}}",

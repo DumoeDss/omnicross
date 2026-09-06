@@ -1453,7 +1453,8 @@
       "description": "Open the verification page, enter the code below, and approve the sign-in request."
     },
     "copilotOauth": {
-      "description": "Open github.com/login/device, enter the code below, and authorize the Copilot CLI app."
+      "description": "Open github.com/login/device, enter the code below, and authorize the Copilot CLI app.",
+      "enterpriseLabel": "GitHub Enterprise domain (optional)"
     },
     "codexOauth": {
       "title": "Sign in to {{name}}",

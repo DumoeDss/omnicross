@@ -1403,7 +1403,8 @@
       "description": "開啟驗證頁面，輸入下方代碼並批准登入請求。"
     },
     "copilotOauth": {
-      "description": "開啟 github.com/login/device，輸入下方代碼並授權 Copilot CLI 應用。"
+      "description": "開啟 github.com/login/device，輸入下方代碼並授權 Copilot CLI 應用。",
+      "enterpriseLabel": "GitHub Enterprise 網域（選填）"
     },
     "codexOauth": {
       "title": "登入 {{name}}",

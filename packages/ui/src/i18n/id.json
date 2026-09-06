@@ -884,7 +884,8 @@
       "description": "Buka halaman verifikasi, masukkan kode di bawah, dan setujui permintaan masuk."
     },
     "copilotOauth": {
-      "description": "Buka github.com/login/device, masukkan kode di bawah, dan izinkan aplikasi Copilot CLI."
+      "description": "Buka github.com/login/device, masukkan kode di bawah, dan izinkan aplikasi Copilot CLI.",
+      "enterpriseLabel": "Domain GitHub Enterprise (opsional)"
     },
     "codexOauth": {
       "title": "Masuk ke {{name}}",

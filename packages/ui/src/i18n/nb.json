@@ -884,7 +884,8 @@
       "description": "Åpne bekreftelsessiden, skriv inn koden nedenfor, og godkjenn innloggingsforespørselen."
     },
     "copilotOauth": {
-      "description": "Åpne github.com/login/device, skriv inn koden nedenfor, og godkjenn Copilot CLI-appen."
+      "description": "Åpne github.com/login/device, skriv inn koden nedenfor, og godkjenn Copilot CLI-appen.",
+      "enterpriseLabel": "GitHub Enterprise-domene (valgfritt)"
     },
     "codexOauth": {
       "title": "Logg inn på {{name}}",

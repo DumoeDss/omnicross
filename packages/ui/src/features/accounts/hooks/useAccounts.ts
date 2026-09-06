@@ -129,7 +129,10 @@ export interface UseAccountsResult {
   /** Refresh the active account's OAuth token. Returns the honest daemon outcome. */
   refreshProvider: (providerId: SubscriptionProviderId) => Promise<RefreshResult>;
   clearProvider: (providerId: SubscriptionProviderId) => Promise<void>;
-  startOAuth: (providerId: SubscriptionProviderId) => Promise<StartOAuthResult | null>;
+  startOAuth: (
+    providerId: SubscriptionProviderId,
+    options?: { enterpriseUrl?: string },
+  ) => Promise<StartOAuthResult | null>;
   completeOAuth: (
     providerId: SubscriptionProviderId,
     input: { sessionId: string; code: string; label?: string },
@@ -436,12 +439,15 @@ export function useAccounts(): UseAccountsResult {
   );
 
   const startOAuth = useCallback(
-    async (providerId: SubscriptionProviderId): Promise<StartOAuthResult | null> => {
+    async (
+      providerId: SubscriptionProviderId,
+      options?: { enterpriseUrl?: string },
+    ): Promise<StartOAuthResult | null> => {
       setBusy(true);
       setError(null);
       try {
         // Returns ONLY the public authorize URL + an opaque sessionId (no secret).
-        return await agent.accounts.startOAuth(providerId);
+        return await agent.accounts.startOAuth(providerId, options);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'failed to start sign-in');
         return null;

@@ -1450,7 +1450,8 @@
       "description": "打开验证页面，输入下方代码并批准登录请求。"
     },
     "copilotOauth": {
-      "description": "打开 github.com/login/device，输入下方代码并授权 Copilot CLI 应用。"
+      "description": "打开 github.com/login/device，输入下方代码并授权 Copilot CLI 应用。",
+      "enterpriseLabel": "GitHub Enterprise 域名（可选）"
     },
     "codexOauth": {
       "title": "登录 {{name}}",
