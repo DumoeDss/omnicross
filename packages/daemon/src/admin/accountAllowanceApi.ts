@@ -22,6 +22,8 @@ export interface AccountAllowanceAdminReader {
   refreshGrok?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   /** Optional: Copilot user-quota refresh (absent on older daemons). */
   refreshCopilot?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
+  /** Optional: Gemini Code-Assist quota refresh (absent on older daemons). */
+  refreshGemini?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   removeAccountSnapshot?(providerId: SubscriptionProviderId, accountId: string): void;
   removeProviderSnapshots?(providerId: SubscriptionProviderId): void;
   getSchedulingStatus?(): AccountAllowanceSchedulingStatus;
@@ -63,9 +65,9 @@ function query(req: http.IncomingMessage): URLSearchParams {
 
 function allowanceProvider(
   value: string | null,
-): 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | undefined | null {
+): 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini' | undefined | null {
   if (!value) return undefined;
-  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego' || value === 'grok' || value === 'copilot'
+  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego' || value === 'grok' || value === 'copilot' || value === 'gemini'
     ? value
     : null;
 }
@@ -98,7 +100,7 @@ export async function handleAccountAllowanceApi(
     const pathProvider = rest.length >= 2 ? rest[0] : null;
     const providerId = allowanceProvider(pathProvider ?? params.get('providerId') ?? params.get('provider'));
     if (providerId === null) {
-      return writeError(res, 400, 'providerId must be claude, codex, kimi, opencodego, grok, or copilot');
+      return writeError(res, 400, 'providerId must be claude, codex, kimi, opencodego, grok, copilot, or gemini');
     }
     const accountId = rest.length >= 2 ? rest[1] : params.get('accountId') ?? undefined;
     const allowances = await service.list({ providerId, accountId });
@@ -163,6 +165,16 @@ export async function handleAccountAllowanceApi(
       const allowances = await service.refreshGrok(accountId);
       if (accountId && allowances.length === 0) {
         return writeError(res, 404, `Grok account '${accountId}' not found`);
+      }
+      return writeJson(res, 200, { allowances });
+    }
+    if (requestedProvider === 'gemini') {
+      if (!service.refreshGemini) {
+        return writeError(res, 501, 'gemini allowance refresh is not available');
+      }
+      const allowances = await service.refreshGemini(accountId);
+      if (accountId && allowances.length === 0) {
+        return writeError(res, 404, `Gemini account '${accountId}' not found`);
       }
       return writeJson(res, 200, { allowances });
     }

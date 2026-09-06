@@ -144,6 +144,7 @@ export function OAuthProviderCard({
     refreshKimiAccountAllowance,
     refreshGrokAccountAllowance,
     refreshCopilotAccountAllowance,
+    refreshGeminiAccountAllowance,
     appendTokens,
     setActive,
     removeAccount,
@@ -333,7 +334,9 @@ export function OAuthProviderCard({
                       ? refreshGrokAccountAllowance
                       : providerId === 'copilot'
                         ? refreshCopilotAccountAllowance
-                        : undefined
+                        : providerId === 'gemini'
+                          ? refreshGeminiAccountAllowance
+                          : undefined
             }
             onSetActive={(id) => void setActive(providerId, id)}
             onRemove={(id) => void removeAccount(providerId, id)}

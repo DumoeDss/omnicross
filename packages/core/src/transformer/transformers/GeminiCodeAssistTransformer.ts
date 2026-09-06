@@ -67,6 +67,29 @@ export function resolveCodeAssistApiVersion(): string {
   return process.env.CODE_ASSIST_API_VERSION || DEFAULT_CODE_ASSIST_API_VERSION;
 }
 
+/** Gemini CLI client version stamped into the masquerade UA (env override). */
+const DEFAULT_GEMINI_CLI_VERSION = '0.46.0';
+
+/**
+ * `GeminiCLI/VERSION/MODEL (PLATFORM; ARCH; terminal)` — the exact User-Agent
+ * shape the official CLI (v0.35+) sends; the Code Assist backend keys rate
+ * limits on it. `GEMINI_CLI_VERSION` overrides the pinned version.
+ */
+export function getGeminiCliUserAgent(modelId = 'gemini-3.1-pro-preview'): string {
+  const version = process.env.GEMINI_CLI_VERSION || DEFAULT_GEMINI_CLI_VERSION;
+  const platform = process.platform === 'win32' ? 'win32' : process.platform;
+  const arch = process.arch === 'x64' ? 'x64' : process.arch;
+  return `GeminiCLI/${version}/${modelId} (${platform}; ${arch}; terminal)`;
+}
+
+/** The static client-identity headers every Code Assist request carries. */
+export function getGeminiCliIdentityHeaders(modelId?: string): Record<string, string> {
+  return {
+    'User-Agent': getGeminiCliUserAgent(modelId),
+    'Client-Metadata': 'ideType=IDE_UNSPECIFIED,platform=PLATFORM_UNSPECIFIED,pluginType=GEMINI',
+  };
+}
+
 /**
  * Build the Code Assist URL: `${base}/${version}:${method}`.
  * NOTE: no `/models/<model>` segment — the model goes in the body.
@@ -218,10 +241,13 @@ export class GeminiCodeAssistTransformer implements Transformer {
 
     // Code Assist authenticates with Bearer ONLY — clear any x-goog-api-key the
     // public-Gemini path would have set. The actual Bearer is injected by the
-    // subscription OAuthBearerAuthStrategy after the chain runs.
+    // subscription OAuthBearerAuthStrategy after the chain runs. The GeminiCLI
+    // identity pair rides every request too — the backend keys rate limits on
+    // the client UA, and unstyled traffic gets the anonymous tier.
     const headers: Record<string, string | undefined> = {
       'x-goog-api-key': undefined,
       'X-Goog-Api-Key': undefined,
+      ...getGeminiCliIdentityHeaders(request.model),
     };
 
     return {

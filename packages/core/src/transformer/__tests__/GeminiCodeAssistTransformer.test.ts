@@ -86,6 +86,17 @@ describe('GeminiCodeAssistTransformer.transformRequestIn', () => {
     expect('x-goog-api-key' in headers).toBe(true); // present-as-undefined to UNSET it
   });
 
+  it('carries the GeminiCLI masquerade identity on every request', async () => {
+    const t = new GeminiCodeAssistTransformer();
+    const out = await t.transformRequestIn(baseRequest({ model: 'gemini-2.5-pro' }), provider('p'), ctx);
+    const headers = (out as { config: { headers: Record<string, string | undefined> } }).config
+      .headers;
+    expect(headers['User-Agent']).toMatch(/^GeminiCLI\/\d+\.\d+\.\d+\/gemini-2\.5-pro \((win32|darwin|linux); (x64|arm64); terminal\)$/);
+    expect(headers['Client-Metadata']).toBe(
+      'ideType=IDE_UNSPECIFIED,platform=PLATFORM_UNSPECIFIED,pluginType=GEMINI',
+    );
+  });
+
   it('leaves project undefined for a fresh free-tier account', async () => {
     const t = new GeminiCodeAssistTransformer();
     const out = await t.transformRequestIn(baseRequest(), provider(undefined), ctx);

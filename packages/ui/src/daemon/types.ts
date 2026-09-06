@@ -530,9 +530,9 @@ export interface AgentAccountsApi {
   list(): Promise<AccountsListResponse>;
   /** Read secret-free five-hour/weekly (or provider-equivalent) allowance snapshots. */
   listAllowances(): Promise<AccountAllowancesResult>;
-  /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo, Grok). */
+  /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo, Grok, Copilot, Gemini). */
   refreshAllowance(
-    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot',
+    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini',
     accountId: string,
   ): Promise<AccountAllowancesResult>;
   /** Replace the ACTIVE account's credential (token-paste parity). */

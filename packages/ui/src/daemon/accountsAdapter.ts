@@ -473,7 +473,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
     },
 
     async refreshAllowance(
-      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot',
+      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini',
       accountId: string,
     ): Promise<AccountAllowancesResult> {
       try {

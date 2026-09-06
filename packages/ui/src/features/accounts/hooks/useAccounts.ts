@@ -77,6 +77,10 @@ export interface UseAccountsResult {
   refreshGrokAccountAllowance: (
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
+  /** Force-refresh a Gemini account's Code-Assist quota snapshot. */
+  refreshGeminiAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   writeTokens: (payload: AccountTokenInput) => Promise<{ success: boolean; message?: string }>;
   /** Append a new account (+ activate) with an optional label. */
   appendTokens: (
@@ -674,6 +678,26 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const refreshGeminiAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('gemini', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await agent.accounts.refreshAllowance('gemini', accountId);
+      if (!result.success) {
+        const message = result.message ?? 'failed to refresh Gemini allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
+      }
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
+    },
+    [],
+  );
+
   const listAccountEvents = useCallback(
     (providerId: SubscriptionProviderId, accountId: string) =>
       agent.accounts.listAccountEvents(providerId, accountId),
@@ -724,6 +748,7 @@ export function useAccounts(): UseAccountsResult {
     refreshOpenCodeGoAccountAllowance,
     refreshGrokAccountAllowance,
     refreshCopilotAccountAllowance,
+    refreshGeminiAccountAllowance,
     pollKimiOAuth,
     cancelKimiOAuth,
     pollGrokOAuth,

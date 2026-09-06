@@ -17,6 +17,13 @@ import { OpenAITransformer } from './OpenAITransformer';
 // Export individual transformers
 export { AnthropicTransformer } from './AnthropicTransformer';
 export { GeminiCodeAssistTransformer } from './GeminiCodeAssistTransformer';
+export {
+  buildCodeAssistUrl,
+  getGeminiCliIdentityHeaders,
+  getGeminiCliUserAgent,
+  resolveCodeAssistApiVersion,
+  resolveCodeAssistEndpoint,
+} from './GeminiCodeAssistTransformer';
 export { GeminiTransformer } from './GeminiTransformer';
 export { OpenAIResponseTransformer } from './OpenAIResponseTransformer';
 export { OpenAITransformer } from './OpenAITransformer';
