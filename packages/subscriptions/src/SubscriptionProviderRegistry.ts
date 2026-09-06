@@ -122,7 +122,8 @@ export class SubscriptionProviderRegistry {
     const gemini = this.accounts.getStrategy('gemini');
     const opencodego = this.accounts.getStrategy('opencodego');
     const kimi = this.accounts.getStrategy('kimi');
-    if (!claude || !codex || !gemini || !opencodego || !kimi) {
+    const grok = this.accounts.getStrategy('grok');
+    if (!claude || !codex || !gemini || !opencodego || !kimi || !grok) {
       throw new Error('[SubscriptionProviderRegistry] Missing strategy in SubscriptionAccountService');
     }
 
@@ -294,6 +295,25 @@ export class SubscriptionProviderRegistry {
           resolveUpstreamUrl: () => 'https://api.kimi.com/coding/v1/messages',
           // Route-to only (Responses/Chat ingress): Unified → Anthropic Messages.
           providerTransformerNames: ['anthropic'],
+          modelTransformerNames: [],
+        },
+      ],
+      [
+        'grok',
+        {
+          providerId: 'grok',
+          displayName: 'Grok (xAI SuperGrok OAuth)',
+          authStrategy: grok,
+          mode: 'transformer',
+          // SuperGrok's subscription surface speaks the OpenAI Responses API at
+          // `api.x.ai/v1/responses` with the OAuth access token as Bearer (the
+          // same token shape the paid API-key product uses on this endpoint).
+          // Mirrors the codex profile: Unified → Responses via the
+          // `openai-response` encoder; effort negotiation is capability-driven
+          // (the omit-effort grok models carry `thinkingLevels: ['none']` in the
+          // canonical registry, so `reasoning.effort` is never sent to them).
+          resolveUpstreamUrl: () => 'https://api.x.ai/v1/responses',
+          providerTransformerNames: ['openai-response'],
           modelTransformerNames: [],
         },
       ],

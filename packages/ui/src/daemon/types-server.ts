@@ -294,7 +294,7 @@ export type AllowanceSchedulingAction = 'normal' | 'demote' | 'pause' | 'ignore'
 
 /** Secret-free record of an applied demotion/pause scheduling decision. */
 export interface AllowanceSchedulingDecision {
-  providerId: 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi';
+  providerId: 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok';
   accountId: string;
   action: AllowanceSchedulingAction;
   reason:

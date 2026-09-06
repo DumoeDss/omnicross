@@ -1449,6 +1449,9 @@
     "kimiOauth": {
       "description": "Open the verification page, enter the code below, and approve the sign-in request."
     },
+    "grokOauth": {
+      "description": "Open the verification page, enter the code below, and approve the sign-in request."
+    },
     "codexOauth": {
       "title": "Sign in to {{name}}",
       "description": "Open the sign-in page in your browser and authorize. The daemon captures the result automatically — keep this open until it completes. The token is never shown.",
@@ -1536,6 +1539,10 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "Moonshot Kimi Code subscription credentials routed by the daemon."
+      },
+      "grok": {
+        "title": "Grok (SuperGrok)",
+        "description": "xAI SuperGrok subscription credentials routed by the daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

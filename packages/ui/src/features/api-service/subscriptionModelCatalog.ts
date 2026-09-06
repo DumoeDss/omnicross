@@ -26,6 +26,17 @@ export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]
   gemini: [],
   opencodego: [],
   kimi: ['kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3', 'kimi-for-coding', 'kimi-for-coding-highspeed'],
+  grok: [
+    'grok-composer-2.5-fast',
+    'grok-build-0.1',
+    'grok-build',
+    'grok-4.5',
+    'grok-4.6',
+    'grok-4.3',
+    'grok-4.20-0309-non-reasoning',
+    'grok-4.20-0309-reasoning',
+    'grok-4.20-multi-agent-0309',
+  ],
 };
 
 /** Whether a provider has any cataloged models (drives UI model-picker gating). */

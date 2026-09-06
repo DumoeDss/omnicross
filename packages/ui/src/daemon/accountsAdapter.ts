@@ -38,6 +38,7 @@ import type {
   CodexTokenInput,
   GeminiTokenInput,
   KimiTokenInput,
+  GrokTokenInput,
   OpenCodeGoTokenInput,
   SubscriptionListEntry,
   SubscriptionProviderId,
@@ -113,6 +114,18 @@ function fromKimi(input: KimiTokenInput): Record<string, unknown> {
   return body;
 }
 
+/** Build the grok write body — only the daemon's grok allowlist. */
+function fromGrok(input: GrokTokenInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { authMethod: input.authMethod, status: input.status };
+  setStr(body, 'accessToken', input.accessToken);
+  setStr(body, 'refreshToken', input.refreshToken);
+  setStr(body, 'expiresAt', input.expiresAt);
+  setStr(body, 'accountId', input.accountId);
+  setStr(body, 'lastRefreshedAt', input.lastRefreshedAt);
+  setStr(body, 'errorMessage', input.errorMessage);
+  return body;
+}
+
 /** Dispatch a write payload to the per-provider field-by-field builder. */
 function buildBody(payload: AccountTokenInput): Record<string, unknown> {
   switch (payload.providerId) {
@@ -126,6 +139,8 @@ function buildBody(payload: AccountTokenInput): Record<string, unknown> {
       return fromOpenCodeGo(payload.input);
     case 'kimi':
       return fromKimi(payload.input);
+    case 'grok':
+      return fromGrok(payload.input);
   }
 }
 
@@ -137,7 +152,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
       } catch {
         return {
           accounts: [],
-          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
+          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [] },
         };
       }
     },
@@ -435,7 +450,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
     },
 
     async refreshAllowance(
-      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego',
+      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok',
       accountId: string,
     ): Promise<AccountAllowancesResult> {
       try {
@@ -469,6 +484,25 @@ export function createAccountsAdapter(): AgentAccountsApi {
     async cancelKimiOAuth(sessionId: string): Promise<MutationResult> {
       try {
         await adminClient.delete(`/accounts/kimi/oauth/${encodeURIComponent(sessionId)}`);
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };
+      }
+    },
+
+    async pollGrokOAuth(sessionId: string): Promise<CodexOAuthStatus> {
+      try {
+        return await adminClient.get<CodexOAuthStatus>(
+          `/accounts/grok/oauth/${encodeURIComponent(sessionId)}/status`,
+        );
+      } catch {
+        return { state: 'error' };
+      }
+    },
+
+    async cancelGrokOAuth(sessionId: string): Promise<MutationResult> {
+      try {
+        await adminClient.delete(`/accounts/grok/oauth/${encodeURIComponent(sessionId)}`);
         return { success: true };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };

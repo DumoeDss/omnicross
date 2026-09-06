@@ -1446,6 +1446,9 @@
     "kimiOauth": {
       "description": "打开验证页面，输入下方代码并批准登录请求。"
     },
+    "grokOauth": {
+      "description": "打开验证页面，输入下方代码并批准登录请求。"
+    },
     "codexOauth": {
       "title": "登录 {{name}}",
       "description": "在浏览器中打开登录页面并授权。守护进程会自动捕获结果——请在完成前保持此窗口打开。令牌不会回显。",
@@ -1533,6 +1536,10 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "由守护进程路由的月之暗面 Kimi Code 订阅凭据。"
+      },
+      "grok": {
+        "title": "Grok（SuperGrok）",
+        "description": "由守护进程路由的 xAI SuperGrok 订阅凭据。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

@@ -35,7 +35,7 @@ import type {
 
 const EMPTY: AccountsListResponse = {
   accounts: [],
-  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
+  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [] },
 };
 
 /** Keep request-driven account metadata and passive Codex allowance observations live. */
@@ -67,6 +67,10 @@ export interface UseAccountsResult {
   ) => Promise<{ success: boolean; message?: string }>;
   /** Force-refresh an OpenCodeGo account's `/v1/usage` snapshot. */
   refreshOpenCodeGoAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Force-refresh a Grok account's CLI-billing snapshot. */
+  refreshGrokAccountAllowance: (
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
   writeTokens: (payload: AccountTokenInput) => Promise<{ success: boolean; message?: string }>;
@@ -129,7 +133,9 @@ export interface UseAccountsResult {
   /** Poll a codex loopback sign-in's token-free status (app-parity-2 child 5). */
   pollCodexOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   pollKimiOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  pollGrokOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   cancelKimiOAuth: (sessionId: string) => Promise<MutationResult>;
+  cancelGrokOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelCodexOAuth: (sessionId: string) => Promise<{ success: boolean; message?: string }>;
   /** Import the daemon machine's external CLI login as a managed account. */
   importExternalCli: (
@@ -482,6 +488,16 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const pollGrokOAuth = useCallback(
+    (sessionId: string): Promise<CodexOAuthStatus> => agent.accounts.pollGrokOAuth(sessionId),
+    [],
+  );
+
+  const cancelGrokOAuth = useCallback(
+    (sessionId: string) => agent.accounts.cancelGrokOAuth(sessionId),
+    [],
+  );
+
   const patchAccount = useCallback(
     async (
       providerId: SubscriptionProviderId,
@@ -596,6 +612,26 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const refreshGrokAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('grok', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await agent.accounts.refreshAllowance('grok', accountId);
+      if (!result.success) {
+        const message = result.message ?? 'failed to refresh Grok allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
+      }
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
+    },
+    [],
+  );
+
   const listAccountEvents = useCallback(
     (providerId: SubscriptionProviderId, accountId: string) =>
       agent.accounts.listAccountEvents(providerId, accountId),
@@ -644,8 +680,11 @@ export function useAccounts(): UseAccountsResult {
     refreshCodexAccountAllowance,
     refreshKimiAccountAllowance,
     refreshOpenCodeGoAccountAllowance,
+    refreshGrokAccountAllowance,
     pollKimiOAuth,
     cancelKimiOAuth,
+    pollGrokOAuth,
+    cancelGrokOAuth,
     writeTokens,
     appendTokens,
     setActive,

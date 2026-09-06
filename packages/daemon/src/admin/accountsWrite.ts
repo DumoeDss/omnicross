@@ -19,6 +19,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  GrokTokenConfig,
   KimiTokenConfig,
   ProxyConfig,
   SubscriptionAccountSanitized,
@@ -120,6 +121,7 @@ const VALID_PROVIDER_IDS: readonly SubscriptionProviderId[] = [
   'gemini',
   'opencodego',
   'kimi',
+  'grok',
 ];
 
 /** Narrow a path segment to a known `SubscriptionProviderId` (or `null`). */
@@ -288,6 +290,19 @@ function validateKimi(body: Record<string, unknown>): KimiTokenConfig | null {
   return out;
 }
 
+function validateGrok(body: Record<string, unknown>): GrokTokenConfig | null {
+  const authMethod = str(body['authMethod']);
+  const status = str(body['status']);
+  if (!authMethod || !OAUTH_AUTH_METHODS.has(authMethod)) return null;
+  if (!status || !TOKEN_STATUSES.has(status as TokenStatus)) return null;
+  const out: GrokTokenConfig = {
+    authMethod: authMethod as GrokTokenConfig['authMethod'],
+    status: status as TokenStatus,
+  };
+  copyOptional(out, body, ['accessToken', 'refreshToken', 'expiresAt', 'accountId', 'lastRefreshedAt', 'errorMessage']);
+  return out;
+}
+
 function validateOpenCodeGo(body: Record<string, unknown>): OpenCodeGoTokenConfig | null {
   const authMethod = str(body['authMethod']);
   const status = str(body['status']);
@@ -334,6 +349,8 @@ export function validateTokenBody(
       return validateOpenCodeGo(body);
     case 'kimi':
       return validateKimi(body);
+    case 'grok':
+      return validateGrok(body);
     default:
       return null;
   }

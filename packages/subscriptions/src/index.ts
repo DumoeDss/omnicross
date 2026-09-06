@@ -56,6 +56,7 @@ export {
   codexOAuth,
   type FetchLike,
   geminiOAuth,
+  grokOAuth,
   kimiFingerprintHeaders,
   kimiOAuth,
 } from './oauth';

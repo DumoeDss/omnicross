@@ -27,7 +27,7 @@ import { RevealableInput } from '@/components/ui/revealable-input';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-type ManualProvider = 'claude' | 'codex' | 'gemini' | 'kimi';
+type ManualProvider = 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok';
 type SubscriptionLevel = 'Free' | 'Pro' | 'Max';
 
 interface ManualExtra {
@@ -78,7 +78,7 @@ export function ManualTokenModal({
     if (accessToken.trim().length === 0) return;
     const extra: ManualExtra = {};
     if (provider === 'claude') extra.subscriptionLevel = subscriptionLevel;
-    if ((provider === 'gemini' || provider === 'kimi') && refreshToken.trim()) {
+    if ((provider === 'gemini' || provider === 'kimi' || provider === 'grok') && refreshToken.trim()) {
       extra.refreshToken = refreshToken.trim();
     }
     const result = await onSubmit(accessToken.trim(), accountLabel.trim() || undefined, extra);
@@ -137,7 +137,7 @@ export function ManualTokenModal({
             </div>
           ) : null}
 
-          {provider === 'gemini' || provider === 'kimi' ? (
+          {provider === 'gemini' || provider === 'kimi' || provider === 'grok' ? (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 {t('accounts.field.refreshToken')}{' '}

@@ -43,6 +43,12 @@ export interface SubscriptionCredentialStore {
    * failed refresh) — the daemon's store implements it.
    */
   refreshKimiToken?(): Promise<boolean>;
+  /**
+   * Force a Grok (xAI SuperGrok) OAuth token refresh; `true` on success.
+   * OPTIONAL for lightweight test doubles (the grok strategy catches its
+   * absence like a failed refresh) — the daemon's store implements it.
+   */
+  refreshGrokToken?(): Promise<boolean>;
   /** Current valid OpenCodeGo static API key; `null` if none. */
   getValidOpenCodeGoApiKey(): Promise<string | null>;
 

@@ -21,7 +21,7 @@ import type { RefreshMutex } from './RefreshMutex';
 /** Refresh expiring tokens this many ms before they hit `expiresAt`. */
 const REFRESH_LEAD_MS = 5 * 60_000;
 
-type OAuthProviderKey = 'codex' | 'gemini' | 'kimi';
+type OAuthProviderKey = 'codex' | 'gemini' | 'kimi' | 'grok';
 
 /** The per-provider token config block each strategy branch reads. */
 type OAuthTokenBlock = { accessToken?: string; refreshToken?: string; expiresAt?: string; status?: string };
@@ -139,6 +139,8 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
       case 'kimi':
         // Optional on the port (lightweight test doubles); absent = failed.
         return this.tokens.refreshKimiToken ? this.tokens.refreshKimiToken() : Promise.resolve(false);
+      case 'grok':
+        return this.tokens.refreshGrokToken ? this.tokens.refreshGrokToken() : Promise.resolve(false);
     }
   }
 
@@ -150,6 +152,8 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
         return config.gemini;
       case 'kimi':
         return config.kimi;
+      case 'grok':
+        return config.grok;
     }
   }
 

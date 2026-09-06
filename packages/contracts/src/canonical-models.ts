@@ -109,6 +109,18 @@ const GROK_MODELS: Record<string, KnownModelCapabilities> = {
   'grok-4.20': { category: 'chat', contextLength: 131072, maxTokens: 32768, vision: true, functionCall: true },
   'grok-4.20-reasoning': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, vision: true, functionCall: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'grok-4.20-multi-agent': { category: 'reasoning', contextLength: 131072, maxTokens: 32768, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  // SuperGrok subscription ids (Responses wire). Upstream context/output caps
+  // per the audit source; the effort-taking models accept low/medium/high only
+  // (minimal→low, xhigh/max→high), and the omit-effort models carry
+  // `thinkingLevels: ['none']` so the effort negotiation drops the
+  // `reasoning.effort` field entirely (sending it upstream is a 400).
+  'grok-4.6': { category: 'chat', contextLength: 500000, maxTokens: 500000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'grok-4.20-0309-non-reasoning': { category: 'chat', contextLength: 2000000, maxTokens: 2000000, vision: true, functionCall: true, thinkingLevels: ['none'] },
+  'grok-4.20-0309-reasoning': { category: 'reasoning', contextLength: 2000000, maxTokens: 2000000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none'] },
+  'grok-4.20-multi-agent-0309': { category: 'reasoning', contextLength: 2000000, maxTokens: 2000000, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
+  'grok-build': { category: 'reasoning', contextLength: 512000, maxTokens: 512000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none'] },
+  'grok-build-0.1': { category: 'reasoning', contextLength: 256000, maxTokens: 256000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none'] },
+  'grok-composer-2.5-fast': { category: 'chat', contextLength: 200000, maxTokens: 200000, functionCall: true, thinkingLevels: ['none'] },
 };
 
 const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {

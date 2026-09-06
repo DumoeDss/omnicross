@@ -9,7 +9,7 @@
  */
 
 /** Stable IDs for built-in subscription providers. */
-export type SubscriptionProviderId = 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi';
+export type SubscriptionProviderId = 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok';
 
 /** Token lifecycle status. */
 export type TokenStatus = 'unconfigured' | 'authorized' | 'configured' | 'expired' | 'error';
@@ -261,9 +261,22 @@ export interface KimiTokenInput {
   errorMessage?: string;
 }
 
+/** Grok manual-token write input (device-flow logins fill the rest daemon-side). */
+export interface GrokTokenInput {
+  authMethod: 'oauth' | 'manual';
+  status: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  accountId?: string;
+  lastRefreshedAt?: string;
+  errorMessage?: string;
+}
+
 export type AccountTokenInput =
   | { providerId: 'claude'; input: ClaudeTokenInput }
   | { providerId: 'codex'; input: CodexTokenInput }
   | { providerId: 'gemini'; input: GeminiTokenInput }
   | { providerId: 'opencodego'; input: OpenCodeGoTokenInput }
-  | { providerId: 'kimi'; input: KimiTokenInput };
+  | { providerId: 'kimi'; input: KimiTokenInput }
+  | { providerId: 'grok'; input: GrokTokenInput };

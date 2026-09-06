@@ -229,12 +229,18 @@ OAuth 与 omnicross 完全同源（同 client_id `app_EMoamEEZ73f0CkXaXp7hrann`�
 - umans 预设（anthropic 面）+ quota 适配（硬上限 raw 计数为准，软上限 weighted 只作回退）。
 - synthetic 预设（openai 面）+ quota 适配（5h 请求数 tick 回复 + 周美元积分）。
 
-**P2 未做（后续）**：SuperGrok/Copilot（设备码 OAuth，各自 billing/配额头较重）、google-gemini-cli/antigravity（需 CCA wire 翻译器，独立 change）、kilo（与 openrouter 重叠）、alibaba-token-plan（Cookie 运维型）、GitLab Duo、Cursor/Devin（P3）。
+**P2 未做（后续）**：Copilot（设备码 OAuth + ghu_ 长期令牌无刷新 + 三 wire + 身份头镜像）、google-gemini-cli/antigravity（需 CCA wire 翻译器，独立 change）、kilo（与 openrouter 重叠）、alibaba-token-plan（Cookie 运维型）、GitLab Duo、Cursor/Devin（P3）。
 
 **第二轮落地（2026-09-06 下午）**
 
 - **cline-pass 完成**（原卡点「预设 schema 无自定义请求头能力」已解决）：新建通用 `extraHeaders` 基建——contracts 上 `PresetProviderTemplate.extraHeaders` + `LLMProvider.extraHeaders`；core `getProviderHeaders` 合并点（`mergeExtraHeaders`，支持 `{{platform}}` 占位符、保留名集合 `EXTRA_HEADER_RESERVED_NAMES` 在合并点二次强制，auth/content 头永不可覆盖）；daemon 侧 config 加载守卫 + admin 写网关三态写契约 + GET 视图 round-trip + preset-map/MappablePreset/admin presets 投影 + discover-models/test-model 探测合并 + ProviderKeyQuota 配额探测合并；UI 侧 DaemonPresetView/adapter/表单（模板预填创建路径带上，编辑路径 omit-keeps）。cline-pass 预设 18 模型（付费档 wire id 带 `cline-pass/` 前缀、free 档原样直通）+ 配额适配器（`/api/v1/users/me/plan/usage-limits` 三窗百分比：5h/周/月；同 Bearer key + 行身份头）。
 - **opencode-zen BYO 预设判定不做**：oh-my-pi 目录 34 个 opencode 模型全在 go 半（`/zen/go/v1`），zen 半无静态清单（纯动态发现）；且 go 半按模型分 chat/responses/anthropic 三种 wire，单 apiFormat 的 BYO 预设表达不了——订阅 provider（已存在、双半多 wire、带 usage collector）才是正确载体，BYO 预设只会产出残缺目录。
 - SuperGrok 契约已从源码复核（`packages/ai/src/registry/oauth/xai-oauth.ts` + `usage/xai-oauth.ts`）：设备码 client `b1a00492-073a-47ea-816f-4c329264a828`，token endpoint 经 OIDC discovery 钉 `*.x.ai`；billing 双形态解析要点——weekly `?format=credits` 的 `config.creditUsagePercent` 缺失时活跃窗口按 0 推断（`inferredPercent`），`config.isUnifiedBillingUser===true` 时须再探默认 URL 的月度 `monthlyLimit/used`（正数则用月度，否则确认周重置循环）；两探针均失败时丢弃推断值保 last-good。billing 头集 `Authorization: Bearer` + `X-XAI-Token-Auth: xai-grok-cli`，`redirect: error`。
+
+**第三轮落地（2026-09-06 晚）：SuperGrok（`grok`）全链完成**
+
+- 订阅 provider `grok`（id 与 BYO grok 预设同名共存，同 kimi 先例）：设备码 flow（scopes 全集含 `grok-cli:access`，token endpoint 经 OIDC discovery 解析并钉 `*.x.ai`，1h 进程缓存 + `resetGrokDiscoveryCache` 测试钩子，`GROK_OAUTH_DEVICE_ENDPOINT`/`GROK_OAUTH_DISCOVERY_URL` 逃生舱）；OAuthBearerAuthStrategy 联合 + JsonSubscriptionCredentialStore（refreshGrokToken/by-id 刷新/writeBack/markExpired）+ TokenRefreshScheduler 扫描；dispatch profile 镜像 codex（`api.x.ai/v1/responses` + `openai-response` 编码链——effort 方言全部走 canonical 能力协商，omit-effort 模型（grok-4.20-0309 系/grok-build 系/composer）注册 `thinkingLevels: ['none']` 使 `reasoning.effort` 不发送，effort 模型只注册 low/medium/high）；模型目录 9 个（含 UI 镜像）；`GrokAllowanceCollector`（billing 双形态 + inferredPercent/unified 推断规则 + on-demand 第三窗 + 401→refresh→retry；探测时序：weekly 可用且非 unified 只探一次）；allowance 调度白名单放行（grok 月/周窗是权威配额，无 opencodego 式控制台兜底问题，worst-window 语义正确）；CLI `omnicross login grok` + admin 设备码登录（`/accounts/grok/oauth/*`，同 kimi 形态）；UI 卡片/内联登录/手动 token/allowance 刷新/模型选择器全接（i18n 键落 en/zh/zh-Hant，其余 28 locale 走 `fallbackLng: 'en'` 回退——下次补译）。
+- 未做但已探明：`x-grok-conv-id` 会话缓存头（多客户端中继下无法共享 conv id，属优化非门禁，跳过）；推理 UA 归属头（非门禁，跳过）。待实测确认（§4 同）：minted token 寿命/刷新轮换行为（按「响应缺 refresh_token 保留旧值」实现）、9 模型 id 的服务端实收集合。
+- 全仓 4113 测试通过；build + typecheck 干净。
 
 **顺带修复**：main 上 `importSurface.test.ts` 期望的 README 短语已过期（b190db1 改了 README 未同步测试）。

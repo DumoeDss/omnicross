@@ -1399,6 +1399,9 @@
     "kimiOauth": {
       "description": "開啟驗證頁面，輸入下方代碼並批准登入請求。"
     },
+    "grokOauth": {
+      "description": "開啟驗證頁面，輸入下方代碼並批准登入請求。"
+    },
     "codexOauth": {
       "title": "登入 {{name}}",
       "description": "在瀏覽器中開啟登入頁面並完成授權。Daemon 會自動擷取結果——在完成前請保持此視窗開啟。權杖不會回顯。",
@@ -1486,6 +1489,10 @@
       "kimi": {
         "title": "Kimi Code",
         "description": "由守護行程路由的月之暗面 Kimi Code 訂閱憑證。"
+      },
+      "grok": {
+        "title": "Grok（SuperGrok）",
+        "description": "由守護程序路由的 xAI SuperGrok 訂閱憑證。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

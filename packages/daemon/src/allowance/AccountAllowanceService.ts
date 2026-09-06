@@ -26,6 +26,10 @@ import {
   type KimiAllowanceCredentialReader,
 } from './KimiAllowanceCollector';
 import {
+  GrokAllowanceCollector,
+  type GrokAllowanceCredentialReader,
+} from './GrokAllowanceCollector';
+import {
   OpenCodeGoAllowanceCollector,
   type OpenCodeGoAllowanceCredentialReader,
 } from './OpenCodeGoAllowanceCollector';
@@ -38,11 +42,11 @@ import {
  */
 export interface AccountAllowanceCredentialReader {
   getAccessTokenForAccount(
-    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego',
+    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok',
     accountId: string,
   ): Promise<string | null>;
   refreshAccountToken(
-    providerId: 'claude' | 'codex' | 'kimi',
+    providerId: 'claude' | 'codex' | 'kimi' | 'grok',
     accountId: string,
   ): Promise<boolean>;
   getFullConfig(): Promise<AccountTokensConfig>;
@@ -76,6 +80,7 @@ export class AccountAllowanceService {
   readonly claudeCollector: ClaudeAllowanceCollector;
   readonly codexCollector: CodexAllowanceCollector;
   readonly kimiCollector: KimiAllowanceCollector;
+  readonly grokCollector: GrokAllowanceCollector;
   readonly opencodegoCollector: OpenCodeGoAllowanceCollector;
 
   constructor(
@@ -85,6 +90,7 @@ export class AccountAllowanceService {
     codexCollector?: CodexAllowanceCollector,
     kimiCollector?: KimiAllowanceCollector,
     opencodegoCollector?: OpenCodeGoAllowanceCollector,
+    grokCollector?: GrokAllowanceCollector,
     private readonly now: () => number = Date.now,
   ) {
     this.claudeCollector = collector ?? new ClaudeAllowanceCollector(credentials, store);
@@ -92,6 +98,7 @@ export class AccountAllowanceService {
     this.kimiCollector = kimiCollector ?? new KimiAllowanceCollector(credentials, store);
     this.opencodegoCollector =
       opencodegoCollector ?? new OpenCodeGoAllowanceCollector(credentials, store);
+    this.grokCollector = grokCollector ?? new GrokAllowanceCollector(credentials, store);
   }
 
   /**
@@ -134,11 +141,18 @@ export class AccountAllowanceService {
     );
     if (wantsOpenCodeGo) await this.opencodegoCollector.collectMany(opencodegoAccounts);
 
+    const wantsGrok = !filter.providerId || filter.providerId === 'grok';
+    const grokAccounts = (config.grokAccounts ?? []).filter(
+      (account) => !filter.accountId || account.id === filter.accountId,
+    );
+    if (wantsGrok) await this.grokCollector.collectMany(grokAccounts);
+
     const known = new Set<string>();
     if (wantsClaude) for (const account of claudeAccounts) known.add(`claude\0${account.id}`);
     if (wantsCodex) for (const account of codexAccounts) known.add(`codex\0${account.id}`);
     if (wantsKimi) for (const account of kimiAccounts) known.add(`kimi\0${account.id}`);
     if (wantsOpenCodeGo) for (const account of opencodegoAccounts) known.add(`opencodego\0${account.id}`);
+    if (wantsGrok) for (const account of grokAccounts) known.add(`grok\0${account.id}`);
 
     return this.store
       .list(filter)
@@ -151,6 +165,7 @@ export class AccountAllowanceService {
       ...(config.codexAccounts ?? []).map((account) => ({ providerId: 'codex' as const, accountId: account.id })),
       ...(config.kimiAccounts ?? []).map((account) => ({ providerId: 'kimi' as const, accountId: account.id })),
       ...(config.opencodegoAccounts ?? []).map((account) => ({ providerId: 'opencodego' as const, accountId: account.id })),
+      ...(config.grokAccounts ?? []).map((account) => ({ providerId: 'grok' as const, accountId: account.id })),
     ];
   }
 
@@ -198,6 +213,16 @@ export class AccountAllowanceService {
     return this.kimiCollector.collectMany(accounts, { force: true });
   }
 
+  /** Force-refresh Grok usage (CLI billing proxy) for one/all accounts. */
+  async refreshGrok(accountId?: string): Promise<AccountAllowanceSnapshot[]> {
+    const config = await this.credentials.getFullConfig();
+    this.store.pruneToKnownAccounts(this.knownAccounts(config));
+    const accounts = (config.grokAccounts ?? []).filter(
+      (account) => !accountId || account.id === accountId,
+    );
+    return this.grokCollector.collectMany(accounts, { force: true });
+  }
+
   /**
    * Keep Claude + Codex + Kimi snapshots warm for allowance-aware routing. All
    * collectors preserve their cache + per-account in-flight coalescing; a tick
@@ -212,6 +237,7 @@ export class AccountAllowanceService {
     await this.codexCollector.collectMany(config.codexAccounts ?? [], { refreshAheadMs });
     await this.kimiCollector.collectMany(config.kimiAccounts ?? [], { refreshAheadMs });
     await this.opencodegoCollector.collectMany(config.opencodegoAccounts ?? [], { refreshAheadMs });
+    await this.grokCollector.collectMany(config.grokAccounts ?? [], { refreshAheadMs });
   }
 
   /** Remove a cache row as soon as an account is deleted by the admin path. */

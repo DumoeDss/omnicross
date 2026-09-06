@@ -117,6 +117,12 @@ import {
   KimiOAuthSessionStore,
 } from './accountsKimiOAuth';
 import {
+  handleGrokOAuthCancel,
+  handleGrokOAuthStart,
+  handleGrokOAuthStatus,
+  GrokOAuthSessionStore,
+} from './accountsGrokOAuth';
+import {
   handleOAuthComplete,
   handleOAuthStart,
   type SubscriptionAccountAppender,
@@ -337,6 +343,11 @@ export interface AdminApiDeps {
    * shape as codex; one sign-in at a time. Wired in `bootstrap.ts`.
    */
   readonly kimiSessions: KimiOAuthSessionStore;
+  /**
+   * Grok interactive-OAuth flow store (device code). Same token-free polled
+   * shape as codex; one sign-in at a time. Wired in `bootstrap.ts`.
+   */
+  readonly grokSessions: GrokOAuthSessionStore;
   /**
    * Codex loopback listener (app-parity-2 child 5) — defaults to `awaitLoopbackCode`
    * (binds 127.0.0.1:1455) in `bootstrap.ts`; tests inject a mock so no real port
@@ -2413,19 +2424,24 @@ async function handleAccounts(
     return writeJson(res, 200, { ok: true, affected: result.affected });
   }
 
-  // GET /accounts/{codex,kimi}/oauth/:sessionId/status → token-free poll for the
-  // async sign-ins (codex loopback, kimi device code). Returns ONLY { state, message? }.
-  if (method === 'GET' && (rest[0] === 'codex' || rest[0] === 'kimi') && rest[1] === 'oauth' && rest[3] === 'status') {
+  // GET /accounts/{codex,kimi,grok}/oauth/:sessionId/status → token-free poll for
+  // the async sign-ins (codex loopback, kimi/grok device code). Returns ONLY
+  // { state, message? }.
+  if (method === 'GET' && (rest[0] === 'codex' || rest[0] === 'kimi' || rest[0] === 'grok') && rest[1] === 'oauth' && rest[3] === 'status') {
     const result = rest[0] === 'codex'
       ? handleCodexOAuthStatus(rest[2], deps)
-      : handleKimiOAuthStatus(rest[2], deps);
+      : rest[0] === 'kimi'
+        ? handleKimiOAuthStatus(rest[2], deps)
+        : handleGrokOAuthStatus(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 
-  if (method === 'DELETE' && (rest[0] === 'codex' || rest[0] === 'kimi') && rest[1] === 'oauth' && rest[2]) {
+  if (method === 'DELETE' && (rest[0] === 'codex' || rest[0] === 'kimi' || rest[0] === 'grok') && rest[1] === 'oauth' && rest[2]) {
     const result = rest[0] === 'codex'
       ? handleCodexOAuthCancel(rest[2], deps)
-      : handleKimiOAuthCancel(rest[2], deps);
+      : rest[0] === 'kimi'
+        ? handleKimiOAuthCancel(rest[2], deps)
+        : handleGrokOAuthCancel(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 
@@ -2500,14 +2516,18 @@ async function handleAccounts(
     // 5) is LOOPBACK-based (async + polled), so it routes to the codex start; claude/
     // gemini (app-parity child 4) are code-paste (two-phase start/complete).
     if (method === 'POST' && rest[1] === 'oauth' && rest[2] === 'start') {
-      // codex (loopback) and kimi (device code) are ASYNC + POLLED flows; the
-      // claude/gemini code-paste flow is two-phase start/complete.
+      // codex (loopback), kimi and grok (device code) are ASYNC + POLLED flows;
+      // the claude/gemini code-paste flow is two-phase start/complete.
       if (providerId === 'codex') {
         const result = handleCodexOAuthStart(deps);
         return writeJson(res, result.status, result.body);
       }
       if (providerId === 'kimi') {
         const result = await handleKimiOAuthStart(deps);
+        return writeJson(res, result.status, result.body);
+      }
+      if (providerId === 'grok') {
+        const result = await handleGrokOAuthStart(deps);
         return writeJson(res, result.status, result.body);
       }
       const result = handleOAuthStart(providerId, deps);

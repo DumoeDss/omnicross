@@ -142,13 +142,15 @@ export class AccountAllowanceScheduling {
     };
     if (!this.config.enabled) return { ...base, action: 'ignore', reason: 'policy-disabled' };
     // Providers whose snapshots carry windowed percents the policy can reason
-    // about (claude/codex/kimi/opencodego report 5h + weekly; gemini is
-    // per-model fractions the worst-window rule does not fit).
+    // about (claude/codex/kimi/opencodego report 5h + weekly; grok reports
+    // weekly credits or unified monthly quota — both windowed percents; gemini
+    // is per-model fractions the worst-window rule does not fit).
     if (
       providerId !== 'claude' &&
       providerId !== 'codex' &&
       providerId !== 'kimi' &&
-      providerId !== 'opencodego'
+      providerId !== 'opencodego' &&
+      providerId !== 'grok'
     ) {
       return { ...base, action: 'ignore', reason: 'provider-unsupported' };
     }

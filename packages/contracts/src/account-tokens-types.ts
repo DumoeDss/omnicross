@@ -160,6 +160,26 @@ export type KimiTokenConfig = {
 };
 
 /**
+ * Grok (xAI SuperGrok) token configuration. OAuth is a RFC 8628 device flow
+ * at `auth.x.ai` (token endpoint resolved + host-pinned via OIDC discovery);
+ * the access token serves BOTH inference (`api.x.ai/v1/responses`) and the
+ * `cli-chat-proxy.grok.com/v1/billing` quota endpoint. `accountId` is the
+ * access-token JWT's `sub` claim.
+ */
+export type GrokTokenConfig = {
+  authMethod: AuthMethod;
+  status: TokenStatus;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  accountId?: string;
+  lastRefreshedAt?: string;
+  errorMessage?: string;
+  /** Managed-account credential warning (duplicate-token, projected on listing). */
+  syncWarning?: SyncWarningCode;
+};
+
+/**
  * A single subscription account entry. The provider's existing token config
  * is carried verbatim under a nested `tokens` field; entry metadata
  * (`id`/`label`/`createdAt`) is kept cleanly separate from token material so
@@ -249,6 +269,7 @@ export type AccountTokensConfig = {
   gemini?: GeminiTokenConfig;
   opencodego?: OpenCodeGoTokenConfig;
   kimi?: KimiTokenConfig;
+  grok?: GrokTokenConfig;
   // Per-provider account collections + active pointer (multi-account).
   claudeAccounts?: SubscriptionAccountEntry<ClaudeTokenConfig>[];
   activeClaudeAccountId?: string;
@@ -260,6 +281,8 @@ export type AccountTokensConfig = {
   activeOpencodegoAccountId?: string;
   kimiAccounts?: SubscriptionAccountEntry<KimiTokenConfig>[];
   activeKimiAccountId?: string;
+  grokAccounts?: SubscriptionAccountEntry<GrokTokenConfig>[];
+  activeGrokAccountId?: string;
   updatedAt: string;
 };
 

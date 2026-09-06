@@ -35,6 +35,19 @@ export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]
   // Kimi Code's subscription catalog (the official CLI's built-ins + the
   // k2.6/k2.7-code coding models, small → large).
   kimi: ['kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3', 'kimi-for-coding', 'kimi-for-coding-highspeed'],
+  // SuperGrok's Responses-wire catalog (verified ids from the audit source,
+  // small → large; the grok-build / composer models are plan-gated products).
+  grok: [
+    'grok-composer-2.5-fast',
+    'grok-build-0.1',
+    'grok-build',
+    'grok-4.5',
+    'grok-4.6',
+    'grok-4.3',
+    'grok-4.20-0309-non-reasoning',
+    'grok-4.20-0309-reasoning',
+    'grok-4.20-multi-agent-0309',
+  ],
 };
 
 /** Whether a provider has any cataloged models (drives UI model-picker gating). */

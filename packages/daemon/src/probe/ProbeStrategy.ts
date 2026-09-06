@@ -60,6 +60,11 @@ export const PROVIDER_PROBE_PLANS: Record<SubscriptionProviderId, ProbePlan> = {
   // collector uses it), but the probe path also needs the fingerprint headers —
   // keep the probe local until the collector covers the health surface.
   kimi: { kind: 'local' },
+  // Grok's billing proxy is a verified FREE authed GET (the allowance collector
+  // uses it) but it REJECTS non-OAuth credentials and sits on a separate host
+  // with its own product-gate header — keep the probe local, the collector
+  // owns the health surface.
+  grok: { kind: 'local' },
 };
 
 /** Resolve the probe plan for a provider (defaults to local for an unknown id). */

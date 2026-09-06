@@ -29,7 +29,7 @@ function unavailable<T>(message = 'read failed'): OverviewSource<T> {
 
 const emptyAccounts: AccountsListResponse = {
   accounts: [],
-  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
+  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [] },
 };
 
 const healthyAccount: SubscriptionAccountSanitized = {

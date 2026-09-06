@@ -33,6 +33,7 @@ const DISPLAY_NAMES: Record<SubscriptionProviderId, string> = {
   gemini: 'Gemini (Google OAuth)',
   opencodego: 'OpenCodeGo (Bearer key)',
   kimi: 'Kimi Code (Moonshot OAuth)',
+  grok: 'Grok (xAI SuperGrok OAuth)',
 };
 
 export class SubscriptionAccountService {
@@ -53,6 +54,7 @@ export class SubscriptionAccountService {
       ['gemini', new OAuthBearerAuthStrategy('gemini', tokens, this.mutex, this.selector, health)],
       ['opencodego', new StaticBearerAuthStrategy(tokens, this.selector, health)],
       ['kimi', new OAuthBearerAuthStrategy('kimi', tokens, this.mutex, this.selector, health)],
+      ['grok', new OAuthBearerAuthStrategy('grok', tokens, this.mutex, this.selector, health)],
     ]);
   }
 

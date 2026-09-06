@@ -33,6 +33,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  GrokTokenConfig,
   KimiTokenConfig,
 } from '@omnicross/contracts/account-tokens-types';
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
@@ -41,6 +42,7 @@ import {
   codexOAuth,
   type FetchLike,
   geminiOAuth,
+  grokOAuth,
   kimiOAuth,
 } from '@omnicross/subscriptions';
 
@@ -53,7 +55,7 @@ import { awaitLoopbackCode } from './loopbackCallback';
 import { defaultTokensPath, resolveSecretBox } from './paths';
 
 /** The providers `login` understands. */
-const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi'] as const;
+const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok'] as const;
 type LoginProvider = (typeof PROVIDERS)[number];
 
 /** Injectable side-effects so the command can be tested without I/O. */
@@ -66,6 +68,8 @@ export interface LoginDeps {
   awaitLoopback(expectedState: string): Promise<string>;
   /** Drive the kimi device flow to completion (start + poll until done). */
   awaitKimiDevice(fetchImpl: FetchLike): Promise<KimiLoginResult>;
+  /** Drive the grok device flow to completion (start + poll until done). */
+  awaitGrokDevice(fetchImpl: FetchLike): Promise<GrokLoginResult>;
   /** HTTP port injected into the credential store for the token exchange. */
   tokensFetch?: FetchLike;
 }
@@ -77,6 +81,14 @@ export interface KimiLoginResult {
   expiresIn: number;
   accountId?: string;
   deviceId: string;
+}
+
+/** The minted device-flow credentials the grok login persists. */
+export interface GrokLoginResult {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  accountId?: string;
 }
 
 /** Run the `login` subcommand. `argv` is everything after `login`. */
@@ -108,6 +120,7 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
     promptPaste: deps?.promptPaste ?? promptPaste,
     awaitLoopback: deps?.awaitLoopback ?? ((state) => awaitLoopbackCode(state)),
     awaitKimiDevice: deps?.awaitKimiDevice ?? ((fetchImpl) => runKimiDeviceFlow(fetchImpl, resolvedOpenBrowser)),
+    awaitGrokDevice: deps?.awaitGrokDevice ?? ((fetchImpl) => runGrokDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     tokensFetch: deps?.tokensFetch,
   };
 
@@ -159,6 +172,7 @@ async function runProviderLogin(
   if (provider === 'codex') return loginCodex(store, deps, exchangeFetch, label);
   if (provider === 'claude') return loginClaude(store, deps, exchangeFetch, label);
   if (provider === 'kimi') return loginKimi(store, deps, exchangeFetch, label);
+  if (provider === 'grok') return loginGrok(store, deps, exchangeFetch, label);
   return loginGemini(store, deps, exchangeFetch, label);
 }
 
@@ -309,6 +323,58 @@ async function loginKimi(
   };
   await store.appendProviderAccount('kimi', block, label);
   logMasked('kimi', result.accessToken);
+  return expiresAt;
+}
+
+// ── grok (device code, RFC 8628) ─────────────────────────────────────────────
+
+/**
+ * Drive the grok device flow: resolve the OIDC token endpoint (discovery),
+ * request a device code, open/print the verification URL, then poll until the
+ * user approves. Returns the minted pair + the JWT `sub` account id.
+ */
+async function runGrokDeviceFlow(
+  exchangeFetch: FetchLike,
+  openBrowserFn: (url: string) => Promise<boolean>,
+): Promise<GrokLoginResult> {
+  const tokenEndpoint = await grokOAuth.resolveGrokTokenEndpoint(exchangeFetch);
+  const authorization = await grokOAuth.requestGrokDeviceAuthorization(exchangeFetch);
+  const url = authorization.verificationUriComplete ?? authorization.verificationUri;
+  console.info('Open this URL in your browser and approve the request:');
+  console.info(`  ${url}`);
+  if (!authorization.verificationUriComplete) {
+    console.info(`  Then enter this code: ${authorization.userCode}`);
+  }
+  await openBrowserFn(url).catch(() => false);
+  const result = await grokOAuth.awaitGrokDeviceToken(authorization, tokenEndpoint, exchangeFetch, {
+    onPending: () => process.stdout.write('.'),
+  });
+  console.info('');
+  return {
+    ...result,
+    accountId: grokOAuth.grokAccountIdFromAccessToken(result.accessToken),
+  };
+}
+
+async function loginGrok(
+  store: JsonSubscriptionCredentialStore,
+  deps: LoginDeps,
+  exchangeFetch: FetchLike,
+  label?: string,
+): Promise<string> {
+  const result = await deps.awaitGrokDevice(exchangeFetch);
+  const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
+  const block: GrokTokenConfig = {
+    authMethod: 'oauth',
+    status: 'authorized',
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    expiresAt,
+    ...(result.accountId ? { accountId: result.accountId } : {}),
+    lastRefreshedAt: new Date().toISOString(),
+  };
+  await store.appendProviderAccount('grok', block, label);
+  logMasked('grok', result.accessToken);
   return expiresAt;
 }
 

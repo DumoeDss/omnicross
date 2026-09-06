@@ -83,6 +83,7 @@ const ACCOUNTS_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = 
   gemini: 'geminiAccounts',
   opencodego: 'opencodegoAccounts',
   kimi: 'kimiAccounts',
+  grok: 'grokAccounts',
 };
 
 const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
@@ -91,6 +92,7 @@ const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
   gemini: 'activeGeminiAccountId',
   opencodego: 'activeOpencodegoAccountId',
   kimi: 'activeKimiAccountId',
+  grok: 'activeGrokAccountId',
 };
 
 /**
