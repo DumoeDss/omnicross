@@ -254,3 +254,13 @@ OAuth 与 omnicross 完全同源（同 client_id `app_EMoamEEZ73f0CkXaXp7hrann`�
 - 全仓 4128 测试通过；build + typecheck 干净。
 
 **顺带修复**：main 上 `importSurface.test.ts` 期望的 README 短语已过期（b190db1 改了 README 未同步测试）。
+
+**第五轮收尾（2026-09-07）：工作流后续任务清零**
+
+- **i18n 补译完成**：grok/copilot 六键补入其余 28 locale（`124cc19`，镜像各 locale 既有 kimi 句式）。注意：28 locale 还另有 **623 键历史债**（overview/upstreams/apiService/accounts.management 等，8 月起累积，非本工作流产物）——en/zh/zh-Hant 是完整维护集，其余靠 `fallbackLng:'en'`，如需清扫建议独立 sweep（先例 f676275）。
+- **Copilot GHE 域登录完成**（`c4bc168`）：`normalizeCopilotEnterpriseDomain` + `copilotOAuthUrls`（设备/令牌端点骑企业域）+ `copilotGitHubApiBase` 共享 REST base（allowance collector 复用）；CLI `login copilot --enterprise <domain>`（非 copilot 传参即报错、坏域名 fail-fast）；admin start 收可选 `enterpriseUrl` body（400 校验）+ 回显归一域；UI copilot 卡片可选域名输入（新键直接落满 31 locale）。
+- **google CCA 立项文档落盘**：`docs/design/omnicross-google-cca-provider-requirements.md`。关键发现回答了 §2.6 开放问题——**omnicross 现有 `gemini` 订阅 provider 就是 google-gemini-cli 主体**（同 client `681255809395-…`、`GeminiCodeAssistTransformer`+`ProjectResolver` 已实现 CCA 信封与 project 握手），缺的只有 `retrieveUserQuota` 采集器与 GeminiCLI 伪装头（P0 小 change）；antigravity 才是全新大项（独立 client 1071006060591、daily-cloudcode-pa 双端点、UA 版本热探测、双模型路由、quotaSummary 双桶，~3000 行级，P1 独立 change）。
+- **kilo 处置：不做（当前）**。与 openrouter 聚合形态重叠且无额度 API；omnicross 已有 openrouter/openrouter-response BYO 预设覆盖同类目录，唯一增量是 60 行私有 device-auth 登录器（非 RFC 8628 的 202/403/410 语义）+ 一年令牌。若未来用户点名要 kilo 付费档，按 opencodego 先例（静态凭据 + 私有登录器）半天级可补。
+- **alibaba-token-plan 处置：不做**。额度接口（5h+7d 双窗，价值确实高）依赖浏览器会话 Cookie 手动供给 + CSRF 头 + 控制台私有网关两步调用（国际/中国区域互锁、失效 `ConsoleNeedLogin` 需重贴）——与 omnicross 加密凭据存储 + 自动刷新模型不匹配，运维成本 > 额度价值。coding-plan（粘 key、零额度）同样不做：与现有 dashscope 预设重叠。真有需求时折中形态是「BYO 预设 + test-model 探活」而非账号订阅。
+
+**工作流状态：§6 P2 列表清零**（google 双项已立项成文档、kilo/alibaba 已记录不做决策）；剩余仅为 GitLab Duo / Cursor / Devin（P3 私有协议，无明确需求不动）与各家待实机验证项（§4 + 各轮记录）。
