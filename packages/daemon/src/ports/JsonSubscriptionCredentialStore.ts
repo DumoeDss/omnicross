@@ -6,9 +6,14 @@
  * over a sibling `tokens.json` holding an `AccountTokensConfig`-shaped object
  * (`{ claude?, codex?, gemini?, opencodego?, updatedAt }`). Modeled on
  * `JsonOutboundKeyDb`: the constructor takes the path; reads are
- * `existsSync` `readFileSync` `JSON.parse`, tolerating a missing/corrupt
- * file by returning a minimal `{ updatedAt }` config (the strategies already
- * guard `?.accessToken`, so a partial/empty config never crashes dispatch).
+ * `existsSync` `readFileSync` `JSON.parse`. A MISSING file returns a minimal
+ * `{ updatedAt }` config (first boot; the strategies already guard
+ * `?.accessToken`, so a partial/empty config never crashes dispatch). A file
+ * that EXISTS but will not parse as a JSON object is first QUARANTINED to a
+ * sibling `tokens.json.corrupt-<stamp>` backup (see `quarantineCorrupt`) and
+ * only then treated as empty — a corrupt file is DATA, not "no accounts"
+ * (2026-09-06 incident: a truncated write read as empty, then the re-login
+ * persist overwrote the only copy of every stored account).
  *
  * The PORT surface is read-only by design: the codex / gemini strategies pull
  * their access token via `getFullConfig().<provider>.accessToken`; only claude /
@@ -32,6 +37,12 @@
  * at-rest with NO extra work (the store API guarantees it). The "re-read on every
  * call, no cache" semantics are unchanged.
  *
+ * DURABILITY: `persist` writes through the shared same-directory temp + fsync +
+ * rename (`atomicReplaceUtf8`) — a crashed/failed/interrupted write discards
+ * only the temp file and the prior `tokens.json` survives byte-equal. This is
+ * the other half of the 2026-09-06 fix: the store previously used a bare
+ * truncate-then-write `writeFileSync`, which could leave a half-written file.
+ *
  * REAL TOKEN REFRESH (oauth design D4): `refresh{Claude,Codex,Gemini}Token` mint
  * a new access token via the shared host-clean OAuth refresh functions
  * (`@omnicross/subscriptions/oauth`, injected `FetchLike` default global
@@ -48,7 +59,7 @@
  * @module @omnicross/daemon/ports/JsonSubscriptionCredentialStore
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import type {
@@ -80,6 +91,7 @@ import {
 
 import { decryptTokens, encryptTokens, type SecretBox } from '../secrets';
 
+import { atomicReplaceUtf8, type AtomicFileReplace } from './atomicFile';
 import * as accountMulti from './account-multi';
 import { buildTokensFromExternal, findDuplicateCredentialIds } from './account-sync';
 import {
@@ -123,6 +135,8 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     private readonly fetchImpl: FetchLike | undefined = undefined,
     /** Injectable, strictly read-only external CLI native-store reader. */
     private readonly externalCliReader: ExternalCliReader = readExternalCliCredentials,
+    /** Injectable atomic-replace seam (tests prove a failed write keeps the prior file). */
+    private readonly atomicReplace: AtomicFileReplace = atomicReplaceUtf8,
   ) {}
 
   /**
@@ -808,42 +822,91 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   /** Write the merged config to disk as pretty JSON (mkdir parent if needed).
    *  Encrypt-on-write: the token-material fields are encrypted (legacy plaintext
    *  `enc:v1:`; already-`enc:`/`$ENV` untouched) before serializing, so any
-   *  write incl. child 4's future refresh writes lands encrypted. */
+   *  write incl. child 4's future refresh writes lands encrypted.
+   *  ATOMIC: temp + fsync + rename (`atomicReplaceUtf8`) — a failed or
+   *  interrupted write discards only the temp file; the prior `tokens.json`
+   *  survives byte-equal (bare `writeFileSync` truncate-writes lost every
+   *  account on a mid-write failure, 2026-09-06). */
   private persist(config: AccountTokensConfig): void {
     mkdirSync(dirname(this.tokensPath), { recursive: true });
     const encrypted = encryptTokens(config, this.box);
-    writeFileSync(this.tokensPath, JSON.stringify(encrypted, null, 2) + '\n', 'utf8');
+    this.atomicReplace(this.tokensPath, JSON.stringify(encrypted, null, 2) + '\n');
   }
 
   /**
-   * Read + parse `tokens.json`, tolerating a missing/corrupt file, then DECRYPT
-   * the token-material fields so every getter returns plaintext (the
-   * subscription bearer path is byte-identical).
+   * Read + parse `tokens.json`, then DECRYPT the token-material fields so every
+   * getter returns plaintext (the subscription bearer path is byte-identical).
    *
-   * The fs-read + JSON-parse tolerance is INSIDE the try (a missing or corrupt
-   * file empty `{ updatedAt: '' }`). The DECRYPT runs OUTSIDE the try, so a
-   * wrong/missing master key or a tampered `enc:` envelope FAILS FAST with the
-   * box's clear, secret-free error (secrets spec "/ UX":
-   * SHALL fail-fast, SHALL NOT a swallowed decrypt would report "no
-   * tokens" and silently send the WRONG bearer upstream 401). Mirrors
-   * `config.ts loadConfig`, which decrypts outside its parse try.
+   * A MISSING file is a legitimate first-boot state → minimal `{ updatedAt: '' }`.
+   * A file that EXISTS but cannot be parsed as a JSON object is CORRUPT →
+   * `quarantineCorrupt` moves it aside (once) before the empty config is
+   * returned, so the unreadable accounts survive for manual recovery.
+   *
+   * The DECRYPT runs OUTSIDE any try, so a wrong/missing master key or a
+   * tampered `enc:` envelope FAILS FAST with the box's clear, secret-free
+   * error (secrets spec "/ UX": SHALL fail-fast, SHALL NOT a swallowed
+   * decrypt would report "no tokens" and silently send the WRONG bearer
+   * upstream 401). Mirrors `config.ts loadConfig`, which decrypts outside
+   * its parse try.
    */
   private readConfig(): AccountTokensConfig {
     if (!existsSync(this.tokensPath)) return { updatedAt: '' };
-    let parsed: AccountTokensConfig | null;
+    let parsed: AccountTokensConfig;
     try {
       const raw = JSON.parse(readFileSync(this.tokensPath, 'utf8')) as unknown;
-      parsed =
-        raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as AccountTokensConfig) : null;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return this.quarantineCorrupt('parsed JSON is not an object');
+      }
+      parsed = raw as AccountTokensConfig;
     } catch {
-      parsed = null; // missing/corrupt file tolerate as empty
+      return this.quarantineCorrupt('unparseable JSON');
     }
-    if (!parsed) return { updatedAt: '' };
     // Decrypt OUTSIDE the try a wrong-key / tampered-envelope failure propagates.
     const decrypted = decryptTokens(parsed, this.box);
     // Lazy, idempotent, read-pure multi-account migration (D3): a legacy
     // single-slot file synthesizes one account in-memory; ids materialize on
     // the next write through `persist`.
     return accountMulti.migrateLazily(decrypted);
+  }
+
+  /** One-shot latch: a corrupt file is quarantined (or found unmovable) at
+   *  most once per process, so the hot read path never re-attempts or re-logs. */
+  private corruptQuarantined = false;
+
+  /**
+   * Quarantine a present-but-corrupt `tokens.json`, then treat it as empty.
+   *
+   * Renames the file to a sibling `tokens.json.corrupt-<stamp>` backup and
+   * logs loudly (the daemon's stderr log; secret-free — reason + paths only).
+   * The daemon KEEPS SERVING (API-key routing is unaffected; subscription
+   * routing reports no credential, same as an absent file) while the corrupt
+   * bytes survive for manual recovery — and, critically, the NEXT persist
+   * (e.g. the user re-logging in) can no longer overwrite the only copy of
+   * the old accounts, which is exactly how the 2026-09-06 incident turned a
+   * recoverable truncated file into permanent account loss.
+   *
+   * Best-effort: if the rename fails (file locked, permissions), the corrupt
+   * file is left in place and every later read still tolerates it as empty;
+   * the latch still trips so the attempt + log happen exactly once.
+   */
+  private quarantineCorrupt(reason: string): AccountTokensConfig {
+    if (!this.corruptQuarantined) {
+      this.corruptQuarantined = true;
+      const backup = `${this.tokensPath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+      let moved = false;
+      try {
+        renameSync(this.tokensPath, backup);
+        moved = true;
+      } catch {
+        // Leave the corrupt file in place; reads keep tolerating it as empty.
+      }
+      console.error(
+        `[JsonSubscriptionCredentialStore] tokens.json is corrupt (${reason}); ` +
+          (moved
+            ? `moved to '${backup}' and treated as empty — recover accounts from that backup before re-adding them`
+            : `could not move '${this.tokensPath}' — treated as empty`),
+      );
+    }
+    return { updatedAt: '' };
   }
 }

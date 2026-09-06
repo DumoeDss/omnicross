@@ -17,18 +17,7 @@
  * @module @omnicross/daemon/ports/JsonOutboundKeyDb
  */
 
-import { randomBytes } from 'node:crypto';
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 
 import {
   validateOutboundPermissions,
@@ -40,40 +29,7 @@ import {
 
 import type { SecretBox } from '../secrets/SecretBox';
 
-type AtomicFileReplace = (targetPath: string, contents: string) => void;
-
-/** Same-directory temp-write + fsync + rename, so a failed write preserves the prior file. */
-function atomicReplaceUtf8(targetPath: string, contents: string): void {
-  const tempPath = join(
-    dirname(targetPath),
-    `.${basename(targetPath)}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`,
-  );
-  let fd: number | undefined;
-  try {
-    fd = openSync(tempPath, 'wx', 0o600);
-    writeFileSync(fd, contents, { encoding: 'utf8' });
-    fsyncSync(fd);
-    closeSync(fd);
-    fd = undefined;
-    renameSync(tempPath, targetPath);
-  } catch (error) {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd);
-      } catch {
-        // Preserve the original write error.
-      }
-    }
-    if (existsSync(tempPath)) {
-      try {
-        unlinkSync(tempPath);
-      } catch {
-        // Preserve the original write error; stale temp cleanup is best-effort.
-      }
-    }
-    throw error;
-  }
-}
+import { atomicReplaceUtf8, type AtomicFileReplace } from './atomicFile';
 
 export class JsonOutboundKeyDb implements OutboundKeyDb {
   /**

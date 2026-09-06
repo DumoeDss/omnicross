@@ -22,7 +22,7 @@
  * @module @omnicross/daemon/commands/secrets
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { maskProviderApiKey } from '../admin/adminApi';
@@ -35,6 +35,7 @@ import {
 } from '../config';
 import { encryptTokens, isEnvelope, type SecretBox } from '../secrets';
 import { IntegrationStateStore, type IntegrationState } from '../integrations';
+import { atomicReplaceUtf8 } from '../ports/atomicFile';
 
 import {
   defaultIntegrationsPath,
@@ -282,7 +283,7 @@ function secretsDecrypt(args: SecretsArgs): void {
   // Save with NO box → plaintext on disk.
   saveConfig(args.config as string, cfg);
   if (tokensPlain) {
-    writeFileSync(tokensPath, JSON.stringify(tokensPlain, null, 2) + '\n', 'utf8');
+    atomicReplaceUtf8(tokensPath, JSON.stringify(tokensPlain, null, 2) + '\n');
   }
   console.info(`Decrypted secrets to plaintext in ${args.config}` + tokensSuffix(args.config as string));
 }
@@ -347,7 +348,7 @@ function writeTokensEncrypted(
     { updatedAt: '', ...(plain as object) } as never,
     box,
   ) as unknown as Record<string, unknown>;
-  writeFileSync(tokensPath, JSON.stringify(encrypted, null, 2) + '\n', 'utf8');
+  atomicReplaceUtf8(tokensPath, JSON.stringify(encrypted, null, 2) + '\n');
 }
 
 /** The token-material fields per provider block (mirrors secretFields). */

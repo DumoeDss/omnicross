@@ -12,7 +12,7 @@
  *    and decrypts round-trip; id/label/createdAt stay plaintext; mirror encrypted.
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -228,5 +228,75 @@ describe('secrets at-rest (D6)', () => {
     expect(json).not.toContain('enc:');
     expect(sanitized.claude).toHaveLength(2);
     expect(sanitized.claude.filter((a) => a.isActive)).toHaveLength(1);
+  });
+});
+
+describe('corrupt tokens.json quarantine (2026-09-06 incident)', () => {
+  const CORRUPT_BODY = '{"codexAccounts": [ {"id": "x", "tokens": {"acce';
+
+  it('moves an unparseable (truncated-write) file aside before treating it as empty', async () => {
+    writeFileSync(tokensPath, CORRUPT_BODY, 'utf8');
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store = makeStore();
+    // Read tolerates the corrupt file as empty (daemon keeps serving)…
+    const cfg = await store.getFullConfig();
+    expect(cfg.codexAccounts).toBeUndefined();
+    // …but ONLY after the corrupt bytes were moved to a sibling backup, so a
+    // later login persist can no longer overwrite the only copy of the accounts.
+    const backups = readdirSync(tmpDir).filter((f) => f.startsWith('tokens.json.corrupt-'));
+    expect(backups).toHaveLength(1);
+    expect(readFileSync(join(tmpDir, backups[0]), 'utf8')).toBe(CORRUPT_BODY);
+    expect(existsSync(tokensPath)).toBe(false);
+    // Loud, secret-free stderr line — exactly one (latched, not per-read).
+    expect(errSpy).toHaveBeenCalledTimes(1);
+    expect(String(errSpy.mock.calls[0])).toContain('corrupt');
+    await store.getFullConfig();
+    expect(errSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('quarantines a valid-JSON non-object file the same way', async () => {
+    writeFileSync(tokensPath, '[1,2,3]', 'utf8');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store = makeStore();
+    expect(await store.getFullConfig()).toEqual({ updatedAt: '' });
+    const backups = readdirSync(tmpDir).filter((f) => f.startsWith('tokens.json.corrupt-'));
+    expect(backups).toHaveLength(1);
+  });
+
+  it('a MISSING file stays the silent first-boot empty — no backup, no log', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store = makeStore();
+    expect(await store.getFullConfig()).toEqual({ updatedAt: '' });
+    expect(readdirSync(tmpDir).filter((f) => f.includes('corrupt'))).toHaveLength(0);
+    expect(errSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('atomic persist (2026-09-06 incident)', () => {
+  it('writes via temp+rename and leaves no temp litter beside tokens.json', async () => {
+    const store = makeStore();
+    await store.writeProviderTokens('claude', claudeBlock('AT-1', 'RT-1'));
+    expect(existsSync(tokensPath)).toBe(true);
+    const litter = readdirSync(tmpDir).filter((f) => f.startsWith('.tokens.json.'));
+    expect(litter).toHaveLength(0);
+  });
+
+  it('a failed write leaves the prior file byte-equal (no truncate-then-write)', async () => {
+    const good = makeStore();
+    await good.writeProviderTokens('claude', claudeBlock('AT-keep', 'RT-keep'));
+    const before = readFileSync(tokensPath, 'utf8');
+    const failing = new JsonSubscriptionCredentialStore(
+      tokensPath,
+      makeBox(),
+      undefined,
+      undefined,
+      () => {
+        throw new Error('ENOSPC: simulated full disk');
+      },
+    );
+    await expect(failing.writeProviderTokens('claude', claudeBlock('AT-2'))).rejects.toThrow(
+      'ENOSPC',
+    );
+    expect(readFileSync(tokensPath, 'utf8')).toBe(before);
   });
 });
