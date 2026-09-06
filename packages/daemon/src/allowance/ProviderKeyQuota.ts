@@ -84,8 +84,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Detect the quota adapter for a provider row's RESOLVED base URL. Detection is
  * deliberately narrow (host + path markers), because the quota endpoint is tied
  * to the plan product, not just the vendor:
- *  - zai: the CODING-PLAN endpoint (`/api/coding/`) — the PAYG `/api/paas/v4`
- *    endpoint bypasses plan quota and its keys' monitor shape is unverified;
+ *  - zai: the CODING-PLAN faces — `/api/coding/` (openai) and `/api/anthropic`
+ *    (the Claude Code face; same plan credential, same origin-derived monitor);
+ *    the PAYG `/api/paas/v4` endpoint bypasses plan quota and its keys' monitor
+ *    shape is unverified;
  *  - minimax: the openai-format `/v1` chat endpoint the Token Plan key rides.
  */
 export function detectProviderKeyQuotaAdapter(baseUrl: string | undefined): ProviderKeyQuotaAdapter | null {
@@ -98,7 +100,10 @@ export function detectProviderKeyQuotaAdapter(baseUrl: string | undefined): Prov
   }
   const host = url.hostname.toLowerCase();
   const path = url.pathname.toLowerCase();
-  if ((host === 'api.z.ai' || host === 'open.bigmodel.cn') && path.includes('/coding')) {
+  if (
+    (host === 'api.z.ai' || host === 'open.bigmodel.cn') &&
+    (path.includes('/coding') || path.includes('/anthropic'))
+  ) {
     return 'zai';
   }
   if (

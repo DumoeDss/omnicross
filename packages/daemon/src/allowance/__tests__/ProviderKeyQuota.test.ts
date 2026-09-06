@@ -34,6 +34,12 @@ describe('detectProviderKeyQuotaAdapter', () => {
   it('matches the Z.AI coding endpoint on both intl and CN hosts', () => {
     expect(detectProviderKeyQuotaAdapter('https://api.z.ai/api/coding/paas/v4')).toBe('zai');
     expect(detectProviderKeyQuotaAdapter('https://open.bigmodel.cn/api/coding/paas/v4')).toBe('zai');
+    // The Claude Code face carries the SAME plan credential — the monitor is
+    // origin-derived, so it reports quota for anthropic-face rows too.
+    expect(detectProviderKeyQuotaAdapter('https://api.z.ai/api/anthropic')).toBe('zai');
+    expect(detectProviderKeyQuotaAdapter('https://open.bigmodel.cn/api/anthropic')).toBe('zai');
+    expect(providerKeyQuotaUrl('zai', 'https://api.z.ai/api/anthropic'))
+      .toBe('https://api.z.ai/api/monitor/usage/quota/limit');
     // The PAYG endpoint bypasses plan quota — no adapter there.
     expect(detectProviderKeyQuotaAdapter('https://api.z.ai/api/paas/v4')).toBeNull();
     expect(detectProviderKeyQuotaAdapter(undefined)).toBeNull();
