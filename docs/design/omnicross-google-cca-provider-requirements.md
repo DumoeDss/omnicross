@@ -110,13 +110,16 @@ antigravity：全部缺失（§4）。
 
 ## 5. 实施切分
 
-### 5.1 P0：gemini quota 补全（先行，小）
+### 5.1 P0：gemini quota 补全（先行，小）——**已完成（2026-09-07）**
 
-1. `GeminiAllowanceCollector`（~150 行 + 测试）：`retrieveUserQuota` 归一（remainingFraction → 百分比窗，
-   currentTier 附加为快照元数据）；复用 `GeminiCodeAssistProjectResolver` 拿 base/project。
-2. 伪装头（~30 行）：`GeminiCodeAssistTransformer`/AuthStrategy 注入 `GeminiCLI/<ver>` UA +
-   `Client-Metadata`（版本 env 逃生舱，同参考实现）。
-3. allowance 调度白名单放行 + UI 刷新接线（gemini 卡片已有，只加 allowance 刷新入口）。
+1. ~~`GeminiAllowanceCollector`~~ ✅ `retrieveUserQuota` 归一（buckets → 按模型 model-family 窗，
+   remainingFraction → 百分比、resetTime → resetsAt、去重钳位）；复用共享
+   `GeminiCodeAssistProjectResolver`（与推理路径同实例，握手失败降级为无 project 探测）。
+2. ~~伪装头~~ ✅ `GeminiCodeAssistTransformer` 注入 `GeminiCLI/<ver>` UA + `Client-Metadata`
+   （`GEMINI_CLI_VERSION` env 逃生舱），admin refresh 路由 + UI 卡片刷新接线同轮完成。
+3. ~~allowance 调度白名单放行~~ ——**按设计不适用**：调度器的 worst-window 规则针对账号级 5h/周窗，
+   gemini 是按模型分桶的 fraction，硬套会误杀（`AccountAllowanceScheduling` 注释已有此结论）；
+   gemini 配额保持 display-only，antigravity 若做（quotaSummary 是账号级双桶）再评估放行。
 
 ### 5.2 P1：antigravity 独立 provider（主体立项）
 
