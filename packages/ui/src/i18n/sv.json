@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Klistra in koden här",
       "submit": "Slutför inloggning"
     },
+    "kimiOauth": {
+      "description": "Öppna verifieringssidan, ange koden nedan och godkänn inloggningsbegäran."
+    },
     "codexOauth": {
       "title": "Logga in på {{name}}",
       "description": "Öppna inloggningssidan i din webbläsare och auktorisera. Daemonen fångar resultatet automatiskt — håll den här öppen tills det är klart. Token visas aldrig.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Google Gemini-prenumerationsuppgifter routade av daemonen."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Moonshot Kimi Code-prenumerationsuppgifter som dirigeras av daemonen."
       },
       "opencodego": {
         "title": "OpenCodeGo",

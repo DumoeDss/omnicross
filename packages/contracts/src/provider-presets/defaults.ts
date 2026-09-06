@@ -206,6 +206,7 @@ export const MAX_CONCURRENCY_DEFAULTS: Record<string, number> = {
   'zhipu-bigmodel': 5,
   kimi: 5,
   minimax: 5,
+  'minimax-token-plan': 5,
   dashscope: 5,
   volcengine: 5,
   tencent: 5,

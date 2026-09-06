@@ -487,6 +487,9 @@
     "kuaishou": "快手 KwaiKAT",
     "mthreads": "摩爾線程",
     "xiaomiMimoOpenai": "小米 MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan（訂閱）",
+    "umans": "Umans AI 編碼套餐",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "小米 MiMo (Anthropic)"
   },
   "common": {
@@ -1393,6 +1396,9 @@
       "codePlaceholder": "請在此貼上授權碼",
       "submit": "完成登入"
     },
+    "kimiOauth": {
+      "description": "開啟驗證頁面，輸入下方代碼並批准登入請求。"
+    },
     "codexOauth": {
       "title": "登入 {{name}}",
       "description": "在瀏覽器中開啟登入頁面並完成授權。Daemon 會自動擷取結果——在完成前請保持此視窗開啟。權杖不會回顯。",
@@ -1476,6 +1482,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "由 Daemon 路由的 Google Gemini 訂閱憑證。"
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "由守護行程路由的月之暗面 Kimi Code 訂閱憑證。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

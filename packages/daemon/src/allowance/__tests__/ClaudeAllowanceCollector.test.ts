@@ -37,13 +37,17 @@ function usageResponse(overrides: Record<string, unknown> = {}): Response {
   return Response.json({
     five_hour: { utilization: 41, resets_at: '2026-08-03T05:00:00.000Z' },
     seven_day: { utilization: 22, resets_at: '2026-08-10T00:00:00.000Z' },
-    seven_day_sonnet: { utilization: 9, resets_at: '2026-08-10T00:00:00.000Z' },
+    // Since 2026-07-02 the legacy per-model buckets (seven_day_sonnet) are
+    // permanently null upstream; model-scoped weekly caps arrive in limits[].
+    limits: [
+      { kind: 'weekly_scoped', percent: 9, resets_at: '2026-08-10T00:00:00.000Z', scope: { model: { display_name: 'Sonnet' } } },
+    ],
     ...overrides,
   });
 }
 
 describe('ClaudeAllowanceCollector', () => {
-  it('normalizes five-hour, seven-day, and Sonnet windows without exposing credentials', async () => {
+  it('normalizes five-hour, seven-day, and scoped weekly windows without exposing credentials', async () => {
     const now = Date.parse('2026-08-03T00:00:00.000Z');
     const fetchImpl = vi.fn(async () => usageResponse());
     const collector = new ClaudeAllowanceCollector(
@@ -78,6 +82,32 @@ describe('ClaudeAllowanceCollector', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer access-claude-a');
   });
 
+  it('falls back to limits[] session/weekly_all buckets when the legacy fields are absent', async () => {
+    const now = Date.parse('2026-08-03T00:00:00.000Z');
+    const collector = new ClaudeAllowanceCollector(
+      credentials(),
+      new AccountAllowanceStore(() => now),
+      vi.fn(async () => usageResponse({
+        five_hour: null,
+        seven_day: null,
+        limits: [
+          { kind: 'session', percent: 60, resets_at: '2026-08-03T05:00:00.000Z' },
+          { kind: 'weekly_all', percent: 30, resets_at: '2026-08-10T00:00:00.000Z' },
+          { kind: 'weekly_scoped', percent: 77, resets_at: '2026-08-10T00:00:00.000Z', scope: { model: { display_name: 'Fable' } } },
+        ],
+      })),
+      new SubscriptionIdentityStore(),
+      () => now,
+    );
+
+    const snapshot = await collector.collect(account('claude-b'));
+    expect(snapshot.windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 60 },
+      { id: 'seven-day', usedPercent: 30 },
+      { id: 'seven-day-fable', usedPercent: 77, modelFamily: 'fable' },
+    ]);
+  });
+
   it('projects out-of-range utilization as unavailable instead of dropping the account row', async () => {
     const now = Date.parse('2026-08-03T00:00:00.000Z');
     const collector = new ClaudeAllowanceCollector(
@@ -86,7 +116,9 @@ describe('ClaudeAllowanceCollector', () => {
       vi.fn(async () => usageResponse({
         five_hour: { utilization: 101 },
         seven_day: { utilization: -1 },
-        seven_day_sonnet: { utilization: 'not-a-percent' },
+        limits: [
+          { kind: 'weekly_scoped', percent: 'not-a-percent', resets_at: 'nope', scope: { model: { display_name: 'Sonnet' } } },
+        ],
       })),
       new SubscriptionIdentityStore(),
       () => now,

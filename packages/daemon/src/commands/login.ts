@@ -33,9 +33,16 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  KimiTokenConfig,
 } from '@omnicross/contracts/account-tokens-types';
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
-import { claudeOAuth, codexOAuth, type FetchLike, geminiOAuth } from '@omnicross/subscriptions';
+import {
+  claudeOAuth,
+  codexOAuth,
+  type FetchLike,
+  geminiOAuth,
+  kimiOAuth,
+} from '@omnicross/subscriptions';
 
 import { maskProviderApiKey } from '../admin/adminApi';
 import { setSecretBox } from '../config';
@@ -46,7 +53,7 @@ import { awaitLoopbackCode } from './loopbackCallback';
 import { defaultTokensPath, resolveSecretBox } from './paths';
 
 /** The providers `login` understands. */
-const PROVIDERS = ['claude', 'codex', 'gemini'] as const;
+const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi'] as const;
 type LoginProvider = (typeof PROVIDERS)[number];
 
 /** Injectable side-effects so the command can be tested without I/O. */
@@ -57,8 +64,19 @@ export interface LoginDeps {
   promptPaste(prompt: string): Promise<string>;
   /** Wait for the codex loopback callback and resolve the authorization code. */
   awaitLoopback(expectedState: string): Promise<string>;
+  /** Drive the kimi device flow to completion (start + poll until done). */
+  awaitKimiDevice(fetchImpl: FetchLike): Promise<KimiLoginResult>;
   /** HTTP port injected into the credential store for the token exchange. */
   tokensFetch?: FetchLike;
+}
+
+/** The minted device-flow credentials the kimi login persists. */
+export interface KimiLoginResult {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  accountId?: string;
+  deviceId: string;
 }
 
 /** Run the `login` subcommand. `argv` is everything after `login`. */
@@ -89,8 +107,13 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
     openBrowser: deps?.openBrowser ?? openBrowser,
     promptPaste: deps?.promptPaste ?? promptPaste,
     awaitLoopback: deps?.awaitLoopback ?? ((state) => awaitLoopbackCode(state)),
+    awaitKimiDevice: deps?.awaitKimiDevice ?? ((fetchImpl) => runKimiDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     tokensFetch: deps?.tokensFetch,
   };
+
+  // The kimi default flow needs the SAME openBrowser dep the others use; bind
+  // it after `resolved` exists so tests injecting only `openBrowser` are heard.
+  const resolvedOpenBrowser = resolved.openBrowser;
 
   // Offline encrypted store (mirrors `secrets`/`providers`): resolve the box,
   // set it for any config seam, build the store directly. `finally` clears it.
@@ -135,6 +158,7 @@ async function runProviderLogin(
 ): Promise<string | undefined> {
   if (provider === 'codex') return loginCodex(store, deps, exchangeFetch, label);
   if (provider === 'claude') return loginClaude(store, deps, exchangeFetch, label);
+  if (provider === 'kimi') return loginKimi(store, deps, exchangeFetch, label);
   return loginGemini(store, deps, exchangeFetch, label);
 }
 
@@ -229,6 +253,62 @@ async function loginGemini(
   };
   await store.appendProviderAccount('gemini', block, label);
   logMasked('gemini', result.accessToken);
+  return expiresAt;
+}
+
+// ── kimi (device code, RFC 8628) ─────────────────────────────────────────────
+
+/**
+ * Drive the kimi device flow: request a device code, open/print the
+ * verification URL (with the user code), then poll the token endpoint until
+ * the user approves. Returns the minted pair + the account/device ids.
+ */
+async function runKimiDeviceFlow(
+  exchangeFetch: FetchLike,
+  openBrowserFn: (url: string) => Promise<boolean>,
+): Promise<KimiLoginResult> {
+  const deviceId = kimiOAuth.generateKimiDeviceId();
+  const fingerprint = kimiOAuth.kimiFingerprintHeaders(deviceId);
+  const authorization = await kimiOAuth.requestDeviceAuthorization(exchangeFetch, fingerprint);
+  const url = authorization.verificationUriComplete ?? authorization.verificationUri;
+  console.info('Open this URL in your browser and approve the request:');
+  console.info(`  ${url}`);
+  if (!authorization.verificationUriComplete) {
+    console.info(`  Then enter this code: ${authorization.userCode}`);
+  }
+  await openBrowserFn(url).catch(() => false);
+  const result = await kimiOAuth.awaitDeviceToken(authorization, exchangeFetch, {
+    fingerprint,
+    onPending: () => process.stdout.write('.'),
+  });
+  console.info('');
+  return {
+    ...result,
+    accountId: kimiOAuth.kimiAccountIdFromAccessToken(result.accessToken),
+    deviceId,
+  };
+}
+
+async function loginKimi(
+  store: JsonSubscriptionCredentialStore,
+  deps: LoginDeps,
+  exchangeFetch: FetchLike,
+  label?: string,
+): Promise<string> {
+  const result = await deps.awaitKimiDevice(exchangeFetch);
+  const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
+  const block: KimiTokenConfig = {
+    authMethod: 'oauth',
+    status: 'authorized',
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    expiresAt,
+    ...(result.accountId ? { accountId: result.accountId } : {}),
+    deviceId: result.deviceId,
+    lastRefreshedAt: new Date().toISOString(),
+  };
+  await store.appendProviderAccount('kimi', block, label);
+  logMasked('kimi', result.accessToken);
   return expiresAt;
 }
 

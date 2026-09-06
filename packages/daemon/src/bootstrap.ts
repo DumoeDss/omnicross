@@ -78,6 +78,7 @@ import {
 } from '@omnicross/subscriptions';
 
 import { type CodexLoopbackFn, CodexOAuthSessionStore } from './admin/accountsCodexOAuth';
+import { KimiOAuthSessionStore } from './admin/accountsKimiOAuth';
 import { AccountAllowanceService } from './allowance/AccountAllowanceService';
 import { ClaudeAllowanceRefreshScheduler } from './allowance/ClaudeAllowanceRefreshScheduler';
 import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowancePersistence';
@@ -91,6 +92,7 @@ import { awaitLoopbackCode } from './commands/loopbackCallback';
 import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
 import { AutoDisableStore } from './pool/autoDisableStore';
 import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
+import { ProviderKeyQuotaService } from './allowance/ProviderKeyQuotaService';
 import { resolveEnvKey } from './pool/resolveEnvKey';
 import { buildSearchRuntime } from './search/SearchAssembly';
 import {
@@ -615,6 +617,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // observable (admin health view + CLI); a separate core-side knife
   // (`omnicross-daemon-parity-poolseam`) makes it hot.
   const autoDisableStore = new AutoDisableStore();
+  // BYO provider-row key quota probes (Z.AI coding plan, MiniMax Token Plan):
+  // read-through cached, surfaced on the admin keys view. Same secretBox as the
+  // pool loader — the key is decrypted only inside the probe.
+  const providerKeyQuotaService = new ProviderKeyQuotaService(secretBox);
   const apiKeyPool = new ApiKeyPoolService(
     createPoolKeysLoader((id) => llmConfig.getProviderRow(id), autoDisableStore),
     resolveEnvKey,
@@ -974,6 +980,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // values themselves NEVER leave (masked via `maskProviderApiKey`).
     apiKeyPool,
     autoDisableStore,
+    // BYO provider-key quota (Z.AI coding plan, MiniMax Token Plan, …): a
+    // read-through cached same-key usage probe surfaced on the keys view. The
+    // key plaintext is resolved + decrypted inside the service and never
+    // crosses back out.
+    providerKeyQuota: providerKeyQuotaService,
     // Interactive OAuth login over admin HTTP (app-parity child 4, design
     // D1/D2-a). The in-memory pending-session store (NEVER serialized), the
     // injected token-exchange fetch (global `fetch` here; mocked in tests), and a
@@ -1001,6 +1012,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // can inject a mock so no real port is bound.
     codexSessions: new CodexOAuthSessionStore(),
     codexAwaitLoopback: paths.codexAwaitLoopback ?? ((state, timeoutMs, signal) => awaitLoopbackCode(state, timeoutMs, signal)),
+    // Kimi interactive OAuth — the async DEVICE-CODE flow store (no port, no
+    // paste; the app shows the verification URL + user code and polls the
+    // token-free status). Token captured + persisted daemon-side.
+    kimiSessions: new KimiOAuthSessionStore(),
     // Migration pack (app-parity child 6, design D2/D3) — the concrete credential
     // store provides BOTH the full DECRYPTED read (`getFullConfig`, export) and
     // the multi-account append (`appendProviderAccount`, import re-encrypts at-

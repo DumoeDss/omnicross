@@ -73,7 +73,12 @@ import {
   prepareAnthropicTranslateBody,
   UnsupportedContentBlockError,
 } from './anthropicTranslateBodyPrep';
-import { isCodexServerOverloadEvent } from './openaiResponsesIngress';
+import {
+  codexUsageLimitEventBody,
+  isCodexServerOverloadEvent,
+  isCodexUsageLimitEvent,
+} from './openaiResponsesIngress';
+import { markCodexUsageLimitExhaustion } from './codexUsageLimitDetection';
 import {
   aggregateAnthropicSseToJsonBody,
   cancelDiscardedResponse,
@@ -220,9 +225,34 @@ export async function handleAnthropicMessagesByo(
     const overloadActivityId = providerResponse.activityRecordId;
     const overloadAccountId = providerResponse.accountId;
     let overloadRecorded = false;
+    let usageLimitRecorded = false;
     const codexOverloadDetector =
       plan.isSubscription && !plan.sameFormat && plan.transformerProvider.name === 'codex'
         ? (event: Record<string, unknown>): void => {
+            // In-stream usage-limit wall (200 + response.failed with a meter
+            // error code): mark the serving account quota-exhausted so NEW
+            // sessions divert (the failed stream itself is relayed as-is).
+            // Same raw/converted shapes as the overload classifier below.
+            if (!usageLimitRecorded) {
+              let limitHit = isCodexUsageLimitEvent(event);
+              if (!limitHit && event['type'] === 'error') {
+                const message = (event['error'] as Record<string, unknown> | undefined)?.['message'];
+                limitHit =
+                  typeof message === 'string' &&
+                  (message.includes('usage_limit_reached') ||
+                    message.includes('usage_not_included'));
+              }
+              if (limitHit) {
+                usageLimitRecorded = true;
+                if (overloadAccountId) {
+                  markCodexUsageLimitExhaustion(
+                    overloadAccountId,
+                    codexUsageLimitEventBody(event),
+                  );
+                }
+                return;
+              }
+            }
             if (overloadRecorded) return;
             // Two shapes reach this tap: the RAW codex event (`response.failed`
             // with `error.code`, when the chain passes it through) and the

@@ -15,6 +15,12 @@ import type {
 import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 
 export const DEFAULT_CODEX_ALLOWANCE_FRESH_MS = 15 * 60_000;
+/**
+ * Freshness granted to a Claude window updated from live response headers.
+ * Matches the daemon usage-collector's 5-minute cache so passive and active
+ * observations age out on the same cadence.
+ */
+export const CLAUDE_HEADER_FRESH_MS = 5 * 60_000;
 export const DEFAULT_ALLOWANCE_MAX_SNAPSHOTS = 256;
 const MAX_WINDOWS_PER_SNAPSHOT = 8;
 const MAX_TEXT_LENGTH = 200;
@@ -26,6 +32,8 @@ export type AllowanceHeadersLike =
 export interface CodexAllowanceWindowObservation {
   usedPercent?: number;
   resetAfterSeconds?: number;
+  /** Absolute reset instant as epoch seconds (or ms when the value is large). */
+  resetAtSeconds?: number;
   windowMinutes?: number;
 }
 
@@ -105,7 +113,13 @@ function normalizedInstant(value: unknown): string | undefined {
 }
 
 function isAllowanceProvider(value: unknown): value is SubscriptionProviderId {
-  return value === 'claude' || value === 'codex' || value === 'gemini' || value === 'opencodego';
+  return (
+    value === 'claude' ||
+    value === 'codex' ||
+    value === 'gemini' ||
+    value === 'opencodego' ||
+    value === 'kimi'
+  );
 }
 
 function isWindowState(value: unknown): value is AllowanceWindow['state'] {
@@ -227,11 +241,26 @@ function parseWindow(
   const resetAfterSeconds = finiteNumber(
     headerValue(headers, `x-codex-${prefix}-reset-after-seconds`),
   );
+  const resetAtSeconds = finiteNumber(headerValue(headers, `x-codex-${prefix}-reset-at`));
   const windowMinutes = finiteNumber(headerValue(headers, `x-codex-${prefix}-window-minutes`));
-  if (usedPercent === undefined && resetAfterSeconds === undefined && windowMinutes === undefined) {
+  if (
+    usedPercent === undefined &&
+    resetAfterSeconds === undefined &&
+    resetAtSeconds === undefined &&
+    windowMinutes === undefined
+  ) {
     return undefined;
   }
-  return { usedPercent, resetAfterSeconds, windowMinutes };
+  return { usedPercent, resetAfterSeconds, resetAtSeconds, windowMinutes };
+}
+
+/**
+ * Normalize an epoch value that may arrive as seconds (~1.7e9) or milliseconds
+ * (~1.7e12) into epoch ms. Sub-1e11 values are treated as seconds (a plausible
+ * ms timestamp is always ≥ ~1e12; a seconds timestamp never is).
+ */
+function epochMsFromMaybeSeconds(value: number): number {
+  return value > 1e11 ? value : value * 1000;
 }
 
 /** Parse only the documented numeric Codex allowance headers. */
@@ -245,6 +274,58 @@ export function parseCodexAllowanceHeaders(
   ) ?? undefined;
   if (!primary && !secondary && primaryOverSecondaryLimitPercent === undefined) return null;
   return { primary, secondary, primaryOverSecondaryLimitPercent };
+}
+
+/** One `anthropic-ratelimit-unified-<window>-*` header pair observation. */
+export interface ClaudeAllowanceWindowObservation {
+  /** Percent used (0-100), converted from the wire's 0-1 fraction. */
+  usedPercent?: number;
+  /** Absolute reset instant, normalized to epoch ms. */
+  resetAtMs?: number;
+}
+
+/**
+ * The Claude per-response unified rate-limit windows oh-my-pi documents:
+ * `5h` / `7d` (account-wide) and `7d_oi` (the model-scoped weekly counter the
+ * official clients surface as the Fable family cap).
+ */
+export interface ClaudeAllowanceObservation {
+  fiveHour?: ClaudeAllowanceWindowObservation;
+  sevenDay?: ClaudeAllowanceWindowObservation;
+  scopedSevenDay?: ClaudeAllowanceWindowObservation;
+}
+
+function parseUnifiedWindow(
+  headers: AllowanceHeadersLike,
+  windowId: '5h' | '7d' | '7d_oi',
+): ClaudeAllowanceWindowObservation | undefined {
+  const prefix = `anthropic-ratelimit-unified-${windowId}-`;
+  const fraction = finiteNumber(headerValue(headers, `${prefix}utilization`));
+  const resetSeconds = finiteNumber(headerValue(headers, `${prefix}reset`));
+  if (fraction === undefined && resetSeconds === undefined) return undefined;
+  return {
+    ...(fraction !== undefined
+      ? { usedPercent: Math.round(Math.min(100, Math.max(0, fraction * 100))) }
+      : {}),
+    ...(resetSeconds !== undefined && resetSeconds > 0
+      ? { resetAtMs: epochMsFromMaybeSeconds(resetSeconds) }
+      : {}),
+  };
+}
+
+/**
+ * Parse the `anthropic-ratelimit-unified-*` response headers present on every
+ * Claude Messages response. `utilization` is a 0-1 fraction and `reset` epoch
+ * seconds. Returns `null` when none of the windows are present.
+ */
+export function parseClaudeAllowanceHeaders(
+  headers: AllowanceHeadersLike,
+): ClaudeAllowanceObservation | null {
+  const fiveHour = parseUnifiedWindow(headers, '5h');
+  const sevenDay = parseUnifiedWindow(headers, '7d');
+  const scopedSevenDay = parseUnifiedWindow(headers, '7d_oi');
+  if (!fiveHour && !sevenDay && !scopedSevenDay) return null;
+  return { fiveHour, sevenDay, scopedSevenDay };
 }
 
 function durationLabel(minutes: number | undefined): string | undefined {
@@ -289,9 +370,15 @@ function mergeCodexWindow(
   observedMs: number,
 ): AllowanceWindow {
   const windowMinutes = observation?.windowMinutes ?? existing?.windowMinutes;
-  const nextResetAt = observation?.resetAfterSeconds !== undefined
-    ? resetAt(observedMs, observation.resetAfterSeconds)
-    : existing?.resetsAt;
+  // The absolute `x-codex-*-reset-at` epoch wins over the relative
+  // `reset-after-seconds` projection: an absolute stamp has no observation-clock
+  // skew accumulating into it, and the two may legitimately disagree when a
+  // response was retried. Keep the previous value when neither is present.
+  const nextResetAt = observation?.resetAtSeconds !== undefined
+    ? new Date(epochMsFromMaybeSeconds(observation.resetAtSeconds)).toISOString()
+    : observation?.resetAfterSeconds !== undefined
+      ? resetAt(observedMs, observation.resetAfterSeconds)
+      : existing?.resetsAt;
   const hasExistingData = !!existing && (
     existing.usedPercent !== null ||
     existing.windowMinutes !== undefined ||
@@ -440,6 +527,95 @@ export class AccountAllowanceStore {
     };
     this.set(snapshot);
     return this.get('codex', accountId, observedMs);
+  }
+
+  /**
+   * Merge one real Claude upstream response's `anthropic-ratelimit-unified-*`
+   * headers into the selected account's snapshot. Live-traffic updates are the
+   * passive complement to the daemon's `/api/oauth/usage` poll: they keep the
+   * 5h/7d windows fresh between polls WITHOUT an extra request. A response with
+   * no recognized headers is a strict no-op; an existing snapshot keeps its
+   * provenance (`source`) and any windows the headers did not mention.
+   */
+  recordClaudeHeaders(
+    accountId: string,
+    headers: AllowanceHeadersLike,
+    observedMs: number = this.now(),
+  ): AccountAllowanceSnapshot | null {
+    if (!accountId) return null;
+    const observation = parseClaudeAllowanceHeaders(headers);
+    if (!observation) return this.get('claude', accountId, observedMs);
+
+    const previous = this.snapshots.get(snapshotKey('claude', accountId));
+    const observedAt = new Date(observedMs).toISOString();
+    const expiresAt = new Date(observedMs + CLAUDE_HEADER_FRESH_MS).toISOString();
+
+    const mergeWindow = (
+      existing: AllowanceWindow | undefined,
+      observed: ClaudeAllowanceWindowObservation | undefined,
+      defaults: { id: string; label: string; scope: 'all' | 'model-family'; modelFamily?: string; windowMinutes: number },
+    ): AllowanceWindow => ({
+      id: defaults.id,
+      label: defaults.label,
+      scope: defaults.scope,
+      ...(defaults.scope === 'model-family' && defaults.modelFamily
+        ? { modelFamily: defaults.modelFamily }
+        : {}),
+      // An unobserved window keeps its last value and merely ages to stale.
+      usedPercent: observed?.usedPercent ?? existing?.usedPercent ?? null,
+      windowMinutes: defaults.windowMinutes,
+      resetsAt: observed?.resetAtMs !== undefined
+        ? new Date(observed.resetAtMs).toISOString()
+        : existing?.resetsAt,
+      remainingSeconds: undefined,
+      state: observed
+        ? 'fresh'
+        : existing && (existing.usedPercent !== null || existing.resetsAt)
+          ? 'stale'
+          : 'unavailable',
+    });
+
+    const previousWindow = (id: string): AllowanceWindow | undefined =>
+      previous?.windows.find((window) => window.id === id);
+
+    // Keep any model-scoped weekly rows the usage API reported (they carry the
+    // real family names) and update the unified windows from the headers.
+    const windows: AllowanceWindow[] = [
+      mergeWindow(previousWindow('five-hour'), observation.fiveHour, {
+        id: 'five-hour',
+        label: '5 hours',
+        scope: 'all',
+        windowMinutes: 5 * 60,
+      }),
+      mergeWindow(previousWindow('seven-day'), observation.sevenDay, {
+        id: 'seven-day',
+        label: '7 days',
+        scope: 'all',
+        windowMinutes: 7 * 24 * 60,
+      }),
+      mergeWindow(previousWindow('seven-day-fable'), observation.scopedSevenDay, {
+        id: 'seven-day-fable',
+        label: '7 days · Fable',
+        scope: 'model-family',
+        modelFamily: 'fable',
+        windowMinutes: 7 * 24 * 60,
+      }),
+      ...(previous?.windows ?? []).filter(
+        (window) =>
+          !['five-hour', 'seven-day', 'seven-day-fable'].includes(window.id),
+      ),
+    ].slice(0, 8);
+
+    const snapshot: AccountAllowanceSnapshot = {
+      providerId: 'claude',
+      accountId,
+      source: previous?.source ?? 'response-headers',
+      observedAt,
+      expiresAt,
+      windows,
+    };
+    this.set(snapshot);
+    return this.get('claude', accountId, observedMs);
   }
 
   clear(): void {

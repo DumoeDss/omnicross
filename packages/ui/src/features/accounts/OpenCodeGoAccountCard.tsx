@@ -157,6 +157,11 @@ export function OpenCodeGoAccountCard({
             onSetPriority={(id, priority) => setAccountPriority('opencodego', id, priority)}
             onSetProxy={(id, proxy) => setAccountProxy('opencodego', id, proxy)}
             onSetSupportedModels={(id, models) => setAccountSupportedModels('opencodego', id, models)}
+            onRefreshAllowance={
+              accountsApi.refreshOpenCodeGoAccountAllowance
+                ? (id) => accountsApi.refreshOpenCodeGoAccountAllowance(id)
+                : undefined
+            }
           />
         ) : (
           <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-sm text-muted-foreground">

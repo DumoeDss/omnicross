@@ -287,7 +287,11 @@ export function AccountList({
                 loading={allowanceLoading}
                 error={allowanceErrors[allowanceKey(providerId, acc.id)]}
                 onRefresh={
-                  (providerId === 'claude' || providerId === 'codex') && onRefreshAllowance
+                  (providerId === 'claude' ||
+                    providerId === 'codex' ||
+                    providerId === 'kimi' ||
+                    providerId === 'opencodego') &&
+                    onRefreshAllowance
                     ? () => onRefreshAllowance(acc.id)
                     : undefined
                 }

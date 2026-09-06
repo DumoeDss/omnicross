@@ -28,6 +28,7 @@ export const SUBSCRIPTION_PROVIDER_IDS: readonly SubscriptionProviderId[] = [
   'codex',
   'gemini',
   'opencodego',
+  'kimi',
 ];
 
 const SUBSCRIPTION_ID_SET: ReadonlySet<string> = new Set(SUBSCRIPTION_PROVIDER_IDS);

@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Cole o código aqui",
       "submit": "Concluir login"
     },
+    "kimiOauth": {
+      "description": "Abra a página de verificação, digite o código abaixo e aprove a solicitação de entrada."
+    },
     "codexOauth": {
       "title": "Entrar em {{name}}",
       "description": "Abra a página de login no seu navegador e autorize. O daemon captura o resultado automaticamente — mantenha esta janela aberta até concluir. O token nunca é exibido.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Credenciais de assinatura do Google Gemini roteadas pelo daemon."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Credenciais de assinatura Moonshot Kimi Code roteadas pelo daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

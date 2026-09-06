@@ -54,10 +54,27 @@ interface ClaudeUsageWindowPayload {
   resets_at?: unknown;
 }
 
+/**
+ * One `limits[]` entry on the usage payload. Since 2026-07-02 the legacy
+ * per-model weekly buckets (`seven_day_opus` / `seven_day_sonnet`) are
+ * permanently null; model-scoped weekly caps arrive ONLY here, as
+ * `kind: "weekly_scoped"` rows with the family named by
+ * `scope.model.display_name`. `is_active` is deliberately ignored — live
+ * payloads mark only the currently-binding limit active, so filtering on it
+ * hid real utilization (mirrors oh-my-pi's finding).
+ */
+interface ClaudeUsageLimitEntry {
+  kind?: unknown;
+  percent?: unknown;
+  resets_at?: unknown;
+  scope?: { model?: { display_name?: unknown } | null } | null;
+  is_active?: unknown;
+}
+
 interface ClaudeUsagePayload {
   five_hour?: ClaudeUsageWindowPayload;
   seven_day?: ClaudeUsageWindowPayload;
-  seven_day_sonnet?: ClaudeUsageWindowPayload;
+  limits?: unknown;
 }
 
 function finitePercent(value: unknown): number | null {
@@ -78,25 +95,86 @@ function secondsUntil(instant: string | undefined, now: number): number | undefi
 }
 
 function windowFromPayload(
-  id: 'five-hour' | 'seven-day' | 'seven-day-sonnet',
+  id: 'five-hour' | 'seven-day',
   payload: ClaudeUsageWindowPayload | undefined,
   now: number,
 ): AllowanceWindow {
   const usedPercent = finitePercent(payload?.utilization);
   const resetsAt = isoInstant(payload?.resets_at);
-  const isSonnet = id === 'seven-day-sonnet';
   const isFiveHour = id === 'five-hour';
   return {
     id,
-    label: isFiveHour ? '5 hours' : isSonnet ? '7 days · Sonnet' : '7 days',
-    scope: isSonnet ? 'model-family' : 'all',
-    modelFamily: isSonnet ? 'sonnet' : undefined,
+    label: isFiveHour ? '5 hours' : '7 days',
+    scope: 'all',
     usedPercent,
     windowMinutes: isFiveHour ? 5 * 60 : 7 * 24 * 60,
     resetsAt,
     remainingSeconds: secondsUntil(resetsAt, now),
     state: usedPercent !== null || resetsAt ? 'fresh' : 'unavailable',
   };
+}
+
+/** `limits[]` fallback bucket for the two account-wide windows. */
+function limitEntryWindow(
+  entries: readonly ClaudeUsageLimitEntry[],
+  kind: 'session' | 'weekly_all',
+): ClaudeUsageWindowPayload | undefined {
+  const entry = entries.find((candidate) => candidate.kind === kind);
+  if (!entry) return undefined;
+  return { utilization: entry.percent, resets_at: entry.resets_at };
+}
+
+function slugifyDisplayName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Model-scoped weekly caps (`kind: "weekly_scoped"`). Each becomes a
+ * `seven-day-<slug>` window whose slug is the family's display name — a
+ * "Sonnet" row lands on `seven-day-sonnet`, which the SDK `/usage` compat
+ * proxy already maps back onto the upstream `seven_day_sonnet` wire key.
+ */
+function scopedWeeklyWindows(
+  entries: readonly ClaudeUsageLimitEntry[],
+  now: number,
+): AllowanceWindow[] {
+  const seen = new Set<string>();
+  const windows: AllowanceWindow[] = [];
+  for (const entry of entries) {
+    if (entry.kind !== 'weekly_scoped') continue;
+    const displayName =
+      typeof entry.scope?.model?.display_name === 'string' &&
+      entry.scope.model.display_name.trim()
+        ? entry.scope.model.display_name.trim()
+        : undefined;
+    if (!displayName) continue;
+    const slug = slugifyDisplayName(displayName);
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    const usedPercent = finitePercent(entry.percent);
+    const resetsAt = isoInstant(entry.resets_at);
+    windows.push({
+      id: `seven-day-${slug}`,
+      label: `7 days · ${displayName}`,
+      scope: 'model-family',
+      modelFamily: slug,
+      usedPercent,
+      windowMinutes: 7 * 24 * 60,
+      resetsAt,
+      remainingSeconds: secondsUntil(resetsAt, now),
+      state: usedPercent !== null || resetsAt ? 'fresh' : 'unavailable',
+    });
+  }
+  return windows;
+}
+
+function parseLimitEntries(raw: unknown): ClaudeUsageLimitEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((entry): entry is ClaudeUsageLimitEntry => !!entry && typeof entry === 'object');
 }
 
 function emptyClaudeWindows(state: 'unavailable' | 'unsupported'): AllowanceWindow[] {
@@ -113,15 +191,6 @@ function emptyClaudeWindows(state: 'unavailable' | 'unsupported'): AllowanceWind
       id: 'seven-day',
       label: '7 days',
       scope: 'all',
-      usedPercent: null,
-      windowMinutes: 7 * 24 * 60,
-      state,
-    },
-    {
-      id: 'seven-day-sonnet',
-      label: '7 days · Sonnet',
-      scope: 'model-family',
-      modelFamily: 'sonnet',
       usedPercent: null,
       windowMinutes: 7 * 24 * 60,
       state,
@@ -233,6 +302,11 @@ export class ClaudeAllowanceCollector {
 
     const now = this.now();
     const usage = payload as ClaudeUsagePayload;
+    const limitEntries = parseLimitEntries(usage.limits);
+    // The legacy top-level buckets stay authoritative; the `limits[]` rows are
+    // the fallback (and the ONLY source for model-scoped weekly caps).
+    const fiveHour = usage.five_hour ?? limitEntryWindow(limitEntries, 'session');
+    const sevenDay = usage.seven_day ?? limitEntryWindow(limitEntries, 'weekly_all');
     const snapshot: AccountAllowanceSnapshot = {
       providerId: 'claude',
       accountId,
@@ -240,10 +314,10 @@ export class ClaudeAllowanceCollector {
       observedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + CLAUDE_ALLOWANCE_CACHE_MS).toISOString(),
       windows: [
-        windowFromPayload('five-hour', usage.five_hour, now),
-        windowFromPayload('seven-day', usage.seven_day, now),
-        windowFromPayload('seven-day-sonnet', usage.seven_day_sonnet, now),
-      ],
+        windowFromPayload('five-hour', fiveHour, now),
+        windowFromPayload('seven-day', sevenDay, now),
+        ...scopedWeeklyWindows(limitEntries, now),
+      ].slice(0, 8),
     };
     this.store.set(snapshot);
     return snapshot;

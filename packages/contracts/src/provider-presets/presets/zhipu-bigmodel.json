@@ -8,6 +8,8 @@
   "codingPlanBaseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
   "modelsEndpoint": "https://open.bigmodel.cn/api/paas/v4/models",
   "models": [
+    "glm-5.3",
+    "glm-5.3-flash",
     "glm-5.2",
     "glm-5",
     "glm-5.1",
@@ -16,6 +18,24 @@
     "glm-4.7"
   ],
   "modelConfigs": [
+    {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 1048576,
+      "maxTokens": 131072,
+      "functionCall": true
+    },
+    {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3 Flash",
+      "enabled": true,
+      "category": "chat",
+      "contextLength": 1048576,
+      "maxTokens": 131072,
+      "functionCall": true
+    },
     {
       "id": "glm-5.2",
       "name": "GLM-5.2",

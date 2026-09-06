@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Kodu buraya yapıştırın",
       "submit": "Girişi tamamla"
     },
+    "kimiOauth": {
+      "description": "Doğrulama sayfasını açın, aşağıdaki kodu girin ve oturum açma isteğini onaylayın."
+    },
     "codexOauth": {
       "title": "{{name}}'e giriş yap",
       "description": "Tarayıcınızda giriş sayfasını açın ve yetkilendirin. Daemon sonucu otomatik olarak yakalar — tamamlanana kadar bu sayfayı açık tutun. Token hiçbir zaman gösterilmez.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Daemon tarafından yönlendirilen Google Gemini abonelik kimlik bilgileri."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Daemon tarafından yönlendirilen Moonshot Kimi Code abonelik kimlik bilgileri."
       },
       "opencodego": {
         "title": "OpenCodeGo",

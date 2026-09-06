@@ -68,6 +68,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  KimiTokenConfig,
   ProxyConfig,
   SubscriptionAccountSanitized,
 } from '@omnicross/contracts/account-tokens-types';
@@ -86,6 +87,7 @@ import {
   codexOAuth,
   type FetchLike,
   geminiOAuth,
+  kimiOAuth,
   type SubscriptionCredentialStore,
 } from '@omnicross/subscriptions';
 
@@ -110,7 +112,8 @@ export type SubscriptionTokenBlock =
   | ClaudeTokenConfig
   | CodexTokenConfig
   | GeminiTokenConfig
-  | OpenCodeGoTokenConfig;
+  | OpenCodeGoTokenConfig
+  | KimiTokenConfig;
 
 /** By-id near-expiry OAuth refresh lead window (mirrors the codex/gemini active
  *  strategy's `REFRESH_LEAD_MS`) subscription-account-scheduling. */
@@ -206,7 +209,8 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       providerId !== 'claude' &&
       providerId !== 'codex' &&
       providerId !== 'gemini' &&
-      providerId !== 'opencodego'
+      providerId !== 'opencodego' &&
+      providerId !== 'kimi'
     ) {
       return undefined;
     }
@@ -230,7 +234,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     const fingerprintOn = identityStore.isEnabled();
     const now = Date.now();
     const out: Record<string, SubscriptionAccountSanitized[]> = {};
-    for (const provider of ['claude', 'codex', 'gemini', 'opencodego'] as const) {
+    for (const provider of ['claude', 'codex', 'gemini', 'opencodego', 'kimi'] as const) {
       const sanitized = accountMulti.sanitizeAccounts(config, provider);
       if (sanitized.length === 0) continue;
       // Attach the live (in-memory) scheduling-health state so the admin accounts
@@ -266,7 +270,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    */
   private attachDuplicateWarnings(
     config: AccountTokensConfig,
-    provider: 'claude' | 'codex' | 'gemini' | 'opencodego',
+    provider: 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi',
     sanitized: SubscriptionAccountSanitized[],
   ): SubscriptionAccountSanitized[] {
     const duplicates = findDuplicateCredentialIds(accountMulti.listAccounts(config, provider));
@@ -409,17 +413,60 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   }
 
   /**
+   * Refresh the Kimi Code (Moonshot) OAuth access token (device-flow grant).
+   * Kimi ROTATES the refresh token, so the response's pair is written back
+   * whole; the account's stable `deviceId` (fingerprint header input) is
+   * preserved. The refresh call carries the CLI fingerprint headers. HONEST
+   * `false` when no refresh_token.
+   */
+  async refreshKimiToken(): Promise<boolean> {
+    return this.coalesce('kimi:active', async () => {
+      const config = this.readConfig();
+      const active = accountMulti.getActiveAccount(config, 'kimi');
+      const kimi = active?.tokens as KimiTokenConfig | undefined;
+      if (!active || !kimi?.refreshToken) return false;
+      const capturedId = active.id;
+      this.materializeMigration(config);
+
+      const refreshFetch = this.buildRefreshFetch('kimi', capturedId);
+      try {
+        const result = await kimiOAuth.refreshAccessToken(
+          kimi.refreshToken,
+          refreshFetch,
+          kimiOAuth.kimiFingerprintHeaders(kimi.deviceId),
+        );
+        const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
+        const next: KimiTokenConfig = {
+          ...kimi,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          expiresAt,
+          status: 'authorized',
+          lastRefreshedAt: new Date().toISOString(),
+          errorMessage: undefined,
+          syncWarning: undefined,
+        };
+        this.writeBackById('kimi', capturedId, next);
+        return true;
+      } catch (error) {
+        this.markExpiredById('kimi', capturedId, kimi, error);
+        return false;
+      }
+    });
+  }
+
+  /**
    * Refresh a SPECIFIC managed account by id (background scheduler sweep and
    * account-pool resolution). It uses only that account's stored refresh
    * token. Coalesced per `provider:id`; on failure flags ONLY that account
    * `expired`.
    */
-  async refreshAccountById(provider: 'claude' | 'codex' | 'gemini', id: string): Promise<boolean> {
+  async refreshAccountById(provider: 'claude' | 'codex' | 'gemini' | 'kimi', id: string): Promise<boolean> {
     return this.coalesce(`${provider}:${id}`, async () => {
       const config = this.readConfig();
       const account = accountMulti.getAccountById(config, provider, id);
       const captured = account?.tokens as
-        | (ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig)
+        | (ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig)
         | undefined;
       if (!account || !captured?.refreshToken) return false;
       this.materializeMigration(config);
@@ -438,7 +485,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
           lastRefreshedAt: new Date().toISOString(),
           errorMessage: undefined,
           syncWarning: undefined,
-        } as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig;
+        } as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig;
         if (refreshed.idToken) (next as CodexTokenConfig).idToken = refreshed.idToken;
         this.writeBackById(provider, id, next);
         return true;
@@ -467,16 +514,16 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     if (providerId === 'opencodego') {
       return (account.tokens as OpenCodeGoTokenConfig).apiKey ?? null;
     }
-    const oauth = account.tokens as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig;
+    const oauth = account.tokens as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig;
     if (!oauth.accessToken) return null;
-    if (providerId === 'codex' || providerId === 'gemini') {
+    if (providerId === 'codex' || providerId === 'gemini' || providerId === 'kimi') {
       const expiresAtMs = oauth.expiresAt ? Date.parse(oauth.expiresAt) : 0;
       const expiringSoon = expiresAtMs > 0 && Date.now() >= expiresAtMs - ACCOUNT_REFRESH_LEAD_MS;
       if (expiringSoon && oauth.refreshToken) {
         const ok = await this.refreshAccountById(providerId, accountId);
         if (!ok) return null;
         const fresh = accountMulti.getAccountById(this.readConfig(), providerId, accountId);
-        return (fresh?.tokens as CodexTokenConfig | GeminiTokenConfig | undefined)?.accessToken ?? null;
+        return (fresh?.tokens as CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | undefined)?.accessToken ?? null;
       }
     }
     if (oauth.status === 'expired') return null;
@@ -587,14 +634,31 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
 
   /** Dispatch one OAuth refresh round-trip to the provider's shared flow. */
   private async refreshUpstream(
-    provider: 'claude' | 'codex' | 'gemini',
+    provider: 'claude' | 'codex' | 'gemini' | 'kimi',
     refreshToken: string,
     accountId?: string,
   ): Promise<{ accessToken: string; refreshToken?: string; idToken?: string; expiresAt: string }> {
-    const flow =
-      provider === 'claude' ? claudeOAuth : provider === 'codex' ? codexOAuth : geminiOAuth;
     // upstream-proxy M1: thread the account ctx so refresh honors the per-account proxy.
-    const r = await flow.refreshAccessToken(refreshToken, this.buildRefreshFetch(provider, accountId));
+    const refreshFetch = this.buildRefreshFetch(provider, accountId);
+    if (provider === 'kimi') {
+      // The fingerprint headers need the account's stable device id.
+      const account = accountId
+        ? accountMulti.getAccountById(this.readConfig(), 'kimi', accountId)
+        : undefined;
+      const deviceId = (account?.tokens as KimiTokenConfig | undefined)?.deviceId;
+      const r = await kimiOAuth.refreshAccessToken(
+        refreshToken,
+        refreshFetch,
+        kimiOAuth.kimiFingerprintHeaders(deviceId),
+      );
+      return {
+        accessToken: r.accessToken,
+        refreshToken: r.refreshToken,
+        expiresAt: new Date(Date.now() + r.expiresIn * 1000).toISOString(),
+      };
+    }
+    const flow = provider === 'claude' ? claudeOAuth : provider === 'codex' ? codexOAuth : geminiOAuth;
+    const r = await flow.refreshAccessToken(refreshToken, refreshFetch);
     return {
       accessToken: r.accessToken,
       refreshToken: (r as { refreshToken?: string }).refreshToken,
@@ -691,9 +755,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * account and keeps the CURRENT active account's tokens in the mirror.
    */
   private writeBackById(
-    providerId: 'claude' | 'codex' | 'gemini',
+    providerId: 'claude' | 'codex' | 'gemini' | 'kimi',
     capturedId: string,
-    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig,
+    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig,
   ): void {
     const config = this.readConfig();
     accountMulti.writeBackRefreshById(config, providerId, capturedId, block);
@@ -705,9 +769,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * failure, keyed by id, then re-derive the mirror.
    */
   private markExpiredById(
-    providerId: 'claude' | 'codex' | 'gemini',
+    providerId: 'claude' | 'codex' | 'gemini' | 'kimi',
     capturedId: string,
-    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig,
+    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig,
     error: unknown,
   ): void {
     const errorMessage = error instanceof Error ? error.message : 'Refresh failed';

@@ -19,6 +19,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  KimiTokenConfig,
   ProxyConfig,
   SubscriptionAccountSanitized,
   TokenStatus,
@@ -118,6 +119,7 @@ const VALID_PROVIDER_IDS: readonly SubscriptionProviderId[] = [
   'codex',
   'gemini',
   'opencodego',
+  'kimi',
 ];
 
 /** Narrow a path segment to a known `SubscriptionProviderId` (or `null`). */
@@ -273,6 +275,19 @@ function validateGemini(body: Record<string, unknown>): GeminiTokenConfig | null
   return out;
 }
 
+function validateKimi(body: Record<string, unknown>): KimiTokenConfig | null {
+  const authMethod = str(body['authMethod']);
+  const status = str(body['status']);
+  if (!authMethod || !OAUTH_AUTH_METHODS.has(authMethod)) return null;
+  if (!status || !TOKEN_STATUSES.has(status as TokenStatus)) return null;
+  const out: KimiTokenConfig = {
+    authMethod: authMethod as KimiTokenConfig['authMethod'],
+    status: status as TokenStatus,
+  };
+  copyOptional(out, body, ['accessToken', 'refreshToken', 'expiresAt', 'accountId', 'deviceId', 'lastRefreshedAt', 'errorMessage']);
+  return out;
+}
+
 function validateOpenCodeGo(body: Record<string, unknown>): OpenCodeGoTokenConfig | null {
   const authMethod = str(body['authMethod']);
   const status = str(body['status']);
@@ -317,6 +332,8 @@ export function validateTokenBody(
       return validateGemini(body);
     case 'opencodego':
       return validateOpenCodeGo(body);
+    case 'kimi':
+      return validateKimi(body);
     default:
       return null;
   }

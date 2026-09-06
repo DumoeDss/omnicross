@@ -21,6 +21,18 @@ describe('SUBSCRIPTION_MODEL_CATALOG', () => {
       'gpt-5.6-luna',
       'gpt-5.6-terra',
       'gpt-5.6-sol',
+      'gpt-6-astra',
+    ]);
+  });
+
+  it('catalogs kimi (small to large, official CLI ids)', () => {
+    expect(SUBSCRIPTION_MODEL_CATALOG.kimi).toEqual([
+      'kimi-k2.5',
+      'kimi-k2.6',
+      'kimi-k2.7-code',
+      'kimi-k3',
+      'kimi-for-coding',
+      'kimi-for-coding-highspeed',
     ]);
   });
 

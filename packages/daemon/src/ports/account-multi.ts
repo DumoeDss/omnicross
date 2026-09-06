@@ -19,6 +19,7 @@ import type {
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
+  KimiTokenConfig,
   ProxyConfig,
   SubscriptionAccountEntry,
   SubscriptionAccountSanitized,
@@ -33,12 +34,13 @@ export type AnyTokenConfig =
   | ClaudeTokenConfig
   | CodexTokenConfig
   | GeminiTokenConfig
-  | OpenCodeGoTokenConfig;
+  | OpenCodeGoTokenConfig
+  | KimiTokenConfig;
 
 type AnyAccountEntry = SubscriptionAccountEntry<AnyTokenConfig>;
 
 /** Provider id → owned contract field names. */
-export type DaemonProvider = 'claude' | 'codex' | 'gemini' | 'opencodego';
+export type DaemonProvider = 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi';
 
 interface ProviderKeys {
   block: keyof AccountTokensConfig;
@@ -55,6 +57,7 @@ const PROVIDER_KEYS: Record<DaemonProvider, ProviderKeys> = {
     accounts: 'opencodegoAccounts',
     active: 'activeOpencodegoAccountId',
   },
+  kimi: { block: 'kimi', accounts: 'kimiAccounts', active: 'activeKimiAccountId' },
 };
 
 function clone<T>(value: T): T {

@@ -11,6 +11,7 @@ import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-
 import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
+import { kimiFingerprintHeaders } from '../oauth/flows/kimi';
 import { refreshSelectedAccount, resolveSelectedToken } from '../scheduler/accountSelection';
 import type { SubscriptionAccountSelector } from '../scheduler/SubscriptionAccountSelector';
 
@@ -20,7 +21,10 @@ import type { RefreshMutex } from './RefreshMutex';
 /** Refresh expiring tokens this many ms before they hit `expiresAt`. */
 const REFRESH_LEAD_MS = 5 * 60_000;
 
-type OAuthProviderKey = 'codex' | 'gemini';
+type OAuthProviderKey = 'codex' | 'gemini' | 'kimi';
+
+/** The per-provider token config block each strategy branch reads. */
+type OAuthTokenBlock = { accessToken?: string; refreshToken?: string; expiresAt?: string; status?: string };
 
 export class OAuthBearerAuthStrategy implements AuthStrategy {
   readonly kind = 'oauth-bearer' as const;
@@ -65,6 +69,12 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
       return;
     }
     headers['Authorization'] = `Bearer ${token}`;
+    // Kimi expects the CLI fingerprint headers on every call; the device id is
+    // the selected account's own (fall back to the active block's).
+    if (this.providerId === 'kimi') {
+      const deviceId = await this.resolveKimiDeviceId(hints?.sessionKey);
+      Object.assign(headers, kimiFingerprintHeaders(deviceId));
+    }
   }
 
   async onUnauthorized(sessionKey?: string): Promise<boolean> {
@@ -72,9 +82,7 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     if (byId !== null) return byId;
     return this.mutex.run(`${this.providerId}:refresh`, async () => {
       try {
-        return this.providerId === 'codex'
-          ? await this.tokens.refreshCodexToken()
-          : await this.tokens.refreshGeminiToken();
+        return this.refreshActive();
       } catch (err) {
         console.warn(`[OAuthBearerAuthStrategy] ${this.providerId} refresh failed:`, err);
         return false;
@@ -84,7 +92,7 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
 
   async describeStatus(): Promise<SubscriptionStatusEntry> {
     const config = await this.tokens.getFullConfig();
-    const entry = this.providerId === 'codex' ? config.codex : config.gemini;
+    const entry = this.tokenBlock(config);
     if (!entry?.accessToken) {
       return { providerId: this.providerId, ok: false, reason: 'missing-credential' };
     }
@@ -102,7 +110,7 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
   /** Read the current token, refreshing in-line if it's within the lead window. */
   private async resolveAccessToken(): Promise<string | null> {
     const config = await this.tokens.getFullConfig();
-    const entry = this.providerId === 'codex' ? config.codex : config.gemini;
+    const entry = this.tokenBlock(config);
     if (!entry?.accessToken) return null;
 
     const expiresAtMs = entry.expiresAt ? new Date(entry.expiresAt).getTime() : 0;
@@ -110,17 +118,50 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
 
     if (expiringSoon && entry.refreshToken) {
       const refreshed = await this.mutex.run(`${this.providerId}:refresh`, async () => {
-        return this.providerId === 'codex'
-          ? await this.tokens.refreshCodexToken()
-          : await this.tokens.refreshGeminiToken();
+        return this.refreshActive();
       });
       if (!refreshed) return null;
       const fresh = await this.tokens.getFullConfig();
-      const freshEntry = this.providerId === 'codex' ? fresh.codex : fresh.gemini;
-      return freshEntry?.accessToken ?? null;
+      return this.tokenBlock(fresh)?.accessToken ?? null;
     }
 
     if (entry.status === 'expired') return null;
     return entry.accessToken;
+  }
+
+  /** The active account's refresh, dispatched per provider. */
+  private refreshActive(): Promise<boolean> {
+    switch (this.providerId) {
+      case 'codex':
+        return this.tokens.refreshCodexToken();
+      case 'gemini':
+        return this.tokens.refreshGeminiToken();
+      case 'kimi':
+        // Optional on the port (lightweight test doubles); absent = failed.
+        return this.tokens.refreshKimiToken ? this.tokens.refreshKimiToken() : Promise.resolve(false);
+    }
+  }
+
+  private tokenBlock(config: Awaited<ReturnType<SubscriptionCredentialStore['getFullConfig']>>): OAuthTokenBlock | undefined {
+    switch (this.providerId) {
+      case 'codex':
+        return config.codex;
+      case 'gemini':
+        return config.gemini;
+      case 'kimi':
+        return config.kimi;
+    }
+  }
+
+  /**
+   * Best-effort device id for the fingerprint header. Selection already ran in
+   * `applyHeaders`; rather than re-deriving it, read the active block's id (a
+   * pool-served non-active account momentarily reports the active id — the
+   * header is per-INSTALL identity, so this is cosmetic, not auth).
+   */
+  private async resolveKimiDeviceId(_sessionKey: string | undefined): Promise<string | undefined> {
+    void _sessionKey;
+    const config = await this.tokens.getFullConfig();
+    return config.kimi?.deviceId ?? config.kimiAccounts?.[0]?.tokens.deviceId;
   }
 }

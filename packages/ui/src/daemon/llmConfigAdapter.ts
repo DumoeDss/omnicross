@@ -484,6 +484,24 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
       }
     },
 
+    async refreshKeyQuota(
+      providerId: string,
+      keyId: string,
+    ): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post(
+          `/providers/${encodeURIComponent(providerId)}/keys/${encodeURIComponent(keyId)}/quota/refresh`,
+          {},
+        );
+        return { success: true };
+      } catch (err) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : 'failed to refresh key quota',
+        };
+      }
+    },
+
     // ── Key-pool MUTATIONS — daemon-backed (app-parity child 3). ──
     // Each maps a provider-scoped pool-key write endpoint and returns ONLY the
     // masked health view; the adapter never receives (and never echoes) a literal
@@ -591,6 +609,7 @@ function toApiKeyEntry(providerId: string, k: DaemonPoolKeyView, idx: number): A
     disabledReason: auto?.reason === 'auth_failure' ? 'auth_failure' : auto ? 'auto_disabled' : null,
     lastErrorStatus: auto?.status ?? null,
     lastErrorAt: auto?.at ?? null,
+    ...(k.quota ? { quota: k.quota } : {}),
   };
 }
 

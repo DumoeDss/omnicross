@@ -4,6 +4,7 @@ import {
   __resetSharedAccountAllowanceStoreForTests,
   AccountAllowanceStore,
   getSharedAccountAllowanceStore,
+  parseClaudeAllowanceHeaders,
   parseCodexAllowanceHeaders,
 } from '../AccountAllowanceStore';
 import { __resetUpstreamProxyForTests, fetchUpstream } from '../upstreamFetch';
@@ -97,6 +98,98 @@ describe('Codex allowance parsing and storage', () => {
 
     now += 1_001;
     expect(store.get('codex', 'account-a')?.windows[0]?.state).toBe('stale');
+  });
+
+  it('prefers the absolute reset-at stamp over the relative reset-after projection', () => {
+    const store = new AccountAllowanceStore(() => Date.parse('2026-08-03T00:00:00.000Z'));
+    const snapshot = store.recordCodexHeaders('account-a', {
+      'x-codex-primary-used-percent': '42',
+      // The two disagree; the absolute stamp wins (no observation-clock skew).
+      'x-codex-primary-reset-at': '1785991200', // 2026-08-06T04:40:00Z
+      'x-codex-primary-reset-after-seconds': '120',
+      'x-codex-primary-window-minutes': '300',
+    });
+    expect(snapshot?.windows[0]?.resetsAt).toBe('2026-08-06T04:40:00.000Z');
+  });
+
+  it('still works with only the relative reset-after header', () => {
+    const store = new AccountAllowanceStore(() => Date.parse('2026-08-03T00:00:00.000Z'));
+    const snapshot = store.recordCodexHeaders('account-a', {
+      'x-codex-primary-used-percent': '42',
+      'x-codex-primary-reset-after-seconds': '120',
+    });
+    expect(snapshot?.windows[0]?.resetsAt).toBe('2026-08-03T00:02:00.000Z');
+  });
+});
+
+describe('Claude unified rate-limit header capture', () => {
+  it('parses the 0-1 utilization fractions and epoch-second resets', () => {
+    expect(parseClaudeAllowanceHeaders(new Headers())).toBeNull();
+    const observation = parseClaudeAllowanceHeaders(new Headers({
+      'anthropic-ratelimit-unified-5h-utilization': '0.41',
+      'anthropic-ratelimit-unified-5h-reset': '1800',
+      'anthropic-ratelimit-unified-7d-utilization': '0.22',
+      'anthropic-ratelimit-unified-7d-reset': '500000',
+      'anthropic-ratelimit-unified-7d_oi-utilization': '0.77',
+      'anthropic-ratelimit-unified-7d_oi-reset': '500000',
+    }));
+    expect(observation).toMatchObject({
+      fiveHour: { usedPercent: 41, resetAtMs: 1_800_000 },
+      sevenDay: { usedPercent: 22, resetAtMs: 500_000_000 },
+      scopedSevenDay: { usedPercent: 77 },
+    });
+  });
+
+  it('merges live headers into an existing oauth snapshot without losing scoped windows', () => {
+    let now = Date.parse('2026-08-03T00:00:00.000Z');
+    const store = new AccountAllowanceStore(() => now);
+    // Seed an oauth-usage snapshot with a scoped weekly row.
+    store.set({
+      providerId: 'claude',
+      accountId: 'claude-a',
+      source: 'oauth-usage-api',
+      observedAt: new Date(now).toISOString(),
+      windows: [
+        { id: 'five-hour', label: '5 hours', scope: 'all', usedPercent: 10, state: 'fresh' },
+        { id: 'seven-day', label: '7 days', scope: 'all', usedPercent: 20, state: 'fresh' },
+        { id: 'seven-day-sonnet', label: '7 days · Sonnet', scope: 'model-family', modelFamily: 'sonnet', usedPercent: 30, state: 'fresh' },
+      ],
+    });
+
+    now += 60_000;
+    const merged = store.recordClaudeHeaders('claude-a', new Headers({
+      'anthropic-ratelimit-unified-5h-utilization': '0.55',
+      'anthropic-ratelimit-unified-5h-reset': '1800',
+    }), now);
+
+    expect(merged?.source).toBe('oauth-usage-api');
+    expect(merged?.windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 55, state: 'fresh' },
+      { id: 'seven-day', usedPercent: 20, state: 'stale' },
+      // The unified 7d_oi slot renders as the Fable scoped row...
+      { id: 'seven-day-fable', usedPercent: null, state: 'unavailable' },
+      // ...and the scoped row the usage API reported survives the merge.
+      { id: 'seven-day-sonnet', usedPercent: 30, modelFamily: 'sonnet' },
+    ]);
+  });
+
+  it('creates a response-headers snapshot when none exists and stays a no-op without headers', () => {
+    const store = new AccountAllowanceStore(() => Date.parse('2026-08-03T00:00:00.000Z'));
+    const noop = store.recordClaudeHeaders('claude-a', { 'content-type': 'application/json' });
+    expect(noop).toBeNull();
+
+    const snapshot = store.recordClaudeHeaders('claude-a', new Headers({
+      'anthropic-ratelimit-unified-5h-utilization': '0.9',
+    }));
+    expect(snapshot).toMatchObject({
+      providerId: 'claude',
+      source: 'response-headers',
+      windows: [
+        { id: 'five-hour', usedPercent: 90, state: 'fresh' },
+        { id: 'seven-day', usedPercent: null, state: 'unavailable' },
+        { id: 'seven-day-fable', usedPercent: null, state: 'unavailable' },
+      ],
+    });
   });
 });
 

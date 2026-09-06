@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "여기에 코드를 붙여넣으세요",
       "submit": "로그인 완료"
     },
+    "kimiOauth": {
+      "description": "인증 페이지를 열고 아래 코드를 입력한 후 로그인 요청을 승인하세요."
+    },
     "codexOauth": {
       "title": "{{name}}에 로그인",
       "description": "브라우저에서 로그인 페이지를 열고 승인하세요. 데몬이 자동으로 결과를 캡처합니다 — 완료될 때까지 이 창을 열어 두세요. 토큰은 표시되지 않습니다.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "데몬이 라우팅하는 Google Gemini 구독 자격 증명입니다."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "데몬이 라우팅하는 Moonshot Kimi Code 구독 자격 증명."
       },
       "opencodego": {
         "title": "OpenCodeGo",

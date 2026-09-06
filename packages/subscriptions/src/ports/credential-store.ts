@@ -37,6 +37,12 @@ export interface SubscriptionCredentialStore {
   refreshCodexToken(): Promise<boolean>;
   /** Force a Gemini (Google) OAuth token refresh; `true` on success. */
   refreshGeminiToken(): Promise<boolean>;
+  /**
+   * Force a Kimi Code OAuth token refresh; `true` on success. OPTIONAL for
+   * lightweight test doubles (the kimi strategy catches its absence like a
+   * failed refresh) — the daemon's store implements it.
+   */
+  refreshKimiToken?(): Promise<boolean>;
   /** Current valid OpenCodeGo static API key; `null` if none. */
   getValidOpenCodeGoApiKey(): Promise<string | null>;
 

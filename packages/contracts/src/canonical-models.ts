@@ -121,6 +121,7 @@ const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {
 
 const ZHIPU_MODELS: Record<string, KnownModelCapabilities> = {
   'glm-5.3': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
+  'glm-5.3-flash': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
   'glm-5.2': { category: 'chat', contextLength: 1048576, maxTokens: 131072, functionCall: true },
   'glm-5': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
   'glm-5.1': { category: 'chat', contextLength: 200000, maxTokens: 128000, functionCall: true },
@@ -160,10 +161,15 @@ const TENCENT_HUNYUAN_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const MINIMAX_MODELS: Record<string, KnownModelCapabilities> = {
+  'minimax-m3': { category: 'code', contextLength: 204800, functionCall: true, reasoning: true },
+  'minimax-m2.7': { category: 'code', contextLength: 204800, functionCall: true },
+  'minimax-m2.7-highspeed': { category: 'code', contextLength: 204800, functionCall: true },
   'minimax-m2.5': { category: 'code', contextLength: 204800, functionCall: true },
   'minimax-m2.5-highspeed': { category: 'code', contextLength: 204800, functionCall: true },
+  'minimax-m2.5-lightning': { category: 'code', contextLength: 204800, functionCall: true },
   'minimax-m2.1': { category: 'code', contextLength: 204800, functionCall: true },
-  'minimax-m2.1-highspeed': { category: 'code', contextLength: 204800, functionCall: true },
+  'minimax-m2.1-lightning': { category: 'code', contextLength: 204800, functionCall: true },
+  'minimax-m2': { category: 'code', contextLength: 204800, functionCall: true },
 };
 
 const XIAOMI_MIMO_CANONICAL: Record<string, KnownModelCapabilities> = {

@@ -27,6 +27,10 @@ interface CodexInlineSignInProps {
   onPoll: (sessionId: string) => Promise<CodexOAuthStatus>;
   onDone: () => void;
   onCancel: () => void;
+  /** Kimi device flow: the code the user enters at the verification URL. */
+  userCode?: string;
+  /** Description line override (kimi device wording vs codex loopback). */
+  description?: string;
 }
 
 const POLL_INTERVAL_MS = 2000;
@@ -37,6 +41,8 @@ export function CodexInlineSignIn({
   onPoll,
   onDone,
   onCancel,
+  userCode,
+  description,
 }: CodexInlineSignInProps) {
   const t = useTranslation();
   const [phase, setPhase] = useState<'pending' | 'error'>('pending');
@@ -81,7 +87,12 @@ export function CodexInlineSignIn({
 
   return (
     <div className="space-y-3 rounded-md bg-surface-2 p-4">
-      <p className="text-sm text-muted-foreground">{t('accounts.codexOauth.description')}</p>
+      <p className="text-sm text-muted-foreground">{description ?? t('accounts.codexOauth.description')}</p>
+      {userCode ? (
+        <p className="rounded-md border border-border/60 bg-surface-1 px-3 py-2 font-mono text-lg tracking-[0.3em] text-foreground">
+          {userCode}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"

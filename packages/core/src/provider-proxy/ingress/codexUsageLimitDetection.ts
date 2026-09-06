@@ -56,6 +56,10 @@ const BODY_SCAN_LIMIT = 4096;
 /** Whether a relayed upstream body looks like the Codex usage-limit wall. */
 export function isCodexUsageLimitError(bodyText: string | null | undefined): boolean {
   if (!bodyText) return false;
+  // Structured JSON marker first (localization-proof), then the legacy English
+  // body markers.
+  const structured = parseCodexUsageLimitErrorPayload(bodyText);
+  if (structured && structured.code !== 'rate_limit_exceeded') return true;
   const lower = bodyText.slice(0, BODY_SCAN_LIMIT).toLowerCase();
   return CODEX_USAGE_LIMIT_MARKERS.some((marker) => lower.includes(marker));
 }
@@ -72,6 +76,52 @@ function parseTryAgainDeadline(bodyText: string): number | undefined {
   const cleaned = match[1].replace(/(\d+)(st|nd|rd|th)/giu, '$1').trim();
   const ms = Date.parse(cleaned);
   return Number.isFinite(ms) ? ms : undefined;
+}
+
+/**
+ * Structured usage-limit error payload, when the 429/SSE-failure body is JSON:
+ * `{ error: { code, resets_at (epoch seconds), plan_type, ... } }`. The code
+ * values are the documented Codex meter errors; `resets_at` is the authoritative
+ * window reset. This survives localization — unlike the English body markers —
+ * and is checked BEFORE any text parsing.
+ */
+export interface CodexUsageLimitErrorPayload {
+  code: string;
+  resetsAtMs?: number;
+  planType?: string;
+}
+
+const CODEX_USAGE_LIMIT_ERROR_CODES: ReadonlySet<string> = new Set([
+  'usage_limit_reached',
+  'usage_not_included',
+  'rate_limit_exceeded',
+]);
+
+/** Extract the structured error payload from a JSON error body, if present. */
+export function parseCodexUsageLimitErrorPayload(bodyText: string): CodexUsageLimitErrorPayload | null {
+  const raw = bodyText.slice(0, BODY_SCAN_LIMIT * 4).trim();
+  if (!raw.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(raw) as {
+      error?: { code?: unknown; resets_at?: unknown; plan_type?: unknown };
+    };
+    const error = parsed?.error;
+    const code = error?.code;
+    if (typeof code !== 'string' || !CODEX_USAGE_LIMIT_ERROR_CODES.has(code)) return null;
+    const resetsAt = error?.resets_at;
+    let resetsAtMs: number | undefined;
+    if (typeof resetsAt === 'number' && Number.isFinite(resetsAt) && resetsAt > 0) {
+      resetsAtMs = resetsAt > 1e11 ? resetsAt : resetsAt * 1000;
+    }
+    const planType = error?.plan_type;
+    return {
+      code,
+      ...(resetsAtMs !== undefined ? { resetsAtMs } : {}),
+      ...(typeof planType === 'string' && planType ? { planType } : {}),
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -104,12 +154,21 @@ export function resolveCodexQuotaDeadline(
   bodyText: string,
   now: number = Date.now(),
 ): number {
+  // Structured JSON first: the absolute `error.resets_at` stamp has no parsing
+  // or localization risk. A past stamp (already-reset window / clock skew) is
+  // unusable and falls through.
+  const structured = parseCodexUsageLimitErrorPayload(bodyText);
+  const structuredDeadline =
+    structured?.resetsAtMs !== undefined && structured.resetsAtMs > now
+      ? structured.resetsAtMs
+      : undefined;
   const parsed = parseTryAgainDeadline(bodyText);
   // A parsed date must be in the future; a past parse (TZ skew / already-reset
   // window / localization mismatch) is unusable and falls through to the TTL.
   const parsedDeadline = parsed !== undefined && parsed > now ? parsed : undefined;
   return (
     deadlineFromAllowanceSnapshot(accountId, now) ??
+    structuredDeadline ??
     parsedDeadline ??
     now + DEFAULT_QUOTA_COOLDOWN_MS
   );

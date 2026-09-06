@@ -32,7 +32,7 @@ const REFRESH_LEAD_MS = 5 * 60_000;
 /** Sweep cadence. */
 const SWEEP_INTERVAL_MS = 60_000;
 
-const OAUTH_PROVIDERS = ['claude', 'codex', 'gemini'] as const;
+const OAUTH_PROVIDERS = ['claude', 'codex', 'gemini', 'kimi'] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
 export class TokenRefreshScheduler {
@@ -124,6 +124,8 @@ export class TokenRefreshScheduler {
         return this.store.refreshCodexToken();
       case 'gemini':
         return this.store.refreshGeminiToken();
+      case 'kimi':
+        return this.store.refreshKimiToken();
     }
   }
 }

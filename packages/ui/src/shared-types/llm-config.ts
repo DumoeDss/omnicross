@@ -308,6 +308,27 @@ export interface ApiKeyEntry {
   disabledReason?: string | null;
   lastErrorStatus?: number | null;
   lastErrorAt?: number | null;
+  /**
+   * Plan-usage windows for providers with a quota adapter (Z.AI coding plan,
+   * MiniMax Token Plan, …) — same secret-free window DTO the subscription
+   * allowance view renders. Absent when the provider has no quota endpoint.
+   */
+  quota?: {
+    adapter: string;
+    observedAt: string;
+    expiresAt: string;
+    windows: Array<{
+      id: string;
+      label: string;
+      scope: 'all' | 'model-family';
+      modelFamily?: string;
+      usedPercent: number | null;
+      windowMinutes?: number;
+      resetsAt?: string;
+      state: 'fresh' | 'stale' | 'unavailable' | 'unsupported';
+    }>;
+    errorCode?: string;
+  };
 }
 
 export interface KeyHealth {

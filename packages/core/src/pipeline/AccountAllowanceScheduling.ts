@@ -141,7 +141,15 @@ export class AccountAllowanceScheduling {
       decidedAt,
     };
     if (!this.config.enabled) return { ...base, action: 'ignore', reason: 'policy-disabled' };
-    if (providerId !== 'claude' && providerId !== 'codex') {
+    // Providers whose snapshots carry windowed percents the policy can reason
+    // about (claude/codex/kimi/opencodego report 5h + weekly; gemini is
+    // per-model fractions the worst-window rule does not fit).
+    if (
+      providerId !== 'claude' &&
+      providerId !== 'codex' &&
+      providerId !== 'kimi' &&
+      providerId !== 'opencodego'
+    ) {
       return { ...base, action: 'ignore', reason: 'provider-unsupported' };
     }
 

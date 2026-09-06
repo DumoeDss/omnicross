@@ -1,0 +1,27 @@
+{
+  "id": "umans",
+  "presetId": "umans",
+  "name": "Umans AI Coding Plan",
+  "nameKey": "presetName.umans",
+  "apiFormat": "anthropic",
+  "api_base_url": "https://api.code.umans.ai",
+  "transformer": { "use": ["anthropic"] },
+  "models": [
+    "umans-coder",
+    "umans-flash",
+    "umans-glm-5.3",
+    "umans-deepseek-v4-pro"
+  ],
+  "modelConfigs": [
+    { "id": "umans-coder", "name": "Umans Coder", "enabled": true, "category": "code", "contextLength": 262144, "functionCall": true, "reasoning": true },
+    { "id": "umans-flash", "name": "Umans Flash", "enabled": true, "category": "code", "contextLength": 262144, "functionCall": true },
+    { "id": "umans-glm-5.3", "name": "Umans GLM-5.3", "enabled": true, "category": "code", "contextLength": 262144, "functionCall": true },
+    { "id": "umans-deepseek-v4-pro", "name": "Umans DeepSeek V4 Pro", "enabled": true, "category": "code", "contextLength": 262144, "functionCall": true }
+  ],
+  "description": "Umans AI Coding Plan（Anthropic Messages 兼容端点）。密钥的滚动 5 小时用量会自动显示在密钥列表。",
+  "icon": "umans",
+  "website": "https://umans.ai",
+  "docsUrl": "https://dev.umans.ai",
+  "isSystem": true,
+  "features": ["coding-plan"]
+}

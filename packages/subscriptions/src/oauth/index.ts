@@ -13,6 +13,8 @@
  */
 
 export type { FetchLike } from './fetchPort';
+export { kimiFingerprintHeaders } from './flows/kimi';
 export * as claudeOAuth from './flows/claude';
 export * as codexOAuth from './flows/codex';
 export * as geminiOAuth from './flows/gemini';
+export * as kimiOAuth from './flows/kimi';

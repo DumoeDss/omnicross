@@ -1,6 +1,5 @@
 import type {
   AccountAllowanceSnapshot,
-  AccountConnectionTestResult,
   SubscriptionProviderId,
 } from '@/daemon/types';
 
@@ -50,24 +49,4 @@ export function allowanceState(snapshot: AccountAllowanceSnapshot): 'fresh' | 's
   if (snapshot.windows.some((window) => window.state === 'stale')) return 'stale';
   if (snapshot.windows.every((window) => window.state === 'unsupported')) return 'unsupported';
   return 'unavailable';
-}
-
-/**
- * A Codex allowance refresh is an explicit, quota-consuming Luna probe followed
- * by a passive-cache reload. Reload even after a failed probe because an
- * upstream error response can still carry useful allowance headers.
- */
-export async function probeAndReloadCodexAllowance(
-  probe: () => Promise<AccountConnectionTestResult>,
-  reload: () => Promise<AllowanceRefreshResult>,
-): Promise<AllowanceRefreshResult> {
-  const probeResult = await probe();
-  const reloadResult = await reload();
-  if (!probeResult.success || !probeResult.ok) {
-    return {
-      success: false,
-      message: probeResult.message ?? 'Codex Luna allowance probe failed',
-    };
-  }
-  return reloadResult;
 }

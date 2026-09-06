@@ -149,6 +149,18 @@ export interface DaemonPoolKeyView {
     cooldown?: { until: number; errors: number; lastStatus: number | null };
     autoDisabled?: { status: number; at: number; reason: string };
   };
+  /**
+   * Plan-usage windows for providers with a quota adapter (Z.AI coding plan,
+   * MiniMax Token Plan, …). Same secret-free window DTO as the subscription
+   * allowance view; absent on providers without an adapter.
+   */
+  quota?: {
+    adapter: string;
+    observedAt: string;
+    expiresAt: string;
+    windows: import('./types-accounts').AllowanceWindow[];
+    errorCode?: string;
+  };
 }
 
 /**
@@ -235,6 +247,11 @@ export interface AgentLLMConfigApi {
   // this is the app-local interface, NOT shared with the host.
   getApiKeys(providerId: string): Promise<ApiKeyEntry[]>;
   getKeyHealth(providerId: string): Promise<KeyHealthMap>;
+  /** Force one pool key's plan-quota probe past the read-through cache. */
+  refreshKeyQuota(
+    providerId: string,
+    keyId: string,
+  ): Promise<{ success: boolean; message?: string }>;
   addApiKey(input: ApiKeyEntryInput): Promise<{ success: boolean; entry?: ApiKeyEntry; message?: string }>;
   updateApiKey(
     providerId: string,
@@ -466,6 +483,8 @@ export interface WriteTokensResult {
 export interface StartOAuthResult {
   authUrl: string;
   sessionId: string;
+  /** Kimi device flow: the code the user enters at the verification URL. */
+  userCode?: string;
 }
 
 /**
@@ -501,9 +520,9 @@ export interface AgentAccountsApi {
   list(): Promise<AccountsListResponse>;
   /** Read secret-free five-hour/weekly (or provider-equivalent) allowance snapshots. */
   listAllowances(): Promise<AccountAllowancesResult>;
-  /** Force-refresh one Claude account. Codex allowance is observed from real responses. */
+  /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo). */
   refreshAllowance(
-    providerId: 'claude',
+    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego',
     accountId: string,
   ): Promise<AccountAllowancesResult>;
   /** Replace the ACTIVE account's credential (token-paste parity). */
@@ -572,6 +591,9 @@ export interface AgentAccountsApi {
    * `done`/`error`. The token is captured + persisted entirely daemon-side.
    */
   pollCodexOAuth(sessionId: string): Promise<CodexOAuthStatus>;
+  pollKimiOAuth(sessionId: string): Promise<CodexOAuthStatus>;
+  /** Cancel an in-flight kimi device-code sign-in. */
+  cancelKimiOAuth(sessionId: string): Promise<MutationResult>;
   cancelCodexOAuth(sessionId: string): Promise<MutationResult>;
   /**
    * Import the daemon machine's external CLI login (~/.claude/.credentials.json

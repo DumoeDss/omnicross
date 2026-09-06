@@ -2,7 +2,6 @@ import { RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
 
@@ -51,8 +50,11 @@ export function AccountAllowance({
 }: AccountAllowanceProps) {
   const t = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
-  const [codexRefreshOpen, setCodexRefreshOpen] = useState(false);
-  const supportsAllowance = providerId === 'claude' || providerId === 'codex';
+  const supportsAllowance =
+    providerId === 'claude' ||
+    providerId === 'codex' ||
+    providerId === 'kimi' ||
+    providerId === 'opencodego';
   const summaryState: AllowanceWindowState = snapshot
     ? allowanceState(snapshot)
     : supportsAllowance
@@ -69,11 +71,9 @@ export function AccountAllowance({
     }
   };
 
+  // Codex refreshes via the active `/wham/usage` poll — free, no probe request,
+  // so it needs no confirmation any more.
   const requestRefresh = () => {
-    if (providerId === 'codex') {
-      setCodexRefreshOpen(true);
-      return;
-    }
     void refresh();
   };
 
@@ -165,16 +165,6 @@ export function AccountAllowance({
         </p>
       ) : null}
       {error ? <p className="mt-1.5 text-xs text-destructive">{error}</p> : null}
-      <ConfirmDialog
-        open={codexRefreshOpen}
-        onOpenChange={setCodexRefreshOpen}
-        title={t('accounts.allowance.codexRefreshConfirmTitle')}
-        description={t('accounts.allowance.codexRefreshConfirmDescription')}
-        confirmLabel={t('accounts.allowance.codexRefreshConfirmAction')}
-        cancelLabel={t('common.cancel')}
-        variant="default"
-        onConfirm={() => void refresh()}
-      />
     </div>
   );
 }

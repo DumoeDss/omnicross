@@ -54,6 +54,7 @@ import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
 import type { FetchLike } from '@omnicross/subscriptions';
 import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
+import type { ProviderKeyQuota } from '../allowance/ProviderKeyQuotaService';
 import { validateImagesAdminConfig } from '../image-generation/imagesConfigValidation';
 import type {
   ImageRuntimeCapabilityInspection,
@@ -107,6 +108,12 @@ import {
   handleCodexOAuthStart,
   handleCodexOAuthStatus,
 } from './accountsCodexOAuth';
+import {
+  handleKimiOAuthCancel,
+  handleKimiOAuthStart,
+  handleKimiOAuthStatus,
+  KimiOAuthSessionStore,
+} from './accountsKimiOAuth';
 import {
   handleOAuthComplete,
   handleOAuthStart,
@@ -196,6 +203,19 @@ export interface PoolHealthReader {
   getKeyHealth(providerId: string): Promise<Record<string, PoolKeyHealth>>;
 }
 
+/**
+ * The BYO provider-key quota surface the keys view needs — structurally
+ * satisfied by `ProviderKeyQuotaService`. Read-only; the DTO is secret-free by
+ * construction (normalized windows + diagnostic codes only).
+ */
+export interface ProviderKeyQuotaReader {
+  quotaFor(
+    row: DaemonProviderConfig,
+    keyId: string,
+    options?: { force?: boolean },
+  ): Promise<ProviderKeyQuota | null>;
+}
+
 export interface AdminImagesStatusReader {
   inspectCapability(apiKeyId: string): Promise<ImageRuntimeCapabilityInspection>;
   status(): ImageRuntimeManagerStatus;
@@ -278,6 +298,12 @@ export interface AdminApiDeps {
   /** In-memory auto-disable store (design D5) — read-only for the health view. */
   readonly autoDisableStore: AutoDisableStore;
   /**
+   * OPTIONAL BYO provider-key quota service — same-key usage/quota probes for
+   * provider rows with a known adapter (Z.AI coding plan, MiniMax Token Plan).
+   * Absent ⇒ the keys view carries no `quota` field (light embedders).
+   */
+  readonly providerKeyQuota?: ProviderKeyQuotaReader;
+  /**
    * Pending interactive-OAuth sessions (app-parity child 4, design D1) — the
    * in-memory `{ codeVerifier, state }` map keyed by a minted `sessionId`,
    * NEVER serialized to the client.
@@ -304,6 +330,11 @@ export interface AdminApiDeps {
    * flight (port 1455 is one resource). Wired in `bootstrap.ts`.
    */
   readonly codexSessions: CodexOAuthSessionStore;
+  /**
+   * Kimi interactive-OAuth flow store (device code). Same token-free polled
+   * shape as codex; one sign-in at a time. Wired in `bootstrap.ts`.
+   */
+  readonly kimiSessions: KimiOAuthSessionStore;
   /**
    * Codex loopback listener (app-parity-2 child 5) — defaults to `awaitLoopbackCode`
    * (binds 127.0.0.1:1455) in `bootstrap.ts`; tests inject a mock so no real port
@@ -709,6 +740,13 @@ async function handleProviders(
     return await handleToggleProviderKey(req, res, rest[0], rest[2], cfg, deps);
   }
 
+  // POST /providers/:id/keys/:keyId/quota/refresh → force one BYO key quota
+  // probe (the per-key refresh button). Bypasses the service's read-through
+  // cache; 404 when the row has no quota adapter or the key does not exist.
+  if (method === 'POST' && rest.length === 5 && rest[1] === 'keys' && rest[3] === 'quota' && rest[4] === 'refresh') {
+    return await handleProviderKeyQuotaRefresh(res, rest[0], rest[2], cfg, deps);
+  }
+
   // PUT /providers/:id/keys/:keyId → update one pool key (child 3).
   if (method === 'PUT' && rest.length === 3 && rest[1] === 'keys') {
     return await handleUpdateProviderKey(req, res, rest[0], rest[2], cfg, deps);
@@ -1023,6 +1061,8 @@ interface PoolKeyView {
   weight: number;
   apiKeyMasked: string;
   health?: { cooldown?: PoolKeyHealth; autoDisabled?: { status: number; at: number; reason: string } };
+  /** Plan-usage windows for providers with a quota adapter (Z.AI, MiniMax…). */
+  quota?: ProviderKeyQuota;
 }
 
 /**
@@ -1064,7 +1104,10 @@ function toPoolKeyView(
 /**
  * `GET /admin/api/providers/:id/keys` (key-pool design D7) — read-only masked
  * pool health for one provider. Secret IN-never-OUT: no `apiKey` literal or
- * `$VAR` name is ever serialized (the mask handles both).
+ * `$VAR` name is ever serialized (the mask handles both). When a quota service
+ * is wired and the row matches a quota adapter, each key view carries its
+ * cached usage windows (the service is read-through, so the UI's frequent
+ * health polling stays cheap).
  */
 async function handleProviderKeys(
   res: http.ServerResponse,
@@ -1076,7 +1119,44 @@ async function handleProviderKeys(
   const row = cfg.providers.find((p) => p.id === id);
   if (!row) return writeJsonError(res, 404, `provider '${id}' not found`);
   const cooldown = await deps.apiKeyPool.getKeyHealth(id);
-  return writeJson(res, 200, { keys: toPoolKeyView(row, cooldown, deps) });
+  const views = toPoolKeyView(row, cooldown, deps);
+  if (deps.providerKeyQuota) {
+    const quotas = await Promise.allSettled(
+      views.map((view) => deps.providerKeyQuota!.quotaFor(row, view.id)),
+    );
+    views.forEach((view, index) => {
+      const settled = quotas[index];
+      if (settled.status === 'fulfilled' && settled.value) view.quota = settled.value;
+    });
+  }
+  return writeJson(res, 200, { keys: views });
+}
+
+/**
+ * `POST /admin/api/providers/:id/keys/:keyId/quota/refresh` — force one quota
+ * probe past the read-through cache (the per-key refresh button). 404 for an
+ * unknown provider/key or a row with no quota adapter.
+ */
+async function handleProviderKeyQuotaRefresh(
+  res: http.ServerResponse,
+  id: string | undefined,
+  keyId: string | undefined,
+  cfg: DaemonConfig,
+  deps: AdminApiDeps,
+): Promise<void> {
+  if (!deps.providerKeyQuota) return writeJsonError(res, 501, 'provider key quota is not available');
+  if (!id || !keyId) return writeJsonError(res, 400, 'provider id and key id required in path');
+  const row = cfg.providers.find((p) => p.id === id);
+  if (!row) return writeJsonError(res, 404, `provider '${id}' not found`);
+  try {
+    const quota = await deps.providerKeyQuota.quotaFor(row, keyId, { force: true });
+    if (!quota) return writeJsonError(res, 404, `no quota endpoint for key '${keyId}'`);
+    return writeJson(res, 200, { quota });
+  } catch {
+    // A forced probe failure surfaces as the degraded cached snapshot, not an
+    // upstream error body (leak-safe by construction).
+    return writeJsonError(res, 502, 'quota refresh failed');
+  }
 }
 
 /**
@@ -2296,15 +2376,19 @@ async function handleAccounts(
     return writeJson(res, 200, { ok: true, affected: result.affected });
   }
 
-  // GET /accounts/codex/oauth/:sessionId/status → token-free poll for the async
-  // codex loopback sign-in (app-parity-2 child 5). Returns ONLY { state, message? }.
-  if (method === 'GET' && rest[0] === 'codex' && rest[1] === 'oauth' && rest[3] === 'status') {
-    const result = handleCodexOAuthStatus(rest[2], deps);
+  // GET /accounts/{codex,kimi}/oauth/:sessionId/status → token-free poll for the
+  // async sign-ins (codex loopback, kimi device code). Returns ONLY { state, message? }.
+  if (method === 'GET' && (rest[0] === 'codex' || rest[0] === 'kimi') && rest[1] === 'oauth' && rest[3] === 'status') {
+    const result = rest[0] === 'codex'
+      ? handleCodexOAuthStatus(rest[2], deps)
+      : handleKimiOAuthStatus(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 
-  if (method === 'DELETE' && rest[0] === 'codex' && rest[1] === 'oauth' && rest[2]) {
-    const result = handleCodexOAuthCancel(rest[2], deps);
+  if (method === 'DELETE' && (rest[0] === 'codex' || rest[0] === 'kimi') && rest[1] === 'oauth' && rest[2]) {
+    const result = rest[0] === 'codex'
+      ? handleCodexOAuthCancel(rest[2], deps)
+      : handleKimiOAuthCancel(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 
@@ -2379,7 +2463,17 @@ async function handleAccounts(
     // 5) is LOOPBACK-based (async + polled), so it routes to the codex start; claude/
     // gemini (app-parity child 4) are code-paste (two-phase start/complete).
     if (method === 'POST' && rest[1] === 'oauth' && rest[2] === 'start') {
-      const result = providerId === 'codex' ? handleCodexOAuthStart(deps) : handleOAuthStart(providerId, deps);
+      // codex (loopback) and kimi (device code) are ASYNC + POLLED flows; the
+      // claude/gemini code-paste flow is two-phase start/complete.
+      if (providerId === 'codex') {
+        const result = handleCodexOAuthStart(deps);
+        return writeJson(res, result.status, result.body);
+      }
+      if (providerId === 'kimi') {
+        const result = await handleKimiOAuthStart(deps);
+        return writeJson(res, result.status, result.body);
+      }
+      const result = handleOAuthStart(providerId, deps);
       return writeJson(res, result.status, result.body);
     }
 

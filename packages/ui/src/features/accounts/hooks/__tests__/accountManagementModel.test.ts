@@ -11,7 +11,7 @@ const data: AccountsListResponse = {
       { id: 'a', label: 'Alpha', status: 'authorized', hasAccessToken: true, isActive: true, enabled: true, schedulable: true, group: 'prod', tags: ['max'], priority: 20, health: 'healthy' },
       { id: 'b', label: 'Beta', status: 'expired', hasAccessToken: true, isActive: false, enabled: false, schedulable: false, group: 'lab', tags: ['old'], priority: 10, health: 'blocked' },
     ],
-    codex: [], gemini: [], opencodego: [],
+    codex: [], gemini: [], opencodego: [], kimi: [],
   },
 };
 

@@ -15,7 +15,6 @@ import { agent } from '@/shared/agent';
 import {
   allowanceKey,
   mergeAllowances,
-  probeAndReloadCodexAllowance,
 } from '../allowanceLogic';
 
 import type {
@@ -27,6 +26,7 @@ import type {
   AccountsListResponse,
   AccountTokenInput,
   CodexOAuthStatus,
+  MutationResult,
   ProxyConfig,
   RefreshResult,
   StartOAuthResult,
@@ -35,7 +35,7 @@ import type {
 
 const EMPTY: AccountsListResponse = {
   accounts: [],
-  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
 };
 
 /** Keep request-driven account metadata and passive Codex allowance observations live. */
@@ -59,6 +59,14 @@ export interface UseAccountsResult {
   ) => Promise<{ success: boolean; message?: string }>;
   /** Run one confirmed Luna request for a Codex account, then reload its passive snapshot. */
   refreshCodexAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Force-refresh a Kimi account's `/coding/v1/usages` snapshot. */
+  refreshKimiAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Force-refresh an OpenCodeGo account's `/v1/usage` snapshot. */
+  refreshOpenCodeGoAccountAllowance: (
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
   writeTokens: (payload: AccountTokenInput) => Promise<{ success: boolean; message?: string }>;
@@ -120,6 +128,8 @@ export interface UseAccountsResult {
   ) => Promise<{ success: boolean; message?: string; sessionExpired?: boolean }>;
   /** Poll a codex loopback sign-in's token-free status (app-parity-2 child 5). */
   pollCodexOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  pollKimiOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  cancelKimiOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelCodexOAuth: (sessionId: string) => Promise<{ success: boolean; message?: string }>;
   /** Import the daemon machine's external CLI login as a managed account. */
   importExternalCli: (
@@ -462,6 +472,16 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const pollKimiOAuth = useCallback(
+    (sessionId: string): Promise<CodexOAuthStatus> => agent.accounts.pollKimiOAuth(sessionId),
+    [],
+  );
+
+  const cancelKimiOAuth = useCallback(
+    (sessionId: string) => agent.accounts.cancelKimiOAuth(sessionId),
+    [],
+  );
+
   const patchAccount = useCallback(
     async (
       providerId: SubscriptionProviderId,
@@ -522,19 +542,58 @@ export function useAccounts(): UseAccountsResult {
         delete next[key];
         return next;
       });
-      const result = await probeAndReloadCodexAllowance(
-        () => testAccount('codex', accountId),
-        refreshAllowances,
-      );
+      // Active `/wham/usage` poll via the admin refresh endpoint — no probe
+      // request, so refreshing costs no Codex quota.
+      const result = await agent.accounts.refreshAllowance('codex', accountId);
       if (!result.success) {
-        setAllowanceErrors((current) => ({
-          ...current,
-          [key]: result.message ?? 'failed to refresh Codex allowance',
-        }));
+        const message = result.message ?? 'failed to refresh Codex allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
       }
-      return result;
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
     },
-    [refreshAllowances, testAccount],
+    [],
+  );
+
+  const refreshKimiAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('kimi', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await agent.accounts.refreshAllowance('kimi', accountId);
+      if (!result.success) {
+        const message = result.message ?? 'failed to refresh Kimi allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
+      }
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
+    },
+    [],
+  );
+
+  const refreshOpenCodeGoAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('opencodego', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await agent.accounts.refreshAllowance('opencodego', accountId);
+      if (!result.success) {
+        const message = result.message ?? 'failed to refresh OpenCodeGo allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
+      }
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
+    },
+    [],
   );
 
   const listAccountEvents = useCallback(
@@ -583,6 +642,10 @@ export function useAccounts(): UseAccountsResult {
     refreshAllowances,
     refreshAccountAllowance,
     refreshCodexAccountAllowance,
+    refreshKimiAccountAllowance,
+    refreshOpenCodeGoAccountAllowance,
+    pollKimiOAuth,
+    cancelKimiOAuth,
     writeTokens,
     appendTokens,
     setActive,

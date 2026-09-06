@@ -51,7 +51,15 @@ export type { AuthApplyHints, AuthStrategy } from './auth';
 // Host-clean OAuth flow logic (authorize/exchange/refresh per provider) usable
 // by a desktop host + the daemon login/refresh paths. Network goes
 // through the injected `FetchLike` port (no electron / host imports under oauth/).
-export { claudeOAuth, codexOAuth, type FetchLike, geminiOAuth } from './oauth';
+export {
+  claudeOAuth,
+  codexOAuth,
+  type FetchLike,
+  geminiOAuth,
+  kimiFingerprintHeaders,
+  kimiOAuth,
+} from './oauth';
+export { normalizeOpenCodeGoBaseUrl } from './opencodego/endpoints';
 
 // Dormant, fail-closed image provider. Private subscription wire modules are
 // deliberately not re-exported.

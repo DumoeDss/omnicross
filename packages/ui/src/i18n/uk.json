@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Вставте код сюди",
       "submit": "Завершити вхід"
     },
+    "kimiOauth": {
+      "description": "Відкрийте сторінку підтвердження, введіть код нижче та схваліть запит на вхід."
+    },
     "codexOauth": {
       "title": "Увійти до {{name}}",
       "description": "Відкрийте сторінку входу в браузері та авторизуйтесь. Демон автоматично отримає результат — не закривайте цю сторінку до завершення. Токен ніколи не відображається.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Облікові дані підписки Google Gemini, маршрутизовані демоном."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Облікові дані передплати Moonshot Kimi Code, які маршрутизує демон."
       },
       "opencodego": {
         "title": "OpenCodeGo",

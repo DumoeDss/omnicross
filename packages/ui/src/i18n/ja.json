@@ -487,6 +487,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -1147,6 +1150,9 @@
       "codePlaceholder": "ここにコードを貼り付け",
       "submit": "サインインを完了"
     },
+    "kimiOauth": {
+      "description": "確認ページを開き、下のコードを入力してサインイン要求を承認してください。"
+    },
     "codexOauth": {
       "title": "{{name}} にサインイン",
       "description": "ブラウザでサインインページを開いて認証してください。デーモンが自動的に結果を取得します — 完了するまでこのページを開いたままにしてください。トークンは表示されません。",
@@ -1230,6 +1236,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "デーモンによってルーティングされる Google Gemini サブスクリプション認証情報。"
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "デーモンによってルーティングされる Moonshot Kimi Code サブスクリプション認証情報。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

@@ -37,7 +37,7 @@ import type {
   TokenStatus,
 } from '@/daemon/types';
 
-type OAuthProviderId = 'claude' | 'codex' | 'gemini';
+type OAuthProviderId = 'claude' | 'codex' | 'gemini' | 'kimi';
 type AuthMethod = 'oauth' | 'manual';
 
 interface OAuthProviderCardProps {
@@ -86,6 +86,16 @@ function buildManualPayload(
         providerId: 'codex',
         input: { authMethod: 'manual', status: 'configured', accessToken },
       };
+    case 'kimi':
+      return {
+        providerId: 'kimi',
+        input: {
+          authMethod: 'manual',
+          status: 'configured',
+          accessToken,
+          refreshToken: extra?.refreshToken,
+        },
+      };
   }
 }
 
@@ -100,6 +110,8 @@ export function OAuthProviderCard({
   const t = useTranslation();
   const providerId = entry.providerId as OAuthProviderId;
   const isCodex = providerId === 'codex';
+  // codex (loopback) and kimi (device code) are the async + polled flows.
+  const isAsyncOAuth = providerId === 'codex' || providerId === 'kimi';
   const {
     busy,
     data,
@@ -108,6 +120,7 @@ export function OAuthProviderCard({
     allowanceErrors,
     refreshAccountAllowance,
     refreshCodexAccountAllowance,
+    refreshKimiAccountAllowance,
     appendTokens,
     setActive,
     removeAccount,
@@ -119,7 +132,9 @@ export function OAuthProviderCard({
     startOAuth,
     completeOAuth,
     pollCodexOAuth,
+    pollKimiOAuth,
     cancelCodexOAuth,
+    cancelKimiOAuth,
     importExternalCli,
     refresh,
   } = accountsApi;
@@ -144,7 +159,8 @@ export function OAuthProviderCard({
     Boolean(data.externalCli?.[providerId]);
 
   const handleImportExternal = async () => {
-    if (providerId === 'gemini') return;
+    // External CLI import exists only for claude/codex native stores.
+    if (providerId !== 'claude' && providerId !== 'codex') return;
     setCardError(null);
     const result = await importExternalCli(providerId);
     if (!result.success) setCardError(result.message ?? t('accounts.errors.requestFailed'));
@@ -156,7 +172,7 @@ export function OAuthProviderCard({
     const started = await startOAuth(providerId);
     if (started) {
       setOauth(started);
-      if (providerId === 'codex') void openExternal(started.authUrl);
+      if (isAsyncOAuth) void openExternal(started.authUrl);
       setAuthCode('');
       setAccountLabel('');
     } else {
@@ -198,6 +214,7 @@ export function OAuthProviderCard({
 
   const cancelOAuth = async () => {
     if (isCodex && oauth) await cancelCodexOAuth(oauth.sessionId);
+    else if (providerId === 'kimi' && oauth) await cancelKimiOAuth(oauth.sessionId);
     setOauth(null);
     setAuthCode('');
     setAccountLabel('');
@@ -273,7 +290,9 @@ export function OAuthProviderCard({
                 ? refreshAccountAllowance
                 : providerId === 'codex'
                   ? refreshCodexAccountAllowance
-                  : undefined
+                  : providerId === 'kimi'
+                    ? refreshKimiAccountAllowance
+                    : undefined
             }
             onSetActive={(id) => void setActive(providerId, id)}
             onRemove={(id) => void removeAccount(providerId, id)}
@@ -291,11 +310,17 @@ export function OAuthProviderCard({
       ) : null}
 
       {/* Add path: inline OAuth (code-paste / loopback) OR the method picker + button */}
-      {isAddMode && oauth && isCodex ? (
+      {isAddMode && oauth && isAsyncOAuth ? (
         <CodexInlineSignIn
           authUrl={oauth.authUrl}
           sessionId={oauth.sessionId}
-          onPoll={pollCodexOAuth}
+          onPoll={providerId === 'kimi' ? pollKimiOAuth : pollCodexOAuth}
+          userCode={providerId === 'kimi' ? oauth.userCode : undefined}
+          description={
+            providerId === 'kimi'
+              ? t('accounts.kimiOauth.description')
+              : undefined
+          }
           onDone={() => {
             setOauth(null);
             void refresh();

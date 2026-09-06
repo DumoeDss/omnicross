@@ -17,6 +17,7 @@ import {
 import {
   isCodexUsageLimitError,
   markCodexUsageLimitExhaustion,
+  parseCodexUsageLimitErrorPayload,
   resolveCodexQuotaDeadline,
 } from '../codexUsageLimitDetection';
 
@@ -131,5 +132,40 @@ describe('markCodexUsageLimitExhaustion', () => {
     markCodexUsageLimitExhaustion(undefined, FULL_WALL_BODY);
     expect(getSharedAccountHealth().getStatus('codex', ACCT).state).toBe('healthy');
     expect(getSharedAccountHealth().isSchedulable('codex', ACCT)).toBe(true);
+  });
+});
+
+describe('structured usage-limit error payloads', () => {
+  it('extracts code, epoch-second resets_at, and plan_type from a JSON body', () => {
+    const payload = parseCodexUsageLimitErrorPayload(
+      JSON.stringify({ error: { code: 'usage_limit_reached', resets_at: 1785991200, plan_type: 'pro' } }),
+    );
+    expect(payload).toEqual({ code: 'usage_limit_reached', resetsAtMs: 1_785_991_200_000, planType: 'pro' });
+  });
+
+  it('recognizes the family of meter error codes and rejects unrelated JSON', () => {
+    expect(parseCodexUsageLimitErrorPayload('{"error":{"code":"usage_not_included"}}')?.code)
+      .toBe('usage_not_included');
+    expect(parseCodexUsageLimitErrorPayload('{"error":{"code":"rate_limit_exceeded"}}')?.code)
+      .toBe('rate_limit_exceeded');
+    expect(parseCodexUsageLimitErrorPayload('{"error":{"code":"server_is_overloaded"}}')).toBeNull();
+    expect(parseCodexUsageLimitErrorPayload('plain text body')).toBeNull();
+  });
+
+  it('classifies a structured body as the usage wall even without English markers', () => {
+    // A localized body carrying only the machine code still matches.
+    const localized = JSON.stringify({ error: { code: 'usage_limit_reached', message: '上限に達しました' } });
+    expect(isCodexUsageLimitError(localized)).toBe(true);
+    // rate_limit_exceeded is a transient meter error, not the wall.
+    expect(isCodexUsageLimitError(JSON.stringify({ error: { code: 'rate_limit_exceeded' } }))).toBe(false);
+  });
+
+  it('prefers the structured resets_at over the "try again at" text', () => {
+    const now = Date.parse('2026-08-10T00:00:00Z');
+    const resetsAtMs = now + 3 * 24 * 3600 * 1000;
+    const body = JSON.stringify({
+      error: { code: 'usage_limit_reached', resets_at: resetsAtMs / 1000, plan_type: 'team' },
+    });
+    expect(resolveCodexQuotaDeadline(ACCT, body, now)).toBe(resetsAtMs);
   });
 });

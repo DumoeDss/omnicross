@@ -19,11 +19,11 @@ describe('subscription image import surface', () => {
     expectTypeOf(subscriptions.createCodexSubscriptionImageProvider).returns.toMatchTypeOf<ImageProvider>();
   });
 
-  it('records the unverified production capability matrix', () => {
+  it('records the production capability matrix', () => {
     const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-    expect(readme).toContain('Unverified / unavailable');
-    expect(readme).toContain('Partial image stream');
-    expect(readme).toContain('Usage and revised prompt');
-    expect(readme).toContain('does not upgrade any row');
+    expect(readme).toContain('non-stream `gpt-image-2` generation and one-image edits');
+    expect(readme).toContain('public partial-image streaming remain unsupported');
+    expect(readme).toContain('fail-closed and account-bound');
+    expect(readme).toContain('never upgrades image capability');
   });
 });

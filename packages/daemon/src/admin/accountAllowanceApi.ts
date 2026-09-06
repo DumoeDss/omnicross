@@ -12,6 +12,12 @@ export interface AccountAllowanceAdminReader {
     accountId?: string;
   }): Promise<AccountAllowanceSnapshot[]>;
   refreshClaude(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
+  /** Optional: Codex active `/wham/usage` refresh (absent on older daemons). */
+  refreshCodex?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
+  /** Optional: Kimi `/coding/v1/usages` refresh (absent on older daemons). */
+  refreshKimi?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
+  /** Optional: OpenCodeGo `/v1/usage` refresh (absent on older daemons). */
+  refreshOpenCodeGo?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   removeAccountSnapshot?(providerId: SubscriptionProviderId, accountId: string): void;
   removeProviderSnapshots?(providerId: SubscriptionProviderId): void;
   getSchedulingStatus?(): AccountAllowanceSchedulingStatus;
@@ -51,9 +57,13 @@ function query(req: http.IncomingMessage): URLSearchParams {
   return new URLSearchParams(index >= 0 ? raw.slice(index + 1) : '');
 }
 
-function allowanceProvider(value: string | null): 'claude' | 'codex' | undefined | null {
+function allowanceProvider(
+  value: string | null,
+): 'claude' | 'codex' | 'kimi' | 'opencodego' | undefined | null {
   if (!value) return undefined;
-  return value === 'claude' || value === 'codex' ? value : null;
+  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego'
+    ? value
+    : null;
 }
 
 /**
@@ -83,7 +93,9 @@ export async function handleAccountAllowanceApi(
     const params = query(req);
     const pathProvider = rest.length >= 2 ? rest[0] : null;
     const providerId = allowanceProvider(pathProvider ?? params.get('providerId') ?? params.get('provider'));
-    if (providerId === null) return writeError(res, 400, 'providerId must be claude or codex');
+    if (providerId === null) {
+      return writeError(res, 400, 'providerId must be claude, codex, kimi, or opencodego');
+    }
     const accountId = rest.length >= 2 ? rest[1] : params.get('accountId') ?? undefined;
     const allowances = await service.list({ providerId, accountId });
     return writeJson(res, 200, { allowances });
@@ -94,12 +106,42 @@ export async function handleAccountAllowanceApi(
     const requestedProvider = allowanceProvider(
       typeof body['providerId'] === 'string' ? body['providerId'] : 'claude',
     );
-    if (requestedProvider !== 'claude') {
-      return writeError(res, 400, 'only Claude allowances support explicit refresh');
-    }
     const accountId = typeof body['accountId'] === 'string' && body['accountId'].trim()
       ? body['accountId'].trim()
       : undefined;
+    // Codex refreshes via the active `/wham/usage` poll (no quota spent) and
+    // Kimi via `/coding/v1/usages`; both are optional on the reader so an
+    // older service still answers Claude.
+    if (requestedProvider === 'codex') {
+      if (!service.refreshCodex) {
+        return writeError(res, 501, 'codex allowance refresh is not available');
+      }
+      const allowances = await service.refreshCodex(accountId);
+      if (accountId && allowances.length === 0) {
+        return writeError(res, 404, `Codex account '${accountId}' not found`);
+      }
+      return writeJson(res, 200, { allowances });
+    }
+    if (requestedProvider === 'kimi') {
+      if (!service.refreshKimi) {
+        return writeError(res, 501, 'kimi allowance refresh is not available');
+      }
+      const allowances = await service.refreshKimi(accountId);
+      if (accountId && allowances.length === 0) {
+        return writeError(res, 404, `Kimi account '${accountId}' not found`);
+      }
+      return writeJson(res, 200, { allowances });
+    }
+    if (requestedProvider === 'opencodego') {
+      if (!service.refreshOpenCodeGo) {
+        return writeError(res, 501, 'opencodego allowance refresh is not available');
+      }
+      const allowances = await service.refreshOpenCodeGo(accountId);
+      if (accountId && allowances.length === 0) {
+        return writeError(res, 404, `OpenCodeGo account '${accountId}' not found`);
+      }
+      return writeJson(res, 200, { allowances });
+    }
     const allowances = await service.refreshClaude(accountId);
     if (accountId && allowances.length === 0) {
       return writeError(res, 404, `Claude account '${accountId}' not found`);

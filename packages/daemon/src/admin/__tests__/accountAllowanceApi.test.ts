@@ -42,7 +42,15 @@ function response(): {
   };
 }
 
-function service(): AccountAllowanceAdminReader {
+const refreshCodexFn = vi.fn(async (accountId?: string) => [{
+  providerId: 'codex' as const,
+  accountId: accountId ?? 'a',
+  source: 'oauth-usage-api' as const,
+  observedAt: '2026-08-03T00:00:00.000Z',
+  windows: [],
+}]);
+
+function service(overrides: Partial<AccountAllowanceAdminReader> = {}): AccountAllowanceAdminReader {
   return {
     list: vi.fn(async (filter) => [{
       providerId: filter?.providerId ?? 'codex',
@@ -58,6 +66,7 @@ function service(): AccountAllowanceAdminReader {
       observedAt: '2026-08-03T00:00:00.000Z',
       windows: [],
     }]),
+    ...overrides,
   };
 }
 
@@ -94,7 +103,22 @@ describe('account allowance admin API', () => {
     expect(out.status()).toBe(404);
   });
 
-  it('does not pretend Codex supports an active refresh call', async () => {
+  it('routes a Codex refresh to the active /wham/usage poll when available', async () => {
+    const api = service({ refreshCodex: refreshCodexFn });
+    const out = response();
+    await handleAccountAllowanceApi(
+      request('/admin/api/accounts/allowances/refresh', { providerId: 'codex' }),
+      out.res,
+      'POST',
+      ['refresh'],
+      api,
+    );
+    expect(refreshCodexFn).toHaveBeenCalledWith(undefined);
+    expect(api.refreshClaude).not.toHaveBeenCalled();
+    expect(out.status()).toBe(200);
+  });
+
+  it('reports 501 when the daemon has no Codex refresh (older reader)', async () => {
     const api = service();
     const out = response();
     await handleAccountAllowanceApi(
@@ -105,7 +129,7 @@ describe('account allowance admin API', () => {
       api,
     );
     expect(api.refreshClaude).not.toHaveBeenCalled();
-    expect(out.status()).toBe(400);
+    expect(out.status()).toBe(501);
   });
 
   it('returns secret-free allowance scheduling diagnostics', async () => {

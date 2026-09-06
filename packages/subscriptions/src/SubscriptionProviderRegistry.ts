@@ -121,7 +121,8 @@ export class SubscriptionProviderRegistry {
     const codex = this.accounts.getStrategy('codex');
     const gemini = this.accounts.getStrategy('gemini');
     const opencodego = this.accounts.getStrategy('opencodego');
-    if (!claude || !codex || !gemini || !opencodego) {
+    const kimi = this.accounts.getStrategy('kimi');
+    if (!claude || !codex || !gemini || !opencodego || !kimi) {
       throw new Error('[SubscriptionProviderRegistry] Missing strategy in SubscriptionAccountService');
     }
 
@@ -275,6 +276,25 @@ export class SubscriptionProviderRegistry {
           // profile sets it — claude / codex / gemini leave it UNSET (no-op).
           recordModelOutcome: (modelId, ok) =>
             ok ? this.breaker.recordSuccess(modelId) : this.breaker.recordFailure(modelId),
+        },
+      ],
+      [
+        'kimi',
+        {
+          providerId: 'kimi',
+          displayName: 'Kimi Code (Moonshot OAuth)',
+          authStrategy: kimi,
+          mode: 'transformer',
+          // Kimi Code's subscription surface speaks standard Anthropic Messages
+          // at `api.kimi.com/coding/v1/messages` (plus an OpenAI chat face on
+          // /chat/completions that a BYO kimi row already covers). The messages
+          // URL ending in `/v1/messages` makes the core plan builder treat it as
+          // same-format — the SDK's Anthropic body relays verbatim, with the
+          // OAuth bearer + X-Msh-* fingerprint headers injected by the strategy.
+          resolveUpstreamUrl: () => 'https://api.kimi.com/coding/v1/messages',
+          // Route-to only (Responses/Chat ingress): Unified → Anthropic Messages.
+          providerTransformerNames: ['anthropic'],
+          modelTransformerNames: [],
         },
       ],
     ]);

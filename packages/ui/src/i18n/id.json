@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Tempel code di sini",
       "submit": "Selesaikan masuk"
     },
+    "kimiOauth": {
+      "description": "Buka halaman verifikasi, masukkan kode di bawah, dan setujui permintaan masuk."
+    },
     "codexOauth": {
       "title": "Masuk ke {{name}}",
       "description": "Buka halaman masuk di browser Anda dan otorisasi. Daemon akan menangkap hasilnya secara otomatis — biarkan halaman ini terbuka hingga selesai. Token tidak pernah ditampilkan.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Kredensial subscription Google Gemini yang dirutekan oleh daemon."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Kredensial langganan Moonshot Kimi Code yang diarahkan oleh daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

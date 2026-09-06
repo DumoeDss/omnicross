@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Code hier einfügen",
       "submit": "Anmeldung abschließen"
     },
+    "kimiOauth": {
+      "description": "Öffne die Verifizierungsseite, gib den unten stehenden Code ein und genehmige die Anmeldung."
+    },
     "codexOauth": {
       "title": "Bei {{name}} anmelden",
       "description": "Öffnen Sie die Anmeldeseite in Ihrem Browser und autorisieren Sie. Der Daemon erfasst das Ergebnis automatisch — lassen Sie dieses Fenster geöffnet, bis der Vorgang abgeschlossen ist. Das Token wird nie angezeigt.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Google Gemini Abonnement-Anmeldeinformationen, die vom Daemon geleitet werden."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Von dem Daemon geroutete Moonshot-Kimi-Code-Abonnement-Zugangsdaten."
       },
       "opencodego": {
         "title": "OpenCodeGo",

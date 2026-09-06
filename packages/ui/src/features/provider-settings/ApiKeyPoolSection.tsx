@@ -3,6 +3,7 @@ import {
   ChevronRight,
   Key,
   Plus,
+  RefreshCw,
   Trash2
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -14,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { useUnbackedTitle } from '@/components/ui/unbacked';
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { cn } from '@/shared/utils/utils';
 
 import type { ApiKeyEntry, ApiKeyEntryInput, KeyHealthMap } from '@shared/llm-config';
 
@@ -140,6 +142,11 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
     void loadKeys();
   };
 
+  const handleQuotaRefresh = async (id: string) => {
+    await agent.llmConfig.refreshKeyQuota(providerId, id);
+    void loadKeys();
+  };
+
   /**
    * provider-storage-secrets: the full key is NEVER returned to the renderer.
    * Render an env `$VAR` reference verbatim (not a secret), otherwise the
@@ -150,6 +157,17 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
     if (entry.apiKey && entry.apiKey.startsWith('$')) return entry.apiKey;
     if (entry.keyHint) return entry.keyHint;
     return entry.hasKey ? '••••••••' : t('providerSettings.apiKeyPool.noKey');
+  };
+
+  /** Reuses the accounts allowance i18n keys (same window DTO, one wording). */
+  const quotaWindowLabel = (window: NonNullable<ApiKeyEntry['quota']>['windows'][number]): string => {
+    if (window.id === 'five-hour' || window.windowMinutes === 300) {
+      return t('accounts.allowance.fiveHour');
+    }
+    if (window.id === 'seven-day' || window.windowMinutes === 10_080) {
+      return t('accounts.allowance.weekly');
+    }
+    return window.label;
   };
 
   return (
@@ -210,6 +228,41 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
                             {renderKeyDisplay(entry)}
                           </code>
                         </div>
+                        {/* Plan quota windows (Z.AI coding plan, MiniMax Token
+                            Plan, …) — present only when the row has an adapter. */}
+                        {entry.quota && entry.quota.windows.length > 0 ? (
+                          <div className="space-y-1 pt-1">
+                            {entry.quota.windows.map((window) => {
+                              const percent = window.usedPercent === null
+                                ? null
+                                : Math.max(0, Math.min(100, window.usedPercent));
+                              return (
+                                <div key={window.id} className="min-w-0">
+                                  <div className="flex items-center justify-between gap-2 text-[10px]">
+                                    <span className="truncate text-muted-foreground">
+                                      {quotaWindowLabel(window)}
+                                      {window.modelFamily ? ` · ${window.modelFamily}` : ''}
+                                    </span>
+                                    <span className="shrink-0 font-medium">
+                                      {percent === null
+                                        ? t(`accounts.allowance.state.${window.state}`)
+                                        : t('accounts.allowance.used', { percent: Math.round(percent) })}
+                                    </span>
+                                  </div>
+                                  <div className="h-1 overflow-hidden rounded-full bg-surface-2">
+                                    <div
+                                      className={cn(
+                                        'h-full rounded-full transition-[width]',
+                                        window.state === 'fresh' ? 'bg-primary' : 'bg-muted-foreground/50',
+                                      )}
+                                      style={{ width: `${percent ?? 0}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Weight control */}
@@ -241,6 +294,19 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
                         disabled={POOL_EDIT_UNBACKED}
                         title={POOL_EDIT_UNBACKED ? unbackedTitle : undefined}
                       />
+
+                      {/* Quota refresh — only for keys with a plan-quota adapter */}
+                      {entry.quota ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground"
+                          onClick={() => void handleQuotaRefresh(entry.id)}
+                          title={t('accounts.allowance.refresh')}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
 
                       {/* Delete — backed by DELETE /providers/:id/keys/:keyId */}
                       <Button

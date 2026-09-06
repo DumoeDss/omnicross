@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Поставете кода тук",
       "submit": "Завърши влизането"
     },
+    "kimiOauth": {
+      "description": "Отворете страницата за потвърждение, въведете кода по-долу и одобрете заявката за влизане."
+    },
     "codexOauth": {
       "title": "Влезте в {{name}}",
       "description": "Отворете страницата за влизане в браузъра и оторизирайте. Демонът автоматично ще улови резултата — оставете тази страница отворена, докато завърши. Токенът никога не се показва.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Абонаментни идентификационни данни на Google Gemini, маршрутизирани от демона."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Учетни данни за абонамент Moonshot Kimi Code, насочвани от демона."
       },
       "opencodego": {
         "title": "OpenCodeGo",

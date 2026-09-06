@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "วาง code ที่นี่",
       "submit": "ยืนยันการเข้าสู่ระบบ"
     },
+    "kimiOauth": {
+      "description": "เปิดหน้ายืนยัน ป้อนรหัสด้านล่าง และอนุมัติคำขอลงชื่อเข้าใช้"
+    },
     "codexOauth": {
       "title": "เข้าสู่ระบบ {{name}}",
       "description": "เปิดหน้าเข้าสู่ระบบในเบราว์เซอร์และอนุญาต daemon จะรับผลลัพธ์โดยอัตโนมัติ — เปิดหน้านี้ไว้จนกว่าจะเสร็จสิ้น token จะไม่ถูกแสดง",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Google Gemini subscription credential ที่ route ผ่าน daemon"
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "ข้อมูลรับรองการสมัครใช้งาน Moonshot Kimi Code ที่กำหนดเส้นทางโดย daemon"
       },
       "opencodego": {
         "title": "OpenCodeGo",

@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Vložte kód sem",
       "submit": "Dokončit přihlášení"
     },
+    "kimiOauth": {
+      "description": "Otevřete ověřovací stránku, zadejte níže uvedený kód a schvalte žádost o přihlášení."
+    },
     "codexOauth": {
       "title": "Přihlásit se do {{name}}",
       "description": "Otevřete přihlašovací stránku v prohlížeči a autorizujte. Daemon výsledek automaticky zachytí — ponechte tuto stránku otevřenou, dokud se proces nedokončí. Token není nikdy zobrazen.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Přihlašovací údaje předplatného Google Gemini směrované daemonem."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Přihlašovací údaje předplatného Moonshot Kimi Code směrované démonem."
       },
       "opencodego": {
         "title": "OpenCodeGo",

@@ -282,15 +282,24 @@ export function fetchUpstream(
     ? () => fetch(url, { ...init, dispatcher } as RequestInit)
     : () => fetch(url, init);
 
-  // Passive Codex allowance capture. The egress context contains the account id
-  // selected for THIS request, so attribution cannot drift to the active/default
-  // account during concurrent pool traffic. Missing account ids and non-Codex
-  // calls are strict no-ops. Parsing/storage must never be able to break serving.
+  // Passive Codex/Claude allowance capture. The egress context contains the
+  // account id selected for THIS request, so attribution cannot drift to the
+  // active/default account during concurrent pool traffic. Codex reads the
+  // x-codex-* rate-limit headers; Claude reads the
+  // anthropic-ratelimit-unified-* headers (keeping its 5h/7d windows fresh
+  // between /api/oauth/usage polls). Missing account ids and other providers
+  // are strict no-ops. Parsing/storage must never be able to break serving.
   const doFetchWithAllowanceTap = (): Promise<Response> =>
     doFetch().then((response) => {
       if (ctx?.providerId === 'codex' && ctx.accountId) {
         try {
           getSharedAccountAllowanceStore().recordCodexHeaders(ctx.accountId, response.headers);
+        } catch {
+          /* allowance telemetry is best-effort */
+        }
+      } else if (ctx?.providerId === 'claude' && ctx.accountId) {
+        try {
+          getSharedAccountAllowanceStore().recordClaudeHeaders(ctx.accountId, response.headers);
         } catch {
           /* allowance telemetry is best-effort */
         }

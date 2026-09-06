@@ -1,0 +1,28 @@
+{
+  "id": "synthetic",
+  "presetId": "synthetic",
+  "name": "Synthetic",
+  "nameKey": "presetName.synthetic",
+  "apiFormat": "openai",
+  "api_base_url": "https://api.synthetic.new/openai/v1",
+  "models": [
+    "hf:moonshotai/Kimi-K3",
+    "hf:zai-org/GLM-5.3-Flash",
+    "hf:zai-org/GLM-5.2",
+    "hf:Qwen/Qwen3.8-27B",
+    "hf:openai/gpt-oss-120b"
+  ],
+  "modelConfigs": [
+    { "id": "hf:moonshotai/Kimi-K3", "name": "Kimi K3", "enabled": true, "category": "code", "functionCall": true },
+    { "id": "hf:zai-org/GLM-5.3-Flash", "name": "GLM-5.3 Flash", "enabled": true, "category": "code", "functionCall": true },
+    { "id": "hf:zai-org/GLM-5.2", "name": "GLM-5.2", "enabled": true, "category": "code", "functionCall": true },
+    { "id": "hf:Qwen/Qwen3.8-27B", "name": "Qwen3.8 27B", "enabled": true, "category": "code", "functionCall": true },
+    { "id": "hf:openai/gpt-oss-120b", "name": "gpt-oss-120b", "enabled": true, "category": "code", "functionCall": true }
+  ],
+  "description": "Synthetic 托管开源模型订阅（OpenAI 兼容端点）。密钥的 5 小时请求额度与每周积分会自动显示在密钥列表。",
+  "icon": "synthetic",
+  "website": "https://synthetic.new",
+  "docsUrl": "https://dev.synthetic.new/docs/api/overview",
+  "isSystem": true,
+  "features": ["coding-plan"]
+}

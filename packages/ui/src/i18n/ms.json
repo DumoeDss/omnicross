@@ -481,6 +481,9 @@
     "kuaishou": "Kuaishou KwaiKAT",
     "mthreads": "Moore Threads",
     "xiaomiMimoOpenai": "Xiaomi MiMo (OpenAI)",
+    "minimaxTokenPlan": "MiniMax Token Plan",
+    "umans": "Umans AI Coding Plan",
+    "synthetic": "Synthetic",
     "xiaomiMimoAnthropic": "Xiaomi MiMo (Anthropic)"
   },
   "common": {
@@ -874,6 +877,9 @@
       "codePlaceholder": "Tampal kod di sini",
       "submit": "Selesaikan log masuk"
     },
+    "kimiOauth": {
+      "description": "Buka halaman pengesahan, masukkan kod di bawah dan sahkan permintaan log masuk."
+    },
     "codexOauth": {
       "title": "Log masuk ke {{name}}",
       "description": "Buka halaman log masuk dalam pelayar anda dan benarkan. Daemon menangkap hasilnya secara automatik — biarkan ini terbuka sehingga selesai. Token tidak pernah ditunjukkan.",
@@ -957,6 +963,10 @@
       "gemini": {
         "title": "Gemini",
         "description": "Kelayakan langganan Google Gemini yang dihalakan oleh daemon."
+      },
+      "kimi": {
+        "title": "Kimi Code",
+        "description": "Kredensial langganan Moonshot Kimi Code yang diarahkan oleh daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

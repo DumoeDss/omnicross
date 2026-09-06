@@ -138,6 +138,28 @@ export type GeminiTokenConfig = {
 };
 
 /**
+ * Kimi Code (Moonshot) token configuration. OAuth is a RFC 8628 device flow
+ * (`auth.kimi.com`); the access token serves BOTH inference
+ * (`api.kimi.com/coding/v1`, anthropic + openai faces) and the
+ * `/coding/v1/usages` quota endpoint. `accountId` is the access-token JWT's
+ * `user_id | sub` claim; `deviceId` backs the `X-Msh-Device-Id` fingerprint
+ * header Kimi expects (stable per account, minted at login).
+ */
+export type KimiTokenConfig = {
+  authMethod: AuthMethod;
+  status: TokenStatus;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  accountId?: string;
+  deviceId?: string;
+  lastRefreshedAt?: string;
+  errorMessage?: string;
+  /** Managed-account credential warning (duplicate-token, projected on listing). */
+  syncWarning?: SyncWarningCode;
+};
+
+/**
  * A single subscription account entry. The provider's existing token config
  * is carried verbatim under a nested `tokens` field; entry metadata
  * (`id`/`label`/`createdAt`) is kept cleanly separate from token material so
@@ -226,6 +248,7 @@ export type AccountTokensConfig = {
   codex?: CodexTokenConfig;
   gemini?: GeminiTokenConfig;
   opencodego?: OpenCodeGoTokenConfig;
+  kimi?: KimiTokenConfig;
   // Per-provider account collections + active pointer (multi-account).
   claudeAccounts?: SubscriptionAccountEntry<ClaudeTokenConfig>[];
   activeClaudeAccountId?: string;
@@ -235,6 +258,8 @@ export type AccountTokensConfig = {
   activeGeminiAccountId?: string;
   opencodegoAccounts?: SubscriptionAccountEntry<OpenCodeGoTokenConfig>[];
   activeOpencodegoAccountId?: string;
+  kimiAccounts?: SubscriptionAccountEntry<KimiTokenConfig>[];
+  activeKimiAccountId?: string;
   updatedAt: string;
 };
 

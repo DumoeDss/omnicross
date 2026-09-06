@@ -37,6 +37,7 @@ import type {
   ClaudeTokenInput,
   CodexTokenInput,
   GeminiTokenInput,
+  KimiTokenInput,
   OpenCodeGoTokenInput,
   SubscriptionListEntry,
   SubscriptionProviderId,
@@ -99,6 +100,19 @@ function fromOpenCodeGo(input: OpenCodeGoTokenInput): Record<string, unknown> {
   return body;
 }
 
+/** Build the kimi write body — only the daemon's kimi allowlist. */
+function fromKimi(input: KimiTokenInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { authMethod: input.authMethod, status: input.status };
+  setStr(body, 'accessToken', input.accessToken);
+  setStr(body, 'refreshToken', input.refreshToken);
+  setStr(body, 'expiresAt', input.expiresAt);
+  setStr(body, 'accountId', input.accountId);
+  setStr(body, 'deviceId', input.deviceId);
+  setStr(body, 'lastRefreshedAt', input.lastRefreshedAt);
+  setStr(body, 'errorMessage', input.errorMessage);
+  return body;
+}
+
 /** Dispatch a write payload to the per-provider field-by-field builder. */
 function buildBody(payload: AccountTokenInput): Record<string, unknown> {
   switch (payload.providerId) {
@@ -110,6 +124,8 @@ function buildBody(payload: AccountTokenInput): Record<string, unknown> {
       return fromGemini(payload.input);
     case 'opencodego':
       return fromOpenCodeGo(payload.input);
+    case 'kimi':
+      return fromKimi(payload.input);
   }
 }
 
@@ -121,7 +137,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
       } catch {
         return {
           accounts: [],
-          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
         };
       }
     },
@@ -419,7 +435,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
     },
 
     async refreshAllowance(
-      providerId: 'claude',
+      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego',
       accountId: string,
     ): Promise<AccountAllowancesResult> {
       try {
@@ -437,6 +453,25 @@ export function createAccountsAdapter(): AgentAccountsApi {
           allowances: [],
           message: err instanceof Error ? err.message : 'failed to refresh account allowance',
         };
+      }
+    },
+
+    async pollKimiOAuth(sessionId: string): Promise<CodexOAuthStatus> {
+      try {
+        return await adminClient.get<CodexOAuthStatus>(
+          `/accounts/kimi/oauth/${encodeURIComponent(sessionId)}/status`,
+        );
+      } catch {
+        return { state: 'error' };
+      }
+    },
+
+    async cancelKimiOAuth(sessionId: string): Promise<MutationResult> {
+      try {
+        await adminClient.delete(`/accounts/kimi/oauth/${encodeURIComponent(sessionId)}`);
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };
       }
     },
 

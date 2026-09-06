@@ -56,6 +56,10 @@ export const PROVIDER_PROBE_PLANS: Record<SubscriptionProviderId, ProbePlan> = {
   codex: { kind: 'local' },
   gemini: { kind: 'local' },
   opencodego: { kind: 'local' },
+  // Kimi's `GET /coding/v1/usages` is a verified FREE authed GET (the allowance
+  // collector uses it), but the probe path also needs the fingerprint headers —
+  // keep the probe local until the collector covers the health surface.
+  kimi: { kind: 'local' },
 };
 
 /** Resolve the probe plan for a provider (defaults to local for an unknown id). */

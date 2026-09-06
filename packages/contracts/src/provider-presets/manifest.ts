@@ -26,6 +26,7 @@ import groq from './presets/groq.json';
 import kimi from './presets/kimi.json';
 import kuaishou from './presets/kuaishou.json';
 import minimax from './presets/minimax.json';
+import minimaxTokenPlan from './presets/minimax-token-plan.json';
 import mistral from './presets/mistral.json';
 import mthreads from './presets/mthreads.json';
 import ollama from './presets/ollama.json';
@@ -35,9 +36,11 @@ import openrouter from './presets/openrouter.json';
 import openrouterResponse from './presets/openrouter-response.json';
 import perplexity from './presets/perplexity.json';
 import siliconflow from './presets/siliconflow.json';
+import synthetic from './presets/synthetic.json';
 import tencent from './presets/tencent.json';
 import tencentAnthropic from './presets/tencent-anthropic.json';
 import together from './presets/together.json';
+import umans from './presets/umans.json';
 import volcengine from './presets/volcengine.json';
 import xiaomiMimo from './presets/xiaomi-mimo.json';
 import xiaomiMimoAnthropic from './presets/xiaomi-mimo-anthropic.json';
@@ -65,6 +68,8 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   mistral,
   together,
   perplexity,
+  synthetic,
+  umans,
   // Chinese cloud
   zhipu,
   zhipuBigmodel,
@@ -74,6 +79,7 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   tencent,
   tencentAnthropic,
   minimax,
+  minimaxTokenPlan,
   baidu,
   kuaishou,
   mthreads,

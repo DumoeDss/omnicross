@@ -133,7 +133,7 @@ export function useApiService(): UseApiServiceResult {
   const [providers, setProviders] = useState<LLMProvider[]>([]);
   const [accounts, setAccounts] = useState<AccountsListResponse>({
     accounts: [],
-    providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+    providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +176,7 @@ export function useApiService(): UseApiServiceResult {
       let provs: LLMProvider[] = [];
       let accts: AccountsListResponse = {
         accounts: [],
-        providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [] },
+        providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [] },
       };
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         [cfg, st, imageStatus, ks, vs, provs, accts] = await Promise.all([

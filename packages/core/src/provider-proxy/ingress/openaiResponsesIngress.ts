@@ -39,6 +39,7 @@ import {
 } from './providerProxyShared';
 import { getSharedAccountRouteActivity } from '../../pipeline/AccountRouteActivity';
 import { getSharedOverloadCounter } from '../../pipeline/ServerOverloadCounter';
+import { markCodexUsageLimitExhaustion } from './codexUsageLimitDetection';
 import {
   getResponsesAffinityStore,
   previousResponseNotFound,
@@ -90,12 +91,52 @@ const SERVER_OVERLOADED_CODES = new Set(['server_is_overloaded', 'slow_down']);
  * Exported for unit testing.
  */
 export function isCodexServerOverloadEvent(event: Record<string, unknown>): boolean {
-  if (event['type'] !== 'response.failed') return false;
+  const error = codexResponseFailedError(event);
+  const code = error?.['code'];
+  return typeof code === 'string' && SERVER_OVERLOADED_CODES.has(code);
+}
+
+/**
+ * Extract the `error` object of a `response.failed` SSE event, else `null`.
+ * Shared by the overload classifier and the in-stream usage-limit classifier.
+ */
+function codexResponseFailedError(
+  event: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (event['type'] !== 'response.failed') return undefined;
   const error = (event['response'] as Record<string, unknown> | undefined)?.['error'] as
     | Record<string, unknown>
     | undefined;
+  return error && typeof error === 'object' ? error : undefined;
+}
+
+/**
+ * SSE `response.failed` `error.code` values that mean THIS account hit its
+ * usage/subscription wall (as opposed to the account-independent overload
+ * codes). Like the overload family these arrive INSIDE a `200` stream, so the
+ * 429-quota retry never fires — classify + mark the account here so NEW
+ * sessions divert before they, too, eat a failed stream.
+ */
+const USAGE_LIMIT_CODES = new Set(['usage_limit_reached', 'usage_not_included']);
+
+/**
+ * True when a parsed Responses-API SSE event is an in-stream usage-limit
+ * failure. Exported for unit testing.
+ */
+export function isCodexUsageLimitEvent(event: Record<string, unknown>): boolean {
+  const error = codexResponseFailedError(event);
   const code = error?.['code'];
-  return typeof code === 'string' && SERVER_OVERLOADED_CODES.has(code);
+  return typeof code === 'string' && USAGE_LIMIT_CODES.has(code);
+}
+
+/**
+ * Render a `response.failed` event's error object back to the JSON body shape
+ * `markCodexUsageLimitExhaustion` parses (`{ error: { code, resets_at } }`),
+ * so its structured deadline path applies to in-stream failures too.
+ */
+export function codexUsageLimitEventBody(event: Record<string, unknown>): string {
+  const error = codexResponseFailedError(event);
+  return JSON.stringify({ error: error ?? {} });
 }
 /**
  * Match the codex `/responses` route: `POST` + any path ENDING IN `/responses`
@@ -490,9 +531,24 @@ export async function handleResponsesOperation(
     };
   }
   let overloadRecorded = false;
+  let usageLimitRecorded = false;
   const observeSse = (event: Record<string, unknown>): void => {
     if (event.type === 'response.completed') {
       recordAffinity((event.response as Record<string, unknown> | undefined)?.id);
+    }
+    // In-stream usage-limit wall (`200` + response.failed): mark the serving
+    // account quota-exhausted so NEW sessions divert; the stream itself is
+    // already failed and is relayed as-is. Distinct from the overload family,
+    // which is account-independent and must NOT divert accounts.
+    if (!usageLimitRecorded && isCodexUsageLimitEvent(event)) {
+      usageLimitRecorded = true;
+      if (providerResponse.accountId) {
+        markCodexUsageLimitExhaustion(
+          providerResponse.accountId,
+          codexUsageLimitEventBody(event),
+        );
+      }
+      return;
     }
     if (overloadRecorded || !isCodexServerOverloadEvent(event)) return;
     overloadRecorded = true;

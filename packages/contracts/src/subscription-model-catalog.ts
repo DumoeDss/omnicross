@@ -25,13 +25,16 @@ import type { SubscriptionProviderId } from './subscription-types';
  * The model ids each subscription provider serves, small → large.
  *
  * - claude: `claude-haiku-4-5` < `claude-sonnet-5` < `claude-opus-5` < `claude-fable-5`
- * - codex:  `gpt-5.6-luna` (nano) < `gpt-5.6-terra` (mini) < `gpt-5.6-sol` (flagship)
+ * - codex:  `gpt-5.6-luna` (nano) < `gpt-5.6-terra` (mini) < `gpt-5.6-sol` (flagship) < `gpt-6-astra`
  */
 export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]> = {
   claude: ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5', 'claude-fable-5'],
-  codex: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol'],
+  codex: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-6-astra'],
   gemini: [],
   opencodego: [],
+  // Kimi Code's subscription catalog (the official CLI's built-ins + the
+  // k2.6/k2.7-code coding models, small → large).
+  kimi: ['kimi-k2.5', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3', 'kimi-for-coding', 'kimi-for-coding-highspeed'],
 };
 
 /** Whether a provider has any cataloged models (drives UI model-picker gating). */
