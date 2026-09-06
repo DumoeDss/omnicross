@@ -19,3 +19,10 @@ pricing-refresh.json
 /.codex/
 /.rasen/
 /.ua/
+/director/
+
+# Generated image artifacts and local scratch (image-gen doc examples write
+# user outputs to assets/generated/; output/ and tmp/ are session workspaces)
+/assets/generated/
+/output/
+/tmp/

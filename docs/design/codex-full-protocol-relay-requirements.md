@@ -1,77 +1,11 @@
 # Omnicross 的 Codex 完整中转协议需求
 
-> 状态：Draft / Ready for technical review
->
-> 审计日期：2026-08-29
->
-> 审计基线：Omnicross `main`；Codex CLI `0.150.1`
->
+> 状态：Draft / Ready for technical review  
+> 审计日期：2026-08-29  
+> 审计基线：Omnicross `main`；Codex CLI `0.150.1`  
 > 受众：`@omnicross/core`、`@omnicross/subscriptions`、daemon、CLI integration 与测试维护者
 
 本文中的“必须 / MUST”“应该 / SHOULD”“可以 / MAY”具有需求约束含义。
-
-## 0. Session A 执行契约
-
-本节是可直接交给独立开发 session 的启动合同；若与后文较宽的路线图冲突，以本节对本 Change 的收口为准。
-
-### 0.1 身份与前置条件
-
-| 项目 | 固定值 |
-|---|---|
-| Rasen Change | `codex-responses-core-profile` |
-| 开发分支 | `feat/codex-responses-core-profile` |
-| 建议 worktree | `omnicross--codex-responses-core-profile` |
-| 集成基线 | 共享 operation dispatch / registry PR 合并后的最新 `origin/main` SHA |
-
-启动前必须确认共享前置 PR 已合并。不得从未合并的本地共享提交、另一个业务分支或陈旧的本地 `main` 建立此分支，也不得把前置分支的提交 SHA 硬编码成长期依赖。
-
-Session 启动顺序固定为：
-
-1. 在 Omnicross 仓库执行 `git fetch origin main`。
-2. 解析并记录 `git rev-parse origin/main`；该值是本 session 的 `BASE_SHA`。
-3. 确认目标分支和 worktree 路径不存在。
-4. 从同一个 `BASE_SHA` 创建上述 worktree 与分支。
-5. 在 Change 的 design/evidence 中记录 `BASE_SHA`，以便与 Image session 对账。
-
-### 0.2 本 session 的 P0 范围
-
-必须完成：
-
-- Native Responses Profile：请求字段、input/output item、JSON、SSE 未知事件和原生错误不得被 reduced transformer 静默改写。
-- `POST /v1/responses/compact` 的原生 relay，并复用现有 Responses admission、路由、配额、并发、审计和账号选择。
-- compact 输出按 OpenAI 官方语义作为**完整的下一轮 canonical context window**返回；不得只挑出 compaction item，也不得裁剪返回的 output。
-- 原生 response status、必要响应头、request ID、`Retry-After`、rate-limit 信息和 SSE 时序保真。
-- 客户端断开、请求超时与上游取消使用共享 `AbortSignal` 收敛，且释放流、监听器和并发槽。
-- `previous_response_id`、stored upstream state 与 provider/account affinity 的安全约束；不能跨账号误续接。
-- Reduced profile 的显式白名单和早拒绝：无法保真的字段、item 或 hosted tool 必须在上游调用前返回结构化 unsupported 错误。
-
-明确排除：
-
-- `/v1/images/generations`、`/v1/images/edits` 和 Responses `image_generation` 的本地执行。
-- standalone web search、Files、`/responses/input_tokens`、stored/background Responses 附属方法。
-- Responses WebSocket。
-- 最终 ImageProvider、图片权限/UI、multipart、产物存储或订阅生图私有协议。
-
-### 0.3 文件所有权与并行约束
-
-本 session 拥有：
-
-- `packages/core/src/provider-proxy/ingress/openaiResponsesIngress.ts`
-- `packages/core/src/provider-proxy/ingress/providerProxyShared.ts`
-- 新增的 compact/native Responses adapter、header relay、affinity 与对应测试文件
-- Core profile 所需但不承载图片业务的最小配置/能力测试
-
-本 session 不得修改 `packages/core/src/openai-operation/**`，不得重新定义 operation ID、registry、错误包络或取消契约。它只消费共享前置 Change 已发布的接口。
-
-Compact 实现必须以独立的 `responses.compact` handler/registration contribution 导出；业务代码不得直接占用最终 daemon/app-session bootstrap。若 Image session 也需要同一个 composition 文件，由最终 integrator 统一完成注册。
-
-### 0.4 交付与验收
-
-完成前至少应具备：
-
-- compact full-window round trip、unknown field/item/event、header/error/abort、affinity 和 reduced-profile 早拒绝的 contract/golden tests。
-- Core typecheck、直接相关测试及仓库约定的构建检查。
-- 一份说明已实现能力、明确未支持能力、`BASE_SHA` 与交给最终 integrator 的 contribution 的 handoff。
 
 ## 1. 结论
 
@@ -425,9 +359,9 @@ MUST 区分：
 - Responses `image_generation` 与 partial events。
 - `/images/generations`、`/images/edits`。
 - capability、产物引用、并发、取消、usage/audit、安全限制。
-- 本期不实现 standalone web search；它保持为后续独立 Change。
+- standalone web search 先 capture/冻结 wire，再实现与广告。
 
-退出条件：当前 Codex `$imagegen` 与 OpenAI JS/Python SDK image smoke 通过；未实现的 web search capability 保持关闭。
+退出条件：当前 Codex `$imagegen`、OpenAI JS/Python SDK image smoke、web search current-Codex e2e 通过。
 
 ### Change C：`codex-responses-websocket`
 
@@ -449,7 +383,7 @@ A 与 B 可以先冻结共同 contracts 后并行；C 独立于 Images，但依�
 ## 14. 验收标准
 
 - **AC-01**：当前 Codex 通过 Omnicross 完成普通文本、reasoning、function/custom tool 多轮循环。
-- **AC-02**：`/responses/compact` 返回完整 canonical compacted window，下一轮原样使用其 output 可继续任务；不得只保留 compaction item。
+- **AC-02**：`/responses/compact` 返回完整 `response.compaction`，下一轮使用其 output 可继续任务。
 - **AC-03**：native profile 对未知顶层字段、item 与 SSE event 不删除、不改名。
 - **AC-04**：reduced profile 收到无法保真的 hosted tool 或 item 时，在调用上游前返回结构化 unsupported 错误。
 - **AC-05**：429/5xx、`Retry-After`、request ID 与 response.failed/incomplete 对 Codex 可见。
@@ -501,3 +435,4 @@ A 与 B 可以先冻结共同 contracts 后并行；C 独立于 Images，但依�
 - [Images and vision](https://developers.openai.com/api/docs/guides/images-vision)
 - [Files API](https://developers.openai.com/api/reference/resources/files)
 - [Error codes](https://developers.openai.com/api/docs/guides/error-codes)
+
