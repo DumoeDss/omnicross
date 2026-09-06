@@ -50,6 +50,11 @@ import {
   DownstreamRoutesWorkspace,
   type DownstreamResourceOption,
 } from './DownstreamRoutesWorkspace';
+import {
+  quotaChipLabel,
+  useProviderKeyQuotaSummaries,
+  type KeyQuotaSummaryWindow,
+} from './useProviderKeyQuota';
 
 import type { LLMProvider } from '@shared/llm-config';
 
@@ -168,6 +173,10 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const accountRows = useMemo(
     () => flattenAccounts(accountsApi.data, accountsApi.allowances),
     [accountsApi.allowances, accountsApi.data],
+  );
+  // BYO key-pool quota chips for the provider rows (most-used key per window).
+  const keyQuotaSummaries = useProviderKeyQuotaSummaries(
+    useMemo(() => providersApi.providers.map((provider) => provider.id), [providersApi.providers]),
   );
   const visibleAccountRows = useMemo(
     () => route.accountFilters
@@ -585,6 +594,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                     resource={provider}
                     selected={selectedResource?.key === provider.key}
                     bindingCount={bindingCountFor(provider)}
+                    quotaWindows={keyQuotaSummaries.get(provider.providerId)}
                     onClick={() => navigateSelection(provider)}
                   />
                 ))}
@@ -659,11 +669,13 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   );
 }
 
-function ResourceRow({ resource, selected, bindingCount, expanded, onClick }: {
+function ResourceRow({ resource, selected, bindingCount, expanded, quotaWindows, onClick }: {
   resource: UpstreamResource;
   selected: boolean;
   bindingCount: number;
   expanded?: boolean;
+  /** BYO provider rows: most-used-key quota windows (plan-quota adapters only). */
+  quotaWindows?: KeyQuotaSummaryWindow[];
   onClick: () => void;
 }) {
   const t = useTranslation();
@@ -709,6 +721,17 @@ function ResourceRow({ resource, selected, bindingCount, expanded, onClick }: {
         <span className={cn('block truncate text-sm', resource.kind === 'account-pool' ? 'font-semibold' : 'font-medium')}>{resource.label}</span>
         <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
           <span>{t(`upstreams.kind.${resource.kind}`)}</span><span>·</span><span>{status}</span>
+          {quotaWindows?.map((window) => (
+            <React.Fragment key={window.id}>
+              <span>·</span>
+              <span
+                title={window.resetsAt ? `${window.label} · ${new Date(window.resetsAt).toLocaleString()}` : window.label}
+                className={(window.usedPercent ?? 0) >= 80 ? 'font-medium text-foreground' : undefined}
+              >
+                {quotaChipLabel(window.id, window.label)} {window.usedPercent}%
+              </span>
+            </React.Fragment>
+          ))}
         </span>
       </span>
       {bindingCount ? (
