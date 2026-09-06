@@ -274,6 +274,10 @@ function toLLMProvider(row: DaemonProviderConfig): LLMProvider {
     // `parseProviderInput`), so customizations are preserved (the row value wins).
     apiModes: row.apiModes,
     selectedApiModeId: row.selectedApiModeId,
+    // Static extra request headers ride along verbatim (load-guarded — no
+    // auth/content names); core's `getProviderHeaders` merges them into every
+    // BYO request, and the same-format relay path inherits that funnel.
+    extraHeaders: row.extraHeaders,
     // Official-Anthropic signature handling only matters for the Anthropic
     // ingress (deferred → 502); leave it off for the BYO transform path.
     isOfficial: false,

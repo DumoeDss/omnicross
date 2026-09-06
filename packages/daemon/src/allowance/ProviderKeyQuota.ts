@@ -19,6 +19,12 @@
  *      .status_code === 0` is the real success gate. `model_remains[]` buckets
  *      each carry a rolling interval + weekly window as REMAINING percent
  *      (0-100); the `"general"` bucket is the plan-wide shared quota.
+ *  - Cline Pass:
+ *      GET {origin}/api/v1/users/me/plan/usage-limits
+ *      `Authorization: Bearer <key>` PLUS the Cline client-identity header set
+ *      (the row's `extraHeaders` — the gateway 403s without the full mirror).
+ *      `limits[]` rows carry `{type: five_hour|weekly|monthly, percentUsed,
+ *      resetsAt}` — pure percentage windows, no absolute meters.
  *
  * Everything here is pure; the fetch/cache lifecycle lives in
  * `ProviderKeyQuotaService`. Windows reuse the subscription `AllowanceWindow`
@@ -32,7 +38,8 @@ export type ProviderKeyQuotaAdapter =
   | 'zai'
   | 'minimax-token-plan'
   | 'umans'
-  | 'synthetic';
+  | 'synthetic'
+  | 'cline-pass';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -104,6 +111,7 @@ export function detectProviderKeyQuotaAdapter(baseUrl: string | undefined): Prov
   }
   if (host === 'api.code.umans.ai') return 'umans';
   if (host === 'api.synthetic.new') return 'synthetic';
+  if (host === 'api.cline.bot') return 'cline-pass';
   return null;
 }
 
@@ -113,6 +121,7 @@ export function providerKeyQuotaUrl(adapter: ProviderKeyQuotaAdapter, baseUrl: s
   if (adapter === 'zai') return `${origin}/api/monitor/usage/quota/limit`;
   if (adapter === 'minimax-token-plan') return `${origin}/v1/token_plan/remains`;
   if (adapter === 'umans') return `${origin}/v1/usage`;
+  if (adapter === 'cline-pass') return `${origin}/api/v1/users/me/plan/usage-limits`;
   return `${origin}/v2/quotas`; // synthetic (NOT under the /openai prefix)
 }
 
@@ -422,6 +431,47 @@ export function parseSyntheticQuotasPayload(payload: unknown, now: number): Allo
       ...(resetsAt !== undefined ? { resetsAt } : {}),
       remainingSeconds: secondsUntil(resetsAt, now),
       state: usedPercent !== null || resetsAt ? 'fresh' : 'unavailable',
+    });
+  }
+  return windows.length > 0 ? windows : null;
+}
+
+// ── Cline Pass ────────────────────────────────────────────────────────────────
+
+/** Window type → the shared allowance-window id/label/duration. */
+const CLINE_WINDOW_CONFIG: Record<string, { id: string; label: string; minutes: number }> = {
+  five_hour: { id: 'five-hour', label: '5 hours', minutes: 5 * 60 },
+  weekly: { id: 'seven-day', label: '7 days', minutes: 7 * 24 * 60 },
+  monthly: { id: 'thirty-day', label: '30 days', minutes: 30 * 24 * 60 },
+};
+
+/**
+ * Parse the Cline Pass `/users/me/plan/usage-limits` payload. Pure percentage
+ * windows (no absolute meters); the monthly window is reported too — this view
+ * is display-only quota telemetry, not the account scheduler, so the extra
+ * window is information rather than a worst-window risk.
+ */
+export function parseClinePassUsageLimitsPayload(payload: unknown, now: number): AllowanceWindow[] | null {
+  if (!isRecord(payload)) return null;
+  const data = isRecord(payload['data']) ? (payload['data'] as Record<string, unknown>) : payload;
+  const limits = Array.isArray(data['limits']) ? data['limits'] : [];
+  const windows: AllowanceWindow[] = [];
+  for (const raw of limits) {
+    if (!isRecord(raw)) continue;
+    const config = CLINE_WINDOW_CONFIG[typeof raw['type'] === 'string' ? raw['type'] : ''];
+    if (!config) continue;
+    const usedPercent = finitePercent(raw['percentUsed']);
+    if (usedPercent === null) continue;
+    const resetsAt = isoInstant(raw['resetsAt']);
+    windows.push({
+      id: config.id,
+      label: config.label,
+      scope: 'all',
+      usedPercent,
+      windowMinutes: config.minutes,
+      ...(resetsAt !== undefined ? { resetsAt } : {}),
+      remainingSeconds: secondsUntil(resetsAt, now),
+      state: 'fresh',
     });
   }
   return windows.length > 0 ? windows : null;

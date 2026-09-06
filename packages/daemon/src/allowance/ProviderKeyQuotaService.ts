@@ -15,6 +15,7 @@
  */
 
 import type { AllowanceWindow } from '@omnicross/contracts/account-allowance-types';
+import { mergeExtraHeaders } from '@omnicross/core';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
 import type { DaemonProviderConfig } from '../config';
@@ -22,6 +23,7 @@ import type { SecretBox } from '../secrets';
 
 import {
   detectProviderKeyQuotaAdapter,
+  parseClinePassUsageLimitsPayload,
   parseMiniMaxTokenPlanPayload,
   parseSyntheticQuotasPayload,
   parseUmansUsagePayload,
@@ -45,6 +47,8 @@ function parseQuotaPayload(
       return parseUmansUsagePayload(payload, now);
     case 'synthetic':
       return parseSyntheticQuotasPayload(payload, now);
+    case 'cline-pass':
+      return parseClinePassUsageLimitsPayload(payload, now);
   }
 }
 
@@ -169,6 +173,9 @@ export class ProviderKeyQuotaService {
         Authorization: providerKeyQuotaAuthHeader(adapter, key),
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        // The row's static identity headers ride along — the Cline usage
+        // endpoint sits behind the SAME client-identity 403 gate as inference.
+        ...mergeExtraHeaders({}, row.extraHeaders),
       },
       signal: AbortSignal.timeout(15_000),
     });

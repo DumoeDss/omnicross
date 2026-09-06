@@ -229,6 +229,12 @@ OAuth 与 omnicross 完全同源（同 client_id `app_EMoamEEZ73f0CkXaXp7hrann`�
 - umans 预设（anthropic 面）+ quota 适配（硬上限 raw 计数为准，软上限 weighted 只作回退）。
 - synthetic 预设（openai 面）+ quota 适配（5h 请求数 tick 回复 + 周美元积分）。
 
-**P2 未做（后续）**：SuperGrok/Copilot（设备码 OAuth，各自 billing/配额头较重）、google-gemini-cli/antigravity（需 CCA wire 翻译器，独立 change）、cline-pass（预设 schema 无自定义请求头能力，需先扩展 BYO 行的 headers 机制）、kilo（与 openrouter 重叠）、alibaba-token-plan（Cookie 运维型）、opencode-zen 预设、GitLab Duo、Cursor/Devin（P3）。
+**P2 未做（后续）**：SuperGrok/Copilot（设备码 OAuth，各自 billing/配额头较重）、google-gemini-cli/antigravity（需 CCA wire 翻译器，独立 change）、kilo（与 openrouter 重叠）、alibaba-token-plan（Cookie 运维型）、GitLab Duo、Cursor/Devin（P3）。
+
+**第二轮落地（2026-09-06 下午）**
+
+- **cline-pass 完成**（原卡点「预设 schema 无自定义请求头能力」已解决）：新建通用 `extraHeaders` 基建——contracts 上 `PresetProviderTemplate.extraHeaders` + `LLMProvider.extraHeaders`；core `getProviderHeaders` 合并点（`mergeExtraHeaders`，支持 `{{platform}}` 占位符、保留名集合 `EXTRA_HEADER_RESERVED_NAMES` 在合并点二次强制，auth/content 头永不可覆盖）；daemon 侧 config 加载守卫 + admin 写网关三态写契约 + GET 视图 round-trip + preset-map/MappablePreset/admin presets 投影 + discover-models/test-model 探测合并 + ProviderKeyQuota 配额探测合并；UI 侧 DaemonPresetView/adapter/表单（模板预填创建路径带上，编辑路径 omit-keeps）。cline-pass 预设 18 模型（付费档 wire id 带 `cline-pass/` 前缀、free 档原样直通）+ 配额适配器（`/api/v1/users/me/plan/usage-limits` 三窗百分比：5h/周/月；同 Bearer key + 行身份头）。
+- **opencode-zen BYO 预设判定不做**：oh-my-pi 目录 34 个 opencode 模型全在 go 半（`/zen/go/v1`），zen 半无静态清单（纯动态发现）；且 go 半按模型分 chat/responses/anthropic 三种 wire，单 apiFormat 的 BYO 预设表达不了——订阅 provider（已存在、双半多 wire、带 usage collector）才是正确载体，BYO 预设只会产出残缺目录。
+- SuperGrok 契约已从源码复核（`packages/ai/src/registry/oauth/xai-oauth.ts` + `usage/xai-oauth.ts`）：设备码 client `b1a00492-073a-47ea-816f-4c329264a828`，token endpoint 经 OIDC discovery 钉 `*.x.ai`；billing 双形态解析要点——weekly `?format=credits` 的 `config.creditUsagePercent` 缺失时活跃窗口按 0 推断（`inferredPercent`），`config.isUnifiedBillingUser===true` 时须再探默认 URL 的月度 `monthlyLimit/used`（正数则用月度，否则确认周重置循环）；两探针均失败时丢弃推断值保 last-good。billing 头集 `Authorization: Bearer` + `X-XAI-Token-Auth: xai-grok-cli`，`redirect: error`。
 
 **顺带修复**：main 上 `importSurface.test.ts` 期望的 README 短语已过期（b190db1 改了 README 未同步测试）。

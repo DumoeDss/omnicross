@@ -49,6 +49,7 @@ import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-t
 import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
+import { mergeExtraHeaders } from '@omnicross/core';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
 import type { FetchLike } from '@omnicross/subscriptions';
@@ -83,6 +84,7 @@ import {
   loadConfig,
   migrateFormatAxis,
   saveConfig,
+  validateExtraHeaders,
   validateThinkingLevels,
   validateThinkingTokenLimit,
   validateTransformerEntry,
@@ -486,6 +488,7 @@ function toProviderView(row: DaemonProviderConfig): {
   apiVersion?: string;
   maxConcurrency?: number;
   modelsEndpoint?: string;
+  extraHeaders?: Record<string, string>;
   transformer?: DaemonTransformerConfig;
   codingPlan?: { enabled: boolean; baseUrl?: string; hasApiKey: boolean; note?: string };
   apiModes?: Array<{ id: string; label: string; baseUrl: string; hasApiKey: boolean; apiKeyPrefix?: string; note?: string }>;
@@ -511,6 +514,9 @@ function toProviderView(row: DaemonProviderConfig): {
     apiVersion: row.apiVersion,
     maxConcurrency: row.maxConcurrency,
     modelsEndpoint: row.modelsEndpoint,
+    // Static extra headers round-trip VERBATIM (non-secret identity values;
+    // auth/content names were already dropped at the write/load gate).
+    extraHeaders: row.extraHeaders,
     // app-parity child 5: transformer config round-trips VERBATIM (non-secret —
     // transform-rule names + options, no key material; absent stays absent).
     transformer: row.transformer,
@@ -877,6 +883,15 @@ async function handleProviderReorder(
 }
 
 /**
+ * A provider row's static extra headers with `{{platform}}` expanded — for the
+ * admin probe paths (discover-models / test-model) that build headers inline
+ * instead of going through core's `getProviderHeaders` funnel.
+ */
+function expandRowExtraHeaders(row: DaemonProviderConfig): Record<string, string> {
+  return mergeExtraHeaders({}, row.extraHeaders);
+}
+
+/**
  * `POST /admin/api/providers/:id/discover-models` (app-foundation D8) — list the
  * upstream models for an OpenAI-format provider via `GET {baseUrl}/models`.
  *
@@ -913,6 +928,9 @@ async function handleDiscoverModels(
   try {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
+    // Static extra headers (e.g. the Cline identity set) gate the SAME `/models`
+    // surface as completions — without them discovery 403s on gated gateways.
+    Object.assign(headers, expandRowExtraHeaders(row));
     // upstream-proxy: BYO discover-models egress honors the global/provider proxy.
     const response = await fetchUpstream(url, { method: 'GET', headers }, { providerId: 'byo' });
     if (!response.ok) {
@@ -1004,6 +1022,9 @@ async function handleTestModel(
       messages: [{ role: 'user', content: prompt }],
     };
   }
+  // Static extra headers (e.g. the Cline identity set) — same gate as the
+  // completion path; without them the probe 403s on gated gateways.
+  Object.assign(headers, expandRowExtraHeaders(row));
 
   const startedAt = Date.now();
   try {
@@ -1606,6 +1627,18 @@ export function parseProviderInput(
       : body['maxConcurrency'] === null
         ? undefined
         : existing?.maxConcurrency;
+  // Static extra headers: the SAME three-way write contract —
+  //   OMIT (key absent)  → keep the stored map (no accidental wipe);
+  //   null               → CLEAR the stored map (→ undefined);
+  //   object             → REPLACE via the load guard's allowlist
+  //                        (`validateExtraHeaders` — reserved auth/content names
+  //                        dropped, two-gateway lockstep with the load path).
+  const extraHeaders =
+    body['extraHeaders'] === null
+      ? undefined
+      : body['extraHeaders'] === undefined
+        ? existing?.extraHeaders
+        : validateExtraHeaders(body['extraHeaders']);
   // Transformer config (app-parity child 5): the SAME three-way write contract —
   //   OMIT (key absent)  → keep the existing stored value (no accidental wipe);
   //   null               → CLEAR the stored config (→ undefined);
@@ -1678,6 +1711,7 @@ export function parseProviderInput(
     apiVersion,
     maxConcurrency,
     modelsEndpoint,
+    extraHeaders,
     transformer: migrated.transformer,
     codingPlan,
     apiModes,
@@ -1718,6 +1752,9 @@ function handlePresets(res: http.ServerResponse, method: string): void {
     features: p.features,
     website: p.website,
     modelsEndpoint: p.modelsEndpoint,
+    // Static extra headers ride along so `addFromPreset` can seed them onto the
+    // row (the write gateway re-validates via the shared allowlist).
+    extraHeaders: p.extraHeaders,
   }));
   return writeJson(res, 200, { presets, excluded });
 }

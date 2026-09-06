@@ -74,6 +74,17 @@ describe('preset → daemon-row mapping', () => {
     });
   });
 
+  it('carries the Cline Pass preset identity headers onto the row and the mappable view', () => {
+    const preset = getPresetById('cline-pass')!;
+    expect(preset.apiFormat).toBe('openai');
+    expect(preset.extraHeaders?.['X-CLIENT-TYPE']).toBe('cline-sdk');
+    const r = mapPresetToProvider(preset, { key: 'sk_1' });
+    if (!('provider' in r)) throw new Error('expected provider');
+    expect(r.provider.extraHeaders).toEqual(preset.extraHeaders);
+    const view = listMappablePresets().mappable.find((p) => p.id === 'cline-pass');
+    expect(view?.extraHeaders).toEqual(preset.extraHeaders);
+  });
+
   it('excludes azure-openai with a reason', () => {
     const preset = getPresetById('azure-openai')!;
     const r = mapPresetToProvider(preset, { key: 'sk-x' });

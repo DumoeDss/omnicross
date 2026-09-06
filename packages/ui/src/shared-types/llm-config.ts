@@ -213,6 +213,12 @@ export interface LLMProvider {
   presetRef?: string;
   overriddenFields?: string[];
   /**
+   * Static identity/attribution headers the daemon merges into every request
+   * for this provider (non-secret; values may carry `{{platform}}`). Hydrated
+   * from the daemon view; absent for rows created before the field existed.
+   */
+  extraHeaders?: Record<string, string>;
+  /**
    * App-only marker: a synthesized "available preset" row merged into the list
    * that does NOT yet exist as a real daemon provider. The form handlers detect
    * this and MATERIALIZE it (create the real provider) on first key/enable, then
@@ -250,6 +256,7 @@ export interface LLMProviderInput {
   sortOrder?: number;
   apiModes?: ApiMode[];
   selectedApiModeId?: string;
+  extraHeaders?: Record<string, string>;
 }
 
 export interface LLMProviderUpdateInput {
@@ -284,6 +291,8 @@ export interface LLMProviderUpdateInput {
   sortOrder?: number;
   apiModes?: ApiMode[];
   selectedApiModeId?: string;
+  /** Three-way: omit→keep, `null`→clear, value→set (matches the daemon gate). */
+  extraHeaders?: Record<string, string> | null;
 }
 
 export interface LLMProviderResult {

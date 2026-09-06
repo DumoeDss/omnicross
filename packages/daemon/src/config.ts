@@ -28,7 +28,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
 import type { UsageRetentionConfig } from './usage/UsagePruneSweeper';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
-import type { OutboundApiServerConfig } from '@omnicross/core';
+import { EXTRA_HEADER_RESERVED_NAMES, type OutboundApiServerConfig } from '@omnicross/core';
 
 import { decryptConfigSecrets, encryptConfigSecrets, type SecretBox } from './secrets';
 
@@ -270,6 +270,18 @@ export interface DaemonProviderConfig {
    */
   modelsEndpoint?: string;
   /**
+   * OPTIONAL static extra request headers merged into every BYO request for
+   * this row — identity/attribution contracts some gateways hard-gate on
+   * (e.g. the Cline client-identity set). Additive + back-compat: absent
+   * reads as undefined. NON-SECRET — round-trips verbatim on GET; values may
+   * carry `{{platform}}` (resolved to `process.platform` at request time).
+   * ENFORCED: the outbound header funnel (`getProviderHeaders`) +
+   * discover-models + test-model merge them; auth/content header NAMES are
+   * dropped by the load guard (`validateExtraHeaders`) so credentials stay
+   * key-field-only.
+   */
+  extraHeaders?: Record<string, string>;
+  /**
    * OPTIONAL provider transformer config (app-parity child 5). Additive +
    * back-compat: absent reads as the prior default (undefined). NON-SECRET —
    * round-trips verbatim on GET (no masking). ENFORCED (parity-2 child 2): the
@@ -429,6 +441,36 @@ export const FORMAT_AXIS_TRANSFORMERS: readonly string[] = [
   'openai-response',
   'gemini-code-assist',
 ];
+
+/**
+ * Header names an `extraHeaders` entry may NEVER take (compared
+ * case-insensitively). Re-exported from core's header funnel — the SINGLE
+ * canonical list, so the load/write guards and the merge point cannot drift.
+ * Credentials come ONLY from the key fields (the masked secret spine), and the
+ * body framing headers are the format funnel's job.
+ */
+export { EXTRA_HEADER_RESERVED_NAMES };
+
+/**
+ * Shape-guard the optional `extraHeaders` map. Non-object collapses to
+ * `undefined`; entries with a non-blank name + string value are kept VERBATIM
+ * except that reserved auth/content names (see `EXTRA_HEADER_RESERVED_NAMES`)
+ * are silently dropped; a fully-dropped/empty map collapses to `undefined`.
+ * Exported so the admin write gateway (`parseProviderInput`) reuses the SAME
+ * allowlist as the load guard (the two-gateway lockstep invariant).
+ */
+export function validateExtraHeaders(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const reserved: ReadonlySet<string> = EXTRA_HEADER_RESERVED_NAMES;
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!name.trim()) continue;
+    if (typeof value !== 'string') continue;
+    if (reserved.has(name.toLowerCase())) continue;
+    out[name] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 /**
  * Shape-guard the optional `apiKeys` pool array (design D1). Mirrors the
@@ -760,6 +802,9 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
     apiVersion,
     maxConcurrency,
     modelsEndpoint,
+    // Static extra headers: load-guard (reserved names dropped), collapse-to-
+    // undefined; enforced by the outbound header funnel + admin probes.
+    extraHeaders: validateExtraHeaders(p['extraHeaders']),
     // Provider transformer config (app-parity child 5): load-guard, collapse-to-
     // undefined; non-secret; ENFORCED via resolveTransformerChain (parity-2 child 2).
     // Format-axis entries are stripped by `migrateFormatAxis` — `use[]` is the

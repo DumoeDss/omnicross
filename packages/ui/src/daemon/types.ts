@@ -136,6 +136,12 @@ export interface DaemonProviderView {
    */
   apiModes?: Array<{ id: string; label: string; baseUrl: string; hasApiKey: boolean; apiKeyPrefix?: string; note?: string }>;
   selectedApiModeId?: string;
+  /**
+   * Static identity/attribution headers the daemon merges into every request
+   * (non-secret; values may carry `{{platform}}`, expanded daemon-side at
+   * request time). Absent for rows created before the field existed.
+   */
+  extraHeaders?: Record<string, string>;
 }
 
 /** `GET /admin/api/providers/:id/keys` pool-health row (masked). */
@@ -185,6 +191,8 @@ export interface DaemonPresetView {
   features?: string[];
   website?: string;
   modelsEndpoint?: string;
+  /** Static identity headers seeded onto the row on add (non-secret; verbatim). */
+  extraHeaders?: Record<string, string>;
 }
 
 /** `POST /admin/api/providers/:id/discover-models` response. */

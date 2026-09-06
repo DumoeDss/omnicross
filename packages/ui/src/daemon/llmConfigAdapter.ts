@@ -82,6 +82,9 @@ export function toClientProvider(dto: DaemonProviderView): LLMProvider {
   if (dto.apiVersion !== undefined) provider.apiVersion = dto.apiVersion;
   if (dto.maxConcurrency !== undefined) provider.maxConcurrency = dto.maxConcurrency;
   if (dto.modelsEndpoint !== undefined) provider.modelsEndpoint = dto.modelsEndpoint;
+  // Static identity headers (non-secret) hydrate verbatim so form edits can
+  // round-trip them (omitting the field on edit keeps the stored value).
+  if (dto.extraHeaders !== undefined) provider.extraHeaders = dto.extraHeaders;
   // app-parity child 2: hydrate the now-backed per-model metadata when present
   // (the daemon serializes only the named-five fields; absent for a flat-models-
   // only row, so the model controls show defaults). `modelGroups` stays unmapped —
@@ -145,7 +148,7 @@ export function toClientProvider(dto: DaemonProviderView): LLMProvider {
  * Update half's `| null` (the explicit-clear contract) wins.
  */
 type ProviderWriteInput = Partial<
-  Omit<LLMProviderInput, 'apiVersion' | 'modelsEndpoint' | 'maxConcurrency'> &
+  Omit<LLMProviderInput, 'apiVersion' | 'modelsEndpoint' | 'maxConcurrency' | 'extraHeaders'> &
     LLMProviderUpdateInput
 > & { id?: string };
 
@@ -207,6 +210,10 @@ function fromClientInput(input: ProviderWriteInput): Record<string, unknown> {
   // The selected mode's secret key is synced server-side on a normal switch.
   if (typeof input.selectedApiModeId === 'string') body['selectedApiModeId'] = input.selectedApiModeId;
   else if (input.selectedApiModeId === null) body['selectedApiModeId'] = null;
+  // Static extra headers: the same three-way contract — value→set (daemon
+  // re-validates via its allowlist), `null`→clear, omit→keep. Form edits that
+  // don't touch headers omit the key, so a preset-seeded identity set survives.
+  if (input.extraHeaders !== undefined) body['extraHeaders'] = input.extraHeaders;
   return body;
 }
 
@@ -438,6 +445,11 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
           baseUrl: preset.baseUrl,
           models: preset.models ?? [],
         };
+        // Static identity headers (e.g. the Cline client set) must land on the
+        // row — gateways that gate on them 403 without the full set.
+        if (preset.extraHeaders && Object.keys(preset.extraHeaders).length > 0) {
+          body['extraHeaders'] = preset.extraHeaders;
+        }
         // Carry the user-supplied key + enable state from the inline configure
         // flow (a masked/blank value is never sent — same discipline as edits).
         if (typeof apiKey === 'string' && apiKey.trim().length > 0) body['apiKey'] = apiKey;

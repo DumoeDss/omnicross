@@ -35,7 +35,12 @@ export {
 } from './url-builder';
 
 // Header Building
-export { getProviderHeaders } from './header-builder';
+export {
+  EXTRA_HEADER_RESERVED_NAMES,
+  expandHeaderPlaceholder,
+  getProviderHeaders,
+  mergeExtraHeaders,
+} from './header-builder';
 
 // Message Conversion
 export type { SimpleChatGeminiMessage, SimpleChatGeminiPart } from './message-converter';

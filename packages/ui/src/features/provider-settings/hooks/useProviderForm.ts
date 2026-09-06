@@ -109,6 +109,9 @@ export function useProviderForm(
       models: [...(preset.models ?? [])],
       modelsEndpoint: preset.modelsEndpoint ?? '',
       icon: preset.icon,
+      // Gateways that hard-gate on a client-identity header set (Cline) would
+      // 403 every request if the template-prefilled create dropped them.
+      extraHeaders: preset.extraHeaders,
     });
     setShowTemplates(false);
     setFormError(null);
@@ -302,6 +305,8 @@ export function useProviderForm(
           maxConcurrency: formData.maxConcurrency,
           codingPlan: formData.codingPlan,
           presetId: formData.presetId,
+          // Preset-seeded identity headers (create-only; the daemon re-validates).
+          ...(formData.extraHeaders ? { extraHeaders: formData.extraHeaders } : {}),
         });
         if (result.provider) {
           setSelectedProviderId(result.provider.id);

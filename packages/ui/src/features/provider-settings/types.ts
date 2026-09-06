@@ -55,5 +55,10 @@ export interface ProviderFormData {
   codingPlan?: CodingPlanConfig;
   // Preset ID (if created from a preset)
   presetId?: string;
+  /**
+   * Static identity headers seeded from the preset template (create-only; not
+   * user-editable — the form round-trips it verbatim onto the created row).
+   */
+  extraHeaders?: Record<string, string>;
 }
 

@@ -154,6 +154,14 @@ export interface PresetProviderTemplate extends ProviderTemplate {
   codingPlanBaseUrl?: string;
   /** Whether Coding Plan requires a separate API Key */
   codingPlanSeparateKey?: boolean;
+  /**
+   * Static extra request headers seeded onto every provider row created from
+   * this preset and merged into every BYO request (identity/attribution
+   * contracts some gateways gate on). Values may carry `{{platform}}`,
+   * resolved to `process.platform` at request time. Auth headers are rejected
+   * by the config-layer guard (credentials come only from the key fields).
+   */
+  extraHeaders?: Record<string, string>;
   /** Feature tags for display */
   features?: string[];
   /** Search capability configuration for this provider */

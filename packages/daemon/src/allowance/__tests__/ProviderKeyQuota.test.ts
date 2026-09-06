@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DaemonProviderConfig } from '../../config';
 import {
   detectProviderKeyQuotaAdapter,
+  parseClinePassUsageLimitsPayload,
   parseMiniMaxTokenPlanPayload,
   parseZaiQuotaPayload,
   providerKeyQuotaAuthHeader,
@@ -42,6 +43,13 @@ describe('detectProviderKeyQuotaAdapter', () => {
     expect(detectProviderKeyQuotaAdapter('https://api.minimax.io/v1')).toBe('minimax-token-plan');
     expect(detectProviderKeyQuotaAdapter('https://api.minimaxi.com/v1/')).toBe('minimax-token-plan');
     expect(detectProviderKeyQuotaAdapter('https://api.minimaxi.com/anthropic')).toBeNull();
+  });
+
+  it('matches the Cline Pass gateway host', () => {
+    expect(detectProviderKeyQuotaAdapter('https://api.cline.bot/api/v1')).toBe('cline-pass');
+    expect(providerKeyQuotaUrl('cline-pass', 'https://api.cline.bot/api/v1'))
+      .toBe('https://api.cline.bot/api/v1/users/me/plan/usage-limits');
+    expect(providerKeyQuotaAuthHeader('cline-pass', 'sk_1')).toBe('Bearer sk_1');
   });
 
   it('builds the quota URL from the row origin and the right auth header', () => {
@@ -167,6 +175,32 @@ describe('parseMiniMaxTokenPlanPayload', () => {
   });
 });
 
+describe('parseClinePassUsageLimitsPayload', () => {
+  const now = Date.parse('2026-09-06T00:00:00.000Z');
+
+  it('maps the three percentage windows with resets and skips unknown types', () => {
+    const windows = parseClinePassUsageLimitsPayload({
+      data: { limits: [
+        { type: 'five_hour', percentUsed: 42.5, resetsAt: '2026-09-06T02:00:00.000Z' },
+        { type: 'weekly', percentUsed: 61, resetsAt: '2026-09-08T00:00:00.000Z' },
+        { type: 'monthly', percentUsed: 5, resetsAt: '2026-09-30T00:00:00.000Z' },
+        { type: 'per_request', percentUsed: 99 },
+      ] },
+    }, now);
+    expect(windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 42.5, windowMinutes: 300, resetsAt: '2026-09-06T02:00:00.000Z', state: 'fresh' },
+      { id: 'seven-day', usedPercent: 61, windowMinutes: 10080 },
+      { id: 'thirty-day', usedPercent: 5, windowMinutes: 43200 },
+    ]);
+  });
+
+  it('returns null when no usable window survives', () => {
+    expect(parseClinePassUsageLimitsPayload({ data: { limits: [] } }, now)).toBeNull();
+    expect(parseClinePassUsageLimitsPayload({ data: { limits: [{ type: 'weekly' }] } }, now)).toBeNull();
+    expect(parseClinePassUsageLimitsPayload('nope', now)).toBeNull();
+  });
+});
+
 describe('ProviderKeyQuotaService', () => {
   const box = { decryptMaybe: (value: string) => value };
 
@@ -230,5 +264,32 @@ describe('ProviderKeyQuotaService', () => {
     expect(degraded?.errorCode).toBe('quota_request_failed');
     expect(degraded?.windows[0]).toMatchObject({ usedPercent: 10, state: 'stale' });
     expect(JSON.stringify(degraded)).not.toContain('upstream detail');
+  });
+
+  it('sends the row identity headers ({{platform}} expanded) on the Cline quota probe', async () => {
+    const fetchImpl = vi.fn(async () => Response.json({
+      data: { limits: [{ type: 'five_hour', percentUsed: 30, resetsAt: '2026-09-06T02:00:00.000Z' }] },
+    }));
+    const service = new ProviderKeyQuotaService(box, fetchImpl);
+    const row = zaiRow({
+      id: 'cline-pass',
+      baseUrl: 'https://api.cline.bot/api/v1',
+      apiModes: undefined,
+      selectedApiModeId: undefined,
+      extraHeaders: {
+        'X-CLIENT-TYPE': 'cline-sdk',
+        'X-PLATFORM': '{{platform}}',
+        // The load guard normally strips these; the service must survive a
+        // hand-written row that slipped one through — auth stays key-derived.
+        Authorization: 'Bearer smuggled',
+      },
+    });
+    const quota = await service.quotaFor(row, 'cline-pass:default');
+    expect(quota).toMatchObject({ adapter: 'cline-pass' });
+    const headers = (fetchImpl.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>;
+    expect(headers['X-CLIENT-TYPE']).toBe('cline-sdk');
+    expect(headers['X-PLATFORM']).toBe(process.platform);
+    expect(headers.Authorization).toBe('Bearer key-id-1.key-secret-1');
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('https://api.cline.bot/api/v1/users/me/plan/usage-limits');
   });
 });

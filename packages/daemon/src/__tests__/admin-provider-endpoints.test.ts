@@ -40,6 +40,8 @@ interface MockUpstream {
   port: number;
   lastAuthHeader: string | undefined;
   lastApiKeyHeader: string | undefined;
+  /** Raw (Node-normalized lowercase) request headers of the last `/models` hit. */
+  lastExtraHeaders: Record<string, unknown> | undefined;
   /** When set, the `/models` handler replies with this canned body + status. */
   modelsStatus: number;
   modelsBody: string;
@@ -51,6 +53,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     port: 0,
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
+    lastExtraHeaders: undefined,
     modelsStatus: 200,
     modelsBody: JSON.stringify({ data: [{ id: 'gpt-x' }, { id: 'gpt-y' }] }),
   };
@@ -60,6 +63,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     req.on('end', () => {
       if (req.url && req.url.endsWith('/models')) {
         state.lastAuthHeader = req.headers['authorization'];
+        state.lastExtraHeaders = req.headers;
         res.writeHead(state.modelsStatus, { 'Content-Type': 'application/json' });
         res.end(state.modelsBody);
         return;
@@ -143,6 +147,7 @@ interface ProviderRow {
   modelsEndpoint?: string;
   transformer?: Record<string, unknown>;
   codingPlan?: Record<string, unknown>;
+  extraHeaders?: Record<string, string>;
 }
 
 function writeConfig(configPath: string, providers: ProviderRow[]): void {
@@ -610,6 +615,91 @@ describe('provider scalar fields (app-parity child 1)', () => {
     } finally {
       delete process.env['OMNI_SCALAR_TEST_KEY'];
     }
+  });
+});
+
+describe('provider static extra headers (cline-pass change)', () => {
+  /** Locate provider `id` in a `GET /admin/api/providers` response. */
+  function findProvider(json: unknown, id: string): Record<string, unknown> {
+    return (json as { providers: Array<Record<string, unknown>> }).providers.find(
+      (x) => x['id'] === id,
+    )!;
+  }
+
+  it('PUT sets the map (reserved names dropped), GET + disk round-trip it verbatim', async () => {
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' }]);
+    const put = await adminFetch('PUT', '/admin/api/providers/a', {
+      apiFormat: 'openai',
+      baseUrl: base(),
+      extraHeaders: {
+        'X-CLIENT-TYPE': 'cline-sdk',
+        'X-PLATFORM': '{{platform}}',
+        Authorization: 'Bearer smuggled',
+        'CONTENT-TYPE': 'text/plain',
+      },
+    });
+    expect(put.status).toBe(200);
+    // GET round-trip: the two identity headers verbatim; reserved names gone.
+    const p = findProvider((await adminFetch('GET', '/admin/api/providers')).json, 'a');
+    expect(p['extraHeaders']).toEqual({
+      'X-CLIENT-TYPE': 'cline-sdk',
+      'X-PLATFORM': '{{platform}}',
+    });
+    // Disk round-trip (through the load guard).
+    const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
+    expect(persisted.extraHeaders).toEqual({
+      'X-CLIENT-TYPE': 'cline-sdk',
+      'X-PLATFORM': '{{platform}}',
+    });
+  });
+
+  it('an omitted extraHeaders on a later edit keeps the stored map; explicit null clears it', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'a',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: 'sk-a',
+        extraHeaders: { 'X-CLIENT-TYPE': 'cline-sdk' },
+      },
+    ]);
+    // Edit WITHOUT extraHeaders → keeps the stored map.
+    await adminFetch('PUT', '/admin/api/providers/a', {
+      apiFormat: 'openai',
+      baseUrl: base(),
+      models: ['m1'],
+    });
+    expect(findProvider((await adminFetch('GET', '/admin/api/providers')).json, 'a')['extraHeaders'])
+      .toEqual({ 'X-CLIENT-TYPE': 'cline-sdk' });
+    // Explicit null → clears.
+    await adminFetch('PUT', '/admin/api/providers/a', {
+      apiFormat: 'openai',
+      baseUrl: base(),
+      extraHeaders: null,
+    });
+    expect(findProvider((await adminFetch('GET', '/admin/api/providers')).json, 'a')['extraHeaders'])
+      .toBeUndefined();
+    const persisted = loadConfig(join(tmpDir, 'config.json')).providers.find((x) => x.id === 'a')!;
+    expect(persisted.extraHeaders).toBeUndefined();
+  });
+
+  it('discover-models sends the row identity headers ({{platform}} expanded) to the upstream', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'a',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: 'sk-a',
+        extraHeaders: { 'X-CLIENT-TYPE': 'cline-sdk', 'X-PLATFORM': '{{platform}}' },
+      },
+    ]);
+    const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
+    expect(r.status).toBe(200);
+    // The mock upstream captured the request headers of its LAST /models hit.
+    expect(upstream.lastExtraHeaders).toMatchObject({
+      'x-client-type': 'cline-sdk',
+      'x-platform': process.platform,
+    });
   });
 });
 

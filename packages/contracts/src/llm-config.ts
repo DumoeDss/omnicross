@@ -187,6 +187,16 @@ export interface LLMProvider {
    * `UseBearer` transformer option independently).
    */
   useBearer?: boolean;
+  /**
+   * Static extra request headers merged into EVERY request for this provider
+   * (identity/attribution contracts some gateways gate on — e.g. the Cline
+   * client-identity set). Values may carry the `{{platform}}` placeholder,
+   * resolved to `process.platform` at request time. Auth headers
+   * (`Authorization` / `x-api-key` / `x-goog-api-key` / `api-key` / `cookie`)
+   * and `Content-Type`/`Content-Length` are rejected at the config layer —
+   * credentials come only from the key fields.
+   */
+  extraHeaders?: Record<string, string>;
   transformer?: TransformerConfig;
   rerouterEnabled?: boolean;
   icon?: string;

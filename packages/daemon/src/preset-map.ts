@@ -98,7 +98,8 @@ function resolveFormat(
  * Map one preset → a daemon provider row, narrowing/translating/excluding the
  * format. Pure. `apiKey` comes ONLY from `opts.key`; an empty key yields
  * `{ missingKey: true }` (no fake empty-key row). Carries `id`/`apiFormat`/
- * `baseUrl`/`models`; every other preset field is dropped (daemon rows have no slot).
+ * `baseUrl`/`models`/`extraHeaders`; every other preset field is dropped
+ * (daemon rows have no slot).
  */
 export function mapPresetToProvider(
   preset: PresetProviderTemplate,
@@ -117,6 +118,9 @@ export function mapPresetToProvider(
     baseUrl: opts.baseUrlOverride ?? preset.api_base_url,
     apiKey: opts.key,
     models: Array.isArray(preset.models) ? preset.models : undefined,
+    // Static identity headers (e.g. the Cline client set) survive the mapping —
+    // the CLI-seeded row needs them as much as an admin-API-created one.
+    extraHeaders: preset.extraHeaders,
   };
   return { provider };
 }
@@ -124,7 +128,8 @@ export function mapPresetToProvider(
 /**
  * A mappable preset's view (post-narrowing) for CLI/admin listing.
  *
- * The first six fields are the ROW shape (what a daemon provider needs). The
+ * The first six fields + `extraHeaders` are the ROW shape (what a daemon
+ * provider needs). The
  * trailing optional ones are non-secret PRESENTATION metadata carried verbatim
  * from the catalog so the dashboard's template picker can render a real card
  * (translated name / icon / blurb / capability tags) instead of a bare id, plus
@@ -144,6 +149,8 @@ export interface MappablePreset {
   features?: string[];
   website?: string;
   modelsEndpoint?: string;
+  /** Static identity headers the row must carry (non-secret; verbatim). */
+  extraHeaders?: Record<string, string>;
 }
 
 /** The split of the whole catalog into mappable + excluded. */
@@ -179,6 +186,7 @@ export function listMappablePresets(): ListMappableResult {
       features: preset.features,
       website: preset.website,
       modelsEndpoint: preset.modelsEndpoint,
+      extraHeaders: preset.extraHeaders,
     });
   }
   return { mappable, excluded };

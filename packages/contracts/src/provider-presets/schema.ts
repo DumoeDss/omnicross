@@ -132,6 +132,7 @@ export const presetSchema = z
     maxConcurrency: z.number().optional(),
     codingPlanBaseUrl: z.string().optional(),
     codingPlanSeparateKey: z.boolean().optional(),
+    extraHeaders: z.record(z.string(), z.string()).optional(),
     features: z.array(z.string()).optional(),
     searchConfig: providerSearchConfigSchema.optional(),
     apiModes: z.array(apiModeSchema).optional(),
