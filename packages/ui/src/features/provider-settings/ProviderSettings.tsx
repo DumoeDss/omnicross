@@ -191,6 +191,10 @@ export function ProviderSettings({
                 onCancel={handleCancelEdit}
               />
             ) : isAddingNew ? (
+              /* Cancel INSIDE the add flow (step 2 form) steps back to the
+                 template picker — abruptly dropping out to a random existing
+                 provider read as losing the form. The PICKER's cancel is the
+                 one that leaves the flow entirely. */
               <ProviderForm
                 isEditing={false}
                 isAddingNew
@@ -200,7 +204,7 @@ export function ProviderSettings({
                 showApiKey={showApiKey}
                 setShowApiKey={setShowApiKey}
                 onBackToTemplates={handleBackToTemplates}
-                onCancel={handleCancelEdit}
+                onCancel={handleBackToTemplates}
                 onSave={handleSaveProvider}
               />
             ) : isEditing ? (
