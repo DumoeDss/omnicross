@@ -123,6 +123,12 @@ import {
   GrokOAuthSessionStore,
 } from './accountsGrokOAuth';
 import {
+  handleCopilotOAuthCancel,
+  handleCopilotOAuthStart,
+  handleCopilotOAuthStatus,
+  CopilotOAuthSessionStore,
+} from './accountsCopilotOAuth';
+import {
   handleOAuthComplete,
   handleOAuthStart,
   type SubscriptionAccountAppender,
@@ -348,6 +354,11 @@ export interface AdminApiDeps {
    * shape as codex; one sign-in at a time. Wired in `bootstrap.ts`.
    */
   readonly grokSessions: GrokOAuthSessionStore;
+  /**
+   * Copilot interactive-OAuth flow store (device code). Same token-free
+   * polled shape; one sign-in at a time. Wired in `bootstrap.ts`.
+   */
+  readonly copilotSessions: CopilotOAuthSessionStore;
   /**
    * Codex loopback listener (app-parity-2 child 5) — defaults to `awaitLoopbackCode`
    * (binds 127.0.0.1:1455) in `bootstrap.ts`; tests inject a mock so no real port
@@ -2424,24 +2435,28 @@ async function handleAccounts(
     return writeJson(res, 200, { ok: true, affected: result.affected });
   }
 
-  // GET /accounts/{codex,kimi,grok}/oauth/:sessionId/status → token-free poll for
-  // the async sign-ins (codex loopback, kimi/grok device code). Returns ONLY
-  // { state, message? }.
-  if (method === 'GET' && (rest[0] === 'codex' || rest[0] === 'kimi' || rest[0] === 'grok') && rest[1] === 'oauth' && rest[3] === 'status') {
+  // GET /accounts/{codex,kimi,grok,copilot}/oauth/:sessionId/status → token-free
+  // poll for the async sign-ins (codex loopback, kimi/grok/copilot device code).
+  // Returns ONLY { state, message? }.
+  if (method === 'GET' && (rest[0] === 'codex' || rest[0] === 'kimi' || rest[0] === 'grok' || rest[0] === 'copilot') && rest[1] === 'oauth' && rest[3] === 'status') {
     const result = rest[0] === 'codex'
       ? handleCodexOAuthStatus(rest[2], deps)
       : rest[0] === 'kimi'
         ? handleKimiOAuthStatus(rest[2], deps)
-        : handleGrokOAuthStatus(rest[2], deps);
+        : rest[0] === 'grok'
+          ? handleGrokOAuthStatus(rest[2], deps)
+          : handleCopilotOAuthStatus(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 
-  if (method === 'DELETE' && (rest[0] === 'codex' || rest[0] === 'kimi' || rest[0] === 'grok') && rest[1] === 'oauth' && rest[2]) {
+  if (method === 'DELETE' && (rest[0] === 'codex' || rest[0] === 'kimi' || rest[0] === 'grok' || rest[0] === 'copilot') && rest[1] === 'oauth' && rest[2]) {
     const result = rest[0] === 'codex'
       ? handleCodexOAuthCancel(rest[2], deps)
       : rest[0] === 'kimi'
         ? handleKimiOAuthCancel(rest[2], deps)
-        : handleGrokOAuthCancel(rest[2], deps);
+        : rest[0] === 'grok'
+          ? handleGrokOAuthCancel(rest[2], deps)
+          : handleCopilotOAuthCancel(rest[2], deps);
     return writeJson(res, result.status, result.body);
   }
 
@@ -2528,6 +2543,10 @@ async function handleAccounts(
       }
       if (providerId === 'grok') {
         const result = await handleGrokOAuthStart(deps);
+        return writeJson(res, result.status, result.body);
+      }
+      if (providerId === 'copilot') {
+        const result = await handleCopilotOAuthStart(deps);
         return writeJson(res, result.status, result.body);
       }
       const result = handleOAuthStart(providerId, deps);

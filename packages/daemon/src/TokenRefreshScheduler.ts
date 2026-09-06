@@ -32,7 +32,7 @@ const REFRESH_LEAD_MS = 5 * 60_000;
 /** Sweep cadence. */
 const SWEEP_INTERVAL_MS = 60_000;
 
-const OAUTH_PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok'] as const;
+const OAUTH_PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok', 'copilot'] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
 export class TokenRefreshScheduler {
@@ -128,6 +128,10 @@ export class TokenRefreshScheduler {
         return this.store.refreshKimiToken();
       case 'grok':
         return this.store.refreshGrokToken();
+      // ghu_ tokens never near-expire (far-future expiresAt), so the sweep
+      // never reaches this — the branch exists for union totality.
+      case 'copilot':
+        return this.store.refreshCopilotToken();
     }
   }
 }

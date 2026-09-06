@@ -34,6 +34,7 @@ const DISPLAY_NAMES: Record<SubscriptionProviderId, string> = {
   opencodego: 'OpenCodeGo (Bearer key)',
   kimi: 'Kimi Code (Moonshot OAuth)',
   grok: 'Grok (xAI SuperGrok OAuth)',
+  copilot: 'Copilot (GitHub OAuth)',
 };
 
 export class SubscriptionAccountService {
@@ -55,6 +56,7 @@ export class SubscriptionAccountService {
       ['opencodego', new StaticBearerAuthStrategy(tokens, this.selector, health)],
       ['kimi', new OAuthBearerAuthStrategy('kimi', tokens, this.mutex, this.selector, health)],
       ['grok', new OAuthBearerAuthStrategy('grok', tokens, this.mutex, this.selector, health)],
+      ['copilot', new OAuthBearerAuthStrategy('copilot', tokens, this.mutex, this.selector, health)],
     ]);
   }
 

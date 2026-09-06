@@ -11,6 +11,7 @@ import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-
 import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
+import { COPILOT_API_HEADERS } from '../oauth/flows/copilot';
 import { kimiFingerprintHeaders } from '../oauth/flows/kimi';
 import { refreshSelectedAccount, resolveSelectedToken } from '../scheduler/accountSelection';
 import type { SubscriptionAccountSelector } from '../scheduler/SubscriptionAccountSelector';
@@ -21,7 +22,7 @@ import type { RefreshMutex } from './RefreshMutex';
 /** Refresh expiring tokens this many ms before they hit `expiresAt`. */
 const REFRESH_LEAD_MS = 5 * 60_000;
 
-type OAuthProviderKey = 'codex' | 'gemini' | 'kimi' | 'grok';
+type OAuthProviderKey = 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot';
 
 /** The per-provider token config block each strategy branch reads. */
 type OAuthTokenBlock = { accessToken?: string; refreshToken?: string; expiresAt?: string; status?: string };
@@ -74,6 +75,11 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     if (this.providerId === 'kimi') {
       const deviceId = await this.resolveKimiDeviceId(hints?.sessionKey);
       Object.assign(headers, kimiFingerprintHeaders(deviceId));
+    }
+    // The Copilot API hard-gates on the mirrored CLI identity set (the API
+    // version header also unlocks long-context tier limits).
+    if (this.providerId === 'copilot') {
+      Object.assign(headers, COPILOT_API_HEADERS);
     }
   }
 
@@ -141,6 +147,8 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
         return this.tokens.refreshKimiToken ? this.tokens.refreshKimiToken() : Promise.resolve(false);
       case 'grok':
         return this.tokens.refreshGrokToken ? this.tokens.refreshGrokToken() : Promise.resolve(false);
+      case 'copilot':
+        return this.tokens.refreshCopilotToken ? this.tokens.refreshCopilotToken() : Promise.resolve(false);
     }
   }
 
@@ -154,6 +162,8 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
         return config.kimi;
       case 'grok':
         return config.grok;
+      case 'copilot':
+        return config.copilot;
     }
   }
 

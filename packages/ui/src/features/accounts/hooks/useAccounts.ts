@@ -35,7 +35,7 @@ import type {
 
 const EMPTY: AccountsListResponse = {
   accounts: [],
-  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [] },
+  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [], copilot: [] },
 };
 
 /** Keep request-driven account metadata and passive Codex allowance observations live. */
@@ -67,6 +67,10 @@ export interface UseAccountsResult {
   ) => Promise<{ success: boolean; message?: string }>;
   /** Force-refresh an OpenCodeGo account's `/v1/usage` snapshot. */
   refreshOpenCodeGoAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
+  /** Force-refresh a Copilot account's user-quota snapshot. */
+  refreshCopilotAccountAllowance: (
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
   /** Force-refresh a Grok account's CLI-billing snapshot. */
@@ -134,8 +138,10 @@ export interface UseAccountsResult {
   pollCodexOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   pollKimiOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   pollGrokOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  pollCopilotOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   cancelKimiOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelGrokOAuth: (sessionId: string) => Promise<MutationResult>;
+  cancelCopilotOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelCodexOAuth: (sessionId: string) => Promise<{ success: boolean; message?: string }>;
   /** Import the daemon machine's external CLI login as a managed account. */
   importExternalCli: (
@@ -493,8 +499,18 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const pollCopilotOAuth = useCallback(
+    (sessionId: string): Promise<CodexOAuthStatus> => agent.accounts.pollCopilotOAuth(sessionId),
+    [],
+  );
+
   const cancelGrokOAuth = useCallback(
     (sessionId: string) => agent.accounts.cancelGrokOAuth(sessionId),
+    [],
+  );
+
+  const cancelCopilotOAuth = useCallback(
+    (sessionId: string) => agent.accounts.cancelCopilotOAuth(sessionId),
     [],
   );
 
@@ -612,6 +628,26 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const refreshCopilotAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('copilot', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await agent.accounts.refreshAllowance('copilot', accountId);
+      if (!result.success) {
+        const message = result.message ?? 'failed to refresh Copilot allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
+      }
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
+    },
+    [],
+  );
+
   const refreshGrokAccountAllowance = useCallback(
     async (accountId: string) => {
       const key = allowanceKey('grok', accountId);
@@ -681,10 +717,13 @@ export function useAccounts(): UseAccountsResult {
     refreshKimiAccountAllowance,
     refreshOpenCodeGoAccountAllowance,
     refreshGrokAccountAllowance,
+    refreshCopilotAccountAllowance,
     pollKimiOAuth,
     cancelKimiOAuth,
     pollGrokOAuth,
     cancelGrokOAuth,
+    pollCopilotOAuth,
+    cancelCopilotOAuth,
     writeTokens,
     appendTokens,
     setActive,

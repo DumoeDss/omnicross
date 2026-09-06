@@ -530,7 +530,7 @@ export interface AgentAccountsApi {
   listAllowances(): Promise<AccountAllowancesResult>;
   /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo, Grok). */
   refreshAllowance(
-    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok',
+    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot',
     accountId: string,
   ): Promise<AccountAllowancesResult>;
   /** Replace the ACTIVE account's credential (token-paste parity). */
@@ -601,9 +601,11 @@ export interface AgentAccountsApi {
   pollCodexOAuth(sessionId: string): Promise<CodexOAuthStatus>;
   pollKimiOAuth(sessionId: string): Promise<CodexOAuthStatus>;
   pollGrokOAuth(sessionId: string): Promise<CodexOAuthStatus>;
-  /** Cancel an in-flight kimi/grok device-code sign-in. */
+  pollCopilotOAuth(sessionId: string): Promise<CodexOAuthStatus>;
+  /** Cancel an in-flight kimi/grok/copilot device-code sign-in. */
   cancelKimiOAuth(sessionId: string): Promise<MutationResult>;
   cancelGrokOAuth(sessionId: string): Promise<MutationResult>;
+  cancelCopilotOAuth(sessionId: string): Promise<MutationResult>;
   cancelCodexOAuth(sessionId: string): Promise<MutationResult>;
   /**
    * Import the daemon machine's external CLI login (~/.claude/.credentials.json

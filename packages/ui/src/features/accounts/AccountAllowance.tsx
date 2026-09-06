@@ -55,7 +55,8 @@ export function AccountAllowance({
     providerId === 'codex' ||
     providerId === 'kimi' ||
     providerId === 'opencodego' ||
-    providerId === 'grok';
+    providerId === 'grok' ||
+    providerId === 'copilot';
   const summaryState: AllowanceWindowState = snapshot
     ? allowanceState(snapshot)
     : supportsAllowance

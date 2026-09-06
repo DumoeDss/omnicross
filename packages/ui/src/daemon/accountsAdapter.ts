@@ -39,6 +39,7 @@ import type {
   GeminiTokenInput,
   KimiTokenInput,
   GrokTokenInput,
+  CopilotTokenInput,
   OpenCodeGoTokenInput,
   SubscriptionListEntry,
   SubscriptionProviderId,
@@ -126,6 +127,21 @@ function fromGrok(input: GrokTokenInput): Record<string, unknown> {
   return body;
 }
 
+/** Build the copilot write body — only the daemon's copilot allowlist. */
+function fromCopilot(input: CopilotTokenInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { authMethod: input.authMethod, status: input.status };
+  setStr(body, 'accessToken', input.accessToken);
+  setStr(body, 'refreshToken', input.refreshToken);
+  setStr(body, 'expiresAt', input.expiresAt);
+  setStr(body, 'accountId', input.accountId);
+  setStr(body, 'email', input.email);
+  setStr(body, 'apiEndpoint', input.apiEndpoint);
+  setStr(body, 'enterpriseUrl', input.enterpriseUrl);
+  setStr(body, 'lastRefreshedAt', input.lastRefreshedAt);
+  setStr(body, 'errorMessage', input.errorMessage);
+  return body;
+}
+
 /** Dispatch a write payload to the per-provider field-by-field builder. */
 function buildBody(payload: AccountTokenInput): Record<string, unknown> {
   switch (payload.providerId) {
@@ -141,6 +157,8 @@ function buildBody(payload: AccountTokenInput): Record<string, unknown> {
       return fromKimi(payload.input);
     case 'grok':
       return fromGrok(payload.input);
+    case 'copilot':
+      return fromCopilot(payload.input);
   }
 }
 
@@ -152,7 +170,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
       } catch {
         return {
           accounts: [],
-          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [] },
+          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [], copilot: [] },
         };
       }
     },
@@ -450,7 +468,7 @@ export function createAccountsAdapter(): AgentAccountsApi {
     },
 
     async refreshAllowance(
-      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok',
+      providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot',
       accountId: string,
     ): Promise<AccountAllowancesResult> {
       try {
@@ -503,6 +521,25 @@ export function createAccountsAdapter(): AgentAccountsApi {
     async cancelGrokOAuth(sessionId: string): Promise<MutationResult> {
       try {
         await adminClient.delete(`/accounts/grok/oauth/${encodeURIComponent(sessionId)}`);
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };
+      }
+    },
+
+    async pollCopilotOAuth(sessionId: string): Promise<CodexOAuthStatus> {
+      try {
+        return await adminClient.get<CodexOAuthStatus>(
+          `/accounts/copilot/oauth/${encodeURIComponent(sessionId)}/status`,
+        );
+      } catch {
+        return { state: 'error' };
+      }
+    },
+
+    async cancelCopilotOAuth(sessionId: string): Promise<MutationResult> {
+      try {
+        await adminClient.delete(`/accounts/copilot/oauth/${encodeURIComponent(sessionId)}`);
         return { success: true };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };

@@ -95,12 +95,24 @@ const ANTHROPIC_MODELS: Record<string, KnownModelCapabilities> = {
   'claude-sonnet-4-6': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
   'claude-sonnet-4-6[1m]': { category: 'chat', contextLength: 1000000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
   'claude-haiku-4-5': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], thinkingTokenLimit: { min: 1024, max: 64000 } },
+  // Copilot-served variants (same model family on the Copilot API; context
+  // windows per the Copilot catalog where it diverges from the family default).
+  'claude-opus-4-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
+  'claude-sonnet-4-5': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true },
+  'claude-sonnet-4': { category: 'chat', contextLength: 216000, maxTokens: 64000, vision: true, functionCall: true, reasoning: true },
 };
 
 const GEMINI_MODELS: Record<string, KnownModelCapabilities> = {
   'gemini-3.5-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3.1-pro': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
+  // Copilot-served variants (chat-completions wire on the Copilot API).
+  'gemini-3.1-pro-preview': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'] },
+  'gemini-3.6-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'gemini-3.7-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'gemini-3-pro-preview': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true },
+  'gemini-3-flash-preview': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true },
+  'gemini-2.5-pro': { category: 'chat', contextLength: 128000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true },
 };
 
 const GROK_MODELS: Record<string, KnownModelCapabilities> = {
@@ -121,6 +133,23 @@ const GROK_MODELS: Record<string, KnownModelCapabilities> = {
   'grok-build': { category: 'reasoning', contextLength: 512000, maxTokens: 512000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none'] },
   'grok-build-0.1': { category: 'reasoning', contextLength: 256000, maxTokens: 256000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none'] },
   'grok-composer-2.5-fast': { category: 'chat', contextLength: 200000, maxTokens: 200000, functionCall: true, thinkingLevels: ['none'] },
+};
+
+// Copilot-only model ids (the ids that exist ONLY on the GitHub Copilot
+// catalog — family models like gpt-5 / gpt-5.3-codex / grok-4.5 keep their
+// canonical entries above; effort sets per the Copilot wire catalog).
+const COPILOT_MODELS: Record<string, KnownModelCapabilities> = {
+  'gpt-5.1-codex-max': { category: 'code', contextLength: 272000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.1-codex-mini': { category: 'code', contextLength: 272000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.2-codex': { category: 'code', contextLength: 272000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.1-codex': { category: 'code', contextLength: 272000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.1': { category: 'reasoning', contextLength: 264000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5-mini': { category: 'reasoning', contextLength: 264000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'gpt-5.4-nano': { category: 'reasoning', contextLength: 400000, maxTokens: 128000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 128000 } },
+  'grok-code-fast-1': { category: 'code', contextLength: 192000, maxTokens: 32768, functionCall: true, reasoning: true },
+  'raptor-mini': { category: 'reasoning', contextLength: 400000, maxTokens: 65536, functionCall: true, reasoning: true, vision: true },
+  'mai-code-1-flash-picker': { category: 'code', contextLength: 256000, maxTokens: 65536, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'mai-code-1.1-flash': { category: 'code', contextLength: 256000, maxTokens: 65536, functionCall: true, reasoning: true, vision: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
 };
 
 const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {
@@ -237,6 +266,7 @@ const VENDOR_GROUPS: Array<{ name: string; entries: Record<string, KnownModelCap
   { name: 'ANTHROPIC_MODELS', entries: ANTHROPIC_MODELS },
   { name: 'GEMINI_MODELS', entries: GEMINI_MODELS },
   { name: 'GROK_MODELS', entries: GROK_MODELS },
+  { name: 'COPILOT_MODELS', entries: COPILOT_MODELS },
   { name: 'DEEPSEEK_MODELS', entries: DEEPSEEK_MODELS },
   { name: 'ZHIPU_MODELS', entries: ZHIPU_MODELS },
   { name: 'KIMI_MODELS', entries: KIMI_MODELS },

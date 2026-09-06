@@ -1452,6 +1452,9 @@
     "grokOauth": {
       "description": "Open the verification page, enter the code below, and approve the sign-in request."
     },
+    "copilotOauth": {
+      "description": "Open github.com/login/device, enter the code below, and authorize the Copilot CLI app."
+    },
     "codexOauth": {
       "title": "Sign in to {{name}}",
       "description": "Open the sign-in page in your browser and authorize. The daemon captures the result automatically — keep this open until it completes. The token is never shown.",
@@ -1543,6 +1546,10 @@
       "grok": {
         "title": "Grok (SuperGrok)",
         "description": "xAI SuperGrok subscription credentials routed by the daemon."
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "GitHub Copilot subscription credentials routed by the daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

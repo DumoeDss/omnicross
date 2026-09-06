@@ -119,7 +119,8 @@ function isAllowanceProvider(value: unknown): value is SubscriptionProviderId {
     value === 'gemini' ||
     value === 'opencodego' ||
     value === 'kimi' ||
-    value === 'grok'
+    value === 'grok' ||
+    value === 'copilot'
   );
 }
 

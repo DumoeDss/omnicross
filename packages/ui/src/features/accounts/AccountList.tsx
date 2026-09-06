@@ -291,7 +291,8 @@ export function AccountList({
                     providerId === 'codex' ||
                     providerId === 'kimi' ||
                     providerId === 'opencodego' ||
-                    providerId === 'grok') &&
+                    providerId === 'grok' ||
+                    providerId === 'copilot') &&
                     onRefreshAllowance
                     ? () => onRefreshAllowance(acc.id)
                     : undefined

@@ -84,6 +84,7 @@ const ACCOUNTS_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = 
   opencodego: 'opencodegoAccounts',
   kimi: 'kimiAccounts',
   grok: 'grokAccounts',
+  copilot: 'copilotAccounts',
 };
 
 const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
@@ -93,6 +94,7 @@ const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
   opencodego: 'activeOpencodegoAccountId',
   kimi: 'activeKimiAccountId',
   grok: 'activeGrokAccountId',
+  copilot: 'activeCopilotAccountId',
 };
 
 /**

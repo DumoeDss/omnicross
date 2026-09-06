@@ -48,6 +48,58 @@ export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]
     'grok-4.20-0309-reasoning',
     'grok-4.20-multi-agent-0309',
   ],
+  // GitHub Copilot's mixed-wire catalog (verified ids from the audit source,
+  // grouped by wire then small → large). The per-model wire each id rides is
+  // mapped in `@omnicross/subscriptions`' copilot module (this list only feeds
+  // the picker).
+  copilot: [
+    // anthropic-messages face (Claude family)
+    'claude-haiku-4.5',
+    'claude-sonnet-4.5',
+    'claude-sonnet-4.6',
+    'claude-opus-4.5',
+    'claude-opus-4.6',
+    'claude-opus-4.7',
+    'claude-opus-4.8',
+    'claude-sonnet-5',
+    'claude-opus-5',
+    'claude-fable-5',
+    // openai-chat face
+    'gpt-4o',
+    'gpt-4.1',
+    'grok-code-fast-1',
+    'gemini-2.5-pro',
+    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3-pro-preview',
+    'gemini-3.6-flash',
+    'gemini-3.7-flash',
+    'gemini-3.1-pro-preview',
+    'raptor-mini',
+    'kimi-k2.7-code',
+    'kimi-k3',
+    // openai-responses face
+    'mai-code-1-flash-picker',
+    'mai-code-1.1-flash',
+    'gpt-5-mini',
+    'gpt-5.1',
+    'gpt-5.1-codex-mini',
+    'gpt-5.1-codex',
+    'gpt-5.1-codex-max',
+    'gpt-5',
+    'gpt-5.2',
+    'gpt-5.2-codex',
+    'gpt-5.3-codex',
+    'gpt-5.4-mini',
+    'gpt-5.4-nano',
+    'gpt-5.4',
+    'gpt-5.5',
+    'gpt-5.6-luna',
+    'gpt-5.6-terra',
+    'gpt-5.6-sol',
+    'grok-4.5',
+    'grok-4.6',
+  ],
 };
 
 /** Whether a provider has any cataloged models (drives UI model-picker gating). */

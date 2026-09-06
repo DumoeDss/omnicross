@@ -180,6 +180,33 @@ export type GrokTokenConfig = {
 };
 
 /**
+ * GitHub Copilot token configuration. OAuth is a RFC 8628 device flow at
+ * `github.com` (official Copilot CLI app, scope `read:user`); the minted
+ * `ghu_` token is LONG-LIVED — refresh is a LOCAL no-op (access and refresh
+ * are the same token, far-future expiry), so no refresh network call exists.
+ * Inference rides the Copilot API (`api.githubcopilot.com` by default; the
+ * plan-advertised `apiEndpoint` discovered at login wins); the quota endpoint
+ * is `api.github.com/copilot_internal/user`. `accountId` is the GitHub login.
+ */
+export type CopilotTokenConfig = {
+  authMethod: AuthMethod;
+  status: TokenStatus;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  accountId?: string;
+  email?: string;
+  /** Plan-advertised Copilot API endpoint (from `copilot_internal/user.endpoints.api`). */
+  apiEndpoint?: string;
+  /** GitHub Enterprise domain (e.g. `company.ghe.com`); personal accounts leave it unset. */
+  enterpriseUrl?: string;
+  lastRefreshedAt?: string;
+  errorMessage?: string;
+  /** Managed-account credential warning (duplicate-token, projected on listing). */
+  syncWarning?: SyncWarningCode;
+};
+
+/**
  * A single subscription account entry. The provider's existing token config
  * is carried verbatim under a nested `tokens` field; entry metadata
  * (`id`/`label`/`createdAt`) is kept cleanly separate from token material so
@@ -270,6 +297,7 @@ export type AccountTokensConfig = {
   opencodego?: OpenCodeGoTokenConfig;
   kimi?: KimiTokenConfig;
   grok?: GrokTokenConfig;
+  copilot?: CopilotTokenConfig;
   // Per-provider account collections + active pointer (multi-account).
   claudeAccounts?: SubscriptionAccountEntry<ClaudeTokenConfig>[];
   activeClaudeAccountId?: string;
@@ -283,6 +311,8 @@ export type AccountTokensConfig = {
   activeKimiAccountId?: string;
   grokAccounts?: SubscriptionAccountEntry<GrokTokenConfig>[];
   activeGrokAccountId?: string;
+  copilotAccounts?: SubscriptionAccountEntry<CopilotTokenConfig>[];
+  activeCopilotAccountId?: string;
   updatedAt: string;
 };
 

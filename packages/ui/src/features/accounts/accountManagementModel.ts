@@ -61,7 +61,7 @@ export function flattenAccounts(
     allowances.map((snapshot) => [allowanceKey(snapshot.providerId, snapshot.accountId), snapshot]),
   );
   const rows: ManagedAccountRow[] = [];
-  for (const providerId of ['claude', 'codex', 'gemini', 'opencodego', 'kimi', 'grok'] as const) {
+  for (const providerId of ['claude', 'codex', 'gemini', 'opencodego', 'kimi', 'grok', 'copilot'] as const) {
     for (const account of data.providerAccounts[providerId] ?? []) {
       rows.push({
         ...account,

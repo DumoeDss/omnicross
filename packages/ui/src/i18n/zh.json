@@ -1449,6 +1449,9 @@
     "grokOauth": {
       "description": "打开验证页面，输入下方代码并批准登录请求。"
     },
+    "copilotOauth": {
+      "description": "打开 github.com/login/device，输入下方代码并授权 Copilot CLI 应用。"
+    },
     "codexOauth": {
       "title": "登录 {{name}}",
       "description": "在浏览器中打开登录页面并授权。守护进程会自动捕获结果——请在完成前保持此窗口打开。令牌不会回显。",
@@ -1540,6 +1543,10 @@
       "grok": {
         "title": "Grok（SuperGrok）",
         "description": "由守护进程路由的 xAI SuperGrok 订阅凭据。"
+      },
+      "copilot": {
+        "title": "GitHub Copilot",
+        "description": "由守护进程路由的 GitHub Copilot 订阅凭据。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

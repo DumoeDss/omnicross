@@ -54,12 +54,20 @@ export type { AuthApplyHints, AuthStrategy } from './auth';
 export {
   claudeOAuth,
   codexOAuth,
+  COPILOT_GITHUB_HEADERS,
+  copilotOAuth,
   type FetchLike,
   geminiOAuth,
   grokOAuth,
   kimiFingerprintHeaders,
   kimiOAuth,
 } from './oauth';
+export {
+  copilotBaseUrl,
+  copilotPathFor,
+  copilotTransformerNamesForWire,
+  copilotWireFor,
+} from './copilot/models';
 export { normalizeOpenCodeGoBaseUrl } from './opencodego/endpoints';
 
 // Dormant, fail-closed image provider. Private subscription wire modules are

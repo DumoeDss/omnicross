@@ -20,6 +20,8 @@ export interface AccountAllowanceAdminReader {
   refreshOpenCodeGo?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   /** Optional: Grok CLI-billing refresh (absent on older daemons). */
   refreshGrok?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
+  /** Optional: Copilot user-quota refresh (absent on older daemons). */
+  refreshCopilot?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   removeAccountSnapshot?(providerId: SubscriptionProviderId, accountId: string): void;
   removeProviderSnapshots?(providerId: SubscriptionProviderId): void;
   getSchedulingStatus?(): AccountAllowanceSchedulingStatus;
@@ -61,9 +63,9 @@ function query(req: http.IncomingMessage): URLSearchParams {
 
 function allowanceProvider(
   value: string | null,
-): 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | undefined | null {
+): 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | undefined | null {
   if (!value) return undefined;
-  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego' || value === 'grok'
+  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego' || value === 'grok' || value === 'copilot'
     ? value
     : null;
 }
@@ -96,7 +98,7 @@ export async function handleAccountAllowanceApi(
     const pathProvider = rest.length >= 2 ? rest[0] : null;
     const providerId = allowanceProvider(pathProvider ?? params.get('providerId') ?? params.get('provider'));
     if (providerId === null) {
-      return writeError(res, 400, 'providerId must be claude, codex, kimi, opencodego, or grok');
+      return writeError(res, 400, 'providerId must be claude, codex, kimi, opencodego, grok, or copilot');
     }
     const accountId = rest.length >= 2 ? rest[1] : params.get('accountId') ?? undefined;
     const allowances = await service.list({ providerId, accountId });
@@ -141,6 +143,16 @@ export async function handleAccountAllowanceApi(
       const allowances = await service.refreshOpenCodeGo(accountId);
       if (accountId && allowances.length === 0) {
         return writeError(res, 404, `OpenCodeGo account '${accountId}' not found`);
+      }
+      return writeJson(res, 200, { allowances });
+    }
+    if (requestedProvider === 'copilot') {
+      if (!service.refreshCopilot) {
+        return writeError(res, 501, 'copilot allowance refresh is not available');
+      }
+      const allowances = await service.refreshCopilot(accountId);
+      if (accountId && allowances.length === 0) {
+        return writeError(res, 404, `Copilot account '${accountId}' not found`);
       }
       return writeJson(res, 200, { allowances });
     }

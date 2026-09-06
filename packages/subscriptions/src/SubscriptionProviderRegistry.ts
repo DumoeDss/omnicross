@@ -14,6 +14,7 @@
  * providers are a built-in catalog, NOT user-configurable LLM provider rows.
  */
 
+import type { CopilotTokenConfig } from '@omnicross/contracts/account-tokens-types';
 import type { OpenCodeGoTokenConfig, SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 import {
   setSubscriptionRegistryForOutbound,
@@ -38,6 +39,12 @@ import {
   resolveOpenCodeGoShape,
 } from './opencodego/model-shape';
 import { resolveOpenCodeGoScenario } from './opencodego/ScenarioRouter';
+import {
+  copilotBaseUrl,
+  copilotPathFor,
+  copilotTransformerNamesForWire,
+  copilotWireFor,
+} from './copilot/models';
 import type { SubscriptionCredentialStore } from './ports/credential-store';
 import type { SubscriptionAccountService } from './SubscriptionAccountService';
 
@@ -123,7 +130,8 @@ export class SubscriptionProviderRegistry {
     const opencodego = this.accounts.getStrategy('opencodego');
     const kimi = this.accounts.getStrategy('kimi');
     const grok = this.accounts.getStrategy('grok');
-    if (!claude || !codex || !gemini || !opencodego || !kimi || !grok) {
+    const copilot = this.accounts.getStrategy('copilot');
+    if (!claude || !codex || !gemini || !opencodego || !kimi || !grok || !copilot) {
       throw new Error('[SubscriptionProviderRegistry] Missing strategy in SubscriptionAccountService');
     }
 
@@ -313,6 +321,31 @@ export class SubscriptionProviderRegistry {
           // (the omit-effort grok models carry `thinkingLevels: ['none']` in the
           // canonical registry, so `reasoning.effort` is never sent to them).
           resolveUpstreamUrl: () => 'https://api.x.ai/v1/responses',
+          providerTransformerNames: ['openai-response'],
+          modelTransformerNames: [],
+        },
+      ],
+      [
+        'copilot',
+        {
+          providerId: 'copilot',
+          displayName: 'Copilot (GitHub OAuth)',
+          authStrategy: copilot,
+          mode: 'transformer',
+          // GitHub Copilot serves THREE wires on ONE host, per model (the
+          // opencodego shape-seam pattern): the Claude family rides
+          // anthropic-messages at `/v1/messages` (same-format verbatim relay
+          // for Anthropic-shape clients), the GPT/Grok/mai-code families ride
+          // Responses at `/v1/responses`, and the Gemini/Kimi/raptor families
+          // ride chat-completions at `/v1/chat/completions`. The base honors
+          // the account's discovered `apiEndpoint` (or GHE domain) via the
+          // threaded config, defaulting to api.githubcopilot.com. The identity
+          // header set (incl. X-GitHub-Api-Version, which unlocks long-context
+          // tiers) is injected by the auth strategy.
+          resolveUpstreamUrl: (model, config) =>
+            `${copilotBaseUrl(config as CopilotTokenConfig | undefined)}${copilotPathFor(copilotWireFor(model))}`,
+          resolveProviderTransformerNames: (model) =>
+            copilotTransformerNamesForWire(copilotWireFor(model)),
           providerTransformerNames: ['openai-response'],
           modelTransformerNames: [],
         },

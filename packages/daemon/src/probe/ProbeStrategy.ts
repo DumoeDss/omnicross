@@ -65,6 +65,10 @@ export const PROVIDER_PROBE_PLANS: Record<SubscriptionProviderId, ProbePlan> = {
   // with its own product-gate header — keep the probe local, the collector
   // owns the health surface.
   grok: { kind: 'local' },
+  // The Copilot quota endpoint (copilot_internal/user) is a verified FREE
+  // authed GET but lives on api.github.com with its own auth dialect and a
+  // monthly-only window — the allowance collector owns the health surface.
+  copilot: { kind: 'local' },
 };
 
 /** Resolve the probe plan for a provider (defaults to local for an unknown id). */

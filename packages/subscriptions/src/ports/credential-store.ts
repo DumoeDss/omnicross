@@ -49,6 +49,11 @@ export interface SubscriptionCredentialStore {
    * absence like a failed refresh) — the daemon's store implements it.
    */
   refreshGrokToken?(): Promise<boolean>;
+  /**
+   * "Refresh" a GitHub Copilot token — a LOCAL no-op (ghu_ tokens are
+   * long-lived with no exchange endpoint). OPTIONAL like the others.
+   */
+  refreshCopilotToken?(): Promise<boolean>;
   /** Current valid OpenCodeGo static API key; `null` if none. */
   getValidOpenCodeGoApiKey(): Promise<string | null>;
 

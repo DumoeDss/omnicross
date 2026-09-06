@@ -229,7 +229,7 @@ OAuth 与 omnicross 完全同源（同 client_id `app_EMoamEEZ73f0CkXaXp7hrann`�
 - umans 预设（anthropic 面）+ quota 适配（硬上限 raw 计数为准，软上限 weighted 只作回退）。
 - synthetic 预设（openai 面）+ quota 适配（5h 请求数 tick 回复 + 周美元积分）。
 
-**P2 未做（后续）**：Copilot（设备码 OAuth + ghu_ 长期令牌无刷新 + 三 wire + 身份头镜像）、google-gemini-cli/antigravity（需 CCA wire 翻译器，独立 change）、kilo（与 openrouter 重叠）、alibaba-token-plan（Cookie 运维型）、GitLab Duo、Cursor/Devin（P3）。
+**P2 未做（后续）**：google-gemini-cli/antigravity（需 CCA wire 翻译器，独立 change）、kilo（与 openrouter 重叠）、alibaba-token-plan（Cookie 运维型）、GitLab Duo、Cursor/Devin（P3）。
 
 **第二轮落地（2026-09-06 下午）**
 
@@ -242,5 +242,15 @@ OAuth 与 omnicross 完全同源（同 client_id `app_EMoamEEZ73f0CkXaXp7hrann`�
 - 订阅 provider `grok`（id 与 BYO grok 预设同名共存，同 kimi 先例）：设备码 flow（scopes 全集含 `grok-cli:access`，token endpoint 经 OIDC discovery 解析并钉 `*.x.ai`，1h 进程缓存 + `resetGrokDiscoveryCache` 测试钩子，`GROK_OAUTH_DEVICE_ENDPOINT`/`GROK_OAUTH_DISCOVERY_URL` 逃生舱）；OAuthBearerAuthStrategy 联合 + JsonSubscriptionCredentialStore（refreshGrokToken/by-id 刷新/writeBack/markExpired）+ TokenRefreshScheduler 扫描；dispatch profile 镜像 codex（`api.x.ai/v1/responses` + `openai-response` 编码链——effort 方言全部走 canonical 能力协商，omit-effort 模型（grok-4.20-0309 系/grok-build 系/composer）注册 `thinkingLevels: ['none']` 使 `reasoning.effort` 不发送，effort 模型只注册 low/medium/high）；模型目录 9 个（含 UI 镜像）；`GrokAllowanceCollector`（billing 双形态 + inferredPercent/unified 推断规则 + on-demand 第三窗 + 401→refresh→retry；探测时序：weekly 可用且非 unified 只探一次）；allowance 调度白名单放行（grok 月/周窗是权威配额，无 opencodego 式控制台兜底问题，worst-window 语义正确）；CLI `omnicross login grok` + admin 设备码登录（`/accounts/grok/oauth/*`，同 kimi 形态）；UI 卡片/内联登录/手动 token/allowance 刷新/模型选择器全接（i18n 键落 en/zh/zh-Hant，其余 28 locale 走 `fallbackLng: 'en'` 回退——下次补译）。
 - 未做但已探明：`x-grok-conv-id` 会话缓存头（多客户端中继下无法共享 conv id，属优化非门禁，跳过）；推理 UA 归属头（非门禁，跳过）。待实测确认（§4 同）：minted token 寿命/刷新轮换行为（按「响应缺 refresh_token 保留旧值」实现）、9 模型 id 的服务端实收集合。
 - 全仓 4113 测试通过；build + typecheck 干净。
+
+**第四轮落地（2026-09-07）：GitHub Copilot（`copilot`）全链完成**
+
+- 设备码 flow（官方 Copilot CLI app `Ov23ctDVkRmgkPke0Mmm`，scope `read:user`，GitHub 特有 ×1.2/×1.4 递增轮询节奏）；ghu_ 长期令牌——**刷新是本地 no-op**（refresh=access 同 token + 10 年远期 expiresAt，Generic 刷新路径永不触发网络；401 时 store 标记 expired + "re-authenticate" 信息，代理不重试不循环）；登录后异步完成身份读取（/user login/email）+ 端点发现（copilot_internal/user.endpoints.api）+ **44 模型策略启用清扫**（POST /models/{id}/policy，Claude/Grok 系未启用会 403）。
+- 推理：三 wire 按模型路由（复用 opencodego 的 per-model `resolveProviderTransformerNames`/`resolveUpstreamUrl` seam）——Claude 系 11 模型走 `/v1/messages` 同格式直通，GPT/Grok/mai-code 系 20 模型走 `/v1/responses`，Gemini/Kimi/raptor 系 13 模型走 `/v1/chat/completions`；base 解析 apiEndpoint > GHE 域 > api.githubcopilot.com。身份头集由 AuthStrategy 注入（`copilot/1.0.82` UA/Editor-Version + Copilot-Integration-Id/Harness-Id + `X-GitHub-Api-Version: 2026-08-01`（解锁长上下文 tier 元数据，永不发给 api.github.com REST）+ 静态 `X-Initiator: agent`（官方 CLI 自身分类，agent=0 倍 premium 计费）；每请求 initiator 推断与 Copilot-Vision-Request 头刻意未做（多客户端中继恒为 agent 语义）。
+- 配额：CopilotAllowanceCollector（`api.github.com/copilot_internal/user`，GHE 走 api.<domain>）——premium_interactions 月度窗（绝对 meter 优先，unlimited 报 0% 永不阻塞）+ 计费制 legacy chat 窗；调度白名单放行。
+- canonical 新增 COPILOT_MODELS 块（仅 Copilot 独有 id；gpt-5/gpt-5.3-codex 等复用既有条目避免重复 id 断言）+ Anthropic/Gemini 块补 Copilot 变体（claude-opus-4-5/sonnet-4-5/sonnet-4、gemini-2.5-pro/3.x 预览系）。
+- CLI `omnicross login copilot` + admin 设备码端点（登录会话完成后才 settle done，含策略清扫）+ UI 全接（i18n en/zh/zh-Hant，其余回退英文）。GHE 域登录交互留作后续（enterpriseUrl 字段与路由已支持，只是 CLI/admin 流未做域提示）。
+- 待实测确认：44 模型 id/ wire 归属的服务端实收（静态表来自审计源冻结清单）、premium 计费对 X-Initiator: agent 的实收倍率、policy 启用的幂等语义。
+- 全仓 4128 测试通过；build + typecheck 干净。
 
 **顺带修复**：main 上 `importSurface.test.ts` 期望的 README 短语已过期（b190db1 改了 README 未同步测试）。

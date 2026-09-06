@@ -150,7 +150,8 @@ export class AccountAllowanceScheduling {
       providerId !== 'codex' &&
       providerId !== 'kimi' &&
       providerId !== 'opencodego' &&
-      providerId !== 'grok'
+      providerId !== 'grok' &&
+      providerId !== 'copilot'
     ) {
       return { ...base, action: 'ignore', reason: 'provider-unsupported' };
     }

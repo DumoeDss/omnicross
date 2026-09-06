@@ -30,6 +30,7 @@ export const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   moonshot: <Sparkles className="h-5 w-5 text-purple-600" />,
   kimi: <Sparkles className="h-5 w-5 text-purple-600" />,
   cline: <Bot className="h-5 w-5 text-sky-600" />,
+  copilot: <Bot className="h-5 w-5 text-neutral-600" />,
   dashscope: <Cloud className="h-5 w-5 text-orange-500" />,
   doubao: <Bot className="h-5 w-5 text-blue-400" />,
   volcengine: <Cloud className="h-5 w-5 text-red-500" />,

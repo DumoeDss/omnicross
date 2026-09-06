@@ -80,6 +80,7 @@ import {
 import { type CodexLoopbackFn, CodexOAuthSessionStore } from './admin/accountsCodexOAuth';
 import { KimiOAuthSessionStore } from './admin/accountsKimiOAuth';
 import { GrokOAuthSessionStore } from './admin/accountsGrokOAuth';
+import { CopilotOAuthSessionStore } from './admin/accountsCopilotOAuth';
 import { AccountAllowanceService } from './allowance/AccountAllowanceService';
 import { ClaudeAllowanceRefreshScheduler } from './allowance/ClaudeAllowanceRefreshScheduler';
 import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowancePersistence';
@@ -1019,6 +1020,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     kimiSessions: new KimiOAuthSessionStore(),
     // Grok interactive OAuth — the same async DEVICE-CODE shape as kimi.
     grokSessions: new GrokOAuthSessionStore(),
+    copilotSessions: new CopilotOAuthSessionStore(),
     // Migration pack (app-parity child 6, design D2/D3) — the concrete credential
     // store provides BOTH the full DECRYPTED read (`getFullConfig`, export) and
     // the multi-account append (`appendProviderAccount`, import re-encrypts at-

@@ -21,6 +21,7 @@ import type {
   GeminiTokenConfig,
   GrokTokenConfig,
   KimiTokenConfig,
+  CopilotTokenConfig,
   ProxyConfig,
   SubscriptionAccountSanitized,
   TokenStatus,
@@ -122,6 +123,7 @@ const VALID_PROVIDER_IDS: readonly SubscriptionProviderId[] = [
   'opencodego',
   'kimi',
   'grok',
+  'copilot',
 ];
 
 /** Narrow a path segment to a known `SubscriptionProviderId` (or `null`). */
@@ -303,6 +305,22 @@ function validateGrok(body: Record<string, unknown>): GrokTokenConfig | null {
   return out;
 }
 
+function validateCopilot(body: Record<string, unknown>): CopilotTokenConfig | null {
+  const authMethod = str(body['authMethod']);
+  const status = str(body['status']);
+  if (!authMethod || !OAUTH_AUTH_METHODS.has(authMethod)) return null;
+  if (!status || !TOKEN_STATUSES.has(status as TokenStatus)) return null;
+  const out: CopilotTokenConfig = {
+    authMethod: authMethod as CopilotTokenConfig['authMethod'],
+    status: status as TokenStatus,
+  };
+  copyOptional(out, body, [
+    'accessToken', 'refreshToken', 'expiresAt', 'accountId', 'email',
+    'apiEndpoint', 'enterpriseUrl', 'lastRefreshedAt', 'errorMessage',
+  ]);
+  return out;
+}
+
 function validateOpenCodeGo(body: Record<string, unknown>): OpenCodeGoTokenConfig | null {
   const authMethod = str(body['authMethod']);
   const status = str(body['status']);
@@ -351,6 +369,8 @@ export function validateTokenBody(
       return validateKimi(body);
     case 'grok':
       return validateGrok(body);
+    case 'copilot':
+      return validateCopilot(body);
     default:
       return null;
   }

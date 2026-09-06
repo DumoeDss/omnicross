@@ -35,11 +35,13 @@ import type {
   GeminiTokenConfig,
   GrokTokenConfig,
   KimiTokenConfig,
+  CopilotTokenConfig,
 } from '@omnicross/contracts/account-tokens-types';
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import {
   claudeOAuth,
   codexOAuth,
+  copilotOAuth,
   type FetchLike,
   geminiOAuth,
   grokOAuth,
@@ -55,7 +57,7 @@ import { awaitLoopbackCode } from './loopbackCallback';
 import { defaultTokensPath, resolveSecretBox } from './paths';
 
 /** The providers `login` understands. */
-const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok'] as const;
+const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok', 'copilot'] as const;
 type LoginProvider = (typeof PROVIDERS)[number];
 
 /** Injectable side-effects so the command can be tested without I/O. */
@@ -70,6 +72,8 @@ export interface LoginDeps {
   awaitKimiDevice(fetchImpl: FetchLike): Promise<KimiLoginResult>;
   /** Drive the grok device flow to completion (start + poll until done). */
   awaitGrokDevice(fetchImpl: FetchLike): Promise<GrokLoginResult>;
+  /** Drive the copilot device flow to completion (start + poll + enable sweep). */
+  awaitCopilotDevice(fetchImpl: FetchLike): Promise<CopilotLoginResult>;
   /** HTTP port injected into the credential store for the token exchange. */
   tokensFetch?: FetchLike;
 }
@@ -89,6 +93,15 @@ export interface GrokLoginResult {
   refreshToken: string;
   expiresIn: number;
   accountId?: string;
+}
+
+/** The minted device-flow credentials the copilot login persists. */
+export interface CopilotLoginResult {
+  accessToken: string;
+  expiresIn: number;
+  accountId?: string;
+  email?: string;
+  apiEndpoint?: string;
 }
 
 /** Run the `login` subcommand. `argv` is everything after `login`. */
@@ -121,6 +134,7 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
     awaitLoopback: deps?.awaitLoopback ?? ((state) => awaitLoopbackCode(state)),
     awaitKimiDevice: deps?.awaitKimiDevice ?? ((fetchImpl) => runKimiDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     awaitGrokDevice: deps?.awaitGrokDevice ?? ((fetchImpl) => runGrokDeviceFlow(fetchImpl, resolvedOpenBrowser)),
+    awaitCopilotDevice: deps?.awaitCopilotDevice ?? ((fetchImpl) => runCopilotDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     tokensFetch: deps?.tokensFetch,
   };
 
@@ -173,6 +187,7 @@ async function runProviderLogin(
   if (provider === 'claude') return loginClaude(store, deps, exchangeFetch, label);
   if (provider === 'kimi') return loginKimi(store, deps, exchangeFetch, label);
   if (provider === 'grok') return loginGrok(store, deps, exchangeFetch, label);
+  if (provider === 'copilot') return loginCopilot(store, deps, exchangeFetch, label);
   return loginGemini(store, deps, exchangeFetch, label);
 }
 
@@ -375,6 +390,68 @@ async function loginGrok(
   };
   await store.appendProviderAccount('grok', block, label);
   logMasked('grok', result.accessToken);
+  return expiresAt;
+}
+
+// ── copilot (device code, RFC 8628) ──────────────────────────────────────────
+
+/**
+ * Drive the copilot device flow: request a device code, open/print the
+ * verification URL, poll until the user approves, then read the GitHub
+ * identity, discover the plan-advertised API endpoint, and best-effort sweep
+ * the policy-enable endpoint for the model roster (the Claude/Grok models
+ * stay 403 until enabled).
+ */
+async function runCopilotDeviceFlow(
+  exchangeFetch: FetchLike,
+  openBrowserFn: (url: string) => Promise<boolean>,
+): Promise<CopilotLoginResult> {
+  const authorization = await copilotOAuth.requestCopilotDeviceAuthorization(exchangeFetch);
+  const url = authorization.verificationUri;
+  console.info('Open this URL in your browser and approve the request:');
+  console.info(`  ${url}`);
+  console.info(`  Then enter this code: ${authorization.userCode}`);
+  await openBrowserFn(url).catch(() => false);
+  const result = await copilotOAuth.awaitCopilotDeviceToken(authorization, exchangeFetch, {
+    onPending: () => process.stdout.write('.'),
+  });
+  console.info('');
+  const identity = await copilotOAuth.fetchCopilotIdentity(result.accessToken, exchangeFetch);
+  const apiEndpoint = await copilotOAuth.discoverCopilotApiEndpoint(result.accessToken, exchangeFetch);
+  // Best-effort policy-enable sweep — failures are non-fatal.
+  console.info('Enabling Copilot models (policy)...');
+  await copilotOAuth.enableAllCopilotModels(result.accessToken, { apiEndpoint }, exchangeFetch);
+  return {
+    accessToken: result.accessToken,
+    expiresIn: Math.floor(copilotOAuth.COPILOT_FAR_FUTURE_MS / 1000),
+    ...identity,
+    ...(apiEndpoint ? { apiEndpoint } : {}),
+  };
+}
+
+async function loginCopilot(
+  store: JsonSubscriptionCredentialStore,
+  deps: LoginDeps,
+  exchangeFetch: FetchLike,
+  label?: string,
+): Promise<string> {
+  const result = await deps.awaitCopilotDevice(exchangeFetch);
+  const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
+  const block: CopilotTokenConfig = {
+    authMethod: 'oauth',
+    status: 'authorized',
+    accessToken: result.accessToken,
+    // ghu_ tokens have no refresh lifecycle — the same token doubles as the
+    // stored refresh credential so generic refresh paths stay well-formed.
+    refreshToken: result.accessToken,
+    expiresAt,
+    ...(result.accountId ? { accountId: result.accountId } : {}),
+    ...(result.email ? { email: result.email } : {}),
+    ...(result.apiEndpoint ? { apiEndpoint: result.apiEndpoint } : {}),
+    lastRefreshedAt: new Date().toISOString(),
+  };
+  await store.appendProviderAccount('copilot', block, label);
+  logMasked('copilot', result.accessToken);
   return expiresAt;
 }
 
