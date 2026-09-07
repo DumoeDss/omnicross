@@ -7,22 +7,15 @@
   "api_base_url": "https://api.anthropic.com/v1/messages",
   "modelsEndpoint": "https://api.anthropic.com/v1/models",
   "models": [
-    "claude-fable-5",
+    "claude-fable-5-1",
     "claude-opus-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-opus-4-7[1m]",
     "claude-sonnet-5",
-    "claude-sonnet-4-6",
-    "claude-sonnet-4-6[1m]",
-    "claude-opus-4-6",
-    "claude-opus-4-6[1m]",
     "claude-haiku-4-5"
   ],
   "modelConfigs": [
     {
-      "id": "claude-fable-5",
-      "name": "Claude Fable 5",
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
       "enabled": true
     },
     {
@@ -31,44 +24,9 @@
       "enabled": true
     },
     {
-      "id": "claude-opus-4-8",
-      "name": "Claude Opus 4.8",
-      "enabled": true
-    },
-    {
-      "id": "claude-opus-4-7",
-      "name": "Claude Opus 4.7",
-      "enabled": true
-    },
-    {
-      "id": "claude-opus-4-7[1m]",
-      "name": "Claude Opus 4.7 (1M)",
-      "enabled": false
-    },
-    {
       "id": "claude-sonnet-5",
       "name": "Claude Sonnet 5",
       "enabled": true
-    },
-    {
-      "id": "claude-sonnet-4-6",
-      "name": "Claude Sonnet 4.6",
-      "enabled": true
-    },
-    {
-      "id": "claude-sonnet-4-6[1m]",
-      "name": "Claude Sonnet 4.6 (1M)",
-      "enabled": false
-    },
-    {
-      "id": "claude-opus-4-6",
-      "name": "Claude Opus 4.6",
-      "enabled": true
-    },
-    {
-      "id": "claude-opus-4-6[1m]",
-      "name": "Claude Opus 4.6 (1M)",
-      "enabled": false
     },
     {
       "id": "claude-haiku-4-5",

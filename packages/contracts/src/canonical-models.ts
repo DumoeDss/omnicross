@@ -84,6 +84,7 @@ const OPENAI_MODELS: Record<string, KnownModelCapabilities> = {
 // different model from the API's perspective when the long-context tier is
 // engaged). Pricing on the 1M tier differs from the standard tier.
 const ANTHROPIC_MODELS: Record<string, KnownModelCapabilities> = {
+  'claude-fable-5-1': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
   'claude-fable-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
   'claude-opus-5': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
   'claude-opus-4-8': { category: 'reasoning', contextLength: 200000, maxTokens: 128000, vision: true, functionCall: true, reasoning: true },
@@ -254,6 +255,26 @@ const KUAISHOU_KAT_MODELS: Record<string, KnownModelCapabilities> = {
   'kat-coder-air-v1': { category: 'code', contextLength: 128000, maxTokens: 32768, functionCall: true },
 };
 
+// Antigravity-only model ids (the ids that exist ONLY on the Antigravity
+// subscription's CCA catalog — family models like claude-opus-4-6 /
+// gemini-3.5-flash / gemini-3.6-flash reuse their existing canonical entries
+// above, per the duplicate-id invariant). Transcribed from the reference
+// census (`_others/oh-my-pi/packages/catalog/src/models.json`,
+// `google-antigravity` group) minus the denylist (`gemini-2.5-pro`).
+// `tab_*_preview` are the platform's autocomplete-only models (16k ctx,
+// no reasoning, no function calling).
+const ANTIGRAVITY_MODELS: Record<string, KnownModelCapabilities> = {
+  'gemini-2.5-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
+  'gemini-2.5-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
+  'gemini-3-pro': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
+  'gemini-3.1-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: false, functionCall: false, reasoning: false },
+  'gemini-3.1-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'gemini-3.8-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'gpt-oss-120b': { category: 'chat', contextLength: 131072, maxTokens: 32768, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
+  'tab_flash_lite_preview': { category: 'chat', contextLength: 16384, maxTokens: 4096, vision: false, functionCall: false, reasoning: false },
+  'tab_jump_flash_lite_preview': { category: 'chat', contextLength: 16384, maxTokens: 4096, vision: false, functionCall: false, reasoning: false },
+};
+
 // ============================================================================
 // Public flat registry
 // ----------------------------------------------------------------------------
@@ -280,6 +301,7 @@ const VENDOR_GROUPS: Array<{ name: string; entries: Record<string, KnownModelCap
   { name: 'PERPLEXITY_MODELS', entries: PERPLEXITY_MODELS },
   { name: 'BAIDU_ERNIE_MODELS', entries: BAIDU_ERNIE_MODELS },
   { name: 'KUAISHOU_KAT_MODELS', entries: KUAISHOU_KAT_MODELS },
+  { name: 'ANTIGRAVITY_MODELS', entries: ANTIGRAVITY_MODELS },
 ];
 
 /**

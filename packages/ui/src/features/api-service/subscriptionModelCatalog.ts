@@ -21,7 +21,7 @@ import type { SubscriptionProviderId } from '@/daemon/types';
  * Ordering is small → large within each provider.
  */
 export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]> = {
-  claude: ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5', 'claude-fable-5'],
+  claude: ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5', 'claude-fable-5-1'],
   codex: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-6-astra'],
   gemini: [],
   opencodego: [],
@@ -81,6 +81,28 @@ export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]
     'gpt-5.6-sol',
     'grok-4.5',
     'grok-4.6',
+  ],
+  // MIRROR of contracts' antigravity catalog (static CCA census, denylist
+  // applied) — keep in lockstep.
+  antigravity: [
+    'tab_flash_lite_preview',
+    'tab_jump_flash_lite_preview',
+    'gpt-oss-120b',
+    'gemini-3.1-flash-image',
+    'claude-opus-4-5',
+    'claude-opus-4-6',
+    'claude-sonnet-4-6',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-3-flash',
+    'gemini-3-pro',
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-pro',
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+    'gemini-3.7-flash',
+    'gemini-3.8-flash',
+    'claude-sonnet-4-5',
   ],
 };
 

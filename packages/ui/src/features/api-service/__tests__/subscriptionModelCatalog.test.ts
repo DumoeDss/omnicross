@@ -15,7 +15,7 @@ describe('SUBSCRIPTION_MODEL_CATALOG', () => {
       'claude-haiku-4-5',
       'claude-sonnet-5',
       'claude-opus-5',
-      'claude-fable-5',
+      'claude-fable-5-1',
     ]);
     expect(SUBSCRIPTION_MODEL_CATALOG.codex).toEqual([
       'gpt-5.6-luna',
@@ -41,10 +41,34 @@ describe('SUBSCRIPTION_MODEL_CATALOG', () => {
     expect(SUBSCRIPTION_MODEL_CATALOG.opencodego).toEqual([]);
   });
 
+  it('catalogs antigravity (static CCA census, denylist applied)', () => {
+    expect(SUBSCRIPTION_MODEL_CATALOG.antigravity).toEqual([
+      'tab_flash_lite_preview',
+      'tab_jump_flash_lite_preview',
+      'gpt-oss-120b',
+      'gemini-3.1-flash-image',
+      'claude-opus-4-5',
+      'claude-opus-4-6',
+      'claude-sonnet-4-6',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-3-flash',
+      'gemini-3-pro',
+      'gemini-3.1-flash-lite',
+      'gemini-3.1-pro',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+      'gemini-3.7-flash',
+      'gemini-3.8-flash',
+      'claude-sonnet-4-5',
+    ]);
+  });
+
   it('reports catalog availability per provider', () => {
     expect(subscriptionProviderHasCatalog('claude')).toBe(true);
     expect(subscriptionProviderHasCatalog('codex')).toBe(true);
     expect(subscriptionProviderHasCatalog('gemini')).toBe(false);
     expect(subscriptionProviderHasCatalog('opencodego')).toBe(false);
+    expect(subscriptionProviderHasCatalog('antigravity')).toBe(true);
   });
 });

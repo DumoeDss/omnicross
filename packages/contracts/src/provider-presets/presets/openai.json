@@ -6,12 +6,17 @@
   "apiType": "openai",
   "api_base_url": "https://api.openai.com/v1/chat/completions",
   "models": [
+    "gpt-6-astra",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
-    "gpt-5.6-luna",
-    "gpt-5.5"
+    "gpt-5.6-luna"
   ],
   "modelConfigs": [
+    {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "enabled": true
+    },
     {
       "id": "gpt-5.6-sol",
       "name": "GPT-5.6 Sol",
@@ -25,11 +30,6 @@
     {
       "id": "gpt-5.6-luna",
       "name": "GPT-5.6 Luna",
-      "enabled": true
-    },
-    {
-      "id": "gpt-5.5",
-      "name": "GPT-5.5",
       "enabled": true
     }
   ],
