@@ -5,7 +5,7 @@
  * 401→refresh→retry contract.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GrokTokenConfig, SubscriptionAccountEntry } from '@omnicross/contracts/account-tokens-types';
 import { AccountAllowanceStore } from '@omnicross/core/pipeline/AccountAllowanceStore';
@@ -13,6 +13,16 @@ import { AccountAllowanceStore } from '@omnicross/core/pipeline/AccountAllowance
 import { GrokAllowanceCollector, parseGrokBillingPayloads } from '../GrokAllowanceCollector';
 
 const NOW = Date.parse('2026-09-06T00:00:00.000Z');
+
+// `parseWeeklyConfig`'s rollover rule compares the period end against the REAL
+// wall clock (`Date.now()`), so the fixture periods (ending 2026-09-08) would
+// silently flip semantics once the actual date passed them. Pin the clock to
+// NOW for deterministic parsing tests.
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(NOW));
+});
+afterEach(() => vi.useRealTimers());
 
 function creditsPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
