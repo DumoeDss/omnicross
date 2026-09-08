@@ -105,6 +105,13 @@ export interface AnthropicByoOptions {
    */
   readonly callerClientHeaders?: Record<string, string>;
   /**
+   * The caller's `x-opencode-session` value (opencodego-egress-identity),
+   * extracted UNGATED at the ingress. Forwarded verbatim to opencode.ai on the
+   * OpenCodeGo relay when non-empty; absent ⇒ the strategy falls back to the
+   * plan's derived session key. `null`/absent for callers that never set it.
+   */
+  readonly callerOpenCodeSession?: string | null;
+  /**
    * The ingress request scope's cancellation signal (`createRequestAbortScope`
    * over the downstream request/response). Threaded into EVERY upstream fetch
    * and body read on this path so a client that hangs up mid-turn tears the
@@ -442,6 +449,10 @@ export async function runPipeline(
   plan: AnthropicCallPlan,
   reportSelection?: (accountId: string, isActive: boolean) => void,
   signal?: AbortSignal,
+  /** The caller's `x-opencode-session` (opencodego-egress-identity) — see
+   *  `AnthropicByoOptions.callerOpenCodeSession`. Optional so BYO callers and
+   *  tests are unchanged; the subscription relay passes it from its options. */
+  callerOpenCodeSession?: string,
 ): Promise<AnthropicRunResult> {
   const executor = getSharedExecutor();
   const endpointTransformer = getAnthropicEndpointTransformer();
@@ -458,6 +469,7 @@ export async function runPipeline(
     upstreamUrl,
     model: resolvedModel,
     sessionKey: plan.sessionKey,
+    callerOpenCodeSession,
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
@@ -555,6 +567,7 @@ export async function runSubscriptionSameFormatFetch(
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
+    callerOpenCodeSession: options.callerOpenCodeSession ?? undefined,
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
@@ -719,7 +732,13 @@ async function runSubscriptionAttemptWith401Retry(
   const runOnce = (): Promise<AnthropicRunResult> =>
     plan.sameFormat
       ? runSubscriptionSameFormatFetch(relayBody, plan, reportSelection, options)
-      : runPipeline(anthropicBody, plan, reportSelection, options.signal);
+      : runPipeline(
+          anthropicBody,
+          plan,
+          reportSelection,
+          options.signal,
+          options.callerOpenCodeSession ?? undefined,
+        );
 
   const first = await runOnce();
   let result = first;

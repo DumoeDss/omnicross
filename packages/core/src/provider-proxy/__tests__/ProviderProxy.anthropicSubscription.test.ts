@@ -36,6 +36,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderConfigSource } from '../../ports';
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
+import {
+  __resetOpenCodeGoHeadersForTests,
+  getOpenCodeGoUserAgent,
+  OPENCODE_SESSION_HEADER,
+  resolveOpenCodeSessionHeader,
+  setOpenCodeGoUserAgent,
+} from '../identity/openCodeGoHeaders';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
 import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
@@ -92,6 +99,10 @@ interface MockUpstream {
   hits: number;
   lastAuthHeader: string | undefined;
   lastApiKeyHeader: string | undefined;
+  /** The received `user-agent` (opencodego-egress-identity assertions). */
+  lastUserAgent: string | undefined;
+  /** The received `x-opencode-session` (opencodego-egress-identity assertions). */
+  lastSessionHeader: string | undefined;
   lastBody: string | undefined;
   /** The request path of each hit, in order (proves the zen per-shape endpoint). */
   paths: string[];
@@ -120,6 +131,8 @@ function startMockUpstream(): Promise<MockUpstream> {
     hits: 0,
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
+    lastUserAgent: undefined,
+    lastSessionHeader: undefined,
     lastBody: undefined,
     paths: [],
     failFirstN: 0,
@@ -136,6 +149,8 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.hits += 1;
       state.lastAuthHeader = req.headers['authorization'] as string | undefined;
       state.lastApiKeyHeader = req.headers['x-api-key'] as string | undefined;
+      state.lastUserAgent = req.headers['user-agent'] as string | undefined;
+      state.lastSessionHeader = req.headers['x-opencode-session'] as string | undefined;
       state.lastBody = body;
       state.paths.push(req.url ?? '');
       let bodyModel: string | undefined;
@@ -234,12 +249,17 @@ function makeClaudeStrategy(): { strategy: AuthStrategy; refreshed: { value: boo
 }
 
 /** Mirrors `StaticBearerAuthStrategy`: `Authorization: Bearer <key>` + (when the
- *  upstream is Anthropic-shape `/v1/messages`) `x-api-key: <key>`. No refresh. */
+ *  upstream is Anthropic-shape `/v1/messages`) `x-api-key: <key>` + the
+ *  opencodego-egress-identity headers (user-agent + x-opencode-session, using
+ *  the REAL identity module so the mirror cannot drift). No refresh. */
 function makeOpenCodeGoStrategy(): AuthStrategy {
   return {
     kind: 'static-bearer',
     providerId: 'opencodego',
     async applyHeaders(headers, hints) {
+      headers['user-agent'] = getOpenCodeGoUserAgent();
+      const session = resolveOpenCodeSessionHeader(hints?.callerOpenCodeSession, hints?.sessionKey);
+      if (session) headers[OPENCODE_SESSION_HEADER] = session;
       headers['Authorization'] = `Bearer ${OC_KEY}`;
       if (hints?.upstreamUrl?.includes('/v1/messages')) headers['x-api-key'] = OC_KEY;
     },
@@ -316,6 +336,7 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     await proxy.stop();
     await stopServer(upstream.server);
     setSubscriptionRegistryForOutbound(null);
+    __resetOpenCodeGoHeadersForTests();
   });
 
   function bearer(token: string): Record<string, string> {
@@ -426,6 +447,63 @@ describe('ProviderProxy built-in Anthropic /v1/messages SUBSCRIPTION (no factory
     expect(upstream.hits).toBe(1);
     expect(upstream.lastAuthHeader).toBe(`Bearer ${OC_KEY}`);
     expect(upstream.lastApiKeyHeader).toBe(OC_KEY);
+  });
+
+  // 3.2b — opencodego-egress-identity: the relay identifies itself (UA) and
+  // carries the session header, end-to-end through the same-format relay.
+  it('opencodego → default UA + caller x-opencode-session forwarded verbatim', async () => {
+    await startProxy();
+    const profile: SubscriptionDispatchProfile = {
+      providerId: 'opencodego',
+      displayName: 'OpenCodeGo',
+      authStrategy: makeOpenCodeGoStrategy(),
+      mode: 'transformer',
+      resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
+      providerTransformerNames: ['openai'],
+      modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
+    };
+    const token = proxy.addRoute(subRoute(profile));
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: { ...bearer(token), 'x-opencode-session': 'client-sess-42' },
+      body: JSON.stringify({ model: 'cli', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    // The client's own session id wins verbatim; the UA is the relay's identity
+    // (default in a src run), never the client fetch's generic `node` UA.
+    expect(upstream.lastSessionHeader).toBe('client-sess-42');
+    expect(upstream.lastUserAgent).toBe('omnicross/0.0.0-dev');
+  });
+
+  it('opencodego → no caller session ⇒ the derived affinity key stands in; configured UA wins', async () => {
+    setOpenCodeGoUserAgent('elftia-test/1.0');
+    await startProxy();
+    const profile: SubscriptionDispatchProfile = {
+      providerId: 'opencodego',
+      displayName: 'OpenCodeGo',
+      authStrategy: makeOpenCodeGoStrategy(),
+      mode: 'transformer',
+      resolveUpstreamUrl: () => upstreamUrl('/v1/messages'),
+      providerTransformerNames: ['openai'],
+      modelMapper: () => ({ resolvedModel: 'minimax-m2.5', scenario: 'long_context' }),
+    };
+    const token = proxy.addRoute(subRoute(profile));
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({
+        model: 'cli',
+        max_tokens: 16,
+        system: 'You are a helpful assistant.',
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    // No caller header ⇒ the FNV-1a body-anchor affinity key (8-hex) is sent.
+    expect(upstream.lastSessionHeader).toMatch(/^[0-9a-f]{8}$/);
+    expect(upstream.lastUserAgent).toBe('elftia-test/1.0');
   });
 
   // 3.3 — opencodego OpenAI-shape: upstream ends in /v1/chat/completions → transformer chain.

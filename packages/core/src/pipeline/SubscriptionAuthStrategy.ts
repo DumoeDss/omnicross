@@ -42,6 +42,13 @@ export interface AuthApplyHints {
    */
   sessionKey?: string;
   /**
+   * OPTIONAL caller-supplied `x-opencode-session` value (opencodego only,
+   * opencodego-egress-identity). A non-empty value is forwarded VERBATIM to the
+   * upstream so an OpenCode CLI downstream client keeps its own session id;
+   * absent ⇒ the strategy falls back to `sessionKey`. Other providers ignore it.
+   */
+  callerOpenCodeSession?: string;
+  /**
    * Per-request selection callback (subscription-account-health, D5;
    * subscription-account-model-map, D3). The strategy invokes it with the
    * EFFECTIVE account id it resolved so the relay can mark that account's health

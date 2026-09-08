@@ -10,6 +10,11 @@
 
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
 import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import {
+  getOpenCodeGoUserAgent,
+  OPENCODE_SESSION_HEADER,
+  resolveOpenCodeSessionHeader,
+} from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
 import { resolveSelectedToken } from '../scheduler/accountSelection';
@@ -35,6 +40,23 @@ export class StaticBearerAuthStrategy implements AuthStrategy {
   ) {}
 
   async applyHeaders(headers: Record<string, string>, hints?: AuthApplyHints): Promise<void> {
+    // opencodego-egress-identity: the outbound identity headers opencode.ai's
+    // announcement asks proxy tools to carry. Applied BEFORE the keyless
+    // early-return — a keyless request still egresses (as the upstream's own
+    // 401), and identity is exactly what that exchange should not lose.
+    //  - `user-agent`: the library-configured UA (daemon config
+    //    `opencodego.userAgent`, e.g. an embedding app's name) or the product
+    //    default `omnicross/<version>` — never the bare `node` fallback.
+    //  - `x-opencode-session`: the caller's own session id forwarded verbatim
+    //    when the downstream client sent one; otherwise the relay's stable
+    //    per-conversation affinity key. The two live paths derive that key
+    //    differently (Anthropic ingress: FNV-1a 8-hex over the body anchor;
+    //    Responses ingress: header-aware SHA-256 32-hex) — both are stable,
+    //    non-sensitive digests fit for the upstream's cache-affinity purpose.
+    headers['user-agent'] = getOpenCodeGoUserAgent();
+    const session = resolveOpenCodeSessionHeader(hints?.callerOpenCodeSession, hints?.sessionKey);
+    if (session) headers[OPENCODE_SESSION_HEADER] = session;
+
     // Account pool: a non-active pick uses that account's static key by id;
     // otherwise the active `getValidOpenCodeGoApiKey()` path runs verbatim.
     const key = await resolveSelectedToken(

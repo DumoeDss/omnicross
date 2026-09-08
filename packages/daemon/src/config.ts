@@ -351,6 +351,22 @@ export interface AntigravityProviderConfig {
   sandboxFailover?: boolean;
 }
 
+/**
+ * Per-provider identity config for the OpenCodeGo subscription
+ * (opencodego-egress-identity).
+ */
+export interface OpenCodeGoProviderConfig {
+  /**
+   * The `user-agent` every OpenCodeGo egress presents to opencode.ai (relay
+   * traffic AND the background usage poll). An app embedding omnicross sets
+   * its own identity here (e.g. `elftia/1.2.0`); absent ⇒ the product default
+   * `omnicross/<version>`. opencode.ai's announcement asks proxy tools to
+   * identify themselves clearly — a bare relay falls to Node's generic `node`
+   * UA, exactly the shape their traffic monitoring flags. NON-SECRET.
+   */
+  userAgent?: string;
+}
+
 /** The full daemon config. */
 export interface DaemonConfig {
   providers: DaemonProviderConfig[];
@@ -375,6 +391,11 @@ export interface DaemonConfig {
    * Absent ⇒ every default (failover OFF).
    */
   antigravity?: AntigravityProviderConfig;
+  /**
+   * Optional OpenCodeGo identity config (outbound user-agent). Absent ⇒ the
+   * product default `omnicross/<version>` on every opencode.ai egress.
+   */
+  opencodego?: OpenCodeGoProviderConfig;
 }
 
 /** Shape-guard the optional `admin` block — defensive, never throws on a
@@ -418,6 +439,18 @@ function validateAntigravity(raw: unknown): AntigravityProviderConfig | undefine
   const a = raw as Record<string, unknown>;
   if (typeof a['sandboxFailover'] !== 'boolean') return undefined;
   return { sandboxFailover: a['sandboxFailover'] };
+}
+
+/** Shape-guard the optional `opencodego` block. Defensive, never throws: a
+ *  non-object collapses to `undefined`; `userAgent` is kept (trimmed) only
+ *  when a non-empty-after-trim string, else the block collapses — the unset
+ *  default (`omnicross/<version>`) is indistinguishable from a blank value. */
+function validateOpenCodeGo(raw: unknown): OpenCodeGoProviderConfig | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const ua = o['userAgent'];
+  if (typeof ua !== 'string' || ua.trim().length === 0) return undefined;
+  return { userAgent: ua.trim() };
 }
 
 function validateUsage(raw: unknown): UsageRetentionConfig | undefined {
@@ -864,7 +897,8 @@ export function validateConfig(raw: unknown): DaemonConfig {
   const logging = validateLogging(obj['logging']);
   const usage = validateUsage(obj['usage']);
   const antigravity = validateAntigravity(obj['antigravity']);
-  return { providers, server, admin, logging, usage, antigravity };
+  const opencodego = validateOpenCodeGo(obj['opencodego']);
+  return { providers, server, admin, logging, usage, antigravity, opencodego };
 }
 
 /**

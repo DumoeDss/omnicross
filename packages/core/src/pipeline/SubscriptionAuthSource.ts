@@ -191,6 +191,7 @@ export class SubscriptionAuthSource implements AuthSource {
         upstreamUrl: hints.upstreamUrl,
         resolvedModel: hints.model,
         sessionKey: hints.sessionKey,
+        callerOpenCodeSession: hints.callerOpenCodeSession,
         reportSelection: hints.reportSelection,
         preferredAccountId: hints.preferredAccountId,
         preferredAccountGroup: hints.preferredAccountGroup,

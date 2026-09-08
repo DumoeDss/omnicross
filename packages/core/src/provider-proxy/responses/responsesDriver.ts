@@ -23,6 +23,7 @@ import {
   extractCodexClientHeaders,
 } from '../identity/codexCliHeaders';
 import { fillMissingHeaders } from '../identity/headerMerge';
+import { extractOpenCodeSessionHeader } from '../identity/openCodeGoHeaders';
 import type { SessionKeySource, SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import {
@@ -70,6 +71,10 @@ export interface ResponsesCallPlan {
   readonly proxyProviderId: string;
   readonly providerIdentity: string;
   readonly callerClientHeaders?: Record<string, string>;
+  /** The caller's `x-opencode-session` value (opencodego-egress-identity) —
+   *  forwarded verbatim to opencode.ai; absent ⇒ the strategy falls back to
+   *  `sessionKey`. Set only on opencodego subscription plans. */
+  readonly callerOpenCodeSession?: string;
   readonly statefulContinuation: boolean;
   readonly credential: ResponsesCredentialIdentity;
   readonly resolveCredential?: () => ResponsesCredentialIdentity;
@@ -306,6 +311,11 @@ async function buildSubscriptionPlan(
     callerClientHeaders: profile.authStrategy.providerId === 'codex'
       ? extractCodexClientHeaders(requestHeaders)
       : undefined,
+    // opencodego-egress-identity: the caller's own session id, forwarded
+    // verbatim to opencode.ai (the codex callerClientHeaders precedent).
+    callerOpenCodeSession: profile.authStrategy.providerId === 'opencodego'
+      ? extractOpenCodeSessionHeader(requestHeaders)
+      : undefined,
     statefulContinuation: !!affinity,
     credential: affinityAccountId
       ? { kind: 'subscription-account', id: affinityAccountId }
@@ -397,6 +407,7 @@ async function applyPlanAuth(
     upstreamUrl: plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
+    callerOpenCodeSession: plan.callerOpenCodeSession,
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,

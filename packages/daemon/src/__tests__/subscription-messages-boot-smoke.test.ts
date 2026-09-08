@@ -37,6 +37,7 @@ import {
   setSubscriptionRegistryForOutbound,
   type SubscriptionRegistryLike,
 } from '@omnicross/core/outbound-api/subscriptionRegistryPort';
+import { __resetOpenCodeGoHeadersForTests } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 import type { SubscriptionDispatchProfile } from '@omnicross/core/provider-proxy/types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -91,6 +92,10 @@ interface MockUpstream {
   lastAuthHeader: string | undefined;
   /** The `x-api-key` header value the upstream last received. */
   lastApiKeyHeader: string | undefined;
+  /** The `user-agent` the upstream last received (opencodego-egress-identity). */
+  lastUserAgent: string | undefined;
+  /** The `x-opencode-session` the upstream last received, per hit (identity). */
+  sessionHeaders: Array<string | undefined>;
   /** The verbatim request body the upstream last received. */
   lastBody: string | undefined;
   /** The path the upstream last received (proves the baseUrl override host). */
@@ -106,6 +111,8 @@ function startMockUpstream(): Promise<MockUpstream> {
     port: 0,
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
+    lastUserAgent: undefined,
+    sessionHeaders: [],
     lastBody: undefined,
     lastPath: undefined,
     hits: 0,
@@ -118,6 +125,8 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.hits += 1;
       state.lastAuthHeader = req.headers['authorization'] as string | undefined;
       state.lastApiKeyHeader = req.headers['x-api-key'] as string | undefined;
+      state.lastUserAgent = req.headers['user-agent'] as string | undefined;
+      state.sessionHeaders.push(req.headers['x-opencode-session'] as string | undefined);
       state.lastBody = body;
       state.lastPath = req.url;
       const bearer = state.lastAuthHeader ?? '';
@@ -176,11 +185,18 @@ let plaintextKey: string;
  * takes the subscription branch. A single filler BYO provider keeps `providers`
  * non-empty.
  */
-function writeConfig(configPath: string, defaultModel: string, useSubscription: boolean): void {
+function writeConfig(
+  configPath: string,
+  defaultModel: string,
+  useSubscription: boolean,
+  /** Extra TOP-LEVEL config blocks (e.g. the opencodego identity block). */
+  extra: Record<string, unknown> = {},
+): void {
   writeFileSync(
     configPath,
     JSON.stringify(
       {
+        ...extra,
         providers: [
           {
             id: 'mock-openai',
@@ -258,12 +274,14 @@ async function boot(opts: {
   model: string;
   useSubscription: boolean;
   tokens: 'claude' | 'opencodego' | 'none';
+  /** Extra top-level config.json blocks (writeConfig `extra`). */
+  configExtra?: Record<string, unknown>;
 }): Promise<void> {
   const configPath = join(tmpDir, 'config.json');
   const keysPath = join(tmpDir, 'keys.json');
   const tokensPath = join(tmpDir, 'tokens.json');
 
-  writeConfig(configPath, `${opts.providerId},${opts.model}`, opts.useSubscription);
+  writeConfig(configPath, `${opts.providerId},${opts.model}`, opts.useSubscription, opts.configExtra);
   writeTokens(tokensPath, opts.tokens);
 
   const config = loadConfig(configPath);
@@ -364,6 +382,7 @@ afterEach(async () => {
   }
   await stopServer(upstream.server);
   resetDaemonSingletonsForTests();
+  __resetOpenCodeGoHeadersForTests();
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -446,9 +465,63 @@ describe('omnicross daemon subscription messages boot smoke (standalone /v1/mess
     // in `/v1/messages` → Anthropic-shape → x-api-key fallback).
     expect(upstream.lastAuthHeader).toBe(`Bearer ${FAKE_OC_KEY}`);
     expect(upstream.lastApiKeyHeader).toBe(FAKE_OC_KEY);
+    // opencodego-egress-identity: the REAL strategy stamps the product default
+    // UA (src run ⇒ dev sentinel) — never the bare `node` fallback.
+    expect(upstream.lastUserAgent).toBe('omnicross/0.0.0-dev');
     // Body forwarded verbatim.
     const received = JSON.parse(upstream.lastBody ?? '{}') as typeof sentBody;
     expect(received.messages[0].content).toBe('ping');
+  });
+
+  // opencodego-egress-identity — the config chain: config.json
+  // `opencodego.userAgent` → validateConfig → bootstrap setter → REAL strategy.
+  it('opencodego → CONFIGURED userAgent reaches the upstream (config validate + bootstrap wiring)', async () => {
+    await boot({
+      providerId: 'opencodego',
+      model: 'minimax-m2.5',
+      useSubscription: true,
+      tokens: 'opencodego',
+      configExtra: { opencodego: { userAgent: 'elftia/1.2.3' } },
+    });
+
+    const res = await post({ model: 'minimax-m2.5', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }, true);
+    expect(res.status).toBe(200);
+    expect(upstream.hits).toBe(1);
+    expect(upstream.lastUserAgent).toBe('elftia/1.2.3');
+  });
+
+  // opencodego-egress-identity — the session chain: caller header wins; absent
+  // ⇒ the FNV body-anchor affinity key, stable across identical bodies.
+  it('opencodego → caller x-opencode-session verbatim; absent ⇒ stable derived key', async () => {
+    await boot({
+      providerId: 'opencodego',
+      model: 'minimax-m2.5',
+      useSubscription: true,
+      tokens: 'opencodego',
+    });
+
+    // 1) The caller sent its own session id — forwarded verbatim.
+    const withSession = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${plaintextKey}`,
+        'x-opencode-session': 'client-boot-smoke-session',
+      },
+      body: JSON.stringify({ model: 'minimax-m2.5', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+    });
+    expect(withSession.status).toBe(200);
+    expect(upstream.sessionHeaders[0]).toBe('client-boot-smoke-session');
+
+    // 2) No caller header ⇒ the derived key (FNV-1a 8-hex), identical across
+    //    two calls with the same body anchor.
+    const body = JSON.stringify({ model: 'minimax-m2.5', max_tokens: 16, messages: [{ role: 'user', content: 'pong' }] });
+    const first = await post(JSON.parse(body), true);
+    const second = await post(JSON.parse(body), true);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(upstream.sessionHeaders[1]).toMatch(/^[0-9a-f]{8}$/);
+    expect(upstream.sessionHeaders[2]).toBe(upstream.sessionHeaders[1]);
   });
 
   // opencodego baseUrl LIVE on the daemon /v1/messages path (Anthropic-shape

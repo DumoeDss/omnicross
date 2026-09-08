@@ -44,6 +44,12 @@ export interface AuthApplyHints {
    */
   sessionKey?: string;
   /**
+   * OPTIONAL caller-supplied `x-opencode-session` value (opencodego only,
+   * opencodego-egress-identity) — mapped through to the subscription strategy's
+   * outbound session header, verbatim when present. BYO auth sources ignore it.
+   */
+  callerOpenCodeSession?: string;
+  /**
    * OPTIONAL per-request selection callback (subscription-account-health, D5;
    * subscription-account-model-map, D3). A subscription strategy invokes it with
    * the EFFECTIVE account id it resolved (the selected non-active id, or the active

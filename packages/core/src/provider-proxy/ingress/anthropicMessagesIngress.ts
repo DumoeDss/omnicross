@@ -49,6 +49,7 @@
 import type http from 'node:http';
 
 import { extractClaudeClientHeaders } from '../identity/claudeCodeHeaders';
+import { extractOpenCodeSessionHeader } from '../identity/openCodeGoHeaders';
 import { captureCallerIdentity } from '../identity/fingerprintHeaders';
 import { getSharedIdentityStore } from '../identity/SubscriptionIdentityStore';
 import { DEFAULT_SEARCH_FRONTEND_MODES } from '../../search/frontends';
@@ -133,11 +134,15 @@ export async function handleAnthropicMessagesRequest(
         : callerVersionRaw;
       const callerIdentity = captureCallerIdentity(getSharedIdentityStore(), request.headers);
       const callerClientHeaders = extractClaudeClientHeaders(request.headers);
+      // opencodego-egress-identity: the caller's own session id, forwarded
+      // verbatim to opencode.ai when this route resolves an OpenCodeGo account.
+      const callerOpenCodeSession = extractOpenCodeSessionHeader(request.headers);
       await handleAnthropicCountTokens(res, rawBody, route, deps, {
         callerAnthropicBeta,
         callerAnthropicVersion,
         callerIdentity,
         callerClientHeaders,
+        callerOpenCodeSession,
         signal: scope.signal,
       });
     } catch (error) {
@@ -223,11 +228,15 @@ export async function handleAnthropicMessagesRequest(
       // fingerprint synthesis, and the subscription relay needs them regardless of
       // whether the opt-in freeze/replay feature is on.
       const callerClientHeaders = extractClaudeClientHeaders(request.headers);
+      // opencodego-egress-identity: the caller's own session id, forwarded
+      // verbatim to opencode.ai when this route resolves an OpenCodeGo account.
+      const callerOpenCodeSession = extractOpenCodeSessionHeader(request.headers);
       await handleAnthropicMessagesByo(res, rawBody, route, deps, {
         callerAnthropicBeta,
         callerAnthropicVersion,
         callerIdentity,
         callerClientHeaders,
+        callerOpenCodeSession,
         signal: scope.signal,
       });
     } catch (error) {

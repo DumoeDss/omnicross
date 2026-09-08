@@ -54,6 +54,7 @@ import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipelin
 import { __resetSharedIdentityStoreForTests } from '@omnicross/core/provider-proxy/identity/SubscriptionIdentityStore';
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import { setAntigravitySandboxFailover } from '@omnicross/core/transformer/transformers/antigravityFailover';
+import { setOpenCodeGoUserAgent } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 import {
   __resetProviderProxyForTests,
   createNativeResponsesHostedImageIngress,
@@ -612,6 +613,12 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // daemon config (default OFF); applied once at bootstrap and on every
   // applyConfig pass below.
   setAntigravitySandboxFailover(decryptedConfig.antigravity?.sandboxFailover === true);
+  // opencodego-egress-identity: the outbound user-agent every opencode.ai
+  // request carries (relay + usage poll). An embedding app configures its own
+  // identity via `opencodego.userAgent`; absent ⇒ the product default
+  // `omnicross/<version>`. Boot wiring only — a config change takes effect on
+  // restart (the antigravity-failover contract).
+  setOpenCodeGoUserAgent(decryptedConfig.opencodego?.userAgent ?? null);
 
   // Multi-key API-key pool. Constructed BEFORE the proxy because
   // `getProviderProxy` only honors `deps` on its FIRST (construction) call and

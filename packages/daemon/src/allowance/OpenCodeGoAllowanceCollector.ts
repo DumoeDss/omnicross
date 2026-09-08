@@ -24,6 +24,7 @@ import {
   getSharedAccountAllowanceStore,
 } from '@omnicross/core/pipeline/AccountAllowanceStore';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
+import { getOpenCodeGoUserAgent } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 import { normalizeOpenCodeGoBaseUrl } from '@omnicross/subscriptions';
 
 export const OPENCODEGO_ALLOWANCE_CACHE_MS = 5 * 60_000;
@@ -148,7 +149,14 @@ export class OpenCodeGoAllowanceCollector {
       : OPENCODEGO_DEFAULT_GO_BASE;
     const response = await this.fetchImpl(`${base}/v1/usage`, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+      // opencodego-egress-identity: the background poll identifies itself with
+      // the same configured/default UA the relay carries (no session header —
+      // a poll has no conversation).
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+        'User-Agent': getOpenCodeGoUserAgent(),
+      },
       signal: AbortSignal.timeout(15_000),
     }, account.id);
     if (response.status === 401 || response.status === 403) {

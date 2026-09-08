@@ -1,4 +1,14 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'tsup';
+
+// This package's own version — the workspace version (all packages are bumped
+// lock-step by scripts/release-version.mjs). Baked into the bundle via `define`
+// below so the OpenCodeGo egress identity can build `omnicross/<version>` —
+// the same mechanism as the daemon's `__DAEMON_VERSION__`.
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+) as { version: string };
 
 // @omnicross/core is consumed via SUBPATHS. The entry KEY = the subpath consumers
 // import (relative to the package root); tsup writes each to dist/<key>.{js,cjs,d.ts}
@@ -6,6 +16,9 @@ import { defineConfig } from 'tsup';
 // subpaths (completion, outbound-api, provider-proxy) flatten to dist/<name>.js.
 // splitting:false keeps each entry self-contained; external deps stay external.
 export default defineConfig({
+  define: {
+    __OMNICROSS_VERSION__: JSON.stringify(pkg.version),
+  },
   entry: {
     index: 'src/index.ts',
     ApiConverter: 'src/ApiConverter.ts',
@@ -61,6 +74,11 @@ export default defineConfig({
     'provider-proxy/identity/codexCliHeaders': 'src/provider-proxy/identity/codexCliHeaders.ts',
     'provider-proxy/identity/SubscriptionIdentityStore': 'src/provider-proxy/identity/SubscriptionIdentityStore.ts',
     'provider-proxy/identity/fingerprintHeaders': 'src/provider-proxy/identity/fingerprintHeaders.ts',
+    // opencodego-egress-identity: the OpenCodeGo outbound identity headers (UA
+    // + x-opencode-session). Consumed by the subscriptions auth strategy, the
+    // daemon bootstrap setter, and the daemon usage collector — must be a
+    // registered subpath or those imports resolve to undefined in dist.
+    'provider-proxy/identity/openCodeGoHeaders': 'src/provider-proxy/identity/openCodeGoHeaders.ts',
     'provider-proxy/ingress/providerProxyShared': 'src/provider-proxy/ingress/providerProxyShared.ts',
     'provider-proxy/matchText': 'src/provider-proxy/matchText.ts',
     'provider-proxy/ProviderProxy': 'src/provider-proxy/ProviderProxy.ts',

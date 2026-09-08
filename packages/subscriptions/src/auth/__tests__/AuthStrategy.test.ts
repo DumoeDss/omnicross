@@ -2,13 +2,22 @@
  * AuthStrategy tests — applyHeaders + onUnauthorized for each strategy type.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  __resetOpenCodeGoHeadersForTests,
+  setOpenCodeGoUserAgent,
+} from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 
 import type { SubscriptionCredentialStore } from '../../ports/credential-store';
 import { OAuthBearerAuthStrategy } from '../OAuthBearerAuthStrategy';
 import { PassThroughAuthStrategy } from '../PassThroughAuthStrategy';
 import { RefreshMutex } from '../RefreshMutex';
 import { StaticBearerAuthStrategy } from '../StaticBearerAuthStrategy';
+
+afterEach(() => {
+  __resetOpenCodeGoHeadersForTests();
+});
 
 function makeTokens(overrides: Partial<SubscriptionCredentialStore> = {}): SubscriptionCredentialStore {
   const base: Partial<SubscriptionCredentialStore> = {
@@ -167,6 +176,80 @@ describe('StaticBearerAuthStrategy', () => {
     await strategy.applyHeaders(headers, { upstreamUrl: 'https://opencode.ai/zen/go/v1/messages', resolvedModel: 'minimax-m2.5' });
     expect(headers['Authorization']).toBe('Bearer oc-key-123');
     expect(headers['x-api-key']).toBe('oc-key-123');
+  });
+
+  it('stamps the default omnicross user-agent on every applyHeaders (opencodego-egress-identity)', async () => {
+    const tokens = makeTokens({
+      getValidOpenCodeGoApiKey: vi.fn().mockResolvedValue('oc-key-123'),
+    });
+    const strategy = new StaticBearerAuthStrategy(tokens);
+    const headers: Record<string, string> = {};
+    await strategy.applyHeaders(headers, { upstreamUrl: 'https://opencode.ai/zen/go/v1/chat/completions' });
+    // Src run ⇒ the dev sentinel version (the dist build bakes the workspace one).
+    expect(headers['user-agent']).toBe('omnicross/0.0.0-dev');
+  });
+
+  it('stamps the CONFIGURED user-agent when the library UA was set', async () => {
+    setOpenCodeGoUserAgent('elftia/1.2.3');
+    const tokens = makeTokens({
+      getValidOpenCodeGoApiKey: vi.fn().mockResolvedValue('oc-key-123'),
+    });
+    const strategy = new StaticBearerAuthStrategy(tokens);
+    const headers: Record<string, string> = {};
+    await strategy.applyHeaders(headers, { upstreamUrl: 'https://opencode.ai/zen/go/v1/chat/completions' });
+    expect(headers['user-agent']).toBe('elftia/1.2.3');
+  });
+
+  it('forwards the caller-supplied x-opencode-session verbatim', async () => {
+    const tokens = makeTokens({
+      getValidOpenCodeGoApiKey: vi.fn().mockResolvedValue('oc-key-123'),
+    });
+    const strategy = new StaticBearerAuthStrategy(tokens);
+    const headers: Record<string, string> = {};
+    await strategy.applyHeaders(headers, {
+      upstreamUrl: 'https://opencode.ai/zen/go/v1/messages',
+      callerOpenCodeSession: 'client-session-42',
+      sessionKey: 'affinity-key',
+    });
+    expect(headers['x-opencode-session']).toBe('client-session-42');
+  });
+
+  it('falls back to the affinity sessionKey when the caller sent no session', async () => {
+    const tokens = makeTokens({
+      getValidOpenCodeGoApiKey: vi.fn().mockResolvedValue('oc-key-123'),
+    });
+    const strategy = new StaticBearerAuthStrategy(tokens);
+    const headers: Record<string, string> = {};
+    await strategy.applyHeaders(headers, {
+      upstreamUrl: 'https://opencode.ai/zen/go/v1/messages',
+      sessionKey: 'affinity-key',
+    });
+    expect(headers['x-opencode-session']).toBe('affinity-key');
+  });
+
+  it('omits x-opencode-session entirely when neither caller session nor key exists', async () => {
+    const tokens = makeTokens({
+      getValidOpenCodeGoApiKey: vi.fn().mockResolvedValue('oc-key-123'),
+    });
+    const strategy = new StaticBearerAuthStrategy(tokens);
+    const headers: Record<string, string> = {};
+    await strategy.applyHeaders(headers, { upstreamUrl: 'https://opencode.ai/zen/go/v1/messages' });
+    expect(headers['x-opencode-session']).toBeUndefined();
+  });
+
+  it('keeps the identity headers on the keyless path (the request still egresses)', async () => {
+    const tokens = makeTokens({
+      getValidOpenCodeGoApiKey: vi.fn().mockResolvedValue(null),
+    });
+    const strategy = new StaticBearerAuthStrategy(tokens);
+    const headers: Record<string, string> = {};
+    await strategy.applyHeaders(headers, {
+      upstreamUrl: 'https://opencode.ai/zen/go/v1/messages',
+      sessionKey: 'affinity-key',
+    });
+    expect(headers['user-agent']).toBe('omnicross/0.0.0-dev');
+    expect(headers['x-opencode-session']).toBe('affinity-key');
+    expect(headers['Authorization']).toBeUndefined();
   });
 
   it('onUnauthorized always returns false (no refresh affordance)', async () => {

@@ -32,6 +32,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderConfigSource } from '../../ports';
 import { setSubscriptionRegistryForOutbound } from '../../outbound-api/subscriptionRegistryPort';
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
+import {
+  __resetOpenCodeGoHeadersForTests,
+  getOpenCodeGoUserAgent,
+  OPENCODE_SESSION_HEADER,
+  resolveOpenCodeSessionHeader,
+} from '../identity/openCodeGoHeaders';
 import { GeminiTransformer } from '../../transformer/transformers/GeminiTransformer';
 import { OpenAITransformer } from '../../transformer/transformers/OpenAITransformer';
 import type { Transformer } from '../../transformer/types';
@@ -80,6 +86,10 @@ interface MockUpstream {
   lastAuthHeader: string | undefined;
   lastApiKeyHeader: string | undefined;
   lastVersionHeader: string | undefined;
+  /** The received `user-agent` (opencodego-egress-identity assertions). */
+  lastUserAgent: string | undefined;
+  /** The received `x-opencode-session` (opencodego-egress-identity assertions). */
+  lastSessionHeader: string | undefined;
   /** When set, count_tokens hits reply with this status + body. */
   countTokensFailure: { status: number; body: string } | undefined;
   /** When set, generation (`/v1/messages` exact) hits reply with this. */
@@ -96,6 +106,8 @@ function startMockUpstream(): Promise<MockUpstream> {
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
     lastVersionHeader: undefined,
+    lastUserAgent: undefined,
+    lastSessionHeader: undefined,
     countTokensFailure: undefined,
     messagesFailure: undefined,
   };
@@ -109,6 +121,8 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.lastAuthHeader = req.headers['authorization'] as string | undefined;
       state.lastApiKeyHeader = req.headers['x-api-key'] as string | undefined;
       state.lastVersionHeader = req.headers['anthropic-version'] as string | undefined;
+      state.lastUserAgent = req.headers['user-agent'] as string | undefined;
+      state.lastSessionHeader = req.headers['x-opencode-session'] as string | undefined;
       const url = req.url ?? '';
       if (url.endsWith('/count_tokens')) {
         const fail = state.countTokensFailure;
@@ -241,6 +255,7 @@ describe('Anthropic /v1/messages/count_tokens + resident routing/errors', () => 
     await proxy.stop();
     await stopServer(upstream.server);
     setSubscriptionRegistryForOutbound(null);
+    __resetOpenCodeGoHeadersForTests();
   });
 
   function bearer(token: string): Record<string, string> {
@@ -426,6 +441,59 @@ describe('Anthropic /v1/messages/count_tokens + resident routing/errors', () => 
 
     await post('/v1/messages/count_tokens', token, countTokensBody());
     expect(upstream.lastVersionHeader).toBe('2023-06-01');
+  });
+
+  it('opencodego count_tokens passthrough carries the egress identity (UA + caller session)', async () => {
+    await startProxy();
+    // Mirrors the REAL StaticBearerAuthStrategy identity contract
+    // (opencodego-egress-identity): same-format count_tokens rides the same
+    // relay, so the /count_tokens upstream hit must carry both headers.
+    const profile: SubscriptionDispatchProfile = {
+      providerId: 'opencodego',
+      displayName: 'OpenCodeGo',
+      authStrategy: {
+        kind: 'static-bearer',
+        providerId: 'opencodego',
+        async applyHeaders(headers, hints) {
+          headers['user-agent'] = getOpenCodeGoUserAgent();
+          const session = resolveOpenCodeSessionHeader(hints?.callerOpenCodeSession, hints?.sessionKey);
+          if (session) headers[OPENCODE_SESSION_HEADER] = session;
+          headers['Authorization'] = 'Bearer oc-key';
+          if (hints?.upstreamUrl?.includes('/v1/messages')) headers['x-api-key'] = 'oc-key';
+        },
+        async onUnauthorized() {
+          return false;
+        },
+        async describeStatus() {
+          return { providerId: 'opencodego', ok: true };
+        },
+      },
+      mode: 'transformer',
+      resolveUpstreamUrl: () => `http://127.0.0.1:${upstream.port}/v1/messages`,
+      providerTransformerNames: ['openai'],
+    };
+    const token = proxy.addRoute({
+      sessionId: 'sess-sub-oc-ct',
+      targetProviderFormat: 'transform',
+      model: 'minimax-m2.5',
+      ingressFormat: 'anthropic-messages',
+      authMode: 'subscription',
+      providerId: 'opencodego',
+      subscriptionProfile: profile,
+    });
+
+    const res = await fetch(`${baseUrl}/v1/messages/count_tokens`, {
+      method: 'POST',
+      headers: { ...bearer(token), 'x-opencode-session': 'client-ct-session' },
+      body: countTokensBody(),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.paths).toHaveLength(1);
+    expect(upstream.paths[0]).toContain('/count_tokens');
+    expect(upstream.lastUserAgent).toBe('omnicross/0.0.0-dev');
+    expect(upstream.lastSessionHeader).toBe('client-ct-session');
+    expect(upstream.lastApiKeyHeader).toBe('oc-key');
   });
 
   it('subscription translation profile (auto) → estimate 200, zero upstream calls', async () => {

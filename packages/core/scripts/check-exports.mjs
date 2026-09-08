@@ -70,6 +70,17 @@ const ENTRY_POINTS = {
   // Consumed directly by Elftia's `proxySearchIntercept`; it must keep
   // resolving across every refactor of the search tree.
   '@omnicross/core/ports/web-search-backend': [],
+  // opencodego-egress-identity: consumed cross-package by the subscriptions
+  // auth strategy (@omnicross/subscriptions) and the daemon bootstrap + usage
+  // collector — a missing build output would break them with no test able to
+  // see it (vitest aliases core to src/).
+  '@omnicross/core/provider-proxy/identity/openCodeGoHeaders': [
+    'setOpenCodeGoUserAgent',
+    'getOpenCodeGoUserAgent',
+    'extractOpenCodeSessionHeader',
+    'resolveOpenCodeSessionHeader',
+    'OPENCODE_SESSION_HEADER',
+  ],
 };
 
 const LOADERS = [

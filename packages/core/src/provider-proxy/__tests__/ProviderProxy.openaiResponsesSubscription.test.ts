@@ -28,6 +28,12 @@ vi.mock('../../pipeline/executeProviderCall', () => ({
 
 import type { ProviderConfigSource } from '../../ports';
 import { ensureCodexPromptCacheKey } from '../ingress/openaiResponsesIngress';
+import {
+  __resetOpenCodeGoHeadersForTests,
+  getOpenCodeGoUserAgent,
+  OPENCODE_SESSION_HEADER,
+  resolveOpenCodeSessionHeader,
+} from '../identity/openCodeGoHeaders';
 import { deriveGatewaySessionKey } from '../matchText';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext } from '../types';
@@ -143,6 +149,7 @@ describe('ProviderProxy subscription Responses session affinity', () => {
     proxy = undefined;
     upstream = undefined;
     executeProviderCallMock.mockClear();
+    __resetOpenCodeGoHeadersForTests();
   });
 
   it('sends the same derived key to applyHeaders and 401 refresh, while distinct conversations differ', async () => {
@@ -235,6 +242,79 @@ describe('ProviderProxy subscription Responses session affinity', () => {
     expect(receivedHeaders).toHaveLength(2);
     expect(receivedHeaders.every((headers) => headers['session-id'] === undefined)).toBe(true);
     expect(receivedHeaders.every((headers) => headers['x-session-id'] === undefined)).toBe(true);
+  });
+
+  it('opencodego → forwards the caller x-opencode-session verbatim; absent ⇒ derived key; UA always set', async () => {
+    const { server, url, receivedHeaders } = await startUnauthorizedUpstream();
+    upstream = server;
+
+    // Mirrors the REAL StaticBearerAuthStrategy identity contract
+    // (opencodego-egress-identity) — the daemon boot-smoke covers the real one.
+    const authStrategy = {
+      providerId: 'opencodego',
+      kind: 'static-bearer' as const,
+      async applyHeaders(headers: Record<string, string>, hints?: {
+        sessionKey?: string;
+        callerOpenCodeSession?: string;
+      }) {
+        headers['user-agent'] = getOpenCodeGoUserAgent();
+        const session = resolveOpenCodeSessionHeader(hints?.callerOpenCodeSession, hints?.sessionKey);
+        if (session) headers[OPENCODE_SESSION_HEADER] = session;
+        headers.Authorization = 'Bearer oc-test-key';
+      },
+      async onUnauthorized() { return false; },
+      async describeStatus() { return { providerId: 'opencodego', configured: true }; },
+    };
+
+    const route: RouteContext = {
+      sessionId: 'opencodego-responses-route',
+      targetProviderFormat: 'openai-responses',
+      model: 'gpt-5-codex',
+      ingressFormat: 'openai-responses',
+      authMode: 'subscription',
+      providerId: 'opencodego',
+      subscriptionProfile: {
+        authStrategy: authStrategy as never,
+        providerTransformerNames: [],
+        resolveUpstreamUrl: () => url,
+      },
+    };
+
+    proxy = new ProviderProxy({ llmConfig: makeLlmConfig() });
+    const port = await proxy.start();
+    const token = proxy.addRoute(route);
+    const proxyUrl = `http://127.0.0.1:${port}/openai/responses`;
+
+    const sessionBody = {
+      model: 'gpt-5-codex',
+      input: [{ role: 'user', content: 'opencodego responses conversation' }],
+    };
+
+    // 1) The caller (an OpenCode CLI downstream) sent its own session id.
+    const withCallerSession = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'x-opencode-session': 'client-opencode-session',
+      },
+      body: JSON.stringify(sessionBody),
+    });
+    // 2) No caller header ⇒ the header-aware derived gateway key stands in.
+    const withoutCallerSession = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionBody),
+    });
+
+    expect(withCallerSession.status).toBe(401);
+    expect(withoutCallerSession.status).toBe(401);
+    expect(receivedHeaders).toHaveLength(2);
+    expect(receivedHeaders[0]?.['x-opencode-session']).toBe('client-opencode-session');
+    const derivedKey = deriveGatewaySessionKey(sessionBody).key;
+    expect(receivedHeaders[1]?.['x-opencode-session']).toBe(derivedKey);
+    expect(derivedKey).toMatch(/^[0-9a-f]{32}$/);
+    expect(receivedHeaders.every((headers) => headers['user-agent'] === 'omnicross/0.0.0-dev')).toBe(true);
   });
 
   it('sends and attributes the selected account remapped model', async () => {
