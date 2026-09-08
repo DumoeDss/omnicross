@@ -53,6 +53,7 @@ import {
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import { __resetSharedIdentityStoreForTests } from '@omnicross/core/provider-proxy/identity/SubscriptionIdentityStore';
 import { setGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
+import { setAntigravitySandboxFailover } from '@omnicross/core/transformer/transformers/antigravityFailover';
 import {
   __resetProviderProxyForTests,
   createNativeResponsesHostedImageIngress,
@@ -91,6 +92,7 @@ import { DAEMON_VERSION } from './admin/version';
 import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener } from './admin/cliLaunch';
 import { OAuthSessionStore } from './admin/oauthSessions';
 import { awaitLoopbackCode } from './commands/loopbackCallback';
+import { AntigravityLoopbackFn, AntigravityOAuthSessionStore } from './admin/accountsAntigravityOAuth';
 import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
 import { AutoDisableStore } from './pool/autoDisableStore';
 import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
@@ -194,6 +196,11 @@ export interface DaemonPaths {
    * so tests need not bind `127.0.0.1:1455`. Absent → the real `awaitLoopbackCode`.
    */
   codexAwaitLoopback?: CodexLoopbackFn;
+  /**
+   * TEST SEAM (optional): override the antigravity loopback listener so tests
+   * need not bind 127.0.0.1:51121. Absent → the real awaitLoopbackCode.
+   */
+  antigravityAwaitLoopback?: AntigravityLoopbackFn;
   /**
    * TEST SEAM (optional): override the OAuth token-exchange fetch so tests need not
    * hit a real token endpoint. Absent → the global `fetch`.
@@ -601,6 +608,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // handshake result per access token, so this is a one-time round-trip per
   // account read lazily at request time.
   setGeminiCodeAssistResolver(getGeminiCodeAssistProjectResolver());
+  // antigravity-subscription-provider D5: the sandbox-failover switch rides the
+  // daemon config (default OFF); applied once at bootstrap and on every
+  // applyConfig pass below.
+  setAntigravitySandboxFailover(decryptedConfig.antigravity?.sandboxFailover === true);
 
   // Multi-key API-key pool. Constructed BEFORE the proxy because
   // `getProviderProxy` only honors `deps` on its FIRST (construction) call and
@@ -1021,6 +1032,24 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // Grok interactive OAuth — the same async DEVICE-CODE shape as kimi.
     grokSessions: new GrokOAuthSessionStore(),
     copilotSessions: new CopilotOAuthSessionStore(),
+    // Antigravity interactive OAuth — the async LOOPBACK flow store + the
+    // one-shot 127.0.0.1:51121 listener (same shape as codex; test seam below).
+    antigravitySessions: new AntigravityOAuthSessionStore(),
+    antigravityAwaitLoopback:
+      paths.antigravityAwaitLoopback ??
+      ((state, timeoutMs, signal) =>
+        awaitLoopbackCode(state, timeoutMs, signal, {
+          port: 51121,
+          path: '/oauth-callback',
+          label: 'antigravity',
+        })),
+    // The dynamic model-catalog probe's token source (the ACTIVE antigravity
+    // account; refreshed by the by-id near-expiry seam inside the lookup).
+    resolveAntigravityAccessToken: async () => {
+      const config = await credentialStore.getFullConfig();
+      const activeId = config.activeAntigravityAccountId ?? config.antigravityAccounts?.[0]?.id;
+      return activeId ? credentialStore.getAccessTokenForAccount('antigravity', activeId) : null;
+    },
     // Migration pack (app-parity child 6, design D2/D3) — the concrete credential
     // store provides BOTH the full DECRYPTED read (`getFullConfig`, export) and
     // the multi-account append (`appendProviderAccount`, import re-encrypts at-

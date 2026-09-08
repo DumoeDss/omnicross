@@ -30,6 +30,7 @@ import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
 
 import type {
+  AntigravityTokenConfig,
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
@@ -37,8 +38,10 @@ import type {
   KimiTokenConfig,
   CopilotTokenConfig,
 } from '@omnicross/contracts/account-tokens-types';
+import { getAntigravityProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { fetchUpstream, setUpstreamProxyResolver } from '@omnicross/core/pipeline/upstreamFetch';
 import {
+  antigravityOAuth,
   claudeOAuth,
   codexOAuth,
   copilotOAuth,
@@ -57,7 +60,7 @@ import { awaitLoopbackCode } from './loopbackCallback';
 import { defaultTokensPath, resolveSecretBox } from './paths';
 
 /** The providers `login` understands. */
-const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok', 'copilot'] as const;
+const PROVIDERS = ['claude', 'codex', 'gemini', 'kimi', 'grok', 'copilot', 'antigravity'] as const;
 type LoginProvider = (typeof PROVIDERS)[number];
 
 /** Injectable side-effects so the command can be tested without I/O. */
@@ -66,8 +69,15 @@ export interface LoginDeps {
   openBrowser(url: string): Promise<boolean>;
   /** Prompt the operator to paste the callback string (claude/gemini). */
   promptPaste(prompt: string): Promise<string>;
-  /** Wait for the codex loopback callback and resolve the authorization code. */
-  awaitLoopback(expectedState: string): Promise<string>;
+  /** Wait for a provider's loopback callback and resolve the authorization code.
+   *  The optional binding selects the per-flow port/path (codex 1455 defaults,
+   *  antigravity 51121). */
+  awaitLoopback(
+    expectedState: string,
+    timeoutMs?: number,
+    signal?: AbortSignal,
+    binding?: { port?: number; path?: string; label?: string },
+  ): Promise<string>;
   /** Drive the kimi device flow to completion (start + poll until done). */
   awaitKimiDevice(fetchImpl: FetchLike): Promise<KimiLoginResult>;
   /** Drive the grok device flow to completion (start + poll until done). */
@@ -141,7 +151,9 @@ export async function runLogin(argv: string[], deps?: Partial<LoginDeps>): Promi
   const resolved: LoginDeps = {
     openBrowser: deps?.openBrowser ?? openBrowser,
     promptPaste: deps?.promptPaste ?? promptPaste,
-    awaitLoopback: deps?.awaitLoopback ?? ((state) => awaitLoopbackCode(state)),
+    awaitLoopback:
+      deps?.awaitLoopback ??
+      ((state, timeoutMs, signal, binding) => awaitLoopbackCode(state, timeoutMs, signal, binding)),
     awaitKimiDevice: deps?.awaitKimiDevice ?? ((fetchImpl) => runKimiDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     awaitGrokDevice: deps?.awaitGrokDevice ?? ((fetchImpl) => runGrokDeviceFlow(fetchImpl, resolvedOpenBrowser)),
     awaitCopilotDevice:
@@ -202,6 +214,7 @@ async function runProviderLogin(
   if (provider === 'kimi') return loginKimi(store, deps, exchangeFetch, label);
   if (provider === 'grok') return loginGrok(store, deps, exchangeFetch, label);
   if (provider === 'copilot') return loginCopilot(store, deps, exchangeFetch, label, enterpriseUrl);
+  if (provider === 'antigravity') return loginAntigravity(store, deps, exchangeFetch, label);
   return loginGemini(store, deps, exchangeFetch, label);
 }
 
@@ -477,6 +490,106 @@ async function loginCopilot(
   await store.appendProviderAccount('copilot', block, label);
   logMasked('copilot', result.accessToken);
   return expiresAt;
+}
+
+// ── antigravity (loopback 51121, paste fallback) ──────────────────────────────────────
+
+/**
+ * Drive the antigravity login: authorize URL → loopback `127.0.0.1:51121`
+ * capture (the redirect_uri the upstream client pins) with a PASTE fallback
+ * when the port cannot be bound or the operator is browser-less (the code is
+ * copied out of the failed redirect URL and pasted; the exchange sends the
+ * SAME loopback redirect_uri either way). After the exchange: fetch the
+ * userinfo email, run the Code Assist project handshake (the antigravity
+ * dialect of the shared resolver), and persist through the encrypted store.
+ */
+async function loginAntigravity(
+  store: JsonSubscriptionCredentialStore,
+  deps: LoginDeps,
+  exchangeFetch: FetchLike,
+  label?: string,
+): Promise<string> {
+  const { authUrl, state } = antigravityOAuth.generateAuthParams();
+  await presentUrl(authUrl, deps);
+
+  const code = await captureAntigravityCode(deps, state);
+  const result = await antigravityOAuth.exchangeCodeForTokens(code, exchangeFetch);
+  const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
+
+  // Account display identifier (best-effort — login proceeds without it).
+  const email = await antigravityOAuth.fetchUserEmail(result.accessToken, exchangeFetch);
+
+  // Project handshake (REQUIRED for antigravity — a failed handshake fails the
+  // login; the account would be unusable without a project).
+  console.info('Resolving the Antigravity Cloud Code Assist project...');
+  const projectId = await getAntigravityProjectResolver().resolveProject(result.accessToken);
+
+  const block: AntigravityTokenConfig = {
+    authMethod: 'oauth',
+    status: 'authorized',
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    expiresAt,
+    ...(email ? { email } : {}),
+    ...(projectId ? { projectId } : {}),
+    lastRefreshedAt: new Date().toISOString(),
+  };
+  await store.appendProviderAccount('antigravity', block, label);
+  logMasked('antigravity', result.accessToken);
+  return expiresAt;
+}
+
+/**
+ * Capture the antigravity authorization code: try the loopback listener first;
+ * fall back to a paste prompt when the port is held (or the operator is in a
+ * browser-less environment). The paste accepts the bare `code` OR the whole
+ * redirect URL (the `code`/`state` query params are extracted); a present
+ * `state` is validated against ours.
+ */
+async function captureAntigravityCode(deps: LoginDeps, state: string): Promise<string> {
+  try {
+    return await deps.awaitLoopback(state, undefined, undefined, {
+      port: 51121,
+      path: '/oauth-callback',
+      label: 'antigravity',
+    });
+  } catch (loopbackError) {
+    const reason = loopbackError instanceof Error ? loopbackError.message : String(loopbackError);
+    console.warn(`(loopback capture unavailable: ${reason})`);
+    console.info(
+      'Paste fallback: after authorizing, copy the failing redirect URL (or just its code parameter) here.',
+    );
+    const pasted = (await deps.promptPaste('Paste the authorization code (or redirect URL): ')).trim();
+    if (!pasted) throw new Error('login: no authorization code was pasted');
+    const { code, state: pastedState } = parseAntigravityPaste(pasted);
+    if (!code) throw new Error('login: the pasted value carried no authorization code');
+    if (pastedState && pastedState !== state) {
+      throw new Error('login: pasted state did not match (possible CSRF) — aborting');
+    }
+    return code;
+  }
+}
+
+/** Extract `code` (+ optional `state`) from a pasted redirect URL or bare code. */
+export function parseAntigravityPaste(pasted: string): { code: string; state?: string } {
+  if (pasted.includes('://')) {
+    try {
+      const url = new URL(pasted);
+      const code = url.searchParams.get('code') ?? '';
+      const state = url.searchParams.get('state') ?? undefined;
+      return { code, ...(state ? { state } : {}) };
+    } catch {
+      // Fall through: treat the whole input as a bare code.
+    }
+  }
+  // Tolerate a `code=…&state=…` pair pasted without the scheme.
+  if (/^[?]?code=/.test(pasted)) {
+    const params = new URLSearchParams(pasted.replace(/^\?/, ''));
+    const code = params.get('code') ?? '';
+    const state = params.get('state') ?? undefined;
+    return { code, ...(state ? { state } : {}) };
+  }
+  return { code: pasted };
 }
 
 // ── shared helpers ──────────────────────────────────────────────────────────

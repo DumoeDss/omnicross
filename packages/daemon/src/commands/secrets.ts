@@ -357,6 +357,10 @@ const TOKEN_FIELDS: Record<string, readonly string[]> = {
   codex: ['accessToken', 'refreshToken', 'idToken'],
   gemini: ['accessToken', 'refreshToken'],
   opencodego: ['apiKey'],
+  kimi: ['accessToken', 'refreshToken'],
+  grok: ['accessToken', 'refreshToken'],
+  copilot: ['accessToken', 'refreshToken'],
+  antigravity: ['accessToken', 'refreshToken'],
 };
 
 /** Apply a transform to every token-material field of a raw object (new object). */

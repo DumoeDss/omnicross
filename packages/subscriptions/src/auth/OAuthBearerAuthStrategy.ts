@@ -1,5 +1,6 @@
 /**
- * OAuthBearerAuthStrategy — Codex / Gemini subscription path.
+ * OAuthBearerAuthStrategy — Codex / Gemini / Kimi / Grok / Copilot /
+ * Antigravity subscription path.
  *
  * Reads the current access token from the injected `SubscriptionCredentialStore`, refreshing within
  * 60 seconds of expiry before applying it as `Authorization: Bearer`.
@@ -9,6 +10,7 @@
 
 import type { SubscriptionStatusEntry } from '@omnicross/contracts/subscription-types';
 import type { SubscriptionAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
+import { getAntigravityUserAgent } from '@omnicross/core/transformer/transformers/antigravityIdentity';
 
 import type { SubscriptionCredentialStore } from '../ports/credential-store';
 import { COPILOT_API_HEADERS } from '../oauth/flows/copilot';
@@ -22,7 +24,7 @@ import type { RefreshMutex } from './RefreshMutex';
 /** Refresh expiring tokens this many ms before they hit `expiresAt`. */
 const REFRESH_LEAD_MS = 5 * 60_000;
 
-type OAuthProviderKey = 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot';
+type OAuthProviderKey = 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity';
 
 /** The per-provider token config block each strategy branch reads. */
 type OAuthTokenBlock = { accessToken?: string; refreshToken?: string; expiresAt?: string; status?: string };
@@ -80,6 +82,12 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
     // version header also unlocks long-context tier limits).
     if (this.providerId === 'copilot') {
       Object.assign(headers, COPILOT_API_HEADERS);
+    }
+    // Antigravity identity: the antigravity/hub UA (version hot-probed, pinned
+    // fallback). The same value the transformer stamps — the strategy runs
+    // after the chain headers merge, so the shared builder keeps one source.
+    if (this.providerId === 'antigravity') {
+      headers['User-Agent'] = getAntigravityUserAgent();
     }
   }
 
@@ -149,6 +157,10 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
         return this.tokens.refreshGrokToken ? this.tokens.refreshGrokToken() : Promise.resolve(false);
       case 'copilot':
         return this.tokens.refreshCopilotToken ? this.tokens.refreshCopilotToken() : Promise.resolve(false);
+      case 'antigravity':
+        return this.tokens.refreshAntigravityToken
+          ? this.tokens.refreshAntigravityToken()
+          : Promise.resolve(false);
     }
   }
 
@@ -164,6 +176,8 @@ export class OAuthBearerAuthStrategy implements AuthStrategy {
         return config.grok;
       case 'copilot':
         return config.copilot;
+      case 'antigravity':
+        return config.antigravity;
     }
   }
 

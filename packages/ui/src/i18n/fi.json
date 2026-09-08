@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Avaa vahvistussivu, syötä alla oleva koodi ja hyväksy kirjautumispyyntö."
     },
+    "antigravityOauth": {
+      "description": "Valtuuta Antigravity-sovellus Googlen kirjautumissivulla — kirjautuminen valmistuu automaattisesti."
+    },
     "copilotOauth": {
       "description": "Avaa github.com/login/device, syötä alla oleva koodi ja valtuuta Copilot CLI -sovellus.",
       "enterpriseLabel": "GitHub Enterprise -verkkoalue (valinnainen)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Daemonin reitittämät GitHub Copilot -tilauksen tunnistetiedot."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Daemonin reitittämät Google Antigravity -tilauksen tunnukset."
       },
       "opencodego": {
         "title": "OpenCodeGo",

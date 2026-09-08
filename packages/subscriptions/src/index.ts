@@ -52,6 +52,7 @@ export type { AuthApplyHints, AuthStrategy } from './auth';
 // by a desktop host + the daemon login/refresh paths. Network goes
 // through the injected `FetchLike` port (no electron / host imports under oauth/).
 export {
+  antigravityOAuth,
   claudeOAuth,
   codexOAuth,
   COPILOT_GITHUB_HEADERS,

@@ -1,8 +1,17 @@
 # Omnicross Google CCA 订阅 Provider 需求（google-antigravity 立项 + google-gemini-cli 补全）
 
-> 状态：立项评估文档（未实施）。依据 `omnicross-oh-my-pi-provider-research.md` §2.6/§6 与
+> 状态：P0 已交付；P1 已有本地实现，正在完成离线验证，真实账号验收未完成。下文历史评估保留作背景，当前使用边界见 [Antigravity 接入说明](../antigravity-subscription.md)。依据 `omnicross-oh-my-pi-provider-research.md` §2.6/§6 与
 > 参考实现源码（调研对象 `packages/ai/src/{providers,registry/oauth,usage}` + `packages/catalog/src/{wire,discovery}`）。
 > 本文档回答调研遗留的开放问题「omnicross 现有 gemini OAuth 走的是哪条 wire」，并给出两档实施切分。
+
+> **2026-09-08 范围追加**（画图可行性调研后拍板，实施顺序：本 P1 → 图像 change）：
+> antigravity P1 交付后追加「画图」独立 change，与本 P1 不混合——
+> ① NanoBanana 画图走 **antigravity 身份**（gemini-cli 判遗弃路径，不做画图支持；其文本 provider 不受影响）；
+> ② 该 change 同时完成图像运行时多 provider 化（`imagesServerConfig` 单 provider 硬校验 → 按模型路由）与
+> codex 图像模型可配置（现钉 `gpt-image-2` + carrier `gpt-5.6-luna`，`gpt-image-2-5` 将至）；
+> ③ 入口做全：Images API（`/v1/images/generations` + `/edits`）+ 会话内嵌图（chat 面输出 image 块）。
+> 模型 ID：NanoBanana=`gemini-2.5-flash-image(-preview)`、NanoBanana2=`gemini-3.1-flash-image(-preview)`、
+> NanoBananaPro=`gemini-3-pro-image-preview`（CCA 上游名 `gemini-3-pro-image`）。
 
 ## 1. 摘要
 
@@ -67,7 +76,7 @@ antigravity：全部缺失（§4）。
 
 ### 4.1 OAuth（authorization-code + client_secret，无 PKCE）
 
-- client：`1071006060591-tmhsin2h21lcre235vtolojoh4g403ep.apps.googleusercontent.com`
+- client：`1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com`
   （secret 随参考实现 KDL base64 内置，公开分发）。
 - authorize `https://accounts.google.com/o/oauth2/v2/auth`，`access_type=offline` + `prompt=consent`；
   scopes：`cloud-platform` + `userinfo.email` + `userinfo.profile` + `cclog` + `experimentsandconfigs`。

@@ -1403,6 +1403,9 @@
     "grokOauth": {
       "description": "開啟驗證頁面，輸入下方代碼並批准登入請求。"
     },
+    "antigravityOauth": {
+      "description": "在 Google 登入頁面授權 Antigravity 應用程式，登入會自動完成。"
+    },
     "copilotOauth": {
       "description": "開啟 github.com/login/device，輸入下方代碼並授權 Copilot CLI 應用。",
       "enterpriseLabel": "GitHub Enterprise 網域（選填）"
@@ -1502,6 +1505,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "由守護程序路由的 GitHub Copilot 訂閱憑證。"
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "由常駐程式路由的 Google Antigravity 訂閱憑證。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

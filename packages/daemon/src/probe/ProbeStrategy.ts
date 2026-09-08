@@ -69,6 +69,10 @@ export const PROVIDER_PROBE_PLANS: Record<SubscriptionProviderId, ProbePlan> = {
   // authed GET but lives on api.github.com with its own auth dialect and a
   // monthly-only window — the allowance collector owns the health surface.
   copilot: { kind: 'local' },
+  // Antigravity's quota endpoints are POST RPCs on daily-cloudcode-pa (not a
+  // cheap GET) and need the antigravity/hub UA — the allowance collector owns
+  // the health surface; the probe stays local.
+  antigravity: { kind: 'local' },
 };
 
 /** Resolve the probe plan for a provider (defaults to local for an unknown id). */

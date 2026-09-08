@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Откройте страницу подтверждения, введите код ниже и одобрите запрос на вход."
     },
+    "antigravityOauth": {
+      "description": "Авторизуйте приложение Antigravity на странице входа Google — вход завершится автоматически."
+    },
     "copilotOauth": {
       "description": "Откройте github.com/login/device, введите код ниже и авторизуйте приложение Copilot CLI.",
       "enterpriseLabel": "Домен GitHub Enterprise (необязательно)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Учётные данные подписки GitHub Copilot, маршрутизируемые демоном."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Учётные данные подписки Google Antigravity, маршрутизируемые демоном."
       },
       "opencodego": {
         "title": "OpenCodeGo",

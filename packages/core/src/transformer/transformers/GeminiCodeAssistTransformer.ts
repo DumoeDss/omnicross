@@ -49,6 +49,7 @@ import type {
   UnifiedChatRequest,
 } from '../types';
 
+import { buildCcaMethodUrl, unwrapCcaResponse } from './ccaEnvelope';
 import { transformResponseIn } from './utils/gemini.response-in';
 import { transformResponseOut } from './utils/gemini.stream';
 import { buildRequestBody, transformRequestOut as toUnifiedRequest } from './utils/gemini.util';
@@ -91,14 +92,12 @@ export function getGeminiCliIdentityHeaders(modelId?: string): Record<string, st
 }
 
 /**
- * Build the Code Assist URL: `${base}/${version}:${method}`.
+ * Build the Code Assist URL (shared colon-method construction, see
+ * `ccaEnvelope.buildCcaMethodUrl`): `${base}/${version}:${method}`.
  * NOTE: no `/models/<model>` segment — the model goes in the body.
  */
 export function buildCodeAssistUrl(stream: boolean): string {
-  const base = resolveCodeAssistEndpoint();
-  const version = resolveCodeAssistApiVersion();
-  const method = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
-  return `${base}/${version}:${method}`;
+  return buildCcaMethodUrl(resolveCodeAssistEndpoint(), resolveCodeAssistApiVersion(), stream);
 }
 
 /** Generate a per-turn `user_prompt_id` (matches gemini-cli's uuid usage). */
@@ -109,93 +108,10 @@ function generateUserPromptId(): string {
   return `omnicross-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/**
- * Peel the Code Assist top-level `response` envelope. Used for both the
- * non-stream JSON body and each SSE `data:` chunk. A chunk that is already
- * unwrapped (no `.response`) is passed through unchanged so the parser stays
- * robust to either shape.
- */
-function peelResponseEnvelope(parsed: unknown): unknown {
-  if (parsed && typeof parsed === 'object' && 'response' in (parsed as Record<string, unknown>)) {
-    return (parsed as Record<string, unknown>).response;
-  }
-  return parsed;
-}
-
-/**
- * Wrap a Code Assist Response so the body/each-SSE-chunk is unwrapped from
- * `.response` BEFORE the existing gemini parser sees it. Returns a fresh
- * Response with the same content-type so `transformResponseOut` dispatches to
- * the right (json vs stream) handler.
- */
-async function unwrapCodeAssistResponse(response: Response): Promise<Response> {
-  const contentType = response.headers.get('Content-Type') ?? '';
-
-  // Streaming: peel each `data:` line's `.response`.
-  if (contentType.includes('stream') || contentType.includes('text/event-stream')) {
-    const sourceBody = response.body;
-    if (!sourceBody) return response;
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
-    const peeled = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const reader = sourceBody.getReader();
-        let buffer = '';
-        const processLine = (line: string) => {
-          if (!line.startsWith('data:')) {
-            // Forward non-data lines (blank separators, comments) verbatim.
-            if (line.length > 0) controller.enqueue(encoder.encode(`${line}\n`));
-            return;
-          }
-          const payload = line.slice(line.indexOf(':') + 1).trim();
-          if (!payload || payload === '[DONE]') {
-            controller.enqueue(encoder.encode(`${line}\n`));
-            return;
-          }
-          try {
-            const parsed = JSON.parse(payload);
-            const inner = peelResponseEnvelope(parsed);
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(inner)}\n`));
-          } catch {
-            // Unparseable chunk — forward verbatim so the downstream parser logs it.
-            controller.enqueue(encoder.encode(`${line}\n`));
-          }
-        };
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              if (buffer) processLine(buffer);
-              break;
-            }
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) processLine(line);
-          }
-        } catch (err) {
-          controller.error(err);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-    return new Response(peeled, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-  }
-
-  // Non-stream JSON: read, peel `.response`, re-serialize.
-  const raw = await response.json().catch(() => null);
-  const inner = peelResponseEnvelope(raw);
-  return new Response(JSON.stringify(inner), {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-}
+// The `.response` envelope peeling (SSE + JSON) lives in the SHARED
+// `ccaEnvelope` module (extracted verbatim by antigravity-subscription-
+// provider D2) so the gemini-cli and antigravity Code Assist transformers stay
+// in lock-step. Re-exported for existing importers.
 
 /**
  * GeminiCodeAssistTransformer — extends `GeminiTransformer`'s inner encoding by
@@ -287,7 +203,7 @@ export class GeminiCodeAssistTransformer implements Transformer {
     response: Response,
     _context: TransformerContext,
   ): Promise<Response> {
-    const unwrapped = await unwrapCodeAssistResponse(response);
+    const unwrapped = await unwrapCcaResponse(response);
     return transformResponseOut(unwrapped, this.name, this.logger);
   }
 

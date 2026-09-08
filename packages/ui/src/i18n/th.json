@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "เปิดหน้ายืนยัน ป้อนรหัสด้านล่าง และอนุมัติคำขอลงชื่อเข้าใช้"
     },
+    "antigravityOauth": {
+      "description": "อนุญาตแอป Antigravity ในหน้าลงชื่อเข้าใช้ Google การลงชื่อเข้าใช้จะเสร็จสิ้นโดยอัตโนมัติ"
+    },
     "copilotOauth": {
       "description": "เปิด github.com/login/device ป้อนรหัสด้านล่าง และอนุมัติแอป Copilot CLI",
       "enterpriseLabel": "โดเมน GitHub Enterprise (ไม่บังคับ)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "ข้อมูลรับรองการสมัครใช้งาน GitHub Copilot ที่กำหนดเส้นทางโดย daemon"
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "ข้อมูลรับรองการสมัครสมาชิก Google Antigravity ที่กำหนดเส้นทางโดย daemon"
       },
       "opencodego": {
         "title": "OpenCodeGo",

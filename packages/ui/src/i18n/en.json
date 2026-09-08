@@ -1453,6 +1453,9 @@
     "grokOauth": {
       "description": "Open the verification page, enter the code below, and approve the sign-in request."
     },
+    "antigravityOauth": {
+      "description": "Open the Google sign-in page and authorize the Antigravity app — the sign-in completes automatically."
+    },
     "copilotOauth": {
       "description": "Open github.com/login/device, enter the code below, and authorize the Copilot CLI app.",
       "enterpriseLabel": "GitHub Enterprise domain (optional)"
@@ -1552,6 +1555,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "GitHub Copilot subscription credentials routed by the daemon."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Google Antigravity subscription credentials routed by the daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

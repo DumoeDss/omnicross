@@ -25,6 +25,7 @@ import {
 // `provider-proxy/types.ts` never imports upward. The concrete
 // registry below builds values of this identical shape.
 import type { SubscriptionDispatchProfile } from '@omnicross/core/provider-proxy/types';
+import { buildAntigravityUrl } from '@omnicross/core/transformer/transformers/AntigravityTransformer';
 import { buildCodeAssistUrl } from '@omnicross/core/transformer/transformers/GeminiCodeAssistTransformer';
 
 import { CircuitBreakerRegistry } from './opencodego/CircuitBreaker';
@@ -131,7 +132,8 @@ export class SubscriptionProviderRegistry {
     const kimi = this.accounts.getStrategy('kimi');
     const grok = this.accounts.getStrategy('grok');
     const copilot = this.accounts.getStrategy('copilot');
-    if (!claude || !codex || !gemini || !opencodego || !kimi || !grok || !copilot) {
+    const antigravity = this.accounts.getStrategy('antigravity');
+    if (!claude || !codex || !gemini || !opencodego || !kimi || !grok || !copilot || !antigravity) {
       throw new Error('[SubscriptionProviderRegistry] Missing strategy in SubscriptionAccountService');
     }
 
@@ -347,6 +349,28 @@ export class SubscriptionProviderRegistry {
           resolveProviderTransformerNames: (model) =>
             copilotTransformerNamesForWire(copilotWireFor(model)),
           providerTransformerNames: ['openai-response'],
+          modelTransformerNames: [],
+        },
+      ],
+      [
+        'antigravity',
+        {
+          providerId: 'antigravity',
+          displayName: 'Antigravity (Google OAuth)',
+          authStrategy: antigravity,
+          mode: 'transformer',
+          // The Antigravity subscription's CCA endpoint (daily- prefix — a
+          // DIFFERENT upstream than gemini-cli's cloudcode-pa). Same wire as
+          // the gemini profile (colon-method, model in the body); the
+          // `antigravity` transformer owns the outer envelope (requestId/
+          // sessionId/labels, per-family decoration) and emits the per-request
+          // URL in `config.url`. ONE dispatch profile for all three model
+          // families (design D3) — the family differences live inside the
+          // transformer's decoration layer, NOT in per-model transformer
+          // selection. The sandbox failover (design D5, default OFF) is
+          // applied by the dispatch retry seam, not the URL resolver.
+          resolveUpstreamUrl: (_model) => buildAntigravityUrl(false),
+          providerTransformerNames: ['antigravity'],
           modelTransformerNames: [],
         },
       ],

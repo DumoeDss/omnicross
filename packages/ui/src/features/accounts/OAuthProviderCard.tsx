@@ -38,7 +38,7 @@ import type {
   TokenStatus,
 } from '@/daemon/types';
 
-type OAuthProviderId = 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot';
+type OAuthProviderId = 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity';
 type AuthMethod = 'oauth' | 'manual';
 
 interface OAuthProviderCardProps {
@@ -117,6 +117,16 @@ function buildManualPayload(
           refreshToken: extra?.refreshToken,
         },
       };
+    case 'antigravity':
+      return {
+        providerId: 'antigravity',
+        input: {
+          authMethod: 'manual',
+          status: 'configured',
+          accessToken,
+          refreshToken: extra?.refreshToken,
+        },
+      };
   }
 }
 
@@ -132,7 +142,9 @@ export function OAuthProviderCard({
   const providerId = entry.providerId as OAuthProviderId;
   const isCodex = providerId === 'codex';
   // codex (loopback) and kimi/grok/copilot (device code) are the async + polled flows.
-  const isAsyncOAuth = providerId === 'codex' || providerId === 'kimi' || providerId === 'grok' || providerId === 'copilot';
+  // codex + antigravity (loopback) and kimi/grok/copilot (device code) are the async + polled flows.
+  const isAsyncOAuth =
+    providerId === 'codex' || providerId === 'kimi' || providerId === 'grok' || providerId === 'copilot' || providerId === 'antigravity';
   const {
     busy,
     data,
@@ -159,6 +171,9 @@ export function OAuthProviderCard({
     pollKimiOAuth,
     pollGrokOAuth,
     pollCopilotOAuth,
+    pollAntigravityOAuth,
+    cancelAntigravityOAuth,
+    refreshAntigravityAccountAllowance,
     cancelCodexOAuth,
     cancelKimiOAuth,
     cancelGrokOAuth,
@@ -250,6 +265,7 @@ export function OAuthProviderCard({
 
   const cancelOAuth = async () => {
     if (isCodex && oauth) await cancelCodexOAuth(oauth.sessionId);
+    else if (providerId === 'antigravity' && oauth) await cancelAntigravityOAuth(oauth.sessionId);
     else if (providerId === 'kimi' && oauth) await cancelKimiOAuth(oauth.sessionId);
     else if (providerId === 'grok' && oauth) await cancelGrokOAuth(oauth.sessionId);
     else if (providerId === 'copilot' && oauth) await cancelCopilotOAuth(oauth.sessionId);
@@ -336,7 +352,9 @@ export function OAuthProviderCard({
                         ? refreshCopilotAccountAllowance
                         : providerId === 'gemini'
                           ? refreshGeminiAccountAllowance
-                          : undefined
+                          : providerId === 'antigravity'
+                            ? refreshAntigravityAccountAllowance
+                            : undefined
             }
             onSetActive={(id) => void setActive(providerId, id)}
             onRemove={(id) => void removeAccount(providerId, id)}
@@ -358,7 +376,7 @@ export function OAuthProviderCard({
         <CodexInlineSignIn
           authUrl={oauth.authUrl}
           sessionId={oauth.sessionId}
-          onPoll={providerId === 'kimi' ? pollKimiOAuth : providerId === 'grok' ? pollGrokOAuth : providerId === 'copilot' ? pollCopilotOAuth : pollCodexOAuth}
+          onPoll={providerId === 'kimi' ? pollKimiOAuth : providerId === 'grok' ? pollGrokOAuth : providerId === 'copilot' ? pollCopilotOAuth : providerId === 'antigravity' ? pollAntigravityOAuth : pollCodexOAuth}
           userCode={providerId === 'kimi' || providerId === 'grok' || providerId === 'copilot' ? oauth.userCode : undefined}
           description={
             providerId === 'kimi'
@@ -367,7 +385,9 @@ export function OAuthProviderCard({
                 ? t('accounts.grokOauth.description')
                 : providerId === 'copilot'
                   ? t('accounts.copilotOauth.description')
-                  : undefined
+                  : providerId === 'antigravity'
+                    ? t('accounts.antigravityOauth.description')
+                    : undefined
           }
           onDone={() => {
             setOauth(null);

@@ -37,6 +37,7 @@ export default defineConfig({
     'pipeline/AuthSource': 'src/pipeline/AuthSource.ts',
     'pipeline/AccountAllowanceStore': 'src/pipeline/AccountAllowanceStore.ts',
     'pipeline/AccountAllowanceScheduling': 'src/pipeline/AccountAllowanceScheduling.ts',
+    'pipeline/antigravityQuotaFamily': 'src/pipeline/antigravityQuotaFamily.ts',
     'pipeline/AccountRouteActivity': 'src/pipeline/AccountRouteActivity.ts',
     'pipeline/BoundAccountSelectionError': 'src/pipeline/BoundAccountSelectionError.ts',
     'pipeline/executeProviderCall': 'src/pipeline/executeProviderCall.ts',
@@ -93,6 +94,13 @@ export default defineConfig({
     'transformer/transformers/AnthropicOpenAIToAnthropicStream':
       'src/transformer/transformers/AnthropicOpenAIToAnthropicStream.ts',
     'transformer/transformers/GeminiCodeAssistTransformer': 'src/transformer/transformers/GeminiCodeAssistTransformer.ts',
+    // antigravity-subscription-provider: the antigravity/hub masquerade identity
+    // (UA version hot-probe + per-wire-id request profiles). Consumed by the
+    // subscriptions auth strategy, the transformer, and the daemon collectors —
+    // must be a registered subpath or those imports resolve to undefined.
+    'transformer/transformers/antigravityIdentity': 'src/transformer/transformers/antigravityIdentity.ts',
+    'transformer/transformers/AntigravityTransformer': 'src/transformer/transformers/AntigravityTransformer.ts',
+    'transformer/transformers/antigravityFailover': 'src/transformer/transformers/antigravityFailover.ts',
     'transformer/transformers/GeminiTransformer': 'src/transformer/transformers/GeminiTransformer.ts',
     'transformer/transformers/OpenAIResponseTransformer': 'src/transformer/transformers/OpenAIResponseTransformer.ts',
     'transformer/transformers/OpenAITransformer': 'src/transformer/transformers/OpenAITransformer.ts',

@@ -33,7 +33,8 @@ import {
 } from '@/features/accounts/accountManagementModel';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useApiService } from '@/features/api-service/hooks/useApiService';
-import { SUBSCRIPTION_MODEL_CATALOG } from '@/features/api-service/subscriptionModelCatalog';
+import { mergeSubscriptionModelIds, SUBSCRIPTION_MODEL_CATALOG } from '@/features/api-service/subscriptionModelCatalog';
+import { agent } from '@/shared/agent';
 import { ProviderSettings } from '@/features/provider-settings/ProviderSettings';
 import type {
   GatewayBindingTarget,
@@ -130,9 +131,11 @@ function bindingTargetMatches(left: GatewayBindingTarget, right: GatewayBindingT
   return true;
 }
 
-function modelsFor(resource: UpstreamResource): string[] {
+function modelsFor(resource: UpstreamResource, antigravityModels: readonly { id: string }[] = []): string[] {
   if (resource.kind === 'provider') return resource.provider.models ?? [];
-  const catalog = SUBSCRIPTION_MODEL_CATALOG[resource.providerId] ?? [];
+  const catalog = resource.providerId === 'antigravity'
+    ? mergeSubscriptionModelIds('antigravity', antigravityModels)
+    : SUBSCRIPTION_MODEL_CATALOG[resource.providerId] ?? [];
   if (resource.kind === 'account') {
     const supported = resource.account.supportedModels;
     if (Array.isArray(supported)) return [...new Set([...catalog, ...supported])];
@@ -147,7 +150,7 @@ function egressProtocolFor(resource: UpstreamResource): string {
   if (resource.kind !== 'provider') {
     if (resource.providerId === 'claude') return 'Anthropic Messages';
     if (resource.providerId === 'codex') return 'OpenAI Responses';
-    if (resource.providerId === 'gemini') return 'Gemini GenerateContent';
+    if (resource.providerId === 'gemini' || resource.providerId === 'antigravity') return 'Gemini GenerateContent';
     return 'OpenAI Chat Completions';
   }
   if (resource.provider.apiFormat === 'anthropic') return 'Anthropic Messages';
@@ -163,6 +166,20 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const providersApi = useLlmProvidersData();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [addProviderOpen, setAddProviderOpen] = useState(false);
+  const [antigravityModels, setAntigravityModels] = useState<Array<{ id: string }>>([]);
+  const antigravityAccountKey = JSON.stringify(
+    (accountsApi.data.providerAccounts.antigravity ?? []).map((account) => [account.id, account.isActive]),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    setAntigravityModels([]);
+    if (accountsApi.data.providerAccounts.antigravity?.length) {
+      void agent.accounts.listAntigravityModels().then((result) => {
+        if (!cancelled) setAntigravityModels(result.models);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [antigravityAccountKey]);
   // Sidebar "enabled only" toggle — view state, deliberately NOT in the route:
   // it is a momentary lens on the list, not a location worth sharing/restoring.
   const [enabledOnly, setEnabledOnly] = useState(false);
@@ -273,9 +290,9 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       detail: resource.providerId,
       target: targetFor(resource),
       egressProtocol: egressProtocolFor(resource),
-      modelSuggestions: modelsFor(resource),
+      modelSuggestions: modelsFor(resource, antigravityModels),
     })),
-    [resources],
+    [resources, antigravityModels],
   );
 
   const selectedKey = useMemo(() => {

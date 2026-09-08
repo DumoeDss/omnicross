@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Ανοίξτε τη σελίδα επαλήθευσης, εισαγάγετε τον παρακάτω κωδικό και εγκρίνετε το αίτημα σύνδεσης."
     },
+    "antigravityOauth": {
+      "description": "Εξουσιοδοτήστε την εφαρμογή Antigravity στη σελίδα σύνδεσης Google — η σύνδεση ολοκληρώνεται αυτόματα."
+    },
     "copilotOauth": {
       "description": "Ανοίξτε τη διεύθυνση github.com/login/device, εισαγάγετε τον παρακάτω κωδικό και εξουσιοδοτήστε την εφαρμογή Copilot CLI.",
       "enterpriseLabel": "Τομέας GitHub Enterprise (προαιρετικό)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Διαπιστευτήρια συνδρομής GitHub Copilot που δρομολογεί ο δαίμονας."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Διαπιστευτήρια συνδρομής Google Antigravity που δρομολογούνται από τον δαίμονα."
       },
       "opencodego": {
         "title": "OpenCodeGo",

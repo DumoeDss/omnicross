@@ -65,6 +65,7 @@ import { dirname } from 'node:path';
 import type {
   AccountClientIdentity,
   AccountTokensConfig,
+  AntigravityTokenConfig,
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
@@ -78,6 +79,7 @@ import type {
   OpenCodeGoTokenConfig,
   SubscriptionProviderId,
 } from '@omnicross/contracts/subscription-types';
+import { getAntigravityProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
@@ -85,6 +87,7 @@ import { getSharedIdentityStore } from '@omnicross/core/provider-proxy/identity/
 
 import { preserveProxyConfigSecret } from '../proxy/sanitizeProxy';
 import {
+  antigravityOAuth,
   claudeOAuth,
   codexOAuth,
   copilotOAuth,
@@ -119,7 +122,8 @@ export type SubscriptionTokenBlock =
   | OpenCodeGoTokenConfig
   | KimiTokenConfig
   | GrokTokenConfig
-  | CopilotTokenConfig;
+  | CopilotTokenConfig
+  | AntigravityTokenConfig;
 
 /** By-id near-expiry OAuth refresh lead window (mirrors the codex/gemini active
  *  strategy's `REFRESH_LEAD_MS`) subscription-account-scheduling. */
@@ -218,7 +222,8 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       providerId !== 'opencodego' &&
       providerId !== 'kimi' &&
       providerId !== 'grok' &&
-      providerId !== 'copilot'
+      providerId !== 'copilot' &&
+      providerId !== 'antigravity'
     ) {
       return undefined;
     }
@@ -242,7 +247,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     const fingerprintOn = identityStore.isEnabled();
     const now = Date.now();
     const out: Record<string, SubscriptionAccountSanitized[]> = {};
-    for (const provider of ['claude', 'codex', 'gemini', 'opencodego', 'kimi', 'grok', 'copilot'] as const) {
+    for (const provider of ['claude', 'codex', 'gemini', 'opencodego', 'kimi', 'grok', 'copilot', 'antigravity'] as const) {
       const sanitized = accountMulti.sanitizeAccounts(config, provider);
       if (sanitized.length === 0) continue;
       // Attach the live (in-memory) scheduling-health state so the admin accounts
@@ -278,7 +283,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    */
   private attachDuplicateWarnings(
     config: AccountTokensConfig,
-    provider: 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok' | 'copilot',
+    provider: 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok' | 'copilot' | 'antigravity',
     sanitized: SubscriptionAccountSanitized[],
   ): SubscriptionAccountSanitized[] {
     const duplicates = findDuplicateCredentialIds(accountMulti.listAccounts(config, provider));
@@ -527,17 +532,91 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
   }
 
   /**
+   * Refresh the Antigravity (Google) OAuth access token. Like gemini, the
+   * Google token endpoint does NOT return a refresh_token on refresh, so this
+   * writes ONLY access+expiresAt (+status/lastRefreshedAt) and DELIBERATELY
+   * preserves the stored `refreshToken` — plus the account's `projectId`
+   * (a handshake product; the post-refresh re-validation is the refresh
+   * scheduler's hook, not this write) and `email`. HONEST `false` when no
+   * refresh_token.
+   */
+  async refreshAntigravityToken(): Promise<boolean> {
+    return this.coalesce('antigravity:active', async () => {
+      const config = this.readConfig();
+      const active = accountMulti.getActiveAccount(config, 'antigravity');
+      const antigravity = active?.tokens as AntigravityTokenConfig | undefined;
+      if (!active || !antigravity?.refreshToken) return false;
+      const capturedId = active.id;
+      this.materializeMigration(config);
+
+      const refreshFetch = this.buildRefreshFetch('antigravity', capturedId);
+      try {
+        const result = await antigravityOAuth.refreshAccessToken(antigravity.refreshToken, refreshFetch);
+        const expiresAt = new Date(Date.now() + result.expiresIn * 1000).toISOString();
+        const next: AntigravityTokenConfig = {
+          ...antigravity, // KEEP the existing refreshToken/projectId/email.
+          accessToken: result.accessToken,
+          expiresAt,
+          status: 'authorized',
+          lastRefreshedAt: new Date().toISOString(),
+          errorMessage: undefined,
+        };
+        this.writeBackById('antigravity', capturedId, next);
+        await this.revalidateAntigravityProject(capturedId);
+        return true;
+      } catch (error) {
+        this.markExpiredById('antigravity', capturedId, antigravity, error);
+        return false;
+      }
+    });
+  }
+
+  /**
+   * Post-refresh project re-validation hook (antigravity design D8): after a
+   * successful antigravity token refresh, re-run the Code Assist project
+   * handshake and write the (possibly rotated) `projectId` back to the account.
+   * A handshake FAILURE keeps the stored projectId untouched (logged) so the
+   * account keeps serving with the last-known-good project until a later
+   * refresh succeeds. Returns whether the handshake produced a project.
+   */
+  async revalidateAntigravityProject(accountId: string): Promise<boolean> {
+    const before = accountMulti.getAccountById(this.readConfig(), 'antigravity', accountId);
+    const accessToken = (before?.tokens as AntigravityTokenConfig | undefined)?.accessToken;
+    if (!accessToken) return false;
+    try {
+      const projectId = await getAntigravityProjectResolver().resolveProject(accessToken);
+      if (projectId !== undefined) {
+        const config = this.readConfig();
+        const account = accountMulti.getAccountById(config, 'antigravity', accountId);
+        const tokens = account?.tokens as AntigravityTokenConfig | undefined;
+        if (account && tokens?.accessToken === accessToken && tokens.projectId !== projectId) {
+          this.writeBackById('antigravity', accountId, { ...tokens, projectId });
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      // Keep the old projectId; the next refresh retries the handshake.
+      console.warn(
+        `[JsonSubscriptionCredentialStore] antigravity project re-validation failed for account ${accountId}: ` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      return false;
+    }
+  }
+
+  /**
    * Refresh a SPECIFIC managed account by id (background scheduler sweep and
    * account-pool resolution). It uses only that account's stored refresh
    * token. Coalesced per `provider:id`; on failure flags ONLY that account
    * `expired`.
    */
-  async refreshAccountById(provider: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot', id: string): Promise<boolean> {
+  async refreshAccountById(provider: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity', id: string): Promise<boolean> {
     return this.coalesce(`${provider}:${id}`, async () => {
       const config = this.readConfig();
       const account = accountMulti.getAccountById(config, provider, id);
       const captured = account?.tokens as
-        | (ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig)
+        | (ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | AntigravityTokenConfig)
         | undefined;
       if (!account || !captured?.refreshToken) return false;
       this.materializeMigration(config);
@@ -556,9 +635,10 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
           lastRefreshedAt: new Date().toISOString(),
           errorMessage: undefined,
           syncWarning: undefined,
-        } as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig;
+        } as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | AntigravityTokenConfig;
         if (refreshed.idToken) (next as CodexTokenConfig).idToken = refreshed.idToken;
         this.writeBackById(provider, id, next);
+        if (provider === 'antigravity') await this.revalidateAntigravityProject(id);
         return true;
       } catch (error) {
         this.markExpiredById(provider, id, captured, error);
@@ -585,16 +665,16 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     if (providerId === 'opencodego') {
       return (account.tokens as OpenCodeGoTokenConfig).apiKey ?? null;
     }
-    const oauth = account.tokens as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig;
+    const oauth = account.tokens as ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | AntigravityTokenConfig;
     if (!oauth.accessToken) return null;
-    if (providerId === 'codex' || providerId === 'gemini' || providerId === 'kimi' || providerId === 'grok' || providerId === 'copilot') {
+    if (providerId === 'codex' || providerId === 'gemini' || providerId === 'kimi' || providerId === 'grok' || providerId === 'copilot' || providerId === 'antigravity') {
       const expiresAtMs = oauth.expiresAt ? Date.parse(oauth.expiresAt) : 0;
       const expiringSoon = expiresAtMs > 0 && Date.now() >= expiresAtMs - ACCOUNT_REFRESH_LEAD_MS;
       if (expiringSoon && oauth.refreshToken) {
         const ok = await this.refreshAccountById(providerId, accountId);
         if (!ok) return null;
         const fresh = accountMulti.getAccountById(this.readConfig(), providerId, accountId);
-        return (fresh?.tokens as CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | undefined)?.accessToken ?? null;
+        return (fresh?.tokens as CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | AntigravityTokenConfig | undefined)?.accessToken ?? null;
       }
     }
     if (oauth.status === 'expired') return null;
@@ -705,7 +785,7 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
 
   /** Dispatch one OAuth refresh round-trip to the provider's shared flow. */
   private async refreshUpstream(
-    provider: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot',
+    provider: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity',
     refreshToken: string,
     accountId?: string,
   ): Promise<{ accessToken: string; refreshToken?: string; idToken?: string; expiresAt: string }> {
@@ -744,6 +824,15 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
       // caller marks the account `expired` with this message (the strategy
       // then declines the retry instead of looping on a dead token).
       throw new Error('GitHub Copilot tokens cannot be refreshed — re-authenticate the account');
+    }
+    // Antigravity: same Google token endpoint shape as gemini (no refresh_token
+    // on refresh — the caller keeps the captured one via `refreshToken ?? captured`).
+    if (provider === 'antigravity') {
+      const r = await antigravityOAuth.refreshAccessToken(refreshToken, refreshFetch);
+      return {
+        accessToken: r.accessToken,
+        expiresAt: new Date(Date.now() + r.expiresIn * 1000).toISOString(),
+      };
     }
     const flow = provider === 'claude' ? claudeOAuth : provider === 'codex' ? codexOAuth : geminiOAuth;
     const r = await flow.refreshAccessToken(refreshToken, refreshFetch);
@@ -843,9 +932,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * account and keeps the CURRENT active account's tokens in the mirror.
    */
   private writeBackById(
-    providerId: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot',
+    providerId: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity',
     capturedId: string,
-    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig,
+    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | AntigravityTokenConfig,
   ): void {
     const config = this.readConfig();
     accountMulti.writeBackRefreshById(config, providerId, capturedId, block);
@@ -857,9 +946,9 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * failure, keyed by id, then re-derive the mirror.
    */
   private markExpiredById(
-    providerId: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot',
+    providerId: 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity',
     capturedId: string,
-    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig,
+    block: ClaudeTokenConfig | CodexTokenConfig | GeminiTokenConfig | KimiTokenConfig | GrokTokenConfig | CopilotTokenConfig | AntigravityTokenConfig,
     error: unknown,
   ): void {
     const errorMessage = error instanceof Error ? error.message : 'Refresh failed';

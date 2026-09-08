@@ -78,18 +78,55 @@ export class GeminiCodeAssistHandshakeError extends Error {
 /** Injectable fetch so tests can mock the network without a live endpoint. */
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
+/**
+ * Per-dialect handshake parameters. The Cloud Code Assist project handshake is
+ * SHARED between the gemini-cli subscription (`cloudcode-pa`) and the
+ * antigravity subscription (`daily-cloudcode-pa`) — same `:loadCodeAssist` /
+ * `:onboardUser` LRO dance, different endpoint, client metadata, and fallback
+ * onboarding tier. The defaults preserve the gemini-cli behavior byte-identically.
+ */
+export interface CodeAssistResolverOptions {
+  /**
+   * Endpoint base override. Absent ⇒ the gemini-cli `cloudcode-pa` endpoint
+   * (env-overridable). The antigravity dialect pins `daily-cloudcode-pa`.
+   */
+  endpoint?: string;
+  /**
+   * Handshake dialect: `'gemini-cli'` (default — the GEMINI plugin metadata
+   * + `legacy-tier` fallback) or `'antigravity'` (the ANTIGRAVITY ideType
+   * metadata + `free-tier` fallback; a resolved `undefined` project is a HARD
+   * error — the antigravity envelope always carries a project).
+   */
+  dialect?: 'gemini-cli' | 'antigravity';
+  /** upstream-proxy provider id for the default fetch seam (default `'gemini'`). */
+  proxyProviderId?: string;
+}
+
+/** The antigravity dialect's handshake endpoint (`daily-cloudcode-pa`). */
+export const ANTIGRAVITY_CODE_ASSIST_ENDPOINT = 'https://daily-cloudcode-pa.googleapis.com';
+
 export class GeminiCodeAssistProjectResolver {
   /** account access token → resolved project id (undefined = free-tier, no project). */
   private readonly cache = new Map<string, string | undefined>();
   /** In-flight handshakes so concurrent callers share one round-trip. */
   private readonly inflight = new Map<string, Promise<string | undefined>>();
+  private readonly dialect: 'gemini-cli' | 'antigravity';
+  private readonly endpoint: string | undefined;
 
   // upstream-proxy: the Code Assist handshake is upstream egress → honor the
-  // gemini proxy by default (still injectable for tests).
+  // dialect's proxy layer by default (still injectable for tests).
   constructor(
-    private readonly fetchImpl: FetchLike = (url, init) =>
-      fetchUpstream(url, init, { providerId: 'gemini' }),
-  ) {}
+    fetchImpl?: FetchLike,
+    options: CodeAssistResolverOptions = {},
+  ) {
+    this.dialect = options.dialect ?? 'gemini-cli';
+    this.endpoint = options.endpoint;
+    const providerId = options.proxyProviderId ?? 'gemini';
+    this.fetchImpl =
+      fetchImpl ?? ((url, init) => fetchUpstream(url, init, { providerId }));
+  }
+
+  private readonly fetchImpl: FetchLike;
 
   /** Test/diagnostic helper — clear the cached resolution for an account. */
   clearCache(): void {
@@ -122,7 +159,28 @@ export class GeminiCodeAssistProjectResolver {
   }
 
   private codeAssistUrl(method: string): string {
-    return `${resolveCodeAssistEndpoint()}/${resolveCodeAssistApiVersion()}:${method}`;
+    const base = this.endpoint ?? resolveCodeAssistEndpoint();
+    return `${base}/${resolveCodeAssistApiVersion()}:${method}`;
+  }
+
+  /** The client metadata the dialect's upstream expects on the handshake calls. */
+  private handshakeMetadata(project?: string): Record<string, unknown> {
+    if (this.dialect === 'antigravity') {
+      // The antigravity client tags its control-plane calls with its ideType
+      // ONLY (captured from the reference client's loadCodeAssist/onboardUser).
+      return { ideType: 'ANTIGRAVITY' };
+    }
+    return {
+      ideType: 'IDE_UNSPECIFIED',
+      platform: 'PLATFORM_UNSPECIFIED',
+      pluginType: 'GEMINI',
+      duetProject: project,
+    };
+  }
+
+  /** The tier id used when `allowedTiers` carries no default. */
+  private get fallbackTierId(): string {
+    return this.dialect === 'antigravity' ? FREE_TIER_ID : LEGACY_TIER_ID;
   }
 
   /** Seed project id from env; reject a purely-numeric value (project NUMBER). */
@@ -137,22 +195,19 @@ export class GeminiCodeAssistProjectResolver {
 
     const load = await this.postCodeAssist<LoadCodeAssistResponse>('loadCodeAssist', accessToken, {
       cloudaicompanionProject: seededProject || undefined,
-      metadata: {
-        ideType: 'IDE_UNSPECIFIED',
-        platform: 'PLATFORM_UNSPECIFIED',
-        pluginType: 'GEMINI',
-        duetProject: seededProject || undefined,
-      },
+      metadata: this.handshakeMetadata(seededProject || undefined),
     });
 
-    // Already onboarded — use the response's project (may be undefined free-tier).
+    // Already onboarded — use the response's project (may be undefined free-tier
+    // on the gemini-cli dialect).
     if (load.currentTier?.id) {
-      return load.cloudaicompanionProject || undefined;
+      return this.settleProject(load.cloudaicompanionProject || undefined);
     }
 
-    // Pick the onboarding tier: first allowedTier with isDefault, else legacy.
+    // Pick the onboarding tier: first allowedTier with isDefault, else the
+    // dialect's fallback tier.
     const defaultTier = load.allowedTiers?.find((t) => t.isDefault);
-    const tierId = defaultTier?.id ?? LEGACY_TIER_ID;
+    const tierId = defaultTier?.id ?? this.fallbackTierId;
 
     // free-tier / legacy-tier MUST NOT send a project (→ Precondition Failed).
     const isFreeish = tierId === FREE_TIER_ID || tierId === LEGACY_TIER_ID;
@@ -161,12 +216,7 @@ export class GeminiCodeAssistProjectResolver {
     let lro = await this.postCodeAssist<LongRunningOperation>('onboardUser', accessToken, {
       tierId,
       cloudaicompanionProject: onboardProject,
-      metadata: {
-        ideType: 'IDE_UNSPECIFIED',
-        platform: 'PLATFORM_UNSPECIFIED',
-        pluginType: 'GEMINI',
-        duetProject: onboardProject,
-      },
+      metadata: this.handshakeMetadata(onboardProject),
     });
 
     // Poll the LRO until done.
@@ -184,7 +234,22 @@ export class GeminiCodeAssistProjectResolver {
       );
     }
 
-    return lro.response?.cloudaicompanionProject?.id || undefined;
+    return this.settleProject(lro.response?.cloudaicompanionProject?.id || undefined);
+  }
+
+  /**
+   * Final project settlement per dialect: gemini-cli treats `undefined` as the
+   * valid fresh free-tier value; antigravity ALWAYS carries a project (its
+   * envelope is rejected without one), so an absent project is a hard error.
+   */
+  private settleProject(project: string | undefined): string | undefined {
+    if (project === undefined && this.dialect === 'antigravity') {
+      throw new GeminiCodeAssistHandshakeError(
+        'Code Assist loadCodeAssist did not return a cloudaicompanionProject (antigravity requires one)',
+        502,
+      );
+    }
+    return project;
   }
 
   /** POST a Code Assist method, surfacing the documented hard failures clearly. */
@@ -281,4 +346,23 @@ export function getGeminiCodeAssistProjectResolver(): GeminiCodeAssistProjectRes
     _resolverSingleton = new GeminiCodeAssistProjectResolver();
   }
   return _resolverSingleton;
+}
+
+/**
+ * The ANTIGRAVITY-dialect singleton: same handshake class, pinned to
+ * `daily-cloudcode-pa` + the ANTIGRAVITY metadata + the antigravity proxy
+ * layer. A separate cache from the gemini resolver (the endpoints are
+ * distinct upstreams; a token valid on both would share nothing anyway).
+ */
+let _antigravityResolverSingleton: GeminiCodeAssistProjectResolver | null = null;
+
+export function getAntigravityProjectResolver(): GeminiCodeAssistProjectResolver {
+  if (!_antigravityResolverSingleton) {
+    _antigravityResolverSingleton = new GeminiCodeAssistProjectResolver(undefined, {
+      endpoint: ANTIGRAVITY_CODE_ASSIST_ENDPOINT,
+      dialect: 'antigravity',
+      proxyProviderId: 'antigravity',
+    });
+  }
+  return _antigravityResolverSingleton;
 }

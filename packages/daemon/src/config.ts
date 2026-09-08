@@ -339,6 +339,18 @@ export interface ResolvedAdminConfig {
 /** The default admin port (distinct from the 8765 outbound server). */
 export const DEFAULT_ADMIN_PORT = 8766;
 
+/**
+ * Per-provider behavior flags for the antigravity subscription.
+ */
+export interface AntigravityProviderConfig {
+  /**
+   * Enable the production→sandbox endpoint failover for retryable antigravity
+   * upstream failures (design D5). DEFAULT OFF — with the switch off a
+   * retryable failure surfaces the original error semantics unchanged.
+   */
+  sandboxFailover?: boolean;
+}
+
 /** The full daemon config. */
 export interface DaemonConfig {
   providers: DaemonProviderConfig[];
@@ -358,6 +370,11 @@ export interface DaemonConfig {
    * lifetime per-key spend the outbound key policy seeds from.
    */
   usage?: UsageRetentionConfig;
+  /**
+   * Optional antigravity-subscription behavior flags (sandbox failover et al).
+   * Absent ⇒ every default (failover OFF).
+   */
+  antigravity?: AntigravityProviderConfig;
 }
 
 /** Shape-guard the optional `admin` block — defensive, never throws on a
@@ -395,6 +412,14 @@ export function resolveAdminConfig(admin: DaemonAdminConfig | undefined): Resolv
 /** Shape-guard the optional `usage` block. `retentionDays` must be a positive
  *  finite number (0 or negative reads as "keep raw rows forever"); anything else
  *  collapses to `undefined` and the caller applies the default. Never throws. */
+/** Shape-guard the optional `antigravity` block (defensive, never throws). */
+function validateAntigravity(raw: unknown): AntigravityProviderConfig | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const a = raw as Record<string, unknown>;
+  if (typeof a['sandboxFailover'] !== 'boolean') return undefined;
+  return { sandboxFailover: a['sandboxFailover'] };
+}
+
 function validateUsage(raw: unknown): UsageRetentionConfig | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const u = raw as Record<string, unknown>;
@@ -838,7 +863,8 @@ export function validateConfig(raw: unknown): DaemonConfig {
   const admin = validateAdmin(obj['admin']);
   const logging = validateLogging(obj['logging']);
   const usage = validateUsage(obj['usage']);
-  return { providers, server, admin, logging };
+  const antigravity = validateAntigravity(obj['antigravity']);
+  return { providers, server, admin, logging, usage, antigravity };
 }
 
 /**

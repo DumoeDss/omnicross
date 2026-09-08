@@ -151,6 +151,9 @@ omnicross login claude --config ./omnicross.config.json
 omnicross launch claude --provider openai --model gpt-4o --config ./omnicross.config.json
 ```
 
+Antigravity uses a separate Google OAuth account: `omnicross login antigravity --config ./omnicross.config.json`.
+See [Antigravity subscription setup and verification boundaries](docs/antigravity-subscription.md) for model discovery, quota scheduling, and diagnostics.
+
 Run `omnicross --help` for the full command list.
 
 ### Option D — as a library

@@ -30,6 +30,14 @@ export type AllowanceWindow = {
   /** Remaining whole seconds at the time this DTO was materialized. */
   remainingSeconds?: number;
   state: AllowanceWindowState;
+  /**
+   * Present when the upstream flagged this window's counter as DISABLED
+   * (antigravity quotaSummary buckets): the family's requests are rejected
+   * until the reset, independent of the used percent. Scheduling treats a
+   * disabled window for a model's family as a hard block (spec: disabled 桶
+   * 阻塞对应族模型调度). Additive — older snapshots parse unchanged.
+   */
+  disabled?: boolean;
 };
 
 /**

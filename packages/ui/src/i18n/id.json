@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Buka halaman verifikasi, masukkan kode di bawah, dan setujui permintaan masuk."
     },
+    "antigravityOauth": {
+      "description": "Otorisasi aplikasi Antigravity di halaman masuk Google — proses masuk selesai otomatis."
+    },
     "copilotOauth": {
       "description": "Buka github.com/login/device, masukkan kode di bawah, dan izinkan aplikasi Copilot CLI.",
       "enterpriseLabel": "Domain GitHub Enterprise (opsional)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Kredensial langganan GitHub Copilot yang diarahkan oleh daemon."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Kredensial langganan Google Antigravity yang dirutekan oleh daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

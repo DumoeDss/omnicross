@@ -68,6 +68,26 @@ describe('AccountAllowanceScheduling', () => {
     expect(scheduling.getHistory()).toEqual([]);
   });
 
+  it('preserves disabled flags and scopes Antigravity decisions to the requested family', () => {
+    store.set({
+      providerId: 'antigravity', accountId: 'a', source: 'oauth-usage-api',
+      observedAt: new Date(NOW).toISOString(), expiresAt: new Date(NOW + 60_000).toISOString(),
+      windows: [{
+        id: 'anthropic:weekly', label: 'Claude week', scope: 'model-family', modelFamily: 'claude',
+        usedPercent: null, disabled: true, state: 'fresh', resetsAt: new Date(NOW + 60_000).toISOString(),
+      }, {
+        id: 'google:weekly', label: 'Gemini week', scope: 'model-family', modelFamily: 'gemini',
+        usedPercent: 5, state: 'fresh', resetsAt: new Date(NOW + 60_000).toISOString(),
+      }],
+    });
+    expect(store.get('antigravity', 'a')?.windows[0]?.disabled).toBe(true);
+    expect(scheduling.evaluate('antigravity', 'a', 50, NOW, 'claude-opus-4-6').action).toBe('ignore');
+    scheduling.configure({ enabled: true, demoteAtPercent: 80, pauseAtPercent: 98, priorityPenalty: 25 });
+    expect(scheduling.evaluate('antigravity', 'a', 50, NOW, 'claude-opus-4-6').action).toBe('pause');
+    expect(scheduling.evaluate('antigravity', 'a', 50, NOW, 'gemini-3-pro').action).toBe('normal');
+    expect(scheduling.evaluate('antigravity', 'a', 50, NOW + 60_001, 'claude-opus-4-6').action).toBe('ignore');
+  });
+
   it('never gates stale, missing, unsupported, or deadline-less snapshots', () => {
     snapshot(store, 100, 'stale');
     scheduling.configure({ enabled: true, demoteAtPercent: 80, pauseAtPercent: 98, priorityPenalty: 25 });

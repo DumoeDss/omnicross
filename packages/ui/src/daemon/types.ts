@@ -526,13 +526,30 @@ export interface CodexOAuthStatus {
  * interactive OAuth login for the OAuth-capable providers (claude/gemini); the
  * submitted code crosses IN only — the minted token never round-trips back.
  */
+export interface SubscriptionModelCatalogEntry {
+  id: string;
+  origin: 'static' | 'discovered';
+  displayName?: string;
+  supportsImages?: boolean;
+  supportsThinking?: boolean;
+  thinkingBudget?: number;
+  maxTokens?: number;
+  maxOutputTokens?: number;
+}
+
+export interface SubscriptionModelsResult {
+  models: SubscriptionModelCatalogEntry[];
+  discovered: boolean;
+}
+
 export interface AgentAccountsApi {
   list(): Promise<AccountsListResponse>;
+  listAntigravityModels(): Promise<SubscriptionModelsResult>;
   /** Read secret-free five-hour/weekly (or provider-equivalent) allowance snapshots. */
   listAllowances(): Promise<AccountAllowancesResult>;
-  /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo, Grok, Copilot, Gemini). */
+  /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo, Grok, Copilot, Gemini, Antigravity). */
   refreshAllowance(
-    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini',
+    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini' | 'antigravity',
     accountId: string,
   ): Promise<AccountAllowancesResult>;
   /** Replace the ACTIVE account's credential (token-paste parity). */
@@ -607,6 +624,8 @@ export interface AgentAccountsApi {
   pollKimiOAuth(sessionId: string): Promise<CodexOAuthStatus>;
   pollGrokOAuth(sessionId: string): Promise<CodexOAuthStatus>;
   pollCopilotOAuth(sessionId: string): Promise<CodexOAuthStatus>;
+  pollAntigravityOAuth(sessionId: string): Promise<CodexOAuthStatus>;
+  cancelAntigravityOAuth(sessionId: string): Promise<MutationResult>;
   /** Cancel an in-flight kimi/grok/copilot device-code sign-in. */
   cancelKimiOAuth(sessionId: string): Promise<MutationResult>;
   cancelGrokOAuth(sessionId: string): Promise<MutationResult>;

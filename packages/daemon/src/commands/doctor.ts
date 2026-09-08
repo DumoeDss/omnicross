@@ -16,6 +16,8 @@
 
 import { parseArgs } from 'node:util';
 
+import type { AccountAllowanceSnapshot } from '@omnicross/contracts/account-allowance-types';
+
 import type {
   SearchProviderCapabilities,
   SearchProviderDiagnostic,
@@ -40,7 +42,7 @@ import {
   type SearchRuntime,
 } from '@omnicross/core/search';
 
-import { buildDaemon, type DaemonPaths } from '../bootstrap';
+import { buildDaemon, type Daemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
 import type {
   ImageDoctorLocalSnapshot,
@@ -161,7 +163,97 @@ export function buildClaudeDoctorChecks(config: OutboundApiServerConfig): Doctor
   return checks;
 }
 
-/** Pure projection of the local-only Images diagnostic snapshot. */
+/**
+ * Local snapshot of the antigravity subscription's credential state (doctor
+ * subject `antigravity`, antigravity-subscription-provider task 6.2). Secret-
+ * free: counts, emails, timestamps only.
+ */
+export interface AntigravityDoctorSnapshot {
+  /** Stored antigravity accounts (0 ⇒ the provider is unconfigured). */
+  accountCount: number;
+  /** The active account's display email (when known). */
+  activeEmail?: string;
+  /** The active account carries an access token. */
+  hasAccessToken: boolean;
+  /** The active account's status is `expired` (a refresh failed permanently). */
+  expired: boolean;
+  /** The active account's token expiry (ISO) when known. */
+  expiresAt?: string;
+}
+
+/**
+ * The pure antigravity doctor checks: credential presence (hard), token
+ * freshness (warn inside a 10-minute lead), configuration summary
+ * (informational). The --live refresh + quota probes add the network checks.
+ */
+export function buildAntigravityDoctorChecks(snapshot: AntigravityDoctorSnapshot): DoctorCheck[] {
+  const checks: DoctorCheck[] = [];
+  checks.push({
+    name: 'antigravity credential',
+    ok: snapshot.accountCount > 0 && snapshot.hasAccessToken,
+    detail:
+      snapshot.accountCount === 0
+        ? 'no antigravity account stored — run `omnicross login antigravity`'
+        : `${snapshot.accountCount} account(s)${snapshot.activeEmail ? `, active: ${snapshot.activeEmail}` : ''}${
+            snapshot.hasAccessToken ? '' : ' — the active account has no access token'
+          }`,
+  });
+  const expiresAtMs = snapshot.expiresAt ? Date.parse(snapshot.expiresAt) : 0;
+  const expired = snapshot.expired || (expiresAtMs > 0 && Date.now() >= expiresAtMs);
+  const expiringSoon = expiresAtMs > 0 && Date.now() >= expiresAtMs - 10 * 60_000;
+  checks.push({
+    name: 'token freshness',
+    ok: !expired,
+    warn: !expired && expiringSoon,
+    detail: expired
+      ? 'the active account is expired (its last refresh failed — re-login or fix the refresh path)'
+      : snapshot.expiresAt
+        ? `expires at ${snapshot.expiresAt}${expiringSoon ? ' (inside the refresh lead window)' : ''}`
+        : 'no expiry recorded (refresh scheduler treats it as non-expiring)',
+  });
+  return checks;
+}
+
+export function hasFreshAntigravityQuota(
+  snapshot: AccountAllowanceSnapshot | undefined,
+  now = Date.now(),
+): boolean {
+  if (!snapshot || snapshot.lastErrorCode) return false;
+  if (snapshot.expiresAt && !(Date.parse(snapshot.expiresAt) > now)) return false;
+  return snapshot.windows.some((window) =>
+    window.state === 'fresh' &&
+    (!window.resetsAt || Date.parse(window.resetsAt) > now) &&
+    (window.disabled === true || (typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent))),
+  );
+}
+
+/** One --live probe outcome for the antigravity doctor subject. */
+export interface AntigravityLiveProbeResult {
+  /** The token refresh round-trip succeeded. */
+  refreshOk: boolean;
+  /** The quotaSummary collect produced usable windows. */
+  quotaOk: boolean;
+  /** Bounded, secret-free diagnostic (never a token or upstream body). */
+  detail: string;
+}
+
+/** Pure projection of a --live antigravity probe into doctor checks. */
+export function buildAntigravityLiveChecks(result: AntigravityLiveProbeResult): DoctorCheck[] {
+  return [
+    {
+      name: 'token refresh (--live)',
+      ok: result.refreshOk,
+      detail: result.refreshOk ? 'the active account refreshed successfully' : 'refresh failed (see the daemon log)',
+    },
+    {
+      name: 'quota collection (--live)',
+      ok: result.quotaOk,
+      detail: result.quotaOk ? 'quotaSummary windows collected' : result.detail,
+    },
+  ];
+}
+
+/** Pure projection of the local-only Images diagnostic snapshot. *//** Pure projection of the local-only Images diagnostic snapshot. */
 export function buildImagesDoctorChecks(snapshot: ImageDoctorLocalSnapshot): DoctorCheck[] {
   const enabled = snapshot.config.enabled;
   const accountOk = !enabled || snapshot.account.usable;
@@ -486,6 +578,49 @@ export async function runLiveProbe(
 
 /** Run the `doctor` subcommand. `argv` is everything after `doctor claude`.
  *  `fetchImpl` is a test seam (default: the global fetch). */
+/**
+ * The antigravity doctor subject runner: local credential checks (+ the --live
+ * refresh + quota probes). Read-only apart from the --live refresh round-trip,
+ * which is exactly the daemon's own scheduled refresh.
+ */
+async function runAntigravityDoctor(daemon: Daemon, live: boolean): Promise<number> {
+  const config = await daemon.credentialStore.getFullConfig();
+  const accounts = config.antigravityAccounts ?? [];
+  const activeId = config.activeAntigravityAccountId ?? accounts[0]?.id;
+  const active = accounts.find((account) => account.id === activeId);
+  const snapshot: AntigravityDoctorSnapshot = {
+    accountCount: accounts.length,
+    ...(active?.tokens.email ? { activeEmail: active.tokens.email } : {}),
+    hasAccessToken: Boolean(active?.tokens.accessToken),
+    expired: active?.tokens.status === 'expired',
+    ...(active?.tokens.expiresAt ? { expiresAt: active.tokens.expiresAt } : {}),
+  };
+
+  const checks = buildAntigravityDoctorChecks(snapshot);
+  if (live && active) {
+    const refreshOk = await daemon.credentialStore.refreshAntigravityToken();
+    let quotaOk = false;
+    let detail = 'quotaSummary collection produced no usable windows';
+    try {
+      const snapshots = await daemon.accountAllowanceService.refreshAntigravity(active.id);
+      quotaOk = hasFreshAntigravityQuota(snapshots.find((entry) => entry.accountId === active.id));
+      if (!quotaOk) detail = snapshots[0]?.lastErrorCode ?? detail;
+    } catch (error) {
+      detail = error instanceof Error ? error.message : String(error);
+    }
+    checks.push(...buildAntigravityLiveChecks({ refreshOk, quotaOk, detail }));
+  }
+
+  console.info('omnicross doctor antigravity — subscription credential health');
+  let hardFailure = false;
+  for (const check of checks) {
+    const mark = check.ok ? (check.warn ? '⚠' : '✓') : '✗';
+    if (!check.ok) hardFailure = true;
+    console.info(`  [${mark}] ${check.name}: ${check.detail}`);
+  }
+  return hardFailure ? 1 : 0;
+}
+
 export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -499,8 +634,8 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
     allowPositionals: true,
   });
   const subject = positionals[0] ?? 'claude';
-  if (subject !== 'claude' && subject !== 'images' && subject !== 'search') {
-    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images', 'search')`);
+  if (subject !== 'claude' && subject !== 'images' && subject !== 'search' && subject !== 'antigravity') {
+    throw new Error(`doctor: unknown subject '${subject}' (supported: 'claude', 'images', 'search', 'antigravity')`);
   }
   const configPath = values.config;
   if (!configPath) {
@@ -530,6 +665,10 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
         ...(serverConfig.search ? { config: serverConfig.search } : {}),
         runtime: daemon.searchRuntime,
       });
+    }
+
+    if (subject === 'antigravity') {
+      return await runAntigravityDoctor(daemon, values.live === true);
     }
 
     const checks = subject === 'images'

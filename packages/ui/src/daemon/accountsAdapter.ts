@@ -34,6 +34,7 @@ import type {
 import type {
   AccountsListResponse,
   AccountTokenInput,
+  AntigravityTokenInput,
   ClaudeTokenInput,
   CodexTokenInput,
   GeminiTokenInput,
@@ -142,6 +143,19 @@ function fromCopilot(input: CopilotTokenInput): Record<string, unknown> {
   return body;
 }
 
+/** Build the antigravity write body — only the daemon's antigravity allowlist. */
+function fromAntigravity(input: AntigravityTokenInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { authMethod: input.authMethod, status: input.status };
+  setStr(body, 'accessToken', input.accessToken);
+  setStr(body, 'refreshToken', input.refreshToken);
+  setStr(body, 'expiresAt', input.expiresAt);
+  setStr(body, 'email', input.email);
+  setStr(body, 'projectId', input.projectId);
+  setStr(body, 'lastRefreshedAt', input.lastRefreshedAt);
+  setStr(body, 'errorMessage', input.errorMessage);
+  return body;
+}
+
 /** Dispatch a write payload to the per-provider field-by-field builder. */
 function buildBody(payload: AccountTokenInput): Record<string, unknown> {
   switch (payload.providerId) {
@@ -159,6 +173,8 @@ function buildBody(payload: AccountTokenInput): Record<string, unknown> {
       return fromGrok(payload.input);
     case 'copilot':
       return fromCopilot(payload.input);
+    case 'antigravity':
+      return fromAntigravity(payload.input);
   }
 }
 
@@ -170,8 +186,16 @@ export function createAccountsAdapter(): AgentAccountsApi {
       } catch {
         return {
           accounts: [],
-          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [], copilot: [] },
+          providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [], copilot: [], antigravity: [] },
         };
+      }
+    },
+
+    async listAntigravityModels() {
+      try {
+        return await adminClient.get<import('./types').SubscriptionModelsResult>('/accounts/antigravity/models');
+      } catch {
+        return { models: [], discovered: false };
       }
     },
 
@@ -545,6 +569,25 @@ export function createAccountsAdapter(): AgentAccountsApi {
     async cancelCopilotOAuth(sessionId: string): Promise<MutationResult> {
       try {
         await adminClient.delete(`/accounts/copilot/oauth/${encodeURIComponent(sessionId)}`);
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };
+      }
+    },
+
+    async pollAntigravityOAuth(sessionId: string): Promise<CodexOAuthStatus> {
+      try {
+        return await adminClient.get<CodexOAuthStatus>(
+          `/accounts/antigravity/oauth/${encodeURIComponent(sessionId)}/status`,
+        );
+      } catch {
+        return { state: 'error' };
+      }
+    },
+
+    async cancelAntigravityOAuth(sessionId: string): Promise<MutationResult> {
+      try {
+        await adminClient.delete(`/accounts/antigravity/oauth/${encodeURIComponent(sessionId)}`);
         return { success: true };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'failed to cancel' };

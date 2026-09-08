@@ -35,7 +35,7 @@ import type {
 
 const EMPTY: AccountsListResponse = {
   accounts: [],
-  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [], copilot: [] },
+  providerAccounts: { claude: [], codex: [], gemini: [], opencodego: [], kimi: [], grok: [], copilot: [], antigravity: [] },
 };
 
 /** Keep request-driven account metadata and passive Codex allowance observations live. */
@@ -78,6 +78,9 @@ export interface UseAccountsResult {
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
   /** Force-refresh a Gemini account's Code-Assist quota snapshot. */
+  refreshAntigravityAccountAllowance: (
+    accountId: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   refreshGeminiAccountAllowance: (
     accountId: string,
   ) => Promise<{ success: boolean; message?: string }>;
@@ -146,6 +149,8 @@ export interface UseAccountsResult {
   pollKimiOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   pollGrokOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
   pollCopilotOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  pollAntigravityOAuth: (sessionId: string) => Promise<CodexOAuthStatus>;
+  cancelAntigravityOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelKimiOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelGrokOAuth: (sessionId: string) => Promise<MutationResult>;
   cancelCopilotOAuth: (sessionId: string) => Promise<MutationResult>;
@@ -514,6 +519,16 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const pollAntigravityOAuth = useCallback(
+    (sessionId: string): Promise<CodexOAuthStatus> => agent.accounts.pollAntigravityOAuth(sessionId),
+    [],
+  );
+
+  const cancelAntigravityOAuth = useCallback(
+    (sessionId: string): Promise<MutationResult> => agent.accounts.cancelAntigravityOAuth(sessionId),
+    [],
+  );
+
   const cancelGrokOAuth = useCallback(
     (sessionId: string) => agent.accounts.cancelGrokOAuth(sessionId),
     [],
@@ -678,6 +693,26 @@ export function useAccounts(): UseAccountsResult {
     [],
   );
 
+  const refreshAntigravityAccountAllowance = useCallback(
+    async (accountId: string) => {
+      const key = allowanceKey('antigravity', accountId);
+      setAllowanceErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      const result = await agent.accounts.refreshAllowance('antigravity', accountId);
+      if (!result.success) {
+        const message = result.message ?? 'failed to refresh Antigravity allowance';
+        setAllowanceErrors((current) => ({ ...current, [key]: message }));
+        return { success: false, message };
+      }
+      setAllowances((current) => mergeAllowances(current, result.allowances));
+      return { success: true };
+    },
+    [],
+  );
+
   const refreshGeminiAccountAllowance = useCallback(
     async (accountId: string) => {
       const key = allowanceKey('gemini', accountId);
@@ -748,12 +783,15 @@ export function useAccounts(): UseAccountsResult {
     refreshOpenCodeGoAccountAllowance,
     refreshGrokAccountAllowance,
     refreshCopilotAccountAllowance,
+    refreshAntigravityAccountAllowance,
     refreshGeminiAccountAllowance,
     pollKimiOAuth,
     cancelKimiOAuth,
     pollGrokOAuth,
     cancelGrokOAuth,
     pollCopilotOAuth,
+    pollAntigravityOAuth,
+    cancelAntigravityOAuth,
     cancelCopilotOAuth,
     writeTokens,
     appendTokens,

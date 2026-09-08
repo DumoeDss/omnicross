@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   AccountClientIdentity,
   AccountTokensConfig,
+  AntigravityTokenConfig,
   ClaudeTokenConfig,
   CodexTokenConfig,
   GeminiTokenConfig,
@@ -39,12 +40,21 @@ export type AnyTokenConfig =
   | OpenCodeGoTokenConfig
   | KimiTokenConfig
   | GrokTokenConfig
-  | CopilotTokenConfig;
+  | CopilotTokenConfig
+  | AntigravityTokenConfig;
 
 type AnyAccountEntry = SubscriptionAccountEntry<AnyTokenConfig>;
 
 /** Provider id → owned contract field names. */
-export type DaemonProvider = 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok' | 'copilot';
+export type DaemonProvider =
+  | 'claude'
+  | 'codex'
+  | 'gemini'
+  | 'opencodego'
+  | 'kimi'
+  | 'grok'
+  | 'copilot'
+  | 'antigravity';
 
 interface ProviderKeys {
   block: keyof AccountTokensConfig;
@@ -64,6 +74,11 @@ const PROVIDER_KEYS: Record<DaemonProvider, ProviderKeys> = {
   kimi: { block: 'kimi', accounts: 'kimiAccounts', active: 'activeKimiAccountId' },
   grok: { block: 'grok', accounts: 'grokAccounts', active: 'activeGrokAccountId' },
   copilot: { block: 'copilot', accounts: 'copilotAccounts', active: 'activeCopilotAccountId' },
+  antigravity: {
+    block: 'antigravity',
+    accounts: 'antigravityAccounts',
+    active: 'activeAntigravityAccountId',
+  },
 };
 
 function clone<T>(value: T): T {

@@ -106,6 +106,16 @@ export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]
   ],
 };
 
+export function mergeSubscriptionModelIds(
+  providerId: SubscriptionProviderId,
+  discovered: readonly { id: string }[] = [],
+): string[] {
+  return [...new Set([
+    ...SUBSCRIPTION_MODEL_CATALOG[providerId],
+    ...discovered.map((entry) => entry.id).filter((id) => typeof id === 'string' && id.length > 0),
+  ])];
+}
+
 /** Whether a provider has any cataloged models (drives UI model-picker gating). */
 export function subscriptionProviderHasCatalog(providerId: SubscriptionProviderId): boolean {
   return SUBSCRIPTION_MODEL_CATALOG[providerId].length > 0;

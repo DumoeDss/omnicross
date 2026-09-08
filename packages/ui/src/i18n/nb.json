@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Åpne bekreftelsessiden, skriv inn koden nedenfor, og godkjenn innloggingsforespørselen."
     },
+    "antigravityOauth": {
+      "description": "Godkjenn Antigravity-appen på Googles innloggingsside — innloggingen fullføres automatisk."
+    },
     "copilotOauth": {
       "description": "Åpne github.com/login/device, skriv inn koden nedenfor, og godkjenn Copilot CLI-appen.",
       "enterpriseLabel": "GitHub Enterprise-domene (valgfritt)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "GitHub Copilot-abonnementslegitimasjon rutet av daemonen."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Google Antigravity-abonnementslegitimasjon som rutes av daemonen."
       },
       "opencodego": {
         "title": "OpenCodeGo",

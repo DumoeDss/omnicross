@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Deschideți pagina de verificare, introduceți codul de mai jos și aprobați cererea de autentificare."
     },
+    "antigravityOauth": {
+      "description": "Autorizați aplicația Antigravity pe pagina de conectare Google — conectarea se finalizează automat."
+    },
     "copilotOauth": {
       "description": "Deschideți github.com/login/device, introduceți codul de mai jos și autorizați aplicația Copilot CLI.",
       "enterpriseLabel": "Domeniu GitHub Enterprise (opțional)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Credențiale de abonament GitHub Copilot rutate de daemon."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Credențiale de abonament Google Antigravity dirijate de daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

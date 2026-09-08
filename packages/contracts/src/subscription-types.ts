@@ -11,7 +11,15 @@
  */
 
 /** Stable IDs for built-in subscription providers. */
-export type SubscriptionProviderId = 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok' | 'copilot';
+export type SubscriptionProviderId =
+  | 'claude'
+  | 'codex'
+  | 'gemini'
+  | 'opencodego'
+  | 'kimi'
+  | 'grok'
+  | 'copilot'
+  | 'antigravity';
 
 /**
  * OpenCodeGo routing scenarios used for model selection and fallback.

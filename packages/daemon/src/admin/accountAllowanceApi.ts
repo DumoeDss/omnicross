@@ -24,6 +24,8 @@ export interface AccountAllowanceAdminReader {
   refreshCopilot?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   /** Optional: Gemini Code-Assist quota refresh (absent on older daemons). */
   refreshGemini?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
+  /** Optional: Antigravity quotaSummary refresh (absent on older daemons). */
+  refreshAntigravity?(accountId?: string): Promise<AccountAllowanceSnapshot[]>;
   removeAccountSnapshot?(providerId: SubscriptionProviderId, accountId: string): void;
   removeProviderSnapshots?(providerId: SubscriptionProviderId): void;
   getSchedulingStatus?(): AccountAllowanceSchedulingStatus;
@@ -65,9 +67,9 @@ function query(req: http.IncomingMessage): URLSearchParams {
 
 function allowanceProvider(
   value: string | null,
-): 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini' | undefined | null {
+): 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini' | 'antigravity' | undefined | null {
   if (!value) return undefined;
-  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego' || value === 'grok' || value === 'copilot' || value === 'gemini'
+  return value === 'claude' || value === 'codex' || value === 'kimi' || value === 'opencodego' || value === 'grok' || value === 'copilot' || value === 'gemini' || value === 'antigravity'
     ? value
     : null;
 }
@@ -165,6 +167,16 @@ export async function handleAccountAllowanceApi(
       const allowances = await service.refreshGrok(accountId);
       if (accountId && allowances.length === 0) {
         return writeError(res, 404, `Grok account '${accountId}' not found`);
+      }
+      return writeJson(res, 200, { allowances });
+    }
+    if (requestedProvider === 'antigravity') {
+      if (!service.refreshAntigravity) {
+        return writeError(res, 501, 'antigravity allowance refresh is not available');
+      }
+      const allowances = await service.refreshAntigravity(accountId);
+      if (accountId && allowances.length === 0) {
+        return writeError(res, 404, `Antigravity account '${accountId}' not found`);
       }
       return writeJson(res, 200, { allowances });
     }

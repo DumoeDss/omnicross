@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Abra a página de verificação, digite o código abaixo e aprove a solicitação de entrada."
     },
+    "antigravityOauth": {
+      "description": "Autorize o aplicativo Antigravity na página de login do Google — o login é concluído automaticamente."
+    },
     "copilotOauth": {
       "description": "Abra github.com/login/device, digite o código abaixo e autorize o aplicativo Copilot CLI.",
       "enterpriseLabel": "Domínio do GitHub Enterprise (opcional)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Credenciais de assinatura GitHub Copilot roteadas pelo daemon."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Credenciais de assinatura do Google Antigravity roteadas pelo daemon."
       },
       "opencodego": {
         "title": "OpenCodeGo",

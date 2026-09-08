@@ -124,6 +124,7 @@ const VALID_PROVIDER_IDS: readonly SubscriptionProviderId[] = [
   'kimi',
   'grok',
   'copilot',
+  'antigravity',
 ];
 
 /** Narrow a path segment to a known `SubscriptionProviderId` (or `null`). */

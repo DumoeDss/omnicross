@@ -35,6 +35,7 @@ const DISPLAY_NAMES: Record<SubscriptionProviderId, string> = {
   kimi: 'Kimi Code (Moonshot OAuth)',
   grok: 'Grok (xAI SuperGrok OAuth)',
   copilot: 'Copilot (GitHub OAuth)',
+  antigravity: 'Antigravity (Google OAuth)',
 };
 
 export class SubscriptionAccountService {
@@ -57,6 +58,7 @@ export class SubscriptionAccountService {
       ['kimi', new OAuthBearerAuthStrategy('kimi', tokens, this.mutex, this.selector, health)],
       ['grok', new OAuthBearerAuthStrategy('grok', tokens, this.mutex, this.selector, health)],
       ['copilot', new OAuthBearerAuthStrategy('copilot', tokens, this.mutex, this.selector, health)],
+      ['antigravity', new OAuthBearerAuthStrategy('antigravity', tokens, this.mutex, this.selector, health)],
     ]);
   }
 

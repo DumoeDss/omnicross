@@ -1156,6 +1156,9 @@
     "grokOauth": {
       "description": "確認ページを開き、下のコードを入力してサインイン要求を承認してください。"
     },
+    "antigravityOauth": {
+      "description": "Google サインインページで Antigravity アプリを承認すると、サインインは自動的に完了します。"
+    },
     "copilotOauth": {
       "description": "github.com/login/device を開き、下のコードを入力して Copilot CLI アプリを承認してください。",
       "enterpriseLabel": "GitHub Enterprise ドメイン（任意）"
@@ -1255,6 +1258,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "デーモンによってルーティングされる GitHub Copilot サブスクリプション認証情報。"
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "デーモンがルーティングする Google Antigravity サブスクリプションの認証情報。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

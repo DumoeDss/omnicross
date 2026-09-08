@@ -30,7 +30,9 @@
 
 import type http from 'node:http';
 
+import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
+import { maybeAntigravityFailoverUrl } from '../../transformer/transformers/antigravityFailover';
 
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import type { OpenCodeGoScenario } from '@omnicross/contracts/subscription-types';
@@ -210,7 +212,7 @@ export async function buildSubscriptionPlan(
   // and carry it on every iteration plan (fallbacks reuse it).
   const sessionKey = deriveSubscriptionSessionKey(anthropicBody);
 
-  const plan = buildSubscriptionIterationPlan(profile, route, deps, resolvedModel, isStream, scenario, sessionKey);
+  const plan = await buildSubscriptionIterationPlan(profile, route, deps, resolvedModel, isStream, scenario, sessionKey);
   if (!plan) {
     writeError(res, 502, 'Subscription profile is missing resolveUpstreamUrl');
     return null;
@@ -230,7 +232,7 @@ export async function buildSubscriptionPlan(
  * call), so the SAME auth instance is reused across fallbacks. Returns `null`
  * only when the profile has no `resolveUpstreamUrl` (a misconfigured profile).
  */
-export function buildSubscriptionIterationPlan(
+export async function buildSubscriptionIterationPlan(
   profile: SubscriptionAuthProfile,
   route: RouteContext,
   deps: ProviderProxyDeps,
@@ -238,7 +240,7 @@ export function buildSubscriptionIterationPlan(
   isStream: boolean,
   scenario: OpenCodeGoScenario | undefined,
   sessionKey?: string,
-): AnthropicCallPlan | null {
+): Promise<AnthropicCallPlan | null> {
   // D1: pass the opaque per-account config so the opencodego profile honors a
   // user `baseUrl`/`zenBaseUrl` override + the per-model go/zen half; byte-
   // identical when unset.
@@ -285,12 +287,32 @@ export function buildSubscriptionIterationPlan(
     apiKey: '',
     models: [resolvedModel],
   };
+  // Antigravity: thread the Code Assist project (REQUIRED on its envelope).
+  // The gemini profile intentionally does NOT resolve here today — its
+  // project seam lives on the Responses ingress + the daemon dispatcher; this
+  // branch adds only the antigravity path (byte-identical for every other
+  // provider).
+  let antigravityAccountId: string | undefined;
+  if (profile.authStrategy.providerId === 'antigravity') {
+    const headers: Record<string, string> = {};
+    await auth.applyHeaders(headers, {
+      upstreamUrl, model: resolvedModel, sessionKey,
+      preferredAccountId: route.preferredAccountId,
+      preferredAccountGroup: route.preferredAccountGroup,
+      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+      reportSelection: (accountId) => { antigravityAccountId = accountId; },
+    });
+    const bearer = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+    if (bearer) {
+      transformerProvider.geminiProject = await getAntigravityProjectResolver().resolveProject(bearer);
+    }
+  }
 
   return {
     auth,
-    preferredAccountId: route.preferredAccountId,
-    preferredAccountGroup: route.preferredAccountGroup,
-    boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+    preferredAccountId: antigravityAccountId ?? route.preferredAccountId,
+    preferredAccountGroup: antigravityAccountId ? undefined : route.preferredAccountGroup,
+    boundAccountFallbackPolicy: antigravityAccountId ? 'strict' : route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
@@ -444,6 +466,10 @@ export async function runPipeline(
       reportSelection?.(accountId, isActive);
     },
   });
+  if (plan.transformerProvider.name === 'antigravity') {
+    const bearer = (authHeaders.Authorization ?? authHeaders.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+    if (bearer) transformerProvider.geminiProject = await getAntigravityProjectResolver().resolveProject(bearer);
+  }
 
   let rawStatus: number | null = null;
   // Route-activity row id for THIS attempt (R8 bridge): captured from the fetch
@@ -946,8 +972,37 @@ export async function runPipelineWithSubscriptionRetry(
     const loneBody = initialPlan.sameFormat
       ? anthropicBody
       : await prepareTranslateAttempt(anthropicBody);
-    const loneOutcome = await runSubscriptionAttemptOutcome(loneBody, rawBody, initialPlan, options);
+    let loneOutcome = await runSubscriptionAttemptOutcome(loneBody, rawBody, initialPlan, options);
     if (!clientGone()) recordBreakerOutcome(profile, initialPlan.resolvedModel, outcomeStatus(loneOutcome));
+    // Antigravity sandbox failover (design D5): when the switch is ON and the
+    // PRIMARY endpoint failed retryably, retry the same plan once against the
+    // sandbox host (URL swap only — same chain, same auth). Switch OFF ⇒ a
+    // no-op and the original outcome surfaces unchanged.
+    if (
+      initialPlan.transformerProvider.name === 'antigravity' &&
+      !clientGone() &&
+      outcomeStatus(loneOutcome) !== null &&
+      !is2xxStatus(outcomeStatus(loneOutcome))
+    ) {
+      const bodyText =
+        loneOutcome.kind === 'result' ? await readBoundedBody(loneOutcome.result.response) : undefined;
+      const failoverUrl = maybeAntigravityFailoverUrl(
+        initialPlan.upstreamUrl,
+        outcomeStatus(loneOutcome),
+        bodyText,
+      );
+      if (failoverUrl) {
+        console.warn(
+          `[ProviderProxy:anthropic] antigravity endpoint failover -> ${failoverUrl} after ${outcomeStatus(loneOutcome)}`,
+        );
+        if (loneOutcome.kind === 'result') await cancelDiscardedResponse(loneOutcome.result.response);
+        const failoverPlan = withUpstreamUrl(initialPlan, failoverUrl);
+        loneOutcome = await runSubscriptionAttemptOutcome(loneBody, rawBody, failoverPlan, options);
+        if (!clientGone()) {
+          recordBreakerOutcome(profile, failoverPlan.resolvedModel, outcomeStatus(loneOutcome));
+        }
+      }
+    }
     return settleOutcome(loneOutcome);
   }
 
@@ -969,7 +1024,7 @@ export async function runPipelineWithSubscriptionRetry(
     attempted.push(initialPlan.resolvedModel);
     const firstAdmitting = profile.nextFallback(scenario, attempted, route.subscriptionConfig as never);
     const gatedPlan = firstAdmitting
-      ? buildSubscriptionIterationPlan(profile, route, deps, firstAdmitting.modelId, initialPlan.isStream, scenario, initialPlan.sessionKey)
+      ? await buildSubscriptionIterationPlan(profile, route, deps, firstAdmitting.modelId, initialPlan.isStream, scenario, initialPlan.sessionKey)
       : null;
     if (firstAdmitting && gatedPlan) {
       console.warn(
@@ -1010,7 +1065,7 @@ export async function runPipelineWithSubscriptionRetry(
     const next = profile.nextFallback(scenario, attempted, route.subscriptionConfig as never);
     if (!next) return settleOutcome(outcome);
 
-    const nextPlan = buildSubscriptionIterationPlan(
+    const nextPlan = await buildSubscriptionIterationPlan(
       profile,
       route,
       deps,
@@ -1051,6 +1106,38 @@ export async function runPipelineWithSubscriptionRetry(
 
   // Chain exhausted (cap reached): surface the LAST attempt's outcome.
   return settleOutcome(outcome);
+}
+
+/** Whether a status is a 2xx success. */
+function is2xxStatus(status: number | null): boolean {
+  return status !== null && status >= 200 && status < 300;
+}
+
+/**
+ * A plan twin whose upstream URL is swapped (the antigravity sandbox failover):
+ * `upstreamUrl` + a `resolveUrl` that prefers the swapped base. The plan object
+ * is otherwise reused verbatim (same chain, auth, transformerProvider).
+ */
+function withUpstreamUrl(plan: AnthropicCallPlan, url: string): AnthropicCallPlan {
+  return {
+    ...plan,
+    upstreamUrl: url,
+    resolveUrl: (config) => {
+      // The antigravity transformer emits an absolute daily-cloudcode-pa URL;
+      // replace its ORIGIN with the failover base, keeping the method path.
+      const resolved = plan.resolveUrl(config);
+      if (typeof resolved === 'string' && resolved.includes('googleapis.com')) {
+        try {
+          const original = new URL(resolved);
+          const target = new URL(url);
+          return `${target.origin}${original.pathname}${original.search}`;
+        } catch {
+          return url;
+        }
+      }
+      return resolved || url;
+    },
+  };
 }
 
 /** Core-local copy of the subscriptions `MAX_FALLBACK_ATTEMPTS` cap (core cannot

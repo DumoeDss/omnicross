@@ -11,6 +11,7 @@ import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-t
 
 import type { AllowanceSchedulingConfig } from '../outbound-api/types';
 import { AccountAllowanceStore, getSharedAccountAllowanceStore } from './AccountAllowanceStore';
+import { antigravityModelFamily } from './antigravityQuotaFamily';
 
 export type AllowanceSchedulingAction = 'normal' | 'demote' | 'pause' | 'ignore';
 
@@ -76,9 +77,15 @@ export function isAccountAllowanceExhaustedError(
   return value.code === 'account_allowance_exhausted' && value.status === 429;
 }
 
-function freshWorstWindow(snapshot: AccountAllowanceSnapshot) {
+function freshWorstWindow(snapshot: AccountAllowanceSnapshot, resolvedModel?: string) {
+  const family = snapshot.providerId === 'antigravity' && resolvedModel
+    ? antigravityModelFamily(resolvedModel)
+    : undefined;
   return snapshot.windows
-    .filter((window) => window.state === 'fresh' && typeof window.usedPercent === 'number')
+    .filter((window) => window.state === 'fresh' &&
+      (typeof window.usedPercent === 'number' || window.disabled === true) &&
+      (!resolvedModel || snapshot.providerId !== 'antigravity' || window.scope === 'all' || window.modelFamily === family))
+    .map((window) => window.disabled === true ? { ...window, usedPercent: 100 } : window)
     .sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1))[0];
 }
 
@@ -105,8 +112,9 @@ export class AccountAllowanceScheduling {
     accountId: string,
     basePriority: number,
     now: number = this.now(),
+    resolvedModel?: string,
   ): AllowanceSchedulingDecision {
-    const decision = this.decide(providerId, accountId, basePriority, now);
+    const decision = this.decide(providerId, accountId, basePriority, now, resolvedModel);
     this.recordApplied(decision);
     return decision;
   }
@@ -121,8 +129,9 @@ export class AccountAllowanceScheduling {
     accountId: string,
     basePriority: number,
     now: number = this.now(),
+    resolvedModel?: string,
   ): AllowanceSchedulingDecision {
-    return this.decide(providerId, accountId, basePriority, now);
+    return this.decide(providerId, accountId, basePriority, now, resolvedModel);
   }
 
   private decide(
@@ -130,6 +139,7 @@ export class AccountAllowanceScheduling {
     accountId: string,
     basePriority: number,
     now: number,
+    resolvedModel?: string,
   ): AllowanceSchedulingDecision {
     const decidedAt = new Date(now).toISOString();
     const base = {
@@ -144,21 +154,24 @@ export class AccountAllowanceScheduling {
     // Providers whose snapshots carry windowed percents the policy can reason
     // about (claude/codex/kimi/opencodego report 5h + weekly; grok reports
     // weekly credits or unified monthly quota — both windowed percents; gemini
-    // is per-model fractions the worst-window rule does not fit).
+    // is per-model fractions the worst-window rule does not fit; antigravity
+    // reports ACCOUNT-level 5h + weekly dual buckets per counter family — the
+    // worst-window rule applies, D6).
     if (
       providerId !== 'claude' &&
       providerId !== 'codex' &&
       providerId !== 'kimi' &&
       providerId !== 'opencodego' &&
       providerId !== 'grok' &&
-      providerId !== 'copilot'
+      providerId !== 'copilot' &&
+      providerId !== 'antigravity'
     ) {
       return { ...base, action: 'ignore', reason: 'provider-unsupported' };
     }
 
     const snapshot = this.store.get(providerId, accountId, now);
     if (!snapshot) return { ...base, action: 'ignore', reason: 'snapshot-missing' };
-    const worst = freshWorstWindow(snapshot);
+    const worst = freshWorstWindow(snapshot, resolvedModel);
     if (!worst || worst.usedPercent === null) {
       return { ...base, action: 'ignore', reason: 'snapshot-not-fresh', observedAt: snapshot.observedAt };
     }

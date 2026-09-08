@@ -54,6 +54,12 @@ export interface SubscriptionCredentialStore {
    * long-lived with no exchange endpoint). OPTIONAL like the others.
    */
   refreshCopilotToken?(): Promise<boolean>;
+  /**
+   * Force an Antigravity (Google) OAuth token refresh; `true` on success.
+   * OPTIONAL for lightweight test doubles (the antigravity strategy catches
+   * its absence like a failed refresh) — the daemon's store implements it.
+   */
+  refreshAntigravityToken?(): Promise<boolean>;
   /** Current valid OpenCodeGo static API key; `null` if none. */
   getValidOpenCodeGoApiKey(): Promise<string | null>;
 

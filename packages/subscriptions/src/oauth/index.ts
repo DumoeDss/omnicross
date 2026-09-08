@@ -15,6 +15,7 @@
 export type { FetchLike } from './fetchPort';
 export { COPILOT_GITHUB_HEADERS } from './flows/copilot';
 export { kimiFingerprintHeaders } from './flows/kimi';
+export * as antigravityOAuth from './flows/antigravity';
 export * as claudeOAuth from './flows/claude';
 export * as codexOAuth from './flows/codex';
 export * as geminiOAuth from './flows/gemini';

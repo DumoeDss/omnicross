@@ -1450,6 +1450,9 @@
     "grokOauth": {
       "description": "打开验证页面，输入下方代码并批准登录请求。"
     },
+    "antigravityOauth": {
+      "description": "在 Google 登录页面授权 Antigravity 应用，登录会自动完成。"
+    },
     "copilotOauth": {
       "description": "打开 github.com/login/device，输入下方代码并授权 Copilot CLI 应用。",
       "enterpriseLabel": "GitHub Enterprise 域名（可选）"
@@ -1549,6 +1552,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "由守护进程路由的 GitHub Copilot 订阅凭据。"
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "由守护进程路由的 Google Antigravity 订阅凭据。"
       },
       "opencodego": {
         "title": "OpenCodeGo",

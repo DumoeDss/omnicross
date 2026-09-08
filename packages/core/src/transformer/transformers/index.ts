@@ -9,6 +9,7 @@
 import type { TransformerService } from '../TransformerService';
 
 import { AnthropicTransformer } from './AnthropicTransformer';
+import { AntigravityTransformer } from './AntigravityTransformer';
 import { GeminiCodeAssistTransformer } from './GeminiCodeAssistTransformer';
 import { GeminiTransformer } from './GeminiTransformer';
 import { OpenAIResponseTransformer } from './OpenAIResponseTransformer';
@@ -16,6 +17,23 @@ import { OpenAITransformer } from './OpenAITransformer';
 
 // Export individual transformers
 export { AnthropicTransformer } from './AnthropicTransformer';
+export {
+  ANTIGRAVITY_ENDPOINT,
+  ANTIGRAVITY_FORCED_TOOL_ASSET_VERSION,
+  ANTIGRAVITY_FORCED_TOOL_DIRECTIVE,
+  AntigravityTransformer,
+  buildAntigravityUrl,
+  checkForcedToolAssetDrift,
+  deriveAntigravitySessionId,
+  resolveAntigravityWireModelId,
+} from './AntigravityTransformer';
+export {
+  ANTIGRAVITY_SANDBOX_ENDPOINT,
+  isAntigravityRetryableFailure,
+  isAntigravitySandboxFailoverEnabled,
+  maybeAntigravityFailoverUrl,
+  setAntigravitySandboxFailover,
+} from './antigravityFailover';
 export { GeminiCodeAssistTransformer } from './GeminiCodeAssistTransformer';
 export {
   buildCodeAssistUrl,
@@ -24,6 +42,15 @@ export {
   resolveCodeAssistApiVersion,
   resolveCodeAssistEndpoint,
 } from './GeminiCodeAssistTransformer';
+export {
+  ANTIGRAVITY_MODEL_WIRE_PROFILES,
+  DEFAULT_ANTIGRAVITY_VERSION,
+  ensureAntigravityVersion,
+  getAntigravityModelWireProfile,
+  getAntigravityUserAgent,
+  getAntigravityVersion,
+  parseAntigravityManifestVersion,
+} from './antigravityIdentity';
 export { GeminiTransformer } from './GeminiTransformer';
 export { OpenAIResponseTransformer } from './OpenAIResponseTransformer';
 export { OpenAITransformer } from './OpenAITransformer';
@@ -43,6 +70,7 @@ export const BuiltinTransformers = {
   OpenAITransformer,
   GeminiTransformer,
   GeminiCodeAssistTransformer,
+  AntigravityTransformer,
   AnthropicTransformer,
   OpenAIResponseTransformer,
 } as const;
@@ -61,6 +89,7 @@ export const BUILTIN_TRANSFORMER_NAMES = [
   'openai',
   'gemini',
   'gemini-code-assist',
+  'antigravity',
   'anthropic',
   'openai-response',
 ] as const;

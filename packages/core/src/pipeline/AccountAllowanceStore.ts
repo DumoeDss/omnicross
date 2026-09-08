@@ -66,6 +66,7 @@ function cloneWindow(window: AllowanceWindow): AllowanceWindow {
     ...(window.resetsAt === undefined ? {} : { resetsAt: window.resetsAt }),
     ...(window.remainingSeconds === undefined ? {} : { remainingSeconds: window.remainingSeconds }),
     state: window.state,
+    ...(window.disabled === undefined ? {} : { disabled: window.disabled }),
   };
 }
 
@@ -120,7 +121,8 @@ function isAllowanceProvider(value: unknown): value is SubscriptionProviderId {
     value === 'opencodego' ||
     value === 'kimi' ||
     value === 'grok' ||
-    value === 'copilot'
+    value === 'copilot' ||
+    value === 'antigravity'
   );
 }
 
@@ -188,6 +190,9 @@ export function normalizeAccountAllowanceSnapshot(value: unknown): AccountAllowa
       ...(windowMinutes === undefined ? {} : { windowMinutes }),
       ...(resetsAt === undefined ? {} : { resetsAt }),
       ...(remainingSeconds === undefined ? {} : { remainingSeconds }),
+      // antigravity: the disabled counter-family hard-block flag (additive;
+      // absent on every other provider's windows).
+      ...(window.disabled === true ? { disabled: true } : {}),
       state,
     });
   }

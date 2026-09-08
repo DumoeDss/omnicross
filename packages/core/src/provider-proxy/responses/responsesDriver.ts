@@ -8,6 +8,8 @@ import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
 import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChain';
 import { SubscriptionAuthSource } from '../../pipeline/SubscriptionAuthSource';
 import { fetchUpstream } from '../../pipeline/upstreamFetch';
+import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
+import { fetchWithAntigravityFailover } from '../../transformer/transformers/antigravityFailover';
 import { getGeminiCodeAssistResolver } from '../../ports/gemini-code-assist-resolver';
 import type {
   LLMProvider as TransformerLLMProvider,
@@ -268,14 +270,27 @@ async function buildSubscriptionPlan(
       boundAccountFallbackPolicy: affinity ? 'strict' : route.boundAccountFallbackPolicy,
     });
   }
+  // Antigravity: the SAME threading seam via the ANTIGRAVITY dialect resolver
+  // (daily-cloudcode-pa; a REQUIRED project — its handshake failure propagates).
+  let antigravityAccountId: string | undefined;
+  if (profile.authStrategy.providerId === 'antigravity') {
+    transformerProvider.geminiProject = await resolveAntigravityProjectThreaded(profile, {
+      sessionKey,
+      resolvedModel,
+      reportSelection: (accountId) => { antigravityAccountId = accountId; },
+      preferredAccountId: affinityAccountId ?? route.preferredAccountId,
+      preferredAccountGroup: affinity ? undefined : route.preferredAccountGroup,
+      boundAccountFallbackPolicy: affinity ? 'strict' : route.boundAccountFallbackPolicy,
+    });
+  }
   return {
     profile: resolved.profile,
     auth,
     sessionKey,
     sessionSource,
-    preferredAccountId: affinityAccountId ?? route.preferredAccountId,
-    preferredAccountGroup: affinity ? undefined : route.preferredAccountGroup,
-    boundAccountFallbackPolicy: affinity ? 'strict' : route.boundAccountFallbackPolicy,
+    preferredAccountId: antigravityAccountId ?? affinityAccountId ?? route.preferredAccountId,
+    preferredAccountGroup: antigravityAccountId || affinity ? undefined : route.preferredAccountGroup,
+    boundAccountFallbackPolicy: antigravityAccountId || affinity ? 'strict' : route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
     resolvedModel,
@@ -312,6 +327,25 @@ async function resolveGeminiProject(
   const accessToken = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
   if (!accessToken) return undefined;
   return getGeminiCodeAssistResolver()?.resolveProject(accessToken);
+}
+
+/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver). */
+async function resolveAntigravityProjectThreaded(
+  profile: RouteContext['subscriptionProfile'] & {},
+  hints: {
+    resolvedModel: string;
+    reportSelection: (accountId: string, isActive: boolean) => void;
+    sessionKey?: string;
+    preferredAccountId?: string;
+    preferredAccountGroup?: string;
+    boundAccountFallbackPolicy?: RouteContext['boundAccountFallbackPolicy'];
+  },
+): Promise<string | undefined> {
+  const headers: Record<string, string> = {};
+  await profile.authStrategy.applyHeaders(headers, hints);
+  const accessToken = (headers.Authorization ?? headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (!accessToken) return undefined;
+  return getAntigravityProjectResolver().resolveProject(accessToken);
 }
 
 export async function executeResponsesUpstream(
@@ -432,6 +466,10 @@ async function runReduced(
 ): Promise<ResponsesPipelineResult> {
   throwIfResponsesAborted(signal);
   const { headers: authHeaders, accountId, actualModel } = await applyPlanAuth(body, plan);
+  if (plan.proxyProviderId === 'antigravity') {
+    const bearer = (authHeaders.Authorization ?? authHeaders.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+    if (bearer) plan.transformerProvider.geminiProject = await getAntigravityProjectResolver().resolveProject(bearer);
+  }
   let rawStatus: number | null = null;
   let activityRecordId: string | undefined;
   const { response } = await executeProviderCall({
@@ -451,24 +489,28 @@ async function runReduced(
       decorateCodexHeaders(headers, plan);
       return headers;
     },
-    fetchFn: (url, headers, requestBody) => fetchUpstream(
-      url,
-      { method: 'POST', headers, body: JSON.stringify(requestBody), signal },
-      {
-        providerId: plan.proxyProviderId,
-        accountId,
-        routeActivity: plan.proxyProviderId === 'byo' ? undefined : {
-          endpoint: 'responses',
-          sessionKey: plan.sessionKey,
-          sessionSource: plan.sessionSource ?? 'none',
-          model: actualModel,
-          onRecorded: (record) => { activityRecordId = record.id; },
+    fetchFn: async (url, headers, requestBody) => {
+      const send = (target: string) => fetchUpstream(
+        target,
+        { method: 'POST', headers, body: JSON.stringify(requestBody), signal },
+        {
+          providerId: plan.proxyProviderId,
+          accountId,
+          routeActivity: plan.proxyProviderId === 'byo' ? undefined : {
+            endpoint: 'responses',
+            sessionKey: plan.sessionKey,
+            sessionSource: plan.sessionSource ?? 'none',
+            model: actualModel,
+            onRecorded: (record) => { activityRecordId = record.id; },
+          },
         },
-      },
-    ).then((upstream) => {
+      );
+      const upstream = plan.proxyProviderId === 'antigravity'
+        ? await fetchWithAntigravityFailover(url, send, signal)
+        : await send(url);
       rawStatus = upstream.status;
       return upstream;
-    }),
+    },
     runResponseChain: true,
     preserveEndpointRequestForResponseChain: true,
   });

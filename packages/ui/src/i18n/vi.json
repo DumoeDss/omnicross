@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Mở trang xác minh, nhập mã bên dưới và phê duyệt yêu cầu đăng nhập."
     },
+    "antigravityOauth": {
+      "description": "Ủy quyền ứng dụng Antigravity trên trang đăng nhập Google — quá trình đăng nhập hoàn tất tự động."
+    },
     "copilotOauth": {
       "description": "Mở github.com/login/device, nhập mã bên dưới và ủy quyền cho ứng dụng Copilot CLI.",
       "enterpriseLabel": "Tên miền GitHub Enterprise (tùy chọn)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Thông tin đăng ký GitHub Copilot do daemon định tuyến."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Thông tin xác thực đăng ký Google Antigravity được daemon định tuyến."
       },
       "opencodego": {
         "title": "OpenCodeGo",

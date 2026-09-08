@@ -9,7 +9,15 @@
  */
 
 /** Stable IDs for built-in subscription providers. */
-export type SubscriptionProviderId = 'claude' | 'codex' | 'gemini' | 'opencodego' | 'kimi' | 'grok' | 'copilot';
+export type SubscriptionProviderId =
+  | 'claude'
+  | 'codex'
+  | 'gemini'
+  | 'opencodego'
+  | 'kimi'
+  | 'grok'
+  | 'copilot'
+  | 'antigravity';
 
 /** Token lifecycle status. */
 export type TokenStatus = 'unconfigured' | 'authorized' | 'configured' | 'expired' | 'error';
@@ -288,6 +296,19 @@ export interface CopilotTokenInput {
   errorMessage?: string;
 }
 
+/** Manual antigravity token entry (the daemon's antigravity field allowlist). */
+export interface AntigravityTokenInput {
+  authMethod: 'oauth' | 'manual';
+  status: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  email?: string;
+  projectId?: string;
+  lastRefreshedAt?: string;
+  errorMessage?: string;
+}
+
 export type AccountTokenInput =
   | { providerId: 'claude'; input: ClaudeTokenInput }
   | { providerId: 'codex'; input: CodexTokenInput }
@@ -295,4 +316,5 @@ export type AccountTokenInput =
   | { providerId: 'opencodego'; input: OpenCodeGoTokenInput }
   | { providerId: 'kimi'; input: KimiTokenInput }
   | { providerId: 'grok'; input: GrokTokenInput }
-  | { providerId: 'copilot'; input: CopilotTokenInput };
+  | { providerId: 'copilot'; input: CopilotTokenInput }
+  | { providerId: 'antigravity'; input: AntigravityTokenInput };

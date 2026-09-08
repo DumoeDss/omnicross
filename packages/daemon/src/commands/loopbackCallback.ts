@@ -26,6 +26,16 @@ const CALLBACK_PATH = '/auth/callback';
 /** Bounded wait so a never-completed login can't hang the listener forever. */
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 
+/** Per-flow loopback binding (defaults mirror the codex redirect_uri). */
+export interface LoopbackBinding {
+  /** Loopback port the client's redirect_uri pins (codex 1455, antigravity 51121). */
+  port?: number;
+  /** Callback path the redirect_uri pins (codex `/auth/callback`). */
+  path?: string;
+  /** Short human name for error messages (e.g. `'codex'`). */
+  label?: string;
+}
+
 /**
  * Response headers for the callback page. `Connection: close` is load-bearing:
  * without it the browser keeps the HTTP/1.1 socket alive after rendering the
@@ -43,15 +53,21 @@ function pageHtml(message: string): string {
 }
 
 /**
- * Listen ONCE on `127.0.0.1:1455` for the codex OAuth callback, validate the
- * returned `state` against `expectedState`, and resolve the authorization
- * `code`. Settles the promise first, then always closes the server.
+ * Listen ONCE on `127.0.0.1:<port>` for an OAuth loopback callback, validate
+ * the returned `state` against `expectedState`, and resolve the authorization
+ * `code`. Settles the promise first, then always closes the server. The
+ * optional `binding` overrides the port/path/label (antigravity pins
+ * `127.0.0.1:51121/oauth-callback`); the defaults are the codex binding.
  */
 export function awaitLoopbackCode(
   expectedState: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
   signal?: AbortSignal,
+  binding: LoopbackBinding = {},
 ): Promise<string> {
+  const port = binding.port ?? LOOPBACK_PORT;
+  const callbackPath = binding.path ?? CALLBACK_PATH;
+  const label = binding.label ?? 'codex';
   return new Promise<string>((resolve, reject) => {
     let settled = false;
 
@@ -77,8 +93,8 @@ export function awaitLoopbackCode(
     };
 
     const server = createServer((req, res) => {
-      const url = new URL(req.url ?? '', `http://${LOOPBACK_HOST}:${LOOPBACK_PORT}`);
-      if (url.pathname !== CALLBACK_PATH) {
+      const url = new URL(req.url ?? '', `http://${LOOPBACK_HOST}:${port}`);
+      if (url.pathname !== callbackPath) {
         res.writeHead(404, HTML_HEADERS);
         res.end(pageHtml('Not found'));
         return;
@@ -119,7 +135,7 @@ export function awaitLoopbackCode(
       if (err.code === 'EADDRINUSE') {
         reject(
           new Error(
-            `login: cannot bind ${LOOPBACK_HOST}:${LOOPBACK_PORT} (address in use) — another codex login or process is holding the port`,
+            `login: cannot bind ${LOOPBACK_HOST}:${port} (address in use) — another ${label} login or process is holding the port`,
           ),
         );
       } else {
@@ -133,6 +149,6 @@ export function awaitLoopbackCode(
     // Don't let the timer keep the process alive on its own.
     if (typeof timer.unref === 'function') timer.unref();
 
-    server.listen(LOOPBACK_PORT, LOOPBACK_HOST);
+    server.listen(port, LOOPBACK_HOST);
   });
 }

@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "인증 페이지를 열고 아래 코드를 입력한 후 로그인 요청을 승인하세요."
     },
+    "antigravityOauth": {
+      "description": "Google 로그인 페이지에서 Antigravity 앱을 승인하면 로그인이 자동으로 완료됩니다."
+    },
     "copilotOauth": {
       "description": "github.com/login/device를 열고 아래 코드를 입력한 후 Copilot CLI 앱을 승인하세요.",
       "enterpriseLabel": "GitHub Enterprise 도메인 (선택 사항)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "데몬이 라우팅하는 GitHub Copilot 구독 자격 증명."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "데몬이 라우팅하는 Google Antigravity 구독 자격 증명입니다."
       },
       "opencodego": {
         "title": "OpenCodeGo",

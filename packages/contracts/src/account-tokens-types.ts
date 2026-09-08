@@ -207,6 +207,30 @@ export type CopilotTokenConfig = {
 };
 
 /**
+ * Antigravity (Google) token configuration. OAuth is an authorization-code
+ * flow (client_secret, no PKCE, loopback `127.0.0.1:51121`) on the
+ * Antigravity-dedicated Google client — a SEPARATE credential domain from
+ * `gemini`'s gemini-cli client. The access token serves the
+ * `daily-cloudcode-pa` inference/quota endpoints; `projectId` is the
+ * Cloud AI Companion project the post-login handshake discovers (a refresh
+ * product — re-resolved after every token refresh); `email` (from
+ * `oauth2/v1/userinfo`) is the account's display identifier.
+ */
+export type AntigravityTokenConfig = {
+  authMethod: AuthMethod;
+  status: TokenStatus;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  email?: string;
+  projectId?: string;
+  lastRefreshedAt?: string;
+  errorMessage?: string;
+  /** Managed-account credential warning (duplicate-token, projected on listing). */
+  syncWarning?: SyncWarningCode;
+};
+
+/**
  * A single subscription account entry. The provider's existing token config
  * is carried verbatim under a nested `tokens` field; entry metadata
  * (`id`/`label`/`createdAt`) is kept cleanly separate from token material so
@@ -298,6 +322,7 @@ export type AccountTokensConfig = {
   kimi?: KimiTokenConfig;
   grok?: GrokTokenConfig;
   copilot?: CopilotTokenConfig;
+  antigravity?: AntigravityTokenConfig;
   // Per-provider account collections + active pointer (multi-account).
   claudeAccounts?: SubscriptionAccountEntry<ClaudeTokenConfig>[];
   activeClaudeAccountId?: string;
@@ -313,6 +338,8 @@ export type AccountTokensConfig = {
   activeGrokAccountId?: string;
   copilotAccounts?: SubscriptionAccountEntry<CopilotTokenConfig>[];
   activeCopilotAccountId?: string;
+  antigravityAccounts?: SubscriptionAccountEntry<AntigravityTokenConfig>[];
+  activeAntigravityAccountId?: string;
   updatedAt: string;
 };
 

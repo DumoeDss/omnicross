@@ -38,6 +38,10 @@ import {
   type GeminiAllowanceCredentialReader,
 } from './GeminiAllowanceCollector';
 import {
+  AntigravityAllowanceCollector,
+  type AntigravityAllowanceCredentialReader,
+} from './AntigravityAllowanceCollector';
+import {
   OpenCodeGoAllowanceCollector,
   type OpenCodeGoAllowanceCredentialReader,
 } from './OpenCodeGoAllowanceCollector';
@@ -50,11 +54,11 @@ import {
  */
 export interface AccountAllowanceCredentialReader {
   getAccessTokenForAccount(
-    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini',
+    providerId: 'claude' | 'codex' | 'kimi' | 'opencodego' | 'grok' | 'copilot' | 'gemini' | 'antigravity',
     accountId: string,
   ): Promise<string | null>;
   refreshAccountToken(
-    providerId: 'claude' | 'codex' | 'kimi' | 'grok' | 'copilot' | 'gemini',
+    providerId: 'claude' | 'codex' | 'kimi' | 'grok' | 'copilot' | 'gemini' | 'antigravity',
     accountId: string,
   ): Promise<boolean>;
   getFullConfig(): Promise<AccountTokensConfig>;
@@ -92,6 +96,7 @@ export class AccountAllowanceService {
   readonly copilotCollector: CopilotAllowanceCollector;
   readonly opencodegoCollector: OpenCodeGoAllowanceCollector;
   readonly geminiCollector: GeminiAllowanceCollector;
+  readonly antigravityCollector: AntigravityAllowanceCollector;
 
   constructor(
     private readonly credentials: AccountAllowanceCredentialReader,
@@ -103,6 +108,7 @@ export class AccountAllowanceService {
     grokCollector?: GrokAllowanceCollector,
     copilotCollector?: CopilotAllowanceCollector,
     geminiCollector?: GeminiAllowanceCollector,
+    antigravityCollector?: AntigravityAllowanceCollector,
     private readonly now: () => number = Date.now,
   ) {
     this.claudeCollector = collector ?? new ClaudeAllowanceCollector(credentials, store);
@@ -113,6 +119,8 @@ export class AccountAllowanceService {
     this.grokCollector = grokCollector ?? new GrokAllowanceCollector(credentials, store);
     this.copilotCollector = copilotCollector ?? new CopilotAllowanceCollector(credentials, store);
     this.geminiCollector = geminiCollector ?? new GeminiAllowanceCollector(credentials, store);
+    this.antigravityCollector =
+      antigravityCollector ?? new AntigravityAllowanceCollector(credentials, store);
   }
 
   /**
@@ -173,6 +181,12 @@ export class AccountAllowanceService {
     );
     if (wantsGemini) await this.geminiCollector.collectMany(geminiAccounts);
 
+    const wantsAntigravity = !filter.providerId || filter.providerId === 'antigravity';
+    const antigravityAccounts = (config.antigravityAccounts ?? []).filter(
+      (account) => !filter.accountId || account.id === filter.accountId,
+    );
+    if (wantsAntigravity) await this.antigravityCollector.collectMany(antigravityAccounts);
+
     const known = new Set<string>();
     if (wantsClaude) for (const account of claudeAccounts) known.add(`claude\0${account.id}`);
     if (wantsCodex) for (const account of codexAccounts) known.add(`codex\0${account.id}`);
@@ -181,6 +195,7 @@ export class AccountAllowanceService {
     if (wantsGrok) for (const account of grokAccounts) known.add(`grok\0${account.id}`);
     if (wantsCopilot) for (const account of copilotAccounts) known.add(`copilot\0${account.id}`);
     if (wantsGemini) for (const account of geminiAccounts) known.add(`gemini\0${account.id}`);
+    if (wantsAntigravity) for (const account of antigravityAccounts) known.add(`antigravity\0${account.id}`);
 
     return this.store
       .list(filter)
@@ -196,6 +211,7 @@ export class AccountAllowanceService {
       ...(config.grokAccounts ?? []).map((account) => ({ providerId: 'grok' as const, accountId: account.id })),
       ...(config.copilotAccounts ?? []).map((account) => ({ providerId: 'copilot' as const, accountId: account.id })),
       ...(config.geminiAccounts ?? []).map((account) => ({ providerId: 'gemini' as const, accountId: account.id })),
+      ...(config.antigravityAccounts ?? []).map((account) => ({ providerId: 'antigravity' as const, accountId: account.id })),
     ];
   }
 
@@ -273,6 +289,16 @@ export class AccountAllowanceService {
     return this.geminiCollector.collectMany(accounts, { force: true });
   }
 
+  /** Force-refresh Antigravity usage (quotaSummary dual buckets) for one/all accounts. */
+  async refreshAntigravity(accountId?: string): Promise<AccountAllowanceSnapshot[]> {
+    const config = await this.credentials.getFullConfig();
+    this.store.pruneToKnownAccounts(this.knownAccounts(config));
+    const accounts = (config.antigravityAccounts ?? []).filter(
+      (account) => !accountId || account.id === accountId,
+    );
+    return this.antigravityCollector.collectMany(accounts, { force: true });
+  }
+
   /**
    * Keep Claude + Codex + Kimi snapshots warm for allowance-aware routing. All
    * collectors preserve their cache + per-account in-flight coalescing; a tick
@@ -290,6 +316,7 @@ export class AccountAllowanceService {
     await this.grokCollector.collectMany(config.grokAccounts ?? [], { refreshAheadMs });
     await this.copilotCollector.collectMany(config.copilotAccounts ?? [], { refreshAheadMs });
     await this.geminiCollector.collectMany(config.geminiAccounts ?? [], { refreshAheadMs });
+    await this.antigravityCollector.collectMany(config.antigravityAccounts ?? [], { refreshAheadMs });
   }
 
   /** Remove a cache row as soon as an account is deleted by the admin path. */

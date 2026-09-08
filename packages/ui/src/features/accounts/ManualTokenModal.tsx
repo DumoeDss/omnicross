@@ -27,7 +27,7 @@ import { RevealableInput } from '@/components/ui/revealable-input';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-type ManualProvider = 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot';
+type ManualProvider = 'claude' | 'codex' | 'gemini' | 'kimi' | 'grok' | 'copilot' | 'antigravity';
 type SubscriptionLevel = 'Free' | 'Pro' | 'Max';
 
 interface ManualExtra {
@@ -78,7 +78,7 @@ export function ManualTokenModal({
     if (accessToken.trim().length === 0) return;
     const extra: ManualExtra = {};
     if (provider === 'claude') extra.subscriptionLevel = subscriptionLevel;
-    if ((provider === 'gemini' || provider === 'kimi' || provider === 'grok' || provider === 'copilot') && refreshToken.trim()) {
+    if ((provider === 'gemini' || provider === 'kimi' || provider === 'grok' || provider === 'copilot' || provider === 'antigravity') && refreshToken.trim()) {
       extra.refreshToken = refreshToken.trim();
     }
     const result = await onSubmit(accessToken.trim(), accountLabel.trim() || undefined, extra);

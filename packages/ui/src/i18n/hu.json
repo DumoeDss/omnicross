@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Nyissa meg az ellenőrző oldalt, írja be az alábbi kódot, és hagyja jóvá a bejelentkezési kérést."
     },
+    "antigravityOauth": {
+      "description": "Engedélyezd az Antigravity alkalmazást a Google bejelentkezési oldalán — a bejelentkezés automatikusan befejeződik."
+    },
     "copilotOauth": {
       "description": "Nyissa meg a github.com/login/device oldalt, írja be az alábbi kódot, és engedélyezze a Copilot CLI alkalmazást.",
       "enterpriseLabel": "GitHub Enterprise-tartomány (opcionális)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "A démon által irányított GitHub Copilot-előfizetési hitelesítő adatok."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "A démon által irányított Google Antigravity-előfizetés hitelesítő adatai."
       },
       "opencodego": {
         "title": "OpenCodeGo",

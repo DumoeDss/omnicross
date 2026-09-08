@@ -883,6 +883,9 @@
     "grokOauth": {
       "description": "Doğrulama sayfasını açın, aşağıdaki kodu girin ve oturum açma isteğini onaylayın."
     },
+    "antigravityOauth": {
+      "description": "Google oturum açma sayfasında Antigravity uygulamasını yetkilendirin — oturum açma otomatik olarak tamamlanır."
+    },
     "copilotOauth": {
       "description": "github.com/login/device adresini açın, aşağıdaki kodu girin ve Copilot CLI uygulamasını yetkilendirin.",
       "enterpriseLabel": "GitHub Enterprise etki alanı (isteğe bağlı)"
@@ -982,6 +985,10 @@
       "copilot": {
         "title": "GitHub Copilot",
         "description": "Daemon tarafından yönlendirilen GitHub Copilot abonelik kimlik bilgileri."
+      },
+      "antigravity": {
+        "title": "Antigravity",
+        "description": "Daemon tarafından yönlendirilen Google Antigravity abonelik kimlik bilgileri."
       },
       "opencodego": {
         "title": "OpenCodeGo",

@@ -85,6 +85,7 @@ const ACCOUNTS_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = 
   kimi: 'kimiAccounts',
   grok: 'grokAccounts',
   copilot: 'copilotAccounts',
+  antigravity: 'antigravityAccounts',
 };
 
 const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
@@ -95,6 +96,7 @@ const ACTIVE_KEY: Record<SubscriptionProviderId, keyof AccountTokensConfig> = {
   kimi: 'activeKimiAccountId',
   grok: 'activeGrokAccountId',
   copilot: 'activeCopilotAccountId',
+  antigravity: 'activeAntigravityAccountId',
 };
 
 /**
@@ -189,6 +191,7 @@ async function resolveStrictPreferredToken(
     preferredId,
     preferred.priority ?? DEFAULT_ACCOUNT_PRIORITY,
     ctx.now,
+    remapReportForAccount(supportedModelsById.get(preferredId), ctx.resolvedModel) ?? ctx.resolvedModel,
   );
   if (allowance.action === 'pause') {
     throw new BoundAccountSelectionError(providerId, 'allowance-paused', allowance.resumeAt);
@@ -225,6 +228,8 @@ function gateByAllowance(
   accounts: SchedulableAccount[],
   providerId: SubscriptionProviderId,
   now: number | undefined,
+  resolvedModel: string | undefined,
+  supportedModelsById: Map<string, SupportedModels | undefined>,
 ): SchedulableAccount[] {
   const scheduling = getSharedAccountAllowanceScheduling();
   const evaluatedAt = now ?? Date.now();
@@ -239,6 +244,7 @@ function gateByAllowance(
       account.id,
       account.priority ?? DEFAULT_ACCOUNT_PRIORITY,
       evaluatedAt,
+      remapReportForAccount(supportedModelsById.get(account.id), resolvedModel) ?? resolvedModel,
     );
     decisions.set(account.id, decision);
     return {
@@ -369,7 +375,7 @@ export async function resolveSelectedToken(
       resolvedModel,
       supportedModelsById,
     );
-    let gated = gateByAllowance(healthAndModelGated, providerId, now);
+    let gated = gateByAllowance(healthAndModelGated, providerId, now, resolvedModel, supportedModelsById);
     // An explicit global/pool fallback must leave an existing-but-unavailable
     // group as well as a missing group. Otherwise a disabled group member can
     // strand selection inside that group despite a healthy provider pool.
@@ -404,7 +410,7 @@ export async function resolveSelectedToken(
         resolvedModel,
         supportedModelsById,
       );
-      gated = gateByAllowance(healthAndModelGated, providerId, now);
+      gated = gateByAllowance(healthAndModelGated, providerId, now, resolvedModel, supportedModelsById);
     }
     // Gating actually ran only when a tracker OR a resolved model was supplied AND
     // the pool has ≥2 accounts (the single-account degraded policy leaves `gated`
@@ -481,6 +487,7 @@ export async function resolveSelectedToken(
         activeAccountId,
         persistedActive?.priority ?? DEFAULT_ACCOUNT_PRIORITY,
         now,
+        remapFor(activeAccountId) ?? resolvedModel,
       );
       if (activeAllowance.action === 'pause') {
         throw new AccountAllowanceExhaustedError(providerId, activeAllowance.resumeAt);

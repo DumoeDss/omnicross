@@ -15,6 +15,7 @@ import type http from 'node:http';
 import type { OpenCodeGoScenario, OpenCodeGoTokenConfig } from '@omnicross/contracts/subscription-types';
 import { isAccountAllowanceExhaustedError } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '@omnicross/core/pipeline/BoundAccountSelectionError';
+import { getAntigravityProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
 import { getGeminiCodeAssistResolver } from '@omnicross/core/ports/gemini-code-assist-resolver';
 import {
   getSharedAccountHealth,
@@ -23,6 +24,7 @@ import {
 } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { collectMatchText, deriveSubscriptionSessionKey } from '@omnicross/core/provider-proxy/matchText';
 import { serializeError } from '@omnicross/core/serializeError';
+import { maybeAntigravityFailoverUrl } from '@omnicross/core/transformer/transformers/antigravityFailover';
 import type { TransformerChainExecutor } from '@omnicross/core/transformer/TransformerChainExecutor';
 import type { TransformerService } from '@omnicross/core/transformer/TransformerService';
 import type {
@@ -289,10 +291,24 @@ export class SubscriptionDispatcher {
     // flipping fallback entry would post to the primary's URL (fails loud with
     // an upstream 4xx). The core /v1/messages path rebuilds per-iteration;
     // hoisting that here is a deferred follow-up.
+    // Antigravity sandbox failover (design D5): one-shot latch. When the switch
+    // is ON and the PRIMARY endpoint fails retryably, the SAME model is retried
+    // once against the sandbox host before the error surfaces.
+    let antigravityFailoverUrl: string | null = null;
+
     while (attempted.length < MAX_FALLBACK_ATTEMPTS_LOCAL) {
       attempted.push(currentModel);
       req.anthropicBody.model = currentModel;
 
+      let antigravityHeaders: Record<string, string> | undefined;
+      if (this.profile.providerId === 'antigravity') {
+        antigravityHeaders = {};
+        await this.applyHeadersWithRetry(antigravityHeaders, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
+        const bearer = (antigravityHeaders.Authorization ?? '').replace(/^Bearer\s+/i, '').trim();
+        transformerProvider.geminiProject = bearer
+          ? await getAntigravityProjectResolver().resolveProject(bearer)
+          : undefined;
+      }
       const { requestBody, config } = await this.hooks.executor.executeRequestChain(
         req.anthropicBody,
         transformerProvider,
@@ -305,7 +321,8 @@ export class SubscriptionDispatcher {
         ...(config.headers as Record<string, string> | undefined),
       };
       stripAuthHeaders(headers);
-      await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
+      if (antigravityHeaders) Object.assign(headers, antigravityHeaders);
+      else await this.applyHeadersWithRetry(headers, { upstreamUrl, resolvedModel: currentModel, sessionKey, reportSelection });
 
       // Prefer the transformer-supplied URL (the gemini / gemini-code-assist
       // transformers carry the correct stream-vs-nonstream PER-MODEL colon-method
@@ -328,9 +345,10 @@ export class SubscriptionDispatcher {
       // backend-api/codex/responses; zen → its `/zen/...` endpoint). The bypass-by-
       // name optimization only applies on the core OpenAI-Responses ingress (where
       // endpoint == `openai-response`), NOT here. `// UNVERIFIED (no live zen key)`.
-      const fetchUrl = usesResponsesChain(providerNames)
+      const chainUrl = usesResponsesChain(providerNames)
         ? upstreamUrl
         : resolveConfigUrl(config.url) ?? upstreamUrl;
+      const fetchUrl = antigravityFailoverUrl ?? chainUrl;
 
       console.info(
         `[AgentProxy:subscription] REQ#${req.reqId} | provider=${this.profile.providerId} -> ${fetchUrl} model=${currentModel} attempt=${attempted.length}`,
@@ -378,6 +396,26 @@ export class SubscriptionDispatcher {
           this.profile.recordModelOutcome?.(currentModel, false);
         }
         this.markHealth(usedAccountId, errStatus(err), err);
+        // Antigravity sandbox failover (design D5): retry the SAME model once
+        // on the sandbox endpoint when the switch is ON and the failure is
+        // retryable. With the switch OFF this is a no-op (null) and the error
+        // semantics below are unchanged.
+        if (this.profile.providerId === 'antigravity' && antigravityFailoverUrl === null) {
+          const failover = maybeAntigravityFailoverUrl(
+            upstreamUrl,
+            errStatus(err),
+            errBodyText(err) ?? undefined,
+          );
+          if (failover) {
+            antigravityFailoverUrl = failover;
+            console.warn(
+              `[AgentProxy:subscription] REQ#${req.reqId} | antigravity endpoint failover -> ${failover} after ${
+                errStatus(err) ?? 'transport error'
+              }`,
+            );
+            continue;
+          }
+        }
         const next = this.profile.nextFallback?.(scenario, attempted, ocConfig);
         if (!next || attempted.length >= MAX_FALLBACK_ATTEMPTS_LOCAL) {
           throw err;
