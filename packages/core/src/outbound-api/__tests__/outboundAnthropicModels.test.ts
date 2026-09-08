@@ -277,6 +277,19 @@ describe('GET /v1/models — OpenAI shape pins', () => {
     expect(listed).toHaveBeenCalledWith('oak_1');
   });
 
+  it('lists every routed image model the fresh evidence affirmed (multi-provider)', async () => {
+    const res = await callModels({
+      row: { ...enabledRow, allowedEndpoints: ['images'] },
+      bindings: [],
+      imageModels: ['gpt-image-2', 'gemini-3-pro-image-preview'],
+    });
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(json.data.map((entry) => entry.id)).toEqual([
+      'gpt-image-2',
+      'gemini-3-pro-image-preview',
+    ]);
+  });
+
   it.each([
     ['Responses-only', ['responses'] as const],
     ['four-text-endpoint', ['chat', 'responses', 'messages', 'gemini'] as const],

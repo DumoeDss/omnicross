@@ -8,7 +8,7 @@ import { writeImageApiResponse } from './imageApiResponse';
 import { writeImageApiSse } from './imageApiSse';
 import { normalizeGenerateRequest } from './normalizeOptions';
 import { readJsonBody } from './readJsonBody';
-import { assertFiniteImageApiLimits, type ImageApiContributionsDeps, type ImageApiRuntime } from './types';
+import { assertFiniteImageApiLimits, type ImageApiContributionsDeps, type ImageApiRuntime, resolveImageRequestProvider } from './types';
 
 function validateRuntime(runtime: ImageApiRuntime): void {
   if (
@@ -79,7 +79,10 @@ export function createImageGenerateHandler(deps: ImageApiContributionsDeps): Ope
             ? { boundAccountFallbackPolicy: runtime.boundAccountFallbackPolicy }
             : {}),
         },
-        { providerId: runtime.providerId, ...(runtime.retention ? { retention: runtime.retention } : {}) },
+        {
+          providerId: resolveImageRequestProvider(runtime, request.model),
+          ...(runtime.retention ? { retention: runtime.retention } : {}),
+        },
       );
       if (request.stream) {
         await writeImageApiSse({

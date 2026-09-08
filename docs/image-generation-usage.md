@@ -375,3 +375,31 @@ live verifier 会执行一次最小 PNG 生成，并把结果再执行一次 edi
 - 远程 URL 默认禁用。
 - 当前生产适配器未开放透明背景。
 - 质量、格式、尺寸和响应 usage 只在真实能力证据支持时对外可用。
+
+## 10. 多 provider 图像路由（Codex 与 Antigravity）
+
+### 10.1 模型路由表
+
+Images 服务的模型→provider 路由由配置段 `images.models` 决定，默认表：
+
+| 模型 | provider | 说明 |
+| --- | --- | --- |
+| `gpt-image-2` | Codex 订阅 | 默认模型 |
+| `gpt-image-2-5` | Codex 订阅 | 新模型就绪后零代码切换 |
+| `gemini-2.5-flash-image(-preview)` | Antigravity 订阅 | NanoBanana |
+| `gemini-3.1-flash-image(-preview)` | Antigravity 订阅 | NanoBanana |
+| `gemini-3-pro-image-preview` | Antigravity 订阅 | NanoBanana |
+
+请求模型先经 `defaultModel` 兜底与 `aliases` 别名归一，再查表选 provider；表外模型返回 `unsupported_model`，不会跨 provider 改路由。某个 provider 没有可用账号时，只影响路由到它的模型。`/v1/models` 列出的图像模型 = 路由键 × 各 provider 当前新鲜证据的交集。
+
+### 10.2 Codex 线路模型覆盖
+
+`images.codex.imageModel` / `carrierModel` 可覆盖 Codex 私有线路的图像模型与载体模型（默认 `gpt-image-2` / `gpt-5.6-luna`）。UI"图像生成"区域提供两个覆盖输入与路由表只读展示，清空输入即恢复默认。能力证据的模型维度跟随配置值记录。
+
+### 10.3 会话内嵌图（v1）
+
+图像模型也可直接用于会话请求（例如 `/v1/chat/completions` 的 BYO gemini 行）：请求侧自动注入 `responseModalities: ['TEXT','IMAGE']`，响应文本之外以 `message.images`（流式为 `delta.images`）携带 data URL 数组。Anthropic Messages 面不伪造协议外块：图片会被丢弃并记录计数日志。Responses 面的 `image_generation_call` 输出映射为后续工作。
+
+### 10.4 Antigravity 侧验证状态
+
+⚠️ Antigravity 图像 provider 目前只有离线证据与单元测试覆盖。在真实订阅上完成实机验证前，不应宣称其可用；其能力声明为 PNG-only，遇到非 PNG 实际格式会按 `upstream_protocol_changed` 报错而非静默转换。`omnicross doctor images` 已按 provider 分行展示账号状态。

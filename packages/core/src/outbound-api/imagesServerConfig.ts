@@ -3,7 +3,16 @@ import {
   type ImageApiLimits,
 } from '../image-generation/openai-images/types';
 
+import {
+  DEFAULT_IMAGE_MODEL_ROUTES,
+  IMAGE_PROVIDER_IDS,
+  type ImageProviderId,
+} from './types';
 import type { ImagesServerConfig } from './types';
+
+/** The default Codex private-wire models (pinned to the shipped wire constants). */
+export const DEFAULT_CODEX_IMAGE_MODEL = 'gpt-image-2';
+export const DEFAULT_CODEX_CARRIER_MODEL = 'gpt-5.6-luna';
 
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
@@ -63,9 +72,13 @@ export const IMAGE_SERVER_HARD_CEILINGS = Object.freeze({
 /** Migration-safe default: configured off, finite everywhere, and remote-disabled. */
 export const DEFAULT_IMAGES_SERVER_CONFIG: Readonly<ImagesServerConfig> = Object.freeze({
   enabled: false,
-  provider: 'codex-subscription',
+  models: Object.freeze({ ...DEFAULT_IMAGE_MODEL_ROUTES }),
   defaultModel: 'gpt-image-2',
-  modelAliases: Object.freeze({}),
+  aliases: Object.freeze({}),
+  codex: Object.freeze({
+    imageModel: DEFAULT_CODEX_IMAGE_MODEL,
+    carrierModel: DEFAULT_CODEX_CARRIER_MODEL,
+  }),
   account: Object.freeze({ fallback: 'strict' }),
   queue: Object.freeze({
     maxConcurrentJobsPerAccount: 1,
@@ -122,16 +135,59 @@ function safeIdentifier(value: unknown): string | undefined {
     : undefined;
 }
 
-function normalizedAliases(value: unknown): Record<string, string> {
+function normalizedAliases(value: unknown, routedModels: ReadonlySet<string>): Record<string, string> {
   const aliases: Record<string, string> = {};
   const raw = record(value);
   if (!raw) return aliases;
   for (const [alias, target] of Object.entries(raw)) {
     if (SAFE_OBJECT_KEYS.has(alias) || !MODEL_ID.test(alias)) continue;
     if (typeof target !== 'string' || !MODEL_ID.test(target)) continue;
+    if (!routedModels.has(target)) continue;
     aliases[alias] = target;
   }
   return aliases;
+}
+
+/**
+ * Tolerant routing-table read: keep only `MODEL_ID` keys pointed at a
+ * registered image provider. A legacy single-`provider` shape (retired
+ * `provider` + `modelAliases`) migrate-normalizes into an all-codex table —
+ * the read NEVER rewrites the stored file; anything unrecognizable falls back
+ * to the pinned default routes.
+ */
+function normalizedRoutes(raw: Record<string, unknown>): Record<string, ImageProviderId> {
+  const registered = new Set<string>(IMAGE_PROVIDER_IDS);
+  const routes: Record<string, ImageProviderId> = {};
+  const modelsRaw = record(raw['models']);
+  if (modelsRaw) {
+    for (const [model, provider] of Object.entries(modelsRaw)) {
+      if (SAFE_OBJECT_KEYS.has(model) || !MODEL_ID.test(model)) continue;
+      if (typeof provider !== 'string' || !registered.has(provider)) continue;
+      routes[model] = provider as ImageProviderId;
+    }
+  }
+  const legacyProvider = raw['provider'];
+  const legacyValid = legacyProvider === 'codex-subscription' || legacyProvider === undefined;
+  if (!legacyValid) return { ...DEFAULT_IMAGE_MODEL_ROUTES };
+  if (Object.keys(routes).length > 0) return routes;
+  // Legacy shape (or empty): the legacy default model + alias targets all ride
+  // the single legacy provider (codex); anything else falls to the pinned table.
+  const defaultModel = typeof raw['defaultModel'] === 'string' && MODEL_ID.test(raw['defaultModel'])
+    ? raw['defaultModel']
+    : 'gpt-image-2';
+  const migrated: Record<string, ImageProviderId> = { [defaultModel]: 'codex-subscription' };
+  const legacyAliases = record(raw['modelAliases']);
+  if (legacyAliases) {
+    for (const [alias, target] of Object.entries(legacyAliases)) {
+      if (typeof target === 'string' && MODEL_ID.test(target) && !SAFE_OBJECT_KEYS.has(alias) && MODEL_ID.test(alias)) {
+        migrated[target] = 'codex-subscription';
+      }
+    }
+  }
+  if (legacyProvider !== undefined || raw['modelAliases'] !== undefined || raw['defaultModel'] !== undefined) {
+    return migrated;
+  }
+  return { ...DEFAULT_IMAGE_MODEL_ROUTES };
 }
 
 /** Tolerant read normalization: malformed members fall back or clamp, never throw. */
@@ -296,19 +352,29 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
     references.storageRoot = referencesRaw['storageRoot'].trim();
   }
 
+  const models = normalizedRoutes(raw);
   const defaultModel = typeof raw['defaultModel'] === 'string' && MODEL_ID.test(raw['defaultModel'])
+    && (raw['provider'] !== undefined || Object.keys(models).includes(raw['defaultModel']))
     ? raw['defaultModel']
     : DEFAULT_IMAGES_SERVER_CONFIG.defaultModel;
-  const aliases = normalizedAliases(raw['modelAliases']);
-  for (const alias of Object.keys(aliases)) {
-    if (aliases[alias] !== defaultModel) delete aliases[alias];
-  }
+  const aliases = normalizedAliases(raw['aliases'] ?? raw['modelAliases'], new Set(Object.keys(models)));
+
+  const codexRaw = record(raw['codex']) ?? {};
+  const codex = {
+    imageModel: typeof codexRaw['imageModel'] === 'string' && MODEL_ID.test(codexRaw['imageModel'])
+      ? codexRaw['imageModel']
+      : DEFAULT_IMAGES_SERVER_CONFIG.codex.imageModel,
+    carrierModel: typeof codexRaw['carrierModel'] === 'string' && MODEL_ID.test(codexRaw['carrierModel'])
+      ? codexRaw['carrierModel']
+      : DEFAULT_IMAGES_SERVER_CONFIG.codex.carrierModel,
+  };
 
   return {
     enabled: raw['enabled'] === true,
-    provider: 'codex-subscription',
+    models,
     defaultModel,
-    modelAliases: aliases,
+    aliases,
+    codex,
     account,
     queue,
     temporary,
@@ -324,7 +390,7 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
 }
 
 const TOP_LEVEL_KEYS = [
-  'enabled', 'provider', 'defaultModel', 'modelAliases', 'account', 'queue',
+  'enabled', 'models', 'defaultModel', 'aliases', 'codex', 'account', 'queue',
   'temporary', 'limits', 'references', 'remote', 'evidenceTtlMs',
 ] as const;
 const ACCOUNT_KEYS = ['id', 'group', 'fallback'] as const;
@@ -382,21 +448,48 @@ export function validateImagesServerConfig(value: unknown): string[] {
   rejectUnknown(raw, TOP_LEVEL_KEYS, 'images', errors);
 
   if (typeof raw['enabled'] !== 'boolean') errors.push('images.enabled must be a boolean');
-  if (raw['provider'] !== 'codex-subscription') {
-    errors.push("images.provider must be 'codex-subscription'");
+
+  const models = requireRecord(raw['models'], 'images.models', errors);
+  let modelKeys = new Set<string>();
+  if (models) {
+    if (Object.keys(models).length === 0) {
+      errors.push('images.models must route at least one model');
+    }
+    for (const [model, provider] of Object.entries(models)) {
+      if (SAFE_OBJECT_KEYS.has(model) || !MODEL_ID.test(model)) {
+        errors.push('images.models contains an invalid model id');
+        continue;
+      }
+      modelKeys.add(model);
+      if (!(IMAGE_PROVIDER_IDS as readonly string[]).includes(provider as string)) {
+        errors.push(`images.models.${model} must target one of: ${IMAGE_PROVIDER_IDS.join(', ')}`);
+      }
+    }
   }
-  if (raw['defaultModel'] !== 'gpt-image-2') {
-    errors.push("images.defaultModel must be 'gpt-image-2'");
+  if (typeof raw['defaultModel'] !== 'string' || !MODEL_ID.test(raw['defaultModel'])) {
+    errors.push('images.defaultModel must be a valid model id');
+  } else if (models && !modelKeys.has(raw['defaultModel'])) {
+    errors.push('images.defaultModel must be a key of images.models');
   }
 
-  const aliases = requireRecord(raw['modelAliases'], 'images.modelAliases', errors);
+  const aliases = requireRecord(raw['aliases'], 'images.aliases', errors);
   if (aliases) {
     for (const [alias, target] of Object.entries(aliases)) {
       if (SAFE_OBJECT_KEYS.has(alias) || !MODEL_ID.test(alias)) {
-        errors.push('images.modelAliases contains an invalid alias');
+        errors.push('images.aliases contains an invalid alias');
       }
-      if (target !== raw['defaultModel']) {
-        errors.push(`images.modelAliases.${alias} must target the configured default model`);
+      if (typeof target !== 'string' || !MODEL_ID.test(target) || (models && !modelKeys.has(target))) {
+        errors.push(`images.aliases.${alias} must target a key of images.models`);
+      }
+    }
+  }
+
+  const codex = requireRecord(raw['codex'], 'images.codex', errors);
+  if (codex) {
+    rejectUnknown(codex, ['imageModel', 'carrierModel'], 'images.codex', errors);
+    for (const key of ['imageModel', 'carrierModel'] as const) {
+      if (typeof codex[key] !== 'string' || !MODEL_ID.test(codex[key])) {
+        errors.push(`images.codex.${key} must be a valid model id`);
       }
     }
   }

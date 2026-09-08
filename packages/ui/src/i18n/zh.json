@@ -1003,6 +1003,17 @@
         "strict": "严格选择",
         "poolFallback": "允许账号池回退"
       },
+      "defaultModel": "\u9ed8\u8ba4\u56fe\u50cf\u6a21\u578b",
+      "routes": {
+        "title": "\u6a21\u578b\u8def\u7531",
+        "defaultBadge": "\u9ed8\u8ba4"
+      },
+      "codex": {
+        "title": "Codex \u7ebf\u8def\u8986\u76d6",
+        "imageModel": "\u56fe\u50cf\u6a21\u578b",
+        "carrierModel": "\u8f7d\u4f53\u6a21\u578b",
+        "hint": "\u6e05\u7a7a\u540e\u56de\u843d\u5230\u5185\u7f6e\u7ebf\u8def\u9ed8\u8ba4\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
+      },
       "features": {
         "title": "已验证功能矩阵",
         "generate": "生成",

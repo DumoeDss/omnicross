@@ -657,6 +657,17 @@
         "strict": "Strikt val",
         "poolFallback": "Tillåt reservval från poolen"
       },
+      "defaultModel": "Standard bildmodell",
+      "routes": {
+        "title": "Modellroutning",
+        "defaultBadge": "standard"
+      },
+      "codex": {
+        "title": "Codex-\u00f6verstyrningar",
+        "imageModel": "Bildmodell",
+        "carrierModel": "B\u00e4rarmodell",
+        "hint": "Rensade f\u00e4lt faller tillbaka p\u00e5 de fastn\u00e5lade standardv\u00e4rdena (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Verifierad funktionsmatris",
         "generate": "Generera",

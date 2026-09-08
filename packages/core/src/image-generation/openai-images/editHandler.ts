@@ -13,6 +13,7 @@ import { readJsonBody } from './readJsonBody';
 import { readMultipartEdit } from './readMultipartEdit';
 import { parseImageInputList, resolveImageInput } from './resolveImageInput';
 import type { ImageApiContributionsDeps, ImageApiRuntime } from './types';
+import { resolveImageRequestProvider } from './types';
 import { assertCompatibleMask } from './validateRaster';
 
 function mediaType(value: string | undefined): string {
@@ -116,7 +117,10 @@ export function createImageEditHandler(deps: ImageApiContributionsDeps): OpenAIO
             ? { boundAccountFallbackPolicy: runtime.boundAccountFallbackPolicy }
             : {}),
         },
-        { providerId: runtime.providerId, ...(runtime.retention ? { retention: runtime.retention } : {}) },
+        {
+          providerId: resolveImageRequestProvider(runtime, request.model),
+          ...(runtime.retention ? { retention: runtime.retention } : {}),
+        },
       );
       if (request.stream) {
         await writeImageApiSse({

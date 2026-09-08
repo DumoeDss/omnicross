@@ -367,6 +367,7 @@ describe('closed JSON image inputs', () => {
       providerId: 'fake',
       defaultModel: 'gpt-image-2',
       modelAliases: new Map(),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
       limits: limits({ maxRemoteUrlBytes: 32 }),
     };
     const imageUrl = `data:image/png;base64,${bytes.toString('base64')}`;
@@ -392,6 +393,7 @@ describe('closed JSON image inputs', () => {
       providerId: 'fake',
       defaultModel: 'gpt-image-1',
       modelAliases: new Map(),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
       limits: limits(),
     };
     try {
@@ -446,6 +448,7 @@ describe('closed JSON image inputs', () => {
       providerId: 'fake',
       defaultModel: 'gpt-image-1',
       modelAliases: new Map(),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
       limits: limits(),
       referenceStore: store,
     });
@@ -483,6 +486,7 @@ describe('closed JSON image inputs', () => {
       providerId: 'fake',
       defaultModel: 'gpt-image-1',
       modelAliases: new Map(),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
       limits: limits(),
       referenceStore: store,
     });

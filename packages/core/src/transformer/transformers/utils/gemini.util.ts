@@ -85,6 +85,9 @@ export interface GeminiGenerationConfig {
     thinkingLevel?: string;
     thinkingBudget?: number;
   };
+  // Image output (chat-inline-images): image models require
+  // responseModalities to be requested explicitly.
+  responseModalities?: string[];
   // R7 (claude-api-transform-fidelity): decoded sampling/stop knobs.
   stopSequences?: string[];
   topP?: number;
@@ -291,6 +294,19 @@ export function buildRequestBody(
       includeThoughts: reasoningPlan.enabled,
       thinkingBudget: reasoningPlan.budgetTokens,
     };
+  }
+
+  // Image models (chat-inline-images D6): a gemini id containing `-image` is a
+  // canonical image-chat model — image output must be requested explicitly via
+  // responseModalities. Inject only when the caller did not carry it; non-image
+  // models build the exact same body as before (byte-identical requests).
+  if (
+    !generationConfig.responseModalities &&
+    typeof request.model === 'string' &&
+    request.model.startsWith('gemini') &&
+    request.model.includes('-image')
+  ) {
+    generationConfig.responseModalities = ['TEXT', 'IMAGE'];
   }
 
   const body: GeminiRequestBody = {

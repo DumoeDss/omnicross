@@ -2134,10 +2134,11 @@ function imageConfigurationAuditFields(
   const after = next ?? DEFAULT_IMAGES_SERVER_CONFIG;
   const fields: ImageConfigurationAuditField[] = [];
   if (before.enabled !== after.enabled) fields.push('enablement');
-  if (before.provider !== after.provider) fields.push('provider');
+  if (!sameConfigValue(before.models, after.models)) fields.push('provider');
   if (
     before.defaultModel !== after.defaultModel ||
-    !sameConfigValue(before.modelAliases, after.modelAliases)
+    !sameConfigValue(before.aliases, after.aliases) ||
+    !sameConfigValue(before.codex, after.codex)
   ) fields.push('model');
   if (!sameConfigValue(before.account, after.account)) fields.push('account');
   if (!sameConfigValue(before.queue, after.queue)) fields.push('queue');
@@ -3111,7 +3112,7 @@ async function handleImages(
   return writeJson(res, 200, {
     configured: {
       enabled: images.enabled,
-      provider: images.provider,
+      provider: images.models[images.defaultModel] ?? 'codex-subscription',
       model: images.defaultModel,
       remoteUrlsEnabled: images.remote.enabled,
       referenceTtlMs: images.references.ttlMs,

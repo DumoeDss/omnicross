@@ -657,6 +657,17 @@
         "strict": "Selezione rigorosa",
         "poolFallback": "Consenti fallback sul pool"
       },
+      "defaultModel": "Modello immagine predefinito",
+      "routes": {
+        "title": "Instradamento dei modelli",
+        "defaultBadge": "predefinito"
+      },
+      "codex": {
+        "title": "Override Codex",
+        "imageModel": "Modello immagine",
+        "carrierModel": "Modello portatore",
+        "hint": "I campi svuotati tornano ai valori predefiniti fissati (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matrice delle funzionalità verificate",
         "generate": "Genera",

@@ -657,6 +657,17 @@
         "strict": "Selecție strictă",
         "poolFallback": "Permiteți selecția de rezervă din grup"
       },
+      "defaultModel": "Model de imagine implicit",
+      "routes": {
+        "title": "Rutarea modelelor",
+        "defaultBadge": "implicit"
+      },
+      "codex": {
+        "title": "Suprascrieri Codex",
+        "imageModel": "Model de imagine",
+        "carrierModel": "Model purt\u0103tor",
+        "hint": "C\u00e2mpurile golite revin la valorile implicite fixate (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matrice de funcții verificate",
         "generate": "Generare",

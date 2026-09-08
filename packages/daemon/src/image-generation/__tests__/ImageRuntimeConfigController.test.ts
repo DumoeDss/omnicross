@@ -104,7 +104,9 @@ function config(options: {
     ...DEFAULT_IMAGES_SERVER_CONFIG,
     enabled: options.enabled ?? true,
     defaultModel: options.model ?? 'gpt-image-2',
-    modelAliases: { latest: options.model ?? 'gpt-image-2' },
+    aliases: { latest: options.model ?? 'gpt-image-2' },
+    models: { [options.model ?? 'gpt-image-2']: 'codex-subscription' },
+    codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
     account: { group: 'configured-group', fallback: 'pool' },
     queue: {
       maxConcurrentJobsPerAccount: 2,
@@ -256,9 +258,9 @@ describe('ImageRuntimeConfigController', () => {
     expect(manager.status().current.generationId).toBe('initial-disabled');
     expect(captured?.config).toMatchObject({
       enabled: true,
-      provider: 'codex-subscription',
+      codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
       defaultModel: 'gpt-image-2-snapshot',
-      modelAliases: { latest: 'gpt-image-2-snapshot' },
+      aliases: { latest: 'gpt-image-2-snapshot' },
       account: { group: 'configured-group', fallback: 'pool' },
       queue: { queueTimeoutMs: 12_345, generationTimeoutMs: 23_456 },
       temporary: { maxActiveScopes: 7 },

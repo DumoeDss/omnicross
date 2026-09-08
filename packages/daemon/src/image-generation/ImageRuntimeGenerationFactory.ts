@@ -12,10 +12,12 @@ import {
   type RemoteImageAssetResolver,
 } from '@omnicross/core/image-generation';
 import {
+  type ImageProviderId,
   type ImagesServerConfig,
   validateImagesServerConfig,
 } from '@omnicross/core/outbound-api';
 import {
+  createAntigravitySubscriptionImageProvider,
   createCodexSubscriptionImageProvider,
   type ImageExecutionScheduler,
   type SubscriptionAccountService,
@@ -108,7 +110,9 @@ export type ProductionImageRuntimeGeneration = PreparedImageRuntimeGeneration & 
 function snapshotConfig(config: ImagesServerConfig): ImagesServerConfig {
   return {
     ...config,
-    modelAliases: { ...config.modelAliases },
+    models: { ...config.models },
+    aliases: { ...config.aliases },
+    codex: { ...config.codex },
     account: { ...config.account },
     queue: { ...config.queue },
     temporary: { ...config.temporary },
@@ -150,9 +154,18 @@ export function createImageRuntimeGeneration(
     });
   }
 
-  const authStrategy = options.subscriptionAccounts.getStrategy('codex');
-  if (!authStrategy || authStrategy.providerId !== 'codex') {
+  const routedProviders = [...new Set(Object.values(config.models))];
+  const codexStrategy = routedProviders.includes('codex-subscription')
+    ? options.subscriptionAccounts.getStrategy('codex')
+    : undefined;
+  if (routedProviders.includes('codex-subscription') && (!codexStrategy || codexStrategy.providerId !== 'codex')) {
     throw new TypeError('enabled image runtime requires the Codex subscription strategy');
+  }
+  const antigravityStrategy = routedProviders.includes('antigravity-subscription')
+    ? options.subscriptionAccounts.getStrategy('antigravity')
+    : undefined;
+  if (routedProviders.includes('antigravity-subscription') && (!antigravityStrategy || antigravityStrategy.providerId !== 'antigravity')) {
+    throw new TypeError('enabled image runtime requires the Antigravity subscription strategy');
   }
 
   const privateHmacKey = options.privateHmacKey
@@ -199,25 +212,36 @@ export function createImageRuntimeGeneration(
     ) {
       throw new TypeError('synthetic verified image provider test seam label is invalid');
     }
-    const provider = options.testOnlySyntheticVerifiedProvider
-      ? options.testOnlySyntheticVerifiedProvider.createProvider({
+    const providers: ImageProvider[] = options.testOnlySyntheticVerifiedProvider
+      ? [options.testOnlySyntheticVerifiedProvider.createProvider({
           generationId: options.generationId,
           scheduler,
           now: options.now ?? Date.now,
           referenceStore: options.storage.referenceStore,
           stateStore: options.storage.stateStore,
-        })
-      : createCodexSubscriptionImageProvider({
-          authStrategy,
-          evidenceSource: generationEvidenceSource,
-          executionScheduler: scheduler,
-          generationTimeoutMs: config.queue.generationTimeoutMs,
-          now: options.now,
-        });
-    if (provider.id !== config.provider) {
+        })]
+      : routedProviders.map((providerId) => providerId === 'codex-subscription'
+        ? createCodexSubscriptionImageProvider({
+            authStrategy: codexStrategy!,
+            evidenceSource: generationEvidenceSource,
+            executionScheduler: scheduler,
+            generationTimeoutMs: config.queue.generationTimeoutMs,
+            now: options.now,
+            wire: {
+              imageModel: config.codex.imageModel,
+              carrierModel: config.codex.carrierModel,
+            },
+          })
+        : createAntigravitySubscriptionImageProvider({
+            authStrategy: antigravityStrategy!,
+            executionScheduler: scheduler,
+            generationTimeoutMs: config.queue.generationTimeoutMs,
+            now: options.now,
+          }));
+    if (providers.length === 1 && providers[0]!.id !== 'codex-subscription') {
       throw new TypeError('synthetic verified image provider id must match configured provider');
     }
-    const providerRegistry = new ImageProviderRegistry([provider]);
+    const providerRegistry = new ImageProviderRegistry(providers);
     const orchestrator = new ImageOrchestrator({
       registry: providerRegistry,
       referenceStore: options.storage.referenceStore,
@@ -241,40 +265,69 @@ export function createImageRuntimeGeneration(
       ...(options.createCallId ? { createCallId: options.createCallId } : {}),
       ...(options.now ? { now: options.now } : {}),
     });
+    const defaultProviderId = config.models[config.defaultModel] ?? 'codex-subscription';
+    const inspectOneProvider = async (providerId: ImageProviderId, apiKeyId: string) => {
+      const capabilities = await orchestrator.getCapabilities(providerId, {
+        requestId: `${options.generationId}:capability-inspection`,
+        tenantId: apiKeyId,
+        signal: new AbortController().signal,
+        sessionKey: `outbound:images:${apiKeyId}`,
+        ...(config.account.id ? { preferredAccountId: config.account.id } : {}),
+        ...(config.account.group ? { preferredAccountGroup: config.account.group } : {}),
+        boundAccountFallbackPolicy: config.account.fallback,
+      });
+      return capabilities;
+    };
     const inspectCapability = async (apiKeyId: string) => {
-      try {
-        const capabilities = await orchestrator.getCapabilities(config.provider, {
-          requestId: `${options.generationId}:capability-inspection`,
-          tenantId: apiKeyId,
-          signal: new AbortController().signal,
-          sessionKey: `outbound:images:${apiKeyId}`,
-          ...(config.account.id ? { preferredAccountId: config.account.id } : {}),
-          ...(config.account.group ? { preferredAccountGroup: config.account.group } : {}),
-          boundAccountFallbackPolicy: config.account.fallback,
-        });
-        const available = capabilities.available === true &&
-          capabilities.generate === true &&
-          capabilities.models.includes(config.defaultModel);
-        return Object.freeze({
-          enabled: true as const,
-          available,
-          providerId: config.provider,
-          model: config.defaultModel,
-          ...(!available ? { reason: capabilities.reason ?? 'runtime_unavailable' as const } : {}),
-          capabilities,
-        });
-      } catch (error) {
+      // ONE capability resolution per routed provider per inspection (top-level
+      // fields stay pinned to the DEFAULT model's provider — the admin status
+      // shape — while routedModels carries the per-provider intersection).
+      const providerCapabilities =
+        new Map<ImageProviderId, Awaited<ReturnType<typeof inspectOneProvider>>>();
+      let defaultProviderError: unknown;
+      for (const providerId of [...new Set(Object.values(config.models))]) {
+        try {
+          providerCapabilities.set(providerId, await inspectOneProvider(providerId, apiKeyId));
+        } catch (error) {
+          if (providerId === defaultProviderId) defaultProviderError = error;
+        }
+      }
+      const routedModels = Object.freeze(
+        [...providerCapabilities.entries()].flatMap(([providerId, capabilities]) =>
+          capabilities.available === true && capabilities.generate === true
+            ? Object.entries(config.models)
+                .filter(([model, modelProvider]) =>
+                  modelProvider === providerId && capabilities.models.includes(model))
+                .map(([model]) => model)
+            : []),
+      );
+      const capabilities = providerCapabilities.get(defaultProviderId);
+      if (!capabilities) {
         return Object.freeze({
           enabled: true as const,
           available: false as const,
-          providerId: config.provider,
+          providerId: defaultProviderId,
           model: config.defaultModel,
-          reason: error instanceof ImageGenerationError &&
-            (error.code === 'upstream_auth_required' || error.code === 'invalid_api_key')
+          routedModels,
+          reason: defaultProviderError instanceof ImageGenerationError &&
+            (defaultProviderError.code === 'upstream_auth_required' ||
+              defaultProviderError.code === 'invalid_api_key')
             ? 'account_unverified' as const
             : 'runtime_unavailable' as const,
         });
       }
+      const available = capabilities.available === true &&
+        capabilities.generate === true &&
+        capabilities.models.includes(config.defaultModel);
+      return Object.freeze({
+        enabled: true as const,
+        available,
+        providerId: defaultProviderId,
+        model: config.defaultModel,
+        routedModels,
+        ...(!available ? { reason: capabilities.reason ?? 'runtime_unavailable' as const } : {}),
+        capabilities,
+      });
     };
     const resolverToDispose = runtimeResolver;
     const schedulerToDispose = scheduler;
@@ -312,7 +365,7 @@ export function createImageRuntimeGeneration(
       imageApi,
       hosted,
       hostedRuntime: Object.freeze({
-        providerId: config.provider,
+        providerId: defaultProviderId,
         imageModel: config.defaultModel,
         referenceTtlMs: config.references.ttlMs,
         maxOutputBytes: config.limits.maxOutputBytes,

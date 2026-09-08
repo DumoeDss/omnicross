@@ -44,7 +44,8 @@ function config(enabled = true): ImagesServerConfig {
   return {
     ...DEFAULT_IMAGES_SERVER_CONFIG,
     enabled,
-    modelAliases: { latest: 'gpt-image-2' },
+    aliases: { latest: 'gpt-image-2' },
+    models: { 'gpt-image-2': 'codex-subscription', 'gemini-3-pro-image-preview': 'antigravity-subscription' },
     account: { group: 'configured-group', fallback: 'pool' },
     queue: { ...DEFAULT_IMAGES_SERVER_CONFIG.queue },
     temporary: { ...DEFAULT_IMAGES_SERVER_CONFIG.temporary },
@@ -97,7 +98,7 @@ function storage(root: string) {
   };
 }
 
-function authStrategy() {
+function authStrategy(providerId: 'codex' | 'antigravity' = 'codex') {
   const applyHeaders = vi.fn(async (
     headers: Record<string, string>,
     hints?: Parameters<AuthStrategy['applyHeaders']>[1],
@@ -107,10 +108,10 @@ function authStrategy() {
   });
   const strategy: AuthStrategy = {
     kind: 'oauth-bearer',
-    providerId: 'codex',
+    providerId,
     applyHeaders,
     async onUnauthorized() { return false; },
-    async describeStatus() { return { providerId: 'codex', ok: true }; },
+    async describeStatus() { return { providerId, ok: true }; },
   };
   return { strategy, applyHeaders };
 }
@@ -126,7 +127,9 @@ describe('production image runtime generation factory', () => {
   it('composes one provider/orchestrator and shared mounted stores for HTTP and hosted use', async () => {
     const sharedStorage = storage(sandbox());
     const auth = authStrategy();
-    const getStrategy = vi.fn(() => auth.strategy);
+    const antigravityAuth = authStrategy('antigravity');
+    const getStrategy = vi.fn((provider: string) =>
+      provider === 'antigravity' ? antigravityAuth.strategy : auth.strategy);
     const activeMountId = sharedStorage.catalog.active().id;
     const generation = createImageRuntimeGeneration({
       generationId: 'generation-1',
@@ -138,8 +141,8 @@ describe('production image runtime generation factory', () => {
     });
     if (!generation.enabled || !generation.components) throw new Error('expected enabled generation');
 
-    expect(getStrategy).toHaveBeenCalledOnce();
     expect(getStrategy).toHaveBeenCalledWith('codex');
+    expect(getStrategy).toHaveBeenCalledWith('antigravity');
     expect(generation.imageApi.all.map((entry) => entry.operationId))
       .toEqual(['images.generate', 'images.edit']);
     expect(generation.hosted.toolType).toBe('image_generation');
@@ -152,8 +155,8 @@ describe('production image runtime generation factory', () => {
       preferredAccountGroup: 'configured-group',
       boundAccountFallbackPolicy: 'pool',
     });
-    expect(generation.components.providerRegistry.list().map((provider) => provider.id))
-      .toEqual(['codex-subscription']);
+    expect(generation.components.providerRegistry.list().map((provider) => provider.id).sort())
+      .toEqual(['antigravity-subscription', 'codex-subscription']);
     expect(generation.components.referenceStore).toBe(sharedStorage.referenceStore);
     expect(generation.components.stateStore).toBe(sharedStorage.stateStore);
     expect(sharedStorage.catalog.active().id).toBe(activeMountId);
@@ -212,13 +215,68 @@ describe('production image runtime generation factory', () => {
     expect(getStrategy).not.toHaveBeenCalled();
   });
 
+  it('lists routed models per provider with one capability resolution each (6.1)', async () => {
+    const sharedStorage = storage(sandbox());
+    const auth = authStrategy();
+    const antigravityAuth = authStrategy('antigravity');
+    const dualStrategy = vi.fn((provider: string) =>
+      provider === 'antigravity' ? antigravityAuth.strategy : auth.strategy);
+    const dual = createImageRuntimeGeneration({
+      generationId: 'generation-routed-dual',
+      config: config(),
+      subscriptionAccounts: { getStrategy: dualStrategy },
+      storage: sharedStorage,
+      privateHmacKey: Buffer.alloc(32, 29),
+      now: () => 1_000,
+    });
+    if (!dual.enabled || !dual.inspectCapability) throw new Error('expected inspectable generation');
+
+    // Both routed providers bootstrap-eligible → both route keys are listed
+    // (top-level fields stay pinned to the DEFAULT model's provider).
+    await expect(dual.inspectCapability('images-key')).resolves.toMatchObject({
+      enabled: true,
+      available: true,
+      providerId: 'codex-subscription',
+      model: 'gpt-image-2',
+      routedModels: ['gpt-image-2', 'gemini-3-pro-image-preview'],
+    });
+    // Exactly one capability resolution per provider per inspection.
+    expect(auth.applyHeaders).toHaveBeenCalledTimes(1);
+    expect(antigravityAuth.applyHeaders).toHaveBeenCalledTimes(1);
+    await dual.dispose();
+
+    // One provider's evidence failing (here: the antigravity auth rejecting)
+    // omits ITS route keys without failing the listing; the codex-routed
+    // default stays available (observability delta spec scenario).
+    const failingAntigravityAuth = authStrategy('antigravity');
+    failingAntigravityAuth.applyHeaders.mockRejectedValue(new Error('no eligible account'));
+    const degraded = createImageRuntimeGeneration({
+      generationId: 'generation-routed-degraded',
+      config: config(),
+      subscriptionAccounts: { getStrategy: (provider: string) =>
+        provider === 'antigravity' ? failingAntigravityAuth.strategy : auth.strategy },
+      storage: sharedStorage,
+      privateHmacKey: Buffer.alloc(32, 31),
+      now: () => 1_000,
+    });
+    if (!degraded.enabled || !degraded.inspectCapability) throw new Error('expected inspectable generation');
+    await expect(degraded.inspectCapability('images-key')).resolves.toMatchObject({
+      enabled: true,
+      available: true,
+      providerId: 'codex-subscription',
+      model: 'gpt-image-2',
+      routedModels: ['gpt-image-2'],
+    });
+    await degraded.dispose();
+  });
+
   it('inspects the image bridge baseline and cached account-bound evidence without dispatching an image', async () => {
     let now = 1_000;
     const sharedStorage = storage(sandbox());
     const auth = authStrategy();
     const generation = createImageRuntimeGeneration({
       generationId: 'generation-capability',
-      config: config(),
+      config: { ...config(), models: { 'gpt-image-2': 'codex-subscription' }, aliases: {} },
       subscriptionAccounts: { getStrategy: () => auth.strategy },
       storage: sharedStorage,
       privateHmacKey: Buffer.alloc(32, 27),

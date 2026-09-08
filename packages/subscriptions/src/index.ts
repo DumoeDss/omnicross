@@ -76,6 +76,8 @@ export { normalizeOpenCodeGoBaseUrl } from './opencodego/endpoints';
 // deliberately not re-exported.
 export { createCodexSubscriptionImageProvider } from './image-generation/CodexSubscriptionImageProvider';
 export type { CodexSubscriptionImageProviderOptions } from './image-generation/CodexSubscriptionImageProvider';
+export { createAntigravitySubscriptionImageProvider } from './image-generation/AntigravitySubscriptionImageProvider';
+export type { AntigravitySubscriptionImageProviderOptions } from './image-generation/AntigravitySubscriptionImageProvider';
 export type {
   ImageExecutionAccountKey,
   ImageExecutionScheduler,

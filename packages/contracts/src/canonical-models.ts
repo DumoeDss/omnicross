@@ -267,7 +267,16 @@ const ANTIGRAVITY_MODELS: Record<string, KnownModelCapabilities> = {
   'gemini-2.5-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-2.5-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3-pro': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
-  'gemini-3.1-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: false, functionCall: false, reasoning: false },
+  // NanoBanana image-chat models (multi-provider-image-generation D7): the
+  // canonical gemini image ids routed to the antigravity provider. vision:true —
+  // they accept reference images (Images edits / session input); reasoning and
+  // function calling are not part of the image line. Numbers mirror the census
+  // entry; per-row overrides stay authoritative.
+  'gemini-2.5-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
+  'gemini-2.5-flash-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
+  'gemini-3.1-flash-image': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
+  'gemini-3.1-flash-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
+  'gemini-3-pro-image-preview': { category: 'chat', contextLength: 200000, maxTokens: 64000, vision: true, functionCall: false, reasoning: false },
   'gemini-3.1-flash-lite': { category: 'chat', contextLength: 1048576, maxTokens: 65535, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
   'gemini-3.8-flash': { category: 'chat', contextLength: 1048576, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },
   'gpt-oss-120b': { category: 'chat', contextLength: 131072, maxTokens: 32768, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'] },

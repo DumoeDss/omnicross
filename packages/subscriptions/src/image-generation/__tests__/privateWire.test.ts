@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { NormalizedImageGenerateRequest } from '@omnicross/contracts/image-generation-types';
 import { ImageGenerationError } from '@omnicross/core/image-generation';
 
+import { createCodexImageAdapterEvidence } from '../capabilityEvidence';
+import {
+  buildCandidateCodexImageRequest,
+  CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
+} from '../privateWireRequest';
 import { mapCandidateCodexImageFailure, parseRetryAfter } from '../privateWireErrors';
 import {
   decodeCandidateBase64ForTests,
@@ -198,5 +204,58 @@ describe('private candidate wire parsers', () => {
       retrySafety: 'unknown',
     });
     expect(JSON.stringify(error)).not.toContain('SENTINEL');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wire options (task 3.3): configurable carrier/tool models — defaults pin the
+// shipped constants; `images.codex.{carrierModel,imageModel}` overrides ride the
+// same builder (gpt-image-2-5 needs a config change only).
+// ---------------------------------------------------------------------------
+
+const generateRequest: NormalizedImageGenerateRequest = {
+  action: 'generate', model: 'gpt-image-2', prompt: 'wire-options-probe', n: 1,
+  quality: 'auto', size: { kind: 'auto' }, background: 'auto', outputFormat: 'png',
+  moderation: 'auto', stream: false, partialImages: 0,
+};
+
+describe('candidate codex image wire options', () => {
+  it('defaults pin the shipped carrier and tool models (byte-level)', async () => {
+    const body = JSON.parse(await buildCandidateCodexImageRequest(generateRequest)) as {
+      model: string;
+      tools: Array<{ model: string }>;
+    };
+    expect(body.model).toBe(CANDIDATE_CODEX_IMAGE_CARRIER_MODEL);
+    expect(body.model).toBe('gpt-5.6-luna');
+    expect(body.tools[0].model).toBe('gpt-image-2');
+  });
+
+  it('custom carrierModel and imageModel reach the wire verbatim', async () => {
+    const body = JSON.parse(
+      await buildCandidateCodexImageRequest(generateRequest, undefined, {
+        carrierModel: 'gpt-6-orion',
+        imageModel: 'gpt-image-2-5',
+      }),
+    ) as {
+      model: string;
+      tools: Array<{ model: string }>;
+    };
+    expect(body.model).toBe('gpt-6-orion');
+    expect(body.tools[0].model).toBe('gpt-image-2-5');
+  });
+
+  it('evidence model dimension follows the configured imageModel', () => {
+    const pinned = createCodexImageAdapterEvidence(1_000);
+    expect(pinned.source).toBe('codex-image-adapter-declaration');
+    expect(pinned.verifiedAt).toBe(1_000);
+    expect(pinned.values.models).toEqual(['gpt-image-2']);
+
+    const configured = createCodexImageAdapterEvidence(1_000, 'gpt-image-2-5');
+    // The configured model is advertised; the pinned default stays reachable.
+    expect(configured.values.models).toEqual(['gpt-image-2-5', 'gpt-image-2']);
+
+    // Re-declaring the default model must not duplicate the entry.
+    const same = createCodexImageAdapterEvidence(1_000, 'gpt-image-2');
+    expect(same.values.models).toEqual(['gpt-image-2']);
   });
 });

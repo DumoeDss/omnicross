@@ -657,6 +657,17 @@
         "strict": "Selección estricta",
         "poolFallback": "Permitir respaldo desde el conjunto"
       },
+      "defaultModel": "Modelo de imagen predeterminado",
+      "routes": {
+        "title": "Enrutamiento de modelos",
+        "defaultBadge": "predeterminado"
+      },
+      "codex": {
+        "title": "Invalidaciones de Codex",
+        "imageModel": "Modelo de imagen",
+        "carrierModel": "Modelo portador",
+        "hint": "Los campos vac\u00edos vuelven a los valores predeterminados fijados (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matriz de funciones verificadas",
         "generate": "Generar",

@@ -33,6 +33,7 @@ const NORMALIZATION_RUNTIME: ImageApiRuntime = {
   providerId: 'responses-image-inspection',
   defaultModel: 'responses-image-model',
   modelAliases: new Map(),
+  modelRoutes: new Map(),
   limits: DEFAULT_IMAGE_API_LIMITS,
 };
 

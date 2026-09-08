@@ -14,6 +14,18 @@ import {
 export const CANDIDATE_CODEX_IMAGE_URL = 'https://chatgpt.com/backend-api/codex/responses';
 export const CANDIDATE_CODEX_IMAGE_EDIT_URL = 'https://chatgpt.com/backend-api/codex/images/edits';
 export const CANDIDATE_CODEX_IMAGE_CARRIER_MODEL = 'gpt-5.6-luna';
+/**
+ * The default image-tool model. Configurable via `images.codex.imageModel`
+ * (multi-provider-image-generation D3) so a newer model (`gpt-image-2-5`, …)
+ * needs a config/default change only — never a wire-code change.
+ */
+export const CANDIDATE_CODEX_IMAGE_TOOL_MODEL = 'gpt-image-2';
+
+/** Configurable Codex wire parameters (defaults pin the shipped constants). */
+export interface CandidateCodexImageWireOptions {
+  readonly carrierModel?: string;
+  readonly imageModel?: string;
+}
 const MAX_INPUT_IMAGE_BYTES = 50 * 1024 * 1024;
 
 /** Private Codex image wire envelope. Never exported from the subscriptions package. */
@@ -79,6 +91,7 @@ async function encodeInputImage(asset: ImageAsset, signal?: AbortSignal): Promis
 export async function buildCandidateCodexImageRequest(
   request: ImageProviderRequest,
   signal?: AbortSignal,
+  wire: CandidateCodexImageWireOptions = {},
 ): Promise<string> {
   if (request.action === 'edit') {
     if (request.mask || request.images.length !== 1) {
@@ -88,7 +101,7 @@ export async function buildCandidateCodexImageRequest(
       images: [{ image_url: await encodeInputImage(request.images[0]!, signal) }],
       prompt: request.prompt,
       background: request.background,
-      model: request.model,
+      model: wire.imageModel ?? request.model,
       quality: request.quality,
       size: request.size.kind === 'pixels'
         ? `${request.size.width}x${request.size.height}`
@@ -98,7 +111,7 @@ export async function buildCandidateCodexImageRequest(
   const tool: Record<string, unknown> = {
     type: 'image_generation',
     action: request.action,
-    model: request.model,
+    model: wire.imageModel ?? request.model,
     quality: request.quality,
     background: request.background,
     output_format: request.outputFormat,
@@ -109,7 +122,7 @@ export async function buildCandidateCodexImageRequest(
 
   const body: CandidateCodexImageRequest = {
     instructions: '',
-    model: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
+    model: wire.carrierModel ?? CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
     input: [{
       type: 'message',
       role: 'user',

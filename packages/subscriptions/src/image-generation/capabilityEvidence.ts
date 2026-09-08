@@ -49,12 +49,14 @@ export const CODEX_IMAGE_ADAPTER_VALUES: ImageCapabilityValues = {
   supportsImageUrl: false,
 };
 
-export function createCodexImageAdapterEvidence(now = Date.now()): ImageCapabilityEvidenceLayer {
+export function createCodexImageAdapterEvidence(now = Date.now(), imageModel?: string): ImageCapabilityEvidenceLayer {
   return {
     kind: 'adapter',
     source: 'codex-image-adapter-declaration',
     verifiedAt: now,
-    values: CODEX_IMAGE_ADAPTER_VALUES,
+    values: imageModel && imageModel !== 'gpt-image-2'
+      ? { ...CODEX_IMAGE_ADAPTER_VALUES, models: [imageModel, 'gpt-image-2'] }
+      : CODEX_IMAGE_ADAPTER_VALUES,
   };
 }
 

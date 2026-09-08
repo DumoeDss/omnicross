@@ -657,6 +657,17 @@
         "strict": "Pemilihan ketat",
         "poolFallback": "Benarkan pilihan sandaran daripada kumpulan"
       },
+      "defaultModel": "Model imej lalai",
+      "routes": {
+        "title": "Pemilihan laluan model",
+        "defaultBadge": "lalai"
+      },
+      "codex": {
+        "title": "Penggantian tetapan Codex",
+        "imageModel": "Model imej",
+        "carrierModel": "Model pembawa",
+        "hint": "Medan yang dikosongkan kembali kepada lalai tetap (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matriks ciri yang disahkan",
         "generate": "Jana",

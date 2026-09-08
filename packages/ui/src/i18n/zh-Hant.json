@@ -956,6 +956,17 @@
         "strict": "嚴格選擇",
         "poolFallback": "允許帳號池回退"
       },
+      "defaultModel": "\u9810\u8a2d\u5716\u50cf\u6a21\u578b",
+      "routes": {
+        "title": "\u6a21\u578b\u8def\u7531",
+        "defaultBadge": "\u9810\u8a2d"
+      },
+      "codex": {
+        "title": "Codex \u7dda\u8def\u8986\u5beb",
+        "imageModel": "\u5716\u50cf\u6a21\u578b",
+        "carrierModel": "\u8f09\u9ad4\u6a21\u578b",
+        "hint": "\u6e05\u7a7a\u5f8c\u56de\u843d\u5230\u5167\u5efa\u7dda\u8def\u9810\u8a2d\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
+      },
       "features": {
         "title": "已驗證功能矩陣",
         "generate": "生成",

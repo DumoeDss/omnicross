@@ -161,7 +161,14 @@ describe('runLiveProbe', () => {
 
 function imageSnapshot(over: Partial<ImageDoctorLocalSnapshot> = {}): ImageDoctorLocalSnapshot {
   return {
-    config: { enabled: true, provider: 'codex-subscription', model: 'gpt-image-2', valid: true, errorCount: 0 },
+    config: {
+      enabled: true,
+      provider: 'codex-subscription',
+      model: 'gpt-image-2',
+      valid: true,
+      errorCount: 0,
+      routedProviders: ['codex-subscription', 'antigravity-subscription'],
+    },
     roots: { valid: true, verifiedAreas: 5, expectedAreas: 5 },
     stores: {
       valid: true,
@@ -175,12 +182,67 @@ function imageSnapshot(over: Partial<ImageDoctorLocalSnapshot> = {}): ImageDocto
     },
     permissions: { valid: true, rows: 1, legacyRows: 0, invalidRows: 0, imagesAuthorizedRows: 1 },
     account: { present: true, usable: true, reason: 'ready' },
+    antigravityAccount: { present: false, usable: false, reason: 'missing' },
     evidence: { valid: true, entries: 1, freshEntries: 1, staleEntries: 0, bytes: 64 },
     ...over,
   };
 }
 
 describe('Images doctor projections', () => {
+  it('splits account checks per routed provider (6.3)', () => {
+    // Antigravity routed but no credential → warn row, codex unaffected.
+    const routedBoth = buildImagesDoctorChecks(imageSnapshot());
+    const antigravity = routedBoth.find((check) => check.name === 'Antigravity account');
+    expect(antigravity).toMatchObject({ ok: false, warn: true });
+    expect(antigravity?.detail).toContain('antigravity-routed image models are unavailable');
+    expect(routedBoth.find((check) => check.name === 'Codex account')).toMatchObject({ ok: true });
+    // Config detail now names every routed provider.
+    expect(routedBoth[0]?.detail).toContain('providers=codex-subscription+antigravity-subscription');
+
+    // Antigravity present and usable → healthy row.
+    const healthy = buildImagesDoctorChecks(imageSnapshot({
+      antigravityAccount: { present: true, usable: true, reason: 'ready' },
+    }));
+    expect(healthy.find((check) => check.name === 'Antigravity account')).toMatchObject({
+      ok: true,
+      warn: false,
+    });
+
+    // A codex-only routing table makes the antigravity row informational.
+    const codexOnly = buildImagesDoctorChecks(imageSnapshot({
+      config: {
+        enabled: true,
+        provider: 'codex-subscription',
+        model: 'gpt-image-2',
+        valid: true,
+        errorCount: 0,
+        routedProviders: ['codex-subscription'],
+      },
+    }));
+    expect(codexOnly.find((check) => check.name === 'Antigravity account')).toMatchObject({
+      ok: true,
+      warn: false,
+      detail: expect.stringContaining('not routed'),
+    });
+
+    // A missing codex account is NOT a failure when codex is not routed.
+    const antigravityOnly = buildImagesDoctorChecks(imageSnapshot({
+      account: { present: false, usable: false, reason: 'missing' },
+      antigravityAccount: { present: true, usable: true, reason: 'ready' },
+      config: {
+        enabled: true,
+        provider: 'antigravity-subscription',
+        model: 'gemini-3-pro-image-preview',
+        valid: true,
+        errorCount: 0,
+        routedProviders: ['antigravity-subscription'],
+      },
+    }));
+    expect(antigravityOnly.find((check) => check.name === 'Codex account')).toMatchObject({
+      ok: true,
+      warn: false,
+    });
+  });
   it('treats enabled missing-account and stale-evidence states as honest failures', () => {
     const checks = buildImagesDoctorChecks(imageSnapshot({
       account: { present: true, usable: false, reason: 'unavailable' },

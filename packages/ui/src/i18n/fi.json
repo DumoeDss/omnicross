@@ -657,6 +657,17 @@
         "strict": "Tiukka valinta",
         "poolFallback": "Salli varavalinta joukosta"
       },
+      "defaultModel": "Oletuskuvamalli",
+      "routes": {
+        "title": "Mallien reititys",
+        "defaultBadge": "oletus"
+      },
+      "codex": {
+        "title": "Codex-ohitukset",
+        "imageModel": "Kuvamalli",
+        "carrierModel": "Kantajamalli",
+        "hint": "Tyhjennetyt kent\u00e4t palaavat kiinnitettyihin oletusarvoihin (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Vahvistettu ominaisuusmatriisi",
         "generate": "Luo",

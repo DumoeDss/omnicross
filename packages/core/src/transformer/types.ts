@@ -265,6 +265,12 @@ export interface UnifiedChatResponse {
   };
   tool_calls?: ToolCall[];
   annotations?: Annotation[];
+  /**
+   * Session-generated images as `data:<mime>;base64,<data>` URLs
+   * (chat-inline-images). Present only when the upstream returned
+   * inlineData parts; pure-text responses omit the field entirely.
+   */
+  images?: string[];
 }
 
 /**
@@ -294,6 +300,11 @@ export interface StreamChunk {
         index?: number;
       }>;
       annotations?: Annotation[];
+      /**
+       * Session-generated images (chat-inline-images): ALL inlineData parts of
+       * the source chunk merged into ONE delta; data-URL strings.
+       */
+      images?: string[];
     };
     finish_reason?: string | null;
   }>;

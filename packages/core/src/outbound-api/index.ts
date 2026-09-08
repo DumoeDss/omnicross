@@ -208,6 +208,7 @@ export {
   SUBSCRIPTION_PROVIDER_IDS,
 } from './subscriptionSupport';
 export { ENDPOINT_MODEL_KINDS } from './types';
+export { DEFAULT_IMAGE_MODEL_ROUTES, IMAGE_PROVIDER_IDS } from './types';
 export type {
   AccountProbeConfig,
   AllowanceSchedulingConfig,
@@ -234,6 +235,8 @@ export type {
   OutboundPermission,
   OutboundFormatUrls,
   ImagesServerConfig,
+  ImageProviderId,
+  ImagesCodexAdapterConfig,
   SearchServerConfig,
   OutboundKeyActivationMode,
   OutboundKeyDb,

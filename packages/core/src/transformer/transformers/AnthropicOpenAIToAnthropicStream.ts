@@ -21,6 +21,11 @@
 
 import type { TransformerContext, TransformerLogger } from '../types';
 
+import {
+  beginAnthropicImageDropScope,
+  noteDroppedInlineImages,
+} from './utils/anthropicImageDrop';
+
 /** Default synthetic-ping interval (ms). ≤0 disables the heartbeat. */
 export const DEFAULT_ANTHROPIC_PING_HEARTBEAT_MS = 20_000;
 
@@ -199,6 +204,10 @@ export function convertOpenAIStreamToAnthropic(
       };
 
       try {
+        // One bounded-drop warn per stream (chat-inline-images): the scope
+        // resets as the conversion opens so the first dropped-image chunk
+        // logs once, subsequent chunks only count.
+        beginAnthropicImageDropScope();
         armPing();
         while (true) {
           const { done, value } = await reader.read();
@@ -281,6 +290,14 @@ export function convertOpenAIStreamToAnthropic(
 
               const choice = chunk.choices?.[0];
               if (!choice) continue;
+
+              // Honest boundary (chat-inline-images): delta.images has no
+              // Anthropic event equivalent — drop with a bounded count (no
+              // image data in any log or output frame).
+              const deltaImages = choice.delta?.images;
+              if (Array.isArray(deltaImages) && deltaImages.length > 0) {
+                noteDroppedInlineImages(deltaImages.length);
+              }
 
               // Update usage for stop reason
               if (chunk.usage) {

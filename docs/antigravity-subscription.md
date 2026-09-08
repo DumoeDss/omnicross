@@ -19,7 +19,8 @@ CLI 授权回调地址固定为 `http://127.0.0.1:51121/oauth-callback`。端口
 - 目前文本接入通过 Anthropic Messages（`/v1/messages`）和 OpenAI Responses（`/v1/responses`）转换到 CCA `generateContent` / `streamGenerateContent`。Chat Completions 对非 Claude 订阅的原有入口限制仍保留；不要将它当作已验证的 Antigravity 入口。
 - 静态目录提供离线候选；上游资源页调用 `GET /admin/api/accounts/antigravity/models` 合并动态发现结果，并将新模型加入路由建议。切换活动账号后重新获取目录。
 - 同名静态条目优先；动态发现失败时保留静态目录。目录中的模型名只是候选，不代表当前账号拥有该模型权限。
-- 元数据 `supportsImages` 表示图片输入能力，不证明图片生成能力。NanoBanana 绘图、多 provider 图像运行时和 Codex 图片模型切换属于后续图像 change，本文不宣称已完成。
+- 元数据 `supportsImages` 表示图片输入能力，不证明图片生成能力。
+- NanoBanana 绘图已随多 provider 图像 change 实现：Images API 的 `gemini-*.5/3.1-*-image(-preview)`、`gemini-3-pro-image-preview` 路由到 Antigravity 身份（见[生图功能开发文档](./image-generation-development.md) §14），Codex 图片模型可通过 `images.codex.imageModel` 切换。该实现尚无实机验证（见下方验证边界）。
 
 ## 额度与账号选择
 
@@ -48,3 +49,5 @@ CLI 授权回调地址固定为 `http://127.0.0.1:51121/oauth-callback`。端口
 ## 验证边界
 
 实现和本地测试使用模拟 OAuth、配额与推理响应。不替代真实 Google 授权、账号权限、三族模型请求及 UI 实机验收；在这些步骤有真实证据前，不能宣称线上已可用。代码不会通过普通 UI 轮询触发图片生成。
+
+图像部分（NanoBanana provider 与会话内嵌图）同样只有离线证据与单元测试覆盖；真实订阅上的三模型出图、编辑链路与客户端实测仍待补（与生图 change 的实机验证项合并推进）。

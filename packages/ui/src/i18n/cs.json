@@ -657,6 +657,17 @@
         "strict": "Přísný výběr",
         "poolFallback": "Povolit náhradní výběr z fondu"
       },
+      "defaultModel": "V\u00fdchoz\u00ed model obr\u00e1zk\u016f",
+      "routes": {
+        "title": "Sm\u011brov\u00e1n\u00ed model\u016f",
+        "defaultBadge": "v\u00fdchoz\u00ed"
+      },
+      "codex": {
+        "title": "P\u0159episy p\u0159enosu Codex",
+        "imageModel": "Model obr\u00e1zku",
+        "carrierModel": "Nosn\u00fd model",
+        "hint": "Vymazan\u00e1 pole se vr\u00e1t\u00ed na v\u00fdchoz\u00ed upevn\u011bn\u00e9 hodnoty (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Ověřená matice funkcí",
         "generate": "Generovat",

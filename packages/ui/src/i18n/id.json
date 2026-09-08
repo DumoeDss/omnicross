@@ -657,6 +657,17 @@
         "strict": "Pemilihan ketat",
         "poolFallback": "Izinkan cadangan dari kumpulan"
       },
+      "defaultModel": "Model gambar bawaan",
+      "routes": {
+        "title": "Perutean model",
+        "defaultBadge": "bawaan"
+      },
+      "codex": {
+        "title": "Penimpaan Codex",
+        "imageModel": "Model gambar",
+        "carrierModel": "Model pembawa",
+        "hint": "Kolom yang dikosongkan kembali ke nilai bawaan yang disematkan (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matriks fitur terverifikasi",
         "generate": "Buat",

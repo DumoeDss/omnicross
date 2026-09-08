@@ -93,6 +93,7 @@ function runtime(tenantId: string): ImageApiRuntime {
     providerId: 'synthetic',
     defaultModel: 'gpt-image-2',
     modelAliases: new Map(),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
     limits: DEFAULT_IMAGE_API_LIMITS,
   };
 }

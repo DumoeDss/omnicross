@@ -12,7 +12,9 @@ function images(enabled: boolean): ImagesServerConfig {
   return {
     ...DEFAULT_IMAGES_SERVER_CONFIG,
     enabled,
-    modelAliases: { ...DEFAULT_IMAGES_SERVER_CONFIG.modelAliases },
+    aliases: { ...DEFAULT_IMAGES_SERVER_CONFIG.aliases },
+    models: { ...DEFAULT_IMAGES_SERVER_CONFIG.models },
+    codex: { ...DEFAULT_IMAGES_SERVER_CONFIG.codex },
     account: { ...DEFAULT_IMAGES_SERVER_CONFIG.account },
     queue: { ...DEFAULT_IMAGES_SERVER_CONFIG.queue },
     temporary: { ...DEFAULT_IMAGES_SERVER_CONFIG.temporary },
@@ -86,6 +88,57 @@ function harness(options: {
 }
 
 describe('ImageDoctorService', () => {
+  it('reports the antigravity account independently of the codex account', async () => {
+    const verifiedRoot = vi.fn(() => 'PRIVATE_PATH_SENTINEL');
+    const service = createImageDoctorService({
+      keyDb: { outboundApiKeysList: async () => [] },
+      subscriptionAccounts: {
+        listAll: async () => [
+          {
+            providerId: 'codex',
+            displayName: 'Codex',
+            kind: 'oauth-bearer',
+            credentialStatus: { providerId: 'codex', ok: true },
+          },
+          {
+            providerId: 'antigravity',
+            displayName: 'Antigravity',
+            kind: 'oauth-bearer',
+            credentialStatus: { providerId: 'antigravity', ok: false, reason: 'expired' },
+          },
+        ],
+        getStrategy: () => ({ providerId: 'codex' }) as never,
+      },
+      storageCatalog: {
+        active: () => ({ resolver: { verifiedRoot } }) as never,
+        status: () => ({ mounts: 1, retiredMounts: 0 }),
+        utilization: () => ({
+          referenceEntries: 0,
+          referenceBytes: 0,
+          referenceTombstones: 0,
+          stateCalls: 0,
+          stateResponses: 0,
+          stateTombstones: 0,
+          pendingReferenceDeletes: 0,
+        }),
+        startupReconciliationStatus: () => ({ corruptManifestsQuarantined: 0 }),
+      },
+      createEvidenceStore: () => ({
+        status: () => ({ entries: 0, freshEntries: 0, staleEntries: 0, bytes: 0 }),
+        recordSuccessfulVerification: vi.fn(async () => undefined),
+        dispose: vi.fn(),
+      }),
+      createLiveVerifier: () => ({ verify: vi.fn() }),
+    });
+    const snapshot = await service.inspectLocal(images(true));
+    expect(snapshot.account).toEqual({ present: true, usable: true, reason: 'ready' });
+    expect(snapshot.antigravityAccount).toEqual({ present: true, usable: false, reason: 'unavailable' });
+    // The default routing table names both providers.
+    expect([...snapshot.config.routedProviders].sort()).toEqual([
+      'antigravity-subscription',
+      'codex-subscription',
+    ]);
+  });
   it('reads only local aggregate config/root/store/key/account/evidence metadata', async () => {
     const { service, verify, dispose, verifiedRoot } = harness({
       rows: [
@@ -114,6 +167,15 @@ describe('ImageDoctorService', () => {
         imagesAuthorizedRows: 1,
       },
       account: { present: true, usable: true, reason: 'ready' },
+      antigravityAccount: { present: false, usable: false, reason: 'missing' },
+      config: {
+        enabled: false,
+        valid: true,
+        provider: 'codex-subscription',
+        model: 'gpt-image-2',
+        errorCount: 0,
+        routedProviders: ['codex-subscription', 'antigravity-subscription'],
+      },
       evidence: { valid: true, entries: 1, freshEntries: 1 },
     });
     expect(verifiedRoot).toHaveBeenCalledTimes(5);

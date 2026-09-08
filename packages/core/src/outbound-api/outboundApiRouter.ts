@@ -556,7 +556,10 @@ async function writeModelsList(
       );
     }
   }
-  modelIds.push(...imageModels.filter((modelId) => modelId === 'gpt-image-2'));
+  // Image models arrive pre-filtered by the runtime (route keys × fresh
+  // per-provider evidence — multi-provider-image-generation 6.1); the retired
+  // gpt-image-2-only hardcode is gone.
+  modelIds.push(...imageModels);
   const seen = new Set<string>();
   const data = modelIds
     .filter((modelId) => {

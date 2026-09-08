@@ -108,14 +108,23 @@ export type ImageRuntimeSafeUnavailableReason =
   | 'disabled'
   | 'runtime_unavailable';
 
+import type { ImageProviderId } from '@omnicross/core/outbound-api';
+
 export interface ImageRuntimeCapabilityInspection {
   readonly generationId: string;
   readonly enabled: boolean;
   readonly available: boolean;
-  readonly providerId?: 'codex-subscription';
+  readonly providerId?: ImageProviderId;
   readonly model?: string;
   readonly reason?: ImageRuntimeSafeUnavailableReason;
   readonly capabilities?: ImageCapabilities;
+  /**
+   * Route-table keys whose ROUTED provider's fresh capability intersection
+   * affirms them (multi-provider-image-generation 6.1: /v1/models lists
+   * routed-model × fresh-evidence). Absent on synthetic/legacy generations —
+   * `listAvailableModels` then falls back to the single-model shape.
+   */
+  readonly routedModels?: readonly string[];
 }
 
 export interface ImageRuntimeResourceStatus {
@@ -558,6 +567,9 @@ export class ImageRuntimeManager {
 
   async listAvailableModels(apiKeyId: string): Promise<readonly string[]> {
     const inspection = await this.inspectCapability(apiKeyId);
+    if (inspection.routedModels !== undefined) {
+      return Object.freeze([...inspection.routedModels]);
+    }
     return inspection.available && inspection.model === 'gpt-image-2'
       ? Object.freeze([inspection.model])
       : Object.freeze([]);

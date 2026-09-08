@@ -657,6 +657,17 @@
         "strict": "Katı seçim",
         "poolFallback": "Havuzdan yedek seçime izin ver"
       },
+      "defaultModel": "Varsay\u0131lan g\u00f6r\u00fcnt\u00fc modeli",
+      "routes": {
+        "title": "Model y\u00f6nlendirme",
+        "defaultBadge": "varsay\u0131lan"
+      },
+      "codex": {
+        "title": "Codex ge\u00e7ersiz k\u0131lmalar\u0131",
+        "imageModel": "G\u00f6r\u00fcnt\u00fc modeli",
+        "carrierModel": "Ta\u015f\u0131y\u0131c\u0131 model",
+        "hint": "Temizlenen alanlar sabit varsay\u0131lanlara d\u00f6ner (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Doğrulanmış özellik matrisi",
         "generate": "Oluştur",

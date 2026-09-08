@@ -256,14 +256,22 @@ export function buildAntigravityLiveChecks(result: AntigravityLiveProbeResult): 
 /** Pure projection of the local-only Images diagnostic snapshot. *//** Pure projection of the local-only Images diagnostic snapshot. */
 export function buildImagesDoctorChecks(snapshot: ImageDoctorLocalSnapshot): DoctorCheck[] {
   const enabled = snapshot.config.enabled;
-  const accountOk = !enabled || snapshot.account.usable;
+  // Per-provider rows (multi-provider-image-generation 6.3): an account is only
+  // REQUIRED for providers the routing table actually names. Older snapshots
+  // without `routedProviders` keep the codex-only reading.
+  const routed = snapshot.config.routedProviders ?? ['codex-subscription'];
+  const codexRouted = routed.includes('codex-subscription');
+  const antigravityRouted = routed.includes('antigravity-subscription');
+  const antigravity = snapshot.antigravityAccount ?? { present: false, usable: false, reason: 'missing' as const };
+  const accountOk = !enabled || !codexRouted || snapshot.account.usable;
+  const antigravityOk = !enabled || !antigravityRouted || antigravity.usable;
   const evidenceOk = !enabled || (snapshot.evidence.valid && snapshot.evidence.freshEntries > 0);
   return [
     {
       name: 'normalized Images config',
       ok: snapshot.config.valid,
       detail: snapshot.config.valid
-        ? `enabled=${enabled}, provider=${snapshot.config.provider}, model=${snapshot.config.model}`
+        ? `enabled=${enabled}, providers=${routed.join('+')}, default=${snapshot.config.model} (${snapshot.config.provider})`
         : `invalid normalized configuration (${snapshot.config.errorCount} issue(s))`,
     },
     {
@@ -291,10 +299,22 @@ export function buildImagesDoctorChecks(snapshot: ImageDoctorLocalSnapshot): Doc
     {
       name: 'Codex account',
       ok: accountOk,
-      warn: !snapshot.account.usable,
-      detail: snapshot.account.usable
-        ? 'eligible local credential is present'
-        : `${snapshot.account.reason}; Images live verification is unavailable`,
+      warn: enabled && codexRouted && !snapshot.account.usable,
+      detail: !codexRouted
+        ? 'not routed by the current model table (no credential required)'
+        : snapshot.account.usable
+          ? 'eligible local credential is present'
+          : `${snapshot.account.reason}; codex-routed image models and live verification are unavailable`,
+    },
+    {
+      name: 'Antigravity account',
+      ok: antigravityOk,
+      warn: enabled && antigravityRouted && !antigravity.usable,
+      detail: !antigravityRouted
+        ? 'not routed by the current model table (no credential required)'
+        : antigravity.usable
+          ? 'eligible local credential is present (protocol evidence still unverified)'
+          : `${antigravity.reason}; antigravity-routed image models are unavailable`,
     },
     {
       name: 'cached capability evidence',
@@ -317,6 +337,13 @@ export async function runImagesLiveDoctor(
     '  [⚠] live Images verification may consume subscription quota; one minimal low-quality PNG request will be sent',
   );
   const result = await doctor.verifyLive(config.images ?? DEFAULT_IMAGES_SERVER_CONFIG, signal);
+  const antigravityRouted = Object.values(config.images?.models ?? {})
+    .includes('antigravity-subscription' as const);
+  if (antigravityRouted) {
+    console.info(
+      '  [i] live verification covers the Codex wire only; the Antigravity provider has no independent verifier in v1 (its first real request bootstraps)',
+    );
+  }
   if (!result.ok) {
     console.info(`  [✗] live Images verification: ${result.code}`);
     return false;

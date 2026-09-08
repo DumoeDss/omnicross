@@ -17,8 +17,13 @@ describe('ImagesSection sensitive DTO rendering', () => {
   it('renders safe account labels and storage policy without raw ids or paths', () => {
     const config = {
       enabled: true,
-      provider: 'codex-subscription',
+      models: {
+        'gpt-image-2': 'codex-subscription',
+        'gemini-3-pro-image-preview': 'antigravity-subscription',
+      },
       defaultModel: 'gpt-image-2',
+      aliases: {},
+      codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
       account: { id: 'RAW_ACCOUNT_ID_SENTINEL', fallback: 'strict' },
       references: {
         storageRootConfigured: true,

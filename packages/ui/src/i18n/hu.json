@@ -657,6 +657,17 @@
         "strict": "Szigorú kiválasztás",
         "poolFallback": "Tartalék választás engedélyezése a készletből"
       },
+      "defaultModel": "Alap\u00e9rtelmezett k\u00e9pmodell",
+      "routes": {
+        "title": "Modell-\u00fatv\u00e1laszt\u00e1s",
+        "defaultBadge": "alap\u00e9rtelmezett"
+      },
+      "codex": {
+        "title": "Codex-fel\u00fclb\u00edr\u00e1l\u00e1sok",
+        "imageModel": "K\u00e9pmodell",
+        "carrierModel": "Hordoz\u00f3modell",
+        "hint": "A t\u00f6r\u00f6lt mez\u0151k a r\u00f6gz\u00edtett alap\u00e9rt\u00e9kekre \u00e1llnak vissza (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Ellenőrzött funkciómátrix",
         "generate": "Generálás",

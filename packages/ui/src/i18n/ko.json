@@ -657,6 +657,17 @@
         "strict": "엄격한 선택",
         "poolFallback": "풀 대체 허용"
       },
+      "defaultModel": "\uae30\ubcf8 \uc774\ubbf8\uc9c0 \ubaa8\ub378",
+      "routes": {
+        "title": "\ubaa8\ub378 \ub77c\uc6b0\ud305",
+        "defaultBadge": "\uae30\ubcf8"
+      },
+      "codex": {
+        "title": "Codex \uc640\uc774\uc5b4 \uc7ac\uc815\uc758",
+        "imageModel": "\uc774\ubbf8\uc9c0 \ubaa8\ub378",
+        "carrierModel": "\uce90\ub9ac\uc5b4 \ubaa8\ub378",
+        "hint": "\ube44\uc6b4 \ud544\ub4dc\ub294 \uace0\uc815 \uae30\ubcf8\uac12(gpt-image-2 / gpt-5.6-luna)\uc73c\ub85c \ub418\ub3cc\uc544\uac11\ub2c8\ub2e4."
+      },
       "features": {
         "title": "검증된 기능 매트릭스",
         "generate": "생성",

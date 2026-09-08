@@ -9,6 +9,11 @@
 
 import { anthropicUsageToChatUsage } from './utils/usage-mapping';
 
+import {
+  beginAnthropicImageDropScope,
+  noteDroppedInlineImages,
+} from './utils/anthropicImageDrop';
+
 /**
  * Convert Anthropic non-streaming response to OpenAI-compatible format.
  * Reverse of `convertOpenAIResponseToAnthropic`.
@@ -95,6 +100,15 @@ export function convertOpenAIResponseToAnthropic(
 
   const message = choice.message as Record<string, unknown>;
   const content: Array<Record<string, unknown>> = [];
+
+  // Honest boundary (chat-inline-images): the Anthropic Messages wire has no
+  // image output block, so session images are DROPPED here — never base64-
+  // stuffed into text. The drop is recorded as a bounded count only.
+  const images = message.images as unknown[] | undefined;
+  if (Array.isArray(images) && images.length > 0) {
+    beginAnthropicImageDropScope();
+    noteDroppedInlineImages(images.length);
+  }
 
   // Handle thinking — MUST precede text and tool_use blocks in Anthropic
   // format (the Anthropic API enforces block ordering: thinking → text →

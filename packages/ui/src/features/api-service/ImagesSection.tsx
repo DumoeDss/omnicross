@@ -4,15 +4,19 @@ import {
   Gauge,
   HardDrive,
   Image,
+  Route,
   ShieldAlert,
   ShieldCheck,
+  SlidersHorizontal,
 } from 'lucide-react';
 import React from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import type {
+  ImageProviderId,
   ImagesCapabilityStatus,
   ImagesServerConfig,
   OutboundApiServerStatus,
@@ -37,6 +41,47 @@ const FEATURE_KEYS = [
   'transparentBackground',
   'responsesTool',
 ] as const;
+
+/**
+ * Mirror of core's pinned Codex wire defaults (the UI package cannot import
+ * workspace packages). Clearing an override input restores these.
+ */
+export const UI_DEFAULT_CODEX_IMAGE_MODEL = 'gpt-image-2';
+export const UI_DEFAULT_CODEX_CARRIER_MODEL = 'gpt-5.6-luna';
+
+/** Provider ids the route table is allowed to name (display order). */
+const IMAGE_PROVIDERS: readonly ImageProviderId[] = ['codex-subscription', 'antigravity-subscription'];
+
+export function imageProviderLabel(provider: ImageProviderId): string {
+  return provider === 'antigravity-subscription' ? 'Antigravity' : 'Codex';
+}
+
+/** Route-table rows for the read-only display (default model first, then alphabetical). */
+export function imageRouteEntries(
+  config: ImagesServerConfig,
+): Array<{ model: string; provider: ImageProviderId }> {
+  return Object.entries(config.models ?? {})
+    .map(([model, provider]) => ({ model, provider }))
+    .sort((a, b) => {
+      if (a.model === config.defaultModel) return -1;
+      if (b.model === config.defaultModel) return 1;
+      return a.model.localeCompare(b.model);
+    });
+}
+
+/** Codex override inputs: blank/whitespace restores the pinned wire default. */
+export function applyImageCodexOverrides(
+  config: ImagesServerConfig,
+  overrides: { imageModel?: string; carrierModel?: string },
+): ImagesServerConfig {
+  return {
+    ...config,
+    codex: {
+      imageModel: overrides.imageModel?.trim() || UI_DEFAULT_CODEX_IMAGE_MODEL,
+      carrierModel: overrides.carrierModel?.trim() || UI_DEFAULT_CODEX_CARRIER_MODEL,
+    },
+  };
+}
 
 export function imageAccountSelection(config: ImagesServerConfig): string {
   if (config.account.id) return `account:${config.account.id}`;
@@ -196,6 +241,17 @@ export function ImagesSection({
 
       <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2">
         <label className="space-y-1.5 text-xs">
+          <span className="font-medium text-foreground">{t('apiService.images.defaultModel')}</span>
+          <Select
+            className="w-full"
+            size="sm"
+            value={config.defaultModel}
+            options={Object.keys(config.models ?? {}).map((model) => ({ value: model, label: model }))}
+            disabled={busy}
+            onChange={(model) => void onUpdate({ ...config, defaultModel: model })}
+          />
+        </label>
+        <label className="space-y-1.5 text-xs">
           <span className="font-medium text-foreground">{t('apiService.images.account.label')}</span>
           <Select
             className="w-full"
@@ -223,6 +279,64 @@ export function ImagesSection({
             })}
           />
         </label>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-border/60 bg-surface-0/70 p-3">
+          <div className="flex items-center gap-2">
+            <Route className="h-4 w-4 text-primary" aria-hidden="true" />
+            <h4 className="text-xs font-semibold text-foreground">{t('apiService.images.routes.title')}</h4>
+          </div>
+          <ul className="mt-3 space-y-1.5" data-testid="image-route-table">
+            {imageRouteEntries(config).map(({ model, provider }) => (
+              <li key={model} className="flex items-center justify-between gap-2 text-[11px]">
+                <code className="truncate rounded bg-surface-2/60 px-1.5 py-0.5">{model}</code>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {model === config.defaultModel ? (
+                    <Badge variant="outline">{t('apiService.images.routes.defaultBadge')}</Badge>
+                  ) : null}
+                  <Badge variant={provider === 'antigravity-subscription' ? 'secondary' : 'success'}>
+                    {imageProviderLabel(provider)}
+                  </Badge>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-lg border border-border/60 bg-surface-0/70 p-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
+            <h4 className="text-xs font-semibold text-foreground">{t('apiService.images.codex.title')}</h4>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 text-xs">
+              <span className="font-medium text-foreground">{t('apiService.images.codex.imageModel')}</span>
+              <Input
+                className="w-full"
+                value={config.codex?.imageModel ?? ''}
+                placeholder={UI_DEFAULT_CODEX_IMAGE_MODEL}
+                disabled={busy}
+                onChange={(e) => void onUpdate(applyImageCodexOverrides(config, { imageModel: e.target.value }))}
+                aria-label={t('apiService.images.codex.imageModel')}
+              />
+            </label>
+            <label className="space-y-1.5 text-xs">
+              <span className="font-medium text-foreground">{t('apiService.images.codex.carrierModel')}</span>
+              <Input
+                className="w-full"
+                value={config.codex?.carrierModel ?? ''}
+                placeholder={UI_DEFAULT_CODEX_CARRIER_MODEL}
+                disabled={busy}
+                onChange={(e) => void onUpdate(applyImageCodexOverrides(config, { carrierModel: e.target.value }))}
+                aria-label={t('apiService.images.codex.carrierModel')}
+              />
+            </label>
+          </div>
+          <p className="mt-3 text-[10px] text-muted-foreground">
+            {t('apiService.images.codex.hint')}
+          </p>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

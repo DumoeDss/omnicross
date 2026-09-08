@@ -1006,6 +1006,17 @@
         "strict": "Strict selection",
         "poolFallback": "Allow pool fallback"
       },
+      "defaultModel": "Default image model",
+      "routes": {
+        "title": "Model routing",
+        "defaultBadge": "default"
+      },
+      "codex": {
+        "title": "Codex wire overrides",
+        "imageModel": "Image model",
+        "carrierModel": "Carrier model",
+        "hint": "Cleared fields fall back to the pinned wire defaults (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Verified feature matrix",
         "generate": "Generate",

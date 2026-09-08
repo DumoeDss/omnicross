@@ -16,7 +16,8 @@ function config(overrides: Partial<ImagesServerConfig> = {}): ImagesServerConfig
   return {
     ...DEFAULT_IMAGES_SERVER_CONFIG,
     enabled: true,
-    modelAliases: { latest: 'gpt-image-2' },
+    aliases: { latest: 'gpt-image-2' },
+    models: { ...DEFAULT_IMAGES_SERVER_CONFIG.models },
     account: { id: 'configured-account', fallback: 'pool' },
     queue: { ...DEFAULT_IMAGES_SERVER_CONFIG.queue },
     temporary: { ...DEFAULT_IMAGES_SERVER_CONFIG.temporary },
@@ -67,6 +68,8 @@ describe('trusted Images API runtime resolver', () => {
     });
     expect(runtime).not.toHaveProperty('preferredAccountGroup');
     expect(runtime.modelAliases.get('latest')).toBe('gpt-image-2');
+    expect(runtime.modelRoutes.get('gemini-3-pro-image-preview')).toBe('antigravity-subscription');
+    expect(runtime.modelRoutes.get('gpt-image-2-5')).toBe('codex-subscription');
     expect(runtime.remoteResolver).toBeUndefined();
     const serialized = JSON.stringify(runtime);
     expect(serialized).not.toContain('RAW_INBOUND_BEARER_SENTINEL');

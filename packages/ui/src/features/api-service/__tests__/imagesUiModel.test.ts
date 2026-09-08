@@ -4,8 +4,12 @@ import type { ImagesServerConfig } from '@/daemon/types';
 
 import {
   applyImageAccountSelection,
+  applyImageCodexOverrides,
   formatImageBytes,
   imageAccountSelection,
+  imageRouteEntries,
+  UI_DEFAULT_CODEX_CARRIER_MODEL,
+  UI_DEFAULT_CODEX_IMAGE_MODEL,
 } from '../ImagesSection';
 import {
   effectiveKeyPermissions,
@@ -60,5 +64,41 @@ describe('Images account and resource display helpers', () => {
     expect(formatImageBytes(512)).toBe('512 B');
     expect(formatImageBytes(1536)).toBe('1.5 KiB');
     expect(formatImageBytes(2.5 * 1024 * 1024)).toBe('2.5 MiB');
+  });
+});
+
+describe('Images routing-table and Codex override helpers', () => {
+  const ROUTED: ImagesServerConfig = {
+    ...BASE_CONFIG,
+    defaultModel: 'gpt-image-2',
+    models: {
+      'gpt-image-2': 'codex-subscription',
+      'gpt-image-2-5': 'codex-subscription',
+      'gemini-3-pro-image-preview': 'antigravity-subscription',
+    },
+    codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
+  } as ImagesServerConfig;
+
+  it('orders route entries default-first then alphabetical', () => {
+    expect(imageRouteEntries(ROUTED).map((entry) => entry.model)).toEqual([
+      'gpt-image-2',
+      'gemini-3-pro-image-preview',
+      'gpt-image-2-5',
+    ]);
+    expect(imageRouteEntries(ROUTED)[1].provider).toBe('antigravity-subscription');
+  });
+
+  it('restores the pinned wire defaults when overrides are blanked', () => {
+    const overridden = applyImageCodexOverrides(ROUTED, {
+      imageModel: 'gpt-image-2-5',
+      carrierModel: 'gpt-6-orion',
+    });
+    expect(overridden.codex).toEqual({ imageModel: 'gpt-image-2-5', carrierModel: 'gpt-6-orion' });
+    expect(applyImageCodexOverrides(overridden, { imageModel: '  ' }).codex.imageModel)
+      .toBe(UI_DEFAULT_CODEX_IMAGE_MODEL);
+    expect(applyImageCodexOverrides(overridden, { carrierModel: '' }).codex.carrierModel)
+      .toBe(UI_DEFAULT_CODEX_CARRIER_MODEL);
+    // Untouched segments ride along.
+    expect(overridden.models).toBe(ROUTED.models);
   });
 });

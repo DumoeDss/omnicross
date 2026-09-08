@@ -657,6 +657,17 @@
         "strict": "Seleção estrita",
         "poolFallback": "Permitir contingência pelo conjunto"
       },
+      "defaultModel": "Modelo de imagem padr\u00e3o",
+      "routes": {
+        "title": "Roteamento de modelos",
+        "defaultBadge": "padr\u00e3o"
+      },
+      "codex": {
+        "title": "Substitui\u00e7\u00f5es do Codex",
+        "imageModel": "Modelo de imagem",
+        "carrierModel": "Modelo portador",
+        "hint": "Campos limpos voltam aos padr\u00f5es fixados (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matriz de recursos verificados",
         "generate": "Gerar",

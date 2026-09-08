@@ -224,6 +224,7 @@ export async function createImageContractHarness(options: {
           providerId: 'fake-images',
           defaultModel: 'gpt-image-1',
           modelAliases: new Map([['latest-image', 'gpt-image-1']]),
+          modelRoutes: new Map([['gpt-image-1', 'fake-images']]),
           limits: resolvedLimits,
           preferredAccountGroup: 'runtime-configured-group',
           boundAccountFallbackPolicy: 'pool',

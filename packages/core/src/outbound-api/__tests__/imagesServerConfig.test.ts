@@ -48,7 +48,11 @@ describe('Images server config normalization', () => {
       evidenceTtlMs: 0,
     });
     expect(normalized.enabled).toBe(false);
-    expect(normalized.provider).toBe('codex-subscription');
+    // An unrecognized legacy provider falls to the pinned default routing table.
+    expect(normalized.models).toEqual(DEFAULT_IMAGES_SERVER_CONFIG.models);
+    expect(normalized.models['gpt-image-2']).toBe('codex-subscription');
+    expect(normalized.models['gemini-3-pro-image-preview']).toBe('antigravity-subscription');
+    expect(normalized.codex).toEqual({ imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' });
     expect(normalized.account).toEqual({ id: 'account', fallback: 'strict' });
     expect(normalized.queue.maxQueuedJobs).toBe(DEFAULT_IMAGES_SERVER_CONFIG.queue.maxQueuedJobs);
     expect(normalized.queue.generationTimeoutMs)
@@ -98,16 +102,28 @@ describe('strict Images server config validation', () => {
   it('rejects unknown fields/providers, ambiguous accounts, aliases, and unsafe ranges', () => {
     const unknown = validImagesConfig();
     unknown['surprise'] = true;
-    unknown['provider'] = 'other';
+    unknown['provider'] = 'codex-subscription';
     expect(validateImagesServerConfig(unknown).join('\n')).toMatch(/surprise|provider/);
+
+    const badRoute = validImagesConfig();
+    (badRoute['models'] as Record<string, unknown>)['mystery-model'] = 'not-a-provider';
+    expect(validateImagesServerConfig(badRoute).join('\n')).toMatch(/must target one of/);
+
+    const badDefault = validImagesConfig();
+    badDefault['defaultModel'] = 'unrouted-model';
+    expect(validateImagesServerConfig(badDefault).join('\n')).toMatch(/key of images.models/);
+
+    const badCodex = validImagesConfig();
+    (badCodex['codex'] as Record<string, unknown>)['imageModel'] = 7;
+    expect(validateImagesServerConfig(badCodex).join('\n')).toMatch(/codex.imageModel/);
 
     const ambiguous = validImagesConfig();
     ambiguous['account'] = { id: 'one', group: 'two', fallback: 'random' };
     expect(validateImagesServerConfig(ambiguous).join('\n')).toMatch(/not both|fallback/);
 
     const alias = validImagesConfig();
-    alias['modelAliases'] = { image: 'some-other-model' };
-    expect(validateImagesServerConfig(alias).join('\n')).toMatch(/must target/);
+    alias['aliases'] = { image: 'unrouted-model' };
+    expect(validateImagesServerConfig(alias).join('\n')).toMatch(/must target a key of images.models/);
 
     const range = validImagesConfig();
     (range['queue'] as Record<string, unknown>)['maxQueuedJobs'] = 1.5;

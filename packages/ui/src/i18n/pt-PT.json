@@ -657,6 +657,17 @@
         "strict": "Seleção estrita",
         "poolFallback": "Permitir recurso ao conjunto"
       },
+      "defaultModel": "Modelo de imagem predefinido",
+      "routes": {
+        "title": "Encaminhamento de modelos",
+        "defaultBadge": "predefinido"
+      },
+      "codex": {
+        "title": "Substitui\u00e7\u00f5es do Codex",
+        "imageModel": "Modelo de imagem",
+        "carrierModel": "Modelo portador",
+        "hint": "Campos limpos regressam \u00e0s predefini\u00e7\u00f5es fixadas (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matriz de funcionalidades verificadas",
         "generate": "Gerar",

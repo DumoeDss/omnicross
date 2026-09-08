@@ -657,6 +657,17 @@
         "strict": "Lựa chọn nghiêm ngặt",
         "poolFallback": "Cho phép dự phòng từ nhóm"
       },
+      "defaultModel": "M\u00f4 h\u00ecnh \u1ea3nh m\u1eb7c \u0111\u1ecbnh",
+      "routes": {
+        "title": "\u0110\u1ecbnh tuy\u1ebfn m\u00f4 h\u00ecnh",
+        "defaultBadge": "m\u1eb7c \u0111\u1ecbnh"
+      },
+      "codex": {
+        "title": "Ghi \u0111\u00e8 Codex",
+        "imageModel": "M\u00f4 h\u00ecnh \u1ea3nh",
+        "carrierModel": "M\u00f4 h\u00ecnh mang",
+        "hint": "Tr\u01b0\u1eddng b\u1ecb x\u00f3a s\u1ebd tr\u1edf v\u1ec1 m\u1eb7c \u0111\u1ecbnh \u0111\u01b0\u1ee3c ghim (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Ma trận tính năng đã xác minh",
         "generate": "Tạo",

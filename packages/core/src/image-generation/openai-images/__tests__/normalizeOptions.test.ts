@@ -9,6 +9,7 @@ const runtime: ImageApiRuntime = {
   providerId: 'fake',
   defaultModel: 'gpt-image-2',
   modelAliases: new Map([['image-latest', 'gpt-image-2']]),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
   limits: DEFAULT_IMAGE_API_LIMITS,
   fingerprintUser: () => 'hmac:user-safe',
 };

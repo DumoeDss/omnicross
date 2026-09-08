@@ -657,6 +657,17 @@
         "strict": "Strikte Auswahl",
         "poolFallback": "Fallback auf Kontopool erlauben"
       },
+      "defaultModel": "Standard-Bildmodell",
+      "routes": {
+        "title": "Modell-Routing",
+        "defaultBadge": "Standard"
+      },
+      "codex": {
+        "title": "Codex-\u00dcbersteuerungen",
+        "imageModel": "Bildmodell",
+        "carrierModel": "Tr\u00e4germodell",
+        "hint": "Geleerte Felder fallen auf die festgelegten Standardwerte zur\u00fcck (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Verifizierte Funktionsmatrix",
         "generate": "Erzeugen",

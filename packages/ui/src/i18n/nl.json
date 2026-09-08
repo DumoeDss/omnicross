@@ -657,6 +657,17 @@
         "strict": "Strikte selectie",
         "poolFallback": "Terugval naar pool toestaan"
       },
+      "defaultModel": "Standaard afbeeldingsmodel",
+      "routes": {
+        "title": "Modelroutering",
+        "defaultBadge": "standaard"
+      },
+      "codex": {
+        "title": "Codex-overrides",
+        "imageModel": "Afbeeldingsmodel",
+        "carrierModel": "Dragermodel",
+        "hint": "Geleegde velden vallen terug op de vastgepinde standaardwaarden (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Geverifieerde functiematrix",
         "generate": "Genereren",

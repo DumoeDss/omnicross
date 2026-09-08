@@ -9,6 +9,8 @@ import type {
 import type { ImageOrchestrator, ImageRetentionPolicy } from '../ImageOrchestrator';
 import type { ImageAsset, ImageReferenceStore } from '../ports';
 
+import { ImageGenerationError } from '../errors';
+
 import type { ImageRequestResourceScope } from './TemporaryImageAsset';
 
 export interface ImageApiLimits {
@@ -102,9 +104,12 @@ export interface RemoteImageAssetResolver {
 
 export interface ImageApiRuntime {
   readonly tenantId: string;
+  /** The DEFAULT model's provider (status/validation); per-request dispatch resolves via `modelRoutes`. */
   readonly providerId: string;
   readonly defaultModel: string;
   readonly modelAliases: ReadonlyMap<string, string>;
+  /** Model→provider routing (multi-provider-image-generation D1); models absent here are `unsupported_model`. */
+  readonly modelRoutes: ReadonlyMap<string, string>;
   readonly limits: ImageApiLimits;
   readonly preferredAccountId?: string;
   readonly preferredAccountGroup?: string;
@@ -113,6 +118,18 @@ export interface ImageApiRuntime {
   readonly remoteResolver?: RemoteImageAssetResolver;
   readonly fingerprintUser?: (value: string) => string;
   readonly retention?: ImageRetentionPolicy;
+}
+
+/** Resolve the per-request provider from the routing table (D1): the model the
+ *  request actually targets (post alias/default normalization) picks the
+ *  provider; a model absent from the table is rejected before any lease. */
+export function resolveImageRequestProvider(
+  runtime: Pick<ImageApiRuntime, 'modelRoutes' | 'providerId'>,
+  model: string,
+): string {
+  const providerId = runtime.modelRoutes.get(model);
+  if (!providerId) throw new ImageGenerationError('unsupported_model', { param: 'model' });
+  return providerId;
 }
 
 export type ImageApiRuntimeResolver = (

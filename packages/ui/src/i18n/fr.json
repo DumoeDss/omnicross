@@ -657,6 +657,17 @@
         "strict": "Sélection stricte",
         "poolFallback": "Autoriser le repli sur le groupe"
       },
+      "defaultModel": "Mod\u00e8le d'image par d\u00e9faut",
+      "routes": {
+        "title": "Routage des mod\u00e8les",
+        "defaultBadge": "par d\u00e9faut"
+      },
+      "codex": {
+        "title": "Substitutions Codex",
+        "imageModel": "Mod\u00e8le d'image",
+        "carrierModel": "Mod\u00e8le porteur",
+        "hint": "Les champs vid\u00e9s reviennent aux valeurs par d\u00e9faut \u00e9pingl\u00e9es (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Matrice des fonctionnalités vérifiées",
         "generate": "Générer",

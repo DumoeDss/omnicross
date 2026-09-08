@@ -61,10 +61,11 @@ export function createTrustedImageApiRuntimeResolver(
   }
 
   const hmacKey = Buffer.from(options.hmacKey);
-  const modelAliases = new Map(Object.entries(options.config.modelAliases));
+  const modelAliases = new Map(Object.entries(options.config.aliases));
+  const modelRoutes = new Map(Object.entries(options.config.models));
   const limits = Object.freeze({ ...options.config.limits });
-  const providerId = options.config.provider;
   const defaultModel = options.config.defaultModel;
+  const providerId = modelRoutes.get(defaultModel) ?? 'codex-subscription';
   const referenceStore = options.referenceStore;
   const retention = Object.freeze({
     enabled: true as const,
@@ -94,6 +95,7 @@ export function createTrustedImageApiRuntimeResolver(
         providerId,
         defaultModel,
         modelAliases,
+        modelRoutes,
         limits,
         ...(preferredAccountId ? { preferredAccountId } : {}),
         ...(preferredAccountGroup ? { preferredAccountGroup } : {}),

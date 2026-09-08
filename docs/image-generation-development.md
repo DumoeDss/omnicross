@@ -16,7 +16,7 @@ Omnicross 对外提供三种图片入口，但它们最终复用同一个图片�
 
 当前生产适配器的保守能力上限如下：
 
-- 模型固定为 `gpt-image-2`。
+- 模型由 `images.models` 路由表决定（默认表：`gpt-image-2`、`gpt-image-2-5` → Codex 订阅；五个 gemini image 模型 → Antigravity 订阅）。
 - 单次最多输出一张图片。
 - 编辑最多接受一张参考图。
 - 参考图支持 PNG、JPEG 和 WebP，单文件最大 50 MiB。
@@ -106,8 +106,8 @@ Codex 持久集成创建或绑定的 key 会同时具备 `responses` 和 `images
 文生图由 `buildCandidateCodexImageRequest()` 构造一个 Codex Responses 请求：
 
 - 上游地址：`https://chatgpt.com/backend-api/codex/responses`
-- carrier model：`gpt-5.6-luna`
-- 图片工具模型：`gpt-image-2`
+- carrier model：`gpt-5.6-luna`（可由 `images.codex.carrierModel` 覆盖）
+- 图片工具模型：`gpt-image-2`（可由 `images.codex.imageModel` 覆盖，`gpt-image-2-5` 上线只需配置变更）
 - `tools` 中声明 `type: "image_generation"`
 - `tool_choice` 强制选择图片工具
 - 上游使用 SSE，Omnicross 收集最终 `image_generation_call.result`
@@ -247,8 +247,11 @@ Codex 自定义 provider 中的 `X-OpenAI-Actor-Authorization` 只用于满足�
 
 ## 10. 配置模型
 
-图片服务默认关闭，默认 provider 为 `codex-subscription`，默认模型为 `gpt-image-2`。完整配置由 [`imagesServerConfig.ts`](../packages/core/src/outbound-api/imagesServerConfig.ts) 定义并验证，主要分段包括：
+图片服务默认关闭。模型→provider 由 `models` 路由表决定（默认表钉 `gpt-image-2`、`gpt-image-2-5` → `codex-subscription`，`gemini-2.5/3.1-flash-image(-preview)` 与 `gemini-3-pro-image-preview` → `antigravity-subscription`），`defaultModel` 兜底、`aliases` 别名归一，`codex.imageModel`/`codex.carrierModel` 覆盖 Codex 私有线路模型（默认钉现常量）。旧配置的 `provider`/`modelAliases` 在读取时容忍迁移为等价路由表，不重写用户文件；管理 API 写入执行严格校验（路由目标必须是注册 provider，`defaultModel`/别名目标必须在表内）。
 
+完整配置由 [`imagesServerConfig.ts`](../packages/core/src/outbound-api/imagesServerConfig.ts) 定义并验证，主要分段包括：
+
+- `models`/`defaultModel`/`aliases`/`codex`：路由与 Codex 线路覆盖；
 - `account`：账号、分组和 strict/pool 回退；
 - `queue`：并发、等待数量和超时；
 - `temporary`：请求级临时资源预算；
@@ -317,3 +320,25 @@ npm run typecheck -w @omnicross/daemon
 - Codex 内置工具的 generate/edit 两条端点；
 - CLI 回退脚本通过 `OPENAI_BASE_URL` 访问 Images API；
 - 请求/响应正文和账号标识不会出现在 trace、audit 或错误中。
+
+## 14. 多 provider 运行时（multi-provider-image-generation）
+
+### 14.1 装配与按模型路由
+
+`ImageRuntimeGenerationFactory` 按路由表涉及的 provider 集合逐个装配（各自的 authStrategy、evidence source、scheduler 身份按 `provider:account` 隔离）；请求模型先经 `defaultModel`/`aliases` 归一再查表，表外模型在编排前返回 `unsupported_model`，不做跨 provider 重路由。某 provider 没有登录账号只影响路由到它的模型，不拖垮其它 provider。
+
+### 14.2 Antigravity 图像 wire
+
+`packages/subscriptions/src/image-generation/AntigravitySubscriptionImageProvider.ts` 走 antigravity 身份（同账号 project 握手、401 刷新重试一次），自构非流式 CCA `generateContent`（`responseModalities: ['TEXT','IMAGE']`，`size` 精确约分为 aspectRatio，无精确比例则省略 imageConfig），不走 transformer 链。能力声明 PNG-only、单参考图、无 mask/多图；非 PNG 实际格式按 `upstream_protocol_changed` 暴露。证据默认 `Unknown…` source（entitlement-unknown + protocol-unverified → bootstrap-eligible，同 Codex 先例）。
+
+### 14.3 会话内嵌图 v1
+
+共享 gemini 解析器（`gemini.stream.ts`）保留 `inlineData`：非流式 `message.images`、流式 `delta.images`（data URL 数组，一 chunk 多图合并）；纯文本流量输出字节等价。请求侧 `buildRequestBody` 对 gemini 系 `-image` 模型注入 `responseModalities: ['TEXT','IMAGE']`（未显式携带时）。OpenAI Chat 面透出 images；Anthropic Messages 面诚实丢弃并记有界计数（`anthropicImageDrop.ts`）；Responses 面 `image_generation_call` 输出映射为后续工作。
+
+### 14.4 观测与 doctor
+
+`GET /v1/models` 的图像模型 = 路由键 × 各自 provider 的新鲜能力证据交集（`inspectCapability.routedModels`）：一个 provider 证据失效只从列表里去掉它的模型，不会让整个列表失败。`omnicross doctor images` 的账号检查按 provider 分行（Codex / Antigravity），未路由的 provider 仅提示；live 验证仍只覆盖 Codex 线路，Antigravity 侧无独立 verifier（首次真实请求即 bootstrap）。
+
+### 14.5 验证边界
+
+Antigravity 图像 provider 只有离线证据与单元测试覆盖（信封快照对照 antigravity change 冻结形态、size→aspectRatio 矩阵、错误分类、账号绑定）。在真实订阅上完成实机验证（三模型真实出图、会话内嵌图客户端实测）之前，不宣称线上可用。

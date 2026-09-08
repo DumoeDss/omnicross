@@ -44,6 +44,31 @@ interface GeminiResponsePart {
     name?: string;
     args?: Record<string, unknown>;
   };
+  // Image output (chat-inline-images): image models return generated images as
+  // inlineData parts. The REST surface reports camelCase `mimeType`; some
+  // relays emit snake_case — accept both (mirrors the antigravity image wire).
+  inlineData?: {
+    mimeType?: string;
+    mime_type?: string;
+    data?: string;
+  };
+  inline_data?: {
+    mimeType?: string;
+    mime_type?: string;
+    data?: string;
+  };
+}
+
+/**
+ * Convert an inlineData part to a `data:<mime>;base64,<data>` URL, or `null`
+ * when the part carries no usable payload. Shared by the JSON and SSE paths.
+ */
+function inlineDataToDataUrl(part: GeminiResponsePart): string | null {
+  const inline = part.inlineData ?? part.inline_data;
+  const data = inline?.data;
+  if (typeof data !== 'string' || !data) return null;
+  const mime = inline?.mimeType ?? inline?.mime_type ?? 'image/png';
+  return `data:${mime};base64,${data}`;
 }
 
 interface GeminiUsageMetadata {
@@ -72,6 +97,7 @@ interface OpenAIResponse {
     message: {
       content: string;
       role: string;
+      images?: string[];
       tool_calls?: Array<{
         id: string;
         type: string;
@@ -174,6 +200,13 @@ async function handleJsonResponse(
     .map((part) => part.text)
     .join('\n');
 
+  // Extract images (chat-inline-images): inlineData parts become data URLs on
+  // the OpenAI-compatible message; pure-text traffic emits NO images field
+  // (byte-identical to the pre-images output).
+  const images = nonThinkingParts
+    .map((part) => inlineDataToDataUrl(part))
+    .filter((url): url is string => url !== null);
+
   const openAIResponse: OpenAIResponse = {
     id: jsonResponse.responseId ?? '',
     choices: [
@@ -184,6 +217,7 @@ async function handleJsonResponse(
         message: {
           content: textContent,
           role: 'assistant',
+          images: images.length > 0 ? images : undefined,
           tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
           ...(thinkingSignature && {
             thinking: {
@@ -388,6 +422,13 @@ function handleStreamResponse(
             }
           }
 
+          // Extract images (chat-inline-images): ALL inlineData parts of THIS
+          // chunk merge into ONE delta carrying the full array; chunks without
+          // images emit nothing (byte-identical to the pre-images stream).
+          const images = parts
+            .map((part) => inlineDataToDataUrl(part))
+            .filter((url): url is string => url !== null);
+
           // Send text content (skip when the text was buffered for post-signature flush)
           if (textContent && !textBuffered) {
             if (!pendingContent) contentIndex++;
@@ -402,6 +443,23 @@ function handleStreamResponse(
               groundingMetadata: candidate.groundingMetadata,
             });
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(contentChunk)}\n\n`));
+            contentSent = true;
+          }
+
+          // Send images after the text of the same chunk. finishReason /
+          // usageMetadata attach exactly like the text chunk (an image chunk is
+          // often the FINAL chunk — without this the terminal metadata is lost).
+          if (images.length > 0) {
+            const imageChunk = createChunk({
+              responseId: chunk.responseId,
+              modelVersion: chunk.modelVersion,
+              contentIndex,
+              delta: { role: 'assistant', images },
+              finishReason: candidate.finishReason,
+              usageMetadata: chunk.usageMetadata,
+              groundingMetadata: candidate.groundingMetadata,
+            });
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(imageChunk)}\n\n`));
             contentSent = true;
           }
 

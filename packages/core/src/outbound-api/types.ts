@@ -89,11 +89,47 @@ export interface SearchServerConfig {
   };
 }
 
+/** Registered image providers (the routing table's legal target values). */
+export type ImageProviderId = 'codex-subscription' | 'antigravity-subscription';
+
+export const IMAGE_PROVIDER_IDS: readonly ImageProviderId[] = [
+  'codex-subscription',
+  'antigravity-subscription',
+];
+
+/**
+ * The pinned default model→provider routing table (multi-provider-image-
+ * generation D1). Codex keeps both live image models; the canonical antigravity
+ * NanoBanana models ride the antigravity identity (gemini-cli is out of scope
+ * for images by the 2026-09-08 decision). The table lists ROUTED models only —
+ * effective availability is still the per-provider capability intersection.
+ */
+export const DEFAULT_IMAGE_MODEL_ROUTES: Readonly<Record<string, ImageProviderId>> = Object.freeze({
+  'gpt-image-2': 'codex-subscription',
+  'gpt-image-2-5': 'codex-subscription',
+  'gemini-2.5-flash-image': 'antigravity-subscription',
+  'gemini-2.5-flash-image-preview': 'antigravity-subscription',
+  'gemini-3.1-flash-image': 'antigravity-subscription',
+  'gemini-3.1-flash-image-preview': 'antigravity-subscription',
+  'gemini-3-pro-image-preview': 'antigravity-subscription',
+});
+
+export interface ImagesCodexAdapterConfig {
+  /** The image tool's model id on the Codex private wire (default `gpt-image-2`). */
+  imageModel: string;
+  /** The Responses carrier model wrapping the image tool (default `gpt-5.6-luna`). */
+  carrierModel: string;
+}
+
 export interface ImagesServerConfig {
   enabled: boolean;
-  provider: 'codex-subscription';
+  /** Model→provider routing. Legal targets are exactly `IMAGE_PROVIDER_IDS`. */
+  models: Record<string, ImageProviderId>;
   defaultModel: string;
-  modelAliases: Record<string, string>;
+  /** Display aliases → routed model ids (targets must exist in `models`). */
+  aliases: Record<string, string>;
+  /** Codex private-wire adapter parameters (defaults pinned to the wire constants). */
+  codex: ImagesCodexAdapterConfig;
   account: {
     id?: string;
     group?: string;

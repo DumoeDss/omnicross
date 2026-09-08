@@ -422,11 +422,21 @@ export interface ImageApiLimits {
   remoteTotalTimeoutMs: number;
 }
 
+/**
+ * Registered image providers (mirror of core's `ImageProviderId`; the UI
+ * package cannot import workspace packages — keep in sync).
+ */
+export type ImageProviderId = 'codex-subscription' | 'antigravity-subscription';
+
 export interface ImagesServerConfig {
   enabled: boolean;
-  provider: 'codex-subscription';
+  /** Model→provider routing table (targets are registered image providers). */
+  models: Record<string, ImageProviderId>;
   defaultModel: string;
-  modelAliases: Record<string, string>;
+  /** Display aliases → routed model ids (targets must exist in `models`). */
+  aliases: Record<string, string>;
+  /** Codex private-wire adapter parameters (defaults pinned to the wire constants). */
+  codex: { imageModel: string; carrierModel: string };
   account: { id?: string; group?: string; fallback: 'strict' | 'pool' };
   queue: {
     maxConcurrentJobsPerAccount: number;

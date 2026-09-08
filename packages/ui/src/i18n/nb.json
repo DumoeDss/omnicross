@@ -657,6 +657,17 @@
         "strict": "Strengt valg",
         "poolFallback": "Tillat reservevalg fra puljen"
       },
+      "defaultModel": "Standard bildemodell",
+      "routes": {
+        "title": "Modellruting",
+        "defaultBadge": "standard"
+      },
+      "codex": {
+        "title": "Codex-overstyringer",
+        "imageModel": "Bildemodell",
+        "carrierModel": "B\u00e6rermodell",
+        "hint": "T\u00f8mte felter faller tilbake til de faste standardverdiene (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Verifisert funksjonsmatrise",
         "generate": "Generer",

@@ -657,6 +657,17 @@
         "strict": "Ścisły wybór",
         "poolFallback": "Zezwól na wybór zapasowy z puli"
       },
+      "defaultModel": "Domy\u015blny model obrazu",
+      "routes": {
+        "title": "Routing modeli",
+        "defaultBadge": "domy\u015blny"
+      },
+      "codex": {
+        "title": "Nadpisania Codex",
+        "imageModel": "Model obrazu",
+        "carrierModel": "Model no\u015bny",
+        "hint": "Wyczyszczone pola wracaj\u0105 do przypi\u0119tych warto\u015bci domy\u015blnych (gpt-image-2 / gpt-5.6-luna)."
+      },
       "features": {
         "title": "Zweryfikowana macierz funkcji",
         "generate": "Generowanie",

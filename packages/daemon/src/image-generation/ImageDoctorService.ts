@@ -1,4 +1,5 @@
 import type { ImageGenerationErrorCode } from '@omnicross/contracts/image-generation-types';
+import type { ImageProviderId } from '@omnicross/core/outbound-api';
 import {
   normalizeImageGenerationError,
 } from '@omnicross/core/image-generation';
@@ -36,10 +37,12 @@ const ROOT_AREAS: readonly DaemonImagePathArea[] = Object.freeze([
 export interface ImageDoctorLocalSnapshot {
   readonly config: Readonly<{
     enabled: boolean;
-    provider: 'codex-subscription';
+    provider: ImageProviderId;
     model: string;
     valid: boolean;
     errorCount: number;
+    /** Distinct providers the routing table names (doctor per-provider rows). */
+    routedProviders: readonly ImageProviderId[];
   }>;
   readonly roots: Readonly<{
     valid: boolean;
@@ -63,7 +66,14 @@ export interface ImageDoctorLocalSnapshot {
     invalidRows: number;
     imagesAuthorizedRows: number;
   }>;
+  /** The Codex-subscription account backing codex-routed image models. */
   readonly account: Readonly<{
+    present: boolean;
+    usable: boolean;
+    reason: 'ready' | 'missing' | 'unavailable';
+  }>;
+  /** The Antigravity-subscription account backing NanoBanana image models. */
+  readonly antigravityAccount: Readonly<{
     present: boolean;
     usable: boolean;
     reason: 'ready' | 'missing' | 'unavailable';
@@ -137,15 +147,15 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
       generationTimeoutMs: config.queue.generationTimeoutMs,
     }));
 
-  const readAccount = async () => {
-    const codex = (await options.subscriptionAccounts.listAll())
-      .find((entry) => entry.providerId === 'codex');
+  const readAccount = async (providerId: 'codex' | 'antigravity') => {
+    const entry = (await options.subscriptionAccounts.listAll())
+      .find((candidate) => candidate.providerId === providerId);
     return Object.freeze({
-      present: codex !== undefined,
-      usable: codex?.credentialStatus.ok === true,
-      reason: codex === undefined
+      present: entry !== undefined,
+      usable: entry?.credentialStatus.ok === true,
+      reason: entry === undefined
         ? 'missing' as const
-        : codex.credentialStatus.ok
+        : entry.credentialStatus.ok
           ? 'ready' as const
           : 'unavailable' as const,
     });
@@ -190,6 +200,7 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
         storesValid = false;
       }
 
+      const antigravityAccount = await readAccount('antigravity');
       const rows = await options.keyDb.outboundApiKeysList();
       let legacyRows = 0;
       let invalidRows = 0;
@@ -207,7 +218,7 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
         }
       }
 
-      const account = await readAccount();
+      const account = await readAccount('codex');
       let evidence: FileCodexImageCapabilityEvidenceStatus & { valid: boolean };
       let evidenceStore: ImageDoctorEvidenceStore | undefined;
       try {
@@ -222,10 +233,11 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
       return Object.freeze({
         config: Object.freeze({
           enabled: config.enabled,
-          provider: config.provider,
+          provider: config.models[config.defaultModel] ?? 'codex-subscription',
           model: config.defaultModel,
           valid: configErrors.length === 0,
           errorCount: configErrors.length,
+          routedProviders: Object.freeze([...new Set(Object.values(config.models))]),
         }),
         roots: Object.freeze({
           valid: verifiedAreas === ROOT_AREAS.length,
@@ -250,6 +262,7 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
           imagesAuthorizedRows,
         }),
         account,
+        antigravityAccount,
         evidence: Object.freeze(evidence),
       });
     },
@@ -259,7 +272,7 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
       signal: AbortSignal,
     ): Promise<ImageDoctorLiveResult> => {
       if (!config.enabled) return Object.freeze({ ok: false, code: 'images_disabled' });
-      const account = await readAccount();
+      const account = await readAccount('codex');
       if (!account.usable) {
         return Object.freeze({ ok: false, code: 'codex_account_unavailable' });
       }

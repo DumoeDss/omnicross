@@ -33,9 +33,10 @@ const CONFIG: OutboundApiServerConfig = {
 
 const IMAGES: NonNullable<OutboundApiServerConfig['images']> = {
   enabled: false,
-  provider: 'codex-subscription',
+  models: { 'gpt-image-2': 'codex-subscription' },
   defaultModel: 'gpt-image-2',
-  modelAliases: {},
+  aliases: {},
+  codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
   account: { fallback: 'strict' },
   queue: {
     maxConcurrentJobsPerAccount: 1,

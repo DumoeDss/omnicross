@@ -408,6 +408,7 @@ describe('outbound Images own-body dispatch', () => {
       providerId: 'codex-subscription',
       defaultModel: 'gpt-image-2',
       modelAliases: new Map(),
+      modelRoutes: new Map([['gpt-image-2', 'codex-subscription']]),
       limits: DEFAULT_IMAGE_API_LIMITS,
     };
     const contributions = createImageApiContributions({
