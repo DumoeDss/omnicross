@@ -1159,6 +1159,28 @@
     "failedHint": "Pastikan Node.js dipasang dan daemon telah dibina (dist ada), atau tetapkan OMNICROSS_DAEMON_ENTRY ke cli.js daemon."
   },
   "settings": {
+    "about": {
+      "tagline": "Teras perkhidmatan LLM sejagat — hala, ubah dan proksikan penyedia apa pun di sebalik satu set API.",
+      "version": "Versi",
+      "versionUnavailable": "tidak diketahui",
+      "links": {
+        "title": "Pautan dan sumber",
+        "description": "Projek ini dibangunkan sebagai sumber terbuka di GitHub.",
+        "repository": "Repositori GitHub",
+        "repositoryHint": "Lihat kod sumber dan dokumentasi.",
+        "releases": "Terbitan",
+        "releasesHint": "Muat turun pemasang terkini dan baca log perubahan.",
+        "issues": "Laporkan isu",
+        "issuesHint": "Laporan pepijat dan permintaan ciri.",
+        "open": "Buka"
+      },
+      "project": {
+        "title": "Projek"
+      },
+      "license": "Lesen",
+      "licenseHint": "Omnicross ialah perisian sumber terbuka bebas yang dikeluarkan di bawah Lesen MIT.",
+      "author": "Pembangun"
+    },
     "title": "Tetapan",
     "description": "Pilihan aplikasi desktop.",
     "desktopOnly": "Pilihan permulaan dan tray hanya terpakai dalam aplikasi desktop.",

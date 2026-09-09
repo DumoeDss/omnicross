@@ -1159,6 +1159,28 @@
     "failedHint": "Certifique-se de que o Node.js está instalado e o daemon está compilado (dist presente), ou defina OMNICROSS_DAEMON_ENTRY para o cli.js do daemon."
   },
   "settings": {
+    "about": {
+      "tagline": "Um núcleo de serviço LLM universal — encaminha, transforma e faz proxy de qualquer fornecedor através de um único conjunto de APIs.",
+      "version": "Versão",
+      "versionUnavailable": "desconhecida",
+      "links": {
+        "title": "Ligações e recursos",
+        "description": "O projeto é desenvolvido em código aberto no GitHub.",
+        "repository": "Repositório GitHub",
+        "repositoryHint": "Consulte o código-fonte e a documentação.",
+        "releases": "Lançamentos",
+        "releasesHint": "Descarregue os instaladores mais recentes e consulte o registo de alterações.",
+        "issues": "Comunicar um problema",
+        "issuesHint": "Relatórios de erros e pedidos de funcionalidades.",
+        "open": "Abrir"
+      },
+      "project": {
+        "title": "Projeto"
+      },
+      "license": "Licença",
+      "licenseHint": "O Omnicross é software livre e de código aberto distribuído ao abrigo da licença MIT.",
+      "author": "Autor"
+    },
     "title": "Definições",
     "description": "Preferências da aplicação de ambiente de trabalho.",
     "desktopOnly": "As opções de arranque e tabuleiro do sistema aplicam-se apenas na aplicação de ambiente de trabalho.",

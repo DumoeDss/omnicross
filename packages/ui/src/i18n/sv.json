@@ -1159,6 +1159,28 @@
     "failedHint": "Kontrollera att Node.js är installerat och att daemonen är byggd (dist finns), eller ange OMNICROSS_DAEMON_ENTRY till daemonens cli.js."
   },
   "settings": {
+    "about": {
+      "tagline": "En universell LLM-servingkärna — routa, transformera och proxifiera vilken leverantör som helst bakom en enda uppsättning API:er.",
+      "version": "Version",
+      "versionUnavailable": "okänd",
+      "links": {
+        "title": "Länkar och resurser",
+        "description": "Projektet utvecklas som öppen källkod på GitHub.",
+        "repository": "GitHub-arkiv",
+        "repositoryHint": "Se källkoden och dokumentationen.",
+        "releases": "Utgåvor",
+        "releasesHint": "Hämta de senaste installationsprogrammen och läs ändringsloggen.",
+        "issues": "Rapportera ett problem",
+        "issuesHint": "Felrapporter och funktionsönskemål.",
+        "open": "Öppna"
+      },
+      "project": {
+        "title": "Projekt"
+      },
+      "license": "Licens",
+      "licenseHint": "Omnicross är fri programvara med öppen källkod, utgiven under MIT-licensen.",
+      "author": "Utvecklare"
+    },
     "title": "Inställningar",
     "description": "Skrivbordsprogramsinställningar.",
     "desktopOnly": "Start- och fältikonsalternativ gäller bara i skrivbordsappen.",

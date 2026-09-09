@@ -1159,6 +1159,28 @@
     "failedHint": "Zorg ervoor dat Node.js is geïnstalleerd en de daemon is gebouwd (dist aanwezig), of stel OMNICROSS_DAEMON_ENTRY in op de cli.js van de daemon."
   },
   "settings": {
+    "about": {
+      "tagline": "Een universele LLM-servingkern — routeer, transformeer en proxy elke provider achter één set API's.",
+      "version": "Versie",
+      "versionUnavailable": "onbekend",
+      "links": {
+        "title": "Links en bronnen",
+        "description": "Het project wordt open source ontwikkeld op GitHub.",
+        "repository": "GitHub-repository",
+        "repositoryHint": "Bekijk de broncode en documentatie.",
+        "releases": "Releases",
+        "releasesHint": "Download de nieuwste installateurs en bekijk het wijzigingslog.",
+        "issues": "Meld een probleem",
+        "issuesHint": "Foutrapportages en functieverzoeken.",
+        "open": "Openen"
+      },
+      "project": {
+        "title": "Project"
+      },
+      "license": "Licentie",
+      "licenseHint": "Omnicross is vrije open-sourcesoftware, uitgebracht onder de MIT-licentie.",
+      "author": "Auteur"
+    },
     "title": "Instellingen",
     "description": "Voorkeuren voor desktopapplicatie.",
     "desktopOnly": "Opstartopties en systeemvakopties zijn alleen van toepassing in de desktopapplicatie.",

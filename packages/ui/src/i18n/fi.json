@@ -1159,6 +1159,28 @@
     "failedHint": "Varmista, että Node.js on asennettu ja demoni on rakennettu (dist-hakemisto on olemassa), tai aseta OMNICROSS_DAEMON_ENTRY demonin cli.js-tiedostoon."
   },
   "settings": {
+    "about": {
+      "tagline": "Universaali LLM-palveluydin — reititä, muunna ja välitä mikä tahansa palveluntarjoaja yhden API-rajapintajoukon taakse.",
+      "version": "Versio",
+      "versionUnavailable": "tuntematon",
+      "links": {
+        "title": "Linkit ja resurssit",
+        "description": "Projektia kehitetään avoimena lähdekoodina GitHubissa.",
+        "repository": "GitHub-repositorio",
+        "repositoryHint": "Selaa lähdekoodia ja dokumentaatiota.",
+        "releases": "Julkaisut",
+        "releasesHint": "Lataa uusimmat asennustiedostot ja lue muutosloki.",
+        "issues": "Ilmoita ongelmasta",
+        "issuesHint": "Virheraportit ja toimintopyynnöt.",
+        "open": "Avaa"
+      },
+      "project": {
+        "title": "Projekti"
+      },
+      "license": "Lisenssi",
+      "licenseHint": "Omnicross on vapaa avoimen lähdekoodin ohjelmisto, joka julkaistaan MIT-lisenssillä.",
+      "author": "Tekijä"
+    },
     "title": "Asetukset",
     "description": "Työpöytäsovelluksen asetukset.",
     "desktopOnly": "Käynnistys- ja ilmoitusalueen asetukset koskevat vain työpöytäsovellusta.",

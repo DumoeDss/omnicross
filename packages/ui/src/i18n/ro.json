@@ -1159,6 +1159,28 @@
     "failedHint": "Asigurați-vă că Node.js este instalat și daemon-ul este compilat (dist prezent), sau setați OMNICROSS_DAEMON_ENTRY la calea cli.js a daemon-ului."
   },
   "settings": {
+    "about": {
+      "tagline": "Un nucleu universal de servire LLM — direcționează, transformă și proxy orice furnizor în spatele unui singur set de API.",
+      "version": "Versiune",
+      "versionUnavailable": "necunoscută",
+      "links": {
+        "title": "Linkuri și resurse",
+        "description": "Proiectul este dezvoltat open source pe GitHub.",
+        "repository": "Depozitul GitHub",
+        "repositoryHint": "Consultă codul sursă și documentația.",
+        "releases": "Lansări",
+        "releasesHint": "Descarcă cele mai recente instalatoare și citește jurnalul de modificări.",
+        "issues": "Raportează o problemă",
+        "issuesHint": "Rapoarte de erori și cereri de funcționalități.",
+        "open": "Deschide"
+      },
+      "project": {
+        "title": "Proiect"
+      },
+      "license": "Licență",
+      "licenseHint": "Omnicross este software liber și open source, publicat sub licența MIT.",
+      "author": "Autor"
+    },
     "title": "Setări",
     "description": "Preferințe aplicație desktop.",
     "desktopOnly": "Opțiunile de pornire și tavă se aplică doar în aplicația desktop.",

@@ -1159,6 +1159,28 @@
     "failedHint": "ตรวจสอบว่าติดตั้ง Node.js แล้วและ daemon ถูก build แล้ว (มีโฟลเดอร์ dist) หรือตั้งค่า OMNICROSS_DAEMON_ENTRY ชี้ไปที่ cli.js ของ daemon"
   },
   "settings": {
+    "about": {
+      "tagline": "แกนหลักให้บริการ LLM แบบสากล — กำหนดเส้นทาง แปลง และทำพร็อกซีผู้ให้บริการใดก็ได้ผ่านชุด API ชุดเดียว",
+      "version": "เวอร์ชัน",
+      "versionUnavailable": "ไม่ทราบ",
+      "links": {
+        "title": "ลิงก์และแหล่งข้อมูล",
+        "description": "โปรเจกต์นี้พัฒนาแบบโอเพนซอร์สบน GitHub",
+        "repository": "ที่เก็บ GitHub",
+        "repositoryHint": "ดูซอร์สโค้ดและเอกสารประกอบ",
+        "releases": "รุ่นที่เผยแพร่",
+        "releasesHint": "ดาวน์โหลดตัวติดตั้งล่าสุดและอ่านบันทึกการเปลี่ยนแปลง",
+        "issues": "รายงานปัญหา",
+        "issuesHint": "รายงานข้อผิดพลาดและคำขอฟีเจอร์",
+        "open": "เปิด"
+      },
+      "project": {
+        "title": "โปรเจกต์"
+      },
+      "license": "สัญญาอนุญาต",
+      "licenseHint": "Omnicross เป็นซอฟต์แวร์เสรีแบบโอเพนซอร์สที่เผยแพร่ภายใต้สัญญาอนุญาต MIT",
+      "author": "ผู้พัฒนา"
+    },
     "title": "การตั้งค่า",
     "description": "การตั้งค่าแอป desktop",
     "desktopOnly": "ตัวเลือก Startup และ Tray ใช้ได้เฉพาะในแอป desktop",

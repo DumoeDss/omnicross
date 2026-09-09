@@ -5,7 +5,7 @@ import zh from '../zh.json';
 import zhHant from '../zh-Hant.json';
 
 const gatewayTabs = ['overview', 'access', 'activity'];
-const settingsTabs = ['general', 'network', 'security', 'data', 'notifications', 'advanced', 'billing', 'pricing'];
+const settingsTabs = ['general', 'network', 'security', 'data', 'notifications', 'advanced', 'billing', 'pricing', 'about'];
 
 describe('Gateway and Settings translations', () => {
   it('provides every canonical task label and moved-settings label in en/zh/zh-Hant', () => {

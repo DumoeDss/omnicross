@@ -1159,6 +1159,28 @@
     "failedHint": "تأكد من تثبيت Node.js وبناء Daemon (وجود dist)، أو اضبط OMNICROSS_DAEMON_ENTRY على مسار cli.js الخاص بـ Daemon."
   },
   "settings": {
+    "about": {
+      "tagline": "نواة تقديم LLM عالمية — وجّه أي مزوّد وحوّله وادعم الوكالة له خلف مجموعة واحدة من واجهات API.",
+      "version": "الإصدار",
+      "versionUnavailable": "غير معروف",
+      "links": {
+        "title": "روابط وموارد",
+        "description": "يُطوَّر المشروع كبرمجية مفتوحة المصدر على GitHub.",
+        "repository": "مستودع GitHub",
+        "repositoryHint": "اطّلع على الشيفرة المصدرية والتوثيق.",
+        "releases": "الإصدارات المنشورة",
+        "releasesHint": "نزّل أحدث المثبّتات واطّلع على سجل التغييرات.",
+        "issues": "الإبلاغ عن مشكلة",
+        "issuesHint": "تقارير الأخطاء وطلبات الميزات.",
+        "open": "فتح"
+      },
+      "project": {
+        "title": "المشروع"
+      },
+      "license": "الترخيص",
+      "licenseHint": "Omnicross برنامج حر ومفتوح المصدر يُنشر بموجب ترخيص MIT.",
+      "author": "المطوّر"
+    },
     "title": "الإعدادات",
     "description": "تفضيلات تطبيق سطح المكتب.",
     "desktopOnly": "خيارات بدء التشغيل وشريط المهام تنطبق فقط على تطبيق سطح المكتب.",

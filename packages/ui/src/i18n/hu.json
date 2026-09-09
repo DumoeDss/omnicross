@@ -1159,6 +1159,28 @@
     "failedHint": "Győződjön meg arról, hogy a Node.js telepítve van, és a daemon fel van építve (a dist könyvtár létezik), vagy állítsa az OMNICROSS_DAEMON_ENTRY értékét a daemon cli.js fájljára."
   },
   "settings": {
+    "about": {
+      "tagline": "Univerzális LLM-kiszolgálómag — bármely szolgáltató útválasztása, átalakítása és proxyzása egyetlen API-készlet mögött.",
+      "version": "Verzió",
+      "versionUnavailable": "ismeretlen",
+      "links": {
+        "title": "Hivatkozások és források",
+        "description": "A projekt nyílt forráskódként készül a GitHubon.",
+        "repository": "GitHub-tároló",
+        "repositoryHint": "Tekintse meg a forráskódot és a dokumentációt.",
+        "releases": "Kiadások",
+        "releasesHint": "Töltse le a legújabb telepítőket, és olvassa el a változásnaplót.",
+        "issues": "Hiba bejelentése",
+        "issuesHint": "Hibajelentések és funkciókérések.",
+        "open": "Megnyitás"
+      },
+      "project": {
+        "title": "Projekt"
+      },
+      "license": "Licenc",
+      "licenseHint": "Az Omnicross szabad, nyílt forráskódú szoftver, MIT licenc alatt közzétéve.",
+      "author": "Szerző"
+    },
     "title": "Beállítások",
     "description": "Asztali alkalmazás beállításai.",
     "desktopOnly": "Az indítási és tálca beállítások csak az asztali alkalmazásban érvényesek.",

@@ -1159,6 +1159,28 @@
     "failedHint": "Ujistěte se, že je nainstalován Node.js a daemon je sestaven (přítomný adresář dist), nebo nastavte OMNICROSS_DAEMON_ENTRY na cli.js daemona."
   },
   "settings": {
+    "about": {
+      "tagline": "Univerzální jádro pro obsluhu LLM — směrujte, transformujte a proxyujte libovolného poskytovatele za jedinou sadou API.",
+      "version": "Verze",
+      "versionUnavailable": "neznámá",
+      "links": {
+        "title": "Odkazy a zdroje",
+        "description": "Projekt je vyvíjen jako open source na GitHubu.",
+        "repository": "Repozitář GitHub",
+        "repositoryHint": "Prohlédněte si zdrojový kód a dokumentaci.",
+        "releases": "Vydání",
+        "releasesHint": "Stáhněte si nejnovější instalátory a přečtěte si seznam změn.",
+        "issues": "Nahlásit problém",
+        "issuesHint": "Hlášení chyb a žádosti o funkce.",
+        "open": "Otevřít"
+      },
+      "project": {
+        "title": "Projekt"
+      },
+      "license": "Licence",
+      "licenseHint": "Omnicross je svobodný software s otevřeným zdrojovým kódem šířený pod licencí MIT.",
+      "author": "Autor"
+    },
     "title": "Nastavení",
     "description": "Předvolby desktopové aplikace.",
     "desktopOnly": "Možnosti spouštění a systémové lišty platí pouze v desktopové aplikaci.",

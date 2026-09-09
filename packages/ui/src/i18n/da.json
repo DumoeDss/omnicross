@@ -1159,6 +1159,28 @@
     "failedHint": "Sørg for at Node.js er installeret og dæmonen er bygget (dist til stede), eller sæt OMNICROSS_DAEMON_ENTRY til dæmonens cli.js."
   },
   "settings": {
+    "about": {
+      "tagline": "En universel LLM-serving-kerne — routing, transformering og proxy af enhver udbyder bag ét sæt API'er.",
+      "version": "Version",
+      "versionUnavailable": "ukendt",
+      "links": {
+        "title": "Links og ressourcer",
+        "description": "Projektet udvikles som open source på GitHub.",
+        "repository": "GitHub-repository",
+        "repositoryHint": "Se kildekoden og dokumentationen.",
+        "releases": "Udgivelser",
+        "releasesHint": "Download de nyeste installatører og læs ændringsloggen.",
+        "issues": "Rapportér et problem",
+        "issuesHint": "Fejlrapporter og funktionsanmodninger.",
+        "open": "Åbn"
+      },
+      "project": {
+        "title": "Projekt"
+      },
+      "license": "Licens",
+      "licenseHint": "Omnicross er fri open source-software, udgivet under MIT-licensen.",
+      "author": "Forfatter"
+    },
     "title": "Indstillinger",
     "description": "Præferencer for desktopapplicationen.",
     "desktopOnly": "Opstart- og systembakkemuligheder gælder kun i desktopapplicationen.",

@@ -1159,6 +1159,28 @@
     "failedHint": "Đảm bảo Node.js đã được cài đặt và daemon đã được build (có thư mục dist), hoặc đặt OMNICROSS_DAEMON_ENTRY trỏ đến cli.js của daemon."
   },
   "settings": {
+    "about": {
+      "tagline": "Lõi phục vụ LLM phổ quát — định tuyến, chuyển đổi và ủy quyền mọi nhà cung cấp sau một bộ API duy nhất.",
+      "version": "Phiên bản",
+      "versionUnavailable": "không rõ",
+      "links": {
+        "title": "Liên kết và tài nguyên",
+        "description": "Dự án được phát triển mã nguồn mở trên GitHub.",
+        "repository": "Kho lưu trữ GitHub",
+        "repositoryHint": "Xem mã nguồn và tài liệu.",
+        "releases": "Bản phát hành",
+        "releasesHint": "Tải trình cài đặt mới nhất và đọc nhật ký thay đổi.",
+        "issues": "Báo cáo sự cố",
+        "issuesHint": "Báo cáo lỗi và yêu cầu tính năng.",
+        "open": "Mở"
+      },
+      "project": {
+        "title": "Dự án"
+      },
+      "license": "Giấy phép",
+      "licenseHint": "Omnicross là phần mềm tự do mã nguồn mở được phát hành theo giấy phép MIT.",
+      "author": "Tác giả"
+    },
     "title": "Cài đặt",
     "description": "Tùy chọn ứng dụng desktop.",
     "desktopOnly": "Tùy chọn Startup và Tray chỉ áp dụng trong ứng dụng desktop.",

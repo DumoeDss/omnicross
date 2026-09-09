@@ -1440,6 +1440,28 @@
     "failedHint": "Node.js がインストールされてデーモンがビルドされているか（dist が存在するか）を確認してください。または OMNICROSS_DAEMON_ENTRY にデーモンの cli.js のパスを設定してください。"
   },
   "settings": {
+    "about": {
+      "tagline": "ユニバーサルな LLM サービングコア——ひとつの API セットで、あらゆるプロバイダーをルーティング、変換、プロキシ。",
+      "version": "バージョン",
+      "versionUnavailable": "不明",
+      "links": {
+        "title": "リンクとリソース",
+        "description": "本プロジェクトは GitHub でオープンソースとして開発されています。",
+        "repository": "GitHub リポジトリ",
+        "repositoryHint": "ソースコードとドキュメントを確認する。",
+        "releases": "リリース",
+        "releasesHint": "最新のインストーラーをダウンロードし、変更履歴を確認する。",
+        "issues": "問題を報告",
+        "issuesHint": "バグ報告と機能リクエスト。",
+        "open": "開く"
+      },
+      "project": {
+        "title": "プロジェクト"
+      },
+      "license": "ライセンス",
+      "licenseHint": "Omnicross は MIT ライセンスで公開される無料のオープンソースソフトウェアです。",
+      "author": "作者"
+    },
     "title": "設定",
     "description": "デスクトップアプリの環境設定。",
     "desktopOnly": "起動時とトレイのオプションはデスクトップアプリでのみ適用されます。",

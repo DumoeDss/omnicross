@@ -1784,7 +1784,30 @@
       "audit": "稽核",
       "billing": "計費",
       "privacy": "客戶端身分",
-      "pricing": "模型價格"
+      "pricing": "模型價格",
+      "about": "關於"
+    },
+    "about": {
+      "tagline": "通用 LLM 服務核心——在同一組 API 之後路由、轉換並代理任意供應商。",
+      "version": "版本",
+      "versionUnavailable": "未知",
+      "links": {
+        "title": "連結與資源",
+        "description": "本專案在 GitHub 上開源開發。",
+        "repository": "GitHub 儲存庫",
+        "repositoryHint": "瀏覽原始碼與文件。",
+        "releases": "版本發布",
+        "releasesHint": "下載最新安裝包並檢視更新日誌。",
+        "issues": "回報問題",
+        "issuesHint": "錯誤回報與功能請求。",
+        "open": "開啟"
+      },
+      "project": {
+        "title": "專案"
+      },
+      "license": "授權條款",
+      "licenseHint": "Omnicross 是以 MIT 授權條款發布的自由開源軟體。",
+      "author": "作者"
     },
     "allowanceScheduling": {
       "title": "依額度調度帳號",

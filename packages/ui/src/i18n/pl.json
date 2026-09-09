@@ -1159,6 +1159,28 @@
     "failedHint": "Upewnij się, że Node.js jest zainstalowany i daemon jest zbudowany (dist obecny), lub ustaw OMNICROSS_DAEMON_ENTRY na cli.js daemona."
   },
   "settings": {
+    "about": {
+      "tagline": "Uniwersalny rdzeń serwowania LLM — kieruj, przekształcaj i proxyfikuj dowolnego dostawcę za jednym zestawem interfejsów API.",
+      "version": "Wersja",
+      "versionUnavailable": "nieznana",
+      "links": {
+        "title": "Linki i zasoby",
+        "description": "Projekt jest rozwijany jako open source na GitHubie.",
+        "repository": "Repozytorium GitHub",
+        "repositoryHint": "Przejrzyj kod źródłowy i dokumentację.",
+        "releases": "Wydania",
+        "releasesHint": "Pobierz najnowsze instalatory i przeczytaj dziennik zmian.",
+        "issues": "Zgłoś problem",
+        "issuesHint": "Raporty błędów i prośby o funkcje.",
+        "open": "Otwórz"
+      },
+      "project": {
+        "title": "Projekt"
+      },
+      "license": "Licencja",
+      "licenseHint": "Omnicross to wolne oprogramowanie open source wydane na licencji MIT.",
+      "author": "Autor"
+    },
     "title": "Ustawienia",
     "description": "Preferencje aplikacji desktopowej.",
     "desktopOnly": "Opcje uruchamiania i zasobnika systemowego dotyczą tylko aplikacji desktopowej.",

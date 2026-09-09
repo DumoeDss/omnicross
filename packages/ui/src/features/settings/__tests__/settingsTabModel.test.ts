@@ -5,7 +5,7 @@ import { normalizeSettingsTab, SETTINGS_TABS } from '../settingsTabModel';
 describe('settings information architecture', () => {
   it('gives each low-frequency operational policy one Settings home plus pricing', () => {
     expect(SETTINGS_TABS.map((tab) => tab.id)).toEqual([
-      'general', 'network', 'security', 'data', 'notifications', 'advanced', 'billing', 'pricing',
+      'general', 'network', 'security', 'data', 'notifications', 'advanced', 'billing', 'pricing', 'about',
     ]);
   });
 

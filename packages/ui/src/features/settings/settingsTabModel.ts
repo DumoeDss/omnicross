@@ -7,6 +7,7 @@ export const SETTINGS_TABS = [
   { id: 'advanced', labelKey: 'settings.tabs.advanced' },
   { id: 'billing', labelKey: 'settings.tabs.billing' },
   { id: 'pricing', labelKey: 'settings.tabs.pricing' },
+  { id: 'about', labelKey: 'settings.tabs.about' },
 ] as const;
 
 export type SettingsCanonicalTabId = (typeof SETTINGS_TABS)[number]['id'];
@@ -22,7 +23,8 @@ export function normalizeSettingsTab(tab: SettingsTabId | undefined): SettingsCa
     case 'privacy': return 'security';
     default:
       return tab === 'general' || tab === 'network' || tab === 'security' || tab === 'data' ||
-        tab === 'notifications' || tab === 'advanced' || tab === 'billing' || tab === 'pricing'
+        tab === 'notifications' || tab === 'advanced' || tab === 'billing' || tab === 'pricing' ||
+        tab === 'about'
         ? tab
         : 'general';
   }

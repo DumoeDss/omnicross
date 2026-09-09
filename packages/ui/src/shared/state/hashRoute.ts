@@ -66,6 +66,7 @@ const SETTINGS_TABS = new Set<SettingsTabId>([
   'advanced',
   'billing',
   'pricing',
+  'about',
 ]);
 const ACCOUNT_PROVIDERS = new Set<SubscriptionProviderId>(['claude', 'codex', 'gemini', 'opencodego']);
 const ACCOUNT_HEALTH = new Set<NonNullable<AccountFilters['health']>>([

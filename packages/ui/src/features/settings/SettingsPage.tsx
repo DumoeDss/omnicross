@@ -22,6 +22,7 @@ import { openExternal } from '@/shared/tauri/openExternal';
 import { getUiSettings, isDesktop, setUiSettings, type UiSettings } from '@/shared/tauri/uiSettings';
 import { checkForUpdates, downloadUpdate, installUpdate } from '@/shared/tauri/update';
 
+import { AboutSection } from './AboutSection';
 import { AllowanceSchedulingSection } from './AllowanceSchedulingSection';
 import { NetworkSettingsSection } from './NetworkSettingsSection';
 import { normalizeSettingsTab, SETTINGS_TABS, type SettingsTabId } from './settingsTabModel';
@@ -39,7 +40,7 @@ interface SettingsPageProps {
   onTabChange?: (tab: SettingsTabId) => void;
 }
 
-type OperationalTab = Exclude<SettingsTabId, 'general' | 'pricing'>;
+type OperationalTab = Exclude<SettingsTabId, 'general' | 'pricing' | 'about'>;
 
 function OperationalSettingsPanel({ tab }: { tab: OperationalTab }) {
   const t = useTranslation();
@@ -278,6 +279,7 @@ export function SettingsPage({ activeTab: controlledTab, onTabChange }: Settings
         {panel('advanced', activeTab === 'advanced' ? <OperationalSettingsPanel tab="advanced" /> : null)}
         {panel('billing', activeTab === 'billing' ? <OperationalSettingsPanel tab="billing" /> : null)}
         {panel('pricing', activeTab === 'pricing' ? <PricingPage /> : null)}
+        {panel('about', activeTab === 'about' ? <AboutSection appVersion={updateStatus?.currentVersion} /> : null)}
       </div>
     </div>
   );

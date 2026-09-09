@@ -14,9 +14,11 @@ describe('hashRoute', () => {
     expect(parseHashRoute('#/api-service/activity')).toEqual({ page: 'route-activity' });
     expect(parseHashRoute('#/settings/pricing')).toEqual({ page: 'settings', tab: 'pricing' });
     expect(parseHashRoute('#/settings/advanced')).toEqual({ page: 'settings', tab: 'advanced' });
+    expect(parseHashRoute('#/settings/about')).toEqual({ page: 'settings', tab: 'about' });
     expect(routeToHash({ page: 'api-service', tab: 'status' })).toBe('#/api-service');
     expect(routeToHash({ page: 'route-activity' })).toBe('#/route-activity');
     expect(routeToHash({ page: 'settings', tab: 'pricing' })).toBe('#/settings/pricing');
+    expect(routeToHash({ page: 'settings', tab: 'about' })).toBe('#/settings/about');
   });
 
   it('resolves the standalone Search page; unknown tabs degrade to the page', () => {

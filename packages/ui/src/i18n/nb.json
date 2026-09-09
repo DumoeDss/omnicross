@@ -1159,6 +1159,28 @@
     "failedHint": "Kontroller at Node.js er installert og at daemonen er bygget (dist til stede), eller angi OMNICROSS_DAEMON_ENTRY til daemonens cli.js."
   },
   "settings": {
+    "about": {
+      "tagline": "En universell LLM-tjenestekjerne — rutt, transformer og proxifiser enhver leverandør bak ett sett med API-er.",
+      "version": "Versjon",
+      "versionUnavailable": "ukjent",
+      "links": {
+        "title": "Lenker og resurser",
+        "description": "Prosjektet utvikles som åpen kildekode på GitHub.",
+        "repository": "GitHub-repository",
+        "repositoryHint": "Se kildekoden og dokumentasjonen.",
+        "releases": "Utgivelser",
+        "releasesHint": "Last ned de nyeste installasjonsfilene og les endringsloggen.",
+        "issues": "Rapporter et problem",
+        "issuesHint": "Feilrapporter og funksjonsønsker.",
+        "open": "Åpne"
+      },
+      "project": {
+        "title": "Prosjekt"
+      },
+      "license": "Lisens",
+      "licenseHint": "Omnicross er fri programvare med åpen kildekode, utgitt under MIT-lisensen.",
+      "author": "Utvikler"
+    },
     "title": "Innstillinger",
     "description": "Preferanser for skrivebordsprogrammet.",
     "desktopOnly": "Start- og systemstatusfeltalternativer gjelder bare i skrivebordsprogrammet.",

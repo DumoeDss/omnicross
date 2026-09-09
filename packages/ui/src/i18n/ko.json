@@ -1159,6 +1159,28 @@
     "failedHint": "Node.js가 설치되어 있고 데몬이 빌드되었는지(dist 존재) 확인하거나, OMNICROSS_DAEMON_ENTRY를 데몬의 cli.js 경로로 설정하세요."
   },
   "settings": {
+    "about": {
+      "tagline": "범용 LLM 서빙 코어 — 하나의 API 세트 뒤에서 모든 공급자를 라우팅·변환·프록시합니다.",
+      "version": "버전",
+      "versionUnavailable": "알 수 없음",
+      "links": {
+        "title": "링크 및 리소스",
+        "description": "이 프로젝트는 GitHub에서 오픈소스로 개발됩니다.",
+        "repository": "GitHub 저장소",
+        "repositoryHint": "소스 코드와 문서를 확인하세요.",
+        "releases": "릴리스",
+        "releasesHint": "최신 설치 파일을 내려받고 변경 이력을 확인하세요.",
+        "issues": "문제 보고",
+        "issuesHint": "버그 신고 및 기능 요청.",
+        "open": "열기"
+      },
+      "project": {
+        "title": "프로젝트"
+      },
+      "license": "라이선스",
+      "licenseHint": "Omnicross는 MIT 라이선스로 배포되는 무료 오픈소스 소프트웨어입니다.",
+      "author": "작성자"
+    },
     "title": "설정",
     "description": "데스크톱 앱 환경 설정입니다.",
     "desktopOnly": "시작 및 트레이 옵션은 데스크톱 앱에서만 적용됩니다.",

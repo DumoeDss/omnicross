@@ -1829,7 +1829,30 @@
       "notifications": "Notifications",
       "advanced": "Advanced",
       "billing": "Billing",
-      "pricing": "Model pricing"
+      "pricing": "Model pricing",
+      "about": "About"
+    },
+    "about": {
+      "tagline": "A universal LLM serving core — route, transform, and proxy any provider behind one set of APIs.",
+      "version": "Version",
+      "versionUnavailable": "unknown",
+      "links": {
+        "title": "Links & resources",
+        "description": "The project is developed in the open on GitHub.",
+        "repository": "GitHub repository",
+        "repositoryHint": "Browse the source code and read the documentation.",
+        "releases": "Releases",
+        "releasesHint": "Download the latest installers and read the changelog.",
+        "issues": "Report an issue",
+        "issuesHint": "Bug reports and feature requests.",
+        "open": "Open"
+      },
+      "project": {
+        "title": "Project"
+      },
+      "license": "License",
+      "licenseHint": "Omnicross is free, open-source software released under the MIT License.",
+      "author": "Author"
     },
     "network": {
       "title": "Network and proxy",

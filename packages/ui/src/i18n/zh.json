@@ -1834,7 +1834,30 @@
       "audit": "审计",
       "billing": "计费",
       "privacy": "客户端身份",
-      "pricing": "模型价格"
+      "pricing": "模型价格",
+      "about": "关于"
+    },
+    "about": {
+      "tagline": "通用 LLM 服务核心——在同一组 API 之后路由、转换并代理任意提供商。",
+      "version": "版本",
+      "versionUnavailable": "未知",
+      "links": {
+        "title": "链接与资源",
+        "description": "本项目在 GitHub 上开源开发。",
+        "repository": "GitHub 仓库",
+        "repositoryHint": "浏览源代码与文档。",
+        "releases": "版本发布",
+        "releasesHint": "下载最新安装包并查看更新日志。",
+        "issues": "报告问题",
+        "issuesHint": "缺陷报告与功能请求。",
+        "open": "打开"
+      },
+      "project": {
+        "title": "项目"
+      },
+      "license": "许可证",
+      "licenseHint": "Omnicross 是以 MIT 许可证发布的自由开源软件。",
+      "author": "作者"
     },
     "allowanceScheduling": {
       "title": "基于额度的账号调度",

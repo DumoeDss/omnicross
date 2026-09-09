@@ -1159,6 +1159,28 @@
     "failedHint": "Node.js'nin yüklü olduğundan ve daemon'un derlendiğinden (dist mevcut) emin olun ya da OMNICROSS_DAEMON_ENTRY'yi daemon'un cli.js dosyasına ayarlayın."
   },
   "settings": {
+    "about": {
+      "tagline": "Evrensel bir LLM servis çekirdeği — herhangi bir sağlayıcıyı tek bir API kümesinin arkasında yönlendirin, dönüştürün ve vekil sunucu olarak kullanın.",
+      "version": "Sürüm",
+      "versionUnavailable": "bilinmiyor",
+      "links": {
+        "title": "Bağlantılar ve kaynaklar",
+        "description": "Proje GitHub'da açık kaynak olarak geliştirilir.",
+        "repository": "GitHub deposu",
+        "repositoryHint": "Kaynak koda ve belgelere göz atın.",
+        "releases": "Sürümler",
+        "releasesHint": "En son yükleyicileri indirin ve değişiklik günlüğünü okuyun.",
+        "issues": "Sorun bildir",
+        "issuesHint": "Hata raporları ve özellik istekleri.",
+        "open": "Aç"
+      },
+      "project": {
+        "title": "Proje"
+      },
+      "license": "Lisans",
+      "licenseHint": "Omnicross, MIT lisansı ile yayınlanan ücretsiz ve açık kaynaklı bir yazılımdır.",
+      "author": "Geliştirici"
+    },
     "title": "Ayarlar",
     "description": "Masaüstü uygulaması tercihleri.",
     "desktopOnly": "Başlangıç ve sistem tepsisi seçenekleri yalnızca masaüstü uygulamasında geçerlidir.",
