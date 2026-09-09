@@ -45,7 +45,7 @@ Persistent capability evidence SHALL use a versioned allow-list containing only 
 - **THEN** the response remains valid Anthropic discovery and omits `gpt-image-2`
 
 ### Requirement: Authenticated capability and runtime status are non-consuming
-The daemon SHALL expose authenticated, secret-free Images capability and runtime status through admin dependencies injected from the live runtime manager. Reads SHALL report configured versus effective state, safe unavailable reason, evidence age/expiry, affirmed feature/limit matrix, generation ID, endpoint URLs, queue active/waiting counts, and aggregate temporary/store utilization. Admin status, UI polling, outbound status, and model listing MUST NOT dispatch an image, refresh evidence through generation, decrypt an image, or expose storage paths, evidence blobs, prompts, hashes, raw tenant/account IDs, or private provider fields.
+The daemon SHALL expose authenticated, secret-free Images capability and runtime status through admin dependencies injected from the live runtime manager. Reads SHALL report configured versus effective state, safe unavailable reason, evidence age/expiry, affirmed feature/limit matrix, generation ID, endpoint URLs, queue active/waiting counts, aggregate temporary/store utilization, and one additive per-provider block for every provider named by the routing table (provider id, its routed models affirmed by its own fresh evidence, availability with a safe reason, and evidence age). Admin status, UI polling, outbound status, and model listing MUST NOT dispatch an image, refresh evidence through generation, decrypt an image, or expose storage paths, evidence blobs, prompts, hashes, raw tenant/account IDs, or private provider fields.
 
 #### Scenario: UI polls unavailable Images status
 - **WHEN** the API Service page polls status while evidence is missing
@@ -59,8 +59,12 @@ The daemon SHALL expose authenticated, secret-free Images capability and runtime
 - **WHEN** old work is draining after a new generation is published
 - **THEN** status reports the active generation and bounded draining counts without exposing request or account identities
 
+#### Scenario: Per-provider status is reported
+- **WHEN** the routing table names two providers and one provider's evidence is stale
+- **THEN** the capability status reports a per-provider block whose stale provider shows its models unaffirmed with a safe reason, without failing the whole read
+
 ### Requirement: Doctor is non-consuming by default and explicit when live
-`omnicross doctor images` SHALL perform only local configuration, permission schema, root safety, store integrity, account-presence, and cached-evidence checks. Only `omnicross doctor images --live` MAY consume subscription quota; before dispatch it MUST print an explicit warning, require Images enabled plus an eligible Codex account, issue at most one minimal low-quality PNG generation, force body tracing redacted, strictly validate the artifact, destroy it, and report exactly what was observed.
+`omnicross doctor images` SHALL perform only local configuration, permission schema, root safety, store integrity, account-presence, and cached-evidence checks. Only an explicitly-requested live verification MAY consume subscription quota — the CLI `omnicross doctor images --live` flag and an authenticated admin `POST /images/verify-live` endpoint that delegates to the same verifier; before dispatch the operator MUST face an explicit warning (CLI print or UI panel notice); live verification MUST require Images enabled plus an eligible Codex account, issue at most one minimal low-quality PNG generation, force body tracing redacted, strictly validate the artifact, destroy it, and report exactly what was observed. The endpoint MUST reject with 501 when the verifier dependency is not wired and MUST annotate that verification covers the Codex wire only when Antigravity models are routed.
 
 #### Scenario: Default Images doctor runs
 - **WHEN** an operator runs `doctor images` without `--live`
@@ -73,6 +77,14 @@ The daemon SHALL expose authenticated, secret-free Images capability and runtime
 #### Scenario: Live doctor fails
 - **WHEN** auth, entitlement, moderation, rate limit, timeout, protocol, decoding, or cleanup fails
 - **THEN** no positive evidence is persisted, the diagnostic uses a stable safe reason, and no response body or image remains in logs or temporary storage
+
+#### Scenario: Admin endpoint triggers live verification
+- **WHEN** an authenticated admin POST requests live verification on a daemon with the verifier wired
+- **THEN** it performs at most one consuming generation, returns only stable safe codes and metadata, and reports the Codex-only coverage annotation when Antigravity models are routed
+
+#### Scenario: Admin endpoint without the verifier
+- **WHEN** the daemon does not inject the live-verification dependency
+- **THEN** the endpoint responds 501 and consumes nothing
 
 ### Requirement: General audit body capture is structurally disabled for Images
 The outbound audit path SHALL classify Images before installing content capture. For Images requests it MAY record metadata such as key ID, method, normalized path, status, duration, safe provider/model, and stable error code, but MUST NOT wrap response writes for body capture or stash request bodies even when global audit `captureBodies` is enabled. Images-specific audit, telemetry, errors, logs, snapshots, diagnostics, and admin views MUST accept only allow-listed metadata.
