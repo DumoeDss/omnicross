@@ -19,8 +19,8 @@ import type {
 import { OpenAIOperationError } from '../../openai-operation';
 import {
   codexAcceptHeader,
-  DEFAULT_CODEX_CLI_HEADERS,
   extractCodexClientHeaders,
+  fillMissingCodexCliIdentity,
 } from '../identity/codexCliHeaders';
 import { fillMissingHeaders } from '../identity/headerMerge';
 import { extractOpenCodeSessionHeader } from '../identity/openCodeGoHeaders';
@@ -427,8 +427,11 @@ function decorateCodexHeaders(
 ): void {
   if (plan.proxyProviderId !== 'codex') return;
   fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
-  fillMissingHeaders(headers, DEFAULT_CODEX_CLI_HEADERS);
   fillMissingHeaders(headers, { accept: codexAcceptHeader(plan.isStream) });
+  // Identity LAST, after the caller's own markers merged: a real Codex CLI
+  // keeps its own (user-agent, version) and gets only the originator marker —
+  // never a fabricated `version` under its UA (see fillMissingCodexCliIdentity).
+  fillMissingCodexCliIdentity(headers);
 }
 
 async function runNative(
