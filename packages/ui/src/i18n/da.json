@@ -516,7 +516,95 @@
     "usageStats": "Forbrug",
     "pricing": "Priser",
     "dashboard": "Dashboard",
-    "search": "Søgning"
+    "images": "Billeder",
+"search": "Søgning"
+  },
+  "images": {
+    "title": "Billedgenerering",
+    "description": "Administrer de som standard deaktiverede Images-slutpunkter, og se deres evidensbaserede kørselsstatus.",
+    "unsupportedDaemon": "Denne daemon tilbyder endnu ikke Images-konfiguration.",
+    "enable": "Aktivér Images-slutpunkter",
+    "entitlementWarning": "En aktiveret konfiguration beviser ikke abonnementsadgang. Effektiv tilgængelighed kræver aktuelle beviser for den valgte konto.",
+    "track": {
+      "configured": "Konfigureret",
+      "effective": "Effektiv",
+      "on": "Aktiveret",
+      "off": "Deaktiveret",
+      "available": "Tilgængelig",
+      "unavailable": "Ikke tilgængelig",
+      "unknown": "Ingen aktuelle kapacitetsbeviser"
+    },
+    "account": {
+      "label": "Kontovalg",
+      "pool": "Pulje af kvalificerede konti",
+      "group": "Gruppe: {{group}}",
+      "account": "Codex-konto {{number}}",
+      "fallback": "Fallback-politik",
+      "strict": "Strengt valg",
+      "poolFallback": "Tillad fallback til puljen"
+    },
+    "defaultModel": "Standard billedmodel",
+    "routes": {
+      "title": "Modelruting",
+      "defaultBadge": "standard"
+    },
+    "codex": {
+      "title": "Codex-tilsides\u00e6ttelser",
+      "imageModel": "Billedmodel",
+      "carrierModel": "B\u00e6rermodel",
+      "hint": "Rydde felter falder tilbage til de fastgjorte standarder (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Verificeret funktionsmatrix",
+      "generate": "Generér",
+      "edit": "Rediger",
+      "maskEdit": "Maskeredigering",
+      "streaming": "Streaming",
+      "transparentBackground": "Gennemsigtighed",
+      "responsesTool": "Responses-værktøj",
+      "supported": "Understøttet",
+      "unsupported": "Ikke understøttet"
+    },
+    "evidence": "Aktuelle beviser blev observeret for {{age}} sekunder siden.",
+    "noEvidence": "Der er ingen aktuelle beviser. Opdatering af denne visning genererer aldrig et billede.",
+    "resources": {
+      "title": "Kørselsudnyttelse",
+      "queue": "Kø",
+      "temporary": "Midlertidigt lager",
+      "references": "Bevarede referencer",
+      "bytes": "Midlertidigt {{temporary}} · referencer {{references}}",
+      "unavailable": "Kørselsudnyttelse er ikke tilgængelig, mens Images-kørselssystemet er offline."
+    },
+    "remote": {
+      "enabledWarning": "Fjern-URL’er aktiveres kun gennem den hærdede resolverpolitik.",
+      "disabled": "Fjern-URL’er til billeder er deaktiveret."
+    },
+    "storage": {
+      "custom": "En privat brugerdefineret lagerrod er konfigureret; stien er skjult.",
+      "privateDefault": "Artefakter bruger daemonens private lager til programdata."
+    },
+    "page": {
+      "title": "Billedgenerering",
+      "description": "Modelruting, udbydertilstand og Images-endpoints samlet \u00e9t sted.",
+      "loading": "Indl\u00e6ser billedkonfiguration\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (uverificeret)",
+      "healthy": "Tilg\u00e6ngelig",
+      "unhealthy": "Utilg\u00e6ngelig",
+      "evidence": "Friske beviser for {{age}} sekunder siden.",
+      "noEvidence": "Ingen friske beviser endnu (bootstrap ved f\u00f8rste rigtige anmodning).",
+      "noModels": "Ingen modeller bekr\u00e6ftet af friske beviser."
+    },
+    "verify": {
+      "title": "Live-verifikation",
+      "run": "K\u00f8r verifikation",
+      "running": "Verificerer\u2026",
+      "warning": "\u26a0 Forbruger abonnementskvote: \u00e9n minimal PNG-anmodning i lav kvalitet sendes.",
+      "codexOnly": "D\u00e6kker kun Codex-linjen; Antigravity-udbyderen har ingen selvst\u00e6ndig verifikator i v1.",
+      "codexOnlyPlain": "D\u00e6kker kun Codex-linjen.",
+      "success": "Verificeret {{model}} ({{quality}}, {{format}}); friske beviser: {{count}}."
+    }
   },
   "apiService": {
     "title": "API-tjeneste",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Billedgenerering",
-      "description": "Administrer de som standard deaktiverede Images-slutpunkter, og se deres evidensbaserede kørselsstatus.",
-      "unsupportedDaemon": "Denne daemon tilbyder endnu ikke Images-konfiguration.",
-      "enable": "Aktivér Images-slutpunkter",
-      "entitlementWarning": "En aktiveret konfiguration beviser ikke abonnementsadgang. Effektiv tilgængelighed kræver aktuelle beviser for den valgte konto.",
-      "track": {
-        "configured": "Konfigureret",
-        "effective": "Effektiv",
-        "on": "Aktiveret",
-        "off": "Deaktiveret",
-        "available": "Tilgængelig",
-        "unavailable": "Ikke tilgængelig",
-        "unknown": "Ingen aktuelle kapacitetsbeviser"
-      },
-      "account": {
-        "label": "Kontovalg",
-        "pool": "Pulje af kvalificerede konti",
-        "group": "Gruppe: {{group}}",
-        "account": "Codex-konto {{number}}",
-        "fallback": "Fallback-politik",
-        "strict": "Strengt valg",
-        "poolFallback": "Tillad fallback til puljen"
-      },
-      "defaultModel": "Standard billedmodel",
-      "routes": {
-        "title": "Modelruting",
-        "defaultBadge": "standard"
-      },
-      "codex": {
-        "title": "Codex-tilsides\u00e6ttelser",
-        "imageModel": "Billedmodel",
-        "carrierModel": "B\u00e6rermodel",
-        "hint": "Rydde felter falder tilbage til de fastgjorte standarder (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Verificeret funktionsmatrix",
-        "generate": "Generér",
-        "edit": "Rediger",
-        "maskEdit": "Maskeredigering",
-        "streaming": "Streaming",
-        "transparentBackground": "Gennemsigtighed",
-        "responsesTool": "Responses-værktøj",
-        "supported": "Understøttet",
-        "unsupported": "Ikke understøttet"
-      },
-      "evidence": "Aktuelle beviser blev observeret for {{age}} sekunder siden.",
-      "noEvidence": "Der er ingen aktuelle beviser. Opdatering af denne visning genererer aldrig et billede.",
-      "resources": {
-        "title": "Kørselsudnyttelse",
-        "queue": "Kø",
-        "temporary": "Midlertidigt lager",
-        "references": "Bevarede referencer",
-        "bytes": "Midlertidigt {{temporary}} · referencer {{references}}",
-        "unavailable": "Kørselsudnyttelse er ikke tilgængelig, mens Images-kørselssystemet er offline."
-      },
-      "remote": {
-        "enabledWarning": "Fjern-URL’er aktiveres kun gennem den hærdede resolverpolitik.",
-        "disabled": "Fjern-URL’er til billeder er deaktiveret."
-      },
-      "storage": {
-        "custom": "En privat brugerdefineret lagerrod er konfigureret; stien er skjult.",
-        "privateDefault": "Artefakter bruger daemonens private lager til programdata."
       }
     },
     "queue": {

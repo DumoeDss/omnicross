@@ -516,7 +516,95 @@
     "usageStats": "Sử dụng",
     "pricing": "Bảng giá",
     "dashboard": "Dashboard",
-    "search": "Tìm kiếm"
+    "images": "Hình ảnh",
+"search": "Tìm kiếm"
+  },
+  "images": {
+    "title": "Tạo hình ảnh",
+    "description": "Kiểm soát các điểm cuối Images mặc định bị tắt và xem trạng thái thời gian chạy được chứng minh bằng bằng chứng.",
+    "unsupportedDaemon": "Daemon này chưa cung cấp cấu hình Images.",
+    "enable": "Bật các điểm cuối Images",
+    "entitlementWarning": "Cấu hình được bật không chứng minh quyền lợi thuê bao. Khả dụng thực tế cần bằng chứng mới cho tài khoản đã chọn.",
+    "track": {
+      "configured": "Đã cấu hình",
+      "effective": "Có hiệu lực",
+      "on": "Đã bật",
+      "off": "Đã tắt",
+      "available": "Khả dụng",
+      "unavailable": "Không khả dụng",
+      "unknown": "Không có bằng chứng năng lực mới"
+    },
+    "account": {
+      "label": "Chọn tài khoản",
+      "pool": "Nhóm tài khoản đủ điều kiện",
+      "group": "Nhóm: {{group}}",
+      "account": "Tài khoản Codex {{number}}",
+      "fallback": "Chính sách dự phòng",
+      "strict": "Lựa chọn nghiêm ngặt",
+      "poolFallback": "Cho phép dự phòng từ nhóm"
+    },
+    "defaultModel": "M\u00f4 h\u00ecnh \u1ea3nh m\u1eb7c \u0111\u1ecbnh",
+    "routes": {
+      "title": "\u0110\u1ecbnh tuy\u1ebfn m\u00f4 h\u00ecnh",
+      "defaultBadge": "m\u1eb7c \u0111\u1ecbnh"
+    },
+    "codex": {
+      "title": "Ghi \u0111\u00e8 Codex",
+      "imageModel": "M\u00f4 h\u00ecnh \u1ea3nh",
+      "carrierModel": "M\u00f4 h\u00ecnh mang",
+      "hint": "Tr\u01b0\u1eddng b\u1ecb x\u00f3a s\u1ebd tr\u1edf v\u1ec1 m\u1eb7c \u0111\u1ecbnh \u0111\u01b0\u1ee3c ghim (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Ma trận tính năng đã xác minh",
+      "generate": "Tạo",
+      "edit": "Chỉnh sửa",
+      "maskEdit": "Chỉnh sửa bằng mặt nạ",
+      "streaming": "Truyền trực tuyến",
+      "transparentBackground": "Độ trong suốt",
+      "responsesTool": "Công cụ Responses",
+      "supported": "Được hỗ trợ",
+      "unsupported": "Không được hỗ trợ"
+    },
+    "evidence": "Bằng chứng mới được ghi nhận cách đây {{age}} giây.",
+    "noEvidence": "Không có bằng chứng mới. Việc làm mới chế độ xem này không bao giờ tạo hình ảnh.",
+    "resources": {
+      "title": "Mức sử dụng thời gian chạy",
+      "queue": "Hàng đợi",
+      "temporary": "Bộ nhớ tạm thời",
+      "references": "Tham chiếu được giữ lại",
+      "bytes": "Tạm thời {{temporary}} · tham chiếu {{references}}",
+      "unavailable": "Không có thông tin sử dụng khi thời gian chạy Images ngoại tuyến."
+    },
+    "remote": {
+      "enabledWarning": "URL từ xa chỉ được bật thông qua chính sách phân giải tăng cường.",
+      "disabled": "URL hình ảnh từ xa đã bị tắt."
+    },
+    "storage": {
+      "custom": "Đã cấu hình thư mục gốc lưu trữ riêng tùy chỉnh; đường dẫn được ẩn.",
+      "privateDefault": "Hiện vật sử dụng bộ nhớ dữ liệu ứng dụng riêng của daemon."
+    },
+    "page": {
+      "title": "T\u1ea1o h\u00ecnh \u1ea3nh",
+      "description": "\u0110\u1ecbnh tuy\u1ebfn m\u00f4 h\u00ecnh, tr\u1ea1ng th\u00e1i nh\u00e0 cung c\u1ea5p v\u00e0 c\u00e1c endpoint Images t\u1ea1i m\u1ed9t n\u01a1i.",
+      "loading": "\u0110ang t\u1ea3i c\u1ea5u h\u00ecnh Images\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (ch\u01b0a x\u00e1c minh)",
+      "healthy": "Kh\u1ea3 d\u1ee5ng",
+      "unhealthy": "Kh\u00f4ng kh\u1ea3 d\u1ee5ng",
+      "evidence": "B\u1eb1ng ch\u1ee9ng m\u1edbi {{age}} gi\u00e2y tr\u01b0\u1edbc.",
+      "noEvidence": "Ch\u01b0a c\u00f3 b\u1eb1ng ch\u1ee9ng m\u1edbi (bootstrap \u1edf y\u00eau c\u1ea7u th\u1ef1c \u0111\u1ea7u ti\u00ean).",
+      "noModels": "Kh\u00f4ng c\u00f3 m\u00f4 h\u00ecnh n\u00e0o \u0111\u01b0\u1ee3c b\u1eb1ng ch\u1ee9ng m\u1edbi kh\u1eb3ng \u0111\u1ecbnh."
+    },
+    "verify": {
+      "title": "X\u00e1c minh tr\u1ef1c ti\u1ebfp",
+      "run": "Ch\u1ea1y x\u00e1c minh",
+      "running": "\u0110ang x\u00e1c minh\u2026",
+      "warning": "\u26a0 Ti\u00eau t\u1ed1n h\u1ea1n m\u1ee9c \u0111\u0103ng k\u00fd: s\u1ebd g\u1eedi m\u1ed9t y\u00eau c\u1ea7u PNG t\u1ed1i thi\u1ec3u ch\u1ea5t l\u01b0\u1ee3ng th\u1ea5p.",
+      "codexOnly": "Ch\u1ec9 \u00e1p d\u1ee5ng \u0111\u01b0\u1eddng truy\u1ec1n Codex; nh\u00e0 cung c\u1ea5p Antigravity ch\u01b0a c\u00f3 tr\u00ecnh x\u00e1c minh \u0111\u1ed9c l\u1eadp trong v1.",
+      "codexOnlyPlain": "Ch\u1ec9 \u00e1p d\u1ee5ng \u0111\u01b0\u1eddng truy\u1ec1n Codex.",
+      "success": "\u0110\u00e3 x\u00e1c minh {{model}} ({{quality}}, {{format}}); m\u1ee5c b\u1eb1ng ch\u1ee9ng m\u1edbi: {{count}}."
+    }
   },
   "apiService": {
     "title": "Dịch vụ API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Tạo hình ảnh",
-      "description": "Kiểm soát các điểm cuối Images mặc định bị tắt và xem trạng thái thời gian chạy được chứng minh bằng bằng chứng.",
-      "unsupportedDaemon": "Daemon này chưa cung cấp cấu hình Images.",
-      "enable": "Bật các điểm cuối Images",
-      "entitlementWarning": "Cấu hình được bật không chứng minh quyền lợi thuê bao. Khả dụng thực tế cần bằng chứng mới cho tài khoản đã chọn.",
-      "track": {
-        "configured": "Đã cấu hình",
-        "effective": "Có hiệu lực",
-        "on": "Đã bật",
-        "off": "Đã tắt",
-        "available": "Khả dụng",
-        "unavailable": "Không khả dụng",
-        "unknown": "Không có bằng chứng năng lực mới"
-      },
-      "account": {
-        "label": "Chọn tài khoản",
-        "pool": "Nhóm tài khoản đủ điều kiện",
-        "group": "Nhóm: {{group}}",
-        "account": "Tài khoản Codex {{number}}",
-        "fallback": "Chính sách dự phòng",
-        "strict": "Lựa chọn nghiêm ngặt",
-        "poolFallback": "Cho phép dự phòng từ nhóm"
-      },
-      "defaultModel": "M\u00f4 h\u00ecnh \u1ea3nh m\u1eb7c \u0111\u1ecbnh",
-      "routes": {
-        "title": "\u0110\u1ecbnh tuy\u1ebfn m\u00f4 h\u00ecnh",
-        "defaultBadge": "m\u1eb7c \u0111\u1ecbnh"
-      },
-      "codex": {
-        "title": "Ghi \u0111\u00e8 Codex",
-        "imageModel": "M\u00f4 h\u00ecnh \u1ea3nh",
-        "carrierModel": "M\u00f4 h\u00ecnh mang",
-        "hint": "Tr\u01b0\u1eddng b\u1ecb x\u00f3a s\u1ebd tr\u1edf v\u1ec1 m\u1eb7c \u0111\u1ecbnh \u0111\u01b0\u1ee3c ghim (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Ma trận tính năng đã xác minh",
-        "generate": "Tạo",
-        "edit": "Chỉnh sửa",
-        "maskEdit": "Chỉnh sửa bằng mặt nạ",
-        "streaming": "Truyền trực tuyến",
-        "transparentBackground": "Độ trong suốt",
-        "responsesTool": "Công cụ Responses",
-        "supported": "Được hỗ trợ",
-        "unsupported": "Không được hỗ trợ"
-      },
-      "evidence": "Bằng chứng mới được ghi nhận cách đây {{age}} giây.",
-      "noEvidence": "Không có bằng chứng mới. Việc làm mới chế độ xem này không bao giờ tạo hình ảnh.",
-      "resources": {
-        "title": "Mức sử dụng thời gian chạy",
-        "queue": "Hàng đợi",
-        "temporary": "Bộ nhớ tạm thời",
-        "references": "Tham chiếu được giữ lại",
-        "bytes": "Tạm thời {{temporary}} · tham chiếu {{references}}",
-        "unavailable": "Không có thông tin sử dụng khi thời gian chạy Images ngoại tuyến."
-      },
-      "remote": {
-        "enabledWarning": "URL từ xa chỉ được bật thông qua chính sách phân giải tăng cường.",
-        "disabled": "URL hình ảnh từ xa đã bị tắt."
-      },
-      "storage": {
-        "custom": "Đã cấu hình thư mục gốc lưu trữ riêng tùy chỉnh; đường dẫn được ẩn.",
-        "privateDefault": "Hiện vật sử dụng bộ nhớ dữ liệu ứng dụng riêng của daemon."
       }
     },
     "queue": {

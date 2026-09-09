@@ -516,7 +516,95 @@
     "usageStats": "Használat",
     "pricing": "Árak",
     "dashboard": "Dashboard",
-    "search": "Keresés"
+    "images": "Képek",
+"search": "Keresés"
+  },
+  "images": {
+    "title": "Képgenerálás",
+    "description": "Kezelje az alapértelmezetten kikapcsolt Images-végpontokat, és tekintse meg a bizonyítékokkal alátámasztott futásidejű állapotukat.",
+    "unsupportedDaemon": "Ez a daemon még nem biztosít Images-konfigurációt.",
+    "enable": "Images-végpontok engedélyezése",
+    "entitlementWarning": "Az engedélyezett konfiguráció nem bizonyítja az előfizetési jogosultságot. A tényleges elérhetőséghez friss bizonyíték szükséges a kiválasztott fiókhoz.",
+    "track": {
+      "configured": "Konfigurálva",
+      "effective": "Tényleges",
+      "on": "Engedélyezve",
+      "off": "Letiltva",
+      "available": "Elérhető",
+      "unavailable": "Nem érhető el",
+      "unknown": "Nincs friss képességbizonyíték"
+    },
+    "account": {
+      "label": "Fiókválasztás",
+      "pool": "Jogosult fiókok készlete",
+      "group": "Csoport: {{group}}",
+      "account": "{{number}}. Codex-fiók",
+      "fallback": "Tartalék szabályzat",
+      "strict": "Szigorú kiválasztás",
+      "poolFallback": "Tartalék választás engedélyezése a készletből"
+    },
+    "defaultModel": "Alap\u00e9rtelmezett k\u00e9pmodell",
+    "routes": {
+      "title": "Modell-\u00fatv\u00e1laszt\u00e1s",
+      "defaultBadge": "alap\u00e9rtelmezett"
+    },
+    "codex": {
+      "title": "Codex-fel\u00fclb\u00edr\u00e1l\u00e1sok",
+      "imageModel": "K\u00e9pmodell",
+      "carrierModel": "Hordoz\u00f3modell",
+      "hint": "A t\u00f6r\u00f6lt mez\u0151k a r\u00f6gz\u00edtett alap\u00e9rt\u00e9kekre \u00e1llnak vissza (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Ellenőrzött funkciómátrix",
+      "generate": "Generálás",
+      "edit": "Szerkesztés",
+      "maskEdit": "Maszkos szerkesztés",
+      "streaming": "Adatfolyam",
+      "transparentBackground": "Átlátszóság",
+      "responsesTool": "Responses-eszköz",
+      "supported": "Támogatott",
+      "unsupported": "Nem támogatott"
+    },
+    "evidence": "Friss bizonyíték észlelve {{age}} másodperce.",
+    "noEvidence": "Nem érhető el friss bizonyíték. A nézet frissítése soha nem generál képet.",
+    "resources": {
+      "title": "Futásidejű kihasználtság",
+      "queue": "Várólista",
+      "temporary": "Ideiglenes tárhely",
+      "references": "Megőrzött hivatkozások",
+      "bytes": "Ideiglenes {{temporary}} · hivatkozások {{references}}",
+      "unavailable": "A kihasználtság nem érhető el, amikor az Images-futtatókörnyezet offline."
+    },
+    "remote": {
+      "enabledWarning": "A távoli URL-ek csak a megerősített feloldási szabályzaton keresztül engedélyezhetők.",
+      "disabled": "A távoli kép-URL-ek le vannak tiltva."
+    },
+    "storage": {
+      "custom": "Privát egyéni tárhelygyökér van beállítva; az elérési út rejtett.",
+      "privateDefault": "A műtermékek a daemon privát alkalmazásadat-tárhelyét használják."
+    },
+    "page": {
+      "title": "K\u00e9pgener\u00e1l\u00e1s",
+      "description": "Modell-\u00fatv\u00e1laszt\u00e1s, szolg\u00e1ltat\u00f3k \u00e1llapota \u00e9s az Images-v\u00e9gpontok egy helyen.",
+      "loading": "K\u00e9pbe\u00e1ll\u00edt\u00e1sok bet\u00f6lt\u00e9se\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (nem ellen\u0151rz\u00f6tt)",
+      "healthy": "El\u00e9rhet\u0151",
+      "unhealthy": "Nem el\u00e9rhet\u0151",
+      "evidence": "Friss bizony\u00edt\u00e9k {{age}} m\u00e1sodperccel ezel\u0151tt.",
+      "noEvidence": "M\u00e9g nincs friss bizony\u00edt\u00e9k (bootstrap az els\u0151 val\u00f3di k\u00e9r\u00e9sn\u00e9l).",
+      "noModels": "Nincs friss bizony\u00edt\u00e9kkal meger\u0151s\u00edtett modell."
+    },
+    "verify": {
+      "title": "\u00c9l\u0151 ellen\u0151rz\u00e9s",
+      "run": "Ellen\u0151z\u00e9s futtat\u00e1sa",
+      "running": "Ellen\u0151rz\u00e9s\u2026",
+      "warning": "\u26a0 El\u0151fizet\u00e9si kv\u00f3t\u00e1t fogyaszt: egy minim\u00e1lis, alacsony min\u0151s\u00e9g\u0171 PNG-k\u00e9r\u00e9s ker\u00fcl elk\u00fcld\u00e9sre.",
+      "codexOnly": "Csak a Codex vonalat fedi le; az Antigravity szolg\u00e1ltat\u00f3nak nincs \u00f6n\u00e1ll\u00f3 ellen\u0151rz\u0151je a v1-ben.",
+      "codexOnlyPlain": "Csak a Codex vonalat fedi le.",
+      "success": "Ellen\u0151rizve: {{model}} ({{quality}}, {{format}}); friss bizony\u00edt\u00e9kok: {{count}}."
+    }
   },
   "apiService": {
     "title": "API szolgáltatás",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Képgenerálás",
-      "description": "Kezelje az alapértelmezetten kikapcsolt Images-végpontokat, és tekintse meg a bizonyítékokkal alátámasztott futásidejű állapotukat.",
-      "unsupportedDaemon": "Ez a daemon még nem biztosít Images-konfigurációt.",
-      "enable": "Images-végpontok engedélyezése",
-      "entitlementWarning": "Az engedélyezett konfiguráció nem bizonyítja az előfizetési jogosultságot. A tényleges elérhetőséghez friss bizonyíték szükséges a kiválasztott fiókhoz.",
-      "track": {
-        "configured": "Konfigurálva",
-        "effective": "Tényleges",
-        "on": "Engedélyezve",
-        "off": "Letiltva",
-        "available": "Elérhető",
-        "unavailable": "Nem érhető el",
-        "unknown": "Nincs friss képességbizonyíték"
-      },
-      "account": {
-        "label": "Fiókválasztás",
-        "pool": "Jogosult fiókok készlete",
-        "group": "Csoport: {{group}}",
-        "account": "{{number}}. Codex-fiók",
-        "fallback": "Tartalék szabályzat",
-        "strict": "Szigorú kiválasztás",
-        "poolFallback": "Tartalék választás engedélyezése a készletből"
-      },
-      "defaultModel": "Alap\u00e9rtelmezett k\u00e9pmodell",
-      "routes": {
-        "title": "Modell-\u00fatv\u00e1laszt\u00e1s",
-        "defaultBadge": "alap\u00e9rtelmezett"
-      },
-      "codex": {
-        "title": "Codex-fel\u00fclb\u00edr\u00e1l\u00e1sok",
-        "imageModel": "K\u00e9pmodell",
-        "carrierModel": "Hordoz\u00f3modell",
-        "hint": "A t\u00f6r\u00f6lt mez\u0151k a r\u00f6gz\u00edtett alap\u00e9rt\u00e9kekre \u00e1llnak vissza (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Ellenőrzött funkciómátrix",
-        "generate": "Generálás",
-        "edit": "Szerkesztés",
-        "maskEdit": "Maszkos szerkesztés",
-        "streaming": "Adatfolyam",
-        "transparentBackground": "Átlátszóság",
-        "responsesTool": "Responses-eszköz",
-        "supported": "Támogatott",
-        "unsupported": "Nem támogatott"
-      },
-      "evidence": "Friss bizonyíték észlelve {{age}} másodperce.",
-      "noEvidence": "Nem érhető el friss bizonyíték. A nézet frissítése soha nem generál képet.",
-      "resources": {
-        "title": "Futásidejű kihasználtság",
-        "queue": "Várólista",
-        "temporary": "Ideiglenes tárhely",
-        "references": "Megőrzött hivatkozások",
-        "bytes": "Ideiglenes {{temporary}} · hivatkozások {{references}}",
-        "unavailable": "A kihasználtság nem érhető el, amikor az Images-futtatókörnyezet offline."
-      },
-      "remote": {
-        "enabledWarning": "A távoli URL-ek csak a megerősített feloldási szabályzaton keresztül engedélyezhetők.",
-        "disabled": "A távoli kép-URL-ek le vannak tiltva."
-      },
-      "storage": {
-        "custom": "Privát egyéni tárhelygyökér van beállítva; az elérési út rejtett.",
-        "privateDefault": "A műtermékek a daemon privát alkalmazásadat-tárhelyét használják."
       }
     },
     "queue": {

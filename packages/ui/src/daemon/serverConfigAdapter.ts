@@ -39,6 +39,7 @@ import type {
   EndpointRoutingConfig,
   GatewayBinding,
   ImagesCapabilityStatus,
+  ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
@@ -232,6 +233,14 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
     async getImagesCapability(): Promise<ImagesCapabilityStatus | null> {
       try {
         return await adminClient.get<ImagesCapabilityStatus>('/images/capabilities');
+      } catch {
+        return null;
+      }
+    },
+
+    async verifyImagesLive(): Promise<ImagesVerifyLiveResult | null> {
+      try {
+        return await adminClient.post<ImagesVerifyLiveResult>('/images/verify-live', {});
       } catch {
         return null;
       }

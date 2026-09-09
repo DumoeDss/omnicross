@@ -537,7 +537,8 @@
     "usageStats": "用量统计",
     "pricing": "模型价格",
     "dashboard": "仪表板",
-    "search": "搜索"
+    "images": "图像",
+"search": "搜索"
   },
   "routeActivity": {
     "title": "路由活动",
@@ -840,6 +841,93 @@
       "openFromUpstreams": "请在“下游与路由”中管理使用此账号的路由。"
     }
   },
+  "images": {
+    "title": "图像生成",
+    "description": "管理默认关闭的 Images 端点，并查看由新鲜证据支持的运行状态。",
+    "unsupportedDaemon": "当前守护进程尚未提供 Images 配置。",
+    "enable": "启用 Images 端点",
+    "entitlementWarning": "启用配置并不代表订阅具有使用资格；实际可用性需要所选账号的新鲜证据。",
+    "track": {
+      "configured": "已配置",
+      "effective": "实际状态",
+      "on": "已启用",
+      "off": "已禁用",
+      "available": "可用",
+      "unavailable": "不可用",
+      "unknown": "没有新鲜的能力证据"
+    },
+    "account": {
+      "label": "账号选择",
+      "pool": "可用账号池",
+      "group": "分组：{{group}}",
+      "account": "Codex 账号 {{number}}",
+      "fallback": "回退策略",
+      "strict": "严格选择",
+      "poolFallback": "允许账号池回退"
+    },
+    "defaultModel": "\u9ed8\u8ba4\u56fe\u50cf\u6a21\u578b",
+    "routes": {
+      "title": "\u6a21\u578b\u8def\u7531",
+      "defaultBadge": "\u9ed8\u8ba4"
+    },
+    "codex": {
+      "title": "Codex \u7ebf\u8def\u8986\u76d6",
+      "imageModel": "\u56fe\u50cf\u6a21\u578b",
+      "carrierModel": "\u8f7d\u4f53\u6a21\u578b",
+      "hint": "\u6e05\u7a7a\u540e\u56de\u843d\u5230\u5185\u7f6e\u7ebf\u8def\u9ed8\u8ba4\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
+    },
+    "features": {
+      "title": "已验证功能矩阵",
+      "generate": "生成",
+      "edit": "编辑",
+      "maskEdit": "蒙版编辑",
+      "streaming": "流式输出",
+      "transparentBackground": "透明背景",
+      "responsesTool": "Responses 工具",
+      "supported": "支持",
+      "unsupported": "不支持"
+    },
+    "evidence": "新鲜证据于 {{age}} 秒前观测。",
+    "noEvidence": "没有新鲜证据。轮询此页面绝不会生成图像。",
+    "resources": {
+      "title": "运行资源利用率",
+      "queue": "队列",
+      "temporary": "临时存储",
+      "references": "保留的引用",
+      "bytes": "临时 {{temporary}} · 引用 {{references}}",
+      "unavailable": "Images 运行时离线期间无法获取资源利用率。"
+    },
+    "remote": {
+      "enabledWarning": "远程 URL 仅通过加固的解析器策略启用。",
+      "disabled": "远程图像 URL 已禁用。"
+    },
+    "storage": {
+      "custom": "已配置私有自定义存储根目录；其路径已隐藏。",
+      "privateDefault": "图像产物使用守护进程的私有应用数据存储。"
+    },
+    "page": {
+      "title": "\u56fe\u50cf\u751f\u6210",
+      "description": "\u6a21\u578b\u8def\u7531\u3001provider \u5065\u5eb7\u4e0e Images \u7aef\u70b9\uff0c\u96c6\u4e2d\u4e00\u5904\u3002",
+      "loading": "\u6b63\u5728\u52a0\u8f7d\u56fe\u50cf\u914d\u7f6e\u2026"
+    },
+    "providers": {
+      "bootstrap": "\u5f15\u5bfc\u4e2d\uff08\u672a\u9a8c\u8bc1\uff09",
+      "healthy": "\u53ef\u7528",
+      "unhealthy": "\u4e0d\u53ef\u7528",
+      "evidence": "{{age}} \u79d2\u524d\u83b7\u5f97\u65b0\u9c9c\u8bc1\u636e\u3002",
+      "noEvidence": "\u6682\u65e0\u65b0\u9c9c\u8bc1\u636e\uff08\u9996\u6b21\u771f\u5b9e\u8bf7\u6c42\u65f6\u5f15\u5bfc\uff09\u3002",
+      "noModels": "\u6682\u65e0\u65b0\u9c9c\u8bc1\u636e\u786e\u8ba4\u7684\u6a21\u578b\u3002"
+    },
+    "verify": {
+      "title": "\u5b9e\u673a\u9a8c\u8bc1",
+      "run": "\u8fd0\u884c\u9a8c\u8bc1",
+      "running": "\u9a8c\u8bc1\u4e2d\u2026",
+      "warning": "\u26a0 \u4f1a\u6d88\u8017\u8ba2\u9605\u914d\u989d\uff1a\u5c06\u53d1\u9001\u4e00\u6b21\u6700\u4f4e\u8d28\u91cf PNG \u8bf7\u6c42\u3002",
+      "codexOnly": "\u4ec5\u8986\u76d6 Codex \u7ebf\u8def\uff1bAntigravity provider \u5728 v1 \u6ca1\u6709\u72ec\u7acb\u9a8c\u8bc1\u5668\u3002",
+      "codexOnlyPlain": "\u4ec5\u8986\u76d6 Codex \u7ebf\u8def\u3002",
+      "success": "\u5df2\u9a8c\u8bc1 {{model}}\uff08{{quality}}\uff0c{{format}}\uff09\uff1b\u65b0\u9c9c\u8bc1\u636e\u6761\u76ee\uff1a{{count}}\u3002"
+    }
+  },
   "apiService": {
     "gatewayTitle": "网关",
     "gatewayDescription": "说明并控制客户端如何进入本地服务、经过路由并流转。",
@@ -977,71 +1065,6 @@
         "modelRestrictionList": "模型",
         "modelRestrictionListHint": "每行一个模型 ID",
         "modelRestrictionEmptyAllowlistWarning": "启用的白名单若为空将拒绝所有请求。"
-      }
-    },
-    "images": {
-      "title": "图像生成",
-      "description": "管理默认关闭的 Images 端点，并查看由新鲜证据支持的运行状态。",
-      "unsupportedDaemon": "当前守护进程尚未提供 Images 配置。",
-      "enable": "启用 Images 端点",
-      "entitlementWarning": "启用配置并不代表订阅具有使用资格；实际可用性需要所选账号的新鲜证据。",
-      "track": {
-        "configured": "已配置",
-        "effective": "实际状态",
-        "on": "已启用",
-        "off": "已禁用",
-        "available": "可用",
-        "unavailable": "不可用",
-        "unknown": "没有新鲜的能力证据"
-      },
-      "account": {
-        "label": "账号选择",
-        "pool": "可用账号池",
-        "group": "分组：{{group}}",
-        "account": "Codex 账号 {{number}}",
-        "fallback": "回退策略",
-        "strict": "严格选择",
-        "poolFallback": "允许账号池回退"
-      },
-      "defaultModel": "\u9ed8\u8ba4\u56fe\u50cf\u6a21\u578b",
-      "routes": {
-        "title": "\u6a21\u578b\u8def\u7531",
-        "defaultBadge": "\u9ed8\u8ba4"
-      },
-      "codex": {
-        "title": "Codex \u7ebf\u8def\u8986\u76d6",
-        "imageModel": "\u56fe\u50cf\u6a21\u578b",
-        "carrierModel": "\u8f7d\u4f53\u6a21\u578b",
-        "hint": "\u6e05\u7a7a\u540e\u56de\u843d\u5230\u5185\u7f6e\u7ebf\u8def\u9ed8\u8ba4\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
-      },
-      "features": {
-        "title": "已验证功能矩阵",
-        "generate": "生成",
-        "edit": "编辑",
-        "maskEdit": "蒙版编辑",
-        "streaming": "流式输出",
-        "transparentBackground": "透明背景",
-        "responsesTool": "Responses 工具",
-        "supported": "支持",
-        "unsupported": "不支持"
-      },
-      "evidence": "新鲜证据于 {{age}} 秒前观测。",
-      "noEvidence": "没有新鲜证据。轮询此页面绝不会生成图像。",
-      "resources": {
-        "title": "运行资源利用率",
-        "queue": "队列",
-        "temporary": "临时存储",
-        "references": "保留的引用",
-        "bytes": "临时 {{temporary}} · 引用 {{references}}",
-        "unavailable": "Images 运行时离线期间无法获取资源利用率。"
-      },
-      "remote": {
-        "enabledWarning": "远程 URL 仅通过加固的解析器策略启用。",
-        "disabled": "远程图像 URL 已禁用。"
-      },
-      "storage": {
-        "custom": "已配置私有自定义存储根目录；其路径已隐藏。",
-        "privateDefault": "图像产物使用守护进程的私有应用数据存储。"
       }
     },
     "queue": {

@@ -14,7 +14,7 @@ import {
 import {
   effectiveKeyPermissions,
   toggleKeyPermission,
-} from '../KeyManagementSection';
+} from '../../api-service/KeyManagementSection';
 
 const BASE_CONFIG = {
   account: { fallback: 'strict' },

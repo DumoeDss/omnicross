@@ -516,7 +516,95 @@
     "usageStats": "Uso",
     "pricing": "Preços",
     "dashboard": "Dashboard",
-    "search": "Pesquisa"
+    "images": "Imagens",
+"search": "Pesquisa"
+  },
+  "images": {
+    "title": "Geração de imagens",
+    "description": "Controle os endpoints de Imagens, desativados por predefinição, e consulte o respetivo estado de execução sustentado por evidências.",
+    "unsupportedDaemon": "Este daemon ainda não disponibiliza a configuração de Imagens.",
+    "enable": "Ativar endpoints de Imagens",
+    "entitlementWarning": "Ativar a configuração não comprova o direito da subscrição. A disponibilidade efetiva exige evidências recentes da conta selecionada.",
+    "track": {
+      "configured": "Configurado",
+      "effective": "Efetivo",
+      "on": "Ativado",
+      "off": "Desativado",
+      "available": "Disponível",
+      "unavailable": "Indisponível",
+      "unknown": "Sem evidências recentes de capacidade"
+    },
+    "account": {
+      "label": "Seleção de conta",
+      "pool": "Conjunto de contas elegíveis",
+      "group": "Grupo: {{group}}",
+      "account": "Conta Codex {{number}}",
+      "fallback": "Política de recurso",
+      "strict": "Seleção estrita",
+      "poolFallback": "Permitir recurso ao conjunto"
+    },
+    "defaultModel": "Modelo de imagem predefinido",
+    "routes": {
+      "title": "Encaminhamento de modelos",
+      "defaultBadge": "predefinido"
+    },
+    "codex": {
+      "title": "Substitui\u00e7\u00f5es do Codex",
+      "imageModel": "Modelo de imagem",
+      "carrierModel": "Modelo portador",
+      "hint": "Campos limpos regressam \u00e0s predefini\u00e7\u00f5es fixadas (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Matriz de funcionalidades verificadas",
+      "generate": "Gerar",
+      "edit": "Editar",
+      "maskEdit": "Edição com máscara",
+      "streaming": "Transmissão",
+      "transparentBackground": "Transparência",
+      "responsesTool": "Ferramenta Responses",
+      "supported": "Suportado",
+      "unsupported": "Não suportado"
+    },
+    "evidence": "Evidência recente observada há {{age}} segundos.",
+    "noEvidence": "Não existem evidências recentes disponíveis. Atualizar esta vista nunca gera uma imagem.",
+    "resources": {
+      "title": "Utilização do ambiente de execução",
+      "queue": "Fila",
+      "temporary": "Armazenamento temporário",
+      "references": "Referências mantidas",
+      "bytes": "Temporário {{temporary}} · referências {{references}}",
+      "unavailable": "A utilização não está disponível enquanto o ambiente de Imagens estiver offline."
+    },
+    "remote": {
+      "enabledWarning": "Os URL remotos só são ativados através da política de resolução reforçada.",
+      "disabled": "Os URL de imagens remotas estão desativados."
+    },
+    "storage": {
+      "custom": "Está configurada uma raiz de armazenamento privada personalizada; o caminho está oculto.",
+      "privateDefault": "Os artefactos utilizam o armazenamento privado de dados da aplicação do daemon."
+    },
+    "page": {
+      "title": "Gera\u00e7\u00e3o de imagens",
+      "description": "Encaminhamento de modelos, estado dos fornecedores e os endpoints de Images num s\u00f3 lugar.",
+      "loading": "A carregar a configura\u00e7\u00e3o de Images\u2026"
+    },
+    "providers": {
+      "bootstrap": "arranque (n\u00e3o verificado)",
+      "healthy": "Dispon\u00edvel",
+      "unhealthy": "Indispon\u00edvel",
+      "evidence": "Evid\u00eancia fresca h\u00e1 {{age}} segundos.",
+      "noEvidence": "Ainda sem evid\u00eancia fresca (arranque no primeiro pedido real).",
+      "noModels": "Nenhum modelo afirmado por evid\u00eancia fresca."
+    },
+    "verify": {
+      "title": "Verifica\u00e7\u00e3o em direto",
+      "run": "Executar verifica\u00e7\u00e3o",
+      "running": "A verificar\u2026",
+      "warning": "\u26a0 Consome quota da subscri\u00e7\u00e3o: ser\u00e1 enviado um pedido PNG m\u00ednimo de baixa qualidade.",
+      "codexOnly": "Cobre apenas a linha Codex; o fornecedor Antigravity n\u00e3o tem verificador independente na v1.",
+      "codexOnlyPlain": "Cobre apenas a linha Codex.",
+      "success": "Verificado {{model}} ({{quality}}, {{format}}); evid\u00eancias frescas: {{count}}."
+    }
   },
   "apiService": {
     "title": "Serviço de API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Geração de imagens",
-      "description": "Controle os endpoints de Imagens, desativados por predefinição, e consulte o respetivo estado de execução sustentado por evidências.",
-      "unsupportedDaemon": "Este daemon ainda não disponibiliza a configuração de Imagens.",
-      "enable": "Ativar endpoints de Imagens",
-      "entitlementWarning": "Ativar a configuração não comprova o direito da subscrição. A disponibilidade efetiva exige evidências recentes da conta selecionada.",
-      "track": {
-        "configured": "Configurado",
-        "effective": "Efetivo",
-        "on": "Ativado",
-        "off": "Desativado",
-        "available": "Disponível",
-        "unavailable": "Indisponível",
-        "unknown": "Sem evidências recentes de capacidade"
-      },
-      "account": {
-        "label": "Seleção de conta",
-        "pool": "Conjunto de contas elegíveis",
-        "group": "Grupo: {{group}}",
-        "account": "Conta Codex {{number}}",
-        "fallback": "Política de recurso",
-        "strict": "Seleção estrita",
-        "poolFallback": "Permitir recurso ao conjunto"
-      },
-      "defaultModel": "Modelo de imagem predefinido",
-      "routes": {
-        "title": "Encaminhamento de modelos",
-        "defaultBadge": "predefinido"
-      },
-      "codex": {
-        "title": "Substitui\u00e7\u00f5es do Codex",
-        "imageModel": "Modelo de imagem",
-        "carrierModel": "Modelo portador",
-        "hint": "Campos limpos regressam \u00e0s predefini\u00e7\u00f5es fixadas (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Matriz de funcionalidades verificadas",
-        "generate": "Gerar",
-        "edit": "Editar",
-        "maskEdit": "Edição com máscara",
-        "streaming": "Transmissão",
-        "transparentBackground": "Transparência",
-        "responsesTool": "Ferramenta Responses",
-        "supported": "Suportado",
-        "unsupported": "Não suportado"
-      },
-      "evidence": "Evidência recente observada há {{age}} segundos.",
-      "noEvidence": "Não existem evidências recentes disponíveis. Atualizar esta vista nunca gera uma imagem.",
-      "resources": {
-        "title": "Utilização do ambiente de execução",
-        "queue": "Fila",
-        "temporary": "Armazenamento temporário",
-        "references": "Referências mantidas",
-        "bytes": "Temporário {{temporary}} · referências {{references}}",
-        "unavailable": "A utilização não está disponível enquanto o ambiente de Imagens estiver offline."
-      },
-      "remote": {
-        "enabledWarning": "Os URL remotos só são ativados através da política de resolução reforçada.",
-        "disabled": "Os URL de imagens remotas estão desativados."
-      },
-      "storage": {
-        "custom": "Está configurada uma raiz de armazenamento privada personalizada; o caminho está oculto.",
-        "privateDefault": "Os artefactos utilizam o armazenamento privado de dados da aplicação do daemon."
       }
     },
     "queue": {

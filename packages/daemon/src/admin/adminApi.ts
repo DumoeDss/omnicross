@@ -56,6 +56,7 @@ import type { FetchLike } from '@omnicross/subscriptions';
 import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
 import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
 import type { ProviderKeyQuota } from '../allowance/ProviderKeyQuotaService';
+import type { ImageDoctorLiveResult } from '../image-generation/ImageDoctorService';
 import { validateImagesAdminConfig } from '../image-generation/imagesConfigValidation';
 import type {
   ImageRuntimeCapabilityInspection,
@@ -276,6 +277,14 @@ export interface AdminApiDeps {
   };
   /** Narrow metadata-only reader for authenticated Images capability/status. */
   readonly imageRuntimeStatus?: AdminImagesStatusReader;
+  /**
+   * Explicitly-consuming live image verification (images-settings-tab D3) —
+   * delegates to the doctor service's `verifyLive` (Codex wire only). Absent
+   * on light embedders; the endpoint then responds 501 and consumes nothing.
+   */
+  readonly imageLiveVerifier?: {
+    verifyLive(config: ImagesServerConfig, signal: AbortSignal): Promise<ImageDoctorLiveResult>;
+  };
   /** Metadata-only successful Images configuration audit sink. */
   readonly imageConfigAudit?: (record: ImageConfigurationAuditRecord) => void;
   /** Process-local machine-managed routing leases (optional for light embedders). */
@@ -617,7 +626,7 @@ export async function handleAdminApi(
       case 'server':
         return await handleServer(req, res, method, deps);
       case 'images':
-        return await handleImages(res, method, rest, deps);
+        return await handleImages(req, res, method, rest, deps);
       case 'search':
         return await handleSearchAdmin(req, res, method, rest, deps);
       case 'accounts':
@@ -3068,12 +3077,70 @@ function imageEndpointUrls(base: string | null) {
     : null;
 }
 
+/** Project one provider's evidence-age block (mirrors the default-provider derivation). */
+function imageProviderEvidence(
+  images: ImagesServerConfig,
+  capabilities: { oldestEvidenceAt?: number; resolvedAt?: number } | undefined,
+): { verifiedAt: number; ageMs: number; expiresAt?: number } | null {
+  const evidenceAt = safeStatusTimestamp(capabilities?.oldestEvidenceAt);
+  const resolvedAt = safeStatusTimestamp(capabilities?.resolvedAt);
+  if (evidenceAt === undefined || resolvedAt === undefined) return null;
+  const expiresAt = evidenceAt <= Number.MAX_SAFE_INTEGER - images.evidenceTtlMs
+    ? evidenceAt + images.evidenceTtlMs
+    : undefined;
+  return Object.freeze({
+    verifiedAt: evidenceAt,
+    ageMs: Math.max(0, resolvedAt - evidenceAt),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
+  });
+}
+
+/**
+ * POST /images/verify-live — the explicitly-consuming live verification
+ * (images-settings-tab D3): the admin-HTTP twin of `doctor images --live`.
+ * Rides the same AdminServer auth gate as every sibling endpoint; 501 when
+ * the verifier dependency is not wired; the response carries stable safe
+ * codes/metadata only and annotates Codex-only coverage when Antigravity
+ * models are routed.
+ */
+async function handleImagesVerifyLive(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  deps: AdminApiDeps,
+): Promise<void> {
+  const verifier = deps.imageLiveVerifier;
+  if (!verifier) {
+    return writeJsonError(res, 501, 'Images live verification is not available');
+  }
+  const serverConfig = await loadServerConfig(deps.settingsStore);
+  const images = serverConfig.images ?? DEFAULT_IMAGES_SERVER_CONFIG;
+  // Drain the (empty) request body so the connection stays reusable, and tie
+  // the consuming generation to the admin connection: a client disconnect
+  // aborts the wait (the verifier's own timeout still bounds it).
+  req.resume();
+  const controller = new AbortController();
+  req.on('close', () => controller.abort());
+  const result = await verifier.verifyLive(images, controller.signal);
+  const antigravityRouted = Object.values(images.models).includes('antigravity-subscription');
+  return writeJson(res, 200, {
+    ...result,
+    ...(antigravityRouted ? { antigravityDeferred: true } : {}),
+  });
+}
+
 async function handleImages(
+  req: http.IncomingMessage,
   res: http.ServerResponse,
   method: string,
   rest: string[],
   deps: AdminApiDeps,
 ): Promise<void> {
+  if (rest.length === 1 && rest[0] === 'verify-live') {
+    if (method !== 'POST') {
+      return writeJsonError(res, 405, `method ${method} not allowed on Images verify-live`);
+    }
+    return handleImagesVerifyLive(req, res, deps);
+  }
   if (rest.length !== 1 || rest[0] !== 'capabilities') {
     return writeJsonError(res, 404, 'unknown Images admin resource');
   }
@@ -3089,19 +3156,16 @@ async function handleImages(
   const capability = await reader.inspectCapability(IMAGE_ADMIN_STATUS_TENANT);
   const resources = safeRuntimeResources(reader.resourceStatus());
   const outbound = deps.outboundApiServer.getStatus();
-  const evidenceAt = safeStatusTimestamp(capability.capabilities?.oldestEvidenceAt);
-  const resolvedAt = safeStatusTimestamp(capability.capabilities?.resolvedAt);
-  const expiresAt = evidenceAt !== undefined &&
-    evidenceAt <= Number.MAX_SAFE_INTEGER - images.evidenceTtlMs
-    ? evidenceAt + images.evidenceTtlMs
-    : undefined;
-  const evidence = evidenceAt !== undefined && resolvedAt !== undefined
-    ? Object.freeze({
-        verifiedAt: evidenceAt,
-        ageMs: Math.max(0, resolvedAt - evidenceAt),
-        ...(expiresAt !== undefined ? { expiresAt } : {}),
-      })
-    : null;
+  const evidence = imageProviderEvidence(images, capability.capabilities);
+  // Per-provider rows (images-settings-tab D2): one card per provider the
+  // routing table names, each with its own affirmed models and evidence age.
+  const providers = (capability.providers ?? []).map((provider) => Object.freeze({
+    providerId: provider.providerId,
+    available: provider.available === true,
+    reason: provider.available ? null : safeImageCapabilityReason(provider.reason),
+    models: Object.freeze([...provider.models]),
+    evidence: imageProviderEvidence(images, provider.capabilities),
+  }));
   const draining = lifecycle.draining.map((generation) => Object.freeze({
     generationId: safeImageGenerationId(generation.generationId),
     enabled: generation.enabled,
@@ -3123,6 +3187,7 @@ async function handleImages(
       evidence,
       features: safeCapabilityValues(capability.capabilities, images.defaultModel),
     },
+    providers,
     runtime: {
       disposed: lifecycle.disposed,
       generationId: safeImageGenerationId(lifecycle.current.generationId),

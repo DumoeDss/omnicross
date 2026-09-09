@@ -516,7 +516,95 @@
     "usageStats": "Utilizare",
     "pricing": "Prețuri",
     "dashboard": "Dashboard",
-    "search": "Căutare"
+    "images": "Imagini",
+"search": "Căutare"
+  },
+  "images": {
+    "title": "Generare de imagini",
+    "description": "Controlați endpointurile Images, dezactivate implicit, și consultați starea lor de execuție susținută de dovezi.",
+    "unsupportedDaemon": "Acest daemon nu oferă încă configurarea Images.",
+    "enable": "Activați endpointurile Images",
+    "entitlementWarning": "Activarea configurării nu dovedește dreptul abonamentului. Disponibilitatea efectivă necesită dovezi recente pentru contul selectat.",
+    "track": {
+      "configured": "Configurat",
+      "effective": "Efectiv",
+      "on": "Activat",
+      "off": "Dezactivat",
+      "available": "Disponibil",
+      "unavailable": "Indisponibil",
+      "unknown": "Nu există dovezi recente privind capabilitatea"
+    },
+    "account": {
+      "label": "Selectarea contului",
+      "pool": "Grup de conturi eligibile",
+      "group": "Grup: {{group}}",
+      "account": "Cont Codex {{number}}",
+      "fallback": "Politică de rezervă",
+      "strict": "Selecție strictă",
+      "poolFallback": "Permiteți selecția de rezervă din grup"
+    },
+    "defaultModel": "Model de imagine implicit",
+    "routes": {
+      "title": "Rutarea modelelor",
+      "defaultBadge": "implicit"
+    },
+    "codex": {
+      "title": "Suprascrieri Codex",
+      "imageModel": "Model de imagine",
+      "carrierModel": "Model purt\u0103tor",
+      "hint": "C\u00e2mpurile golite revin la valorile implicite fixate (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Matrice de funcții verificate",
+      "generate": "Generare",
+      "edit": "Editare",
+      "maskEdit": "Editare cu mască",
+      "streaming": "Transmitere în flux",
+      "transparentBackground": "Transparență",
+      "responsesTool": "Instrument Responses",
+      "supported": "Acceptat",
+      "unsupported": "Neacceptat"
+    },
+    "evidence": "Dovezi recente observate acum {{age}} secunde.",
+    "noEvidence": "Nu sunt disponibile dovezi recente. Reîmprospătarea acestei vizualizări nu generează niciodată o imagine.",
+    "resources": {
+      "title": "Utilizarea mediului de execuție",
+      "queue": "Coadă",
+      "temporary": "Stocare temporară",
+      "references": "Referințe păstrate",
+      "bytes": "Temporar {{temporary}} · referințe {{references}}",
+      "unavailable": "Utilizarea nu este disponibilă cât timp mediul Images este offline."
+    },
+    "remote": {
+      "enabledWarning": "URL-urile la distanță sunt activate numai prin politica de rezoluție consolidată.",
+      "disabled": "URL-urile imaginilor la distanță sunt dezactivate."
+    },
+    "storage": {
+      "custom": "Este configurată o rădăcină de stocare privată personalizată; calea este ascunsă.",
+      "privateDefault": "Artefactele folosesc stocarea privată a datelor aplicației daemonului."
+    },
+    "page": {
+      "title": "Generarea imaginilor",
+      "description": "Rutarea modelelor, starea furnizorilor \u0219i endpoint-urile Images \u00eentr-un singur loc.",
+      "loading": "Se \u00eencarc\u0103 configura\u021bia imaginilor\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (neverificat)",
+      "healthy": "Disponibil",
+      "unhealthy": "Indisponibil",
+      "evidence": "Dovezi proaspete acum {{age}} secunde.",
+      "noEvidence": "\u00cenc\u0103 f\u0103r\u0103 dovezi proaspete (bootstrap la prima cerere real\u0103).",
+      "noModels": "Niciun model afirmat de dovezi proaspete."
+    },
+    "verify": {
+      "title": "Verificare live",
+      "run": "Ruleaz\u0103 verificarea",
+      "running": "Se verific\u0103\u2026",
+      "warning": "\u26a0 Consum\u0103 cot\u0103 de abonament: va fi trimis\u0103 o cerere PNG minimal\u0103, de calitate sc\u0103zut\u0103.",
+      "codexOnly": "Acoper\u0103 doar linia Codex; furnizorul Antigravity nu are un verificator independent \u00een v1.",
+      "codexOnlyPlain": "Acoper\u0103 doar linia Codex.",
+      "success": "Verificat {{model}} ({{quality}}, {{format}}); dovezi proaspete: {{count}}."
+    }
   },
   "apiService": {
     "title": "Serviciu API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Generare de imagini",
-      "description": "Controlați endpointurile Images, dezactivate implicit, și consultați starea lor de execuție susținută de dovezi.",
-      "unsupportedDaemon": "Acest daemon nu oferă încă configurarea Images.",
-      "enable": "Activați endpointurile Images",
-      "entitlementWarning": "Activarea configurării nu dovedește dreptul abonamentului. Disponibilitatea efectivă necesită dovezi recente pentru contul selectat.",
-      "track": {
-        "configured": "Configurat",
-        "effective": "Efectiv",
-        "on": "Activat",
-        "off": "Dezactivat",
-        "available": "Disponibil",
-        "unavailable": "Indisponibil",
-        "unknown": "Nu există dovezi recente privind capabilitatea"
-      },
-      "account": {
-        "label": "Selectarea contului",
-        "pool": "Grup de conturi eligibile",
-        "group": "Grup: {{group}}",
-        "account": "Cont Codex {{number}}",
-        "fallback": "Politică de rezervă",
-        "strict": "Selecție strictă",
-        "poolFallback": "Permiteți selecția de rezervă din grup"
-      },
-      "defaultModel": "Model de imagine implicit",
-      "routes": {
-        "title": "Rutarea modelelor",
-        "defaultBadge": "implicit"
-      },
-      "codex": {
-        "title": "Suprascrieri Codex",
-        "imageModel": "Model de imagine",
-        "carrierModel": "Model purt\u0103tor",
-        "hint": "C\u00e2mpurile golite revin la valorile implicite fixate (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Matrice de funcții verificate",
-        "generate": "Generare",
-        "edit": "Editare",
-        "maskEdit": "Editare cu mască",
-        "streaming": "Transmitere în flux",
-        "transparentBackground": "Transparență",
-        "responsesTool": "Instrument Responses",
-        "supported": "Acceptat",
-        "unsupported": "Neacceptat"
-      },
-      "evidence": "Dovezi recente observate acum {{age}} secunde.",
-      "noEvidence": "Nu sunt disponibile dovezi recente. Reîmprospătarea acestei vizualizări nu generează niciodată o imagine.",
-      "resources": {
-        "title": "Utilizarea mediului de execuție",
-        "queue": "Coadă",
-        "temporary": "Stocare temporară",
-        "references": "Referințe păstrate",
-        "bytes": "Temporar {{temporary}} · referințe {{references}}",
-        "unavailable": "Utilizarea nu este disponibilă cât timp mediul Images este offline."
-      },
-      "remote": {
-        "enabledWarning": "URL-urile la distanță sunt activate numai prin politica de rezoluție consolidată.",
-        "disabled": "URL-urile imaginilor la distanță sunt dezactivate."
-      },
-      "storage": {
-        "custom": "Este configurată o rădăcină de stocare privată personalizată; calea este ascunsă.",
-        "privateDefault": "Artefactele folosesc stocarea privată a datelor aplicației daemonului."
       }
     },
     "queue": {

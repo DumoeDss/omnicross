@@ -41,6 +41,7 @@ import type {
   EndpointRoutingConfig,
   GatewayBinding,
   ImagesCapabilityStatus,
+  ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
@@ -310,6 +311,12 @@ export interface AgentApiServiceApi {
   getStatus(): Promise<OutboundApiServerStatus | null>;
   /** Non-consuming authenticated Images capability/runtime projection. */
   getImagesCapability(): Promise<ImagesCapabilityStatus | null>;
+  /**
+   * EXPLICITLY-CONSUMING live verification (`POST /admin/api/images/verify-live`
+   * — the admin twin of `doctor images --live`; one low-quality PNG on the
+   * Codex wire). Callers MUST warn the operator before invoking.
+   */
+  verifyImagesLive(): Promise<ImagesVerifyLiveResult | null>;
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
   /** Replace the complete independent gateway-binding aggregate. */

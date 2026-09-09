@@ -226,6 +226,8 @@ export interface DaemonPaths {
   imageRuntimeConfig?: AdminApiDeps['imageRuntimeConfig'];
   /** TEST/COMPOSITION SEAM: metadata-only Images status reader. */
   imageRuntimeStatus?: AdminApiDeps['imageRuntimeStatus'];
+  /** TEST/COMPOSITION SEAM: explicitly-consuming Images live verifier. */
+  imageLiveVerifier?: AdminApiDeps['imageLiveVerifier'];
   /** TEST/COMPOSITION SEAM: metadata-only successful Images config audit sink. */
   imageConfigAudit?: AdminApiDeps['imageConfigAudit'];
   /** TEST ONLY: deterministic Tier-A provider inside the production Images composition. */
@@ -978,6 +980,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     outboundApiServer,
     imageRuntimeConfig,
     imageRuntimeStatus: paths.imageRuntimeStatus ?? imageRuntimeManager,
+    imageLiveVerifier: paths.imageLiveVerifier ?? imageDoctor,
     imageConfigAudit: paths.imageConfigAudit ?? ((record) => {
       imageObservability.recordConfigurationAudit(record);
     }),

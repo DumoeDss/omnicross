@@ -516,7 +516,95 @@
     "usageStats": "Användning",
     "pricing": "Priser",
     "dashboard": "Dashboard",
-    "search": "Sök"
+    "images": "Bilder",
+"search": "Sök"
+  },
+  "images": {
+    "title": "Bildgenerering",
+    "description": "Styr Images-slutpunkterna, som är inaktiverade som standard, och granska deras evidensbaserade körningsstatus.",
+    "unsupportedDaemon": "Den här daemonen erbjuder ännu ingen Images-konfiguration.",
+    "enable": "Aktivera Images-slutpunkter",
+    "entitlementWarning": "En aktiverad konfiguration bevisar inte abonnemangsbehörighet. Faktisk tillgänglighet kräver färska bevis för det valda kontot.",
+    "track": {
+      "configured": "Konfigurerad",
+      "effective": "Gällande",
+      "on": "Aktiverad",
+      "off": "Inaktiverad",
+      "available": "Tillgänglig",
+      "unavailable": "Otillgänglig",
+      "unknown": "Inga färska kapacitetsbevis"
+    },
+    "account": {
+      "label": "Kontoval",
+      "pool": "Pool med behöriga konton",
+      "group": "Grupp: {{group}}",
+      "account": "Codex-konto {{number}}",
+      "fallback": "Reservpolicy",
+      "strict": "Strikt val",
+      "poolFallback": "Tillåt reservval från poolen"
+    },
+    "defaultModel": "Standard bildmodell",
+    "routes": {
+      "title": "Modellroutning",
+      "defaultBadge": "standard"
+    },
+    "codex": {
+      "title": "Codex-\u00f6verstyrningar",
+      "imageModel": "Bildmodell",
+      "carrierModel": "B\u00e4rarmodell",
+      "hint": "Rensade f\u00e4lt faller tillbaka p\u00e5 de fastn\u00e5lade standardv\u00e4rdena (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Verifierad funktionsmatris",
+      "generate": "Generera",
+      "edit": "Redigera",
+      "maskEdit": "Maskredigering",
+      "streaming": "Strömning",
+      "transparentBackground": "Transparens",
+      "responsesTool": "Responses-verktyg",
+      "supported": "Stöds",
+      "unsupported": "Stöds inte"
+    },
+    "evidence": "Färska bevis observerades för {{age}} sekunder sedan.",
+    "noEvidence": "Inga färska bevis är tillgängliga. Uppdatering av den här vyn genererar aldrig en bild.",
+    "resources": {
+      "title": "Körningsutnyttjande",
+      "queue": "Kö",
+      "temporary": "Tillfällig lagring",
+      "references": "Bevarade referenser",
+      "bytes": "Tillfälligt {{temporary}} · referenser {{references}}",
+      "unavailable": "Körningsutnyttjande är inte tillgängligt när Images-körningen är offline."
+    },
+    "remote": {
+      "enabledWarning": "Fjärr-URL:er aktiveras endast via den härdade resolverpolicyn.",
+      "disabled": "Fjärr-URL:er för bilder är inaktiverade."
+    },
+    "storage": {
+      "custom": "En privat anpassad lagringsrot är konfigurerad; sökvägen är dold.",
+      "privateDefault": "Artefakter använder daemonens privata lagring för programdata."
+    },
+    "page": {
+      "title": "Bildgenerering",
+      "description": "Modellroutning, leverant\u00f6rsstatus och Images-endpoints p\u00e5 ett st\u00e4lle.",
+      "loading": "L\u00e4ser in bildkonfiguration\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (overifierad)",
+      "healthy": "Tillg\u00e4nglig",
+      "unhealthy": "Otillg\u00e4nglig",
+      "evidence": "F\u00e4rska bevis f\u00f6r {{age}} sekunder sedan.",
+      "noEvidence": "Inga f\u00e4rska bevis \u00e4n (bootstrap vid f\u00f6rsta riktiga f\u00f6rfr\u00e5gan).",
+      "noModels": "Inga modeller bekr\u00e4ftade av f\u00e4rska bevis."
+    },
+    "verify": {
+      "title": "Live-verifiering",
+      "run": "K\u00f6r verifiering",
+      "running": "Verifierar\u2026",
+      "warning": "\u26a0 F\u00f6rbrukar prenumerationskvot: en minimal PNG-f\u00f6rfr\u00e5gan i l\u00e5g kvalitet skickas.",
+      "codexOnly": "T\u00e4cker bara Codex-linjen; Antigravity-leverant\u00f6ren har ingen egen verifierare i v1.",
+      "codexOnlyPlain": "T\u00e4cker bara Codex-linjen.",
+      "success": "Verifierad {{model}} ({{quality}}, {{format}}); f\u00e4rska bevis: {{count}}."
+    }
   },
   "apiService": {
     "title": "API-tjänst",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Bildgenerering",
-      "description": "Styr Images-slutpunkterna, som är inaktiverade som standard, och granska deras evidensbaserade körningsstatus.",
-      "unsupportedDaemon": "Den här daemonen erbjuder ännu ingen Images-konfiguration.",
-      "enable": "Aktivera Images-slutpunkter",
-      "entitlementWarning": "En aktiverad konfiguration bevisar inte abonnemangsbehörighet. Faktisk tillgänglighet kräver färska bevis för det valda kontot.",
-      "track": {
-        "configured": "Konfigurerad",
-        "effective": "Gällande",
-        "on": "Aktiverad",
-        "off": "Inaktiverad",
-        "available": "Tillgänglig",
-        "unavailable": "Otillgänglig",
-        "unknown": "Inga färska kapacitetsbevis"
-      },
-      "account": {
-        "label": "Kontoval",
-        "pool": "Pool med behöriga konton",
-        "group": "Grupp: {{group}}",
-        "account": "Codex-konto {{number}}",
-        "fallback": "Reservpolicy",
-        "strict": "Strikt val",
-        "poolFallback": "Tillåt reservval från poolen"
-      },
-      "defaultModel": "Standard bildmodell",
-      "routes": {
-        "title": "Modellroutning",
-        "defaultBadge": "standard"
-      },
-      "codex": {
-        "title": "Codex-\u00f6verstyrningar",
-        "imageModel": "Bildmodell",
-        "carrierModel": "B\u00e4rarmodell",
-        "hint": "Rensade f\u00e4lt faller tillbaka p\u00e5 de fastn\u00e5lade standardv\u00e4rdena (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Verifierad funktionsmatris",
-        "generate": "Generera",
-        "edit": "Redigera",
-        "maskEdit": "Maskredigering",
-        "streaming": "Strömning",
-        "transparentBackground": "Transparens",
-        "responsesTool": "Responses-verktyg",
-        "supported": "Stöds",
-        "unsupported": "Stöds inte"
-      },
-      "evidence": "Färska bevis observerades för {{age}} sekunder sedan.",
-      "noEvidence": "Inga färska bevis är tillgängliga. Uppdatering av den här vyn genererar aldrig en bild.",
-      "resources": {
-        "title": "Körningsutnyttjande",
-        "queue": "Kö",
-        "temporary": "Tillfällig lagring",
-        "references": "Bevarade referenser",
-        "bytes": "Tillfälligt {{temporary}} · referenser {{references}}",
-        "unavailable": "Körningsutnyttjande är inte tillgängligt när Images-körningen är offline."
-      },
-      "remote": {
-        "enabledWarning": "Fjärr-URL:er aktiveras endast via den härdade resolverpolicyn.",
-        "disabled": "Fjärr-URL:er för bilder är inaktiverade."
-      },
-      "storage": {
-        "custom": "En privat anpassad lagringsrot är konfigurerad; sökvägen är dold.",
-        "privateDefault": "Artefakter använder daemonens privata lagring för programdata."
       }
     },
     "queue": {

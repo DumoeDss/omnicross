@@ -755,14 +755,42 @@ export interface ImageRuntimeResourceStatus {
   };
 }
 
+/** One per-provider row of the Images capability status (images-settings-tab D2). */
+export interface ImagesProviderStatusRow {
+  providerId: ImageProviderId;
+  available: boolean;
+  reason: string | null;
+  /** This provider's route keys affirmed by its own fresh evidence. */
+  models: string[];
+  evidence: { verifiedAt: number; ageMs: number; expiresAt?: number } | null;
+}
+
+/** `POST /images/verify-live` outcome — stable safe codes/metadata only. */
+export interface ImagesVerifyLiveResult {
+  ok: boolean;
+  code: string;
+  model?: string;
+  quality?: string;
+  outputFormat?: string;
+  freshEvidenceEntries?: number;
+  /** Present when Antigravity models are routed (Codex-wire-only coverage). */
+  antigravityDeferred?: boolean;
+}
+
 export interface ImagesCapabilityStatus {
   configured: {
     enabled: boolean;
-    provider: 'codex-subscription';
+    provider: ImageProviderId;
     model: string;
     remoteUrlsEnabled: boolean;
     referenceTtlMs: number;
   };
+  /**
+   * One row per provider named by the routing table (images-settings-tab D2):
+   * each with its own fresh-evidence-affirmed models and evidence age. Absent
+   * on daemons that predate the field.
+   */
+  providers?: ImagesProviderStatusRow[];
   effective: {
     available: boolean;
     reason: string | null;

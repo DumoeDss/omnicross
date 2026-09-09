@@ -22,7 +22,6 @@ import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabMod
 import { routeForBinding, summarizeBindingCoverage } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
 import { useCliIntegrations } from '../code-cli/hooks/useCliIntegrations';
-import { ImagesSection } from './ImagesSection';
 import { KeyManagementSection } from './KeyManagementSection';
 import { QueueStatusSummary } from './QueueStatusSummary';
 import { ServerStatusBanner } from './ServerStatusBanner';
@@ -44,7 +43,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     loading,
     config,
     status,
-    imageCapability,
     keys,
     accounts,
     busy,
@@ -61,7 +59,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     setKeyMaxConcurrency,
     setKeyPermissions,
     setKeyPolicy,
-    updateImagesConfig,
     queueStatus,
     vouchers,
     createdVoucher,
@@ -141,14 +138,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   />
                 </SettingRow>
 
-                <ImagesSection
-                  config={config.images}
-                  capability={imageCapability}
-                  status={status}
-                  accounts={accounts.providerAccounts.codex}
-                  busy={busy}
-                  onUpdate={updateImagesConfig}
-                />
               </div>
 
               <div

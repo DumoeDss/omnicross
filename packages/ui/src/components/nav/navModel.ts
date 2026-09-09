@@ -9,6 +9,7 @@ export type NavIcon =
   | 'upstreams'
   | 'integrations'
   | 'search'
+  | 'images'
   | 'settings';
 
 export interface NavItemDef {
@@ -40,6 +41,9 @@ export const NAV_GROUPS: NavGroupDef[] = [
       // with its own configuration surface — a true sibling of the gateway
       // entry, first in the configure group.
       { key: 'search', page: 'search', icon: 'search', labelKey: 'nav.search' },
+      // images-settings-tab D1: image generation is a first-class capability
+      // with its own page, a sibling of Search in the configure group.
+      { key: 'images', page: 'images', icon: 'images', labelKey: 'nav.images' },
       { key: 'upstreams', page: 'upstreams', icon: 'upstreams', labelKey: 'nav.upstreams' },
       { key: 'access-keys', page: 'api-service', icon: 'access-keys', labelKey: 'nav.accessKeys', tab: 'access' },
       { key: 'integrations', page: 'integrations', icon: 'integrations', labelKey: 'nav.integrations' },

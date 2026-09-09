@@ -58,7 +58,7 @@ describe('ImagesSection sensitive DTO rendering', () => {
     );
 
     expect(markup).toContain('Studio account');
-    expect(markup).toContain('apiService.images.storage.custom');
+    expect(markup).toContain('images.storage.custom');
     for (const sentinel of [
       'RAW_ACCOUNT_ID_SENTINEL',
       'PRIVATE_PATH_SENTINEL',

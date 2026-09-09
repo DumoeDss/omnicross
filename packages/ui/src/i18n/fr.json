@@ -516,7 +516,95 @@
     "usageStats": "Utilisation",
     "pricing": "Tarifs",
     "dashboard": "Dashboard",
-    "search": "Recherche"
+    "images": "Images",
+"search": "Recherche"
+  },
+  "images": {
+    "title": "Génération d’images",
+    "description": "Contrôlez les points de terminaison Images, désactivés par défaut, et consultez leur état d’exécution fondé sur des preuves.",
+    "unsupportedDaemon": "Ce démon n’expose pas encore la configuration Images.",
+    "enable": "Activer les points de terminaison Images",
+    "entitlementWarning": "L’activation de la configuration ne prouve pas l’éligibilité de l’abonnement. La disponibilité effective exige des preuves récentes pour le compte sélectionné.",
+    "track": {
+      "configured": "Configuré",
+      "effective": "Effectif",
+      "on": "Activé",
+      "off": "Désactivé",
+      "available": "Disponible",
+      "unavailable": "Indisponible",
+      "unknown": "Aucune preuve récente de capacité"
+    },
+    "account": {
+      "label": "Sélection du compte",
+      "pool": "Groupe de comptes éligibles",
+      "group": "Groupe : {{group}}",
+      "account": "Compte Codex {{number}}",
+      "fallback": "Stratégie de repli",
+      "strict": "Sélection stricte",
+      "poolFallback": "Autoriser le repli sur le groupe"
+    },
+    "defaultModel": "Mod\u00e8le d'image par d\u00e9faut",
+    "routes": {
+      "title": "Routage des mod\u00e8les",
+      "defaultBadge": "par d\u00e9faut"
+    },
+    "codex": {
+      "title": "Substitutions Codex",
+      "imageModel": "Mod\u00e8le d'image",
+      "carrierModel": "Mod\u00e8le porteur",
+      "hint": "Les champs vid\u00e9s reviennent aux valeurs par d\u00e9faut \u00e9pingl\u00e9es (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Matrice des fonctionnalités vérifiées",
+      "generate": "Générer",
+      "edit": "Modifier",
+      "maskEdit": "Modification avec masque",
+      "streaming": "Diffusion en continu",
+      "transparentBackground": "Transparence",
+      "responsesTool": "Outil Responses",
+      "supported": "Pris en charge",
+      "unsupported": "Non pris en charge"
+    },
+    "evidence": "Preuve récente observée il y a {{age}} secondes.",
+    "noEvidence": "Aucune preuve récente n’est disponible. L’actualisation de cette vue ne génère jamais d’image.",
+    "resources": {
+      "title": "Utilisation de l’environnement d’exécution",
+      "queue": "File d’attente",
+      "temporary": "Stockage temporaire",
+      "references": "Références conservées",
+      "bytes": "Temporaire {{temporary}} · références {{references}}",
+      "unavailable": "L’utilisation est indisponible lorsque l’environnement Images est hors ligne."
+    },
+    "remote": {
+      "enabledWarning": "Les URL distantes ne sont activées qu’au moyen de la stratégie de résolution renforcée.",
+      "disabled": "Les URL d’images distantes sont désactivées."
+    },
+    "storage": {
+      "custom": "Une racine de stockage privée personnalisée est configurée ; son chemin est masqué.",
+      "privateDefault": "Les artefacts utilisent le stockage privé des données d’application du démon."
+    },
+    "page": {
+      "title": "G\u00e9n\u00e9ration d'images",
+      "description": "Routage des mod\u00e8les, \u00e9tat des fournisseurs et endpoints Images en un seul endroit.",
+      "loading": "Chargement de la configuration Images\u2026"
+    },
+    "providers": {
+      "bootstrap": "amor\u00e7age (non v\u00e9rifi\u00e9)",
+      "healthy": "Disponible",
+      "unhealthy": "Indisponible",
+      "evidence": "Preuves r\u00e9centes il y a {{age}} secondes.",
+      "noEvidence": "Pas encore de preuves r\u00e9centes (amor\u00e7age \u00e0 la premi\u00e8re requ\u00eate r\u00e9elle).",
+      "noModels": "Aucun mod\u00e8le affirm\u00e9 par des preuves r\u00e9centes."
+    },
+    "verify": {
+      "title": "V\u00e9rification en direct",
+      "run": "Lancer la v\u00e9rification",
+      "running": "V\u00e9rification\u2026",
+      "warning": "\u26a0 Consomme du quota d\u2019abonnement : une requ\u00eate PNG minimale en basse qualit\u00e9 sera envoy\u00e9e.",
+      "codexOnly": "Couvre uniquement la ligne Codex ; le fournisseur Antigravity n\u2019a pas de v\u00e9rificateur ind\u00e9pendant en v1.",
+      "codexOnlyPlain": "Couvre uniquement la ligne Codex.",
+      "success": "{{model}} v\u00e9rifi\u00e9 ({{quality}}, {{format}}) ; preuves r\u00e9centes : {{count}}."
+    }
   },
   "apiService": {
     "title": "Service API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Génération d’images",
-      "description": "Contrôlez les points de terminaison Images, désactivés par défaut, et consultez leur état d’exécution fondé sur des preuves.",
-      "unsupportedDaemon": "Ce démon n’expose pas encore la configuration Images.",
-      "enable": "Activer les points de terminaison Images",
-      "entitlementWarning": "L’activation de la configuration ne prouve pas l’éligibilité de l’abonnement. La disponibilité effective exige des preuves récentes pour le compte sélectionné.",
-      "track": {
-        "configured": "Configuré",
-        "effective": "Effectif",
-        "on": "Activé",
-        "off": "Désactivé",
-        "available": "Disponible",
-        "unavailable": "Indisponible",
-        "unknown": "Aucune preuve récente de capacité"
-      },
-      "account": {
-        "label": "Sélection du compte",
-        "pool": "Groupe de comptes éligibles",
-        "group": "Groupe : {{group}}",
-        "account": "Compte Codex {{number}}",
-        "fallback": "Stratégie de repli",
-        "strict": "Sélection stricte",
-        "poolFallback": "Autoriser le repli sur le groupe"
-      },
-      "defaultModel": "Mod\u00e8le d'image par d\u00e9faut",
-      "routes": {
-        "title": "Routage des mod\u00e8les",
-        "defaultBadge": "par d\u00e9faut"
-      },
-      "codex": {
-        "title": "Substitutions Codex",
-        "imageModel": "Mod\u00e8le d'image",
-        "carrierModel": "Mod\u00e8le porteur",
-        "hint": "Les champs vid\u00e9s reviennent aux valeurs par d\u00e9faut \u00e9pingl\u00e9es (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Matrice des fonctionnalités vérifiées",
-        "generate": "Générer",
-        "edit": "Modifier",
-        "maskEdit": "Modification avec masque",
-        "streaming": "Diffusion en continu",
-        "transparentBackground": "Transparence",
-        "responsesTool": "Outil Responses",
-        "supported": "Pris en charge",
-        "unsupported": "Non pris en charge"
-      },
-      "evidence": "Preuve récente observée il y a {{age}} secondes.",
-      "noEvidence": "Aucune preuve récente n’est disponible. L’actualisation de cette vue ne génère jamais d’image.",
-      "resources": {
-        "title": "Utilisation de l’environnement d’exécution",
-        "queue": "File d’attente",
-        "temporary": "Stockage temporaire",
-        "references": "Références conservées",
-        "bytes": "Temporaire {{temporary}} · références {{references}}",
-        "unavailable": "L’utilisation est indisponible lorsque l’environnement Images est hors ligne."
-      },
-      "remote": {
-        "enabledWarning": "Les URL distantes ne sont activées qu’au moyen de la stratégie de résolution renforcée.",
-        "disabled": "Les URL d’images distantes sont désactivées."
-      },
-      "storage": {
-        "custom": "Une racine de stockage privée personnalisée est configurée ; son chemin est masqué.",
-        "privateDefault": "Les artefacts utilisent le stockage privé des données d’application du démon."
       }
     },
     "queue": {

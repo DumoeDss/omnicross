@@ -516,7 +516,95 @@
     "usageStats": "Nutzung",
     "pricing": "Preise",
     "dashboard": "Dashboard",
-    "search": "Suche"
+    "images": "Bilder",
+"search": "Suche"
+  },
+  "images": {
+    "title": "Bilderzeugung",
+    "description": "Steuern Sie die standardmäßig deaktivierten Images-Endpunkte und prüfen Sie ihren durch Nachweise belegten Laufzeitstatus.",
+    "unsupportedDaemon": "Dieser Daemon stellt noch keine Images-Konfiguration bereit.",
+    "enable": "Images-Endpunkte aktivieren",
+    "entitlementWarning": "Eine aktivierte Konfiguration belegt keinen Abonnementanspruch. Die tatsächliche Verfügbarkeit erfordert aktuelle Nachweise für das ausgewählte Konto.",
+    "track": {
+      "configured": "Konfiguriert",
+      "effective": "Wirksam",
+      "on": "Aktiviert",
+      "off": "Deaktiviert",
+      "available": "Verfügbar",
+      "unavailable": "Nicht verfügbar",
+      "unknown": "Keine aktuellen Fähigkeitsnachweise"
+    },
+    "account": {
+      "label": "Kontoauswahl",
+      "pool": "Berechtigter Kontopool",
+      "group": "Gruppe: {{group}}",
+      "account": "Codex-Konto {{number}}",
+      "fallback": "Fallback-Richtlinie",
+      "strict": "Strikte Auswahl",
+      "poolFallback": "Fallback auf Kontopool erlauben"
+    },
+    "defaultModel": "Standard-Bildmodell",
+    "routes": {
+      "title": "Modell-Routing",
+      "defaultBadge": "Standard"
+    },
+    "codex": {
+      "title": "Codex-\u00dcbersteuerungen",
+      "imageModel": "Bildmodell",
+      "carrierModel": "Tr\u00e4germodell",
+      "hint": "Geleerte Felder fallen auf die festgelegten Standardwerte zur\u00fcck (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Verifizierte Funktionsmatrix",
+      "generate": "Erzeugen",
+      "edit": "Bearbeiten",
+      "maskEdit": "Maskenbearbeitung",
+      "streaming": "Streaming",
+      "transparentBackground": "Transparenz",
+      "responsesTool": "Responses-Werkzeug",
+      "supported": "Unterstützt",
+      "unsupported": "Nicht unterstützt"
+    },
+    "evidence": "Aktuelle Nachweise wurden vor {{age}} Sekunden beobachtet.",
+    "noEvidence": "Es sind keine aktuellen Nachweise verfügbar. Das Abfragen dieser Ansicht erzeugt niemals ein Bild.",
+    "resources": {
+      "title": "Laufzeitauslastung",
+      "queue": "Warteschlange",
+      "temporary": "Temporärer Speicher",
+      "references": "Aufbewahrte Referenzen",
+      "bytes": "Temporär {{temporary}} · Referenzen {{references}}",
+      "unavailable": "Die Laufzeitauslastung ist nicht verfügbar, solange die Images-Laufzeit offline ist."
+    },
+    "remote": {
+      "enabledWarning": "Remote-URLs werden nur über die gehärtete Resolver-Richtlinie aktiviert.",
+      "disabled": "Remote-Bild-URLs sind deaktiviert."
+    },
+    "storage": {
+      "custom": "Ein privates benutzerdefiniertes Speicherstammverzeichnis ist konfiguriert; sein Pfad wird ausgeblendet.",
+      "privateDefault": "Artefakte verwenden den privaten Anwendungsdatenspeicher des Daemons."
+    },
+    "page": {
+      "title": "Bildgenerierung",
+      "description": "Modell-Routing, Anbieterzustand und die Images-Endpunkte an einem Ort.",
+      "loading": "Images-Konfiguration wird geladen\u2026"
+    },
+    "providers": {
+      "bootstrap": "Bootstrap (unverifiziert)",
+      "healthy": "Verf\u00fcgbar",
+      "unhealthy": "Nicht verf\u00fcgbar",
+      "evidence": "Frische Nachweise vor {{age}} Sekunden.",
+      "noEvidence": "Noch keine frischen Nachweise (Bootstrap bei der ersten echten Anfrage).",
+      "noModels": "Keine durch frische Nachweise best\u00e4tigten Modelle."
+    },
+    "verify": {
+      "title": "Live-Verifikation",
+      "run": "Verifikation starten",
+      "running": "Verifiziert\u2026",
+      "warning": "\u26a0 Verbraert Abonnement-Kontingent: eine minimale PNG-Anfrage in niedriger Qualit\u00e4t wird gesendet.",
+      "codexOnly": "Deckt nur die Codex-Leitung ab; der Antigravity-Anbieter hat in v1 keinen eigenen Verifikator.",
+      "codexOnlyPlain": "Deckt nur die Codex-Leitung ab.",
+      "success": "{{model}} verifiziert ({{quality}}, {{format}}); frische Nachweise: {{count}}."
+    }
   },
   "apiService": {
     "title": "API-Dienst",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Bilderzeugung",
-      "description": "Steuern Sie die standardmäßig deaktivierten Images-Endpunkte und prüfen Sie ihren durch Nachweise belegten Laufzeitstatus.",
-      "unsupportedDaemon": "Dieser Daemon stellt noch keine Images-Konfiguration bereit.",
-      "enable": "Images-Endpunkte aktivieren",
-      "entitlementWarning": "Eine aktivierte Konfiguration belegt keinen Abonnementanspruch. Die tatsächliche Verfügbarkeit erfordert aktuelle Nachweise für das ausgewählte Konto.",
-      "track": {
-        "configured": "Konfiguriert",
-        "effective": "Wirksam",
-        "on": "Aktiviert",
-        "off": "Deaktiviert",
-        "available": "Verfügbar",
-        "unavailable": "Nicht verfügbar",
-        "unknown": "Keine aktuellen Fähigkeitsnachweise"
-      },
-      "account": {
-        "label": "Kontoauswahl",
-        "pool": "Berechtigter Kontopool",
-        "group": "Gruppe: {{group}}",
-        "account": "Codex-Konto {{number}}",
-        "fallback": "Fallback-Richtlinie",
-        "strict": "Strikte Auswahl",
-        "poolFallback": "Fallback auf Kontopool erlauben"
-      },
-      "defaultModel": "Standard-Bildmodell",
-      "routes": {
-        "title": "Modell-Routing",
-        "defaultBadge": "Standard"
-      },
-      "codex": {
-        "title": "Codex-\u00dcbersteuerungen",
-        "imageModel": "Bildmodell",
-        "carrierModel": "Tr\u00e4germodell",
-        "hint": "Geleerte Felder fallen auf die festgelegten Standardwerte zur\u00fcck (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Verifizierte Funktionsmatrix",
-        "generate": "Erzeugen",
-        "edit": "Bearbeiten",
-        "maskEdit": "Maskenbearbeitung",
-        "streaming": "Streaming",
-        "transparentBackground": "Transparenz",
-        "responsesTool": "Responses-Werkzeug",
-        "supported": "Unterstützt",
-        "unsupported": "Nicht unterstützt"
-      },
-      "evidence": "Aktuelle Nachweise wurden vor {{age}} Sekunden beobachtet.",
-      "noEvidence": "Es sind keine aktuellen Nachweise verfügbar. Das Abfragen dieser Ansicht erzeugt niemals ein Bild.",
-      "resources": {
-        "title": "Laufzeitauslastung",
-        "queue": "Warteschlange",
-        "temporary": "Temporärer Speicher",
-        "references": "Aufbewahrte Referenzen",
-        "bytes": "Temporär {{temporary}} · Referenzen {{references}}",
-        "unavailable": "Die Laufzeitauslastung ist nicht verfügbar, solange die Images-Laufzeit offline ist."
-      },
-      "remote": {
-        "enabledWarning": "Remote-URLs werden nur über die gehärtete Resolver-Richtlinie aktiviert.",
-        "disabled": "Remote-Bild-URLs sind deaktiviert."
-      },
-      "storage": {
-        "custom": "Ein privates benutzerdefiniertes Speicherstammverzeichnis ist konfiguriert; sein Pfad wird ausgeblendet.",
-        "privateDefault": "Artefakte verwenden den privaten Anwendungsdatenspeicher des Daemons."
       }
     },
     "queue": {

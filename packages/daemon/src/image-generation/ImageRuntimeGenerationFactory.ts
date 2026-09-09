@@ -29,7 +29,10 @@ import {
   type TrustedImageApiRuntimeResolver,
 } from './ImageApiRuntimeResolver';
 import { DaemonImageExecutionScheduler } from './ImageExecutionScheduler';
-import type { PreparedImageRuntimeGeneration } from './ImageRuntimeManager';
+import type {
+  ImageRuntimeProviderInspection,
+  PreparedImageRuntimeGeneration,
+} from './ImageRuntimeManager';
 import {
   MountedImageReferenceStore,
   MountedResponsesImageStateStore,
@@ -281,25 +284,48 @@ export function createImageRuntimeGeneration(
     const inspectCapability = async (apiKeyId: string) => {
       // ONE capability resolution per routed provider per inspection (top-level
       // fields stay pinned to the DEFAULT model's provider — the admin status
-      // shape — while routedModels carries the per-provider intersection).
+      // shape — while providers[] carries the per-provider rows and
+      // routedModels their flattened model intersection).
       const providerCapabilities =
         new Map<ImageProviderId, Awaited<ReturnType<typeof inspectOneProvider>>>();
       let defaultProviderError: unknown;
+      const providerRows: ImageRuntimeProviderInspection[] = [];
       for (const providerId of [...new Set(Object.values(config.models))]) {
         try {
-          providerCapabilities.set(providerId, await inspectOneProvider(providerId, apiKeyId));
+          const capabilities = await inspectOneProvider(providerId, apiKeyId);
+          providerCapabilities.set(providerId, capabilities);
+          const affirmed = capabilities.available === true && capabilities.generate === true;
+          providerRows.push({
+            providerId,
+            available: affirmed,
+            ...(!affirmed ? { reason: capabilities.reason ?? 'runtime_unavailable' as const } : {}),
+            models: affirmed
+              ? Object.entries(config.models)
+                  .filter(([model, modelProvider]) =>
+                    modelProvider === providerId && capabilities.models.includes(model))
+                  .map(([model]) => model)
+              : [],
+            capabilities,
+          });
         } catch (error) {
           if (providerId === defaultProviderId) defaultProviderError = error;
+          // A provider that cannot resolve (no account / auth-required) keeps
+          // its row — the admin card reports it unavailable rather than
+          // silently dropping it (images-settings-tab D2).
+          providerRows.push({
+            providerId,
+            available: false,
+            reason: error instanceof ImageGenerationError &&
+              (error.code === 'upstream_auth_required' || error.code === 'invalid_api_key')
+              ? 'account_unverified' as const
+              : 'runtime_unavailable' as const,
+            models: [],
+          });
         }
       }
+      const providers = Object.freeze(providerRows);
       const routedModels = Object.freeze(
-        [...providerCapabilities.entries()].flatMap(([providerId, capabilities]) =>
-          capabilities.available === true && capabilities.generate === true
-            ? Object.entries(config.models)
-                .filter(([model, modelProvider]) =>
-                  modelProvider === providerId && capabilities.models.includes(model))
-                .map(([model]) => model)
-            : []),
+        providerRows.flatMap((row) => (row.available ? row.models : [])),
       );
       const capabilities = providerCapabilities.get(defaultProviderId);
       if (!capabilities) {
@@ -309,6 +335,7 @@ export function createImageRuntimeGeneration(
           providerId: defaultProviderId,
           model: config.defaultModel,
           routedModels,
+          providers,
           reason: defaultProviderError instanceof ImageGenerationError &&
             (defaultProviderError.code === 'upstream_auth_required' ||
               defaultProviderError.code === 'invalid_api_key')
@@ -325,6 +352,7 @@ export function createImageRuntimeGeneration(
         providerId: defaultProviderId,
         model: config.defaultModel,
         routedModels,
+        providers,
         ...(!available ? { reason: capabilities.reason ?? 'runtime_unavailable' as const } : {}),
         capabilities,
       });

@@ -516,7 +516,95 @@
     "usageStats": "การใช้งาน",
     "pricing": "ราคา",
     "dashboard": "Dashboard",
-    "search": "ค้นหา"
+    "images": "รูปภาพ",
+"search": "ค้นหา"
+  },
+  "images": {
+    "title": "การสร้างรูปภาพ",
+    "description": "ควบคุมปลายทาง Images ที่ปิดไว้โดยค่าเริ่มต้น และตรวจสอบสถานะรันไทม์ที่มีหลักฐานรองรับ",
+    "unsupportedDaemon": "ดีมอนนี้ยังไม่มีการกำหนดค่า Images",
+    "enable": "เปิดใช้ปลายทาง Images",
+    "entitlementWarning": "การเปิดใช้การกำหนดค่าไม่ได้พิสูจน์สิทธิ์ของการสมัครใช้งาน ความพร้อมใช้งานจริงต้องมีหลักฐานล่าสุดสำหรับบัญชีที่เลือก",
+    "track": {
+      "configured": "กำหนดค่าแล้ว",
+      "effective": "มีผลจริง",
+      "on": "เปิดใช้",
+      "off": "ปิดใช้",
+      "available": "พร้อมใช้งาน",
+      "unavailable": "ไม่พร้อมใช้งาน",
+      "unknown": "ไม่มีหลักฐานความสามารถล่าสุด"
+    },
+    "account": {
+      "label": "การเลือกบัญชี",
+      "pool": "กลุ่มบัญชีที่มีสิทธิ์",
+      "group": "กลุ่ม: {{group}}",
+      "account": "บัญชี Codex {{number}}",
+      "fallback": "นโยบายสำรอง",
+      "strict": "เลือกแบบเข้มงวด",
+      "poolFallback": "อนุญาตให้เลือกสำรองจากกลุ่ม"
+    },
+    "defaultModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19",
+    "routes": {
+      "title": "\u0e01\u0e32\u0e23\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07\u0e42\u0e21\u0e40\u0e14\u0e25",
+      "defaultBadge": "\u0e04\u0e48\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19"
+    },
+    "codex": {
+      "title": "\u0e01\u0e32\u0e23\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u0e04\u0e48\u0e32 Codex",
+      "imageModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e",
+      "carrierModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e15\u0e31\u0e27\u0e1e\u0e32",
+      "hint": "\u0e0a\u0e48\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e25\u0e49\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e08\u0e30\u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e43\u0e0a\u0e49\u0e04\u0e48\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19\u0e17\u0e35\u0e48\u0e15\u0e23\u0e36\u0e07\u0e44\u0e27\u0e49 (gpt-image-2 / gpt-5.6-luna)"
+    },
+    "features": {
+      "title": "ตารางคุณสมบัติที่ยืนยันแล้ว",
+      "generate": "สร้าง",
+      "edit": "แก้ไข",
+      "maskEdit": "แก้ไขด้วยมาสก์",
+      "streaming": "สตรีม",
+      "transparentBackground": "ความโปร่งใส",
+      "responsesTool": "เครื่องมือ Responses",
+      "supported": "รองรับ",
+      "unsupported": "ไม่รองรับ"
+    },
+    "evidence": "พบหลักฐานล่าสุดเมื่อ {{age}} วินาทีที่แล้ว",
+    "noEvidence": "ไม่มีหลักฐานล่าสุด การรีเฟรชมุมมองนี้จะไม่สร้างรูปภาพ",
+    "resources": {
+      "title": "การใช้ทรัพยากรรันไทม์",
+      "queue": "คิว",
+      "temporary": "ที่เก็บชั่วคราว",
+      "references": "ข้อมูลอ้างอิงที่เก็บไว้",
+      "bytes": "ชั่วคราว {{temporary}} · ข้อมูลอ้างอิง {{references}}",
+      "unavailable": "ไม่มีข้อมูลการใช้งานเมื่อรันไทม์ Images ออฟไลน์"
+    },
+    "remote": {
+      "enabledWarning": "URL ระยะไกลจะเปิดใช้ผ่านนโยบายตัวแก้ไขที่เสริมความปลอดภัยเท่านั้น",
+      "disabled": "URL รูปภาพระยะไกลถูกปิดใช้"
+    },
+    "storage": {
+      "custom": "กำหนดค่ารากที่เก็บข้อมูลส่วนตัวแบบกำหนดเองแล้ว โดยซ่อนเส้นทางไว้",
+      "privateDefault": "อาร์ติแฟกต์ใช้ที่เก็บข้อมูลแอปพลิเคชันส่วนตัวของดีมอน"
+    },
+    "page": {
+      "title": "\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e",
+      "description": "\u0e01\u0e32\u0e23\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07\u0e42\u0e21\u0e40\u0e14\u0e25 \u0e2a\u0e16\u0e32\u0e19\u0e30\u0e1c\u0e39\u0e49\u0e43\u0e2b\u0e49\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23 \u0e41\u0e25\u0e30 endpoint \u0e02\u0e2d\u0e07 Images \u0e43\u0e19\u0e17\u0e35\u0e48\u0e40\u0e14\u0e35\u0e22\u0e27",
+      "loading": "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e42\u0e2b\u0e25\u0e14\u0e01\u0e32\u0e23\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19)",
+      "healthy": "\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49",
+      "unhealthy": "\u0e43\u0e0a\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49",
+      "evidence": "\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14\u0e40\u0e21\u0e37\u0e48\u0e2d {{age}} \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35\u0e17\u0e35\u0e48\u0e41\u0e25\u0e49\u0e27",
+      "noEvidence": "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14 (\u0e08\u0e30 bootstrap \u0e40\u0e21\u0e37\u0e48\u0e2d\u0e04\u0e33\u0e02\u0e2d\u0e08\u0e23\u0e34\u0e07\u0e04\u0e23\u0e31\u0e49\u0e07\u0e41\u0e23\u0e01)",
+      "noModels": "\u0e44\u0e21\u0e48\u0e21\u0e35\u0e42\u0e21\u0e40\u0e14\u0e25\u0e17\u0e35\u0e48\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e14\u0e49\u0e27\u0e22\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14"
+    },
+    "verify": {
+      "title": "\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u0e41\u0e1a\u0e1a\u0e2a\u0e14",
+      "run": "\u0e40\u0e23\u0e34\u0e48\u0e21\u0e01\u0e32\u0e23\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a",
+      "running": "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u2026",
+      "warning": "\u26a0 \u0e43\u0e0a\u0e49\u0e42\u0e04\u0e27\u0e15\u0e32\u0e41\u0e1a\u0e1a\u0e2a\u0e21\u0e31\u0e04\u0e23\u0e2a\u0e21\u0e32\u0e0a\u0e34\u0e01: \u0e08\u0e30\u0e2a\u0e48\u0e07\u0e04\u0e33\u0e02\u0e2d PNG \u0e04\u0e38\u0e13\u0e20\u0e32\u0e1e\u0e15\u0e48\u0e33\u0e2b\u0e19\u0e36\u0e48\u0e07\u0e04\u0e23\u0e31\u0e49\u0e07",
+      "codexOnly": "\u0e04\u0e23\u0e2d\u0e1a\u0e04\u0e25\u0e38\u0e21\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07 Codex; \u0e1c\u0e39\u0e49\u0e43\u0e2b\u0e49\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23 Antigravity \u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e31\u0e27\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u0e2d\u0e34\u0e2a\u0e23\u0e30\u0e43\u0e19 v1",
+      "codexOnlyPlain": "\u0e04\u0e23\u0e2d\u0e1a\u0e04\u0e25\u0e38\u0e21\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07 Codex",
+      "success": "\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e41\u0e25\u0e49\u0e27 {{model}} ({{quality}}, {{format}}); \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14: {{count}}"
+    }
   },
   "apiService": {
     "title": "บริการ API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "การสร้างรูปภาพ",
-      "description": "ควบคุมปลายทาง Images ที่ปิดไว้โดยค่าเริ่มต้น และตรวจสอบสถานะรันไทม์ที่มีหลักฐานรองรับ",
-      "unsupportedDaemon": "ดีมอนนี้ยังไม่มีการกำหนดค่า Images",
-      "enable": "เปิดใช้ปลายทาง Images",
-      "entitlementWarning": "การเปิดใช้การกำหนดค่าไม่ได้พิสูจน์สิทธิ์ของการสมัครใช้งาน ความพร้อมใช้งานจริงต้องมีหลักฐานล่าสุดสำหรับบัญชีที่เลือก",
-      "track": {
-        "configured": "กำหนดค่าแล้ว",
-        "effective": "มีผลจริง",
-        "on": "เปิดใช้",
-        "off": "ปิดใช้",
-        "available": "พร้อมใช้งาน",
-        "unavailable": "ไม่พร้อมใช้งาน",
-        "unknown": "ไม่มีหลักฐานความสามารถล่าสุด"
-      },
-      "account": {
-        "label": "การเลือกบัญชี",
-        "pool": "กลุ่มบัญชีที่มีสิทธิ์",
-        "group": "กลุ่ม: {{group}}",
-        "account": "บัญชี Codex {{number}}",
-        "fallback": "นโยบายสำรอง",
-        "strict": "เลือกแบบเข้มงวด",
-        "poolFallback": "อนุญาตให้เลือกสำรองจากกลุ่ม"
-      },
-      "defaultModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19",
-      "routes": {
-        "title": "\u0e01\u0e32\u0e23\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07\u0e42\u0e21\u0e40\u0e14\u0e25",
-        "defaultBadge": "\u0e04\u0e48\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19"
-      },
-      "codex": {
-        "title": "\u0e01\u0e32\u0e23\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u0e04\u0e48\u0e32 Codex",
-        "imageModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e",
-        "carrierModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e15\u0e31\u0e27\u0e1e\u0e32",
-        "hint": "\u0e0a\u0e48\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e25\u0e49\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e08\u0e30\u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e43\u0e0a\u0e49\u0e04\u0e48\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19\u0e17\u0e35\u0e48\u0e15\u0e23\u0e36\u0e07\u0e44\u0e27\u0e49 (gpt-image-2 / gpt-5.6-luna)"
-      },
-      "features": {
-        "title": "ตารางคุณสมบัติที่ยืนยันแล้ว",
-        "generate": "สร้าง",
-        "edit": "แก้ไข",
-        "maskEdit": "แก้ไขด้วยมาสก์",
-        "streaming": "สตรีม",
-        "transparentBackground": "ความโปร่งใส",
-        "responsesTool": "เครื่องมือ Responses",
-        "supported": "รองรับ",
-        "unsupported": "ไม่รองรับ"
-      },
-      "evidence": "พบหลักฐานล่าสุดเมื่อ {{age}} วินาทีที่แล้ว",
-      "noEvidence": "ไม่มีหลักฐานล่าสุด การรีเฟรชมุมมองนี้จะไม่สร้างรูปภาพ",
-      "resources": {
-        "title": "การใช้ทรัพยากรรันไทม์",
-        "queue": "คิว",
-        "temporary": "ที่เก็บชั่วคราว",
-        "references": "ข้อมูลอ้างอิงที่เก็บไว้",
-        "bytes": "ชั่วคราว {{temporary}} · ข้อมูลอ้างอิง {{references}}",
-        "unavailable": "ไม่มีข้อมูลการใช้งานเมื่อรันไทม์ Images ออฟไลน์"
-      },
-      "remote": {
-        "enabledWarning": "URL ระยะไกลจะเปิดใช้ผ่านนโยบายตัวแก้ไขที่เสริมความปลอดภัยเท่านั้น",
-        "disabled": "URL รูปภาพระยะไกลถูกปิดใช้"
-      },
-      "storage": {
-        "custom": "กำหนดค่ารากที่เก็บข้อมูลส่วนตัวแบบกำหนดเองแล้ว โดยซ่อนเส้นทางไว้",
-        "privateDefault": "อาร์ติแฟกต์ใช้ที่เก็บข้อมูลแอปพลิเคชันส่วนตัวของดีมอน"
       }
     },
     "queue": {

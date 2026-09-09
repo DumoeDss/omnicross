@@ -537,7 +537,8 @@
     "usageStats": "用量統計",
     "pricing": "模型價格",
     "dashboard": "儀表板",
-    "search": "搜尋"
+    "images": "圖像",
+"search": "搜尋"
   },
   "routeActivity": {
     "title": "路由活動",
@@ -807,6 +808,93 @@
       "overloadHoursAgo": "{{n}} 小時前"
     }
   },
+  "images": {
+    "title": "圖像生成",
+    "description": "管理預設關閉的 Images 端點，並查看由新鮮證據支持的執行狀態。",
+    "unsupportedDaemon": "目前守護程序尚未提供 Images 設定。",
+    "enable": "啟用 Images 端點",
+    "entitlementWarning": "啟用設定不代表訂閱具有使用資格；實際可用性需要所選帳號的新鮮證據。",
+    "track": {
+      "configured": "已設定",
+      "effective": "實際狀態",
+      "on": "已啟用",
+      "off": "已停用",
+      "available": "可用",
+      "unavailable": "不可用",
+      "unknown": "沒有新鮮的能力證據"
+    },
+    "account": {
+      "label": "帳號選擇",
+      "pool": "可用帳號池",
+      "group": "群組：{{group}}",
+      "account": "Codex 帳號 {{number}}",
+      "fallback": "回退策略",
+      "strict": "嚴格選擇",
+      "poolFallback": "允許帳號池回退"
+    },
+    "defaultModel": "\u9810\u8a2d\u5716\u50cf\u6a21\u578b",
+    "routes": {
+      "title": "\u6a21\u578b\u8def\u7531",
+      "defaultBadge": "\u9810\u8a2d"
+    },
+    "codex": {
+      "title": "Codex \u7dda\u8def\u8986\u5beb",
+      "imageModel": "\u5716\u50cf\u6a21\u578b",
+      "carrierModel": "\u8f09\u9ad4\u6a21\u578b",
+      "hint": "\u6e05\u7a7a\u5f8c\u56de\u843d\u5230\u5167\u5efa\u7dda\u8def\u9810\u8a2d\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
+    },
+    "features": {
+      "title": "已驗證功能矩陣",
+      "generate": "生成",
+      "edit": "編輯",
+      "maskEdit": "遮罩編輯",
+      "streaming": "串流輸出",
+      "transparentBackground": "透明背景",
+      "responsesTool": "Responses 工具",
+      "supported": "支援",
+      "unsupported": "不支援"
+    },
+    "evidence": "新鮮證據於 {{age}} 秒前觀測。",
+    "noEvidence": "沒有新鮮證據。輪詢此頁面絕不會生成圖像。",
+    "resources": {
+      "title": "執行資源利用率",
+      "queue": "佇列",
+      "temporary": "暫存",
+      "references": "保留的引用",
+      "bytes": "暫存 {{temporary}} · 引用 {{references}}",
+      "unavailable": "Images 執行階段離線時無法取得資源利用率。"
+    },
+    "remote": {
+      "enabledWarning": "遠端 URL 僅透過加固的解析器策略啟用。",
+      "disabled": "遠端圖像 URL 已停用。"
+    },
+    "storage": {
+      "custom": "已設定私有自訂儲存根目錄；其路徑已隱藏。",
+      "privateDefault": "圖像產物使用守護程序的私有應用程式資料儲存。"
+    },
+    "page": {
+      "title": "\u5716\u50cf\u751f\u6210",
+      "description": "\u6a21\u578b\u8def\u7531\u3001provider \u5065\u5eb7\u8207 Images \u7aef\u9ede\uff0c\u96c6\u4e2d\u4e00\u8655\u3002",
+      "loading": "\u6b63\u5728\u8f09\u5165\u5716\u50cf\u8a2d\u5b9a\u2026"
+    },
+    "providers": {
+      "bootstrap": "\u5f15\u5c0e\u4e2d\uff08\u672a\u9a57\u8b49\uff09",
+      "healthy": "\u53ef\u7528",
+      "unhealthy": "\u4e0d\u53ef\u7528",
+      "evidence": "{{age}} \u79d2\u524d\u53d6\u5f97\u65b0\u9bae\u8b49\u64da\u3002",
+      "noEvidence": "\u66ab\u7121\u65b0\u9bae\u8b49\u64da\uff08\u9996\u6b21\u771f\u5be6\u8acb\u6c42\u6642\u5f15\u5c0e\uff09\u3002",
+      "noModels": "\u66ab\u7121\u65b0\u9bae\u8b49\u64da\u78ba\u8a8d\u7684\u6a21\u578b\u3002"
+    },
+    "verify": {
+      "title": "\u5be6\u6a5f\u9a57\u8b49",
+      "run": "\u57f7\u884c\u9a57\u8b49",
+      "running": "\u9a57\u8b49\u4e2d\u2026",
+      "warning": "\u26a0 \u6703\u6d88\u8017\u8a02\u95b1\u914d\u984d\uff1a\u5c07\u50b3\u9001\u4e00\u6b21\u6700\u4f4e\u54c1\u8cea PNG \u8acb\u6c42\u3002",
+      "codexOnly": "\u50c5\u8986\u84cb Codex \u7dda\u8def\uff1bAntigravity provider \u5728 v1 \u6c92\u6709\u7368\u7acb\u9a57\u8b49\u5668\u3002",
+      "codexOnlyPlain": "\u50c5\u8986\u84cb Codex \u7dda\u8def\u3002",
+      "success": "\u5df2\u9a57\u8b49 {{model}}\uff08{{quality}}\uff0c{{format}}\uff09\uff1b\u65b0\u9bae\u8b49\u64da\u9805\u76ee\uff1a{{count}}\u3002"
+    }
+  },
   "apiService": {
     "gatewayTitle": "閘道",
     "gatewayDescription": "說明並控制客戶端如何進入本機服務、經過路由並流轉。",
@@ -930,71 +1018,6 @@
         "modelRestrictionList": "模型",
         "modelRestrictionListHint": "每行一個模型 ID",
         "modelRestrictionEmptyAllowlistWarning": "啟用的白名單若為空將拒絕所有請求。"
-      }
-    },
-    "images": {
-      "title": "圖像生成",
-      "description": "管理預設關閉的 Images 端點，並查看由新鮮證據支持的執行狀態。",
-      "unsupportedDaemon": "目前守護程序尚未提供 Images 設定。",
-      "enable": "啟用 Images 端點",
-      "entitlementWarning": "啟用設定不代表訂閱具有使用資格；實際可用性需要所選帳號的新鮮證據。",
-      "track": {
-        "configured": "已設定",
-        "effective": "實際狀態",
-        "on": "已啟用",
-        "off": "已停用",
-        "available": "可用",
-        "unavailable": "不可用",
-        "unknown": "沒有新鮮的能力證據"
-      },
-      "account": {
-        "label": "帳號選擇",
-        "pool": "可用帳號池",
-        "group": "群組：{{group}}",
-        "account": "Codex 帳號 {{number}}",
-        "fallback": "回退策略",
-        "strict": "嚴格選擇",
-        "poolFallback": "允許帳號池回退"
-      },
-      "defaultModel": "\u9810\u8a2d\u5716\u50cf\u6a21\u578b",
-      "routes": {
-        "title": "\u6a21\u578b\u8def\u7531",
-        "defaultBadge": "\u9810\u8a2d"
-      },
-      "codex": {
-        "title": "Codex \u7dda\u8def\u8986\u5beb",
-        "imageModel": "\u5716\u50cf\u6a21\u578b",
-        "carrierModel": "\u8f09\u9ad4\u6a21\u578b",
-        "hint": "\u6e05\u7a7a\u5f8c\u56de\u843d\u5230\u5167\u5efa\u7dda\u8def\u9810\u8a2d\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
-      },
-      "features": {
-        "title": "已驗證功能矩陣",
-        "generate": "生成",
-        "edit": "編輯",
-        "maskEdit": "遮罩編輯",
-        "streaming": "串流輸出",
-        "transparentBackground": "透明背景",
-        "responsesTool": "Responses 工具",
-        "supported": "支援",
-        "unsupported": "不支援"
-      },
-      "evidence": "新鮮證據於 {{age}} 秒前觀測。",
-      "noEvidence": "沒有新鮮證據。輪詢此頁面絕不會生成圖像。",
-      "resources": {
-        "title": "執行資源利用率",
-        "queue": "佇列",
-        "temporary": "暫存",
-        "references": "保留的引用",
-        "bytes": "暫存 {{temporary}} · 引用 {{references}}",
-        "unavailable": "Images 執行階段離線時無法取得資源利用率。"
-      },
-      "remote": {
-        "enabledWarning": "遠端 URL 僅透過加固的解析器策略啟用。",
-        "disabled": "遠端圖像 URL 已停用。"
-      },
-      "storage": {
-        "custom": "已設定私有自訂儲存根目錄；其路徑已隱藏。",
-        "privateDefault": "圖像產物使用守護程序的私有應用程式資料儲存。"
       }
     },
     "queue": {

@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, Cable, KeyRound, Menu, Route, Search, ServerCog, Settings } from 'lucide-react';
+import { Activity, BarChart3, Boxes, Cable, Image as ImageIcon, KeyRound, Menu, Route, Search, ServerCog, Settings } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { DAEMON_BASE_URL } from '@/daemon/adminClient';
@@ -18,6 +18,7 @@ const NAV_ICONS = {
   upstreams: Boxes,
   integrations: Cable,
   search: Search,
+  images: ImageIcon,
   settings: Settings,
 } as const;
 

@@ -239,6 +239,19 @@ describe('production image runtime generation factory', () => {
       providerId: 'codex-subscription',
       model: 'gpt-image-2',
       routedModels: ['gpt-image-2', 'gemini-3-pro-image-preview'],
+      providers: [
+        {
+          providerId: 'codex-subscription',
+          available: true,
+          models: ['gpt-image-2'],
+          capabilities: { responsesTool: true },
+        },
+        {
+          providerId: 'antigravity-subscription',
+          available: true,
+          models: ['gemini-3-pro-image-preview'],
+        },
+      ],
     });
     // Exactly one capability resolution per provider per inspection.
     expect(auth.applyHeaders).toHaveBeenCalledTimes(1);
@@ -266,6 +279,17 @@ describe('production image runtime generation factory', () => {
       providerId: 'codex-subscription',
       model: 'gpt-image-2',
       routedModels: ['gpt-image-2'],
+      // The failing provider keeps its row — unavailable with a safe reason,
+      // not silently dropped (images-settings-tab D2).
+      providers: [
+        { providerId: 'codex-subscription', available: true, models: ['gpt-image-2'] },
+        {
+          providerId: 'antigravity-subscription',
+          available: false,
+          reason: 'account_unverified',
+          models: [],
+        },
+      ],
     });
     await degraded.dispose();
   });

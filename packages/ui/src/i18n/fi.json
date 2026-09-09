@@ -516,7 +516,95 @@
     "usageStats": "Käyttö",
     "pricing": "Hinnat",
     "dashboard": "Dashboard",
-    "search": "Haku"
+    "images": "Kuvat",
+"search": "Haku"
+  },
+  "images": {
+    "title": "Kuvien luonti",
+    "description": "Hallitse oletuksena poistettuja Images-päätepisteitä ja tarkastele niiden näyttöön perustuvaa ajoaikaista tilaa.",
+    "unsupportedDaemon": "Tämä daemon ei vielä tarjoa Images-määritystä.",
+    "enable": "Ota Images-päätepisteet käyttöön",
+    "entitlementWarning": "Käytössä oleva määritys ei todista tilauksen käyttöoikeutta. Todellinen saatavuus edellyttää tuoretta näyttöä valitulta tililtä.",
+    "track": {
+      "configured": "Määritetty",
+      "effective": "Voimassa",
+      "on": "Käytössä",
+      "off": "Pois käytöstä",
+      "available": "Saatavilla",
+      "unavailable": "Ei saatavilla",
+      "unknown": "Ei tuoretta kapasiteettinäyttöä"
+    },
+    "account": {
+      "label": "Tilin valinta",
+      "pool": "Kelvollisten tilien joukko",
+      "group": "Ryhmä: {{group}}",
+      "account": "Codex-tili {{number}}",
+      "fallback": "Varakäytäntö",
+      "strict": "Tiukka valinta",
+      "poolFallback": "Salli varavalinta joukosta"
+    },
+    "defaultModel": "Oletuskuvamalli",
+    "routes": {
+      "title": "Mallien reititys",
+      "defaultBadge": "oletus"
+    },
+    "codex": {
+      "title": "Codex-ohitukset",
+      "imageModel": "Kuvamalli",
+      "carrierModel": "Kantajamalli",
+      "hint": "Tyhjennetyt kent\u00e4t palaavat kiinnitettyihin oletusarvoihin (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Vahvistettu ominaisuusmatriisi",
+      "generate": "Luo",
+      "edit": "Muokkaa",
+      "maskEdit": "Maskimuokkaus",
+      "streaming": "Suoratoisto",
+      "transparentBackground": "Läpinäkyvyys",
+      "responsesTool": "Responses-työkalu",
+      "supported": "Tuettu",
+      "unsupported": "Ei tuettu"
+    },
+    "evidence": "Tuore näyttö havaittiin {{age}} sekuntia sitten.",
+    "noEvidence": "Tuoretta näyttöä ei ole saatavilla. Tämän näkymän päivittäminen ei koskaan luo kuvaa.",
+    "resources": {
+      "title": "Ajoajan käyttö",
+      "queue": "Jono",
+      "temporary": "Väliaikainen tallennustila",
+      "references": "Säilytetyt viitteet",
+      "bytes": "Väliaikainen {{temporary}} · viitteet {{references}}",
+      "unavailable": "Ajoajan käyttö ei ole saatavilla, kun Images-ajoympäristö on offline-tilassa."
+    },
+    "remote": {
+      "enabledWarning": "Etä-URL-osoitteet otetaan käyttöön vain vahvistetun ratkaisukäytännön kautta.",
+      "disabled": "Kuvien etä-URL-osoitteet on poistettu käytöstä."
+    },
+    "storage": {
+      "custom": "Yksityinen mukautettu tallennusjuuri on määritetty; sen polku on piilotettu.",
+      "privateDefault": "Artefaktit käyttävät daemonin yksityistä sovellustietojen tallennustilaa."
+    },
+    "page": {
+      "title": "Kuvien luonti",
+      "description": "Mallien reititys, palveluntarjoajien tila ja Images-p\u00e4\u00e4tepisteet yhdess\u00e4 paikassa.",
+      "loading": "Ladataan kuvien asetuksia\u2026"
+    },
+    "providers": {
+      "bootstrap": "k\u00e4ynnistys (varmentamaton)",
+      "healthy": "K\u00e4ytett\u00e4viss\u00e4",
+      "unhealthy": "Ei k\u00e4ytett\u00e4viss\u00e4",
+      "evidence": "Tuoreita todisteita {{age}} sekuntia sitten.",
+      "noEvidence": "Ei viel\u00e4 tuoreita todisteita (k\u00e4ynnistys ensimm\u00e4isell\u00e4 oikealla pyynn\u00f6ll\u00e4).",
+      "noModels": "Ei malleja, jotka tuoreet todisteet vahvistaisivat."
+    },
+    "verify": {
+      "title": "Suora varmennus",
+      "run": "Suorita varmennus",
+      "running": "Varmennetaan\u2026",
+      "warning": "\u26a0 Kuluttaa tilauskiinti\u00f6t\u00e4: l\u00e4hetet\u00e4\u00e4n yksi minimaalinen pienlaatuinen PNG-pyynt\u00f6.",
+      "codexOnly": "Kattaa vain Codex-linjan; Antigravity-palveluntarjoajalla ei ole itsen\u00e4ist\u00e4 varmistinta v1:ss\u00e4.",
+      "codexOnlyPlain": "Kattaa vain Codex-linjan.",
+      "success": "Varmennettu {{model}} ({{quality}}, {{format}}); tuoreita todisteita: {{count}}."
+    }
   },
   "apiService": {
     "title": "API-palvelu",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Kuvien luonti",
-      "description": "Hallitse oletuksena poistettuja Images-päätepisteitä ja tarkastele niiden näyttöön perustuvaa ajoaikaista tilaa.",
-      "unsupportedDaemon": "Tämä daemon ei vielä tarjoa Images-määritystä.",
-      "enable": "Ota Images-päätepisteet käyttöön",
-      "entitlementWarning": "Käytössä oleva määritys ei todista tilauksen käyttöoikeutta. Todellinen saatavuus edellyttää tuoretta näyttöä valitulta tililtä.",
-      "track": {
-        "configured": "Määritetty",
-        "effective": "Voimassa",
-        "on": "Käytössä",
-        "off": "Pois käytöstä",
-        "available": "Saatavilla",
-        "unavailable": "Ei saatavilla",
-        "unknown": "Ei tuoretta kapasiteettinäyttöä"
-      },
-      "account": {
-        "label": "Tilin valinta",
-        "pool": "Kelvollisten tilien joukko",
-        "group": "Ryhmä: {{group}}",
-        "account": "Codex-tili {{number}}",
-        "fallback": "Varakäytäntö",
-        "strict": "Tiukka valinta",
-        "poolFallback": "Salli varavalinta joukosta"
-      },
-      "defaultModel": "Oletuskuvamalli",
-      "routes": {
-        "title": "Mallien reititys",
-        "defaultBadge": "oletus"
-      },
-      "codex": {
-        "title": "Codex-ohitukset",
-        "imageModel": "Kuvamalli",
-        "carrierModel": "Kantajamalli",
-        "hint": "Tyhjennetyt kent\u00e4t palaavat kiinnitettyihin oletusarvoihin (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Vahvistettu ominaisuusmatriisi",
-        "generate": "Luo",
-        "edit": "Muokkaa",
-        "maskEdit": "Maskimuokkaus",
-        "streaming": "Suoratoisto",
-        "transparentBackground": "Läpinäkyvyys",
-        "responsesTool": "Responses-työkalu",
-        "supported": "Tuettu",
-        "unsupported": "Ei tuettu"
-      },
-      "evidence": "Tuore näyttö havaittiin {{age}} sekuntia sitten.",
-      "noEvidence": "Tuoretta näyttöä ei ole saatavilla. Tämän näkymän päivittäminen ei koskaan luo kuvaa.",
-      "resources": {
-        "title": "Ajoajan käyttö",
-        "queue": "Jono",
-        "temporary": "Väliaikainen tallennustila",
-        "references": "Säilytetyt viitteet",
-        "bytes": "Väliaikainen {{temporary}} · viitteet {{references}}",
-        "unavailable": "Ajoajan käyttö ei ole saatavilla, kun Images-ajoympäristö on offline-tilassa."
-      },
-      "remote": {
-        "enabledWarning": "Etä-URL-osoitteet otetaan käyttöön vain vahvistetun ratkaisukäytännön kautta.",
-        "disabled": "Kuvien etä-URL-osoitteet on poistettu käytöstä."
-      },
-      "storage": {
-        "custom": "Yksityinen mukautettu tallennusjuuri on määritetty; sen polku on piilotettu.",
-        "privateDefault": "Artefaktit käyttävät daemonin yksityistä sovellustietojen tallennustilaa."
       }
     },
     "queue": {

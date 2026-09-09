@@ -125,6 +125,23 @@ export interface ImageRuntimeCapabilityInspection {
    * `listAvailableModels` then falls back to the single-model shape.
    */
   readonly routedModels?: readonly string[];
+  /**
+   * One row per provider named by the routing table (images-settings-tab D2):
+   * availability with a safe reason, the models its own fresh evidence
+   * affirms, and the capability values for evidence-age projection. Absent on
+   * synthetic/legacy generations.
+   */
+  readonly providers?: readonly ImageRuntimeProviderInspection[];
+}
+
+/** Per-provider capability inspection row (images-settings-tab D2). */
+export interface ImageRuntimeProviderInspection {
+  readonly providerId: ImageProviderId;
+  readonly available: boolean;
+  readonly reason?: ImageRuntimeSafeUnavailableReason;
+  /** This provider's route keys affirmed by its fresh evidence intersection. */
+  readonly models: readonly string[];
+  readonly capabilities?: ImageCapabilities;
 }
 
 export interface ImageRuntimeResourceStatus {

@@ -20,6 +20,7 @@ import {
   type DaemonPaths,
   resetDaemonSingletonsForTests,
 } from '../bootstrap';
+import { handleAdminApi } from '../admin/adminApi';
 import { loadConfig } from '../config';
 
 let daemon: Daemon | undefined;
@@ -669,5 +670,143 @@ describe('admin Images config', () => {
     ]) {
       expect(unsafe.text).not.toContain(sentinel);
     }
+  });
+
+  it('projects per-provider rows and routes the explicit live-verification endpoint', async () => {
+    const token = 'ADMIN_TOKEN_SENTINEL';
+    const capabilities = {
+      available: true,
+      models: ['gpt-image-2'],
+      generate: true,
+      edit: false,
+      maskEdit: false,
+      maxInputImages: 0,
+      maxOutputImages: 1,
+      streaming: false,
+      maxPartialImages: 0,
+      transparentBackground: false,
+      flexibleSizes: true,
+      outputFormats: ['png'],
+      qualityLevels: ['low'],
+      moderationModes: ['auto'],
+      outputCompression: { supported: false },
+      responsesTool: false,
+      multiTurnEdit: false,
+      supportsFileId: false,
+      supportsImageUrl: false,
+      resolvedAt: 2_000,
+      oldestEvidenceAt: 1_000,
+    } as ImageCapabilities;
+    const inspectCapability = vi.fn(async () => ({
+      generationId: 'image-runtime-3',
+      enabled: true,
+      available: true,
+      providerId: 'codex-subscription' as const,
+      model: 'gpt-image-2',
+      routedModels: ['gpt-image-2'],
+      providers: [
+        {
+          providerId: 'codex-subscription' as const,
+          available: true,
+          models: ['gpt-image-2'],
+          capabilities,
+        },
+        {
+          providerId: 'antigravity-subscription' as const,
+          available: false,
+          reason: 'account_unverified' as const,
+          models: [],
+        },
+      ],
+      capabilities,
+    }));
+    const verifyLive = vi.fn(async () => ({
+      ok: true as const,
+      code: 'verified' as const,
+      model: 'gpt-image-2' as const,
+      quality: 'low' as const,
+      outputFormat: 'png' as const,
+      freshEvidenceEntries: 2,
+    }));
+    await bootDaemon({
+      imageRuntimeStatus: {
+        inspectCapability,
+        status: () => ({
+          disposed: false,
+          current: { generationId: 'image-runtime-3', enabled: true, httpLeases: 0, hostedLeases: 0 },
+          draining: [],
+        }),
+        resourceStatus: () => undefined,
+      },
+      imageLiveVerifier: { verifyLive },
+    }, token);
+
+    // 405 on the wrong method, 501-shaped guards before any consumption.
+    const wrongMethod = await adminFetch('GET', '/admin/api/images/verify-live', undefined, token);
+    expect(wrongMethod.status).toBe(405);
+    expect(verifyLive).not.toHaveBeenCalled();
+
+    const capabilitiesResponse = await adminFetch(
+      'GET',
+      '/admin/api/images/capabilities',
+      undefined,
+      token,
+    );
+    expect(capabilitiesResponse.status).toBe(200);
+    expect(capabilitiesResponse.json).toMatchObject({
+      providers: [
+        {
+          providerId: 'codex-subscription',
+          available: true,
+          reason: null,
+          models: ['gpt-image-2'],
+          evidence: { verifiedAt: 1_000, ageMs: 1_000 },
+        },
+        {
+          providerId: 'antigravity-subscription',
+          available: false,
+          reason: 'account_unverified',
+          models: [],
+          evidence: null,
+        },
+      ],
+    });
+
+    // The consuming endpoint delegates once and returns safe metadata only.
+    const verified = await adminFetch('POST', '/admin/api/images/verify-live', {}, token);
+    expect(verified.status).toBe(200);
+    expect(verifyLive).toHaveBeenCalledOnce();
+    expect(verified.json).toEqual({
+      ok: true,
+      code: 'verified',
+      model: 'gpt-image-2',
+      quality: 'low',
+      outputFormat: 'png',
+      freshEvidenceEntries: 2,
+      antigravityDeferred: true,
+    });
+
+    verifyLive.mockResolvedValueOnce({ ok: false, code: 'codex_account_unavailable' });
+    const failed = await adminFetch('POST', '/admin/api/images/verify-live', {}, token);
+    expect(failed.status).toBe(200);
+    expect(failed.json).toMatchObject({ ok: false, code: 'codex_account_unavailable' });
+  });
+
+  it('verify-live responds 501 and consumes nothing without the verifier dependency', async () => {
+    // Light embedders call the dispatcher without the verifier dep — the
+    // production bootstrap always wires imageDoctor, so exercise the guard
+    // directly (mirror of the wiring default, not a bypass of it).
+    const captured = { status: 0, body: '' };
+    const res = {
+      writeHead: (status: number) => { captured.status = status; },
+      end: (body?: unknown) => { captured.body = String(body ?? ''); },
+    } as unknown as import('node:http').ServerResponse;
+    const req = {
+      method: 'POST',
+      on: () => undefined,
+    } as unknown as import('node:http').IncomingMessage;
+    await handleAdminApi(req, res, '/admin/api/images/verify-live', {} as never);
+    expect(captured.status).toBe(501);
+    expect(captured.body).toContain('live verification');
   });
 });

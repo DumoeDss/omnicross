@@ -40,11 +40,12 @@
 
 1. 打开 Omnicross。
 2. 在上游/账号页面登录或确认 Codex 订阅账号可用。
-3. 打开“API 服务”。
-4. 确保本地网关已启用。
-5. 在“图像生成”区域开启“启用 Images 端点”。
-6. 选择固定账号、账号组或可用账号池。
-7. 按需要选择 strict 或 pool 回退策略。
+3. 打开导航中的“图像”（独立 Images 页面）。
+4. 在“图像生成”卡片开启“启用 Images 端点”。
+5. 选择固定账号、账号组或可用账号池。
+6. 按需要选择 strict 或 pool 回退策略。
+
+页面顶部为每个路由 provider 显示一张状态卡（各自的模型 × 新鲜证据交集、可用性与证据年龄；antigravity 在实机验证前如实标注 bootstrap 未验证），并提供“实机验证”面板——等同于 CLI `doctor images --live`，**会消耗订阅配额**（一次最低质量 PNG 请求，仅覆盖 Codex 线路）。
 
 页面会分别显示：
 
@@ -394,7 +395,7 @@ Images 服务的模型→provider 路由由配置段 `images.models` 决定，�
 
 ### 10.2 Codex 线路模型覆盖
 
-`images.codex.imageModel` / `carrierModel` 可覆盖 Codex 私有线路的图像模型与载体模型（默认 `gpt-image-2` / `gpt-5.6-luna`）。UI"图像生成"区域提供两个覆盖输入与路由表只读展示，清空输入即恢复默认。能力证据的模型维度跟随配置值记录。
+`images.codex.imageModel` / `carrierModel` 可覆盖 Codex 私有线路的图像模型与载体模型（默认 `gpt-image-2` / `gpt-5.6-luna`）。独立 Images 页面提供两个覆盖输入、默认模型下拉与路由表只读展示，清空输入即恢复默认。能力证据的模型维度跟随配置值记录。
 
 ### 10.3 会话内嵌图（v1）
 

@@ -6,6 +6,7 @@ import { NavRail } from '@/components/nav/NavRail';
 import { ApiServicePage } from '@/features/api-service';
 import type { ApiServiceTabId } from '@/features/api-service/apiServiceTabModel';
 import { CodeCliPage } from '@/features/code-cli';
+import { ImagesPage } from '@/features/images';
 import { OverviewPage } from '@/features/overview';
 import { RouteActivityPage } from '@/features/route-activity/RouteActivityPage';
 import { SearchPage } from '@/features/search';
@@ -23,6 +24,7 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
     case 'upstreams': return <UpstreamsPage route={route} onNavigate={navigate} />;
     case 'integrations': return <CodeCliPage />;
     case 'search': return <SearchPage />;
+    case 'images': return <ImagesPage />;
     case 'usage-stats': return <UsageStatsPage />;
     case 'settings': return <SettingsPage activeTab={(route.tab as SettingsTabId | undefined) ?? 'general'} onTabChange={(tab) => navigate({ page: 'settings', tab })} />;
     default: return <OverviewPage onNavigate={navigate} />;

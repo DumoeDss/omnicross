@@ -516,7 +516,95 @@
     "usageStats": "Χρήση",
     "pricing": "Τιμές",
     "dashboard": "Dashboard",
-    "search": "Αναζήτηση"
+    "images": "Εικόνες",
+"search": "Αναζήτηση"
+  },
+  "images": {
+    "title": "Δημιουργία εικόνων",
+    "description": "Ελέγξτε τα τελικά σημεία Images, τα οποία είναι απενεργοποιημένα από προεπιλογή, και δείτε την κατάσταση εκτέλεσης που υποστηρίζεται από αποδεικτικά στοιχεία.",
+    "unsupportedDaemon": "Αυτός ο daemon δεν παρέχει ακόμη ρυθμίσεις Images.",
+    "enable": "Ενεργοποίηση τελικών σημείων Images",
+    "entitlementWarning": "Η ενεργοποίηση των ρυθμίσεων δεν αποδεικνύει δικαίωμα συνδρομής. Η πραγματική διαθεσιμότητα απαιτεί πρόσφατα αποδεικτικά στοιχεία για τον επιλεγμένο λογαριασμό.",
+    "track": {
+      "configured": "Ρυθμισμένο",
+      "effective": "Πραγματικό",
+      "on": "Ενεργοποιημένο",
+      "off": "Απενεργοποιημένο",
+      "available": "Διαθέσιμο",
+      "unavailable": "Μη διαθέσιμο",
+      "unknown": "Δεν υπάρχουν πρόσφατα αποδεικτικά δυνατότητας"
+    },
+    "account": {
+      "label": "Επιλογή λογαριασμού",
+      "pool": "Ομάδα κατάλληλων λογαριασμών",
+      "group": "Ομάδα: {{group}}",
+      "account": "Λογαριασμός Codex {{number}}",
+      "fallback": "Πολιτική εφεδρείας",
+      "strict": "Αυστηρή επιλογή",
+      "poolFallback": "Να επιτρέπεται εφεδρική επιλογή από την ομάδα"
+    },
+    "defaultModel": "\u03a0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03bc\u03ad\u03bd\u03bf \u03bc\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03b5\u03b9\u03ba\u03cc\u03bd\u03b1\u03c2",
+    "routes": {
+      "title": "\u0394\u03c1\u03bf\u03bc\u03bf\u03bb\u03cc\u03b3\u03b7\u03c3\u03b7 \u03bc\u03bf\u03bd\u03c4\u03ad\u03bb\u03c9\u03bd",
+      "defaultBadge": "\u03c0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae"
+    },
+    "codex": {
+      "title": "\u03a0\u03b1\u03c1\u03b1\u03ba\u03ac\u03bc\u03c8\u03b5\u03b9\u03c2 Codex",
+      "imageModel": "\u039c\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03b5\u03b9\u03ba\u03cc\u03bd\u03b1\u03c2",
+      "carrierModel": "\u039c\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03c6\u03bf\u03c1\u03ad\u03b1",
+      "hint": "\u03a4\u03b1 \u03ba\u03b5\u03bd\u03ac \u03c0\u03b5\u03b4\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03ad\u03c1\u03c7\u03bf\u03bd\u03c4\u03b1\u03b9 \u03c3\u03c4\u03b9\u03c2 \u03ba\u03b1\u03b8\u03bf\u03c1\u03b9\u03c3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03c0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03c4\u03b9\u03bc\u03ad\u03c2 (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Επαληθευμένος πίνακας λειτουργιών",
+      "generate": "Δημιουργία",
+      "edit": "Επεξεργασία",
+      "maskEdit": "Επεξεργασία με μάσκα",
+      "streaming": "Ροή",
+      "transparentBackground": "Διαφάνεια",
+      "responsesTool": "Εργαλείο Responses",
+      "supported": "Υποστηρίζεται",
+      "unsupported": "Δεν υποστηρίζεται"
+    },
+    "evidence": "Πρόσφατα αποδεικτικά στοιχεία παρατηρήθηκαν πριν από {{age}} δευτερόλεπτα.",
+    "noEvidence": "Δεν υπάρχουν πρόσφατα αποδεικτικά στοιχεία. Η ανανέωση αυτής της προβολής δεν δημιουργεί ποτέ εικόνα.",
+    "resources": {
+      "title": "Χρήση περιβάλλοντος εκτέλεσης",
+      "queue": "Ουρά",
+      "temporary": "Προσωρινή αποθήκευση",
+      "references": "Διατηρημένες αναφορές",
+      "bytes": "Προσωρινά {{temporary}} · αναφορές {{references}}",
+      "unavailable": "Η χρήση δεν είναι διαθέσιμη όταν το περιβάλλον Images είναι εκτός σύνδεσης."
+    },
+    "remote": {
+      "enabledWarning": "Οι απομακρυσμένες διευθύνσεις URL ενεργοποιούνται μόνο μέσω της ενισχυμένης πολιτικής επίλυσης.",
+      "disabled": "Οι απομακρυσμένες διευθύνσεις URL εικόνων είναι απενεργοποιημένες."
+    },
+    "storage": {
+      "custom": "Έχει ρυθμιστεί ιδιωτική προσαρμοσμένη ρίζα αποθήκευσης· η διαδρομή της είναι κρυφή.",
+      "privateDefault": "Τα τεχνουργήματα χρησιμοποιούν την ιδιωτική αποθήκευση δεδομένων εφαρμογής του daemon."
+    },
+    "page": {
+      "title": "\u0394\u03b7\u03bc\u03b9\u03bf\u03c5\u03c1\u03b3\u03af\u03b1 \u03b5\u03b9\u03ba\u03cc\u03bd\u03c9\u03bd",
+      "description": "\u0394\u03c1\u03bf\u03bc\u03bf\u03bb\u03cc\u03b3\u03b7\u03c3\u03b7 \u03bc\u03bf\u03bd\u03c4\u03ad\u03bb\u03c9\u03bd, \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03c0\u03b1\u03c1\u03cc\u03c7\u03c9\u03bd \u03ba\u03b1\u03b9 \u03c4\u03b1 Images endpoints \u03c3\u03b5 \u03ad\u03bd\u03b1 \u03bc\u03ad\u03c1\u03bf\u03c2.",
+      "loading": "\u03a6\u03cc\u03c1\u03c4\u03c9\u03c3\u03b7 \u03c1\u03c5\u03b8\u03bc\u03af\u03c3\u03b5\u03c9\u03bd \u03b5\u03b9\u03ba\u03cc\u03bd\u03c9\u03bd\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (\u03bc\u03b7 \u03b5\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03c5\u03bc\u03ad\u03bd\u03bf)",
+      "healthy": "\u0394\u03b9\u03b1\u03b8\u03ad\u03c3\u03b9\u03bc\u03bf",
+      "unhealthy": "\u039c\u03b7 \u03b4\u03b9\u03b1\u03b8\u03ad\u03c3\u03b9\u03bc\u03bf",
+      "evidence": "\u03a6\u03c1\u03ad\u03c3\u03ba\u03b5\u03c2 \u03b1\u03c0\u03bf\u03b4\u03b5\u03af\u03be\u03b5\u03b9\u03c2 \u03c0\u03c1\u03b9\u03bd \u03b1\u03c0\u03cc {{age}} \u03b4\u03b5\u03c5\u03c4\u03b5\u03c1\u03cc\u03bb\u03b5\u03c0\u03c4\u03b1.",
+      "noEvidence": "\u039a\u03b1\u03bc\u03af\u03b1 \u03c6\u03c1\u03ad\u03c3\u03ba\u03b9\u03b1 \u03b1\u03c0\u03cc\u03b4\u03b5\u03b9\u03be\u03b7 \u03b1\u03ba\u03cc\u03bc\u03b7 (bootstrap \u03c3\u03c4\u03bf \u03c0\u03c1\u03ce\u03c4\u03bf \u03c0\u03c1\u03b1\u03b3\u03bc\u03b1\u03c4\u03b9\u03ba\u03cc \u03b1\u03af\u03c4\u03b7\u03bc\u03b1).",
+      "noModels": "\u039a\u03b1\u03bd\u03ad\u03bd\u03b1 \u03bc\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03b5\u03c0\u03b9\u03b2\u03b5\u03b2\u03b1\u03b9\u03c9\u03bc\u03ad\u03bd\u03bf \u03b1\u03c0\u03cc \u03c6\u03c1\u03ad\u03c3\u03ba\u03b5\u03c2 \u03b1\u03c0\u03bf\u03b4\u03b5\u03af\u03be\u03b5\u03b9\u03c2."
+    },
+    "verify": {
+      "title": "\u0396\u03c9\u03bd\u03c4\u03b1\u03bd\u03ae \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7",
+      "run": "\u0395\u03ba\u03c4\u03ad\u03bb\u03b5\u03c3\u03b7 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7\u03c2",
+      "running": "\u0395\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03cd\u03b5\u03c4\u03b1\u03b9\u2026",
+      "warning": "\u26a0 \u039a\u03b1\u03c4\u03b1\u03bd\u03b1\u03bb\u03ce\u03bd\u03b5\u03b9 \u03c0\u03bf\u03c3\u03cc\u03c3\u03c4\u03c9\u03c3\u03b7 \u03c3\u03c5\u03bd\u03b4\u03c1\u03bf\u03bc\u03ae\u03c2: \u03b8\u03b1 \u03c3\u03c4\u03b1\u03bb\u03b5\u03af \u03ad\u03bd\u03b1 \u03b5\u03bb\u03ac\u03c7\u03b9\u03c3\u03c4\u03bf \u03b1\u03af\u03c4\u03b7\u03bc\u03b1 PNG \u03c7\u03b1\u03bc\u03b7\u03bb\u03ae\u03c2 \u03c0\u03bf\u03b9\u03cc\u03c4\u03b7\u03c4\u03b1\u03c2.",
+      "codexOnly": "\u039a\u03b1\u03bb\u03cd\u03c0\u03c4\u03b5\u03b9 \u03bc\u03cc\u03bd\u03bf \u03c4\u03b7 \u03b3\u03c1\u03b1\u03bc\u03bc\u03ae Codex\u00b7 \u03bf \u03c0\u03ac\u03c1\u03bf\u03c7\u03bf\u03c2 Antigravity \u03b4\u03b5\u03bd \u03ad\u03c7\u03b5\u03b9 \u03b1\u03bd\u03b5\u03be\u03ac\u03c1\u03c4\u03b7\u03c4\u03bf \u03b5\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03c5\u03c4\u03ae \u03c3\u03c4\u03b7\u03bd v1.",
+      "codexOnlyPlain": "\u039a\u03b1\u03bb\u03cd\u03c0\u03c4\u03b5\u03b9 \u03bc\u03cc\u03bd\u03bf \u03c4\u03b7 \u03b3\u03c1\u03b1\u03bc\u03bc\u03ae Codex.",
+      "success": "\u0395\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03cd\u03c4\u03b7\u03ba\u03b5 {{model}} ({{quality}}, {{format}})\u00b7 \u03c6\u03c1\u03ad\u03c3\u03ba\u03b5\u03c2 \u03b1\u03c0\u03bf\u03b4\u03b5\u03af\u03be\u03b5\u03b9\u03c2: {{count}}."
+    }
   },
   "apiService": {
     "title": "Υπηρεσία API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Δημιουργία εικόνων",
-      "description": "Ελέγξτε τα τελικά σημεία Images, τα οποία είναι απενεργοποιημένα από προεπιλογή, και δείτε την κατάσταση εκτέλεσης που υποστηρίζεται από αποδεικτικά στοιχεία.",
-      "unsupportedDaemon": "Αυτός ο daemon δεν παρέχει ακόμη ρυθμίσεις Images.",
-      "enable": "Ενεργοποίηση τελικών σημείων Images",
-      "entitlementWarning": "Η ενεργοποίηση των ρυθμίσεων δεν αποδεικνύει δικαίωμα συνδρομής. Η πραγματική διαθεσιμότητα απαιτεί πρόσφατα αποδεικτικά στοιχεία για τον επιλεγμένο λογαριασμό.",
-      "track": {
-        "configured": "Ρυθμισμένο",
-        "effective": "Πραγματικό",
-        "on": "Ενεργοποιημένο",
-        "off": "Απενεργοποιημένο",
-        "available": "Διαθέσιμο",
-        "unavailable": "Μη διαθέσιμο",
-        "unknown": "Δεν υπάρχουν πρόσφατα αποδεικτικά δυνατότητας"
-      },
-      "account": {
-        "label": "Επιλογή λογαριασμού",
-        "pool": "Ομάδα κατάλληλων λογαριασμών",
-        "group": "Ομάδα: {{group}}",
-        "account": "Λογαριασμός Codex {{number}}",
-        "fallback": "Πολιτική εφεδρείας",
-        "strict": "Αυστηρή επιλογή",
-        "poolFallback": "Να επιτρέπεται εφεδρική επιλογή από την ομάδα"
-      },
-      "defaultModel": "\u03a0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03bc\u03ad\u03bd\u03bf \u03bc\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03b5\u03b9\u03ba\u03cc\u03bd\u03b1\u03c2",
-      "routes": {
-        "title": "\u0394\u03c1\u03bf\u03bc\u03bf\u03bb\u03cc\u03b3\u03b7\u03c3\u03b7 \u03bc\u03bf\u03bd\u03c4\u03ad\u03bb\u03c9\u03bd",
-        "defaultBadge": "\u03c0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae"
-      },
-      "codex": {
-        "title": "\u03a0\u03b1\u03c1\u03b1\u03ba\u03ac\u03bc\u03c8\u03b5\u03b9\u03c2 Codex",
-        "imageModel": "\u039c\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03b5\u03b9\u03ba\u03cc\u03bd\u03b1\u03c2",
-        "carrierModel": "\u039c\u03bf\u03bd\u03c4\u03ad\u03bb\u03bf \u03c6\u03bf\u03c1\u03ad\u03b1",
-        "hint": "\u03a4\u03b1 \u03ba\u03b5\u03bd\u03ac \u03c0\u03b5\u03b4\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03ad\u03c1\u03c7\u03bf\u03bd\u03c4\u03b1\u03b9 \u03c3\u03c4\u03b9\u03c2 \u03ba\u03b1\u03b8\u03bf\u03c1\u03b9\u03c3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03c0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03c4\u03b9\u03bc\u03ad\u03c2 (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Επαληθευμένος πίνακας λειτουργιών",
-        "generate": "Δημιουργία",
-        "edit": "Επεξεργασία",
-        "maskEdit": "Επεξεργασία με μάσκα",
-        "streaming": "Ροή",
-        "transparentBackground": "Διαφάνεια",
-        "responsesTool": "Εργαλείο Responses",
-        "supported": "Υποστηρίζεται",
-        "unsupported": "Δεν υποστηρίζεται"
-      },
-      "evidence": "Πρόσφατα αποδεικτικά στοιχεία παρατηρήθηκαν πριν από {{age}} δευτερόλεπτα.",
-      "noEvidence": "Δεν υπάρχουν πρόσφατα αποδεικτικά στοιχεία. Η ανανέωση αυτής της προβολής δεν δημιουργεί ποτέ εικόνα.",
-      "resources": {
-        "title": "Χρήση περιβάλλοντος εκτέλεσης",
-        "queue": "Ουρά",
-        "temporary": "Προσωρινή αποθήκευση",
-        "references": "Διατηρημένες αναφορές",
-        "bytes": "Προσωρινά {{temporary}} · αναφορές {{references}}",
-        "unavailable": "Η χρήση δεν είναι διαθέσιμη όταν το περιβάλλον Images είναι εκτός σύνδεσης."
-      },
-      "remote": {
-        "enabledWarning": "Οι απομακρυσμένες διευθύνσεις URL ενεργοποιούνται μόνο μέσω της ενισχυμένης πολιτικής επίλυσης.",
-        "disabled": "Οι απομακρυσμένες διευθύνσεις URL εικόνων είναι απενεργοποιημένες."
-      },
-      "storage": {
-        "custom": "Έχει ρυθμιστεί ιδιωτική προσαρμοσμένη ρίζα αποθήκευσης· η διαδρομή της είναι κρυφή.",
-        "privateDefault": "Τα τεχνουργήματα χρησιμοποιούν την ιδιωτική αποθήκευση δεδομένων εφαρμογής του daemon."
       }
     },
     "queue": {

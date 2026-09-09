@@ -535,7 +535,8 @@
     "usageStats": "使用状況",
     "pricing": "料金",
     "dashboard": "ダッシュボード",
-    "search": "検索"
+    "images": "画像",
+"search": "検索"
   },
   "overview": {
     "accounts": {
@@ -617,6 +618,93 @@
       "overloadJustNow": "たった今",
       "overloadMinsAgo": "{{n}} 分前",
       "overloadHoursAgo": "{{n}} 時間前"
+    }
+  },
+  "images": {
+    "title": "画像生成",
+    "description": "既定で無効な Images エンドポイントを管理し、証拠に基づくランタイム状態を確認します。",
+    "unsupportedDaemon": "このデーモンはまだ Images 設定を公開していません。",
+    "enable": "Images エンドポイントを有効にする",
+    "entitlementWarning": "設定を有効にしても、サブスクリプションの利用資格は証明されません。実際に利用するには、選択したアカウントの新しい証拠が必要です。",
+    "track": {
+      "configured": "設定済み",
+      "effective": "実効状態",
+      "on": "有効",
+      "off": "無効",
+      "available": "利用可能",
+      "unavailable": "利用不可",
+      "unknown": "新しい機能証拠がありません"
+    },
+    "account": {
+      "label": "アカウント選択",
+      "pool": "利用可能なアカウントプール",
+      "group": "グループ：{{group}}",
+      "account": "Codex アカウント {{number}}",
+      "fallback": "フォールバックポリシー",
+      "strict": "厳密な選択",
+      "poolFallback": "プールへのフォールバックを許可"
+    },
+    "defaultModel": "\u30c7\u30d5\u30a9\u30eb\u30c8\u306e\u753b\u50cf\u30e2\u30c7\u30eb",
+    "routes": {
+      "title": "\u30e2\u30c7\u30eb\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0",
+      "defaultBadge": "\u30c7\u30d5\u30a9\u30eb\u30c8"
+    },
+    "codex": {
+      "title": "Codex \u30ef\u30a4\u30e4\u30fc\u8a2d\u5b9a\u306e\u4e0a\u66f8\u304d",
+      "imageModel": "\u753b\u50cf\u30e2\u30c7\u30eb",
+      "carrierModel": "\u30ad\u30e3\u30ea\u30a2\u30e2\u30c7\u30eb",
+      "hint": "\u7a7a\u306b\u3057\u305f\u9805\u76ee\u306f\u56fa\u5b9a\u306e\u65e2\u5b9a\u5024\uff08gpt-image-2 / gpt-5.6-luna\uff09\u306b\u623b\u308a\u307e\u3059\u3002"
+    },
+    "features": {
+      "title": "検証済み機能マトリクス",
+      "generate": "生成",
+      "edit": "編集",
+      "maskEdit": "マスク編集",
+      "streaming": "ストリーミング",
+      "transparentBackground": "透明度",
+      "responsesTool": "Responses ツール",
+      "supported": "対応",
+      "unsupported": "非対応"
+    },
+    "evidence": "{{age}} 秒前に新しい証拠が確認されました。",
+    "noEvidence": "新しい証拠はありません。この画面を更新しても画像が生成されることはありません。",
+    "resources": {
+      "title": "ランタイム使用状況",
+      "queue": "キュー",
+      "temporary": "一時ストレージ",
+      "references": "保持中の参照",
+      "bytes": "一時 {{temporary}} · 参照 {{references}}",
+      "unavailable": "Images ランタイムがオフラインの間は使用状況を取得できません。"
+    },
+    "remote": {
+      "enabledWarning": "リモート URL は、強化されたリゾルバーポリシーを通じてのみ有効になります。",
+      "disabled": "リモート画像 URL は無効です。"
+    },
+    "storage": {
+      "custom": "非公開のカスタムストレージルートが設定されています。パスは表示されません。",
+      "privateDefault": "生成物はデーモンの非公開アプリケーションデータストレージを使用します。"
+    },
+    "page": {
+      "title": "\u753b\u50cf\u751f\u6210",
+      "description": "\u30e2\u30c7\u30eb\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0\u3001\u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\u72b6\u614b\u3001Images \u30a8\u30f3\u30c9\u30dd\u30a4\u30f3\u30c8\u3092\u4e00\u7b87\u6240\u306b\u96c6\u7d04\u3002",
+      "loading": "\u753b\u50cf\u8a2d\u5b9a\u3092\u8aad\u307f\u8fbc\u307f\u4e2d\u2026"
+    },
+    "providers": {
+      "bootstrap": "\u30d6\u30fc\u30c8\u30b9\u30c8\u30e9\u30c3\u30d7\uff08\u672a\u691c\u8a3c\uff09",
+      "healthy": "\u5229\u7528\u53ef\u80fd",
+      "unhealthy": "\u5229\u7528\u4e0d\u53ef",
+      "evidence": "{{age}} \u79d2\u524d\u306b\u65b0\u3057\u3044\u8a3c\u62e0\u3092\u53d6\u5f97\u3002",
+      "noEvidence": "\u65b0\u3057\u3044\u8a3c\u62e0\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093\uff08\u6700\u521d\u306e\u5b9f\u969b\u30ea\u30af\u30a8\u30b9\u30c8\u6642\u306b\u30d6\u30fc\u30c8\u30b9\u30c8\u30e9\u30c3\u30d7\uff09\u3002",
+      "noModels": "\u65b0\u3057\u3044\u8a3c\u62e0\u3067\u78ba\u8a8d\u3055\u308c\u305f\u30e2\u30c7\u30eb\u306f\u3042\u308a\u307e\u305b\u3093\u3002"
+    },
+    "verify": {
+      "title": "\u5b9f\u6a5f\u691c\u8a3c",
+      "run": "\u691c\u8a3c\u3092\u5b9f\u884c",
+      "running": "\u691c\u8a3c\u4e2d\u2026",
+      "warning": "\u26a0 \u30b5\u30d6\u30b9\u30af\u30ea\u30d7\u30b7\u30e7\u30f3\u67a0\u3092\u6d88\u8cbb\u3057\u307e\u3059\uff1a\u6700\u4f4e\u54c1\u8cea\u306e PNG \u30ea\u30af\u30a8\u30b9\u30c8\u3092 1 \u4ef6\u9001\u4fe1\u3057\u307e\u3059\u3002",
+      "codexOnly": "Codex \u56de\u7dda\u306e\u307f\u5bfe\u8c61\u3002Antigravity \u30d7\u30ed\u30d0\u30a4\u30c0\u30fc\u306f v1 \u3067\u306f\u72ec\u7acb\u691c\u8a3c\u5668\u3092\u6301\u3061\u307e\u305b\u3093\u3002",
+      "codexOnlyPlain": "Codex \u56de\u7dda\u306e\u307f\u5bfe\u8c61\u3002",
+      "success": "{{model}} \u3092\u691c\u8a3c\uff08{{quality}}\u3001{{format}}\uff09\u3002\u65b0\u3057\u3044\u8a3c\u62e0\u30a8\u30f3\u30c8\u30ea\uff1a{{count}}\u3002"
     }
   },
   "apiService": {
@@ -727,71 +815,6 @@
         "modelRestrictionList": "モデル",
         "modelRestrictionListHint": "1行に1つのモデルID",
         "modelRestrictionEmptyAllowlistWarning": "有効な許可リストが空の場合、すべてのリクエストを拒否します。"
-      }
-    },
-    "images": {
-      "title": "画像生成",
-      "description": "既定で無効な Images エンドポイントを管理し、証拠に基づくランタイム状態を確認します。",
-      "unsupportedDaemon": "このデーモンはまだ Images 設定を公開していません。",
-      "enable": "Images エンドポイントを有効にする",
-      "entitlementWarning": "設定を有効にしても、サブスクリプションの利用資格は証明されません。実際に利用するには、選択したアカウントの新しい証拠が必要です。",
-      "track": {
-        "configured": "設定済み",
-        "effective": "実効状態",
-        "on": "有効",
-        "off": "無効",
-        "available": "利用可能",
-        "unavailable": "利用不可",
-        "unknown": "新しい機能証拠がありません"
-      },
-      "account": {
-        "label": "アカウント選択",
-        "pool": "利用可能なアカウントプール",
-        "group": "グループ：{{group}}",
-        "account": "Codex アカウント {{number}}",
-        "fallback": "フォールバックポリシー",
-        "strict": "厳密な選択",
-        "poolFallback": "プールへのフォールバックを許可"
-      },
-      "defaultModel": "\u30c7\u30d5\u30a9\u30eb\u30c8\u306e\u753b\u50cf\u30e2\u30c7\u30eb",
-      "routes": {
-        "title": "\u30e2\u30c7\u30eb\u30eb\u30fc\u30c6\u30a3\u30f3\u30b0",
-        "defaultBadge": "\u30c7\u30d5\u30a9\u30eb\u30c8"
-      },
-      "codex": {
-        "title": "Codex \u30ef\u30a4\u30e4\u30fc\u8a2d\u5b9a\u306e\u4e0a\u66f8\u304d",
-        "imageModel": "\u753b\u50cf\u30e2\u30c7\u30eb",
-        "carrierModel": "\u30ad\u30e3\u30ea\u30a2\u30e2\u30c7\u30eb",
-        "hint": "\u7a7a\u306b\u3057\u305f\u9805\u76ee\u306f\u56fa\u5b9a\u306e\u65e2\u5b9a\u5024\uff08gpt-image-2 / gpt-5.6-luna\uff09\u306b\u623b\u308a\u307e\u3059\u3002"
-      },
-      "features": {
-        "title": "検証済み機能マトリクス",
-        "generate": "生成",
-        "edit": "編集",
-        "maskEdit": "マスク編集",
-        "streaming": "ストリーミング",
-        "transparentBackground": "透明度",
-        "responsesTool": "Responses ツール",
-        "supported": "対応",
-        "unsupported": "非対応"
-      },
-      "evidence": "{{age}} 秒前に新しい証拠が確認されました。",
-      "noEvidence": "新しい証拠はありません。この画面を更新しても画像が生成されることはありません。",
-      "resources": {
-        "title": "ランタイム使用状況",
-        "queue": "キュー",
-        "temporary": "一時ストレージ",
-        "references": "保持中の参照",
-        "bytes": "一時 {{temporary}} · 参照 {{references}}",
-        "unavailable": "Images ランタイムがオフラインの間は使用状況を取得できません。"
-      },
-      "remote": {
-        "enabledWarning": "リモート URL は、強化されたリゾルバーポリシーを通じてのみ有効になります。",
-        "disabled": "リモート画像 URL は無効です。"
-      },
-      "storage": {
-        "custom": "非公開のカスタムストレージルートが設定されています。パスは表示されません。",
-        "privateDefault": "生成物はデーモンの非公開アプリケーションデータストレージを使用します。"
       }
     },
     "queue": {

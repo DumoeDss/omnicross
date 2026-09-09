@@ -516,7 +516,95 @@
     "usageStats": "Využití",
     "pricing": "Ceník",
     "dashboard": "Dashboard",
-    "search": "Hledání"
+    "images": "Obrázky",
+"search": "Hledání"
+  },
+  "images": {
+    "title": "Generování obrázků",
+    "description": "Spravujte ve výchozím stavu vypnuté koncové body Images a sledujte jejich běhový stav podložený důkazy.",
+    "unsupportedDaemon": "Tento daemon zatím neposkytuje konfiguraci Images.",
+    "enable": "Povolit koncové body Images",
+    "entitlementWarning": "Povolená konfigurace nedokládá oprávnění předplatného. Skutečná dostupnost vyžaduje čerstvé důkazy pro vybraný účet.",
+    "track": {
+      "configured": "Nakonfigurováno",
+      "effective": "Účinné",
+      "on": "Povoleno",
+      "off": "Zakázáno",
+      "available": "Dostupné",
+      "unavailable": "Nedostupné",
+      "unknown": "Žádné čerstvé důkazy o schopnosti"
+    },
+    "account": {
+      "label": "Výběr účtu",
+      "pool": "Fond způsobilých účtů",
+      "group": "Skupina: {{group}}",
+      "account": "Účet Codex {{number}}",
+      "fallback": "Zásady náhradního výběru",
+      "strict": "Přísný výběr",
+      "poolFallback": "Povolit náhradní výběr z fondu"
+    },
+    "defaultModel": "V\u00fdchoz\u00ed model obr\u00e1zk\u016f",
+    "routes": {
+      "title": "Sm\u011brov\u00e1n\u00ed model\u016f",
+      "defaultBadge": "v\u00fdchoz\u00ed"
+    },
+    "codex": {
+      "title": "P\u0159episy p\u0159enosu Codex",
+      "imageModel": "Model obr\u00e1zku",
+      "carrierModel": "Nosn\u00fd model",
+      "hint": "Vymazan\u00e1 pole se vr\u00e1t\u00ed na v\u00fdchoz\u00ed upevn\u011bn\u00e9 hodnoty (gpt-image-2 / gpt-5.6-luna)."
+    },
+    "features": {
+      "title": "Ověřená matice funkcí",
+      "generate": "Generovat",
+      "edit": "Upravit",
+      "maskEdit": "Úprava s maskou",
+      "streaming": "Streamování",
+      "transparentBackground": "Průhlednost",
+      "responsesTool": "Nástroj Responses",
+      "supported": "Podporováno",
+      "unsupported": "Nepodporováno"
+    },
+    "evidence": "Čerstvé důkazy byly zaznamenány před {{age}} sekundami.",
+    "noEvidence": "Nejsou dostupné žádné čerstvé důkazy. Obnovování tohoto zobrazení nikdy nevygeneruje obrázek.",
+    "resources": {
+      "title": "Využití běhového prostředí",
+      "queue": "Fronta",
+      "temporary": "Dočasné úložiště",
+      "references": "Uchované reference",
+      "bytes": "Dočasně {{temporary}} · reference {{references}}",
+      "unavailable": "Využití není dostupné, když je běhové prostředí Images offline."
+    },
+    "remote": {
+      "enabledWarning": "Vzdálené adresy URL jsou povoleny pouze prostřednictvím zesílených zásad resolveru.",
+      "disabled": "Vzdálené adresy URL obrázků jsou zakázány."
+    },
+    "storage": {
+      "custom": "Je nakonfigurován soukromý vlastní kořen úložiště; jeho cesta je skrytá.",
+      "privateDefault": "Artefakty používají soukromé úložiště aplikačních dat daemonu."
+    },
+    "page": {
+      "title": "Generov\u00e1n\u00ed obr\u00e1zk\u016f",
+      "description": "Sm\u011brov\u00e1n\u00ed model\u016f, stav poskytovatel\u016f a Images endpointy na jednom m\u00edst\u011b.",
+      "loading": "Na\u010d\u00edt\u00e1n\u00ed konfigurace obr\u00e1zk\u016f\u2026"
+    },
+    "providers": {
+      "bootstrap": "bootstrap (neov\u011b\u0159eno)",
+      "healthy": "Dostupn\u00e9",
+      "unhealthy": "Nedostupn\u00e9",
+      "evidence": "\u010cerstv\u00e9 d\u016fkazy p\u0159ed {{age}} sekundami.",
+      "noEvidence": "Zat\u00edm \u017e\u00e1dn\u00e9 \u010derstv\u00e9 d\u016fkazy (bootstrap p\u0159i prvn\u00edm re\u00e1ln\u00e9m po\u017eadavku).",
+      "noModels": "\u017d\u00e1dn\u00e9 modely potvrzen\u00e9 \u010derstv\u00fdmi d\u016fkazy."
+    },
+    "verify": {
+      "title": "Ov\u011b\u0159en\u00ed na\u017eivo",
+      "run": "Spustit ov\u011b\u0159en\u00ed",
+      "running": "Ov\u011b\u0159uje se\u2026",
+      "warning": "\u26a0 Spot\u0159ebov\u00e1v\u00e1 kv\u00f3tu p\u0159edplatn\u00e9ho: ode\u0161le se jeden minim\u00e1ln\u00ed PNG po\u017eadavek v n\u00edzk\u00e9 kvalit\u011b.",
+      "codexOnly": "Pokr\u00fdv\u00e1 pouze linku Codex; poskytovatel Antigravity nem\u00e1 v 1. verzi nez\u00e1visl\u00fd verifik\u00e1tor.",
+      "codexOnlyPlain": "Pokr\u00fdv\u00e1 pouze linku Codex.",
+      "success": "Ov\u011b\u0159eno {{model}} ({{quality}}, {{format}}); z\u00e1znamy \u010derstv\u00fdch d\u016fkaz\u016f: {{count}}."
+    }
   },
   "apiService": {
     "title": "Služba API",
@@ -631,71 +719,6 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
-      }
-    },
-    "images": {
-      "title": "Generování obrázků",
-      "description": "Spravujte ve výchozím stavu vypnuté koncové body Images a sledujte jejich běhový stav podložený důkazy.",
-      "unsupportedDaemon": "Tento daemon zatím neposkytuje konfiguraci Images.",
-      "enable": "Povolit koncové body Images",
-      "entitlementWarning": "Povolená konfigurace nedokládá oprávnění předplatného. Skutečná dostupnost vyžaduje čerstvé důkazy pro vybraný účet.",
-      "track": {
-        "configured": "Nakonfigurováno",
-        "effective": "Účinné",
-        "on": "Povoleno",
-        "off": "Zakázáno",
-        "available": "Dostupné",
-        "unavailable": "Nedostupné",
-        "unknown": "Žádné čerstvé důkazy o schopnosti"
-      },
-      "account": {
-        "label": "Výběr účtu",
-        "pool": "Fond způsobilých účtů",
-        "group": "Skupina: {{group}}",
-        "account": "Účet Codex {{number}}",
-        "fallback": "Zásady náhradního výběru",
-        "strict": "Přísný výběr",
-        "poolFallback": "Povolit náhradní výběr z fondu"
-      },
-      "defaultModel": "V\u00fdchoz\u00ed model obr\u00e1zk\u016f",
-      "routes": {
-        "title": "Sm\u011brov\u00e1n\u00ed model\u016f",
-        "defaultBadge": "v\u00fdchoz\u00ed"
-      },
-      "codex": {
-        "title": "P\u0159episy p\u0159enosu Codex",
-        "imageModel": "Model obr\u00e1zku",
-        "carrierModel": "Nosn\u00fd model",
-        "hint": "Vymazan\u00e1 pole se vr\u00e1t\u00ed na v\u00fdchoz\u00ed upevn\u011bn\u00e9 hodnoty (gpt-image-2 / gpt-5.6-luna)."
-      },
-      "features": {
-        "title": "Ověřená matice funkcí",
-        "generate": "Generovat",
-        "edit": "Upravit",
-        "maskEdit": "Úprava s maskou",
-        "streaming": "Streamování",
-        "transparentBackground": "Průhlednost",
-        "responsesTool": "Nástroj Responses",
-        "supported": "Podporováno",
-        "unsupported": "Nepodporováno"
-      },
-      "evidence": "Čerstvé důkazy byly zaznamenány před {{age}} sekundami.",
-      "noEvidence": "Nejsou dostupné žádné čerstvé důkazy. Obnovování tohoto zobrazení nikdy nevygeneruje obrázek.",
-      "resources": {
-        "title": "Využití běhového prostředí",
-        "queue": "Fronta",
-        "temporary": "Dočasné úložiště",
-        "references": "Uchované reference",
-        "bytes": "Dočasně {{temporary}} · reference {{references}}",
-        "unavailable": "Využití není dostupné, když je běhové prostředí Images offline."
-      },
-      "remote": {
-        "enabledWarning": "Vzdálené adresy URL jsou povoleny pouze prostřednictvím zesílených zásad resolveru.",
-        "disabled": "Vzdálené adresy URL obrázků jsou zakázány."
-      },
-      "storage": {
-        "custom": "Je nakonfigurován soukromý vlastní kořen úložiště; jeho cesta je skrytá.",
-        "privateDefault": "Artefakty používají soukromé úložiště aplikačních dat daemonu."
       }
     },
     "queue": {

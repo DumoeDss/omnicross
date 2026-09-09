@@ -12,6 +12,7 @@ export type PageId =
   | 'upstreams'
   | 'integrations'
   | 'search'
+  | 'images'
   | 'usage-stats'
   | 'settings';
 
@@ -53,6 +54,7 @@ const PAGE_IDS = new Set<PageId>([
   'upstreams',
   'integrations',
   'search',
+  'images',
   'usage-stats',
   'settings',
 ]);
