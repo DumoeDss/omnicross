@@ -548,7 +548,11 @@ function parseSessionMetadata(line: string, filePath: string): {
   const value = JSON.parse(line.replace(/^\uFEFF/u, '')) as unknown;
   if (!isRecord(value)) throw new Error('metadata is not an object');
   const payload = isRecord(value['payload']) ? value['payload'] : {};
-  const id = firstString(payload['session_id'], payload['id']) || sessionIdFromRolloutPath(filePath);
+  // Codex's rollout filename is the stable thread key used by state_5.sqlite.
+  // Some historical rollouts repeat a parent thread's session_id in their
+  // session_meta payload, so using that payload value first can merge several
+  // files under one id and make valid state rows look like missing rollouts.
+  const id = sessionIdFromRolloutPath(filePath) || firstString(payload['session_id'], payload['id']);
   return {
     id,
     cwd: firstString(payload['cwd']),

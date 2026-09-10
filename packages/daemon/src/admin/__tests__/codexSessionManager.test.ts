@@ -39,7 +39,9 @@ describe('CodexSessionManager', () => {
       JSON.stringify({
         timestamp: '2026-01-01T00:00:00.000Z',
         type: 'session_meta',
-        payload: { session_id: SESSION_ID, id: SESSION_ID, cwd: project, model_provider: 'openai' },
+        // The filename is the state_5.sqlite thread key. The payload can carry
+        // a repeated parent id in historical Codex rollouts.
+        payload: { session_id: OTHER_SESSION_ID, id: OTHER_SESSION_ID, cwd: project, model_provider: 'openai' },
       }),
       JSON.stringify({
         type: 'event_msg',
