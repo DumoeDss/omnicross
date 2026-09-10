@@ -52,12 +52,18 @@ describe('chatgpt-web model routes', () => {
     expect(proMax.effectiveContextWindowPercent).toBeLessThanOrEqual(100);
   });
 
-  it('builds a /v1/models document for the available routes', () => {
+  it('builds a /v1/models document in the native codex catalog shape', () => {
     const document = buildChatGptWebModelsDocument({ solAvailable: true, proAvailable: true });
-    expect(document['object']).toBe('list');
-    const ids = (document['data'] as Array<{ id: string }>).map((entry) => entry.id);
-    expect(ids).toContain('chatgpt-web/pro');
-    expect(ids).not.toContain('chatgpt-web/luna');
+    // codex's models manager decodes {"models":[…]}, not the public OpenAI list envelope.
+    expect(Array.isArray(document['models'])).toBe(true);
+    const rows = document['models'] as Array<Record<string, unknown>>;
+    const slugs = rows.map((entry) => entry['slug']);
+    expect(slugs).toContain('chatgpt-web/pro');
+    expect(slugs).not.toContain('chatgpt-web/luna');
+    const pro = rows.find((entry) => entry['slug'] === 'chatgpt-web/pro')!;
+    expect(pro['default_reasoning_level']).toBe('ultra');
+    expect(pro['visibility']).toBe('list');
+    expect(typeof pro['context_window']).toBe('number');
   });
 
   it('rejects unknown models explicitly', () => {

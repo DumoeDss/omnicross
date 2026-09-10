@@ -255,28 +255,37 @@ export function resolveChatGptWebTransportLimits(
   };
 }
 
-/** A minimal OpenAI-style /v1/models payload for the routed rows. */
+/**
+ * The /v1/models payload for the routed rows. Codex's models manager decodes
+ * `{"models":[…]}` (the native catalog shape), NOT the public OpenAI
+ * `{"object":"list","data":[…]}` envelope — the slug/display/effort/window
+ * fields mirror what codex-chatgpt-web's catalog augmentation emits.
+ */
 export function buildChatGptWebModelsDocument(
   capabilities: ChatGptWebAccountCapabilities,
 ): Record<string, unknown> {
   return {
-    object: 'list',
-    data: availableChatGptWebModelRoutes(capabilities).map((route) => {
+    models: availableChatGptWebModelRoutes(capabilities).map((route) => {
       const limits = resolveChatGptWebContextLimits(route, capabilities);
       return {
-        id: route.slug,
-        object: 'model',
-        created: 0,
-        owned_by: 'omnicross-chatgpt-web',
+        slug: route.slug,
         display_name: route.displayName,
         description: route.description,
-        context_window: limits.contextWindow,
-        max_context_window: limits.contextWindow,
-        auto_compact_token_limit: limits.autoCompactTokenLimit,
+        visibility: 'list',
+        supported_in_api: true,
+        tool_mode: null,
+        input_modalities: ['text', 'image'],
         default_reasoning_level: route.codexEffort,
         supported_reasoning_levels: [
           { effort: route.codexEffort, description: route.displayName },
         ],
+        context_window: limits.contextWindow,
+        max_context_window: limits.contextWindow,
+        effective_context_window_percent: limits.effectiveContextWindowPercent,
+        auto_compact_token_limit: limits.autoCompactTokenLimit,
+        additional_speed_tiers: [],
+        service_tiers: [],
+        default_service_tier: null,
       };
     }),
   };

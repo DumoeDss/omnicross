@@ -15,6 +15,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { buildCliSpawnPlan } from './launch';
@@ -49,7 +50,8 @@ export function buildChatGptWebConfigOverrides(baseUrl: string): string[] {
  * Win32 hardening: npm `.cmd` shims re-quote argv through cmd.exe, which
  * splits values containing spaces (e.g. a provider name). When the shim
  * references a JS entry (`"%dp0%\node_modules\…\bin\….js"`), spawn it directly
- * with `process.execPath` so the argument array survives verbatim.
+ * with `process.execPath` so the argument array survives verbatim — and
+ * WITHOUT routing through buildCliSpawnPlan's cmd.exe safety rejection first.
  */
 export function resolveWindowsJsEntry(cmdShimPath: string): string | null {
   try {
@@ -62,6 +64,16 @@ export function resolveWindowsJsEntry(cmdShimPath: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Scan PATH for a candidate file (mirrors launch.ts's private prober). */
+function resolveInPath(candidate: string): string | null {
+  const segments = (process.env['PATH'] ?? '').split(delimiter).filter(Boolean);
+  for (const segment of segments) {
+    const full = join(segment, candidate);
+    if (existsSync(full)) return full;
+  }
+  return null;
 }
 
 /** Run the `chatgpt-web` subcommand; returns the CLI exit code. */
@@ -115,29 +127,35 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
   });
   console.info(`chatgpt-web bridge listening on ${bridge.baseUrl} (model: ${model})`);
 
-  const extraArgs = [...buildChatGptWebConfigOverrides(bridge.baseUrl), '--model', model, ...passthrough];
-  const plan = buildCliSpawnPlan({
-    platform: process.platform,
-    cliName: 'codex',
-    cliArgs: extraArgs,
-  });
-  // Prefer the shim's real JS entry on win32 (space-safe argv, no cmd.exe).
-  const spawnPlan =
-    plan.viaCmdShim && process.platform === 'win32'
-      ? (() => {
-          const entry = resolveWindowsJsEntry(plan.command);
-          return entry
-            ? { command: process.execPath, args: [entry, ...plan.args.slice(4)], viaCmdShim: false }
-            : plan;
-        })()
-      : plan;
-  console.info(`launching codex against the chatgpt-web bridge (provider: ${PROVIDER_NAME})`);
-  const exitCode = await spawnInherit({
-    ...spawnPlan,
-    env: { ...process.env, [CHATGPT_WEB_TOKEN_ENV]: token },
-    cwd: values.cwd,
-  });
-  await bridge.stop();
+  let exitCode = 1;
+  try {
+    const extraArgs = [...buildChatGptWebConfigOverrides(bridge.baseUrl), '--model', model, ...passthrough];
+    // Win32 FIRST: resolve the npm shim's real JS entry before any cmd.exe
+    // involvement — buildCliSpawnPlan would reject our quoted -c values for
+    // the .cmd path, and direct node-entry spawn sidesteps re-quoting entire.
+    let plan: { command: string; args: string[]; viaCmdShim: boolean };
+    if (process.platform === 'win32') {
+      const cmdShim = resolveInPath('codex.cmd');
+      const entry = cmdShim ? resolveWindowsJsEntry(cmdShim) : null;
+      if (entry) {
+        plan = { command: process.execPath, args: [entry, ...extraArgs], viaCmdShim: false };
+      } else {
+        plan = buildCliSpawnPlan({ platform: process.platform, cliName: 'codex', cliArgs: extraArgs });
+      }
+    } else {
+      plan = buildCliSpawnPlan({ platform: process.platform, cliName: 'codex', cliArgs: extraArgs });
+    }
+    console.info(`launching codex against the chatgpt-web bridge (provider: ${PROVIDER_NAME})`);
+    exitCode = await spawnInherit({
+      ...plan,
+      env: { ...process.env, [CHATGPT_WEB_TOKEN_ENV]: token },
+      cwd: values.cwd,
+    });
+  } finally {
+    // Never leak the listening bridge (a throw past a live server keeps the
+    // whole CLI process alive indefinitely).
+    await bridge.stop();
+  }
   return exitCode;
 }
 
