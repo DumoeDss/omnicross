@@ -58,6 +58,7 @@
     "@omnicross/core": "^0.4.4",
     "@omnicross/subscriptions": "^0.4.4",
     "@omnicross/cli-launcher": "^0.4.4",
-    "@omnicross/ui": "^0.4.4"
+    "@omnicross/ui": "^0.4.4",
+    "@omnicross/chatgpt-web": "^0.4.4"
   }
 }

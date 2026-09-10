@@ -23,6 +23,8 @@
       "@omnicross/subscriptions/*": ["packages/subscriptions/src/*"],
       "@omnicross/cli-launcher": ["packages/cli-launcher/src/index.ts"],
       "@omnicross/cli-launcher/*": ["packages/cli-launcher/src/*"],
+      "@omnicross/chatgpt-web": ["packages/chatgpt-web/src/index.ts"],
+      "@omnicross/chatgpt-web/*": ["packages/chatgpt-web/src/*"],
       "@omnicross/daemon": ["packages/daemon/src/index.ts"],
       "@omnicross/daemon/*": ["packages/daemon/src/*"]
     }
