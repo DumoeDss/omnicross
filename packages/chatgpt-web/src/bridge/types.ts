@@ -134,6 +134,9 @@ export type BridgeEvent =
   | { type: 'heartbeat' }
   | { type: 'text_delta'; text: string }
   | { type: 'thinking_delta'; thinking: string }
+  | { type: 'tool_call_start'; id: string; name: string; freeform?: boolean }
+  | { type: 'tool_call_delta'; arguments: string }
+  | { type: 'tool_call_end' }
   | { type: 'done'; usage?: BridgeUsage }
   | { type: 'incomplete'; reason: string; message?: string }
   | {

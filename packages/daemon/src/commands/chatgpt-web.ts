@@ -79,7 +79,7 @@ function resolveInPath(candidate: string): string | null {
 /** Run the `chatgpt-web` subcommand; returns the CLI exit code. */
 export async function runChatgptWeb(argv: string[]): Promise<number> {
   const subcommand = argv[0];
-  if (subcommand !== 'check' && subcommand !== 'launch') {
+  if (subcommand !== 'check' && subcommand !== 'launch' && subcommand !== 'harness') {
     printUsage();
     return subcommand === 'help' || subcommand === '--help' ? 0 : 1;
   }
@@ -96,6 +96,10 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
       cwd: { type: 'string' },
       smoke: { type: 'boolean' },
       'skip-check': { type: 'boolean' },
+      harness: { type: 'boolean' },
+      'tunnel-id': { type: 'string' },
+      'runtime-key': { type: 'string' },
+      connector: { type: 'string' },
     },
     allowPositionals: false,
   });
@@ -109,6 +113,10 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
 
   if (subcommand === 'check') {
     return runCheck(chatgptWeb, { cdpPort, smoke: values.smoke === true });
+  }
+  if (subcommand === 'harness') {
+    const action = argv[1] ?? 'status';
+    return runHarness(chatgptWeb, { action, tunnelId: values['tunnel-id'], runtimeKey: values['runtime-key'], connector: values.connector });
   }
 
   const model = values.model ?? DEFAULT_MODEL;
@@ -124,8 +132,12 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
     authToken: token,
     cdpPort,
     onError: (error) => console.error(`[chatgpt-web] ${error.message}`),
+    ...(values.harness ? { harness: true } : {}),
   });
-  console.info(`chatgpt-web bridge listening on ${bridge.baseUrl} (model: ${model})`);
+  console.info(`chatgpt-web bridge listening on ${bridge.baseUrl} (model: ${model})${values.harness ? ' [full harness]' : ''}`);
+  if (values.harness && bridge.harness) {
+    console.info(`  tunnel runtime connected (connector: ${bridge.harness.config.connectorName})`);
+  }
 
   let exitCode = 1;
   try {
@@ -270,6 +282,44 @@ function spawnInherit(plan: {
   });
 }
 
+/** `omnicross chatgpt-web harness <setup|status>` driver. */
+async function runHarness(
+  _chatgptWeb: ChatgptWebModule,
+  options: { action: string; tunnelId?: string; runtimeKey?: string; connector?: string },
+): Promise<number> {
+  const harness = await import('@omnicross/chatgpt-web/tunnel/harnessConfig');
+  if (options.action === 'setup') {
+    if (!options.tunnelId || !options.runtimeKey) {
+      console.error('harness setup: --tunnel-id and --runtime-key are required');
+      console.error('  Create both on platform.openai.com (Tunnels + API keys). Creating them is free.');
+      return 1;
+    }
+    const config = harness.saveHarnessConfig({
+      tunnelId: options.tunnelId,
+      runtimeKey: options.runtimeKey,
+      connectorName: options.connector,
+    });
+    console.info(`harness config saved (${harness.defaultHarnessConfigPath()})`);
+    console.info(`  connector name: ${config.connectorName}`);
+    console.info('');
+    for (const step of harness.harnessSetupChecklist().steps) console.info(step);
+    return 0;
+  }
+  if (options.action === 'status') {
+    const checklist = harness.harnessSetupChecklist();
+    console.info(`tunnel configured: ${checklist.tunnelConfigured ? 'yes' : 'no'}`);
+    console.info(`connector name:   ${checklist.connectorName}`);
+    if (!checklist.tunnelConfigured) {
+      console.info('');
+      for (const step of checklist.steps) console.info(step);
+      return 1;
+    }
+    return 0;
+  }
+  console.error(`harness: unknown action "${options.action}" (setup | status)`);
+  return 1;
+}
+
 function printUsage(): void {
   console.info(`omnicross chatgpt-web — EXPERIMENTAL ChatGPT Web bridge for Codex (browser automation over your Chrome)
 
@@ -281,6 +331,11 @@ Usage:
                                [--skip-check] [-- <codex-args…>]
                                            Start the bridge and launch Codex wired to it.
                                            Default model: ${DEFAULT_MODEL}; default port: ${DEFAULT_PORT}.
+
+  omnicross chatgpt-web harness setup --tunnel-id <tunnel_…> --runtime-key <sk-…> [--connector <name>]
+                                           Save the full-harness tunnel configuration (free to create
+                                           on platform.openai.com; see "harness status" for the checklist).
+  omnicross chatgpt-web harness status     Show harness configuration + setup checklist.
 
 Requires Chrome with remote debugging enabled (chrome://inspect/#remote-debugging)
 and an active chatgpt.com login in that Chrome. Unofficial automation — use your

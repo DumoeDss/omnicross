@@ -228,11 +228,13 @@ class CompletionTracker {
   }
 }
 
-interface TraceEmitterState {
+/** Shared trace-emitter state shape (also used by the harness turn). */
+export interface TraceEmitterState {
   emittedByKey: Map<string, string>;
 }
 
-function traceDelta(
+/** Emit incremental status/commentary deltas (shared with the harness turn). */
+export function traceDelta(
   state: TraceEmitterState,
   blocks: Array<{ key?: string; kind: string; text: string; uiControl?: boolean }>,
 ): string {

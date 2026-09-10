@@ -19,6 +19,18 @@ import { Readable } from 'node:stream';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { ChatGptWebCapacityError, ChatGptWebBridgeWorker } from './worker';
+import {
+  connectTunnel,
+  installTunnelClient,
+  stopTunnel,
+  tunnelBinaryPath,
+  tunnelStatus,
+  type TunnelRuntimeConfig,
+} from '../tunnel/tunnelClient';
+import { loadHarnessConfig, type HarnessConfig } from '../tunnel/harnessConfig';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildCompactV1Output, extractCompactUserMessages } from './compaction';
 import { buildChatGptWebModelsDocument } from './models';
 import { parseRequest } from './parser';
@@ -34,6 +46,10 @@ export interface ChatGptWebBridgeServerOptions {
   cdpPort?: number;
   onDiagnostic?: (checkpoint: string) => void;
   onError?: (error: Error) => void;
+  /** Full-harness mode: install + connect the OpenAI tunnel and route tool calls. */
+  harness?: boolean;
+  /** Override for the harness config path (tests). */
+  harnessConfigPath?: string;
 }
 
 export interface RunningBridge {
@@ -41,7 +57,14 @@ export interface RunningBridge {
   port: number;
   baseUrl: string;
   worker: ChatGptWebBridgeWorker;
+  harness: HarnessRuntime | null;
   stop: () => Promise<void>;
+}
+
+/** The connected tunnel runtime (absent in browser-only mode). */
+export interface HarnessRuntime {
+  config: HarnessConfig;
+  status: () => Promise<import('../tunnel/tunnelClient').TunnelRuntimeStatus>;
 }
 
 /** Error carrying an HTTP status for the JSON error envelope. */
@@ -57,9 +80,19 @@ class BridgeHttpError extends Error {
 
 /** Start the bridge on 127.0.0.1. Resolves once listening. */
 export async function startChatGptWebBridge(options: ChatGptWebBridgeServerOptions = {}): Promise<RunningBridge> {
+  let harnessConfig: HarnessConfig | null = null;
+  if (options.harness) {
+    harnessConfig = loadHarnessConfig(options.harnessConfigPath);
+    if (!harnessConfig) {
+      throw new Error(
+        'Full-harness mode is enabled but no harness config was found. Run: omnicross chatgpt-web harness setup --tunnel-id <id> --runtime-key <key>',
+      );
+    }
+  }
   const worker = new ChatGptWebBridgeWorker({
     cdpPort: options.cdpPort,
     onDiagnostic: options.onDiagnostic,
+    ...(harnessConfig ? { harness: harnessConfig } : {}),
   });
   const authToken = options.authToken;
   const server = createServer((req, res) => {
@@ -78,16 +111,68 @@ export async function startChatGptWebBridge(options: ChatGptWebBridgeServerOptio
   });
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
+
+  // Full harness: broker + tunnel-client with our MCP server as its child.
+  let harnessRuntime: HarnessRuntime | null = null;
+  if (harnessConfig) {
+    const { port: brokerPort, secret } = await worker.broker.listen();
+    const installed = await installTunnelClient(join(harnessConfig.dataDir, 'bin'));
+    const mcpEntry = resolveMcpServerEntry();
+    if (!mcpEntry || !existsSync(mcpEntry)) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      throw new Error(
+        `Full-harness MCP server entry not found (expected ${mcpEntry ?? '<unknown>'}); build @omnicross/chatgpt-web first.`,
+      );
+    }
+    const runtime: TunnelRuntimeConfig = {
+      binaryPath: installed.binaryPath,
+      tunnelId: harnessConfig.tunnelId,
+      runtimeKey: harnessConfig.runtimeKey,
+      alias: 'omnicross-chatgpt-web',
+      profileDir: join(harnessConfig.dataDir, 'tunnel', 'profiles'),
+      mcpCommand: [
+        process.execPath,
+        mcpEntry,
+        `--broker-port=${brokerPort}`,
+        `--broker-secret=${secret}`,
+      ],
+    };
+    await connectTunnel(runtime);
+    harnessRuntime = {
+      config: harnessConfig,
+      status: () => tunnelStatus({ binaryPath: tunnelBinaryPath(join(harnessConfig!.dataDir, 'bin')), alias: runtime.alias }),
+    };
+  }
+
   return {
     server,
     port: actualPort,
     baseUrl: `http://127.0.0.1:${actualPort}`,
     worker,
+    harness: harnessRuntime,
     stop: async () => {
+      if (harnessConfig) {
+        await stopTunnel({
+          binaryPath: tunnelBinaryPath(join(harnessConfig.dataDir, 'bin')),
+          alias: 'omnicross-chatgpt-web',
+        }).catch(() => undefined);
+        await worker.broker.stop();
+      }
       await new Promise<void>((resolve) => server.close(() => resolve()));
       worker.connection.close();
     },
   };
+}
+
+/** Locate the built MCP server entry next to this module (dist layout). */
+function resolveMcpServerEntry(): string | null {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const candidates = [join(here, 'tunnel', 'mcpServer.js'), join(here, '..', 'tunnel', 'mcpServer.js')];
+    return candidates.find((candidate) => existsSync(candidate)) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 interface RequestContext {

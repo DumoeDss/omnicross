@@ -25,11 +25,31 @@ Luna-only accounts. Every turn opens a fresh temporary chat with the full
 compiled Codex context (Codex runs with `disable_response_storage`), so no
 server-side conversation state is kept.
 
-Local tools are NOT bridged in this experimental build (the codex-chatgpt-web
-"full harness" tunnel+MCP loop is not ported): the model gets the complete task
-history — including earlier tool results — but cannot run new local commands.
-The prompt contract makes the model state that limitation instead of inventing
-success.
+## Full harness (local tools, EXPERIMENTAL)
+
+`--harness` attaches the local-tool loop through the official
+`openai/tunnel-client`: the bridge downloads/verifies the pinned binary,
+spawns its stdio MCP server (`codex_shell`, `codex_apply_patch`) as the
+tunnel child, and parks each browser turn on a broker token. When ChatGPT
+calls a Codex Native tool, the call relays to Codex as a `function_call` /
+`custom_tool_call`; the follow-up request's `function_call_output` unblocks
+the MCP response and the SAME browser turn resumes streaming.
+
+One-time setup (all free):
+
+```bash
+omnicross chatgpt-web harness setup --tunnel-id <tunnel_…> --runtime-key <sk-…>
+# then follow the printed checklist:
+#  platform.openai.com → Tunnels: create tunnel + API key
+#  ChatGPT → Settings → Connectors (developer mode) → Tunnel connector
+#    named exactly "Codex Native2", auth none, permissions: allow all
+omnicross chatgpt-web launch --harness --model chatgpt-web/pro
+```
+
+Browser-only mode (default, no tunnel) keeps the read-only capability
+contract: the model sees the complete task history — including earlier tool
+results — but cannot run new local commands, and the prompt contract makes
+it state that limitation instead of inventing success.
 
 ## Requirements
 

@@ -66,6 +66,7 @@ export function bridgeToResponsesSSE(
   const finishedItems: Array<Record<string, unknown>> = [];
   let currentMsg: { itemId: string; outputIndex: number; text: string } | null = null;
   let currentReasoning: { itemId: string; outputIndex: number; text: string } | null = null;
+  let currentToolCall: { itemId: string; outputIndex: number; callId: string; name: string; args: string; freeform?: boolean } | null = null;
   let compactionText = '';
   let hiddenThinkingText = '';
 
@@ -122,6 +123,60 @@ export function bridgeToResponsesSSE(
     outputIndex++;
     currentMsg = null;
   };
+
+  const closeCurrentToolCall = (): void => {
+    if (!currentToolCall) return;
+    // Empty input (no-arg tools) must serialize as '{}', never '' — Codex
+    // echoes the call back next turn and JSON.parse('') would 400 the session.
+    const argsStr = currentToolCall.args || '{}';
+    if (currentToolCall.freeform) {
+      emit('response.custom_tool_call_input.done', {
+        item_id: currentToolCall.itemId,
+        output_index: currentToolCall.outputIndex,
+        input: freeformInput(currentToolCall.args),
+      });
+      const item = {
+        type: 'custom_tool_call',
+        id: currentToolCall.itemId,
+        call_id: currentToolCall.callId,
+        name: currentToolCall.name,
+        input: freeformInput(currentToolCall.args),
+        status: 'completed',
+      };
+      emit('response.output_item.done', { output_index: currentToolCall.outputIndex, item });
+      finishedItems.push(item);
+    } else {
+      emit('response.function_call_arguments.done', {
+        item_id: currentToolCall.itemId,
+        output_index: currentToolCall.outputIndex,
+        arguments: argsStr,
+      });
+      const item = {
+        type: 'function_call',
+        id: currentToolCall.itemId,
+        call_id: currentToolCall.callId,
+        name: currentToolCall.name,
+        arguments: argsStr,
+        status: 'completed',
+      };
+      emit('response.output_item.done', { output_index: currentToolCall.outputIndex, item });
+      finishedItems.push(item);
+    }
+    outputIndex++;
+    currentToolCall = null;
+  };
+
+  function freeformInput(args: string): string {
+    try {
+      const parsed: unknown = JSON.parse(args);
+      if (parsed && typeof parsed === 'object' && typeof (parsed as { input?: unknown }).input === 'string') {
+        return (parsed as { input: string }).input;
+      }
+    } catch {
+      // raw
+    }
+    return args;
+  }
 
   const closeCurrentReasoning = (): void => {
     if (!currentReasoning) return;
@@ -212,9 +267,39 @@ export function bridgeToResponsesSSE(
         });
         break;
       }
+      case 'tool_call_start': {
+        if (currentMsg) closeCurrentMessage();
+        if (currentReasoning) closeCurrentReasoning();
+        if (currentToolCall) closeCurrentToolCall();
+        const itemId = `fc_${uuid()}`;
+        const item = event.freeform
+          ? { type: 'custom_tool_call', id: itemId, call_id: event.id, name: event.name, input: '', status: 'in_progress' }
+          : { type: 'function_call', id: itemId, call_id: event.id, name: event.name, arguments: '', status: 'in_progress' };
+        emit('response.output_item.added', { output_index: outputIndex, item });
+        currentToolCall = { itemId, outputIndex, callId: event.id, name: event.name, args: '', freeform: event.freeform };
+        break;
+      }
+      case 'tool_call_delta': {
+        if (currentToolCall) {
+          currentToolCall.args += event.arguments;
+          if (!currentToolCall.freeform) {
+            emit('response.function_call_arguments.delta', {
+              item_id: currentToolCall.itemId,
+              output_index: currentToolCall.outputIndex,
+              delta: event.arguments,
+            });
+          }
+        }
+        break;
+      }
+      case 'tool_call_end': {
+        closeCurrentToolCall();
+        break;
+      }
       case 'done': {
         if (currentMsg) closeCurrentMessage();
         if (currentReasoning) closeCurrentReasoning();
+        if (currentToolCall) closeCurrentToolCall();
         if (options.compaction) {
           const item = {
             type: 'compaction',
@@ -234,6 +319,7 @@ export function bridgeToResponsesSSE(
       case 'incomplete': {
         if (currentMsg) closeCurrentMessage();
         if (currentReasoning) closeCurrentReasoning();
+        if (currentToolCall) closeCurrentToolCall();
         emit('response.incomplete', {
           response: {
             ...responseSnapshot('incomplete'),
@@ -250,6 +336,7 @@ export function bridgeToResponsesSSE(
       case 'error': {
         if (currentMsg) closeCurrentMessage();
         if (currentReasoning) closeCurrentReasoning();
+        if (currentToolCall) closeCurrentToolCall();
         const error = {
           code: event.code ?? 'bridge_error',
           message: event.message,
@@ -276,6 +363,7 @@ export function bridgeToResponsesSSE(
           if (!terminated) {
             if (currentMsg) closeCurrentMessage();
             if (currentReasoning) closeCurrentReasoning();
+            if (currentToolCall) closeCurrentToolCall();
             emit('response.incomplete', {
               response: {
                 ...responseSnapshot('incomplete'),
@@ -300,6 +388,7 @@ export function bridgeToResponsesSSE(
       if (!terminated) {
         if (currentMsg) closeCurrentMessage();
         if (currentReasoning) closeCurrentReasoning();
+        if (currentToolCall) closeCurrentToolCall();
         const message = error instanceof Error ? error.message : String(error);
         const errorPayload = { code: 'bridge_error', message, type: 'server_error' };
         emit('response.failed', {

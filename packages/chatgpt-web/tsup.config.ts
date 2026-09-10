@@ -8,6 +8,9 @@ export default defineConfig({
     server: 'src/server.ts',
     session: 'src/chatgpt/session.ts',
     'chatgpt/turn': 'src/chatgpt/turn.ts',
+    'chatgpt/harnessTurn': 'src/chatgpt/harnessTurn.ts',
+    // Standalone child the tunnel spawns as its MCP server (stdio JSON-RPC).
+    'tunnel/mcpServer': 'src/tunnel/mcpServer.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

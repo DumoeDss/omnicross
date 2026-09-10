@@ -10,9 +10,13 @@
  * @module @omnicross/chatgpt-web/bridge/worker
  */
 
+import { randomBytes } from 'node:crypto';
 import { CdpConnection } from '../cdp/connection';
 import { runChatGptWebTurn } from '../chatgpt/turn';
+import { HarnessBrowserTurn } from '../chatgpt/harnessTurn';
 import { inspectChatGptSession } from '../chatgpt/session';
+import { TurnBroker } from '../tunnel/broker';
+import type { HarnessConfig } from '../tunnel/harnessConfig';
 import {
   availableChatGptWebModelRoutes,
   isChatGptWebModelSlug,
@@ -37,6 +41,8 @@ export class ChatGptWebCapacityError extends Error {
 export interface ChatGptWebWorkerOptions {
   cdpPort?: number;
   onDiagnostic?: (checkpoint: string) => void;
+  /** Full-harness configuration; absent ⇒ browser-only turns. */
+  harness?: HarnessConfig;
 }
 
 export class ChatGptWebBridgeWorker {
@@ -44,9 +50,17 @@ export class ChatGptWebBridgeWorker {
   private capabilities: ChatGptWebAccountCapabilities | null = null;
   private capabilitiesProbing: Promise<ChatGptWebAccountCapabilities> | null = null;
   private readonly activeRuns = new Set<Promise<unknown>>();
+  /** Full-harness state: the broker and the single live parked turn. */
+  readonly broker = new TurnBroker();
+  private liveHarnessTurn: HarnessBrowserTurn | null = null;
+  private harnessBusy = false;
 
   constructor(private readonly options: ChatGptWebWorkerOptions = {}) {
     this.connection = new CdpConnection({ explicitPort: options.cdpPort });
+  }
+
+  get harnessEnabled(): boolean {
+    return this.options.harness !== undefined;
   }
 
   /** Probed capabilities (cached; re-probes when `force`). */
@@ -107,6 +121,10 @@ export class ChatGptWebBridgeWorker {
     parsed: CodexParsedRequest,
     abortSignal?: AbortSignal,
   ): AsyncGenerator<BridgeEvent> {
+    if (this.options.harness) {
+      yield* this.runHarnessRequest(parsed, abortSignal);
+      return;
+    }
     if (this.activeRuns.size >= MAX_CHATGPT_BROWSER_TABS) {
       throw new ChatGptWebCapacityError();
     }
@@ -130,6 +148,91 @@ export class ChatGptWebBridgeWorker {
     } finally {
       release();
       this.activeRuns.delete(completion);
+    }
+  }
+
+  /**
+   * Full-harness request flow.
+   *
+   * Continuation detection: a follow-up Codex request whose history carries
+   * function_call_output items matching this turn's parked call ids resolves
+   * those calls (unblocking the MCP response to ChatGPT) and resumes
+   * streaming the SAME browser turn. Any other request with a live parked
+   * turn is rejected explicitly (one harness turn at a time).
+   */
+  private async *runHarnessRequest(
+    parsed: CodexParsedRequest,
+    abortSignal?: AbortSignal,
+  ): AsyncGenerator<BridgeEvent> {
+    const live = this.liveHarnessTurn;
+    if (live) {
+      const outputs = parsed.context.messages.filter(
+        (message) => message.role === 'toolResult' && live.pendingCalls.some((call) => call.callId === message.toolCallId),
+      );
+      if (outputs.length > 0) {
+        for (const output of outputs) {
+          if (output.role !== 'toolResult') continue;
+          live.resolveToolCall(output.toolCallId, typeof output.content === 'string' ? output.content : '', output.isError);
+        }
+        this.harnessBusy = false;
+        yield* live.stream();
+        if (!live.pendingCalls.length) {
+          await live.dispose();
+          this.liveHarnessTurn = null;
+          this.broker.unregisterTurn(live.turnToken);
+        }
+        return;
+      }
+      if (this.harnessBusy) {
+        throw Object.assign(
+          new Error(
+            'A full-harness ChatGPT turn is still waiting for its tool results; finish or interrupt it before starting another task.',
+          ),
+          { status: 429 },
+        );
+      }
+      // Stale live turn without pending calls — retire it.
+      await live.dispose();
+      this.broker.unregisterTurn(live.turnToken);
+      this.liveHarnessTurn = null;
+    }
+
+    const route = await this.resolveRoute(parsed.modelId);
+    const harness = this.options.harness!;
+    // The token MUST exist before the prompt is compiled — the model copies
+    // it into every Codex Native call and the broker routes on it.
+    const turnToken = `turn_${randomBytes(16).toString('hex')}`;
+    const prompt = compileChatGptWebPrompt(parsed, route, {
+      localTools: { turnToken, connectorName: harness.connectorName },
+    });
+    this.harnessBusy = true;
+    try {
+      const turn = await HarnessBrowserTurn.start(this.connection, {
+        promptText: prompt.text,
+        images: prompt.images,
+        route,
+        turnToken,
+        connectorName: harness.connectorName,
+        onDiagnostic: this.options.onDiagnostic,
+      });
+      this.liveHarnessTurn = turn;
+      this.broker.registerTurn(turnToken, {
+        onToolRequest: (request) => turn.enqueueToolRequest(request),
+      });
+      yield* turn.stream();
+      if (!turn.pendingCalls.length) {
+        await turn.dispose();
+        this.liveHarnessTurn = null;
+      } else {
+        this.harnessBusy = false;
+      }
+    } catch (error) {
+      this.harnessBusy = false;
+      if (this.liveHarnessTurn) {
+        await this.liveHarnessTurn.dispose().catch(() => undefined);
+        this.liveHarnessTurn = null;
+      }
+      throw error;
     }
   }
 }
