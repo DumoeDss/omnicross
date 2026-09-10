@@ -415,14 +415,19 @@ export function insertAndVerifyComposerScript(value: string, options: { pollTime
     if (document.activeElement !== element) return false;
     const selection = window.getSelection();
     if (!selection) return false;
-    const alreadyPlaced = selection.isCollapsed && selection.anchorNode !== null && element.contains(selection.anchorNode);
-    if (!alreadyPlaced) {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
+    // Clear any restored draft or stale focus residue first (mirrors the
+    // reference impl's composer.fill('') before every attach): a single stray
+    // leading character otherwise fails the exact readback.
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    if (!selection.isCollapsed) document.execCommand('delete');
+    const caret = document.createRange();
+    caret.selectNodeContents(element);
+    caret.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(caret);
     if (!selection.isCollapsed || !selection.anchorNode || !element.contains(selection.anchorNode)) return false;
     return document.execCommand('insertText', false, value);
   };
