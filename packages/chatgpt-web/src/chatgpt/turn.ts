@@ -449,7 +449,8 @@ async function* runTurnOnTab(
     }
   }
 
-  // 5. Send.
+  // 5. Send (form-scoped click: the send-button testid exists in multiple
+  // layout copies; a document-wide pick can address the wrong one).
   const baseline = await tab.evaluateJson<ChatGptTurnIdentitiesJson>(identitiesScript);
   const baselineUserIdentities = new Set(baseline?.userIdentities ?? []);
   const baselineResponseIdentities = new Set(baseline?.responseIdentities ?? []);
@@ -459,16 +460,36 @@ async function* runTurnOnTab(
       status: 502,
     });
   }
-  const clicked = await tab.trustedClick(CHATGPT_SEND_BUTTON_SELECTOR);
+  const sendClickPointScript = `(() => {
+    const composerSelector = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const sendSelector = ${JSON.stringify(CHATGPT_SEND_BUTTON_SELECTOR)};
+    const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
+    const composers = [...document.querySelectorAll(composerSelector)].filter(visible);
+    const composer = composers[composers.length - 1];
+    const scope = composer?.closest('form') ?? document;
+    const buttons = [...scope.querySelectorAll(sendSelector)].filter(visible);
+    const button = buttons[buttons.length - 1];
+    if (!button) return null;
+    button.scrollIntoView({ block: 'center' });
+    return new Promise((resolve) => setTimeout(() => {
+      const rect = button.getBoundingClientRect();
+      resolve({ x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) });
+    }, 200));
+  })()`;
+  const clicked = await tab.trustedClickScript(sendClickPointScript);
   if (!clicked) {
     throw Object.assign(new Error('ChatGPT send button was not clickable'), { status: 502 });
   }
   input.onDiagnostic?.('send-clicked');
 
-  // 6. Submission evidence + assistant turn binding.
+  // 6. Submission evidence + assistant turn binding. If ChatGPT shows no new
+  // user turn shortly after the click, the click likely landed on a stale
+  // button copy — re-click the form-scoped button ONCE before failing.
   let assistantTurnId: string | null = null;
   let newUserTurnId: string | null = null;
   const submissionDeadline = Date.now() + CHATGPT_SUBMISSION_TIMEOUT_MS;
+  const reClickAt = Date.now() + 15_000;
+  let reClicked = false;
   while (Date.now() < submissionDeadline) {
     if (signal?.aborted) throw abortError();
     const identities = await tab.evaluateJson<ChatGptTurnIdentitiesJson>(identitiesScript);
@@ -487,6 +508,11 @@ async function* runTurnOnTab(
           (id) => !baselineResponseIdentities.has(id) && id !== newUserTurnId,
         ) ?? null;
       if (assistantTurnId) break;
+    }
+    if (!reClicked && Date.now() >= reClickAt) {
+      reClicked = true;
+      input.onDiagnostic?.('send-reclicked');
+      await tab.trustedClickScript(sendClickPointScript).catch(() => undefined);
     }
     await sleep(250);
   }
@@ -588,8 +614,16 @@ async function* runTurnOnTab(
 
 async function waitForSendEnabled(tab: CdpTarget, signal: AbortSignal | undefined): Promise<boolean> {
   const deadline = Date.now() + CHATGPT_SEND_ENABLE_GRACE_MS;
+  // Scope to the composer's form: the same send-button testid exists in
+  // multiple layout copies and a document-wide pick can address the wrong one.
   const script = `(() => {
-    const buttons = [...document.querySelectorAll(${JSON.stringify(CHATGPT_SEND_BUTTON_SELECTOR)})];
+    const composerSelector = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const sendSelector = ${JSON.stringify(CHATGPT_SEND_BUTTON_SELECTOR)};
+    const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
+    const composers = [...document.querySelectorAll(composerSelector)].filter(visible);
+    const composer = composers[composers.length - 1];
+    const scope = composer?.closest('form') ?? document;
+    const buttons = [...scope.querySelectorAll(sendSelector)].filter(visible);
     const button = buttons[buttons.length - 1];
     if (!button) return { present: false, enabled: false };
     return { present: true, enabled: !button.disabled && button.getAttribute('aria-disabled') !== 'true' };
