@@ -341,6 +341,34 @@ export class IntegrationManager {
     return details.secret;
   }
 
+  /**
+   * Resolve ONE access key's plaintext by id — the `--key-id` variant the
+   * command-auth helper serves for key-scoped Codex launches (each terminal
+   * picks its own gateway key, so concurrent sessions can route to different
+   * upstreams through their keys' bindings). Enforces the SAME usability
+   * contract as the client-bound path: existing, enabled, not revoked,
+   * revealable, and holding the codex-required endpoint permissions.
+   */
+  async getKeyToken(keyId: string): Promise<string> {
+    const rows = await this.options.keyDb.outboundApiKeysList();
+    const row = rows.find((candidate) => candidate.id === keyId);
+    if (!row) {
+      throw new IntegrationConflictError(`access key '${keyId}' does not exist`);
+    }
+    const secret = await this.options.keyDb.outboundApiKeysReveal(keyId);
+    if (!row.enabled || row.revokedAt !== null || !secret) {
+      throw new IntegrationConflictError(
+        `access key '${keyId}' is disabled, revoked, or not revealable`,
+      );
+    }
+    if (!hasRequiredPermissions(row, 'codex')) {
+      throw new IntegrationConflictError(
+        `access key '${keyId}' lacks the responses+images endpoint permissions Codex requires`,
+      );
+    }
+    return secret;
+  }
+
   /** Compatibility alias for callers predating per-client bindings. */
   async getGatewayToken(client: IntegrationClientId = 'codex'): Promise<string> {
     return this.getIntegrationToken(client);

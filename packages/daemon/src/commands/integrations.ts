@@ -19,6 +19,7 @@ export async function runIntegrations(argv: string[]): Promise<void> {
       'gateway-base-url': { type: 'string' },
       target: { type: 'string' },
       'master-key-file': { type: 'string' },
+      'key-id': { type: 'string' },
     },
     allowPositionals: true,
   });
@@ -40,7 +41,13 @@ export async function runIntegrations(argv: string[]): Promise<void> {
 
   if (action === 'token') {
     if (client !== 'codex') throw new Error("integrations token: expected client 'codex'");
-    process.stdout.write(`${await manager.getIntegrationToken(client)}\n`);
+    // --key-id: key-scoped Codex launches — print the CHOSEN access key instead of
+    // the client-bound one so each terminal can route via that key's bindings.
+    const keyId = values['key-id'];
+    const token = keyId
+      ? await manager.getKeyToken(keyId)
+      : await manager.getIntegrationToken(client);
+    process.stdout.write(`${token}\n`);
     return;
   }
 

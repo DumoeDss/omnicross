@@ -664,6 +664,12 @@ export interface CliSession {
   cli: string;
   providerId: string;
   model: string;
+  /**
+   * Key-scoped codex rows: the gateway key the terminal authenticates as.
+   * providerId/model are empty for these — routing follows the key's bindings.
+   */
+  keyId?: string;
+  keyName?: string;
   startedAt: string;
 }
 
@@ -742,12 +748,15 @@ export type CodexSessionApplyResult =
   | { success: true; result: CodexSessionProviderApplyResult }
   | { success: false; message: string };
 
-/** Result of a launch — sessionId + the resolved provider/model, or a failure. */
+/** Result of a launch — sessionId + the resolved provider/model (or key), or a failure. */
 export interface CliLaunchResult {
   success: boolean;
   sessionId?: string;
   providerId?: string;
   model?: string;
+  /** Key-scoped codex launches: the gateway key the terminal authenticates as. */
+  keyId?: string;
+  keyName?: string;
   message?: string;
 }
 
@@ -824,7 +833,7 @@ export interface AgentCliApi {
   install(cli: string): Promise<MutationResult>;
   launch(
     cli: string,
-    input?: { cwd?: string; providerId?: string; model?: string },
+    input?: { cwd?: string; providerId?: string; model?: string; keyId?: string },
   ): Promise<CliLaunchResult>;
   sessions(): Promise<CliSession[]>;
   stop(id: string): Promise<MutationResult>;

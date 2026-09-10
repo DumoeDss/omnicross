@@ -2,12 +2,14 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createNamedKey } from '@omnicross/core/outbound-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runIntegrations } from '../commands/integrations';
 import { runSecrets } from '../commands/secrets';
-import { defaultIntegrationsPath } from '../commands/paths';
+import { defaultIntegrationsPath, defaultKeysPath } from '../commands/paths';
 import { IntegrationStateStore } from '../integrations';
+import { JsonOutboundKeyDb } from '../ports/JsonOutboundKeyDb';
 import { resolveMasterKey, SecretBox } from '../secrets';
 
 afterEach(() => vi.restoreAllMocks());
@@ -50,6 +52,61 @@ describe('native integration CLI commands', () => {
     await runIntegrations(['remove', 'codex', '--config', p.config, '--master-key-file', p.master]);
     expect(existsSync(p.codex)).toBe(false);
     expect(existsSync(p.codexAuth)).toBe(false);
+  });
+
+  it('token --key-id prints the CHOSEN access key instead of the client-bound one', async () => {
+    const p = paths();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    await runIntegrations([
+      'install', 'codex', '--config', p.config,
+      '--gateway-base-url', 'http://127.0.0.1:8765',
+      '--master-key-file', p.master,
+      '--target', p.codex,
+    ]);
+    const db = new JsonOutboundKeyDb(
+      defaultKeysPath(p.config),
+      new SecretBox(resolveMasterKey({ keyFilePath: p.master })),
+    );
+    const scoped = await createNamedKey(db, 'scoped launch key');
+    await db.outboundApiKeysSetPermissions(scoped.id, ['responses', 'images']);
+
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((() => true) as typeof process.stdout.write);
+    await runIntegrations(['token', 'codex', '--config', p.config, '--master-key-file', p.master]);
+    const boundToken = String(stdout.mock.calls[0]?.[0]).trim();
+
+    stdout.mockClear();
+    await runIntegrations([
+      'token', 'codex', '--config', p.config, '--master-key-file', p.master,
+      '--key-id', scoped.id,
+    ]);
+    const scopedToken = String(stdout.mock.calls[0]?.[0]).trim();
+
+    expect(scopedToken).toMatch(/^sk-omnicross-/);
+    expect(scopedToken).toBe(scoped.plaintextOnce);
+    expect(scopedToken).not.toBe(boundToken);
+    expect(info).not.toHaveBeenCalledWith(expect.stringContaining(scopedToken));
+  });
+
+  it('token --key-id refuses an unknown or under-permissioned key', async () => {
+    const p = paths();
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const db = new JsonOutboundKeyDb(
+      defaultKeysPath(p.config),
+      new SecretBox(resolveMasterKey({ keyFilePath: p.master })),
+    );
+    const noImages = await createNamedKey(db, 'no images permission');
+
+    await expect(runIntegrations([
+      'token', 'codex', '--config', p.config, '--master-key-file', p.master,
+      '--key-id', 'oak_missing',
+    ])).rejects.toThrow(/does not exist/);
+
+    // Freshly created keys default to the legacy permission set, which lacks
+    // the images endpoint permission a Codex terminal requires.
+    await expect(runIntegrations([
+      'token', 'codex', '--config', p.config, '--master-key-file', p.master,
+      '--key-id', noImages.id,
+    ])).rejects.toThrow(/lacks the responses\+images/);
   });
 
   it('master-key rotation re-seals key and integration stores without changing Codex config', async () => {
