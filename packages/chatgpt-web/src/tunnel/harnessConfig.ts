@@ -92,13 +92,15 @@ export function harnessSetupChecklist(configPath = defaultHarnessConfigPath()): 
     tunnelConfigured: config !== null,
     connectorName: config?.connectorName ?? DEFAULT_CONNECTOR_NAME,
     steps: [
-      '1. platform.openai.com → Tunnels: create a tunnel, note its ID (tunnel_…), and create a normal API key (free; no model quota).',
-      '2. omnicross chatgpt-web harness setup --tunnel-id <id> --runtime-key <key>',
-      '3. ChatGPT → Settings → Connectors (developer mode) → new connector: type Tunnel, select your tunnel, auth none, name EXACTLY "'
+      '1. https://platform.openai.com/settings/organization/tunnels — create a tunnel, note its ID (tunnel_…).',
+      '   (No Tunnels section? The feature is gated for some accounts; check you are on the same account as ChatGPT.)',
+      '2. https://platform.openai.com/settings/organization/api-keys — create a runtime API key (organization-level; free; no model quota).',
+      '3. omnicross chatgpt-web harness setup --tunnel-id <id> --runtime-key <key>',
+      '4. omnicross chatgpt-web launch --harness --model chatgpt-web/pro   (starts the bridge + connects the tunnel)',
+      '5. WHILE the bridge is running: https://chatgpt.com/#settings/Connectors → new connector: type Tunnel,',
+      '   select your tunnel, auth none, name EXACTLY "'
         + (config?.connectorName ?? DEFAULT_CONNECTOR_NAME)
-        + '", permissions: allow all actions.',
-      '4. omnicross chatgpt-web harness connect   (installs tunnel-client + connects)',
-      '5. omnicross chatgpt-web launch --harness --model chatgpt-web/pro',
+        + '", permissions: allow all actions. (The connector is only discoverable while the tunnel is healthy.)',
     ],
   };
 }
