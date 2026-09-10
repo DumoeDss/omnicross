@@ -11,6 +11,8 @@ export default defineConfig({
     'chatgpt/harnessTurn': 'src/chatgpt/harnessTurn.ts',
     // Standalone child the tunnel spawns as its MCP server (stdio JSON-RPC).
     'tunnel/mcpServer': 'src/tunnel/mcpServer.ts',
+    // Consumed as a subpath by the daemon harness command.
+    'tunnel/harnessConfig': 'src/tunnel/harnessConfig.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

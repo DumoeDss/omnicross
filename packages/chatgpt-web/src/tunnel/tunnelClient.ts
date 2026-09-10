@@ -94,8 +94,12 @@ interface RunResult {
 
 /** Async spawn with output capture (connect/status/stop/version probes). */
 function runBinary(executable: string, args: string[], timeoutMs: number): Promise<RunResult> {
+  return runBinaryWithEnv(executable, args, timeoutMs);
+}
+
+function runBinaryWithEnv(executable: string, args: string[], timeoutMs: number, env: Record<string, string> = {}): Promise<RunResult> {
   return new Promise((resolve) => {
-    const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, ...env } });
     let stdout = '';
     let stderr = '';
     let settled = false;
@@ -259,19 +263,23 @@ export function isValidTunnelId(value: string): boolean {
 
 /** Write the runtime key to a 0600-ish private file and return its path. */
 export function writeRuntimeKey(secretsDir: string, key: string): string {
-  mkdirSync(dirname(secretsDir), { recursive: true });
+  mkdirSync(secretsDir, { recursive: true });
   const file = join(secretsDir, 'tunnel-runtime.key');
   writeFileSync(file, key.trim());
   return file;
 }
 
-/** Connect the managed runtime (blocking; resolves when healthy/ready). */
-export async function connectTunnel(config: TunnelRuntimeConfig): Promise<void> {
+/**
+ * Connect the managed runtime (blocking; resolves when healthy/ready).
+ * `childEnv` reaches the spawned MCP child through environment inheritance —
+ * the tunnel refuses mcp-command argv containing secret-like material.
+ */
+export async function connectTunnel(config: TunnelRuntimeConfig, childEnv: Record<string, string> = {}): Promise<void> {
   mkdirSync(config.profileDir, { recursive: true });
   const keyFile = writeRuntimeKey(join(config.profileDir, 'secrets'), config.runtimeKey);
   // tunnel-client parses mcp.command with backslash escapes on every platform.
   const mcpCommand = config.mcpCommand.map((token) => `"${token.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`).join(' ');
-  const result = await runBinary(config.binaryPath, [
+  const result = await runBinaryWithEnv(config.binaryPath, [
     'runtimes',
     'connect',
     '--alias', config.alias,
@@ -282,7 +290,7 @@ export async function connectTunnel(config: TunnelRuntimeConfig): Promise<void> 
     '--runtime-api-key', `file:${keyFile}`,
     '--mcp-command', mcpCommand,
     '--json',
-  ], TUNNEL_READY_TIMEOUT_MS);
+  ], TUNNEL_READY_TIMEOUT_MS, childEnv);
   if (result.status !== 0) {
     throw new TunnelClientError(
       `Tunnel managed startup failed: ${redact(commandOutput(result))}`,
@@ -297,6 +305,63 @@ export async function stopTunnel(config: Pick<TunnelRuntimeConfig, 'binaryPath' 
   if (result.status !== 0 && !/not found|not running|unknown alias/i.test(text)) {
     throw new TunnelClientError(`Failed to stop tunnel runtime: ${redact(text.trim())}`);
   }
+}
+
+/** A supervised persistent `tunnel-client run` child owned by the bridge. */
+export interface TunnelRuntimeHandle {
+  /** Recent log tail for diagnostics. */
+  readonly logTail: () => string;
+  stop: () => Promise<void>;
+}
+
+const RUN_PROFILE_NAME = 'omnicross-chatgpt-web';
+
+/**
+ * Start the persistent runtime against the profile `runtimes connect`
+ * wrote. `connect` only configures + probes; `run` is the long-lived daemon
+ * that keeps the tunnel (and the MCP child) available to ChatGPT.
+ */
+export function startTunnelRuntime(
+  config: Pick<TunnelRuntimeConfig, 'binaryPath' | 'profileDir'>,
+  childEnv: Record<string, string> = {},
+): TunnelRuntimeHandle {
+  const profileYaml = join(config.profileDir, `${RUN_PROFILE_NAME}.yaml`);
+  if (!existsSync(profileYaml)) {
+    throw new TunnelClientError(`tunnel profile not found (expected ${profileYaml}); run connect first`);
+  }
+  const child = spawn(config.binaryPath, ['run', '--config', profileYaml], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+    env: { ...process.env, ...childEnv },
+  });
+  const tail: string[] = [];
+  const record = (chunk: Buffer) => {
+    for (const line of chunk.toString('utf8').split('\n').slice(-40)) {
+      if (line.trim()) tail.push(line.trim());
+    }
+    while (tail.length > 80) tail.shift();
+  };
+  child.stdout?.on('data', record);
+  child.stderr?.on('data', record);
+  return {
+    logTail: () => tail.join('\n'),
+    stop: async () => {
+      if (child.exitCode !== null) return;
+      if (process.platform === 'win32') {
+        // Kill the whole tree: `run` supervises the MCP grandchild.
+        spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true });
+      } else {
+        child.kill('SIGTERM');
+      }
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 5_000);
+        child.once('exit', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    },
+  };
 }
 
 export async function tunnelStatus(config: Pick<TunnelRuntimeConfig, 'binaryPath' | 'alias'>): Promise<TunnelRuntimeStatus> {

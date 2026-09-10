@@ -86,9 +86,13 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
   const sep = argv.indexOf('--');
   const own = sep === -1 ? argv : argv.slice(0, sep);
   const passthrough = sep === -1 ? [] : argv.slice(sep + 1);
+  // `harness <action>` carries its action as the first positional; strip it
+  // before parseArgs (which rejects positionals).
+  const harnessAction = subcommand === 'harness' && !own[1]?.startsWith('-') ? own[1] : 'status';
+  const parseable = subcommand === 'harness' && harnessAction !== 'status' ? [own[0], ...own.slice(2)] : own;
 
   const { values } = parseArgs({
-    args: own.slice(1),
+    args: parseable.slice(1),
     options: {
       model: { type: 'string', short: 'm' },
       port: { type: 'string' },
@@ -115,8 +119,7 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
     return runCheck(chatgptWeb, { cdpPort, smoke: values.smoke === true });
   }
   if (subcommand === 'harness') {
-    const action = argv[1] ?? 'status';
-    return runHarness(chatgptWeb, { action, tunnelId: values['tunnel-id'], runtimeKey: values['runtime-key'], connector: values.connector });
+    return runHarness(chatgptWeb, { action: harnessAction, tunnelId: values['tunnel-id'], runtimeKey: values['runtime-key'], connector: values.connector });
   }
 
   const model = values.model ?? DEFAULT_MODEL;

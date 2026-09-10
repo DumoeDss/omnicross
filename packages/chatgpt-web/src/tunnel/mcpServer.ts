@@ -12,6 +12,7 @@
  */
 
 import { createConnection } from 'node:net';
+import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
 interface JsonRpcRequest {
@@ -144,13 +145,25 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
 // --- Main -------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  // The tunnel rejects mcp-command argv carrying secret material AND spawns
+  // this child with a sanitized environment, so the broker secret normally
+  // arrives via a private file reference: --broker-secret-file=<path>.
   const portArg = process.argv.find((arg) => arg.startsWith('--broker-port='));
+  const secretFileArg = process.argv.find((arg) => arg.startsWith('--broker-secret-file='));
   const secretArg = process.argv.find((arg) => arg.startsWith('--broker-secret='));
-  if (!portArg || !secretArg) {
-    process.stderr.write('mcpServer: --broker-port and --broker-secret are required\n');
+  const port = portArg
+    ? Number.parseInt(portArg.slice('--broker-port='.length), 10)
+    : Number.parseInt(process.env['OMNICROSS_CHATGPT_WEB_BROKER_PORT'] ?? '', 10);
+  const secret = secretFileArg
+    ? readFileSync(secretFileArg.slice('--broker-secret-file='.length), 'utf8').trim()
+    : secretArg
+      ? secretArg.slice('--broker-secret='.length)
+      : process.env['OMNICROSS_CHATGPT_WEB_BROKER_SECRET'] ?? '';
+  if (!Number.isInteger(port) || port <= 0 || !secret) {
+    process.stderr.write('mcpServer: broker port/secret are required (file, env, or argv)\n');
     process.exit(2);
   }
-  const broker = new BrokerClient(Number.parseInt(portArg.slice('--broker-port='.length), 10), secretArg.slice('--broker-secret='.length));
+  const broker = new BrokerClient(port, secret);
   try {
     await broker.connect();
   } catch (error) {
