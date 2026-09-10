@@ -10,6 +10,12 @@
 import { adminClient } from './adminClient';
 import type {
   AgentCliApi,
+  CodexSessionApplyResult,
+  CodexSessionListResponse,
+  CodexSessionListResult,
+  CodexSessionProviderApplyResult,
+  CodexSessionProviderPreview,
+  CodexSessionPreviewResult,
   CliIntegrationClient,
   CliIntegrationPlanResult,
   CliIntegrationsOverview,
@@ -72,6 +78,35 @@ export function createCliAdapter(): AgentCliApi {
         return { success: true };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'failed to stop launch' };
+      }
+    },
+
+    async listCodexSessions(projectPath: string): Promise<CodexSessionListResult> {
+      try {
+        const result = await adminClient.get<CodexSessionListResponse>(
+          `/codex-sessions?projectPath=${encodeURIComponent(projectPath)}`,
+        );
+        return { success: true, result };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to list Codex sessions' };
+      }
+    },
+
+    async previewCodexSessionProviderSwitch(input): Promise<CodexSessionPreviewResult> {
+      try {
+        const result = await adminClient.post<CodexSessionProviderPreview>('/codex-sessions/preview', input);
+        return { success: true, result };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to preview provider switch' };
+      }
+    },
+
+    async applyCodexSessionProviderSwitch(input): Promise<CodexSessionApplyResult> {
+      try {
+        const result = await adminClient.post<CodexSessionProviderApplyResult>('/codex-sessions/apply', input);
+        return { success: true, result };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to switch session provider' };
       }
     },
 

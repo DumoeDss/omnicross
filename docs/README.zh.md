@@ -79,6 +79,7 @@ flowchart LR
 - **提供商预设** —— 内置一份精选的提供商端点 / 模板目录（OpenAI、Anthropic、Gemini、DeepSeek、OpenRouter、Groq、Mistral 等众多提供商），一条命令即可映射成一行配置。
 - **流式原生代理** —— 常驻的进程内代理在格式匹配时逐字节透传 SSE 流，不匹配时则重新编码。
 - **Code CLI 启动器** —— 让 `claude` / `codex` / `gemini` / `qwen` / `copilot` / `opencode` 对接本地代理，从而使一个 CLI 会话能跑在你配置的**任意**提供商或订阅上。
+- **Codex 会话 Provider 迁移** —— 在控制面板中查看项目关联的 Codex rollout，并在同步更新 JSONL 与 `state_5.sqlite` 的前提下，把选中的会话从任意 Provider 迁移到任意 Provider。详见 [`docs/codex-session-provider-switch.md`](codex-session-provider-switch.md)。
 - **宿主无关 & 类型完备** —— 纯 Node + TypeScript，契约类型作为独立的轻量包发布，与任何宿主应用零耦合。
 
 ## 📦 仓库布局

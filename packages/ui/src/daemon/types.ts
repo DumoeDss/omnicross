@@ -667,6 +667,81 @@ export interface CliSession {
   startedAt: string;
 }
 
+/** Secret-free metadata for one Codex rollout discovered under CODEX_HOME. */
+export interface CodexSessionSummary {
+  id: string;
+  cwd: string;
+  rolloutPath: string;
+  provider: string | null;
+  jsonlProvider: string | null;
+  model: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  fileSize: number | null;
+  fileModifiedAt: string | null;
+  status: 'ready' | 'missing_rollout' | 'unreadable_rollout';
+  inStateDatabase: boolean;
+}
+
+export interface CodexStateDatabaseStatus {
+  path: string;
+  available: boolean;
+  reason?: string;
+}
+
+export interface CodexSessionListResponse {
+  projectPath: string;
+  codexHome: string;
+  stateDatabase: CodexStateDatabaseStatus;
+  sessions: CodexSessionSummary[];
+  warnings: string[];
+}
+
+export interface CodexSessionProviderPlan {
+  id: string;
+  provider: string | null;
+  model: string | null;
+  rolloutPath: string;
+  status: 'ready' | 'missing_rollout' | 'unreadable_rollout' | 'blocked';
+  providers: string[];
+  matchingFields: number;
+  changedFields: number;
+  sqliteWillUpdate: boolean;
+  action: 'update' | 'no_change' | 'blocked';
+  reason?: string;
+}
+
+export interface CodexSessionProviderPreview {
+  projectPath: string;
+  fromProvider: string | null;
+  toProvider: string;
+  stateDatabase: CodexStateDatabaseStatus;
+  sessions: CodexSessionProviderPlan[];
+  warnings: string[];
+}
+
+export interface CodexSessionProviderApplyResult {
+  ok: true;
+  projectPath: string;
+  fromProvider: string | null;
+  toProvider: string;
+  updatedSessions: number;
+  jsonlFiles: number;
+  jsonlFields: number;
+  sqliteRows: number;
+  backups: string[];
+}
+
+export type CodexSessionListResult =
+  | { success: true; result: CodexSessionListResponse }
+  | { success: false; message: string };
+export type CodexSessionPreviewResult =
+  | { success: true; result: CodexSessionProviderPreview }
+  | { success: false; message: string };
+export type CodexSessionApplyResult =
+  | { success: true; result: CodexSessionProviderApplyResult }
+  | { success: false; message: string };
+
 /** Result of a launch — sessionId + the resolved provider/model, or a failure. */
 export interface CliLaunchResult {
   success: boolean;
@@ -753,6 +828,19 @@ export interface AgentCliApi {
   ): Promise<CliLaunchResult>;
   sessions(): Promise<CliSession[]>;
   stop(id: string): Promise<MutationResult>;
+  listCodexSessions(projectPath: string): Promise<CodexSessionListResult>;
+  previewCodexSessionProviderSwitch(input: {
+    projectPath: string;
+    sessionIds: string[];
+    fromProvider?: string;
+    toProvider: string;
+  }): Promise<CodexSessionPreviewResult>;
+  applyCodexSessionProviderSwitch(input: {
+    projectPath: string;
+    sessionIds: string[];
+    fromProvider?: string;
+    toProvider: string;
+  }): Promise<CodexSessionApplyResult>;
   /** Inspect the two persistent CLI integrations without returning their shared key. */
   getIntegrations(): Promise<CliIntegrationsResult>;
   planIntegration(

@@ -79,6 +79,7 @@ flowchart LR
 - **Provider presets** — a curated catalog of provider endpoints/templates (OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, Groq, Mistral, and many more) you can map to a config row in one command.
 - **Streaming-native proxy** — a resident in-process proxy relays SSE streams verbatim where formats match, and re-encodes them where they don't.
 - **Code CLI launcher** — start `claude` / `codex` / `gemini` / `qwen` / `copilot` / `opencode` against a local proxy so a CLI session can run on **any** provider or subscription you've configured.
+- **Codex session provider migration** — inspect a project's Codex rollouts and move selected sessions between providers while keeping JSONL and `state_5.sqlite` synchronized; see [`docs/codex-session-provider-switch.md`](docs/codex-session-provider-switch.md).
 - **Host-agnostic & typed** — pure Node + TypeScript, dependency-light contract types published separately, zero coupling to any host app.
 
 ## 📦 Layout

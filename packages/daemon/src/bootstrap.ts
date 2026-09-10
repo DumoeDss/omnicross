@@ -87,6 +87,7 @@ import { AccountAllowanceService } from './allowance/AccountAllowanceService';
 import { ClaudeAllowanceRefreshScheduler } from './allowance/ClaudeAllowanceRefreshScheduler';
 import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowancePersistence';
 import { AdminServer } from './admin/AdminServer';
+import { CodexSessionManager } from './admin/codexSessionManager';
 import type { AdminApiDeps } from './admin/adminApi';
 import { buildHealthReport } from './admin/health';
 import { DAEMON_VERSION } from './admin/version';
@@ -299,6 +300,8 @@ export interface Daemon {
   readonly usageRecorder: UsageRecorder;
   /** The localhost admin/dashboard HTTP listener (RT3). Started by `start.ts`. */
   readonly adminServer: AdminServer;
+  /** Codex JSONL + state_5.sqlite session provider manager. */
+  readonly codexSessionManager: CodexSessionManager;
   /**
    * Proactive background OAuth refresh sweep (external-cli-sync). NOT started
    * here — `start.ts` arms it for the resident daemon; the short-lived `launch`
@@ -963,6 +966,11 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // Resolved here so the AUTHED admin status reader can close over it below.
   const billingDir = defaultBillingDir(paths.configPath);
 
+  // Codex session management is intentionally independent of Omnicross's
+  // provider catalog. It discovers the user's CODEX_HOME and keeps the rollout
+  // JSONL plus state_5.sqlite in sync through the authenticated admin API.
+  const codexSessionManager = new CodexSessionManager();
+
   // Admin dashboard listener (RT3) — a SEPARATE node:http server over the live
   // daemon handles. Instance-scoped on the Daemon (not a module singleton); the
   // `start` command starts it (honoring the LAN fail-closed gate), tests stop it
@@ -1115,6 +1123,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // billing-event-stream: the AUTHED `GET /admin/api/billing-status` returns the
     // secret-free total/delivered/pending counts of the durable ledger.
     billingStatusReader: () => readBillingStatus(billingDir),
+    codexSessionManager,
   });
 
   // Webhook dispatcher (webhook-notifications) — the fire-and-forget sender.
@@ -1218,6 +1227,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     pricingEngine,
     pricingRefreshScheduler,
     usageRecorder,
+    codexSessionManager,
     adminServer,
     tokenRefreshScheduler,
     accountHealthSweeper,

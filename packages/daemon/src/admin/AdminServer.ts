@@ -50,6 +50,8 @@ import {
 import { type BillingStatusReader, handleBillingStatus } from './billingStatusApi';
 import { handleWebhookTest } from './webhookTestApi';
 import { handleRouteLeaseApi } from './routeLeaseApi';
+import { handleCodexSessionApi } from './codexSessionApi';
+import type { CodexSessionManager } from './codexSessionManager';
 import { type AdminApiDeps, handleAdminApi } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
 import { DAEMON_VERSION } from './version';
@@ -59,6 +61,8 @@ const LAN_ADDR = '0.0.0.0';
 
 /** The dependencies the admin server + its API need (live daemon handles). */
 export interface AdminServerDeps extends AdminApiDeps {
+  /** Authenticated Codex rollout/state database manager. */
+  codexSessionManager?: CodexSessionManager;
   /** Read the resolved admin config (enabled/port/networkBinding/token). */
   getAdminConfig: () => ResolvedAdminConfig;
   /**
@@ -305,6 +309,18 @@ export class AdminServer {
       path.startsWith('/admin/api/route-leases/')
     ) {
       await handleRouteLeaseApi(req, res, path, this.deps);
+      return;
+    }
+
+    // Codex rollout + state_5.sqlite provider migration. This is mounted here
+    // so it shares the same admin auth gate while keeping session-file logic
+    // out of the general provider/config router.
+    if (
+      path === '/admin/api/codex-sessions' ||
+      path === '/admin/api/codex-sessions/preview' ||
+      path === '/admin/api/codex-sessions/apply'
+    ) {
+      await handleCodexSessionApi(req, res, path, this.deps.codexSessionManager);
       return;
     }
 

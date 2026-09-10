@@ -79,6 +79,7 @@ flowchart LR
 - **提供商預設** —— 內建一份精選的提供商端點／範本目錄（OpenAI、Anthropic、Gemini、DeepSeek、OpenRouter、Groq、Mistral 等眾多提供商），一條命令即可對應成一行設定。
 - **串流原生代理** —— 常駐的程序內代理在格式匹配時逐字節透傳 SSE 串流，不匹配時則重新編碼。
 - **Code CLI 啟動器** —— 讓 `claude` / `codex` / `gemini` / `qwen` / `copilot` / `opencode` 對接本地代理，從而使一個 CLI 工作階段能跑在你設定的**任意**提供商或訂閱上。
+- **Codex 工作階段 Provider 遷移** —— 在控制面板中查看專案關聯的 Codex rollout，並同步更新 JSONL 與 `state_5.sqlite`，將選定工作階段從任意 Provider 遷移到任意 Provider。詳見 [`docs/codex-session-provider-switch.md`](codex-session-provider-switch.md)。
 - **宿主無關 & 型別完備** —— 純 Node + TypeScript，契約型別作為獨立的輕量套件發佈，與任何宿主應用程式零耦合。
 
 ## 📦 版本庫結構

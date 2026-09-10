@@ -32,6 +32,7 @@ import { useCli } from './hooks/useCli';
 import { useCliIntegrations } from './hooks/useCliIntegrations';
 import { hasInstalledIntegration, hasRotationConflict } from './integrationStatusModel';
 import { PersistentIntegrationCard } from './PersistentIntegrationCard';
+import { CodexSessionManager } from './CodexSessionManager';
 
 /** A copy-able code block (browser-only affordance — no daemon write). */
 function CopyBlock({ label, value }: { label: string; value: string }) {
@@ -117,6 +118,8 @@ export function CodeCliPage() {
           {error ? (
             <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
           ) : null}
+
+          <CodexSessionManager />
 
           {/* Persistent native config — normal `codex` / `claude` commands keep using Omnicross. */}
           <section className="space-y-4">

@@ -34,6 +34,19 @@ export {
 // ── Admin dashboard (RT3) ───────────────────────────────────────────────────────
 export { type AdminApiDeps, handleAdminApi } from './admin/adminApi';
 export { AdminServer, type AdminServerDeps, type AdminServerStatus } from './admin/AdminServer';
+export {
+  CodexSessionManager,
+  CodexSessionManagerError,
+  replaceStructuredProviderFields,
+  type ApplyCodexSessionProviderInput,
+  type CodexSessionListResult,
+  type CodexSessionManagerOptions,
+  type CodexSessionProviderApplyResult,
+  type CodexSessionProviderPlan,
+  type CodexSessionProviderPreview,
+  type CodexSessionSummary,
+  type CodexStateDatabaseStatus,
+} from './admin/codexSessionManager';
 
 // ── Default port implementations ───────────────────────────────────────────────
 export { buildHealthReport, type HealthReportDeps } from './admin/health';
