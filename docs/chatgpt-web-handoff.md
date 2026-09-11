@@ -127,7 +127,7 @@ Remove-Item ~\.omnicross\chatgpt-web\DevToolsActivePort, ~\.omnicross\chatgpt-we
 11. **Chrome 后台标签页吞掉合成 Input 事件**（需 bringToFront）；fetch guard（Fetch.failRequest 拦调试端口探测）已内置
 12. **风控敏感**：失败重试连环触发人机验证/连接级 RST。任何浏览器侧验证坚持"单次尝试、失败即停、本地分析后再动"
 13. **spawn GUI 进程绝不能 `windowsHide: true`**（win32）：它把 `SW_HIDE` 写进 STARTUPINFO，Electron/Chromium 据此让所有窗口永不显示（进程活、页面加载、API 说 visible，屏幕上就是没有）。诊断此类问题用 Win32 EnumWindows 看 `IsWindowVisible`，别信 DOM 的 visibilityState。附带发现：`harness.test.ts` 导入 `mcpServer.ts` 会触发其顶层 `main()` 的 process.exit（vitest 报 unhandled error，63 测试本身全过），待后续把 main() 改成显式 entry 检测
-14. **裸跑 `electron main.cjs` 的 UA 带 `Electron/39.2.0` token，accounts.google.com 会拦**（"此浏览器或应用可能不安全"，ChatGPT 的 Continue with Google 走不通）。修复（c37abab）：`session.fromPartition('persist:chatgpt').setUserAgent()` 去掉该 token（`app.userAgentFallback` 同步处理），其余 UA 保持原样以与 client hints 一致。参考实现没这个问题是因为它是打包应用（UA token 是应用名）且不走 CDP。若 Google 仍拦截（CDP 检测），备选：邮箱验证码/passkey 登录，或 login 窗口不起 debug port
+14. **Google 登录拦截（accounts.google.com "此浏览器或应用可能不安全"）的两层坑**：(a) 裸跑 `electron main.cjs` 的 UA 带 `Electron/39.2.0` token，直接被拦；(b) 只删该 token 变成**裸 Chrome UA** 也不行——client hints（`navigator.userAgentData` / `Sec-CH-UA`）诚实地只报 `Chromium` 无 `Google Chrome` 品牌，UA 与 hints 不一致被判定为伪造 UA，照样拦。**正确形态 = Chromium 基底 + 自家产品 token**（参考实现 `app.setName("Codex Web GPT")` 打包后就是这个形态，在此网络+账号上验证可过）。修复（2e10cff）：UA = `<chromium 基底> OmniCross/<包版本>`，hints 不动。诊断用 `scripts/diag-electron-clienthints.ts`（本地 listener，不发外部请求）。若仍被拦（CDP/debug-port 检测），备选：邮箱验证码/passkey 登录（完全绕开 Google），或交互登录窗口不起 debug port
 
 ## 8. 提交历史（本分支，新→旧）
 
