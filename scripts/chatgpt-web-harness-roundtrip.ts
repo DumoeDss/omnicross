@@ -5,6 +5,8 @@ import { startChatGptWebBridge, generateBridgeToken } from '../packages/chatgpt-
 
 const hostArg = process.argv.find((arg) => arg.startsWith('--host='));
 const browserHost = hostArg?.slice('--host='.length) === 'electron' ? ('electron' as const) : undefined;
+const modelArg = process.argv.find((arg) => arg.startsWith('--model='));
+const model = modelArg?.slice('--model='.length) ?? 'chatgpt-web/light';
 
 const token = generateBridgeToken();
 const bridge = await startChatGptWebBridge({
@@ -24,14 +26,14 @@ if (bridge.harness) {
 const hardExit = setTimeout(() => {
   console.error('HARNESS ROUND-TRIP TIMEOUT');
   void bridge.stop().then(() => process.exit(2));
-}, 420_000);
+}, model.includes('pro') ? 600_000 : 420_000);
 
 try {
   const response = await fetch(`${bridge.baseUrl}/v1/responses`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      model: 'chatgpt-web/light',
+      model,
       stream: true,
       instructions: 'You are a coding agent in a read-only sandbox.',
       tools: [
