@@ -42,6 +42,8 @@ export interface ChatGptWebWorkerOptions {
   cdpPort?: number;
   /** Pre-resolved dedicated browser endpoint (Electron host); skips discovery. */
   endpoint?: { port: number; wsPath: string | null };
+  /** Tab lifecycle override for hosts that reject Target.createTarget. */
+  targetFactory?: { create(url: string): Promise<string>; close(targetId: string): Promise<void> };
   onDiagnostic?: (checkpoint: string) => void;
   /** Full-harness configuration; absent ⇒ browser-only turns. */
   harness?: HarnessConfig;
@@ -60,6 +62,7 @@ export class ChatGptWebBridgeWorker {
   constructor(private readonly options: ChatGptWebWorkerOptions = {}) {
     this.connection = new CdpConnection({
       ...(options.endpoint ? { endpoint: options.endpoint } : { explicitPort: options.cdpPort }),
+      ...(options.targetFactory ? { targetFactory: options.targetFactory } : {}),
     });
   }
 

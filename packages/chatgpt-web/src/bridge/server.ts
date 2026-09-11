@@ -134,7 +134,12 @@ export async function startChatGptWebBridge(options: ChatGptWebBridgeServerOptio
   }
   const worker = new ChatGptWebBridgeWorker({
     cdpPort: options.cdpPort,
-    ...(electronHost ? { endpoint: { port: electronHost.port, wsPath: electronHost.wsPath } } : {}),
+    ...(electronHost
+      ? {
+        endpoint: { port: electronHost.port, wsPath: electronHost.wsPath },
+        targetFactory: electronHost.targetFactory,
+      }
+      : {}),
     onDiagnostic: options.onDiagnostic,
     ...(harnessConfig ? { harness: harnessConfig } : {}),
   });

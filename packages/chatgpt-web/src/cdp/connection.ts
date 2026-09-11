@@ -21,7 +21,18 @@ import {
 import { openCdpWebSocket, WS_OPEN, type CdpWebSocket } from './websocket';
 import { CdpTarget } from './target';
 
+export interface CdpTargetFactory {
+  /** Create a tab and resolve its CDP target id. */
+  create(url: string): Promise<string>;
+  close(targetId: string): Promise<void>;
+}
+
 export interface CdpConnectionOptions {
+  /**
+   * Tab lifecycle override for dedicated hosts whose browser endpoint
+   * rejects Target.createTarget (Electron: "Not supported").
+   */
+  targetFactory?: CdpTargetFactory;
   /** Explicit debug port; skips discovery when it answers a TCP probe. */
   explicitPort?: number;
   /**
@@ -214,9 +225,15 @@ export class CdpConnection {
   /** Create a background tab and return its attached target handle. */
   async openTab(url: string): Promise<CdpTarget> {
     await this.ensureConnected();
-    const created = await this.sendOk('Target.createTarget', { url, background: true });
-    const targetId = created['targetId'];
-    if (typeof targetId !== 'string') throw new Error('Target.createTarget returned no targetId');
+    let targetId: string;
+    if (this.options.targetFactory) {
+      targetId = await this.options.targetFactory.create(url);
+    } else {
+      const created = await this.sendOk('Target.createTarget', { url, background: true });
+      const id = created['targetId'];
+      if (typeof id !== 'string') throw new Error('Target.createTarget returned no targetId');
+      targetId = id;
+    }
     return this.attach(targetId);
   }
 
@@ -254,6 +271,10 @@ export class CdpConnection {
   /** Close a target tab, ignoring errors for already-closed tabs. */
   async closeTab(targetId: string): Promise<void> {
     this.sessions.delete(targetId);
+    if (this.options.targetFactory) {
+      await this.options.targetFactory.close(targetId).catch(() => undefined);
+      return;
+    }
     try {
       await this.sendOk('Target.closeTarget', { targetId });
     } catch {

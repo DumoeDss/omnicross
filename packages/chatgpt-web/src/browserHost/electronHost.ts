@@ -27,6 +27,8 @@ export interface ElectronHostHandle {
   /** The DevToolsActivePort ws path the bridge should connect to. */
   wsPath: string;
   port: number;
+  /** Tab lifecycle over the host's loopback control endpoint. */
+  targetFactory: { create(url: string): Promise<string>; close(targetId: string): Promise<void> };
   /** Relaunch with a visible login window (resolves once relaunched). */
   openLoginWindow: () => Promise<void>;
   stop: () => Promise<void>;
@@ -150,6 +152,28 @@ function readDevToolsPort(dataDir: string): DevToolsPortFile | null {
   }
 }
 
+async function waitForControlEndpoint(dataDir: string, timeoutMs = 30_000): Promise<{ port: number }> {
+  const file = join(dataDir, 'host-control.json');
+  const startedAt = Date.now();
+  const deadline = startedAt + timeoutMs;
+  const { statSync } = await import('node:fs');
+  for (;;) {
+    try {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as { port?: number };
+      // Freshness: a previous run's stale control port would point nowhere.
+      if (typeof parsed.port === 'number' && parsed.port > 0 && statSync(file).mtimeMs >= startedAt - 2_000) {
+        return { port: parsed.port };
+      }
+    } catch {
+      // Not written yet.
+    }
+    if (Date.now() >= deadline) {
+      throw new ElectronHostError(`Electron host control endpoint did not appear within ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
 async function waitForPortFile(dataDir: string, timeoutMs: number): Promise<DevToolsPortFile> {
   const deadline = Date.now() + timeoutMs;
   // A previous run's stale port file must not fool us: require mtime freshness.
@@ -210,9 +234,29 @@ export async function startElectronHost(options: {
     child.once('exit', (code) => reject(new ElectronHostError(`Electron host exited early (code ${code}): ${stderrTail.join(' | ').slice(0, 400)}`)));
   });
   const endpoint = await Promise.race([waitForPortFile(options.dataDir, HOST_READY_TIMEOUT_MS), exited]);
+  // The control endpoint appears right after the CDP port; wait for it too.
+  const control = await waitForControlEndpoint(options.dataDir);
+  const controlCall = async <T>(op: string, body: Record<string, unknown>): Promise<T> => {
+    const response = await fetch(`http://127.0.0.1:${control.port}${op}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new ElectronHostError(`host control ${op} failed: ${response.status} ${text.slice(0, 300)}`);
+    }
+    return (await response.json()) as T;
+  };
   return {
     port: endpoint.port,
     wsPath: endpoint.wsPath ?? '/devtools/browser',
+    targetFactory: {
+      create: async (url: string) => (await controlCall<{ targetId: string }>('/new-target', { url })).targetId,
+      close: async (targetId: string) => {
+        await controlCall('/close-target', { targetId }).catch(() => undefined);
+      },
+    },
     openLoginWindow: async () => {
       // A visible login relaunch: the single-instance lock routes it to the
       // running host, which re-shows its window on chatgpt.com.
