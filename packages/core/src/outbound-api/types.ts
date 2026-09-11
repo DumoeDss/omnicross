@@ -769,10 +769,13 @@ export interface OutboundApiKeyInfo {
   /** The model-id list the mode acts on (bare modelIds; empty allowlist denies all). */
   restrictedModels?: string[];
   /**
-   * DIRECT upstream passthrough target (key→upstream binding): the id of the BYO
-   * provider row whose wire this key relays verbatim. Absent ⇒ the key is served
-   * by the downstream routes. An id, never a credential.
+   * DIRECT upstream passthrough target (key→upstream binding): a BYO provider
+   * row (verbatim transparent relay) or a claude/kimi subscription account /
+   * group / pool (Anthropic-wire same-format relay). Absent ⇒ the key is served
+   * by the downstream routes. References only — never a credential.
    */
+  boundUpstream?: GatewayBindingTarget;
+  /** LEGACY first-cut shape of `boundUpstream` (a bare BYO provider id). */
   boundUpstreamProviderId?: string;
   /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
@@ -890,12 +893,22 @@ export interface OutboundKeyDbRow {
   /** The model-id list the mode acts on (bare modelIds). */
   restrictedModels?: string[];
   /**
-   * DIRECT upstream passthrough (key→upstream binding): when set, every request
-   * authenticated by this key is relayed VERBATIM to this BYO provider row —
-   * method, path, query, and body pass through untouched, with only the auth
-   * headers swapped to the provider's key. No gateway route, protocol
-   * translation, model mapping, or usage metering runs for the key. Absent ⇒
+   * DIRECT upstream passthrough (key→upstream binding). A `provider` target
+   * relays every request VERBATIM to that BYO provider row — method, path,
+   * query, and body pass through untouched, with only the auth headers swapped
+   * to the provider's key (no gateway route, protocol translation, model
+   * mapping, or usage metering). An `account` / `account-group` /
+   * `account-pool` target (claude / kimi — subscriptions whose upstream speaks
+   * the same Anthropic Messages wire as the client) is served by the messages
+   * pipeline's same-format verbatim relay: OAuth swapped + auto-refreshed,
+   * account scheduling, fingerprint replay, usage metering intact. Absent ⇒
    * the key is served by the downstream routes as before.
+   */
+  boundUpstream?: GatewayBindingTarget;
+  /**
+   * LEGACY shape of `boundUpstream` (a bare BYO provider id) — written by the
+   * first cut of the feature. Read as `{ kind: 'provider', providerId }`;
+   * `boundUpstream` wins when both are present.
    */
   boundUpstreamProviderId?: string;
 }
@@ -937,15 +950,16 @@ export interface OutboundKeyDb {
     maxConcurrency: number | null,
   ): Promise<boolean>;
   /**
-   * Set (or clear) a key's DIRECT upstream passthrough target — the id of a BYO
-   * provider row whose wire the key relays verbatim (`boundUpstreamProviderId`).
+   * Set (or clear) a key's DIRECT upstream passthrough target (`boundUpstream`):
+   * a BYO provider row (verbatim transparent relay) or a claude/kimi
+   * subscription account / group / pool (Anthropic-wire same-format relay).
    * `null` clears the field → the key returns to downstream-route serving.
    * Mirrors `outboundApiKeysSetMaxConcurrency`; returns `false` when the key is
-   * missing. Provider EXISTENCE is validated by the admin write edge, not here.
+   * missing. Target VALIDITY is enforced by the admin write edge, not here.
    */
   outboundApiKeysSetUpstream(
     id: string,
-    providerId: string | null,
+    target: GatewayBindingTarget | null,
   ): Promise<boolean>;
   /**
    * Set (or clear) a key's policy envelope (expiry / activation window / cost

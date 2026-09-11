@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import {
   validateOutboundPermissions,
+  type GatewayBindingTarget,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   type OutboundKeyPolicy,
@@ -162,15 +163,20 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
 
   async outboundApiKeysSetUpstream(
     id: string,
-    providerId: string | null,
+    target: GatewayBindingTarget | null,
   ): Promise<boolean> {
     return this.mutateRow(id, (row) => {
       if (row.revokedAt !== null) return false;
       // `null` clears the direct-passthrough target (field absent = the key is
-      // served by the downstream routes); a non-empty string sets it. Provider
-      // existence is validated at the admin write edge, not in storage.
-      if (providerId === null) delete row.boundUpstreamProviderId;
-      else row.boundUpstreamProviderId = providerId;
+      // served by the downstream routes). Target VALIDITY is enforced at the
+      // admin write edge, not in storage.
+      if (target === null) {
+        delete row.boundUpstream;
+        delete row.boundUpstreamProviderId;
+      } else {
+        row.boundUpstream = target;
+        delete row.boundUpstreamProviderId;
+      }
       return true;
     });
   }

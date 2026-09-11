@@ -27,6 +27,7 @@ import {
   loadServerConfig,
   mergeServerConfig,
   normalizeProxyConfig,
+  type GatewayBindingTarget,
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
@@ -527,8 +528,10 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     enableModelRestriction: row.enableModelRestriction,
     restrictionMode: row.restrictionMode,
     restrictedModels: row.restrictedModels,
-    // Direct upstream passthrough target (key→upstream binding) — a provider id,
-    // never a credential. Absent = the key is served by the downstream routes.
+    // Direct upstream passthrough target (key→upstream binding) — references
+    // only, never a credential. Absent = the key is served by the downstream
+    // routes. `boundUpstreamProviderId` is the legacy first-cut shape.
+    boundUpstream: row.boundUpstream,
     boundUpstreamProviderId: row.boundUpstreamProviderId,
   };
 }
@@ -1970,25 +1973,69 @@ async function handleKeys(
     return writeJson(res, ok ? 200 : 404, { ok, maxConcurrency: value });
   }
   // POST /keys/:id/upstream — set (or clear, with `null`) the key's DIRECT
-  // upstream passthrough target. A non-null id must name an EXISTING BYO
-  // provider row (subscription accounts cannot be verbatim-relayed — their URL
-  // and credentials are per-request/managed; they stay on the downstream
-  // routes). The stored value is an id, never a credential.
+  // upstream passthrough target. Body: `{ target: null | { kind: 'provider',
+  // providerId } | { kind: 'account' | 'account-group' | 'account-pool',
+  // providerId, accountId?/group? } }` (the first cut's `{ providerId }` shape
+  // is still accepted as a provider target). A provider target must name an
+  // EXISTING BYO row; a subscription target is only legal for claude/kimi —
+  // the subscriptions whose upstream speaks the SAME Anthropic Messages wire
+  // as the client (codex/gemini/… need translation, i.e. the downstream
+  // routes). Stored as references only, never credentials.
   if (method === 'POST' && id && action === 'upstream') {
     const body = await readJsonBody(req);
-    const raw = body['providerId'];
-    if (raw !== null && (typeof raw !== 'string' || raw.trim() === '')) {
-      return writeJsonError(res, 400, 'providerId must be a non-empty string or null');
+    let raw: unknown;
+    if (Object.prototype.hasOwnProperty.call(body, 'target')) {
+      raw = body['target'];
+    } else if (Object.prototype.hasOwnProperty.call(body, 'providerId')) {
+      // Legacy #45 shape: a bare provider id (or null).
+      const legacy = body['providerId'];
+      raw =
+        legacy === null || legacy === undefined
+          ? null
+          : { kind: 'provider', providerId: legacy };
+    } else {
+      return writeJsonError(res, 400, 'body must contain target (or the legacy providerId)');
     }
-    const providerId = raw === null ? null : (raw as string).trim();
-    if (providerId !== null) {
+    if (raw === null || raw === undefined) {
+      const ok = await deps.keyDb.outboundApiKeysSetUpstream(id, null);
+      return writeJson(res, ok ? 200 : 404, { ok, target: null });
+    }
+    if (typeof raw !== 'object' || Array.isArray(raw)) {
+      return writeJsonError(res, 400, 'target must be an object or null');
+    }
+    const t = raw as Record<string, unknown>;
+    const kind = t['kind'];
+    const providerId = typeof t['providerId'] === 'string' ? (t['providerId'] as string).trim() : '';
+    if (!providerId) {
+      return writeJsonError(res, 400, 'target.providerId is required');
+    }
+    if (kind === 'provider') {
       const cfg = loadConfig(deps.configPath);
       if (!cfg.providers.some((p) => p.id === providerId)) {
         return writeJsonError(res, 404, `provider '${providerId}' not found`);
       }
+    } else if (kind === 'account' || kind === 'account-group' || kind === 'account-pool') {
+      if (providerId !== 'claude' && providerId !== 'kimi') {
+        return writeJsonError(
+          res,
+          400,
+          `subscription provider '${providerId}' cannot be direct-bound: its upstream wire differs ` +
+            `from the client wire (translation required — use a downstream route); only claude and ` +
+            `kimi subscriptions speak the same Anthropic Messages wire as the client`,
+        );
+      }
+      if (kind === 'account' && typeof t['accountId'] !== 'string') {
+        return writeJsonError(res, 400, 'target.accountId is required for kind account');
+      }
+      if (kind === 'account-group' && typeof t['group'] !== 'string') {
+        return writeJsonError(res, 400, 'target.group is required for kind account-group');
+      }
+    } else {
+      return writeJsonError(res, 400, 'target.kind must be provider, account, account-group, or account-pool');
     }
-    const ok = await deps.keyDb.outboundApiKeysSetUpstream(id, providerId);
-    return writeJson(res, ok ? 200 : 404, { ok, providerId });
+    const target = raw as unknown as GatewayBindingTarget;
+    const ok = await deps.keyDb.outboundApiKeysSetUpstream(id, target);
+    return writeJson(res, ok ? 200 : 404, { ok, target });
   }
   if (method === 'POST' && id && action === 'policy') {
     const body = await readJsonBody(req);

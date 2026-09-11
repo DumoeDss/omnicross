@@ -1053,8 +1053,9 @@
         "directUpstream": {
           "label": "Direct upstream",
           "none": "Not bound (served by downstream routes)",
-          "hint": "Bind this key to a provider to relay its requests VERBATIM to that upstream — path, body, and protocol pass through untouched with only the auth header swapped. No routes, translation, or usage metering apply.",
+          "hint": "Binding an upstream needs no downstream route: a provider relays requests byte-for-byte (auth header swapped only, unmetered); a Claude / Kimi subscription account / group / pool rides the native Anthropic-wire relay (OAuth auto-refresh, account scheduling, usage metered).",
           "boundHint": "Every request with this key is relayed verbatim to the bound provider (auth swapped). Direct traffic is not metered: spend tracking and cost limits do not account it.",
+          "boundSubscriptionHint": "This key's /v1/messages requests relay verbatim through the bound subscription account (Anthropic same-wire relay: OAuth auto-refresh, pool scheduling, fingerprint replay; usage is metered).",
           "routesInactive": "Direct upstream is active — downstream route bindings are ignored while it is set."
         }
       },

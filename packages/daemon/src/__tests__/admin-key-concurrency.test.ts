@@ -448,12 +448,15 @@ describe('JsonOutboundKeyDb.outboundApiKeysSetUpstream', () => {
       const db = new JsonOutboundKeyDb(keysPath);
       await db.outboundApiKeysCreate({ id: 'k1', name: 'k1', keyHash: 'h', keyPrefix: 'p' });
 
-      expect(await db.outboundApiKeysSetUpstream('k1', 'relay')).toBe(true);
+      expect(
+        await db.outboundApiKeysSetUpstream('k1', { kind: 'provider', providerId: 'relay' }),
+      ).toBe(true);
       const afterSet = (await new JsonOutboundKeyDb(keysPath).outboundApiKeysList())[0];
-      expect(afterSet.boundUpstreamProviderId).toBe('relay');
+      expect(afterSet.boundUpstream).toEqual({ kind: 'provider', providerId: 'relay' });
 
       expect(await db.outboundApiKeysSetUpstream('k1', null)).toBe(true);
       const afterClear = (await new JsonOutboundKeyDb(keysPath).outboundApiKeysList())[0];
+      expect('boundUpstream' in afterClear).toBe(false);
       expect('boundUpstreamProviderId' in afterClear).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -467,8 +470,12 @@ describe('JsonOutboundKeyDb.outboundApiKeysSetUpstream', () => {
       const db = new JsonOutboundKeyDb(keysPath);
       await db.outboundApiKeysCreate({ id: 'k1', name: 'k1', keyHash: 'h', keyPrefix: 'p' });
       await db.outboundApiKeysRevoke('k1');
-      expect(await db.outboundApiKeysSetUpstream('k1', 'relay')).toBe(false);
-      expect(await db.outboundApiKeysSetUpstream('nope', 'relay')).toBe(false);
+      expect(
+        await db.outboundApiKeysSetUpstream('k1', { kind: 'account-pool', providerId: 'claude' }),
+      ).toBe(false);
+      expect(
+        await db.outboundApiKeysSetUpstream('nope', { kind: 'account-pool', providerId: 'claude' }),
+      ).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -478,6 +485,7 @@ describe('JsonOutboundKeyDb.outboundApiKeysSetUpstream', () => {
 interface UpstreamKeyInfo {
   id: string;
   boundUpstreamProviderId?: string;
+  boundUpstream?: { kind: string; providerId: string; accountId?: string; group?: string };
 }
 
 async function listUpstreamKey(id: string): Promise<UpstreamKeyInfo | undefined> {
@@ -490,15 +498,16 @@ describe('POST /admin/api/keys/:id/upstream', () => {
     await bootDaemon(); // boots with provider id 'a'
     const { id } = await createKey();
 
+    // Legacy #45 body shape still binds (normalized to a provider target).
     const bind = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: 'a' });
     expect(bind.status).toBe(200);
-    expect(bind.json).toEqual({ ok: true, providerId: 'a' });
-    expect((await listUpstreamKey(id))?.boundUpstreamProviderId).toBe('a');
+    expect(bind.json).toEqual({ ok: true, target: { kind: 'provider', providerId: 'a' } });
+    expect((await listUpstreamKey(id))?.boundUpstream).toEqual({ kind: 'provider', providerId: 'a' });
 
-    const clear = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: null });
+    const clear = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { target: null });
     expect(clear.status).toBe(200);
-    expect(clear.json).toEqual({ ok: true, providerId: null });
-    expect((await listUpstreamKey(id))?.boundUpstreamProviderId).toBeUndefined();
+    expect(clear.json).toEqual({ ok: true, target: null });
+    expect((await listUpstreamKey(id))?.boundUpstream).toBeUndefined();
   });
 
   it('rejects an unknown provider with 404 and a non-string with 400', async () => {
@@ -507,7 +516,7 @@ describe('POST /admin/api/keys/:id/upstream', () => {
 
     const unknown = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: 'ghost' });
     expect(unknown.status).toBe(404);
-    expect((await listUpstreamKey(id))?.boundUpstreamProviderId).toBeUndefined();
+    expect((await listUpstreamKey(id))?.boundUpstream).toBeUndefined();
 
     const malformed = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: 42 });
     expect(malformed.status).toBe(400);
@@ -515,5 +524,59 @@ describe('POST /admin/api/keys/:id/upstream', () => {
     const unknownKey = await adminFetch('POST', '/admin/api/keys/nope/upstream', { providerId: 'a' });
     expect(unknownKey.status).toBe(404);
     expect((unknownKey.json as { ok: boolean }).ok).toBe(false);
+  });
+
+  it('binds claude/kimi subscription targets and rejects other subscriptions', async () => {
+    await bootDaemon();
+    const { id } = await createKey();
+
+    // A claude account target binds (no account store is wired in this boot —
+    // existence is validated at runtime by the serving path, not the write edge).
+    const claude = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, {
+      target: { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+    });
+    expect(claude.status).toBe(200);
+    expect((claude.json as { ok: boolean }).ok).toBe(true);
+    expect((await listUpstreamKey(id))?.boundUpstream).toEqual({
+      kind: 'account',
+      providerId: 'claude',
+      accountId: 'acct-a',
+    });
+
+    // A kimi pool target binds too.
+    const kimi = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, {
+      target: { kind: 'account-pool', providerId: 'kimi' },
+    });
+    expect(kimi.status).toBe(200);
+    expect((await listUpstreamKey(id))?.boundUpstream).toEqual({
+      kind: 'account-pool',
+      providerId: 'kimi',
+    });
+
+    // codex/gemini/… subscriptions need translation — a clear 400, nothing persisted.
+    const codex = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, {
+      target: { kind: 'account-pool', providerId: 'codex' },
+    });
+    expect(codex.status).toBe(400);
+    expect(((codex.json as { error: { message: string } }).error.message)).toContain('codex');
+
+    // Shape errors: account without accountId, unknown kind.
+    const noAccount = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, {
+      target: { kind: 'account', providerId: 'claude' },
+    });
+    expect(noAccount.status).toBe(400);
+    const badKind = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, {
+      target: { kind: 'weird', providerId: 'claude' },
+    });
+    expect(badKind.status).toBe(400);
+
+    // The bound target survived the rejected writes; target null clears it.
+    expect((await listUpstreamKey(id))?.boundUpstream).toEqual({
+      kind: 'account-pool',
+      providerId: 'kimi',
+    });
+    const clear = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { target: null });
+    expect(clear.status).toBe(200);
+    expect((await listUpstreamKey(id))?.boundUpstream).toBeUndefined();
   });
 });

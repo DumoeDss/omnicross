@@ -40,6 +40,7 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  GatewayBindingTarget,
   ImagesCapabilityStatus,
   ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
@@ -329,11 +330,12 @@ export interface AgentApiServiceApi {
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
   /**
    * Set a key's DIRECT upstream passthrough target (`POST /keys/:id/upstream`).
-   * A provider id makes the key relay VERBATIM to that BYO provider; `null`
-   * clears it → the key returns to downstream-route serving. The daemon
-   * validates the provider id (404 on an unknown provider).
+   * A BYO provider target relays VERBATIM; a claude/kimi subscription
+   * account/group/pool rides the messages same-format relay; `null` clears →
+   * the key returns to downstream-route serving. The daemon validates the
+   * target (404 unknown provider; 400 non-claude/kimi subscription).
    */
-  setKeyUpstream(id: string, providerId: string | null): Promise<MutationResult>;
+  setKeyUpstream(id: string, target: GatewayBindingTarget | null): Promise<MutationResult>;
   /** Atomically replace one key's exact authorization list. */
   setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult>;
   /**
