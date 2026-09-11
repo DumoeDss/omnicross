@@ -28,8 +28,10 @@ const show = login || process.argv.includes('--show');
 
 app.setPath('userData', dataDir);
 app.commandLine.appendSwitch('remote-allow-origins', '*');
-// Blank-window hardening on Windows GPU/driver combos: software rasterize.
-app.disableHardwareAcceleration();
+// NOTE: do NOT disableHardwareAcceleration here — on some Windows GPU
+// setups the software-rendering path makes windows never present at all
+// (created, "visible", zero window handle, nothing on screen). The earlier
+// blank window was a chatgpt.com connection refusal, not a GPU issue.
 
 const URL = 'https://chatgpt.com';
 

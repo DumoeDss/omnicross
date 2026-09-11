@@ -22,10 +22,15 @@
 import type http from 'node:http';
 import { Readable } from 'node:stream';
 
+import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import { SUBSCRIPTION_MODEL_CATALOG } from '@omnicross/contracts/subscription-model-catalog';
 import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 
 import { serializeError } from '@omnicross/core/serializeError';
+
+import { getProviderHeaders } from '../completion/header-builder';
+import { resolveApiFormat } from '../completion/url-builder';
+import { fetchUpstream } from '../pipeline/upstreamFetch';
 
 import {
   classifyOpenAIOperation,
@@ -329,6 +334,151 @@ export function resolveModelsShape(
   return allowedEndpoints.includes('messages') ? 'anthropic' : 'openai';
 }
 
+// ── Live upstream models discovery (passthrough provider routes) ─────────────
+//
+// `GET /v1/models` advertises, per candidate route, what the client may ask
+// for. A passthrough PROVIDER route forwards whatever model id the client
+// names, so the honest advertisement is the upstream's own catalog — the same
+// `GET <base>/models` the admin discover-models probe uses. A provider with a
+// CONFIGURED `models[]` advertises exactly that (the operator's curated set +
+// the per-model `enabled` gate); discovery runs ONLY for a passthrough route
+// whose provider row has an EMPTY list (nothing curated to advertise).
+
+/** How long a successful discovery stays cached (per provider id). */
+const UPSTREAM_MODELS_TTL_MS = 60_000;
+/** A failed/empty discovery caches shorter so a recovering upstream re-arms fast. */
+const UPSTREAM_MODELS_NEGATIVE_TTL_MS = 5_000;
+/** Per-discovery upstream timeout — a slow catalog never stalls the list route. */
+const UPSTREAM_MODELS_TIMEOUT_MS = 10_000;
+
+interface UpstreamModelsCacheEntry {
+  at: number;
+  ids: string[];
+  ok: boolean;
+}
+
+const upstreamModelsCache = new Map<string, UpstreamModelsCacheEntry>();
+const upstreamModelsInFlight = new Map<string, Promise<string[]>>();
+
+/** Test hook: the module-level discovery cache would otherwise leak across cases. */
+export function resetUpstreamModelsDiscoveryCache(): void {
+  upstreamModelsCache.clear();
+  upstreamModelsInFlight.clear();
+}
+
+/** Resolve a `$ENV_VAR` key reference or return the literal (routeResolver idiom). */
+function resolveProviderKeyLiteral(apiKey: string | undefined): string {
+  if (!apiKey) return '';
+  if (apiKey.startsWith('$')) return process.env[apiKey.slice(1)] || '';
+  return apiKey;
+}
+
+/**
+ * Derive the `GET` models-collection URL from a provider row's base URL +
+ * wire format, mirroring the completion-URL builders' base normalization:
+ *  - a base that already names the collection (`.../v1beta/models`) is used as-is;
+ *  - a base that names the completion endpoint strips that suffix first
+ *    (`.../v1/chat/completions` → `.../v1/models`, `.../v1/messages` → `.../v1/models`,
+ *    `.../v1/responses` → `.../v1/models`);
+ *  - a versioned base appends `/models` (`.../v1` → `.../v1/models`);
+ *  - a bare host gets the conventional `/v1/models` default.
+ * Returns `null` for a blank base (no fetch is attempted).
+ */
+export function buildProviderModelsUrl(baseUrl: string, format: ReturnType<typeof resolveApiFormat>): string | null {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (!base) return null;
+  if (format === 'google') {
+    return /\/models$/.test(base) ? base : `${base}/models`;
+  }
+  if (format === 'anthropic') {
+    if (base.endsWith('/messages')) return `${base.slice(0, -'/messages'.length)}/models`;
+    if (/\/v\d+$/.test(base)) return `${base}/models`;
+    return `${base}/v1/models`;
+  }
+  const completionSuffix = format === 'openai-response' ? '/responses' : '/chat/completions';
+  const root = base.endsWith(completionSuffix) ? base.slice(0, -completionSuffix.length) : base;
+  if (root !== base || /\/v\d+$/.test(base)) return `${root}/models`;
+  return `${base}/v1/models`;
+}
+
+/** One uncached upstream catalog GET (never throws — failures read as empty). */
+async function fetchUpstreamModelsUncached(provider: LLMProvider): Promise<string[]> {
+  const format = resolveApiFormat(provider);
+  const url = buildProviderModelsUrl(provider.api_base_url ?? '', format);
+  if (!url) return [];
+  const headers = getProviderHeaders(provider, resolveProviderKeyLiteral(provider.api_key));
+  delete headers['Content-Type'];
+  headers['Accept'] = 'application/json';
+  const response = await fetchUpstream(
+    url,
+    { method: 'GET', headers, signal: AbortSignal.timeout(UPSTREAM_MODELS_TIMEOUT_MS) },
+    { providerId: 'byo' },
+  );
+  if (!response.ok) return [];
+  const body = (await response.json()) as {
+    data?: Array<{ id?: unknown }>; // OpenAI + Anthropic shapes
+    models?: Array<{ name?: unknown }>; // Gemini shape ({models:[{name:'models/<id>'}]})
+  };
+  const fromData = Array.isArray(body?.data)
+    ? body.data
+        .map((entry) => (typeof entry?.id === 'string' ? entry.id.trim() : ''))
+        .filter((id): id is string => id !== '')
+    : [];
+  if (fromData.length > 0) return fromData;
+  return Array.isArray(body?.models)
+    ? body.models
+        .map((entry) =>
+          typeof entry?.name === 'string' ? entry.name.replace(/^models\//, '').trim() : '',
+        )
+        .filter((id): id is string => id !== '')
+    : [];
+}
+
+/**
+ * Cached, in-flight-deduped upstream catalog read for `GET /v1/models`. The
+ * TTL cache (60s positive / 5s negative) keeps a polling client from hammering
+ * the upstream; the in-flight map collapses a concurrent burst into ONE GET.
+ * Any failure resolves to `[]` — discovery is a display enhancement and never
+ * breaks the list route.
+ */
+async function discoverUpstreamModels(provider: LLMProvider): Promise<string[]> {
+  const cached = upstreamModelsCache.get(provider.id);
+  if (cached) {
+    const ttl = cached.ok ? UPSTREAM_MODELS_TTL_MS : UPSTREAM_MODELS_NEGATIVE_TTL_MS;
+    if (Date.now() - cached.at < ttl) return cached.ids;
+    upstreamModelsCache.delete(provider.id);
+  }
+  const existing = upstreamModelsInFlight.get(provider.id);
+  if (existing) return existing;
+  const pending = (async () => {
+    let ids: string[] = [];
+    try {
+      ids = await fetchUpstreamModelsUncached(provider);
+    } catch {
+      ids = [];
+    }
+    upstreamModelsCache.set(provider.id, { at: Date.now(), ids, ok: ids.length > 0 });
+    return ids;
+  })();
+  upstreamModelsInFlight.set(provider.id, pending);
+  try {
+    return await pending;
+  } finally {
+    upstreamModelsInFlight.delete(provider.id);
+  }
+}
+
+/** The ids a passthrough provider route advertises: curated list, else live discovery. */
+async function passthroughProviderModelIds(
+  llmConfig: OutboundApiDeps['llmConfig'],
+  providerId: string,
+): Promise<string[]> {
+  const provider = await llmConfig.getProvider(providerId);
+  if (!provider) return [];
+  const configured = provider.models ?? [];
+  return configured.length > 0 ? configured : await discoverUpstreamModels(provider);
+}
+
 /**
  * `created_at` for the synthetic Anthropic models list (review B-M1). The
  * entries are ROUTING CONFIG projections, not artifacts with real creation
@@ -403,8 +553,9 @@ async function writeModelsListAnthropic(
   for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, 'messages')) {
     if (binding.modelMode === 'passthrough') {
       if (binding.target.kind === 'provider') {
-        const provider = await llmConfig.getProvider(binding.target.providerId);
-        for (const id of provider?.models ?? []) push(id);
+        for (const id of await passthroughProviderModelIds(llmConfig, binding.target.providerId)) {
+          push(id);
+        }
       } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
         for (const id of SUBSCRIPTION_MODEL_CATALOG[
           binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
@@ -518,8 +669,7 @@ async function writeModelsList(
     for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
       if (binding.modelMode === 'passthrough') {
         if (binding.target.kind === 'provider') {
-          const provider = await llmConfig.getProvider(binding.target.providerId);
-          modelIds.push(...(provider?.models ?? []));
+          modelIds.push(...(await passthroughProviderModelIds(llmConfig, binding.target.providerId)));
         } else if (Object.prototype.hasOwnProperty.call(
           SUBSCRIPTION_MODEL_CATALOG,
           binding.target.providerId,

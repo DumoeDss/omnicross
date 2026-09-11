@@ -13,10 +13,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
 import { legacyEndpointsToBindings } from '../apiServerConfig';
 import {
+  buildProviderModelsUrl,
   extractGeminiModelFromUrl,
   extractPresentedKey,
   handleOutboundRequest,
   isLoopbackPeer,
+  resetUpstreamModelsDiscoveryCache,
   selectEndpoint,
 } from '../outboundApiRouter';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
@@ -99,11 +101,14 @@ function makeDeps(opts: {
   /** When set, wires a (stub) ApiKeyPool onto proxyDeps so the router synthesizes
    *  a stable `outbound:<keyId>` sessionId (pool-seam, design D1/D2(a)). */
   apiKeyPool?: unknown;
+  /** Overrides the router-level provider row (llmConfig.getProvider). */
+  llmProvider?: Record<string, unknown>;
 }): OutboundApiDeps {
   return {
     db: opts.db,
     llmConfig: {
-      getProvider: async () => ({ id: 'openai', api_key: 'sk-x', models: ['gpt-4o'] }),
+      getProvider: async () =>
+        opts.llmProvider ?? { id: 'openai', api_key: 'sk-x', models: ['gpt-4o'] },
     } as unknown as OutboundApiDeps['llmConfig'],
     providerProxy: { getRouteMap: () => opts.routeMap } as unknown as OutboundApiDeps['providerProxy'],
     // The shared chat ingress reads provider rows off proxyDeps.llmConfig; a
@@ -415,6 +420,171 @@ describe('handleOutboundRequest — auth', () => {
       'gpt-5.6-sol',
       'gpt-6-astra',
     ]);
+  });
+
+  it('GET /v1/models live-discovers the upstream catalog for a passthrough provider route with no configured models', async () => {
+    resetUpstreamModelsDiscoveryCache();
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: [{ id: 'live-a' }, { id: 'live-b' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const routeMap = new ProviderProxyRouteMap();
+      const deps = makeDeps({
+        db: makeDb(() => ({ ...enabledRow })),
+        routeMap,
+        llmProvider: {
+          id: 'relay',
+          name: 'relay',
+          apiFormat: 'openai',
+          api_base_url: 'https://relay.example/v1',
+          api_key: 'sk-x',
+          models: [],
+          enabled: true,
+        },
+      });
+      const passthroughConfig = {
+        endpoints: [],
+        anthropic: { modelsShape: 'openai' as const },
+        bindings: [{
+          id: 'chat-passthrough-empty',
+          name: 'Chat passthrough (unconfigured list)',
+          enabled: true,
+          keyScope: 'selected' as const,
+          apiKeyIds: [enabledRow.id],
+          endpoint: 'chat' as const,
+          target: { kind: 'provider', providerId: 'relay' },
+          priority: 100,
+          fallback: 'fail' as const,
+          modelMode: 'passthrough' as const,
+        } satisfies GatewayBinding],
+      };
+      const run = async (): Promise<{ data: Array<{ id: string }> }> => {
+        const req = new MockReq({
+          headers: { authorization: 'Bearer any' },
+          url: '/v1/models',
+          method: 'GET',
+        });
+        const res = new MockRes();
+        req.start();
+        await handleOutboundRequest(
+          req as unknown as http.IncomingMessage,
+          res as unknown as http.ServerResponse,
+          deps,
+          passthroughConfig,
+          new OutboundRateLimiter(),
+          new UserMessageSerialQueue(),
+          new OutboundConcurrencyGate(),
+        );
+        expect(res.statusCode).toBe(200);
+        return JSON.parse(res.body) as { data: Array<{ id: string }> };
+      };
+      // First request live-discovers the upstream list (the completion suffix is
+      // stripped: .../v1 → .../v1/models) and the cached result serves the second
+      // request without a second upstream GET.
+      const first = await run();
+      expect(first.data.map((model) => model.id)).toEqual(['live-a', 'live-b']);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://relay.example/v1/models');
+      const second = await run();
+      expect(second.data.map((model) => model.id)).toEqual(['live-a', 'live-b']);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(routeMap.size()).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+      resetUpstreamModelsDiscoveryCache();
+    }
+  });
+
+  it('GET /v1/models keeps the empty list when live discovery fails (no configured models)', async () => {
+    resetUpstreamModelsDiscoveryCache();
+    const fetchMock = vi.fn(async () => {
+      throw new Error('upstream unreachable');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const deps = makeDeps({
+        db: makeDb(() => ({ ...enabledRow })),
+        routeMap: new ProviderProxyRouteMap(),
+        llmProvider: {
+          id: 'relay',
+          name: 'relay',
+          apiFormat: 'openai',
+          api_base_url: 'https://relay.example/v1',
+          api_key: 'sk-x',
+          models: [],
+          enabled: true,
+        },
+      });
+      const passthroughConfig = {
+        endpoints: [],
+        anthropic: { modelsShape: 'openai' as const },
+        bindings: [{
+          id: 'chat-passthrough-down',
+          name: 'Chat passthrough (upstream down)',
+          enabled: true,
+          keyScope: 'selected' as const,
+          apiKeyIds: [enabledRow.id],
+          endpoint: 'chat' as const,
+          target: { kind: 'provider', providerId: 'relay' },
+          priority: 100,
+          fallback: 'fail' as const,
+          modelMode: 'passthrough' as const,
+        } satisfies GatewayBinding],
+      };
+      const req = new MockReq({
+        headers: { authorization: 'Bearer any' },
+        url: '/v1/models',
+        method: 'GET',
+      });
+      const res = new MockRes();
+      req.start();
+      await handleOutboundRequest(
+        req as unknown as http.IncomingMessage,
+        res as unknown as http.ServerResponse,
+        deps,
+        passthroughConfig,
+        new OutboundRateLimiter(),
+        new UserMessageSerialQueue(),
+        new OutboundConcurrencyGate(),
+      );
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+      expect(body.data).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      resetUpstreamModelsDiscoveryCache();
+    }
+  });
+
+  it('buildProviderModelsUrl derives the catalog URL from each wire format', () => {
+    // openai: versioned base, full completion endpoint, bare host.
+    expect(buildProviderModelsUrl('https://api.siliconflow.com/v1', 'openai'))
+      .toBe('https://api.siliconflow.com/v1/models');
+    expect(buildProviderModelsUrl('https://api.openai.com/v1/chat/completions', 'openai'))
+      .toBe('https://api.openai.com/v1/models');
+    expect(buildProviderModelsUrl('https://api.openai.com', 'openai'))
+      .toBe('https://api.openai.com/v1/models');
+    // openai-response rows store a base or the full responses endpoint.
+    expect(buildProviderModelsUrl('https://api.openai.com/v1/responses', 'openai-response'))
+      .toBe('https://api.openai.com/v1/models');
+    expect(buildProviderModelsUrl('https://api.openai.com', 'openai-response'))
+      .toBe('https://api.openai.com/v1/models');
+    // anthropic rows store the messages endpoint (or a versioned/base root).
+    expect(buildProviderModelsUrl('https://api.anthropic.com/v1/messages', 'anthropic'))
+      .toBe('https://api.anthropic.com/v1/models');
+    expect(buildProviderModelsUrl('https://api.anthropic.com', 'anthropic'))
+      .toBe('https://api.anthropic.com/v1/models');
+    // gemini rows store the models-collection URL itself.
+    expect(buildProviderModelsUrl('https://generativelanguage.googleapis.com/v1beta/models/', 'google'))
+      .toBe('https://generativelanguage.googleapis.com/v1beta/models');
+    expect(buildProviderModelsUrl('https://generativelanguage.googleapis.com/v1beta', 'google'))
+      .toBe('https://generativelanguage.googleapis.com/v1beta/models');
+    expect(buildProviderModelsUrl('   ', 'openai')).toBeNull();
   });
 
   it('GET /v1/models allows a Responses-scoped integration key and filters its catalog', async () => {
