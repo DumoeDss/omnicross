@@ -1,7 +1,17 @@
-# Harness Connector Attach — Findings (2026-09-11 深夜)
+# Harness Connector Attach — Findings (2026-09-11 深夜 → 09-12 凌晨)
 
-> 今晚 harness 联调的完整战报。已证实的事实、死路、遗留谜题与下一步。
-> 配套代码：harnessTurn.ts 的 `attachConnectorViaPlusMenu`（+ 菜单挂载）。
+> **结局（09-12 凌晨，75ca72a）**：全链路验证通过 ✅ —— Electron 宿主 + Pro 档，
+> `+` 菜单挂载 connector → 发送 → Pro 经隧道调 codex_shell → function_call 两阶段协议
+> → 模拟工具结果回传 → 同一浏览器回合续流 → 模型精确复述 git log 第一行，exit 0。
+> 以下是完整的排障记录（所有结论都有实验证据，别重蹈覆辙）。
+
+## 0. 最终配方（已全部进代码）
+
+- **回合页**：普通对话 `chatgpt.com/`（temporary chat 不列 connector）
+- **挂载**：`+`（aria-label 添加/add/attach/plus）→ 等连接器行（独立目录加载，**15s 耐心轮询**）→ 行匹配 = 文档级作用域 + 排除 aside/nav + **前缀匹配** + scrollIntoView + 视口校验后点击 → pill `data-keyword` 验证
+- **发送**：非空 composer 的 form 内第一个可见 send 按钮；**2.5s 无证据自动重点一次**
+- **两阶段协议**：function_call（带 call_id）→ 回 function_call_output → worker 识别续请求 → broker 解除挂起 → 同回合续流（roundtrip 脚本已内置模拟应答，最多 4 轮）
+- **每回合开始清 composer**（幽灵草稿，见谜题 A）+ 稳定窗口
 
 ## 1. 已证实（有实验支撑）
 

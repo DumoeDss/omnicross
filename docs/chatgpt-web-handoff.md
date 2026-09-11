@@ -45,7 +45,7 @@ daemon 侧：`packages/daemon/src/commands/chatgpt-web.ts`（check/login/launch/
 | **codex 端到端（light 与 Pro 档）** | ✅ 真实验证 | `CODEX BRIDGE OK` / `PRO BRIDGE OK`（含"Pro 思考"状态捕获） |
 | tunnel 全链路（connect+run 常驻+healthy/ready） | ✅ 真实验证 | tunnel status 全绿 |
 | MCP 子进程协议（initialize/list/call 往返） | ✅ 真实验证 | mcp-smoke 5/5（含 replyTo 修复） |
-| harness 浏览器回合（@mention→挂起→续流） | ⛔ 未验证 | 需 connector+tunnel 活着时跑（被风控打断） |
+| harness 浏览器回合（挂载→工具调用→续流） | ✅ 真实验证 | **2026-09-12 凌晨**：Electron 宿主 + Pro 档全链路（75ca72a）——connector 经 `+` 菜单挂载、Pro 调 codex_shell 全链路往返、function_call 两阶段协议、同回合续流、最终答案精确（exit 0）。详见 `docs/chatgpt-web-harness-findings.md` |
 | Electron 宿主窗口显示 | ✅ 真实验证 | 根因 `windowsHide:true`（b44f52b）；A/B 实验枚举 HWND visible=True，用户肉眼确认窗口+example.com |
 | Electron 宿主登录（CDP-less 独立实例） | ✅ 真实验证 | 用户成功登录（4219789）；Google/邮箱皆可，登录墙针对自动化形态而非 UA |
 | Electron 宿主 browser-only 完整回合 | ✅ 真实验证 | `round-trip --host=electron` light 档 `ROUND TRIP OK`（2026-09-11 晚） |
@@ -165,8 +165,9 @@ e096347 feat(chatgpt-web): experimental ChatGPT Web (incl. Pro) bridge for Codex
 1. ~~[卡点 A 窗口]~~ ✅ 已解决（windowsHide 根因）
 2. ~~[卡点 A2 登录]~~ ✅ 已解决（CDP-less 独立登录实例，用户已登录）
 3. ~~Electron 宿主 browser-only 首回合~~ ✅ `ROUND TRIP OK`
-4. **[当前]** harness 浏览器端联调：**见 `docs/chatgpt-web-harness-findings.md`**（2026-09-11 深夜战报）。要点：@-mention 打字路径已死（合成输入开不了 @ 菜单，Playwright 本尊也不行）；新路径 = **`+` 菜单点选 connector**（已实证可用，代码在 `attachConnectorViaPlusMenu`）；harness 回合改用**普通对话**（temporary chat 的 `+` 菜单不列 connector）。遗留：谜题 A（envelope 先于挂载出现，探针已埋 `tab-opened`）、谜题 B（`+` 菜单偶发不开，行匹配已改作用域限定）、谜题 C（**profile 疑似被限流，冷却后再试**）
-5. 提醒用户轮换 platform API key（已暴露于聊天记录）
+4. ~~[当前] harness 浏览器端联调~~ ✅ **完成**（2026-09-12 凌晨，75ca72a）：全链路验证通过。已知抖动及对策：`+` 菜单连接器行来自独立目录加载（**15 秒耐心轮询**）、发送首击偶被吞（**2.5 秒自动重点**）、tunnel 启动偶发失败（先 `runtimes stop` 正规停再启，别裸 taskkill）
+5. **[当前]** codex 真跑：`launch --browser-host=electron --harness --model chatgpt-web/pro` + 真实 codex 会话（function_call_output 由 codex 真实执行）
+6. 提醒用户轮换 platform API key（已暴露于聊天记录）
 6. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
 7. 转正评估后：UI 设置页（Control Panel）、daemon 常驻集成、发布流程（包目前 private）
 3. harness 浏览器端联调：`launch --browser-host=electron --harness --model chatgpt-web/pro` + `scripts/chatgpt-web-harness-roundtrip.ts`。重点观察 @mention 菜单选择（attachConnectorMention 的行匹配未实战过）
