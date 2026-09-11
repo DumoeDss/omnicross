@@ -450,6 +450,50 @@ export function insertAndVerifyComposerScript(value: string, options: { pollTime
 }
 
 /**
+ * Clear the composer completely (focus → select all → delete), polling until
+ * the readback is empty. ChatGPT restores the last unsent draft into every
+ * fresh chat tab, and a draft-dirty composer breaks the "+"-menu connector
+ * attach — so turns must clear BEFORE attaching, not only at insert time.
+ */
+export function clearComposerScript(): string {
+  return `(async () => {
+  const selectors = ['[data-testid="prompt-textarea"]', '#prompt-textarea', '[contenteditable="true"][data-lexical-editor="true"]'];
+  const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
+  const read = () => {
+    const elements = selectors.flatMap(selector => [...document.querySelectorAll(selector)]).filter(visible);
+    const element = elements[elements.length - 1];
+    if (!element) return null;
+    const clone = element.cloneNode(true);
+    clone.querySelectorAll('[data-id^="plugin:"][data-keyword], [data-inline-selection-pill-cursor-target]')
+      .forEach((part) => part.remove());
+    return [...clone.childNodes].map((child) => child.textContent ?? '').join('\\n').trim();
+  };
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    const elements = selectors.flatMap(selector => [...document.querySelectorAll(selector)]).filter(visible);
+    const element = elements[elements.length - 1];
+    if (element) {
+      if (document.activeElement !== element) element.focus();
+      if (document.activeElement === element) {
+        const selection = window.getSelection();
+        if (selection) {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          if (!selection.isCollapsed) document.execCommand('delete');
+        }
+      }
+    }
+    const text = read();
+    if (text !== null && text.length === 0) return true;
+    if (Date.now() >= deadline) return false;
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+})()`;
+}
+
+/**
  * Read back the composer's current text (prompt echo verification).
  *
  * NOT plain textContent: Lexical renders multi-line text as block-level child

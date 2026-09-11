@@ -26,6 +26,7 @@ import { ChatGptMarkdownBuffer } from './markdown-buffer';
 import {
   chatGptResponseSnapshotScript,
   chatGptTurnIdentitiesScript,
+  clearComposerScript,
   insertAndVerifyComposerScript,
   type ChatGptResponseSnapshotJson,
   type ChatGptTurnIdentitiesJson,
@@ -107,6 +108,11 @@ export class HarnessBrowserTurn {
     }
     await tab.pressKey('Escape').catch(() => undefined);
     await sleep(300);
+    // ChatGPT restores the last unsent composer draft into every fresh chat
+    // tab, and a draft-dirty composer breaks the "+"-menu attach below (the
+    // draft also explains turns that "already contained" their prompt).
+    const cleared = await tab.evaluateJson<boolean>(clearComposerScript(), { awaitPromise: true });
+    input.onDiagnostic?.(`composer-cleared: ${cleared === true ? 'ok' : 'FAILED'}`);
     if (input.route.uiEffortIndex !== null) {
       await openChatGptEffortMenu(tab);
       await setChatGptEffortIndex(tab, input.route.uiEffortIndex);
@@ -373,18 +379,50 @@ async function attachConnectorViaPlusMenu(
   })()`;
 
   const deadline = Date.now() + 20_000;
+  const composerEmptyScript = `(() => {
+    const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
+    const composer = els[els.length - 1];
+    if (!composer) return false;
+    const clone = composer.cloneNode(true);
+    clone.querySelectorAll('[data-id^="plugin:"][data-keyword], [data-inline-selection-pill-cursor-target]').forEach((p) => p.remove());
+    return [...clone.childNodes].map((c) => c.textContent ?? '').join('\\n').trim().length === 0;
+  })()`;
   for (let attempt = 0; attempt < 3 && Date.now() < deadline; attempt += 1) {
-    if (attempt === 0) {
-      const entry = await tab.evaluateJson<string>(`(() => {
-        const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
-        const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
-        const composer = els[els.length - 1];
-        return JSON.stringify({ url: location.href.slice(0, 60), composerText: composer ? (composer.innerText || '').slice(0, 80) : null });
-      })()`);
-      onDiagnostic?.(`attach-entry: ${entry ?? '<eval failed>'}`);
+    // ChatGPT restores the last unsent draft ASYNCHRONOUSLY — a clear can be
+    // undone seconds later mid-attach. Require a stability window (composer
+    // empty on two reads) before opening the "+" menu.
+    for (let settle = 0; settle < 4; settle += 1) {
+      await tab.evaluateJson<boolean>(clearComposerScript(), { awaitPromise: true }).catch(() => false);
+      const first = await tab.evaluateJson<boolean>(composerEmptyScript).catch(() => false);
+      await sleep(700);
+      const second = await tab.evaluateJson<boolean>(composerEmptyScript).catch(() => false);
+      if (first === true && second === true) break;
     }
     await tab.trustedClickScript(plusPointScript);
     await sleep(600);
+    if (attempt === 0) {
+      // Mid-attempt evidence: did the + menu open at all, and what would the
+      // row matcher see? (Screenshot + candidates, before any Escape.)
+      const shot = await tab.screenshotBase64().catch(() => undefined);
+      if (shot) {
+        const { writeFileSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        writeFileSync(join(process.cwd(), 'tmp-plus-mid.png'), Buffer.from(shot, 'base64'));
+      }
+      const candidates = await tab.evaluateJson<string>(`(() => {
+        const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+        const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
+        const composer = els[els.length - 1];
+        const scope = composer?.closest('form') ?? composer?.parentElement ?? document.body;
+        const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+        const items = [...scope.querySelectorAll('button, [role="menuitem"], [role="option"], li, div')]
+          .filter((el) => visible(el) && (el.innerText || '').length > 0 && (el.innerText || '').length < 200)
+          .map((el) => (el.innerText || '').replace(/\\s+/g, ' ').slice(0, 60));
+        return JSON.stringify([...new Set(items)].slice(0, 25));
+      })()`).catch(() => '<eval failed>');
+      onDiagnostic?.(`plus-menu-items: ${candidates}`);
+    }
     // Poll for the connector row in the opened menu and click it as soon as
     // it appears.
     const rowDeadline = Date.now() + 5_000;
