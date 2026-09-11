@@ -3,11 +3,15 @@
 // hard stop on failure (no retry storm).
 import { startChatGptWebBridge, generateBridgeToken } from '../packages/chatgpt-web/src/bridge/server';
 
+const hostArg = process.argv.find((arg) => arg.startsWith('--host='));
+const browserHost = hostArg?.slice('--host='.length) === 'electron' ? ('electron' as const) : undefined;
+
 const token = generateBridgeToken();
 const bridge = await startChatGptWebBridge({
   port: 17866,
   authToken: token,
   harness: true,
+  browserHost,
   onDiagnostic: (checkpoint) => console.log(`[diag] ${checkpoint}`),
   onError: (error) => console.error(`[bridge-error] ${error.message}`),
 });

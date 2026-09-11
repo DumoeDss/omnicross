@@ -11,6 +11,13 @@
 export const CHATGPT_ORIGIN = 'https://chatgpt.com';
 export const CHATGPT_TEMPORARY_CHAT_URL = 'https://chatgpt.com/?temporary-chat=true';
 
+/**
+ * A plain (non-temporary) conversation. Harness turns need this: temporary
+ * chat hides connectors from the attach UI (its unpersonalized mode), while a
+ * plain conversation lists them in the composer "+" menu.
+ */
+export const CHATGPT_PLAIN_CHAT_URL = 'https://chatgpt.com/';
+
 export const CHATGPT_COMPOSER_SELECTOR = [
   '[data-testid="prompt-textarea"]',
   '#prompt-textarea',

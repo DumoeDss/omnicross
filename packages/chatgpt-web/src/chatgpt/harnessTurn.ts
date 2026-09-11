@@ -27,15 +27,14 @@ import {
   chatGptResponseSnapshotScript,
   chatGptTurnIdentitiesScript,
   insertAndVerifyComposerScript,
-  insertPlainTextIntoComposerScript,
   type ChatGptResponseSnapshotJson,
   type ChatGptTurnIdentitiesJson,
 } from './snapshot';
 import {
   CHATGPT_COMPOSER_SELECTOR,
   CHATGPT_COMPLETION_ACTION_SELECTOR,
+  CHATGPT_PLAIN_CHAT_URL,
   CHATGPT_STOP_BUTTON_SELECTOR,
-  CHATGPT_TEMPORARY_CHAT_URL,
 } from './selectors';
 import { traceDelta as traceDeltaOf, type TraceEmitterState } from './turn';
 
@@ -82,8 +81,21 @@ export class HarnessBrowserTurn {
 
   /** Phase 1: run a fresh turn up to the first tool call or completion. */
   static async start(connection: CdpConnection, input: HarnessTurnInput): Promise<HarnessBrowserTurn> {
+    input.onDiagnostic?.('turn-starting');
     const tab = await connection.openTab('about:blank');
-    await tab.navigate(CHATGPT_TEMPORARY_CHAT_URL, 45_000);
+    {
+      const fresh = await tab
+        .evaluateJson<string>(
+          `(() => { const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)}; const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]); const c = els[els.length - 1]; return JSON.stringify({ url: location.href.slice(0, 60), text: c ? (c.innerText || '').slice(0, 60) : null }); })()`,
+        )
+        .catch(() => '<eval failed>');
+      input.onDiagnostic?.(`tab-opened: ${fresh}`);
+    }
+    // Plain conversation, not temporary: temporary chat's unpersonalized mode
+    // hides connectors from the attach UI, so the harness has no + entry to
+    // click (the reference implementation toggles personalization for this;
+    // a plain conversation needs no such dance).
+    await tab.navigate(CHATGPT_PLAIN_CHAT_URL, 45_000);
     await tab.bringToFront();
     const ready = await tab.waitForExpression(composerPresentScript(), 45_000, 250);
     if (!ready) {
@@ -91,7 +103,7 @@ export class HarnessBrowserTurn {
       if (/login|auth0|auth\.openai|\/auth\//i.test(url)) {
         throw Object.assign(new Error('ChatGPT web login is expired. Sign in to chatgpt.com in your Chrome, then retry.'), { status: 401 });
       }
-      throw Object.assign(new Error('ChatGPT Temporary Chat composer is unavailable.'), { status: 400 });
+      throw Object.assign(new Error('ChatGPT Chat composer is unavailable.'), { status: 400 });
     }
     await tab.pressKey('Escape').catch(() => undefined);
     await sleep(300);
@@ -100,9 +112,9 @@ export class HarnessBrowserTurn {
       await setChatGptEffortIndex(tab, input.route.uiEffortIndex);
       await sleep(250);
     }
-    // Attach the connector BEFORE the prompt body: the mention pill rides at
+    // Attach the connector BEFORE the prompt body: the plugin pill rides at
     // the head of the message, making the Codex Native tools available.
-    await attachConnectorMention(tab, input.connectorName);
+    await attachConnectorViaPlusMenu(tab, input.connectorName, input.onDiagnostic);
     input.onDiagnostic?.('connector-attached');
 
     const inserted = await tab.evaluateJson<{ inserted: boolean; matches: boolean }>(
@@ -301,64 +313,119 @@ function mapToolRequest(
   };
 }
 
-/** Attach the connector via an @-mention pill before the prompt body. */
-async function attachConnectorMention(tab: CdpTarget, connectorName: string): Promise<void> {
-  const typed = await tab.evaluateJson<boolean>(insertPlainTextIntoComposerScript('@codex'));
-  if (typed !== true) {
-    throw Object.assign(new Error('ChatGPT composer rejected the connector mention query'), { status: 400 });
-  }
-  // Wait for the app/connector mention menu rows, then click the exact row.
-  const rowScript = `(() => {
-    const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
-    const rows = [...document.querySelectorAll('[data-keyword], .__menu-item, [role="menuitem"], [role="option"]')]
-      .filter(visible)
-      .map((el, index) => ({ index, text: (el.innerText || el.textContent || '').trim().slice(0, 80), keyword: el.getAttribute('data-keyword') }));
-    return rows;
+/**
+ * Attach the connector through the composer's "+" menu — clicks only.
+ *
+ * The @-mention typing path no longer works: ChatGPT's @-apps popup does not
+ * open for synthesized input (verified against Playwright's own keyboard in
+ * both the Electron host and the user's Chrome; human typing still works).
+ * The "+" menu, by contrast, lists connectors (in a plain conversation —
+ * temporary chat hides them) and responds to trusted clicks reliably.
+ */
+async function attachConnectorViaPlusMenu(
+  tab: CdpTarget,
+  connectorName: string,
+  onDiagnostic?: (checkpoint: string) => void,
+): Promise<void> {
+  const needle = connectorName.toLowerCase();
+  const plusPointScript = `(() => {
+    const selectors = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const elements = selectors.split(', ').flatMap((selector) => [...document.querySelectorAll(selector)]);
+    const composer = elements[elements.length - 1];
+    if (!composer) return null;
+    const scope = composer.closest('form') ?? composer.parentElement ?? document.body;
+    const plus = [...scope.querySelectorAll('button')].find((button) =>
+      /添加|^add|attach|plus/i.test(button.getAttribute('aria-label') ?? ''));
+    if (!plus) return null;
+    const rect = plus.getBoundingClientRect();
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   })()`;
-  const deadline = Date.now() + 10_000;
-  let matched: { index: number } | undefined;
-  while (Date.now() < deadline && !matched) {
-    const rows = (await tab.evaluateJson<Array<{ index: number; text: string; keyword?: string }>>(rowScript)) ?? [];
-    matched = rows.find(
-      (row) =>
-        (row.keyword && row.keyword.toLowerCase() === connectorName.toLowerCase()) ||
-        row.text.toLowerCase().includes(connectorName.toLowerCase()),
-    );
-    if (!matched) await sleep(250);
-  }
-  if (!matched) {
-    await tab.pressKey('Escape').catch(() => undefined);
-    throw Object.assign(
-      new Error(
-        `The ChatGPT connector "@codex" menu did not offer "${connectorName}". ` +
-          'Check that the connector exists with this exact name in ChatGPT Settings → Connectors (developer mode), and that its permissions allow all actions.',
-      ),
-      { status: 400 },
-    );
-  }
-  const clicked = await tab.trustedClick('[data-keyword], .__menu-item, [role="menuitem"], [role="option"]', {
-    nth: matched.index,
-    visibleOnly: true,
-  });
-  if (!clicked) {
-    throw Object.assign(new Error(`Could not click the "${connectorName}" connector row in the mention menu`), { status: 400 });
-  }
-  // Verify the pill landed in the composer.
-  const pillDeadline = Date.now() + 5_000;
-  for (;;) {
-    const pill = await tab.evaluateJson<boolean>(`(() => {
-      const selectors = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
-      const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
-      const elements = selectors.split(', ').flatMap((selector) => [...document.querySelectorAll(selector)]).filter(visible);
-      const element = elements[elements.length - 1];
-      return Boolean(element && element.querySelector('[data-id^="plugin:"]'));
-    })()`);
-    if (pill) return;
-    if (Date.now() >= pillDeadline) {
-      throw Object.assign(new Error('The connector mention did not attach a plugin pill to the composer'), { status: 400 });
+  // The + menu loads its app list asynchronously — poll for the row instead
+  // of sleeping a fixed gap. Scope the search to the composer's form and
+  // require the text to START with the connector name: whole-document
+  // "contains" matches also hit sidebar previews of past harness turns whose
+  // compiled prompt quotes the connector name.
+  const rowPointScript = `(() => {
+    const selectors = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const els = selectors.split(', ').flatMap((selector) => [...document.querySelectorAll(selector)]);
+    const composer = els[els.length - 1];
+    const scope = composer?.closest('form') ?? composer?.parentElement ?? document.body;
+    const visible = (el) => { const rect = el.getBoundingClientRect(); return rect.width > 0 && rect.height > 0; };
+    const candidates = [...scope.querySelectorAll('button, [role="menuitem"], [role="option"], li, div')]
+      .filter((el) => visible(el)
+        && !el.closest('aside, nav')
+        && (el.innerText || '').replace(/^\\s+/, '').toLowerCase().startsWith(${JSON.stringify(needle)})
+        && (el.innerText || '').length < 300);
+    candidates.sort((a, b) => a.innerText.length - b.innerText.length);
+    const target = candidates[0];
+    if (!target) return null;
+    const rect = target.getBoundingClientRect();
+    return { x: rect.x + rect.width / 2, y: rect.y + Math.min(rect.height / 2, 20) };
+  })()`;
+  const pillScript = `(() => {
+    const selectors = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const elements = selectors.split(', ').flatMap((selector) => [...document.querySelectorAll(selector)]);
+    const composer = elements[elements.length - 1];
+    const pills = composer
+      ? [...composer.querySelectorAll('[data-id^="plugin:"]')].map((pill) => pill.getAttribute('data-keyword') ?? '')
+      : [];
+    return pills;
+  })()`;
+
+  const deadline = Date.now() + 20_000;
+  for (let attempt = 0; attempt < 3 && Date.now() < deadline; attempt += 1) {
+    if (attempt === 0) {
+      const entry = await tab.evaluateJson<string>(`(() => {
+        const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+        const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
+        const composer = els[els.length - 1];
+        return JSON.stringify({ url: location.href.slice(0, 60), composerText: composer ? (composer.innerText || '').slice(0, 80) : null });
+      })()`);
+      onDiagnostic?.(`attach-entry: ${entry ?? '<eval failed>'}`);
     }
-    await sleep(200);
+    await tab.trustedClickScript(plusPointScript);
+    await sleep(600);
+    // Poll for the connector row in the opened menu and click it as soon as
+    // it appears.
+    const rowDeadline = Date.now() + 5_000;
+    let clicked = false;
+    while (Date.now() < rowDeadline && !clicked) {
+      clicked = await tab.trustedClickScript(rowPointScript);
+      if (!clicked) await sleep(250);
+    }
+    if (clicked) {
+      // Verify the plugin pill landed with the connector's keyword.
+      const pillDeadline = Date.now() + 5_000;
+      for (;;) {
+        const pills = (await tab.evaluateJson<string[]>(pillScript)) ?? [];
+        if (pills.some((keyword) => keyword.toLowerCase() === needle)) {
+          await tab.pressKey('Escape').catch(() => undefined);
+          return;
+        }
+        if (Date.now() >= pillDeadline) break;
+        await sleep(200);
+      }
+    }
+    await tab.pressKey('Escape').catch(() => undefined);
+    await sleep(400);
   }
+  // Screenshot the failure scene — the + menu's DOM shape varies and text
+  // dumps keep matching sidebar previews instead of the menu.
+  let screenshotNote = '';
+  const shot = await tab.screenshotBase64().catch(() => undefined);
+  if (shot) {
+    const { writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    writeFileSync(join(process.cwd(), 'tmp-attach-fail.png'), Buffer.from(shot, 'base64'));
+    screenshotNote = ' Scene saved to tmp-attach-fail.png.';
+  }
+  throw Object.assign(
+    new Error(
+      `The ChatGPT composer "+" menu did not attach "${connectorName}".${screenshotNote} ` +
+        'Check that the connector exists with this exact name in ChatGPT Settings → Connectors (developer mode), and that this is a plain (non-temporary) conversation.',
+    ),
+    { status: 400 },
+  );
 }
 
 /** Phase-1 send step (form-scoped click + submission evidence), shared shape. */
@@ -374,11 +441,14 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
     const composerSelector = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
     const sendSelector = '[data-testid="send-button"]';
     const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
-    const composers = [...document.querySelectorAll(composerSelector)].filter(visible);
+    // The active composer is the one holding our prompt; stale layout copies
+    // stay empty. Picking an empty copy's send button silently no-ops.
+    const composers = [...document.querySelectorAll(composerSelector)]
+      .filter((el) => visible(el) && (el.innerText || el.textContent || '').trim().length > 0);
     const composer = composers[composers.length - 1];
     const scope = composer?.closest('form') ?? document;
     const buttons = [...scope.querySelectorAll(sendSelector)].filter(visible);
-    const button = buttons[buttons.length - 1];
+    const button = buttons[0];
     if (!button) return null;
     button.scrollIntoView({ block: 'center' });
     return new Promise((resolve) => setTimeout(() => {
@@ -402,7 +472,27 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
     }
     await sleep(250);
   }
-  throw Object.assign(new Error('ChatGPT did not accept the submitted message (no new user turn appeared)'), { status: 400 });
+  // Carry the page state at failure — "silently not submitted" has too many
+  // possible causes to debug blind.
+  const failureState = await tab.evaluateJson<string>(`(() => {
+    const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
+    const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
+    const composer = els[els.length - 1];
+    const alerts = [...document.querySelectorAll('[role="alert"], [role="status"]')]
+      .map((el) => (el.innerText || '').replace(/\\s+/g, ' ').slice(0, 120)).filter(Boolean);
+    const userTurns = document.querySelectorAll('[data-testid^="conversation-turn-"][data-turn="user"]').length;
+    return JSON.stringify({
+      url: location.href.slice(0, 70),
+      userTurns,
+      composerText: composer ? (composer.innerText || '').slice(0, 120) : null,
+      alerts: alerts.slice(0, 3),
+      bodyHead: document.body.innerText.replace(/\\s+/g, ' ').slice(-400),
+    });
+  })()`);
+  throw Object.assign(
+    new Error(`ChatGPT did not accept the submitted message (no new user turn appeared). State: ${failureState ?? '<eval failed>'}`),
+    { status: 400 },
+  );
 }
 
 async function waitForSendEnabled(tab: CdpTarget, signal: AbortSignal | undefined): Promise<boolean> {
@@ -411,11 +501,12 @@ async function waitForSendEnabled(tab: CdpTarget, signal: AbortSignal | undefine
     const composerSelector = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
     const sendSelector = '[data-testid="send-button"]';
     const visible = (el) => el.offsetParent !== null || el.getClientRects().length > 0;
-    const composers = [...document.querySelectorAll(composerSelector)].filter(visible);
+    const composers = [...document.querySelectorAll(composerSelector)]
+      .filter((el) => visible(el) && (el.innerText || el.textContent || '').trim().length > 0);
     const composer = composers[composers.length - 1];
     const scope = composer?.closest('form') ?? document;
     const buttons = [...scope.querySelectorAll(sendSelector)].filter(visible);
-    const button = buttons[buttons.length - 1];
+    const button = buttons[0];
     if (!button) return { present: false, enabled: false };
     return { present: true, enabled: !button.disabled && button.getAttribute('aria-disabled') !== 'true' };
   })()`;
