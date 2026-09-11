@@ -46,18 +46,17 @@ daemon 侧：`packages/daemon/src/commands/chatgpt-web.ts`（check/login/launch/
 | tunnel 全链路（connect+run 常驻+healthy/ready） | ✅ 真实验证 | tunnel status 全绿 |
 | MCP 子进程协议（initialize/list/call 往返） | ✅ 真实验证 | mcp-smoke 5/5（含 replyTo 修复） |
 | harness 浏览器回合（@mention→挂起→续流） | ⛔ 未验证 | 需 connector+tunnel 活着时跑（被风控打断） |
-| Electron 宿主窗口显示 | ⛔ 未验证 | 见「卡点」 |
+| Electron 宿主窗口显示 | ✅ 真实验证 | 根因 `windowsHide:true`（b44f52b）；A/B 实验枚举 HWND visible=True，用户肉眼确认窗口+example.com |
 | Electron 内 example.com 加载 | ✅ API 层验证 | 隐藏 tab 中 body 文本读回正常 |
 
 ## 4. 当前卡点（按优先级）
 
-### 卡点 A：Electron 宿主窗口不显示（最后正在解的）
+### 卡点 A：Electron 宿主窗口不显示 —— ✅ 已解决（2026-09-11 17:00）
 
-- 现象：用户自己在 PowerShell 跑 `scripts/show-electron-page.ts`，窗口不出现；API 层 BrowserWindow 创建成功、页面 visibilityState=visible、坐标正常，但 OS 窗口句柄=0
-- **最新假设（未验证完）**：交接前发现 **Claude 的 bash 会话 spawn 的 Electron 与用户桌面存在会话隔离**（我从 bash 启动的所有 GUI 用户从来看不到）；且 Claude 复现用的实例**长期存活占用 Electron 单实例锁**（main.cjs requestSingleInstanceLock），导致用户自己跑时其 Electron 秒退、脚本实际连到 Claude 侧实例
-- **交接前刚做完**：已 taskkill 全部 electron（锁释放）、已移除误加的 `disableHardwareAcceleration`（commit 31bddb3）
-- **下一步第一个动作**：让用户自己跑 `npx tsx scripts\show-electron-page.ts https://example.com`。若出窗口 → 直接 `chatgpt-web login`；若不出 → 要用户贴终端完整输出（那是最后缺失的证据）
-- **协作铁律**：所有需要"看见窗口"的步骤必须用户自己跑；Claude 每次让用户跑 Electron 相关命令前必须先 `taskkill /F /IM electron.exe` 清锁
+- **根因**：`electronHost.ts` spawn electron.exe 时 `windowsHide: true` → STARTUPINFO 带 `STARTF_USESHOWWINDOW/SW_HIDE`，Electron 尊重它，**所有** BrowserWindow（含 `show:true` 的标签窗口）都变成"真实存在、有坐标、已加载、但永远 invisible"的 HWND
+- **验证方法（可复用）**：Win32 `EnumWindows` 枚举 electron 进程顶层窗口，对照 `IsWindowVisible`/标题/rect。A/B：仅翻转该标志 → `visible=True`；用户肉眼确认窗口出现且打开 example.com。修复 commit `b44f52b`
+- 旧假设全部证伪：**不存在会话隔离**（qwinsta 只有一个交互会话，Claude 与用户同在 session 1/同一桌面）；"句柄=0" 也是该 bug 的表象
+- **协作铁律（继续有效）**：所有需要"看见窗口"的步骤必须用户自己跑；Claude 每次让用户跑 Electron 相关命令前必须先 `taskkill /F /IM electron.exe` 清锁
 
 ### 卡点 B：chatgpt.com 对该出口 IP 的新客户端做连接级风控
 
@@ -127,10 +126,12 @@ Remove-Item ~\.omnicross\chatgpt-web\DevToolsActivePort, ~\.omnicross\chatgpt-we
 10. **Python heredoc 改 TS/JS 文件**：`\\n` 会被解释成真实换行注入源码（本 session 因此坏过 3 个文件）。**优先用 Edit 工具**；用 python 时 split 用 `/\r?\n/` 这类正则字面量而不是 `'\\n'`
 11. **Chrome 后台标签页吞掉合成 Input 事件**（需 bringToFront）；fetch guard（Fetch.failRequest 拦调试端口探测）已内置
 12. **风控敏感**：失败重试连环触发人机验证/连接级 RST。任何浏览器侧验证坚持"单次尝试、失败即停、本地分析后再动"
+13. **spawn GUI 进程绝不能 `windowsHide: true`**（win32）：它把 `SW_HIDE` 写进 STARTUPINFO，Electron/Chromium 据此让所有窗口永不显示（进程活、页面加载、API 说 visible，屏幕上就是没有）。诊断此类问题用 Win32 EnumWindows 看 `IsWindowVisible`，别信 DOM 的 visibilityState。附带发现：`harness.test.ts` 导入 `mcpServer.ts` 会触发其顶层 `main()` 的 process.exit（vitest 报 unhandled error，63 测试本身全过），待后续把 main() 改成显式 entry 检测
 
 ## 8. 提交历史（本分支，新→旧）
 
 ```
+b44f52b fix(chatgpt-web): spawn Electron host without windowsHide   ← 卡点 A 根因修复
 31bddb3 fix(chatgpt-web): drop disableHardwareAcceleration from the Electron host
 e21a398 fix(chatgpt-web): visible tabs on demand + standalone demo script
 4c5e4f5 fix(chatgpt-web): Electron host tab lifecycle + control endpoint hardening
@@ -150,8 +151,8 @@ e096347 feat(chatgpt-web): experimental ChatGPT Web (incl. Pro) bridge for Codex
 
 ## 9. 下一步任务清单（建议顺序）
 
-1. **[卡点 A]** 用户自己跑 show-electron-page.ts 确认窗口显示（先清 electron 锁）→ login → 能力探测应显示 Sol+Pro
-2. **[卡点 B]** 换代理节点后：`chatgpt-web launch --browser-host=electron --model chatgpt-web/light` 跑 browser-only 回合（Electron 宿主首验）
+1. **[卡点 A 已解决]** 用户自己跑 `npx tsx packages\daemon\src\cli.ts chatgpt-web login` 在 Electron 宿主里登录 ChatGPT（主窗口当前标题「开始使用 | ChatGPT」= 未登录；本机当前能连通 chatgpt.com，风控未发作）→ 之后 `check` 能力探测应显示 Sol+Pro
+2. **[卡点 B]** `chatgpt-web launch --browser-host=electron --model chatgpt-web/light` 跑 browser-only 回合（Electron 宿主首验；chatgpt.com 此刻可达，可直接试，失败即停）
 3. harness 浏览器端联调：`launch --browser-host=electron --harness --model chatgpt-web/pro` + `scripts/chatgpt-web-harness-roundtrip.ts`。重点观察 @mention 菜单选择（attachConnectorMention 的行匹配未实战过）
 4. 提醒用户轮换 platform API key（已暴露于聊天记录）
 5. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
