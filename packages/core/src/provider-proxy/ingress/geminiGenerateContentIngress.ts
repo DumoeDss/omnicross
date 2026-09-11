@@ -51,6 +51,8 @@ import type { ProviderProxyDeps, RouteContext } from '../types';
 import { recordGeminiNonStreamUsage, recordGeminiStreamUsage } from '../usage/recordGeminiUsage';
 
 import {
+  type ByoRouteActivityMeta,
+  buildByoRouteActivityMeta,
   getGeminiEndpointTransformer,
   getSharedExecutor,
   relayResponse,
@@ -117,6 +119,10 @@ interface GeminiCallPlan {
   readonly isStream: boolean;
   readonly resolveUrl: (config: RequestConfig) => string;
   readonly upstreamUrl: string;
+  /** Route-activity metadata (provider row id + live key-id resolver). */
+  readonly byoActivity?: ByoRouteActivityMeta;
+  /** The internal route session id — the activity session key (pool binding id). */
+  readonly byoSessionId?: string | null;
 }
 
 /**
@@ -267,6 +273,8 @@ async function buildByoPlan(
     isStream,
     resolveUrl: (config) => (config.url instanceof URL ? config.url.toString() : byoUrl),
     upstreamUrl: byoUrl,
+    byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
+    byoSessionId: route.sessionId ?? null,
   };
 }
 
@@ -315,7 +323,18 @@ async function runPipeline(
       return fetchUpstream(
         url,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { providerId: 'byo' },
+        {
+          providerId: 'byo',
+          routeActivity: {
+            providerId: plan.byoActivity?.providerId ?? transformerProvider.name,
+            credentialKind: 'provider-key',
+            keyId: plan.byoActivity?.resolveKeyId(),
+            endpoint: 'generateContent',
+            sessionKey: plan.byoSessionId || undefined,
+            sessionSource: plan.byoSessionId ? 'route-session-id' : 'none',
+            model: resolvedModel,
+          },
+        },
       ).then((r) => {
         rawStatus = r.status;
         return r;

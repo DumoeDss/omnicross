@@ -81,6 +81,7 @@ import {
 import { markCodexUsageLimitExhaustion } from './codexUsageLimitDetection';
 import {
   aggregateAnthropicSseToJsonBody,
+  buildByoRouteActivityMeta,
   cancelDiscardedResponse,
   relayResponse,
   resolvePoolBoundKey,
@@ -440,6 +441,8 @@ export async function buildByoPlan(
     provider,
     apiKey,
     extendedContextEnabled: route.anthropicSdkHints?.extendedContext?.enabled ?? false,
+    byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
+    byoSessionId: route.sessionId ?? null,
   };
 }
 
@@ -463,7 +466,7 @@ export async function runSameFormatFetch(
   options: AnthropicByoOptions,
   keyOverride?: string,
   urlOverride?: string,
-): Promise<{ response: Response; rawStatus: number | null }> {
+): Promise<{ response: Response; rawStatus: number | null; activityRecordId?: string }> {
   const { provider, apiKey, resolvedModel, isStream, extendedContextEnabled } = plan;
   // BYO-only path: `buildByoPlan` always populates `provider`/`apiKey` (the
   // `runPipelineWithPoolReporting` dispatcher only calls this on a BYO plan).
@@ -504,12 +507,31 @@ export async function runSameFormatFetch(
   const url = urlOverride ?? buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);
   // upstream-proxy: BYO egress honors the global/provider proxy (providerId 'byo').
+  // Route-activity row id for THIS attempt — the in-band overload observer seam.
+  let activityRecordId: string | undefined;
   const response = await fetchUpstream(
     url,
     { method: 'POST', headers, body: bodyToSend, signal: options.signal },
-    { providerId: 'byo' },
+    {
+      providerId: 'byo',
+      routeActivity: {
+        providerId: plan.byoActivity?.providerId ?? provider.name,
+        credentialKind: 'provider-key',
+        // LIVE resolution: a pool rebind retry re-invokes this fetch, and the
+        // binding has already rotated, so the retried attempt attributes the
+        // NEW key. `keyOverride` is a key STRING (never recorded).
+        keyId: plan.byoActivity?.resolveKeyId(),
+        endpoint: 'messages',
+        sessionKey: plan.byoSessionId || undefined,
+        sessionSource: plan.byoSessionId ? 'route-session-id' : 'none',
+        model: resolvedModel,
+        onRecorded: (record) => {
+          activityRecordId = record.id;
+        },
+      },
+    },
   );
-  return { response, rawStatus: response.status };
+  return { response, rawStatus: response.status, activityRecordId };
 }
 
 /**

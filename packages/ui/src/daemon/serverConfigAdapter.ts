@@ -496,6 +496,7 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       if (query.providerId) params.set('providerId', query.providerId);
       if (query.accountId) params.set('accountId', query.accountId);
       if (query.sessionKey) params.set('sessionKey', query.sessionKey);
+      if (query.credentialKind) params.set('credentialKind', query.credentialKind);
       if (typeof query.limit === 'number') params.set('limit', String(query.limit));
       const qs = params.toString();
       try {

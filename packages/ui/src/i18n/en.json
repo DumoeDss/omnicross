@@ -542,7 +542,7 @@
   },
   "routeActivity": {
     "title": "Routing activity",
-    "description": "Live account routing and server-overload trends — metadata only."
+    "description": "Live credential routing (subscription accounts + provider API keys) and server-overload trends — metadata only."
   },
   "overview": {
     "eyebrow": "Local request exchange",
@@ -722,13 +722,13 @@
       "activity": "Routing activity"
     },
     "activity": {
-      "title": "Recent account routing",
-      "description": "See which managed account actually served each subscription request. Session identifiers are hashed; prompts, headers and tokens are never collected.",
+      "title": "Recent routing",
+      "description": "See which credential actually served each request — subscription pool accounts and BYO provider API keys on one timeline. Session identifiers are hashed; prompts, headers, tokens and key strings are never collected.",
       "metadataOnly": "Metadata only",
       "live": "Live",
       "paused": "Paused",
       "sessions": "Sessions in view",
-      "switches": "Account switches",
+      "switches": "Credential switches",
       "issues": "Upstream issues",
       "overloadCount": "Server overloads",
       "overloaded": "overloaded",
@@ -740,28 +740,42 @@
       "overloadJustNow": "just now",
       "overloadMinsAgo": "{{n}} min ago",
       "overloadHoursAgo": "{{n}} h ago",
-      "search": "Search account, model or session hash…",
+      "search": "Search account, key, model or session hash…",
       "providerFilter": "Filter by provider",
       "outcomeFilter": "Filter by outcome",
+      "kindFilter": "Filter by credential kind",
       "allProviders": "All providers",
       "session": "session",
       "switched": "switched",
+      "keyPrefix": "key",
+      "providerKey": "provider key",
       "networkError": "Network error",
       "unavailable": "Routing activity is unavailable",
-      "unavailableHint": "Update or reconnect the daemon, then refresh this view. Existing account routing continues normally.",
-      "empty": "No account routing activity yet",
-      "emptyHint": "Start a Codex or Claude Code request through a subscription route. New activity appears here without enabling request-body capture.",
+      "unavailableHint": "Update or reconnect the daemon, then refresh this view. Existing routing continues normally.",
+      "empty": "No routing activity yet",
+      "emptyHint": "Start a request through a subscription route or a BYO provider. New activity appears here without enabling request-body capture.",
       "filter": {
         "all": "All outcomes",
         "success": "Successful",
         "issues": "Issues",
-        "switched": "Account switched"
+        "switched": "Credential switched"
+      },
+      "kind": {
+        "all": "All credentials",
+        "account": "Accounts",
+        "key": "API keys"
       },
       "affinity": {
         "new": "new session",
-        "sticky": "same account",
-        "switched": "account changed",
-        "untracked": "no session key"
+        "untracked": "no session key",
+        "account": {
+          "sticky": "same account",
+          "switched": "account changed"
+        },
+        "key": {
+          "sticky": "same key",
+          "switched": "key rotated"
+        }
       }
     },
     "downstreams": {

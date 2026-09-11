@@ -542,7 +542,7 @@
   },
   "routeActivity": {
     "title": "路由活動",
-    "description": "即時帳號路由與伺服器過載趨勢 —— 僅為元資料，不收集提示詞。"
+    "description": "即時憑證路由（訂閱帳號與 Provider API Key）與伺服器過載趨勢 —— 僅為元資料，不收集提示詞。"
   },
   "overview": {
     "eyebrow": "本機請求交換台",
@@ -796,6 +796,14 @@
       "openFromUpstreams": "請在「下游與路由」中管理使用此帳號的路由。"
     },
     "activity": {
+      "title": "最近路由",
+      "description": "查看每次請求實際使用的憑證 —— 訂閱帳號池與 BYO Provider API Key 匯聚在同一條時間線上。工作階段識別只保留雜湊，不採集提示詞、請求頭、權杖或金鑰明文。",
+      "metadataOnly": "僅中繼資料",
+      "live": "即時",
+      "paused": "已暫停",
+      "sessions": "檢視中的工作階段",
+      "switches": "憑證切換",
+      "issues": "上游異常",
       "overloadCount": "伺服器過載",
       "overloaded": "已過載",
       "overloadTrend": "伺服器過載趨勢",
@@ -805,7 +813,44 @@
       "overloadTotal": "總計",
       "overloadJustNow": "剛剛",
       "overloadMinsAgo": "{{n}} 分鐘前",
-      "overloadHoursAgo": "{{n}} 小時前"
+      "overloadHoursAgo": "{{n}} 小時前",
+      "search": "搜尋帳號、金鑰、模型或工作階段雜湊…",
+      "providerFilter": "按提供方篩選",
+      "outcomeFilter": "按結果篩選",
+      "kindFilter": "按憑證類型篩選",
+      "allProviders": "全部提供方",
+      "session": "工作階段",
+      "switched": "已切換",
+      "keyPrefix": "金鑰",
+      "providerKey": "Provider 金鑰",
+      "networkError": "網路錯誤",
+      "unavailable": "路由活動資料不可用",
+      "unavailableHint": "請更新或重新連線 daemon，然後重新整理此檢視；現有路由不會因此中斷。",
+      "empty": "還沒有路由活動",
+      "emptyHint": "透過訂閱路由或 BYO Provider 發起一次請求；無需開啟正文擷取，新活動會自動出現在這裡。",
+      "filter": {
+        "all": "全部結果",
+        "success": "成功",
+        "issues": "異常",
+        "switched": "憑證切換"
+      },
+      "kind": {
+        "all": "全部憑證",
+        "account": "帳號",
+        "key": "API Key"
+      },
+      "affinity": {
+        "new": "新工作階段",
+        "untracked": "無工作階段識別",
+        "account": {
+          "sticky": "保持帳號",
+          "switched": "帳號已變更"
+        },
+        "key": {
+          "sticky": "保持金鑰",
+          "switched": "金鑰已輪替"
+        }
+      }
     }
   },
   "images": {

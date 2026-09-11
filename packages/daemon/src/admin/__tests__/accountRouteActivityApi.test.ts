@@ -63,4 +63,61 @@ describe('account route activity admin projection', () => {
     });
     expect(JSON.stringify(out.json())).not.toContain('prompt');
   });
+
+  it('filters by credentialKind so the UI can split accounts from provider keys', async () => {
+    const store = getSharedAccountRouteActivity();
+    store.record({
+      providerId: 'codex',
+      accountId: 'account-a',
+      endpoint: 'responses',
+      sessionKey: 'abc12345',
+      sessionSource: 'session-header',
+      model: 'gpt-5-codex',
+      status: 200,
+      durationMs: 20,
+      ts: 1_000,
+    });
+    store.record({
+      providerId: 'deepseek',
+      credentialKind: 'provider-key',
+      keyId: 'key-pool-1',
+      endpoint: 'chat',
+      sessionKey: 'outbound:key-pool-1',
+      sessionSource: 'route-session-id',
+      model: 'deepseek-v3',
+      status: 200,
+      durationMs: 40,
+      ts: 2_000,
+    });
+
+    const run = async (query: string): Promise<unknown> => {
+      const req = {
+        method: 'GET',
+        url: `/admin/api/accounts/route-activity${query}`,
+      } as http.IncomingMessage;
+      const out = response();
+      await handleAdminApi(req, out.res, '/admin/api/accounts/route-activity', {} as AdminApiDeps);
+      expect(out.status()).toBe(200);
+      return out.json();
+    };
+
+    // Unfiltered: both kinds share the timeline.
+    expect(await run('')).toMatchObject({ records: expect.arrayContaining([
+      expect.objectContaining({ credentialKind: 'provider-key', keyId: 'key-pool-1' }),
+      expect.objectContaining({ accountId: 'account-a', credentialKind: 'subscription-account' }),
+    ]) });
+    // Kind-filtered: exactly one row each way. Key ids are metadata; key
+    // STRINGS never appear (they never enter the store at all).
+    expect(await run('?credentialKind=provider-key')).toMatchObject({
+      records: [expect.objectContaining({ providerId: 'deepseek', keyId: 'key-pool-1' })],
+    });
+    expect(await run('?credentialKind=subscription-account')).toMatchObject({
+      records: [expect.objectContaining({ accountId: 'account-a' })],
+    });
+    // An unknown kind value is ignored (both rows) rather than rejected.
+    expect(await run('?credentialKind=nonsense')).toMatchObject({ records: expect.arrayContaining([
+      expect.objectContaining({ accountId: 'account-a' }),
+      expect.objectContaining({ keyId: 'key-pool-1' }),
+    ]) });
+  });
 });

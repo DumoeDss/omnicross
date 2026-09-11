@@ -67,6 +67,8 @@ import {
 } from '../usage/recordChatCompletionsUsage';
 
 import {
+  type ByoRouteActivityMeta,
+  buildByoRouteActivityMeta,
   getSharedExecutor,
   relayResponse,
   resolvePoolBoundKey,
@@ -125,6 +127,12 @@ interface ChatCallPlan {
   readonly proxyProviderId: string;
   /** True for the subscription plan (drives the 401-refresh-retry wrapper). */
   readonly isSubscription: boolean;
+  /** BYO-only: route-activity metadata (provider row id + live key-id resolver). */
+  readonly byoActivity?: ByoRouteActivityMeta;
+  /** Route-activity session key fallback: the internal route session id (the
+   *  ApiKeyPool binding id). This ingress derives no content session key, so
+   *  BOTH kinds group their affinity rows by it. */
+  readonly routeSessionId?: string | null;
 }
 
 /**
@@ -276,6 +284,8 @@ async function buildByoPlan(
     upstreamUrl: byoUrl,
     proxyProviderId: 'byo',
     isSubscription: false,
+    byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
+    routeSessionId: route.sessionId ?? null,
   };
 }
 
@@ -363,6 +373,7 @@ async function buildSubscriptionPlan(
     upstreamUrl,
     proxyProviderId: providerId,
     isSubscription: true,
+    routeSessionId: route.sessionId ?? null,
   };
 }
 
@@ -419,11 +430,36 @@ async function runPipeline(
     fetchFn: (url, headers, body) => {
       console.log(`[ProviderProxy:chat] -> ${url} model=${resolvedModel} stream=${isStream}`);
       // upstream-proxy: chat egress honors the global/provider (+ per-account for
-      // a subscription) proxy.
+      // a subscription) proxy. Route-activity row (account for a subscription
+      // plan, provider key for BYO) — this ingress derives no content session
+      // key, so both kinds group by the route session id.
+      const sessionKey = plan.routeSessionId || undefined;
       return fetchUpstream(
         url,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { providerId: plan.proxyProviderId, accountId: proxyAccountId },
+        {
+          providerId: plan.proxyProviderId,
+          accountId: proxyAccountId,
+          routeActivity: plan.isSubscription
+            ? {
+                providerId: plan.proxyProviderId,
+                credentialKind: 'subscription-account',
+                accountId: proxyAccountId,
+                endpoint: 'chat',
+                sessionKey,
+                sessionSource: sessionKey ? 'route-session-id' : 'none',
+                model: resolvedModel,
+              }
+            : {
+                providerId: plan.byoActivity?.providerId ?? transformerProvider.name,
+                credentialKind: 'provider-key',
+                keyId: plan.byoActivity?.resolveKeyId(),
+                endpoint: 'chat',
+                sessionKey,
+                sessionSource: sessionKey ? 'route-session-id' : 'none',
+                model: resolvedModel,
+              },
+        },
       ).then((r) => {
         rawStatus = r.status;
         return r;

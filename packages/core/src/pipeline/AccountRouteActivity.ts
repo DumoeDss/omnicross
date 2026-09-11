@@ -1,15 +1,26 @@
 /**
- * Bounded, metadata-only history of subscription account routing decisions.
+ * Bounded, metadata-only history of upstream routing decisions.
  *
  * Records are created at the shared upstream fetch seam, after authentication has
- * reported the account that will actually serve the request. The store is
- * intentionally process-local: it is useful for live operator diagnostics without
- * turning session/account affinity into a durable tracking database.
+ * reported the credential that will actually serve the request. TWO credential
+ * kinds share one timeline: subscription POOL ACCOUNTS (`credentialKind:
+ * 'subscription-account'`, identified by `accountId`) and BYO provider API KEYS
+ * (`credentialKind: 'provider-key'`, identified by `keyId` when the ApiKeyPool
+ * bound one). The store is intentionally process-local: it is useful for live
+ * operator diagnostics without turning session/account affinity into a durable
+ * tracking database.
  */
 
 export const ACCOUNT_ROUTE_ACTIVITY_LIMIT = 300;
 
-export type AccountRouteEndpoint = 'responses' | 'messages';
+export type AccountRouteEndpoint = 'responses' | 'messages' | 'chat' | 'generateContent';
+
+/**
+ * Which kind of upstream credential a row attributes. Absent on records minted
+ * by older callers — those are subscription-account rows (the historical only
+ * kind), so the DEFAULT is `'subscription-account'`.
+ */
+export type RouteCredentialKind = 'subscription-account' | 'provider-key';
 
 export type AccountRouteSessionSource =
   | 'session-header'
@@ -19,13 +30,26 @@ export type AccountRouteSessionSource =
   | 'prompt-cache-key'
   | 'content-fingerprint'
   | 'api-key-fallback'
+  | 'route-session-id'
   | 'none';
 
 export type AccountRouteAffinity = 'new' | 'sticky' | 'switched' | 'untracked';
 
 export interface AccountRouteActivityInput {
+  /**
+   * Display provider id: a subscription provider id (`claude`/`codex`/…) for
+   * account rows, the PROVIDER ROW id for provider-key rows. This is NOT the
+   * egress proxy key (`'byo'`) — it must be the id an operator recognizes.
+   */
   providerId: string;
-  accountId: string;
+  /** Which kind of credential served the request. Defaults to
+   *  `'subscription-account'` for back-compat with older callers. */
+  credentialKind?: RouteCredentialKind;
+  /** Subscription pool account id (required for `subscription-account` rows). */
+  accountId?: string;
+  /** ApiKeyPool key id when known (provider-key rows). Metadata only — the key
+   *  STRING never enters this store. */
+  keyId?: string;
   endpoint: AccountRouteEndpoint;
   sessionKey?: string;
   sessionSource: AccountRouteSessionSource;
@@ -47,12 +71,15 @@ export interface AccountRouteActivityRecord extends AccountRouteActivityInput {
   ts: number;
   affinity: AccountRouteAffinity;
   previousAccountId?: string;
+  /** For `provider-key` rows whose session switched keys (pool rotation). */
+  previousKeyId?: string;
 }
 
 export interface AccountRouteActivityQuery {
   providerId?: string;
   accountId?: string;
   sessionKey?: string;
+  credentialKind?: RouteCredentialKind;
   limit?: number;
 }
 
@@ -68,26 +95,44 @@ export class AccountRouteActivityStore {
   record(input: AccountRouteActivityInput): AccountRouteActivityRecord {
     const ts = input.ts ?? Date.now();
     const sessionKey = input.sessionKey?.trim() || undefined;
+    const credentialKind = input.credentialKind ?? 'subscription-account';
+    // The identity affinity compares — the account id, or the pool key id.
+    // Empty when a provider-key row had no resolvable key id (non-pool BYO):
+    // such a provider serves with one static key, so `sticky` remains truthful.
+    const credentialId = credentialKind === 'provider-key'
+      ? input.keyId ?? ''
+      : input.accountId ?? '';
     const previous = sessionKey
       ? this.records.find((record) =>
           record.providerId === input.providerId &&
           record.endpoint === input.endpoint &&
           record.sessionKey === sessionKey)
       : undefined;
+    const previousId = previous
+      ? (previous.credentialKind ?? 'subscription-account') === 'provider-key'
+        ? previous.keyId ?? ''
+        : previous.accountId ?? ''
+      : undefined;
     const affinity: AccountRouteAffinity = !sessionKey
       ? 'untracked'
       : !previous
         ? 'new'
-        : previous.accountId === input.accountId
+        : previousId === credentialId
           ? 'sticky'
           : 'switched';
     const record: AccountRouteActivityRecord = {
       ...input,
+      credentialKind,
       id: `${ts.toString(36)}-${(this.sequence++).toString(36)}`,
       ts,
       sessionKey,
       affinity,
-      ...(affinity === 'switched' && previous ? { previousAccountId: previous.accountId } : {}),
+      ...(affinity === 'switched' && previous && credentialKind === 'subscription-account' && previous.accountId
+        ? { previousAccountId: previous.accountId }
+        : {}),
+      ...(affinity === 'switched' && previous && credentialKind === 'provider-key' && previous.keyId
+        ? { previousKeyId: previous.keyId }
+        : {}),
     };
     this.records.unshift(record);
     if (this.records.length > ACCOUNT_ROUTE_ACTIVITY_LIMIT) {
@@ -104,6 +149,7 @@ export class AccountRouteActivityStore {
       .filter((record) => !providerId || record.providerId === providerId)
       .filter((record) => !accountId || record.accountId === accountId)
       .filter((record) => !sessionKey || record.sessionKey === sessionKey)
+      .filter((record) => !query.credentialKind || (record.credentialKind ?? 'subscription-account') === query.credentialKind)
       .slice(0, boundedLimit(query.limit))
       .map((record) => ({ ...record }));
   }

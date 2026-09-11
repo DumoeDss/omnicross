@@ -22,24 +22,37 @@ export type AccountRouteSessionSource =
   | 'prompt-cache-key'
   | 'content-fingerprint'
   | 'api-key-fallback'
+  | 'route-session-id'
   | 'none';
 
 export type AccountRouteAffinity = 'new' | 'sticky' | 'switched' | 'untracked';
 
-/** Metadata-only recent subscription routing record from the daemon. */
+/** Which kind of upstream credential served the row. Absent on older daemons —
+ *  those only ever recorded subscription-account rows (the default). */
+export type RouteCredentialKind = 'subscription-account' | 'provider-key';
+
+/** Metadata-only recent upstream routing record from the daemon — a
+ *  subscription pool account OR a BYO provider API key (id only, never the key
+ *  string). */
 export interface AccountRouteActivityRecord {
   id: string;
   ts: number;
   durationMs: number;
   providerId: string;
-  accountId: string;
-  endpoint: 'responses' | 'messages';
+  credentialKind?: RouteCredentialKind;
+  /** Subscription account id (subscription-account rows). */
+  accountId?: string;
+  /** ApiKeyPool key id (provider-key rows, when the pool bound one). */
+  keyId?: string;
+  endpoint: 'responses' | 'messages' | 'chat' | 'generateContent';
   sessionKey?: string;
   sessionSource: AccountRouteSessionSource;
   model: string;
   status: number;
   affinity: AccountRouteAffinity;
   previousAccountId?: string;
+  /** For provider-key rows whose session switched keys (pool rotation). */
+  previousKeyId?: string;
   /**
    * Post-hoc error observed inside the (200) stream — e.g. a Codex
    * `response.failed` server-overload event. Present only when the daemon
