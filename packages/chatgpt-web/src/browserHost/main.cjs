@@ -6,10 +6,9 @@
 // - One persistent partition ("persist:chatgpt") keeps the ChatGPT login.
 // - userData is pinned into --data-dir so Chromium writes DevToolsActivePort
 //   there and the bridge discovers the CDP endpoint without extra plumbing.
-// - Default window is HIDDEN background automation surface; --login/--show
+// - Default window is a hidden background automation surface; --login/--show
 //   makes it visible for interactive sign-in or watching turns.
 const { app, BrowserWindow } = require('electron');
-const path = require('node:path');
 
 function argValue(name) {
   const arg = process.argv.find((item) => item.startsWith(`--${name}=`));
@@ -22,6 +21,8 @@ const show = login || process.argv.includes('--show');
 
 app.setPath('userData', dataDir);
 app.commandLine.appendSwitch('remote-allow-origins', '*');
+// Blank-window hardening on Windows GPU/driver combos: software rasterize.
+app.disableHardwareAcceleration();
 
 const URL = 'https://chatgpt.com';
 
@@ -29,6 +30,8 @@ app.whenReady().then(() => {
   const win = new BrowserWindow({
     width: 1280,
     height: 900,
+    // Create visible windows as visible from the start — a hidden window
+    // promoted with showInactive() can stay unpainted on some platforms.
     show,
     title: 'OmniCross · ChatGPT Web (automation)',
     webPreferences: {
@@ -36,10 +39,12 @@ app.whenReady().then(() => {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // The automation surface must keep rendering/painting even when
+      // minimized or occluded, or streaming turns stall.
+      backgroundThrottling: false,
+      paintWhenInitiallyHidden: true,
     },
   });
-  // Headless-safe: never steal focus from the user's work; content stays
-  // renderable while minimized or occluded.
   if (show) {
     win.showInactive();
   }
