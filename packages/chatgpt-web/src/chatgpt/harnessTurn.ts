@@ -383,7 +383,7 @@ async function attachConnectorViaPlusMenu(
     return pills;
   })()`;
 
-  const deadline = Date.now() + 20_000;
+  const deadline = Date.now() + 60_000;
   const composerEmptyScript = `(() => {
     const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
     const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
@@ -412,6 +412,16 @@ async function attachConnectorViaPlusMenu(
     await sleep(200);
     await tab.trustedClickScript(plusPointScript);
     await sleep(600);
+    let rowClicked = false;
+    // The connector row comes from a separate developer-connector catalog
+    // fetch — it renders seconds after the menu's built-in apps, or sometimes
+    // not at all on a slow fetch. Stay patient: poll for the row up to 15s
+    // per menu open (rowPointScript scrollIntoViews it once it exists).
+    const rowDeadline = Date.now() + 15_000;
+    while (Date.now() < rowDeadline && !rowClicked) {
+      rowClicked = await tab.trustedClickScript(rowPointScript);
+      if (!rowClicked) await sleep(700);
+    }
     if (attempt === 0) {
       // Mid-attempt evidence: did the + menu open at all, and what would the
       // row matcher see? (Screenshot + candidates, before any Escape.)
@@ -430,15 +440,7 @@ async function attachConnectorViaPlusMenu(
       })()`).catch(() => '<eval failed>');
       onDiagnostic?.(`plus-menu-items: ${candidates}`);
     }
-    // Poll for the connector row in the opened menu and click it as soon as
-    // it appears.
-    const rowDeadline = Date.now() + 5_000;
-    let clicked = false;
-    while (Date.now() < rowDeadline && !clicked) {
-      clicked = await tab.trustedClickScript(rowPointScript);
-      if (!clicked) await sleep(250);
-    }
-    if (clicked) {
+    if (rowClicked) {
       // Verify the plugin pill landed with the connector's keyword.
       const pillDeadline = Date.now() + 5_000;
       for (;;) {
@@ -505,6 +507,11 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
   if (!clicked) throw Object.assign(new Error('ChatGPT send button was not clickable'), { status: 400 });
   input.onDiagnostic?.('send-clicked');
   const deadline = Date.now() + 60_000;
+  // Mirrors the browser-only flow's re-click-once-on-no-evidence: a single
+  // click can be swallowed by menu-teardown overlays (e.g. right after the
+  // effort slider closes).
+  let reclicked = false;
+  const reclickAt = Date.now() + 2_500;
   while (Date.now() < deadline) {
     if (input.abortSignal?.aborted) throw abortError();
     const identities = await tab.evaluateJson<ChatGptTurnIdentitiesJson>(identitiesScript());
@@ -514,6 +521,11 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
     if (accepted) {
       input.onDiagnostic?.('submission-accepted');
       return;
+    }
+    if (!reclicked && Date.now() >= reclickAt) {
+      reclicked = true;
+      await tab.trustedClickScript(sendScript).catch(() => false);
+      input.onDiagnostic?.('send-reclicked');
     }
     await sleep(250);
   }
