@@ -2386,19 +2386,26 @@ async function handleAccounts(
   deps: AdminApiDeps,
 ): Promise<void> {
   // GET /accounts/route-activity — bounded, process-local, metadata-only history
-  // of the account that actually served each subscription upstream attempt.
+  // of the credential that actually served each upstream attempt: subscription
+  // pool accounts AND BYO provider API keys (key IDS only — never key strings).
   // Session keys are already one-way hashes; prompts, headers and tokens never
-  // enter this store or response.
+  // enter this store or response. `credentialKind` filters to
+  // `subscription-account` or `provider-key` rows (absent ⇒ both).
   if (rest[0] === 'route-activity' && rest.length === 1) {
     if (method !== 'GET') {
       return writeJsonError(res, 405, `method ${method} not allowed on account route activity`);
     }
     const query = requestQuery(req);
     const parsedLimit = Number(query.get('limit') ?? '100');
+    const kindParam = query.get('credentialKind');
+    const credentialKind = kindParam === 'subscription-account' || kindParam === 'provider-key'
+      ? kindParam
+      : undefined;
     const records = getSharedAccountRouteActivity().list({
       providerId: query.get('providerId') ?? undefined,
       accountId: query.get('accountId') ?? undefined,
       sessionKey: query.get('sessionKey') ?? undefined,
+      credentialKind,
       limit: Number.isFinite(parsedLimit) ? parsedLimit : 100,
     });
     return writeJson(res, 200, {

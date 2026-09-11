@@ -50,9 +50,24 @@ import {
   type AccountRouteActivityRecord,
   type AccountRouteEndpoint,
   type AccountRouteSessionSource,
+  type RouteCredentialKind,
 } from './AccountRouteActivity';
 
 export interface AccountRouteActivityContext {
+  /**
+   * DISPLAY provider id for the row: the subscription provider id
+   * (`claude`/`codex`/…) for account rows, or the PROVIDER ROW id for BYO
+   * provider-key rows. Deliberately NOT the egress ctx's `providerId` for BYO —
+   * that is the proxy-layer key, the literal `'byo'`, useless as a row identity.
+   * Falls back to `ctx.providerId` when absent (legacy account-row callers).
+   */
+  providerId?: string;
+  /** Which credential kind served the call. Defaults `subscription-account`. */
+  credentialKind?: RouteCredentialKind;
+  /** Subscription account id — required to record an account row. */
+  accountId?: string;
+  /** ApiKeyPool key id for provider-key rows, when the pool bound one. */
+  keyId?: string;
   endpoint: AccountRouteEndpoint;
   sessionKey?: string;
   sessionSource: AccountRouteSessionSource;
@@ -310,13 +325,26 @@ export function fetchUpstream(
   // Metadata-only recent route activity. The account id comes from the auth
   // strategy's reportSelection callback, so it is the account actually used by
   // this upstream attempt rather than the mutable active/default pointer.
+  // Provider-key (BYO) rows carry a pool key id instead; the display provider
+  // id rides the activity context (the egress ctx's `providerId` is the
+  // proxy-layer key `'byo'` there, NOT a row identity).
   const activity = ctx?.routeActivity;
-  const activityStartedAt = activity && ctx?.providerId && ctx.accountId ? Date.now() : 0;
+  const activityStartedAt = activity ? Date.now() : 0;
   const recordActivity = (status: number): void => {
-    if (!activity || !ctx?.providerId || !ctx.accountId) return;
+    if (!activity) return;
+    // Legacy account-row callers omit both ids — fall back to the egress ctx,
+    // which for a subscription call carries the same values.
+    const providerId = activity.providerId ?? ctx?.providerId;
+    const accountId = activity.accountId ?? ctx?.accountId;
+    if (!providerId) return;
+    // Account rows still require an account id (half rows help nobody); a
+    // provider-key row records with or without a resolvable key id.
+    if (activity.credentialKind !== 'provider-key' && !accountId) return;
     const record = getSharedAccountRouteActivity().record({
-      providerId: ctx.providerId,
-      accountId: ctx.accountId,
+      providerId,
+      credentialKind: activity.credentialKind,
+      accountId,
+      keyId: activity.keyId,
       endpoint: activity.endpoint,
       sessionKey: activity.sessionKey,
       sessionSource: activity.sessionSource,

@@ -787,3 +787,41 @@ export async function resolvePoolBoundKey(
   }
   return resolveApiKey(resolveProviderEndpoint(provider).apiKey);
 }
+
+/**
+ * BYO route-activity metadata for one plan — everything the fetch seam needs to
+ * record a `provider-key` row, resolved LIVE at fetch time so an ApiKeyPool
+ * rebind retry (the rotated-key `runOnce(newKey)` re-run) attributes the SECOND
+ * attempt to the NEW key.
+ *
+ * `providerId` is the provider ROW id (the display identity an operator
+ * recognizes) — never the egress proxy key `'byo'`. `resolveKeyId` reads the
+ * pool's CURRENT session binding (the same map `resolvePoolBoundKey` seeds and
+ * `reportError` rotates), so it is exactly the key this attempt sends whenever
+ * the pool is bound; `undefined` for non-pool BYO (static row key) — the store
+ * then records the row without a key id and affinity treats it as one identity.
+ */
+export interface ByoRouteActivityMeta {
+  readonly providerId: string;
+  readonly resolveKeyId: () => string | undefined;
+}
+
+export function buildByoRouteActivityMeta(
+  deps: ProviderProxyDeps,
+  providerId: string,
+  sessionId: string | null | undefined,
+): ByoRouteActivityMeta {
+  return {
+    providerId,
+    resolveKeyId: () => {
+      if (!sessionId) return undefined;
+      const pool = deps.apiKeyPool;
+      if (!pool || typeof pool.getKeyIdForSession !== 'function') return undefined;
+      try {
+        return pool.getKeyIdForSession(providerId, sessionId) ?? undefined;
+      } catch {
+        return undefined;
+      }
+    },
+  };
+}

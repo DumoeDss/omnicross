@@ -19,6 +19,22 @@ function input(accountId: string, sessionKey?: string, ts = 1_000) {
   };
 }
 
+/** A BYO provider-key row — same store, credential identified by pool key id. */
+function keyInput(keyId: string | undefined, sessionKey?: string, ts = 1_000) {
+  return {
+    providerId: 'deepseek',
+    credentialKind: 'provider-key' as const,
+    keyId,
+    endpoint: 'chat' as const,
+    sessionKey,
+    sessionSource: sessionKey ? 'route-session-id' as const : 'none' as const,
+    model: 'deepseek-v3',
+    status: 200,
+    durationMs: 34,
+    ts,
+  };
+}
+
 describe('AccountRouteActivityStore', () => {
   it('classifies new, sticky, switched and untracked attempts', () => {
     const store = new AccountRouteActivityStore();
@@ -29,6 +45,54 @@ describe('AccountRouteActivityStore', () => {
       previousAccountId: 'account-a',
     });
     expect(store.record(input('account-b', undefined, 4_000)).affinity).toBe('untracked');
+  });
+
+  it('defaults absent credentialKind to subscription-account (back-compat)', () => {
+    const store = new AccountRouteActivityStore();
+    const legacy = store.record(input('account-a', 'session-a'));
+    expect(legacy.credentialKind).toBe('subscription-account');
+  });
+
+  it('tracks provider-key rows and key rotation within one session', () => {
+    const store = new AccountRouteActivityStore();
+    expect(store.record(keyInput('key-1', 'session-k')).affinity).toBe('new');
+    expect(store.record(keyInput('key-1', 'session-k', 2_000))).toMatchObject({
+      affinity: 'sticky',
+      credentialKind: 'provider-key',
+    });
+    // Pool rotated the session to another key — switched, with the PREVIOUS key id.
+    expect(store.record(keyInput('key-2', 'session-k', 3_000))).toMatchObject({
+      affinity: 'switched',
+      previousKeyId: 'key-1',
+    });
+    // No session key ⇒ no affinity tracking, exactly like account rows.
+    expect(store.record(keyInput('key-2', undefined, 4_000)).affinity).toBe('untracked');
+  });
+
+  it('treats keyless provider-key rows as one identity (static row key ⇒ sticky)', () => {
+    const store = new AccountRouteActivityStore();
+    store.record(keyInput(undefined, 'session-s'));
+    const again = store.record(keyInput(undefined, 'session-s', 2_000));
+    expect(again.affinity).toBe('sticky');
+    expect(again.keyId).toBeUndefined();
+  });
+
+  it('filters by credentialKind without breaking the legacy queries', () => {
+    const store = new AccountRouteActivityStore();
+    store.record(input('account-a', 'session-a'));
+    store.record(keyInput('key-1', 'session-k', 2_000));
+    expect(store.list()).toHaveLength(2);
+    expect(store.list({ credentialKind: 'subscription-account' })).toHaveLength(1);
+    expect(store.list({ credentialKind: 'provider-key' })).toHaveLength(1);
+    expect(store.list({ credentialKind: 'provider-key' })[0]).toMatchObject({
+      providerId: 'deepseek',
+      keyId: 'key-1',
+      endpoint: 'chat',
+    });
+    // A missing credentialKind on a stored row still matches the account filter.
+    expect(store.list({ credentialKind: 'subscription-account' })[0]).toMatchObject({
+      accountId: 'account-a',
+    });
   });
 
   it('is bounded, newest-first, filterable and copy-safe', () => {

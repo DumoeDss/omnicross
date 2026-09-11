@@ -119,6 +119,69 @@ describe('fetchUpstream', () => {
     expect(JSON.stringify(records)).not.toContain('SENTINEL-PROMPT');
   });
 
+  it('records a provider-key (BYO) row with the provider ROW id, not the byo proxy key', async () => {
+    await fetchUpstream(
+      'https://api.deepseek.com/chat/completions',
+      { method: 'POST', body: '{"prompt":"SENTINEL-BYO-PROMPT"}' },
+      {
+        // The egress ctx keeps the proxy-layer key; the DISPLAY id rides the
+        // activity context — a BYO row must never surface as providerId 'byo'.
+        providerId: 'byo',
+        routeActivity: {
+          providerId: 'deepseek',
+          credentialKind: 'provider-key',
+          keyId: 'key-pool-1',
+          endpoint: 'chat',
+          sessionKey: 'outbound:key-pool-1',
+          sessionSource: 'route-session-id',
+          model: 'deepseek-v3',
+        },
+      },
+    );
+
+    const records = getSharedAccountRouteActivity().list();
+    expect(records).toEqual([
+      expect.objectContaining({
+        providerId: 'deepseek',
+        credentialKind: 'provider-key',
+        keyId: 'key-pool-1',
+        endpoint: 'chat',
+        sessionKey: 'outbound:key-pool-1',
+        status: 200,
+        affinity: 'new',
+      }),
+    ]);
+    // The key STRING never rides the egress ctx here and must not appear in the
+    // store's serialization; neither must the request content.
+    expect(JSON.stringify(records)).not.toContain('SENTINEL-BYO-PROMPT');
+    expect(records[0]?.accountId).toBeUndefined();
+  });
+
+  it('records a provider-key row without a key id (static row key) as provider-key kind', async () => {
+    await fetchUpstream(
+      'https://api.deepseek.com/chat/completions',
+      { method: 'POST' },
+      {
+        providerId: 'byo',
+        routeActivity: {
+          providerId: 'deepseek',
+          credentialKind: 'provider-key',
+          endpoint: 'chat',
+          sessionSource: 'none',
+          model: 'deepseek-v3',
+        },
+      },
+    );
+    expect(getSharedAccountRouteActivity().list()).toEqual([
+      expect.objectContaining({
+        providerId: 'deepseek',
+        credentialKind: 'provider-key',
+        keyId: undefined,
+        affinity: 'untracked',
+      }),
+    ]);
+  });
+
   // ---- Failed-attempt recording: who withdrew the request decides ----------
   //
   // A rejected upstream call normally records a `status: 0` row, which the

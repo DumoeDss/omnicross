@@ -412,11 +412,13 @@ export interface AgentApiServiceApi {
     to?: number;
     limit?: number;
   }): Promise<AuditRecord[]>;
-  /** Read process-local, metadata-only subscription account routing activity. */
+  /** Read process-local, metadata-only upstream routing activity — subscription
+   *  accounts and BYO provider keys (key ids only) on one timeline. */
   queryAccountRouteActivity(query?: {
     providerId?: string;
     accountId?: string;
     sessionKey?: string;
+    credentialKind?: 'subscription-account' | 'provider-key';
     limit?: number;
   }): Promise<AccountRouteActivityResponse>;
   /** Read process-local, metadata-only per-account server-overload tally. */
