@@ -1032,7 +1032,14 @@
         "count": "Bound to {{count}} downstreams",
         "empty": "No downstream is bound",
         "manage": "Manage downstream bindings",
-        "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes."
+        "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes.",
+        "bindUpstream": {
+          "title": "Bind upstream directly",
+          "placeholder": "Pick an upstream resource…",
+          "add": "Bind",
+          "protocols": "Creates passthrough routes for:",
+          "hint": "One click creates passthrough routes from this key to the selected upstream across every protocol it can serve; edit or remove them later under Upstreams and routes."
+        }
       },
       "integrations": {
         "useFor": "Use for {{name}}",

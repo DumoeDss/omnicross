@@ -49,6 +49,8 @@ export interface UseApiServiceResult {
   config: OutboundApiServerConfig | null;
   status: OutboundApiServerStatus | null;
   keys: OutboundApiKeyInfo[];
+  /** The provider rows backing `modelOptions` (also feeds the key→upstream picker). */
+  providers: LLMProvider[];
   modelOptions: ModelRefOption[];
   /** Subscription accounts (per-provider) for the subscription-mode account picker. */
   accounts: AccountsListResponse;
@@ -480,6 +482,7 @@ export function useApiService(): UseApiServiceResult {
     config,
     status,
     keys,
+    providers,
     modelOptions,
     accounts,
     busy,

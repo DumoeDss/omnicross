@@ -44,9 +44,11 @@ function synthesizePresetRow(p: DaemonPresetView): LLMProvider {
     enabled: false,
     presetId: p.presetId,
     __preset: true,
-    // A catalog (preset) provider is BUILT-IN: it can be configured (key/enable)
-    // but NOT renamed or deleted. `isSystem` gates the rename input + delete
-    // button (ProviderDetails) and the delete guard (useProviderForm).
+    // A not-yet-added catalog preset is BUILT-IN: it can be configured
+    // (key/enable) but NOT renamed or deleted. `isSystem` gates the rename
+    // input + delete button (ProviderDetails) and the delete guard
+    // (useProviderForm). A MATERIALIZED preset loses this stamp in
+    // `mergeWithPresets` — the added copy is fully renamable/deletable.
     isSystem: true,
   };
 }
@@ -65,12 +67,14 @@ function mergeWithPresets(real: LLMProvider[], presets: DaemonPresetView[]): LLM
   const custom = real.filter((p) => !presetIds.has(p.id));
   const catalog = presets.map((p) => {
     const existing = byId.get(p.id);
-    // An ALREADY-ADDED preset (materialized) keeps its stored config but is still
-    // built-in — the daemon doesn't return `isSystem`, so stamp it here so a
-    // catalog provider can never be renamed/deleted (only user-added custom
-    // providers can). A not-yet-added preset is synthesized (already isSystem).
+    // An ALREADY-ADDED preset (materialized) keeps its stored config but is the
+    // user's COPY of the template, not a built-in: no `isSystem` stamp, so it
+    // renames and DELETES like any custom provider. Deleting removes only the
+    // copy — the slot reverts to the synthesized catalog row below, ready to
+    // re-add. (This also un-blocks a custom provider whose minted id happens to
+    // collide with a preset id.) Only a not-yet-added preset is built-in.
     return existing
-      ? { ...existing, isSystem: true, presetId: existing.presetId ?? p.presetId }
+      ? { ...existing, presetId: existing.presetId ?? p.presetId }
       : synthesizePresetRow(p);
   });
   return [...custom, ...catalog];
