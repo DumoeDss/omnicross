@@ -52,6 +52,16 @@ export interface ChatGptWebBridgeServerOptions {
   harness?: boolean;
   /** Override for the harness config path (tests). */
   harnessConfigPath?: string;
+  /**
+   * Browser host: 'chrome' (default) drives the user's Chrome via its debug
+   * port; 'electron' spawns a dedicated isolated Electron host whose profile
+   * owns the ChatGPT login — the user's Chrome is never touched.
+   */
+  browserHost?: 'chrome' | 'electron';
+  /** Data dir for the Electron host profile (defaults to ~/.omnicross/chatgpt-web). */
+  browserHostDataDir?: string;
+  /** Keep the Electron host window visible (dogfooding / first login). */
+  browserHostVisible?: boolean;
 }
 
 export interface RunningBridge {
@@ -110,8 +120,21 @@ export async function startChatGptWebBridge(options: ChatGptWebBridgeServerOptio
       );
     }
   }
+  // Dedicated Electron host: start BEFORE the worker so its endpoint is live.
+  let electronHost: import('../browserHost/electronHost').ElectronHostHandle | null = null;
+  if (options.browserHost === 'electron') {
+    const host = await import('../browserHost/electronHost');
+    const { homedir } = await import('node:os');
+    const dataDir = options.browserHostDataDir ?? join(homedir(), '.omnicross', 'chatgpt-web');
+    electronHost = await host.startElectronHost({
+      dataDir,
+      visible: options.browserHostVisible,
+      onStderr: (line) => options.onDiagnostic?.(`electron-host: ${line.slice(0, 120)}`),
+    });
+  }
   const worker = new ChatGptWebBridgeWorker({
     cdpPort: options.cdpPort,
+    ...(electronHost ? { endpoint: { port: electronHost.port, wsPath: electronHost.wsPath } } : {}),
     onDiagnostic: options.onDiagnostic,
     ...(harnessConfig ? { harness: harnessConfig } : {}),
   });
@@ -185,6 +208,9 @@ export async function startChatGptWebBridge(options: ChatGptWebBridgeServerOptio
     worker,
     harness: harnessRuntime,
     stop: async () => {
+      if (electronHost) {
+        await electronHost.stop().catch(() => undefined);
+      }
       if (harnessConfig) {
         await harnessRuntime?.runtimeHandle.stop().catch(() => undefined);
         await stopTunnel({

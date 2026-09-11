@@ -273,6 +273,9 @@ export function buildChatGptWebModelsDocument(
         description: route.description,
         visibility: 'list',
         supported_in_api: true,
+        // codex 0.154's catalog schema REQUIRES shell_type ("shell_command" |
+        // "unified_exec"); omitting it fails the whole models refresh.
+        shell_type: 'unified_exec',
         tool_mode: null,
         input_modalities: ['text', 'image'],
         default_reasoning_level: route.codexEffort,

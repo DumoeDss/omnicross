@@ -170,7 +170,9 @@ export class CdpTarget {
    * swallow the synthesized clicks.
    */
   async bringToFront(): Promise<void> {
-    await this.connection.sendOk('Page.bringToFront', {}, this.sessionId);
+    // Best-effort: dedicated hosts may run hidden, where bringToFront can be
+    // a no-op or rejected — never fail a turn over visibility management.
+    await this.connection.sendOk('Page.bringToFront', {}, this.sessionId).catch(() => undefined);
   }
 
   /** Close this tab (best-effort). */

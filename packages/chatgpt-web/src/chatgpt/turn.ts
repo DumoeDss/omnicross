@@ -408,7 +408,7 @@ async function* runTurnOnTab(
         status: 401,
       });
     }
-    throw Object.assign(new Error('ChatGPT Temporary Chat composer is unavailable.'), { status: 502 });
+    throw Object.assign(new Error('ChatGPT Temporary Chat composer is unavailable.'), { status: 400 });
   }
   // Dismiss any temporary-chat onboarding modal (Escape only — no text guessing).
   await tab.pressKey('Escape').catch(() => undefined);
@@ -428,7 +428,7 @@ async function* runTurnOnTab(
   if (!inserted) {
     throw Object.assign(
       new Error('ChatGPT composer did not accept the compiled Codex prompt (insert echo mismatch)'),
-      { status: 502 },
+      { status: 400 },
     );
   }
   input.onDiagnostic?.('prompt-inserted');
@@ -480,7 +480,7 @@ async function* runTurnOnTab(
   })()`;
   const clicked = await tab.trustedClickScript(sendClickPointScript);
   if (!clicked) {
-    throw Object.assign(new Error('ChatGPT send button was not clickable'), { status: 502 });
+    throw Object.assign(new Error('ChatGPT send button was not clickable'), { status: 400 });
   }
   input.onDiagnostic?.('send-clicked');
 
@@ -521,7 +521,7 @@ async function* runTurnOnTab(
   if (!newUserTurnId) {
     throw Object.assign(
       new Error('ChatGPT did not accept the submitted message (no new user turn appeared)'),
-      { status: 502 },
+      { status: 400 },
     );
   }
   input.onDiagnostic?.('submission-accepted');

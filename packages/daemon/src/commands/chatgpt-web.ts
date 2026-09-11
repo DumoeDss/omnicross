@@ -79,7 +79,7 @@ function resolveInPath(candidate: string): string | null {
 /** Run the `chatgpt-web` subcommand; returns the CLI exit code. */
 export async function runChatgptWeb(argv: string[]): Promise<number> {
   const subcommand = argv[0];
-  if (subcommand !== 'check' && subcommand !== 'launch' && subcommand !== 'harness') {
+  if (subcommand !== 'check' && subcommand !== 'launch' && subcommand !== 'harness' && subcommand !== 'login') {
     printUsage();
     return subcommand === 'help' || subcommand === '--help' ? 0 : 1;
   }
@@ -101,6 +101,8 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
       smoke: { type: 'boolean' },
       'skip-check': { type: 'boolean' },
       harness: { type: 'boolean' },
+      'browser-host': { type: 'string' },
+      'host-visible': { type: 'boolean' },
       'tunnel-id': { type: 'string' },
       'runtime-key': { type: 'string' },
       connector: { type: 'string' },
@@ -121,6 +123,9 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
   if (subcommand === 'harness') {
     return runHarness(chatgptWeb, { action: harnessAction, tunnelId: values['tunnel-id'], runtimeKey: values['runtime-key'], connector: values.connector });
   }
+  if (subcommand === 'login') {
+    return runElectronLogin({ cdpPort, visible: values['host-visible'] === true });
+  }
 
   const model = values.model ?? DEFAULT_MODEL;
   const bridgeModule = await import('@omnicross/chatgpt-web/server');
@@ -136,6 +141,9 @@ export async function runChatgptWeb(argv: string[]): Promise<number> {
     cdpPort,
     onError: (error) => console.error(`[chatgpt-web] ${error.message}`),
     ...(values.harness ? { harness: true } : {}),
+    ...(values['browser-host'] === 'electron'
+      ? { browserHost: 'electron' as const, ...(values['host-visible'] ? { browserHostVisible: true } : {}) }
+      : {}),
   });
   console.info(`chatgpt-web bridge listening on ${bridge.baseUrl} (model: ${model})${values.harness ? ' [full harness]' : ''}`);
   if (values.harness && bridge.harness) {
@@ -285,6 +293,38 @@ function spawnInherit(plan: {
   });
 }
 
+/** `omnicross chatgpt-web login` — dedicated Electron host sign-in. */
+async function runElectronLogin(options: { cdpPort?: number; visible: boolean }): Promise<number> {
+  const host = await import('@omnicross/chatgpt-web/browserHost/electronHost');
+  const { homedir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dataDir = join(homedir(), '.omnicross', 'chatgpt-web');
+  console.info('starting the dedicated browser host (first run downloads Electron, ~100MB)…');
+  const handle = await host.startElectronHost({ dataDir, visible: true });
+  console.info(`host ready on 127.0.0.1:${handle.port} — a window opened on chatgpt.com`);
+  await handle.openLoginWindow();
+  console.info('Sign in inside that window, then press Enter here to verify…');
+  await new Promise<void>((resolve) => {
+    process.stdin.once('data', resolve);
+    process.stdin.resume();
+  });
+  const { CdpConnection, inspectChatGptSession } = await import('@omnicross/chatgpt-web');
+  const connection = new CdpConnection({ endpoint: { port: handle.port, wsPath: handle.wsPath } });
+  try {
+    const inspection = await inspectChatGptSession(connection, { detectCapabilities: true });
+    if (!inspection.authenticated) {
+      console.error(`not signed in yet: ${inspection.detail ?? inspection.url}`);
+      return 1;
+    }
+    console.info(`signed in ✔  account: ${inspection.capabilities?.solAvailable ? 'Sol selector' : 'Luna-only'}${inspection.capabilities?.proAvailable ? ' + Pro' : ''}`);
+    console.info('The login persists in the dedicated profile; your daily Chrome is untouched.');
+    return 0;
+  } finally {
+    connection.close();
+    await handle.stop();
+  }
+}
+
 /** `omnicross chatgpt-web harness <setup|status>` driver. */
 async function runHarness(
   _chatgptWeb: ChatgptWebModule,
@@ -335,6 +375,9 @@ Usage:
                                            Start the bridge and launch Codex wired to it.
                                            Default model: ${DEFAULT_MODEL}; default port: ${DEFAULT_PORT}.
 
+  omnicross chatgpt-web login [--host-visible]   EXPERIMENTAL: sign in to chatgpt.com inside the
+                                           dedicated Electron browser host (isolated profile; your
+                                           Chrome is never touched). Combine with launch --browser-host=electron.
   omnicross chatgpt-web harness setup --tunnel-id <tunnel_…> --runtime-key <sk-…> [--connector <name>]
                                            Save the full-harness tunnel configuration (free to create
                                            on platform.openai.com; see "harness status" for the checklist).

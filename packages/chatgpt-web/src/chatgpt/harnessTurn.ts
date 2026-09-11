@@ -91,7 +91,7 @@ export class HarnessBrowserTurn {
       if (/login|auth0|auth\.openai|\/auth\//i.test(url)) {
         throw Object.assign(new Error('ChatGPT web login is expired. Sign in to chatgpt.com in your Chrome, then retry.'), { status: 401 });
       }
-      throw Object.assign(new Error('ChatGPT Temporary Chat composer is unavailable.'), { status: 502 });
+      throw Object.assign(new Error('ChatGPT Temporary Chat composer is unavailable.'), { status: 400 });
     }
     await tab.pressKey('Escape').catch(() => undefined);
     await sleep(300);
@@ -110,7 +110,7 @@ export class HarnessBrowserTurn {
       { awaitPromise: true },
     );
     if (inserted?.inserted !== true || inserted.matches !== true) {
-      throw Object.assign(new Error('ChatGPT composer did not accept the compiled Codex prompt (insert echo mismatch)'), { status: 502 });
+      throw Object.assign(new Error('ChatGPT composer did not accept the compiled Codex prompt (insert echo mismatch)'), { status: 400 });
     }
     input.onDiagnostic?.('prompt-inserted');
     await runTurnOnTab_Send(tab, input);
@@ -305,7 +305,7 @@ function mapToolRequest(
 async function attachConnectorMention(tab: CdpTarget, connectorName: string): Promise<void> {
   const typed = await tab.evaluateJson<boolean>(insertPlainTextIntoComposerScript('@codex'));
   if (typed !== true) {
-    throw Object.assign(new Error('ChatGPT composer rejected the connector mention query'), { status: 502 });
+    throw Object.assign(new Error('ChatGPT composer rejected the connector mention query'), { status: 400 });
   }
   // Wait for the app/connector mention menu rows, then click the exact row.
   const rowScript = `(() => {
@@ -333,7 +333,7 @@ async function attachConnectorMention(tab: CdpTarget, connectorName: string): Pr
         `The ChatGPT connector "@codex" menu did not offer "${connectorName}". ` +
           'Check that the connector exists with this exact name in ChatGPT Settings → Connectors (developer mode), and that its permissions allow all actions.',
       ),
-      { status: 502 },
+      { status: 400 },
     );
   }
   const clicked = await tab.trustedClick('[data-keyword], .__menu-item, [role="menuitem"], [role="option"]', {
@@ -341,7 +341,7 @@ async function attachConnectorMention(tab: CdpTarget, connectorName: string): Pr
     visibleOnly: true,
   });
   if (!clicked) {
-    throw Object.assign(new Error(`Could not click the "${connectorName}" connector row in the mention menu`), { status: 502 });
+    throw Object.assign(new Error(`Could not click the "${connectorName}" connector row in the mention menu`), { status: 400 });
   }
   // Verify the pill landed in the composer.
   const pillDeadline = Date.now() + 5_000;
@@ -355,7 +355,7 @@ async function attachConnectorMention(tab: CdpTarget, connectorName: string): Pr
     })()`);
     if (pill) return;
     if (Date.now() >= pillDeadline) {
-      throw Object.assign(new Error('The connector mention did not attach a plugin pill to the composer'), { status: 502 });
+      throw Object.assign(new Error('The connector mention did not attach a plugin pill to the composer'), { status: 400 });
     }
     await sleep(200);
   }
@@ -368,7 +368,7 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
   const baselineResponse = new Set(baseline?.responseIdentities ?? []);
   const enabled = await waitForSendEnabled(tab, input.abortSignal);
   if (!enabled) {
-    throw Object.assign(new Error('ChatGPT send button remained disabled after the prompt was attached'), { status: 502 });
+    throw Object.assign(new Error('ChatGPT send button remained disabled after the prompt was attached'), { status: 400 });
   }
   const sendScript = `(() => {
     const composerSelector = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
@@ -387,7 +387,7 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
     }, 200));
   })()`;
   const clicked = await tab.trustedClickScript(sendScript);
-  if (!clicked) throw Object.assign(new Error('ChatGPT send button was not clickable'), { status: 502 });
+  if (!clicked) throw Object.assign(new Error('ChatGPT send button was not clickable'), { status: 400 });
   input.onDiagnostic?.('send-clicked');
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
@@ -402,7 +402,7 @@ async function runTurnOnTab_Send(tab: CdpTarget, input: HarnessTurnInput): Promi
     }
     await sleep(250);
   }
-  throw Object.assign(new Error('ChatGPT did not accept the submitted message (no new user turn appeared)'), { status: 502 });
+  throw Object.assign(new Error('ChatGPT did not accept the submitted message (no new user turn appeared)'), { status: 400 });
 }
 
 async function waitForSendEnabled(tab: CdpTarget, signal: AbortSignal | undefined): Promise<boolean> {

@@ -1,3 +1,4 @@
+import { copyFileSync, mkdirSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
 // Experimental package. Consumed by the daemon via subpaths: `server` (the
@@ -13,6 +14,8 @@ export default defineConfig({
     'tunnel/mcpServer': 'src/tunnel/mcpServer.ts',
     // Consumed as a subpath by the daemon harness command.
     'tunnel/harnessConfig': 'src/tunnel/harnessConfig.ts',
+    // Dedicated Electron browser host.
+    'browserHost/electronHost': 'src/browserHost/electronHost.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,
@@ -20,4 +23,9 @@ export default defineConfig({
   clean: true,
   splitting: true,
   external: ['ws'],
+  // Ship the Electron host main script beside the compiled host module.
+  onSuccess: async () => {
+    mkdirSync('dist/browserHost', { recursive: true });
+    copyFileSync('src/browserHost/main.cjs', 'dist/browserHost/main.cjs');
+  },
 });

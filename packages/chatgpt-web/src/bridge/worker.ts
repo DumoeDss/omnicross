@@ -40,6 +40,8 @@ export class ChatGptWebCapacityError extends Error {
 
 export interface ChatGptWebWorkerOptions {
   cdpPort?: number;
+  /** Pre-resolved dedicated browser endpoint (Electron host); skips discovery. */
+  endpoint?: { port: number; wsPath: string | null };
   onDiagnostic?: (checkpoint: string) => void;
   /** Full-harness configuration; absent ⇒ browser-only turns. */
   harness?: HarnessConfig;
@@ -56,7 +58,9 @@ export class ChatGptWebBridgeWorker {
   private harnessBusy = false;
 
   constructor(private readonly options: ChatGptWebWorkerOptions = {}) {
-    this.connection = new CdpConnection({ explicitPort: options.cdpPort });
+    this.connection = new CdpConnection({
+      ...(options.endpoint ? { endpoint: options.endpoint } : { explicitPort: options.cdpPort }),
+    });
   }
 
   get harnessEnabled(): boolean {

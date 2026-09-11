@@ -24,6 +24,11 @@ import { CdpTarget } from './target';
 export interface CdpConnectionOptions {
   /** Explicit debug port; skips discovery when it answers a TCP probe. */
   explicitPort?: number;
+  /**
+   * Fully explicit endpoint (dedicated browser host, e.g. our Electron
+   * child): connect straight to this port+wsPath, no discovery at all.
+   */
+  endpoint?: { port: number; wsPath: string | null };
   /** Per-command timeout (default 30s). */
   commandTimeoutMs?: number;
 }
@@ -92,7 +97,9 @@ export class CdpConnection {
   }
 
   private async connect(): Promise<void> {
-    const endpoint = await discoverChromeEndpoint({ explicitPort: this.options.explicitPort });
+    const endpoint = this.options.endpoint
+      ? { port: this.options.endpoint.port, wsPath: this.options.endpoint.wsPath }
+      : await discoverChromeEndpoint({ explicitPort: this.options.explicitPort });
     if (!endpoint) {
       throw new CdpConnectionError(
         'Chrome remote debugging is not reachable (no DevToolsActivePort file and no debug port answering).',
