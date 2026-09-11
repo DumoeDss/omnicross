@@ -195,6 +195,71 @@ async function waitForPortFile(dataDir: string, timeoutMs: number): Promise<DevT
 }
 
 /**
+ * Reference-implementation-style interactive sign-in: a standalone visible
+ * window with **no remote debugging port at all**, so the login surface is
+ * indistinguishable from a plain packaged Chromium app (accounts.google.com
+ * and Cloudflare both reject the debug-port/automation shape). Progress is
+ * reported through the host control endpoint's cookie-based /login-state.
+ */
+export async function startStandaloneLoginWindow(options: {
+  dataDir: string;
+  onStderr?: (line: string) => void;
+}): Promise<{
+  waitUntilAuthenticated: (timeoutMs?: number) => Promise<{ authenticated: boolean }>;
+  stop: () => Promise<void>;
+}> {
+  const binary = await ensureElectronRuntime(options.dataDir);
+  const script = hostScript();
+  const args = [script, `--data-dir=${options.dataDir}`, '--login'];
+  const proxy =
+    process.env['HTTPS_PROXY'] ??
+    process.env['https_proxy'] ??
+    process.env['HTTP_PROXY'] ??
+    process.env['http_proxy'];
+  if (proxy) args.unshift(`--proxy-server=${proxy}`);
+  const child = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: false });
+  child.stderr.on('data', (chunk: Buffer) => {
+    for (const line of chunk.toString('utf8').split('\n')) {
+      if (line.trim()) options.onStderr?.(line.trim());
+    }
+  });
+  const control = await waitForControlEndpoint(options.dataDir, 60_000);
+  const pollOnce = async (): Promise<{ authenticated: boolean } | null> => {
+    try {
+      const response = await fetch(`http://127.0.0.1:${control.port}/login-state`);
+      if (!response.ok) return null;
+      return (await response.json()) as { authenticated: boolean };
+    } catch {
+      return null;
+    }
+  };
+  return {
+    waitUntilAuthenticated: async (timeoutMs = 10 * 60_000) => {
+      const deadline = Date.now() + timeoutMs;
+      for (;;) {
+        const state = await pollOnce();
+        if (state?.authenticated) return { authenticated: true };
+        // Window closed (or crashed): the login attempt is over.
+        if (child.exitCode !== null) return { authenticated: false };
+        if (Date.now() >= deadline) return { authenticated: false };
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+    },
+    stop: async () => {
+      if (child.exitCode !== null) return;
+      child.kill();
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 5_000);
+        child.once('exit', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    },
+  };
+}
+
+/**
  * Start the Electron host and resolve once its CDP endpoint is live.
  * `visible` keeps the window shown (useful while dogfooding).
  */

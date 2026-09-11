@@ -72,7 +72,7 @@ function readBody(req) {
   });
 }
 
-function startControlServer() {
+function startControlServer(chatgptSession) {
   const server = http.createServer(async (req, res) => {
     res.setHeader('content-type', 'application/json');
     try {
@@ -123,6 +123,21 @@ function startControlServer() {
           if (!tabWindow.isDestroyed()) tabWindow.destroy();
         }
         res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+      if (req.method === 'GET' && req.url === '/login-state') {
+        // Cookie-based login check so a CDP-less login instance (no remote
+        // debugging port at all) can still report progress to the CLI.
+        let authenticated = false;
+        let cookieCount = 0;
+        if (chatgptSession) {
+          const cookies = await chatgptSession.cookies.get({});
+          cookieCount = cookies.length;
+          authenticated = cookies.some(
+            (cookie) => cookie.name === '__Secure-next-auth.session-token',
+          );
+        }
+        res.end(JSON.stringify({ authenticated, cookieCount }));
         return;
       }
       if (req.method === 'GET' && req.url === '/healthz') {
@@ -184,13 +199,15 @@ app.whenReady().then(() => {
   win.loadURL(login ? URL : `${URL}/?temporary-chat=true`);
   win.on('close', (event) => {
     // The bridge owns the lifecycle; hide instead of destroying so an
-    // in-flight turn's renderer survives until the bridge stops us.
-    if (!win.isDestroyed() && !app.quitting) {
+    // in-flight turn's renderer survives until the bridge stops us. A
+    // standalone login window, though, must truly close when the user
+    // closes it — otherwise a hidden zombie keeps the profile locked.
+    if (!login && !win.isDestroyed() && !app.quitting) {
       event.preventDefault();
       win.hide();
     }
   });
-  startControlServer();
+  startControlServer(partitionSession);
 });
 
 app.on('before-quit', () => {

@@ -299,15 +299,25 @@ async function runElectronLogin(options: { cdpPort?: number; visible: boolean })
   const { homedir } = await import('node:os');
   const { join } = await import('node:path');
   const dataDir = join(homedir(), '.omnicross', 'chatgpt-web');
-  console.info('starting the dedicated browser host (first run downloads Electron, ~100MB)…');
-  const handle = await host.startElectronHost({ dataDir, visible: true });
-  console.info(`host ready on 127.0.0.1:${handle.port} — a window opened on chatgpt.com`);
-  await handle.openLoginWindow();
-  console.info('Sign in inside that window, then press Enter here to verify…');
-  await new Promise<void>((resolve) => {
-    process.stdin.once('data', resolve);
-    process.stdin.resume();
-  });
+  console.info('opening a standalone login window (no automation attached)…');
+  // The login window must not share the profile with a running host
+  // (single-instance lock) and must carry zero automation surface.
+  if (process.platform === 'win32') {
+    const { spawn } = await import('node:child_process');
+    spawn('taskkill', ['/IM', 'electron.exe', '/F'], { stdio: 'ignore', windowsHide: true });
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+  }
+  const login = await host.startStandaloneLoginWindow({ dataDir });
+  console.info('sign in inside the window (Google or email); this command detects it automatically');
+  const state = await login.waitUntilAuthenticated();
+  if (!state.authenticated) {
+    console.error('login window closed or timed out before a session appeared');
+    await login.stop();
+    return 1;
+  }
+  console.info('session cookie detected ✔ — restarting the automation host to verify…');
+  await login.stop();
+  const handle = await host.startElectronHost({ dataDir, visible: options.visible });
   const { CdpConnection, inspectChatGptSession } = await import('@omnicross/chatgpt-web');
   const connection = new CdpConnection({ endpoint: { port: handle.port, wsPath: handle.wsPath } });
   try {
