@@ -47,6 +47,8 @@ daemon 侧：`packages/daemon/src/commands/chatgpt-web.ts`（check/login/launch/
 | MCP 子进程协议（initialize/list/call 往返） | ✅ 真实验证 | mcp-smoke 5/5（含 replyTo 修复） |
 | harness 浏览器回合（@mention→挂起→续流） | ⛔ 未验证 | 需 connector+tunnel 活着时跑（被风控打断） |
 | Electron 宿主窗口显示 | ✅ 真实验证 | 根因 `windowsHide:true`（b44f52b）；A/B 实验枚举 HWND visible=True，用户肉眼确认窗口+example.com |
+| Electron 宿主登录（CDP-less 独立实例） | ✅ 真实验证 | 用户成功登录（4219789）；Google/邮箱皆可，登录墙针对自动化形态而非 UA |
+| Electron 宿主 browser-only 完整回合 | ✅ 真实验证 | `round-trip --host=electron` light 档 `ROUND TRIP OK`（2026-09-11 晚） |
 | Electron 内 example.com 加载 | ✅ API 层验证 | 隐藏 tab 中 body 文本读回正常 |
 
 ## 4. 当前卡点（按优先级）
@@ -160,8 +162,13 @@ e096347 feat(chatgpt-web): experimental ChatGPT Web (incl. Pro) bridge for Codex
 
 ## 9. 下一步任务清单（建议顺序）
 
-1. **[卡点 A 已解决]** 用户自己跑 `npx tsx packages\daemon\src\cli.ts chatgpt-web login` 在 Electron 宿主里登录 ChatGPT（主窗口当前标题「开始使用 | ChatGPT」= 未登录；本机当前能连通 chatgpt.com，风控未发作）→ 之后 `check` 能力探测应显示 Sol+Pro
-2. **[卡点 B]** `chatgpt-web launch --browser-host=electron --model chatgpt-web/light` 跑 browser-only 回合（Electron 宿主首验；chatgpt.com 此刻可达，可直接试，失败即停）
+1. ~~[卡点 A 窗口]~~ ✅ 已解决（windowsHide 根因）
+2. ~~[卡点 A2 登录]~~ ✅ 已解决（CDP-less 独立登录实例，用户已登录）
+3. ~~Electron 宿主 browser-only 首回合~~ ✅ `ROUND TRIP OK`
+4. **[当前]** harness 浏览器端联调：`launch --browser-host=electron --harness --model chatgpt-web/pro` + `scripts/chatgpt-web-harness-roundtrip.ts`。重点观察 @mention 菜单选择（attachConnectorMention 的行匹配未实战过）；需 tunnel + `Codex Native2` connector 存活
+5. 提醒用户轮换 platform API key（已暴露于聊天记录）
+6. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
+7. 转正评估后：UI 设置页（Control Panel）、daemon 常驻集成、发布流程（包目前 private）
 3. harness 浏览器端联调：`launch --browser-host=electron --harness --model chatgpt-web/pro` + `scripts/chatgpt-web-harness-roundtrip.ts`。重点观察 @mention 菜单选择（attachConnectorMention 的行匹配未实战过）
 4. 提醒用户轮换 platform API key（已暴露于聊天记录）
 5. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
