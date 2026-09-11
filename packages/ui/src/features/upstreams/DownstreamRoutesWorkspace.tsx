@@ -26,7 +26,7 @@ import type {
   OutboundApiKeyInfo,
   OutboundEndpointId,
 } from '@/daemon/types';
-import { useTranslation } from '@/shared/state/LocaleContext';
+import { useTranslation, type TFunction } from '@/shared/state/LocaleContext';
 import { cn } from '@/shared/utils/utils';
 
 export interface DownstreamResourceOption {
@@ -130,7 +130,11 @@ function targetMatches(left: GatewayBindingTarget, right: GatewayBindingTarget):
   if (left.kind !== right.kind || left.providerId !== right.providerId) return false;
   if (left.kind === 'account' && right.kind === 'account') return left.accountId === right.accountId;
   if (left.kind === 'account-group' && right.kind === 'account-group') return left.group === right.group;
-  return left.kind === 'provider' && right.kind === 'provider';
+  // account-pool (same providerId) and provider both match on kind alone. The
+  // pool branch is the missing case that made every pool-bound binding
+  // UNMATCHABLE — the direct cause of targets silently flipping to the first
+  // selectable resource on page entry.
+  return left.kind === 'account-pool' || left.kind === 'provider';
 }
 
 function resourceForBinding(
@@ -140,7 +144,65 @@ function resourceForBinding(
   return resources.find((resource) => targetMatches(resource.target, binding.target));
 }
 
-function draftFromBinding(
+/**
+ * Compose a display label from the target's OWN data — used only for the
+ * preserving option below, where no live resource exists to borrow a label
+ * from. A pool target reuses the exact `upstreams.accountPool` label the
+ * removed pool options carried, so a legacy binding reads exactly as before.
+ */
+function legacyTargetLabel(target: GatewayBindingTarget, t: TFunction): string {
+  const titleKey = `accounts.provider.${target.providerId}.title`;
+  const rawTitle = t(titleKey);
+  const providerTitle = rawTitle === titleKey ? target.providerId : rawTitle;
+  if (target.kind === 'account-pool') return t('upstreams.accountPool', { provider: providerTitle });
+  if (target.kind === 'account-group') return `${providerTitle} · ${target.group}`;
+  if (target.kind === 'account') return `${providerTitle} · ${target.accountId.slice(0, 8)}`;
+  return providerTitle;
+}
+
+/**
+ * A PRESERVING option for a binding whose saved target no longer matches any
+ * selectable resource — a legacy account-pool target, a deleted account, a
+ * renamed group. Carries the binding's target VERBATIM, so saving after
+ * editing unrelated fields (e.g. only the model mappings) keeps routing
+ * unchanged; migrating is a conscious selection, never a silent rewrite.
+ */
+function legacyResourceFor(binding: GatewayBinding, t: TFunction): DownstreamResourceOption {
+  return {
+    key: `legacy:${binding.id}`,
+    label: `${legacyTargetLabel(binding.target, t)} · ${t('upstreams.downstreams.legacyTarget')}`,
+    detail: binding.target.providerId,
+    target: binding.target,
+    egressProtocol: '—',
+    modelSuggestions: [],
+  };
+}
+
+/**
+ * The selectable binding-target catalog: the live resources MINUS every
+ * account-pool entry, PLUS one preserving option per binding whose saved
+ * target matches nothing selectable.
+ *
+ * Pool options are gone by design: a pool ("every account of the provider,
+ * no preference") duplicated the provider's group and account options one
+ * level down while hiding which account actually serves a turn — in practice
+ * it left routes pinned to dead provider pools. The sidebar tree still uses
+ * pools for NAVIGATION (UpstreamsPage's accountTree); they are just no
+ * longer offered as a routing target.
+ */
+export function buildResourceCatalog(
+  resources: readonly DownstreamResourceOption[],
+  bindings: readonly GatewayBinding[],
+  t: TFunction,
+): DownstreamResourceOption[] {
+  const selectable = resources.filter((resource) => resource.target.kind !== 'account-pool');
+  const legacy = bindings
+    .filter((binding) => !resourceForBinding(selectable, binding))
+    .map((binding) => legacyResourceFor(binding, t));
+  return [...selectable, ...legacy];
+}
+
+export function draftFromBinding(
   binding: GatewayBinding,
   resources: readonly DownstreamResourceOption[],
 ): DownstreamDraft {
@@ -150,7 +212,11 @@ function draftFromBinding(
     name: binding.name,
     enabled: binding.enabled,
     endpoint: binding.endpoint,
-    resourceKey: resourceForBinding(resources, binding)?.key ?? resources[0]?.key ?? '',
+    // NEVER fall back to another resource here: an unmatched target renders
+    // through the catalog's preserving option (see buildResourceCatalog), and
+    // a draft that somehow still misses shows the empty placeholder instead
+    // of silently re-routing the binding on the next save.
+    resourceKey: resourceForBinding(resources, binding)?.key ?? '',
     priority: String(binding.priority ?? 100),
     fallback: binding.fallback,
     modelMode: binding.modelMode ?? (mappings.length ? 'mapped' : 'passthrough'),
@@ -158,12 +224,15 @@ function draftFromBinding(
   };
 }
 
-function newDraft(resources: readonly DownstreamResourceOption[]): DownstreamDraft {
+export function newDraft(): DownstreamDraft {
   return {
     name: '',
     enabled: true,
     endpoint: 'messages',
-    resourceKey: resources[0]?.key ?? '',
+    // No preselected target: the operator consciously picks the upstream a
+    // NEW binding routes to (a preloaded first option is exactly the silent
+    // default this editor must not do).
+    resourceKey: '',
     priority: '100',
     fallback: 'fail',
     modelMode: 'passthrough',
@@ -171,14 +240,14 @@ function newDraft(resources: readonly DownstreamResourceOption[]): DownstreamDra
   };
 }
 
-function canSave(draft: DownstreamDraft): boolean {
+export function canSave(draft: DownstreamDraft): boolean {
   if (!draft.name.trim() || !draft.resourceKey) return false;
   if (draft.modelMode === 'passthrough') return true;
   return draft.mappings.length > 0
     && draft.mappings.every((mapping) => mapping.source.trim() && mapping.target.trim());
 }
 
-function bindingFromDraft(
+export function bindingFromDraft(
   draft: DownstreamDraft,
   resource: DownstreamResourceOption,
   previous?: GatewayBinding,
@@ -248,10 +317,16 @@ export function DownstreamRoutesWorkspace({
     ?? null;
   const [draft, setDraft] = useState<DownstreamDraft | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<GatewayBinding | null>(null);
+  // Pool targets are filtered out and unmatched bindings get a preserving
+  // option, so a draft's resourceKey always refers to something in here.
+  const resourceCatalog = useMemo(
+    () => buildResourceCatalog(resources, bindings, t),
+    [resources, bindings, t],
+  );
   const editorDraft = draft
-    ?? (selected ? draftFromBinding(selected, resources) : null);
+    ?? (selected ? draftFromBinding(selected, resourceCatalog) : null);
   const selectedResource = editorDraft
-    ? resources.find((resource) => resource.key === editorDraft.resourceKey)
+    ? resourceCatalog.find((resource) => resource.key === editorDraft.resourceKey)
     : undefined;
 
   const endpointOptions = useMemo<SelectOption[]>(
@@ -262,8 +337,8 @@ export function DownstreamRoutesWorkspace({
     [t],
   );
   const resourceOptions = useMemo<SelectOption[]>(
-    () => resources.map((resource) => ({ value: resource.key, label: resource.label })),
-    [resources],
+    () => resourceCatalog.map((resource) => ({ value: resource.key, label: resource.label })),
+    [resourceCatalog],
   );
   const fallbackOptions = useMemo<SelectOption[]>(
     () => [
@@ -274,13 +349,13 @@ export function DownstreamRoutesWorkspace({
   );
 
   const beginCreate = () => {
-    setDraft(newDraft(resources));
+    setDraft(newDraft());
     onSelectBinding(undefined);
   };
 
   const save = async () => {
     if (!editorDraft || !canSave(editorDraft)) return;
-    const resource = resources.find((item) => item.key === editorDraft.resourceKey);
+    const resource = resourceCatalog.find((item) => item.key === editorDraft.resourceKey);
     if (!resource) return;
     const previous = editorDraft.id ? bindings.find((binding) => binding.id === editorDraft.id) : undefined;
     const nextBinding = bindingFromDraft(editorDraft, resource, previous);
@@ -315,7 +390,7 @@ export function DownstreamRoutesWorkspace({
               {t('upstreams.downstreams.listCount', { count: bindings.length })}
             </p>
           </div>
-          <Button size="icon" variant="ghost" disabled={busy || !resources.length} onClick={beginCreate} aria-label={t('upstreams.downstreams.add')}>
+          <Button size="icon" variant="ghost" disabled={busy || !resourceCatalog.length} onClick={beginCreate} aria-label={t('upstreams.downstreams.add')}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -323,7 +398,7 @@ export function DownstreamRoutesWorkspace({
           <div className="space-y-1 p-2">
             {bindings.map((binding) => {
               const active = !draft && selected?.id === binding.id;
-              const resource = resourceForBinding(resources, binding);
+              const resource = resourceForBinding(resourceCatalog, binding);
               const keyCount = clientKeys.filter((key) => !key.revoked && appliesToKey(binding, key.id)).length;
               return (
                 <button
@@ -357,7 +432,7 @@ export function DownstreamRoutesWorkspace({
               <div className="px-4 py-10 text-center">
                 <Route className="mx-auto h-6 w-6 text-muted-foreground" />
                 <p className="mt-2 text-xs text-muted-foreground">{t('upstreams.downstreams.empty')}</p>
-                <Button className="mt-3" size="sm" onClick={beginCreate} disabled={!resources.length}>
+                <Button className="mt-3" size="sm" onClick={beginCreate} disabled={!resourceCatalog.length}>
                   <Plus className="h-3.5 w-3.5" />{t('upstreams.downstreams.add')}
                 </Button>
               </div>
@@ -369,7 +444,7 @@ export function DownstreamRoutesWorkspace({
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-surface-0/30">
         {!editorDraft ? (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            {resources.length ? t('upstreams.downstreams.selectPrompt') : t('upstreams.downstreams.noResources')}
+            {resourceCatalog.length ? t('upstreams.downstreams.selectPrompt') : t('upstreams.downstreams.noResources')}
           </div>
         ) : (
           <ScrollArea className="h-full">
@@ -423,7 +498,7 @@ export function DownstreamRoutesWorkspace({
                 <EditorSection title={t('upstreams.downstreams.targetTitle')} description={t('upstreams.downstreams.targetDescription')}>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label={t('upstreams.downstreams.resource')}>
-                      <Select className="w-full" value={editorDraft.resourceKey} options={resourceOptions} onChange={(resourceKey) => patch({ resourceKey })} />
+                      <Select className="w-full" value={editorDraft.resourceKey} options={resourceOptions} placeholder={t('upstreams.downstreams.resourcePlaceholder')} onChange={(resourceKey) => patch({ resourceKey })} />
                     </Field>
                     <Field label={t('upstreams.downstreams.egressProtocol')}>
                       <div className="flex h-9 items-center justify-between rounded-lg border border-border bg-surface-2/45 px-3 text-sm">

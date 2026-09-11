@@ -765,6 +765,8 @@
       "add": "添加下游接口",
       "empty": "还没有下游接口。",
       "selectPrompt": "选择一个下游接口，或创建新的接口。",
+      "resourcePlaceholder": "选择上游资源",
+      "legacyTarget": "旧目标，已不在可选列表",
       "noResources": "请先添加一个上游 Provider 或账号。",
       "editEyebrow": "下游路由",
       "createEyebrow": "新建下游接口",
