@@ -351,13 +351,15 @@ async function attachConnectorViaPlusMenu(
   // require the text to START with the connector name: whole-document
   // "contains" matches also hit sidebar previews of past harness turns whose
   // compiled prompt quotes the connector name.
-  const rowPointScript = `(() => {
-    const selectors = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
-    const els = selectors.split(', ').flatMap((selector) => [...document.querySelectorAll(selector)]);
-    const composer = els[els.length - 1];
-    const scope = composer?.closest('form') ?? composer?.parentElement ?? document.body;
+  // The + menu renders as a portal at document level (OUTSIDE the composer
+  // form), and it is a LONG scrollable list — the connector row typically
+  // sits below the fold (verified: row "Codex Native2" existed with
+  // onScreen=false while clicks went to its off-screen coordinates). So:
+  // find the row document-wide (minus sidebar), scroll it into view inside
+  // the menu, then click the settled on-screen point.
+  const rowPointScript = `(async () => {
     const visible = (el) => { const rect = el.getBoundingClientRect(); return rect.width > 0 && rect.height > 0; };
-    const candidates = [...scope.querySelectorAll('button, [role="menuitem"], [role="option"], li, div')]
+    const candidates = [...document.querySelectorAll('button, [role="menuitem"], [role="option"], li, div')]
       .filter((el) => visible(el)
         && !el.closest('aside, nav')
         && (el.innerText || '').replace(/^\\s+/, '').toLowerCase().startsWith(${JSON.stringify(needle)})
@@ -365,8 +367,11 @@ async function attachConnectorViaPlusMenu(
     candidates.sort((a, b) => a.innerText.length - b.innerText.length);
     const target = candidates[0];
     if (!target) return null;
+    target.scrollIntoView({ block: 'center' });
+    await new Promise((resolve) => setTimeout(resolve, 300));
     const rect = target.getBoundingClientRect();
-    return { x: rect.x + rect.width / 2, y: rect.y + Math.min(rect.height / 2, 20) };
+    if (rect.top < 0 || rect.bottom > window.innerHeight) return null;
+    return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + Math.min(rect.height / 2, 20)) };
   })()`;
   const pillScript = `(() => {
     const selectors = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
@@ -399,6 +404,12 @@ async function attachConnectorViaPlusMenu(
       const second = await tab.evaluateJson<boolean>(composerEmptyScript).catch(() => false);
       if (first === true && second === true) break;
     }
+    // A focused composer (left there by the clear) suppresses the "+"
+    // menu: the click lands but the menu never shows (verified — form
+    // contained only the effort button 600ms after the click). Blur it so
+    // the + click behaves like the cold-composer path that works.
+    await tab.evaluate(`(() => { const el = document.activeElement; if (el && typeof el.blur === 'function') el.blur(); return true; })()`).catch(() => undefined);
+    await sleep(200);
     await tab.trustedClickScript(plusPointScript);
     await sleep(600);
     if (attempt === 0) {
@@ -411,13 +422,9 @@ async function attachConnectorViaPlusMenu(
         writeFileSync(join(process.cwd(), 'tmp-plus-mid.png'), Buffer.from(shot, 'base64'));
       }
       const candidates = await tab.evaluateJson<string>(`(() => {
-        const s = ${JSON.stringify(CHATGPT_COMPOSER_SELECTOR)};
-        const els = s.split(', ').flatMap((x) => [...document.querySelectorAll(x)]);
-        const composer = els[els.length - 1];
-        const scope = composer?.closest('form') ?? composer?.parentElement ?? document.body;
         const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-        const items = [...scope.querySelectorAll('button, [role="menuitem"], [role="option"], li, div')]
-          .filter((el) => visible(el) && (el.innerText || '').length > 0 && (el.innerText || '').length < 200)
+        const items = [...document.querySelectorAll('button, [role="menuitem"], [role="option"], li, div')]
+          .filter((el) => visible(el) && !el.closest('aside, nav') && (el.innerText || '').length > 0 && (el.innerText || '').length < 200)
           .map((el) => (el.innerText || '').replace(/\\s+/g, ' ').slice(0, 60));
         return JSON.stringify([...new Set(items)].slice(0, 25));
       })()`).catch(() => '<eval failed>');
