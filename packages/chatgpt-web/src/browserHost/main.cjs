@@ -143,15 +143,25 @@ function startControlServer() {
 }
 
 app.whenReady().then(() => {
-  // A bare `electron main.cjs` process advertises "Electron/39.2.0" in its
-  // User-Agent, and accounts.google.com answers embedded-browser tokens with
-  // "This browser or app may not be secure" — which blocks ChatGPT's
-  // "Continue with Google" sign-in inside this host. Strip only that token
-  // so the UA stays consistent with the client hints this Chromium sends.
-  const stripEmbeddedToken = (ua) => ua.replace(/\s+Electron\/[\d.]+/g, '').trim();
+  // Present as a named Chromium application, not as bare Chrome and never as
+  // "Electron". accounts.google.com blocks embedded-browser tokens, and it
+  // cross-checks the UA against client hints: a bare "Chrome/…" UA without
+  // the "Google Chrome" brand in Sec-CH-UA reads as spoofed and gets the
+  // same "This browser or app may not be secure" wall. The proven shape
+  // (Codex Web GPT and every packaged Chromium app) is Chromium + own
+  // product token: "<chromium UA> OmniCross/0.4.4". Client hints then
+  // honestly saying just "Chromium" is consistent.
+  let appVersion = '0.0.0';
+  try {
+    appVersion = require('../../package.json').version ?? appVersion;
+  } catch {
+    // Keep the fallback.
+  }
+  const productToken = `OmniCross/${appVersion}`;
+  const replaceWithProductToken = (ua) => ua.replace(/\s*Electron\/[\d.]+/g, '').trim() + ` ${productToken}`;
   const partitionSession = session.fromPartition('persist:chatgpt');
-  partitionSession.setUserAgent(stripEmbeddedToken(partitionSession.getUserAgent()));
-  app.userAgentFallback = stripEmbeddedToken(app.userAgentFallback);
+  partitionSession.setUserAgent(replaceWithProductToken(partitionSession.getUserAgent()));
+  app.userAgentFallback = replaceWithProductToken(app.userAgentFallback);
   const win = new BrowserWindow({
     width: 1280,
     height: 900,
