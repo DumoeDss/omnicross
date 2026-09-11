@@ -160,6 +160,21 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     });
   }
 
+  async outboundApiKeysSetUpstream(
+    id: string,
+    providerId: string | null,
+  ): Promise<boolean> {
+    return this.mutateRow(id, (row) => {
+      if (row.revokedAt !== null) return false;
+      // `null` clears the direct-passthrough target (field absent = the key is
+      // served by the downstream routes); a non-empty string sets it. Provider
+      // existence is validated at the admin write edge, not in storage.
+      if (providerId === null) delete row.boundUpstreamProviderId;
+      else row.boundUpstreamProviderId = providerId;
+      return true;
+    });
+  }
+
   async outboundApiKeysSetPolicy(id: string, policy: OutboundKeyPolicy): Promise<boolean> {
     return this.mutateRow(id, (row) => {
       if (row.revokedAt !== null) return false;

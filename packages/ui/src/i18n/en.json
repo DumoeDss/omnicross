@@ -1049,12 +1049,12 @@
         "empty": "No downstream is bound",
         "manage": "Manage downstream bindings",
         "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes.",
-        "bindUpstream": {
-          "title": "Bind upstream directly",
-          "placeholder": "Pick an upstream resource…",
-          "add": "Bind",
-          "protocols": "Creates passthrough routes for:",
-          "hint": "One click creates passthrough routes from this key to the selected upstream across every protocol it can serve; edit or remove them later under Upstreams and routes."
+        "directUpstream": {
+          "label": "Direct upstream",
+          "none": "Not bound (served by downstream routes)",
+          "hint": "Bind this key to a provider to relay its requests VERBATIM to that upstream — path, body, and protocol pass through untouched with only the auth header swapped. No routes, translation, or usage metering apply.",
+          "boundHint": "Every request with this key is relayed verbatim to the bound provider (auth swapped). Direct traffic is not metered: spend tracking and cost limits do not account it.",
+          "routesInactive": "Direct upstream is active — downstream route bindings are ignored while it is set."
         }
       },
       "integrations": {

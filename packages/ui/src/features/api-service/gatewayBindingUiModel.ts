@@ -1,8 +1,4 @@
-import type {
-  GatewayBinding,
-  GatewayBindingTarget,
-  OutboundEndpointId,
-} from '@/daemon/types';
+import type { GatewayBinding } from '@/daemon/types';
 import type { AppRoute } from '@/shared/state/hashRoute';
 
 export function routeForBinding(binding: GatewayBinding): AppRoute {
@@ -16,90 +12,6 @@ export function routeForBinding(binding: GatewayBinding): AppRoute {
 export function bindingAllowsClientKey(binding: GatewayBinding, keyId: string): boolean {
   const scope = binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all');
   return scope === 'all' || Boolean(binding.apiKeyIds?.includes(keyId));
-}
-
-/**
- * One upstream resource offered for direct key binding (the key-management
- * quick-bind picker). `endpoints` lists the ingress protocols a binding to
- * this resource can soundly serve — the quick-bind creates one passthrough
- * route per endpoint so the key is usable from any client protocol.
- */
-export interface UpstreamBindingOption {
-  key: string;
-  label: string;
-  detail: string;
-  target: GatewayBindingTarget;
-  endpoints: readonly OutboundEndpointId[];
-}
-
-/**
- * The ingress endpoints a direct binding to this upstream can soundly serve.
- * A BYO provider row works from every ingress (the transformer chain re-encodes
- * as needed). A subscription works from `messages` + `responses` (the chat
- * ingress's subscription bridge covers claude only, and the gemini ingress
- * stays BYO-only — see core's `endpointSupportsSubscription` /
- * `CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS`).
- */
-export function upstreamEndpointsForTarget(target: GatewayBindingTarget): OutboundEndpointId[] {
-  if (target.kind === 'provider') return ['chat', 'responses', 'messages', 'gemini'];
-  return target.providerId === 'claude'
-    ? ['messages', 'responses', 'chat']
-    : ['messages', 'responses'];
-}
-
-/** Same-target comparison (account ids / group names included). */
-export function sameBindingTarget(left: GatewayBindingTarget, right: GatewayBindingTarget): boolean {
-  if (left.kind !== right.kind || left.providerId !== right.providerId) return false;
-  if (left.kind === 'account' && right.kind === 'account') return left.accountId === right.accountId;
-  if (left.kind === 'account-group' && right.kind === 'account-group') return left.group === right.group;
-  return true;
-}
-
-function createBindingId(): string {
-  return globalThis.crypto?.randomUUID?.()
-    ?? `binding-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-/**
- * Bind one client key to one upstream resource directly: for each ingress
- * endpoint the upstream can serve, either ADD the key to an existing
- * same-target same-endpoint binding (no duplicate route) or CREATE a fresh
- * passthrough binding scoped to this key. `nameFor` labels created bindings
- * (the caller supplies the localized endpoint name). Pure — returns the next
- * bindings array.
- */
-export function bindKeyToUpstream(
-  bindings: readonly GatewayBinding[],
-  keyId: string,
-  option: UpstreamBindingOption,
-  nameFor: (endpoint: OutboundEndpointId) => string,
-): GatewayBinding[] {
-  const next = bindings.map((binding) => ({ ...binding }));
-  for (const endpoint of option.endpoints) {
-    const existing = next.find(
-      (binding) => binding.endpoint === endpoint && sameBindingTarget(binding.target, option.target),
-    );
-    if (existing) {
-      if (!bindingAllowsClientKey(existing, keyId)) {
-        existing.keyScope = 'selected';
-        existing.apiKeyIds = [...new Set([...(existing.apiKeyIds ?? []), keyId])];
-      }
-      continue;
-    }
-    next.push({
-      id: createBindingId(),
-      name: `${option.label} · ${nameFor(endpoint)}`,
-      enabled: true,
-      keyScope: 'selected',
-      apiKeyIds: [keyId],
-      endpoint,
-      target: option.target,
-      priority: 100,
-      fallback: 'fail',
-      modelMode: 'passthrough',
-    });
-  }
-  return next;
 }
 
 export function bindingsForClientKey(

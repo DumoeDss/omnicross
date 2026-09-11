@@ -937,6 +937,12 @@ export interface OutboundApiKeyInfo {
   /** The model-id list the mode acts on (bare modelIds). */
   restrictedModels?: string[];
   /**
+   * DIRECT upstream passthrough target (key→upstream binding): the id of the BYO
+   * provider row this key relays VERBATIM (auth swapped, everything else
+   * untouched). Absent ⇒ the key is served by the downstream routes.
+   */
+  boundUpstreamProviderId?: string;
+  /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the daemon wired a
    * spend reader; leak-safe (this key's numbers only).
