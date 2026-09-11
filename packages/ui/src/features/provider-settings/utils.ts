@@ -37,8 +37,9 @@ export const getResolvedModelConfig = (model: ModelConfig): ModelConfig => {
 
 /**
  * Resolve the display name for a provider, applying i18n when the preset
- * declares a `nameKey`. Built-in providers can't be renamed (the inline-edit
- * Input is hidden on `isSystem` rows in ProviderDetails), so we don't need
+ * declares a `nameKey`. Only synthesized catalog rows carry a `nameKey` (real
+ * daemon rows never do), and those `isSystem` rows can't be renamed (the
+ * inline-edit Input is hidden in ProviderDetails), so we don't need
  * customization detection here.
  *
  * Falls back to the raw `name` field when:
