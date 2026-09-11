@@ -503,7 +503,8 @@
     "save": "保存",
     "optional": "可选",
     "retry": "重试",
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "refresh": "刷新"
   },
   "mediaSettings": {
     "common": {

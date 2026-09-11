@@ -488,7 +488,7 @@ export function KeyManagementSection({
                     <div className="flex flex-wrap items-center gap-2">
                       <Server className="h-3 w-3 shrink-0 text-primary" />
                       <span className="text-[11px] font-medium text-foreground">
-                        {t('apiService.keys.directUpstream.label')}
+                        {t('apiService.keys.bindings.directUpstream.label')}
                       </span>
                       <Select
                         className="min-w-40 flex-1"
@@ -496,7 +496,7 @@ export function KeyManagementSection({
                         value={k.boundUpstreamProviderId ?? ''}
                         disabled={busy || !onSetUpstream || !providers.length}
                         options={[
-                          { value: '', label: t('apiService.keys.directUpstream.none') },
+                          { value: '', label: t('apiService.keys.bindings.directUpstream.none') },
                           ...providers.map((provider) => ({
                             value: provider.id,
                             label: provider.name || provider.id,
@@ -507,14 +507,14 @@ export function KeyManagementSection({
                     </div>
                     <p className="mt-1.5 px-0.5 text-[10px] text-muted-foreground">
                       {k.boundUpstreamProviderId
-                        ? t('apiService.keys.directUpstream.boundHint')
-                        : t('apiService.keys.directUpstream.hint')}
+                        ? t('apiService.keys.bindings.directUpstream.boundHint')
+                        : t('apiService.keys.bindings.directUpstream.hint')}
                     </p>
                   </div>
                   {k.boundUpstreamProviderId ? (
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Route className="h-3 w-3" />
-                      {t('apiService.keys.directUpstream.routesInactive')}
+                      {t('apiService.keys.bindings.directUpstream.routesInactive')}
                     </div>
                   ) : (
                   <>

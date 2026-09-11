@@ -503,7 +503,8 @@
     "save": "儲存",
     "optional": "選填",
     "retry": "重試",
-    "loading": "載入中…"
+    "loading": "載入中…",
+    "refresh": "重新整理"
   },
   "mediaSettings": {
     "common": {
@@ -696,7 +697,8 @@
     "kind": {
       "account": "帳號",
       "account-group": "帳號群組",
-      "provider": "提供者"
+      "provider": "提供者",
+      "account-pool": "帳號池"
     },
     "status": {
       "ready": "就緒",
@@ -711,7 +713,8 @@
     "tabs": {
       "label": "上游與路由",
       "resources": "上游資源",
-      "routes": "下游與路由"
+      "routes": "下游與路由",
+      "activity": "路由活動"
     },
     "downstreams": {
       "listTitle": "客戶端應用",
@@ -758,7 +761,9 @@
         "target": "上游模型（自由填寫）",
         "add": "新增映射"
       },
-      "noResource": "未選擇上游"
+      "noResource": "未選擇上游",
+      "resourcePlaceholder": "選擇上游資源",
+      "legacyTarget": "舊目標，已不在可選列表"
     },
     "routes": {
       "title": "閘道路由",
@@ -1013,6 +1018,9 @@
       "revoke": "撤銷",
       "revokeConfirmTitle": "撤銷此金鑰？",
       "revokeConfirmDesc": "撤銷「{{name}}」後，它將立即無法用於驗證。此操作無法復原。",
+      "delete": "刪除",
+      "deleteConfirmTitle": "永久刪除此金鑰？",
+      "deleteConfirmDesc": "刪除「{{name}}」會將其從列表中徹底移除。此操作無法復原。",
       "created": {
         "title": "金鑰已建立",
         "warning": "請立即複製此金鑰並妥善保管——之後仍可從金鑰列表中重新查看。",
@@ -1020,6 +1028,9 @@
         "copied": "已複製",
         "dismiss": "完成"
       },
+      "reveal": "查看金鑰",
+      "revealError": "查看金鑰失敗。",
+      "revealHint": "按需解密——請像對待原始金鑰一樣妥善保管。",
       "permissions": {
         "title": "端點權限",
         "legacy": "舊版預設值",
@@ -1043,6 +1054,14 @@
           "boundHint": "此金鑰的所有請求將原樣轉發到所綁定的提供商（僅替換鑑權頭）。直連流量不計用量：花費統計與費用限額不涵蓋這部分請求。",
           "routesInactive": "直連上游已生效——綁定期間下游路由對此金鑰不生效。"
         }
+      },
+      "integrations": {
+        "useFor": "用於 {{name}}",
+        "inUse": "正在使用",
+        "unavailable": "只有已啟用、未撤銷且可查看的金鑰才能用於 CLI 整合。",
+        "confirmTitle": "將此金鑰用於 {{name}}？",
+        "confirmDescription": "Omnicross 將綁定「{{key}}」並補充所需端點權限：{{permissions}}。此前由使用者選擇的金鑰不會被撤銷。",
+        "confirm": "綁定金鑰"
       },
       "policy": {
         "title": "策略",
@@ -1733,7 +1752,8 @@
       "overloaded": "過載",
       "transient": "暫時無法使用",
       "blocked": "已封鎖",
-      "until": "至 {{time}}"
+      "until": "至 {{time}}",
+      "quota_exhausted": "額度耗盡"
     }
   },
   "codeCli": {
@@ -1799,7 +1819,9 @@
         "drift": "目前設定與 Omnicross 安裝時的內容不一致。",
         "missing": "託管設定檔已被移動或刪除。",
         "keyMissing": "設定仍完整，但共享閘道金鑰缺失或已撤銷。請輪換金鑰進行修復。"
-      }
+      },
+      "keySelected": "已選擇金鑰",
+      "keyManaged": "Omnicross 管理"
     },
     "temporary": {
       "title": "臨時啟動",
@@ -1821,7 +1843,11 @@
       "cwdLabel": "工作目錄",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "執行中 · {{provider}} / {{model}}",
-      "stop": "停止"
+      "stop": "停止",
+      "routeKeyLabel": "路由金鑰",
+      "routeKeyAuto": "自動（第一個啟用的提供者）",
+      "routeKeyHint": "此終端機的 Codex 將以所選存取金鑰身分連線閘道，路由與模型映射跟隨該金鑰的綁定設定，因此多個終端機可同時使用不同上游。",
+      "runningViaKey": "執行中 · 金鑰 {{name}}"
     },
     "manual": {
       "title": "手動設定",
