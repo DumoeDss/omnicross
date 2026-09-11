@@ -184,7 +184,18 @@ export async function startElectronHost(options: {
   if (!existsSync(script)) {
     throw new ElectronHostError(`browser host main script not found: ${script}`);
   }
-  const args = [script, `--data-dir=${options.dataDir}`, ...(options.visible ? ['--show'] : [])];
+  const args = [
+    // Chromium only writes DevToolsActivePort when remote debugging is on;
+    // port 0 = random port, recorded into <userData>/DevToolsActivePort.
+    '--remote-debugging-port=0',
+    script,
+    `--data-dir=${options.dataDir}`,
+    ...(options.visible ? ['--show'] : []),
+  ];
+  // The host must ride the user's proxy like their browser does; Chromium
+  // picks the system proxy by default, explicit env wins when present.
+  const proxy = process.env['HTTPS_PROXY'] ?? process.env['https_proxy'] ?? process.env['HTTP_PROXY'] ?? process.env['http_proxy'];
+  if (proxy) args.unshift(`--proxy-server=${proxy}`);
   const child = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
   const stderrTail: string[] = [];
   child.stderr.on('data', (chunk: Buffer) => {
