@@ -54,6 +54,7 @@ import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
 import type { FetchLike } from '@omnicross/subscriptions';
 import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
+import { applyAdminProbeIdentity } from './testEgressIdentity';
 import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
 import type { ProviderKeyQuota } from '../allowance/ProviderKeyQuotaService';
 import type { ImageDoctorLiveResult } from '../image-generation/ImageDoctorService';
@@ -987,6 +988,9 @@ async function handleDiscoverModels(
     // Static extra headers (e.g. the Cline identity set) gate the SAME `/models`
     // surface as completions — without them discovery 403s on gated gateways.
     Object.assign(headers, expandRowExtraHeaders(row));
+    // Probe egress identity (product user-agent; opencode.ai session hint) —
+    // fill-only after the merge, so row-level extraHeaders still win.
+    applyAdminProbeIdentity(headers, row);
     // upstream-proxy: BYO discover-models egress honors the global/provider proxy.
     const response = await fetchUpstream(url, { method: 'GET', headers }, { providerId: 'byo' });
     if (!response.ok) {
@@ -1081,6 +1085,9 @@ async function handleTestModel(
   // Static extra headers (e.g. the Cline identity set) — same gate as the
   // completion path; without them the probe 403s on gated gateways.
   Object.assign(headers, expandRowExtraHeaders(row));
+  // Probe egress identity (product user-agent; opencode.ai session hint) —
+  // fill-only after the merge, so row-level extraHeaders still win.
+  applyAdminProbeIdentity(headers, row);
 
   const startedAt = Date.now();
   try {
