@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
@@ -31,12 +31,16 @@ import type {
   OutboundKeyPolicyPatch,
   OutboundPermissionId,
   GatewayBinding,
+  GatewayBindingTarget,
 } from '@/daemon/types';
 
 import {
   bindingAllowsClientKey,
   bindingsForClientKey,
   bindingTargetLabel,
+  decodeDirectUpstreamValue,
+  encodeDirectUpstreamValue,
+  legacyDirectUpstream,
   setBindingForClientKey,
 } from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
@@ -57,10 +61,11 @@ interface KeyManagementSectionProps {
   bindings?: GatewayBinding[];
   onOpenBinding?: (binding: GatewayBinding) => void;
   onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
-  /** BYO provider rows offered by the direct-upstream picker. */
-  providers?: LLMProvider[];
+  /** Encoded options for the direct-upstream picker (providers + claude/kimi
+   *  subscriptions). Values decode via `decodeDirectUpstreamValue`. */
+  directUpstreamOptions?: SelectOption[];
   /** Bind (null clears) a key's DIRECT upstream passthrough target. */
-  onSetUpstream?: (id: string, providerId: string | null) => Promise<void>;
+  onSetUpstream?: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
   integrations?: CliIntegrationStatus[];
   onBindIntegration?: (client: CliIntegrationClient, keyId: string) => Promise<MutationResult>;
 }
@@ -241,7 +246,7 @@ export function KeyManagementSection({
   bindings = [],
   onOpenBinding,
   onChangeBindings,
-  providers = [],
+  directUpstreamOptions = [],
   onSetUpstream,
   integrations = [],
   onBindIntegration,
@@ -317,6 +322,7 @@ export function KeyManagementSection({
         <ul className="space-y-2">
           {keys.map((k) => {
             const relatedBindings = bindingsForClientKey(bindings, k.id);
+            const directTarget = k.boundUpstream ?? legacyDirectUpstream(k.boundUpstreamProviderId);
             const usedClients = integrations
               .filter((integration) => integration.key?.id === k.id)
               .map((integration) => integration.client);
@@ -493,25 +499,26 @@ export function KeyManagementSection({
                       <Select
                         className="min-w-40 flex-1"
                         size="sm"
-                        value={k.boundUpstreamProviderId ?? ''}
-                        disabled={busy || !onSetUpstream || !providers.length}
+                        value={encodeDirectUpstreamValue(directTarget)}
+                        disabled={busy || !onSetUpstream || !directUpstreamOptions.length}
                         options={[
                           { value: '', label: t('apiService.keys.bindings.directUpstream.none') },
-                          ...providers.map((provider) => ({
-                            value: provider.id,
-                            label: provider.name || provider.id,
-                          })),
+                          ...directUpstreamOptions,
                         ]}
-                        onChange={(value) => void onSetUpstream?.(k.id, value || null)}
+                        onChange={(value) =>
+                          void onSetUpstream?.(k.id, decodeDirectUpstreamValue(value))
+                        }
                       />
                     </div>
                     <p className="mt-1.5 px-0.5 text-[10px] text-muted-foreground">
-                      {k.boundUpstreamProviderId
-                        ? t('apiService.keys.bindings.directUpstream.boundHint')
-                        : t('apiService.keys.bindings.directUpstream.hint')}
+                      {directTarget && directTarget.kind !== 'provider'
+                        ? t('apiService.keys.bindings.directUpstream.boundSubscriptionHint')
+                        : directTarget
+                          ? t('apiService.keys.bindings.directUpstream.boundHint')
+                          : t('apiService.keys.bindings.directUpstream.hint')}
                     </p>
                   </div>
-                  {k.boundUpstreamProviderId ? (
+                  {directTarget ? (
                     <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Route className="h-3 w-3" />
                       {t('apiService.keys.bindings.directUpstream.routesInactive')}

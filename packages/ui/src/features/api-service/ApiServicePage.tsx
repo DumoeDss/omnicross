@@ -13,6 +13,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SettingRow } from '@/components/ui/setting-row';
+import type { SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import type { RouteNavigate } from '@/shared/state/hashRoute';
@@ -20,6 +21,7 @@ import type { GatewayBinding } from '@/daemon/types';
 
 import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
 import {
+  buildDirectUpstreamOptions,
   routeForBinding,
   summarizeBindingCoverage,
 } from './gatewayBindingUiModel';
@@ -70,6 +72,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     updateVoucherConfig,
     generateVoucher,
     revokeVoucher,
+    accounts,
   } = useApiService();
 
   React.useEffect(() => {
@@ -77,6 +80,14 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
       ?.querySelector<HTMLElement>('[data-scroll-container]')
       ?.scrollTo({ top: 0 });
   }, [activeTab]);
+
+  // Direct key→upstream picker options: every BYO provider, plus the
+  // claude/kimi subscription pools / groups / accounts (the subscriptions whose
+  // upstream speaks the same Anthropic Messages wire as the client).
+  const directUpstreamOptions = React.useMemo<SelectOption[]>(
+    () => buildDirectUpstreamOptions(providers, accounts.providerAccounts, t),
+    [providers, accounts.providerAccounts, t],
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -170,7 +181,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   bindings={config.bindings ?? []}
                   onOpenBinding={onNavigate ? (binding) => onNavigate(routeForBinding(binding)) : undefined}
                   onChangeBindings={updateBindings}
-                  providers={providers}
+                  directUpstreamOptions={directUpstreamOptions}
                   onSetUpstream={setKeyUpstream}
                 />
 

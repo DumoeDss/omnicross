@@ -5,6 +5,10 @@ import type { GatewayBinding } from '@/daemon/types';
 import {
   bindingsForClientKey,
   bindingTargetLabel,
+  buildDirectUpstreamOptions,
+  decodeDirectUpstreamValue,
+  encodeDirectUpstreamValue,
+  legacyDirectUpstream,
   routeForBinding,
   setBindingForClientKey,
   summarizeBindingCoverage,
@@ -78,5 +82,48 @@ describe('gatewayBindingUiModel', () => {
     expect(bindingTargetLabel(routes[0])).toBe('codex / acct-a');
     expect(bindingTargetLabel(routes[1])).toBe('claude / team');
     expect(bindingTargetLabel(binding({ target: { kind: 'provider', providerId: 'openai' } }))).toBe('openai');
+  });
+});
+
+describe('direct-upstream value codec', () => {
+  it('round-trips every target kind (a group name may contain colons)', () => {
+    const targets = [
+      { kind: 'provider' as const, providerId: 'openrouter' },
+      { kind: 'account-pool' as const, providerId: 'claude' },
+      { kind: 'account-group' as const, providerId: 'claude', group: 'team:a' },
+      { kind: 'account' as const, providerId: 'kimi', accountId: 'acct-1' },
+    ];
+    for (const target of targets) {
+      expect(decodeDirectUpstreamValue(encodeDirectUpstreamValue(target))).toEqual(target);
+    }
+    expect(encodeDirectUpstreamValue(undefined)).toBe('');
+    expect(decodeDirectUpstreamValue('')).toBeNull();
+    expect(decodeDirectUpstreamValue('nonsense')).toBeNull();
+    expect(legacyDirectUpstream('relay')).toEqual({ kind: 'provider', providerId: 'relay' });
+    expect(legacyDirectUpstream(undefined)).toBeUndefined();
+  });
+
+  it('builds options from providers plus claude/kimi subscription resources only', () => {
+    const t = (key: string, opts?: Record<string, unknown>): string =>
+      key === 'upstreams.memberCount' ? `members:${opts?.count}` : key;
+    const providerAccounts = {
+      claude: [
+        { id: 'a1', group: 'team', label: '主账号' },
+        { id: 'a2', group: 'team', label: undefined },
+      ],
+      codex: [{ id: 'c1', group: 'default' }], // NOT same-wire — excluded
+    } as unknown as Parameters<typeof buildDirectUpstreamOptions>[1];
+    const options = buildDirectUpstreamOptions(
+      [{ id: 'openrouter', name: 'OpenRouter' } as never],
+      providerAccounts,
+      t,
+    );
+    expect(options.map((option) => option.value)).toEqual([
+      'pool:claude',
+      'group:claude:team',
+      'account:claude:a1',
+      'account:claude:a2',
+      'provider:openrouter',
+    ]);
   });
 });

@@ -937,10 +937,13 @@ export interface OutboundApiKeyInfo {
   /** The model-id list the mode acts on (bare modelIds). */
   restrictedModels?: string[];
   /**
-   * DIRECT upstream passthrough target (key→upstream binding): the id of the BYO
-   * provider row this key relays VERBATIM (auth swapped, everything else
-   * untouched). Absent ⇒ the key is served by the downstream routes.
+   * DIRECT upstream passthrough target (key→upstream binding): a BYO provider
+   * row (verbatim transparent relay) or a claude/kimi subscription account /
+   * group / pool (Anthropic-wire same-format relay). Absent ⇒ the key is
+   * served by the downstream routes. `boundUpstreamProviderId` is the legacy
+   * first-cut shape (a bare provider id).
    */
+  boundUpstream?: GatewayBindingTarget;
   boundUpstreamProviderId?: string;
   /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin

@@ -38,6 +38,7 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  GatewayBindingTarget,
   ImagesCapabilityStatus,
   ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
@@ -230,11 +231,14 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
-    async setKeyUpstream(id: string, providerId: string | null): Promise<MutationResult> {
+    async setKeyUpstream(
+      id: string,
+      target: GatewayBindingTarget | null,
+    ): Promise<MutationResult> {
       try {
-        const data = await adminClient.post<{ ok: boolean; providerId?: string | null }>(
+        const data = await adminClient.post<{ ok: boolean }>(
           `/keys/${encodeURIComponent(id)}/upstream`,
-          { providerId },
+          { target },
         );
         if (!data.ok) return { success: false, message: 'key not found' };
         return { success: true };

@@ -79,6 +79,7 @@ import type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
+  GatewayBindingTarget,
   OutboundApiDeps,
   OutboundEndpoint,
   OutboundPermission,
@@ -715,6 +716,35 @@ export function directUpstreamUrl(
 }
 
 /**
+ * The ONE synthesized passthrough binding a direct-bound SUBSCRIPTION key
+ * rides (claude / kimi — subscriptions whose upstream speaks the same
+ * Anthropic Messages wire as the client). Scoped to exactly this key on the
+ * `messages` endpoint with priority 0, so it outranks any operator route the
+ * key also matches (direct wins) while every other key is untouched. The
+ * normal pipeline then does the serving — including the messages ingress's
+ * same-format VERBATIM relay (byte-for-byte body, OAuth swapped +
+ * auto-refreshed, account scheduling, fingerprint replay, allowance + usage
+ * metering) and the `GET /v1/models` catalog advertising.
+ */
+export function directUpstreamBinding(
+  target: GatewayBindingTarget,
+  apiKeyId: string,
+): GatewayBinding {
+  return {
+    id: `direct:${apiKeyId}`,
+    name: 'direct upstream',
+    enabled: true,
+    keyScope: 'selected',
+    apiKeyIds: [apiKeyId],
+    endpoint: 'messages',
+    target,
+    priority: 0,
+    fallback: 'fail',
+    modelMode: 'passthrough',
+  };
+}
+
+/**
  * Relay one request VERBATIM to the key's directly-bound BYO provider — a
  * transparent reverse proxy. Method, path, query, and body bytes are forwarded
  * untouched; only the auth headers are swapped to the provider's credential
@@ -743,7 +773,8 @@ async function relayDirectUpstream(
   concurrencyGate: OutboundConcurrencyGate,
   audit: AuditCaptureContext | null,
 ): Promise<void> {
-  const providerId = verified.boundUpstreamProviderId ?? '';
+  const direct = verified.boundUpstream;
+  const providerId = direct?.kind === 'provider' ? direct.providerId : '';
   const provider = await deps.llmConfig.getProvider(providerId);
   if (!provider) {
     writeJsonError(
@@ -1106,19 +1137,33 @@ export async function handleOutboundRequest(
     return;
   }
 
-  // 2-PASSTHROUGH. DIRECT UPSTREAM RELAY (key→upstream binding). A key with a
-  // `boundUpstreamProviderId` is a TRANSPARENT reverse proxy for that provider:
-  // method, path, query, and body are forwarded VERBATIM with only the auth
-  // headers swapped to the provider's key — no downstream route, protocol
-  // translation, model mapping, endpoint permission, or usage metering runs.
-  // This branch deliberately precedes the usage-proxy/images/search/models
-  // handlers: `GET /v1/models` relays to the upstream's own catalog, and an
-  // unknown path surfaces the upstream's real 404 rather than this server's.
+  // 2-PASSTHROUGH. DIRECT UPSTREAM (key→upstream binding). Two flavors:
+  //
+  //  - A `provider` target is a TRANSPARENT reverse proxy: method, path, query,
+  //    and body are forwarded VERBATIM with only the auth headers swapped to
+  //    the provider's key — no downstream route, protocol translation, model
+  //    mapping, endpoint permission, or usage metering runs. `GET /v1/models`
+  //    relays to the upstream's own catalog; an unknown path surfaces the
+  //    upstream's real 404 rather than this server's.
+  //
+  //  - A claude/kimi SUBSCRIPTION target (account / account-group /
+  //    account-pool) rides the messages pipeline instead: the config below
+  //    gains ONE synthesized passthrough binding, and the existing ingress
+  //    serves it through its same-format VERBATIM relay (byte-for-byte body,
+  //    OAuth swapped + auto-refreshed, account scheduling, fingerprint replay,
+  //    allowance + usage metering intact). No operator-managed route needed.
+  //
   // Per-key rate limit + revocation/expiry (above) and the per-key concurrency
-  // ceiling (below, inside the relay) still apply.
-  if (verified.boundUpstreamProviderId) {
+  // ceiling still apply to both flavors.
+  if (verified.boundUpstream?.kind === 'provider') {
     await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit);
     return;
+  }
+  if (verified.boundUpstream) {
+    config = {
+      ...config,
+      bindings: [...(config.bindings ?? []), directUpstreamBinding(verified.boundUpstream, verified.id)],
+    };
   }
 
   // 2a. USAGE PROXY (R9, claude-api-experience-extras) — placed AFTER auth +
@@ -1257,7 +1302,11 @@ export async function handleOutboundRequest(
     writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
     return;
   }
-  if (verified.allowedEndpoints && !verified.allowedEndpoints.includes(endpoint)) {
+  // A direct-bound key's binding IS the authorization (the provider flavor
+  // bypasses this check entirely); the messages flavor serves whatever its
+  // upstream natively speaks, so the four-endpoint permission vocabulary
+  // would only produce a confusing 403 here.
+  if (verified.allowedEndpoints && !verified.boundUpstream && !verified.allowedEndpoints.includes(endpoint)) {
     writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
     return;
   }

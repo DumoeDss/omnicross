@@ -14,6 +14,7 @@ import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMa
 import { legacyEndpointsToBindings } from '../apiServerConfig';
 import {
   buildProviderModelsUrl,
+  directUpstreamBinding,
   directUpstreamUrl,
   extractGeminiModelFromUrl,
   extractPresentedKey,
@@ -597,6 +598,93 @@ describe('handleOutboundRequest — auth', () => {
     expect(buildProviderModelsUrl('https://generativelanguage.googleapis.com/v1beta', 'google'))
       .toBe('https://generativelanguage.googleapis.com/v1beta/models');
     expect(buildProviderModelsUrl('   ', 'openai')).toBeNull();
+  });
+
+
+  it('directUpstreamBinding synthesizes a messages passthrough binding scoped to the key', () => {
+    const binding = directUpstreamBinding(
+      { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+      'oak_direct',
+    );
+    expect(binding).toMatchObject({
+      id: 'direct:oak_direct',
+      enabled: true,
+      keyScope: 'selected',
+      apiKeyIds: ['oak_direct'],
+      endpoint: 'messages',
+      target: { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+      priority: 0,
+      fallback: 'fail',
+      modelMode: 'passthrough',
+    });
+  });
+
+  it('a key direct-bound to a claude account routes /v1/messages through the subscription resolver', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({
+      db: makeDb(() => ({
+        ...enabledRow,
+        boundUpstream: { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+      })),
+      routeMap,
+      // null ⇒ the 'claude' row lookup misses ⇒ the subscription branch runs
+      // (makeDeps' default row would pose as a BYO 'claude' provider).
+      llmProvider: null,
+    });
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/messages',
+      method: 'POST',
+      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 16, messages: [] }),
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      // NO bindings configured — the direct target alone must serve the key.
+      { endpoints: [], bindings: [] },
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    // The synthesized binding carried the request all the way into the
+    // subscription route resolver, which fails here ONLY because no registry
+    // is wired in this unit context (the daemon wires the real one).
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toContain("subscription provider 'claude' is not available");
+  });
+
+  it('a key direct-bound to a claude account advertises the claude catalog on /v1/models', async () => {
+    const deps = makeDeps({
+      db: makeDb(() => ({
+        ...enabledRow,
+        boundUpstream: { kind: 'account-pool', providerId: 'claude' },
+      })),
+      routeMap: new ProviderProxyRouteMap(),
+      llmProvider: null,
+    });
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      { endpoints: [], bindings: [] },
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const entry of body.data) expect(entry.id).toMatch(/^claude-/);
   });
 
   it('directUpstreamUrl maps the client path 1:1 with version-segment dedup', () => {
