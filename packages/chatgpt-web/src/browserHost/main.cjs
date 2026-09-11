@@ -12,7 +12,7 @@
 //   The control port is written to <userData>/host-control.json.
 // - Default window is a hidden background automation surface; --login/--show
 //   makes it visible for interactive sign-in or watching turns.
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, session } = require('electron');
 const http = require('node:http');
 const { writeFileSync } = require('node:fs');
 const path = require('node:path');
@@ -143,6 +143,15 @@ function startControlServer() {
 }
 
 app.whenReady().then(() => {
+  // A bare `electron main.cjs` process advertises "Electron/39.2.0" in its
+  // User-Agent, and accounts.google.com answers embedded-browser tokens with
+  // "This browser or app may not be secure" — which blocks ChatGPT's
+  // "Continue with Google" sign-in inside this host. Strip only that token
+  // so the UA stays consistent with the client hints this Chromium sends.
+  const stripEmbeddedToken = (ua) => ua.replace(/\s+Electron\/[\d.]+/g, '').trim();
+  const partitionSession = session.fromPartition('persist:chatgpt');
+  partitionSession.setUserAgent(stripEmbeddedToken(partitionSession.getUserAgent()));
+  app.userAgentFallback = stripEmbeddedToken(app.userAgentFallback);
   const win = new BrowserWindow({
     width: 1280,
     height: 900,
