@@ -1821,7 +1821,11 @@
       "launchDescription": "Opens a new terminal on the daemon host running this CLI, routed through the daemon proxy. Pick an optional working directory.",
       "cwdLabel": "Working directory",
       "cwdPlaceholder": "/path/to/your/project",
+      "routeKeyLabel": "Route key",
+      "routeKeyAuto": "Auto (first enabled provider)",
+      "routeKeyHint": "This terminal's Codex authenticates as the selected access key; routing and model mapping follow that key's gateway bindings, so concurrent terminals can use different upstreams.",
       "runningVia": "Running · {{provider}} / {{model}}",
+      "runningViaKey": "Running · key {{name}}",
       "stop": "Stop"
     },
     "manual": {

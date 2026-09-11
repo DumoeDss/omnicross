@@ -97,6 +97,7 @@ import type { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsS
 import type { JsonPricingStore } from '../ports/JsonPricingStore';
 import {
   IntegrationConflictError,
+  type CodexAuthHelperConfig,
   type IntegrationManager,
   type IntegrationClientId,
 } from '../integrations';
@@ -427,6 +428,12 @@ export interface AdminApiDeps {
    * actually runs.
    */
   readonly cliCommandRunner?: CommandRunner;
+  /**
+   * Codex command-auth helper invocation for KEY-SCOPED launches (the `--key-id`
+   * variant). Wired by bootstrap from the same inputs as the integration
+   * install's helper; absent ⇒ `keyId` launches answer 501 (light embedders).
+   */
+  readonly codexAuthHelper?: CodexAuthHelperConfig;
   /** Factory so each request observes the outbound server's current loopback port. */
   readonly integrationManagerFactory?: () => IntegrationManager;
   /**
@@ -2842,10 +2849,27 @@ async function handleCli(
     }
     const body = await readJsonBody(req);
     const providers = loadConfig(deps.configPath).providers ?? [];
+    // Key-scoped codex launches need the live gateway state + key store; read
+    // both per request (same fresh-read discipline as integrationManagerFactory).
+    const codexAuthHelper = deps.codexAuthHelper;
+    const keyScoped = codexAuthHelper
+      ? await (async () => {
+          const gateway = deps.outboundApiServer.getStatus();
+          const serverConfig = await loadServerConfig(deps.settingsStore);
+          return {
+            keyDb: deps.keyDb,
+            bindings: serverConfig.bindings ?? [],
+            gatewayRunning: gateway.running,
+            gatewayBaseUrl: gateway.loopbackUrl ?? `http://127.0.0.1:${gateway.port}`,
+            codexAuthHelper,
+          };
+        })()
+      : undefined;
     const result = await handleCliLaunch(cli, body, {
       llmConfig: deps.llmConfig,
       providers,
       routeLeaseManager: deps.routeLeaseManager,
+      keyScoped,
       opener: deps.cliTerminalOpener,
       probe: deps.cliPathProbe,
     });

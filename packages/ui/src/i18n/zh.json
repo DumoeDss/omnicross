@@ -1818,7 +1818,11 @@
       "launchDescription": "在守护进程主机上打开一个新终端运行该 CLI，并经由守护进程代理路由。可选填工作目录。",
       "cwdLabel": "工作目录",
       "cwdPlaceholder": "/path/to/your/project",
+      "routeKeyLabel": "路由密钥",
+      "routeKeyAuto": "自动（第一个启用的提供商）",
+      "routeKeyHint": "此终端的 Codex 将以所选访问密钥身份访问网关，路由与模型映射跟随该密钥的绑定配置，因此多个终端可同时使用不同上游。",
       "runningVia": "运行中 · {{provider}} / {{model}}",
+      "runningViaKey": "运行中 · 密钥 {{name}}",
       "stop": "停止"
     },
     "manual": {

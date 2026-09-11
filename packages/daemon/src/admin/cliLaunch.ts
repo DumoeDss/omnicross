@@ -14,6 +14,14 @@
  * never a provider key. On win32 the token rides the spawned process environment
  * (inherited by the terminal), never the command line / a file on disk.
  *
+ * KEY-SCOPED LAUNCH (`{ keyId }` body, codex only): instead of a route lease, the
+ * terminal's Codex authenticates to the RESIDENT outbound gateway as ONE chosen
+ * access key, so routing follows that key's gateway bindings. Concurrent
+ * terminals can then use different keys (hence different upstreams) at once.
+ * The redirect rides `-c` overrides reusing the INSTALLED provider name
+ * (`omnicross`) plus a `--key-id`-scoped auth command; no secret ever enters the
+ * spawned env (Codex invokes the helper itself).
+ *
  * @module @omnicross/daemon/admin/cliLaunch
  */
 
@@ -29,6 +37,7 @@ import {
   buildClaudeCliLaunchConfig,
   buildCodexLaunchConfig,
   buildGeminiCliLaunchConfig,
+  CODEX_PROXY_PROVIDER_NAME,
   type ChatCliBackendId,
   type ChatCliLaunchConfig,
 } from '@omnicross/cli-launcher';
@@ -38,8 +47,17 @@ import {
   RouteLeaseError,
   type RouteLeaseManager,
 } from '@omnicross/core/provider-proxy';
+import {
+  candidateGatewayBindings,
+  effectiveOutboundPermissions,
+  type GatewayBinding,
+  type OutboundKeyDb,
+  type OutboundPermission,
+} from '@omnicross/core/outbound-api';
 
+import type { CodexAuthHelperConfig } from '../integrations/codexAuthHelper';
 import { startTerminalLeaseRenewal } from '../routeLeaseRenewal';
+
 
 /** The CLIs the dashboard can launch (one per cli-launcher builder). */
 export const LAUNCHABLE_CLIS = [
@@ -156,6 +174,129 @@ export function resolveLaunchTarget(
 
 function firstModel(p: ProviderRowLike): string | undefined {
   return p.models?.[0] ?? p.modelConfigs?.[0]?.id;
+}
+
+// ── Key-scoped Codex launch (gateway-key routing) ────────────────────────────
+
+/**
+ * cmd.exe metacharacters that would be re-interpreted inside the `cmd /k` line
+ * the win32 terminal opener builds. Quotes are deliberately EXCLUDED — they are
+ * structural in the `-c` TOML values. Key-scoped launches embed real PATHs
+ * (auth helper + config file), so they are checked up front rather than
+ * silently corrupted by cmd.exe parsing.
+ */
+const CMD_METACHAR_RE = /[&|<>^%]/;
+
+/** Endpoint permissions a key must hold to power a Codex terminal. */
+const KEY_SCOPED_CODEX_PERMISSIONS: readonly OutboundPermission[] = ['responses', 'images'];
+
+/** The deps the key-scoped branch needs beyond the lease-path context. */
+export interface KeyScopedLaunchDeps {
+  /** Named outbound-key store (usability preflight for the chosen key). */
+  keyDb: OutboundKeyDb;
+  /** Live gateway bindings; the chosen key must own an enabled responses route. */
+  bindings: readonly GatewayBinding[];
+  /** Whether the RESIDENT outbound gateway is accepting requests right now. */
+  gatewayRunning: boolean;
+  /** Loopback base of the resident outbound gateway (e.g. http://127.0.0.1:8765). */
+  gatewayBaseUrl: string;
+  /** Codex command-auth helper invocation (this daemon's own entrypoint). */
+  codexAuthHelper: CodexAuthHelperConfig;
+}
+
+/** Pure inputs of `buildKeyScopedCodexArgs`. */
+export interface KeyScopedCodexArgsInput {
+  gatewayBaseUrl: string;
+  authHelper: CodexAuthHelperConfig;
+  keyId: string;
+}
+
+/**
+ * The `-c` config overrides for a key-scoped Codex launch: the SAME provider
+ * shape the integration install writes (`renderCodexConfig`) under the SAME
+ * provider NAME — Codex sessions are bound to the provider name, so a
+ * launch-time alias would split these sessions from the ones plain `codex`
+ * creates. Every dotted path here is the same key path the installed block
+ * uses, so the `-c` values simply win per-key over whatever
+ * `~/.codex/config.toml` holds: the launch is self-contained whether or not
+ * the install is enabled, and the file's own `auth` sub-table is shadowed —
+ * never mixed with `env_key`, whose precedence against `auth` is undocumented.
+ */
+export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[] {
+  let root = input.gatewayBaseUrl;
+  while (root.endsWith('/')) root = root.slice(0, -1);
+  const name = CODEX_PROXY_PROVIDER_NAME;
+  const helperArgs = [...input.authHelper.args, '--key-id', input.keyId];
+  return [
+    '-c', `model_provider="${name}"`,
+    '-c', `model_providers.${name}.name="OmniCross Local Gateway"`,
+    '-c', `model_providers.${name}.base_url="${root}/v1"`,
+    '-c', `model_providers.${name}.wire_api="responses"`,
+    '-c', `model_providers.${name}.supports_websockets=false`,
+    '-c', `model_providers.${name}.http_headers={"X-OpenAI-Actor-Authorization"="omnicross"}`,
+    '-c', `model_providers.${name}.auth.command=${JSON.stringify(input.authHelper.command)}`,
+    '-c', `model_providers.${name}.auth.args=${JSON.stringify(helperArgs)}`,
+    '-c', `model_providers.${name}.auth.refresh_interval_ms=0`,
+    '-c', `model_providers.${name}.auth.timeout_ms=5000`,
+    '-c', 'disable_response_storage=true',
+  ];
+}
+
+/** Preflight outcome for the chosen gateway key. */
+export type KeyScopedPreflight =
+  | { ok: true; keyName: string }
+  | { ok: false; status: number; message: string };
+
+/**
+ * Fail-fast checks for a key-scoped launch, so a misconfigured key surfaces as
+ * a clear admin error instead of a terminal that 401s/404s on its first
+ * request: gateway running; key exists, enabled, not revoked, revealable (the
+ * helper re-reveals at CLI start — the plaintext is discarded here);
+ * codex-required endpoint permissions; at least one enabled `responses`
+ * binding scoped to the key (that binding is what routes this terminal's
+ * upstream).
+ */
+export async function preflightKeyScopedLaunch(
+  deps: KeyScopedLaunchDeps,
+  keyId: string,
+): Promise<KeyScopedPreflight> {
+  if (!deps.gatewayRunning) {
+    return {
+      ok: false,
+      status: 409,
+      message: 'the outbound gateway is not running — key-scoped launches route through it',
+    };
+  }
+  const rows = await deps.keyDb.outboundApiKeysList();
+  const row = rows.find((candidate) => candidate.id === keyId);
+  if (!row) return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
+  if (!row.enabled || row.revokedAt !== null) {
+    return { ok: false, status: 400, message: `access key '${row.name}' is disabled or revoked` };
+  }
+  const secret = await deps.keyDb.outboundApiKeysReveal(keyId);
+  if (!secret) {
+    return { ok: false, status: 400, message: `access key '${row.name}' is not revealable` };
+  }
+  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
+  for (const permission of KEY_SCOPED_CODEX_PERMISSIONS) {
+    if (!allowed.includes(permission)) {
+      return {
+        ok: false,
+        status: 400,
+        message: `access key '${row.name}' lacks the '${permission}' endpoint permission Codex requires`,
+      };
+    }
+  }
+  if (candidateGatewayBindings(deps.bindings, keyId, 'responses').length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        `access key '${row.name}' has no enabled responses route — bind it to a downstream route ` +
+        'on the API Service page first',
+    };
+  }
+  return { ok: true, keyName: row.name };
 }
 
 /** Dispatch to the matching cli-launcher builder (registers the resident route). */
@@ -404,6 +545,13 @@ interface CliSession {
   cli: LaunchCliId;
   providerId: string;
   model: string;
+  /**
+   * Key-scoped rows: the gateway key this terminal authenticates as (codex
+   * only). No lease exists for these — the key outlives the terminal — so
+   * providerId/model are empty and routing follows the key's bindings.
+   */
+  keyId?: string;
+  keyName?: string;
   leaseId?: string;
   startedAt: string;
   onSessionEnd: () => void;
@@ -501,6 +649,8 @@ export interface CliLaunchContext {
   providers: ProviderRowLike[];
   /** Daemon-owned Route Lease service used by Claude/Codex launches. */
   routeLeaseManager?: RouteLeaseManager;
+  /** Deps for key-scoped codex launches; absent ⇒ `keyId` requests get a 501. */
+  keyScoped?: KeyScopedLaunchDeps;
   opener?: TerminalOpener;
   platform?: NodeJS.Platform;
   probe?: PathProbe;
@@ -514,10 +664,13 @@ interface LaunchMaterial {
 
 
 /**
- * POST /cli/:cli/launch { providerId?, model?, cwd? } → register the resident
- * route, open a terminal with the redirect env, track the session. STATUS-ONLY:
- * the response carries the sessionId + resolved provider/model — NEVER the route
- * token (it rides only the spawned terminal's environment).
+ * POST /cli/:cli/launch { providerId?, model?, cwd?, keyId? } → register the
+ * resident route (or, with `keyId`, skip the lease and authenticate the
+ * terminal's Codex to the gateway as the chosen key), open a terminal with the
+ * redirect env, track the session. STATUS-ONLY: the response carries the
+ * sessionId + resolved provider/model (or key id/name) — NEVER the route token
+ * or the key plaintext (the token rides only the spawned terminal's
+ * environment; the key never even does that — Codex's auth helper fetches it).
  */
 export async function handleCliLaunch(
   cli: LaunchCliId,
@@ -532,45 +685,89 @@ export async function handleCliLaunch(
     return { status: 400, body: errBody(`"${meta.command}" is not installed (not found on PATH)`) };
   }
 
-  let target: LaunchTarget;
-  try {
-    target = resolveLaunchTarget(ctx.providers, {
-      providerId: typeof body['providerId'] === 'string' ? body['providerId'] : undefined,
-      model: typeof body['model'] === 'string' ? body['model'] : undefined,
-    });
-  } catch (err) {
-    return { status: 400, body: errBody(err instanceof Error ? err.message : 'no launch target') };
-  }
+  const keyId = typeof body['keyId'] === 'string' && body['keyId'].trim() ? body['keyId'].trim() : undefined;
 
+  let target: LaunchTarget | undefined;
+  let keyLaunch: { keyId: string; keyName: string } | undefined;
   const id = randomUUID();
   let leaseId: string | undefined;
   let launch: LaunchMaterial;
-  try {
-    if ((cli === 'claude' || cli === 'codex') && ctx.routeLeaseManager) {
-      const outcome = await ctx.routeLeaseManager.createFromRequest({
-        schemaVersion: ROUTE_LEASE_REQUEST_SCHEMA,
-        consumer: 'omnicross-terminal',
-        runtime: cli,
-        upstream: { kind: 'provider', providerId: target.providerId },
-        model: target.model,
-        execution: { sessionId: id },
-      }, `omnicross-terminal:${id}`);
-      leaseId = outcome.result.leaseId;
-      const stopRenewal = startTerminalLeaseRenewal(ctx.routeLeaseManager, leaseId);
-      launch = {
-        env: outcome.result.launch.env,
-        extraArgs: outcome.result.launch.extraArgs,
-        onSessionEnd: () => {
-          stopRenewal();
-          ctx.routeLeaseManager?.release(outcome.result.leaseId);
-        },
-      };
-    } else {
-      launch = await buildLaunchEnv(cli, ctx.llmConfig, target);
+  if (keyId) {
+    if (cli !== 'codex') {
+      return { status: 400, body: errBody('key-scoped launch is only supported for codex') };
     }
-  } catch (err) {
-    const status = err instanceof RouteLeaseError ? err.status : 400;
-    return { status, body: errBody(err instanceof Error ? err.message : 'failed to build launch env') };
+    const deps = ctx.keyScoped;
+    if (!deps) {
+      return { status: 501, body: errBody('key-scoped launch is not available in this build') };
+    }
+    const preflight = await preflightKeyScopedLaunch(deps, keyId);
+    if (!preflight.ok) return { status: preflight.status, body: errBody(preflight.message) };
+    if (platform === 'win32') {
+      // The auth-helper invocation rides argv through the terminal opener's
+      // `cmd /k` line on win32 — refuse metacharacter-bearing PATHs up front
+      // instead of letting cmd.exe silently corrupt the override.
+      const unsafe = [deps.codexAuthHelper.command, ...deps.codexAuthHelper.args]
+        .filter((value) => CMD_METACHAR_RE.test(value));
+      if (unsafe.length > 0) {
+        return {
+          status: 400,
+          body: errBody(
+            'the Codex auth-helper path contains cmd.exe metacharacters and cannot be ' +
+            'passed through a Windows terminal launch',
+          ),
+        };
+      }
+    }
+    keyLaunch = { keyId, keyName: preflight.keyName };
+    launch = {
+      env: {},
+      extraArgs: buildKeyScopedCodexArgs({
+        gatewayBaseUrl: deps.gatewayBaseUrl,
+        authHelper: deps.codexAuthHelper,
+        keyId,
+      }),
+      // No route or lease exists to release — the gateway key outlives the
+      // terminal and its bindings route every request.
+      onSessionEnd: () => {},
+    };
+  } else {
+    let resolved: LaunchTarget;
+    try {
+      resolved = resolveLaunchTarget(ctx.providers, {
+        providerId: typeof body['providerId'] === 'string' ? body['providerId'] : undefined,
+        model: typeof body['model'] === 'string' ? body['model'] : undefined,
+      });
+    } catch (err) {
+      return { status: 400, body: errBody(err instanceof Error ? err.message : 'no launch target') };
+    }
+    target = resolved;
+    try {
+      if ((cli === 'claude' || cli === 'codex') && ctx.routeLeaseManager) {
+        const outcome = await ctx.routeLeaseManager.createFromRequest({
+          schemaVersion: ROUTE_LEASE_REQUEST_SCHEMA,
+          consumer: 'omnicross-terminal',
+          runtime: cli,
+          upstream: { kind: 'provider', providerId: resolved.providerId },
+          model: resolved.model,
+          execution: { sessionId: id },
+        }, `omnicross-terminal:${id}`);
+        leaseId = outcome.result.leaseId;
+        const stopRenewal = startTerminalLeaseRenewal(ctx.routeLeaseManager, leaseId);
+        launch = {
+          env: outcome.result.launch.env,
+          extraArgs: outcome.result.launch.extraArgs,
+          onSessionEnd: () => {
+            stopRenewal();
+            ctx.routeLeaseManager?.release(outcome.result.leaseId);
+          },
+        };
+      } else {
+        launch = await buildLaunchEnv(cli, ctx.llmConfig, resolved);
+      }
+    } catch (err) {
+      const status = err instanceof RouteLeaseError ? err.status : 400;
+      return { status, body: errBody(err instanceof Error ? err.message : 'failed to build launch env') };
+    }
   }
 
   const cwd = typeof body['cwd'] === 'string' && body['cwd'].trim() ? body['cwd'].trim() : undefined;
@@ -611,13 +808,19 @@ export async function handleCliLaunch(
   sessions.set(id, {
     id,
     cli,
-    providerId: target.providerId,
-    model: target.model,
+    providerId: target?.providerId ?? '',
+    model: target?.model ?? '',
+    ...(keyLaunch ? { keyId: keyLaunch.keyId, keyName: keyLaunch.keyName } : {}),
     ...(leaseId ? { leaseId } : {}),
     startedAt: new Date().toISOString(),
     onSessionEnd,
   });
   published = true;
   if (ended) sessions.delete(id);
-  return { status: 200, body: { sessionId: id, providerId: target.providerId, model: target.model } };
+  return {
+    status: 200,
+    body: keyLaunch
+      ? { sessionId: id, keyId: keyLaunch.keyId, keyName: keyLaunch.keyName }
+      : { sessionId: id, providerId: target?.providerId, model: target?.model },
+  };
 }

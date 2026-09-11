@@ -1078,6 +1078,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     cliTerminalOpener: paths.cliTerminalOpener,
     cliPathProbe: paths.cliPathProbe,
     cliCommandRunner: paths.cliCommandRunner,
+    // One helper invocation shared by the integration install and KEY-SCOPED
+    // launches (the latter append `--key-id` per spawn) — same entrypoint, same
+    // config/master-key resolution, so the two paths can never drift.
+    codexAuthHelper: currentProcessCodexAuthHelper(paths.configPath, paths.masterKeyFilePath),
     integrationManagerFactory: () => {
       const live = outboundApiServer.getStatus();
       const port = live.port || decryptedConfig.server?.port || DEFAULT_OUTBOUND_PORT;
