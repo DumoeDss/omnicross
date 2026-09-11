@@ -771,6 +771,8 @@
       "add": "Add downstream",
       "empty": "No downstream interface yet.",
       "selectPrompt": "Select a downstream interface or create a new one.",
+      "resourcePlaceholder": "Select an upstream resource",
+      "legacyTarget": "legacy target — pick a live resource to migrate",
       "noResources": "Add an upstream provider or account first.",
       "editEyebrow": "Downstream route",
       "createEyebrow": "New downstream interface",
