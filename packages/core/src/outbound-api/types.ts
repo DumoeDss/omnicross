@@ -769,6 +769,12 @@ export interface OutboundApiKeyInfo {
   /** The model-id list the mode acts on (bare modelIds; empty allowlist denies all). */
   restrictedModels?: string[];
   /**
+   * DIRECT upstream passthrough target (key→upstream binding): the id of the BYO
+   * provider row whose wire this key relays verbatim. Absent ⇒ the key is served
+   * by the downstream routes. An id, never a credential.
+   */
+  boundUpstreamProviderId?: string;
+  /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the host wired a spend
    * reader. Leak-safe: each key carries only ITS own numbers — the same data the
@@ -883,6 +889,15 @@ export interface OutboundKeyDbRow {
   restrictionMode?: OutboundKeyModelRestrictionMode;
   /** The model-id list the mode acts on (bare modelIds). */
   restrictedModels?: string[];
+  /**
+   * DIRECT upstream passthrough (key→upstream binding): when set, every request
+   * authenticated by this key is relayed VERBATIM to this BYO provider row —
+   * method, path, query, and body pass through untouched, with only the auth
+   * headers swapped to the provider's key. No gateway route, protocol
+   * translation, model mapping, or usage metering runs for the key. Absent ⇒
+   * the key is served by the downstream routes as before.
+   */
+  boundUpstreamProviderId?: string;
 }
 
 export interface OutboundKeyDb {
@@ -920,6 +935,17 @@ export interface OutboundKeyDb {
   outboundApiKeysSetMaxConcurrency(
     id: string,
     maxConcurrency: number | null,
+  ): Promise<boolean>;
+  /**
+   * Set (or clear) a key's DIRECT upstream passthrough target — the id of a BYO
+   * provider row whose wire the key relays verbatim (`boundUpstreamProviderId`).
+   * `null` clears the field → the key returns to downstream-route serving.
+   * Mirrors `outboundApiKeysSetMaxConcurrency`; returns `false` when the key is
+   * missing. Provider EXISTENCE is validated by the admin write edge, not here.
+   */
+  outboundApiKeysSetUpstream(
+    id: string,
+    providerId: string | null,
   ): Promise<boolean>;
   /**
    * Set (or clear) a key's policy envelope (expiry / activation window / cost

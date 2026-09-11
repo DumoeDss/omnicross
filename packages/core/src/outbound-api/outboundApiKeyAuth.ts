@@ -204,6 +204,12 @@ export interface VerifiedKey {
    * is the zero-regression gate. Absent ⇒ NO model check runs for this key.
    */
   modelRestriction?: ModelRestriction;
+  /**
+   * DIRECT upstream passthrough target (key→upstream binding), carried from the
+   * row so the wire layer relays verbatim WITHOUT a second DB read. Absent ⇒
+   * the key is served by the downstream routes as before.
+   */
+  boundUpstreamProviderId?: string;
 }
 
 /** The reason-bearing verify outcome (design D2). */
@@ -266,6 +272,9 @@ function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   if (rateLimit) key.rateLimit = rateLimit;
   const modelRestriction = extractModelRestriction(row);
   if (modelRestriction) key.modelRestriction = modelRestriction;
+  if (typeof row.boundUpstreamProviderId === 'string' && row.boundUpstreamProviderId) {
+    key.boundUpstreamProviderId = row.boundUpstreamProviderId;
+  }
   return key;
 }
 

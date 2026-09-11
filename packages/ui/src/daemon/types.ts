@@ -327,6 +327,13 @@ export interface AgentApiServiceApi {
    * handling (`ok:false` → "key not found").
    */
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
+  /**
+   * Set a key's DIRECT upstream passthrough target (`POST /keys/:id/upstream`).
+   * A provider id makes the key relay VERBATIM to that BYO provider; `null`
+   * clears it → the key returns to downstream-route serving. The daemon
+   * validates the provider id (404 on an unknown provider).
+   */
+  setKeyUpstream(id: string, providerId: string | null): Promise<MutationResult>;
   /** Atomically replace one key's exact authorization list. */
   setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult>;
   /**

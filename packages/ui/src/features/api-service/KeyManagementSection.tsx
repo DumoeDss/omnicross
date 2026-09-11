@@ -20,6 +20,8 @@ import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
+import type { LLMProvider } from '@shared/llm-config';
+
 import type {
   CliIntegrationClient,
   CliIntegrationStatus,
@@ -35,9 +37,7 @@ import {
   bindingAllowsClientKey,
   bindingsForClientKey,
   bindingTargetLabel,
-  bindKeyToUpstream,
   setBindingForClientKey,
-  type UpstreamBindingOption,
 } from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
 
@@ -57,8 +57,10 @@ interface KeyManagementSectionProps {
   bindings?: GatewayBinding[];
   onOpenBinding?: (binding: GatewayBinding) => void;
   onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
-  /** Upstream resources offered by the key→upstream quick-bind picker. */
-  upstreamOptions?: UpstreamBindingOption[];
+  /** BYO provider rows offered by the direct-upstream picker. */
+  providers?: LLMProvider[];
+  /** Bind (null clears) a key's DIRECT upstream passthrough target. */
+  onSetUpstream?: (id: string, providerId: string | null) => Promise<void>;
   integrations?: CliIntegrationStatus[];
   onBindIntegration?: (client: CliIntegrationClient, keyId: string) => Promise<MutationResult>;
 }
@@ -239,7 +241,8 @@ export function KeyManagementSection({
   bindings = [],
   onOpenBinding,
   onChangeBindings,
-  upstreamOptions = [],
+  providers = [],
+  onSetUpstream,
   integrations = [],
   onBindIntegration,
 }: KeyManagementSectionProps) {
@@ -250,9 +253,6 @@ export function KeyManagementSection({
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
-  // The key→upstream quick-bind picker selection (shared: only one binding
-  // panel is open at a time; cleared whenever a panel toggles).
-  const [upstreamPick, setUpstreamPick] = useState('');
   const [integrationTarget, setIntegrationTarget] = useState<{
     client: CliIntegrationClient;
     key: OutboundApiKeyInfo;
@@ -280,19 +280,6 @@ export function KeyManagementSection({
     } else {
       setReveal({ id: k.id, status: 'error', message: result.message ?? t('apiService.keys.revealError') });
     }
-  };
-
-  const handleBindUpstream = async (keyId: string, option: UpstreamBindingOption) => {
-    if (!onChangeBindings) return;
-    await onChangeBindings(
-      bindKeyToUpstream(
-        bindings,
-        keyId,
-        option,
-        (endpoint) => t(`apiService.endpoint.name.${endpoint}`),
-      ),
-    );
-    setUpstreamPick('');
   };
 
   return (
@@ -497,6 +484,40 @@ export function KeyManagementSection({
                       {t('apiService.keys.permissions.hint')}
                     </p>
                   </div>
+                  <div className="mb-2 rounded-md border border-primary/25 bg-primary/[0.04] p-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Server className="h-3 w-3 shrink-0 text-primary" />
+                      <span className="text-[11px] font-medium text-foreground">
+                        {t('apiService.keys.bindings.directUpstream.label')}
+                      </span>
+                      <Select
+                        className="min-w-40 flex-1"
+                        size="sm"
+                        value={k.boundUpstreamProviderId ?? ''}
+                        disabled={busy || !onSetUpstream || !providers.length}
+                        options={[
+                          { value: '', label: t('apiService.keys.bindings.directUpstream.none') },
+                          ...providers.map((provider) => ({
+                            value: provider.id,
+                            label: provider.name || provider.id,
+                          })),
+                        ]}
+                        onChange={(value) => void onSetUpstream?.(k.id, value || null)}
+                      />
+                    </div>
+                    <p className="mt-1.5 px-0.5 text-[10px] text-muted-foreground">
+                      {k.boundUpstreamProviderId
+                        ? t('apiService.keys.bindings.directUpstream.boundHint')
+                        : t('apiService.keys.bindings.directUpstream.hint')}
+                    </p>
+                  </div>
+                  {k.boundUpstreamProviderId ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Route className="h-3 w-3" />
+                      {t('apiService.keys.bindings.directUpstream.routesInactive')}
+                    </div>
+                  ) : (
+                  <>
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <Route className="h-3 w-3" />
                     {relatedBindings.length
@@ -525,10 +546,7 @@ export function KeyManagementSection({
                       <Button
                         size="xs"
                         variant={bindingOpenId === k.id ? 'secondary' : 'ghost'}
-                        onClick={() => {
-                          setBindingOpenId((current) => current === k.id ? null : k.id);
-                          setUpstreamPick('');
-                        }}
+                        onClick={() => setBindingOpenId((current) => current === k.id ? null : k.id)}
                       >
                         <Link2 className="h-3 w-3" />
                         {t('apiService.keys.bindings.manage')}
@@ -555,15 +573,6 @@ export function KeyManagementSection({
                               </Badge>
                             </label>
                           ))}
-                          {upstreamOptions.length ? (
-                            <KeyUpstreamQuickBind
-                              options={upstreamOptions}
-                              value={upstreamPick}
-                              busy={busy}
-                              onChange={setUpstreamPick}
-                              onBind={(option) => void handleBindUpstream(k.id, option)}
-                            />
-                          ) : null}
                           <p className="px-2 pt-1 text-[10px] text-muted-foreground">
                             {t('apiService.keys.bindings.manageHint')}
                           </p>
@@ -571,6 +580,8 @@ export function KeyManagementSection({
                       ) : null}
                     </div>
                   ) : null}
+                  </>
+                  )}
                 </div>
               ) : null}
               {!k.revoked && policyOpenId === k.id ? (
@@ -665,68 +676,4 @@ export function KeyManagementSection({
 
 function eventPermissionIsRequired(checked: boolean, required: boolean): boolean {
   return checked && required;
-}
-
-/**
- * The key→upstream quick-bind: pick an upstream resource, see the ingress
- * protocols it will serve, and create the passthrough routes in one click.
- * Renders inside a key's expanded binding panel.
- */
-function KeyUpstreamQuickBind({
-  options,
-  value,
-  busy,
-  onChange,
-  onBind,
-}: {
-  options: readonly UpstreamBindingOption[];
-  value: string;
-  busy: boolean;
-  onChange: (value: string) => void;
-  onBind: (option: UpstreamBindingOption) => void;
-}) {
-  const t = useTranslation();
-  const picked = options.find((option) => option.key === value);
-  return (
-    <div className="mt-1 rounded-md border border-primary/25 bg-primary/[0.04] p-2">
-      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-foreground">
-        <Server className="h-3 w-3 text-primary" />
-        {t('apiService.keys.bindings.bindUpstream.title')}
-      </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <Select
-          className="min-w-40 flex-1"
-          value={value}
-          placeholder={t('apiService.keys.bindings.bindUpstream.placeholder')}
-          disabled={busy}
-          options={options.map((option) => ({ value: option.key, label: option.label }))}
-          onChange={onChange}
-        />
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={busy || !picked}
-          onClick={() => picked && onBind(picked)}
-        >
-          <Plus className="h-3 w-3" />
-          {t('apiService.keys.bindings.bindUpstream.add')}
-        </Button>
-      </div>
-      {picked ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 px-1">
-          <span className="text-[10px] text-muted-foreground">
-            {t('apiService.keys.bindings.bindUpstream.protocols')}
-          </span>
-          {picked.endpoints.map((endpoint) => (
-            <Badge key={endpoint} variant="outline">
-              {t(`apiService.endpoint.name.${endpoint}`)}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-      <p className="mt-1 px-1 text-[10px] text-muted-foreground">
-        {t('apiService.keys.bindings.bindUpstream.hint')}
-      </p>
-    </div>
-  );
 }

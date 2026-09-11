@@ -56,7 +56,7 @@ import type { RouteContext } from '../provider-proxy/types';
 import { DEFAULT_SEARCH_FRONTEND_MODES } from '../search/frontends';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
-import { beginAuditCapture } from './auditCapture';
+import { beginAuditCapture, type AuditCaptureContext } from './auditCapture';
 import { deriveAuditSessionKey } from './auditSessionKey';
 import { beginBillingCapture } from './billingCapture';
 import {
@@ -66,7 +66,7 @@ import {
   resolveGatewayBinding,
 } from './gatewayBindingResolver';
 import { isKindMappedEndpoint } from './kindDetection';
-import { verifyKey } from './outboundApiKeyAuth';
+import { verifyKey, type VerifiedKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
 import { computeQuotaWarnings, markQuotaWarnedOnce } from './quotaWarn';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
@@ -663,6 +663,209 @@ function handleOauthUsageProxy(
   res.end(JSON.stringify(body));
 }
 
+// ── DIRECT upstream passthrough (key→upstream binding) ───────────────────────
+
+/**
+ * The provider's URL ROOT for direct passthrough: the configured base minus
+ * the wire's completion/collection suffix, so a client request path can be
+ * appended. `.../v1/chat/completions` → `.../v1`; `.../v1/messages` → `.../v1`;
+ * `.../v1beta/models` → `.../v1beta`; a bare host stays bare. `null` when the
+ * row carries no usable base URL.
+ */
+function directUpstreamRoot(baseUrl: string, format: ReturnType<typeof resolveApiFormat>): string | null {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (!base) return null;
+  if (format === 'google') return base.replace(/\/models$/, '');
+  if (format === 'anthropic') return base.replace(/\/messages$/, '');
+  if (format === 'openai-response') return base.replace(/\/responses$/, '');
+  return base.replace(/\/chat\/completions$/, '');
+}
+
+/**
+ * Map a gateway request URL onto the directly-bound provider's base. The
+ * client's path + query pass through 1:1, EXCEPT a leading version segment
+ * (`/v1`, `/v1beta`, …) is dropped when the root already carries that same
+ * segment — so base `…/v1` + client `/v1/chat/completions` resolves to
+ * `…/v1/chat/completions` (not `…/v1/v1/…`), while a bare-host root keeps the
+ * client's `/v1/…` intact. Returns `null` when the provider has no base URL.
+ */
+export function directUpstreamUrl(
+  provider: Pick<LLMProvider, 'api_base_url'> &
+    Partial<Pick<LLMProvider, 'apiFormat' | 'chatApiFormat' | 'apiType'>>,
+  requestUrl: string | undefined,
+): string | null {
+  // `resolveApiFormat` reads only apiFormat/chatApiFormat/apiType — the cast
+  // keeps the parameter structural for callers holding partial provider rows.
+  const root = directUpstreamRoot(
+    provider.api_base_url ?? '',
+    resolveApiFormat(provider as LLMProvider),
+  );
+  if (!root) return null;
+  const raw = requestUrl ?? '/';
+  const queryIndex = raw.indexOf('?');
+  const path = (queryIndex >= 0 ? raw.slice(0, queryIndex) : raw) || '/';
+  const query = queryIndex >= 0 ? raw.slice(queryIndex) : '';
+  const versionSegment = /\/v\d+[a-z]*$/.exec(root)?.[0];
+  let tail = path;
+  if (versionSegment) {
+    if (path === versionSegment) tail = '';
+    else if (path.startsWith(`${versionSegment}/`)) tail = path.slice(versionSegment.length);
+  }
+  return `${root}${tail}${query}`;
+}
+
+/**
+ * Relay one request VERBATIM to the key's directly-bound BYO provider — a
+ * transparent reverse proxy. Method, path, query, and body bytes are forwarded
+ * untouched; only the auth headers are swapped to the provider's credential
+ * (`getProviderHeaders`: format-correct auth + static extra headers + the
+ * OpenRouter attribution set). The upstream's status, content-type, and body
+ * (streaming, SSE included) are piped back unchanged, so the client sees the
+ * REAL upstream response — including its 404s for paths this gateway does not
+ * itself implement. What deliberately does NOT run for such a key: downstream
+ * route resolution, protocol translation, model mapping, endpoint permissions,
+ * and usage/billing metering (verbatim bytes carry no parsed usage — spend
+ * tracking and cost limits cannot account direct-passthrough traffic).
+ *
+ * Per-key rate limit + revocation/expiry were enforced before this branch; the
+ * per-key concurrency ceiling is applied here with the same acquire/release
+ * semantics as the routed path. The concurrency slot is released by the
+ * `res.close` listener alone — every exit below ends or destroys the response,
+ * and this function RETURNS while the body still streams, so a `finally`
+ * release would fire early (the slot must cover the whole stream).
+ */
+async function relayDirectUpstream(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  deps: OutboundApiDeps,
+  verified: VerifiedKey,
+  config: OutboundRequestConfig,
+  concurrencyGate: OutboundConcurrencyGate,
+  audit: AuditCaptureContext | null,
+): Promise<void> {
+  const providerId = verified.boundUpstreamProviderId ?? '';
+  const provider = await deps.llmConfig.getProvider(providerId);
+  if (!provider) {
+    writeJsonError(
+      res,
+      503,
+      `direct upstream provider '${providerId}' is not configured for this key`,
+    );
+    return;
+  }
+  const url = directUpstreamUrl(provider, req.url);
+  if (!url) {
+    writeJsonError(res, 503, `direct upstream provider '${providerId}' has no base URL`);
+    return;
+  }
+
+  // Per-key concurrency ceiling (mirrors the routed path's gate block).
+  const concurrencyLimit = verified.maxConcurrency;
+  let releaseConcurrency: (() => void) | null = null;
+  if (typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
+    const cq = config.concurrencyQueue ?? DEFAULT_CONCURRENCY_QUEUE;
+    const acquisition = concurrencyGate.acquire(verified.id, concurrencyLimit, {
+      maxQueueSizeFactor: cq.maxQueueSizeFactor,
+      minQueueSize: cq.minQueueSize,
+      waitTimeoutMs: cq.waitTimeoutMs,
+    });
+    const cancelOnClose = (): void => acquisition.cancel();
+    res.once('close', cancelOnClose);
+    let slot: GateSlot;
+    try {
+      slot = await acquisition.granted;
+    } catch (err) {
+      res.removeListener('close', cancelOnClose);
+      if (isConcurrencyRejection(err)) {
+        writeJsonError(res, 429, 'Concurrency limit exceeded', { 'Retry-After': '5' });
+        return;
+      }
+      throw err;
+    }
+    res.removeListener('close', cancelOnClose);
+    const release = (): void => slot.release();
+    releaseConcurrency = release;
+    res.once('close', release);
+  }
+
+  try {
+    const rawBody = await readBody(req);
+    if (audit) {
+      audit.setRequestBody(rawBody);
+      try {
+        audit.sessionKey = deriveAuditSessionKey(
+          rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {},
+          req.headers,
+          { fallbackKey: verified.id, endpoint: 'direct' },
+        );
+      } catch {
+        /* malformed JSON — the audit stays metadata-only for this request */
+      }
+    }
+
+    // Upstream headers: the provider's format-correct credential set, plus the
+    // client's own Content-Type/Accept (body framing matters; the gateway's
+    // named-key credential must NEVER reach the upstream).
+    const headers = getProviderHeaders(provider, resolveProviderKeyLiteral(provider.api_key));
+    delete headers['Content-Type'];
+    const clientContentType = req.headers['content-type'];
+    if (typeof clientContentType === 'string' && clientContentType) {
+      headers['Content-Type'] = clientContentType;
+    }
+    const clientAccept = req.headers['accept'];
+    if (typeof clientAccept === 'string' && clientAccept) headers['Accept'] = clientAccept;
+
+    const hasRequestBody = req.method !== 'GET' && req.method !== 'HEAD';
+    const upstream = await fetchUpstream(
+      url,
+      {
+        method: req.method ?? 'GET',
+        headers,
+        ...(hasRequestBody ? { body: rawBody } : {}),
+        // Client hang-up aborts the upstream call (no egress after cancel).
+        signal: requestLifecycleSignal(req, res),
+      },
+      { providerId: 'byo' },
+    );
+    if (audit) audit.provider = provider.id;
+
+    const responseHeaders: Record<string, string> = {};
+    const contentType = upstream.headers.get('content-type');
+    if (contentType) responseHeaders['Content-Type'] = contentType;
+    res.writeHead(upstream.status, responseHeaders);
+    if (!upstream.body) {
+      res.end();
+      return;
+    }
+    // Pipe the upstream body through UNBUFFERED so SSE streams chunk-by-chunk.
+    // `pipe` ends `res` on completion; a mid-stream error destroys it (the
+    // `close` listener above then releases the concurrency slot).
+    const bodyStream = Readable.fromWeb(
+      upstream.body as unknown as import('node:stream/web').ReadableStream<Uint8Array>,
+    );
+    bodyStream.on('error', () => {
+      res.destroy();
+    });
+    bodyStream.pipe(res);
+    // Hold this handler open until the response is fully written — the same
+    // completion contract the routed dispatch paths have — so the per-key
+    // concurrency slot and the audit capture span the whole stream. Every exit
+    // above ends or destroys the response, and a real `http.ServerResponse`
+    // always emits `close`; the mock used by tests emits it in `end`/`destroy`.
+    await new Promise<void>((resolve) => {
+      res.once('close', resolve);
+    });
+  } catch (err) {
+    const message = serializeError(err);
+    if (deps.logger) deps.logger.error('[OutboundApi] direct relay error:', message);
+    else console.error('[OutboundApi] direct relay error:', message);
+    emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
+    if (audit) audit.error = message;
+    if (!res.headersSent) writeJsonError(res, 502, message);
+    else res.destroy();
+  }
+}
+
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
 async function writeModelsList(
   res: http.ServerResponse,
@@ -900,6 +1103,21 @@ export async function handleOutboundRequest(
     writeJsonError(res, 429, 'Rate limit exceeded', {
       'Retry-After': String(decision.retryAfterSeconds),
     });
+    return;
+  }
+
+  // 2-PASSTHROUGH. DIRECT UPSTREAM RELAY (key→upstream binding). A key with a
+  // `boundUpstreamProviderId` is a TRANSPARENT reverse proxy for that provider:
+  // method, path, query, and body are forwarded VERBATIM with only the auth
+  // headers swapped to the provider's key — no downstream route, protocol
+  // translation, model mapping, endpoint permission, or usage metering runs.
+  // This branch deliberately precedes the usage-proxy/images/search/models
+  // handlers: `GET /v1/models` relays to the upstream's own catalog, and an
+  // unknown path surfaces the upstream's real 404 rather than this server's.
+  // Per-key rate limit + revocation/expiry (above) and the per-key concurrency
+  // ceiling (below, inside the relay) still apply.
+  if (verified.boundUpstreamProviderId) {
+    await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit);
     return;
   }
 
