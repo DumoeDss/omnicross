@@ -19,7 +19,7 @@ import { Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
-import { handleOutboundRequest, resolveModelsShape } from '../outboundApiRouter';
+import { handleOutboundRequest, resetUpstreamModelsDiscoveryCache, resolveModelsShape } from '../outboundApiRouter';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
 import { OutboundRateLimiter } from '../outboundRateLimiter';
 import type { GatewayBinding, OutboundApiDeps, OutboundKeyDb, OutboundKeyDbRow } from '../types';
@@ -69,6 +69,8 @@ function mkDeps(
   row: OutboundKeyDbRow,
   options: {
     providerModels?: string[];
+    /** Replaces the whole provider row (overrides providerModels). */
+    provider?: Record<string, unknown>;
     imageModels?: readonly string[];
     onListImages?: (apiKeyId: string) => void;
   } = {},
@@ -86,7 +88,7 @@ function mkDeps(
     outboundApiKeysReveal: async () => null,
     outboundApiKeysDelete: async () => true,
   };
-  const provider = {
+  const provider = options.provider ?? {
     id: 'deepseek',
     name: 'DeepSeek',
     models: options.providerModels ?? ['deepseek-v3', 'deepseek-r1'],
@@ -142,6 +144,7 @@ async function callModels(opts: {
   bindings?: GatewayBinding[];
   anthropic?: Record<string, unknown>;
   providerModels?: string[];
+  provider?: Record<string, unknown>;
   imageModels?: readonly string[];
   onListImages?: (apiKeyId: string) => void;
 }): Promise<MockRes> {
@@ -151,6 +154,7 @@ async function callModels(opts: {
     req,
     res as unknown as http.ServerResponse,
     mkDeps(opts.row ?? enabledRow, {
+      provider: opts.provider,
       providerModels: opts.providerModels,
       imageModels: opts.imageModels,
       onListImages: opts.onListImages,
@@ -257,6 +261,40 @@ describe('GET /v1/models — Anthropic shape', () => {
     });
     const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
     expect(json.data.map((d) => d.id)).toEqual(['deepseek-v3', 'deepseek-r1']);
+  });
+
+  it('passthrough provider binding with an unconfigured list live-discovers the upstream catalog', async () => {
+    resetUpstreamModelsDiscoveryCache();
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: [{ id: 'kimi-k3' }, { id: 'kimi-glacier' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const res = await callModels({
+        bindings: [binding({ id: 'b-prov-live', modelMode: 'passthrough' })],
+        provider: {
+          id: 'deepseek',
+          name: 'DeepSeek',
+          apiFormat: 'openai',
+          api_base_url: 'https://api.deepseek.com',
+          api_key: 'sk-x',
+          models: [],
+          enabled: true,
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+      expect(json.data.map((d) => d.id)).toEqual(['kimi-k3', 'kimi-glacier']);
+      // Bare-host base → the conventional /v1/models default.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/v1/models');
+    } finally {
+      vi.unstubAllGlobals();
+      resetUpstreamModelsDiscoveryCache();
+    }
   });
 });
 
