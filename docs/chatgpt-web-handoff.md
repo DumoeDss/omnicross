@@ -58,6 +58,13 @@ daemon 侧：`packages/daemon/src/commands/chatgpt-web.ts`（check/login/launch/
 - 旧假设全部证伪：**不存在会话隔离**（qwinsta 只有一个交互会话，Claude 与用户同在 session 1/同一桌面）；"句柄=0" 也是该 bug 的表象
 - **协作铁律（继续有效）**：所有需要"看见窗口"的步骤必须用户自己跑；Claude 每次让用户跑 Electron 相关命令前必须先 `taskkill /F /IM electron.exe` 清锁
 
+### 卡点 A2：登录墙（Google "浏览器不安全" / Cloudflare 转圈）—— 2026-09-11 傍晚新增
+
+- 现象：宿主内登录 ChatGPT，Continue with Google 被 accounts.google.com 拦（两种 UA 形态都拦）；改邮箱验证码登录又在 login.openai.com 被 Cloudflare 挑战卡死循环
+- 已做：UA 三连改（去 Electron token → 裸 Chrome 也不行（UA 与 client hints 不一致=伪造）→ `OmniCross/<版本>` 产品 token 形态，即参考实现的打包形态）；均未解决
+- **当前方案（4219789，待用户验证）**：完全照搬参考实现——交互登录用**独立 Electron 实例、不带 remote-debugging-port、零自动化面**（`startStandaloneLoginWindow`），控制端点新增 cookie 版 `/login-state` 自动检测登录完成，随后正常宿主做 CDP 复核。已本地验证：无 DevToolsActivePort、窗口可见、login-state 应答正常
+- 若仍被拦（说明是 Electron 运行时/网络层指纹）：**后备方案 = 从日常 Chrome 导入会话 cookie**（用户 Chrome 9222 已登录且每天过 Cloudflare，cookie 仅本机拷贝），或检查代理按进程分流（`scripts/diag-exit-ip.ts` 可对比两侧出口 IP，注意从 chatgpt.com 页内 fetch）
+
 ### 卡点 B：chatgpt.com 对该出口 IP 的新客户端做连接级风控
 
 - 现象：用户日常 Chrome 同代理可开 chatgpt.com；CDP 标签页与 Electron 全新 profile 访问 → `ERR_CONNECTION_CLOSED`（TLS 层 RST，页面都没加载）。example.com 同一 Electron 秒开（对照实验已做，排除本地因素）
