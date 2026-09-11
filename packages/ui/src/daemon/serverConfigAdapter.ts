@@ -230,6 +230,19 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async setKeyUpstream(id: string, providerId: string | null): Promise<MutationResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; providerId?: string | null }>(
+          `/keys/${encodeURIComponent(id)}/upstream`,
+          { providerId },
+        );
+        if (!data.ok) return { success: false, message: 'key not found' };
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update key upstream binding');
+      }
+    },
+
     async getImagesCapability(): Promise<ImagesCapabilityStatus | null> {
       try {
         return await adminClient.get<ImagesCapabilityStatus>('/images/capabilities');

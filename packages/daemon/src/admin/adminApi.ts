@@ -527,6 +527,9 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     enableModelRestriction: row.enableModelRestriction,
     restrictionMode: row.restrictionMode,
     restrictedModels: row.restrictedModels,
+    // Direct upstream passthrough target (key→upstream binding) — a provider id,
+    // never a credential. Absent = the key is served by the downstream routes.
+    boundUpstreamProviderId: row.boundUpstreamProviderId,
   };
 }
 
@@ -1965,6 +1968,27 @@ async function handleKeys(
     }
     const ok = await deps.keyDb.outboundApiKeysSetMaxConcurrency(id, value);
     return writeJson(res, ok ? 200 : 404, { ok, maxConcurrency: value });
+  }
+  // POST /keys/:id/upstream — set (or clear, with `null`) the key's DIRECT
+  // upstream passthrough target. A non-null id must name an EXISTING BYO
+  // provider row (subscription accounts cannot be verbatim-relayed — their URL
+  // and credentials are per-request/managed; they stay on the downstream
+  // routes). The stored value is an id, never a credential.
+  if (method === 'POST' && id && action === 'upstream') {
+    const body = await readJsonBody(req);
+    const raw = body['providerId'];
+    if (raw !== null && (typeof raw !== 'string' || raw.trim() === '')) {
+      return writeJsonError(res, 400, 'providerId must be a non-empty string or null');
+    }
+    const providerId = raw === null ? null : (raw as string).trim();
+    if (providerId !== null) {
+      const cfg = loadConfig(deps.configPath);
+      if (!cfg.providers.some((p) => p.id === providerId)) {
+        return writeJsonError(res, 404, `provider '${providerId}' not found`);
+      }
+    }
+    const ok = await deps.keyDb.outboundApiKeysSetUpstream(id, providerId);
+    return writeJson(res, ok ? 200 : 404, { ok, providerId });
   }
   if (method === 'POST' && id && action === 'policy') {
     const body = await readJsonBody(req);

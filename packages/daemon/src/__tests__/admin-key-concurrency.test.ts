@@ -437,3 +437,83 @@ describe('keys list surfaces each key OWN spend (leak-safe)', () => {
     expect(k2Info?.spend?.totalUsd).toBe(0);
   });
 });
+
+// ── Port + Route: key direct upstream passthrough (key→upstream binding) ───────
+
+describe('JsonOutboundKeyDb.outboundApiKeysSetUpstream', () => {
+  it('sets, then clears, the bound provider (round-trips through the file)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'omnicross-keydb-'));
+    try {
+      const keysPath = join(dir, 'keys.json');
+      const db = new JsonOutboundKeyDb(keysPath);
+      await db.outboundApiKeysCreate({ id: 'k1', name: 'k1', keyHash: 'h', keyPrefix: 'p' });
+
+      expect(await db.outboundApiKeysSetUpstream('k1', 'relay')).toBe(true);
+      const afterSet = (await new JsonOutboundKeyDb(keysPath).outboundApiKeysList())[0];
+      expect(afterSet.boundUpstreamProviderId).toBe('relay');
+
+      expect(await db.outboundApiKeysSetUpstream('k1', null)).toBe(true);
+      const afterClear = (await new JsonOutboundKeyDb(keysPath).outboundApiKeysList())[0];
+      expect('boundUpstreamProviderId' in afterClear).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a revoked key and an unknown id', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'omnicross-keydb-'));
+    try {
+      const keysPath = join(dir, 'keys.json');
+      const db = new JsonOutboundKeyDb(keysPath);
+      await db.outboundApiKeysCreate({ id: 'k1', name: 'k1', keyHash: 'h', keyPrefix: 'p' });
+      await db.outboundApiKeysRevoke('k1');
+      expect(await db.outboundApiKeysSetUpstream('k1', 'relay')).toBe(false);
+      expect(await db.outboundApiKeysSetUpstream('nope', 'relay')).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+interface UpstreamKeyInfo {
+  id: string;
+  boundUpstreamProviderId?: string;
+}
+
+async function listUpstreamKey(id: string): Promise<UpstreamKeyInfo | undefined> {
+  const r = await adminFetch('GET', '/admin/api/keys');
+  return (r.json as { keys: UpstreamKeyInfo[] }).keys.find((k) => k.id === id);
+}
+
+describe('POST /admin/api/keys/:id/upstream', () => {
+  it('binds an existing provider, surfaces it on the list, and null clears', async () => {
+    await bootDaemon(); // boots with provider id 'a'
+    const { id } = await createKey();
+
+    const bind = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: 'a' });
+    expect(bind.status).toBe(200);
+    expect(bind.json).toEqual({ ok: true, providerId: 'a' });
+    expect((await listUpstreamKey(id))?.boundUpstreamProviderId).toBe('a');
+
+    const clear = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: null });
+    expect(clear.status).toBe(200);
+    expect(clear.json).toEqual({ ok: true, providerId: null });
+    expect((await listUpstreamKey(id))?.boundUpstreamProviderId).toBeUndefined();
+  });
+
+  it('rejects an unknown provider with 404 and a non-string with 400', async () => {
+    await bootDaemon();
+    const { id } = await createKey();
+
+    const unknown = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: 'ghost' });
+    expect(unknown.status).toBe(404);
+    expect((await listUpstreamKey(id))?.boundUpstreamProviderId).toBeUndefined();
+
+    const malformed = await adminFetch('POST', `/admin/api/keys/${id}/upstream`, { providerId: 42 });
+    expect(malformed.status).toBe(400);
+
+    const unknownKey = await adminFetch('POST', '/admin/api/keys/nope/upstream', { providerId: 'a' });
+    expect(unknownKey.status).toBe(404);
+    expect((unknownKey.json as { ok: boolean }).ok).toBe(false);
+  });
+});
