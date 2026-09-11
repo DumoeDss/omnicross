@@ -498,6 +498,11 @@ interface AnthropicModelEntry {
   created_at: string;
 }
 
+/** The endpoints `GET /v1/models` enumerates, in both response shapes. The
+ *  envelope is a wire format; model VISIBILITY is cross-endpoint — a provider
+ *  bound on chat/responses must be discoverable exactly like a messages one. */
+const MODEL_LIST_ENDPOINTS = ['chat', 'responses', 'messages', 'gemini'] as const;
+
 /** Parse the `limit` query param (positive int; absent/invalid → unlimited). */
 function parseModelsLimit(url: string | undefined): number | undefined {
   const query = url?.split('?')[1];
@@ -510,14 +515,19 @@ function parseModelsLimit(url: string | undefined): number | undefined {
 
 /**
  * Serve the models visible to this key in the Anthropic `GET /v1/models` shape
- * (R4): `data[].id` is the CLIENT-VISIBLE name the messages endpoint actually
- * routes — binding `modelMappings` source aliases and CONFIGURED (non-empty
- * ref) `modelMap` kind keys, both annotated `"<name> (via <upstream>)"` in
+ * (R4): `data[].id` is the CLIENT-VISIBLE name the binding actually routes —
+ * binding `modelMappings` source aliases and CONFIGURED (non-empty ref)
+ * `modelMap` kind keys, both annotated `"<name> (via <upstream>)"` in
  * `display_name` (the ModelRef's modelId only — never the providerId, account
- * ids, or credentials) — plus passthrough subscription catalog ids
- * (display omitted). Unconfigured kinds are NOT advertised. Deduped,
- * insertion-stable, `limit`-respecting with `has_more`, direct 200 (no
- * redirect, no upstream call).
+ * ids, or credentials) — plus passthrough provider catalogs (live discovery)
+ * and subscription catalog ids (display omitted). Unconfigured kinds are NOT
+ * advertised. Deduped, insertion-stable, `limit`-respecting with `has_more`,
+ * direct 200 (no redirect, no upstream call).
+ *
+ * Discovery is CROSS-ENDPOINT: every endpoint the key may use contributes, the
+ * envelope is only a wire format. Enumerating messages alone hid chat/responses-
+ * bound providers entirely — an app configured against /v1/chat/completions
+ * then saw an EMPTY list from /v1/models even though its route served fine.
  */
 async function writeModelsListAnthropic(
   res: http.ServerResponse,
@@ -527,10 +537,6 @@ async function writeModelsListAnthropic(
   allowedEndpoints: readonly OutboundPermission[] | undefined,
   limit: number | undefined,
 ): Promise<void> {
-  // The Anthropic shape only advertises the MESSAGES endpoint family (the
-  // endpoint Anthropic SDKs discover through it); a restricted key without
-  // messages authorization never reaches here (resolveModelsShape said openai).
-  void allowedEndpoints;
   const entries: AnthropicModelEntry[] = [];
   const seen = new Set<string>();
   const push = (id: string | undefined, displayName?: string): void => {
@@ -550,33 +556,36 @@ async function writeModelsListAnthropic(
     return modelId ? `${name} (via ${modelId})` : undefined;
   };
 
-  for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, 'messages')) {
-    if (binding.modelMode === 'passthrough') {
-      if (binding.target.kind === 'provider') {
-        for (const id of await passthroughProviderModelIds(llmConfig, binding.target.providerId)) {
-          push(id);
+  for (const endpoint of MODEL_LIST_ENDPOINTS) {
+    if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
+    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
+      if (binding.modelMode === 'passthrough') {
+        if (binding.target.kind === 'provider') {
+          for (const id of await passthroughProviderModelIds(llmConfig, binding.target.providerId)) {
+            push(id);
+          }
+        } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
+          for (const id of SUBSCRIPTION_MODEL_CATALOG[
+            binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+          ]) {
+            push(id);
+          }
         }
-      } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
-        for (const id of SUBSCRIPTION_MODEL_CATALOG[
-          binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
-        ]) {
-          push(id);
+        continue;
+      }
+      if (binding.modelMappings?.length) {
+        for (const mapping of binding.modelMappings) {
+          const source = mapping.source.trim();
+          if (source === '' || source.includes('*')) continue;
+          push(source, viaLabel(source, mapping.target));
         }
+        continue;
       }
-      continue;
-    }
-    if (binding.modelMappings?.length) {
-      for (const mapping of binding.modelMappings) {
-        const source = mapping.source.trim();
-        if (source === '' || source.includes('*')) continue;
-        push(source, viaLabel(source, mapping.target));
+      // Kind-mapped: advertise ONLY configured kinds (a blank ref is unroutable).
+      for (const [kind, ref] of Object.entries(binding.modelMap ?? {})) {
+        if (typeof ref !== 'string' || ref.trim() === '') continue;
+        push(kind, viaLabel(kind, ref));
       }
-      continue;
-    }
-    // Kind-mapped: advertise ONLY configured kinds (a blank ref is unroutable).
-    for (const [kind, ref] of Object.entries(binding.modelMap ?? {})) {
-      if (typeof ref !== 'string' || ref.trim() === '') continue;
-      push(kind, viaLabel(kind, ref));
     }
   }
 
@@ -664,7 +673,7 @@ async function writeModelsList(
   imageModels: readonly string[] = [],
 ): Promise<void> {
   const modelIds: string[] = [];
-  for (const endpoint of ['chat', 'responses', 'messages', 'gemini'] as const) {
+  for (const endpoint of MODEL_LIST_ENDPOINTS) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
     for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
       if (binding.modelMode === 'passthrough') {

@@ -263,9 +263,13 @@ export function bindingFromDraft(
     id: draft.id ?? createBindingId(),
     name: draft.name.trim(),
     enabled: draft.enabled,
+    // A NEW route serves every key (the resolver's legacy default) — the draft
+    // editor has no key picker, and 'selected' with no ids would create a route
+    // NO key can ever see (dead-on-arrival, invisible even in /v1/models).
+    // Scoping to specific keys stays a key-page action (`setBindingForClientKey`).
     keyScope: previous
       ? previous.keyScope ?? (previous.apiKeyIds?.length ? 'selected' : 'all')
-      : 'selected',
+      : 'all',
     endpoint: draft.endpoint,
     target,
     priority: Number.isFinite(priority) ? Math.max(0, Math.min(10_000, priority)) : 100,

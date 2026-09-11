@@ -296,6 +296,47 @@ describe('GET /v1/models — Anthropic shape', () => {
       resetUpstreamModelsDiscoveryCache();
     }
   });
+
+  // Cross-endpoint discovery: the Anthropic envelope is a wire FORMAT, not a
+  // visibility filter. A provider bound on chat/responses only (an OpenAI-style
+  // app's route) must still be discoverable through /v1/models for a key whose
+  // auto shape is Anthropic — previously this rendered an EMPTY list.
+  it('advises chat/responses/gemini-bound providers cross-endpoint (unrestricted key)', async () => {
+    const res = await callModels({
+      bindings: [
+        binding({ id: 'b-chat', endpoint: 'chat', modelMode: 'passthrough' }),
+      ],
+    });
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(json.data.map((d) => d.id)).toEqual(['deepseek-v3', 'deepseek-r1']);
+  });
+
+  it('advises a responses-bound mapped route under a forced anthropic shape', async () => {
+    const res = await callModels({
+      bindings: [
+        binding({ id: 'b-resp', endpoint: 'responses', modelMappings: [{ source: 'gpt-x', target: 'deepseek,deepseek-v3' }] }),
+      ],
+      anthropic: { modelsShape: 'anthropic' },
+    });
+    const json = JSON.parse(res.body) as { data: Array<{ id: string; display_name?: string }> };
+    expect(json.data.map((d) => d.id)).toEqual(['gpt-x']);
+    expect(json.data[0]?.display_name).toBe('gpt-x (via deepseek-v3)');
+  });
+
+  it('still respects endpoint permissions when enumerating cross-endpoint', async () => {
+    const row: OutboundKeyDbRow = { ...enabledRow, allowedEndpoints: ['messages'] };
+    const res = await callModels({
+      row,
+      // The chat-only provider route is NOT visible to a messages-only key.
+      bindings: [
+        binding({ id: 'b-chat', endpoint: 'chat', modelMode: 'passthrough' }),
+        binding({ id: 'b-msg', endpoint: 'messages', modelMappings: [{ source: 'my-claude', target: 'deepseek,deepseek-v3' }] }),
+      ],
+    });
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(json.data.map((d) => d.id)).toEqual(['my-claude']);
+  });
 });
 
 describe('GET /v1/models — OpenAI shape pins', () => {
@@ -424,9 +465,13 @@ describe('GET /v1/models — OpenAI shape pins', () => {
       anthropic: { modelsShape: 'anthropic' },
       bindings: MESSAGES_BINDINGS,
     });
-    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
-    expect(json.data[0]).toBeDefined();
-    expect(json.data[0].type === 'model' || json.data[0].id).toBeTruthy();
-    expect(json.first_id !== undefined).toBe(true);
+    // The ENVELOPE is Anthropic (first_id/has_more/last_id); cross-endpoint
+    // enumeration is endpoint-permission gated, so a chat-only key sees no
+    // messages-only aliases here — an empty but well-formed list.
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }>; first_id: string | null; has_more: boolean; last_id: string | null };
+    expect(Array.isArray(json.data)).toBe(true);
+    expect(json.first_id).toBeNull();
+    expect(json.has_more).toBe(false);
+    expect(json.last_id).toBeNull();
   });
 });

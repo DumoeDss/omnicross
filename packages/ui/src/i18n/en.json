@@ -503,7 +503,8 @@
     "save": "Save",
     "optional": "optional",
     "retry": "Retry",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "refresh": "Refresh"
   },
   "mediaSettings": {
     "common": {

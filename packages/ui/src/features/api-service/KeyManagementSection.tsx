@@ -691,13 +691,13 @@ function KeyUpstreamQuickBind({
     <div className="mt-1 rounded-md border border-primary/25 bg-primary/[0.04] p-2">
       <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-foreground">
         <Server className="h-3 w-3 text-primary" />
-        {t('apiService.keys.bindUpstream.title')}
+        {t('apiService.keys.bindings.bindUpstream.title')}
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <Select
           className="min-w-40 flex-1"
           value={value}
-          placeholder={t('apiService.keys.bindUpstream.placeholder')}
+          placeholder={t('apiService.keys.bindings.bindUpstream.placeholder')}
           disabled={busy}
           options={options.map((option) => ({ value: option.key, label: option.label }))}
           onChange={onChange}
@@ -709,13 +709,13 @@ function KeyUpstreamQuickBind({
           onClick={() => picked && onBind(picked)}
         >
           <Plus className="h-3 w-3" />
-          {t('apiService.keys.bindUpstream.add')}
+          {t('apiService.keys.bindings.bindUpstream.add')}
         </Button>
       </div>
       {picked ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 px-1">
           <span className="text-[10px] text-muted-foreground">
-            {t('apiService.keys.bindUpstream.protocols')}
+            {t('apiService.keys.bindings.bindUpstream.protocols')}
           </span>
           {picked.endpoints.map((endpoint) => (
             <Badge key={endpoint} variant="outline">
@@ -725,7 +725,7 @@ function KeyUpstreamQuickBind({
         </div>
       ) : null}
       <p className="mt-1 px-1 text-[10px] text-muted-foreground">
-        {t('apiService.keys.bindUpstream.hint')}
+        {t('apiService.keys.bindings.bindUpstream.hint')}
       </p>
     </div>
   );
