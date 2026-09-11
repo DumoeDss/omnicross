@@ -252,7 +252,8 @@ export async function startElectronHost(options: {
     port: endpoint.port,
     wsPath: endpoint.wsPath ?? '/devtools/browser',
     targetFactory: {
-      create: async (url: string) => (await controlCall<{ targetId: string }>('/new-target', { url })).targetId,
+      create: async (url: string, opts?: { show?: boolean }) =>
+        (await controlCall<{ targetId: string }>('/new-target', { url, show: opts?.show === true })).targetId,
       close: async (targetId: string) => {
         await controlCall('/close-target', { targetId }).catch(() => undefined);
       },

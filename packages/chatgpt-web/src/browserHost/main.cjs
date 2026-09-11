@@ -75,7 +75,7 @@ function startControlServer() {
     res.setHeader('content-type', 'application/json');
     try {
       if (req.method === 'POST' && req.url === '/new-target') {
-        const { url } = await readBody(req);
+        const { url, show } = await readBody(req);
         // One hidden window per automation tab. webContents.id is NOT the CDP
         // target id, so discover the real one through the DevTools HTTP
         // endpoint by diffing the target list before/after window creation.
@@ -83,7 +83,7 @@ function startControlServer() {
         const tabWindow = new BrowserWindow({
           width: 1280,
           height: 900,
-          show: false,
+          show: show === true,
           title: 'OmniCross · turn',
           webPreferences: {
             partition: 'persist:chatgpt',
