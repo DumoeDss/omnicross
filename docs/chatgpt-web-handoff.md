@@ -58,12 +58,12 @@ daemon 侧：`packages/daemon/src/commands/chatgpt-web.ts`（check/login/launch/
 - 旧假设全部证伪：**不存在会话隔离**（qwinsta 只有一个交互会话，Claude 与用户同在 session 1/同一桌面）；"句柄=0" 也是该 bug 的表象
 - **协作铁律（继续有效）**：所有需要"看见窗口"的步骤必须用户自己跑；Claude 每次让用户跑 Electron 相关命令前必须先 `taskkill /F /IM electron.exe` 清锁
 
-### 卡点 A2：登录墙（Google "浏览器不安全" / Cloudflare 转圈）—— 2026-09-11 傍晚新增
+### 卡点 A2：登录墙（Google "浏览器不安全" / Cloudflare 转圈）—— ✅ 已解决（2026-09-11 晚）
 
 - 现象：宿主内登录 ChatGPT，Continue with Google 被 accounts.google.com 拦（两种 UA 形态都拦）；改邮箱验证码登录又在 login.openai.com 被 Cloudflare 挑战卡死循环
-- 已做：UA 三连改（去 Electron token → 裸 Chrome 也不行（UA 与 client hints 不一致=伪造）→ `OmniCross/<版本>` 产品 token 形态，即参考实现的打包形态）；均未解决
-- **当前方案（4219789，待用户验证）**：完全照搬参考实现——交互登录用**独立 Electron 实例、不带 remote-debugging-port、零自动化面**（`startStandaloneLoginWindow`），控制端点新增 cookie 版 `/login-state` 自动检测登录完成，随后正常宿主做 CDP 复核。已本地验证：无 DevToolsActivePort、窗口可见、login-state 应答正常
-- 若仍被拦（说明是 Electron 运行时/网络层指纹）：**后备方案 = 从日常 Chrome 导入会话 cookie**（用户 Chrome 9222 已登录且每天过 Cloudflare，cookie 仅本机拷贝），或检查代理按进程分流（`scripts/diag-exit-ip.ts` 可对比两侧出口 IP，注意从 chatgpt.com 页内 fetch）
+- UA 三连改均未解决（去 Electron token → 裸 Chrome 也不行（UA 与 client hints 不一致=伪造）→ `OmniCross/<版本>` 产品 token 形态）
+- **最终方案（4219789）= 完全照搬参考实现**：交互登录用**独立 Electron 实例、不带 remote-debugging-port、零自动化面**（`startStandaloneLoginWindow`），cookie 版 `/login-state` 自动检测登录完成，随后正常宿主 CDP 复核。**用户真实验证：登录成功** ✔
+- 教训：登录墙针对的是"自动化形态"（debug port / CDP），不是 UA——别再在 UA 上纠缠。后备方案（未用上，留档）：从日常 Chrome 导入会话 cookie；`scripts/diag-exit-ip.ts` 对比两侧出口 IP
 
 ### 卡点 B：chatgpt.com 对该出口 IP 的新客户端做连接级风控
 
@@ -135,6 +135,7 @@ Remove-Item ~\.omnicross\chatgpt-web\DevToolsActivePort, ~\.omnicross\chatgpt-we
 12. **风控敏感**：失败重试连环触发人机验证/连接级 RST。任何浏览器侧验证坚持"单次尝试、失败即停、本地分析后再动"
 13. **spawn GUI 进程绝不能 `windowsHide: true`**（win32）：它把 `SW_HIDE` 写进 STARTUPINFO，Electron/Chromium 据此让所有窗口永不显示（进程活、页面加载、API 说 visible，屏幕上就是没有）。诊断此类问题用 Win32 EnumWindows 看 `IsWindowVisible`，别信 DOM 的 visibilityState。附带发现：`harness.test.ts` 导入 `mcpServer.ts` 会触发其顶层 `main()` 的 process.exit（vitest 报 unhandled error，63 测试本身全过），待后续把 main() 改成显式 entry 检测
 14. **Google 登录拦截（accounts.google.com "此浏览器或应用可能不安全"）的两层坑**：(a) 裸跑 `electron main.cjs` 的 UA 带 `Electron/39.2.0` token，直接被拦；(b) 只删该 token 变成**裸 Chrome UA** 也不行——client hints（`navigator.userAgentData` / `Sec-CH-UA`）诚实地只报 `Chromium` 无 `Google Chrome` 品牌，UA 与 hints 不一致被判定为伪造 UA，照样拦。**正确形态 = Chromium 基底 + 自家产品 token**（参考实现 `app.setName("Codex Web GPT")` 打包后就是这个形态，在此网络+账号上验证可过）。修复（2e10cff）：UA = `<chromium 基底> OmniCross/<包版本>`，hints 不动。诊断用 `scripts/diag-electron-clienthints.ts`（本地 listener，不发外部请求）。若仍被拦（CDP/debug-port 检测），备选：邮箱验证码/passkey 登录（完全绕开 Google），或交互登录窗口不起 debug port
+15. **daemon 从包名导入的是 dist**：`@omnicross/chatgpt-web/...` 经 exports 解析到 `dist/*`，改了 `src/` 必须 `npm run build -w @omnicross/chatgpt-web`，否则 daemon 用旧代码而 scripts/（直接 import src）用新代码——症状是"脚本验证都过、daemon 报 not a function"
 
 ## 8. 提交历史（本分支，新→旧）
 

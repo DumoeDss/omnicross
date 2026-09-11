@@ -11,6 +11,8 @@ import { startChatGptWebBridge, generateBridgeToken } from '../packages/chatgpt-
 
 const modelArg = process.argv.find((arg) => arg.startsWith('--model='));
 const model = modelArg ? modelArg.slice('--model='.length) : 'chatgpt-web/light';
+const hostArg = process.argv.find((arg) => arg.startsWith('--host='));
+const browserHost = hostArg?.slice('--host='.length) === 'electron' ? ('electron' as const) : undefined;
 
 const instructions = Array.from({ length: 3 }, (_, index) =>
   [
@@ -27,9 +29,10 @@ const token = generateBridgeToken();
 const bridge = await startChatGptWebBridge({
   port: 17866,
   authToken: token,
+  browserHost,
   onError: (error) => console.error(`[bridge] ${error.message}`),
 });
-console.log(`bridge at ${bridge.baseUrl} (model: ${model})`);
+console.log(`bridge at ${bridge.baseUrl} (model: ${model}, host: ${browserHost ?? 'chrome'})`);
 
 const hardExit = setTimeout(() => {
   console.error('ROUND-TRIP TIMEOUT');
