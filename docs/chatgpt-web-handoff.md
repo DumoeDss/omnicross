@@ -165,7 +165,7 @@ e096347 feat(chatgpt-web): experimental ChatGPT Web (incl. Pro) bridge for Codex
 1. ~~[卡点 A 窗口]~~ ✅ 已解决（windowsHide 根因）
 2. ~~[卡点 A2 登录]~~ ✅ 已解决（CDP-less 独立登录实例，用户已登录）
 3. ~~Electron 宿主 browser-only 首回合~~ ✅ `ROUND TRIP OK`
-4. **[当前]** harness 浏览器端联调：`launch --browser-host=electron --harness --model chatgpt-web/pro` + `scripts/chatgpt-web-harness-roundtrip.ts`。重点观察 @mention 菜单选择（attachConnectorMention 的行匹配未实战过）；需 tunnel + `Codex Native2` connector 存活
+4. **[当前]** harness 浏览器端联调：**见 `docs/chatgpt-web-harness-findings.md`**（2026-09-11 深夜战报）。要点：@-mention 打字路径已死（合成输入开不了 @ 菜单，Playwright 本尊也不行）；新路径 = **`+` 菜单点选 connector**（已实证可用，代码在 `attachConnectorViaPlusMenu`）；harness 回合改用**普通对话**（temporary chat 的 `+` 菜单不列 connector）。遗留：谜题 A（envelope 先于挂载出现，探针已埋 `tab-opened`）、谜题 B（`+` 菜单偶发不开，行匹配已改作用域限定）、谜题 C（**profile 疑似被限流，冷却后再试**）
 5. 提醒用户轮换 platform API key（已暴露于聊天记录）
 6. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
 7. 转正评估后：UI 设置页（Control Panel）、daemon 常驻集成、发布流程（包目前 private）
