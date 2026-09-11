@@ -69,6 +69,25 @@ function hostScript(): string {
 }
 
 /**
+ * Resolve a spawnable npm: prefer npm-cli.js next to the running Node binary
+ * (win32 `.cmd` shims cannot be spawned directly on Node >= 20 — EINVAL).
+ */
+function resolveNpmCommand(): { command: string; args: string[] } {
+  const execDir = dirname(process.execPath);
+  const cliCandidates = [
+    join(execDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    join(execDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+  const cli = cliCandidates.find((candidate) => existsSync(candidate));
+  if (cli) return { command: process.execPath, args: [cli] };
+  if (process.platform === 'win32') {
+    const comSpec = process.env['ComSpec'] ?? 'cmd.exe';
+    return { command: comSpec, args: ['/d', '/s', '/c', 'npm'] };
+  }
+  return { command: 'npm', args: [] };
+}
+
+/**
  * Install the pinned Electron runtime under the data dir (no-op when present).
  * Uses a plain npm child install so the core package stays dependency-light.
  */
@@ -81,10 +100,18 @@ export async function ensureElectronRuntime(dataDir: string): Promise<string> {
     join(installDir, 'package.json'),
     `${JSON.stringify({ name: 'omnicross-chatgpt-web-browser', private: true }, null, 2)}\n`,
   );
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const npm = resolveNpmCommand();
   const child = spawn(
-    npmCommand,
-    ['install', `electron@${ELECTRON_VERSION}`, '--no-save', '--no-audit', '--no-fund', '--loglevel=error'],
+    npm.command,
+    [
+      ...npm.args,
+      'install',
+      `electron@${ELECTRON_VERSION}`,
+      '--no-save',
+      '--no-audit',
+      '--no-fund',
+      '--loglevel=error',
+    ],
     { cwd: installDir, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true, shell: false },
   );
   let stderr = '';
