@@ -220,7 +220,11 @@ export async function startElectronHost(options: {
   // picks the system proxy by default, explicit env wins when present.
   const proxy = process.env['HTTPS_PROXY'] ?? process.env['https_proxy'] ?? process.env['HTTP_PROXY'] ?? process.env['http_proxy'];
   if (proxy) args.unshift(`--proxy-server=${proxy}`);
-  const child = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+  // windowsHide must stay false: it plants STARTF_USESHOWWINDOW/SW_HIDE into
+  // the GUI process's startup info, and Electron then honors it — every
+  // BrowserWindow (even show:true tabs) ends up a real but never-visible
+  // HWND. That was the whole "window never appears" saga.
+  const child = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: false });
   const stderrTail: string[] = [];
   child.stderr.on('data', (chunk: Buffer) => {
     for (const line of chunk.toString('utf8').split('\n')) {
