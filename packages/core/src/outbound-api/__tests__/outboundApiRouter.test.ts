@@ -363,7 +363,54 @@ describe('handleOutboundRequest — auth', () => {
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
-    expect(body.data.map((model) => model.id)).toEqual(['gpt-5.6-sol', 'gpt-5.6-luna']);
+    // Exact aliases first; the `*` wildcard routes ANY client id, so the
+    // target's catalog (stub row: ['gpt-4o']) AND the wildcard's own target
+    // id ('glm-5.3', reachable by name) join the advertisement.
+    expect(body.data.map((model) => model.id)).toEqual([
+      'gpt-5.6-sol',
+      'gpt-5.6-luna',
+      'gpt-4o',
+      'glm-5.3',
+    ]);
+  });
+
+  it('GET /v1/models advertises the SUBSCRIPTION catalog for a wildcard-only mapping route', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap, llmProvider: null });
+    // Mirrors the operator shape: messages → opencodego account-group with a
+    // single `*` mapping. Requests route fine, but pre-change the list
+    // advertised NOTHING (wildcards are not nameable aliases) — the app saw an
+    // empty catalog while chat worked.
+    const wildcardConfig = {
+      endpoints: [],
+      anthropic: { modelsShape: 'openai' as const },
+      bindings: [{
+        id: 'opencodego-wildcard',
+        name: 'claude-opencodego',
+        enabled: true,
+        keyScope: 'selected',
+        apiKeyIds: [enabledRow.id],
+        endpoint: 'messages',
+        target: { kind: 'account-group', providerId: 'opencodego', group: 'opencodego' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'mapped',
+        modelMappings: [{ source: '*', target: 'deepseek-v4.1-flash' }],
+      } satisfies GatewayBinding],
+    };
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, wildcardConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data.map((model) => model.id)).toContain('deepseek-v4.1-flash');
   });
 
   it('GET /v1/models advertises the target provider catalog for a passthrough route', async () => {

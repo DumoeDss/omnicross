@@ -491,6 +491,38 @@ async function passthroughProviderModelIds(
  */
 const ANTHROPIC_MODELS_CREATED_AT = new Date().toISOString();
 
+/** True when a mapping set carries a USABLE wildcard (any client id routable). */
+function hasWildcardMapping(binding: GatewayBinding): boolean {
+  return (binding.modelMappings ?? []).some(
+    (mapping) => mapping.source.includes('*') && mapping.target.trim() !== '',
+  );
+}
+
+/**
+ * Advertise a binding target's servable catalog into `push`: a BYO provider's
+ * configured list (or its LIVE-discovered upstream catalog when unconfigured)
+ * or the subscription model catalog. Shared by the passthrough- and
+ * wildcard-mapping advertisement paths — a wildcard accepts ANY client model
+ * id, so every id the target can serve is a valid client-facing name.
+ */
+async function pushTargetCatalog(
+  llmConfig: OutboundApiDeps['llmConfig'],
+  target: GatewayBindingTarget,
+  push: (id: string) => void,
+): Promise<void> {
+  if (target.kind === 'provider') {
+    for (const id of await passthroughProviderModelIds(llmConfig, target.providerId)) {
+      push(id);
+    }
+  } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, target.providerId)) {
+    for (const id of SUBSCRIPTION_MODEL_CATALOG[
+      target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+    ]) {
+      push(id);
+    }
+  }
+}
+
 /** One Anthropic models-list entry (display_name only when the upstream is known). */
 interface AnthropicModelEntry {
   id: string;
@@ -563,17 +595,7 @@ async function writeModelsListAnthropic(
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
     for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
       if (binding.modelMode === 'passthrough') {
-        if (binding.target.kind === 'provider') {
-          for (const id of await passthroughProviderModelIds(llmConfig, binding.target.providerId)) {
-            push(id);
-          }
-        } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
-          for (const id of SUBSCRIPTION_MODEL_CATALOG[
-            binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
-          ]) {
-            push(id);
-          }
-        }
+        await pushTargetCatalog(llmConfig, binding.target, push);
         continue;
       }
       if (binding.modelMappings?.length) {
@@ -581,6 +603,18 @@ async function writeModelsListAnthropic(
           const source = mapping.source.trim();
           if (source === '' || source.includes('*')) continue;
           push(source, viaLabel(source, mapping.target));
+        }
+        // A wildcard mapping routes ANY client model id — the target's whole
+        // servable catalog is therefore client-facing and joins the list, and
+        // so does the wildcard's own TARGET id (always reachable by name; for
+        // targets with no static catalog — e.g. opencodego, whose models are
+        // resolved per account — it is the one honest entry).
+        if (hasWildcardMapping(binding)) {
+          await pushTargetCatalog(llmConfig, binding.target, push);
+          for (const mapping of binding.modelMappings ?? []) {
+            if (!mapping.source.includes('*') || mapping.target.trim() === '') continue;
+            push(parseModelRef(mapping.target)?.modelId ?? mapping.target.trim());
+          }
         }
         continue;
       }
@@ -932,18 +966,7 @@ async function writeModelsList(
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
     for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
       if (binding.modelMode === 'passthrough') {
-        if (binding.target.kind === 'provider') {
-          modelIds.push(...(await passthroughProviderModelIds(llmConfig, binding.target.providerId)));
-        } else if (Object.prototype.hasOwnProperty.call(
-          SUBSCRIPTION_MODEL_CATALOG,
-          binding.target.providerId,
-        )) {
-          modelIds.push(
-            ...SUBSCRIPTION_MODEL_CATALOG[
-              binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
-            ],
-          );
-        }
+        await pushTargetCatalog(llmConfig, binding.target, (id) => modelIds.push(id));
         continue;
       }
       if (binding.modelMappings?.length) {
@@ -952,6 +975,16 @@ async function writeModelsList(
             .map((mapping) => mapping.source.trim())
             .filter((source) => source !== '' && !source.includes('*')),
         );
+        // A wildcard mapping routes ANY client model id — the target's whole
+        // servable catalog is therefore client-facing and joins the list, and
+        // so does the wildcard's own TARGET id (always reachable by name).
+        if (hasWildcardMapping(binding)) {
+          await pushTargetCatalog(llmConfig, binding.target, (id) => modelIds.push(id));
+          for (const mapping of binding.modelMappings ?? []) {
+            if (!mapping.source.includes('*') || mapping.target.trim() === '') continue;
+            modelIds.push(parseModelRef(mapping.target)?.modelId ?? mapping.target.trim());
+          }
+        }
         continue;
       }
       const endpointConfig = gatewayBindingToEndpointConfig(binding);
