@@ -538,7 +538,8 @@
     "pricing": "模型价格",
     "dashboard": "仪表板",
     "images": "图像",
-"search": "搜索"
+"search": "搜索",
+    "chatgptWeb": "ChatGPT 网页"
   },
   "routeActivity": {
     "title": "路由活动",
@@ -1737,6 +1738,61 @@
       "quota_exhausted": "额度耗尽",
       "blocked": "已封禁",
       "until": "至 {{time}}"
+    }
+  },
+  "chatgptWeb": {
+    "title": "ChatGPT 网页后端",
+    "description": "把你的 ChatGPT 网页会话（含 Pro）经专用浏览器宿主作为 Codex 的模型后端。",
+    "refresh": "刷新状态",
+    "checklist": {
+      "title": "配置清单",
+      "config": {
+        "title": "Harness 配置（隧道 + 运行密钥）",
+        "description": "在 platform.openai.com 创建隧道和 API 密钥后注册一次。运行密钥只保存在本机，不会显示在这里。",
+        "commandLabel": "一次性配置命令",
+        "tunnelsLink": "打开 platform.openai.com 隧道页"
+      },
+      "connector": {
+        "title": "ChatGPT 连接器",
+        "description": "在 ChatGPT 设置中开启开发者模式，创建一个 Tunnel 类型、名字精确为 \"Codex Native2\" 的连接器，允许所有操作。",
+        "link": "打开 ChatGPT 连接器页"
+      },
+      "login": {
+        "title": "在专用浏览器里登录",
+        "description": "登录窗口不带任何自动化痕迹——Google 和邮箱登录都可以。"
+      },
+      "tunnel": {
+        "title": "隧道"
+      }
+    },
+    "login": {
+      "open": "打开登录窗口",
+      "opened": "登录窗口已打开——在其中登录后，回来点「检查登录」。",
+      "check": "检查登录",
+      "signedIn": "已登录。",
+      "signedOut": "尚未登录。",
+      "runtimeHint": "浏览器运行时在首次使用时下载（约 100 MB）——先打开一次登录窗口触发下载。"
+    },
+    "tunnel": {
+      "running": "运行中",
+      "stopped": "已停止",
+      "healthy": "健康",
+      "notInstalled": "tunnel-client 尚未安装——首次启动桥时会自动安装。"
+    },
+    "bridge": {
+      "title": "Harness 桥",
+      "description": "启动桥和专用 Electron 浏览器宿主。Codex 用下方信息连接。",
+      "model": "模型",
+      "start": "启动桥",
+      "started": "桥已启动。",
+      "stop": "停止桥",
+      "stopped": "桥已停止。",
+      "running": "运行中"
+    },
+    "guide": {
+      "title": "说明",
+      "cli": "本页所有操作也可以在终端完成：omnicross chatgpt-web check | login | launch | harness status。",
+      "experimental": "实验特性：网页会话随时可能遇到限额或界面变更。"
     }
   },
   "codeCli": {

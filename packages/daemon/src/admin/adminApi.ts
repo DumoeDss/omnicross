@@ -72,6 +72,7 @@ import {
   type PreparedServerConfigChange,
   ServerConfigTransactionError,
 } from './serverConfigTransaction';
+import { handleChatGptWeb } from './chatgptWebApi';
 
 import {
   type DaemonApiKeyEntry,
@@ -633,6 +634,8 @@ export async function handleAdminApi(
         return await handleAccounts(req, res, method, rest, deps);
       case 'cli':
         return await handleCli(req, res, method, rest, deps);
+      case 'chatgpt-web':
+        return await handleChatGptWeb(req, res, method, rest);
       case 'integrations':
         return await handleIntegrations(req, res, method, rest, deps);
       case 'status':

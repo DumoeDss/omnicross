@@ -11,6 +11,7 @@ export type PageId =
   | 'route-activity'
   | 'upstreams'
   | 'integrations'
+  | 'chatgpt-web'
   | 'search'
   | 'images'
   | 'usage-stats'
@@ -53,6 +54,7 @@ const PAGE_IDS = new Set<PageId>([
   'route-activity',
   'upstreams',
   'integrations',
+  'chatgpt-web',
   'search',
   'images',
   'usage-stats',
