@@ -603,8 +603,14 @@ async function readStateThreads(databasePath: string): Promise<StateReadResult> 
 }
 
 async function loadSqlite(): Promise<SqliteModule> {
+  // The specifier MUST stay indirect: esbuild strips the `node:` prefix from a
+  // constant-specifier dynamic import when externalizing ("node:sqlite" →
+  // "sqlite"), turning a builtin load into a bare-package lookup that always
+  // fails in the shipped cli.js. A non-constant specifier defeats the rewrite;
+  // the runtime loader still resolves the builtin directly.
+  const specifier = 'node:sqlite';
   try {
-    return await import('node:sqlite');
+    return (await import(specifier)) as SqliteModule;
   } catch (error) {
     // Name the runtime that actually failed: the daemon often runs on the
     // desktop app's bundled Node, not the Node on PATH, so "upgrade Node.js"

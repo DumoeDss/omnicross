@@ -1,6 +1,6 @@
 {
   "name": "omnicross",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "description": "Omnicross — a standalone LLM provider-routing / subscription / CLI-launcher serving core.",
   "license": "MIT",
