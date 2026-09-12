@@ -473,6 +473,13 @@ async function applyPlanAuth(
   });
   body.model = actualModel;
   plan.transformerProvider.models = [actualModel];
+  // The ChatGPT Codex backend (2026-09) rejects any /codex/responses call whose
+  // body lacks `store: false` — 400 `{"detail":"Store must be set to false"}` —
+  // so the relay now forces it, closing the codexCliHeaders TODO. Idempotent for
+  // a compliant codex CLI caller (`disable_response_storage` already sends it).
+  // Scoped to the codex SUBSCRIPTION relay: a BYO OpenAI-compatible endpoint
+  // keeps the caller's body verbatim (its backend may legitimately allow store).
+  if (plan.proxyProviderId === 'codex') body.store = false;
   return { headers, accountId, actualModel };
 }
 
