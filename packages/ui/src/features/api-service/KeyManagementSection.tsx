@@ -518,13 +518,6 @@ export function KeyManagementSection({
                           : t('apiService.keys.bindings.directUpstream.hint')}
                     </p>
                   </div>
-                  {directTarget ? (
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <Route className="h-3 w-3" />
-                      {t('apiService.keys.bindings.directUpstream.routesInactive')}
-                    </div>
-                  ) : (
-                  <>
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <Route className="h-3 w-3" />
                     {relatedBindings.length
@@ -587,8 +580,6 @@ export function KeyManagementSection({
                       ) : null}
                     </div>
                   ) : null}
-                  </>
-                  )}
                 </div>
               ) : null}
               {!k.revoked && policyOpenId === k.id ? (

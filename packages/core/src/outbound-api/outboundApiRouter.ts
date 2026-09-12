@@ -537,6 +537,8 @@ async function writeModelsListAnthropic(
   apiKeyId: string,
   allowedEndpoints: readonly OutboundPermission[] | undefined,
   limit: number | undefined,
+  /** The key's direct passthrough provider (its catalog joins the union). */
+  directTarget?: GatewayBindingTarget | null,
 ): Promise<void> {
   const entries: AnthropicModelEntry[] = [];
   const seen = new Set<string>();
@@ -587,6 +589,13 @@ async function writeModelsListAnthropic(
         if (typeof ref !== 'string' || ref.trim() === '') continue;
         push(kind, viaLabel(kind, ref));
       }
+    }
+  }
+  // DIRECT TIER: the key's direct passthrough provider contributes its catalog
+  // to the union (the verbatim fallback serves any of these models).
+  if (directTarget?.kind === 'provider') {
+    for (const id of await passthroughProviderModelIds(llmConfig, directTarget.providerId)) {
+      push(id);
     }
   }
 
@@ -719,16 +728,18 @@ export function directUpstreamUrl(
  * The ONE synthesized passthrough binding a direct-bound SUBSCRIPTION key
  * rides (claude / kimi — subscriptions whose upstream speaks the same
  * Anthropic Messages wire as the client). Scoped to exactly this key on the
- * `messages` endpoint with priority 0, so it outranks any operator route the
- * key also matches (direct wins) while every other key is untouched. The
- * normal pipeline then does the serving — including the messages ingress's
- * same-format VERBATIM relay (byte-for-byte body, OAuth swapped +
- * auto-refreshed, account scheduling, fingerprint replay, allowance + usage
- * metering) and the `GET /v1/models` catalog advertising.
+ * `messages` endpoint at the given precedence — injected at 1000 (below the
+ * default 100 of operator routes) so an explicit messages route WINS and the
+ * subscription serves everything else. The normal pipeline then does the
+ * serving — including the messages ingress's same-format VERBATIM relay
+ * (byte-for-byte body, OAuth swapped + auto-refreshed, account scheduling,
+ * fingerprint replay, allowance + usage metering) and the `GET /v1/models`
+ * catalog advertising.
  */
 export function directUpstreamBinding(
   target: GatewayBindingTarget,
   apiKeyId: string,
+  priority = 1000,
 ): GatewayBinding {
   return {
     id: `direct:${apiKeyId}`,
@@ -738,7 +749,7 @@ export function directUpstreamBinding(
     apiKeyIds: [apiKeyId],
     endpoint: 'messages',
     target,
-    priority: 0,
+    priority,
     fallback: 'fail',
     modelMode: 'passthrough',
   };
@@ -772,6 +783,14 @@ async function relayDirectUpstream(
   config: OutboundRequestConfig,
   concurrencyGate: OutboundConcurrencyGate,
   audit: AuditCaptureContext | null,
+  /**
+   * The ALREADY-READ request body, when the caller consumed the stream before
+   * falling back to the direct tier (the resolution-fallback path). Absent ⇒
+   * the relay reads the (still-fresh) stream itself. A second read of an
+   * exhausted stream would hang forever waiting for an `end` that already
+   * fired, so late callers MUST pass the buffered body.
+   */
+  preReadBody?: string,
 ): Promise<void> {
   const direct = verified.boundUpstream;
   const providerId = direct?.kind === 'provider' ? direct.providerId : '';
@@ -820,7 +839,7 @@ async function relayDirectUpstream(
   }
 
   try {
-    const rawBody = await readBody(req);
+    const rawBody = preReadBody !== undefined ? preReadBody : await readBody(req);
     if (audit) {
       audit.setRequestBody(rawBody);
       try {
@@ -905,6 +924,8 @@ async function writeModelsList(
   apiKeyId: string,
   allowedEndpoints: readonly OutboundPermission[] | undefined,
   imageModels: readonly string[] = [],
+  /** The key's direct passthrough provider (its catalog joins the union). */
+  directTarget?: GatewayBindingTarget | null,
 ): Promise<void> {
   const modelIds: string[] = [];
   for (const endpoint of MODEL_LIST_ENDPOINTS) {
@@ -948,6 +969,11 @@ async function writeModelsList(
           .filter((modelId): modelId is string => modelId !== undefined),
       );
     }
+  }
+  // DIRECT TIER: the key's direct passthrough provider contributes its catalog
+  // to the union (the verbatim fallback serves any of these models).
+  if (directTarget?.kind === 'provider') {
+    modelIds.push(...(await passthroughProviderModelIds(llmConfig, directTarget.providerId)));
   }
   // Image models arrive pre-filtered by the runtime (route keys × fresh
   // per-provider evidence — multi-provider-image-generation 6.1); the retired
@@ -1137,32 +1163,42 @@ export async function handleOutboundRequest(
     return;
   }
 
-  // 2-PASSTHROUGH. DIRECT UPSTREAM (key→upstream binding). Two flavors:
+  // 2-DIRECT. DIRECT UPSTREAM (key→upstream binding) — an ADDITIVE layer that
+  // COEXISTS with the downstream routes (they are not disabled by it):
   //
-  //  - A `provider` target is a TRANSPARENT reverse proxy: method, path, query,
-  //    and body are forwarded VERBATIM with only the auth headers swapped to
-  //    the provider's key — no downstream route, protocol translation, model
-  //    mapping, endpoint permission, or usage metering runs. `GET /v1/models`
-  //    relays to the upstream's own catalog; an unknown path surfaces the
-  //    upstream's real 404 rather than this server's.
+  //  - A `provider` target is a VERBATIM FALLBACK TIER under the routes. A
+  //    request some route can serve (endpoint + model matched) is served by
+  //    that route through the normal pipeline — so one key can mix a direct
+  //    Responses upstream with a translated Anthropic route, or a mapped route
+  //    on the same endpoint (the route takes ITS models, the direct tier takes
+  //    the rest). Anything UNROUTED — an endpoint with no route for this key,
+  //    a model outside a route's list, or a path this gateway does not itself
+  //    implement — is relayed VERBATIM to the provider: method, path, query,
+  //    and body pass through with only the auth headers swapped. No protocol
+  //    translation, model mapping, or usage metering runs on that tier.
+  //    `GET /v1/models` stays the gateway's OWN rendered list (the union of
+  //    what the routes advertise plus the direct provider's catalog), because
+  //    a multi-upstream key must not get a single upstream's raw list.
   //
   //  - A claude/kimi SUBSCRIPTION target (account / account-group /
   //    account-pool) rides the messages pipeline instead: the config below
-  //    gains ONE synthesized passthrough binding, and the existing ingress
-  //    serves it through its same-format VERBATIM relay (byte-for-byte body,
-  //    OAuth swapped + auto-refreshed, account scheduling, fingerprint replay,
-  //    allowance + usage metering intact). No operator-managed route needed.
+  //    gains ONE synthesized passthrough binding at the LOWEST precedence
+  //    (priority 1000), so an operator-managed messages route still wins and
+  //    the subscription serves everything else through its same-format
+  //    VERBATIM relay (byte-for-byte body, OAuth swapped + auto-refreshed,
+  //    account scheduling, fingerprint replay, usage metering intact).
   //
   // Per-key rate limit + revocation/expiry (above) and the per-key concurrency
   // ceiling still apply to both flavors.
-  if (verified.boundUpstream?.kind === 'provider') {
-    await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit);
-    return;
-  }
-  if (verified.boundUpstream) {
+  const directProvider =
+    verified.boundUpstream?.kind === 'provider' ? verified.boundUpstream : null;
+  if (verified.boundUpstream && !directProvider) {
     config = {
       ...config,
-      bindings: [...(config.bindings ?? []), directUpstreamBinding(verified.boundUpstream, verified.id)],
+      bindings: [
+        ...(config.bindings ?? []),
+        directUpstreamBinding(verified.boundUpstream, verified.id, 1000),
+      ],
     };
   }
 
@@ -1276,6 +1312,7 @@ export async function handleOutboundRequest(
         verified.id,
         verified.allowedEndpoints,
         parseModelsLimit(req.url),
+        verified.boundUpstream,
       );
     } else {
       let imageModels: readonly string[] = [];
@@ -1293,12 +1330,20 @@ export async function handleOutboundRequest(
         verified.id,
         verified.allowedEndpoints,
         imageModels,
+        verified.boundUpstream,
       );
     }
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
   if (!endpoint) {
+    // No gateway endpoint matches — a direct-bound key still relays the path
+    // VERBATIM to its provider (the transparent-proxy tier); the upstream's
+    // own 404 answers, not this server's.
+    if (directProvider) {
+      await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit);
+      return;
+    }
     writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
     return;
   }
@@ -1311,8 +1356,11 @@ export async function handleOutboundRequest(
     return;
   }
   // Routing lives entirely in the downstream routes: a key with no enabled route
-  // on this endpoint can never be served, so say so before reading the body.
-  if (candidateGatewayBindings(config.bindings, verified.id, endpoint).length === 0) {
+  // on this endpoint can never be served — UNLESS the direct tier can relay it.
+  if (
+    candidateGatewayBindings(config.bindings, verified.id, endpoint).length === 0 &&
+    !directProvider
+  ) {
     writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
     return;
   }
@@ -1458,8 +1506,12 @@ export async function handleOutboundRequest(
       role,
     });
     // Unreachable in practice — the pre-body gate above already rejects a key
-    // with no candidate route — but keeps the resolution total.
+    // with no candidate route and no direct tier — but keeps the resolution total.
     if (bindingResolution.source === 'none') {
+      if (directProvider) {
+        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody);
+        return;
+      }
       writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
       return;
     }
@@ -1501,6 +1553,16 @@ export async function handleOutboundRequest(
             hostedImageGenerationAllowed,
           });
     if (!resolved.ok) {
+      // DIRECT-TIER FALLBACK: the routes cannot serve THIS request (no route on
+      // the endpoint for this key, or the requested model is outside a route's
+      // list/mappings). A direct-bound key relays the request VERBATIM to its
+      // provider instead of erroring — the route keeps its models, the direct
+      // tier takes everything else. A key with NO direct binding keeps the
+      // per-request error unchanged.
+      if (directProvider) {
+        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody);
+        return;
+      }
       writeJsonError(res, resolved.error.status, resolved.error.message);
       return;
     }
