@@ -16,6 +16,7 @@
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import type { BillingConfig } from '@omnicross/contracts/billing-types';
+import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { HealthReport } from '@omnicross/contracts/health-logging-types';
 import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
@@ -305,6 +306,13 @@ export interface EndpointRoutingConfig {
    * the requested model id (bare or `providerId,modelId`).
    */
   backgroundModelIds?: string[];
+  /**
+   * Runtime-only default thinking level projected from the winning
+   * {@link GatewayModelMapping.effort} immediately before route resolution.
+   * Absent ⇒ no injection; a client's own reasoning intent always wins over
+   * this default. Legacy endpoint persistence never sets this field.
+   */
+  reasoningEffort?: ThinkLevel;
 }
 
 /**
@@ -417,10 +425,18 @@ export type GatewayBindingKeyScope = 'all' | 'selected';
 /** Whether the downstream model id is forwarded or explicitly remapped. */
 export type GatewayBindingModelMode = 'passthrough' | 'mapped';
 
-/** One exact or `*` wildcard model-name rewrite owned by a downstream route. */
+/**
+ * One exact or `*` wildcard model-name rewrite owned by a downstream route.
+ *
+ * `effort` is an OPTIONAL default thinking level for clients that cannot
+ * express one on the wire: it applies ONLY when the request carries no
+ * reasoning intent of its own (client-sent thinking/reasoning always wins);
+ * absent/undefined ⇒ the normal reasoning negotiation runs unchanged.
+ */
 export interface GatewayModelMapping {
   source: string;
   target: ModelRef;
+  effort?: ThinkLevel;
 }
 
 /**

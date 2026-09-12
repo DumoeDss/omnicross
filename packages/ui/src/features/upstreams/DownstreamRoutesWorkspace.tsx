@@ -23,6 +23,7 @@ import type {
   GatewayBinding,
   GatewayBindingTarget,
   GatewayModelMapping,
+  MappingEffortLevel,
   OutboundApiKeyInfo,
   OutboundEndpointId,
 } from '@/daemon/types';
@@ -52,7 +53,14 @@ interface DownstreamRoutesWorkspaceProps {
 interface MappingDraft {
   source: string;
   target: string;
+  /** Pinned thinking-level default; `undefined` = unchecked (client/negotiation decides). */
+  effort?: MappingEffortLevel;
 }
+
+/** The shared seven-level domain, in canonical order. */
+const EFFORT_LEVELS: readonly MappingEffortLevel[] = [
+  'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max',
+];
 
 interface DownstreamDraft {
   id?: string;
@@ -123,6 +131,7 @@ function sameMappings(left: readonly MappingDraft[], right: readonly MappingDraf
     && left.every((mapping, index) => (
       mapping.source.trim() === right[index]?.source.trim()
       && mapping.target.trim() === right[index]?.target.trim()
+      && mapping.effort === right[index]?.effort
     ));
 }
 
@@ -291,10 +300,14 @@ export function bindingFromDraft(
       if (previous.backgroundModel !== undefined) binding.backgroundModel = previous.backgroundModel;
       if (previous.backgroundModelIds) binding.backgroundModelIds = [...previous.backgroundModelIds];
     } else {
-      binding.modelMappings = draft.mappings.map((mapping) => ({
-        source: mapping.source.trim(),
-        target: mapping.target.trim(),
-      }));
+      binding.modelMappings = draft.mappings.map((mapping) => {
+        const row: GatewayModelMapping = {
+          source: mapping.source.trim(),
+          target: mapping.target.trim(),
+        };
+        if (mapping.effort) row.effort = mapping.effort;
+        return row;
+      });
     }
   }
   return binding;
@@ -658,20 +671,41 @@ function MappingEditor({
   return (
     <div className="mt-3 space-y-2">
       <datalist id={listId}>{suggestions.map((model) => <option key={model} value={model} />)}</datalist>
-      <div className="hidden grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_32px] gap-2 px-1 font-mono text-[9px] uppercase text-muted-foreground sm:grid">
+      <div className="hidden grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_172px_32px] gap-2 px-1 font-mono text-[9px] uppercase text-muted-foreground sm:grid">
         <span>{t('upstreams.downstreams.mapping.source')}</span><span />
-        <span>{t('upstreams.downstreams.mapping.target')}</span><span />
+        <span>{t('upstreams.downstreams.mapping.target')}</span>
+        <span className="text-center">{t('upstreams.downstreams.mapping.effort')}</span><span />
       </div>
       {mappings.map((mapping, index) => (
-        <div key={index} className="grid grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_32px] items-center gap-2">
+        <div key={index} className="grid grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_172px_32px] items-center gap-2">
           <Input value={mapping.source} placeholder="claude-sonnet-*" onChange={(event) => patch(index, { source: event.target.value })} />
           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
           <Input list={listId} value={mapping.target} placeholder="glm-4.7" onChange={(event) => patch(index, { target: event.target.value })} />
+          <div className="flex items-center justify-end gap-1.5">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 shrink-0 accent-primary"
+              checked={mapping.effort !== undefined}
+              onChange={(event) => patch(index, { effort: event.target.checked ? 'high' : undefined })}
+              aria-label={t('upstreams.downstreams.mapping.effort')}
+            />
+            <Select
+              className="w-[132px]"
+              size="sm"
+              disabled={mapping.effort === undefined}
+              value={mapping.effort ?? 'high'}
+              options={EFFORT_LEVELS.map((level) => ({ value: level, label: level }))}
+              onChange={(value) => patch(index, { effort: value as MappingEffortLevel })}
+            />
+          </div>
           <Button size="icon" variant="ghost" onClick={() => onChange(mappings.filter((_, itemIndex) => itemIndex !== index))} aria-label={t('common.delete')}>
             <Trash2 className="h-3.5 w-3.5 text-destructive" />
           </Button>
         </div>
       ))}
+      <p className="px-1 text-[10px] leading-4 text-muted-foreground">
+        {t('upstreams.downstreams.mapping.effortHint')}
+      </p>
       <Button size="sm" variant="outline" onClick={() => onChange([...mappings, { source: '', target: '' }])}>
         <Plus className="h-3.5 w-3.5" />{t('upstreams.downstreams.mapping.add')}
       </Button>

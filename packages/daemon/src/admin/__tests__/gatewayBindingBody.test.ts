@@ -96,6 +96,25 @@ describe('validateGatewayBindingsSegment', () => {
     ]));
   });
 
+  it('accepts a mapping effort from the shared level domain and rejects anything else', () => {
+    const row = (effort: unknown) => ({
+      id: 'effort',
+      name: 'Effort',
+      enabled: true,
+      endpoint: 'responses',
+      modelMode: 'mapped',
+      modelMappings: [{ source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort }],
+      target: { kind: 'provider', providerId: 'codex' },
+      fallback: 'fail',
+    });
+
+    expect(validateGatewayBindingsSegment(patch([row('xhigh')]))).toEqual([]);
+    expect(validateGatewayBindingsSegment(patch([row(undefined)]))).toEqual([]);
+    expect(validateGatewayBindingsSegment(patch([row('ultra')]))).toEqual([
+      'bindings[0].modelMappings effort must be one of: none, minimal, low, medium, high, xhigh, max',
+    ]);
+  });
+
   it('validates model collections without requiring fields for another endpoint class', () => {
     const errors = validateGatewayBindingsSegment(patch([
       {

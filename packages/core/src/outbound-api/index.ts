@@ -93,6 +93,7 @@ export {
   type GatewayBindingResolution,
   type ResolveGatewayBindingInput,
 } from './gatewayBindingResolver';
+export { injectMappingEffortDefault } from './mappingEffortInjection';
 export {
   AUDIT_REDACTED,
   redactAuditText,

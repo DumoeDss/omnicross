@@ -64,7 +64,9 @@ import {
   candidateGatewayBindings,
   gatewayBindingToEndpointConfig,
   resolveGatewayBinding,
+  resolveGatewayModelMappingRow,
 } from './gatewayBindingResolver';
+import { injectMappingEffortDefault } from './mappingEffortInjection';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey, type VerifiedKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
@@ -1554,12 +1556,43 @@ export async function handleOutboundRequest(
       ? `outbound:${verified.id}${bindingAffinitySuffix}`
       : null;
 
+    // MAPPING EFFORT DEFAULT (model-mapping-effort): when the winning route's
+    // model mapping pins a thinking level and the client expressed NO reasoning
+    // intent of their own, stamp the ingress wire's native field onto the parsed
+    // body and replay THAT downstream. One seam covers every dispatch path —
+    // including the same-format verbatim relays — because the replayed bytes are
+    // byte-equivalent to a client that sent the intent natively; capability
+    // negotiation stays in the transformer-chain reasoning encoders. The audit
+    // stash above keeps the ORIGINAL client bytes; the direct-tier fallback
+    // below keeps the original `rawBody` (no mapping ⇒ no injection).
+    // count_tokens skips it — a thinking level never changes a token count.
+    let replayBody = rawBody;
+    if (
+      !isCountTokens &&
+      effectiveEndpointConfig.reasoningEffort &&
+      injectMappingEffortDefault(endpoint, effectiveEndpointConfig.reasoningEffort, parsedBody)
+    ) {
+      replayBody = JSON.stringify(parsedBody);
+    }
+
     // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
     // (`messages`/`responses`) route by model KIND and carry the client's original
     // requested id through to the response `model` passthrough; the list-mapped
     // `chat` endpoint matches the requested id against its configured model list;
     // the role-based `gemini` endpoint keeps detecting default/background.
     const hostedImageGenerationAllowed = verified.allowedEndpoints.includes('images');
+    // For a MAPPED chat route the model mapping already resolved the client's
+    // alias (exact or wildcard) to the upstream target — `routeCanServe` gated on
+    // exactly that — so the list match below must see the TARGET, not the alias;
+    // otherwise a renamed alias (`gpt-5.6-sol-xhigh` → `gpt-5.6-sol`) 404s against
+    // the single-entry list. Kind-mapped endpoints keep the CLIENT id (it selects
+    // the kind and drives the response `model` passthrough rewrite); a mapped
+    // binding whose mapping does NOT match falls back to the client id so the
+    // legacy per-request 404 behavior is preserved.
+    const listResolvedModel =
+      endpoint === 'chat' && bindingResolution.binding.modelMode === 'mapped'
+        ? resolveGatewayModelMappingRow(bindingResolution.binding.modelMappings, requestedModel)?.target ?? requestedModel
+        : requestedModel;
     const resolved =
       isKindMappedEndpoint(endpoint) || endpoint === 'chat'
         ? await resolveRoute({
@@ -1567,10 +1600,10 @@ export async function handleOutboundRequest(
             ingressFormat,
             llmConfig: deps.llmConfig,
             sessionId,
-            // Capture the ORIGINAL requested id BEFORE any downstream swap; for
-            // kind-mapped endpoints it selects the kind AND is stamped onto
-            // `route.requestedModel`; for chat it is matched against the list.
-            requestedModel,
+            // The id the route resolves against: the client's ORIGINAL id for
+            // kind-mapped endpoints (it selects the kind AND is stamped onto
+            // `route.requestedModel`), the mapping-resolved target for chat.
+            requestedModel: listResolvedModel,
             // Attribution: stamp the verified named-key id onto the route.
             apiKeyId: verified.id,
             hostedImageGenerationAllowed,
@@ -1707,7 +1740,7 @@ export async function handleOutboundRequest(
       // ingress consumer (`readBody` / the Anthropic delegation's own reader)
       // re-reads the body via `req.on('data'/'end')`, so replay the buffered
       // bytes through a fresh readable that carries the request's metadata.
-      const replay = makeReplayRequest(req, rawBody);
+      const replay = makeReplayRequest(req, replayBody);
       await routeRequest(replay, res, routeMap, deps.proxyDeps);
     } catch (err) {
       if (isBoundAccountSelectionError(err)) {

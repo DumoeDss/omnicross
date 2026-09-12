@@ -824,7 +824,9 @@
       "mapping": {
         "source": "Requested model",
         "target": "Upstream model (free text)",
-        "add": "Add mapping"
+        "add": "Add mapping",
+        "effort": "Effort",
+        "effortHint": "Pin a thinking level for clients that cannot send one — applied only when the request carries no reasoning setting of its own."
       },
       "noResource": "No upstream selected"
     },
