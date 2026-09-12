@@ -40,7 +40,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalDispatcher, EnvHttpProxyAgent } from 'undici';
 
-const NODE_VERSION = process.env.OMNICROSS_NODE_VERSION || '20.18.1';
+// Floor: the codex session manager needs `node:sqlite` with its `backup()`
+// helper (added in 22.16.0) to rewrite Codex's state_5.sqlite provider index.
+// Keep this on the newest 22.x LTS patch; anything older degrades that feature.
+const NODE_VERSION = process.env.OMNICROSS_NODE_VERSION || '22.23.2';
 
 if (process.env.OMNICROSS_SKIP_NODE_BUNDLE) {
   console.info('[stage-node] OMNICROSS_SKIP_NODE_BUNDLE set — skipping (PATH node fallback).');

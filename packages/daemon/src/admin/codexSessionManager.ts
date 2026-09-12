@@ -605,9 +605,14 @@ async function readStateThreads(databasePath: string): Promise<StateReadResult> 
 async function loadSqlite(): Promise<SqliteModule> {
   try {
     return await import('node:sqlite');
-  } catch {
+  } catch (error) {
+    // Name the runtime that actually failed: the daemon often runs on the
+    // desktop app's bundled Node, not the Node on PATH, so "upgrade Node.js"
+    // alone would send users down the wrong path.
+    const cause = error instanceof Error ? error.message : String(error);
     throw new CodexSessionManagerError(
-      'Codex session SQLite support requires Node.js 22.16 or newer (node:sqlite)',
+      `Codex session SQLite support requires Node.js 22.16 or newer (node:sqlite); ` +
+        `this daemon runs ${process.version} (import failed: ${cause})`,
     );
   }
 }
