@@ -1052,11 +1052,10 @@
         "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes.",
         "directUpstream": {
           "label": "Direct upstream",
-          "none": "Not bound (served by downstream routes)",
-          "hint": "Binding an upstream needs no downstream route: a provider relays requests byte-for-byte (auth header swapped only, unmetered); a Claude / Kimi subscription account / group / pool rides the native Anthropic-wire relay (OAuth auto-refresh, account scheduling, usage metered).",
-          "boundHint": "Every request with this key is relayed verbatim to the bound provider (auth swapped). Direct traffic is not metered: spend tracking and cost limits do not account it.",
-          "boundSubscriptionHint": "This key's /v1/messages requests relay verbatim through the bound subscription account (Anthropic same-wire relay: OAuth auto-refresh, pool scheduling, fingerprint replay; usage is metered).",
-          "routesInactive": "Direct upstream is active — downstream route bindings are ignored while it is set."
+          "none": "Not bound (downstream routes only)",
+          "hint": "Direct binding and downstream routes COEXIST: routes serve the protocols and models they cover first; anything unrouted (including paths the gateway itself does not implement) is relayed verbatim to the direct upstream. A provider = byte-for-byte passthrough (auth swapped, unmetered); a Claude / Kimi subscription = native Anthropic-wire relay (OAuth auto-refresh, account scheduling, usage metered).",
+          "boundHint": "Requests not covered by a downstream route are relayed verbatim to the bound provider (auth swapped). Direct traffic is not metered: spend tracking and cost limits do not account it.",
+          "boundSubscriptionHint": "/v1/messages requests not covered by a downstream route relay verbatim through the bound subscription account (Anthropic same-wire relay: OAuth auto-refresh, pool scheduling, fingerprint replay; usage is metered)."
         }
       },
       "integrations": {
