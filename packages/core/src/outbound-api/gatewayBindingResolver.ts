@@ -48,21 +48,43 @@ function wildcardMatches(pattern: string, value: string): boolean {
   return new RegExp(`^${escaped}$`, 'iu').test(value);
 }
 
-/** Resolve the first exact/wildcard mapping in declaration order. */
-export function resolveGatewayModelMapping(
+/**
+ * The winning mapping row for a requested model: its `target` (trimmed) and the
+ * OPTIONAL `effort` default the route should inject when the client expressed
+ * no reasoning intent of its own.
+ */
+export interface ResolvedGatewayModelMapping {
+  target: string;
+  effort?: GatewayModelMapping['effort'];
+}
+
+/** Resolve the first exact/wildcard mapping row in declaration order. */
+export function resolveGatewayModelMappingRow(
   mappings: readonly GatewayModelMapping[] | undefined,
   requestedModel: string | undefined,
-): string | undefined {
+): ResolvedGatewayModelMapping | undefined {
   if (!nonBlank(requestedModel)) return undefined;
   const wanted = requestedModel.trim();
   const exact = (mappings ?? []).find(
     (mapping) => nonBlank(mapping.source) && !mapping.source.includes('*') && mapping.source.trim().toLocaleLowerCase() === wanted.toLocaleLowerCase(),
   );
-  if (exact && nonBlank(exact.target)) return exact.target.trim();
+  if (exact && nonBlank(exact.target)) {
+    return { target: exact.target.trim(), effort: exact.effort };
+  }
   const wildcard = (mappings ?? []).find(
     (mapping) => nonBlank(mapping.source) && mapping.source.includes('*') && wildcardMatches(mapping.source.trim(), wanted),
   );
-  return wildcard && nonBlank(wildcard.target) ? wildcard.target.trim() : undefined;
+  return wildcard && nonBlank(wildcard.target)
+    ? { target: wildcard.target.trim(), effort: wildcard.effort }
+    : undefined;
+}
+
+/** Resolve the first exact/wildcard mapping's target in declaration order. */
+export function resolveGatewayModelMapping(
+  mappings: readonly GatewayModelMapping[] | undefined,
+  requestedModel: string | undefined,
+): string | undefined {
+  return resolveGatewayModelMappingRow(mappings, requestedModel)?.target;
 }
 
 function routeCanServe(
@@ -165,12 +187,19 @@ export function gatewayBindingToEndpointConfig(
 
   const usesGenericModelHandling =
     binding.modelMode === 'passthrough' || Boolean(binding.modelMappings?.length);
+  // Mapped mode keeps the winning ROW (not just its target) so the mapping's
+  // optional effort default rides the config into route resolution. Passthrough
+  // forwards the client's own id and never carries an effort.
+  const winningMapping = binding.modelMode === 'passthrough'
+    ? undefined
+    : resolveGatewayModelMappingRow(binding.modelMappings, requestedModel);
   const dynamicModel = binding.modelMode === 'passthrough'
     ? requestedModel
-    : resolveGatewayModelMapping(binding.modelMappings, requestedModel);
+    : winningMapping?.target;
 
   if (usesGenericModelHandling) {
     if (nonBlank(dynamicModel)) applySingleModel(config, binding, dynamicModel);
+    if (winningMapping?.effort) config.reasoningEffort = winningMapping.effort;
   } else if (isKindMappedEndpoint(binding.endpoint)) {
     config.modelMap = Object.fromEntries(
       Object.entries(binding.modelMap ?? {}).map(([kind, ref]) => [kind, targetRef(target, ref)]),

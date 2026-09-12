@@ -1384,3 +1384,117 @@ describe('handleOutboundRequest — apiKeyId attribution (udash-attrib D5)', () 
     expect(internal?.apiKeyId ?? null).toBeNull();
   });
 });
+
+describe('handleOutboundRequest — mapping effort default (model-mapping-effort)', () => {
+  /** Drive one chat completion through a mapped binding with an effort row and
+   *  return the JSON body the upstream fetch received. */
+  async function postChat(
+    mappings: GatewayBinding['modelMappings'],
+    clientBody: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const relay = {
+      id: 'relay',
+      name: 'relay',
+      apiFormat: 'openai',
+      api_base_url: 'https://relay.example/v1',
+      api_key: 'sk-x',
+      models: [],
+      enabled: true,
+    };
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ id: 'x', object: 'chat.completion', created: 0, model: 'm', choices: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const routeMap = new ProviderProxyRouteMap();
+      const llmConfig = {
+        getProvider: async () => relay,
+        resolveTransformerChain: async () => ({ providerTransformers: [], modelTransformers: [] }),
+        getMainTransformer: async () => null,
+      };
+      const deps = {
+        db: makeDb(() => ({ ...enabledRow })),
+        llmConfig,
+        providerProxy: { getRouteMap: () => routeMap },
+        proxyDeps: { llmConfig, apiKeyPool: null },
+      } as unknown as OutboundApiDeps;
+      const req = new MockReq({
+        headers: { authorization: 'Bearer any' },
+        url: '/v1/chat/completions',
+        body: JSON.stringify(clientBody),
+      });
+      const res = new MockRes();
+      req.start();
+      await handleOutboundRequest(
+        req as unknown as http.IncomingMessage,
+        res as unknown as http.ServerResponse,
+        deps,
+        {
+          endpoints: [],
+          bindings: [{
+            id: 'chat-effort',
+            name: 'Chat effort mapping',
+            enabled: true,
+            keyScope: 'selected',
+            apiKeyIds: [enabledRow.id],
+            endpoint: 'chat',
+            target: { kind: 'provider', providerId: 'relay' },
+            priority: 100,
+            fallback: 'fail',
+            modelMode: 'mapped',
+            modelMappings: mappings,
+          } satisfies GatewayBinding],
+        },
+        new OutboundRateLimiter(),
+        new UserMessageSerialQueue(),
+        new OutboundConcurrencyGate(),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      return JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    } finally {
+      vi.unstubAllGlobals();
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    }
+  }
+
+  it('injects the mapping effort as the wire-native default and rewrites the model', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' }],
+      { model: 'GPT-5.6-SOL-XHIGH', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['model']).toBe('gpt-5.6-sol');
+    expect(body['reasoning_effort']).toBe('xhigh');
+  });
+
+  it('keeps a client-sent effort over the mapping default', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' }],
+      { model: 'gpt-5.6-sol-xhigh', reasoning_effort: 'low', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['reasoning_effort']).toBe('low');
+  });
+
+  it('leaves the body untouched when the winning mapping pins no effort', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol', target: 'gpt-5.6-sol' }],
+      { model: 'gpt-5.6-sol', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['model']).toBe('gpt-5.6-sol');
+    expect(body['reasoning_effort']).toBeUndefined();
+  });
+
+  it('serves a renamed chat alias through the mapping (previously a 404 against the single-entry list)', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol-high', target: 'gpt-5.6-sol' }],
+      { model: 'gpt-5.6-sol-high', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['model']).toBe('gpt-5.6-sol');
+    expect(body['reasoning_effort']).toBeUndefined();
+  });
+});

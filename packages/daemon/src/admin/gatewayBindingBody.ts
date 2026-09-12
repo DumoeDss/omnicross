@@ -4,6 +4,12 @@ const ENDPOINTS = new Set(['chat', 'responses', 'messages', 'gemini']);
 const TARGET_KINDS = new Set(['account', 'account-group', 'account-pool', 'provider']);
 /** `global` is the pre-migration spelling of `next`; accepted, normalized in core. */
 const FALLBACKS = new Set(['next', 'fail', 'global']);
+/**
+ * A mapping effort is any short non-blank string — the shared seven levels
+ * (none/minimal/low/medium/high/xhigh/max) or a provider-native custom one
+ * that same-format wires pass upstream verbatim.
+ */
+const EFFORT_MAX_LENGTH = 32;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -69,6 +75,16 @@ export function validateGatewayBindingsSegment(
         (mapping) => !isRecord(mapping) || !nonBlank(mapping.source) || !nonBlank(mapping.target),
       )) {
         errors.push(`${path}.modelMappings must contain non-empty source and target strings`);
+      } else if (entry.modelMappings.some(
+        (mapping) =>
+          mapping.effort !== undefined &&
+          (typeof mapping.effort !== 'string' ||
+            mapping.effort.trim() === '' ||
+            mapping.effort.trim().length > EFFORT_MAX_LENGTH),
+      )) {
+        errors.push(
+          `${path}.modelMappings effort must be a non-empty string of at most ${EFFORT_MAX_LENGTH} characters`,
+        );
       }
     }
 

@@ -655,6 +655,9 @@ function normalizeBindingTarget(raw: unknown): GatewayBindingTarget | null {
   return null;
 }
 
+/** Max length for a persisted mapping `effort` (see normalizeGatewayModelMappings). */
+const MAPPING_EFFORT_MAX_LENGTH = 32;
+
 function normalizeGatewayModelMappings(raw: unknown): GatewayModelMapping[] {
   if (!Array.isArray(raw)) return [];
   const mappings: GatewayModelMapping[] = [];
@@ -664,7 +667,15 @@ function normalizeGatewayModelMappings(raw: unknown): GatewayModelMapping[] {
     const source = typeof value.source === 'string' ? value.source.trim() : '';
     const target = typeof value.target === 'string' ? value.target.trim() : '';
     if (!source || !target) continue;
-    mappings.push({ source, target });
+    // The optional effort default survives as any short non-blank string — the
+    // shared seven levels OR a provider-native custom one (same-format verbatim
+    // passthrough). Anything else (legacy configs have no field at all) drops
+    // it — behavior identical to a mapping that never pinned one.
+    const rawEffort = typeof value.effort === 'string' ? value.effort.trim() : '';
+    const effort = rawEffort && rawEffort.length <= MAPPING_EFFORT_MAX_LENGTH
+      ? rawEffort
+      : undefined;
+    mappings.push(effort ? { source, target, effort } : { source, target });
   }
   return mappings;
 }
