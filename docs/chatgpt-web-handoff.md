@@ -165,15 +165,12 @@ e096347 feat(chatgpt-web): experimental ChatGPT Web (incl. Pro) bridge for Codex
 1. ~~[卡点 A 窗口]~~ ✅ 已解决（windowsHide 根因）
 2. ~~[卡点 A2 登录]~~ ✅ 已解决（CDP-less 独立登录实例，用户已登录）
 3. ~~Electron 宿主 browser-only 首回合~~ ✅ `ROUND TRIP OK`
-4. ~~[当前] harness 浏览器端联调~~ ✅ **完成**（2026-09-12 凌晨，75ca72a）：全链路验证通过。已知抖动及对策：`+` 菜单连接器行来自独立目录加载（**15 秒耐心轮询**）、发送首击偶被吞（**2.5 秒自动重点**）、tunnel 启动偶发失败（先 `runtimes stop` 正规停再启，别裸 taskkill）
-5. **[当前]** codex 真跑：`launch --browser-host=electron --harness --model chatgpt-web/pro` + 真实 codex 会话（function_call_output 由 codex 真实执行）
-6. 提醒用户轮换 platform API key（已暴露于聊天记录）
-6. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
-7. 转正评估后：UI 设置页（Control Panel）、daemon 常驻集成、发布流程（包目前 private）
-3. harness 浏览器端联调：`launch --browser-host=electron --harness --model chatgpt-web/pro` + `scripts/chatgpt-web-harness-roundtrip.ts`。重点观察 @mention 菜单选择（attachConnectorMention 的行匹配未实战过）
-4. 提醒用户轮换 platform API key（已暴露于聊天记录）
-5. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
-6. 转正评估后：UI 设置页（Control Panel）、daemon 常驻集成、发布流程（包目前 private）
+4. ~~harness 浏览器端联调~~ ✅ **完成**（2026-09-12 凌晨，75ca72a）：全链路验证通过。已知抖动及对策：`+` 菜单连接器行来自独立目录加载（**15 秒耐心轮询**）、发送首击偶被吞（**2.5 秒自动重点**）、tunnel 启动偶发失败（先 `runtimes stop` 正规停再启，别裸 taskkill）
+5. ~~UI 设置页~~ ✅ **已建**（2026-09-12，e690708）：桌面端独立页「ChatGPT 网页」（Configure 组，`#/chatgpt-web`）——四步配置清单（harness 配置/连接器/登录/隧道，带外链）+ 登录窗口/登录检查按钮 + 桥启动/停止（模型可选，附 Base URL/Token/codex 命令复制块）。daemon 侧 `/admin/api/chatgpt-web/*`（`admin/chatgptWebApi.ts`，runtime key 永不出境）。en/zh/zh-Hant 已翻，其余 locale 回退英文。**待桌面端实机点验**
+6. **[当前]** codex 真跑：`launch --browser-host=electron --harness --model chatgpt-web/pro` + 真实 codex 会话（function_call_output 由 codex 真实执行）
+7. 提醒用户轮换 platform API key（已暴露于聊天记录）
+8. 收尾：`/v1/models` 警告确认消失；`harness status` 接入 tunnel 活状态；README 补 Electron 宿主章节；考虑把 `rasen/` spec 流程补上（实验特性，转正前）
+9. 转正评估后：daemon 常驻集成（桥随应用生命周期）、发布流程（包目前 private）
 
 ## 10. 环境速查
 
