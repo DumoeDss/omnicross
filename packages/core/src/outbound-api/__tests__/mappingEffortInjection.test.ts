@@ -71,4 +71,25 @@ describe('injectMappingEffortDefault', () => {
       expect(body).toEqual({ model: 'm' });
     }
   });
+
+  it('writes a custom provider-native level verbatim (same-format escape hatch)', () => {
+    const chat: Record<string, unknown> = {};
+    expect(injectMappingEffortDefault('chat', 'ultra', chat)).toBe(true);
+    expect(chat['reasoning_effort']).toBe('ultra');
+
+    const responses: Record<string, unknown> = {};
+    expect(injectMappingEffortDefault('responses', 'ultra', responses)).toBe(true);
+    expect(responses['reasoning']).toEqual({ effort: 'ultra' });
+
+    const messages: Record<string, unknown> = {};
+    expect(injectMappingEffortDefault('messages', 'ultra', messages)).toBe(true);
+    expect(messages['thinking']).toEqual({ type: 'adaptive' });
+    expect(messages['output_config']).toEqual({ effort: 'ultra' });
+
+    const gemini: Record<string, unknown> = {};
+    expect(injectMappingEffortDefault('gemini', 'ultra', gemini)).toBe(true);
+    expect(gemini['generationConfig']).toEqual({
+      thinkingConfig: { thinkingLevel: 'ultra' },
+    });
+  });
 });

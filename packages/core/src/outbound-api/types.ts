@@ -312,7 +312,7 @@ export interface EndpointRoutingConfig {
    * Absent ⇒ no injection; a client's own reasoning intent always wins over
    * this default. Legacy endpoint persistence never sets this field.
    */
-  reasoningEffort?: ThinkLevel;
+  reasoningEffort?: GatewayMappingEffort;
 }
 
 /**
@@ -426,6 +426,15 @@ export type GatewayBindingKeyScope = 'all' | 'selected';
 export type GatewayBindingModelMode = 'passthrough' | 'mapped';
 
 /**
+ * A mapping-pinned thinking level: one of the shared seven levels, OR a
+ * provider-native custom string for levels the shared domain doesn't know
+ * yet. Custom values ride the SAME-FORMAT wire verbatim (exactly what a user
+ * wants when our presets lag a new model); cross-format negotiation does not
+ * recognize them and simply leaves the request without injected thinking.
+ */
+export type GatewayMappingEffort = ThinkLevel | (string & {});
+
+/**
  * One exact or `*` wildcard model-name rewrite owned by a downstream route.
  *
  * `effort` is an OPTIONAL default thinking level for clients that cannot
@@ -436,7 +445,7 @@ export type GatewayBindingModelMode = 'passthrough' | 'mapped';
 export interface GatewayModelMapping {
   source: string;
   target: ModelRef;
-  effort?: ThinkLevel;
+  effort?: GatewayMappingEffort;
 }
 
 /**

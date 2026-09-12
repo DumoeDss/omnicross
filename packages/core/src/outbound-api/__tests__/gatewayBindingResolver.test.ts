@@ -290,21 +290,25 @@ describe('gateway binding persistence compatibility', () => {
     expect(config.bindings?.map((item) => item.id)).toEqual(['binding-1']);
   });
 
-  it('preserves a recognized mapping effort and drops an unrecognized one', () => {
+  it('preserves canonical and custom mapping efforts; drops blank/oversized junk', () => {
     const config = normalizeServerConfig({
       bindings: [binding({
         modelMode: 'mapped',
         modelMap: undefined,
         modelMappings: [
           { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' },
-          // An untyped wire value — normalization must drop it, not crash.
+          // A custom provider-native level — kept verbatim (same-format passthrough).
           { source: 'gpt-5.6-sol-ultra', target: 'gpt-5.6-sol', effort: 'ultra' as never },
+          { source: 'gpt-5.6-sol-blank', target: 'gpt-5.6-sol', effort: '   ' as never },
+          { source: 'gpt-5.6-sol-junk', target: 'gpt-5.6-sol', effort: 'x'.repeat(40) as never },
         ],
       })],
     });
     expect(config.bindings?.[0].modelMappings).toEqual([
       { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' },
-      { source: 'gpt-5.6-sol-ultra', target: 'gpt-5.6-sol' },
+      { source: 'gpt-5.6-sol-ultra', target: 'gpt-5.6-sol', effort: 'ultra' },
+      { source: 'gpt-5.6-sol-blank', target: 'gpt-5.6-sol' },
+      { source: 'gpt-5.6-sol-junk', target: 'gpt-5.6-sol' },
     ]);
   });
 });

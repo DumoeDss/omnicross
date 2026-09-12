@@ -826,7 +826,7 @@
         "target": "Upstream model (free text)",
         "add": "Add mapping",
         "effort": "Effort",
-        "effortHint": "Pin a thinking level for clients that cannot send one — applied only when the request carries no reasoning setting of its own."
+        "effortHint": "Pin a thinking level for clients that cannot send one — applied only when the request carries no reasoning setting of its own. Suggestions follow the target model's known levels; a custom level passes same-format upstreams verbatim."
       },
       "noResource": "No upstream selected"
     },

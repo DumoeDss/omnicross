@@ -18,10 +18,8 @@
  * @module outbound-api/mappingEffortInjection
  */
 
-import type { ThinkLevel } from '@omnicross/contracts/completion-types';
-
 import { extractReasoningIntent } from '../reasoning/reasoning-plan';
-import type { OutboundEndpoint } from './types';
+import type { GatewayMappingEffort, OutboundEndpoint } from './types';
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -45,10 +43,15 @@ function hasOpenAiWireReasoningIntent(body: Record<string, unknown>): boolean {
  * client expressed no reasoning intent. Returns whether anything was written —
  * the caller re-serializes the replayed body ONLY then (no effort, client
  * intent present, or a no-op level ⇒ byte-identical replay).
+ *
+ * A CUSTOM (non-canonical) effort is written verbatim: same-format paths pass
+ * it upstream unchanged (the escape hatch for levels our presets don't know);
+ * cross-format negotiation does not recognize it and drops the injected
+ * thinking instead of guessing.
  */
 export function injectMappingEffortDefault(
   endpoint: OutboundEndpoint,
-  effort: ThinkLevel | undefined,
+  effort: GatewayMappingEffort | undefined,
   body: Record<string, unknown>,
 ): boolean {
   if (!effort) return false;

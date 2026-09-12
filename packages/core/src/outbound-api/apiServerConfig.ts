@@ -29,7 +29,6 @@ import {
 
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
-import { THINK_LEVELS } from '../reasoning/reasoning-plan';
 import { normalizeImagesServerConfig } from './imagesServerConfig';
 import { normalizeSearchServerConfig } from './searchServerConfig';
 import type { BoundAccountFallbackPolicy } from '../pipeline/BoundAccountSelectionError';
@@ -656,8 +655,8 @@ function normalizeBindingTarget(raw: unknown): GatewayBindingTarget | null {
   return null;
 }
 
-/** Membership gate for a persisted mapping `effort` (see normalizeGatewayModelMappings). */
-const THINK_LEVEL_SET = new Set<string>(THINK_LEVELS);
+/** Max length for a persisted mapping `effort` (see normalizeGatewayModelMappings). */
+const MAPPING_EFFORT_MAX_LENGTH = 32;
 
 function normalizeGatewayModelMappings(raw: unknown): GatewayModelMapping[] {
   if (!Array.isArray(raw)) return [];
@@ -668,10 +667,14 @@ function normalizeGatewayModelMappings(raw: unknown): GatewayModelMapping[] {
     const source = typeof value.source === 'string' ? value.source.trim() : '';
     const target = typeof value.target === 'string' ? value.target.trim() : '';
     if (!source || !target) continue;
-    // The optional effort default survives ONLY as a recognized level; anything
-    // else (legacy configs have no field at all) drops it — behavior identical
-    // to a mapping that never pinned one.
-    const effort = THINK_LEVEL_SET.has(String(value.effort)) ? value.effort as GatewayModelMapping['effort'] : undefined;
+    // The optional effort default survives as any short non-blank string — the
+    // shared seven levels OR a provider-native custom one (same-format verbatim
+    // passthrough). Anything else (legacy configs have no field at all) drops
+    // it — behavior identical to a mapping that never pinned one.
+    const rawEffort = typeof value.effort === 'string' ? value.effort.trim() : '';
+    const effort = rawEffort && rawEffort.length <= MAPPING_EFFORT_MAX_LENGTH
+      ? rawEffort
+      : undefined;
     mappings.push(effort ? { source, target, effort } : { source, target });
   }
   return mappings;

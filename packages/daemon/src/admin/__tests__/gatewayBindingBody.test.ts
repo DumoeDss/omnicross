@@ -96,7 +96,7 @@ describe('validateGatewayBindingsSegment', () => {
     ]));
   });
 
-  it('accepts a mapping effort from the shared level domain and rejects anything else', () => {
+  it('accepts a canonical or custom mapping effort and rejects blank/oversized values', () => {
     const row = (effort: unknown) => ({
       id: 'effort',
       name: 'Effort',
@@ -109,10 +109,13 @@ describe('validateGatewayBindingsSegment', () => {
     });
 
     expect(validateGatewayBindingsSegment(patch([row('xhigh')]))).toEqual([]);
+    expect(validateGatewayBindingsSegment(patch([row('ultra')]))).toEqual([]);
     expect(validateGatewayBindingsSegment(patch([row(undefined)]))).toEqual([]);
-    expect(validateGatewayBindingsSegment(patch([row('ultra')]))).toEqual([
-      'bindings[0].modelMappings effort must be one of: none, minimal, low, medium, high, xhigh, max',
-    ]);
+    for (const junk of ['', '   ', 'x'.repeat(33), 42]) {
+      expect(validateGatewayBindingsSegment(patch([row(junk)]))).toEqual([
+        'bindings[0].modelMappings effort must be a non-empty string of at most 32 characters',
+      ]);
+    }
   });
 
   it('validates model collections without requiring fields for another endpoint class', () => {

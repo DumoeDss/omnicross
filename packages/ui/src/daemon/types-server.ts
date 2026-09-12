@@ -99,8 +99,20 @@ export type GatewayBindingFallback = 'next' | 'fail';
 export type GatewayBindingKeyScope = 'all' | 'selected';
 export type GatewayBindingModelMode = 'passthrough' | 'mapped';
 
-/** The seven shared thinking levels a mapping may pin as its effort default. */
-export type MappingEffortLevel = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+/**
+ * A mapping-pinned thinking level: one of the shared seven levels, OR a
+ * provider-native custom string for levels the shared domain doesn't know
+ * yet (same-format wires pass it upstream verbatim).
+ */
+export type MappingEffortLevel =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+  | (string & {});
 
 export interface GatewayModelMapping {
   source: string;
