@@ -20,6 +20,7 @@ import type {
 import { OpenAIOperationError } from '../../openai-operation';
 import {
   codexAcceptHeader,
+  ensureCodexSessionIdHeader,
   extractCodexClientHeaders,
   fillMissingCodexCliIdentity,
 } from '../identity/codexCliHeaders';
@@ -502,6 +503,7 @@ async function applyPlanAuth(
 function decorateCodexHeaders(
   headers: Record<string, string>,
   plan: ResponsesCallPlan,
+  body: Record<string, unknown>,
 ): void {
   if (plan.proxyProviderId !== 'codex') return;
   fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
@@ -509,6 +511,11 @@ function decorateCodexHeaders(
   // streams (the caller's own stream, or the forced one for a non-stream
   // client), so accept is always the SSE variant on this branch.
   fillMissingHeaders(headers, { accept: codexAcceptHeader(true) });
+  // Cache affinity on the HEADER (ChatGPT's authoritative signal, codex
+  // #44862): a caller that brought no `session-id` gets the request's
+  // `prompt_cache_key` mirrored into the header so body and header agree.
+  // After the caller merge above, so a forwarded caller value wins.
+  ensureCodexSessionIdHeader(headers, body);
   // Identity LAST, after the caller's own markers merged: a real Codex CLI
   // keeps its own (user-agent, version) and gets only the originator marker —
   // never a fabricated `version` under its UA (see fillMissingCodexCliIdentity).
@@ -524,7 +531,7 @@ async function runNative(
   throwIfResponsesAborted(signal);
   const { headers, accountId, actualModel } = await applyPlanAuth(body, plan);
   fillMissingHeaders(headers, { 'content-type': 'application/json' });
-  decorateCodexHeaders(headers, plan);
+  decorateCodexHeaders(headers, plan, body);
   const url = operation === 'compact' ? deriveResponsesCompactUrl(plan.upstreamUrl) : plan.upstreamUrl;
   let activityRecordId: string | undefined;
   const response = await fetchUpstream(
@@ -577,7 +584,7 @@ async function runReduced(
           if (value !== undefined && !(key in headers)) headers[key] = value;
         }
       }
-      decorateCodexHeaders(headers, plan);
+      decorateCodexHeaders(headers, plan, body);
       return headers;
     },
     fetchFn: async (url, headers, requestBody) => {
