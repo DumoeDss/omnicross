@@ -17,6 +17,7 @@ import type {
   UsageCacheKeySource,
   UsageDateRange,
   UsageEventInput,
+  UsageQueryFilter,
   UsageTimeBucket,
   UsageTimeSeriesBucket,
   UsageTotals,
@@ -223,20 +224,24 @@ export class UsageRecorder {
 
   // ===== Query delegates =====
 
-  getTotals(range: UsageDateRange): Promise<UsageTotals> {
-    return this.store.getTotals(range);
+  getTotals(range: UsageDateRange, filter?: UsageQueryFilter): Promise<UsageTotals> {
+    return this.store.getTotals(range, filter);
   }
 
-  getByModel(range: UsageDateRange): Promise<ModelUsageRow[]> {
-    return this.store.getByModel(range);
+  getByModel(range: UsageDateRange, filter?: UsageQueryFilter): Promise<ModelUsageRow[]> {
+    return this.store.getByModel(range, filter);
   }
 
-  getByApiKey(range: UsageDateRange): Promise<ApiKeyUsageRow[]> {
-    return this.store.getByApiKey(range);
+  getByApiKey(range: UsageDateRange, filter?: UsageQueryFilter): Promise<ApiKeyUsageRow[]> {
+    return this.store.getByApiKey(range, filter);
   }
 
-  getTimeSeries(range: UsageDateRange, bucket: UsageTimeBucket): Promise<UsageTimeSeriesBucket[]> {
-    return this.store.getTimeSeries(range, bucket);
+  getTimeSeries(
+    range: UsageDateRange,
+    bucket: UsageTimeBucket,
+    filter?: UsageQueryFilter,
+  ): Promise<UsageTimeSeriesBucket[]> {
+    return this.store.getTimeSeries(range, bucket, filter);
   }
 
   getMessagesForSession(sessionId: string): Promise<MessageUsageRow[]> {

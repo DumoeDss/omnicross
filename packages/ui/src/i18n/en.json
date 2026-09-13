@@ -2059,7 +2059,19 @@
     "hour": "Hour",
     "day": "Day",
     "month": "Month",
-    "other": "Other"
+    "other": "Other",
+    "modeDate": "Date",
+    "modeCycle": "Billing cycle",
+    "modeCycleHint": "View usage segmented by subscription billing cycles (reset boundaries are detected automatically)",
+    "cycleAccount": "Account",
+    "cycleSelect": "Cycle",
+    "cycleOngoing": "ongoing",
+    "cyclesUnavailable": "Cycle history unavailable on this daemon",
+    "cyclesEmpty": "No billing cycles yet",
+    "filterAllProviders": "All providers",
+    "filterProvider": "Provider",
+    "filterAllKeys": "All keys",
+    "filterKey": "API key"
   },
   "pricing": {
     "title": "Model Pricing",

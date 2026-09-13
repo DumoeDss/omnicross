@@ -7,6 +7,13 @@ import {
   AccountAllowanceStore,
   getSharedAccountAllowanceStore,
 } from '@omnicross/core/pipeline/AccountAllowanceStore';
+
+import type { AccountAllowanceBoundaryEvent } from './AllowanceBoundaryLog';
+import {
+  composeAllowanceCycles,
+  filterAllowanceBoundaryEvents,
+  type AccountAllowanceCycle,
+} from './allowanceCycles';
 import {
   getSharedAccountAllowanceScheduling,
   type AllowanceSchedulingDecision,
@@ -110,6 +117,12 @@ export class AccountAllowanceService {
     geminiCollector?: GeminiAllowanceCollector,
     antigravityCollector?: AntigravityAllowanceCollector,
     private readonly now: () => number = Date.now,
+    /**
+     * Observed cycle-boundary ledger (usage-cycle-history). Absent ⇒
+     * `getCycles` still returns each account's CURRENT cycle, synthesized from
+     * the live snapshot — there is simply no observed history to look back on.
+     */
+    private readonly boundaryEvents?: () => AccountAllowanceBoundaryEvent[],
   ) {
     this.claudeCollector = collector ?? new ClaudeAllowanceCollector(credentials, store);
     this.codexCollector = codexCollector ?? new CodexAllowanceCollector(credentials, store);
@@ -200,6 +213,19 @@ export class AccountAllowanceService {
     return this.store
       .list(filter)
       .filter((snapshot) => known.has(`${snapshot.providerId}\0${snapshot.accountId}`));
+  }
+
+  /**
+   * Billable-cycle segments for the (optionally filtered) accounts: observed
+   * boundary events merged with the live snapshot's current window. Usage
+   * queries then bucket events into `[startTs, endTs)`.
+   */
+  async getCycles(filter: AccountAllowanceFilter = {}): Promise<AccountAllowanceCycle[]> {
+    const snapshots = await this.list(filter);
+    const events = this.boundaryEvents
+      ? filterAllowanceBoundaryEvents(this.boundaryEvents(), filter)
+      : [];
+    return composeAllowanceCycles(events, snapshots, this.now());
   }
 
   private knownAccounts(config: AccountTokensConfig) {
