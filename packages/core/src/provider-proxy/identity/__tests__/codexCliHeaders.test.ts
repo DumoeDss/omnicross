@@ -7,6 +7,12 @@
  * real `codex` CLI carries. Unlike the claude path it still got a 200, so the
  * risk here is silent (looking nothing like the client it claims to be) rather
  * than a hard failure.
+ *
+ * 2026-09-14: the session-id/thread-id header spellings the current CLI sends
+ * (hyphen) are load-bearing — ChatGPT's backend derives Responses
+ * prefix-cache affinity from the `session-id` HEADER (codex #44862) — so
+ * forwarding them, and mirroring the body prompt_cache_key into the header
+ * for callers that send none, is under guard here too.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -14,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import {
   codexAcceptHeader,
   DEFAULT_CODEX_CLI_HEADERS,
+  ensureCodexSessionIdHeader,
   extractCodexClientHeaders,
   fillMissingCodexCliIdentity,
 } from '../codexCliHeaders';
@@ -53,6 +60,70 @@ describe('extractCodexClientHeaders', () => {
 
   it('ignores headers outside the allow-list', () => {
     expect(extractCodexClientHeaders({ 'x-random': 'v', 'anthropic-beta': 'x' })).toEqual({});
+  });
+
+  it('forwards the hyphenated session-id/thread-id the current Codex CLI sends (cache affinity)', () => {
+    // codex-rs build_session_headers emits `session-id` / `thread-id`; ChatGPT
+    // derives Responses prefix-cache affinity from the session-id HEADER
+    // (codex #44862). The old allow-list carried only the underscore spelling,
+    // so the real headers were silently dropped.
+    expect(
+      extractCodexClientHeaders({
+        'Session-Id': 'sess-hyphen',
+        'Thread-Id': 'thread-hyphen',
+      }),
+    ).toEqual({
+      'session-id': 'sess-hyphen',
+      'thread-id': 'thread-hyphen',
+    });
+  });
+
+  it('forwards both spellings when a caller sends both (fill-only merge, no clobber)', () => {
+    expect(
+      extractCodexClientHeaders({
+        'session-id': 'sess-hyphen',
+        session_id: 'sess-underscore',
+        'thread-id': 'thread-hyphen',
+        thread_id: 'thread-underscore',
+      }),
+    ).toEqual({
+      'session-id': 'sess-hyphen',
+      session_id: 'sess-underscore',
+      'thread-id': 'thread-hyphen',
+      thread_id: 'thread-underscore',
+    });
+  });
+
+  it('NEVER-set still wins alongside forwardable session headers', () => {
+    expect(
+      extractCodexClientHeaders({
+        Authorization: 'Bearer SECRET',
+        'session-id': 'sess-1',
+        'thread-id': 'thread-1',
+      }),
+    ).toEqual({ 'session-id': 'sess-1', 'thread-id': 'thread-1' });
+  });
+});
+
+describe('ensureCodexSessionIdHeader (header-level cache affinity, codex #44862)', () => {
+  it('mirrors the body prompt_cache_key into session-id when the caller sent none', () => {
+    const headers: Record<string, string> = {};
+    ensureCodexSessionIdHeader(headers, { prompt_cache_key: 'omnicross:session-header:abc123' });
+    expect(headers['session-id']).toBe('omnicross:session-header:abc123');
+  });
+
+  it('never overrides a caller-provided session-id', () => {
+    const headers: Record<string, string> = { 'session-id': 'caller-session' };
+    ensureCodexSessionIdHeader(headers, { prompt_cache_key: 'omnicross:content-fingerprint:xyz' });
+    expect(headers['session-id']).toBe('caller-session');
+  });
+
+  it('is a no-op without a usable prompt_cache_key', () => {
+    const headers: Record<string, string> = {};
+    ensureCodexSessionIdHeader(headers, {});
+    ensureCodexSessionIdHeader(headers, { prompt_cache_key: '   ' });
+    ensureCodexSessionIdHeader(headers, { prompt_cache_key: 42 });
+    expect(headers).toEqual({});
   });
 });
 

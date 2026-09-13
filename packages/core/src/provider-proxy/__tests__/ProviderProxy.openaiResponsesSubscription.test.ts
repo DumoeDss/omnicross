@@ -218,30 +218,49 @@ describe('ProviderProxy subscription Responses session affinity', () => {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(cacheBody),
     });
+    const third = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'session-id': 'codex-session-one',
+      },
+      body: JSON.stringify(sessionBody),
+    });
 
     expect(first.status).toBe(401);
     expect(second.status).toBe(401);
-    expect(appliedKeys).toHaveLength(2);
-    expect(unauthorizedKeys).toHaveLength(2);
+    expect(third.status).toBe(401);
+    expect(appliedKeys).toHaveLength(3);
+    expect(unauthorizedKeys).toHaveLength(3);
 
     const expectedSessionKey = deriveGatewaySessionKey(sessionBody, {
       'session-id': 'codex-session-one',
     }).key;
     const expectedCacheKey = deriveGatewaySessionKey(cacheBody).key;
-    expect(appliedKeys).toEqual([expectedSessionKey, expectedCacheKey]);
-    expect(unauthorizedKeys).toEqual([expectedSessionKey, expectedCacheKey]);
+    expect(appliedKeys).toEqual([expectedSessionKey, expectedCacheKey, expectedSessionKey]);
+    expect(unauthorizedKeys).toEqual([expectedSessionKey, expectedCacheKey, expectedSessionKey]);
     expect(expectedSessionKey).not.toBe(expectedCacheKey);
     expect(appliedKeys).not.toContain('codex-session-one');
     expect(unauthorizedKeys).not.toContain('second-conversation-cache-key');
     expect(receivedBodies.map((body) => body.prompt_cache_key)).toEqual([
       'must-not-win-over-session-id',
       'second-conversation-cache-key',
+      'must-not-win-over-session-id',
     ]);
-    // Session metadata is ingress-only. The upstream receives the auth strategy
-    // headers, never Codex's raw session header.
-    expect(receivedHeaders).toHaveLength(2);
-    expect(receivedHeaders.every((headers) => headers['session-id'] === undefined)).toBe(true);
+    // Cache affinity on the WIRE (codex #44862): ChatGPT's backend derives
+    // Responses prefix-cache routing from the `session-id` HEADER. A caller's
+    // own session-id is forwarded verbatim and stays stable across the
+    // conversation; a caller that sent none gets the body `prompt_cache_key`
+    // mirrored into the header so the two always agree.
+    expect(receivedHeaders).toHaveLength(3);
+    expect(receivedHeaders[0]?.['session-id']).toBe('codex-session-one');
+    expect(receivedHeaders[1]?.['session-id']).toBe('second-conversation-cache-key');
+    expect(receivedHeaders[2]?.['session-id']).toBe('codex-session-one');
+    // The internal-only spellings never appear on the upstream request, and
+    // the raw session value stays out of the affinity digests asserted above.
     expect(receivedHeaders.every((headers) => headers['x-session-id'] === undefined)).toBe(true);
+    expect(receivedHeaders.every((headers) => headers['session_id'] === undefined)).toBe(true);
   });
 
   it('opencodego → forwards the caller x-opencode-session verbatim; absent ⇒ derived key; UA always set', async () => {
