@@ -1,8 +1,8 @@
 {
   "name": "@omnicross/chatgpt-web",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "private": true,
-  "description": "EXPERIMENTAL \u2014 ChatGPT Web (browser) as a Codex Responses backend over CDP. Not published.",
+  "description": "EXPERIMENTAL — ChatGPT Web (browser) as a Codex Responses backend over CDP. Not published.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
   "repository": {
