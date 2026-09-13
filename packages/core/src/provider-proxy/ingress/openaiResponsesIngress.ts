@@ -33,7 +33,9 @@ import type { ProviderProxyDeps, RouteContext } from '../types';
 import { recordResponsesNonStreamUsage, recordResponsesStreamUsage } from '../usage/recordResponsesUsage';
 
 import {
+  aggregateResponsesSseToJsonBody,
   relayResponse,
+  sniffIsSseResponse,
   writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
@@ -529,6 +531,36 @@ export async function handleResponsesOperation(
         rawStatus: providerResponse.rawStatus,
       }),
     };
+  }
+  // Non-stream-from-SSE collapse (the codex contract): the codex upstream
+  // rejects `stream:false` outright, so a NON-streaming caller's body was forced
+  // to `stream:true` by the plan and the answer arrives as SSE — collapse it
+  // into the single terminal `response` JSON such a client expects. Generic on
+  // content-type: any upstream that answered a non-stream request with SSE gets
+  // the same treatment; a JSON answer passes through untouched.
+  if (!isStream) {
+    if (await sniffIsSseResponse(providerResponse.response)) {
+      const collapsed = await aggregateResponsesSseToJsonBody(
+        providerResponse.response,
+        route.requestedModel,
+        signal,
+      );
+      if (collapsed !== null) {
+        providerResponse = {
+          ...providerResponse,
+          response: new Response(collapsed, {
+            status: providerResponse.response.status,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        };
+      } else {
+        throw new OpenAIOperationError({
+          status: 502,
+          code: 'upstream_stream_collapse_failed',
+          message: 'upstream streamed no terminal response event',
+        });
+      }
+    }
   }
   let overloadRecorded = false;
   let usageLimitRecorded = false;

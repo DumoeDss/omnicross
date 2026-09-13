@@ -69,13 +69,17 @@ import {
 } from '../usage/recordChatCompletionsUsage';
 
 import { buildSubscriptionRequestSummary } from './anthropicSubscriptionPlan';
+import { fillMissingCodexCliIdentity } from '../identity/codexCliHeaders';
 import { deriveSubscriptionSessionKey } from '../matchText';
+import { resolveGeminiProjectForChatBridge } from '../responses/responsesDriver';
 import {
   type ByoRouteActivityMeta,
+  aggregateOpenAIChatChunksToJsonBody,
   buildByoRouteActivityMeta,
   getSharedExecutor,
   relayResponse,
   resolvePoolBoundKey,
+  sniffIsSseResponse,
   writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
@@ -96,21 +100,28 @@ export function isOpenAIChatRequest(
 
 /**
  * The subscription providers whose route-to chain the chat ingress can soundly
- * bridge (openai-chat-bridge OQ1). CLAUDE / KIMI / GROK declare static
+ * bridge (openai-chat-bridge OQ1, closed). CLAUDE / KIMI / GROK declare static
  * route-to chains (['anthropic'] / ['anthropic'] / ['openai-response']) that
  * are exactly Unified-encoders, so streaming + tools come for free.
  * OPENCODEGO is shape-aware: the profile's `chatBridgeTransformerNames` seam
  * resolves the per-model chain (go/zen half × wire shape) for a Unified
  * caller — including the anthropic shape, where the messages path's `[]`
  * (verbatim) would forward an OpenAI-chat body to an Anthropic endpoint.
- * Codex (needs the store:false body contract) and gemini (Code-Assist project
- * resolution) stay deferred at the plan builder with a clear per-request error.
+ * CODEX rides the same ['openai-response'] encoder, which owns its body
+ * contract (store:false + forced stream:true + typed input parts); a
+ * NON-streaming client is served by collapsing the forced SSE back into one
+ * chat.completion (see the handler). GEMINI resolves its Code-Assist project
+ * per account before the call, mirroring the Responses driver.
+ * Copilot / antigravity stay deferred (their own header/project contracts are
+ * unverified on this ingress) with a clear per-request error.
  */
 const CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set<string>([
   'claude',
   'kimi',
   'grok',
   'opencodego',
+  'codex',
+  'gemini',
 ]);
 
 /**
@@ -187,9 +198,33 @@ export async function handleOpenAIChatRequest(
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
-    const providerResponse = plan.isSubscription
+    let providerResponse = plan.isSubscription
       ? await runPipelineWithSubscriptionRetry(chatBody, plan)
       : await runPipelineWithPoolReporting(chatBody, plan);
+
+    // Non-stream-from-SSE collapse (the codex contract): the Responses encoder
+    // forces `stream:true` upstream (the backend 400s otherwise), so a
+    // NON-streaming caller's chain output arrives as chat SSE — collapse it
+    // into the single `chat.completion` JSON such a client expects. Generic on
+    // content-type: any bridged provider that answered a non-stream request
+    // with SSE gets the same treatment, and a JSON answer passes through.
+    if (!isStream) {
+      if (await sniffIsSseResponse(providerResponse.response)) {
+        const collapsed = await aggregateOpenAIChatChunksToJsonBody(providerResponse.response);
+        if (collapsed !== null) {
+          providerResponse = {
+            response: new Response(collapsed, {
+              status: providerResponse.response.status,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+            rawStatus: providerResponse.rawStatus,
+          };
+        } else {
+          writeError(res, 502, 'upstream streamed no completable chat chunks');
+          return;
+        }
+      }
+    }
 
     const usageAttribution = {
       sessionId: route.sessionId,
@@ -406,6 +441,18 @@ async function buildSubscriptionPlan(
     apiKey: '',
     models: [mappedModel],
   };
+  // GEMINI: resolve the Code-Assist project for the (sticky-selected) account
+  // BEFORE the call, mirroring the Responses driver — the `gemini-code-assist`
+  // chain wraps the request in its project/session envelope off
+  // `provider.geminiProject`.
+  if (providerId === 'gemini') {
+    transformerProvider.geminiProject = await resolveGeminiProjectForChatBridge(profile, {
+      sessionKey: deriveSubscriptionSessionKey(chatBody),
+      preferredAccountId: route.preferredAccountId,
+      preferredAccountGroup: route.preferredAccountGroup,
+      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+    });
+  }
   // The scenario-mapped model is what goes on the wire (`modelMapper` may have
   // rewritten the binding-mapped id) — keep the request body in lockstep.
   chatBody.model = mappedModel;
@@ -419,12 +466,13 @@ async function buildSubscriptionPlan(
     transformerProvider,
     resolvedModel: mappedModel,
     isStream,
-    resolveUrl: (config) =>
-      config.url instanceof URL
-        ? config.url.toString()
-        : typeof config.url === 'string'
-          ? config.url
-          : upstreamUrl,
+    // The PROFILE's URL is authoritative on the subscription plan — the
+    // transformer's `config.url` is host-root-absolute by design (it REPLACES
+    // the whole path with `/v1/responses`), which would DROP the path prefix a
+    // path-prefixed upstream needs (codex `…/backend-api/codex/responses`,
+    // opencode-zen `…/zen/v1/responses`). The profile's `resolveUpstreamUrl`
+    // already produced the complete, shape-specific URL.
+    resolveUrl: () => upstreamUrl,
     upstreamUrl,
     proxyProviderId: providerId,
     isSubscription: true,
@@ -482,6 +530,10 @@ async function runPipeline(
           if (value !== undefined && !(key in headers)) headers[key] = value;
         }
       }
+      // Codex identity markers (mirrors the Responses driver's
+      // `decorateCodexHeaders`): a bare anonymous request picks up the
+      // originator + CLI persona; a caller that brought its own UA keeps it.
+      if (plan.proxyProviderId === 'codex') fillMissingCodexCliIdentity(headers);
       return headers;
     },
     fetchFn: (url, headers, body) => {

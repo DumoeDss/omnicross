@@ -38,6 +38,12 @@ import type { ProviderConfigSource } from '../../ports';
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
 import { AnthropicTransformer } from '../../transformer/transformers/AnthropicTransformer';
 import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
+
+// The gemini project resolver is module-level state; stub it for the gemini
+// threading test (existing claude/kimi/grok/opencodego tests never reach it).
+vi.mock('../../ports/gemini-code-assist-resolver', () => ({
+  getGeminiCodeAssistResolver: () => ({ resolveProject: async () => 'proj-gemini-123' }),
+}));
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext, SubscriptionDispatchProfile } from '../types';
@@ -153,6 +159,18 @@ function startMockUpstream(): Promise<MockUpstream> {
       if (url.includes('/v1/responses')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(RESPONSES_COMPLETION));
+        return;
+      }
+      // Codex-style Responses upstream → SSE with NO Content-Type (the codex
+      // backend omits it; both the transformer and the collapse must sniff).
+      if (url.includes('/codex-sse')) {
+        res.writeHead(200);
+        res.end(
+          'data: {"type":"response.created","response":{"id":"resp_chat_9","model":"gpt-5.6-luna"}}\n\n' +
+            'data: {"type":"response.output_text.delta","delta":"pong"}\n\n' +
+            'data: {"type":"response.completed","response":{"id":"resp_chat_9","model":"gpt-5.6-luna","usage":{"input_tokens":3,"output_tokens":2}}}\n\n' +
+            'data: [DONE]\n\n',
+        );
         return;
       }
       // BYO OpenAI-compat path (not /v1/messages) → OpenAI completion.
@@ -405,7 +423,7 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
   // an unimplemented capability, not an upstream (502) failure.
   it('non-claude subscription over chat → clear 501 deferral, no upstream call', async () => {
     await startProxy();
-    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'), 'codex')));
+    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'), 'copilot')));
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: bearer(token),
@@ -418,7 +436,7 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
 
     expect(res.status).toBe(501);
     const json = (await res.json()) as { error?: { message?: string } };
-    expect(json.error?.message).toMatch(/does not implement subscription provider 'codex'/);
+    expect(json.error?.message).toMatch(/does not implement subscription provider 'copilot'/);
     expect(upstream.hits).toBe(0);
   });
 
@@ -728,9 +746,129 @@ describe('ProviderProxy OpenAI-chat → OPENCODEGO / KIMI / GROK subscription br
     expect(json.choices?.[0]?.message?.content).toBe('pong');
   });
 
-  it('codex stays deferred with a clear 501', async () => {
+  it('codex bridges with the Responses encoder contract; NON-stream caller gets a collapsed chat.completion', async () => {
+    const transformers: Record<string, Transformer> = {
+      anthropic: new AnthropicTransformer(),
+      'openai-response': new OpenAIResponseTransformer(),
+    };
+    llmConfig = {
+      ...makeLlmConfig(),
+      getTransformerService: () => ({ getTransformer: (name: string) => transformers[name] }),
+    } as unknown as ProviderConfigSource;
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+    const profile: SubscriptionDispatchProfile = {
+      ...claudeProfile(upstreamUrl('/codex-sse/responses'), 'codex'),
+      providerTransformerNames: ['openai-response'],
+    };
+    const token = proxy.addRoute(subRoute(profile));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'sdk-model', messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    // The request reached the profile's PATH-PREFIXED upstream verbatim (the
+    // transformer's host-root config.url must NOT have replaced the path).
+    expect(upstream.paths[0]).toBe('/codex-sse/responses');
+    // The codex body contract rode the encoder: store:false + FORCED stream:true
+    // + typed input parts (the caller asked for neither stream nor store).
+    const sent = JSON.parse(upstream.lastBody ?? '{}') as {
+      store?: unknown;
+      stream?: unknown;
+      input?: unknown;
+    };
+    expect(sent.store).toBe(false);
+    expect(sent.stream).toBe(true);
+    expect(Array.isArray(sent.input)).toBe(true);
+    // The SSE answer (sniffed — the mock sends NO Content-Type) collapsed into
+    // the single chat.completion JSON a non-streaming client expects.
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const json = (await res.json()) as {
+      object?: string;
+      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+      usage?: { prompt_tokens?: number };
+    };
+    expect(json.object).toBe('chat.completion');
+    expect(json.choices?.[0]?.message?.content).toBe('pong');
+    expect(json.choices?.[0]?.finish_reason).toBe('stop');
+    expect(json.usage?.prompt_tokens).toBe(3);
+  });
+
+  it('codex streaming caller gets chat SSE chunks translated from the Responses stream', async () => {
+    const transformers: Record<string, Transformer> = {
+      anthropic: new AnthropicTransformer(),
+      'openai-response': new OpenAIResponseTransformer(),
+    };
+    llmConfig = {
+      ...makeLlmConfig(),
+      getTransformerService: () => ({ getTransformer: (name: string) => transformers[name] }),
+    } as unknown as ProviderConfigSource;
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+    const profile: SubscriptionDispatchProfile = {
+      ...claudeProfile(upstreamUrl('/codex-sse/responses'), 'codex'),
+      providerTransformerNames: ['openai-response'],
+    };
+    const token = proxy.addRoute(subRoute(profile));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'sdk-model', stream: true, messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+    const text = await res.text();
+    expect(text).toContain('chat.completion.chunk');
+    expect(text).toContain('"content":"pong"');
+    expect(text).toContain('[DONE]');
+  });
+
+  it('gemini resolves its Code-Assist project before the call and threads it onto the provider', async () => {
+    let capturedProject: string | undefined;
+    const geminiStub: Transformer = {
+      name: 'gemini-code-assist',
+      async transformRequestIn(request, provider) {
+        capturedProject = (provider as { geminiProject?: string }).geminiProject;
+        return request;
+      },
+    };
+    llmConfig = {
+      ...makeLlmConfig(),
+      getTransformerService: () => ({
+        getTransformer: (name: string) =>
+          name === 'gemini-code-assist' ? geminiStub : undefined,
+      }),
+    } as unknown as ProviderConfigSource;
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+
+    const profile: SubscriptionDispatchProfile = {
+      ...claudeProfile(upstreamUrl('/gemini-go/v1internal:generateContent'), 'gemini'),
+      providerTransformerNames: ['gemini-code-assist'],
+    };
+    const token = proxy.addRoute(subRoute(profile));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'sdk-model', messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    // The stub transformer observed the resolver's project on the provider.
+    expect(capturedProject).toBe('proj-gemini-123');
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    expect(json.choices?.[0]?.message?.content).toBe('byo-pong');
+  });
+
+  it('copilot stays deferred with a clear 501', async () => {
     await startProxy();
-    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/responses'), 'codex')));
+    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/responses'), 'copilot')));
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: bearer(token),
@@ -739,7 +877,7 @@ describe('ProviderProxy OpenAI-chat → OPENCODEGO / KIMI / GROK subscription br
 
     expect(res.status).toBe(501);
     const text = await res.text();
-    expect(text).toContain("does not implement subscription provider 'codex'");
+    expect(text).toContain("does not implement subscription provider 'copilot'");
     expect(upstream.hits).toBe(0);
   });
 });
