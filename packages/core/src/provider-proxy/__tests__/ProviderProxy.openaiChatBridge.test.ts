@@ -44,6 +44,13 @@ import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAI
 vi.mock('../../ports/gemini-code-assist-resolver', () => ({
   getGeminiCodeAssistResolver: () => ({ resolveProject: async () => 'proj-gemini-123' }),
 }));
+// Same for the antigravity-dialect resolver (REQUIRED handshake on that path).
+// importOriginal keeps the module's other exports (e.g. the endpoint constant
+// the transformer reads) intact.
+vi.mock('../../auth/GeminiCodeAssistProjectResolver', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getAntigravityProjectResolver: () => ({ resolveProject: async () => 'proj-antigravity-456' }),
+}));
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext, SubscriptionDispatchProfile } from '../types';
@@ -423,7 +430,9 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
   // an unimplemented capability, not an upstream (502) failure.
   it('non-claude subscription over chat → clear 501 deferral, no upstream call', async () => {
     await startProxy();
-    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'), 'copilot')));
+    // An UNKNOWN provider id exercises the gate itself (every built-in catalog
+    // id is allowlisted now; the guard remains for custom profiles).
+    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'), 'custom-unknown')));
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: bearer(token),
@@ -436,7 +445,7 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
 
     expect(res.status).toBe(501);
     const json = (await res.json()) as { error?: { message?: string } };
-    expect(json.error?.message).toMatch(/does not implement subscription provider 'copilot'/);
+    expect(json.error?.message).toMatch(/does not implement subscription provider 'custom-unknown'/);
     expect(upstream.hits).toBe(0);
   });
 
@@ -866,18 +875,107 @@ describe('ProviderProxy OpenAI-chat → OPENCODEGO / KIMI / GROK subscription br
     expect(json.choices?.[0]?.message?.content).toBe('byo-pong');
   });
 
-  it('copilot stays deferred with a clear 501', async () => {
-    await startProxy();
-    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/responses'), 'copilot')));
+  it('copilot picks its per-wire chain and honors the account-discovered endpoint', async () => {
+    const transformers: Record<string, Transformer> = {
+      anthropic: new AnthropicTransformer(),
+      'openai-response': new OpenAIResponseTransformer(),
+    };
+    llmConfig = {
+      ...makeLlmConfig(),
+      getTransformerService: () => ({ getTransformer: (name: string) => transformers[name] }),
+    } as unknown as ProviderConfigSource;
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+
+    // The fake mirrors the REAL copilot profile: per-wire path + chain names,
+    // and the base honoring the threaded account config's apiEndpoint.
+    const wireFor = (model: string): 'anthropic' | 'chat' | 'responses' =>
+      model.startsWith('claude-') ? 'anthropic' : model.startsWith('gpt-') ? 'responses' : 'chat';
+    const copilotProfile = (model: string, config?: { apiEndpoint?: string }): SubscriptionDispatchProfile =>
+      ({
+        providerId: 'copilot',
+        displayName: 'Copilot (GitHub OAuth)',
+        authStrategy: makeClaudeStrategy('copilot'),
+        mode: 'transformer',
+        resolveUpstreamUrl: (m: string, cfg?: unknown) => {
+          const base = (cfg as { apiEndpoint?: string } | undefined)?.apiEndpoint ?? upstreamUrl('');
+          const wire = wireFor(m);
+          return `${base}${wire === 'anthropic' ? '/v1/messages' : wire === 'chat' ? '/chat/completions' : '/v1/responses'}`;
+        },
+        providerTransformerNames: ['openai-response'],
+        modelTransformerNames: [],
+        resolveProviderTransformerNames: (m: string) => {
+          const wire = wireFor(m);
+          return wire === 'anthropic' ? ['anthropic'] : wire === 'chat' ? ['openai'] : ['openai-response'];
+        },
+      }) as unknown as SubscriptionDispatchProfile;
+    const config = { apiEndpoint: upstreamUrl('/ghe-proxy') };
+
+    // Three wires, three models — each must land on its own upstream path.
+    const cases: Array<{ model: string; expectedPath: string; expectJsonChoice: boolean }> = [
+      { model: 'claude-sonnet-4-5', expectedPath: '/ghe-proxy/v1/messages', expectJsonChoice: false },
+      { model: 'gemini-3-pro', expectedPath: '/ghe-proxy/chat/completions', expectJsonChoice: true },
+      { model: 'gpt-5.4', expectedPath: '/ghe-proxy/v1/responses', expectJsonChoice: false },
+    ];
+    for (const c of cases) {
+      const route = {
+        ...subRoute(copilotProfile(c.model, config)),
+        model: c.model,
+        subscriptionConfig: config,
+      };
+      const token = proxy.addRoute(route);
+      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: bearer(token),
+        body: JSON.stringify({ model: c.model, messages: [{ role: 'user', content: 'ping' }] }),
+      });
+      expect(res.status, `model ${c.model}`).toBe(200);
+      expect(upstream.paths.at(-1), `model ${c.model} path`).toBe(c.expectedPath);
+      const json = (await res.json()) as { object?: string };
+      expect(json.object).toBe('chat.completion');
+    }
+  });
+
+  it('antigravity resolves its REQUIRED project and prefers the transformer-emitted URL', async () => {
+    let capturedProject: string | undefined;
+    // The real antigravity transformer owns the envelope AND emits the
+    // per-request URL in config.url — the stub mirrors that contract.
+    const emittedUrl = upstreamUrl('/antigravity-emitted/v1internal:generateContent');
+    const antigravityStub: Transformer = {
+      name: 'antigravity',
+      async transformRequestIn(request, provider) {
+        capturedProject = (provider as { geminiProject?: string }).geminiProject;
+        // Real contract: {body, config} — the chain merges `config` only when a
+        // `body` key is present.
+        return { body: request, config: { url: new URL(emittedUrl) } } as never;
+      },
+    };
+    llmConfig = {
+      ...makeLlmConfig(),
+      getTransformerService: () => ({
+        getTransformer: (name: string) => (name === 'antigravity' ? antigravityStub : undefined),
+      }),
+    } as unknown as ProviderConfigSource;
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+
+    const profile: SubscriptionDispatchProfile = {
+      ...claudeProfile(upstreamUrl('/antigravity-profile-url-must-not-be-used'), 'antigravity'),
+      providerTransformerNames: ['antigravity'],
+    };
+    const token = proxy.addRoute(subRoute(profile));
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: bearer(token),
       body: JSON.stringify({ model: 'sdk-model', messages: [{ role: 'user', content: 'ping' }] }),
     });
 
-    expect(res.status).toBe(501);
-    const text = await res.text();
-    expect(text).toContain("does not implement subscription provider 'copilot'");
-    expect(upstream.hits).toBe(0);
+    expect(res.status).toBe(200);
+    // The dialect resolver's project reached the transformer...
+    expect(capturedProject).toBe('proj-antigravity-456');
+    // ...and the fetch went to the TRANSFORMER-emitted URL, not the profile's.
+    expect(upstream.paths.at(-1)).toBe('/antigravity-emitted/v1internal:generateContent');
   });
 });

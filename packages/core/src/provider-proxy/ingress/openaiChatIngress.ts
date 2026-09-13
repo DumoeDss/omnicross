@@ -71,7 +71,10 @@ import {
 import { buildSubscriptionRequestSummary } from './anthropicSubscriptionPlan';
 import { fillMissingCodexCliIdentity } from '../identity/codexCliHeaders';
 import { deriveSubscriptionSessionKey } from '../matchText';
-import { resolveGeminiProjectForChatBridge } from '../responses/responsesDriver';
+import {
+  resolveAntigravityProjectThreaded,
+  resolveGeminiProjectForChatBridge,
+} from '../responses/responsesDriver';
 import {
   type ByoRouteActivityMeta,
   aggregateOpenAIChatChunksToJsonBody,
@@ -100,20 +103,25 @@ export function isOpenAIChatRequest(
 
 /**
  * The subscription providers whose route-to chain the chat ingress can soundly
- * bridge (openai-chat-bridge OQ1, closed). CLAUDE / KIMI / GROK declare static
+ * bridge — the full built-in catalog. CLAUDE / KIMI / GROK declare static
  * route-to chains (['anthropic'] / ['anthropic'] / ['openai-response']) that
  * are exactly Unified-encoders, so streaming + tools come for free.
  * OPENCODEGO is shape-aware: the profile's `chatBridgeTransformerNames` seam
  * resolves the per-model chain (go/zen half × wire shape) for a Unified
  * caller — including the anthropic shape, where the messages path's `[]`
  * (verbatim) would forward an OpenAI-chat body to an Anthropic endpoint.
- * CODEX rides the same ['openai-response'] encoder, which owns its body
- * contract (store:false + forced stream:true + typed input parts); a
- * NON-streaming client is served by collapsing the forced SSE back into one
- * chat.completion (see the handler). GEMINI resolves its Code-Assist project
- * per account before the call, mirroring the Responses driver.
- * Copilot / antigravity stay deferred (their own header/project contracts are
- * unverified on this ingress) with a clear per-request error.
+ * COPILOT is shape-aware the EASY way: its per-wire names already give the
+ * ['anthropic'] ENCODER on the anthropic wire, so the chat plan just consults
+ * `resolveProviderTransformerNames`; its account config (apiEndpoint / GHE
+ * domain) arrives via `route.subscriptionConfig` like opencodego's.
+ * CODEX rides the ['openai-response'] encoder, which owns its body contract
+ * (store:false + forced stream:true + typed input parts); a NON-streaming
+ * client is served by collapsing the forced SSE back into one chat.completion
+ * (see the handler). GEMINI / ANTIGRAVITY resolve their Code-Assist projects
+ * per account before the call, mirroring the Responses driver (antigravity
+ * via its own dialect resolver); antigravity's transformer owns the URL, so
+ * its plan prefers the transformer-emitted `config.url` over the profile's.
+ * The gate stays for custom/unknown profile ids (clear 501, never half-route).
  */
 const CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set<string>([
   'claude',
@@ -122,6 +130,8 @@ const CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set<string>(
   'opencodego',
   'codex',
   'gemini',
+  'copilot',
+  'antigravity',
 ]);
 
 /**
@@ -420,14 +430,15 @@ async function buildSubscriptionPlan(
   // NO endpoint transformer (identity): the chat wire IS Unified. The identity
   // fallback stays inert for every bridged provider (claude/kimi declare
   // `['anthropic']`, grok `['openai-response']`, and opencodego's seam below
-  // always names a FORMAT transformer for a Unified caller). The opencodego
-  // seam OVERRIDE is the whole point: its anthropic shape must get the
-  // `['anthropic']` ENCODER here, whereas the messages path correctly uses `[]`
-  // (verbatim) because THAT caller already speaks Anthropic.
-  const chatChainNames = profile.chatBridgeTransformerNames?.(
-    mappedModel,
-    route.subscriptionConfig,
-  );
+  // always names a FORMAT transformer for a Unified caller). Chain-name
+  // resolution for a Unified caller, in order: opencodego's chat-specific seam
+  // (its anthropic shape needs the `['anthropic']` ENCODER — the messages
+  // path's same-shape `[]` means "caller already speaks Anthropic"), then any
+  // shape-aware per-wire names (copilot — whose anthropic wire ALREADY names
+  // the encoder), else the profile's static `providerTransformerNames`.
+  const chatChainNames =
+    profile.chatBridgeTransformerNames?.(mappedModel, route.subscriptionConfig) ??
+    profile.resolveProviderTransformerNames?.(mappedModel, route.subscriptionConfig);
   const chain: ResolvedTransformerChain = resolveSubscriptionChain(
     profile,
     deps.llmConfig.getTransformerService(),
@@ -441,13 +452,24 @@ async function buildSubscriptionPlan(
     apiKey: '',
     models: [mappedModel],
   };
-  // GEMINI: resolve the Code-Assist project for the (sticky-selected) account
-  // BEFORE the call, mirroring the Responses driver — the `gemini-code-assist`
-  // chain wraps the request in its project/session envelope off
-  // `provider.geminiProject`.
+  // GEMINI / ANTIGRAVITY: resolve the Code-Assist project for the
+  // (sticky-selected) account BEFORE the call, mirroring the Responses driver
+  // — the `gemini-code-assist` chain wraps the request in its project/session
+  // envelope off `provider.geminiProject`; antigravity's handshake is REQUIRED
+  // (its own dialect resolver, a failure propagates rather than half-routing).
+  const sessionKey = deriveSubscriptionSessionKey(chatBody);
   if (providerId === 'gemini') {
     transformerProvider.geminiProject = await resolveGeminiProjectForChatBridge(profile, {
-      sessionKey: deriveSubscriptionSessionKey(chatBody),
+      sessionKey,
+      preferredAccountId: route.preferredAccountId,
+      preferredAccountGroup: route.preferredAccountGroup,
+      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+    });
+  } else if (providerId === 'antigravity') {
+    transformerProvider.geminiProject = await resolveAntigravityProjectThreaded(profile, {
+      resolvedModel: mappedModel,
+      reportSelection: () => {},
+      sessionKey,
       preferredAccountId: route.preferredAccountId,
       preferredAccountGroup: route.preferredAccountGroup,
       boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
@@ -456,6 +478,24 @@ async function buildSubscriptionPlan(
   // The scenario-mapped model is what goes on the wire (`modelMapper` may have
   // rewritten the binding-mapped id) — keep the request body in lockstep.
   chatBody.model = mappedModel;
+
+  // The PROFILE's URL is authoritative on the subscription plan — the
+  // transformer's `config.url` is host-root-absolute by design (it REPLACES
+  // the whole path with `/v1/responses`), which would DROP the path prefix a
+  // path-prefixed upstream needs (codex `…/backend-api/codex/responses`,
+  // opencode-zen `…/zen/v1/responses`). The profile's `resolveUpstreamUrl`
+  // already produced the complete, shape-specific URL. EXCEPTION:
+  // ANTIGRAVITY's transformer OWNS the URL (it emits the per-request
+  // colon-method endpoint with its envelope) — there `config.url` wins.
+  const resolveUrl: ChatCallPlan['resolveUrl'] =
+    providerId === 'antigravity'
+      ? (config) =>
+          config.url instanceof URL
+            ? config.url.toString()
+            : typeof config.url === 'string'
+              ? config.url
+              : upstreamUrl
+      : () => upstreamUrl;
 
   return {
     auth,
@@ -466,17 +506,11 @@ async function buildSubscriptionPlan(
     transformerProvider,
     resolvedModel: mappedModel,
     isStream,
-    // The PROFILE's URL is authoritative on the subscription plan — the
-    // transformer's `config.url` is host-root-absolute by design (it REPLACES
-    // the whole path with `/v1/responses`), which would DROP the path prefix a
-    // path-prefixed upstream needs (codex `…/backend-api/codex/responses`,
-    // opencode-zen `…/zen/v1/responses`). The profile's `resolveUpstreamUrl`
-    // already produced the complete, shape-specific URL.
-    resolveUrl: () => upstreamUrl,
+    resolveUrl,
     upstreamUrl,
     proxyProviderId: providerId,
     isSubscription: true,
-    contentSessionKey: deriveSubscriptionSessionKey(chatBody),
+    contentSessionKey: sessionKey,
     routeSessionId: route.sessionId ?? null,
   };
 }

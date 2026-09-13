@@ -405,6 +405,19 @@ export class SubscriptionProviderRegistry {
     const full = await this.tokens.getFullConfig();
     return full.opencodego;
   }
+
+  /**
+   * Read the ACTIVE Copilot account's config (plan-advertised `apiEndpoint` /
+   * GHE `enterpriseUrl`) so the proxy's core route paths can thread it into the
+   * profile's per-wire `resolveUpstreamUrl` — the same active-block pattern as
+   * `getOpenCodeGoConfig`. Multi-account pools with per-account endpoints get
+   * the ACTIVE block's endpoint on core paths (the dispatch path threads the
+   * selected account's config); personal accounts are the common case.
+   */
+  async getCopilotConfig(): Promise<CopilotTokenConfig | undefined> {
+    const full = await this.tokens.getFullConfig();
+    return full.copilot;
+  }
 }
 
 let _moduleSingleton: SubscriptionProviderRegistry | null = null;

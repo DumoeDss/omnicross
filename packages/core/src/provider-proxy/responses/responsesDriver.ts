@@ -361,8 +361,10 @@ async function resolveGeminiProject(
  */
 export const resolveGeminiProjectForChatBridge = resolveGeminiProject;
 
-/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver). */
-async function resolveAntigravityProjectThreaded(
+/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver).
+ * Exported as the chat-bridge twin too: the OpenAI-chat ingress resolves the
+ * REQUIRED antigravity project before its provider call the same way. */
+export async function resolveAntigravityProjectThreaded(
   profile: RouteContext['subscriptionProfile'] & {},
   hints: {
     resolvedModel: string;
