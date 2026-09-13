@@ -140,6 +140,16 @@ function startControlServer(chatgptSession) {
         res.end(JSON.stringify({ authenticated, cookieCount }));
         return;
       }
+      if (req.method === 'POST' && req.url === '/shutdown') {
+        // Graceful self-termination for our own instances only — the daemon
+        // uses this instead of killing by image name, which would take every
+        // unrelated electron.exe on the machine down with it.
+        res.end(JSON.stringify({ ok: true }));
+        app.quitting = true;
+        server.close();
+        setTimeout(() => app.quit(), 100);
+        return;
+      }
       if (req.method === 'GET' && req.url === '/healthz') {
         res.end(JSON.stringify({ ok: true, views: views.size }));
         return;

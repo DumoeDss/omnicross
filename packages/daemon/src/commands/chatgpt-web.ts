@@ -301,12 +301,10 @@ async function runElectronLogin(options: { cdpPort?: number; visible: boolean })
   const dataDir = join(homedir(), '.omnicross', 'chatgpt-web');
   console.info('opening a standalone login window (no automation attached)…');
   // The login window must not share the profile with a running host
-  // (single-instance lock) and must carry zero automation surface.
-  if (process.platform === 'win32') {
-    const { spawn } = await import('node:child_process');
-    spawn('taskkill', ['/IM', 'electron.exe', '/F'], { stdio: 'ignore', windowsHide: true });
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
-  }
+  // (single-instance lock) and must carry zero automation surface. Stop only
+  // OUR hosts — killing by image name would take unrelated Electron apps
+  // down with it.
+  await host.stopExistingElectronHosts(dataDir);
   const login = await host.startStandaloneLoginWindow({ dataDir });
   console.info('sign in inside the window (Google or email); this command detects it automatically');
   const state = await login.waitUntilAuthenticated();

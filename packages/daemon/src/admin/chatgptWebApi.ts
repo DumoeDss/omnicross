@@ -118,15 +118,10 @@ async function liveLoginState(): Promise<boolean | null> {
   }
 }
 
-/** Kill any Electron hosts first — the single-instance lock must be free. */
-async function killElectronHosts(): Promise<void> {
-  if (process.platform !== 'win32') return;
-  await new Promise<void>((resolve) => {
-    const child = spawn('taskkill', ['/IM', 'electron.exe', '/F'], { stdio: 'ignore', windowsHide: true });
-    child.on('error', () => undefined);
-    child.on('close', () => resolve());
-  });
-  await new Promise((resolve) => setTimeout(resolve, 1_200));
+/** Stop our own Electron hosts — targeted, never by image name. */
+async function stopOwnElectronHosts(): Promise<void> {
+  const { stopExistingElectronHosts } = await import('@omnicross/chatgpt-web/browserHost/electronHost');
+  await stopExistingElectronHosts(dataDir());
 }
 
 /**
@@ -139,7 +134,7 @@ async function probeLogin(): Promise<boolean> {
     loginCache = { authenticated: live, checkedAt: Date.now() };
     return live;
   }
-  await killElectronHosts();
+  await stopOwnElectronHosts();
   const { startElectronHost } = await import('@omnicross/chatgpt-web/browserHost/electronHost');
   const host = await startElectronHost({ dataDir: dataDir() });
   try {
@@ -203,7 +198,7 @@ export async function handleChatGptWeb(
     if (method === 'POST' && rest[0] === 'login') {
       // The login window is CDP-less (reference-implementation style) — it
       // must not share a profile with a running host, so free the lock first.
-      await killElectronHosts();
+      await stopOwnElectronHosts();
       const { startStandaloneLoginWindow } = await import('@omnicross/chatgpt-web/browserHost/electronHost');
       const loginWindow = await startStandaloneLoginWindow({ dataDir: dataDir() });
       // Keep the handle referenced so the window is not torn down with a

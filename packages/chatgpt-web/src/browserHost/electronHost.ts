@@ -217,13 +217,31 @@ export async function startStandaloneLoginWindow(options: {
     process.env['HTTP_PROXY'] ??
     process.env['http_proxy'];
   if (proxy) args.unshift(`--proxy-server=${proxy}`);
-  const child = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: false });
-  child.stderr.on('data', (chunk: Buffer) => {
-    for (const line of chunk.toString('utf8').split('\n')) {
-      if (line.trim()) options.onStderr?.(line.trim());
-    }
-  });
-  const control = await waitForControlEndpoint(options.dataDir, 60_000);
+  const attempt = async (): Promise<{ child: ReturnType<typeof spawn>; control: { port: number } }> => {
+    const spawned = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: false });
+    spawned.stderr.on('data', (chunk: Buffer) => {
+      for (const line of chunk.toString('utf8').split('\n')) {
+        if (line.trim()) options.onStderr?.(line.trim());
+      }
+    });
+    const exited = new Promise<null>((resolve) => spawned.once('exit', () => resolve(null)));
+    const control = await Promise.race([
+      waitForControlEndpoint(options.dataDir, 60_000).then((value) => value),
+      exited.then(() => new Promise<never>((_, reject) =>
+        reject(new ElectronHostError('login window exited before its control endpoint came up')))),
+    ]);
+    return { child: spawned, control };
+  };
+  let child: ReturnType<typeof spawn>;
+  let control: { port: number };
+  try {
+    ({ child, control } = await attempt());
+  } catch {
+    // A leftover host holding the single-instance lock kills the window at
+    // spawn. Clear our own instances (never by image name) and retry once.
+    await stopExistingElectronHosts(options.dataDir);
+    ({ child, control } = await attempt());
+  }
   const pollOnce = async (): Promise<{ authenticated: boolean } | null> => {
     try {
       const response = await fetch(`http://127.0.0.1:${control.port}/login-state`);
@@ -260,6 +278,65 @@ export async function startStandaloneLoginWindow(options: {
 }
 
 /**
+ * Stop OUR OWN browser hosts without touching anyone else's electron.
+ *
+ * NEVER kill by image name (`taskkill /IM electron.exe`) — that matches every
+ * Electron app on the machine, including unrelated dev instances. Instead:
+ *   1. graceful: POST /shutdown on the live host's control endpoint
+ *   2. fallback: kill only processes whose executable path equals our
+ *      managed binary under the data dir (targeted, by full path)
+ */
+export async function stopExistingElectronHosts(dataDir: string): Promise<void> {
+  // Graceful first: a live host shuts down cleanly via its control endpoint.
+  try {
+    const file = join(dataDir, 'host-control.json');
+    if (existsSync(file)) {
+      const { port } = JSON.parse(readFileSync(file, 'utf8')) as { port?: number };
+      if (typeof port === 'number' && port > 0) {
+        await fetch(`http://127.0.0.1:${port}/shutdown`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(3_000),
+        }).catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+    }
+  } catch {
+    // No live control endpoint — fall through to the targeted kill.
+  }
+  // Fallback for zombie hosts without a control endpoint (e.g. a crashed
+  // daemon's leftover holding the single-instance lock). Match by FULL
+  // executable path so other projects' electron processes are never hit.
+  const binary = join(
+    electronInstallDir(dataDir),
+    'node_modules',
+    'electron',
+    'dist',
+    process.platform === 'win32' ? 'electron.exe' : 'electron',
+  );
+  if (!existsSync(binary)) return;
+  if (process.platform === 'win32') {
+    const psScript =
+      `Get-Process electron -ErrorAction SilentlyContinue | ` +
+      `Where-Object { $_.Path -eq '${binary.replaceAll("'", "''")}' } | Stop-Process -Force`;
+    await new Promise<void>((resolve) => {
+      const child = spawn('powershell.exe', ['-NoProfile', '-Command', psScript], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      child.on('error', () => resolve());
+      child.on('close', () => resolve());
+    });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    const child = spawn('pkill', ['-f', binary], { stdio: 'ignore' });
+    child.on('error', () => resolve());
+    child.on('close', () => resolve());
+  });
+}
+
+/**
  * Start the Electron host and resolve once its CDP endpoint is live.
  * `visible` keeps the window shown (useful while dogfooding).
  */
@@ -289,22 +366,40 @@ export async function startElectronHost(options: {
   // the GUI process's startup info, and Electron then honors it — every
   // BrowserWindow (even show:true tabs) ends up a real but never-visible
   // HWND. That was the whole "window never appears" saga.
-  const child = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: false });
-  const stderrTail: string[] = [];
-  child.stderr.on('data', (chunk: Buffer) => {
-    for (const line of chunk.toString('utf8').split('\n')) {
-      if (!line.trim()) continue;
-      stderrTail.push(line.trim());
-      if (stderrTail.length > 30) stderrTail.shift();
-      options.onStderr?.(line.trim());
-    }
-  });
-  const exited = new Promise<never>((_, reject) => {
-    child.once('exit', (code) => reject(new ElectronHostError(`Electron host exited early (code ${code}): ${stderrTail.join(' | ').slice(0, 400)}`)));
-  });
-  const endpoint = await Promise.race([waitForPortFile(options.dataDir, HOST_READY_TIMEOUT_MS), exited]);
-  // The control endpoint appears right after the CDP port; wait for it too.
-  const control = await waitForControlEndpoint(options.dataDir);
+  const attempt = async (): Promise<{
+    child: ReturnType<typeof spawn>;
+    endpoint: DevToolsPortFile;
+    control: { port: number };
+  }> => {
+    const spawned = spawn(binary, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: false });
+    const tail: string[] = [];
+    spawned.stderr.on('data', (chunk: Buffer) => {
+      for (const line of chunk.toString('utf8').split('\n')) {
+        if (!line.trim()) continue;
+        tail.push(line.trim());
+        if (tail.length > 30) tail.shift();
+        options.onStderr?.(line.trim());
+      }
+    });
+    const exited = new Promise<never>((_, reject) => {
+      spawned.once('exit', (code) => reject(new ElectronHostError(`Electron host exited early (code ${code}): ${tail.join(' | ').slice(0, 400)}`)));
+    });
+    const endpoint = await Promise.race([waitForPortFile(options.dataDir, HOST_READY_TIMEOUT_MS), exited]);
+    // The control endpoint appears right after the CDP port; wait for it too.
+    const control = await waitForControlEndpoint(options.dataDir);
+    return { child: spawned, endpoint, control };
+  };
+  let current: Awaited<ReturnType<typeof attempt>>;
+  try {
+    current = await attempt();
+  } catch {
+    // A leftover instance holding the single-instance lock makes a fresh
+    // child exit immediately. Clear OUR hosts only (never by image name —
+    // that would kill unrelated Electron apps) and retry once.
+    await stopExistingElectronHosts(options.dataDir);
+    current = await attempt();
+  }
+  const { child, endpoint, control } = current;
   const controlCall = async <T>(op: string, body: Record<string, unknown>): Promise<T> => {
     const response = await fetch(`http://127.0.0.1:${control.port}${op}`, {
       method: 'POST',
