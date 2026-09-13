@@ -4,8 +4,9 @@
  *
  * The chatgpt-web feature is a chain of independently checkable pieces
  * (harness config → tunnel → Electron host login → bridge). This module
- * aggregates their status for the UI, opens the CDP-less login window on
- * demand, probes the persisted ChatGPT session cookie, and manages one
+ * aggregates their status for the UI, saves the harness config from the
+ * setup form (kicking the tunnel-client download), opens the CDP-less login
+ * window on demand, probes the persisted ChatGPT session, and manages one
  * background bridge instance.
  *
  * SECRET DISCIPLINE: the harness runtime key never crosses this boundary —
@@ -19,7 +20,8 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadHarnessConfig } from '@omnicross/chatgpt-web/tunnel/harnessConfig';
+import { loadHarnessConfig, saveHarnessConfig } from '@omnicross/chatgpt-web/tunnel/harnessConfig';
+import { installTunnelClient, isValidTunnelId } from '@omnicross/chatgpt-web/tunnel/tunnelClient';
 
 /** One background bridge owned by this daemon (singleton). */
 interface BridgeState {
@@ -33,6 +35,8 @@ interface BridgeState {
 
 let bridge: BridgeState | null = null;
 let loginCache: { authenticated: boolean; checkedAt: number } | null = null;
+/** Background tunnel-client download kicked by a config save. */
+let tunnelInstall: 'idle' | 'installing' | 'done' | 'failed' = 'idle';
 
 function dataDir(): string {
   return join(homedir(), '.omnicross', 'chatgpt-web');
@@ -75,6 +79,7 @@ function runBinary(command: string, args: string[], timeoutMs: number): Promise<
 
 interface TunnelStatusView {
   installed: boolean;
+  installing: boolean;
   running: boolean;
   healthy: boolean;
   ready: boolean;
@@ -82,22 +87,31 @@ interface TunnelStatusView {
 }
 
 async function tunnelStatus(): Promise<TunnelStatusView> {
-  const binary = tunnelBinary();
-  if (!existsSync(binary)) {
-    return { installed: false, running: false, healthy: false, ready: false, detail: 'tunnel-client not installed' };
+  const installed = existsSync(tunnelBinary());
+  const installing = tunnelInstall === 'installing';
+  if (!installed) {
+    return {
+      installed: false,
+      installing,
+      running: false,
+      healthy: false,
+      ready: false,
+      detail: installing ? 'downloading tunnel-client…' : 'tunnel-client not installed',
+    };
   }
-  const { status, output } = await runBinary(binary, ['runtimes', 'status', 'omnicross-chatgpt-web', '--json'], 12_000);
+  const { status, output } = await runBinary(tunnelBinary(), ['runtimes', 'status', 'omnicross-chatgpt-web', '--json'], 12_000);
   try {
     const parsed = JSON.parse(output.slice(output.indexOf('{'), output.lastIndexOf('}') + 1)) as Record<string, unknown>;
     return {
       installed: true,
+      installing: false,
       running: parsed['process_running'] === true,
       healthy: parsed['healthy'] === true,
       ready: parsed['ready'] === true,
       detail: `${String(parsed['runtime_state'] ?? '')}${parsed['stop_error'] ? `: ${String(parsed['stop_error'])}` : ''}`.trim(),
     };
   } catch {
-    return { installed: true, running: false, healthy: false, ready: false, detail: `status exit ${status ?? 'timeout'}` };
+    return { installed: true, installing: false, running: false, healthy: false, ready: false, detail: `status exit ${status ?? 'timeout'}` };
   }
 }
 
@@ -125,23 +139,41 @@ async function stopOwnElectronHosts(): Promise<void> {
 }
 
 /**
- * Spawn a short-lived hidden host and read its cookie-based login state.
- * Reuses a live host's control endpoint when one is already up.
+ * Verify the persisted ChatGPT login. Fast path: the session cookie via a
+ * live or short-lived hidden host. The cookie says "signed out" → confirm
+ * against the real page (the DOM check) before reporting a definitive
+ * signed-out, so cookie-shape changes never produce false negatives.
  */
 async function probeLogin(): Promise<boolean> {
   const live = await liveLoginState();
-  if (live !== null) {
-    loginCache = { authenticated: live, checkedAt: Date.now() };
-    return live;
+  if (live === true) {
+    loginCache = { authenticated: true, checkedAt: Date.now() };
+    return true;
   }
   await stopOwnElectronHosts();
   const { startElectronHost } = await import('@omnicross/chatgpt-web/browserHost/electronHost');
   const host = await startElectronHost({ dataDir: dataDir() });
   try {
-    const state = await liveLoginState();
-    const authenticated = state === true;
-    loginCache = { authenticated, checkedAt: Date.now() };
-    return authenticated;
+    const cookieState = await liveLoginState();
+    if (cookieState === true) {
+      loginCache = { authenticated: true, checkedAt: Date.now() };
+      return true;
+    }
+    // Cookie-based check says no — confirm with the page itself.
+    const { CdpConnection, inspectChatGptSession } = await import('@omnicross/chatgpt-web');
+    const connection = new CdpConnection({
+      endpoint: { port: host.port, wsPath: host.wsPath },
+      targetFactory: host.targetFactory,
+    });
+    try {
+      // inspectChatGptSession opens (and closes) its own background tab.
+      const inspection = await inspectChatGptSession(connection, {});
+      const authenticated = inspection.authenticated === true;
+      loginCache = { authenticated, checkedAt: Date.now() };
+      return authenticated;
+    } finally {
+      connection.close();
+    }
   } finally {
     await host.stop();
   }
@@ -179,6 +211,27 @@ async function statusView() {
   };
 }
 
+/** Save the harness config and kick the tunnel-client download in the background. */
+async function saveConfig(tunnelId: string, runtimeKey: string): Promise<void> {
+  if (!isValidTunnelId(tunnelId.trim())) {
+    throw new Error('tunnel id must look like tunnel_<32 hex chars> (copy it from platform.openai.com → Tunnels)');
+  }
+  if (!runtimeKey.trim() || /\s/.test(runtimeKey)) {
+    throw new Error('runtime key must be a non-empty single-line value (create one on platform.openai.com → API keys)');
+  }
+  saveHarnessConfig({ tunnelId: tunnelId.trim(), runtimeKey: runtimeKey.trim() });
+  if (!existsSync(tunnelBinary()) && tunnelInstall !== 'installing') {
+    tunnelInstall = 'installing';
+    void installTunnelClient(join(dataDir(), 'bin'))
+      .then(() => {
+        tunnelInstall = 'done';
+      })
+      .catch(() => {
+        tunnelInstall = 'failed';
+      });
+  }
+}
+
 export async function handleChatGptWeb(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -190,9 +243,30 @@ export async function handleChatGptWeb(
     res.end(JSON.stringify(body));
   };
   const fail = (status: number, message: string): void => respond(status, { error: { type: 'admin_api_error', message } });
+  const readBody = async (): Promise<Record<string, unknown>> => {
+    const raw = await new Promise<string>((resolve) => {
+      let body = '';
+      req.on('data', (chunk: Buffer) => {
+        body += chunk.toString('utf8');
+      });
+      req.on('end', () => resolve(body));
+    });
+    if (!raw.trim()) return {};
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  };
 
   try {
     if (method === 'GET' && rest.length === 0) {
+      return respond(200, await statusView());
+    }
+    if (method === 'POST' && rest[0] === 'config') {
+      const body = await readBody();
+      await saveConfig(String(body['tunnelId'] ?? ''), String(body['runtimeKey'] ?? ''));
       return respond(200, await statusView());
     }
     if (method === 'POST' && rest[0] === 'login') {
@@ -214,21 +288,9 @@ export async function handleChatGptWeb(
     }
     if (method === 'POST' && rest[0] === 'bridge') {
       if (bridge) return fail(409, 'a chatgpt-web bridge is already running');
-      const raw = await new Promise<string>((resolve) => {
-        let body = '';
-        req.on('data', (chunk: Buffer) => {
-          body += chunk.toString('utf8');
-        });
-        req.on('end', () => resolve(body));
-      });
-      let parsed: Record<string, unknown> = {};
-      try {
-        parsed = raw.trim() ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      } catch {
-        return fail(400, 'invalid JSON body');
-      }
-      const model = typeof parsed['model'] === 'string' && parsed['model'] ? parsed['model'] : 'chatgpt-web/light';
-      const harness = parsed['harness'] !== false;
+      const body = await readBody();
+      const model = typeof body['model'] === 'string' && body['model'] ? body['model'] : 'chatgpt-web/light';
+      const harness = body['harness'] !== false;
       const { startChatGptWebBridge, generateBridgeToken } = await import('@omnicross/chatgpt-web/server');
       const token = generateBridgeToken();
       const handle = await startChatGptWebBridge({

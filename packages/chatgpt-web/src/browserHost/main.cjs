@@ -133,8 +133,10 @@ function startControlServer(chatgptSession) {
         if (chatgptSession) {
           const cookies = await chatgptSession.cookies.get({});
           cookieCount = cookies.length;
+          // Chunked session cookies arrive as session-token.0/.1/… — match
+          // the prefix, not the exact name.
           authenticated = cookies.some(
-            (cookie) => cookie.name === '__Secure-next-auth.session-token',
+            (cookie) => cookie.name.startsWith('__Secure-next-auth.session-token'),
           );
         }
         res.end(JSON.stringify({ authenticated, cookieCount }));

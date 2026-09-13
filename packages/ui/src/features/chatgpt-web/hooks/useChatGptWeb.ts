@@ -7,11 +7,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { createChatGptWebAdapter } from '@/daemon/chatgptWebAdapter';
-import type { ChatGptWebBridgeStartInput, ChatGptWebStatus } from '@/daemon/types-chatgpt-web';
+import type { ChatGptWebBridgeStartInput, ChatGptWebConfigSaveInput, ChatGptWebStatus } from '@/daemon/types-chatgpt-web';
 
 const adapter = createChatGptWebAdapter();
 
-export type ChatGptWebBusy = 'login' | 'login-check' | 'bridge-start' | 'bridge-stop' | null;
+export type ChatGptWebBusy = 'config-save' | 'login' | 'login-check' | 'bridge-start' | 'bridge-stop' | null;
 
 export function useChatGptWeb() {
   const [status, setStatus] = useState<ChatGptWebStatus | null>(null);
@@ -41,21 +41,32 @@ export function useChatGptWeb() {
   }, [refresh]);
 
   const run = useCallback(
-    async (target: Exclude<ChatGptWebBusy, null>, action: () => Promise<{ success: boolean; message?: string }>, onDone?: () => void) => {
+    async (
+      target: Exclude<ChatGptWebBusy, null>,
+      action: () => Promise<{ success: boolean; message?: string }>,
+      onDone?: () => void,
+    ): Promise<{ success: boolean; message?: string }> => {
       setBusy(target);
       setError(null);
       setNotice(null);
       const result = await action();
-      if (!mounted.current) return;
+      if (!mounted.current) return result;
       setBusy(null);
       if (!result.success) {
         setError(result.message ?? 'request failed');
-        return;
+        return result;
       }
       onDone?.();
       await refresh();
+      return result;
     },
     [refresh],
+  );
+
+  const saveConfig = useCallback(
+    (input: ChatGptWebConfigSaveInput, message: string) =>
+      run('config-save', () => adapter.saveConfig(input), () => setNotice(message)),
+    [run],
   );
 
   const openLoginWindow = useCallback(
@@ -96,6 +107,7 @@ export function useChatGptWeb() {
     error,
     notice,
     refresh,
+    saveConfig,
     openLoginWindow,
     checkLogin,
     startBridge,

@@ -14,6 +14,7 @@ export interface ChatGptWebConfigStatus {
 
 export interface ChatGptWebTunnelStatus {
   installed: boolean;
+  installing: boolean;
   running: boolean;
   healthy: boolean;
   ready: boolean;
@@ -47,8 +48,14 @@ export interface ChatGptWebBridgeStartInput {
   harness: boolean;
 }
 
+export interface ChatGptWebConfigSaveInput {
+  tunnelId: string;
+  runtimeKey: string;
+}
+
 export interface ChatGptWebApi {
   status(): Promise<ChatGptWebStatus | null>;
+  saveConfig(input: ChatGptWebConfigSaveInput): Promise<{ success: boolean; message?: string; status?: ChatGptWebStatus }>;
   openLoginWindow(): Promise<{ success: boolean; message?: string }>;
   checkLogin(): Promise<{ success: boolean; authenticated: boolean; message?: string }>;
   startBridge(input: ChatGptWebBridgeStartInput): Promise<{ success: boolean; message?: string; bridge?: ChatGptWebBridgeStatus }>;

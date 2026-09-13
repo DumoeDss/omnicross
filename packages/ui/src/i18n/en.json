@@ -1766,53 +1766,69 @@
     "title": "ChatGPT Web backend",
     "description": "Use your ChatGPT web session (including Pro) as a Codex model backend over a dedicated browser host.",
     "refresh": "Refresh status",
-    "checklist": {
-      "title": "Setup checklist",
+    "steps": {
+      "platform": {
+        "title": "Create a tunnel and an API key on platform.openai.com",
+        "tunnel": "Open the Tunnels page → Create a tunnel → copy its Tunnel ID (tunnel_…).",
+        "key": "Open the API keys page → Create a key → copy it.",
+        "tunnelsLink": "Open the Tunnels page",
+        "keysLink": "Open the API keys page"
+      },
       "config": {
-        "title": "Harness config (tunnel + runtime key)",
-        "description": "Create a tunnel and an API key on platform.openai.com, then register them once. The runtime key is stored locally and never shown here.",
-        "commandLabel": "One-time setup command",
-        "tunnelsLink": "Open platform.openai.com tunnels"
+        "title": "Paste the two values here"
       },
       "connector": {
-        "title": "ChatGPT connector",
-        "description": "In ChatGPT settings, enable developer mode and create a Tunnel connector named exactly \"Codex Native2\", allowed to run all actions.",
+        "title": "Create the connector in ChatGPT",
+        "open": "Open the ChatGPT connectors (plugins) settings page.",
+        "devMode": "Enable developer mode.",
+        "create": "Create a new connector of type Tunnel.",
+        "name": "Name it exactly: Codex Native2.",
+        "permissions": "Allow it to run all actions.",
         "link": "Open ChatGPT connectors"
       },
       "login": {
         "title": "Sign in inside the dedicated browser",
-        "description": "The login window is a plain browser with no automation attached — Google and email sign-in both work there."
+        "click": "Click \"Open login window\" below, then sign in inside that window (Google or email both work).",
+        "thenCheck": "Come back here and click \"Check login\"."
       },
-      "tunnel": {
-        "title": "Tunnel"
+      "start": {
+        "title": "Start the bridge",
+        "pick": "Pick a model and start — the tunnel client and the browser runtime install automatically on first use.",
+        "note": "Once running, copy the values below into Codex (the ready-made command is one click away)."
       }
+    },
+    "config": {
+      "runtimeKey": "Runtime key (API key)",
+      "save": "Save & prepare",
+      "saved": "Harness config saved — tunnel client download started.",
+      "saveHint": "Stored locally only; the key is never shown again after saving.",
+      "reconfigure": "Reconfigure"
     },
     "login": {
       "open": "Open login window",
       "opened": "Login window opened — sign in there, then run the login check.",
       "check": "Check login",
       "signedIn": "Signed in.",
-      "signedOut": "Not signed in yet.",
+      "signedOut": "Not signed in yet — open the login window and sign in.",
       "runtimeHint": "The browser runtime downloads on first use (~100 MB) — open the login window once to trigger it."
     },
     "tunnel": {
       "running": "running",
       "stopped": "stopped",
       "healthy": "healthy",
-      "notInstalled": "tunnel-client not installed yet — it installs with the first bridge start."
+      "installing": "downloading tunnel client…",
+      "willInstall": "tunnel client installs on start"
     },
     "bridge": {
-      "title": "Harness bridge",
-      "description": "Starts the bridge and the dedicated Electron browser host. Codex connects with the values below.",
       "model": "Model",
       "start": "Start bridge",
       "started": "Bridge started.",
       "stop": "Stop bridge",
       "stopped": "Bridge stopped.",
-      "running": "running"
+      "running": "running",
+      "needConfig": "Save the harness config first"
     },
     "guide": {
-      "title": "Notes",
       "cli": "Everything on this page also works from the terminal: omnicross chatgpt-web check | login | launch | harness status.",
       "experimental": "Experimental feature: the web session can hit rate limits or UI changes at any time."
     }

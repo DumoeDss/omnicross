@@ -11,6 +11,7 @@ import type {
   ChatGptWebApi,
   ChatGptWebBridgeStartInput,
   ChatGptWebBridgeStatus,
+  ChatGptWebConfigSaveInput,
   ChatGptWebStatus,
 } from './types-chatgpt-web';
 
@@ -25,6 +26,17 @@ export function createChatGptWebAdapter(): ChatGptWebApi {
         return await adminClient.get<ChatGptWebStatus>('/chatgpt-web');
       } catch {
         return null;
+      }
+    },
+
+    async saveConfig(
+      input: ChatGptWebConfigSaveInput,
+    ): Promise<{ success: boolean; message?: string; status?: ChatGptWebStatus }> {
+      try {
+        const status = await adminClient.post<ChatGptWebStatus>('/chatgpt-web/config', input);
+        return { success: true, status };
+      } catch (err) {
+        return failure(err, 'failed to save the harness config');
       }
     },
 
