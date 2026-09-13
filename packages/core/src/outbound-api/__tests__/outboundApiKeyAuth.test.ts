@@ -76,6 +76,13 @@ function makeStubDb(rows: OutboundKeyDbRow[] = []): OutboundKeyDb & { rows: Outb
       else row.maxConcurrency = maxConcurrency;
       return true;
     },
+    outboundApiKeysSetUpstream: async (id, providerId) => {
+      const row = store.find((r) => r.id === id);
+      if (!row || row.revokedAt !== null) return false;
+      if (providerId === null) delete row.boundUpstreamProviderId;
+      else row.boundUpstreamProviderId = providerId;
+      return true;
+    },
     outboundApiKeysSetPolicy: async (id, policy) => {
       const row = store.find((r) => r.id === id);
       if (!row || row.revokedAt !== null) return false;

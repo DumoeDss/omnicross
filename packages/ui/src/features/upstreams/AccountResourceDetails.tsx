@@ -130,7 +130,7 @@ export function AccountResourceDetails({
           <FormField label={t('accounts.management.fields.tags')} description={t('accounts.management.fields.tagsPlaceholder')}>
             <Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={t('accounts.management.fields.tagsPlaceholder')} />
           </FormField>
-          <FormField label={t('accounts.management.fields.priority')} description={t('accounts.management.fields.priorityHint')}>
+          <FormField label={t('accounts.management.fields.priority')} description={t('accounts.detail.priorityHint')}>
             <Input type="number" value={priority} onChange={(event) => setPriority(event.target.value)} />
           </FormField>
         </div>

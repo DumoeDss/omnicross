@@ -23,6 +23,7 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  GatewayBindingTarget,
   MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -72,6 +73,8 @@ export interface UseApiServiceResult {
   deleteKey: (id: string) => Promise<void>;
   setKeyEnabled: (id: string, enabled: boolean) => Promise<void>;
   setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
+  /** Bind (or unbind, with `null`) a key's DIRECT upstream passthrough target. */
+  setKeyUpstream: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
   setKeyPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   setKeyPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   updateQueueConfig: (patch: {
@@ -324,6 +327,18 @@ export function useApiService(): UseApiServiceResult {
     }
   }, []);
 
+  const setKeyUpstream = useCallback(async (id: string, target: GatewayBindingTarget | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await agent.apiService.setKeyUpstream(id, target);
+      if (!result.success) setError(result.message ?? 'request failed');
+      setKeys(await agent.apiService.listKeys());
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const setKeyPermissions = useCallback(async (
     id: string,
     permissions: OutboundPermissionId[],
@@ -499,6 +514,7 @@ export function useApiService(): UseApiServiceResult {
     deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
+    setKeyUpstream,
     setKeyPermissions,
     setKeyPolicy,
     updateQueueConfig,

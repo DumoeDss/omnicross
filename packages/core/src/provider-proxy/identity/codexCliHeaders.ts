@@ -18,10 +18,12 @@
  *
  * NOT DONE HERE (deliberate, see the relay call site):
  *  - `chatgpt-account-id`: compatible implementations send the ChatGPT account
- *    id parsed out of the OAuth `id_token`. Guessing it wrong risks a 403 on a
- *    path that currently works, so it is left to a follow-up that can verify it.
- *  - forcing `store: false` on the body: a body mutation with its own regression
- *    surface, tracked separately.
+ *    id parsed out of the OAuth `id_token`. Verified 2026-09-12 against the
+ *    live backend: the header is NOT required (a request without it authorizes
+ *    fine), so it stays omitted — sending a guessed id risks a 403.
+ *  - forcing `store: false` on the body: DONE since 2026-09-12 in the driver's
+ *    `applyPlanAuth` — the backend now 400s any /codex/responses call without
+ *    it (`{"detail":"Store must be set to false"}`).
  *
  * @module provider-proxy/identity/codexCliHeaders
  */

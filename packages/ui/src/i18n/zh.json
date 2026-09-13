@@ -503,7 +503,8 @@
     "save": "保存",
     "optional": "可选",
     "retry": "重试",
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "refresh": "刷新"
   },
   "mediaSettings": {
     "common": {
@@ -543,7 +544,7 @@
   },
   "routeActivity": {
     "title": "路由活动",
-    "description": "实时账号路由与服务器过载趋势 —— 仅元数据，不收集提示词。"
+    "description": "实时凭据路由（订阅账号与 Provider API Key）与服务器过载趋势 —— 仅元数据，不收集提示词。"
   },
   "overview": {
     "eyebrow": "本地请求交换台",
@@ -717,13 +718,13 @@
       "activity": "路由活动"
     },
     "activity": {
-      "title": "最近账号路由",
-      "description": "查看每次订阅请求实际使用的托管账号。会话标识只保留哈希，不采集提示词、请求头或令牌。",
+      "title": "最近路由",
+      "description": "查看每次请求实际使用的凭据 —— 订阅账号池与 BYO Provider API Key 汇聚在同一条时间线上。会话标识只保留哈希，不采集提示词、请求头、令牌或密钥明文。",
       "metadataOnly": "仅元数据",
       "live": "实时",
       "paused": "已暂停",
       "sessions": "视图中的会话",
-      "switches": "账号切换",
+      "switches": "凭据切换",
       "issues": "上游异常",
       "overloadCount": "服务端过载",
       "overloaded": "已过载",
@@ -735,28 +736,42 @@
       "overloadJustNow": "刚刚",
       "overloadMinsAgo": "{{n}} 分钟前",
       "overloadHoursAgo": "{{n}} 小时前",
-      "search": "搜索账号、模型或会话哈希…",
+      "search": "搜索账号、密钥、模型或会话哈希…",
       "providerFilter": "按提供方筛选",
       "outcomeFilter": "按结果筛选",
+      "kindFilter": "按凭据类型筛选",
       "allProviders": "全部提供方",
       "session": "会话",
       "switched": "已切换",
+      "keyPrefix": "密钥",
+      "providerKey": "Provider 密钥",
       "networkError": "网络错误",
       "unavailable": "路由活动数据不可用",
-      "unavailableHint": "请更新或重新连接 daemon，然后刷新此视图；现有账号路由不会因此中断。",
-      "empty": "还没有账号路由活动",
-      "emptyHint": "通过订阅路由发起一次 Codex 或 Claude Code 请求；无需开启正文捕获，新活动会自动出现在这里。",
+      "unavailableHint": "请更新或重新连接 daemon，然后刷新此视图；现有路由不会因此中断。",
+      "empty": "还没有路由活动",
+      "emptyHint": "通过订阅路由或 BYO Provider 发起一次请求；无需开启正文捕获，新活动会自动出现在这里。",
       "filter": {
         "all": "全部结果",
         "success": "成功",
         "issues": "异常",
-        "switched": "发生切换"
+        "switched": "凭据切换"
+      },
+      "kind": {
+        "all": "全部凭据",
+        "account": "账号",
+        "key": "API Key"
       },
       "affinity": {
         "new": "新会话",
-        "sticky": "保持账号",
-        "switched": "账号已变化",
-        "untracked": "无会话标识"
+        "untracked": "无会话标识",
+        "account": {
+          "sticky": "保持账号",
+          "switched": "账号已变化"
+        },
+        "key": {
+          "sticky": "保持密钥",
+          "switched": "密钥已轮换"
+        }
       }
     },
     "downstreams": {
@@ -766,6 +781,8 @@
       "add": "添加下游接口",
       "empty": "还没有下游接口。",
       "selectPrompt": "选择一个下游接口，或创建新的接口。",
+      "resourcePlaceholder": "选择上游资源",
+      "legacyTarget": "旧目标，已不在可选列表",
       "noResources": "请先添加一个上游 Provider 或账号。",
       "editEyebrow": "下游路由",
       "createEyebrow": "新建下游接口",
@@ -802,7 +819,9 @@
       "mapping": {
         "source": "下游请求模型",
         "target": "上游模型（自由填写）",
-        "add": "添加映射"
+        "add": "添加映射",
+        "effort": "强度",
+        "effortHint": "为无法在请求里设置思考强度的客户端钉一个等级——仅在该请求未自带任何强度设置时生效。候选按目标模型的已知档位给出，也可手输自定义档位（同格式上游原样透传）。"
       },
       "noResource": "未选择上游"
     },
@@ -1031,12 +1050,12 @@
         "empty": "尚未绑定下游接口",
         "manage": "管理下游绑定",
         "manageHint": "API Key 决定可以进入哪些下游接口；路由目标和模型映射仍在“上游与路由”中管理。",
-        "bindUpstream": {
-          "title": "直接绑定上游",
-          "placeholder": "选择上游资源…",
-          "add": "绑定",
-          "protocols": "将为以下协议创建透传路由：",
-          "hint": "一键为此密钥创建到所选上游的透传路由（覆盖其支持的全部协议）；之后可在“上游与路由”中编辑或删除。"
+        "directUpstream": {
+          "label": "直接绑定上游",
+          "none": "不绑定（仅由下游路由提供服务）",
+          "hint": "直连与下游路由并存：路由优先服务它覆盖的协议与模型；未被任何路由覆盖的请求（含网关不认识的路径）原样转发到直连上游。绑定提供商 = 逐字节透传（仅换鉴权头，不计用量）；绑定 Claude / Kimi 订阅 = Anthropic 原生线转发（OAuth 自动刷新、账号调度，用量正常计入）。",
+          "boundHint": "未被下游路由覆盖的请求将原样转发到所绑定的提供商（仅替换鉴权头）。直连流量不计用量：花费统计与费用限额不覆盖这部分请求。",
+          "boundSubscriptionHint": "未被下游路由覆盖的 /v1/messages 请求经由绑定的订阅账号原样转发（Anthropic 同线转发：OAuth 自动刷新、账号池调度、指纹回放，用量正常计入）。"
         }
       },
       "integrations": {
@@ -1881,7 +1900,11 @@
       "launchDescription": "在守护进程主机上打开一个新终端运行该 CLI，并经由守护进程代理路由。可选填工作目录。",
       "cwdLabel": "工作目录",
       "cwdPlaceholder": "/path/to/your/project",
+      "routeKeyLabel": "路由密钥",
+      "routeKeyAuto": "自动（第一个启用的提供商）",
+      "routeKeyHint": "此终端的 Codex 将以所选访问密钥身份访问网关，路由与模型映射跟随该密钥的绑定配置，因此多个终端可同时使用不同上游。",
       "runningVia": "运行中 · {{provider}} / {{model}}",
+      "runningViaKey": "运行中 · 密钥 {{name}}",
       "stop": "停止"
     },
     "manual": {
@@ -2092,7 +2115,19 @@
     "hour": "小时",
     "day": "天",
     "month": "月",
-    "other": "其他"
+    "other": "其他",
+    "modeDate": "按日期",
+    "modeCycle": "按周期",
+    "modeCycleHint": "按订阅计费周期查看用量（周期重置边界自动识别）",
+    "cycleAccount": "账户",
+    "cycleSelect": "周期",
+    "cycleOngoing": "进行中",
+    "cyclesUnavailable": "当前 daemon 暂无周期历史",
+    "cyclesEmpty": "暂无计费周期",
+    "filterAllProviders": "全部 Provider",
+    "filterProvider": "Provider",
+    "filterAllKeys": "全部密钥",
+    "filterKey": "API 密钥"
   },
   "pricing": {
     "title": "模型价格",

@@ -103,9 +103,10 @@ describe('loadUsageData', () => {
     mocked.getUsageByApiKey.mockResolvedValueOnce([]);
     const data = await loadUsageData(range);
     expect(data).toEqual({ totals, byModel: [], byApiKey: [] });
-    expect(mocked.getUsageTotals).toHaveBeenCalledWith(range);
-    expect(mocked.getUsageByModel).toHaveBeenCalledWith(range);
-    expect(mocked.getUsageByApiKey).toHaveBeenCalledWith(range);
+    // The optional attribute filter threads through as an explicit undefined.
+    expect(mocked.getUsageTotals).toHaveBeenCalledWith(range, undefined);
+    expect(mocked.getUsageByModel).toHaveBeenCalledWith(range, undefined);
+    expect(mocked.getUsageByApiKey).toHaveBeenCalledWith(range, undefined);
   });
 
   it('any single endpoint failure fails the whole load (no silent partials)', async () => {

@@ -16,6 +16,7 @@
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import type { BillingConfig } from '@omnicross/contracts/billing-types';
+import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import type { HealthReport } from '@omnicross/contracts/health-logging-types';
 import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
 import type { WebhookConfig } from '@omnicross/contracts/webhook-types';
@@ -305,6 +306,13 @@ export interface EndpointRoutingConfig {
    * the requested model id (bare or `providerId,modelId`).
    */
   backgroundModelIds?: string[];
+  /**
+   * Runtime-only default thinking level projected from the winning
+   * {@link GatewayModelMapping.effort} immediately before route resolution.
+   * Absent ⇒ no injection; a client's own reasoning intent always wins over
+   * this default. Legacy endpoint persistence never sets this field.
+   */
+  reasoningEffort?: GatewayMappingEffort;
 }
 
 /**
@@ -417,10 +425,27 @@ export type GatewayBindingKeyScope = 'all' | 'selected';
 /** Whether the downstream model id is forwarded or explicitly remapped. */
 export type GatewayBindingModelMode = 'passthrough' | 'mapped';
 
-/** One exact or `*` wildcard model-name rewrite owned by a downstream route. */
+/**
+ * A mapping-pinned thinking level: one of the shared seven levels, OR a
+ * provider-native custom string for levels the shared domain doesn't know
+ * yet. Custom values ride the SAME-FORMAT wire verbatim (exactly what a user
+ * wants when our presets lag a new model); cross-format negotiation does not
+ * recognize them and simply leaves the request without injected thinking.
+ */
+export type GatewayMappingEffort = ThinkLevel | (string & {});
+
+/**
+ * One exact or `*` wildcard model-name rewrite owned by a downstream route.
+ *
+ * `effort` is an OPTIONAL default thinking level for clients that cannot
+ * express one on the wire: it applies ONLY when the request carries no
+ * reasoning intent of its own (client-sent thinking/reasoning always wins);
+ * absent/undefined ⇒ the normal reasoning negotiation runs unchanged.
+ */
 export interface GatewayModelMapping {
   source: string;
   target: ModelRef;
+  effort?: GatewayMappingEffort;
 }
 
 /**
@@ -769,6 +794,15 @@ export interface OutboundApiKeyInfo {
   /** The model-id list the mode acts on (bare modelIds; empty allowlist denies all). */
   restrictedModels?: string[];
   /**
+   * DIRECT upstream passthrough target (key→upstream binding): a BYO provider
+   * row (verbatim transparent relay) or a claude/kimi subscription account /
+   * group / pool (Anthropic-wire same-format relay). Absent ⇒ the key is served
+   * by the downstream routes. References only — never a credential.
+   */
+  boundUpstream?: GatewayBindingTarget;
+  /** LEGACY first-cut shape of `boundUpstream` (a bare BYO provider id). */
+  boundUpstreamProviderId?: string;
+  /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the host wired a spend
    * reader. Leak-safe: each key carries only ITS own numbers — the same data the
@@ -883,6 +917,25 @@ export interface OutboundKeyDbRow {
   restrictionMode?: OutboundKeyModelRestrictionMode;
   /** The model-id list the mode acts on (bare modelIds). */
   restrictedModels?: string[];
+  /**
+   * DIRECT upstream passthrough (key→upstream binding). A `provider` target
+   * relays every request VERBATIM to that BYO provider row — method, path,
+   * query, and body pass through untouched, with only the auth headers swapped
+   * to the provider's key (no gateway route, protocol translation, model
+   * mapping, or usage metering). An `account` / `account-group` /
+   * `account-pool` target (claude / kimi — subscriptions whose upstream speaks
+   * the same Anthropic Messages wire as the client) is served by the messages
+   * pipeline's same-format verbatim relay: OAuth swapped + auto-refreshed,
+   * account scheduling, fingerprint replay, usage metering intact. Absent ⇒
+   * the key is served by the downstream routes as before.
+   */
+  boundUpstream?: GatewayBindingTarget;
+  /**
+   * LEGACY shape of `boundUpstream` (a bare BYO provider id) — written by the
+   * first cut of the feature. Read as `{ kind: 'provider', providerId }`;
+   * `boundUpstream` wins when both are present.
+   */
+  boundUpstreamProviderId?: string;
 }
 
 export interface OutboundKeyDb {
@@ -920,6 +973,18 @@ export interface OutboundKeyDb {
   outboundApiKeysSetMaxConcurrency(
     id: string,
     maxConcurrency: number | null,
+  ): Promise<boolean>;
+  /**
+   * Set (or clear) a key's DIRECT upstream passthrough target (`boundUpstream`):
+   * a BYO provider row (verbatim transparent relay) or a claude/kimi
+   * subscription account / group / pool (Anthropic-wire same-format relay).
+   * `null` clears the field → the key returns to downstream-route serving.
+   * Mirrors `outboundApiKeysSetMaxConcurrency`; returns `false` when the key is
+   * missing. Target VALIDITY is enforced by the admin write edge, not here.
+   */
+  outboundApiKeysSetUpstream(
+    id: string,
+    target: GatewayBindingTarget | null,
   ): Promise<boolean>;
   /**
    * Set (or clear) a key's policy envelope (expiry / activation window / cost

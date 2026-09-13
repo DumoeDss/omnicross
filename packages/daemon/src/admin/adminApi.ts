@@ -27,6 +27,7 @@ import {
   loadServerConfig,
   mergeServerConfig,
   normalizeProxyConfig,
+  type GatewayBindingTarget,
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
@@ -54,6 +55,7 @@ import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
 import type { FetchLike } from '@omnicross/subscriptions';
 import type { AccountProbeHistoryReader } from '../AccountHealthProbeScheduler';
+import { applyAdminProbeIdentity } from './testEgressIdentity';
 import type { ClaudeAllowanceRefreshScheduler } from '../allowance/ClaudeAllowanceRefreshScheduler';
 import type { ProviderKeyQuota } from '../allowance/ProviderKeyQuotaService';
 import type { ImageDoctorLiveResult } from '../image-generation/ImageDoctorService';
@@ -98,6 +100,7 @@ import type { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsS
 import type { JsonPricingStore } from '../ports/JsonPricingStore';
 import {
   IntegrationConflictError,
+  type CodexAuthHelperConfig,
   type IntegrationManager,
   type IntegrationClientId,
 } from '../integrations';
@@ -428,6 +431,12 @@ export interface AdminApiDeps {
    * actually runs.
    */
   readonly cliCommandRunner?: CommandRunner;
+  /**
+   * Codex command-auth helper invocation for KEY-SCOPED launches (the `--key-id`
+   * variant). Wired by bootstrap from the same inputs as the integration
+   * install's helper; absent ⇒ `keyId` launches answer 501 (light embedders).
+   */
+  readonly codexAuthHelper?: CodexAuthHelperConfig;
   /** Factory so each request observes the outbound server's current loopback port. */
   readonly integrationManagerFactory?: () => IntegrationManager;
   /**
@@ -520,6 +529,11 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     enableModelRestriction: row.enableModelRestriction,
     restrictionMode: row.restrictionMode,
     restrictedModels: row.restrictedModels,
+    // Direct upstream passthrough target (key→upstream binding) — references
+    // only, never a credential. Absent = the key is served by the downstream
+    // routes. `boundUpstreamProviderId` is the legacy first-cut shape.
+    boundUpstream: row.boundUpstream,
+    boundUpstreamProviderId: row.boundUpstreamProviderId,
   };
 }
 
@@ -983,6 +997,9 @@ async function handleDiscoverModels(
     // Static extra headers (e.g. the Cline identity set) gate the SAME `/models`
     // surface as completions — without them discovery 403s on gated gateways.
     Object.assign(headers, expandRowExtraHeaders(row));
+    // Probe egress identity (product user-agent; opencode.ai session hint) —
+    // fill-only after the merge, so row-level extraHeaders still win.
+    applyAdminProbeIdentity(headers, row);
     // upstream-proxy: BYO discover-models egress honors the global/provider proxy.
     const response = await fetchUpstream(url, { method: 'GET', headers }, { providerId: 'byo' });
     if (!response.ok) {
@@ -1077,6 +1094,9 @@ async function handleTestModel(
   // Static extra headers (e.g. the Cline identity set) — same gate as the
   // completion path; without them the probe 403s on gated gateways.
   Object.assign(headers, expandRowExtraHeaders(row));
+  // Probe egress identity (product user-agent; opencode.ai session hint) —
+  // fill-only after the merge, so row-level extraHeaders still win.
+  applyAdminProbeIdentity(headers, row);
 
   const startedAt = Date.now();
   try {
@@ -1955,6 +1975,71 @@ async function handleKeys(
     const ok = await deps.keyDb.outboundApiKeysSetMaxConcurrency(id, value);
     return writeJson(res, ok ? 200 : 404, { ok, maxConcurrency: value });
   }
+  // POST /keys/:id/upstream — set (or clear, with `null`) the key's DIRECT
+  // upstream passthrough target. Body: `{ target: null | { kind: 'provider',
+  // providerId } | { kind: 'account' | 'account-group' | 'account-pool',
+  // providerId, accountId?/group? } }` (the first cut's `{ providerId }` shape
+  // is still accepted as a provider target). A provider target must name an
+  // EXISTING BYO row; a subscription target is only legal for claude/kimi —
+  // the subscriptions whose upstream speaks the SAME Anthropic Messages wire
+  // as the client (codex/gemini/… need translation, i.e. the downstream
+  // routes). Stored as references only, never credentials.
+  if (method === 'POST' && id && action === 'upstream') {
+    const body = await readJsonBody(req);
+    let raw: unknown;
+    if (Object.prototype.hasOwnProperty.call(body, 'target')) {
+      raw = body['target'];
+    } else if (Object.prototype.hasOwnProperty.call(body, 'providerId')) {
+      // Legacy #45 shape: a bare provider id (or null).
+      const legacy = body['providerId'];
+      raw =
+        legacy === null || legacy === undefined
+          ? null
+          : { kind: 'provider', providerId: legacy };
+    } else {
+      return writeJsonError(res, 400, 'body must contain target (or the legacy providerId)');
+    }
+    if (raw === null || raw === undefined) {
+      const ok = await deps.keyDb.outboundApiKeysSetUpstream(id, null);
+      return writeJson(res, ok ? 200 : 404, { ok, target: null });
+    }
+    if (typeof raw !== 'object' || Array.isArray(raw)) {
+      return writeJsonError(res, 400, 'target must be an object or null');
+    }
+    const t = raw as Record<string, unknown>;
+    const kind = t['kind'];
+    const providerId = typeof t['providerId'] === 'string' ? (t['providerId'] as string).trim() : '';
+    if (!providerId) {
+      return writeJsonError(res, 400, 'target.providerId is required');
+    }
+    if (kind === 'provider') {
+      const cfg = loadConfig(deps.configPath);
+      if (!cfg.providers.some((p) => p.id === providerId)) {
+        return writeJsonError(res, 404, `provider '${providerId}' not found`);
+      }
+    } else if (kind === 'account' || kind === 'account-group' || kind === 'account-pool') {
+      if (providerId !== 'claude' && providerId !== 'kimi') {
+        return writeJsonError(
+          res,
+          400,
+          `subscription provider '${providerId}' cannot be direct-bound: its upstream wire differs ` +
+            `from the client wire (translation required — use a downstream route); only claude and ` +
+            `kimi subscriptions speak the same Anthropic Messages wire as the client`,
+        );
+      }
+      if (kind === 'account' && typeof t['accountId'] !== 'string') {
+        return writeJsonError(res, 400, 'target.accountId is required for kind account');
+      }
+      if (kind === 'account-group' && typeof t['group'] !== 'string') {
+        return writeJsonError(res, 400, 'target.group is required for kind account-group');
+      }
+    } else {
+      return writeJsonError(res, 400, 'target.kind must be provider, account, account-group, or account-pool');
+    }
+    const target = raw as unknown as GatewayBindingTarget;
+    const ok = await deps.keyDb.outboundApiKeysSetUpstream(id, target);
+    return writeJson(res, ok ? 200 : 404, { ok, target });
+  }
   if (method === 'POST' && id && action === 'policy') {
     const body = await readJsonBody(req);
     const parsed = parseKeyPolicyBody(body);
@@ -2375,19 +2460,26 @@ async function handleAccounts(
   deps: AdminApiDeps,
 ): Promise<void> {
   // GET /accounts/route-activity — bounded, process-local, metadata-only history
-  // of the account that actually served each subscription upstream attempt.
+  // of the credential that actually served each upstream attempt: subscription
+  // pool accounts AND BYO provider API keys (key IDS only — never key strings).
   // Session keys are already one-way hashes; prompts, headers and tokens never
-  // enter this store or response.
+  // enter this store or response. `credentialKind` filters to
+  // `subscription-account` or `provider-key` rows (absent ⇒ both).
   if (rest[0] === 'route-activity' && rest.length === 1) {
     if (method !== 'GET') {
       return writeJsonError(res, 405, `method ${method} not allowed on account route activity`);
     }
     const query = requestQuery(req);
     const parsedLimit = Number(query.get('limit') ?? '100');
+    const kindParam = query.get('credentialKind');
+    const credentialKind = kindParam === 'subscription-account' || kindParam === 'provider-key'
+      ? kindParam
+      : undefined;
     const records = getSharedAccountRouteActivity().list({
       providerId: query.get('providerId') ?? undefined,
       accountId: query.get('accountId') ?? undefined,
       sessionKey: query.get('sessionKey') ?? undefined,
+      credentialKind,
       limit: Number.isFinite(parsedLimit) ? parsedLimit : 100,
     });
     return writeJson(res, 200, {
@@ -2845,10 +2937,27 @@ async function handleCli(
     }
     const body = await readJsonBody(req);
     const providers = loadConfig(deps.configPath).providers ?? [];
+    // Key-scoped codex launches need the live gateway state + key store; read
+    // both per request (same fresh-read discipline as integrationManagerFactory).
+    const codexAuthHelper = deps.codexAuthHelper;
+    const keyScoped = codexAuthHelper
+      ? await (async () => {
+          const gateway = deps.outboundApiServer.getStatus();
+          const serverConfig = await loadServerConfig(deps.settingsStore);
+          return {
+            keyDb: deps.keyDb,
+            bindings: serverConfig.bindings ?? [],
+            gatewayRunning: gateway.running,
+            gatewayBaseUrl: gateway.loopbackUrl ?? `http://127.0.0.1:${gateway.port}`,
+            codexAuthHelper,
+          };
+        })()
+      : undefined;
     const result = await handleCliLaunch(cli, body, {
       llmConfig: deps.llmConfig,
       providers,
       routeLeaseManager: deps.routeLeaseManager,
+      keyScoped,
       opener: deps.cliTerminalOpener,
       probe: deps.cliPathProbe,
     });

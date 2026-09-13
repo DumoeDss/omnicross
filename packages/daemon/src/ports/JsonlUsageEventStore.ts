@@ -57,6 +57,7 @@ import type {
   UsageDateRange,
   UsageEventInput,
   UsageEventRecord,
+  UsageQueryFilter,
   UsageTimeBucket,
   UsageTimeSeriesBucket,
   UsageTotals,
@@ -187,9 +188,32 @@ export class JsonlUsageEventStore implements UsageEventStore {
     return row.id;
   }
 
-  async getTotals(range: UsageDateRange): Promise<UsageTotals> {
+  async getTotals(range: UsageDateRange, filter?: UsageQueryFilter): Promise<UsageTotals> {
     const totals = emptyTotals();
     const bins = new Map<number, number>();
+    if (hasFilter(filter)) {
+      // FILTERED: exact per-row aggregation. Days with a shard are streamed
+      // (chunked async reads — the same discipline as the rollup builder, never
+      // a blocking whole-file parse). A PRUNED day (rollup only) is composed
+      // from the rollup's sub-groups — provider split via byModel, key split via
+      // byApiKey — which cannot feed the whole-day hit-rate bins, so cache-rate
+      // metrics cover streamed days only.
+      for (const plan of await this.planRange(range)) {
+        if (!plan.hasShard) {
+          const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
+          if (rollup) addFilteredTotalsFromRollup(totals, rollup, filter);
+          continue;
+        }
+        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
+          if (row.ts < range.startTs || row.ts >= range.endTs) return;
+          if (!rowMatchesFilter(row, filter)) return;
+          addRowToTotals(totals, row);
+          const promptSide = promptSideTokens(row);
+          if (promptSide > 0) addRateToBins(bins, row.cacheReadTokens / promptSide);
+        });
+      }
+      return { ...totals, medianCacheHitRate: medianFromBins(bins) };
+    }
     for (const plan of await this.planRange(range)) {
       if (plan.fromRollup) {
         const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
@@ -207,7 +231,7 @@ export class JsonlUsageEventStore implements UsageEventStore {
     return { ...totals, medianCacheHitRate: medianFromBins(bins) };
   }
 
-  async getByModel(range: UsageDateRange): Promise<ModelUsageRow[]> {
+  async getByModel(range: UsageDateRange, filter?: UsageQueryFilter): Promise<ModelUsageRow[]> {
     const groups = new Map<string, ModelUsageRow>();
     const group = (providerId: string, model: string): ModelUsageRow => {
       const key = `${providerId}::${model}`;
@@ -229,31 +253,64 @@ export class JsonlUsageEventStore implements UsageEventStore {
       }
       return g;
     };
+    const mergeModelRow = (m: {
+      providerId: string;
+      model: string;
+      eventCount: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      costUsd: number;
+      costSavedByCacheUsd: number;
+    }): void => {
+      const g = group(m.providerId, m.model);
+      g.eventCount += m.eventCount;
+      g.inputTokens += m.inputTokens;
+      g.outputTokens += m.outputTokens;
+      g.cacheReadTokens += m.cacheReadTokens;
+      g.cacheCreationTokens += m.cacheCreationTokens;
+      g.costUsd += m.costUsd;
+      g.costSavedByCacheUsd += m.costSavedByCacheUsd;
+    };
+    if (hasFilter(filter)) {
+      // FILTERED: exact per-row grouping; a pruned day contributes through its
+      // rollup's per-model rows ONLY for a provider filter — the rollup has no
+      // model×key cross-tab, so an apiKeyId filter cannot see a pruned day.
+      for (const plan of await this.planRange(range)) {
+        if (!plan.hasShard) {
+          if (filter.apiKeyId !== undefined) continue;
+          const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
+          if (!rollup) continue;
+          for (const m of rollup.byModel) {
+            if (m.providerId !== filter.providerId) continue;
+            mergeModelRow(m);
+          }
+          continue;
+        }
+        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
+          if (row.ts < range.startTs || row.ts >= range.endTs) return;
+          if (!rowMatchesFilter(row, filter)) return;
+          mergeModelRow({ ...row, eventCount: 1 });
+        });
+      }
+      const rows = Array.from(groups.values());
+      for (const g of rows) {
+        g.unpriced = !(await this.isPriced(g.providerId, g.model));
+      }
+      return rows;
+    }
     for (const plan of await this.planRange(range)) {
       if (plan.fromRollup) {
         const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
         if (!rollup) continue;
         for (const m of rollup.byModel) {
-          const g = group(m.providerId, m.model);
-          g.eventCount += m.eventCount;
-          g.inputTokens += m.inputTokens;
-          g.outputTokens += m.outputTokens;
-          g.cacheReadTokens += m.cacheReadTokens;
-          g.cacheCreationTokens += m.cacheCreationTokens;
-          g.costUsd += m.costUsd;
-          g.costSavedByCacheUsd += m.costSavedByCacheUsd;
+          mergeModelRow(m);
         }
         continue;
       }
       for (const row of await this.rowsInRange(plan, range)) {
-        const g = group(row.providerId, row.model);
-        g.eventCount += 1;
-        g.inputTokens += row.inputTokens;
-        g.outputTokens += row.outputTokens;
-        g.cacheReadTokens += row.cacheReadTokens;
-        g.cacheCreationTokens += row.cacheCreationTokens;
-        g.costUsd += row.costUsd;
-        g.costSavedByCacheUsd += row.costSavedByCacheUsd;
+        mergeModelRow({ ...row, eventCount: 1 });
       }
     }
     const rows = Array.from(groups.values());
@@ -268,7 +325,7 @@ export class JsonlUsageEventStore implements UsageEventStore {
    * here is the raw id fallback — the admin handler resolves display labels
    * against the configured pool keys (the store stays config-schema-free).
    */
-  async getByApiKey(range: UsageDateRange): Promise<ApiKeyUsageRow[]> {
+  async getByApiKey(range: UsageDateRange, filter?: UsageQueryFilter): Promise<ApiKeyUsageRow[]> {
     const groups = new Map<string | null, ApiKeyUsageRow>();
     // Days are planned ascending, so the first row/rollup to name a key sets its
     // `providerId` — matching the legacy "first row in the file wins".
@@ -288,6 +345,35 @@ export class JsonlUsageEventStore implements UsageEventStore {
       }
       return g;
     };
+    if (hasFilter(filter)) {
+      // FILTERED: exact per-row grouping; a pruned day contributes through its
+      // rollup's per-key rows (both splits are carried there).
+      for (const plan of await this.planRange(range)) {
+        if (!plan.hasShard) {
+          const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
+          if (!rollup) continue;
+          for (const k of rollup.byApiKey) {
+            if (!keyRowMatchesFilter(k, filter)) continue;
+            const g = group(k.apiKeyId, k.providerId);
+            g.eventCount += k.eventCount;
+            g.inputTokens += k.inputTokens;
+            g.outputTokens += k.outputTokens;
+            g.costUsd += k.costUsd;
+          }
+          continue;
+        }
+        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
+          if (row.ts < range.startTs || row.ts >= range.endTs) return;
+          if (!rowMatchesFilter(row, filter)) return;
+          const g = group(row.apiKeyId, row.providerId);
+          g.eventCount += 1;
+          g.inputTokens += row.inputTokens;
+          g.outputTokens += row.outputTokens;
+          g.costUsd += row.costUsd;
+        });
+      }
+      return Array.from(groups.values());
+    }
     for (const plan of await this.planRange(range)) {
       if (plan.fromRollup) {
         const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
@@ -368,7 +454,11 @@ export class JsonlUsageEventStore implements UsageEventStore {
    * fold into hour, day and month buckets alike; a partial day is read from its
    * rows so a mid-bucket `startTs` still excludes the events before it.
    */
-  async getTimeSeries(range: UsageDateRange, bucket: UsageTimeBucket): Promise<UsageTimeSeriesBucket[]> {
+  async getTimeSeries(
+    range: UsageDateRange,
+    bucket: UsageTimeBucket,
+    filter?: UsageQueryFilter,
+  ): Promise<UsageTimeSeriesBucket[]> {
     if (range.startTs >= range.endTs) return [];
     const buckets = new Map<number, UsageTimeSeriesBucket>();
     // Enumerate LOCAL boundaries via the Date constructor (month-length/DST safe).
@@ -383,6 +473,28 @@ export class JsonlUsageEventStore implements UsageEventStore {
         cacheCreationTokens: 0,
         costUsd: 0,
       });
+    }
+    if (hasFilter(filter)) {
+      // FILTERED: exact per-row bucketing. A pruned day's byHour rollup rows
+      // carry no attribute split, so pruned days contribute nothing here — a
+      // filtered trend reaches back only as far as raw rows are retained
+      // (keep-everything is the default; retention pruning is opt-in).
+      for (const plan of await this.planRange(range)) {
+        if (!plan.hasShard) continue;
+        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
+          if (row.ts < range.startTs || row.ts >= range.endTs) return;
+          if (!rowMatchesFilter(row, filter)) return;
+          const g = buckets.get(floorToBucket(row.ts, bucket));
+          if (!g) return;
+          g.requests += 1;
+          g.inputTokens += row.inputTokens;
+          g.outputTokens += row.outputTokens;
+          g.cacheReadTokens += row.cacheReadTokens;
+          g.cacheCreationTokens += row.cacheCreationTokens;
+          g.costUsd += row.costUsd;
+        });
+      }
+      return Array.from(buckets.values());
     }
     for (const plan of await this.planRange(range)) {
       if (plan.fromRollup) {
@@ -590,3 +702,67 @@ function bucketLabel(bucketStartTs: number, bucket: UsageTimeBucket): string {
 }
 
 export type { UsageDayEntry };
+
+// ── Attribute filtering (usage-filter) ────────────────────────────────────────
+
+/** True when the filter actually restricts anything (an empty filter ≡ none). */
+function hasFilter(filter: UsageQueryFilter | undefined): filter is UsageQueryFilter {
+  return filter !== undefined && (filter.providerId !== undefined || filter.apiKeyId !== undefined);
+}
+
+/** Whether a raw row matches an attribute filter. */
+function rowMatchesFilter(row: UsageEventRecord, filter: UsageQueryFilter): boolean {
+  if (filter.providerId !== undefined && row.providerId !== filter.providerId) return false;
+  if (filter.apiKeyId !== undefined && row.apiKeyId !== filter.apiKeyId) return false;
+  return true;
+}
+
+/** Whether a rollup per-key group matches (null providerId only matches unfiltered). */
+function keyRowMatchesFilter(
+  k: { apiKeyId: string | null; providerId: string | null },
+  filter: UsageQueryFilter,
+): boolean {
+  if (filter.providerId !== undefined && k.providerId !== filter.providerId) return false;
+  if (filter.apiKeyId !== undefined && k.apiKeyId !== filter.apiKeyId) return false;
+  return true;
+}
+
+/**
+ * Fold a PRUNED day's rollup into a filtered totals accumulator. The key split
+ * comes from `byApiKey`; a provider-only filter uses `byModel` (the finer
+ * provider-exact split). Additive rollup fields read as 0 on pre-upgrade
+ * rollups — exact again for every rollup built after they were introduced.
+ * Whole-day cache-rate metrics (bins, eligible/cold counts) cannot be split by
+ * attribute and so contribute only from streamed days.
+ */
+function addFilteredTotalsFromRollup(
+  totals: ReturnType<typeof emptyTotals>,
+  rollup: UsageDayRollup,
+  filter: UsageQueryFilter,
+): void {
+  if (filter.apiKeyId !== undefined) {
+    for (const k of rollup.byApiKey) {
+      if (!keyRowMatchesFilter(k, filter)) continue;
+      totals.inputTokens += k.inputTokens;
+      totals.outputTokens += k.outputTokens;
+      totals.costUsd += k.costUsd;
+      totals.cacheReadTokens += k.cacheReadTokens ?? 0;
+      totals.cacheCreationTokens += k.cacheCreationTokens ?? 0;
+      totals.reasoningTokens += k.reasoningTokens ?? 0;
+      totals.costSavedByCacheUsd += k.costSavedByCacheUsd ?? 0;
+      totals.eventCount += k.eventCount;
+    }
+    return;
+  }
+  for (const m of rollup.byModel) {
+    if (m.providerId !== filter.providerId) continue;
+    totals.inputTokens += m.inputTokens;
+    totals.outputTokens += m.outputTokens;
+    totals.cacheReadTokens += m.cacheReadTokens;
+    totals.cacheCreationTokens += m.cacheCreationTokens;
+    totals.costUsd += m.costUsd;
+    totals.costSavedByCacheUsd += m.costSavedByCacheUsd;
+    totals.reasoningTokens += m.reasoningTokens ?? 0;
+    totals.eventCount += m.eventCount;
+  }
+}

@@ -14,6 +14,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import { computeKeyExpiry, type KeyCostLimits, type ModelRestriction } from './keyPolicy';
 import type {
+  GatewayBindingTarget,
   OutboundApiKeyCreated,
   OutboundPermission,
   OutboundKeyDb,
@@ -204,6 +205,14 @@ export interface VerifiedKey {
    * is the zero-regression gate. Absent ⇒ NO model check runs for this key.
    */
   modelRestriction?: ModelRestriction;
+  /**
+   * DIRECT upstream passthrough target (key→upstream binding), carried from the
+   * row so the wire layer relays WITHOUT a second DB read. A `provider` target
+   * is the verbatim transparent relay; a claude/kimi subscription target rides
+   * the messages pipeline's same-format relay. Absent ⇒ the key is served by
+   * the downstream routes as before.
+   */
+  boundUpstream?: GatewayBindingTarget;
 }
 
 /** The reason-bearing verify outcome (design D2). */
@@ -266,7 +275,33 @@ function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   if (rateLimit) key.rateLimit = rateLimit;
   const modelRestriction = extractModelRestriction(row);
   if (modelRestriction) key.modelRestriction = modelRestriction;
+  const directTarget = extractBoundUpstream(row);
+  if (directTarget) key.boundUpstream = directTarget;
   return key;
+}
+
+/**
+ * Resolve a row's direct-upstream target: the object form wins; a legacy
+ * `boundUpstreamProviderId` string reads as `{ kind: 'provider', providerId }`.
+ * `undefined` when neither is present (route-served key).
+ */
+function extractBoundUpstream(row: OutboundKeyDbRow): GatewayBindingTarget | undefined {
+  if (row.boundUpstream && typeof row.boundUpstream === 'object') {
+    const target = row.boundUpstream;
+    if (
+      (target.kind === 'provider' && typeof target.providerId === 'string' && target.providerId) ||
+      (target.kind === 'account-pool' && typeof target.providerId === 'string' && target.providerId) ||
+      (target.kind === 'account' && target.providerId && target.accountId) ||
+      (target.kind === 'account-group' && target.providerId && target.group)
+    ) {
+      return target;
+    }
+    return undefined;
+  }
+  if (typeof row.boundUpstreamProviderId === 'string' && row.boundUpstreamProviderId) {
+    return { kind: 'provider', providerId: row.boundUpstreamProviderId };
+  }
+  return undefined;
 }
 
 /**

@@ -26,15 +26,17 @@
  * openai-chat-bridge (#11): the `authMode: 'subscription'` branch is no longer a
  * hard 502. It mirrors the Responses ingress's subscription plan
  * (`SubscriptionAuthSource` + `resolveSubscriptionChain` + the profile's route-to
- * `resolveUpstreamUrl`), so an OpenAI-chat client reaches a CLAUDE subscription:
- * the claude profile's `providerTransformerNames: ['anthropic']` re-encode
- * Unified(OpenAI) → Anthropic on the request and decode Anthropic → Unified(OpenAI)
- * on the response — streaming (`convertAnthropicStreamToOpenAI`) and tools
- * (`AnthropicToolHandling`) COVERED BY REUSE, no new translator. Codex / gemini /
- * opencodego subscriptions over THIS ingress are DEFERRED with a clear per-request
- * error (they need shipped-path verification / gemini Code-Assist project
- * resolution that is out of this slice; use the /v1/responses endpoint or a BYO
- * provider instead).
+ * `resolveUpstreamUrl`), so an OpenAI-chat client reaches a CLAUDE / KIMI / GROK /
+ * OPENCODEGO subscription: an `['anthropic']` route-to chain (claude, kimi,
+ * opencodego's anthropic shape) re-encodes Unified(OpenAI) → Anthropic on the
+ * request and decodes Anthropic → Unified(OpenAI) on the response — streaming
+ * (`convertAnthropicStreamToOpenAI`) and tools (`AnthropicToolHandling`) COVERED
+ * BY REUSE, no new translator; grok's `['openai-response']` and opencodego's
+ * per-shape chains encode to their native wires. opencodego additionally threads
+ * the opaque per-account config (URL overrides) and applies its scenario
+ * `modelMapper` before URL/chain resolution, mirroring the `/v1/messages` path.
+ * Codex (Responses body contract) / gemini (Code-Assist project resolution)
+ * subscriptions over THIS ingress stay DEFERRED with a clear per-request error.
  *
  * @module provider-proxy/ingress/openaiChatIngress
  */
@@ -66,10 +68,21 @@ import {
   recordChatCompletionsStreamUsage,
 } from '../usage/recordChatCompletionsUsage';
 
+import { buildSubscriptionRequestSummary } from './anthropicSubscriptionPlan';
+import { fillMissingCodexCliIdentity } from '../identity/codexCliHeaders';
+import { deriveSubscriptionSessionKey } from '../matchText';
 import {
+  resolveAntigravityProjectThreaded,
+  resolveGeminiProjectForChatBridge,
+} from '../responses/responsesDriver';
+import {
+  type ByoRouteActivityMeta,
+  aggregateOpenAIChatChunksToJsonBody,
+  buildByoRouteActivityMeta,
   getSharedExecutor,
   relayResponse,
   resolvePoolBoundKey,
+  sniffIsSseResponse,
   writeBoundAccountError,
   writeError,
 } from './providerProxyShared';
@@ -90,12 +103,36 @@ export function isOpenAIChatRequest(
 
 /**
  * The subscription providers whose route-to chain the chat ingress can soundly
- * bridge in v1 (openai-chat-bridge OQ1). CLAUDE is the proven headline: the
- * profile's `['anthropic']` chain is exactly the documented BYO OpenAI-chat →
- * Anthropic conversion, so streaming + tools come for free. Other subscription
- * providers are deferred at the plan builder with a clear per-request error.
+ * bridge — the full built-in catalog. CLAUDE / KIMI / GROK declare static
+ * route-to chains (['anthropic'] / ['anthropic'] / ['openai-response']) that
+ * are exactly Unified-encoders, so streaming + tools come for free.
+ * OPENCODEGO is shape-aware: the profile's `chatBridgeTransformerNames` seam
+ * resolves the per-model chain (go/zen half × wire shape) for a Unified
+ * caller — including the anthropic shape, where the messages path's `[]`
+ * (verbatim) would forward an OpenAI-chat body to an Anthropic endpoint.
+ * COPILOT is shape-aware the EASY way: its per-wire names already give the
+ * ['anthropic'] ENCODER on the anthropic wire, so the chat plan just consults
+ * `resolveProviderTransformerNames`; its account config (apiEndpoint / GHE
+ * domain) arrives via `route.subscriptionConfig` like opencodego's.
+ * CODEX rides the ['openai-response'] encoder, which owns its body contract
+ * (store:false + forced stream:true + typed input parts); a NON-streaming
+ * client is served by collapsing the forced SSE back into one chat.completion
+ * (see the handler). GEMINI / ANTIGRAVITY resolve their Code-Assist projects
+ * per account before the call, mirroring the Responses driver (antigravity
+ * via its own dialect resolver); antigravity's transformer owns the URL, so
+ * its plan prefers the transformer-emitted `config.url` over the profile's.
+ * The gate stays for custom/unknown profile ids (clear 501, never half-route).
  */
-const CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set<string>(['claude']);
+const CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set<string>([
+  'claude',
+  'kimi',
+  'grok',
+  'opencodego',
+  'codex',
+  'gemini',
+  'copilot',
+  'antigravity',
+]);
 
 /**
  * Identity endpoint fallback for `resolveSubscriptionChain`. The chat ingress
@@ -125,6 +162,18 @@ interface ChatCallPlan {
   readonly proxyProviderId: string;
   /** True for the subscription plan (drives the 401-refresh-retry wrapper). */
   readonly isSubscription: boolean;
+  /** BYO-only: route-activity metadata (provider row id + live key-id resolver). */
+  readonly byoActivity?: ByoRouteActivityMeta;
+  /** Subscription-only: the stable per-conversation content session key (the
+   *  matchText SSOT anchor — same derivation as the `/v1/messages` path) fed to
+   *  `auth.applyHeaders`. The opencodego strategy derives `x-opencode-session`
+   *  from it (the go upstream REJECTS a request without one), and every pooled
+   *  provider uses it for sticky account affinity. */
+  readonly contentSessionKey?: string;
+  /** Route-activity session key fallback: the internal route session id (the
+   *  ApiKeyPool binding id). This ingress derives no content session key, so
+   *  BOTH kinds group their affinity rows by it. */
+  readonly routeSessionId?: string | null;
 }
 
 /**
@@ -155,13 +204,37 @@ export async function handleOpenAIChatRequest(
   try {
     const plan =
       route.authMode === 'subscription'
-        ? await buildSubscriptionPlan(res, route, deps, resolvedModel, isStream)
+        ? await buildSubscriptionPlan(res, route, deps, chatBody, resolvedModel, isStream)
         : await buildByoPlan(res, route, deps, resolvedModel, isStream);
     if (!plan) return;
 
-    const providerResponse = plan.isSubscription
+    let providerResponse = plan.isSubscription
       ? await runPipelineWithSubscriptionRetry(chatBody, plan)
       : await runPipelineWithPoolReporting(chatBody, plan);
+
+    // Non-stream-from-SSE collapse (the codex contract): the Responses encoder
+    // forces `stream:true` upstream (the backend 400s otherwise), so a
+    // NON-streaming caller's chain output arrives as chat SSE — collapse it
+    // into the single `chat.completion` JSON such a client expects. Generic on
+    // content-type: any bridged provider that answered a non-stream request
+    // with SSE gets the same treatment, and a JSON answer passes through.
+    if (!isStream) {
+      if (await sniffIsSseResponse(providerResponse.response)) {
+        const collapsed = await aggregateOpenAIChatChunksToJsonBody(providerResponse.response);
+        if (collapsed !== null) {
+          providerResponse = {
+            response: new Response(collapsed, {
+              status: providerResponse.response.status,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+            rawStatus: providerResponse.rawStatus,
+          };
+        } else {
+          writeError(res, 502, 'upstream streamed no completable chat chunks');
+          return;
+        }
+      }
+    }
 
     const usageAttribution = {
       sessionId: route.sessionId,
@@ -276,6 +349,8 @@ async function buildByoPlan(
     upstreamUrl: byoUrl,
     proxyProviderId: 'byo',
     isSubscription: false,
+    byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
+    routeSessionId: route.sessionId ?? null,
   };
 }
 
@@ -283,21 +358,27 @@ async function buildByoPlan(
  * Subscription plan (openai-chat-bridge #11) — mirrors the Responses ingress's
  * `buildSubscriptionPlan`, minus the endpoint transformer (the chat wire is
  * Unified, so decode is identity). `SubscriptionAuthSource` over the route's
- * profile; URL via the profile's `resolveUpstreamUrl`; provider chain built from
- * the profile's OWN `providerTransformerNames` via `resolveSubscriptionChain`.
+ * profile; URL via the profile's `resolveUpstreamUrl` (threaded with the opaque
+ * per-account `route.subscriptionConfig` so opencodego `baseUrl`/`zenBaseUrl`
+ * overrides apply); provider chain built from the profile's
+ * `chatBridgeTransformerNames` (opencodego shape-aware) or its static
+ * `providerTransformerNames` (claude/kimi/grok) via `resolveSubscriptionChain`.
  *
- * For the CLAUDE target the profile's `['anthropic']` names resolve to the
- * `AnthropicTransformer` provider chain — which re-encodes Unified(OpenAI-chat) →
- * Anthropic on the request and decodes Anthropic → Unified(OpenAI-chat) on the
- * response (streaming + tools by reuse). Non-claude subscription providers are
- * DEFERRED here with a clear 502 (they need shipped-path verification / gemini
- * Code-Assist project resolution out of this slice); the client should use the
- * /v1/responses endpoint or a BYO provider instead.
+ * For an ANTHROPIC-wire target (claude, kimi, opencodego's anthropic shape) the
+ * `['anthropic']` names resolve to the `AnthropicTransformer` provider chain —
+ * which re-encodes Unified(OpenAI-chat) → Anthropic on the request and decodes
+ * Anthropic → Unified(OpenAI-chat) on the response (streaming + tools by reuse).
+ * The opencodego profile's `modelMapper` (scenario routing) is applied BEFORE
+ * URL/chain resolution, exactly like the `/v1/messages` plan builder, so the
+ * resolved model picks the right half + shape. Codex / gemini subscriptions
+ * remain DEFERRED with a clear per-request 501; the client should use the
+ * /v1/responses endpoint or a BYO provider for those instead.
  */
 async function buildSubscriptionPlan(
   res: http.ServerResponse,
   route: RouteContext,
   deps: ProviderProxyDeps,
+  chatBody: Record<string, unknown>,
   resolvedModel: string,
   isStream: boolean,
 ): Promise<ChatCallPlan | null> {
@@ -309,21 +390,37 @@ async function buildSubscriptionPlan(
 
   const providerId = profile.authStrategy.providerId;
   if (!CHAT_BRIDGE_SUBSCRIPTION_PROVIDERS.has(providerId)) {
-    // Deferred (openai-chat-bridge OQ1): only the claude route-to chain is a
-    // proven OpenAI-chat bridge in v1. This is an UNIMPLEMENTED capability, not an
-    // upstream failure → 501 (Not Implemented), not 502. Fail clearly rather than
-    // half-route.
+    // Still deferred (openai-chat-bridge OQ1): codex (its /responses body
+    // contract — e.g. the enforced store:false — is Responses-path-only today)
+    // and gemini (Code-Assist project resolution). This is an UNIMPLEMENTED
+    // capability, not an upstream failure → 501 (Not Implemented), not 502.
+    // Fail clearly rather than half-route.
     writeError(
       res,
       501,
-      `the OpenAI-chat→subscription bridge currently supports claude only; ` +
-        `subscription provider '${providerId}' is not implemented on this endpoint yet ` +
-        `(use the /v1/responses endpoint, a Claude subscription, or a BYO provider)`,
+      `the OpenAI-chat→subscription bridge does not implement subscription provider ` +
+        `'${providerId}' on this endpoint yet ` +
+        `(use the /v1/responses endpoint, a Claude/Kimi/Grok/OpenCodeGo subscription, or a BYO provider)`,
     );
     return null;
   }
 
-  const upstreamUrl = profile.resolveUpstreamUrl?.(resolvedModel);
+  // Scenario routing (opencodego only — claude/kimi/grok omit `modelMapper`):
+  // apply the profile's mapper BEFORE resolving the upstream URL so the
+  // resolved model picks the right half + shape, exactly like the
+  // `/v1/messages` plan builder. The summary builder is wire-agnostic for an
+  // OpenAI-chat body (roles + `.text` content parts flatten identically), so
+  // both ingress paths bucket the same request into the same scenario.
+  let mappedModel = resolvedModel;
+  if (profile.modelMapper) {
+    const summary = buildSubscriptionRequestSummary(chatBody);
+    const mapped = profile.modelMapper(resolvedModel, summary, route.subscriptionConfig as never);
+    mappedModel = mapped.resolvedModel;
+  }
+
+  // D1 parity: thread the opaque per-account config so opencodego honors a user
+  // `baseUrl`/`zenBaseUrl` override + the per-model go/zen half.
+  const upstreamUrl = profile.resolveUpstreamUrl?.(mappedModel, route.subscriptionConfig as never);
   if (!upstreamUrl) {
     writeError(res, 502, 'Subscription profile is missing resolveUpstreamUrl');
     return null;
@@ -331,19 +428,74 @@ async function buildSubscriptionPlan(
 
   const auth = route.auth ?? new SubscriptionAuthSource(profile);
   // NO endpoint transformer (identity): the chat wire IS Unified. The identity
-  // fallback is inert for claude (it declares `['anthropic']` provider names).
+  // fallback stays inert for every bridged provider (claude/kimi declare
+  // `['anthropic']`, grok `['openai-response']`, and opencodego's seam below
+  // always names a FORMAT transformer for a Unified caller). Chain-name
+  // resolution for a Unified caller, in order: opencodego's chat-specific seam
+  // (its anthropic shape needs the `['anthropic']` ENCODER — the messages
+  // path's same-shape `[]` means "caller already speaks Anthropic"), then any
+  // shape-aware per-wire names (copilot — whose anthropic wire ALREADY names
+  // the encoder), else the profile's static `providerTransformerNames`.
+  const chatChainNames =
+    profile.chatBridgeTransformerNames?.(mappedModel, route.subscriptionConfig) ??
+    profile.resolveProviderTransformerNames?.(mappedModel, route.subscriptionConfig);
   const chain: ResolvedTransformerChain = resolveSubscriptionChain(
     profile,
     deps.llmConfig.getTransformerService(),
     IDENTITY_ENDPOINT_TRANSFORMER,
+    chatChainNames,
   );
 
   const transformerProvider: TransformerLLMProvider = {
     name: providerId,
     baseUrl: upstreamUrl,
     apiKey: '',
-    models: [resolvedModel],
+    models: [mappedModel],
   };
+  // GEMINI / ANTIGRAVITY: resolve the Code-Assist project for the
+  // (sticky-selected) account BEFORE the call, mirroring the Responses driver
+  // — the `gemini-code-assist` chain wraps the request in its project/session
+  // envelope off `provider.geminiProject`; antigravity's handshake is REQUIRED
+  // (its own dialect resolver, a failure propagates rather than half-routing).
+  const sessionKey = deriveSubscriptionSessionKey(chatBody);
+  if (providerId === 'gemini') {
+    transformerProvider.geminiProject = await resolveGeminiProjectForChatBridge(profile, {
+      sessionKey,
+      preferredAccountId: route.preferredAccountId,
+      preferredAccountGroup: route.preferredAccountGroup,
+      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+    });
+  } else if (providerId === 'antigravity') {
+    transformerProvider.geminiProject = await resolveAntigravityProjectThreaded(profile, {
+      resolvedModel: mappedModel,
+      reportSelection: () => {},
+      sessionKey,
+      preferredAccountId: route.preferredAccountId,
+      preferredAccountGroup: route.preferredAccountGroup,
+      boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
+    });
+  }
+  // The scenario-mapped model is what goes on the wire (`modelMapper` may have
+  // rewritten the binding-mapped id) — keep the request body in lockstep.
+  chatBody.model = mappedModel;
+
+  // The PROFILE's URL is authoritative on the subscription plan — the
+  // transformer's `config.url` is host-root-absolute by design (it REPLACES
+  // the whole path with `/v1/responses`), which would DROP the path prefix a
+  // path-prefixed upstream needs (codex `…/backend-api/codex/responses`,
+  // opencode-zen `…/zen/v1/responses`). The profile's `resolveUpstreamUrl`
+  // already produced the complete, shape-specific URL. EXCEPTION:
+  // ANTIGRAVITY's transformer OWNS the URL (it emits the per-request
+  // colon-method endpoint with its envelope) — there `config.url` wins.
+  const resolveUrl: ChatCallPlan['resolveUrl'] =
+    providerId === 'antigravity'
+      ? (config) =>
+          config.url instanceof URL
+            ? config.url.toString()
+            : typeof config.url === 'string'
+              ? config.url
+              : upstreamUrl
+      : () => upstreamUrl;
 
   return {
     auth,
@@ -352,17 +504,14 @@ async function buildSubscriptionPlan(
     boundAccountFallbackPolicy: route.boundAccountFallbackPolicy,
     chain,
     transformerProvider,
-    resolvedModel,
+    resolvedModel: mappedModel,
     isStream,
-    resolveUrl: (config) =>
-      config.url instanceof URL
-        ? config.url.toString()
-        : typeof config.url === 'string'
-          ? config.url
-          : upstreamUrl,
+    resolveUrl,
     upstreamUrl,
     proxyProviderId: providerId,
     isSubscription: true,
+    contentSessionKey: sessionKey,
+    routeSessionId: route.sessionId ?? null,
   };
 }
 
@@ -391,6 +540,7 @@ async function runPipeline(
   await auth.applyHeaders(authHeaders, {
     upstreamUrl,
     model: resolvedModel,
+    sessionKey: plan.contentSessionKey,
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
@@ -414,16 +564,45 @@ async function runPipeline(
           if (value !== undefined && !(key in headers)) headers[key] = value;
         }
       }
+      // Codex identity markers (mirrors the Responses driver's
+      // `decorateCodexHeaders`): a bare anonymous request picks up the
+      // originator + CLI persona; a caller that brought its own UA keeps it.
+      if (plan.proxyProviderId === 'codex') fillMissingCodexCliIdentity(headers);
       return headers;
     },
     fetchFn: (url, headers, body) => {
       console.log(`[ProviderProxy:chat] -> ${url} model=${resolvedModel} stream=${isStream}`);
       // upstream-proxy: chat egress honors the global/provider (+ per-account for
-      // a subscription) proxy.
+      // a subscription) proxy. Route-activity row (account for a subscription
+      // plan, provider key for BYO) — this ingress derives no content session
+      // key, so both kinds group by the route session id.
+      const sessionKey = plan.routeSessionId || undefined;
       return fetchUpstream(
         url,
         { method: 'POST', headers, body: JSON.stringify(body) },
-        { providerId: plan.proxyProviderId, accountId: proxyAccountId },
+        {
+          providerId: plan.proxyProviderId,
+          accountId: proxyAccountId,
+          routeActivity: plan.isSubscription
+            ? {
+                providerId: plan.proxyProviderId,
+                credentialKind: 'subscription-account',
+                accountId: proxyAccountId,
+                endpoint: 'chat',
+                sessionKey,
+                sessionSource: sessionKey ? 'route-session-id' : 'none',
+                model: resolvedModel,
+              }
+            : {
+                providerId: plan.byoActivity?.providerId ?? transformerProvider.name,
+                credentialKind: 'provider-key',
+                keyId: plan.byoActivity?.resolveKeyId(),
+                endpoint: 'chat',
+                sessionKey,
+                sessionSource: sessionKey ? 'route-session-id' : 'none',
+                model: resolvedModel,
+              },
+        },
       ).then((r) => {
         rawStatus = r.status;
         return r;

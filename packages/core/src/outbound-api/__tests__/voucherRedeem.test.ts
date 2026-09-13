@@ -153,6 +153,7 @@ function mkKeyDb(
     outboundApiKeysTouchLastUsed: async () => true,
     outboundApiKeysSetEnabled: async () => true,
     outboundApiKeysSetMaxConcurrency: async () => true,
+    outboundApiKeysSetUpstream: async () => true,
     outboundApiKeysSetPolicy: async (_id, policy) => {
       // M3: a revoked/missing key returns false — the grant apply fails.
       if (opts.setPolicyFails) return false;

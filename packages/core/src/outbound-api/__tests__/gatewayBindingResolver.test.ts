@@ -5,6 +5,7 @@ import {
   gatewayBindingToEndpointConfig,
   resolveGatewayBinding,
   resolveGatewayModelMapping,
+  resolveGatewayModelMappingRow,
 } from '../gatewayBindingResolver';
 import type { EndpointRoutingConfig, GatewayBinding } from '../types';
 
@@ -186,6 +187,64 @@ describe('gateway binding resolution', () => {
       haiku: 'glm,glm-4.7',
     });
   });
+
+  it('carries the winning mapping effort onto the projected config', () => {
+    const result = resolveGatewayBinding({
+      bindings: [binding({
+        endpoint: 'responses',
+        target: { kind: 'account-group', providerId: 'codex', group: 'team-a' },
+        modelMode: 'mapped',
+        modelMap: undefined,
+        modelMappings: [
+          { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' },
+          { source: 'gpt-5.6-sol-*', target: 'gpt-5.6-sol' },
+        ],
+      })],
+      apiKeyId: 'client-a',
+      endpoint: 'responses',
+      requestedModel: 'GPT-5.6-SOL-XHIGH',
+    });
+    expect(result.source).toBe('binding');
+    expect(result.config.modelMap).toMatchObject({ codex: 'codex,gpt-5.6-sol' });
+    expect(result.config.reasoningEffort).toBe('xhigh');
+  });
+
+  it('omits reasoningEffort for an effort-less mapping and for passthrough', () => {
+    const effortLess = resolveGatewayBinding({
+      bindings: [binding({
+        modelMode: 'mapped',
+        modelMap: undefined,
+        modelMappings: [{ source: '*', target: 'gpt-5.6-sol' }],
+      })],
+      apiKeyId: 'client-a',
+      endpoint: 'responses',
+      requestedModel: 'anything',
+    });
+    expect(effortLess.config.reasoningEffort).toBeUndefined();
+
+    const passthrough = gatewayBindingToEndpointConfig(binding({
+      modelMode: 'passthrough',
+      modelMap: undefined,
+      modelMappings: [{ source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' }],
+    }), 'gpt-5.6-sol-xhigh');
+    expect(passthrough.reasoningEffort).toBeUndefined();
+  });
+
+  it('resolves the winning mapping row with its effort in exact-before-wildcard order', () => {
+    const mappings = [
+      { source: 'gpt-5.6-sol-*', target: 'gpt-5.6-sol', effort: 'medium' as const },
+      { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' as const },
+    ];
+    expect(resolveGatewayModelMappingRow(mappings, 'gpt-5.6-sol-xhigh')).toEqual({
+      target: 'gpt-5.6-sol',
+      effort: 'xhigh',
+    });
+    expect(resolveGatewayModelMappingRow(mappings, 'gpt-5.6-sol-low')).toEqual({
+      target: 'gpt-5.6-sol',
+      effort: 'medium',
+    });
+    expect(resolveGatewayModelMappingRow(mappings, 'other-model')).toBeUndefined();
+  });
 });
 describe('gateway binding persistence compatibility', () => {
   it('normalizes bindings and preserves them through an unrelated legacy patch', () => {
@@ -229,5 +288,27 @@ describe('gateway binding persistence compatibility', () => {
       ],
     });
     expect(config.bindings?.map((item) => item.id)).toEqual(['binding-1']);
+  });
+
+  it('preserves canonical and custom mapping efforts; drops blank/oversized junk', () => {
+    const config = normalizeServerConfig({
+      bindings: [binding({
+        modelMode: 'mapped',
+        modelMap: undefined,
+        modelMappings: [
+          { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' },
+          // A custom provider-native level — kept verbatim (same-format passthrough).
+          { source: 'gpt-5.6-sol-ultra', target: 'gpt-5.6-sol', effort: 'ultra' as never },
+          { source: 'gpt-5.6-sol-blank', target: 'gpt-5.6-sol', effort: '   ' as never },
+          { source: 'gpt-5.6-sol-junk', target: 'gpt-5.6-sol', effort: 'x'.repeat(40) as never },
+        ],
+      })],
+    });
+    expect(config.bindings?.[0].modelMappings).toEqual([
+      { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' },
+      { source: 'gpt-5.6-sol-ultra', target: 'gpt-5.6-sol', effort: 'ultra' },
+      { source: 'gpt-5.6-sol-blank', target: 'gpt-5.6-sol' },
+      { source: 'gpt-5.6-sol-junk', target: 'gpt-5.6-sol' },
+    ]);
   });
 });

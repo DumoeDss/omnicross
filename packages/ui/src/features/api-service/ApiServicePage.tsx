@@ -13,6 +13,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SettingRow } from '@/components/ui/setting-row';
+import type { SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import type { RouteNavigate } from '@/shared/state/hashRoute';
@@ -20,10 +21,9 @@ import type { GatewayBinding } from '@/daemon/types';
 
 import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
 import {
+  buildDirectUpstreamOptions,
   routeForBinding,
   summarizeBindingCoverage,
-  upstreamEndpointsForTarget,
-  type UpstreamBindingOption,
 } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
 import { useCliIntegrations } from '../code-cli/hooks/useCliIntegrations';
@@ -50,7 +50,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     status,
     keys,
     providers,
-    accounts,
     busy,
     error,
     createdKey,
@@ -63,6 +62,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
+    setKeyUpstream,
     setKeyPermissions,
     setKeyPolicy,
     queueStatus,
@@ -72,6 +72,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     updateVoucherConfig,
     generateVoucher,
     revokeVoucher,
+    accounts,
   } = useApiService();
 
   React.useEffect(() => {
@@ -80,60 +81,13 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
       ?.scrollTo({ top: 0 });
   }, [activeTab]);
 
-  // Upstream resources offered by the key→upstream quick-bind picker: every
-  // subscription pool / group / account with at least one member, plus every
-  // BYO provider row. Sorted pool → group → account → provider (the same order
-  // the upstreams page lists resources in).
-  const upstreamOptions = React.useMemo<UpstreamBindingOption[]>(() => {
-    const options: UpstreamBindingOption[] = [];
-    for (const [providerId, rows] of Object.entries(accounts.providerAccounts)) {
-      if (!rows.length) continue;
-      const title = t(`accounts.provider.${providerId}.title`);
-      const poolTarget = { kind: 'account-pool' as const, providerId };
-      options.push({
-        key: `pool:${providerId}`,
-        label: t('upstreams.accountPool', { provider: title }),
-        detail: title,
-        target: poolTarget,
-        endpoints: upstreamEndpointsForTarget(poolTarget),
-      });
-      const groups = new Map<string, typeof rows>();
-      for (const row of rows) {
-        groups.set(row.group, [...(groups.get(row.group) ?? []), row]);
-      }
-      for (const [group, members] of groups) {
-        const groupTarget = { kind: 'account-group' as const, providerId, group };
-        options.push({
-          key: `group:${providerId}:${group}`,
-          label: group,
-          detail: `${title} · ${t('upstreams.kind.account-group')} · ${members.length}`,
-          target: groupTarget,
-          endpoints: upstreamEndpointsForTarget(groupTarget),
-        });
-      }
-      for (const row of rows) {
-        const accountTarget = { kind: 'account' as const, providerId, accountId: row.id };
-        options.push({
-          key: `account:${providerId}:${row.id}`,
-          label: row.label || row.id,
-          detail: `${title} · ${t('upstreams.kind.account')}`,
-          target: accountTarget,
-          endpoints: upstreamEndpointsForTarget(accountTarget),
-        });
-      }
-    }
-    for (const provider of providers) {
-      const providerTarget = { kind: 'provider' as const, providerId: provider.id };
-      options.push({
-        key: `provider:${provider.id}`,
-        label: provider.name || provider.id,
-        detail: t('upstreams.kind.provider'),
-        target: providerTarget,
-        endpoints: upstreamEndpointsForTarget(providerTarget),
-      });
-    }
-    return options;
-  }, [accounts.providerAccounts, providers, t]);
+  // Direct key→upstream picker options: every BYO provider, plus the
+  // claude/kimi subscription pools / groups / accounts (the subscriptions whose
+  // upstream speaks the same Anthropic Messages wire as the client).
+  const directUpstreamOptions = React.useMemo<SelectOption[]>(
+    () => buildDirectUpstreamOptions(providers, accounts.providerAccounts, t),
+    [providers, accounts.providerAccounts, t],
+  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -227,7 +181,8 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   bindings={config.bindings ?? []}
                   onOpenBinding={onNavigate ? (binding) => onNavigate(routeForBinding(binding)) : undefined}
                   onChangeBindings={updateBindings}
-                  upstreamOptions={upstreamOptions}
+                  directUpstreamOptions={directUpstreamOptions}
+                  onSetUpstream={setKeyUpstream}
                 />
 
                 <VoucherSection

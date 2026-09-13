@@ -157,3 +157,75 @@ describe('account allowance admin API', () => {
     });
   });
 });
+
+describe('account allowance cycles route', () => {
+  it('returns cycles from the reader', async () => {
+    const api = service();
+    api.getCycles = vi.fn(async () => [
+      {
+        providerId: 'codex',
+        accountId: 'a',
+        startTs: 1_000,
+        endTs: null,
+        resetsAt: '2026-09-19T09:41:06.000Z',
+        kind: 'live',
+        boundaryObservedAt: null,
+      },
+    ]);
+    const out = response();
+    await handleAccountAllowanceApi(
+      request('/admin/api/accounts/allowances/cycles'),
+      out.res,
+      'GET',
+      ['cycles'],
+      api,
+    );
+    expect(out.status()).toBe(200);
+    expect(out.json()).toMatchObject({
+      cycles: [{ providerId: 'codex', accountId: 'a', startTs: 1_000, kind: 'live' }],
+    });
+  });
+
+  it('threads providerId/accountId filters', async () => {
+    const api = service();
+    api.getCycles = vi.fn(async () => []);
+    const out = response();
+    await handleAccountAllowanceApi(
+      request('/admin/api/accounts/allowances/cycles?providerId=codex&accountId=acc-9'),
+      out.res,
+      'GET',
+      ['cycles'],
+      api,
+    );
+    expect(out.status()).toBe(200);
+    expect(api.getCycles).toHaveBeenCalledWith({ providerId: 'codex', accountId: 'acc-9' });
+  });
+
+  it('rejects an unknown providerId', async () => {
+    const api = service();
+    api.getCycles = vi.fn(async () => []);
+    const out = response();
+    await handleAccountAllowanceApi(
+      request('/admin/api/accounts/allowances/cycles?providerId=nope'),
+      out.res,
+      'GET',
+      ['cycles'],
+      api,
+    );
+    expect(out.status()).toBe(400);
+    expect(api.getCycles).not.toHaveBeenCalled();
+  });
+
+  it('reports 501 when the daemon predates cycle history', async () => {
+    const api = service();
+    const out = response();
+    await handleAccountAllowanceApi(
+      request('/admin/api/accounts/allowances/cycles'),
+      out.res,
+      'GET',
+      ['cycles'],
+      api,
+    );
+    expect(out.status()).toBe(501);
+  });
+});

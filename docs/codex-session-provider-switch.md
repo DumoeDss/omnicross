@@ -19,8 +19,9 @@ provider value in the selected sessions”.
 - Rollouts are discovered under `CODEX_HOME/sessions/**/*.jsonl`.
 - The SQLite index is `CODEX_HOME/state_5.sqlite`.
 - The session feature requires a daemon runtime with `node:sqlite` support
-  (Node.js 22.16 or newer). Older runtimes still run the daemon, but report the
-  SQLite session feature as unavailable.
+  (Node.js 22.16 or newer). The desktop app bundles its own Node runtime
+  (`apps/desktop/scripts/stage-node.mjs`) — keep it at 22.16+. Older runtimes
+  still run the daemon, but report the SQLite session feature as unavailable.
 - The admin routes use the existing AdminServer authentication and are not
   exposed through the unauthenticated health endpoint.
 

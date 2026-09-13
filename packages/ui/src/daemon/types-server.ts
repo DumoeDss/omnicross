@@ -22,24 +22,37 @@ export type AccountRouteSessionSource =
   | 'prompt-cache-key'
   | 'content-fingerprint'
   | 'api-key-fallback'
+  | 'route-session-id'
   | 'none';
 
 export type AccountRouteAffinity = 'new' | 'sticky' | 'switched' | 'untracked';
 
-/** Metadata-only recent subscription routing record from the daemon. */
+/** Which kind of upstream credential served the row. Absent on older daemons —
+ *  those only ever recorded subscription-account rows (the default). */
+export type RouteCredentialKind = 'subscription-account' | 'provider-key';
+
+/** Metadata-only recent upstream routing record from the daemon — a
+ *  subscription pool account OR a BYO provider API key (id only, never the key
+ *  string). */
 export interface AccountRouteActivityRecord {
   id: string;
   ts: number;
   durationMs: number;
   providerId: string;
-  accountId: string;
-  endpoint: 'responses' | 'messages';
+  credentialKind?: RouteCredentialKind;
+  /** Subscription account id (subscription-account rows). */
+  accountId?: string;
+  /** ApiKeyPool key id (provider-key rows, when the pool bound one). */
+  keyId?: string;
+  endpoint: 'responses' | 'messages' | 'chat' | 'generateContent';
   sessionKey?: string;
   sessionSource: AccountRouteSessionSource;
   model: string;
   status: number;
   affinity: AccountRouteAffinity;
   previousAccountId?: string;
+  /** For provider-key rows whose session switched keys (pool rotation). */
+  previousKeyId?: string;
   /**
    * Post-hoc error observed inside the (200) stream — e.g. a Codex
    * `response.failed` server-overload event. Present only when the daemon
@@ -86,9 +99,30 @@ export type GatewayBindingFallback = 'next' | 'fail';
 export type GatewayBindingKeyScope = 'all' | 'selected';
 export type GatewayBindingModelMode = 'passthrough' | 'mapped';
 
+/**
+ * A mapping-pinned thinking level: one of the shared seven levels, OR a
+ * provider-native custom string for levels the shared domain doesn't know
+ * yet (same-format wires pass it upstream verbatim).
+ */
+export type MappingEffortLevel =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+  | (string & {});
+
 export interface GatewayModelMapping {
   source: string;
   target: ModelRef;
+  /**
+   * Optional default thinking level for clients that cannot express one on the
+   * wire — injected only when the request carries no reasoning intent of its
+   * own. Absent ⇒ the normal reasoning negotiation runs unchanged.
+   */
+  effort?: MappingEffortLevel;
 }
 
 export type GatewayBindingTarget =
@@ -923,6 +957,15 @@ export interface OutboundApiKeyInfo {
   restrictionMode?: 'blacklist' | 'allowlist';
   /** The model-id list the mode acts on (bare modelIds). */
   restrictedModels?: string[];
+  /**
+   * DIRECT upstream passthrough target (key→upstream binding): a BYO provider
+   * row (verbatim transparent relay) or a claude/kimi subscription account /
+   * group / pool (Anthropic-wire same-format relay). Absent ⇒ the key is
+   * served by the downstream routes. `boundUpstreamProviderId` is the legacy
+   * first-cut shape (a bare provider id).
+   */
+  boundUpstream?: GatewayBindingTarget;
+  boundUpstreamProviderId?: string;
   /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the daemon wired a

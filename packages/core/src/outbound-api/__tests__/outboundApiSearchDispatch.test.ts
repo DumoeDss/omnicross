@@ -114,6 +114,7 @@ function makeDb(): OutboundKeyDb {
     outboundApiKeysSetEnabled: async () => true,
     outboundApiKeysSetPermissions: async () => true,
     outboundApiKeysSetMaxConcurrency: async () => true,
+    outboundApiKeysSetUpstream: async () => true,
     outboundApiKeysSetPolicy: async () => true,
     outboundApiKeysMarkActivated: async () => true,
     outboundApiKeysReveal: async () => null,

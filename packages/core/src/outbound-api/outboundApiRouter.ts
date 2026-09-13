@@ -56,7 +56,7 @@ import type { RouteContext } from '../provider-proxy/types';
 import { DEFAULT_SEARCH_FRONTEND_MODES } from '../search/frontends';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
-import { beginAuditCapture } from './auditCapture';
+import { beginAuditCapture, type AuditCaptureContext } from './auditCapture';
 import { deriveAuditSessionKey } from './auditSessionKey';
 import { beginBillingCapture } from './billingCapture';
 import {
@@ -64,9 +64,11 @@ import {
   candidateGatewayBindings,
   gatewayBindingToEndpointConfig,
   resolveGatewayBinding,
+  resolveGatewayModelMappingRow,
 } from './gatewayBindingResolver';
+import { injectMappingEffortDefault } from './mappingEffortInjection';
 import { isKindMappedEndpoint } from './kindDetection';
-import { verifyKey } from './outboundApiKeyAuth';
+import { verifyKey, type VerifiedKey } from './outboundApiKeyAuth';
 import { checkKeyQuota, checkModelAllowed } from './keyPolicy';
 import { computeQuotaWarnings, markQuotaWarnedOnce } from './quotaWarn';
 import { type GateSlot, isConcurrencyRejection, type OutboundConcurrencyGate } from './outboundConcurrencyGate';
@@ -79,6 +81,7 @@ import type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
+  GatewayBindingTarget,
   OutboundApiDeps,
   OutboundEndpoint,
   OutboundPermission,
@@ -490,6 +493,38 @@ async function passthroughProviderModelIds(
  */
 const ANTHROPIC_MODELS_CREATED_AT = new Date().toISOString();
 
+/** True when a mapping set carries a USABLE wildcard (any client id routable). */
+function hasWildcardMapping(binding: GatewayBinding): boolean {
+  return (binding.modelMappings ?? []).some(
+    (mapping) => mapping.source.includes('*') && mapping.target.trim() !== '',
+  );
+}
+
+/**
+ * Advertise a binding target's servable catalog into `push`: a BYO provider's
+ * configured list (or its LIVE-discovered upstream catalog when unconfigured)
+ * or the subscription model catalog. Shared by the passthrough- and
+ * wildcard-mapping advertisement paths — a wildcard accepts ANY client model
+ * id, so every id the target can serve is a valid client-facing name.
+ */
+async function pushTargetCatalog(
+  llmConfig: OutboundApiDeps['llmConfig'],
+  target: GatewayBindingTarget,
+  push: (id: string) => void,
+): Promise<void> {
+  if (target.kind === 'provider') {
+    for (const id of await passthroughProviderModelIds(llmConfig, target.providerId)) {
+      push(id);
+    }
+  } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, target.providerId)) {
+    for (const id of SUBSCRIPTION_MODEL_CATALOG[
+      target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+    ]) {
+      push(id);
+    }
+  }
+}
+
 /** One Anthropic models-list entry (display_name only when the upstream is known). */
 interface AnthropicModelEntry {
   id: string;
@@ -497,6 +532,11 @@ interface AnthropicModelEntry {
   display_name?: string;
   created_at: string;
 }
+
+/** The endpoints `GET /v1/models` enumerates, in both response shapes. The
+ *  envelope is a wire format; model VISIBILITY is cross-endpoint — a provider
+ *  bound on chat/responses must be discoverable exactly like a messages one. */
+const MODEL_LIST_ENDPOINTS = ['chat', 'responses', 'messages', 'gemini'] as const;
 
 /** Parse the `limit` query param (positive int; absent/invalid → unlimited). */
 function parseModelsLimit(url: string | undefined): number | undefined {
@@ -510,14 +550,19 @@ function parseModelsLimit(url: string | undefined): number | undefined {
 
 /**
  * Serve the models visible to this key in the Anthropic `GET /v1/models` shape
- * (R4): `data[].id` is the CLIENT-VISIBLE name the messages endpoint actually
- * routes — binding `modelMappings` source aliases and CONFIGURED (non-empty
- * ref) `modelMap` kind keys, both annotated `"<name> (via <upstream>)"` in
+ * (R4): `data[].id` is the CLIENT-VISIBLE name the binding actually routes —
+ * binding `modelMappings` source aliases and CONFIGURED (non-empty ref)
+ * `modelMap` kind keys, both annotated `"<name> (via <upstream>)"` in
  * `display_name` (the ModelRef's modelId only — never the providerId, account
- * ids, or credentials) — plus passthrough subscription catalog ids
- * (display omitted). Unconfigured kinds are NOT advertised. Deduped,
- * insertion-stable, `limit`-respecting with `has_more`, direct 200 (no
- * redirect, no upstream call).
+ * ids, or credentials) — plus passthrough provider catalogs (live discovery)
+ * and subscription catalog ids (display omitted). Unconfigured kinds are NOT
+ * advertised. Deduped, insertion-stable, `limit`-respecting with `has_more`,
+ * direct 200 (no redirect, no upstream call).
+ *
+ * Discovery is CROSS-ENDPOINT: every endpoint the key may use contributes, the
+ * envelope is only a wire format. Enumerating messages alone hid chat/responses-
+ * bound providers entirely — an app configured against /v1/chat/completions
+ * then saw an EMPTY list from /v1/models even though its route served fine.
  */
 async function writeModelsListAnthropic(
   res: http.ServerResponse,
@@ -526,11 +571,9 @@ async function writeModelsListAnthropic(
   apiKeyId: string,
   allowedEndpoints: readonly OutboundPermission[] | undefined,
   limit: number | undefined,
+  /** The key's direct passthrough provider (its catalog joins the union). */
+  directTarget?: GatewayBindingTarget | null,
 ): Promise<void> {
-  // The Anthropic shape only advertises the MESSAGES endpoint family (the
-  // endpoint Anthropic SDKs discover through it); a restricted key without
-  // messages authorization never reaches here (resolveModelsShape said openai).
-  void allowedEndpoints;
   const entries: AnthropicModelEntry[] = [];
   const seen = new Set<string>();
   const push = (id: string | undefined, displayName?: string): void => {
@@ -550,33 +593,45 @@ async function writeModelsListAnthropic(
     return modelId ? `${name} (via ${modelId})` : undefined;
   };
 
-  for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, 'messages')) {
-    if (binding.modelMode === 'passthrough') {
-      if (binding.target.kind === 'provider') {
-        for (const id of await passthroughProviderModelIds(llmConfig, binding.target.providerId)) {
-          push(id);
-        }
-      } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, binding.target.providerId)) {
-        for (const id of SUBSCRIPTION_MODEL_CATALOG[
-          binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
-        ]) {
-          push(id);
-        }
+  for (const endpoint of MODEL_LIST_ENDPOINTS) {
+    if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
+    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
+      if (binding.modelMode === 'passthrough') {
+        await pushTargetCatalog(llmConfig, binding.target, push);
+        continue;
       }
-      continue;
-    }
-    if (binding.modelMappings?.length) {
-      for (const mapping of binding.modelMappings) {
-        const source = mapping.source.trim();
-        if (source === '' || source.includes('*')) continue;
-        push(source, viaLabel(source, mapping.target));
+      if (binding.modelMappings?.length) {
+        for (const mapping of binding.modelMappings) {
+          const source = mapping.source.trim();
+          if (source === '' || source.includes('*')) continue;
+          push(source, viaLabel(source, mapping.target));
+        }
+        // A wildcard mapping routes ANY client model id — the target's whole
+        // servable catalog is therefore client-facing and joins the list, and
+        // so does the wildcard's own TARGET id (always reachable by name; for
+        // targets with no static catalog — e.g. opencodego, whose models are
+        // resolved per account — it is the one honest entry).
+        if (hasWildcardMapping(binding)) {
+          await pushTargetCatalog(llmConfig, binding.target, push);
+          for (const mapping of binding.modelMappings ?? []) {
+            if (!mapping.source.includes('*') || mapping.target.trim() === '') continue;
+            push(parseModelRef(mapping.target)?.modelId ?? mapping.target.trim());
+          }
+        }
+        continue;
       }
-      continue;
+      // Kind-mapped: advertise ONLY configured kinds (a blank ref is unroutable).
+      for (const [kind, ref] of Object.entries(binding.modelMap ?? {})) {
+        if (typeof ref !== 'string' || ref.trim() === '') continue;
+        push(kind, viaLabel(kind, ref));
+      }
     }
-    // Kind-mapped: advertise ONLY configured kinds (a blank ref is unroutable).
-    for (const [kind, ref] of Object.entries(binding.modelMap ?? {})) {
-      if (typeof ref !== 'string' || ref.trim() === '') continue;
-      push(kind, viaLabel(kind, ref));
+  }
+  // DIRECT TIER: the key's direct passthrough provider contributes its catalog
+  // to the union (the verbatim fallback serves any of these models).
+  if (directTarget?.kind === 'provider') {
+    for (const id of await passthroughProviderModelIds(llmConfig, directTarget.providerId)) {
+      push(id);
     }
   }
 
@@ -654,6 +709,249 @@ function handleOauthUsageProxy(
   res.end(JSON.stringify(body));
 }
 
+// ── DIRECT upstream passthrough (key→upstream binding) ───────────────────────
+
+/**
+ * The provider's URL ROOT for direct passthrough: the configured base minus
+ * the wire's completion/collection suffix, so a client request path can be
+ * appended. `.../v1/chat/completions` → `.../v1`; `.../v1/messages` → `.../v1`;
+ * `.../v1beta/models` → `.../v1beta`; a bare host stays bare. `null` when the
+ * row carries no usable base URL.
+ */
+function directUpstreamRoot(baseUrl: string, format: ReturnType<typeof resolveApiFormat>): string | null {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (!base) return null;
+  if (format === 'google') return base.replace(/\/models$/, '');
+  if (format === 'anthropic') return base.replace(/\/messages$/, '');
+  if (format === 'openai-response') return base.replace(/\/responses$/, '');
+  return base.replace(/\/chat\/completions$/, '');
+}
+
+/**
+ * Map a gateway request URL onto the directly-bound provider's base. The
+ * client's path + query pass through 1:1, EXCEPT a leading version segment
+ * (`/v1`, `/v1beta`, …) is dropped when the root already carries that same
+ * segment — so base `…/v1` + client `/v1/chat/completions` resolves to
+ * `…/v1/chat/completions` (not `…/v1/v1/…`), while a bare-host root keeps the
+ * client's `/v1/…` intact. Returns `null` when the provider has no base URL.
+ */
+export function directUpstreamUrl(
+  provider: Pick<LLMProvider, 'api_base_url'> &
+    Partial<Pick<LLMProvider, 'apiFormat' | 'chatApiFormat' | 'apiType'>>,
+  requestUrl: string | undefined,
+): string | null {
+  // `resolveApiFormat` reads only apiFormat/chatApiFormat/apiType — the cast
+  // keeps the parameter structural for callers holding partial provider rows.
+  const root = directUpstreamRoot(
+    provider.api_base_url ?? '',
+    resolveApiFormat(provider as LLMProvider),
+  );
+  if (!root) return null;
+  const raw = requestUrl ?? '/';
+  const queryIndex = raw.indexOf('?');
+  const path = (queryIndex >= 0 ? raw.slice(0, queryIndex) : raw) || '/';
+  const query = queryIndex >= 0 ? raw.slice(queryIndex) : '';
+  const versionSegment = /\/v\d+[a-z]*$/.exec(root)?.[0];
+  let tail = path;
+  if (versionSegment) {
+    if (path === versionSegment) tail = '';
+    else if (path.startsWith(`${versionSegment}/`)) tail = path.slice(versionSegment.length);
+  }
+  return `${root}${tail}${query}`;
+}
+
+/**
+ * The ONE synthesized passthrough binding a direct-bound SUBSCRIPTION key
+ * rides (claude / kimi — subscriptions whose upstream speaks the same
+ * Anthropic Messages wire as the client). Scoped to exactly this key on the
+ * `messages` endpoint at the given precedence — injected at 1000 (below the
+ * default 100 of operator routes) so an explicit messages route WINS and the
+ * subscription serves everything else. The normal pipeline then does the
+ * serving — including the messages ingress's same-format VERBATIM relay
+ * (byte-for-byte body, OAuth swapped + auto-refreshed, account scheduling,
+ * fingerprint replay, allowance + usage metering) and the `GET /v1/models`
+ * catalog advertising.
+ */
+export function directUpstreamBinding(
+  target: GatewayBindingTarget,
+  apiKeyId: string,
+  priority = 1000,
+): GatewayBinding {
+  return {
+    id: `direct:${apiKeyId}`,
+    name: 'direct upstream',
+    enabled: true,
+    keyScope: 'selected',
+    apiKeyIds: [apiKeyId],
+    endpoint: 'messages',
+    target,
+    priority,
+    fallback: 'fail',
+    modelMode: 'passthrough',
+  };
+}
+
+/**
+ * Relay one request VERBATIM to the key's directly-bound BYO provider — a
+ * transparent reverse proxy. Method, path, query, and body bytes are forwarded
+ * untouched; only the auth headers are swapped to the provider's credential
+ * (`getProviderHeaders`: format-correct auth + static extra headers + the
+ * OpenRouter attribution set). The upstream's status, content-type, and body
+ * (streaming, SSE included) are piped back unchanged, so the client sees the
+ * REAL upstream response — including its 404s for paths this gateway does not
+ * itself implement. What deliberately does NOT run for such a key: downstream
+ * route resolution, protocol translation, model mapping, endpoint permissions,
+ * and usage/billing metering (verbatim bytes carry no parsed usage — spend
+ * tracking and cost limits cannot account direct-passthrough traffic).
+ *
+ * Per-key rate limit + revocation/expiry were enforced before this branch; the
+ * per-key concurrency ceiling is applied here with the same acquire/release
+ * semantics as the routed path. The concurrency slot is released by the
+ * `res.close` listener alone — every exit below ends or destroys the response,
+ * and this function RETURNS while the body still streams, so a `finally`
+ * release would fire early (the slot must cover the whole stream).
+ */
+async function relayDirectUpstream(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  deps: OutboundApiDeps,
+  verified: VerifiedKey,
+  config: OutboundRequestConfig,
+  concurrencyGate: OutboundConcurrencyGate,
+  audit: AuditCaptureContext | null,
+  /**
+   * The ALREADY-READ request body, when the caller consumed the stream before
+   * falling back to the direct tier (the resolution-fallback path). Absent ⇒
+   * the relay reads the (still-fresh) stream itself. A second read of an
+   * exhausted stream would hang forever waiting for an `end` that already
+   * fired, so late callers MUST pass the buffered body.
+   */
+  preReadBody?: string,
+): Promise<void> {
+  const direct = verified.boundUpstream;
+  const providerId = direct?.kind === 'provider' ? direct.providerId : '';
+  const provider = await deps.llmConfig.getProvider(providerId);
+  if (!provider) {
+    writeJsonError(
+      res,
+      503,
+      `direct upstream provider '${providerId}' is not configured for this key`,
+    );
+    return;
+  }
+  const url = directUpstreamUrl(provider, req.url);
+  if (!url) {
+    writeJsonError(res, 503, `direct upstream provider '${providerId}' has no base URL`);
+    return;
+  }
+
+  // Per-key concurrency ceiling (mirrors the routed path's gate block).
+  const concurrencyLimit = verified.maxConcurrency;
+  let releaseConcurrency: (() => void) | null = null;
+  if (typeof concurrencyLimit === 'number' && concurrencyLimit > 0) {
+    const cq = config.concurrencyQueue ?? DEFAULT_CONCURRENCY_QUEUE;
+    const acquisition = concurrencyGate.acquire(verified.id, concurrencyLimit, {
+      maxQueueSizeFactor: cq.maxQueueSizeFactor,
+      minQueueSize: cq.minQueueSize,
+      waitTimeoutMs: cq.waitTimeoutMs,
+    });
+    const cancelOnClose = (): void => acquisition.cancel();
+    res.once('close', cancelOnClose);
+    let slot: GateSlot;
+    try {
+      slot = await acquisition.granted;
+    } catch (err) {
+      res.removeListener('close', cancelOnClose);
+      if (isConcurrencyRejection(err)) {
+        writeJsonError(res, 429, 'Concurrency limit exceeded', { 'Retry-After': '5' });
+        return;
+      }
+      throw err;
+    }
+    res.removeListener('close', cancelOnClose);
+    const release = (): void => slot.release();
+    releaseConcurrency = release;
+    res.once('close', release);
+  }
+
+  try {
+    const rawBody = preReadBody !== undefined ? preReadBody : await readBody(req);
+    if (audit) {
+      audit.setRequestBody(rawBody);
+      try {
+        audit.sessionKey = deriveAuditSessionKey(
+          rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {},
+          req.headers,
+          { fallbackKey: verified.id, endpoint: 'direct' },
+        );
+      } catch {
+        /* malformed JSON — the audit stays metadata-only for this request */
+      }
+    }
+
+    // Upstream headers: the provider's format-correct credential set, plus the
+    // client's own Content-Type/Accept (body framing matters; the gateway's
+    // named-key credential must NEVER reach the upstream).
+    const headers = getProviderHeaders(provider, resolveProviderKeyLiteral(provider.api_key));
+    delete headers['Content-Type'];
+    const clientContentType = req.headers['content-type'];
+    if (typeof clientContentType === 'string' && clientContentType) {
+      headers['Content-Type'] = clientContentType;
+    }
+    const clientAccept = req.headers['accept'];
+    if (typeof clientAccept === 'string' && clientAccept) headers['Accept'] = clientAccept;
+
+    const hasRequestBody = req.method !== 'GET' && req.method !== 'HEAD';
+    const upstream = await fetchUpstream(
+      url,
+      {
+        method: req.method ?? 'GET',
+        headers,
+        ...(hasRequestBody ? { body: rawBody } : {}),
+        // Client hang-up aborts the upstream call (no egress after cancel).
+        signal: requestLifecycleSignal(req, res),
+      },
+      { providerId: 'byo' },
+    );
+    if (audit) audit.provider = provider.id;
+
+    const responseHeaders: Record<string, string> = {};
+    const contentType = upstream.headers.get('content-type');
+    if (contentType) responseHeaders['Content-Type'] = contentType;
+    res.writeHead(upstream.status, responseHeaders);
+    if (!upstream.body) {
+      res.end();
+      return;
+    }
+    // Pipe the upstream body through UNBUFFERED so SSE streams chunk-by-chunk.
+    // `pipe` ends `res` on completion; a mid-stream error destroys it (the
+    // `close` listener above then releases the concurrency slot).
+    const bodyStream = Readable.fromWeb(
+      upstream.body as unknown as import('node:stream/web').ReadableStream<Uint8Array>,
+    );
+    bodyStream.on('error', () => {
+      res.destroy();
+    });
+    bodyStream.pipe(res);
+    // Hold this handler open until the response is fully written — the same
+    // completion contract the routed dispatch paths have — so the per-key
+    // concurrency slot and the audit capture span the whole stream. Every exit
+    // above ends or destroys the response, and a real `http.ServerResponse`
+    // always emits `close`; the mock used by tests emits it in `end`/`destroy`.
+    await new Promise<void>((resolve) => {
+      res.once('close', resolve);
+    });
+  } catch (err) {
+    const message = serializeError(err);
+    if (deps.logger) deps.logger.error('[OutboundApi] direct relay error:', message);
+    else console.error('[OutboundApi] direct relay error:', message);
+    emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
+    if (audit) audit.error = message;
+    if (!res.headersSent) writeJsonError(res, 502, message);
+    else res.destroy();
+  }
+}
+
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
 async function writeModelsList(
   res: http.ServerResponse,
@@ -662,24 +960,15 @@ async function writeModelsList(
   apiKeyId: string,
   allowedEndpoints: readonly OutboundPermission[] | undefined,
   imageModels: readonly string[] = [],
+  /** The key's direct passthrough provider (its catalog joins the union). */
+  directTarget?: GatewayBindingTarget | null,
 ): Promise<void> {
   const modelIds: string[] = [];
-  for (const endpoint of ['chat', 'responses', 'messages', 'gemini'] as const) {
+  for (const endpoint of MODEL_LIST_ENDPOINTS) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
     for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
       if (binding.modelMode === 'passthrough') {
-        if (binding.target.kind === 'provider') {
-          modelIds.push(...(await passthroughProviderModelIds(llmConfig, binding.target.providerId)));
-        } else if (Object.prototype.hasOwnProperty.call(
-          SUBSCRIPTION_MODEL_CATALOG,
-          binding.target.providerId,
-        )) {
-          modelIds.push(
-            ...SUBSCRIPTION_MODEL_CATALOG[
-              binding.target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
-            ],
-          );
-        }
+        await pushTargetCatalog(llmConfig, binding.target, (id) => modelIds.push(id));
         continue;
       }
       if (binding.modelMappings?.length) {
@@ -688,6 +977,16 @@ async function writeModelsList(
             .map((mapping) => mapping.source.trim())
             .filter((source) => source !== '' && !source.includes('*')),
         );
+        // A wildcard mapping routes ANY client model id — the target's whole
+        // servable catalog is therefore client-facing and joins the list, and
+        // so does the wildcard's own TARGET id (always reachable by name).
+        if (hasWildcardMapping(binding)) {
+          await pushTargetCatalog(llmConfig, binding.target, (id) => modelIds.push(id));
+          for (const mapping of binding.modelMappings ?? []) {
+            if (!mapping.source.includes('*') || mapping.target.trim() === '') continue;
+            modelIds.push(parseModelRef(mapping.target)?.modelId ?? mapping.target.trim());
+          }
+        }
         continue;
       }
       const endpointConfig = gatewayBindingToEndpointConfig(binding);
@@ -705,6 +1004,11 @@ async function writeModelsList(
           .filter((modelId): modelId is string => modelId !== undefined),
       );
     }
+  }
+  // DIRECT TIER: the key's direct passthrough provider contributes its catalog
+  // to the union (the verbatim fallback serves any of these models).
+  if (directTarget?.kind === 'provider') {
+    modelIds.push(...(await passthroughProviderModelIds(llmConfig, directTarget.providerId)));
   }
   // Image models arrive pre-filtered by the runtime (route keys × fresh
   // per-provider evidence — multi-provider-image-generation 6.1); the retired
@@ -894,6 +1198,45 @@ export async function handleOutboundRequest(
     return;
   }
 
+  // 2-DIRECT. DIRECT UPSTREAM (key→upstream binding) — an ADDITIVE layer that
+  // COEXISTS with the downstream routes (they are not disabled by it):
+  //
+  //  - A `provider` target is a VERBATIM FALLBACK TIER under the routes. A
+  //    request some route can serve (endpoint + model matched) is served by
+  //    that route through the normal pipeline — so one key can mix a direct
+  //    Responses upstream with a translated Anthropic route, or a mapped route
+  //    on the same endpoint (the route takes ITS models, the direct tier takes
+  //    the rest). Anything UNROUTED — an endpoint with no route for this key,
+  //    a model outside a route's list, or a path this gateway does not itself
+  //    implement — is relayed VERBATIM to the provider: method, path, query,
+  //    and body pass through with only the auth headers swapped. No protocol
+  //    translation, model mapping, or usage metering runs on that tier.
+  //    `GET /v1/models` stays the gateway's OWN rendered list (the union of
+  //    what the routes advertise plus the direct provider's catalog), because
+  //    a multi-upstream key must not get a single upstream's raw list.
+  //
+  //  - A claude/kimi SUBSCRIPTION target (account / account-group /
+  //    account-pool) rides the messages pipeline instead: the config below
+  //    gains ONE synthesized passthrough binding at the LOWEST precedence
+  //    (priority 1000), so an operator-managed messages route still wins and
+  //    the subscription serves everything else through its same-format
+  //    VERBATIM relay (byte-for-byte body, OAuth swapped + auto-refreshed,
+  //    account scheduling, fingerprint replay, usage metering intact).
+  //
+  // Per-key rate limit + revocation/expiry (above) and the per-key concurrency
+  // ceiling still apply to both flavors.
+  const directProvider =
+    verified.boundUpstream?.kind === 'provider' ? verified.boundUpstream : null;
+  if (verified.boundUpstream && !directProvider) {
+    config = {
+      ...config,
+      bindings: [
+        ...(config.bindings ?? []),
+        directUpstreamBinding(verified.boundUpstream, verified.id, 1000),
+      ],
+    };
+  }
+
   // 2a. USAGE PROXY (R9, claude-api-experience-extras) — placed AFTER auth +
   // rate limit, BEFORE models-list/endpoint select. A PURE-CACHE read of the
   // shared Claude allowance store: zero upstream calls, zero refreshes (the
@@ -1004,6 +1347,7 @@ export async function handleOutboundRequest(
         verified.id,
         verified.allowedEndpoints,
         parseModelsLimit(req.url),
+        verified.boundUpstream,
       );
     } else {
       let imageModels: readonly string[] = [];
@@ -1021,22 +1365,37 @@ export async function handleOutboundRequest(
         verified.id,
         verified.allowedEndpoints,
         imageModels,
+        verified.boundUpstream,
       );
     }
     return;
   }
   const endpoint = selectEndpoint(req.method, req.url);
   if (!endpoint) {
+    // No gateway endpoint matches — a direct-bound key still relays the path
+    // VERBATIM to its provider (the transparent-proxy tier); the upstream's
+    // own 404 answers, not this server's.
+    if (directProvider) {
+      await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit);
+      return;
+    }
     writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
     return;
   }
-  if (verified.allowedEndpoints && !verified.allowedEndpoints.includes(endpoint)) {
+  // A direct-bound key's binding IS the authorization (the provider flavor
+  // bypasses this check entirely); the messages flavor serves whatever its
+  // upstream natively speaks, so the four-endpoint permission vocabulary
+  // would only produce a confusing 403 here.
+  if (verified.allowedEndpoints && !verified.boundUpstream && !verified.allowedEndpoints.includes(endpoint)) {
     writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
     return;
   }
   // Routing lives entirely in the downstream routes: a key with no enabled route
-  // on this endpoint can never be served, so say so before reading the body.
-  if (candidateGatewayBindings(config.bindings, verified.id, endpoint).length === 0) {
+  // on this endpoint can never be served — UNLESS the direct tier can relay it.
+  if (
+    candidateGatewayBindings(config.bindings, verified.id, endpoint).length === 0 &&
+    !directProvider
+  ) {
     writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
     return;
   }
@@ -1182,8 +1541,12 @@ export async function handleOutboundRequest(
       role,
     });
     // Unreachable in practice — the pre-body gate above already rejects a key
-    // with no candidate route — but keeps the resolution total.
+    // with no candidate route and no direct tier — but keeps the resolution total.
     if (bindingResolution.source === 'none') {
+      if (directProvider) {
+        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody);
+        return;
+      }
       writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
       return;
     }
@@ -1193,12 +1556,43 @@ export async function handleOutboundRequest(
       ? `outbound:${verified.id}${bindingAffinitySuffix}`
       : null;
 
+    // MAPPING EFFORT DEFAULT (model-mapping-effort): when the winning route's
+    // model mapping pins a thinking level and the client expressed NO reasoning
+    // intent of their own, stamp the ingress wire's native field onto the parsed
+    // body and replay THAT downstream. One seam covers every dispatch path —
+    // including the same-format verbatim relays — because the replayed bytes are
+    // byte-equivalent to a client that sent the intent natively; capability
+    // negotiation stays in the transformer-chain reasoning encoders. The audit
+    // stash above keeps the ORIGINAL client bytes; the direct-tier fallback
+    // below keeps the original `rawBody` (no mapping ⇒ no injection).
+    // count_tokens skips it — a thinking level never changes a token count.
+    let replayBody = rawBody;
+    if (
+      !isCountTokens &&
+      effectiveEndpointConfig.reasoningEffort &&
+      injectMappingEffortDefault(endpoint, effectiveEndpointConfig.reasoningEffort, parsedBody)
+    ) {
+      replayBody = JSON.stringify(parsedBody);
+    }
+
     // D2: dispatch the classifier by endpoint CLASS. The kind-mapped endpoints
     // (`messages`/`responses`) route by model KIND and carry the client's original
     // requested id through to the response `model` passthrough; the list-mapped
     // `chat` endpoint matches the requested id against its configured model list;
     // the role-based `gemini` endpoint keeps detecting default/background.
     const hostedImageGenerationAllowed = verified.allowedEndpoints.includes('images');
+    // For a MAPPED chat route the model mapping already resolved the client's
+    // alias (exact or wildcard) to the upstream target — `routeCanServe` gated on
+    // exactly that — so the list match below must see the TARGET, not the alias;
+    // otherwise a renamed alias (`gpt-5.6-sol-xhigh` → `gpt-5.6-sol`) 404s against
+    // the single-entry list. Kind-mapped endpoints keep the CLIENT id (it selects
+    // the kind and drives the response `model` passthrough rewrite); a mapped
+    // binding whose mapping does NOT match falls back to the client id so the
+    // legacy per-request 404 behavior is preserved.
+    const listResolvedModel =
+      endpoint === 'chat' && bindingResolution.binding.modelMode === 'mapped'
+        ? resolveGatewayModelMappingRow(bindingResolution.binding.modelMappings, requestedModel)?.target ?? requestedModel
+        : requestedModel;
     const resolved =
       isKindMappedEndpoint(endpoint) || endpoint === 'chat'
         ? await resolveRoute({
@@ -1206,10 +1600,10 @@ export async function handleOutboundRequest(
             ingressFormat,
             llmConfig: deps.llmConfig,
             sessionId,
-            // Capture the ORIGINAL requested id BEFORE any downstream swap; for
-            // kind-mapped endpoints it selects the kind AND is stamped onto
-            // `route.requestedModel`; for chat it is matched against the list.
-            requestedModel,
+            // The id the route resolves against: the client's ORIGINAL id for
+            // kind-mapped endpoints (it selects the kind AND is stamped onto
+            // `route.requestedModel`), the mapping-resolved target for chat.
+            requestedModel: listResolvedModel,
             // Attribution: stamp the verified named-key id onto the route.
             apiKeyId: verified.id,
             hostedImageGenerationAllowed,
@@ -1225,6 +1619,16 @@ export async function handleOutboundRequest(
             hostedImageGenerationAllowed,
           });
     if (!resolved.ok) {
+      // DIRECT-TIER FALLBACK: the routes cannot serve THIS request (no route on
+      // the endpoint for this key, or the requested model is outside a route's
+      // list/mappings). A direct-bound key relays the request VERBATIM to its
+      // provider instead of erroring — the route keeps its models, the direct
+      // tier takes everything else. A key with NO direct binding keeps the
+      // per-request error unchanged.
+      if (directProvider) {
+        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody);
+        return;
+      }
       writeJsonError(res, resolved.error.status, resolved.error.message);
       return;
     }
@@ -1336,7 +1740,7 @@ export async function handleOutboundRequest(
       // ingress consumer (`readBody` / the Anthropic delegation's own reader)
       // re-reads the body via `req.on('data'/'end')`, so replay the buffered
       // bytes through a fresh readable that carries the request's metadata.
-      const replay = makeReplayRequest(req, rawBody);
+      const replay = makeReplayRequest(req, replayBody);
       await routeRequest(replay, res, routeMap, deps.proxyDeps);
     } catch (err) {
       if (isBoundAccountSelectionError(err)) {

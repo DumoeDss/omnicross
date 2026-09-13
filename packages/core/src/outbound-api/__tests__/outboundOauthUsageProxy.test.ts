@@ -72,6 +72,7 @@ function mkDeps(): OutboundApiDeps {
     outboundApiKeysTouchLastUsed: async () => true,
     outboundApiKeysSetEnabled: async () => true,
     outboundApiKeysSetMaxConcurrency: async () => true,
+    outboundApiKeysSetUpstream: async () => true,
     outboundApiKeysSetPolicy: async () => true,
     outboundApiKeysMarkActivated: async () => true,
     outboundApiKeysReveal: async () => null,

@@ -25,6 +25,7 @@ import { join } from 'node:path';
 
 import { resolveProviderEndpoint } from '@omnicross/contracts/endpoint-resolver';
 import { loadServerConfig } from '@omnicross/core/outbound-api';
+import { getOpenCodeGoUserAgent } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
@@ -42,6 +43,8 @@ interface MockUpstream {
   lastApiKeyHeader: string | undefined;
   /** Raw (Node-normalized lowercase) request headers of the last `/models` hit. */
   lastExtraHeaders: Record<string, unknown> | undefined;
+  /** Raw (Node-normalized lowercase) request headers of the last completion hit. */
+  lastCompletionHeaders: Record<string, unknown> | undefined;
   /** When set, the `/models` handler replies with this canned body + status. */
   modelsStatus: number;
   modelsBody: string;
@@ -54,6 +57,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
     lastExtraHeaders: undefined,
+    lastCompletionHeaders: undefined,
     modelsStatus: 200,
     modelsBody: JSON.stringify({ data: [{ id: 'gpt-x' }, { id: 'gpt-y' }] }),
   };
@@ -74,6 +78,7 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.lastAuthHeader = req.headers['authorization'];
       state.lastApiKeyHeader =
         typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : undefined;
+      state.lastCompletionHeaders = req.headers;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -433,6 +438,43 @@ describe('POST /admin/api/providers/:id/test', () => {
     await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' }]);
     expect((await adminFetch('POST', '/admin/api/providers/a/test', {})).status).toBe(400);
     expect((await adminFetch('POST', '/admin/api/providers/nope/test', { model: 'm' })).status).toBe(404);
+  });
+});
+
+// ── probe egress identity (testEgressIdentity) ────────────────────────────────
+
+describe('admin probe egress identity (product UA; opencode.ai session hint)', () => {
+  it('test-model egress carries the product user-agent, not Node’s bare default', async () => {
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' }]);
+    const r = await adminFetch('POST', '/admin/api/providers/a/test', { model: 'gpt-x' });
+    expect((r.json as { ok: boolean }).ok).toBe(true);
+    expect(upstream.lastCompletionHeaders?.['user-agent']).toBe(getOpenCodeGoUserAgent());
+    expect(upstream.lastCompletionHeaders?.['user-agent']).not.toBe('node');
+    // The mock is not an opencode host — the opencode-specific session header
+    // never leaks to unrelated upstreams.
+    expect(upstream.lastCompletionHeaders?.['x-opencode-session']).toBeUndefined();
+  });
+
+  it('discover-models egress carries the product user-agent', async () => {
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' }]);
+    const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
+    expect(r.status).toBe(200);
+    expect(upstream.lastExtraHeaders?.['user-agent']).toBe(getOpenCodeGoUserAgent());
+    expect(upstream.lastExtraHeaders?.['x-opencode-session']).toBeUndefined();
+  });
+
+  it('a row-level extraHeaders User-Agent (any casing) wins over the probe default', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'a',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: 'sk-a',
+        extraHeaders: { 'User-Agent': 'elftia-row/9.9' },
+      },
+    ]);
+    await adminFetch('POST', '/admin/api/providers/a/test', { model: 'gpt-x' });
+    expect(upstream.lastCompletionHeaders?.['user-agent']).toBe('elftia-row/9.9');
   });
 });
 

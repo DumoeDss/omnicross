@@ -1,12 +1,15 @@
 /**
- * UsageStatsPage.tsx — the Usage Stats page shell: header (title + range
- * picker), totals summary cards, then the by-model (primary cost view, first)
- * and by-api-key sections. Single loading/error state with retry; an empty
+ * UsageStatsPage.tsx — the Usage Stats page shell: header (title + range-mode
+ * toggle + range picker + attribute filters), totals summary cards, then the
+ * by-model (primary cost view, first) and by-api-key sections. The range mode
+ * is either DATE (presets + custom) or CYCLE (one billable cycle of one
+ * subscription account — vendor resets and reset cards segmented from the
+ * allowance boundary ledger). Single loading/error state with retry; an empty
  * range shows an empty state (no zero-soup tables) while the picker stays
  * usable.
  */
 
-import { BarChart3, RefreshCw } from 'lucide-react';
+import { BarChart3, CalendarRange, RefreshCw } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -16,26 +19,30 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { ByApiKeyTable } from './components/ByApiKeyTable';
 import { ByModelTable } from './components/ByModelTable';
+import { CycleRangePicker } from './components/CycleRangePicker';
 import { DashboardOverview } from './components/DashboardOverview';
 import { DateRangePicker } from './components/DateRangePicker';
 import { ModelDistributionChart } from './components/ModelDistributionChart';
 import { TotalsSummary } from './components/TotalsSummary';
+import { UsageFilterBar } from './components/UsageFilterBar';
 import { UsageTrendChart } from './components/UsageTrendChart';
 import { useDashboardSummary } from './hooks/useDashboardSummary';
+import { useUsageFilterOptions } from './hooks/useUsageFilterOptions';
 import { useUsageStats } from './hooks/useUsageStats';
 import { useUsageTrend } from './hooks/useUsageTrend';
 
 export function UsageStatsPage() {
   const t = useTranslation();
   const stats = useUsageStats();
-  const { loading, error, data, range } = stats;
+  const { loading, error, data, range, filter } = stats;
   const dashboard = useDashboardSummary();
-  const trend = useUsageTrend(range);
+  const filterOptions = useUsageFilterOptions();
+  const trend = useUsageTrend(range, filter);
 
   const hasEvents = (data?.totals.eventCount ?? 0) > 0;
 
-  // Manual refresh + optional 30s auto-refresh. All three data sources share
-  // one refresh; each hook already owns its loading/cancel-on-unmount, so this
+  // Manual refresh + optional 30s auto-refresh. All data sources share one
+  // refresh; each hook already owns its loading/cancel-on-unmount, so this
   // just bumps their reload ticks in step. The reload fns are stable
   // (useCallback inside each hook), so `refreshAll` is stable too — the
   // interval effect won't tear down and reset every render.
@@ -55,6 +62,21 @@ export function UsageStatsPage() {
   }, [autoRefresh, refreshAll]);
   const refreshing = loading || dashboard.loading || trend.loading;
 
+  // A key filter that does not belong to the chosen provider would silently
+  // produce empty views — clear it when the provider narrows past it.
+  const handleProviderChange = useCallback(
+    (next: string) => {
+      const belongs =
+        next === '' ||
+        filterOptions.options.keys.some(
+          (k) => k.apiKeyId === stats.apiKeyFilter && k.providerId === next,
+        );
+      if (!belongs) stats.setApiKeyFilter('');
+      stats.setProviderFilter(next);
+    },
+    [filterOptions.options.keys, stats],
+  );
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <ScrollArea className="flex-1">
@@ -69,14 +91,45 @@ export function UsageStatsPage() {
                 <h2 className="text-base font-semibold text-foreground">{t('usageStats.dashboardTitle')}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{t('usageStats.dashboardDescription')}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <DateRangePicker
-                    preset={stats.preset}
-                    customFrom={stats.customFrom}
-                    customTo={stats.customTo}
-                    onPresetChange={stats.setPreset}
-                    onCustomFromChange={stats.setCustomFrom}
-                    onCustomToChange={stats.setCustomTo}
-                  />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant={stats.mode === 'date' ? 'default' : 'secondary'}
+                      onClick={() => stats.setMode('date')}
+                    >
+                      {t('usageStats.modeDate')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={stats.mode === 'cycle' ? 'default' : 'secondary'}
+                      onClick={() => stats.setMode('cycle')}
+                      title={t('usageStats.modeCycleHint')}
+                    >
+                      <CalendarRange className="mr-1 h-4 w-4" />
+                      {t('usageStats.modeCycle')}
+                    </Button>
+                  </div>
+                  {stats.mode === 'date' ? (
+                    <DateRangePicker
+                      preset={stats.preset}
+                      customFrom={stats.customFrom}
+                      customTo={stats.customTo}
+                      onPresetChange={stats.setPreset}
+                      onCustomFromChange={stats.setCustomFrom}
+                      onCustomToChange={stats.setCustomTo}
+                    />
+                  ) : (
+                    <CycleRangePicker
+                      cycles={stats.cycles}
+                      accountKey={stats.cycleAccountKey}
+                      cycleId={stats.cycleId}
+                      loading={stats.cyclesLoading}
+                      error={stats.cyclesError}
+                      onAccountChange={stats.setCycleAccountKey}
+                      onCycleChange={stats.setCycleId}
+                      onReload={stats.reloadCycles}
+                    />
+                  )}
                   <div className="ml-auto flex items-center gap-3">
                     <label className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Switch
@@ -91,6 +144,16 @@ export function UsageStatsPage() {
                       {t('usageStats.refresh')}
                     </Button>
                   </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <UsageFilterBar
+                    options={filterOptions.options}
+                    providerFilter={stats.providerFilter}
+                    apiKeyFilter={stats.apiKeyFilter}
+                    providerLocked={stats.mode === 'cycle'}
+                    onProviderChange={handleProviderChange}
+                    onApiKeyChange={stats.setApiKeyFilter}
+                  />
                 </div>
               </div>
             </div>

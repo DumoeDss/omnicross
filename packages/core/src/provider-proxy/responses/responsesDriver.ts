@@ -7,7 +7,8 @@ import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
 import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
 import { resolveSubscriptionChain } from '../../pipeline/resolveSubscriptionChain';
 import { SubscriptionAuthSource } from '../../pipeline/SubscriptionAuthSource';
-import { fetchUpstream } from '../../pipeline/upstreamFetch';
+import type { AccountRouteActivityRecord } from '../../pipeline/AccountRouteActivity';
+import { fetchUpstream, type AccountRouteActivityContext } from '../../pipeline/upstreamFetch';
 import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
 import { fetchWithAntigravityFailover } from '../../transformer/transformers/antigravityFailover';
 import { getGeminiCodeAssistResolver } from '../../ports/gemini-code-assist-resolver';
@@ -27,6 +28,8 @@ import { extractOpenCodeSessionHeader } from '../identity/openCodeGoHeaders';
 import type { SessionKeySource, SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import {
+  buildByoRouteActivityMeta,
+  type ByoRouteActivityMeta,
   getResponsesEndpointTransformer,
   getSharedExecutor,
   resolvePoolBoundKey,
@@ -78,6 +81,11 @@ export interface ResponsesCallPlan {
   readonly statefulContinuation: boolean;
   readonly credential: ResponsesCredentialIdentity;
   readonly resolveCredential?: () => ResponsesCredentialIdentity;
+  /** BYO-only: route-activity metadata (provider row id + live key-id resolver). */
+  readonly byoActivity?: ByoRouteActivityMeta;
+  /** BYO-only: the internal route session id — the activity fallback session key
+   *  (the same id the ApiKeyPool binds) when no content session key exists. */
+  readonly byoSessionId?: string | null;
 }
 
 export interface ResponsesPipelineResult {
@@ -147,7 +155,7 @@ export async function buildResponsesCallPlan(
   affinity?: ResponsesAffinityEntry,
 ): Promise<ResponsesCallPlan> {
   if (route.authMode === 'byo') {
-    return buildByoPlan(route, deps, resolved, resolvedModel, isStream, affinity);
+    return buildByoPlan(route, deps, resolved, resolvedModel, isStream, sessionKey, sessionSource, affinity);
   }
   return buildSubscriptionPlan(
     route,
@@ -168,6 +176,8 @@ async function buildByoPlan(
   resolved: ResolvedResponsesRouteProfile,
   resolvedModel: string,
   isStream: boolean,
+  sessionKey: string,
+  sessionSource: SessionKeySource,
   affinity?: ResponsesAffinityEntry,
 ): Promise<ResponsesCallPlan> {
   const providerId = route.providerId!;
@@ -234,6 +244,10 @@ async function buildByoPlan(
         : null;
       return keyId ? { kind: 'byo-key', id: keyId } : credential;
     },
+    byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
+    byoSessionId: route.sessionId ?? null,
+    sessionKey,
+    sessionSource,
   };
 }
 
@@ -339,8 +353,18 @@ async function resolveGeminiProject(
   return getGeminiCodeAssistResolver()?.resolveProject(accessToken);
 }
 
-/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver). */
-async function resolveAntigravityProjectThreaded(
+/**
+ * The chat-bridge twin of {@link resolveGeminiProject}: resolve the Code-Assist
+ * project for a gemini subscription route BEFORE the provider call so the
+ * `gemini-code-assist` chain can wrap the request in its project/session
+ * envelope. Same resolution, exported for the OpenAI-chat ingress.
+ */
+export const resolveGeminiProjectForChatBridge = resolveGeminiProject;
+
+/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver).
+ * Exported as the chat-bridge twin too: the OpenAI-chat ingress resolves the
+ * REQUIRED antigravity project before its provider call the same way. */
+export async function resolveAntigravityProjectThreaded(
   profile: RouteContext['subscriptionProfile'] & {},
   hints: {
     resolvedModel: string;
@@ -392,6 +416,47 @@ export async function executeResponsesUpstream(
   return result;
 }
 
+/**
+ * Route-activity context for one Responses fetch attempt — an account row for
+ * subscription plans, a provider-key row for BYO. The BYO branch resolves the
+ * key id LIVE (per attempt), so an ApiKeyPool rebind retry attributes the
+ * second attempt to the rotated key. The session key prefers the content-
+ * derived key (same derivation the subscription rows use) and falls back to the
+ * route's internal session id — the same id the pool binds, so key rotation
+ * still surfaces as `switched`.
+ */
+function buildResponsesRouteActivity(
+  plan: ResponsesCallPlan,
+  accountId: string | undefined,
+  actualModel: string,
+  onRecorded: (record: AccountRouteActivityRecord) => void,
+): AccountRouteActivityContext {
+  if (plan.proxyProviderId === 'byo') {
+    const contentKey = plan.sessionKey?.trim() || undefined;
+    const routeSessionId = plan.byoSessionId || undefined;
+    return {
+      providerId: plan.byoActivity?.providerId ?? plan.providerIdentity,
+      credentialKind: 'provider-key',
+      keyId: plan.byoActivity?.resolveKeyId(),
+      endpoint: 'responses',
+      sessionKey: contentKey ?? routeSessionId,
+      sessionSource: contentKey ? plan.sessionSource ?? 'none' : routeSessionId ? 'route-session-id' : 'none',
+      model: actualModel,
+      onRecorded,
+    };
+  }
+  return {
+    providerId: plan.proxyProviderId,
+    credentialKind: 'subscription-account',
+    accountId,
+    endpoint: 'responses',
+    sessionKey: plan.sessionKey,
+    sessionSource: plan.sessionSource ?? 'none',
+    model: actualModel,
+    onRecorded,
+  };
+}
+
 async function applyPlanAuth(
   body: Record<string, unknown>,
   plan: ResponsesCallPlan,
@@ -418,6 +483,19 @@ async function applyPlanAuth(
   });
   body.model = actualModel;
   plan.transformerProvider.models = [actualModel];
+  // The ChatGPT Codex backend (2026-09) rejects any /codex/responses call whose
+  // body lacks `store: false` — 400 `{"detail":"Store must be set to false"}` —
+  // and one whose body asks `stream: false` — 400 `{"detail":"Stream must be set
+  // to true"}`. The relay forces BOTH (idempotent for a compliant codex CLI
+  // caller: `disable_response_storage` sends store:false and the CLI always
+  // streams). A NON-streaming client is served by the ingress collapsing the
+  // forced SSE back into the single `response` JSON it expects. Scoped to the
+  // codex SUBSCRIPTION relay: a BYO OpenAI-compatible endpoint keeps the
+  // caller's body verbatim (its backend may legitimately allow both).
+  if (plan.proxyProviderId === 'codex') {
+    body.store = false;
+    if (!plan.isStream) body.stream = true;
+  }
   return { headers, accountId, actualModel };
 }
 
@@ -427,7 +505,10 @@ function decorateCodexHeaders(
 ): void {
   if (plan.proxyProviderId !== 'codex') return;
   fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
-  fillMissingHeaders(headers, { accept: codexAcceptHeader(plan.isStream) });
+  // Accept follows the EFFECTIVE stream flag — the codex upstream ALWAYS
+  // streams (the caller's own stream, or the forced one for a non-stream
+  // client), so accept is always the SSE variant on this branch.
+  fillMissingHeaders(headers, { accept: codexAcceptHeader(true) });
   // Identity LAST, after the caller's own markers merged: a real Codex CLI
   // keeps its own (user-agent, version) and gets only the originator marker —
   // never a fabricated `version` under its UA (see fillMissingCodexCliIdentity).
@@ -452,13 +533,9 @@ async function runNative(
     {
       providerId: plan.proxyProviderId,
       accountId,
-      routeActivity: plan.proxyProviderId === 'byo' ? undefined : {
-        endpoint: 'responses',
-        sessionKey: plan.sessionKey,
-        sessionSource: plan.sessionSource ?? 'none',
-        model: actualModel,
-        onRecorded: (record) => { activityRecordId = record.id; },
-      },
+      routeActivity: buildResponsesRouteActivity(plan, accountId, actualModel, (record) => {
+        activityRecordId = record.id;
+      }),
     },
   );
   return {
@@ -510,13 +587,9 @@ async function runReduced(
         {
           providerId: plan.proxyProviderId,
           accountId,
-          routeActivity: plan.proxyProviderId === 'byo' ? undefined : {
-            endpoint: 'responses',
-            sessionKey: plan.sessionKey,
-            sessionSource: plan.sessionSource ?? 'none',
-            model: actualModel,
-            onRecorded: (record) => { activityRecordId = record.id; },
-          },
+          routeActivity: buildResponsesRouteActivity(plan, accountId, actualModel, (record) => {
+            activityRecordId = record.id;
+          }),
         },
       );
       const upstream = plan.proxyProviderId === 'antigravity'

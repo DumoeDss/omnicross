@@ -31,7 +31,8 @@
 import type http from 'node:http';
 
 import { getAntigravityProjectResolver } from '../../auth/GeminiCodeAssistProjectResolver';
-import { fetchUpstream } from '../../pipeline/upstreamFetch';
+import type { AccountRouteActivityRecord } from '../../pipeline/AccountRouteActivity';
+import { fetchUpstream, type AccountRouteActivityContext } from '../../pipeline/upstreamFetch';
 import { maybeAntigravityFailoverUrl } from '../../transformer/transformers/antigravityFailover';
 
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
@@ -67,6 +68,7 @@ import type {
 } from '../types';
 
 import {
+  type ByoRouteActivityMeta,
   cancelDiscardedResponse,
   getAnthropicEndpointTransformer,
   getSharedExecutor,
@@ -170,6 +172,13 @@ export interface AnthropicCallPlan {
    *  once in `buildSubscriptionPlan` and carried across fallback iterations.
    *  `undefined` for BYO / no-anchor requests (⇒ pure priority/LRU). */
   readonly sessionKey?: string;
+  /** BYO-only: route-activity metadata (provider row id + live key-id resolver).
+   *  Set by the BYO plan builder; absent on subscription plans and on delegated
+   *  host-built plans (those fall back to provider-name attribution). */
+  readonly byoActivity?: ByoRouteActivityMeta;
+  /** BYO-only: the internal route session id — the activity fallback session key
+   *  (the same id the ApiKeyPool binds) for key-rotation visibility. */
+  readonly byoSessionId?: string | null;
 }
 
 /**
@@ -429,6 +438,45 @@ function proxyProviderId(plan: AnthropicCallPlan): string {
 }
 
 /**
+ * Route-activity context for one `/v1/messages` fetch attempt — an account row
+ * for subscription plans, a provider-key row for BYO. The BYO branch resolves
+ * the key id LIVE (per attempt) so an ApiKeyPool rebind retry attributes the
+ * rotated key; the session key falls back to the route's internal session id
+ * (the same id the pool binds), because the anthropic ingress derives no
+ * content session key for BYO requests.
+ */
+function buildAnthropicRouteActivity(
+  plan: AnthropicCallPlan,
+  proxyAccountId: string | undefined,
+  model: string,
+  onRecorded: (record: AccountRouteActivityRecord) => void,
+): AccountRouteActivityContext {
+  if (!plan.isSubscription) {
+    const routeSessionId = plan.byoSessionId || undefined;
+    return {
+      providerId: plan.byoActivity?.providerId ?? plan.transformerProvider.name,
+      credentialKind: 'provider-key',
+      keyId: plan.byoActivity?.resolveKeyId(),
+      endpoint: 'messages',
+      sessionKey: routeSessionId,
+      sessionSource: routeSessionId ? 'route-session-id' : 'none',
+      model,
+      onRecorded,
+    };
+  }
+  return {
+    providerId: proxyProviderId(plan),
+    credentialKind: 'subscription-account',
+    accountId: proxyAccountId,
+    endpoint: 'messages',
+    sessionKey: plan.sessionKey,
+    sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
+    model,
+    onRecorded,
+  };
+}
+
+/**
  * One pipeline/same-format run's result, widened for the R8 bridge +
  * in-band-overload observer (claude-api-transform-fidelity): the SELECTED
  * account and its route-activity row id ride up to the relay call site so
@@ -512,17 +560,14 @@ export async function runPipeline(
         {
           providerId: proxyProviderId(plan),
           accountId: proxyAccountId,
-          routeActivity: plan.isSubscription
-            ? {
-                endpoint: 'messages',
-                sessionKey: plan.sessionKey,
-                sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
-                model: resolvedModel,
-                onRecorded: (record) => {
-                  activityRecordId = record.id;
-                },
-              }
-            : undefined,
+          routeActivity: buildAnthropicRouteActivity(
+            plan,
+            proxyAccountId,
+            resolvedModel,
+            (record) => {
+              activityRecordId = record.id;
+            },
+          ),
         },
       ).then((r) => {
         rawStatus = r.status;
@@ -648,17 +693,14 @@ export async function runSubscriptionSameFormatFetch(
     {
       providerId: proxyProviderId(plan),
       accountId: proxyAccountId,
-      routeActivity: plan.isSubscription
-        ? {
-            endpoint: 'messages',
-            sessionKey: plan.sessionKey,
-            sessionSource: plan.sessionKey ? 'content-fingerprint' : 'none',
-            model: outboundModel,
-            onRecorded: (record) => {
-              activityRecordId = record.id;
-            },
-          }
-        : undefined,
+      routeActivity: buildAnthropicRouteActivity(
+        plan,
+        proxyAccountId,
+        outboundModel,
+        (record) => {
+          activityRecordId = record.id;
+        },
+      ),
     },
   );
   return {

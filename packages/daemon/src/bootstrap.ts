@@ -85,6 +85,7 @@ import { GrokOAuthSessionStore } from './admin/accountsGrokOAuth';
 import { CopilotOAuthSessionStore } from './admin/accountsCopilotOAuth';
 import { AccountAllowanceService } from './allowance/AccountAllowanceService';
 import { ClaudeAllowanceRefreshScheduler } from './allowance/ClaudeAllowanceRefreshScheduler';
+import { AllowanceBoundaryLog, readAllowanceBoundaryEvents } from './allowance/AllowanceBoundaryLog';
 import { JsonAccountAllowancePersistence } from './allowance/JsonAccountAllowancePersistence';
 import { AdminServer } from './admin/AdminServer';
 import { CodexSessionManager } from './admin/codexSessionManager';
@@ -105,6 +106,7 @@ import {
   defaultAuditDir,
   defaultBillingDir,
   defaultAccountAllowancePath,
+  defaultAllowanceBoundaryLogPath,
   defaultDaemonLogPath,
   defaultIntegrationsPath,
   defaultLogDir,
@@ -526,11 +528,19 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
 
   // Allowance snapshots are telemetry, not credentials: keep the core store
   // secret-free and inject the daemon's config-relative, atomic JSON persistence
-  // before any scheduler/registry captures the shared store instance.
+  // before any scheduler/registry captures the shared store instance. The
+  // boundary-log decorator (usage-cycle-history) observes `resetsAt` /
+  // `usedPercent` transitions on their way through this same seam and appends
+  // them to an append-only ledger beside the config, so billable-cycle
+  // boundaries survive the snapshot cache's latest-wins replacement.
+  const allowanceBoundaryLogPath = defaultAllowanceBoundaryLogPath(paths.configPath);
   const accountAllowanceStore = new AccountAllowanceStore(
     Date.now,
     undefined,
-    new JsonAccountAllowancePersistence(defaultAccountAllowancePath(paths.configPath)),
+    new AllowanceBoundaryLog(
+      new JsonAccountAllowancePersistence(defaultAccountAllowancePath(paths.configPath)),
+      allowanceBoundaryLogPath,
+    ),
   );
   setSharedAccountAllowanceStore(accountAllowanceStore);
   getSharedAccountAllowanceScheduling().configure(
@@ -569,7 +579,20 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // route-resolution wiring for `/v1/responses` subscription dispatch. Placed
   // after `llmConfig` (TransformerService ready) so boot stays deterministic.
   const credentialStore = new JsonSubscriptionCredentialStore(paths.tokensPath, secretBox);
-  const accountAllowanceService = new AccountAllowanceService(credentialStore, accountAllowanceStore);
+  const accountAllowanceService = new AccountAllowanceService(
+    credentialStore,
+    accountAllowanceStore,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    Date.now,
+    () => readAllowanceBoundaryEvents(allowanceBoundaryLogPath),
+  );
   const claudeAllowanceRefreshScheduler = new ClaudeAllowanceRefreshScheduler(
     accountAllowanceService,
     logger,
@@ -1078,6 +1101,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     cliTerminalOpener: paths.cliTerminalOpener,
     cliPathProbe: paths.cliPathProbe,
     cliCommandRunner: paths.cliCommandRunner,
+    // One helper invocation shared by the integration install and KEY-SCOPED
+    // launches (the latter append `--key-id` per spawn) — same entrypoint, same
+    // config/master-key resolution, so the two paths can never drift.
+    codexAuthHelper: currentProcessCodexAuthHelper(paths.configPath, paths.masterKeyFilePath),
     integrationManagerFactory: () => {
       const live = outboundApiServer.getStatus();
       const port = live.port || decryptedConfig.server?.port || DEFAULT_OUTBOUND_PORT;

@@ -40,6 +40,7 @@ import type {
   BillingDeliveryStatus,
   EndpointRoutingConfig,
   GatewayBinding,
+  GatewayBindingTarget,
   ImagesCapabilityStatus,
   ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
@@ -327,6 +328,14 @@ export interface AgentApiServiceApi {
    * handling (`ok:false` → "key not found").
    */
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
+  /**
+   * Set a key's DIRECT upstream passthrough target (`POST /keys/:id/upstream`).
+   * A BYO provider target relays VERBATIM; a claude/kimi subscription
+   * account/group/pool rides the messages same-format relay; `null` clears →
+   * the key returns to downstream-route serving. The daemon validates the
+   * target (404 unknown provider; 400 non-claude/kimi subscription).
+   */
+  setKeyUpstream(id: string, target: GatewayBindingTarget | null): Promise<MutationResult>;
   /** Atomically replace one key's exact authorization list. */
   setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult>;
   /**
@@ -412,11 +421,13 @@ export interface AgentApiServiceApi {
     to?: number;
     limit?: number;
   }): Promise<AuditRecord[]>;
-  /** Read process-local, metadata-only subscription account routing activity. */
+  /** Read process-local, metadata-only upstream routing activity — subscription
+   *  accounts and BYO provider keys (key ids only) on one timeline. */
   queryAccountRouteActivity(query?: {
     providerId?: string;
     accountId?: string;
     sessionKey?: string;
+    credentialKind?: 'subscription-account' | 'provider-key';
     limit?: number;
   }): Promise<AccountRouteActivityResponse>;
   /** Read process-local, metadata-only per-account server-overload tally. */
@@ -664,6 +675,12 @@ export interface CliSession {
   cli: string;
   providerId: string;
   model: string;
+  /**
+   * Key-scoped codex rows: the gateway key the terminal authenticates as.
+   * providerId/model are empty for these — routing follows the key's bindings.
+   */
+  keyId?: string;
+  keyName?: string;
   startedAt: string;
 }
 
@@ -742,12 +759,15 @@ export type CodexSessionApplyResult =
   | { success: true; result: CodexSessionProviderApplyResult }
   | { success: false; message: string };
 
-/** Result of a launch — sessionId + the resolved provider/model, or a failure. */
+/** Result of a launch — sessionId + the resolved provider/model (or key), or a failure. */
 export interface CliLaunchResult {
   success: boolean;
   sessionId?: string;
   providerId?: string;
   model?: string;
+  /** Key-scoped codex launches: the gateway key the terminal authenticates as. */
+  keyId?: string;
+  keyName?: string;
   message?: string;
 }
 
@@ -824,7 +844,7 @@ export interface AgentCliApi {
   install(cli: string): Promise<MutationResult>;
   launch(
     cli: string,
-    input?: { cwd?: string; providerId?: string; model?: string },
+    input?: { cwd?: string; providerId?: string; model?: string; keyId?: string },
   ): Promise<CliLaunchResult>;
   sessions(): Promise<CliSession[]>;
   stop(id: string): Promise<MutationResult>;

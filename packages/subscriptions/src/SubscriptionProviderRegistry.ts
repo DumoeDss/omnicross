@@ -238,6 +238,19 @@ export class SubscriptionProviderRegistry {
             const { shape } = resolveOpenCodeGoTarget(model, config as OpenCodeGoTokenConfig | undefined);
             return opencodegoTransformerNamesForShape(shape);
           },
+          // openai-chat-bridge OQ1: same shape resolution as above, but for a
+          // UNIFIED (OpenAI-chat) caller. The one deliberate divergence: the
+          // anthropic shape takes the `['anthropic']` ENCODER here — the
+          // messages-path `[]` means "the caller already speaks Anthropic",
+          // which a chat caller does not. Every other shape reuses the
+          // messages-path mapping verbatim (chat ⇒ openai, responses ⇒
+          // openai-response, gemini ⇒ gemini).
+          chatBridgeTransformerNames: (model, config) => {
+            const { shape } = resolveOpenCodeGoTarget(model, config as OpenCodeGoTokenConfig | undefined);
+            return shape === 'anthropic'
+              ? ['anthropic']
+              : opencodegoTransformerNamesForShape(shape);
+          },
           providerTransformerNames: ['openai'],
           modelTransformerNames: [],
           modelMapper: (sdkModel, summary, config) => {
@@ -391,6 +404,19 @@ export class SubscriptionProviderRegistry {
   async getOpenCodeGoConfig(): Promise<OpenCodeGoTokenConfig | undefined> {
     const full = await this.tokens.getFullConfig();
     return full.opencodego;
+  }
+
+  /**
+   * Read the ACTIVE Copilot account's config (plan-advertised `apiEndpoint` /
+   * GHE `enterpriseUrl`) so the proxy's core route paths can thread it into the
+   * profile's per-wire `resolveUpstreamUrl` — the same active-block pattern as
+   * `getOpenCodeGoConfig`. Multi-account pools with per-account endpoints get
+   * the ACTIVE block's endpoint on core paths (the dispatch path threads the
+   * selected account's config); personal accounts are the common case.
+   */
+  async getCopilotConfig(): Promise<CopilotTokenConfig | undefined> {
+    const full = await this.tokens.getFullConfig();
+    return full.copilot;
   }
 }
 

@@ -30,6 +30,7 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 import { CliCard } from './CliCard';
 import { useCli } from './hooks/useCli';
 import { useCliIntegrations } from './hooks/useCliIntegrations';
+import { useRouteKeys } from './hooks/useRouteKeys';
 import { hasInstalledIntegration, hasRotationConflict } from './integrationStatusModel';
 import { PersistentIntegrationCard } from './PersistentIntegrationCard';
 import { CodexSessionManager } from './CodexSessionManager';
@@ -64,12 +65,13 @@ export function CodeCliPage() {
   const t = useTranslation();
   const { loading, clis, sessions, busy, error, refresh, install, launch, stop } = useCli();
   const integrations = useCliIntegrations();
+  const { routeKeys, refresh: refreshRouteKeys } = useRouteKeys();
   const [manualOpen, setManualOpen] = useState(false);
   const [rotateOpen, setRotateOpen] = useState(false);
 
   const handleRefresh = useCallback(() => {
-    void Promise.all([refresh(), integrations.refresh()]);
-  }, [integrations.refresh, refresh]);
+    void Promise.all([refresh(), integrations.refresh(), refreshRouteKeys()]);
+  }, [integrations.refresh, refresh, refreshRouteKeys]);
 
   const integrationRows = integrations.overview?.integrations ?? [];
   const integrationMutationBusy = integrations.busyTarget !== null;
@@ -210,6 +212,7 @@ export function CodeCliPage() {
                   onInstall={() => install(cli.id)}
                   onLaunch={(input) => launch(cli.id, input)}
                   onStop={(id) => void stop(id)}
+                  routeKeys={cli.id === 'codex' ? routeKeys : undefined}
                 />
               ))}
             </div>

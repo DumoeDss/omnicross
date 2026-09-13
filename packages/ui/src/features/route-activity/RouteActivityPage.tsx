@@ -1,12 +1,13 @@
 /**
  * RouteActivityPage — the Run-group home for live routing operations.
  *
- * Focused on the routing stream itself: which managed account served each
- * subscription request, plus the server-overload trend. The request queue and
+ * Focused on the routing stream itself: which credential actually served each
+ * request — subscription pool accounts AND BYO provider API keys on one
+ * timeline — plus the server-overload trend. The request queue and
  * recent-errors views used to share this surface but crowded out the routing
  * records; the queue is summarized on the Gateway overview and the aggregate
  * error rate lives on the Overview page. All of this is metadata only — no
- * prompts, headers, or tokens are collected.
+ * prompts, headers, tokens or key strings are collected.
  */
 
 import { Activity } from 'lucide-react';
@@ -16,11 +17,13 @@ import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { flattenAccounts } from '@/features/accounts/accountManagementModel';
 import { AccountRouteActivityView } from '@/features/upstreams/AccountRouteActivityView';
 import { OverloadTrendView } from '@/features/upstreams/OverloadTrendView';
+import { useLlmProvidersData } from '@/shared/state/settingsStore';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 export function RouteActivityPage() {
   const t = useTranslation();
   const accountsApi = useAccounts();
+  const providersApi = useLlmProvidersData();
 
   const accountRows = React.useMemo(
     () => flattenAccounts(accountsApi.data, accountsApi.allowances),
@@ -49,7 +52,7 @@ export function RouteActivityPage() {
 
       <div className="flex min-h-0 flex-1 flex-col">
         <OverloadTrendView accounts={accountRows} />
-        <AccountRouteActivityView accounts={accountRows} />
+        <AccountRouteActivityView accounts={accountRows} providers={providersApi.providers} />
       </div>
     </div>
   );

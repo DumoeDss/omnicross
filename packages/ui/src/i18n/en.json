@@ -503,7 +503,8 @@
     "save": "Save",
     "optional": "optional",
     "retry": "Retry",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "refresh": "Refresh"
   },
   "mediaSettings": {
     "common": {
@@ -543,7 +544,7 @@
   },
   "routeActivity": {
     "title": "Routing activity",
-    "description": "Live account routing and server-overload trends — metadata only."
+    "description": "Live credential routing (subscription accounts + provider API keys) and server-overload trends — metadata only."
   },
   "overview": {
     "eyebrow": "Local request exchange",
@@ -723,13 +724,13 @@
       "activity": "Routing activity"
     },
     "activity": {
-      "title": "Recent account routing",
-      "description": "See which managed account actually served each subscription request. Session identifiers are hashed; prompts, headers and tokens are never collected.",
+      "title": "Recent routing",
+      "description": "See which credential actually served each request — subscription pool accounts and BYO provider API keys on one timeline. Session identifiers are hashed; prompts, headers, tokens and key strings are never collected.",
       "metadataOnly": "Metadata only",
       "live": "Live",
       "paused": "Paused",
       "sessions": "Sessions in view",
-      "switches": "Account switches",
+      "switches": "Credential switches",
       "issues": "Upstream issues",
       "overloadCount": "Server overloads",
       "overloaded": "overloaded",
@@ -741,28 +742,42 @@
       "overloadJustNow": "just now",
       "overloadMinsAgo": "{{n}} min ago",
       "overloadHoursAgo": "{{n}} h ago",
-      "search": "Search account, model or session hash…",
+      "search": "Search account, key, model or session hash…",
       "providerFilter": "Filter by provider",
       "outcomeFilter": "Filter by outcome",
+      "kindFilter": "Filter by credential kind",
       "allProviders": "All providers",
       "session": "session",
       "switched": "switched",
+      "keyPrefix": "key",
+      "providerKey": "provider key",
       "networkError": "Network error",
       "unavailable": "Routing activity is unavailable",
-      "unavailableHint": "Update or reconnect the daemon, then refresh this view. Existing account routing continues normally.",
-      "empty": "No account routing activity yet",
-      "emptyHint": "Start a Codex or Claude Code request through a subscription route. New activity appears here without enabling request-body capture.",
+      "unavailableHint": "Update or reconnect the daemon, then refresh this view. Existing routing continues normally.",
+      "empty": "No routing activity yet",
+      "emptyHint": "Start a request through a subscription route or a BYO provider. New activity appears here without enabling request-body capture.",
       "filter": {
         "all": "All outcomes",
         "success": "Successful",
         "issues": "Issues",
-        "switched": "Account switched"
+        "switched": "Credential switched"
+      },
+      "kind": {
+        "all": "All credentials",
+        "account": "Accounts",
+        "key": "API keys"
       },
       "affinity": {
         "new": "new session",
-        "sticky": "same account",
-        "switched": "account changed",
-        "untracked": "no session key"
+        "untracked": "no session key",
+        "account": {
+          "sticky": "same account",
+          "switched": "account changed"
+        },
+        "key": {
+          "sticky": "same key",
+          "switched": "key rotated"
+        }
       }
     },
     "downstreams": {
@@ -772,6 +787,8 @@
       "add": "Add downstream",
       "empty": "No downstream interface yet.",
       "selectPrompt": "Select a downstream interface or create a new one.",
+      "resourcePlaceholder": "Select an upstream resource",
+      "legacyTarget": "legacy target — pick a live resource to migrate",
       "noResources": "Add an upstream provider or account first.",
       "editEyebrow": "Downstream route",
       "createEyebrow": "New downstream interface",
@@ -808,7 +825,9 @@
       "mapping": {
         "source": "Requested model",
         "target": "Upstream model (free text)",
-        "add": "Add mapping"
+        "add": "Add mapping",
+        "effort": "Effort",
+        "effortHint": "Pin a thinking level for clients that cannot send one — applied only when the request carries no reasoning setting of its own. Suggestions follow the target model's known levels; a custom level passes same-format upstreams verbatim."
       },
       "noResource": "No upstream selected"
     },
@@ -1034,12 +1053,12 @@
         "empty": "No downstream is bound",
         "manage": "Manage downstream bindings",
         "manageHint": "The API key chooses which downstreams it may enter; route targets and model mappings remain under Upstreams and routes.",
-        "bindUpstream": {
-          "title": "Bind upstream directly",
-          "placeholder": "Pick an upstream resource…",
-          "add": "Bind",
-          "protocols": "Creates passthrough routes for:",
-          "hint": "One click creates passthrough routes from this key to the selected upstream across every protocol it can serve; edit or remove them later under Upstreams and routes."
+        "directUpstream": {
+          "label": "Direct upstream",
+          "none": "Not bound (downstream routes only)",
+          "hint": "Direct binding and downstream routes COEXIST: routes serve the protocols and models they cover first; anything unrouted (including paths the gateway itself does not implement) is relayed verbatim to the direct upstream. A provider = byte-for-byte passthrough (auth swapped, unmetered); a Claude / Kimi subscription = native Anthropic-wire relay (OAuth auto-refresh, account scheduling, usage metered).",
+          "boundHint": "Requests not covered by a downstream route are relayed verbatim to the bound provider (auth swapped). Direct traffic is not metered: spend tracking and cost limits do not account it.",
+          "boundSubscriptionHint": "/v1/messages requests not covered by a downstream route relay verbatim through the bound subscription account (Anthropic same-wire relay: OAuth auto-refresh, pool scheduling, fingerprint replay; usage is metered)."
         }
       },
       "integrations": {
@@ -1884,7 +1903,11 @@
       "launchDescription": "Opens a new terminal on the daemon host running this CLI, routed through the daemon proxy. Pick an optional working directory.",
       "cwdLabel": "Working directory",
       "cwdPlaceholder": "/path/to/your/project",
+      "routeKeyLabel": "Route key",
+      "routeKeyAuto": "Auto (first enabled provider)",
+      "routeKeyHint": "This terminal's Codex authenticates as the selected access key; routing and model mapping follow that key's gateway bindings, so concurrent terminals can use different upstreams.",
       "runningVia": "Running · {{provider}} / {{model}}",
+      "runningViaKey": "Running · key {{name}}",
       "stop": "Stop"
     },
     "manual": {
@@ -2092,7 +2115,19 @@
     "hour": "Hour",
     "day": "Day",
     "month": "Month",
-    "other": "Other"
+    "other": "Other",
+    "modeDate": "Date",
+    "modeCycle": "Billing cycle",
+    "modeCycleHint": "View usage segmented by subscription billing cycles (reset boundaries are detected automatically)",
+    "cycleAccount": "Account",
+    "cycleSelect": "Cycle",
+    "cycleOngoing": "ongoing",
+    "cyclesUnavailable": "Cycle history unavailable on this daemon",
+    "cyclesEmpty": "No billing cycles yet",
+    "filterAllProviders": "All providers",
+    "filterProvider": "Provider",
+    "filterAllKeys": "All keys",
+    "filterKey": "API key"
   },
   "pricing": {
     "title": "Model Pricing",

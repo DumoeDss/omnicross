@@ -14,6 +14,8 @@ import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMa
 import { legacyEndpointsToBindings } from '../apiServerConfig';
 import {
   buildProviderModelsUrl,
+  directUpstreamBinding,
+  directUpstreamUrl,
   extractGeminiModelFromUrl,
   extractPresentedKey,
   handleOutboundRequest,
@@ -52,7 +54,10 @@ class MockReq extends EventEmitter {
   }
 }
 
-class MockRes {
+// An EventEmitter-backed response stand-in: enough of the Writable surface
+// (`write`/`end`/`on`/`once`/`destroy`) for both direct writes and
+// `Readable.pipe(res)` in the direct-upstream relay branch.
+class MockRes extends EventEmitter {
   statusCode = 0;
   headers: Record<string, string> = {};
   body = '';
@@ -63,8 +68,15 @@ class MockRes {
     this.headersSent = true;
     return this;
   }
+  write(chunk?: string) {
+    if (chunk) this.body += chunk;
+  }
   end(chunk?: string) {
     if (chunk) this.body += chunk;
+    this.emit('close');
+  }
+  destroy() {
+    this.emit('close');
   }
 }
 
@@ -88,6 +100,7 @@ function makeDb(byHash: (h: string) => OutboundKeyDbRow | null): OutboundKeyDb {
     outboundApiKeysTouchLastUsed: async () => true,
     outboundApiKeysSetEnabled: async () => true,
     outboundApiKeysSetMaxConcurrency: async () => true,
+    outboundApiKeysSetUpstream: async () => true,
     outboundApiKeysSetPolicy: async () => true,
     outboundApiKeysMarkActivated: async () => true,
     outboundApiKeysReveal: async () => null,
@@ -101,14 +114,18 @@ function makeDeps(opts: {
   /** When set, wires a (stub) ApiKeyPool onto proxyDeps so the router synthesizes
    *  a stable `outbound:<keyId>` sessionId (pool-seam, design D1/D2(a)). */
   apiKeyPool?: unknown;
-  /** Overrides the router-level provider row (llmConfig.getProvider). */
-  llmProvider?: Record<string, unknown>;
+  /** Overrides the router-level provider row (llmConfig.getProvider). A
+   * function becomes getProvider itself (id-aware); `null` forces a miss. */
+  llmProvider?: Record<string, unknown> | null | ((id: string) => Record<string, unknown> | null);
 }): OutboundApiDeps {
   return {
     db: opts.db,
     llmConfig: {
-      getProvider: async () =>
-        opts.llmProvider ?? { id: 'openai', api_key: 'sk-x', models: ['gpt-4o'] },
+      getProvider:
+        typeof opts.llmProvider === 'function'
+          ? async (id: string) => opts.llmProvider?.(id)
+          : async () =>
+              'llmProvider' in opts ? opts.llmProvider : { id: 'openai', api_key: 'sk-x', models: ['gpt-4o'] },
     } as unknown as OutboundApiDeps['llmConfig'],
     providerProxy: { getRouteMap: () => opts.routeMap } as unknown as OutboundApiDeps['providerProxy'],
     // The shared chat ingress reads provider rows off proxyDeps.llmConfig; a
@@ -346,7 +363,54 @@ describe('handleOutboundRequest — auth', () => {
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
-    expect(body.data.map((model) => model.id)).toEqual(['gpt-5.6-sol', 'gpt-5.6-luna']);
+    // Exact aliases first; the `*` wildcard routes ANY client id, so the
+    // target's catalog (stub row: ['gpt-4o']) AND the wildcard's own target
+    // id ('glm-5.3', reachable by name) join the advertisement.
+    expect(body.data.map((model) => model.id)).toEqual([
+      'gpt-5.6-sol',
+      'gpt-5.6-luna',
+      'gpt-4o',
+      'glm-5.3',
+    ]);
+  });
+
+  it('GET /v1/models advertises the SUBSCRIPTION catalog for a wildcard-only mapping route', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({ db: makeDb(() => ({ ...enabledRow })), routeMap, llmProvider: null });
+    // Mirrors the operator shape: messages → opencodego account-group with a
+    // single `*` mapping. Requests route fine, but pre-change the list
+    // advertised NOTHING (wildcards are not nameable aliases) — the app saw an
+    // empty catalog while chat worked.
+    const wildcardConfig = {
+      endpoints: [],
+      anthropic: { modelsShape: 'openai' as const },
+      bindings: [{
+        id: 'opencodego-wildcard',
+        name: 'claude-opencodego',
+        enabled: true,
+        keyScope: 'selected',
+        apiKeyIds: [enabledRow.id],
+        endpoint: 'messages',
+        target: { kind: 'account-group', providerId: 'opencodego', group: 'opencodego' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'mapped',
+        modelMappings: [{ source: '*', target: 'deepseek-v4.1-flash' }],
+      } satisfies GatewayBinding],
+    };
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse, deps, wildcardConfig, new OutboundRateLimiter(), new UserMessageSerialQueue(), new OutboundConcurrencyGate());
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data.map((model) => model.id)).toContain('deepseek-v4.1-flash');
   });
 
   it('GET /v1/models advertises the target provider catalog for a passthrough route', async () => {
@@ -585,6 +649,352 @@ describe('handleOutboundRequest — auth', () => {
     expect(buildProviderModelsUrl('https://generativelanguage.googleapis.com/v1beta', 'google'))
       .toBe('https://generativelanguage.googleapis.com/v1beta/models');
     expect(buildProviderModelsUrl('   ', 'openai')).toBeNull();
+  });
+
+
+  it('directUpstreamBinding synthesizes a messages passthrough binding scoped to the key at LOW precedence', () => {
+    const binding = directUpstreamBinding(
+      { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+      'oak_direct',
+    );
+    expect(binding).toMatchObject({
+      id: 'direct:oak_direct',
+      enabled: true,
+      keyScope: 'selected',
+      apiKeyIds: ['oak_direct'],
+      endpoint: 'messages',
+      target: { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+      priority: 1000,
+      fallback: 'fail',
+      modelMode: 'passthrough',
+    });
+  });
+
+  it('a key direct-bound to a claude account routes /v1/messages through the subscription resolver', async () => {
+    const routeMap = new ProviderProxyRouteMap();
+    const deps = makeDeps({
+      db: makeDb(() => ({
+        ...enabledRow,
+        boundUpstream: { kind: 'account', providerId: 'claude', accountId: 'acct-a' },
+      })),
+      routeMap,
+      // null ⇒ the 'claude' row lookup misses ⇒ the subscription branch runs
+      // (makeDeps' default row would pose as a BYO 'claude' provider).
+      llmProvider: null,
+    });
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/messages',
+      method: 'POST',
+      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 16, messages: [] }),
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      // NO bindings configured — the direct target alone must serve the key.
+      { endpoints: [], bindings: [] },
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    // The synthesized binding carried the request all the way into the
+    // subscription route resolver, which fails here ONLY because no registry
+    // is wired in this unit context (the daemon wires the real one).
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toContain("subscription provider 'claude' is not available");
+  });
+
+  it('a key direct-bound to a claude account advertises the claude catalog on /v1/models', async () => {
+    const deps = makeDeps({
+      db: makeDb(() => ({
+        ...enabledRow,
+        boundUpstream: { kind: 'account-pool', providerId: 'claude' },
+      })),
+      routeMap: new ProviderProxyRouteMap(),
+      llmProvider: null,
+    });
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any' },
+      url: '/v1/models',
+      method: 'GET',
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      { endpoints: [], bindings: [] },
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const entry of body.data) expect(entry.id).toMatch(/^claude-/);
+  });
+
+  it('directUpstreamUrl maps the client path 1:1 with version-segment dedup', () => {
+    const openaiBase = (base: string): { api_base_url: string; apiFormat?: 'openai' } => ({
+      api_base_url: base,
+    });
+    // Versioned base: the client's duplicate /v1 prefix is dropped.
+    expect(directUpstreamUrl(openaiBase('https://api.siliconflow.com/v1'), '/v1/chat/completions'))
+      .toBe('https://api.siliconflow.com/v1/chat/completions');
+    expect(directUpstreamUrl(openaiBase('https://api.siliconflow.com/v1'), '/v1/models'))
+      .toBe('https://api.siliconflow.com/v1/models');
+    // Full completion endpoint base: the suffix is stripped to the root first.
+    expect(directUpstreamUrl(openaiBase('https://api.openai.com/v1/chat/completions'), '/v1/chat/completions'))
+      .toBe('https://api.openai.com/v1/chat/completions');
+    // Bare host root keeps the client's /v1 intact.
+    expect(directUpstreamUrl(openaiBase('https://api.anthropic.com'), '/v1/messages'))
+      .toBe('https://api.anthropic.com/v1/messages');
+    // anthropic row carrying the messages endpoint.
+    expect(directUpstreamUrl({ api_base_url: 'https://api.anthropic.com/v1/messages', apiFormat: 'anthropic' }, '/v1/messages'))
+      .toBe('https://api.anthropic.com/v1/messages');
+    // gemini row carrying the models collection; /v1beta dedup + query preserved.
+    expect(directUpstreamUrl({ api_base_url: 'https://generativelanguage.googleapis.com/v1beta/models/', apiFormat: 'google' }, '/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse'))
+      .toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse');
+    // Unrelated path passes through untouched (transparent proxy).
+    expect(directUpstreamUrl(openaiBase('https://api.siliconflow.com/v1'), '/v1/embeddings'))
+      .toBe('https://api.siliconflow.com/v1/embeddings');
+    expect(directUpstreamUrl({ api_base_url: '' }, '/v1/models')).toBeNull();
+  });
+
+  it('a key with a bound upstream relays VERBATIM — auth swapped, path/body/status untouched', async () => {
+    const seen: Array<{ url: string; init: RequestInit }> = [];
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      seen.push({ url: String(url), init: init ?? {} });
+      return new Response(JSON.stringify({ ok: true, relayed: true }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const deps = makeDeps({
+        db: makeDb(() => ({ ...enabledRow, boundUpstreamProviderId: 'relay' })),
+        routeMap: new ProviderProxyRouteMap(),
+        llmProvider: {
+          id: 'relay',
+          name: 'relay',
+          apiFormat: 'openai',
+          api_base_url: 'https://relay.example/v1',
+          api_key: 'sk-upstream-secret',
+          models: [],
+          enabled: true,
+        },
+      });
+      // No bindings at all — the direct branch must not need one.
+      const req = new MockReq({
+        headers: { authorization: 'Bearer sk-omnicross-client' },
+        url: '/v1/chat/completions',
+        method: 'POST',
+        body: JSON.stringify({ model: 'whatever-the-client-wants', stream: true }),
+      });
+      const res = new MockRes();
+      req.start();
+      await handleOutboundRequest(
+        req as unknown as http.IncomingMessage,
+        res as unknown as http.ServerResponse,
+        deps,
+        { endpoints: [], bindings: [] },
+        new OutboundRateLimiter(),
+        new UserMessageSerialQueue(),
+        new OutboundConcurrencyGate(),
+      );
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.body)).toEqual({ ok: true, relayed: true });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(seen[0]?.url).toBe('https://relay.example/v1/chat/completions');
+      expect(seen[0]?.init.method).toBe('POST');
+      // Body forwarded byte-for-byte.
+      expect(seen[0]?.init.body).toBe(JSON.stringify({ model: 'whatever-the-client-wants', stream: true }));
+      // Auth swapped to the provider key; the client key NEVER reaches upstream.
+      const headers = seen[0]?.init.headers as Record<string, string>;
+      expect(headers['Authorization']).toBe('Bearer sk-upstream-secret');
+      expect(JSON.stringify(headers)).not.toContain('sk-omnicross-client');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a bound key renders /v1/models as the union (routes + direct catalog) and relays unknown paths verbatim; missing provider is a clear 503', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) =>
+      new Response(JSON.stringify({ object: 'list', data: [{ id: 'upstream-model' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const deps = makeDeps({
+        db: makeDb(() => ({ ...enabledRow, boundUpstreamProviderId: 'relay' })),
+        routeMap: new ProviderProxyRouteMap(),
+        llmProvider: {
+          id: 'relay',
+          name: 'relay',
+          apiFormat: 'openai',
+          api_base_url: 'https://relay.example/v1',
+          api_key: 'sk-x',
+          models: [],
+          enabled: true,
+        },
+      });
+      const run = async (url: string, method = 'GET'): Promise<MockRes> => {
+        const req = new MockReq({ headers: { authorization: 'Bearer any' }, url, method });
+        const res = new MockRes();
+        req.start();
+        await handleOutboundRequest(
+          req as unknown as http.IncomingMessage,
+          res as unknown as http.ServerResponse,
+          deps,
+          { endpoints: [], bindings: [], anthropic: { modelsShape: 'openai' as const } },
+          new OutboundRateLimiter(),
+          new UserMessageSerialQueue(),
+          new OutboundConcurrencyGate(),
+        );
+        return res;
+      };
+      // /v1/models is the GATEWAY's rendered union — the direct provider's
+      // catalog (live-discovered) joins it, because a multi-upstream key must
+      // not receive a single upstream's raw list.
+      const models = await run('/v1/models');
+      expect(models.statusCode).toBe(200);
+      const listBody = JSON.parse(models.body) as { object: string; data: Array<{ id: string }> };
+      expect(listBody.object).toBe('list');
+      expect(listBody.data.map((m) => m.id)).toEqual(['upstream-model']);
+      expect(vi.mocked(fetchMock).mock.calls[0]?.[0]).toBe('https://relay.example/v1/models');
+      // An arbitrary path the gateway does not implement surfaces upstream's answer.
+      const other = await run('/v1/embeddings', 'POST');
+      expect(other.statusCode).toBe(200);
+      expect(JSON.parse(other.body).data.map((m: { id: string }) => m.id)).toEqual(['upstream-model']);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(fetchMock).mock.calls[1]?.[0]).toBe('https://relay.example/v1/embeddings');
+
+      // A key whose bound provider row no longer exists gets a deterministic 503.
+      const goneDeps = makeDeps({
+        db: makeDb(() => ({ ...enabledRow, boundUpstreamProviderId: 'deleted-provider' })),
+        routeMap: new ProviderProxyRouteMap(),
+        llmProvider: null,
+      });
+      const req = new MockReq({ headers: { authorization: 'Bearer any' }, url: '/v1/chat/completions', method: 'POST', body: '{}' });
+      const res = new MockRes();
+      req.start();
+      await handleOutboundRequest(
+        req as unknown as http.IncomingMessage,
+        res as unknown as http.ServerResponse,
+        goneDeps,
+        { endpoints: [], bindings: [] },
+        new OutboundRateLimiter(),
+        new UserMessageSerialQueue(),
+        new OutboundConcurrencyGate(),
+      );
+      expect(res.statusCode).toBe(503);
+      expect(res.body).toContain('deleted-provider');
+    } finally {
+      vi.unstubAllGlobals();
+      resetUpstreamModelsDiscoveryCache();
+    }
+  });
+
+  it('routes WIN over the direct tier for their models; unrouted models fall through to the verbatim relay', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) =>
+      new Response(JSON.stringify({ relayed: true, url: String(url) }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const deps = makeDeps({
+        db: makeDb(() => ({ ...enabledRow, boundUpstream: { kind: 'provider', providerId: 'direct-relay' } })),
+        routeMap: new ProviderProxyRouteMap(),
+        // Id-aware provider rows: the ROUTE's target (z-ai) resolves for the
+        // routed model, so the request enters the pipeline instead of the
+        // relay; the DIRECT target row carries its own base URL.
+        llmProvider: (id: string) => {
+          if (id === 'direct-relay') {
+            return {
+              id: 'direct-relay',
+              name: 'direct relay',
+              apiFormat: 'openai',
+              api_base_url: 'https://direct.example/v1',
+              api_key: 'sk-direct',
+              models: [],
+              enabled: true,
+            };
+          }
+          if (id === 'z-ai') {
+            return {
+              id: 'z-ai',
+              name: 'z.ai',
+              apiFormat: 'anthropic',
+              api_base_url: 'https://api.z.ai/v1/messages',
+              api_key: 'sk-z',
+              models: ['glm-4.7'],
+              enabled: true,
+            };
+          }
+          return null;
+        },
+      });
+      const routedConfig = {
+        endpoints: [],
+        bindings: [{
+          id: 'routed',
+          name: 'Routed chat subset',
+          enabled: true,
+          keyScope: 'selected' as const,
+          apiKeyIds: [enabledRow.id],
+          endpoint: 'chat' as const,
+          target: { kind: 'provider', providerId: 'z-ai' },
+          priority: 100,
+          fallback: 'fail' as const,
+          // LIST mode: the route owns exactly 'special-glm'; everything else
+          // on the chat endpoint is unrouted → direct tier.
+          modelMode: 'mapped' as const,
+          models: ['special-glm'],
+        } satisfies GatewayBinding],
+      };
+      const run = async (model: string): Promise<MockRes> => {
+        const req = new MockReq({
+          headers: { authorization: 'Bearer any' },
+          url: '/v1/chat/completions',
+          method: 'POST',
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }] }),
+        });
+        const res = new MockRes();
+        req.start();
+        await handleOutboundRequest(
+          req as unknown as http.IncomingMessage,
+          res as unknown as http.ServerResponse,
+          deps,
+          routedConfig,
+          new OutboundRateLimiter(),
+          new UserMessageSerialQueue(),
+          new OutboundConcurrencyGate(),
+        );
+        return res;
+      };
+      // The routed model goes to the ROUTE (the pipeline runs; with these stub
+      // deps the dispatch errors) — the verbatim relay is NOT used.
+      const routed = await run('special-glm');
+      expect(routed.statusCode).toBeGreaterThan(399);
+      expect(fetchMock).not.toHaveBeenCalled();
+      // A model outside the route's mappings falls through to the direct tier.
+      const direct = await run('any-other-model');
+      expect(direct.statusCode).toBe(200);
+      expect(JSON.parse(direct.body)).toEqual({
+        relayed: true,
+        url: 'https://direct.example/v1/chat/completions',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('GET /v1/models allows a Responses-scoped integration key and filters its catalog', async () => {
@@ -972,5 +1382,119 @@ describe('handleOutboundRequest — apiKeyId attribution (udash-attrib D5)', () 
     const internal = routeMap.lookup(internalToken);
     expect(internal?.apiKeyId).toBeUndefined();
     expect(internal?.apiKeyId ?? null).toBeNull();
+  });
+});
+
+describe('handleOutboundRequest — mapping effort default (model-mapping-effort)', () => {
+  /** Drive one chat completion through a mapped binding with an effort row and
+   *  return the JSON body the upstream fetch received. */
+  async function postChat(
+    mappings: GatewayBinding['modelMappings'],
+    clientBody: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const relay = {
+      id: 'relay',
+      name: 'relay',
+      apiFormat: 'openai',
+      api_base_url: 'https://relay.example/v1',
+      api_key: 'sk-x',
+      models: [],
+      enabled: true,
+    };
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ id: 'x', object: 'chat.completion', created: 0, model: 'm', choices: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const routeMap = new ProviderProxyRouteMap();
+      const llmConfig = {
+        getProvider: async () => relay,
+        resolveTransformerChain: async () => ({ providerTransformers: [], modelTransformers: [] }),
+        getMainTransformer: async () => null,
+      };
+      const deps = {
+        db: makeDb(() => ({ ...enabledRow })),
+        llmConfig,
+        providerProxy: { getRouteMap: () => routeMap },
+        proxyDeps: { llmConfig, apiKeyPool: null },
+      } as unknown as OutboundApiDeps;
+      const req = new MockReq({
+        headers: { authorization: 'Bearer any' },
+        url: '/v1/chat/completions',
+        body: JSON.stringify(clientBody),
+      });
+      const res = new MockRes();
+      req.start();
+      await handleOutboundRequest(
+        req as unknown as http.IncomingMessage,
+        res as unknown as http.ServerResponse,
+        deps,
+        {
+          endpoints: [],
+          bindings: [{
+            id: 'chat-effort',
+            name: 'Chat effort mapping',
+            enabled: true,
+            keyScope: 'selected',
+            apiKeyIds: [enabledRow.id],
+            endpoint: 'chat',
+            target: { kind: 'provider', providerId: 'relay' },
+            priority: 100,
+            fallback: 'fail',
+            modelMode: 'mapped',
+            modelMappings: mappings,
+          } satisfies GatewayBinding],
+        },
+        new OutboundRateLimiter(),
+        new UserMessageSerialQueue(),
+        new OutboundConcurrencyGate(),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      return JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    } finally {
+      vi.unstubAllGlobals();
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    }
+  }
+
+  it('injects the mapping effort as the wire-native default and rewrites the model', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' }],
+      { model: 'GPT-5.6-SOL-XHIGH', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['model']).toBe('gpt-5.6-sol');
+    expect(body['reasoning_effort']).toBe('xhigh');
+  });
+
+  it('keeps a client-sent effort over the mapping default', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' }],
+      { model: 'gpt-5.6-sol-xhigh', reasoning_effort: 'low', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['reasoning_effort']).toBe('low');
+  });
+
+  it('leaves the body untouched when the winning mapping pins no effort', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol', target: 'gpt-5.6-sol' }],
+      { model: 'gpt-5.6-sol', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['model']).toBe('gpt-5.6-sol');
+    expect(body['reasoning_effort']).toBeUndefined();
+  });
+
+  it('serves a renamed chat alias through the mapping (previously a 404 against the single-entry list)', async () => {
+    const body = await postChat(
+      [{ source: 'gpt-5.6-sol-high', target: 'gpt-5.6-sol' }],
+      { model: 'gpt-5.6-sol-high', messages: [{ role: 'user', content: 'hi' }] },
+    );
+    expect(body['model']).toBe('gpt-5.6-sol');
+    expect(body['reasoning_effort']).toBeUndefined();
   });
 });

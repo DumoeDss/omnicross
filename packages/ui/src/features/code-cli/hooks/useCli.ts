@@ -21,7 +21,7 @@ export interface UseCliResult {
   clearError: () => void;
   refresh: () => Promise<void>;
   install: (cli: string) => Promise<MutationResult>;
-  launch: (cli: string, input?: { cwd?: string }) => Promise<CliLaunchResult>;
+  launch: (cli: string, input?: { cwd?: string; keyId?: string }) => Promise<CliLaunchResult>;
   stop: (id: string) => Promise<void>;
 }
 
@@ -71,7 +71,7 @@ export function useCli(): UseCliResult {
   );
 
   const launch = useCallback(
-    async (cli: string, input?: { cwd?: string }) => {
+    async (cli: string, input?: { cwd?: string; keyId?: string }) => {
       setBusy(true);
       setError(null);
       try {

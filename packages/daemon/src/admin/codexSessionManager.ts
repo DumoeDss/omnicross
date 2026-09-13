@@ -603,11 +603,22 @@ async function readStateThreads(databasePath: string): Promise<StateReadResult> 
 }
 
 async function loadSqlite(): Promise<SqliteModule> {
+  // The specifier MUST stay indirect: esbuild strips the `node:` prefix from a
+  // constant-specifier dynamic import when externalizing ("node:sqlite" →
+  // "sqlite"), turning a builtin load into a bare-package lookup that always
+  // fails in the shipped cli.js. A non-constant specifier defeats the rewrite;
+  // the runtime loader still resolves the builtin directly.
+  const specifier = 'node:sqlite';
   try {
-    return await import('node:sqlite');
-  } catch {
+    return (await import(specifier)) as SqliteModule;
+  } catch (error) {
+    // Name the runtime that actually failed: the daemon often runs on the
+    // desktop app's bundled Node, not the Node on PATH, so "upgrade Node.js"
+    // alone would send users down the wrong path.
+    const cause = error instanceof Error ? error.message : String(error);
     throw new CodexSessionManagerError(
-      'Codex session SQLite support requires Node.js 22.16 or newer (node:sqlite)',
+      `Codex session SQLite support requires Node.js 22.16 or newer (node:sqlite); ` +
+        `this daemon runs ${process.version} (import failed: ${cause})`,
     );
   }
 }
