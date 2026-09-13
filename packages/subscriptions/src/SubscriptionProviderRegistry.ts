@@ -238,6 +238,19 @@ export class SubscriptionProviderRegistry {
             const { shape } = resolveOpenCodeGoTarget(model, config as OpenCodeGoTokenConfig | undefined);
             return opencodegoTransformerNamesForShape(shape);
           },
+          // openai-chat-bridge OQ1: same shape resolution as above, but for a
+          // UNIFIED (OpenAI-chat) caller. The one deliberate divergence: the
+          // anthropic shape takes the `['anthropic']` ENCODER here — the
+          // messages-path `[]` means "the caller already speaks Anthropic",
+          // which a chat caller does not. Every other shape reuses the
+          // messages-path mapping verbatim (chat ⇒ openai, responses ⇒
+          // openai-response, gemini ⇒ gemini).
+          chatBridgeTransformerNames: (model, config) => {
+            const { shape } = resolveOpenCodeGoTarget(model, config as OpenCodeGoTokenConfig | undefined);
+            return shape === 'anthropic'
+              ? ['anthropic']
+              : opencodegoTransformerNamesForShape(shape);
+          },
           providerTransformerNames: ['openai'],
           modelTransformerNames: [],
           modelMapper: (sdkModel, summary, config) => {

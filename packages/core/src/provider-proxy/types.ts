@@ -156,6 +156,22 @@ export interface SubscriptionDispatchProfile {
     config?: unknown,
   ) => readonly string[];
 
+  /**
+   * OPTIONAL chat-bridge-only chain-name resolver (openai-chat-bridge OQ1
+   * closure; type-identical mirror on `SubscriptionAuthProfile`). The
+   * OpenAI-chat ingress consults it INSTEAD of
+   * `resolveProviderTransformerNames`/`providerTransformerNames` because a chat
+   * caller's wire is Unified: an anthropic-shape upstream needs the
+   * `['anthropic']` ENCODER, whereas the messages path's same-shape `[]` means
+   * "the caller already speaks Anthropic" — different answers for the same
+   * shape. Only opencodego sets it; absent ⇒ the chat ingress keeps the static
+   * `providerTransformerNames` (claude/kimi/grok route-to chains).
+   */
+  readonly chatBridgeTransformerNames?: (
+    model: string,
+    config?: unknown,
+  ) => readonly string[];
+
   /** Optional model placeholder rewriter — only set for OpenCodeGo. */
   readonly modelMapper?: (
     sdkModel: string,

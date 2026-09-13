@@ -37,6 +37,7 @@ import type { EndpointRoutingConfig } from '../../outbound-api/types';
 import type { ProviderConfigSource } from '../../ports';
 import type { AuthStrategy } from '../../pipeline/SubscriptionAuthStrategy';
 import { AnthropicTransformer } from '../../transformer/transformers/AnthropicTransformer';
+import { OpenAIResponseTransformer } from '../../transformer/transformers/OpenAIResponseTransformer';
 import type { Transformer } from '../../transformer/types';
 import { ProviderProxy } from '../ProviderProxy';
 import type { ProviderProxyDeps, RouteContext, SubscriptionDispatchProfile } from '../types';
@@ -96,6 +97,16 @@ const OPENAI_COMPLETION = {
   usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
 };
 
+/** A minimal non-stream RESPONSES-shaped body (grok's upstream wire). */
+const RESPONSES_COMPLETION = {
+  id: 'resp_grok',
+  object: 'response',
+  status: 'completed',
+  model: 'grok-x',
+  output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'pong' }] }],
+  usage: { input_tokens: 3, output_tokens: 2 },
+};
+
 interface MockUpstream {
   server: Server;
   port: number;
@@ -138,6 +149,12 @@ function startMockUpstream(): Promise<MockUpstream> {
         return;
       }
       const url = req.url ?? '';
+      // Grok-style Responses upstream → a Responses-shaped body.
+      if (url.includes('/v1/responses')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(RESPONSES_COMPLETION));
+        return;
+      }
       // BYO OpenAI-compat path (not /v1/messages) → OpenAI completion.
       if (!url.includes('/v1/messages')) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -401,7 +418,7 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
 
     expect(res.status).toBe(501);
     const json = (await res.json()) as { error?: { message?: string } };
-    expect(json.error?.message).toMatch(/supports claude only/i);
+    expect(json.error?.message).toMatch(/does not implement subscription provider 'codex'/);
     expect(upstream.hits).toBe(0);
   });
 
@@ -505,5 +522,224 @@ describe('ProviderProxy OpenAI-chat → CLAUDE subscription bridge (openai-chat-
     };
     expect(json.object).toBe('chat.completion');
     expect(json.choices?.[0]?.message?.content).toBe('pong');
+  });
+});
+
+// ── openai-chat-bridge OQ1 closure: opencodego (shape-aware) + kimi/grok ──────
+
+/**
+ * The OQ1 closure: the chat bridge now serves OPENCODEGO (via the profile's
+ * shape-aware `chatBridgeTransformerNames` seam + `modelMapper` scenario routing
+ * + the opaque `route.subscriptionConfig` threading) and KIMI/GROK (static
+ * route-to chains). The fake opencodego profile mirrors the REAL registry
+ * implementation (core tests never import `@omnicross/subscriptions`): the
+ * anthropic shape takes the `['anthropic']` ENCODER (unlike the messages path's
+ * same-shape `[]` verbatim), every other shape the format transformer for its
+ * wire.
+ */
+describe('ProviderProxy OpenAI-chat → OPENCODEGO / KIMI / GROK subscription bridge', () => {
+  let proxy: ProviderProxy;
+  let baseUrl: string;
+  let upstream: MockUpstream;
+  let llmConfig: ProviderConfigSource;
+
+  async function startProxy(): Promise<void> {
+    llmConfig = makeLlmConfig();
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+  }
+
+  beforeEach(async () => {
+    setSubscriptionRegistryForOutbound(null);
+    upstream = await startMockUpstream();
+  });
+
+  afterEach(async () => {
+    await proxy.stop();
+    await stopServer(upstream.server);
+    setSubscriptionRegistryForOutbound(null);
+  });
+
+  function bearer(token: string): Record<string, string> {
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  }
+
+  function subRoute(profile: SubscriptionDispatchProfile, subscriptionConfig?: unknown): RouteContext {
+    return {
+      sessionId: 'sess-chat-sub-ocg',
+      targetProviderFormat: 'transform',
+      model: 'sdk-model',
+      ingressFormat: 'openai-chat',
+      authMode: 'subscription',
+      providerId: profile.providerId,
+      subscriptionProfile: profile,
+      subscriptionConfig,
+    };
+  }
+
+  function upstreamUrl(path: string): string {
+    return `http://127.0.0.1:${upstream.port}${path}`;
+  }
+
+  /** Minimal config the fake seam/upstream-url read (mirrors OpenCodeGoTokenConfig). */
+  interface OcgConfig {
+    shape?: 'anthropic' | 'chat' | 'responses' | 'gemini';
+    baseUrl?: string;
+    modelMap?: { default?: { modelId: string } };
+  }
+
+  /**
+   * Fake opencodego profile mirroring the REAL registry entry: per-model shape
+   * from the config; anthropic shape ⇒ the `['anthropic']` ENCODER on the chat
+   * bridge, chat shape ⇒ `['openai']`; URL honoring a config `baseUrl` override;
+   * `modelMapper` scenario routing.
+   */
+  function opencodegoProfile(): SubscriptionDispatchProfile {
+    const namesForShape = (shape: OcgConfig['shape'], anthropicName: 'encoder' | 'verbatim') => {
+      if (shape === 'anthropic') return anthropicName === 'encoder' ? ['anthropic'] : [];
+      if (shape === 'responses') return ['openai-response'];
+      if (shape === 'gemini') return ['gemini'];
+      return ['openai'];
+    };
+    return {
+      providerId: 'opencodego',
+      displayName: 'OpenCodeGo (Bearer key)',
+      authStrategy: makeClaudeStrategy('opencodego'),
+      mode: 'transformer',
+      resolveUpstreamUrl: (model: string, config?: unknown) => {
+        const oc = config as OcgConfig | undefined;
+        const base = (oc?.baseUrl ?? upstreamUrl('')).replace(/\/+$/, '');
+        return oc?.shape === 'anthropic' ? `${base}/v1/messages` : `${base}/chat/completions`;
+      },
+      providerTransformerNames: ['openai'],
+      modelTransformerNames: [],
+      resolveProviderTransformerNames: (_model: string, config?: unknown) =>
+        namesForShape((config as OcgConfig | undefined)?.shape, 'verbatim'),
+      // The seam under test: same shapes, but anthropic ⇒ the ENCODER.
+      chatBridgeTransformerNames: (_model: string, config?: unknown) =>
+        namesForShape((config as OcgConfig | undefined)?.shape, 'encoder'),
+      modelMapper: (sdkModel: string, _summary: unknown, config?: unknown) => {
+        const oc = config as OcgConfig | undefined;
+        const mapped = oc?.modelMap?.default?.modelId ?? sdkModel;
+        return { resolvedModel: mapped, scenario: 'default' };
+      },
+    } as unknown as SubscriptionDispatchProfile;
+  }
+
+  it('opencodego anthropic shape → AnthropicTransformer bridge with the ENCODER chain', async () => {
+    await startProxy();
+    const config: OcgConfig = { shape: 'anthropic', baseUrl: upstreamUrl('') };
+    const token = proxy.addRoute(subRoute(opencodegoProfile(), config));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({
+        model: 'sdk-model',
+        max_tokens: 16,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.paths[0]).toBe('/v1/messages');
+    // The subscription bearer reached the upstream (route token discarded).
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${CLAUDE_OAUTH}`);
+    // The request was re-encoded onto the Anthropic wire.
+    const sent = JSON.parse(upstream.lastBody ?? '{}') as { messages?: unknown };
+    expect(Array.isArray(sent.messages)).toBe(true);
+    // The response came back as an OpenAI chat.completion.
+    const json = (await res.json()) as { object?: string; choices?: Array<{ message?: { content?: string } }> };
+    expect(json.object).toBe('chat.completion');
+    expect(json.choices?.[0]?.message?.content).toBe('pong');
+  });
+
+  it('opencodego chat shape → openai chain, scenario-mapped model on the wire, config URL honored', async () => {
+    await startProxy();
+    const config: OcgConfig = {
+      shape: 'chat',
+      baseUrl: upstreamUrl('/go'),
+      modelMap: { default: { modelId: 'deepseek-v4.1-flash' } },
+    };
+    const token = proxy.addRoute(subRoute(opencodegoProfile(), config));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'sdk-model', messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    // chat shape ⇒ the OpenAI chat-completions path at the config-overridden base.
+    expect(upstream.paths[0]).toBe('/go/chat/completions');
+    // modelMapper rewrote the SDK model to the scenario-mapped upstream id.
+    expect(JSON.parse(upstream.lastBody ?? '{}').model).toBe('deepseek-v4.1-flash');
+    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    expect(json.choices?.[0]?.message?.content).toBe('byo-pong');
+  });
+
+  it('kimi static route-to chain bridges like claude', async () => {
+    await startProxy();
+    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/messages'), 'kimi')));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({
+        model: 'sdk-model',
+        max_tokens: 16,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.paths[0]).toBe('/v1/messages');
+    const json = (await res.json()) as { object?: string };
+    expect(json.object).toBe('chat.completion');
+  });
+
+  it('grok static route-to chain bridges to its responses upstream', async () => {
+    const transformers: Record<string, Transformer> = {
+      anthropic: new AnthropicTransformer(),
+      'openai-response': new OpenAIResponseTransformer(),
+    };
+    llmConfig = {
+      ...makeLlmConfig(),
+      getTransformerService: () => ({ getTransformer: (name: string) => transformers[name] }),
+    } as unknown as ProviderConfigSource;
+    proxy = new ProviderProxy({ llmConfig });
+    const port = await proxy.start();
+    baseUrl = `http://127.0.0.1:${port}`;
+
+    const token = proxy.addRoute(
+      subRoute({
+        ...claudeProfile(upstreamUrl('/v1/responses'), 'grok'),
+        providerTransformerNames: ['openai-response'],
+      }),
+    );
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'sdk-model', messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstream.paths[0]).toBe('/v1/responses');
+    const json = (await res.json()) as { object?: string; choices?: Array<{ message?: { content?: string } }> };
+    expect(json.object).toBe('chat.completion');
+    expect(json.choices?.[0]?.message?.content).toBe('pong');
+  });
+
+  it('codex stays deferred with a clear 501', async () => {
+    await startProxy();
+    const token = proxy.addRoute(subRoute(claudeProfile(upstreamUrl('/v1/responses'), 'codex')));
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'sdk-model', messages: [{ role: 'user', content: 'ping' }] }),
+    });
+
+    expect(res.status).toBe(501);
+    const text = await res.text();
+    expect(text).toContain("does not implement subscription provider 'codex'");
+    expect(upstream.hits).toBe(0);
   });
 });
