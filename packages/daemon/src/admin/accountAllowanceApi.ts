@@ -4,6 +4,7 @@ import type http from 'node:http';
 
 import type { AccountAllowanceSnapshot } from '@omnicross/contracts/account-allowance-types';
 import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
+import type { AccountAllowanceCycle } from '../allowance/allowanceCycles';
 import type { AccountAllowanceSchedulingStatus } from '../allowance/AccountAllowanceService';
 
 export interface AccountAllowanceAdminReader {
@@ -29,6 +30,11 @@ export interface AccountAllowanceAdminReader {
   removeAccountSnapshot?(providerId: SubscriptionProviderId, accountId: string): void;
   removeProviderSnapshots?(providerId: SubscriptionProviderId): void;
   getSchedulingStatus?(): AccountAllowanceSchedulingStatus;
+  /** Billable-cycle segments (usage-cycle-history); absent on older daemons. */
+  getCycles?(filter?: {
+    providerId?: SubscriptionProviderId;
+    accountId?: string;
+  }): Promise<AccountAllowanceCycle[]>;
 }
 
 function writeJson(res: http.ServerResponse, status: number, body: unknown): void {
@@ -79,6 +85,7 @@ function allowanceProvider(
  * - GET `/` (optional `providerId`/`accountId` query)
  * - GET `/:providerId/:accountId`
  * - GET `/scheduling` (secret-free policy + applied-decision history)
+ * - GET `/cycles` (optional `providerId`/`accountId` query — billable-cycle segments)
  * - POST `/refresh` with optional `{ accountId }` (Claude only)
  */
 export async function handleAccountAllowanceApi(
@@ -95,6 +102,21 @@ export async function handleAccountAllowanceApi(
       return writeError(res, 501, 'allowance scheduling diagnostics are not available');
     }
     return writeJson(res, 200, { scheduling: service.getSchedulingStatus() });
+  }
+
+  if (method === 'GET' && rest.length === 1 && rest[0] === 'cycles') {
+    if (!service.getCycles) {
+      return writeError(res, 501, 'allowance cycle history is not available');
+    }
+    const params = query(req);
+    const providerId = allowanceProvider(params.get('providerId') ?? params.get('provider'));
+    if (providerId === null) {
+      return writeError(res, 400, 'providerId must be claude, codex, kimi, opencodego, grok, copilot, gemini, or antigravity');
+    }
+    const rawAccountId = params.get('accountId');
+    const accountId = rawAccountId && rawAccountId.trim() ? rawAccountId.trim() : undefined;
+    const cycles = await service.getCycles({ providerId: providerId ?? undefined, accountId });
+    return writeJson(res, 200, { cycles });
   }
 
   if (method === 'GET') {

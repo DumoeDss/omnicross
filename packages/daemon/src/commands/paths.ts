@@ -52,6 +52,11 @@ export function defaultAccountAllowancePath(configPath: string): string {
   return join(dirname(configPath), 'allowance-cache.json');
 }
 
+/** Append-only ledger of observed subscription cycle boundaries (usage-cycle-history). */
+export function defaultAllowanceBoundaryLogPath(configPath: string): string {
+  return join(dirname(configPath), 'allowance-boundaries.jsonl');
+}
+
 /** Resolve the append-only usage-events.jsonl path that sits alongside a given
  *  config.json path (convention parity with `defaultKeysPath`). */
 export function defaultUsageEventsPath(configPath: string): string {
