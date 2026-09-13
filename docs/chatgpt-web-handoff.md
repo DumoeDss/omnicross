@@ -58,7 +58,7 @@ daemon 侧：`packages/daemon/src/commands/chatgpt-web.ts`（check/login/launch/
 - **根因**：`electronHost.ts` spawn electron.exe 时 `windowsHide: true` → STARTUPINFO 带 `STARTF_USESHOWWINDOW/SW_HIDE`，Electron 尊重它，**所有** BrowserWindow（含 `show:true` 的标签窗口）都变成"真实存在、有坐标、已加载、但永远 invisible"的 HWND
 - **验证方法（可复用）**：Win32 `EnumWindows` 枚举 electron 进程顶层窗口，对照 `IsWindowVisible`/标题/rect。A/B：仅翻转该标志 → `visible=True`；用户肉眼确认窗口出现且打开 example.com。修复 commit `b44f52b`
 - 旧假设全部证伪：**不存在会话隔离**（qwinsta 只有一个交互会话，Claude 与用户同在 session 1/同一桌面）；"句柄=0" 也是该 bug 的表象
-- **协作铁律（继续有效）**：所有需要"看见窗口"的步骤必须用户自己跑；Claude 每次让用户跑 Electron 相关命令前必须先 `taskkill /F /IM electron.exe` 清锁
+- **协作铁律（继续有效）**：所有需要"看见窗口"的步骤必须用户自己跑；清锁**必须用 `stopExistingElectronHosts()`（定点：先控制端点 `/shutdown` 优雅关，兜底只按我们二进制的完整路径杀）**——**绝不允许 `taskkill /F /IM electron.exe`**（按镜像名屠杀机器上所有 Electron 应用，2026-09-14 新机器事故：把用户其他项目 `npm run dev` 的 electron 全关了，6cfb419 修复）
 
 ### 卡点 A2：登录墙（Google "浏览器不安全" / Cloudflare 转圈）—— ✅ 已解决（2026-09-11 晚）
 
@@ -116,8 +116,9 @@ diag-electron-net.ts                      # 宿主内 example.com vs chatgpt 对
 diag-electron-visibility.ts               # 页面可见性/坐标探针
 mcp-smoke.mts                             # MCP 子进程协议冒烟
 
-# 清理（让用户跑 Electron 前必须做）
-taskkill /F /IM electron.exe
+# 清理（让用户跑 Electron 前；⚠️ 绝不 taskkill /IM electron.exe——会屠杀所有 Electron 应用）
+# 代码里用 stopExistingElectronHosts()（优雅 + 按路径定点）；手动等价：
+#   powershell "Get-Process electron | Where-Object { $_.Path -eq \"$env:USERPROFILE\.omnicross\chatgpt-web\browser\node_modules\electron\dist\electron.exe\" } | Stop-Process -Force"
 Remove-Item ~\.omnicross\chatgpt-web\DevToolsActivePort, ~\.omnicross\chatgpt-web\host-control.json -ErrorAction SilentlyContinue
 ```
 
@@ -138,6 +139,7 @@ Remove-Item ~\.omnicross\chatgpt-web\DevToolsActivePort, ~\.omnicross\chatgpt-we
 13. **spawn GUI 进程绝不能 `windowsHide: true`**（win32）：它把 `SW_HIDE` 写进 STARTUPINFO，Electron/Chromium 据此让所有窗口永不显示（进程活、页面加载、API 说 visible，屏幕上就是没有）。诊断此类问题用 Win32 EnumWindows 看 `IsWindowVisible`，别信 DOM 的 visibilityState。附带发现：`harness.test.ts` 导入 `mcpServer.ts` 会触发其顶层 `main()` 的 process.exit（vitest 报 unhandled error，63 测试本身全过），待后续把 main() 改成显式 entry 检测
 14. **Google 登录拦截（accounts.google.com "此浏览器或应用可能不安全"）的两层坑**：(a) 裸跑 `electron main.cjs` 的 UA 带 `Electron/39.2.0` token，直接被拦；(b) 只删该 token 变成**裸 Chrome UA** 也不行——client hints（`navigator.userAgentData` / `Sec-CH-UA`）诚实地只报 `Chromium` 无 `Google Chrome` 品牌，UA 与 hints 不一致被判定为伪造 UA，照样拦。**正确形态 = Chromium 基底 + 自家产品 token**（参考实现 `app.setName("Codex Web GPT")` 打包后就是这个形态，在此网络+账号上验证可过）。修复（2e10cff）：UA = `<chromium 基底> OmniCross/<包版本>`，hints 不动。诊断用 `scripts/diag-electron-clienthints.ts`（本地 listener，不发外部请求）。若仍被拦（CDP/debug-port 检测），备选：邮箱验证码/passkey 登录（完全绕开 Google），或交互登录窗口不起 debug port
 15. **daemon 从包名导入的是 dist**：`@omnicross/chatgpt-web/...` 经 exports 解析到 `dist/*`，改了 `src/` 必须 `npm run build -w @omnicross/chatgpt-web`，否则 daemon 用旧代码而 scripts/（直接 import src）用新代码——症状是"脚本验证都过、daemon 报 not a function"
+16. **杀 Electron 进程绝不能按镜像名**（`taskkill /IM electron.exe` 匹配机器上所有 Electron 应用；2026-09-14 新机器事故：关掉了用户其他项目 dev 中的 electron）。正确做法 = `stopExistingElectronHosts(dataDir)`：先 `POST /shutdown`（控制端点，优雅）→ 兜底仅按**我们二进制的完整路径**杀（PowerShell `Where-Object { $_.Path -eq <our binary> }`）。`startElectronHost`/登录窗口已内置自愈重试。另：新机器登录窗**白屏**与 electron 数量无关，是 chatgpt.com 对全新 profile/IP 的连接级风控（卡点 B 同款），重试/冷却即可
 
 ## 8. 提交历史（本分支，新→旧）
 
