@@ -353,8 +353,18 @@ async function resolveGeminiProject(
   return getGeminiCodeAssistResolver()?.resolveProject(accessToken);
 }
 
-/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver). */
-async function resolveAntigravityProjectThreaded(
+/**
+ * The chat-bridge twin of {@link resolveGeminiProject}: resolve the Code-Assist
+ * project for a gemini subscription route BEFORE the provider call so the
+ * `gemini-code-assist` chain can wrap the request in its project/session
+ * envelope. Same resolution, exported for the OpenAI-chat ingress.
+ */
+export const resolveGeminiProjectForChatBridge = resolveGeminiProject;
+
+/** The antigravity twin of `resolveGeminiProject` (antigravity-dialect resolver).
+ * Exported as the chat-bridge twin too: the OpenAI-chat ingress resolves the
+ * REQUIRED antigravity project before its provider call the same way. */
+export async function resolveAntigravityProjectThreaded(
   profile: RouteContext['subscriptionProfile'] & {},
   hints: {
     resolvedModel: string;
@@ -475,11 +485,17 @@ async function applyPlanAuth(
   plan.transformerProvider.models = [actualModel];
   // The ChatGPT Codex backend (2026-09) rejects any /codex/responses call whose
   // body lacks `store: false` — 400 `{"detail":"Store must be set to false"}` —
-  // so the relay now forces it, closing the codexCliHeaders TODO. Idempotent for
-  // a compliant codex CLI caller (`disable_response_storage` already sends it).
-  // Scoped to the codex SUBSCRIPTION relay: a BYO OpenAI-compatible endpoint
-  // keeps the caller's body verbatim (its backend may legitimately allow store).
-  if (plan.proxyProviderId === 'codex') body.store = false;
+  // and one whose body asks `stream: false` — 400 `{"detail":"Stream must be set
+  // to true"}`. The relay forces BOTH (idempotent for a compliant codex CLI
+  // caller: `disable_response_storage` sends store:false and the CLI always
+  // streams). A NON-streaming client is served by the ingress collapsing the
+  // forced SSE back into the single `response` JSON it expects. Scoped to the
+  // codex SUBSCRIPTION relay: a BYO OpenAI-compatible endpoint keeps the
+  // caller's body verbatim (its backend may legitimately allow both).
+  if (plan.proxyProviderId === 'codex') {
+    body.store = false;
+    if (!plan.isStream) body.stream = true;
+  }
   return { headers, accountId, actualModel };
 }
 
@@ -489,7 +505,10 @@ function decorateCodexHeaders(
 ): void {
   if (plan.proxyProviderId !== 'codex') return;
   fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
-  fillMissingHeaders(headers, { accept: codexAcceptHeader(plan.isStream) });
+  // Accept follows the EFFECTIVE stream flag — the codex upstream ALWAYS
+  // streams (the caller's own stream, or the forced one for a non-stream
+  // client), so accept is always the SSE variant on this branch.
+  fillMissingHeaders(headers, { accept: codexAcceptHeader(true) });
   // Identity LAST, after the caller's own markers merged: a real Codex CLI
   // keeps its own (user-agent, version) and gets only the originator marker —
   // never a fabricated `version` under its UA (see fillMissingCodexCliIdentity).

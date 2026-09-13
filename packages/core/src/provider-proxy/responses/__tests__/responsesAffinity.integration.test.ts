@@ -103,18 +103,17 @@ describe('native Responses affinity and stateless failover', () => {
       request.on('end', () => {
         const body = JSON.parse(raw) as Record<string, unknown>;
         upstreamCalls.push({ authorization: request.headers.authorization, body });
-        if (body.stream === true) {
-          response.writeHead(200, { 'Content-Type': 'text/event-stream' });
-          response.end('data: {"type":"response.completed","response":{"id":"resp-account-a","status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}\n\n');
-          return;
-        }
-        response.writeHead(200, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({
-          id: `resp-continuation-${jsonId++}`,
-          object: 'response',
-          status: 'completed',
-          output: [],
-        }));
+        // This suite's fake provider IS 'codex', which now enforces the codex
+        // body contract — `stream:true` is forced even for a non-streaming
+        // client (the ingress collapses the SSE back into JSON). Branch on
+        // `previous_response_id` instead of `stream` so continuations get their
+        // own response id through the SAME SSE wire.
+        const isContinuation = typeof body.previous_response_id === 'string' && body.previous_response_id !== '';
+        const id = isContinuation ? `resp-continuation-${jsonId++}` : 'resp-account-a';
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+        response.end(
+          `data: {"type":"response.completed","response":{"id":"${id}","object":"response","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}\n\n`,
+        );
       });
     });
     upstream = server;

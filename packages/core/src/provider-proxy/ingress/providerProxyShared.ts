@@ -673,6 +673,178 @@ export async function aggregateAnthropicSseToJsonBody(
 }
 
 /**
+ * Collapse an OpenAI Responses SSE stream into the single `response` JSON a
+ * NON-streaming client expects. The Responses wire carries the complete final
+ * response object on its terminal event, so aggregation = keep the LAST
+ * `response.completed` / `response.failed` / `response.incomplete` payload
+ * (`response.failed`/`incomplete` surface the upstream's own error state —
+ * relayed verbatim, not rewritten into an error envelope). `rewriteModel`
+ * overrides `model` to mirror `relayResponse`'s non-stream branch.
+ *
+ * Serves the codex subscription contract on BOTH ingress paths: the backend
+ * rejects `stream:false` outright, so a non-streaming client is answered by
+ * forcing `stream:true` upstream and collapsing the SSE back. Best-effort like
+ * the Anthropic twin: a malformed event is skipped; no terminal event found →
+ * null (the caller surfaces its own 502).
+ */
+export async function aggregateResponsesSseToJsonBody(
+  response: Response,
+  rewriteModel?: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const text = await readResponseTextWithSignal(response, signal);
+  let terminal: Record<string, unknown> | null = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const ev = JSON.parse(payload) as Record<string, unknown>;
+      if (
+        ev['type'] === 'response.completed' ||
+        ev['type'] === 'response.failed' ||
+        ev['type'] === 'response.incomplete'
+      ) {
+        const resp = ev['response'];
+        if (resp && typeof resp === 'object') terminal = resp as Record<string, unknown>;
+      }
+    } catch {
+      /* skip malformed event */
+    }
+  }
+  if (!terminal) return null;
+  if (rewriteModel && typeof terminal['model'] === 'string') terminal['model'] = rewriteModel;
+  return JSON.stringify(terminal);
+}
+
+/**
+ * Collapse an OpenAI Chat Completions SSE chunk stream into the single
+ * `chat.completion` JSON a NON-streaming client expects. Accumulates the FIRST
+ * `id`/`created`/`model`, every `delta` (content text, `reasoning_content`,
+ * `tool_calls` by index with concatenated argument fragments), the last non-null
+ * `finish_reason`, and the last `usage` (present on the final chunk when the
+ * caller asked for `stream_options.include_usage`, else omitted). Mirrors the
+ * Anthropic twin's best-effort contract; no terminal/finish found → null.
+ */
+export async function aggregateOpenAIChatChunksToJsonBody(
+  response: Response,
+  rewriteModel?: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const text = await readResponseTextWithSignal(response, signal);
+  let id: string | undefined;
+  let created: number | undefined;
+  let model: string | undefined;
+  let content = '';
+  let reasoning = '';
+  let finishReason: string | null = null;
+  let usage: Record<string, unknown> | undefined;
+  const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
+  let sawChoice = false;
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    let ev: Record<string, unknown>;
+    try {
+      ev = JSON.parse(payload) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (typeof ev['id'] === 'string' && id === undefined) id = ev['id'];
+    if (typeof ev['created'] === 'number' && created === undefined) created = ev['created'];
+    if (typeof ev['model'] === 'string' && model === undefined) model = ev['model'];
+    if (ev['usage'] && typeof ev['usage'] === 'object') {
+      usage = ev['usage'] as Record<string, unknown>;
+    }
+    const choices = ev['choices'];
+    if (!Array.isArray(choices) || choices.length === 0) continue;
+    const choice = choices[0] as Record<string, unknown> | null;
+    if (!choice || typeof choice !== 'object') continue;
+    sawChoice = true;
+    if (typeof choice['finish_reason'] === 'string') finishReason = choice['finish_reason'];
+    const delta = choice['delta'];
+    if (!delta || typeof delta !== 'object') continue;
+    const d = delta as Record<string, unknown>;
+    if (typeof d['content'] === 'string') content += d['content'];
+    if (typeof d['reasoning_content'] === 'string') reasoning += d['reasoning_content'];
+    // The Responses→chat stream converter emits reasoning as the Anthropic-style
+    // `thinking: {content}` object; normalize both shapes into the chat wire's
+    // `reasoning_content` string.
+    const thinking = d['thinking'];
+    if (thinking && typeof thinking === 'object') {
+      const tc = (thinking as Record<string, unknown>)['content'];
+      if (typeof tc === 'string') reasoning += tc;
+    } else if (typeof thinking === 'string') {
+      reasoning += thinking;
+    }
+    const tcs = d['tool_calls'];
+    if (Array.isArray(tcs)) {
+      for (const tcRaw of tcs) {
+        if (!tcRaw || typeof tcRaw !== 'object') continue;
+        const tc = tcRaw as Record<string, unknown>;
+        const idx = typeof tc['index'] === 'number' ? tc['index'] : 0;
+        const fn = (tc['function'] ?? {}) as Record<string, unknown>;
+        const slot = toolCalls.get(idx) ?? { id: '', name: '', arguments: '' };
+        if (typeof tc['id'] === 'string' && tc['id']) slot.id = tc['id'];
+        if (typeof fn['name'] === 'string' && fn['name']) slot.name = fn['name'];
+        if (typeof fn['arguments'] === 'string') slot.arguments += fn['arguments'];
+        toolCalls.set(idx, slot);
+      }
+    }
+  }
+  if (!sawChoice && !usage) return null;
+
+  const message: Record<string, unknown> = { role: 'assistant', content };
+  if (reasoning) message['reasoning_content'] = reasoning;
+  if (toolCalls.size > 0) {
+    message['tool_calls'] = [...toolCalls.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([index, tc]) => ({
+        index,
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.name, arguments: tc.arguments || '{}' },
+      }));
+  }
+  const completion: Record<string, unknown> = {
+    id: id ?? 'chatcmpl-aggregated',
+    object: 'chat.completion',
+    created: created ?? Math.floor(Date.now() / 1000),
+    model: rewriteModel ?? model ?? '',
+    choices: [{ index: 0, message, finish_reason: finishReason ?? 'stop' }],
+  };
+  if (usage) completion['usage'] = usage;
+  return JSON.stringify(completion);
+}
+
+/**
+ * Whether a response body is an SSE stream. The header check is the cheap
+ * first pass; ChatGPT's codex backend OMITS Content-Type on its SSE streams
+ * (see OpenAIResponseTransformer's twin sniff), so a header-less body is
+ * decided by peeking the first chunk for an `event:`/`data:` frame start.
+ * The peek clones — the original body is left unread for the consumer.
+ */
+export async function sniffIsSseResponse(response: Response): Promise<boolean> {
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (contentType.includes('text/event-stream')) return true;
+  if (!response.body) return false;
+  const peek = response.clone();
+  try {
+    const reader = peek.body!.getReader();
+    const { value } = await reader.read();
+    reader.releaseLock();
+    const head = value ? new TextDecoder().decode(value).trimStart() : '';
+    return head.startsWith('event:') || head.startsWith('data:');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Write a JSON error response if the headers have not been sent.
  *
  * On an Anthropic-protocol request (res marked at the pipeline entry — see

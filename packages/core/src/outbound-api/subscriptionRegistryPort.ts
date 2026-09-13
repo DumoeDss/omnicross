@@ -46,6 +46,14 @@ export interface SubscriptionRegistryLike {
    * leaves `route.subscriptionConfig` `undefined`.
    */
   getOpenCodeGoConfig?(): Promise<unknown>;
+  /**
+   * OPTIONAL twin of {@link SubscriptionRegistryLike.getOpenCodeGoConfig} for
+   * the ACTIVE Copilot account (plan-advertised `apiEndpoint` / GHE
+   * `enterpriseUrl`) — stamped OPAQUELY onto `RouteContext.subscriptionConfig`
+   * the same way. Same `unknown` discipline (core never names the concrete
+   * `CopilotTokenConfig`); optional so narrow fakes still satisfy the port.
+   */
+  getCopilotConfig?(): Promise<unknown>;
 }
 
 let _registry: SubscriptionRegistryLike | null = null;

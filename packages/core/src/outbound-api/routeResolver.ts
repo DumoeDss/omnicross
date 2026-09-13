@@ -440,16 +440,21 @@ async function resolveSubscriptionRoute(args: {
     attribution: { sessionId, apiKeyId: apiKeyId ?? null },
   };
 
-  // D-SEAM: pre-resolve the per-account OpenCodeGo config ONCE here (the route
+  // D-SEAM: pre-resolve the per-account config ONCE here (the route
   // resolver is async + already the cheap read site) and stamp it OPAQUELY onto
-  // `route.subscriptionConfig`. The built-in (factory-absent) `/v1/messages` plan
-  // builder passes it back into the profile closures so user `baseUrl` /
-  // `modelMap` / `fallbacks` overrides apply on that path. Read ONLY for
-  // opencodego (claude / codex / gemini leave it `undefined`); tolerated when the
+  // `route.subscriptionConfig`. The built-in (factory-absent) plan builders
+  // pass it back into the profile closures so user `baseUrl` / `modelMap` /
+  // `fallbacks` overrides (opencodego) and the plan-advertised `apiEndpoint` /
+  // GHE `enterpriseUrl` (copilot) apply on those paths. Read ONLY for those two
+  // (the others leave it `undefined`); tolerated when the
   // registry slot doesn't implement the optional getter (BYO-only fakes). Core
-  // holds this as `unknown` — it never names `OpenCodeGoTokenConfig`.
+  // holds this as `unknown` — it never names the concrete config types.
   const subscriptionConfig =
-    providerId === 'opencodego' ? await registry?.getOpenCodeGoConfig?.() : undefined;
+    providerId === 'opencodego'
+      ? await registry?.getOpenCodeGoConfig?.()
+      : providerId === 'copilot'
+        ? await registry?.getCopilotConfig?.()
+        : undefined;
 
   const route: RouteContext = {
     sessionId,
