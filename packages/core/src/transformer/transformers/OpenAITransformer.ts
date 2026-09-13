@@ -70,8 +70,15 @@ const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking'] as const;
  * to the chat wire's `user` below before the blacklist takes effect — listed
  * so the hub spelling itself never leaks), and the internal `_transformWarnings`
  * audit channel (never serialized anywhere).
+ *
+ * `_serverSideTools` is the Anthropic decoder's transport stash for server-side
+ * tools (`web_search_20250305`, …) riding the Unified request for the
+ * Anthropic→Anthropic round-trip (`AnthropicRequestBuilder` re-merges them into
+ * `tools`). On this wire they have no representation — an OpenAI-compatible
+ * upstream that relays to Anthropic rejects the stray top-level field with
+ * `Extra inputs are not permitted`, so it must be dropped, not passed through.
  */
-const FOREIGN_BODY_KEYS = ['meta', 'reasoning', 'thinking', 'top_k', 'metadata_user_id', '_transformWarnings'] as const;
+const FOREIGN_BODY_KEYS = ['meta', 'reasoning', 'thinking', 'top_k', 'metadata_user_id', '_transformWarnings', '_serverSideTools'] as const;
 
 /**
  * Strip Anthropic prompt-cache markers from a content block array, and collapse

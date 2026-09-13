@@ -118,6 +118,22 @@ describe('OpenAITransformer — foreign field stripping', () => {
     );
     expect(out).not.toHaveProperty('thinking');
   });
+
+  it('drops the Anthropic decoder\'s _serverSideTools stash', async () => {
+    // The Anthropic→Unified decode stashes server-side tools (web_search_20250305,
+    // …) on the request for the Anthropic→Anthropic round-trip. On this wire
+    // they have no representation; leaking the stash as a top-level field gets
+    // the whole request rejected by Anthropic-relaying upstreams with
+    // "Extra inputs are not permitted, field: '_serverSideTools'".
+    const out = await encode(
+      req({
+        _serverSideTools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      } as unknown as Partial<UnifiedChatRequest>),
+    );
+    expect(out).not.toHaveProperty('_serverSideTools');
+    // Everything else still rides the passthrough untouched.
+    expect(out.model).toBe('deepseek-v4-pro');
+  });
 });
 
 describe('OpenAITransformer — reasoning effort', () => {
