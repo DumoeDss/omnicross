@@ -52,12 +52,28 @@ export type SummableTotals = Omit<UsageTotals, 'medianCacheHitRate'>;
 
 /** Per-model group inside a rollup. `unpriced` is deliberately absent — it is
  *  derived at query time from the injected pricing lookup, so a pricing change
- *  never requires rewriting an immutable rollup. */
-export type RollupModelRow = Omit<ModelUsageRow, 'unpriced'>;
+ *  never requires rewriting an immutable rollup.
+ *
+ *  `reasoningTokens` is ADDITIVE (usage-filter): rollups written before it
+ *  existed lack the field and read as 0 — exact again for every rollup built
+ *  from here on, since a closed day's rollup is never rewritten. */
+export interface RollupModelRow extends Omit<ModelUsageRow, 'unpriced'> {
+  reasoningTokens?: number;
+}
 
 /** Per-key group inside a rollup. `label` is absent for the same reason: it is
- *  resolved by the admin handler against the live key registry. */
-export type RollupApiKeyRow = Omit<ApiKeyUsageRow, 'label'>;
+ *  resolved by the admin handler against the live key registry.
+ *
+ *  The cache/reasoning/cost-saved fields are ADDITIVE (usage-filter): a
+ *  provider/key-filtered totals query composes them from these groups, which
+ *  the base `ApiKeyUsageRow` shape never carried. Pre-upgrade rollups lack the
+ *  fields and read as 0. */
+export interface RollupApiKeyRow extends Omit<ApiKeyUsageRow, 'label'> {
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  reasoningTokens?: number;
+  costSavedByCacheUsd?: number;
+}
 
 /** One hour of a day. Only hours that saw traffic are stored. */
 export interface RollupHourRow {
@@ -219,10 +235,19 @@ export function binsToRecord(bins: Map<number, number>): Record<string, number> 
  * behaviour once days are merged ascending.
  */
 export class DayRollupAccumulator {
+  /** Accumulator rows carry the additive fields as REQUIRED (initialized 0). */
+  private readonly models = new Map<string, RollupModelRow & { reasoningTokens: number }>();
+  private readonly keys = new Map<
+    string | null,
+    RollupApiKeyRow & {
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      reasoningTokens: number;
+      costSavedByCacheUsd: number;
+    }
+  >();
   private readonly totals = emptyTotals();
   private readonly bins = new Map<number, number>();
-  private readonly models = new Map<string, RollupModelRow>();
-  private readonly keys = new Map<string | null, RollupApiKeyRow>();
   private readonly hours = new Map<number, RollupHourRow>();
   private readonly sessionIds = new Set<string>();
   private sessionIdsTruncated = false;
@@ -245,6 +270,7 @@ export class DayRollupAccumulator {
         cacheCreationTokens: 0,
         costUsd: 0,
         costSavedByCacheUsd: 0,
+        reasoningTokens: 0,
       };
       this.models.set(modelKey, m);
     }
@@ -255,6 +281,7 @@ export class DayRollupAccumulator {
     m.cacheCreationTokens += row.cacheCreationTokens;
     m.costUsd += row.costUsd;
     m.costSavedByCacheUsd += row.costSavedByCacheUsd;
+    m.reasoningTokens += row.reasoningTokens;
 
     let k = this.keys.get(row.apiKeyId);
     if (!k) {
@@ -265,6 +292,10 @@ export class DayRollupAccumulator {
         inputTokens: 0,
         outputTokens: 0,
         costUsd: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        reasoningTokens: 0,
+        costSavedByCacheUsd: 0,
       };
       this.keys.set(row.apiKeyId, k);
     }
@@ -272,6 +303,10 @@ export class DayRollupAccumulator {
     k.inputTokens += row.inputTokens;
     k.outputTokens += row.outputTokens;
     k.costUsd += row.costUsd;
+    k.cacheReadTokens += row.cacheReadTokens;
+    k.cacheCreationTokens += row.cacheCreationTokens;
+    k.reasoningTokens += row.reasoningTokens;
+    k.costSavedByCacheUsd += row.costSavedByCacheUsd;
 
     const hour = new Date(row.ts).getHours();
     let h = this.hours.get(hour);

@@ -84,6 +84,20 @@ export interface UsageQueryParams {
   sessionId?: string;
 }
 
+/**
+ * Optional attribute filter for the aggregate usage views. A store may answer a
+ * filtered query from raw rows only; whole-day rollup composition is possible
+ * where the rollup's sub-groups carry the split (per-model rows split by
+ * provider; per-key rows split by key). Absent/undefined fields are not
+ * filtered. An empty object is identical to no filter.
+ */
+export interface UsageQueryFilter {
+  /** Restrict to one provider's events (`UsageEventRecord.providerId`). */
+  providerId?: string;
+  /** Restrict to one downstream API key's events (`UsageEventRecord.apiKeyId`). */
+  apiKeyId?: string;
+}
+
 /** Aggregated totals over a date range. */
 export interface UsageTotals {
   inputTokens: number;

@@ -14,6 +14,7 @@ import { autoBucketForRange } from './usageStatsLogic';
 
 import type {
   UsageDateRange,
+  UsageQueryFilter,
   UsageTimeBucket,
   UsageTimeSeriesBucket,
 } from '@/daemon/types-usage-pricing';
@@ -28,7 +29,10 @@ export interface UseUsageTrendResult {
   reload: () => void;
 }
 
-export function useUsageTrend(range: UsageDateRange | null): UseUsageTrendResult {
+export function useUsageTrend(
+  range: UsageDateRange | null,
+  filter?: UsageQueryFilter | null,
+): UseUsageTrendResult {
   const autoBucket = useMemo<UsageTimeBucket>(
     () => (range ? autoBucketForRange(range) : 'day'),
     [range],
@@ -59,7 +63,7 @@ export function useUsageTrend(range: UsageDateRange | null): UseUsageTrendResult
     setError(null);
     void (async () => {
       try {
-        const result = await getUsageTimeSeries(range, bucket);
+        const result = await getUsageTimeSeries(range, bucket, filter ?? undefined);
         if (cancelled) return;
         setSeries(result);
       } catch (err) {
@@ -72,7 +76,7 @@ export function useUsageTrend(range: UsageDateRange | null): UseUsageTrendResult
     return () => {
       cancelled = true;
     };
-  }, [range, bucket, reloadTick]);
+  }, [range, bucket, filter, reloadTick]);
 
   const setBucket = useCallback((next: UsageTimeBucket) => setOverride(next), []);
   const reload = useCallback(() => setReloadTick((n) => n + 1), []);

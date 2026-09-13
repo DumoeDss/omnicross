@@ -12,6 +12,7 @@
 import { adminClient } from './adminClient';
 
 import type {
+  AccountAllowanceCycle,
   ApiKeyUsageRow,
   DashboardSummary,
   ModelUsageRow,
@@ -21,6 +22,7 @@ import type {
   PricingFetchLatestResult,
   PricingResolutionResult,
   UsageDateRange,
+  UsageQueryFilter,
   UsageTimeBucket,
   UsageTimeSeriesBucket,
   UsageThroughputResult,
@@ -28,41 +30,70 @@ import type {
   UsageTotals,
 } from './types-usage-pricing';
 
-/** Build the `?startTs&endTs` query for the usage endpoints. */
-function rangeQuery(range: UsageDateRange): string {
+/** Append the OPTIONAL attribute filter params (`providerId`/`apiKeyId`). */
+function filterParams(qs: URLSearchParams, filter?: UsageQueryFilter): URLSearchParams {
+  if (filter?.providerId) qs.set('providerId', filter.providerId);
+  if (filter?.apiKeyId) qs.set('apiKeyId', filter.apiKeyId);
+  return qs;
+}
+
+/** Build the `?startTs&endTs` (+ optional filter) query for the usage endpoints. */
+function rangeQuery(range: UsageDateRange, filter?: UsageQueryFilter): string {
   const qs = new URLSearchParams({
     startTs: String(range.startTs),
     endTs: String(range.endTs),
   });
+  filterParams(qs, filter);
   return `?${qs.toString()}`;
 }
 
-/** `GET /usage/totals` — bare `UsageTotals`. */
-export function getUsageTotals(range: UsageDateRange): Promise<UsageTotals> {
-  return adminClient.get<UsageTotals>(`/usage/totals${rangeQuery(range)}`);
+/** `GET /usage/totals` — bare `UsageTotals` (optional attribute filter). */
+export function getUsageTotals(range: UsageDateRange, filter?: UsageQueryFilter): Promise<UsageTotals> {
+  return adminClient.get<UsageTotals>(`/usage/totals${rangeQuery(range, filter)}`);
 }
 
-/** `GET /usage/by-model` — bare `ModelUsageRow[]`. */
-export function getUsageByModel(range: UsageDateRange): Promise<ModelUsageRow[]> {
-  return adminClient.get<ModelUsageRow[]>(`/usage/by-model${rangeQuery(range)}`);
+/** `GET /usage/by-model` — bare `ModelUsageRow[]` (optional attribute filter). */
+export function getUsageByModel(range: UsageDateRange, filter?: UsageQueryFilter): Promise<ModelUsageRow[]> {
+  return adminClient.get<ModelUsageRow[]>(`/usage/by-model${rangeQuery(range, filter)}`);
 }
 
-/** `GET /usage/by-api-key` — bare `ApiKeyUsageRow[]`. */
-export function getUsageByApiKey(range: UsageDateRange): Promise<ApiKeyUsageRow[]> {
-  return adminClient.get<ApiKeyUsageRow[]>(`/usage/by-api-key${rangeQuery(range)}`);
+/** `GET /usage/by-api-key` — bare `ApiKeyUsageRow[]` (optional attribute filter). */
+export function getUsageByApiKey(range: UsageDateRange, filter?: UsageQueryFilter): Promise<ApiKeyUsageRow[]> {
+  return adminClient.get<ApiKeyUsageRow[]>(`/usage/by-api-key${rangeQuery(range, filter)}`);
 }
 
 /** `GET /usage/timeseries?startTs&endTs&bucket` — bare `UsageTimeSeriesBucket[]`. */
 export function getUsageTimeSeries(
   range: UsageDateRange,
   bucket: UsageTimeBucket,
+  filter?: UsageQueryFilter,
 ): Promise<UsageTimeSeriesBucket[]> {
   const qs = new URLSearchParams({
     startTs: String(range.startTs),
     endTs: String(range.endTs),
     bucket,
   });
+  filterParams(qs, filter);
   return adminClient.get<UsageTimeSeriesBucket[]>(`/usage/timeseries?${qs.toString()}`);
+}
+
+/**
+ * `GET /accounts/allowances/cycles?providerId&accountId` — billable-cycle
+ * segments (observed boundary ledger merged with the live snapshot). A daemon
+ * predating the endpoint 404s; the caller surfaces that as "no cycle history".
+ */
+export async function getAllowanceCycles(filter?: {
+  providerId?: string;
+  accountId?: string;
+}): Promise<AccountAllowanceCycle[]> {
+  const qs = new URLSearchParams();
+  if (filter?.providerId) qs.set('providerId', filter.providerId);
+  if (filter?.accountId) qs.set('accountId', filter.accountId);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  const body = await adminClient.get<{ cycles: AccountAllowanceCycle[] }>(
+    `/accounts/allowances/cycles${suffix}`,
+  );
+  return body.cycles;
 }
 
 /** `GET /dashboard` — bare `DashboardSummary`. */

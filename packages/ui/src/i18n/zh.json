@@ -2059,7 +2059,19 @@
     "hour": "小时",
     "day": "天",
     "month": "月",
-    "other": "其他"
+    "other": "其他",
+    "modeDate": "按日期",
+    "modeCycle": "按周期",
+    "modeCycleHint": "按订阅计费周期查看用量（周期重置边界自动识别）",
+    "cycleAccount": "账户",
+    "cycleSelect": "周期",
+    "cycleOngoing": "进行中",
+    "cyclesUnavailable": "当前 daemon 暂无周期历史",
+    "cyclesEmpty": "暂无计费周期",
+    "filterAllProviders": "全部 Provider",
+    "filterProvider": "Provider",
+    "filterAllKeys": "全部密钥",
+    "filterKey": "API 密钥"
   },
   "pricing": {
     "title": "模型价格",

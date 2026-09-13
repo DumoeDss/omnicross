@@ -31,7 +31,11 @@ import type {
   PricingConflictDecision,
   PricingEntryInput,
 } from '@omnicross/contracts/pricing-types';
-import type { UsageDateRange, UsageTimeBucket } from '@omnicross/contracts/usage-stats-types';
+import type {
+  UsageDateRange,
+  UsageQueryFilter,
+  UsageTimeBucket,
+} from '@omnicross/contracts/usage-stats-types';
 import { getSharedUsageThroughputTracker } from '@omnicross/core/usage';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 
@@ -82,6 +86,20 @@ const isRange = (v: UsageDateRange | UsagePricingResult): v is UsageDateRange =>
   (v as UsageDateRange).startTs !== undefined && !('status' in v);
 
 /**
+ * Parse the OPTIONAL attribute filter params `providerId` / `apiKeyId` into a
+ * `UsageQueryFilter` (undefined when neither is present-and-non-empty; a blank
+ * string explicitly CLEARS the filter).
+ */
+function parseFilter(query: URLSearchParams): UsageQueryFilter | undefined {
+  const providerId = query.get('providerId')?.trim() ?? '';
+  const apiKeyId = query.get('apiKeyId')?.trim() ?? '';
+  const filter: UsageQueryFilter = {};
+  if (providerId) filter.providerId = providerId;
+  if (apiKeyId) filter.apiKeyId = apiKeyId;
+  return filter.providerId !== undefined || filter.apiKeyId !== undefined ? filter : undefined;
+}
+
+/**
  * Upper-bound millis per bucket (shortest possible span) — used ONLY to project
  * a pathological-range guard COUNT, never for actual bucketing (the store walks
  * real local boundaries). `month` uses 28 days so the projection never
@@ -100,6 +118,7 @@ const MAX_TIMESERIES_BUCKETS = 2000;
 
 /**
  * `GET /admin/api/usage/totals|by-model|by-api-key|timeseries?startTs&endTs`
+ * (each additionally takes the OPTIONAL attribute filter `providerId`/`apiKeyId`)
  * plus the range-FREE `GET /admin/api/usage/throughput`.
  */
 export async function handleUsageGet(
@@ -116,12 +135,13 @@ export async function handleUsageGet(
 
   const range = parseRange(query);
   if (!isRange(range)) return range;
+  const filter = parseFilter(query);
 
   switch (view) {
     case 'totals':
-      return { status: 200, body: await deps.usageRecorder.getTotals(range) };
+      return { status: 200, body: await deps.usageRecorder.getTotals(range, filter) };
     case 'by-model':
-      return { status: 200, body: await deps.usageRecorder.getByModel(range) };
+      return { status: 200, body: await deps.usageRecorder.getByModel(range, filter) };
     case 'timeseries': {
       const bucket = query.get('bucket');
       if (bucket !== 'hour' && bucket !== 'day' && bucket !== 'month') {
@@ -143,10 +163,10 @@ export async function handleUsageGet(
           );
         }
       }
-      return { status: 200, body: await deps.usageRecorder.getTimeSeries(clamped, bucket) };
+      return { status: 200, body: await deps.usageRecorder.getTimeSeries(clamped, bucket, filter) };
     }
     case 'by-api-key': {
-      const rows = await deps.usageRecorder.getByApiKey(range);
+      const rows = await deps.usageRecorder.getByApiKey(range, filter);
       const labels = poolKeyLabels(loadConfig(deps.configPath));
       return {
         status: 200,

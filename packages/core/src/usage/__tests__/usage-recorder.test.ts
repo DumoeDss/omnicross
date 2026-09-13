@@ -251,13 +251,13 @@ describe('UsageRecorder aggregate delegates', () => {
     const range = { startTs: 1, endTs: 2 };
 
     await expect(recorder.getTotals(range)).resolves.toBe(totals);
-    expect(store.getTotals).toHaveBeenCalledWith(range);
+    expect(store.getTotals).toHaveBeenCalledWith(range, undefined);
 
     await expect(recorder.getByModel(range)).resolves.toBe(modelRows);
-    expect(store.getByModel).toHaveBeenCalledWith(range);
+    expect(store.getByModel).toHaveBeenCalledWith(range, undefined);
 
     await expect(recorder.getByApiKey(range)).resolves.toBe(keyRows);
-    expect(store.getByApiKey).toHaveBeenCalledWith(range);
+    expect(store.getByApiKey).toHaveBeenCalledWith(range, undefined);
 
     await expect(recorder.getMessagesForSession('sess')).resolves.toBe(messageRows);
     expect(store.getMessagesForSession).toHaveBeenCalledWith('sess');

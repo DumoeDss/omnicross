@@ -19,6 +19,31 @@ export interface UsageDateRange {
   endTs: number;
 }
 
+/** Optional attribute filter for the usage aggregate views (mirror of contracts). */
+export interface UsageQueryFilter {
+  providerId?: string;
+  apiKeyId?: string;
+}
+
+/**
+ * One billable-cycle segment for one subscription account
+ * (`GET /accounts/allowances/cycles` → `{ cycles }`).
+ */
+export interface AccountAllowanceCycle {
+  providerId: string;
+  accountId: string;
+  /** Cycle start, unix ms (exclusive lower bound for usage queries). */
+  startTs: number;
+  /** Next boundary, unix ms; null = ongoing with no known reset. */
+  endTs: number | null;
+  /** ISO of the upcoming reset when the live snapshot knows it. */
+  resetsAt: string | null;
+  /** `scheduled` weekly roll | `unscheduled` resetsAt jump | `in-place` counter clear | `live` inferred from the snapshot. */
+  kind: 'scheduled' | 'unscheduled' | 'in-place' | 'live';
+  /** ISO when the boundary was observed; null for `live` cycles. */
+  boundaryObservedAt: string | null;
+}
+
 /** Aggregated totals over a date range (`GET /usage/totals`). */
 export interface UsageTotals {
   inputTokens: number;

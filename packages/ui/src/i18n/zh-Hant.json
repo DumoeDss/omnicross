@@ -2059,7 +2059,19 @@
     "hour": "小時",
     "day": "天",
     "month": "月",
-    "other": "其他"
+    "other": "其他",
+    "modeDate": "依日期",
+    "modeCycle": "依週期",
+    "modeCycleHint": "依訂閱計費週期檢視用量（週期重置邊界自動識別）",
+    "cycleAccount": "帳戶",
+    "cycleSelect": "週期",
+    "cycleOngoing": "進行中",
+    "cyclesUnavailable": "目前 daemon 暫無週期歷史",
+    "cyclesEmpty": "暫無計費週期",
+    "filterAllProviders": "全部 Provider",
+    "filterProvider": "Provider",
+    "filterAllKeys": "全部金鑰",
+    "filterKey": "API 金鑰"
   },
   "pricing": {
     "title": "模型價格",
