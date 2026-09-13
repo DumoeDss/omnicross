@@ -1828,6 +1828,11 @@
       "running": "running",
       "needConfig": "Save the harness config first"
     },
+    "images": {
+      "createTunnel": "Creating a tunnel on platform.openai.com",
+      "connector": "Creating the connector in ChatGPT",
+      "zoom": "Click to enlarge"
+    },
     "guide": {
       "cli": "Everything on this page also works from the terminal: omnicross chatgpt-web check | login | launch | harness status.",
       "experimental": "Experimental feature: the web session can hit rate limits or UI changes at any time."

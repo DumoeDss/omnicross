@@ -1825,6 +1825,11 @@
       "running": "运行中",
       "needConfig": "请先保存 Harness 配置"
     },
+    "images": {
+      "createTunnel": "在 platform.openai.com 创建隧道",
+      "connector": "在 ChatGPT 中创建连接器",
+      "zoom": "点击放大"
+    },
     "guide": {
       "cli": "本页所有操作也可以在终端完成：omnicross chatgpt-web check | login | launch | harness status。",
       "experimental": "实验特性：网页会话随时可能遇到限额或界面变更。"

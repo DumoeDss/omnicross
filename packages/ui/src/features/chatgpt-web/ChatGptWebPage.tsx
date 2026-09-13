@@ -7,17 +7,20 @@
  * `GET /admin/api/chatgpt-web`.
  */
 
-import { Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { RevealableInput } from '@/components/ui/revealable-input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { openExternal } from '@/shared/tauri/openExternal';
 
+import connectConnectorWebp from './assets/connect-connector.webp';
+import createTunnelWebp from './assets/create-tunnel.webp';
 import { useChatGptWeb } from './hooks/useChatGptWeb';
 
 function CopyBlock({ label, value }: { label: string; value: string }) {
@@ -89,6 +92,45 @@ function SubStep({ children }: { children: React.ReactNode }) {
       <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/60" aria-hidden="true" />
       <span>{children}</span>
     </div>
+  );
+}
+
+/**
+ * An animated guide image (webp). Inline it small; click opens a full-size
+ * lightbox — the reference implementation's images cannot be enlarged, so
+ * this is the explicit upgrade.
+ */
+function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="group relative block overflow-hidden rounded-lg border border-border/70"
+        title={zoomLabel}
+        aria-label={zoomLabel}
+      >
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          className="block max-h-44 w-auto max-w-full rounded-lg"
+        />
+        <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-background/80 text-foreground opacity-80 shadow-sm transition-opacity group-hover:opacity-100">
+          <ZoomIn className="h-4 w-4" />
+        </span>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-4xl p-3">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{alt}</DialogTitle>
+            <DialogDescription>{zoomLabel}</DialogDescription>
+          </DialogHeader>
+          <img src={src} alt={alt} className="max-h-[80vh] w-auto max-w-full rounded-md" />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -180,6 +222,11 @@ export function ChatGptWebPage() {
               <LinkButton label={t('chatgptWeb.steps.platform.tunnelsLink')} url={TUNNELS_URL} />
               <LinkButton label={t('chatgptWeb.steps.platform.keysLink')} url={API_KEYS_URL} />
             </div>
+            <GuideImage
+              src={createTunnelWebp}
+              alt={t('chatgptWeb.images.createTunnel')}
+              zoomLabel={t('chatgptWeb.images.zoom')}
+            />
           </StepCard>
 
           {/* Step 2: paste the two values */}
@@ -239,6 +286,11 @@ export function ChatGptWebPage() {
             <div className="pt-1">
               <LinkButton label={t('chatgptWeb.steps.connector.link')} url={CONNECTORS_URL} />
             </div>
+            <GuideImage
+              src={connectConnectorWebp}
+              alt={t('chatgptWeb.images.connector')}
+              zoomLabel={t('chatgptWeb.images.zoom')}
+            />
           </StepCard>
 
           {/* Step 4: sign in inside the dedicated browser */}
