@@ -336,15 +336,25 @@ describe('Codex: real daemon Responses routing keeps 20-turn account affinity', 
     );
     expect(newSessionBearers.some((bearer) => bearer !== pinnedBearer)).toBe(true);
 
-    // Scheduling never rewrites the persistent active pointer, and ingress-only
-    // conversation ids never leak to the upstream.
+    // Scheduling never rewrites the persistent active pointer, and the gateway
+    // key never leaves the daemon (only its digest reaches the activity view).
     expect((await daemon!.credentialStore.getFullConfig()).activeCodexAccountId).toBe(
       oppositeAccountId,
     );
     expect(upstream!.hits).toHaveLength(26);
     expect(upstream!.hits.every((hit) => hit.authorization !== `Bearer ${namedKey}`)).toBe(true);
-    expect(upstream!.hits.every((hit) => hit.headers['session-id'] === undefined)).toBe(true);
-    expect(upstream!.hits.every((hit) => hit.headers['thread-id'] === undefined)).toBe(true);
+    // Cache affinity on the WIRE (codex #44862): the caller's own session-id /
+    // thread-id headers are forwarded verbatim and stay stable per
+    // conversation — ChatGPT's backend routes prefix-cache affinity from
+    // the session-id HEADER, so these are exactly the bytes it needs.
+    expect(upstream!.hits.slice(0, 20).every((hit) =>
+      hit.headers['session-id'] === 'explicit-session-main' &&
+      hit.headers['thread-id'] === 'thread:explicit-session-main')).toBe(true);
+    const newSessionIds = [1, 2, 3, 4, 5, 6].map((n) => `explicit-session-new-${n}`);
+    expect(upstream!.hits.slice(20).map((hit) => hit.headers['session-id'])).toEqual(newSessionIds);
+    expect(upstream!.hits.slice(20).map((hit) => hit.headers['thread-id'])).toEqual(
+      newSessionIds.map((id) => `thread:${id}`),
+    );
 
     // The operator activity view is fed by the same real fetches. It exposes
     // only the hashed session key and the account id selected for each attempt.

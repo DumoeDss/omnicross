@@ -7,7 +7,7 @@
  * claude one it still got a 200 — ChatGPT's Codex backend does not currently
  * reject a bare request — but the relayed call carried NONE of the markers a
  * real `codex` CLI sends (`originator`, its UA, `version`, `openai-beta`,
- * `session_id`), which is exactly the shape risk-control looks at.
+ * `session-id`), which is exactly the shape risk-control looks at.
  *
  * SCOPE: applied ONLY to the codex SUBSCRIPTION plan (`proxyProviderId ===
  * 'codex'`, i.e. an OAuth ChatGPT account). A BYO OpenAI-compatible endpoint
@@ -93,11 +93,23 @@ export function fillMissingCodexCliIdentity(headers: Record<string, string>): vo
  * Caller headers forwarded verbatim to the Codex backend (positive allow-list,
  * matching the verified Codex relay allow-list plus the client identity markers).
  * Auth/cookie/host are excluded BY CONSTRUCTION.
+ *
+ * `session-id` (hyphen) is the spelling the Codex CLI actually sends
+ * (`codex-rs/codex-api/src/requests/headers.rs` → `build_session_headers`) and
+ * the authoritative cache-affinity signal ChatGPT's backend derives Responses
+ * prefix-cache routing from (codex #44862: "ChatGPT derives cache affinity from
+ * the `session-id` header"). `thread-id` rides along as the CLI's conversation
+ * identity. The underscore spellings stay for older/alternative clients —
+ * whichever the caller sent is forwarded, and the fill-only merge downstream
+ * means the two spellings cannot clobber each other.
  */
 const CODEX_FORWARD_ALLOWLIST: ReadonlySet<string> = new Set([
   'version',
   'openai-beta',
+  'session-id',
   'session_id',
+  'thread-id',
+  'thread_id',
   'originator',
   'user-agent',
 ]);
@@ -118,6 +130,27 @@ export function extractCodexClientHeaders(
     if (value !== undefined) out[key] = value;
   }
   return out;
+}
+
+/**
+ * Header-level cache-affinity fallback, aligned with codex #44862: the CLI
+ * sets its outbound `session-id` header to the request's prompt cache key
+ * (root agent), because ChatGPT's backend routes Responses prefix-cache
+ * affinity from the HEADER, not just the body. A caller that brings no
+ * `session-id` of its own (a non-codex-CLI client on this relay) would
+ * otherwise send no affinity signal at all — the body-level
+ * `prompt_cache_key` (kept or injected by `ensureCodexPromptCacheKey`
+ * upstream of this point) is mirrored here into the header so the two always
+ * agree. Fill-only: a caller-provided `session-id` (forwarded via the
+ * allow-list above) always wins.
+ */
+export function ensureCodexSessionIdHeader(
+  headers: Record<string, string>,
+  body: Record<string, unknown>,
+): void {
+  const cacheKey = typeof body.prompt_cache_key === 'string' ? body.prompt_cache_key.trim() : '';
+  if (!cacheKey) return;
+  fillMissingHeaders(headers, { 'session-id': cacheKey });
 }
 
 /** The `accept` a Codex CLI sends, which differs by streaming mode. */
