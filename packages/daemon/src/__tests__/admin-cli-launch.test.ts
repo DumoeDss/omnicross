@@ -242,39 +242,39 @@ describe('Code CLI launch', () => {
   });
 });
 
-describe('Key-scoped codex launch', () => {
-  /** Create a gateway key with codex permissions; optionally bind it to a responses route. */
-  async function makeRoutedKey(options?: { permissions?: string[]; bind?: boolean }): Promise<{ id: string; name: string; plaintext: string }> {
-    const created = await createNamedKey(daemon.keyDb, 'route-key');
-    const permissions = (options?.permissions ?? ['responses', 'images']) as OutboundPermission[];
-    await daemon.keyDb.outboundApiKeysSetPermissions(created.id, permissions);
-    if (options?.bind !== false) {
-      const current = await loadServerConfig(daemon.settingsStore);
-      const binding: GatewayBinding = {
-        id: 'test-responses-route',
-        name: 'Test responses route',
-        enabled: true,
-        keyScope: 'selected',
-        apiKeyIds: [created.id],
-        endpoint: 'responses',
-        target: { kind: 'provider', providerId: 'mock' },
-        priority: 100,
-        fallback: 'fail',
-        modelMode: 'passthrough',
-      };
-      const next = { ...current, bindings: [binding] };
-      await saveServerConfig(daemon.settingsStore, next);
-      await daemon.outboundApiServer.applyConfig({
-        enabled: true,
-        networkBinding: current.networkBinding,
-        endpoints: current.endpoints,
-        bindings: next.bindings,
-        port: current.port,
-      });
-    }
-    return { id: created.id, name: created.name, plaintext: created.plaintextOnce };
+/** Create a gateway key with codex permissions; optionally bind it to a responses route. */
+async function makeRoutedKey(options?: { permissions?: string[]; bind?: boolean }): Promise<{ id: string; name: string; plaintext: string }> {
+  const created = await createNamedKey(daemon.keyDb, 'route-key');
+  const permissions = (options?.permissions ?? ['responses', 'images']) as OutboundPermission[];
+  await daemon.keyDb.outboundApiKeysSetPermissions(created.id, permissions);
+  if (options?.bind !== false) {
+    const current = await loadServerConfig(daemon.settingsStore);
+    const binding: GatewayBinding = {
+      id: 'test-responses-route',
+      name: 'Test responses route',
+      enabled: true,
+      keyScope: 'selected',
+      apiKeyIds: [created.id],
+      endpoint: 'responses',
+      target: { kind: 'provider', providerId: 'mock' },
+      priority: 100,
+      fallback: 'fail',
+      modelMode: 'passthrough',
+    };
+    const next = { ...current, bindings: [binding] };
+    await saveServerConfig(daemon.settingsStore, next);
+    await daemon.outboundApiServer.applyConfig({
+      enabled: true,
+      networkBinding: current.networkBinding,
+      endpoints: current.endpoints,
+      bindings: next.bindings,
+      port: current.port,
+    });
   }
+  return { id: created.id, name: created.name, plaintext: created.plaintextOnce };
+}
 
+describe('Key-scoped codex launch', () => {
   it('launches codex scoped to a gateway key: auth-command overrides, no secret anywhere', async () => {
     const key = await makeRoutedKey();
     const r = await adminFetch('POST', '/admin/api/cli/codex/launch', { keyId: key.id, cwd: '/tmp/proj' });
@@ -351,6 +351,141 @@ describe('Key-scoped codex launch', () => {
   });
 });
 
+describe('Route-pinned codex launch', () => {
+  async function applyBindings(bindings: GatewayBinding[]): Promise<void> {
+    const current = await loadServerConfig(daemon.settingsStore);
+    await saveServerConfig(daemon.settingsStore, { ...current, bindings });
+    await daemon.outboundApiServer.applyConfig({
+      enabled: true,
+      networkBinding: current.networkBinding,
+      endpoints: current.endpoints,
+      bindings,
+      port: current.port,
+    });
+  }
+
+  it('launches codex pinned to a downstream route: auto-picked key + pin header, no secret anywhere', async () => {
+    const key = await makeRoutedKey();
+    const r = await adminFetch('POST', '/admin/api/cli/codex/launch', {
+      bindingId: 'test-responses-route',
+    });
+    expect(r.status).toBe(200);
+    const out = r.json as {
+      sessionId: string;
+      keyId: string;
+      keyName: string;
+      bindingId: string;
+      bindingName: string;
+    };
+    expect(out.keyId).toBe(key.id);
+    expect(out.keyName).toBe(key.name);
+    expect(out.bindingId).toBe('test-responses-route');
+    expect(out.bindingName).toBe('Test responses route');
+
+    // The opener received the -c overrides carrying the route pin header.
+    expect(openerCalls).toHaveLength(1);
+    const args = openerCalls[0].extraArgs;
+    const headers = args.find((a) => a.startsWith('model_providers.omnicross.http_headers='));
+    expect(headers).toContain('"x-omnicross-binding-id"="test-responses-route"');
+    expect(JSON.stringify(openerCalls[0])).not.toContain(key.plaintext);
+    expect(r.text).not.toContain(key.plaintext);
+
+    // The session row is route-labelled and stoppable.
+    const list = await adminFetch('GET', '/admin/api/cli/sessions');
+    const sessions = (list.json as {
+      sessions: Array<{ bindingName?: string; keyName?: string }>;
+    }).sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].bindingName).toBe('Test responses route');
+    expect(sessions[0].keyName).toBe(key.name);
+    const stop = await adminFetch('DELETE', `/admin/api/cli/sessions/${out.sessionId}`);
+    expect(stop.status).toBe(200);
+  });
+
+  it('honors an explicit keyId for the pinned route, rejecting a key that cannot enter it', async () => {
+    const bound = await makeRoutedKey();
+    const outsider = await makeRoutedKey({ bind: false });
+    const ok = await adminFetch('POST', '/admin/api/cli/codex/launch', {
+      bindingId: 'test-responses-route',
+      keyId: bound.id,
+    });
+    expect(ok.status).toBe(200);
+
+    const rejected = await adminFetch('POST', '/admin/api/cli/codex/launch', {
+      bindingId: 'test-responses-route',
+      keyId: outsider.id,
+    });
+    expect(rejected.status).toBe(400);
+    expect(rejected.text).toMatch(/cannot enter downstream route/i);
+  });
+
+  it('rejects a route-scoped launch for a non-codex CLI (400)', async () => {
+    await makeRoutedKey();
+    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', {
+      bindingId: 'test-responses-route',
+    });
+    expect(r.status).toBe(400);
+    expect(r.text).toMatch(/only supported for codex/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+
+  it('rejects an unknown route id (404)', async () => {
+    await makeRoutedKey();
+    const r = await adminFetch('POST', '/admin/api/cli/codex/launch', { bindingId: 'ghost-route' });
+    expect(r.status).toBe(404);
+    expect(r.text).toMatch(/does not exist/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+
+  it('rejects a route that is disabled or does not serve responses (400)', async () => {
+    await makeRoutedKey();
+    await applyBindings([
+      {
+        id: 'chat-only-route',
+        name: 'Chat only',
+        enabled: true,
+        keyScope: 'all',
+        endpoint: 'chat',
+        target: { kind: 'provider', providerId: 'mock' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'passthrough',
+      },
+    ]);
+    const r = await adminFetch('POST', '/admin/api/cli/codex/launch', { bindingId: 'chat-only-route' });
+    expect(r.status).toBe(400);
+    expect(r.text).toMatch(/does not serve the responses endpoint/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+
+  it('rejects a route no eligible key can enter (400)', async () => {
+    await applyBindings([
+      {
+        id: 'open-route',
+        name: 'Open route',
+        enabled: true,
+        keyScope: 'all',
+        endpoint: 'responses',
+        target: { kind: 'provider', providerId: 'mock' },
+        priority: 100,
+        fallback: 'fail',
+        modelMode: 'passthrough',
+      },
+    ]);
+    const r = await adminFetch('POST', '/admin/api/cli/codex/launch', { bindingId: 'open-route' });
+    expect(r.status).toBe(400);
+    expect(r.text).toMatch(/no eligible gateway key/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+
+  it('rejects a route id the terminal cannot carry (400)', async () => {
+    const r = await adminFetch('POST', '/admin/api/cli/codex/launch', { bindingId: 'bad id!' });
+    expect(r.status).toBe(400);
+    expect(r.text).toMatch(/cannot be passed through a terminal launch/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+});
+
 describe('buildKeyScopedCodexArgs', () => {
   it('renders the install-shaped provider block under the shared provider name', () => {
     const args = buildKeyScopedCodexArgs({
@@ -371,6 +506,18 @@ describe('buildKeyScopedCodexArgs', () => {
       '-c', 'model_providers.omnicross.auth.timeout_ms=5000',
       '-c', 'disable_response_storage=true',
     ]);
+  });
+
+  it('appends the route pin header when a binding is pinned', () => {
+    const args = buildKeyScopedCodexArgs({
+      gatewayBaseUrl: 'http://127.0.0.1:8765/',
+      authHelper: { command: 'node', args: ['cli.js'] },
+      keyId: 'oak_1',
+      bindingId: 'route-9',
+    });
+    expect(args).toContain(
+      'model_providers.omnicross.http_headers={"X-OpenAI-Actor-Authorization"="omnicross","x-omnicross-binding-id"="route-9"}',
+    );
   });
 });
 

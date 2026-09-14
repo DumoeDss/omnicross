@@ -246,6 +246,48 @@ describe('gateway binding resolution', () => {
     expect(resolveGatewayModelMappingRow(mappings, 'other-model')).toBeUndefined();
   });
 });
+
+describe('route pinning (x-omnicross-binding-id)', () => {
+  it('narrows candidates to exactly the pinned binding among the key\'s own', () => {
+    const result = resolveGatewayBinding({
+      bindings: [
+        binding({ id: 'route-a', priority: 1 }),
+        binding({ id: 'route-b', priority: 2 }),
+      ],
+      apiKeyId: 'client-a',
+      endpoint: 'responses',
+      requestedModel: 'gpt-5.3-codex',
+      pinnedBindingId: 'route-b',
+    });
+    // route-a would win by priority; the pin selects route-b instead.
+    expect(result.source).toBe('binding');
+    expect(result.binding?.id).toBe('route-b');
+  });
+
+  it('never widens: a pin to a binding the key cannot enter resolves to none', () => {
+    const result = resolveGatewayBinding({
+      bindings: [
+        binding({ id: 'route-a' }),
+        binding({ id: 'scoped', apiKeyIds: ['other-key'] }),
+      ],
+      apiKeyId: 'client-a',
+      endpoint: 'responses',
+      pinnedBindingId: 'scoped',
+    });
+    expect(result.source).toBe('none');
+  });
+
+  it('ignores the pin when it names no candidate binding at all', () => {
+    const result = resolveGatewayBinding({
+      bindings: [binding({ id: 'route-a' })],
+      apiKeyId: 'client-a',
+      endpoint: 'responses',
+      pinnedBindingId: 'missing-route',
+    });
+    expect(result.source).toBe('none');
+  });
+});
+
 describe('gateway binding persistence compatibility', () => {
   it('normalizes bindings and preserves them through an unrelated legacy patch', () => {
     const config = normalizeServerConfig({

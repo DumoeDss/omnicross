@@ -94,6 +94,26 @@ import { isSerialQueueTimeout, type UserMessageSerialQueue } from './userMessage
 import { handleVoucherRedeem, isRedeemRequest } from './voucherRedeem';
 
 /**
+ * Request header that pins ONE downstream route for the verified key
+ * (`x-omnicross-binding-id`). Sent by route-pinned Codex terminal launches
+ * (the daemon's `--key-id` + binding-scoped `-c` overrides) so a terminal that
+ * chose a specific route is served by exactly that route instead of the key's
+ * priority-ordered candidates. SECURITY: the pin only NARROWS routing — the
+ * binding must already be among the key's own candidates
+ * (`candidateGatewayBindings` filters on it), so no client can use the header
+ * to reach a route its key cannot already enter.
+ */
+export const GATEWAY_BINDING_PIN_HEADER = 'x-omnicross-binding-id';
+
+/** Read the optional route-pin header as a trimmed non-blank string. */
+export function readBindingPin(headers: http.IncomingHttpHeaders): string | undefined {
+  const raw = headers[GATEWAY_BINDING_PIN_HEADER];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed === '' ? undefined : trimmed;
+}
+
+/**
  * Lazily-constructed fallback redeem-attempt limiter (voucher-redemption #9) for
  * callers that do not supply one. The real server passes its own; this only
  * covers direct callers (tests) that send a `/redeem` request without a limiter.
@@ -573,6 +593,8 @@ async function writeModelsListAnthropic(
   limit: number | undefined,
   /** The key's direct passthrough provider (its catalog joins the union). */
   directTarget?: GatewayBindingTarget | null,
+  /** Optional route pin (`x-omnicross-binding-id`): list only that route. */
+  pinnedBindingId?: string,
 ): Promise<void> {
   const entries: AnthropicModelEntry[] = [];
   const seen = new Set<string>();
@@ -595,7 +617,7 @@ async function writeModelsListAnthropic(
 
   for (const endpoint of MODEL_LIST_ENDPOINTS) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
-    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
+    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint, pinnedBindingId)) {
       if (binding.modelMode === 'passthrough') {
         await pushTargetCatalog(llmConfig, binding.target, push);
         continue;
@@ -962,11 +984,13 @@ async function writeModelsList(
   imageModels: readonly string[] = [],
   /** The key's direct passthrough provider (its catalog joins the union). */
   directTarget?: GatewayBindingTarget | null,
+  /** Optional route pin (`x-omnicross-binding-id`): list only that route. */
+  pinnedBindingId?: string,
 ): Promise<void> {
   const modelIds: string[] = [];
   for (const endpoint of MODEL_LIST_ENDPOINTS) {
     if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
-    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint)) {
+    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint, pinnedBindingId)) {
       if (binding.modelMode === 'passthrough') {
         await pushTargetCatalog(llmConfig, binding.target, (id) => modelIds.push(id));
         continue;
@@ -1157,6 +1181,9 @@ export async function handleOutboundRequest(
   const verified = verification.key;
   if (audit) audit.keyId = verified.id;
   if (billing) billing.keyId = verified.id;
+  // Route pin (route-pinned Codex launches): narrows this key's candidate
+  // routes to the one named by the header, everywhere candidates are computed.
+  const pinnedBindingId = readBindingPin(req.headers);
 
   if (verified.loopbackOnly && !isLoopbackPeer(req.socket?.remoteAddress)) {
     writeJsonError(res, 403, 'This integration key is restricted to loopback clients');
@@ -1348,6 +1375,7 @@ export async function handleOutboundRequest(
         verified.allowedEndpoints,
         parseModelsLimit(req.url),
         verified.boundUpstream,
+        pinnedBindingId,
       );
     } else {
       let imageModels: readonly string[] = [];
@@ -1366,6 +1394,7 @@ export async function handleOutboundRequest(
         verified.allowedEndpoints,
         imageModels,
         verified.boundUpstream,
+        pinnedBindingId,
       );
     }
     return;
@@ -1392,8 +1421,10 @@ export async function handleOutboundRequest(
   }
   // Routing lives entirely in the downstream routes: a key with no enabled route
   // on this endpoint can never be served — UNLESS the direct tier can relay it.
+  // (The route pin applies here too: a pin to a route this key cannot enter
+  // leaves zero candidates, and the specific 503 below names the endpoint.)
   if (
-    candidateGatewayBindings(config.bindings, verified.id, endpoint).length === 0 &&
+    candidateGatewayBindings(config.bindings, verified.id, endpoint, pinnedBindingId).length === 0 &&
     !directProvider
   ) {
     writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
@@ -1531,7 +1562,12 @@ export async function handleOutboundRequest(
         : detectRequestRole(ingressFormat, parsedBody, {
             // Role detection precedes the route pick (the pick consumes the
             // role), so the hint is the union across the candidate routes.
-            backgroundModelIds: candidateBackgroundModelIds(config.bindings, verified.id, endpoint),
+            backgroundModelIds: candidateBackgroundModelIds(
+              config.bindings,
+              verified.id,
+              endpoint,
+              pinnedBindingId,
+            ),
           });
     const bindingResolution = resolveGatewayBinding({
       bindings: config.bindings,
@@ -1539,6 +1575,7 @@ export async function handleOutboundRequest(
       endpoint,
       requestedModel,
       role,
+      pinnedBindingId,
     });
     // Unreachable in practice — the pre-body gate above already rejects a key
     // with no candidate route and no direct tier — but keeps the resolution total.

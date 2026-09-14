@@ -230,10 +230,10 @@ export class IntegrationManager {
     if (state.keyBindings) delete state.keyBindings[client];
     const legacyRetirement = clearLegacyGatewayWhenUnused(state);
     if (record || binding) persistStateThenFiles(this.options.stateStore, state, previousState, changes);
-    await this.retireManagedKeys(state, [
-      binding?.ownership === 'managed' ? binding.keyId : undefined,
-      legacyRetirement,
-    ]);
+    // The unbound MANAGED key stays in place (enabled) — the operator deletes
+    // it manually once it is no longer wanted. Only legacy shared-key state is
+    // cleaned up here.
+    await this.retireManagedKeys(state, [legacyRetirement]);
     return this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
   }
 
@@ -268,7 +268,6 @@ export class IntegrationManager {
       if (!updated) throw new IntegrationConflictError('The selected access key permissions could not be updated.');
     }
 
-    const previousBinding = state.keyBindings?.[client];
     if (!state.keyBindings) state.keyBindings = {};
     state.keyBindings[client] = { keyId, ownership: 'selected' };
     const changes: FileChange[] = [];
@@ -277,10 +276,10 @@ export class IntegrationManager {
       if (record) this.rebindInstalledClient(client, record, secret, changes);
       const legacyRetirement = clearLegacyGatewayWhenUnused(state);
       persistStateThenFiles(this.options.stateStore, state, previousState, changes);
-      await this.retireManagedKeys(state, [
-        previousBinding?.ownership === 'managed' ? previousBinding.keyId : undefined,
-        legacyRetirement,
-      ]);
+      // The previously bound MANAGED key stays in place (enabled) for manual
+      // cleanup — rebinding is not a revocation. Only legacy shared-key state
+      // is retired here.
+      await this.retireManagedKeys(state, [legacyRetirement]);
     } catch (error) {
       if (permissionsChanged) {
         await this.options.keyDb.outboundApiKeysSetPermissions(keyId, previousPermissions).catch(() => false);
@@ -290,7 +289,12 @@ export class IntegrationManager {
     return this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
   }
 
-  /** Rotate every Omnicross-managed client binding; user-selected keys remain untouched. */
+  /**
+   * Rotate every Omnicross-managed client binding; user-selected keys remain
+   * untouched. The rotated-out MANAGED keys are revoked — retiring the old
+   * credential is the point of an explicit rotation (unlike unbind/rebind,
+   * which leaves managed keys in place).
+   */
   async rotateGatewayKey(): Promise<{ keyIds: Partial<Record<IntegrationClientId, string>> }> {
     const state = this.options.stateStore.load();
     const previousState = cloneState(state);
@@ -533,6 +537,12 @@ export class IntegrationManager {
     return { status, secret, usable: true };
   }
 
+  /**
+   * Revoke candidate keys no binding still references. Used ONLY by explicit
+   * key rotation (the rotated-out managed keys) and legacy shared-key state
+   * cleanup — unbinding or rebinding a client NEVER retires its managed key;
+   * the operator deletes those manually.
+   */
   private async retireManagedKeys(
     state: IntegrationState,
     candidates: Array<string | undefined>,

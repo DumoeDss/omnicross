@@ -681,6 +681,9 @@ export interface CliSession {
    */
   keyId?: string;
   keyName?: string;
+  /** Route-pinned codex rows: the downstream route this terminal is pinned to. */
+  bindingId?: string;
+  bindingName?: string;
   startedAt: string;
 }
 
@@ -768,6 +771,9 @@ export interface CliLaunchResult {
   /** Key-scoped codex launches: the gateway key the terminal authenticates as. */
   keyId?: string;
   keyName?: string;
+  /** Route-pinned codex launches: the downstream route the terminal is pinned to. */
+  bindingId?: string;
+  bindingName?: string;
   message?: string;
 }
 
@@ -844,7 +850,14 @@ export interface AgentCliApi {
   install(cli: string): Promise<MutationResult>;
   launch(
     cli: string,
-    input?: { cwd?: string; providerId?: string; model?: string; keyId?: string },
+    input?: {
+      cwd?: string;
+      providerId?: string;
+      model?: string;
+      keyId?: string;
+      /** Codex only: pin the launch to ONE downstream route (id). */
+      bindingId?: string;
+    },
   ): Promise<CliLaunchResult>;
   sessions(): Promise<CliSession[]>;
   stop(id: string): Promise<MutationResult>;

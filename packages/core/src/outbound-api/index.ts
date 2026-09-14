@@ -93,6 +93,7 @@ export {
   type GatewayBindingResolution,
   type ResolveGatewayBindingInput,
 } from './gatewayBindingResolver';
+export { GATEWAY_BINDING_PIN_HEADER, readBindingPin } from './outboundApiRouter';
 export { injectMappingEffortDefault } from './mappingEffortInjection';
 export {
   AUDIT_REDACTED,

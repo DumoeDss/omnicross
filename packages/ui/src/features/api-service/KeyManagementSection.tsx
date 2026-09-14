@@ -1,6 +1,7 @@
 /**
  * KeyManagementSection.tsx — named outbound-key CRUD: list (keyPrefix only) +
- * create + revoke + enable/disable.
+ * create + soft delete (row + spend history kept) + permanent purge on deleted
+ * rows + enable/disable.
  *
  * SECRET DISCIPLINE: the list rows show ONLY `keyPrefix` (never a full key). The
  * create response's `plaintextOnce` is the FULL client key returned exactly once
@@ -253,8 +254,10 @@ export function KeyManagementSection({
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
-  const [revokeTarget, setRevokeTarget] = useState<OutboundApiKeyInfo | null>(null);
+  // Soft delete (stops the key; row + history stay) and the separate permanent
+  // purge offered only on already-deleted rows.
   const [deleteTarget, setDeleteTarget] = useState<OutboundApiKeyInfo | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<OutboundApiKeyInfo | null>(null);
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
@@ -340,7 +343,7 @@ export function KeyManagementSection({
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-foreground">{k.name}</span>
                     {k.revoked ? (
-                      <Badge variant="destructive">{t('apiService.keys.revoked')}</Badge>
+                      <Badge variant="destructive">{t('apiService.keys.deleted')}</Badge>
                     ) : k.enabled ? (
                       <Badge variant="success">{t('apiService.keys.enabled')}</Badge>
                     ) : (
@@ -421,20 +424,9 @@ export function KeyManagementSection({
                   />
                 ) : null}
                 {!k.revoked ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={busy || usedClients.length > 0}
-                    onClick={() => setRevokeTarget(k)}
-                    aria-label={t('apiService.keys.revoke')}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                ) : (
-                  // A revoked key keeps its row for history; this permanently
-                  // removes it (hard delete). Offered ONLY on revoked keys so an
-                  // active key must be revoked first (a deliberate two-step).
+                  // The ONE delete affordance is a SOFT delete: the key stops
+                  // authenticating immediately, but its row and spend history
+                  // stay on the list.
                   <Button
                     variant="ghost"
                     size="icon"
@@ -443,6 +435,20 @@ export function KeyManagementSection({
                     onClick={() => setDeleteTarget(k)}
                     aria-label={t('apiService.keys.delete')}
                     title={t('apiService.keys.delete')}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                ) : (
+                  // A soft-deleted key keeps its row for history; this is the
+                  // separate PERMANENT purge.
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={busy || usedClients.length > 0}
+                    onClick={() => setPurgeTarget(k)}
+                    aria-label={t('apiService.keys.purge')}
+                    title={t('apiService.keys.purge')}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </Button>
@@ -607,20 +613,22 @@ export function KeyManagementSection({
       )}
 
       <ConfirmDialog
-        open={revokeTarget !== null}
+        open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setRevokeTarget(null);
+          if (!open) setDeleteTarget(null);
         }}
-        title={t('apiService.keys.revokeConfirmTitle')}
+        title={t('apiService.keys.deleteConfirmTitle')}
         description={
-          revokeTarget ? t('apiService.keys.revokeConfirmDesc', { name: revokeTarget.name }) : undefined
+          deleteTarget ? t('apiService.keys.deleteConfirmDesc', { name: deleteTarget.name }) : undefined
         }
-        confirmLabel={t('apiService.keys.revoke')}
+        confirmLabel={t('apiService.keys.delete')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
         onConfirm={() => {
-          if (revokeTarget) void onRevoke(revokeTarget.id);
-          setRevokeTarget(null);
+          // Soft delete: the revoke endpoint stops the key while the row and
+          // its spend history stay on the list.
+          if (deleteTarget) void onRevoke(deleteTarget.id);
+          setDeleteTarget(null);
         }}
       />
 
@@ -652,20 +660,20 @@ export function KeyManagementSection({
       />
 
       <ConfirmDialog
-        open={deleteTarget !== null}
+        open={purgeTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
+          if (!open) setPurgeTarget(null);
         }}
-        title={t('apiService.keys.deleteConfirmTitle')}
+        title={t('apiService.keys.purgeConfirmTitle')}
         description={
-          deleteTarget ? t('apiService.keys.deleteConfirmDesc', { name: deleteTarget.name }) : undefined
+          purgeTarget ? t('apiService.keys.purgeConfirmDesc', { name: purgeTarget.name }) : undefined
         }
-        confirmLabel={t('apiService.keys.delete')}
+        confirmLabel={t('apiService.keys.purge')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
         onConfirm={() => {
-          if (deleteTarget) void onDelete(deleteTarget.id);
-          setDeleteTarget(null);
+          if (purgeTarget) void onDelete(purgeTarget.id);
+          setPurgeTarget(null);
         }}
       />
     </section>

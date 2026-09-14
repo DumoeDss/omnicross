@@ -51,7 +51,13 @@ export function createCliAdapter(): AgentCliApi {
 
     async launch(
       cli: string,
-      input?: { cwd?: string; providerId?: string; model?: string; keyId?: string },
+      input?: {
+        cwd?: string;
+        providerId?: string;
+        model?: string;
+        keyId?: string;
+        bindingId?: string;
+      },
     ): Promise<CliLaunchResult> {
       try {
         const data = await adminClient.post<{
@@ -60,6 +66,8 @@ export function createCliAdapter(): AgentCliApi {
           model?: string;
           keyId?: string;
           keyName?: string;
+          bindingId?: string;
+          bindingName?: string;
         }>(
           `/cli/${encodeURIComponent(cli)}/launch`,
           input ?? {},

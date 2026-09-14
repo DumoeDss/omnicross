@@ -276,7 +276,7 @@ describe('IntegrationManager', () => {
     expect(existsSync(join(customDir, 'auth.json'))).toBe(false);
   });
 
-  it('binds a selected key, grants Codex image permission, and does not revoke it on removal', async () => {
+  it('binds a selected key, grants Codex image permission, and leaves every key in place', async () => {
     const f = fixture();
     await f.manager.install('codex');
     const oldManagedId = f.store.load().keyBindings?.codex?.keyId;
@@ -292,10 +292,20 @@ describe('IntegrationManager', () => {
     expect(rows.find((row) => row.id === selected.id)?.allowedEndpoints).toEqual([
       'chat', 'responses', 'messages', 'gemini', 'images',
     ]);
-    expect(rows.find((row) => row.id === oldManagedId)?.revokedAt).not.toBeNull();
+    // Rebinding is NOT a revocation: the superseded MANAGED key stays in place
+    // (enabled, un-revoked) for manual cleanup.
+    expect(rows.find((row) => row.id === oldManagedId)).toMatchObject({
+      enabled: true,
+      revokedAt: null,
+    });
 
     await f.manager.remove('codex');
-    expect((await f.db.outboundApiKeysList()).find((row) => row.id === selected.id)).toMatchObject({
+    const afterRemove = await f.db.outboundApiKeysList();
+    expect(afterRemove.find((row) => row.id === selected.id)).toMatchObject({
+      enabled: true,
+      revokedAt: null,
+    });
+    expect(afterRemove.find((row) => row.id === oldManagedId)).toMatchObject({
       enabled: true,
       revokedAt: null,
     });

@@ -22,6 +22,12 @@
  * (`omnicross`) plus a `--key-id`-scoped auth command; no secret ever enters the
  * spawned env (Codex invokes the helper itself).
  *
+ * ROUTE-SCOPED LAUNCH (`{ bindingId }` body, codex only): pick a downstream
+ * ROUTE by id; the daemon picks an eligible key that can enter it (or honors
+ * an explicit `keyId`) and adds `x-omnicross-binding-id` to the provider
+ * headers, so the gateway serves that terminal from exactly the chosen route
+ * instead of the key's priority-ordered candidates.
+ *
  * @module @omnicross/daemon/admin/cliLaunch
  */
 
@@ -50,6 +56,7 @@ import {
 import {
   candidateGatewayBindings,
   effectiveOutboundPermissions,
+  GATEWAY_BINDING_PIN_HEADER,
   type GatewayBinding,
   type OutboundKeyDb,
   type OutboundPermission,
@@ -209,6 +216,12 @@ export interface KeyScopedCodexArgsInput {
   gatewayBaseUrl: string;
   authHelper: CodexAuthHelperConfig;
   keyId: string;
+  /**
+   * OPTIONAL downstream-route pin: every request this terminal sends carries
+   * `x-omnicross-binding-id`, and the gateway narrows the key's candidate
+   * routes to exactly that one. Absent keeps the key's normal routing.
+   */
+  bindingId?: string;
 }
 
 /**
@@ -227,13 +240,19 @@ export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[
   while (root.endsWith('/')) root = root.slice(0, -1);
   const name = CODEX_PROXY_PROVIDER_NAME;
   const helperArgs = [...input.authHelper.args, '--key-id', input.keyId];
+  // The static provider headers ride EVERY codex request. A route-pinned launch
+  // adds the binding pin alongside the actor marker so the gateway serves this
+  // terminal from exactly the chosen downstream route.
+  const httpHeaders = input.bindingId
+    ? `{"X-OpenAI-Actor-Authorization"="omnicross","${GATEWAY_BINDING_PIN_HEADER}"="${input.bindingId}"}`
+    : '{"X-OpenAI-Actor-Authorization"="omnicross"}';
   return [
     '-c', `model_provider="${name}"`,
     '-c', `model_providers.${name}.name="OmniCross Local Gateway"`,
     '-c', `model_providers.${name}.base_url="${root}/v1"`,
     '-c', `model_providers.${name}.wire_api="responses"`,
     '-c', `model_providers.${name}.supports_websockets=false`,
-    '-c', `model_providers.${name}.http_headers={"X-OpenAI-Actor-Authorization"="omnicross"}`,
+    '-c', `model_providers.${name}.http_headers=${httpHeaders}`,
     '-c', `model_providers.${name}.auth.command=${JSON.stringify(input.authHelper.command)}`,
     '-c', `model_providers.${name}.auth.args=${JSON.stringify(helperArgs)}`,
     '-c', `model_providers.${name}.auth.refresh_interval_ms=0`,
@@ -242,10 +261,36 @@ export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[
   ];
 }
 
-/** Preflight outcome for the chosen gateway key. */
+/** Preflight outcome for the chosen gateway key (optionally route-pinned). */
 export type KeyScopedPreflight =
-  | { ok: true; keyName: string }
+  | { ok: true; keyId: string; keyName: string; bindingId?: string; bindingName?: string }
   | { ok: false; status: number; message: string };
+
+/**
+ * Is this stored key row eligible to power a Codex terminal? Exists, enabled,
+ * not revoked, revealable (the helper re-reveals at CLI start — the plaintext
+ * is discarded here), and holding the codex-required endpoint permissions.
+ * Returns an error message instead of the row when NOT eligible.
+ */
+async function codexEligibleKeyError(
+  deps: KeyScopedLaunchDeps,
+  row: { id: string; name: string; enabled: boolean; revokedAt: number | null; allowedEndpoints?: OutboundPermission[] },
+): Promise<string | null> {
+  if (!row.enabled || row.revokedAt !== null) {
+    return `access key '${row.name}' is disabled or revoked`;
+  }
+  const secret = await deps.keyDb.outboundApiKeysReveal(row.id);
+  if (!secret) {
+    return `access key '${row.name}' is not revealable`;
+  }
+  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
+  for (const permission of KEY_SCOPED_CODEX_PERMISSIONS) {
+    if (!allowed.includes(permission)) {
+      return `access key '${row.name}' lacks the '${permission}' endpoint permission Codex requires`;
+    }
+  }
+  return null;
+}
 
 /**
  * Fail-fast checks for a key-scoped launch, so a misconfigured key surfaces as
@@ -270,23 +315,8 @@ export async function preflightKeyScopedLaunch(
   const rows = await deps.keyDb.outboundApiKeysList();
   const row = rows.find((candidate) => candidate.id === keyId);
   if (!row) return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
-  if (!row.enabled || row.revokedAt !== null) {
-    return { ok: false, status: 400, message: `access key '${row.name}' is disabled or revoked` };
-  }
-  const secret = await deps.keyDb.outboundApiKeysReveal(keyId);
-  if (!secret) {
-    return { ok: false, status: 400, message: `access key '${row.name}' is not revealable` };
-  }
-  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
-  for (const permission of KEY_SCOPED_CODEX_PERMISSIONS) {
-    if (!allowed.includes(permission)) {
-      return {
-        ok: false,
-        status: 400,
-        message: `access key '${row.name}' lacks the '${permission}' endpoint permission Codex requires`,
-      };
-    }
-  }
+  const eligibilityError = await codexEligibleKeyError(deps, row);
+  if (eligibilityError) return { ok: false, status: 400, message: eligibilityError };
   if (candidateGatewayBindings(deps.bindings, keyId, 'responses').length === 0) {
     return {
       ok: false,
@@ -296,7 +326,84 @@ export async function preflightKeyScopedLaunch(
         'on the API Service page first',
     };
   }
-  return { ok: true, keyName: row.name };
+  return { ok: true, keyId, keyName: row.name };
+}
+
+/**
+ * Fail-fast checks for a ROUTE-scoped launch (`{ bindingId }`, codex only):
+ * the terminal authenticates as an eligible gateway key (explicit `keyId`, or
+ * the first eligible key the route admits) and pins the chosen downstream
+ * route via `x-omnicross-binding-id`, so that exact route — not the key's
+ * priority-ordered candidates — serves the terminal. Binding ids are embedded
+ * in TOML/argv `-c` overrides, so only a conservative id charset is accepted.
+ */
+const BINDING_ID_CHARSET_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+
+export async function preflightBindingScopedLaunch(
+  deps: KeyScopedLaunchDeps,
+  bindingId: string,
+  keyId?: string,
+): Promise<KeyScopedPreflight> {
+  if (!deps.gatewayRunning) {
+    return {
+      ok: false,
+      status: 409,
+      message: 'the outbound gateway is not running — route-scoped launches route through it',
+    };
+  }
+  if (!BINDING_ID_CHARSET_RE.test(bindingId)) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'route id contains characters that cannot be passed through a terminal launch',
+    };
+  }
+  const binding = deps.bindings.find((candidate) => candidate.id === bindingId);
+  if (!binding) {
+    return { ok: false, status: 404, message: `downstream route '${bindingId}' does not exist` };
+  }
+  if (!binding.enabled || binding.endpoint !== 'responses') {
+    return {
+      ok: false,
+      status: 400,
+      message: `downstream route '${binding.name}' is disabled or does not serve the responses endpoint`,
+    };
+  }
+  const rows = await deps.keyDb.outboundApiKeysList();
+  const candidates = keyId
+    ? rows.filter((row) => row.id === keyId)
+    : rows;
+  if (keyId && candidates.length === 0) {
+    return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
+  }
+  // First eligible key the pinned route admits. Eligibility mirrors the
+  // key-scoped contract; admission is decided by the gateway's own candidate
+  // filter with the pin applied (never widens a key's routing).
+  for (const row of candidates) {
+    const eligibilityError = await codexEligibleKeyError(deps, row);
+    if (eligibilityError) {
+      if (keyId) return { ok: false, status: 400, message: eligibilityError };
+      continue;
+    }
+    if (candidateGatewayBindings(deps.bindings, row.id, 'responses', bindingId).length === 0) {
+      if (keyId) {
+        return {
+          ok: false,
+          status: 400,
+          message: `access key '${row.name}' cannot enter downstream route '${binding.name}'`,
+        };
+      }
+      continue;
+    }
+    return { ok: true, keyId: row.id, keyName: row.name, bindingId, bindingName: binding.name };
+  }
+  return {
+    ok: false,
+    status: 400,
+    message:
+      `downstream route '${binding.name}' has no eligible gateway key — an enabled, revealable key ` +
+      "with the responses+images permissions must be able to enter it (bind one on the API Service page)",
+  };
 }
 
 /** Dispatch to the matching cli-launcher builder (registers the resident route). */
@@ -552,6 +659,12 @@ interface CliSession {
    */
   keyId?: string;
   keyName?: string;
+  /**
+   * Route-pinned rows: the downstream route this terminal pinned via
+   * `x-omnicross-binding-id` (codex only). Absent on plain key-scoped rows.
+   */
+  bindingId?: string;
+  bindingName?: string;
   leaseId?: string;
   startedAt: string;
   onSessionEnd: () => void;
@@ -664,13 +777,15 @@ interface LaunchMaterial {
 
 
 /**
- * POST /cli/:cli/launch { providerId?, model?, cwd?, keyId? } → register the
- * resident route (or, with `keyId`, skip the lease and authenticate the
- * terminal's Codex to the gateway as the chosen key), open a terminal with the
- * redirect env, track the session. STATUS-ONLY: the response carries the
- * sessionId + resolved provider/model (or key id/name) — NEVER the route token
- * or the key plaintext (the token rides only the spawned terminal's
- * environment; the key never even does that — Codex's auth helper fetches it).
+ * POST /cli/:cli/launch { providerId?, model?, cwd?, keyId?, bindingId? } →
+ * register the resident route (or, with `keyId`/`bindingId`, skip the lease and
+ * authenticate the terminal's Codex to the gateway as the chosen key — pinned
+ * to the chosen downstream route when `bindingId` is set), open a terminal with
+ * the redirect env, track the session. STATUS-ONLY: the response carries the
+ * sessionId + resolved provider/model (or key id/name + route id/name) — NEVER
+ * the route token or the key plaintext (the token rides only the spawned
+ * terminal's environment; the key never even does that — Codex's auth helper
+ * fetches it).
  */
 export async function handleCliLaunch(
   cli: LaunchCliId,
@@ -686,13 +801,16 @@ export async function handleCliLaunch(
   }
 
   const keyId = typeof body['keyId'] === 'string' && body['keyId'].trim() ? body['keyId'].trim() : undefined;
+  const bindingId = typeof body['bindingId'] === 'string' && body['bindingId'].trim()
+    ? body['bindingId'].trim()
+    : undefined;
 
   let target: LaunchTarget | undefined;
-  let keyLaunch: { keyId: string; keyName: string } | undefined;
+  let keyLaunch: { keyId: string; keyName: string; bindingId?: string; bindingName?: string } | undefined;
   const id = randomUUID();
   let leaseId: string | undefined;
   let launch: LaunchMaterial;
-  if (keyId) {
+  if (keyId || bindingId) {
     if (cli !== 'codex') {
       return { status: 400, body: errBody('key-scoped launch is only supported for codex') };
     }
@@ -700,7 +818,9 @@ export async function handleCliLaunch(
     if (!deps) {
       return { status: 501, body: errBody('key-scoped launch is not available in this build') };
     }
-    const preflight = await preflightKeyScopedLaunch(deps, keyId);
+    const preflight = bindingId
+      ? await preflightBindingScopedLaunch(deps, bindingId, keyId)
+      : await preflightKeyScopedLaunch(deps, keyId!);
     if (!preflight.ok) return { status: preflight.status, body: errBody(preflight.message) };
     if (platform === 'win32') {
       // The auth-helper invocation rides argv through the terminal opener's
@@ -718,13 +838,19 @@ export async function handleCliLaunch(
         };
       }
     }
-    keyLaunch = { keyId, keyName: preflight.keyName };
+    keyLaunch = {
+      keyId: preflight.keyId,
+      keyName: preflight.keyName,
+      ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
+      ...(preflight.bindingName ? { bindingName: preflight.bindingName } : {}),
+    };
     launch = {
       env: {},
       extraArgs: buildKeyScopedCodexArgs({
         gatewayBaseUrl: deps.gatewayBaseUrl,
         authHelper: deps.codexAuthHelper,
-        keyId,
+        keyId: preflight.keyId,
+        ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
       }),
       // No route or lease exists to release — the gateway key outlives the
       // terminal and its bindings route every request.
@@ -810,7 +936,14 @@ export async function handleCliLaunch(
     cli,
     providerId: target?.providerId ?? '',
     model: target?.model ?? '',
-    ...(keyLaunch ? { keyId: keyLaunch.keyId, keyName: keyLaunch.keyName } : {}),
+    ...(keyLaunch
+      ? {
+          keyId: keyLaunch.keyId,
+          keyName: keyLaunch.keyName,
+          ...(keyLaunch.bindingId ? { bindingId: keyLaunch.bindingId } : {}),
+          ...(keyLaunch.bindingName ? { bindingName: keyLaunch.bindingName } : {}),
+        }
+      : {}),
     ...(leaseId ? { leaseId } : {}),
     startedAt: new Date().toISOString(),
     onSessionEnd,
@@ -820,7 +953,13 @@ export async function handleCliLaunch(
   return {
     status: 200,
     body: keyLaunch
-      ? { sessionId: id, keyId: keyLaunch.keyId, keyName: keyLaunch.keyName }
+      ? {
+          sessionId: id,
+          keyId: keyLaunch.keyId,
+          keyName: keyLaunch.keyName,
+          ...(keyLaunch.bindingId ? { bindingId: keyLaunch.bindingId } : {}),
+          ...(keyLaunch.bindingName ? { bindingName: keyLaunch.bindingName } : {}),
+        }
       : { sessionId: id, providerId: target?.providerId, model: target?.model },
   };
 }
