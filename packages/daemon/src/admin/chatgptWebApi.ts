@@ -24,6 +24,7 @@ import { loadHarnessConfig, saveHarnessConfig } from '@omnicross/chatgpt-web/tun
 import { installTunnelClient, isValidTunnelId } from '@omnicross/chatgpt-web/tunnel/tunnelClient';
 
 import { buildChatGptWebConfigOverrides, CHATGPT_WEB_TOKEN_ENV } from '../commands/chatgpt-web';
+import { codexProfileInstalled, ensureBridgeToken, writeCodexProfile } from './chatgptWebCodexProfile';
 
 /** One background bridge owned by this daemon (singleton). */
 interface BridgeState {
@@ -230,6 +231,7 @@ async function statusView() {
     login: { state: loginState, checkedAt: loginCache?.checkedAt ?? null },
     tunnel,
     install: tunnelInstall,
+    codex: { installed: codexProfileInstalled(), command: 'codex --profile chatgptweb' },
     bridge: bridgeView(),
   };
 }
@@ -305,6 +307,18 @@ export async function handleChatGptWeb(
       kickTunnelInstall();
       return respond(200, { started: true });
     }
+    if (method === 'POST' && rest[0] === 'codex-setup') {
+      const body = await readBody();
+      const model = typeof body['model'] === 'string' && body['model'] ? body['model'] : 'chatgpt-web/light';
+      const result = writeCodexProfile(dataDir(), { baseUrl: 'http://127.0.0.1:17850/v1', model });
+      // A running bridge keeps serving its own (now persistent) token — the
+      // profile just wrote the same one, so nothing to restart.
+      return respond(200, {
+        profileName: result.profileName,
+        envVarWritten: result.envVarWritten,
+        command: 'codex --profile chatgptweb',
+      });
+    }
     if (method === 'POST' && rest[0] === 'login') {
       // The login window is CDP-less (reference-implementation style) — it
       // must not share a profile with a running host, so free the lock first.
@@ -336,8 +350,10 @@ export async function handleChatGptWeb(
       const body = await readBody();
       const model = typeof body['model'] === 'string' && body['model'] ? body['model'] : 'chatgpt-web/light';
       const harness = body['harness'] !== false;
-      const { startChatGptWebBridge, generateBridgeToken } = await import('@omnicross/chatgpt-web/server');
-      const token = generateBridgeToken();
+      const { startChatGptWebBridge } = await import('@omnicross/chatgpt-web/server');
+      // Persistent token: a codex profile baked into config.toml must keep
+      // authenticating across bridge restarts.
+      const token = ensureBridgeToken(dataDir());
       const handle = await startChatGptWebBridge({
         port: 17850,
         authToken: token,

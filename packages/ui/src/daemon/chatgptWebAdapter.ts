@@ -49,6 +49,20 @@ export function createChatGptWebAdapter(): ChatGptWebApi {
       }
     },
 
+    async setupCodexProfile(
+      input: { model: string },
+    ): Promise<{ success: boolean; message?: string; profileName?: string; envVarWritten?: boolean; command?: string }> {
+      try {
+        const data = await adminClient.post<{ profileName: string; envVarWritten: boolean; command: string }>(
+          '/chatgpt-web/codex-setup',
+          input,
+        );
+        return { success: true, ...data };
+      } catch (err) {
+        return failure(err, 'failed to write the codex profile');
+      }
+    },
+
     async openLoginWindow(): Promise<{ success: boolean; message?: string }> {
       try {
         await adminClient.post('/chatgpt-web/login', {});

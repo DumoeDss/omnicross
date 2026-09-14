@@ -1792,7 +1792,17 @@
         "title": "啟動橋",
         "pick": "選好模型後啟動——tunnel 用戶端和瀏覽器執行時會在首次使用時自動下載。",
         "note": "啟動後，把下方資訊複製進 Codex（現成指令一鍵複製）。"
+      },
+      "codex": {
+        "title": "連接 codex（一次性）",
+        "description": "往 ~/.codex/config.toml 寫入一個託管的 profile，並把持久化 token 寫入使用者環境變數。你原有的 codex 設定不受影響——純增量。"
       }
+    },
+    "codex": {
+      "setup": "連接 codex",
+      "rewrite": "重寫 profile",
+      "done": "codex profile 已寫入——新開一個終端機執行：codex --profile chatgptweb",
+      "newTerminalHint": "token 寫在使用者環境變數裡——已開啟的終端機要重開才能看到。"
     },
     "config": {
       "runtimeKey": "執行密鑰（API key）",

@@ -1792,7 +1792,17 @@
         "title": "启动桥",
         "pick": "选好模型后启动——tunnel 客户端和浏览器运行时会在首次使用时自动下载。",
         "note": "启动后，把下方信息复制进 Codex（现成命令一键复制）。"
+      },
+      "codex": {
+        "title": "连接 codex（一次性）",
+        "description": "往 ~/.codex/config.toml 写入一个托管的 profile，并把持久化 token 写入用户环境变量。你原有的 codex 配置不受影响——纯增量。"
       }
+    },
+    "codex": {
+      "setup": "连接 codex",
+      "rewrite": "重写 profile",
+      "done": "codex profile 已写入——新开一个终端运行：codex --profile chatgptweb",
+      "newTerminalHint": "token 写在用户环境变量里——已打开的终端要重开才能看到。"
     },
     "config": {
       "runtimeKey": "运行密钥（API key）",

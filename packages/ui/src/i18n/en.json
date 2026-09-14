@@ -1795,7 +1795,17 @@
         "title": "Start the bridge",
         "pick": "Pick a model and start — the tunnel client and the browser runtime install automatically on first use.",
         "note": "Once running, copy the values below into Codex (the ready-made command is one click away)."
+      },
+      "codex": {
+        "title": "Wire up codex (one time)",
+        "description": "Writes a managed profile into ~/.codex/config.toml and a persistent token into your user environment. Your normal codex setup is untouched — the profile is additive."
       }
+    },
+    "codex": {
+      "setup": "Wire up codex",
+      "rewrite": "Rewrite profile",
+      "done": "codex profile written — open a NEW terminal and run: codex --profile chatgptweb",
+      "newTerminalHint": "The token lands in your user environment — already-open terminals won't see it until reopened."
     },
     "config": {
       "runtimeKey": "Runtime key (API key)",

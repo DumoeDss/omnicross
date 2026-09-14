@@ -39,6 +39,12 @@ export interface ChatGptWebBridgeStatus {
 
 export type ChatGptWebInstallState = 'idle' | 'installing' | 'done' | 'failed';
 
+export interface ChatGptWebCodexStatus {
+  installed: boolean;
+  /** The one-liner after setup: `codex --profile chatgptweb`. */
+  command: string;
+}
+
 export interface ChatGptWebStatus {
   config: ChatGptWebConfigStatus;
   electronRuntimeInstalled: boolean;
@@ -46,6 +52,7 @@ export interface ChatGptWebStatus {
   tunnel: ChatGptWebTunnelStatus;
   /** Background tunnel-client download state (kicked by the config save). */
   install: ChatGptWebInstallState;
+  codex: ChatGptWebCodexStatus;
   bridge: ChatGptWebBridgeStatus;
 }
 
@@ -63,6 +70,7 @@ export interface ChatGptWebApi {
   status(): Promise<ChatGptWebStatus | null>;
   saveConfig(input: ChatGptWebConfigSaveInput): Promise<{ success: boolean; message?: string; status?: ChatGptWebStatus }>;
   retryTunnelInstall(): Promise<{ success: boolean; message?: string }>;
+  setupCodexProfile(input: { model: string }): Promise<{ success: boolean; message?: string; profileName?: string; envVarWritten?: boolean; command?: string }>;
   openLoginWindow(): Promise<{ success: boolean; message?: string }>;
   checkLogin(): Promise<{ success: boolean; authenticated: boolean; message?: string }>;
   startBridge(input: ChatGptWebBridgeStartInput): Promise<{ success: boolean; message?: string; bridge?: ChatGptWebBridgeStatus }>;

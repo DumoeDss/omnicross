@@ -7,7 +7,7 @@
  * `GET /admin/api/chatgpt-web`.
  */
 
-import { Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
+import { Cable, Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -227,6 +227,7 @@ export function ChatGptWebPage() {
     refresh,
     saveConfig,
     retryTunnelInstall,
+    setupCodexProfile,
     openLoginWindow,
     checkLogin,
     startBridge,
@@ -462,6 +463,28 @@ export function ChatGptWebPage() {
                 <CopyBlock label="Base URL" value={bridge.baseUrl} />
                 <CopyBlock label="API Token" value={bridge.token ?? ''} />
                 {codexCommand ? <CopyBlock label="codex" value={codexCommand} /> : null}
+              </div>
+            ) : null}
+          </StepCard>
+
+          {/* Step 6: one-time codex wiring — a stable profile + env token */}
+          <StepCard index={6} title={t('chatgptWeb.steps.codex.title')} done={status?.codex.installed === true}>
+            <SubStep>{t('chatgptWeb.steps.codex.description')}</SubStep>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy !== null}
+                onClick={() => void setupCodexProfile({ model }, t('chatgptWeb.codex.done'))}
+              >
+                {busy === 'codex-setup' ? <Loader2 className="animate-spin" /> : <Cable className="h-4 w-4" />}
+                {status?.codex.installed ? t('chatgptWeb.codex.rewrite') : t('chatgptWeb.codex.setup')}
+              </Button>
+            </div>
+            {status?.codex.installed ? (
+              <div className="space-y-3 border-t border-border/40 pt-3">
+                <CopyBlock label="codex" value={status.codex.command} />
+                <p className="text-xs text-muted-foreground">{t('chatgptWeb.codex.newTerminalHint')}</p>
               </div>
             ) : null}
           </StepCard>
