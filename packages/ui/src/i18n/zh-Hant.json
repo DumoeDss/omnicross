@@ -1832,7 +1832,10 @@
       "createTunnel": "在 platform.openai.com 建立通道",
       "connector": "在 ChatGPT 中建立連接器",
       "zoom": "點擊放大",
-      "zoomHint": "滾輪縮放 · 拖曳平移 · 雙擊重設"
+      "zoomHint": "滾輪縮放 · 拖曳平移 · 雙擊重設",
+      "zoomInAction": "放大",
+      "zoomOut": "縮小",
+      "reset": "重設"
     },
     "guide": {
       "cli": "本頁所有操作也可以在終端機完成：omnicross chatgpt-web check | login | launch | harness status。",

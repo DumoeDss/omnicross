@@ -1835,7 +1835,10 @@
       "createTunnel": "Creating a tunnel on platform.openai.com",
       "connector": "Creating the connector in ChatGPT",
       "zoom": "Click to enlarge",
-      "zoomHint": "Wheel to zoom · drag to pan · double-click to reset"
+      "zoomHint": "Wheel to zoom · drag to pan · double-click to reset",
+      "zoomInAction": "Zoom in",
+      "zoomOut": "Zoom out",
+      "reset": "Reset"
     },
     "guide": {
       "cli": "Everything on this page also works from the terminal: omnicross chatgpt-web check | login | launch | harness status.",

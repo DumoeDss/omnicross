@@ -33,6 +33,8 @@ export interface ChatGptWebBridgeStatus {
   model?: string;
   harness?: boolean;
   startedAt?: number;
+  /** Daemon-generated copy-paste codex command (full provider definition). */
+  codexCommand?: string;
 }
 
 export type ChatGptWebInstallState = 'idle' | 'installing' | 'done' | 'failed';

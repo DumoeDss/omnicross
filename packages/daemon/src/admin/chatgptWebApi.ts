@@ -23,6 +23,8 @@ import { join } from 'node:path';
 import { loadHarnessConfig, saveHarnessConfig } from '@omnicross/chatgpt-web/tunnel/harnessConfig';
 import { installTunnelClient, isValidTunnelId } from '@omnicross/chatgpt-web/tunnel/tunnelClient';
 
+import { buildChatGptWebConfigOverrides, CHATGPT_WEB_TOKEN_ENV } from '../commands/chatgpt-web';
+
 /** One background bridge owned by this daemon (singleton). */
 interface BridgeState {
   stop: () => Promise<void>;
@@ -179,6 +181,25 @@ async function probeLogin(): Promise<boolean> {
   }
 }
 
+/**
+ * The copy-paste command for the operator's shell: mirrors the flags the
+ * daemon's own launch path uses (full model_providers definition — codex
+ * rejects a bare `model_provider` selection — token via env_key, /v1 base).
+ */
+function codexCommandFor(): string {
+  if (!bridge) return '';
+  const envAssignment =
+    process.platform === 'win32'
+      ? `$env:${CHATGPT_WEB_TOKEN_ENV}="${bridge.token}"`
+      : `export ${CHATGPT_WEB_TOKEN_ENV}="${bridge.token}"`;
+  return [
+    envAssignment,
+    'codex',
+    ...buildChatGptWebConfigOverrides(bridge.baseUrl),
+    `-m ${bridge.model}`,
+  ].join(' ');
+}
+
 function bridgeView() {
   if (!bridge) return { running: false };
   return {
@@ -188,6 +209,7 @@ function bridgeView() {
     model: bridge.model,
     harness: bridge.harness,
     startedAt: bridge.startedAt,
+    codexCommand: codexCommandFor(),
   };
 }
 

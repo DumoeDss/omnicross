@@ -7,7 +7,7 @@
  * `GET /admin/api/chatgpt-web`.
  */
 
-import { Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -97,9 +97,9 @@ function SubStep({ children }: { children: React.ReactNode }) {
 
 /**
  * An animated guide image (webp). Inline it small; click opens a lightbox
- * that starts enlarged and supports wheel zoom + drag pan — the reference
- * implementation's images cannot be enlarged at all, which makes fine print
- * unreadable.
+ * that starts enlarged. Zoom controls are BUTTONS first (they work in every
+ * environment), with wheel zoom + drag pan as enhancements — an earlier
+ * wheel-only version turned out inert inside the Tauri webview.
  */
 function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLabel: string }) {
   const t = useTranslation();
@@ -108,13 +108,16 @@ function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLab
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const dragRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
 
+  const clamp = (value: number) => Math.min(6, Math.max(0.5, value));
+
   // Non-passive wheel handler: the wheel zooms the image, never the page.
+  // Best-effort — the toolbar buttons remain the always-working path.
   React.useEffect(() => {
     const el = viewportRef.current;
     if (!el || !open) return undefined;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      setScale((current) => Math.min(4, Math.max(0.5, current * (event.deltaY < 0 ? 1.15 : 1 / 1.15))));
+      setScale((current) => clamp(current * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -145,14 +148,17 @@ function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLab
         </span>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-6xl p-3">
+        {/* !important overrides: DialogContent's own max-w-lg/p-6 come later
+            in the stylesheet than plain utilities (cn does not merge them),
+            which kept the lightbox at 512px wide. */}
+        <DialogContent className="!max-w-6xl !p-3">
           <DialogHeader className="sr-only">
             <DialogTitle>{alt}</DialogTitle>
             <DialogDescription>{t('chatgptWeb.images.zoomHint')}</DialogDescription>
           </DialogHeader>
           <div
             ref={viewportRef}
-            className="max-h-[78vh] cursor-grab overflow-auto rounded-md bg-surface-0/60 active:cursor-grabbing"
+            className="max-h-[74vh] cursor-grab overflow-auto rounded-md bg-surface-0/60 active:cursor-grabbing"
             onPointerDown={(event) => {
               const el = viewportRef.current;
               if (!el) return;
@@ -171,19 +177,32 @@ function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLab
             }}
           >
             {/* Percent-width scaling: scale 1 already fills (and enlarges)
-                the dialog; the wheel multiplies it 0.5×–4×. */}
+                the dialog; zoom multiplies it 0.5×–6×. max-width:none is
+                REQUIRED — Tailwind's preflight clamps img to 100%, which
+                silently pinned every zoom level to the viewport width. */}
             <img
               src={src}
               alt={alt}
               onDoubleClick={() => setScale(1)}
-              className="block w-max select-none rounded-md"
-              style={{ width: `${scale * 100}%` }}
+              className="block h-auto select-none rounded-md"
+              style={{ width: `${scale * 100}%`, maxWidth: 'none' }}
               draggable={false}
             />
           </div>
-          <div className="flex items-center justify-between px-1 pt-1 text-xs text-muted-foreground">
-            <span>{t('chatgptWeb.images.zoomHint')}</span>
-            <span className="font-mono">{Math.round(scale * 100)}%</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1">
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" onClick={() => setScale((current) => clamp(current / 1.25))} aria-label={t('chatgptWeb.images.zoomOut')}>
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <span className="w-14 text-center font-mono text-xs text-muted-foreground">{Math.round(scale * 100)}%</span>
+              <Button size="sm" variant="outline" onClick={() => setScale((current) => clamp(current * 1.25))} aria-label={t('chatgptWeb.images.zoomInAction')}>
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setScale(1)}>
+                {t('chatgptWeb.images.reset')}
+              </Button>
+            </div>
+            <span className="text-xs text-muted-foreground">{t('chatgptWeb.images.zoomHint')}</span>
           </div>
         </DialogContent>
       </Dialog>
@@ -224,14 +243,7 @@ export function ChatGptWebPage() {
   const bridge = status?.bridge;
   const configDone = config?.present === true && !reconfigure;
 
-  const codexCommand = bridge?.baseUrl
-    ? [
-        'codex',
-        '-c model_provider="omnicross-chatgptweb"',
-        `-c omnicross_chatgptweb_base_url="${bridge.baseUrl}"`,
-        `-c omnicross_chatgptweb_api_key="${bridge.token ?? ''}"`,
-      ].join(' ')
-    : '';
+  const codexCommand = bridge?.codexCommand ?? '';
 
   const handleSaveConfig = async () => {
     const result = await saveConfig({ tunnelId, runtimeKey }, t('chatgptWeb.config.saved'));
