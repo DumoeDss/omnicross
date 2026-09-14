@@ -257,7 +257,15 @@ async function handleRequest(req: IncomingMessage, res: import('node:http').Serv
 
   if (req.method === 'GET' && pathname === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'omnicross-chatgpt-web', pid: process.pid }));
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        service: 'omnicross-chatgpt-web',
+        pid: process.pid,
+        // ask_pro's precheck distinguishes "bridge down" from "bridge without harness".
+        harness: context.worker.harnessEnabled,
+      }),
+    );
     return;
   }
 

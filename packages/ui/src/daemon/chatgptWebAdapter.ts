@@ -63,6 +63,24 @@ export function createChatGptWebAdapter(): ChatGptWebApi {
       }
     },
 
+    async installAskPro(input: { model?: string }): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/ask-pro/install', input);
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to install ask_pro');
+      }
+    },
+
+    async uninstallAskPro(): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/ask-pro/uninstall', {});
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to uninstall ask_pro');
+      }
+    },
+
     async openLoginWindow(): Promise<{ success: boolean; message?: string }> {
       try {
         await adminClient.post('/chatgpt-web/login', {});

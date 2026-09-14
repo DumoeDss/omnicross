@@ -45,6 +45,13 @@ export interface ChatGptWebCodexStatus {
   command: string;
 }
 
+/** ask_pro (Pro as a Codex MCP advisor) installation state. */
+export interface ChatGptWebAskProStatus {
+  installed: boolean;
+  entryFile: string;
+  mcpName: string;
+}
+
 export interface ChatGptWebStatus {
   config: ChatGptWebConfigStatus;
   electronRuntimeInstalled: boolean;
@@ -53,6 +60,7 @@ export interface ChatGptWebStatus {
   /** Background tunnel-client download state (kicked by the config save). */
   install: ChatGptWebInstallState;
   codex: ChatGptWebCodexStatus;
+  askPro: ChatGptWebAskProStatus;
   bridge: ChatGptWebBridgeStatus;
 }
 
@@ -71,6 +79,8 @@ export interface ChatGptWebApi {
   saveConfig(input: ChatGptWebConfigSaveInput): Promise<{ success: boolean; message?: string; status?: ChatGptWebStatus }>;
   retryTunnelInstall(): Promise<{ success: boolean; message?: string }>;
   setupCodexProfile(input: { model: string }): Promise<{ success: boolean; message?: string; profileName?: string; envVarWritten?: boolean; command?: string }>;
+  installAskPro(input: { model?: string }): Promise<{ success: boolean; message?: string }>;
+  uninstallAskPro(): Promise<{ success: boolean; message?: string }>;
   openLoginWindow(): Promise<{ success: boolean; message?: string }>;
   checkLogin(): Promise<{ success: boolean; authenticated: boolean; message?: string }>;
   startBridge(input: ChatGptWebBridgeStartInput): Promise<{ success: boolean; message?: string; bridge?: ChatGptWebBridgeStatus }>;

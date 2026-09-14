@@ -1796,6 +1796,10 @@
       "codex": {
         "title": "连接 codex（一次性）",
         "description": "往 ~/.codex/config.toml 写入一个托管的 profile，并把持久化 token 写入用户环境变量。你原有的 codex 配置不受影响——纯增量。"
+      },
+      "askPro": {
+        "title": "Pro 外脑 ask_pro（可选）",
+        "description": "给 codex 注册一个 ask_pro MCP 工具：小模型干活时咨询 ChatGPT Pro，Pro 能自己只读检查工作区再给建议。"
       }
     },
     "codex": {
@@ -1803,6 +1807,14 @@
       "rewrite": "重写 profile",
       "done": "codex profile 已写入——新开一个终端运行：codex --profile chatgptweb",
       "newTerminalHint": "token 写在用户环境变量里——已打开的终端要重开才能看到。"
+    },
+    "askPro": {
+      "install": "安装 ask_pro",
+      "uninstall": "卸载",
+      "installed": "ask_pro 已安装——重启 codex 会话后即可使用（mcp_servers 对所有 codex 会话生效）。",
+      "removed": "ask_pro 已卸载。",
+      "hint": "咨询时桥需要在 harness 模式运行（步骤 5）；一次咨询约几十秒到几分钟。",
+      "readonly": "默认只读：Pro 只能跑只读命令（git / 文件读取）。"
     },
     "config": {
       "runtimeKey": "运行密钥（API key）",

@@ -79,9 +79,12 @@ function resolveInPath(candidate: string): string | null {
 /** Run the `chatgpt-web` subcommand; returns the CLI exit code. */
 export async function runChatgptWeb(argv: string[]): Promise<number> {
   const subcommand = argv[0];
-  if (subcommand !== 'check' && subcommand !== 'launch' && subcommand !== 'harness' && subcommand !== 'login') {
+  if (subcommand !== 'check' && subcommand !== 'launch' && subcommand !== 'harness' && subcommand !== 'login' && subcommand !== 'ask-pro') {
     printUsage();
     return subcommand === 'help' || subcommand === '--help' ? 0 : 1;
+  }
+  if (subcommand === 'ask-pro') {
+    return runAskPro(argv.slice(1));
   }
   const sep = argv.indexOf('--');
   const own = sep === -1 ? argv : argv.slice(0, sep);
@@ -333,6 +336,51 @@ async function runElectronLogin(options: { cdpPort?: number; visible: boolean })
   }
 }
 
+/** `omnicross chatgpt-web ask-pro <install|uninstall|status>` — the Pro-as-MCP-advisor wiring. */
+async function runAskPro(rest: string[]): Promise<number> {
+  const action = rest[0] === undefined ? 'status' : rest[0];
+  const { values } = parseArgs({
+    args: rest.slice(1),
+    options: {
+      model: { type: 'string', short: 'm' },
+      writable: { type: 'boolean' },
+    },
+    allowPositionals: false,
+  });
+  const { homedir } = await import('node:os');
+  const profile = await import('../admin/chatgptWebCodexProfile');
+  const dataDir = join(homedir(), '.omnicross', 'chatgpt-web');
+
+  if (action === 'install') {
+    const result = await profile.installAskProServer(dataDir, {
+      model: values.model,
+      writable: values.writable === true,
+    });
+    console.info(`ask-pro server installed: ${result.entryFile}`);
+    console.info(`codex config: ${result.configPath} → [mcp_servers.${profile.CODEX_ASK_PRO_MCP_NAME}]`);
+    console.info(`spawn: ${result.command} ${result.args.join(' ')} (tool_timeout_sec=${result.toolTimeoutSec})`);
+    console.info('ask_pro is available in EVERY codex session (mcp_servers are global); uninstall with:');
+    console.info('  omnicross chatgpt-web ask-pro uninstall');
+    return 0;
+  }
+  if (action === 'uninstall') {
+    const result = profile.uninstallAskProServer(dataDir);
+    console.info(`ask-pro section removed from ${result.configPath}${result.removedEntry ? ' + server copy deleted' : ''}`);
+    return 0;
+  }
+  if (action === 'status') {
+    const sectionPresent = profile.askProMcpInstalled();
+    const entryFile = profile.askProInstalledEntryFile(dataDir);
+    const entryPresent = existsSync(entryFile);
+    console.info(`config section: ${sectionPresent ? 'present' : 'absent'}`);
+    console.info(`server copy:    ${entryPresent ? entryFile : `not installed (${entryFile})`}`);
+    console.info(`ready:          ${sectionPresent && entryPresent ? 'yes — ask_pro usable in codex' : 'no'}`);
+    return 0;
+  }
+  console.error(`chatgpt-web ask-pro: unknown action "${String(action)}" (install | uninstall | status)`);
+  return 1;
+}
+
 /** `omnicross chatgpt-web harness <setup|status>` driver. */
 async function runHarness(
   _chatgptWeb: ChatgptWebModule,
@@ -390,6 +438,13 @@ Usage:
                                            Save the full-harness tunnel configuration (free to create
                                            on platform.openai.com; see "harness status" for the checklist).
   omnicross chatgpt-web harness status     Show harness configuration + setup checklist.
+  omnicross chatgpt-web ask-pro install [--model <chatgpt-web/pro>] [--writable]
+                                           Register ChatGPT Pro as an MCP advisor (ask_pro tool) for
+                                           codex — Pro can inspect the workspace read-only (default) and
+                                           answers through the harness bridge. Requires the bridge running
+                                           with harness when consulting. Affects every codex session.
+  omnicross chatgpt-web ask-pro uninstall  Remove the ask_pro MCP registration + server copy.
+  omnicross chatgpt-web ask-pro status     Show ask_pro installation state.
 
 Requires Chrome with remote debugging enabled (chrome://inspect/#remote-debugging)
 and an active chatgpt.com login in that Chrome. Unofficial automation — use your

@@ -1796,6 +1796,10 @@
       "codex": {
         "title": "連接 codex（一次性）",
         "description": "往 ~/.codex/config.toml 寫入一個託管的 profile，並把持久化 token 寫入使用者環境變數。你原有的 codex 設定不受影響——純增量。"
+      },
+      "askPro": {
+        "title": "Pro 外腦 ask_pro（可選）",
+        "description": "給 codex 註冊一個 ask_pro MCP 工具：小模型幹活時諮詢 ChatGPT Pro，Pro 能自己唯讀檢查工作區再給建議。"
       }
     },
     "codex": {
@@ -1803,6 +1807,14 @@
       "rewrite": "重寫 profile",
       "done": "codex profile 已寫入——新開一個終端機執行：codex --profile chatgptweb",
       "newTerminalHint": "token 寫在使用者環境變數裡——已開啟的終端機要重開才能看到。"
+    },
+    "askPro": {
+      "install": "安裝 ask_pro",
+      "uninstall": "卸載",
+      "installed": "ask_pro 已安裝——重啟 codex 會話後即可使用（mcp_servers 對所有 codex 會話生效）。",
+      "removed": "ask_pro 已卸載。",
+      "hint": "諮詢時橋需要在 harness 模式運行（步驟 5）；一次諮詢約幾十秒到幾分鐘。",
+      "readonly": "預設唯讀：Pro 只能跑唯讀命令（git / 檔案讀取）。"
     },
     "config": {
       "runtimeKey": "執行密鑰（API key）",

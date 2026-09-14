@@ -7,7 +7,7 @@
  * `GET /admin/api/chatgpt-web`.
  */
 
-import { Cable, Check, Copy, ExternalLink, Globe, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
+import { Cable, Check, Copy, ExternalLink, Globe, GraduationCap, Loader2, LogIn, RefreshCw, Rocket, ShieldCheck, ZoomIn, ZoomOut } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -228,6 +228,8 @@ export function ChatGptWebPage() {
     saveConfig,
     retryTunnelInstall,
     setupCodexProfile,
+    installAskPro,
+    uninstallAskPro,
     openLoginWindow,
     checkLogin,
     startBridge,
@@ -487,6 +489,38 @@ export function ChatGptWebPage() {
                 <p className="text-xs text-muted-foreground">{t('chatgptWeb.codex.newTerminalHint')}</p>
               </div>
             ) : null}
+          </StepCard>
+
+          {/* Step 7 (optional): ask_pro — ChatGPT Pro as an MCP advisor for codex */}
+          <StepCard
+            index={7}
+            title={t('chatgptWeb.steps.askPro.title')}
+            done={status?.askPro.installed === true ? true : null}
+          >
+            <SubStep>{t('chatgptWeb.steps.askPro.description')}</SubStep>
+            <SubStep>{t('chatgptWeb.askPro.readonly')}</SubStep>
+            <SubStep>{t('chatgptWeb.askPro.hint')}</SubStep>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => void installAskPro(t('chatgptWeb.askPro.installed'))}
+              >
+                {busy === 'ask-pro-install' ? <Loader2 className="animate-spin" /> : <GraduationCap className="h-4 w-4" />}
+                {t('chatgptWeb.askPro.install')}
+              </Button>
+              {status?.askPro.installed ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => void uninstallAskPro(t('chatgptWeb.askPro.removed'))}
+                >
+                  {busy === 'ask-pro-uninstall' ? <Loader2 className="animate-spin" /> : null}
+                  {t('chatgptWeb.askPro.uninstall')}
+                </Button>
+              ) : null}
+            </div>
           </StepCard>
 
           {/* Footer note */}

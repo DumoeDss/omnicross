@@ -1799,6 +1799,10 @@
       "codex": {
         "title": "Wire up codex (one time)",
         "description": "Writes a managed profile into ~/.codex/config.toml and a persistent token into your user environment. Your normal codex setup is untouched — the profile is additive."
+      },
+      "askPro": {
+        "title": "Pro advisor ask_pro (optional)",
+        "description": "Registers an ask_pro MCP tool for codex: while the small model works, it can consult ChatGPT Pro — and Pro can inspect the workspace read-only itself before advising."
       }
     },
     "codex": {
@@ -1806,6 +1810,14 @@
       "rewrite": "Rewrite profile",
       "done": "codex profile written — open a NEW terminal and run: codex --profile chatgptweb",
       "newTerminalHint": "The token lands in your user environment — already-open terminals won't see it until reopened."
+    },
+    "askPro": {
+      "install": "Install ask_pro",
+      "uninstall": "Uninstall",
+      "installed": "ask_pro installed — restart your codex session and it is available (mcp_servers apply to every codex session).",
+      "removed": "ask_pro uninstalled.",
+      "hint": "Consulting needs the bridge running in harness mode (step 5); one consult takes tens of seconds to a few minutes.",
+      "readonly": "Read-only by default: Pro can only run read-only commands (git / file reading)."
     },
     "config": {
       "runtimeKey": "Runtime key (API key)",

@@ -1,13 +1,13 @@
 # ChatGPT Web Bridge — Session Handoff
 
-> 交接文档（2026-09-14 全面刷新）。分支 `feat/chatgpt-web-bridge`。
+> 交接文档（2026-09-14 全面刷新；同日晚间增量：ask_pro）。分支 `feat/chatgpt-web-bridge`。
 > 目标读者：接手继续开发的下一个 session。读完从「§9 下一步」开始。
-> 配套深读：`docs/chatgpt-web-harness-findings.md`（harness 排障全记录，含 @-mention 死路、幽灵草稿等）。
+> 配套深读：`docs/chatgpt-web-harness-findings.md`（harness 排障全记录）、`docs/chatgpt-web-ask-pro-design.md`（Pro 外脑设计与实现状态）。
 
 ## 1. 项目目标与现状一句话
 
-把 **ChatGPT Web（含 Pro 档）做成 Codex 的模型后端**：桥 + 专用 Electron 浏览器宿主 + tunnel/MCP 本地工具回路 + 桌面端配置页 + codex 一键 profile。
-**当前状态：核心链路全部真实验证通过（含 harness 工具回路），桌面 UI 已上线，codex profile 已交付；差最后一项「真 codex × harness 工具回路」实测。**
+把 **ChatGPT Web（含 Pro 档）做成 Codex 的模型后端**：桥 + 专用 Electron 浏览器宿主 + tunnel/MCP 本地工具回路 + 桌面端配置页 + codex 一键 profile；外加 **ask_pro**（Pro 作为 codex 的 MCP 外脑，小模型咨询、Pro 只读查库）。
+**当前状态：核心链路全部真实验证通过（含 harness 工具回路），桌面 UI 已上线（含打包），codex profile 已交付，ask_pro 已实现（单测+构建冒烟+真浏览器 UI 点验，实机实测未做）；差「真 codex × harness 工具回路」与「ask_pro 实机」两项实测。**
 
 ## 2. 架构总览
 
@@ -20,14 +20,19 @@ Codex ─┬─ codex --profile chatgptweb（推荐；一次性写入的托管 p
        └─ spawn stdio MCP server（codex_shell / codex_apply_patch）── broker（turn_token 路由）
   工具回路：ChatGPT 调工具 → connector → tunnel → MCP → broker → 桥发 function_call SSE
        → Codex 本地执行 → function_call_output → broker 解除挂起 → 同一浏览器回合续流
-  桌面端：packages/ui 独立页「ChatGPT 网页」（#/chatgpt-web，六步向导）
+  ask_pro（Pro 外脑，2026-09-14）：codex（原生 provider + 小模型）──MCP──▶ ask-pro server
+       （~/.omnicross/chatgpt-web/ask-pro/server.mjs，自包含单文件）──/v1/responses──▶ 桥
+       （harness 模式）；Pro 的工具调用原路回到 ask-pro server 自己执行（默认只读 allowlist），
+       再以 function_call_output 续流 —— 执行者=HTTP 客户端，中间链路零改动。设计全文见
+       docs/chatgpt-web-ask-pro-design.md
+  桌面端：packages/ui 独立页「ChatGPT 网页」（#/chatgpt-web，六步向导 + 可选 Step 7 ask_pro）
        ──/admin/api/chatgpt-web/*──▶ daemon admin/chatgptWebApi.ts（状态聚合/配置保存/
        登录窗口/登录检查/桥生命周期/codex profile 写入）
 ```
 
 关键文件地图：
-- `packages/chatgpt-web/src/`：`cdp/`（连接层，targetFactory 支持 Electron）、`browserHost/`（electronHost.ts + main.cjs；**stopExistingElectronHosts 定点清理**）、`chatgpt/`（选择器、effort 档位、turn.ts / harnessTurn.ts 两阶段）、`bridge/`（parser/编译/SSE/worker/server）、`tunnel/`（tunnelClient/broker/mcpServer/harnessConfig）
-- `packages/daemon/src/admin/chatgptWebApi.ts` — UI 的全部后端；`chatgptWebCodexProfile.ts` — codex profile 写入（TOML 幂等编辑器，纯函数已单测）
+- `packages/chatgpt-web/src/`：`cdp/`（连接层，targetFactory 支持 Electron）、`browserHost/`（electronHost.ts + main.cjs；**stopExistingElectronHosts 定点清理**）、`chatgpt/`（选择器、effort 档位、turn.ts / harnessTurn.ts 两阶段）、`bridge/`（parser/编译/SSE/worker/server）、`tunnel/`（tunnelClient/broker/mcpServer/harnessConfig）、`askpro/`（askProCore.ts 引擎 + askProServer.ts stdio MCP 入口，均带 entry guard）
+- `packages/daemon/src/admin/chatgptWebApi.ts` — UI 的全部后端；`chatgptWebCodexProfile.ts` — codex profile + ask-pro mcp_servers 段写入（TOML 幂等编辑器共用引擎，纯函数已单测；安装拷贝 server.mjs 并动态 import 自检）
 - `packages/ui/src/features/chatgpt-web/` — 页面 + hook；`daemon/chatgptWebAdapter.ts` + `types-chatgpt-web.ts`
 - `scripts/chatgpt-web-*.ts` — 单发验证脚本族（round-trip / harness-roundtrip 等）
 
@@ -43,7 +48,11 @@ Codex ─┬─ codex --profile chatgptweb（推荐；一次性写入的托管 p
 | **harness 工具回路（模拟工具输出）** | ✅ | 2026-09-12 Pro 档 exit 0：connector 挂载→Pro 调 codex_shell→function_call 两阶段→续流→精确答案（75ca72a） |
 | 桌面 UI 页（向导/动图/灯箱缩放） | ✅ 代码层 | 类型/测试/构建全绿；灯箱缩放经真实浏览器 CDP 实测 PASS；**整页在打包版 app 里未逐项点验** |
 | codex profile 写入 + `--profile` 切换 | ✅ 代码层 | 单测 4/4（TOML 幂等）；**实机 `codex --profile chatgptweb` 未跑**（用户可能正在验） |
-| **真 codex × harness 工具回路** | ⛔ **未验证** | 唯一大项：模拟版过了，等真实 codex 会话执行 function_call |
+| ask_pro 引擎（mock 桥全回路） | ✅ 代码层 | 单测 16 项：allowlist 决策表 / SSE 累积器（含 park）/ 两轮工具应答 / 429 / 只读违例 / apply_patch 拒绝 |
+| ask_pro 构建产物 + UI | ✅ 代码层 | dist 直跑 MCP 冒烟三连全对、import 无副作用；UI Step7 真浏览器（vite+Electron+CDP）点验 PASS |
+| ask_pro 安装胶水（mock HOME） | ✅ 代码层 | 单测：拷贝+段写入+外来配置不动+干净卸载；**实机 ~/.codex/config.toml 未写入** |
+| **真 codex × harness 工具回路** | ⛔ **未验证** | 大项之一：模拟版过了，等真实 codex 会话执行 function_call |
+| **ask_pro 实机（安装 + 真实咨询）** | ⛔ **未验证** | 大项之二：UI/CLI 安装 → 原生 codex 调 ask_pro → Pro 只读跑命令 → 小模型拿建议 |
 
 ## 4. 当前无阻塞卡点；遗留已知问题
 
@@ -76,6 +85,8 @@ npx tsx packages\daemon\src\cli.ts chatgpt-web check [--smoke]
 npx tsx packages\daemon\src\cli.ts chatgpt-web login      # 用户自己跑（看得见窗口的操作）
 npx tsx packages\daemon\src\cli.ts chatgpt-web launch --browser-host=electron --harness --model chatgpt-web/pro
 npx tsx packages\daemon\src\cli.ts chatgpt-web harness status
+npx tsx packages\daemon\src\cli.ts chatgpt-web ask-pro install [--model chatgpt-web/pro] [--writable]
+npx tsx packages\daemon\src\cli.ts chatgpt-web ask-pro uninstall|status   # 写 ~/.codex/config.toml 托管段 + 拷 server.mjs
 
 # 验证脚本
 npx tsx scripts\chatgpt-web-round-trip.ts --host=electron [--model=chatgpt-web/light]
@@ -120,16 +131,19 @@ cd apps\desktop; npm run build      # 出正式包（stage-daemon 重建全部 w
 17. **Tauri 里 `<a target=_blank>` 无效**：外链必须 openExternal（shared/tauri/openExternal）
 18. **首跑机器 tunnel 状态探测 10s 不够**（admin 初始化慢）→ 30s；就绪等待 120s
 19. **tunnel-client 下载源是 GitHub releases**：弱网慢/失败要有 UI 态和重试；桥启动守卫"下载中拒绝启动"
-20. **win32 spawn GUI 绝不 windowsHide:true**（窗口永不显示，EnumWindows 诊断）；harness.test.ts 导 mcpServer 的 process.exit 噪音待修
+20. **win32 spawn GUI 绝不 windowsHide:true**（窗口永不显示，EnumWindows 诊断）；~~mcpServer import 即 process.exit~~（已修：entry guard）
+21. **esbuild CJS 产物会原样保留 `import.meta`**（require 即崩且构建不报错）——chatgpt-web 的 tsup 拆成两配置：库入口双格式必须无 import.meta；被 node 直接 spawn 的入口（mcpServer/askProServer）ESM-only；askProServer 还要 splitting:false 保持单文件自包含（安装=整文件拷贝到 ~/.omnicross，装时动态 import 自检兜底）
+22. **heredoc 里写 Windows 反斜杠路径会被传输层吃掉一层**（`\\`→`\`，`\n` 变真换行）——坑 #10 的 bash 变体：复杂脚本一律 Write 工具落文件再 node 跑，或用正斜杠路径
+23. **mcp_servers 是全局的**（codex 每个会话都会拉起）：ask-pro 安装必须 opt-in（UI 按钮/CLI），不能随 profile 顺手写
 
 ## 9. 下一步（建议顺序）
 
-1. **[最优先] 真 codex × harness 工具回路**：UI 启动桥（pro）→ 新终端 `codex --profile chatgptweb` → 给个需要跑命令的任务 → 观察 function_call 由 codex 真实执行。用户可能已在验，结果未知——先问用户。
-2. **打包验证**：另一 session 正在 `apps/desktop; npm run build` 出包（进行中，结果未回）。新包装上后 UI 页逐项点验（六步向导/动图缩放/登录/桥/连接 codex）。
-3. **轮换 runtime key**（暴露过）：platform.openai.com 新建 key → UI「重新配置」；多机各一份拷贝，更要换。
-4. Zero Risk 模式（参考实现的伪造回执 + 人工执行）——用户未拍板，属于"可选吸收"。
-5. 「Pro 作为 MCP 外脑」（原生模型调 ask_pro）——用户设想的方向，参考实现没做；组件齐全（mcpServer 骨架可复用），包装一个 stdio MCP server + 挂到 codex mcp_servers 即可。注意每次调用 = 完整浏览器回合（10-60s）。
-6. 收尾：`/v1/models` 警告确认；README 补 Electron 宿主章节；诊断脚本收敛（harnessTurn 里 turn-starting/tab-opened/plus-menu-items 等临时诊断择机瘦身）；mcpServer main() entry 检测修复；考虑吸收参考实现的 compaction/检查点。
+1. **[最优先] 真 codex × harness 工具回路**：UI 启动桥（pro）→ 新终端 `codex --profile chatgptweb` → 给个需要跑命令的任务 → 观察 function_call 由 codex 真实执行。用户未验（2026-09-14 确认）。
+2. **ask_pro 实机验证**（代码已就绪，见 `docs/chatgpt-web-ask-pro-design.md` §7）：UI Step 7「安装 ask_pro」（或 CLI）→ 桥 harness 模式跑着 → **原生 provider 的** codex 会话（不是 chatgptweb profile，两者不能叠加）→ 给个需要查 repo 的任务 → 小模型应调 ask_pro → Pro 只读跑命令 → 返回建议。注意 codex 对 MCP 工具调用有审批门；一次咨询 10s-数分钟属正常。
+3. **打包验证收尾**：打包已成功（2026-09-14）；新包 UI 逐项点验只完成了代码层 + dev 环境真浏览器（ask_pro Step 7）；打包版整页逐项点验仍待做。
+4. **轮换 runtime key**（暴露过）：platform.openai.com 新建 key → UI「重新配置」；多机各一份拷贝，更要换。
+5. Zero Risk 模式（参考实现的伪造回执 + 人工执行）——用户未拍板，属于"可选吸收"。
+6. 收尾：`/v1/models` 警告确认；README 补 Electron 宿主 + ask_pro 章节；诊断脚本收敛（harnessTurn 里 turn-starting/tab-opened/plus-menu-items 等临时诊断择机瘦身）；ask_pro 后续可选项：--writable 模式的 UI 开关、apply_patch 执行器、跨调用会话记忆；考虑吸收参考实现的 compaction/检查点。
 7. 转正评估：daemon 常驻集成（桥随应用生命周期，而非页面上手动启停）、发布流程（包 private）。
 
 ## 10. 环境速查
@@ -139,11 +153,14 @@ cd apps\desktop; npm run build      # 出正式包（stage-daemon 重建全部 w
 - 主机：Chrome 9222 常开；系统代理 127.0.0.1:10808；数据目录 `~/.omnicross/chatgpt-web/`（bin/browser/DevToolsActivePort/host-control.json/bridge-token）；harness 配置 `~/.omnicross/chatgpt-web-harness.json`
 - Electron 39.2.0（按需装到数据目录）；tunnel-client v0.0.12
 - 桌面 app：dev 用 workspace dist（改动重启 dev 即生效）；安装版用 daemon-runtime 快照（必须 `apps/desktop; npm run build` 重打包）
-- 测试基线：chatgpt-web 63 / ui 343 / daemon admin 新增 4；daemon 全量有一个**既有**失败（ImageRuntimeGenerationFactory，main 上同样失败，非本分支引入）
+- 测试基线：chatgpt-web 79（+16 askpro，且 mcpServer 噪音修复后 0 unhandled error）/ ui 280 / daemon admin 85（profile 10→11，含 ask-pro 胶水）；daemon 全量有一个**既有**失败（ImageRuntimeGenerationFactory，main 上同样失败，非本分支引入）
 
 ## 11. 提交历史（本分支关键提交，新→旧）
 
 ```
+【未提交】feat: ask_pro — ChatGPT Pro as a Codex MCP advisor（2026-09-14 晚：引擎/入口/安装胶水/
+          admin API/CLI/UI Step7/i18n×3/mcpServer entry-guard 修复/tsup 双配置；27 新单测；
+          真浏览器 UI 点验 PASS。工作区另有无关未跟踪文件 codex-meter-*.json/md，别动）
 90590b6 feat(daemon,ui): one-time codex wiring — persistent token + managed profile
 1f43d39 fix(ui,daemon): working lightbox zoom + a codex command that actually runs
 7e7d7e7 fix(chatgpt-web): first-run tunnel readiness + zoomable guide lightbox

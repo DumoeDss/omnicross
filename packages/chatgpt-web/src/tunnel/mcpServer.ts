@@ -14,6 +14,7 @@
 import { createConnection } from 'node:net';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -248,7 +249,23 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((error: unknown) => {
-  process.stderr.write(`mcpServer: fatal: ${error instanceof Error ? error.message : String(error)}\n`);
-  process.exit(1);
-});
+// Entry guard (the ask-pro server's pattern): main() runs only when this
+// file is executed directly — importing it (harness.test.ts pulls MCP_TOOLS)
+// must stay side-effect free instead of exiting the test runner.
+function invokedDirectly(): boolean {
+  try {
+    if (!process.argv[1]) return false;
+    const self = import.meta.url;
+    const entry = pathToFileURL(process.argv[1]).href;
+    return process.platform === 'win32' ? self.toLowerCase() === entry.toLowerCase() : self === entry;
+  } catch {
+    return false;
+  }
+}
+
+if (invokedDirectly()) {
+  main().catch((error: unknown) => {
+    process.stderr.write(`mcpServer: fatal: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(1);
+  });
+}

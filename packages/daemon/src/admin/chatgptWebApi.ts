@@ -24,7 +24,16 @@ import { loadHarnessConfig, saveHarnessConfig } from '@omnicross/chatgpt-web/tun
 import { installTunnelClient, isValidTunnelId } from '@omnicross/chatgpt-web/tunnel/tunnelClient';
 
 import { buildChatGptWebConfigOverrides, CHATGPT_WEB_TOKEN_ENV } from '../commands/chatgpt-web';
-import { codexProfileInstalled, ensureBridgeToken, writeCodexProfile } from './chatgptWebCodexProfile';
+import {
+  askProInstalledEntryFile,
+  askProMcpInstalled,
+  CODEX_ASK_PRO_MCP_NAME,
+  codexProfileInstalled,
+  ensureBridgeToken,
+  installAskProServer,
+  uninstallAskProServer,
+  writeCodexProfile,
+} from './chatgptWebCodexProfile';
 
 /** One background bridge owned by this daemon (singleton). */
 interface BridgeState {
@@ -232,6 +241,11 @@ async function statusView() {
     tunnel,
     install: tunnelInstall,
     codex: { installed: codexProfileInstalled(), command: 'codex --profile chatgptweb' },
+    askPro: {
+      installed: askProMcpInstalled() && existsSync(askProInstalledEntryFile(dataDir())),
+      entryFile: askProInstalledEntryFile(dataDir()),
+      mcpName: CODEX_ASK_PRO_MCP_NAME,
+    },
     bridge: bridgeView(),
   };
 }
@@ -318,6 +332,24 @@ export async function handleChatGptWeb(
         envVarWritten: result.envVarWritten,
         command: 'codex --profile chatgptweb',
       });
+    }
+    if (method === 'POST' && rest[0] === 'ask-pro' && rest[1] === 'install') {
+      const body = await readBody();
+      const model = typeof body['model'] === 'string' && body['model'] ? body['model'] : undefined;
+      const writable = body['writable'] === true;
+      const result = await installAskProServer(dataDir(), { model, writable });
+      return respond(200, {
+        installed: true,
+        entryFile: result.entryFile,
+        command: result.command,
+        args: result.args,
+        toolTimeoutSec: result.toolTimeoutSec,
+        status: await statusView(),
+      });
+    }
+    if (method === 'POST' && rest[0] === 'ask-pro' && rest[1] === 'uninstall') {
+      const result = uninstallAskProServer(dataDir());
+      return respond(200, { installed: false, configPath: result.configPath, removedEntry: result.removedEntry, status: await statusView() });
     }
     if (method === 'POST' && rest[0] === 'login') {
       // The login window is CDP-less (reference-implementation style) — it

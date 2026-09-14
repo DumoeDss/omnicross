@@ -50,6 +50,10 @@ Usage:
   omnicross chatgpt-web launch [--model <chatgpt-web/…>] [--port <n>] [--cdp-port <n>] [--cwd <dir>] [-- <codex-args…>]
                                            EXPERIMENTAL: start the ChatGPT Web Responses bridge and
                                            launch Codex wired to it (browser automation over your Chrome).
+  omnicross chatgpt-web ask-pro install [--model <chatgpt-web/pro>] [--writable]
+                                           EXPERIMENTAL: register ChatGPT Pro as an MCP advisor (ask_pro)
+                                           for codex; Pro inspects the workspace read-only through the
+                                           harness bridge. uninstall | status also available.
   omnicross integrations status --config <p>  Inspect native CLI gateway integration.
   omnicross integrations plan <codex|claude> --config <p> [--target <path>]
                                            Preview redacted configuration changes.
