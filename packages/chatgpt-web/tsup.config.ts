@@ -14,6 +14,11 @@ export default defineConfig({
     'tunnel/mcpServer': 'src/tunnel/mcpServer.ts',
     // Consumed as a subpath by the daemon harness command.
     'tunnel/harnessConfig': 'src/tunnel/harnessConfig.ts',
+    // Subpath the daemon admin API imports statically (chatgptWebApi) — without
+    // its own entry the module only exists inside other entries' chunks, and
+    // the direct `@omnicross/chatgpt-web/tunnel/tunnelClient` resolution 404s
+    // at daemon startup (ERR_MODULE_NOT_FOUND in the packaged runtime).
+    'tunnel/tunnelClient': 'src/tunnel/tunnelClient.ts',
     // Dedicated Electron browser host.
     'browserHost/electronHost': 'src/browserHost/electronHost.ts',
   },
