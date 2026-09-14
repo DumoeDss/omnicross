@@ -207,11 +207,29 @@ async function statusView() {
     electronRuntimeInstalled: electronBinaryInstalled(),
     login: { state: loginState, checkedAt: loginCache?.checkedAt ?? null },
     tunnel,
+    install: tunnelInstall,
     bridge: bridgeView(),
   };
 }
 
-/** Save the harness config and kick the tunnel-client download in the background. */
+/** Kick the tunnel-client download in the background (idempotent). */
+function kickTunnelInstall(): void {
+  if (existsSync(tunnelBinary())) {
+    tunnelInstall = 'done';
+    return;
+  }
+  if (tunnelInstall === 'installing') return;
+  tunnelInstall = 'installing';
+  void installTunnelClient(join(dataDir(), 'bin'))
+    .then(() => {
+      tunnelInstall = 'done';
+    })
+    .catch(() => {
+      tunnelInstall = 'failed';
+    });
+}
+
+/** Save the harness config and start the tunnel-client download. */
 async function saveConfig(tunnelId: string, runtimeKey: string): Promise<void> {
   if (!isValidTunnelId(tunnelId.trim())) {
     throw new Error('tunnel id must look like tunnel_<32 hex chars> (copy it from platform.openai.com → Tunnels)');
@@ -220,16 +238,7 @@ async function saveConfig(tunnelId: string, runtimeKey: string): Promise<void> {
     throw new Error('runtime key must be a non-empty single-line value (create one on platform.openai.com → API keys)');
   }
   saveHarnessConfig({ tunnelId: tunnelId.trim(), runtimeKey: runtimeKey.trim() });
-  if (!existsSync(tunnelBinary()) && tunnelInstall !== 'installing') {
-    tunnelInstall = 'installing';
-    void installTunnelClient(join(dataDir(), 'bin'))
-      .then(() => {
-        tunnelInstall = 'done';
-      })
-      .catch(() => {
-        tunnelInstall = 'failed';
-      });
-  }
+  kickTunnelInstall();
 }
 
 export async function handleChatGptWeb(
@@ -269,6 +278,11 @@ export async function handleChatGptWeb(
       await saveConfig(String(body['tunnelId'] ?? ''), String(body['runtimeKey'] ?? ''));
       return respond(200, await statusView());
     }
+    if (method === 'POST' && rest[0] === 'tunnel-install') {
+      if (existsSync(tunnelBinary())) return respond(200, { installed: true });
+      kickTunnelInstall();
+      return respond(200, { started: true });
+    }
     if (method === 'POST' && rest[0] === 'login') {
       // The login window is CDP-less (reference-implementation style) — it
       // must not share a profile with a running host, so free the lock first.
@@ -288,6 +302,15 @@ export async function handleChatGptWeb(
     }
     if (method === 'POST' && rest[0] === 'bridge') {
       if (bridge) return fail(409, 'a chatgpt-web bridge is already running');
+      if (tunnelInstall === 'installing') {
+        return fail(409, 'the tunnel client is still downloading — wait for the download to finish, then start again');
+      }
+      if (!existsSync(tunnelBinary())) {
+        // The bridge would download it synchronously and hang the request
+        // for minutes on a slow network — start it explicitly instead.
+        kickTunnelInstall();
+        return fail(409, 'the tunnel client is not installed yet — download started, try again when it finishes');
+      }
       const body = await readBody();
       const model = typeof body['model'] === 'string' && body['model'] ? body['model'] : 'chatgpt-web/light';
       const harness = body['harness'] !== false;

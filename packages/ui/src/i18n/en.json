@@ -1817,6 +1817,9 @@
       "stopped": "stopped",
       "healthy": "healthy",
       "installing": "downloading tunnel client…",
+      "installFailed": "tunnel client download failed",
+      "retry": "Retry download",
+      "retryStarted": "Download restarted.",
       "willInstall": "tunnel client installs on start"
     },
     "bridge": {
@@ -1831,7 +1834,8 @@
     "images": {
       "createTunnel": "Creating a tunnel on platform.openai.com",
       "connector": "Creating the connector in ChatGPT",
-      "zoom": "Click to enlarge"
+      "zoom": "Click to enlarge",
+      "zoomHint": "Wheel to zoom · drag to pan · double-click to reset"
     },
     "guide": {
       "cli": "Everything on this page also works from the terminal: omnicross chatgpt-web check | login | launch | harness status.",

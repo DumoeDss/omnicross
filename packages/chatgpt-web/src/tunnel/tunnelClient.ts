@@ -368,7 +368,10 @@ export async function tunnelStatus(config: Pick<TunnelRuntimeConfig, 'binaryPath
   if (!existsSync(config.binaryPath)) {
     return { ok: false, running: false, healthy: false, ready: false, detail: `Missing ${config.binaryPath}` };
   }
-  const result = await runBinary(config.binaryPath, ['runtimes', 'status', config.alias, '--json'], 10_000);
+  // First-run machines initialize admin profiles, OAuth discovery and the
+  // cloudflared supervisor before status answers — 10s probes timed out
+  // there and cascaded into false "not ready" failures.
+  const result = await runBinary(config.binaryPath, ['runtimes', 'status', config.alias, '--json'], 30_000);
   return parseTunnelStatus(commandOutput(result), result.status);
 }
 

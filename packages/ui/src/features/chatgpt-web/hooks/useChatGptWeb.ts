@@ -11,7 +11,7 @@ import type { ChatGptWebBridgeStartInput, ChatGptWebConfigSaveInput, ChatGptWebS
 
 const adapter = createChatGptWebAdapter();
 
-export type ChatGptWebBusy = 'config-save' | 'login' | 'login-check' | 'bridge-start' | 'bridge-stop' | null;
+export type ChatGptWebBusy = 'config-save' | 'tunnel-install' | 'login' | 'login-check' | 'bridge-start' | 'bridge-stop' | null;
 
 export function useChatGptWeb() {
   const [status, setStatus] = useState<ChatGptWebStatus | null>(null);
@@ -69,6 +69,11 @@ export function useChatGptWeb() {
     [run],
   );
 
+  const retryTunnelInstall = useCallback(
+    (message: string) => run('tunnel-install', () => adapter.retryTunnelInstall(), () => setNotice(message)),
+    [run],
+  );
+
   const openLoginWindow = useCallback(
     (message: string) => run('login', () => adapter.openLoginWindow(), () => setNotice(message)),
     [run],
@@ -108,6 +113,7 @@ export function useChatGptWeb() {
     notice,
     refresh,
     saveConfig,
+    retryTunnelInstall,
     openLoginWindow,
     checkLogin,
     startBridge,

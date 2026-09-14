@@ -1814,6 +1814,9 @@
       "stopped": "已停止",
       "healthy": "健康",
       "installing": "正在下載 tunnel 用戶端…",
+      "installFailed": "tunnel 用戶端下載失敗",
+      "retry": "重試下載",
+      "retryStarted": "已重新開始下載。",
       "willInstall": "啟動時自動安裝"
     },
     "bridge": {
@@ -1828,7 +1831,8 @@
     "images": {
       "createTunnel": "在 platform.openai.com 建立通道",
       "connector": "在 ChatGPT 中建立連接器",
-      "zoom": "點擊放大"
+      "zoom": "點擊放大",
+      "zoomHint": "滾輪縮放 · 拖曳平移 · 雙擊重設"
     },
     "guide": {
       "cli": "本頁所有操作也可以在終端機完成：omnicross chatgpt-web check | login | launch | harness status。",

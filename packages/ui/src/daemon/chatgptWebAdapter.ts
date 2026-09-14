@@ -40,6 +40,15 @@ export function createChatGptWebAdapter(): ChatGptWebApi {
       }
     },
 
+    async retryTunnelInstall(): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/tunnel-install', {});
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to start the tunnel client download');
+      }
+    },
+
     async openLoginWindow(): Promise<{ success: boolean; message?: string }> {
       try {
         await adminClient.post('/chatgpt-web/login', {});

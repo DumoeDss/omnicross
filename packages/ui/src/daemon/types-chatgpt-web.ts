@@ -35,11 +35,15 @@ export interface ChatGptWebBridgeStatus {
   startedAt?: number;
 }
 
+export type ChatGptWebInstallState = 'idle' | 'installing' | 'done' | 'failed';
+
 export interface ChatGptWebStatus {
   config: ChatGptWebConfigStatus;
   electronRuntimeInstalled: boolean;
   login: ChatGptWebLoginStatus;
   tunnel: ChatGptWebTunnelStatus;
+  /** Background tunnel-client download state (kicked by the config save). */
+  install: ChatGptWebInstallState;
   bridge: ChatGptWebBridgeStatus;
 }
 
@@ -56,6 +60,7 @@ export interface ChatGptWebConfigSaveInput {
 export interface ChatGptWebApi {
   status(): Promise<ChatGptWebStatus | null>;
   saveConfig(input: ChatGptWebConfigSaveInput): Promise<{ success: boolean; message?: string; status?: ChatGptWebStatus }>;
+  retryTunnelInstall(): Promise<{ success: boolean; message?: string }>;
   openLoginWindow(): Promise<{ success: boolean; message?: string }>;
   checkLogin(): Promise<{ success: boolean; authenticated: boolean; message?: string }>;
   startBridge(input: ChatGptWebBridgeStartInput): Promise<{ success: boolean; message?: string; bridge?: ChatGptWebBridgeStatus }>;

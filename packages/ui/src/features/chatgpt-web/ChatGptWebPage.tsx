@@ -96,17 +96,40 @@ function SubStep({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * An animated guide image (webp). Inline it small; click opens a full-size
- * lightbox — the reference implementation's images cannot be enlarged, so
- * this is the explicit upgrade.
+ * An animated guide image (webp). Inline it small; click opens a lightbox
+ * that starts enlarged and supports wheel zoom + drag pan — the reference
+ * implementation's images cannot be enlarged at all, which makes fine print
+ * unreadable.
  */
 function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLabel: string }) {
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
+  const [scale, setScale] = useState(1);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const dragRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+
+  // Non-passive wheel handler: the wheel zooms the image, never the page.
+  React.useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || !open) return undefined;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      setScale((current) => Math.min(4, Math.max(0.5, current * (event.deltaY < 0 ? 1.15 : 1 / 1.15))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [open]);
+
+  const openLightbox = () => {
+    setScale(1);
+    setOpen(true);
+  };
+
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openLightbox}
         className="group relative block overflow-hidden rounded-lg border border-border/70"
         title={zoomLabel}
         aria-label={zoomLabel}
@@ -122,12 +145,46 @@ function GuideImage({ src, alt, zoomLabel }: { src: string; alt: string; zoomLab
         </span>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl p-3">
+        <DialogContent className="max-w-6xl p-3">
           <DialogHeader className="sr-only">
             <DialogTitle>{alt}</DialogTitle>
-            <DialogDescription>{zoomLabel}</DialogDescription>
+            <DialogDescription>{t('chatgptWeb.images.zoomHint')}</DialogDescription>
           </DialogHeader>
-          <img src={src} alt={alt} className="max-h-[80vh] w-auto max-w-full rounded-md" />
+          <div
+            ref={viewportRef}
+            className="max-h-[78vh] cursor-grab overflow-auto rounded-md bg-surface-0/60 active:cursor-grabbing"
+            onPointerDown={(event) => {
+              const el = viewportRef.current;
+              if (!el) return;
+              dragRef.current = { x: event.clientX, y: event.clientY, left: el.scrollLeft, top: el.scrollTop };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              const el = viewportRef.current;
+              const drag = dragRef.current;
+              if (!el || !drag) return;
+              el.scrollLeft = drag.left - (event.clientX - drag.x);
+              el.scrollTop = drag.top - (event.clientY - drag.y);
+            }}
+            onPointerUp={() => {
+              dragRef.current = null;
+            }}
+          >
+            {/* Percent-width scaling: scale 1 already fills (and enlarges)
+                the dialog; the wheel multiplies it 0.5×–4×. */}
+            <img
+              src={src}
+              alt={alt}
+              onDoubleClick={() => setScale(1)}
+              className="block w-max select-none rounded-md"
+              style={{ width: `${scale * 100}%` }}
+              draggable={false}
+            />
+          </div>
+          <div className="flex items-center justify-between px-1 pt-1 text-xs text-muted-foreground">
+            <span>{t('chatgptWeb.images.zoomHint')}</span>
+            <span className="font-mono">{Math.round(scale * 100)}%</span>
+          </div>
         </DialogContent>
       </Dialog>
     </>
@@ -150,6 +207,7 @@ export function ChatGptWebPage() {
     notice,
     refresh,
     saveConfig,
+    retryTunnelInstall,
     openLoginWindow,
     checkLogin,
     startBridge,
@@ -347,8 +405,8 @@ export function ChatGptWebPage() {
               ) : (
                 <Button
                   size="sm"
-                  disabled={busy !== null || !configDone}
-                  title={!configDone ? t('chatgptWeb.bridge.needConfig') : undefined}
+                  disabled={busy !== null || !configDone || status?.install === 'installing'}
+                  title={!configDone ? t('chatgptWeb.bridge.needConfig') : status?.install === 'installing' ? t('chatgptWeb.tunnel.installing') : undefined}
                   onClick={() => void startBridge({ model, harness: true }, t('chatgptWeb.bridge.started'))}
                 >
                   {busy === 'bridge-start' ? <Loader2 className="animate-spin" /> : <Rocket className="h-4 w-4" />}
@@ -358,8 +416,24 @@ export function ChatGptWebPage() {
             </div>
             {tunnel ? (
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                {tunnel.installing ? <Badge variant="secondary">{t('chatgptWeb.tunnel.installing')}</Badge> : null}
-                {!tunnel.installed && !tunnel.installing ? <Badge variant="secondary">{t('chatgptWeb.tunnel.willInstall')}</Badge> : null}
+                {status?.install === 'installing' ? <Badge variant="secondary">{t('chatgptWeb.tunnel.installing')}</Badge> : null}
+                {status?.install === 'failed' ? (
+                  <>
+                    <Badge variant="destructive">{t('chatgptWeb.tunnel.installFailed')}</Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy !== null}
+                      onClick={() => void retryTunnelInstall(t('chatgptWeb.tunnel.retryStarted'))}
+                    >
+                      {busy === 'tunnel-install' ? <Loader2 className="animate-spin" /> : null}
+                      {t('chatgptWeb.tunnel.retry')}
+                    </Button>
+                  </>
+                ) : null}
+                {!tunnel.installed && status?.install !== 'installing' && status?.install !== 'failed' ? (
+                  <Badge variant="secondary">{t('chatgptWeb.tunnel.willInstall')}</Badge>
+                ) : null}
                 {tunnel.installed ? (
                   <Badge variant={tunnel.running ? 'success' : 'secondary'}>
                     {tunnel.running ? t('chatgptWeb.tunnel.running') : t('chatgptWeb.tunnel.stopped')}

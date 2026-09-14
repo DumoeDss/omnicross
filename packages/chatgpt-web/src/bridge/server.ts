@@ -83,7 +83,7 @@ export interface HarnessRuntime {
 /** Poll the runtime status until healthy+ready, surfacing the log tail. */
 async function waitForTunnelReady(
   probe: () => Promise<import('../tunnel/tunnelClient').TunnelRuntimeStatus>,
-  timeoutMs = 60_000,
+  timeoutMs = 120_000,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastDetail = '';
