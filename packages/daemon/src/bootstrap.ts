@@ -356,6 +356,15 @@ export interface Daemon {
    */
   readonly migrateUsageStore: () => Promise<UsageMigrationResult>;
   /**
+   * Fire-and-forget rollup warm-up (rollup v2 / usage-filter): sequentially
+   * build/upgrade every closed day's sidecar in the background so the first
+   * dashboard query after an upgrade does not pay for the rebuilds itself.
+   * Correctness never depends on it — any day it has not reached is built
+   * lazily by the next query that needs it. Started only by the resident
+   * `start` command.
+   */
+  readonly warmUsageRollups: () => Promise<void>;
+  /**
    * Durable-first billing publisher (billing-event-stream) — appends each event
    * to `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POSTs it.
    * Registered as the core billing sink (via the billing runtime slot) by
@@ -1195,6 +1204,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     if (result.migrated) usageEventStore.resetCaches();
     return result;
   };
+  const warmUsageRollups = async (): Promise<void> => {
+    await usageEventStore.warmRollups();
+  };
 
   // Billing event stream (billing-event-stream) — the durable-first publisher
   // (append `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POST) + its
@@ -1264,6 +1276,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     auditPruneSweeper,
     usagePruneSweeper,
     migrateUsageStore,
+    warmUsageRollups,
     billingPublisher,
     billingRetrySweeper,
   };

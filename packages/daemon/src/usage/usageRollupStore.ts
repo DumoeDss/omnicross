@@ -49,6 +49,11 @@ export class UsageRollupStore {
    * stale. `null` means the day has neither a usable rollup nor a shard — i.e.
    * nothing was ever recorded for it.
    *
+   * V1→V2 UPGRADE: a v1 sidecar (or memo) whose shard still exists is rebuilt
+   * to v2 on first touch — the attribute splits it lacks are what make filtered
+   * queries rollup-served. A v1 rollup whose shard is GONE cannot be upgraded
+   * and is served as-is; the store falls back to v1 composition for that day.
+   *
    * Callers must not ask for TODAY: today's rows are still arriving, so a rollup
    * of them would be wrong the moment it was written.
    */
@@ -63,7 +68,7 @@ export class UsageRollupStore {
       const size = hasShard === false ? null : await shardSize(this.usageDir, dayKey);
       if (cached === null) {
         if (size === null) return null;
-      } else if (size === null || size === cached.sourceBytes) {
+      } else if (this.rollupIsCurrent(cached, size)) {
         return cached;
       }
       this.cache.delete(dayKey);
@@ -85,6 +90,17 @@ export class UsageRollupStore {
   }
 
   /**
+   * Whether a known rollup can be served as-is for the observed shard size:
+   * current version AND built from exactly these bytes. A v1 rollup whose shard
+   * is gone (`size === null`, the pruned case) has nothing to upgrade from and
+   * stays servable; a v1 rollup WITH a shard falls through to a v2 rebuild.
+   */
+  private rollupIsCurrent(rollup: UsageDayRollup, size: number | null): boolean {
+    if (size === null) return true; // pruned day: the sidecar is the authority
+    return rollup.version === 2 && size === rollup.sourceBytes;
+  }
+
+  /**
    * Build (or rebuild) a day's rollup from its shard and persist it. Exposed for
    * the prune sweeper, which must guarantee a rollup exists BEFORE it deletes
    * the rows that rollup is derived from.
@@ -97,9 +113,10 @@ export class UsageRollupStore {
     const size = hasShard === false ? null : await shardSize(this.usageDir, dayKey);
     const onDisk = await this.readSidecar(dayKey);
     if (onDisk) {
-      // Pruned day ⇒ the sidecar is all there is. Otherwise it must match the
-      // shard it claims to summarise.
-      if (size === null || size === onDisk.sourceBytes) return this.remember(dayKey, onDisk);
+      // Pruned day ⇒ the sidecar is all there is (any version — see
+      // {@link rollupIsCurrent}). Otherwise it must be CURRENT and match the
+      // shard it claims to summarise; a v1 sidecar rebuilds as v2.
+      if (this.rollupIsCurrent(onDisk, size)) return this.remember(dayKey, onDisk);
     }
     if (size === null) return this.remember(dayKey, null);
 

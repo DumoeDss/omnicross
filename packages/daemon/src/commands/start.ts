@@ -69,6 +69,14 @@ export async function runStart(argv: string[]): Promise<StartResult> {
   // successful run the legacy file is gone and this is a single `stat`.
   await daemon.migrateUsageStore();
 
+  // Warm the per-day usage rollups in the background: build the missing,
+  // refresh the stale, upgrade v1 sidecars to v2 (rollup v2, usage-filter).
+  // Fire-and-forget on purpose — the first dashboard query pays for any day
+  // this has not reached yet, so the warm-up is a latency optimisation, never
+  // a correctness step. Sequential, so it never competes with itself. Resident
+  // daemon only (`launch` is short-lived and skips it).
+  void daemon.warmUsageRollups().catch(() => {});
+
   await daemon.providerProxy.start();
 
   const serverConfig = await loadServerConfig(daemon.settingsStore);

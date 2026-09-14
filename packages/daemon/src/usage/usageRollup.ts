@@ -25,7 +25,10 @@
  * Because a shard is append-only, a size change means rows were added after the
  * rollup was computed (only reachable by inserting into a past day — the tests
  * do it, production does not) and the rollup is recomputed. A shard that is GONE
- * is the pruned case, where the rollup is the sole surviving authority.
+ * is the pruned case, where the rollup is the sole surviving authority — and a
+ * v1 rollup whose shard is gone stays v1 forever for the same reason (there is
+ * nothing left to rebuild it from); the store falls back to v1 composition for
+ * those days. Every other v1 rollup is upgraded to v2 on first touch.
  *
  * @module @omnicross/daemon/usage/usageRollup
  */
@@ -87,9 +90,60 @@ export interface RollupHourRow {
   costUsd: number;
 }
 
-/** The on-disk `usage-YYYY-MM-DD.rollup.json` document. */
+/**
+ * One (provider, key) cell of a v2 rollup — every additive totals field plus
+ * the two cache-rate COUNTS and a hit-rate HISTOGRAM of its own, so a
+ * provider/key-filtered `getTotals` (any filter combination) is EXACT from the
+ * rollup alone: sums add, counts add, and per-event medians compose from
+ * per-attribute bins exactly as whole-day medians compose from the day bins.
+ */
+export interface RollupAttributeRow extends SummableTotals {
+  providerId: string;
+  /** Raw key id; `null` is the unattributed cell. */
+  apiKeyId: string | null;
+  /** Sparse `binIndex -> count` over this cell's per-event cache-hit rates. */
+  hitRateBins: Record<string, number>;
+}
+
+/**
+ * One (provider, model, key) cell of a v2 rollup — the cross-tab an
+ * apiKeyId-filtered `getByModel` needs (the plain `byModel` table has no key
+ * dimension). Carries exactly the `ModelUsageRow` additive fields.
+ */
+export interface RollupModelKeyRow {
+  providerId: string;
+  model: string;
+  /** Raw key id; `null` is the unattributed cell. */
+  apiKeyId: string | null;
+  eventCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUsd: number;
+  costSavedByCacheUsd: number;
+}
+
+/** One hour of one (provider, key) cell of a v2 rollup. */
+export interface RollupHourKeyRow extends RollupHourRow {
+  providerId: string;
+  /** Raw key id; `null` is the unattributed cell. */
+  apiKeyId: string | null;
+}
+
+/**
+ * The on-disk `usage-YYYY-MM-DD.rollup.json` document.
+ *
+ * Version 2 added the three attribute-split tables (`byAttribute`,
+ * `byModelKey`, `byHourKey`) so FILTERED queries answer closed days from the
+ * rollup exactly like unfiltered ones do — v1 could only compose filtered
+ * totals/groupings from `byModel`/`byApiKey`, and a filtered time-series or a
+ * key-filtered by-model could not see a v1 day at all. A v1 sidecar whose shard
+ * still exists is upgraded to v2 on first touch; one whose shard is pruned is
+ * served as-is (it is the sole surviving record and cannot be rebuilt).
+ */
 export interface UsageDayRollup {
-  version: 1;
+  version: 1 | 2;
   /** `YYYY-MM-DD`, LOCAL. Must match the file name. */
   date: string;
   /** Byte size of the shard this was built from; the staleness guard. */
@@ -104,6 +158,12 @@ export interface UsageDayRollup {
   sessionIds: string[];
   /** True when `sessionIds` hit {@link SESSION_INDEX_LIMIT} and is incomplete. */
   sessionIdsTruncated: boolean;
+  /** v2 only: the (provider, key) cells — exact filtered `getTotals`. */
+  byAttribute?: RollupAttributeRow[];
+  /** v2 only: the (provider, model, key) cells — exact filtered `getByModel`. */
+  byModelKey?: RollupModelKeyRow[];
+  /** v2 only: the hour × (provider, key) cells — exact filtered `getTimeSeries`. */
+  byHourKey?: RollupHourKeyRow[];
 }
 
 /** A zeroed {@link SummableTotals}. */
@@ -222,6 +282,20 @@ export function binsToRecord(bins: Map<number, number>): Record<string, number> 
   return out;
 }
 
+/** In-progress v2 attribute cell: a `SummableTotals` with a live bins Map. */
+interface AttributeAcc extends SummableTotals {
+  providerId: string;
+  apiKeyId: string | null;
+  hitRateBins: Map<number, number>;
+}
+
+/** Key state distinguishing `null` from the (legal, if odd) empty-string id. */
+const NULL_KEY = '\u0000';
+
+/** Composite map key for a (provider, key) cell (`\u0000`-separated). */
+const attributeKey = (providerId: string, apiKeyId: string | null): string =>
+  `${providerId}\u0000${apiKeyId ?? NULL_KEY}`;
+
 /**
  * Streaming accumulator for ONE day's rollup.
  *
@@ -252,10 +326,17 @@ export class DayRollupAccumulator {
   private readonly sessionIds = new Set<string>();
   private sessionIdsTruncated = false;
 
+  // v2 attribute splits (usage-filter rollup path).
+  private readonly attributes = new Map<string, AttributeAcc>();
+  private readonly modelKeys = new Map<string, RollupModelKeyRow>();
+  /** hour -> attribute key -> cell. Nested so hour ordering is a sort at seal. */
+  private readonly hourKeys = new Map<number, Map<string, RollupHourKeyRow>>();
+
   add(row: UsageEventRecord): void {
     addRowToTotals(this.totals, row);
     const promptSide = promptSideTokens(row);
-    if (promptSide > 0) addRateToBins(this.bins, row.cacheReadTokens / promptSide);
+    const rate = promptSide > 0 ? row.cacheReadTokens / promptSide : null;
+    if (rate !== null) addRateToBins(this.bins, rate);
 
     const modelKey = `${row.providerId}::${row.model}`;
     let m = this.models.get(modelKey);
@@ -329,6 +410,73 @@ export class DayRollupAccumulator {
     h.cacheCreationTokens += row.cacheCreationTokens;
     h.costUsd += row.costUsd;
 
+    // v2 splits. The attribute cell folds the FULL SummableTotals set (the
+    // `addRowToTotals` helper adds exactly those fields), plus its own bins.
+    const aKey = attributeKey(row.providerId, row.apiKeyId);
+    let a = this.attributes.get(aKey);
+    if (!a) {
+      a = {
+        providerId: row.providerId,
+        apiKeyId: row.apiKeyId,
+        ...emptyTotals(),
+        hitRateBins: new Map<number, number>(),
+      };
+      this.attributes.set(aKey, a);
+    }
+    addRowToTotals(a, row);
+    if (rate !== null) addRateToBins(a.hitRateBins, rate);
+
+    let mk = this.modelKeys.get(`${aKey}\u0000${row.model}`);
+    if (!mk) {
+      mk = {
+        providerId: row.providerId,
+        model: row.model,
+        apiKeyId: row.apiKeyId,
+        eventCount: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        costUsd: 0,
+        costSavedByCacheUsd: 0,
+      };
+      this.modelKeys.set(`${aKey}\u0000${row.model}`, mk);
+    }
+    mk.eventCount += 1;
+    mk.inputTokens += row.inputTokens;
+    mk.outputTokens += row.outputTokens;
+    mk.cacheReadTokens += row.cacheReadTokens;
+    mk.cacheCreationTokens += row.cacheCreationTokens;
+    mk.costUsd += row.costUsd;
+    mk.costSavedByCacheUsd += row.costSavedByCacheUsd;
+
+    let hourCells = this.hourKeys.get(hour);
+    if (!hourCells) {
+      hourCells = new Map<string, RollupHourKeyRow>();
+      this.hourKeys.set(hour, hourCells);
+    }
+    let hk = hourCells.get(aKey);
+    if (!hk) {
+      hk = {
+        hour,
+        providerId: row.providerId,
+        apiKeyId: row.apiKeyId,
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        costUsd: 0,
+      };
+      hourCells.set(aKey, hk);
+    }
+    hk.requests += 1;
+    hk.inputTokens += row.inputTokens;
+    hk.outputTokens += row.outputTokens;
+    hk.cacheReadTokens += row.cacheReadTokens;
+    hk.cacheCreationTokens += row.cacheCreationTokens;
+    hk.costUsd += row.costUsd;
+
     if (row.sessionId !== null) {
       if (this.sessionIds.size < SESSION_INDEX_LIMIT) this.sessionIds.add(row.sessionId);
       else if (!this.sessionIds.has(row.sessionId)) this.sessionIdsTruncated = true;
@@ -337,8 +485,12 @@ export class DayRollupAccumulator {
 
   /** Seal the accumulator into the on-disk document for `date`. */
   finish(date: string, sourceBytes: number): UsageDayRollup {
+    const byHourKey: RollupHourKeyRow[] = [];
+    for (const [, cells] of Array.from(this.hourKeys.entries()).sort((a, b) => a[0] - b[0])) {
+      byHourKey.push(...cells.values());
+    }
     return {
-      version: 1,
+      version: 2,
       date,
       sourceBytes,
       totals: this.totals,
@@ -348,6 +500,12 @@ export class DayRollupAccumulator {
       byHour: Array.from(this.hours.values()).sort((a, b) => a.hour - b.hour),
       sessionIds: Array.from(this.sessionIds),
       sessionIdsTruncated: this.sessionIdsTruncated,
+      byAttribute: Array.from(this.attributes.values()).map((a) => ({
+        ...a,
+        hitRateBins: binsToRecord(a.hitRateBins),
+      })),
+      byModelKey: Array.from(this.modelKeys.values()),
+      byHourKey,
     };
   }
 }
@@ -378,7 +536,7 @@ export function buildDayRollup(
 export function isUsageDayRollup(parsed: unknown): parsed is UsageDayRollup {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
   const r = parsed as Record<string, unknown>;
-  if (r['version'] !== 1) return false;
+  if (r['version'] !== 1 && r['version'] !== 2) return false;
   if (typeof r['date'] !== 'string') return false;
   if (typeof r['sourceBytes'] !== 'number' || !Number.isFinite(r['sourceBytes'])) return false;
   const totals = r['totals'];
@@ -392,5 +550,12 @@ export function isUsageDayRollup(parsed: unknown): parsed is UsageDayRollup {
   if (!Array.isArray(r['byHour'])) return false;
   if (!Array.isArray(r['sessionIds'])) return false;
   if (!r['hitRateBins'] || typeof r['hitRateBins'] !== 'object') return false;
+  // v2 must carry its attribute splits; a v2-shaped document missing them is a
+  // torn write and reads as null (rebuilt from the shard), never served.
+  if (r['version'] === 2) {
+    if (!Array.isArray(r['byAttribute'])) return false;
+    if (!Array.isArray(r['byModelKey'])) return false;
+    if (!Array.isArray(r['byHourKey'])) return false;
+  }
   return true;
 }

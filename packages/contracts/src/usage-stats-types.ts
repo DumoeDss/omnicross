@@ -49,8 +49,14 @@ export interface UsageEventRecord {
   costUsd: number;
   /** Hypothetical-input-cost − actual-cost difference attributable to cache_read tokens. */
   costSavedByCacheUsd: number;
-  /** JSON-serialised raw provider usage object. Kept for forensics. */
-  rawUsage: string | null;
+  /**
+   * JSON-serialised raw provider usage object. Kept for forensics — but OUT of
+   * the aggregate read path: the daemon's store routes it to a parallel per-day
+   * `usage-*.raw.jsonl` sidecar (usage-raw), so rows written by current code
+   * simply lack this field here. Rows written before the split still carry it
+   * inline and parse unchanged.
+   */
+  rawUsage?: string | null;
   /** Host run-correlation id (owning agent-run, when the host has one). Additive / nullable. */
   runId?: string | null;
   /** Token-free process-local Route Lease id; never the route bearer token. */

@@ -283,6 +283,86 @@ describe('pruned days keep answering from their rollup', () => {
   });
 });
 
+describe('FILTERED rollup-served ranges equal raw aggregation (rollup v2)', () => {
+  const startTs = dayStart(2026, 6, 12);
+  const endTs = dayStart(2026, 6, 15);
+
+  /** Reference over the FILTERED subset — the thing the rollup splits must match. */
+  const filteredReference = (filter: { providerId?: string; apiKeyId?: string }) =>
+    reference(
+      inserted.filter(
+        (r) =>
+          (filter.providerId === undefined || r.providerId === filter.providerId) &&
+          (filter.apiKeyId === undefined || r.apiKeyId === filter.apiKeyId),
+      ),
+      startTs,
+      endTs,
+    );
+
+  async function expectTotalsMatch(filter: { providerId?: string; apiKeyId?: string }): Promise<void> {
+    const expected = filteredReference(filter);
+    const totals = await store.getTotals({ startTs, endTs }, filter);
+    expect(totals.eventCount).toBe(expected.totals.eventCount);
+    expect(totals.inputTokens).toBe(expected.totals.inputTokens);
+    expect(totals.outputTokens).toBe(expected.totals.outputTokens);
+    expect(totals.cacheReadTokens).toBe(expected.totals.cacheReadTokens);
+    expect(totals.cacheCreationTokens).toBe(expected.totals.cacheCreationTokens);
+    expect(totals.reasoningTokens).toBe(expected.totals.reasoningTokens);
+    expect(totals.costUsd).toBeCloseTo(expected.totals.costUsd, 6);
+    expect(totals.costSavedByCacheUsd).toBeCloseTo(expected.totals.costSavedByCacheUsd, 6);
+    expect(totals.cacheEligibleEventCount).toBe(expected.totals.cacheEligibleEventCount);
+    expect(totals.coldCacheEventCount).toBe(expected.totals.coldCacheEventCount);
+    if (expected.median !== null) {
+      expect(totals.medianCacheHitRate).not.toBeNull();
+      expect(Math.abs((totals.medianCacheHitRate as number) - expected.median))
+        .toBeLessThanOrEqual(0.0005);
+    }
+  }
+
+  it('a provider filter matches the reference exactly', async () => {
+    await expectTotalsMatch({ providerId: 'prov-a' });
+  });
+
+  it('a key filter matches the reference exactly', async () => {
+    await expectTotalsMatch({ apiKeyId: 'k1' });
+  });
+
+  it('a combined provider+key filter matches the reference exactly', async () => {
+    await expectTotalsMatch({ providerId: 'prov-a', apiKeyId: 'k2' });
+  });
+
+  it('a key-filtered by-model matches the reference groups', async () => {
+    const models = await store.getByModel({ startTs, endTs }, { apiKeyId: 'k1' });
+    const want = new Map<string, number>();
+    for (const r of inserted) {
+      if (r.ts < startTs || r.ts >= endTs || r.apiKeyId !== 'k1') continue;
+      const key = `${r.providerId}::${r.model}`;
+      want.set(key, (want.get(key) ?? 0) + 1);
+    }
+    expect(models).toHaveLength(want.size);
+    for (const row of models) {
+      expect(row.eventCount).toBe(want.get(`${row.providerId}::${row.model}`));
+    }
+  });
+
+  it('a provider-filtered day timeseries matches the reference per day', async () => {
+    const series = await store.getTimeSeries({ startTs, endTs }, 'day', { providerId: 'prov-b' });
+    expect(series).toHaveLength(3);
+    for (const bucket of series) {
+      const from = bucket.bucketStartTs;
+      const to = new Date(new Date(from).getFullYear(), new Date(from).getMonth(), new Date(from).getDate() + 1).getTime();
+      const want = reference(
+        inserted.filter((r) => r.providerId === 'prov-b'),
+        from,
+        to,
+      );
+      expect(bucket.requests).toBe(want.totals.eventCount);
+      expect(bucket.inputTokens).toBe(want.totals.inputTokens);
+      expect(bucket.costUsd).toBeCloseTo(want.totals.costUsd, 6);
+    }
+  });
+});
+
 describe('concurrent readers do not double-count', () => {
   it('parallel queries over the same day agree with a serial one', async () => {
     const range = { startTs: local(2026, 6, 13, 6), endTs: local(2026, 6, 13, 18) };
