@@ -55,9 +55,9 @@ const spyOpener: TerminalOpener = (input) => {
   });
 };
 
-/** Fake PATH: claude + codex are "installed", everything else is not. */
+/** Fake PATH: claude + codex + qwen are "installed", everything else is not. */
 const fakeProbe = (candidate: string): string | null =>
-  candidate.includes('claude') || candidate.includes('codex')
+  candidate.includes('claude') || candidate.includes('codex') || candidate.includes('qwen')
     ? `/fake/bin/${candidate}`
     : null;
 
@@ -242,20 +242,26 @@ describe('Code CLI launch', () => {
   });
 });
 
-/** Create a gateway key with codex permissions; optionally bind it to a responses route. */
-async function makeRoutedKey(options?: { permissions?: string[]; bind?: boolean }): Promise<{ id: string; name: string; plaintext: string }> {
+/** Create a gateway key with a client's permissions; optionally bind it to that client's endpoint route. */
+async function makeRoutedKey(options?: {
+  permissions?: string[];
+  bind?: boolean;
+  client?: 'codex' | 'claude';
+}): Promise<{ id: string; name: string; plaintext: string }> {
+  const client = options?.client ?? 'codex';
   const created = await createNamedKey(daemon.keyDb, 'route-key');
-  const permissions = (options?.permissions ?? ['responses', 'images']) as OutboundPermission[];
+  const permissions = (options?.permissions ??
+    (client === 'claude' ? ['messages'] : ['responses', 'images'])) as OutboundPermission[];
   await daemon.keyDb.outboundApiKeysSetPermissions(created.id, permissions);
   if (options?.bind !== false) {
     const current = await loadServerConfig(daemon.settingsStore);
     const binding: GatewayBinding = {
-      id: 'test-responses-route',
-      name: 'Test responses route',
+      id: client === 'claude' ? 'test-messages-route' : 'test-responses-route',
+      name: client === 'claude' ? 'Test messages route' : 'Test responses route',
       enabled: true,
       keyScope: 'selected',
       apiKeyIds: [created.id],
-      endpoint: 'responses',
+      endpoint: client === 'claude' ? 'messages' : 'responses',
       target: { kind: 'provider', providerId: 'mock' },
       priority: 100,
       fallback: 'fail',
@@ -315,11 +321,11 @@ describe('Key-scoped codex launch', () => {
     expect(stop.status).toBe(200);
   });
 
-  it('rejects a key-scoped launch for a non-codex CLI (400)', async () => {
+  it('rejects a key-scoped launch for a CLI outside codex/claude (400)', async () => {
     const key = await makeRoutedKey();
-    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', { keyId: key.id });
+    const r = await adminFetch('POST', '/admin/api/cli/qwen/launch', { keyId: key.id });
     expect(r.status).toBe(400);
-    expect(r.text).toMatch(/only supported for codex/i);
+    expect(r.text).toMatch(/only supported for codex and claude/i);
     expect(openerCalls).toHaveLength(0);
   });
 
@@ -419,13 +425,13 @@ describe('Route-pinned codex launch', () => {
     expect(rejected.text).toMatch(/cannot enter downstream route/i);
   });
 
-  it('rejects a route-scoped launch for a non-codex CLI (400)', async () => {
+  it('rejects a route-scoped launch for a CLI outside codex/claude (400)', async () => {
     await makeRoutedKey();
-    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', {
+    const r = await adminFetch('POST', '/admin/api/cli/qwen/launch', {
       bindingId: 'test-responses-route',
     });
     expect(r.status).toBe(400);
-    expect(r.text).toMatch(/only supported for codex/i);
+    expect(r.text).toMatch(/only supported for codex and claude/i);
     expect(openerCalls).toHaveLength(0);
   });
 
@@ -482,6 +488,78 @@ describe('Route-pinned codex launch', () => {
     const r = await adminFetch('POST', '/admin/api/cli/codex/launch', { bindingId: 'bad id!' });
     expect(r.status).toBe(400);
     expect(r.text).toMatch(/cannot be passed through a terminal launch/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+});
+
+describe('Key/route-scoped Claude Code launch', () => {
+  it('launches claude scoped to a gateway key: redirect env, no secret in the response', async () => {
+    const key = await makeRoutedKey({ client: 'claude' });
+    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', { keyId: key.id });
+    expect(r.status).toBe(200);
+    const out = r.json as { sessionId: string; keyId: string; keyName: string };
+    expect(out.keyId).toBe(key.id);
+    expect(out.keyName).toBe(key.name);
+
+    // The opener received the gateway-redirect env; Claude Code has no helper
+    // hook, so the key rides the spawned env (never the response).
+    expect(openerCalls).toHaveLength(1);
+    const call = openerCalls[0];
+    expect(call.cli).toBe('claude');
+    expect(call.extraArgs).toEqual([]);
+    expect(call.env['ANTHROPIC_BASE_URL']).toMatch(/^http:\/\/127\.0\.0\.1:/);
+    expect(call.env['ANTHROPIC_AUTH_TOKEN']).toBe(key.plaintext);
+    expect(call.env['ANTHROPIC_API_KEY']).toBe('omnicross-gateway');
+    expect(call.env['ANTHROPIC_CUSTOM_HEADERS']).toBeUndefined();
+    expect(r.text).not.toContain(key.plaintext);
+
+    const list = await adminFetch('GET', '/admin/api/cli/sessions');
+    const sessions = (list.json as { sessions: Array<{ keyName?: string }> }).sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].keyName).toBe(key.name);
+    const stop = await adminFetch('DELETE', `/admin/api/cli/sessions/${out.sessionId}`);
+    expect(stop.status).toBe(200);
+  });
+
+  it('launches claude pinned to a messages route: pin header rides ANTHROPIC_CUSTOM_HEADERS', async () => {
+    const key = await makeRoutedKey({ client: 'claude' });
+    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', {
+      bindingId: 'test-messages-route',
+    });
+    expect(r.status).toBe(200);
+    const out = r.json as {
+      sessionId: string;
+      keyId: string;
+      bindingId: string;
+      bindingName: string;
+    };
+    expect(out.keyId).toBe(key.id);
+    expect(out.bindingId).toBe('test-messages-route');
+    expect(out.bindingName).toBe('Test messages route');
+
+    expect(openerCalls).toHaveLength(1);
+    // `Name: Value` format (Claude Code ≥ v2.1.227), newline-separated for more.
+    expect(openerCalls[0].env['ANTHROPIC_CUSTOM_HEADERS']).toBe(
+      'x-omnicross-binding-id: test-messages-route',
+    );
+    expect(r.text).not.toContain(key.plaintext);
+  });
+
+  it('rejects a claude key without the messages permission (400)', async () => {
+    const key = await makeRoutedKey({ client: 'claude', permissions: ['responses'], bind: false });
+    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', { keyId: key.id });
+    expect(r.status).toBe(400);
+    expect(r.text).toMatch(/lacks the 'messages' endpoint permission claude requires/i);
+    expect(openerCalls).toHaveLength(0);
+  });
+
+  it('rejects pinning claude to a responses-endpoint route (400)', async () => {
+    await makeRoutedKey();
+    const r = await adminFetch('POST', '/admin/api/cli/claude/launch', {
+      bindingId: 'test-responses-route',
+    });
+    expect(r.status).toBe(400);
+    expect(r.text).toMatch(/does not serve the messages endpoint/i);
     expect(openerCalls).toHaveLength(0);
   });
 });

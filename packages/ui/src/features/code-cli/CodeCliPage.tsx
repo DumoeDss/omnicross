@@ -31,6 +31,7 @@ import { CliCard } from './CliCard';
 import { useCli } from './hooks/useCli';
 import { useCliIntegrations } from './hooks/useCliIntegrations';
 import { useLaunchTargets } from './hooks/useLaunchTargets';
+
 import { hasInstalledIntegration, hasRotationConflict } from './integrationStatusModel';
 import { PersistentIntegrationCard } from './PersistentIntegrationCard';
 import { CodexSessionManager } from './CodexSessionManager';
@@ -65,13 +66,21 @@ export function CodeCliPage() {
   const t = useTranslation();
   const { loading, clis, sessions, busy, error, refresh, install, launch, stop } = useCli();
   const integrations = useCliIntegrations();
-  const { targets, refresh: refreshTargets } = useLaunchTargets();
+  // Per-client routing targets: Codex (Responses wire) and Claude Code
+  // (Anthropic wire) each get their own provider/route/key lists.
+  const codexTargets = useLaunchTargets('codex');
+  const claudeTargets = useLaunchTargets('claude');
   const [manualOpen, setManualOpen] = useState(false);
   const [rotateOpen, setRotateOpen] = useState(false);
 
   const handleRefresh = useCallback(() => {
-    void Promise.all([refresh(), integrations.refresh(), refreshTargets()]);
-  }, [integrations.refresh, refresh, refreshTargets]);
+    void Promise.all([
+      refresh(),
+      integrations.refresh(),
+      codexTargets.refresh(),
+      claudeTargets.refresh(),
+    ]);
+  }, [integrations.refresh, refresh, codexTargets, claudeTargets]);
 
   const integrationRows = integrations.overview?.integrations ?? [];
   const integrationMutationBusy = integrations.busyTarget !== null;
@@ -212,7 +221,11 @@ export function CodeCliPage() {
                   onInstall={() => install(cli.id)}
                   onLaunch={(input) => launch(cli.id, input)}
                   onStop={(id) => void stop(id)}
-                  targets={cli.id === 'codex' ? targets : undefined}
+                  {...(cli.id === 'codex'
+                    ? { targets: codexTargets.targets, wire: codexTargets.wire }
+                    : cli.id === 'claude'
+                      ? { targets: claudeTargets.targets, wire: claudeTargets.wire }
+                      : {})}
                 />
               ))}
             </div>

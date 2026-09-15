@@ -14,19 +14,23 @@
  * never a provider key. On win32 the token rides the spawned process environment
  * (inherited by the terminal), never the command line / a file on disk.
  *
- * KEY-SCOPED LAUNCH (`{ keyId }` body, codex only): instead of a route lease, the
- * terminal's Codex authenticates to the RESIDENT outbound gateway as ONE chosen
- * access key, so routing follows that key's gateway bindings. Concurrent
- * terminals can then use different keys (hence different upstreams) at once.
- * The redirect rides `-c` overrides reusing the INSTALLED provider name
- * (`omnicross`) plus a `--key-id`-scoped auth command; no secret ever enters the
- * spawned env (Codex invokes the helper itself).
+ * KEY-SCOPED LAUNCH (`{ keyId }` body, codex + claude): instead of a route
+ * lease, the terminal's CLI authenticates to the RESIDENT outbound gateway as
+ * ONE chosen access key, so routing follows that key's gateway bindings.
+ * Concurrent terminals can then use different keys (hence different upstreams)
+ * at once. Codex redirects via `-c` overrides reusing the INSTALLED provider
+ * name (`omnicross`) plus a `--key-id`-scoped auth command — no secret enters
+ * the spawned env (Codex invokes the helper itself). Claude Code redirects via
+ * env (`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`), the only per-launch
+ * channel it offers.
  *
- * ROUTE-SCOPED LAUNCH (`{ bindingId }` body, codex only): pick a downstream
- * ROUTE by id; the daemon picks an eligible key that can enter it (or honors
- * an explicit `keyId`) and adds `x-omnicross-binding-id` to the provider
- * headers, so the gateway serves that terminal from exactly the chosen route
- * instead of the key's priority-ordered candidates.
+ * ROUTE-SCOPED LAUNCH (`{ bindingId }` body, codex + claude): pick a
+ * downstream ROUTE by id; the daemon picks an eligible key that can enter it
+ * (or honors an explicit `keyId`) and adds `x-omnicross-binding-id` to the
+ * client's request headers (Codex provider `http_headers`; Claude Code
+ * `ANTHROPIC_CUSTOM_HEADERS`, ≥ v2.1.227), so the gateway serves that terminal
+ * from exactly the chosen route instead of the key's priority-ordered
+ * candidates.
  *
  * @module @omnicross/daemon/admin/cliLaunch
  */
@@ -59,10 +63,12 @@ import {
   GATEWAY_BINDING_PIN_HEADER,
   type GatewayBinding,
   type OutboundKeyDb,
+  type OutboundEndpoint,
   type OutboundPermission,
 } from '@omnicross/core/outbound-api';
 
 import type { CodexAuthHelperConfig } from '../integrations/codexAuthHelper';
+import { CLAUDE_API_KEY_SENTINEL } from '../integrations/configAdapters';
 import { startTerminalLeaseRenewal } from '../routeLeaseRenewal';
 
 
@@ -183,7 +189,7 @@ function firstModel(p: ProviderRowLike): string | undefined {
   return p.models?.[0] ?? p.modelConfigs?.[0]?.id;
 }
 
-// ── Key-scoped Codex launch (gateway-key routing) ────────────────────────────
+// ── Key-scoped terminal launches (gateway-key routing) ───────────────────────
 
 /**
  * cmd.exe metacharacters that would be re-interpreted inside the `cmd /k` line
@@ -194,8 +200,26 @@ function firstModel(p: ProviderRowLike): string | undefined {
  */
 const CMD_METACHAR_RE = /[&|<>^%]/;
 
-/** Endpoint permissions a key must hold to power a Codex terminal. */
-const KEY_SCOPED_CODEX_PERMISSIONS: readonly OutboundPermission[] = ['responses', 'images'];
+/** Terminal CLIs that can authenticate to the gateway as ONE access key. */
+export type KeyScopedClient = 'codex' | 'claude';
+
+/** Is this launchable CLI one of the key-scoped clients? */
+export function isKeyScopedClient(cli: LaunchCliId): cli is KeyScopedClient {
+  return cli === 'codex' || cli === 'claude';
+}
+
+/**
+ * Per-client key-scoped contract: the gateway endpoint the terminal speaks and
+ * the endpoint permissions its key must hold (Codex also generates images, so
+ * it needs `images` on top of `responses`; Claude Code only needs `messages`).
+ */
+const KEY_SCOPED_CONTRACT: Record<
+  KeyScopedClient,
+  { endpoint: OutboundEndpoint; permissions: readonly OutboundPermission[] }
+> = {
+  codex: { endpoint: 'responses', permissions: ['responses', 'images'] },
+  claude: { endpoint: 'messages', permissions: ['messages'] },
+};
 
 /** The deps the key-scoped branch needs beyond the lease-path context. */
 export interface KeyScopedLaunchDeps {
@@ -261,20 +285,64 @@ export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[
   ];
 }
 
+/**
+ * The env a key-scoped Claude Code terminal needs: point Claude Code at the
+ * RESIDENT outbound gateway and authenticate it as the chosen access key, so
+ * routing follows that key's bindings. Unlike Codex — whose auth-command
+ * helper fetches the token at CLI start — Claude Code has no per-launch
+ * helper hook, so the key plaintext rides the spawned terminal's environment
+ * (the same channel the lease path's route token already uses); the launch
+ * RESPONSE and session rows stay secret-free either way.
+ *
+ * `ANTHROPIC_API_KEY` carries the install sentinel (an empty value would let
+ * Claude Code fall back to its OAuth login state). A pinned launch adds
+ * `ANTHROPIC_CUSTOM_HEADERS` (`Name: Value`, newline-separated — Claude Code
+ * ≥ v2.1.227) carrying the gateway route pin.
+ */
+export function buildKeyScopedClaudeEnv(input: {
+  gatewayBaseUrl: string;
+  secret: string;
+  bindingId?: string;
+}): Record<string, string> {
+  let root = input.gatewayBaseUrl;
+  while (root.endsWith('/')) root = root.slice(0, -1);
+  const env: Record<string, string> = {
+    ANTHROPIC_BASE_URL: root,
+    ANTHROPIC_AUTH_TOKEN: input.secret,
+    ANTHROPIC_API_KEY: CLAUDE_API_KEY_SENTINEL,
+  };
+  if (input.bindingId) {
+    env['ANTHROPIC_CUSTOM_HEADERS'] = `${GATEWAY_BINDING_PIN_HEADER}: ${input.bindingId}`;
+  }
+  return env;
+}
+
 /** Preflight outcome for the chosen gateway key (optionally route-pinned). */
 export type KeyScopedPreflight =
-  | { ok: true; keyId: string; keyName: string; bindingId?: string; bindingName?: string }
+  | {
+      ok: true;
+      keyId: string;
+      keyName: string;
+      bindingId?: string;
+      bindingName?: string;
+      /**
+       * The revealed key plaintext. Codex discards it (its auth-command helper
+       * re-reveals at CLI start); Claude Code's env carries it — it never
+       * leaves this launch path (response + session rows stay secret-free).
+       */
+      secret: string;
+    }
   | { ok: false; status: number; message: string };
 
 /**
- * Is this stored key row eligible to power a Codex terminal? Exists, enabled,
- * not revoked, revealable (the helper re-reveals at CLI start — the plaintext
- * is discarded here), and holding the codex-required endpoint permissions.
- * Returns an error message instead of the row when NOT eligible.
+ * Is this stored key row eligible to power a key-scoped terminal? Exists,
+ * enabled, not revoked, revealable, and holding the client-required endpoint
+ * permissions. Returns an error message instead of the row when NOT eligible.
  */
-async function codexEligibleKeyError(
+async function keyScopedEligibilityError(
   deps: KeyScopedLaunchDeps,
   row: { id: string; name: string; enabled: boolean; revokedAt: number | null; allowedEndpoints?: OutboundPermission[] },
+  client: KeyScopedClient,
 ): Promise<string | null> {
   if (!row.enabled || row.revokedAt !== null) {
     return `access key '${row.name}' is disabled or revoked`;
@@ -284,9 +352,9 @@ async function codexEligibleKeyError(
     return `access key '${row.name}' is not revealable`;
   }
   const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
-  for (const permission of KEY_SCOPED_CODEX_PERMISSIONS) {
+  for (const permission of KEY_SCOPED_CONTRACT[client].permissions) {
     if (!allowed.includes(permission)) {
-      return `access key '${row.name}' lacks the '${permission}' endpoint permission Codex requires`;
+      return `access key '${row.name}' lacks the '${permission}' endpoint permission ${client} requires`;
     }
   }
   return null;
@@ -295,16 +363,17 @@ async function codexEligibleKeyError(
 /**
  * Fail-fast checks for a key-scoped launch, so a misconfigured key surfaces as
  * a clear admin error instead of a terminal that 401s/404s on its first
- * request: gateway running; key exists, enabled, not revoked, revealable (the
- * helper re-reveals at CLI start — the plaintext is discarded here);
- * codex-required endpoint permissions; at least one enabled `responses`
- * binding scoped to the key (that binding is what routes this terminal's
- * upstream).
+ * request: gateway running; key exists, enabled, not revoked, revealable;
+ * client-required endpoint permissions; at least one enabled binding on the
+ * client's endpoint scoped to the key (that binding is what routes this
+ * terminal's upstream).
  */
 export async function preflightKeyScopedLaunch(
   deps: KeyScopedLaunchDeps,
   keyId: string,
+  client: KeyScopedClient,
 ): Promise<KeyScopedPreflight> {
+  const { endpoint } = KEY_SCOPED_CONTRACT[client];
   if (!deps.gatewayRunning) {
     return {
       ok: false,
@@ -315,35 +384,39 @@ export async function preflightKeyScopedLaunch(
   const rows = await deps.keyDb.outboundApiKeysList();
   const row = rows.find((candidate) => candidate.id === keyId);
   if (!row) return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
-  const eligibilityError = await codexEligibleKeyError(deps, row);
+  const eligibilityError = await keyScopedEligibilityError(deps, row, client);
   if (eligibilityError) return { ok: false, status: 400, message: eligibilityError };
-  if (candidateGatewayBindings(deps.bindings, keyId, 'responses').length === 0) {
+  if (candidateGatewayBindings(deps.bindings, keyId, endpoint).length === 0) {
     return {
       ok: false,
       status: 400,
       message:
-        `access key '${row.name}' has no enabled responses route — bind it to a downstream route ` +
+        `access key '${row.name}' has no enabled ${endpoint} route — bind it to a downstream route ` +
         'on the API Service page first',
     };
   }
-  return { ok: true, keyId, keyName: row.name };
+  const secret = await deps.keyDb.outboundApiKeysReveal(keyId);
+  return { ok: true, keyId, keyName: row.name, secret: secret ?? '' };
 }
 
 /**
- * Fail-fast checks for a ROUTE-scoped launch (`{ bindingId }`, codex only):
- * the terminal authenticates as an eligible gateway key (explicit `keyId`, or
- * the first eligible key the route admits) and pins the chosen downstream
- * route via `x-omnicross-binding-id`, so that exact route — not the key's
+ * Fail-fast checks for a ROUTE-scoped launch (`{ bindingId }`): the terminal
+ * authenticates as an eligible gateway key (explicit `keyId`, or the first
+ * eligible key the route admits) and pins the chosen downstream route via
+ * `x-omnicross-binding-id`, so that exact route — not the key's
  * priority-ordered candidates — serves the terminal. Binding ids are embedded
- * in TOML/argv `-c` overrides, so only a conservative id charset is accepted.
+ * in TOML/argv `-c` overrides and env values, so only a conservative id
+ * charset is accepted.
  */
 const BINDING_ID_CHARSET_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export async function preflightBindingScopedLaunch(
   deps: KeyScopedLaunchDeps,
   bindingId: string,
-  keyId?: string,
+  keyId: string | undefined,
+  client: KeyScopedClient,
 ): Promise<KeyScopedPreflight> {
+  const { endpoint, permissions } = KEY_SCOPED_CONTRACT[client];
   if (!deps.gatewayRunning) {
     return {
       ok: false,
@@ -362,11 +435,11 @@ export async function preflightBindingScopedLaunch(
   if (!binding) {
     return { ok: false, status: 404, message: `downstream route '${bindingId}' does not exist` };
   }
-  if (!binding.enabled || binding.endpoint !== 'responses') {
+  if (!binding.enabled || binding.endpoint !== endpoint) {
     return {
       ok: false,
       status: 400,
-      message: `downstream route '${binding.name}' is disabled or does not serve the responses endpoint`,
+      message: `downstream route '${binding.name}' is disabled or does not serve the ${endpoint} endpoint`,
     };
   }
   const rows = await deps.keyDb.outboundApiKeysList();
@@ -380,12 +453,12 @@ export async function preflightBindingScopedLaunch(
   // key-scoped contract; admission is decided by the gateway's own candidate
   // filter with the pin applied (never widens a key's routing).
   for (const row of candidates) {
-    const eligibilityError = await codexEligibleKeyError(deps, row);
+    const eligibilityError = await keyScopedEligibilityError(deps, row, client);
     if (eligibilityError) {
       if (keyId) return { ok: false, status: 400, message: eligibilityError };
       continue;
     }
-    if (candidateGatewayBindings(deps.bindings, row.id, 'responses', bindingId).length === 0) {
+    if (candidateGatewayBindings(deps.bindings, row.id, endpoint, bindingId).length === 0) {
       if (keyId) {
         return {
           ok: false,
@@ -395,14 +468,22 @@ export async function preflightBindingScopedLaunch(
       }
       continue;
     }
-    return { ok: true, keyId: row.id, keyName: row.name, bindingId, bindingName: binding.name };
+    const secret = await deps.keyDb.outboundApiKeysReveal(row.id);
+    return {
+      ok: true,
+      keyId: row.id,
+      keyName: row.name,
+      bindingId,
+      bindingName: binding.name,
+      secret: secret ?? '',
+    };
   }
   return {
     ok: false,
     status: 400,
     message:
       `downstream route '${binding.name}' has no eligible gateway key — an enabled, revealable key ` +
-      "with the responses+images permissions must be able to enter it (bind one on the API Service page)",
+      `with the ${permissions.join('+')} permissions must be able to enter it (bind one on the API Service page)`,
   };
 }
 
@@ -811,50 +892,65 @@ export async function handleCliLaunch(
   let leaseId: string | undefined;
   let launch: LaunchMaterial;
   if (keyId || bindingId) {
-    if (cli !== 'codex') {
-      return { status: 400, body: errBody('key-scoped launch is only supported for codex') };
+    if (!isKeyScopedClient(cli)) {
+      return { status: 400, body: errBody('key-scoped launch is only supported for codex and claude') };
     }
     const deps = ctx.keyScoped;
     if (!deps) {
       return { status: 501, body: errBody('key-scoped launch is not available in this build') };
     }
     const preflight = bindingId
-      ? await preflightBindingScopedLaunch(deps, bindingId, keyId)
-      : await preflightKeyScopedLaunch(deps, keyId!);
+      ? await preflightBindingScopedLaunch(deps, bindingId, keyId, cli)
+      : await preflightKeyScopedLaunch(deps, keyId!, cli);
     if (!preflight.ok) return { status: preflight.status, body: errBody(preflight.message) };
-    if (platform === 'win32') {
-      // The auth-helper invocation rides argv through the terminal opener's
-      // `cmd /k` line on win32 — refuse metacharacter-bearing PATHs up front
-      // instead of letting cmd.exe silently corrupt the override.
-      const unsafe = [deps.codexAuthHelper.command, ...deps.codexAuthHelper.args]
-        .filter((value) => CMD_METACHAR_RE.test(value));
-      if (unsafe.length > 0) {
-        return {
-          status: 400,
-          body: errBody(
-            'the Codex auth-helper path contains cmd.exe metacharacters and cannot be ' +
-            'passed through a Windows terminal launch',
-          ),
-        };
+    if (cli === 'codex') {
+      if (platform === 'win32') {
+        // The auth-helper invocation rides argv through the terminal opener's
+        // `cmd /k` line on win32 — refuse metacharacter-bearing PATHs up front
+        // instead of letting cmd.exe silently corrupt the override.
+        const unsafe = [deps.codexAuthHelper.command, ...deps.codexAuthHelper.args]
+          .filter((value) => CMD_METACHAR_RE.test(value));
+        if (unsafe.length > 0) {
+          return {
+            status: 400,
+            body: errBody(
+              'the Codex auth-helper path contains cmd.exe metacharacters and cannot be ' +
+              'passed through a Windows terminal launch',
+            ),
+          };
+        }
       }
+      // Codex keeps its secret OUT of the spawned env — the auth-command
+      // helper re-reveals it at CLI start.
+      launch = {
+        env: {},
+        extraArgs: buildKeyScopedCodexArgs({
+          gatewayBaseUrl: deps.gatewayBaseUrl,
+          authHelper: deps.codexAuthHelper,
+          keyId: preflight.keyId,
+          ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
+        }),
+        // No route or lease exists to release — the gateway key outlives the
+        // terminal and its bindings route every request.
+        onSessionEnd: () => {},
+      };
+    } else {
+      // Claude Code has no per-launch helper hook, so its key rides the env
+      // (see buildKeyScopedClaudeEnv).
+      launch = {
+        env: buildKeyScopedClaudeEnv({
+          gatewayBaseUrl: deps.gatewayBaseUrl,
+          secret: preflight.secret,
+          ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
+        }),
+        onSessionEnd: () => {},
+      };
     }
     keyLaunch = {
       keyId: preflight.keyId,
       keyName: preflight.keyName,
       ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
       ...(preflight.bindingName ? { bindingName: preflight.bindingName } : {}),
-    };
-    launch = {
-      env: {},
-      extraArgs: buildKeyScopedCodexArgs({
-        gatewayBaseUrl: deps.gatewayBaseUrl,
-        authHelper: deps.codexAuthHelper,
-        keyId: preflight.keyId,
-        ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
-      }),
-      // No route or lease exists to release — the gateway key outlives the
-      // terminal and its bindings route every request.
-      onSessionEnd: () => {},
     };
   } else {
     let resolved: LaunchTarget;

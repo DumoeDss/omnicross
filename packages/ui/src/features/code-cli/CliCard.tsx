@@ -3,13 +3,13 @@
  * external terminal on the daemon host, pointed at the daemon proxy) + the
  * running launches for this CLI with a Stop control.
  *
- * Codex additionally offers a ROUTING TARGET selector in the launch dialog:
- * an upstream provider (lease launch pinned to that provider), a downstream
- * route (the terminal authenticates as an eligible gateway key and is pinned
- * to exactly that route via `x-omnicross-binding-id`), or a raw gateway key
- * (authenticate as the key; routing follows the key's bindings, so concurrent
- * terminals can use different keys → different upstreams). Unpicked = the
- * default lease launch.
+ * Codex and Claude Code additionally offer a ROUTING TARGET selector in the
+ * launch dialog: an upstream provider speaking the client's own wire (lease
+ * launch pinned to that provider), a downstream route (the terminal
+ * authenticates as an eligible gateway key and is pinned to exactly that route
+ * via `x-omnicross-binding-id`), or a raw gateway key (authenticate as the key;
+ * routing follows the key's bindings, so concurrent terminals can use different
+ * keys → different upstreams). Unpicked = the default lease launch.
  */
 
 import { Download, Loader2, Play, Square, Terminal } from 'lucide-react';
@@ -31,7 +31,7 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 
 import type { CliLaunchResult, CliSession, CliStatus, MutationResult } from '@/daemon/types';
 
-import type { CodexLaunchTarget } from './hooks/useLaunchTargets';
+import type { LaunchTarget } from './hooks/useLaunchTargets';
 
 interface CliCardProps {
   cli: CliStatus;
@@ -45,8 +45,10 @@ interface CliCardProps {
     bindingId?: string;
   }) => Promise<CliLaunchResult>;
   onStop: (id: string) => void;
-  /** Codex only: routing targets a launch can pin (empty hides the selector). */
-  targets?: CodexLaunchTarget[];
+  /** Codex/Claude only: routing targets a launch can pin (empty hides the selector). */
+  targets?: LaunchTarget[];
+  /** The client's wire name ('Responses' | 'Anthropic') for hint copy. */
+  wire?: string;
 }
 
 /** `<kind>:<id>` select value → the launch input for that target kind. */
@@ -61,7 +63,7 @@ function targetLaunchInput(value: string): { providerId?: string; bindingId?: st
   return {};
 }
 
-export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targets }: CliCardProps) {
+export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targets, wire }: CliCardProps) {
   const t = useTranslation();
   const [open, setOpen] = useState(false);
   const [cwd, setCwd] = useState('');
@@ -69,7 +71,7 @@ export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targ
   const [launching, setLaunching] = useState(false);
   const [installing, setInstalling] = useState(false);
 
-  const showTargetSelector = cli.id === 'codex' && (targets?.length ?? 0) > 0;
+  const showTargetSelector = (cli.id === 'codex' || cli.id === 'claude') && (targets?.length ?? 0) > 0;
   const targetKind = target.slice(0, target.indexOf(':'));
 
   const handleInstall = async () => {
@@ -215,12 +217,16 @@ export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targ
               {target ? (
                 <p className="text-xs text-muted-foreground/80">
                   {targetKind === 'provider'
-                    ? t('codeCli.cli.targetProviderHint')
+                    ? t('codeCli.cli.targetProviderHint', { wire: wire ?? '' })
                     : targetKind === 'route'
                       ? t('codeCli.cli.targetRouteHint')
                       : t('codeCli.cli.routeKeyHint')}
                 </p>
-              ) : null}
+              ) : (
+                // Always-on explainer: what the three target kinds mean, so the
+                // difference between Route and Key is visible BEFORE choosing.
+                <p className="text-xs text-muted-foreground/80">{t('codeCli.cli.targetHelp')}</p>
+              )}
             </div>
           ) : null}
           <div className="space-y-1.5">
