@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
 
 import { DaemonStatusBanner } from '@/components/DaemonStatusBanner';
 import { UpdateStatusBanner } from '@/components/UpdateStatusBanner';
@@ -15,7 +16,9 @@ import { SettingsPage } from '@/features/settings/SettingsPage';
 import { UpstreamsPage } from '@/features/upstreams';
 import type { SettingsTabId } from '@/features/settings/settingsTabModel';
 import { UsageStatsPage } from '@/features/usage-stats';
+import { exportDaemonLogs } from '@/shared/logExport';
 import { useHashRoute, type AppRoute, type RouteNavigate } from '@/shared/state/hashRoute';
+import { isDesktop } from '@/shared/tauri/uiSettings';
 
 function renderPage(route: AppRoute, navigate: RouteNavigate) {
   switch (route.page) {
@@ -35,6 +38,20 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
 
 export default function App() {
   const [route, navigate] = useHashRoute();
+
+  // Tray → "Export logs": the Rust tray item emits `tray-export-logs` (after
+  // revealing the window); the export itself runs through the same daemon
+  // endpoint + save path as the Settings button. Browser builds never listen.
+  useEffect(() => {
+    if (!isDesktop()) return undefined;
+    const unlisten = listen('tray-export-logs', () => {
+      void exportDaemonLogs();
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground md:flex-row">
       <NavRail route={route} onNavigate={navigate} />

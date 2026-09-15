@@ -512,7 +512,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // and a freeze left literally no evidence behind. A daemon that cannot explain
   // its own death is worse than a few MB of rotated log, so absent config now
   // means `<configDir>/logs/daemon.log` at `info` in `json`.
-  const logger = new ConfigurableLogger(resolveLoggingConfig(config.logging, paths.configPath));
+  const logging = resolveLoggingConfig(config.logging, paths.configPath);
+  const logger = new ConfigurableLogger(logging);
+  // The RESOLVED sink path feeds the admin log-export endpoint (bug reports).
+  const logFile = logging.file ?? undefined;
 
   // At-rest encryption wiring (secrets design D3/D5/D7). Build the shared
   // `SecretBox` with a LAZY master-key resolver (env → keyfile → auto-gen 0600)
@@ -1009,6 +1012,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // in afterEach. `getAdminConfig` resolves defaults from the loaded config.
   const adminServer = new AdminServer({
     configPath: paths.configPath,
+    // The resolved ConfigurableLogger file sink — powers GET /admin/api/logs/export.
+    logFile,
     llmConfig,
     keyDb,
     // voucher-redemption #9: the admin `/admin/api/voucher` surface generates/

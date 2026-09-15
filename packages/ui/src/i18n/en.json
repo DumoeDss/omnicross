@@ -2047,6 +2047,15 @@
         "issuesHint": "Bug reports and feature requests.",
         "open": "Open"
       },
+      "diagnostics": {
+        "title": "Diagnostics",
+        "description": "Attach the daemon log when filing a bug report — it makes triage far faster.",
+        "exportLogs": "Export daemon logs",
+        "exportLogsHint": "Bundles logs/daemon.log and its rotated generations (redacted, size-capped).",
+        "export": "Export",
+        "exported": "Log export saved to {{path}}.",
+        "exportFailed": "Log export failed: {{reason}}"
+      },
       "project": {
         "title": "Project"
       },

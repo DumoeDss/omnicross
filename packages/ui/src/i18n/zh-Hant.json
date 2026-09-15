@@ -2052,6 +2052,15 @@
         "issuesHint": "錯誤回報與功能請求。",
         "open": "開啟"
       },
+      "diagnostics": {
+        "title": "診斷",
+        "description": "回報 bug 時附上守護程序日誌，能大幅加快定位。",
+        "exportLogs": "匯出守護程序日誌",
+        "exportLogsHint": "打包 logs/daemon.log 及其輪轉分卷（已脫敏、有大小上限）。",
+        "export": "匯出",
+        "exported": "日誌已匯出到 {{path}}。",
+        "exportFailed": "匯出日誌失敗：{{reason}}"
+      },
       "project": {
         "title": "專案"
       },

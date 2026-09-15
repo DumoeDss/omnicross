@@ -166,6 +166,7 @@ import {
   type PathProbe,
   type TerminalOpener,
 } from './cliLaunch';
+import { buildLogExportBundle } from './logsExport';
 import { validateAuditSegment } from './auditConfigBody';
 import {
   preserveBillingSecret,
@@ -253,6 +254,13 @@ export interface AdminImagesStatusReader {
 export interface AdminApiDeps {
   /** Path to the daemon's `config.json` (provider catalog + `server` field). */
   readonly configPath: string;
+  /**
+   * The daemon's RESOLVED log file path (the `ConfigurableLogger` file sink —
+   * `<configDir>/logs/daemon.log` by default). Powers
+   * `GET /admin/api/logs/export` (the bug-report log bundle); absent on light
+   * embedders ⇒ the endpoint answers 501.
+   */
+  readonly logFile?: string;
   /** Live provider catalog (hot-reload target). */
   readonly llmConfig: ConfigFileProviderConfigSource;
   /** Named outbound-key store. */
@@ -664,6 +672,8 @@ export async function handleAdminApi(
         return await handleUsage(req, res, method, rest, deps);
       case 'dashboard':
         return await handleDashboardRoute(res, method, deps);
+      case 'logs':
+        return handleLogsExport(res, method, rest, deps);
       case 'pricing':
         return await handlePricing(req, res, method, rest, deps);
       default:
@@ -672,6 +682,41 @@ export async function handleAdminApi(
   } catch (err) {
     writeJsonError(res, 500, err instanceof Error ? err.message : String(err));
   }
+}
+
+// ── Log export (bug-report bundle) ────────────────────────────────────────────
+
+/**
+ * `GET /admin/api/logs/export` → the daemon log bundle as ONE redacted
+ * plain-text attachment (`omnicross-logs-<stamp>.log`): the live file plus its
+ * rotated generations, oldest first, size-capped. See `admin/logsExport`.
+ */
+function handleLogsExport(
+  res: http.ServerResponse,
+  method: string,
+  rest: string[],
+  deps: AdminApiDeps,
+): void {
+  if (rest[0] !== 'export' || rest.length !== 1) {
+    writeJsonError(res, 404, `unknown logs resource '${rest.join('/') || '(none)'}'`);
+    return;
+  }
+  if (method !== 'GET') {
+    writeJsonError(res, 405, `method ${method} not allowed on logs`);
+    return;
+  }
+  if (!deps.logFile) {
+    writeJsonError(res, 501, 'log export is not available in this build');
+    return;
+  }
+  const bundle = buildLogExportBundle(deps.logFile);
+  const body = Buffer.from(bundle.text, 'utf8');
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${bundle.filename}"`,
+    'Content-Length': body.length,
+  });
+  res.end(body);
 }
 
 // ── Usage stats + pricing table (usage-pricing child) ─────────────────────────

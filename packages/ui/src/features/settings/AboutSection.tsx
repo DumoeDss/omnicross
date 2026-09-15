@@ -3,7 +3,7 @@
  * and the project's GitHub presence.
  */
 
-import { Bug, ExternalLink, Github, Rocket, ServerCog, Tag } from 'lucide-react';
+import { Bug, ExternalLink, FileDown, Github, Loader2, Rocket, ServerCog, Tag } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { SettingRow } from '@/components/ui/setting-row';
 import { DAEMON_BASE_URL } from '@/daemon/adminClient';
 import { daemonFetch } from '@/daemon/httpFetch';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { exportDaemonLogs } from '@/shared/logExport';
 import { openExternal } from '@/shared/tauri/openExternal';
 
 import {
@@ -73,6 +74,23 @@ export function AboutSection({ appVersion }: AboutSectionProps) {
   const t = useTranslation();
   const daemonVersion = useDaemonHealthVersion();
   const version = resolveAboutVersion(appVersion, daemonVersion);
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  const handleExportLogs = async () => {
+    setExporting(true);
+    setExportMessage(null);
+    try {
+      const result = await exportDaemonLogs();
+      if (result.ok) {
+        setExportMessage(t('settings.about.diagnostics.exported', { path: result.savedPath ?? '' }));
+      } else if (result.message !== 'cancelled') {
+        setExportMessage(t('settings.about.diagnostics.exportFailed', { reason: result.message ?? '' }));
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <ScrollArea className="h-full">
@@ -122,6 +140,30 @@ export function AboutSection({ appVersion }: AboutSectionProps) {
             url={GITHUB_ISSUES_URL}
             openLabel={t('settings.about.links.open')}
           />
+        </section>
+
+        <section className="space-y-3 rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">{t('settings.about.diagnostics.title')}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{t('settings.about.diagnostics.description')}</p>
+          </div>
+          <SettingRow
+            icon={FileDown}
+            label={t('settings.about.diagnostics.exportLogs')}
+            description={t('settings.about.diagnostics.exportLogsHint')}
+          >
+            <Button size="sm" variant="outline" disabled={exporting} onClick={() => void handleExportLogs()}>
+              {exporting ? (
+                <Loader2 className="animate-spin" aria-hidden="true" />
+              ) : (
+                <FileDown aria-hidden="true" />
+              )}
+              {t('settings.about.diagnostics.export')}
+            </Button>
+          </SettingRow>
+          {exportMessage ? (
+            <p className="break-all text-xs text-muted-foreground">{exportMessage}</p>
+          ) : null}
         </section>
 
         <section className="space-y-3 rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5">
