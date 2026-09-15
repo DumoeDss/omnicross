@@ -269,6 +269,14 @@ impl UpdateBackend for TauriUpdateBackend {
     }
 
     fn install(&self, candidate: Self::Candidate, bytes: Vec<u8>) -> Result<(), BackendError> {
+        // Kill the daemon BEFORE handing control to the installer. On Windows
+        // the NSIS flow replaces `daemon-runtime/node.exe` while the app is
+        // closing; if the installer force-closes us the exit hooks may never
+        // run, and an orphaned node holds the file → the update fails to
+        // install. Shutting down here is deterministic; the kill-on-close job
+        // object (daemon_runtime) is the backstop for every other death path.
+        #[cfg(target_os = "windows")]
+        self.app.state::<DaemonRuntime>().shutdown();
         candidate
             .install(&bytes)
             .map_err(|_| BackendError::install())?;

@@ -14,7 +14,11 @@
 //
 // The status is a Rust state machine exposed to the React shell via the
 // `daemon_status` command. A Failed state NEVER reports running. A child WE
-// spawned is tree-killed on app exit; an adopted daemon is never killed.
+// spawned is tree-killed on app exit; an adopted daemon is never killed. On
+// Windows a spawned child ALSO sits in a kill-on-close job object, so even a
+// death that skips every exit hook (an installer force-closing the app, a
+// crash) still takes the daemon tree down at the kernel level — the bundled
+// `node.exe` must never outlive the app, or updaters cannot replace it.
 //
 // The daemon command is a `Vec<String>`: packaged builds run a BUNDLED private
 // node (`[bundled_node, entry]`) so the target machine needs no system Node.js;
@@ -359,9 +363,59 @@ fn spawn(cmd: &[String], config_path: &str) -> Result<Child, String> {
         command.process_group(0); // new group; gid == child pid
     }
 
-    command
+    let child = command
         .spawn()
-        .map_err(|e| format!("failed to spawn daemon ({}): {e}", cmd[0]))
+        .map_err(|e| format!("failed to spawn daemon ({}): {e}", cmd[0]))?;
+    // Kernel-level kill-on-death, covering exits the in-process hooks can never
+    // see (installers force-closing the app, taskkill /F, a crash). Best-effort:
+    // the explicit tree-kill paths remain the primary mechanism.
+    #[cfg(windows)]
+    win_job::assign_kill_on_close(&child);
+    Ok(child)
+}
+
+/// Windows-only job-object wiring for a spawned daemon (see `spawn`).
+#[cfg(windows)]
+mod win_job {
+    use std::os::windows::io::AsRawHandle;
+    use std::process::Child;
+
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        SetInformationJobObject,
+    };
+
+    /// Put `child` (and, by job inheritance, its whole process tree) into a job
+    /// object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, then deliberately LEAK
+    /// the job handle: the job stays alive for the rest of the app's lifetime
+    /// and the kernel closes it at process death — closing a kill-on-close job
+    /// terminates everything in it. So whatever kills the app, the bundled
+    /// `node` dies too and `daemon-runtime/node.exe` becomes replaceable by an
+    /// installer. We never kill by image name (project incident history: that
+    /// murders other applications' node processes); this only ever touches the
+    /// one child we spawned.
+    pub fn assign_kill_on_close(child: &Child) {
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let _ = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            let _ = AssignProcessToJobObject(job, child.as_raw_handle() as _);
+            // The handle is INTENTIONALLY never closed (no CloseHandle call):
+            // it lives until process death, and the kernel closing the
+            // kill-on-close job at that moment is exactly the teardown we want.
+            // (Closing it earlier would kill the daemon immediately.)
+        }
+    }
 }
 
 /// Take the child's stderr and start the drain thread that both keeps the pipe

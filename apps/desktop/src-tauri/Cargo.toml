@@ -34,6 +34,17 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking"] 
 # Process-group kill for spawned children on Unix (kill(-pgid, ...)).
 libc = "0.2"
 
+[target.'cfg(windows)'.dependencies]
+# Job-object (KILL_ON_JOB_CLOSE) assignment for the spawned daemon: the kernel
+# kills the whole daemon tree when the app dies, however it dies — installer
+# force-close included. Version-matched with what Tauri already pulls in.
+windows-sys = { version = "0.60", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
+
 [features]
 # By default Tauri runs in production mode (uses the bundled frontendDist).
 # The `custom-protocol` feature is enabled by `tauri build`.
