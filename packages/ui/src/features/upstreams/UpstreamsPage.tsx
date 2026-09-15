@@ -674,12 +674,22 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
 
       <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
       <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
-        <DialogContent className="flex h-[88vh] max-w-4xl flex-col overflow-hidden p-0">
+        <DialogContent className="flex h-[88vh] w-[min(94vw,72rem)] max-w-6xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b border-border/70 px-6 py-4">
             <DialogTitle>{t('upstreams.addProvider')}</DialogTitle>
             <DialogDescription>{t('upstreams.addProviderDescription')}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1"><ProviderSettings embedded mode="create" /></div>
+          {/* Create-in-a-modal: the dialog CLOSES on save (the new provider
+              lands in the workbench list) and on picker-cancel — it never falls
+              through to a provider config page inside this window. */}
+          <div className="min-h-0 flex-1">
+            <ProviderSettings
+              embedded
+              mode="create"
+              onProviderCreated={() => setAddProviderOpen(false)}
+              onRequestClose={() => setAddProviderOpen(false)}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

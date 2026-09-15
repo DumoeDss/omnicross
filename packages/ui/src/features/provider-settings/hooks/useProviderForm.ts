@@ -29,6 +29,10 @@ export function useProviderForm(
   // no implicitly-selected provider for these handlers to act on by mistake.
   isAddingNew: boolean,
   setIsAddingNew: (adding: boolean) => void,
+  // Fired after a successful CREATE (not edit) once the list has refreshed —
+  // a modal create flow (Upstreams "添加提供商") closes itself on this signal
+  // instead of falling through to the new provider's config page.
+  onProviderCreated?: (providerId: string) => void,
 ) {
   const t = useTranslation();
 
@@ -255,6 +259,8 @@ export function useProviderForm(
     }
 
     try {
+      // Set only on the CREATE path — drives `onProviderCreated` below.
+      let createdProviderId: string | null = null;
       if (isEditing && selectedProviderId) {
         // provider-storage-secrets leave-unchanged-on-empty: only send `api_key`
         // when the user actually typed a replacement; an empty field preserves
@@ -310,6 +316,7 @@ export function useProviderForm(
         });
         if (result.provider) {
           setSelectedProviderId(result.provider.id);
+          createdProviderId = result.provider.id;
         } else if (result.message) {
           setFormError(result.message);
           return;
@@ -318,6 +325,9 @@ export function useProviderForm(
       setIsEditing(false);
       setIsAddingNew(false);
       await refreshProviders();
+      // AFTER the refresh so the owner (a modal create flow) tears down against
+      // a list that already contains the new provider.
+      if (createdProviderId) onProviderCreated?.(createdProviderId);
     } catch (error) {
       console.error('Error saving provider:', error);
       setFormError(t('providerSettings.errors.saveFailed'));
