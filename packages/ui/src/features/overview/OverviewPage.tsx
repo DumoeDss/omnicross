@@ -742,17 +742,17 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           </div>
         </section>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <GatewayEvidence view={view} onNavigate={onNavigate} />
-          <AccountsEvidence view={view} onNavigate={onNavigate} />
-        </div>
-
         <LiveThroughputEvidence
           view={throughputView}
           windowMs={throughputWindowMs}
           onWindowChange={setThroughputWindowMs}
           onNavigate={onNavigate}
         />
+
+        <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+          <GatewayEvidence view={view} onNavigate={onNavigate} />
+          <AccountsEvidence view={view} onNavigate={onNavigate} />
+        </div>
 
         <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <TodayEvidence view={view} onNavigate={onNavigate} />

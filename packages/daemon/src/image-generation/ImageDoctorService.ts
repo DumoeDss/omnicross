@@ -4,6 +4,7 @@ import {
   normalizeImageGenerationError,
 } from '@omnicross/core/image-generation';
 import {
+  ALL_OUTBOUND_PERMISSIONS,
   validateImagesServerConfig,
   validateOutboundPermissions,
   type ImagesServerConfig,
@@ -211,8 +212,13 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
           continue;
         }
         try {
-          const permissions = validateOutboundPermissions(row.allowedEndpoints);
-          if (permissions.includes('images')) imagesAuthorizedRows += 1;
+          // Client keys hold every permission by kind; only integration keys
+          // keep their persisted scope.
+          const stored = validateOutboundPermissions(row.allowedEndpoints);
+          const effective = row.kind === 'integration'
+            ? stored
+            : ALL_OUTBOUND_PERMISSIONS;
+          if (effective.includes('images')) imagesAuthorizedRows += 1;
         } catch {
           invalidRows += 1;
         }

@@ -25,7 +25,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
@@ -38,12 +37,11 @@ import type {
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundKeyPolicyPatch,
-  OutboundPermissionId,
   UpstreamCatalogEntry,
 } from '@/daemon/types';
 
 import { KeyPolicyEditor } from './KeyPolicyEditor';
-import { UpstreamMappingEditor } from './UpstreamMappingEditor';
+import { UpstreamMappingEditor } from '../upstreams/UpstreamMappingEditor';
 
 interface KeyManagementSectionProps {
   keys: OutboundApiKeyInfo[];
@@ -55,7 +53,6 @@ interface KeyManagementSectionProps {
   onDelete: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
-  onSetPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   onDismissCreated: () => void;
   /** UPSTREAM ROUTING MODEL: set (or clear) a key's ordered upstream set. */
@@ -65,32 +62,6 @@ interface KeyManagementSectionProps {
 }
 
 const INTEGRATION_CLIENTS: readonly CliIntegrationClient[] = ['codex', 'claude'];
-
-export const KEY_PERMISSION_OPTIONS: readonly OutboundPermissionId[] = Object.freeze([
-  'chat',
-  'responses',
-  'messages',
-  'gemini',
-  'images',
-]);
-
-/** Legacy absent lists preserve only the four historic text permissions. */
-export function effectiveKeyPermissions(
-  permissions: OutboundPermissionId[] | undefined,
-): readonly OutboundPermissionId[] {
-  return permissions ?? KEY_PERMISSION_OPTIONS.filter((permission) => permission !== 'images');
-}
-
-export function toggleKeyPermission(
-  permissions: OutboundPermissionId[] | undefined,
-  permission: OutboundPermissionId,
-  enabled: boolean,
-): OutboundPermissionId[] {
-  const selected = new Set(effectiveKeyPermissions(permissions));
-  if (enabled) selected.add(permission);
-  else selected.delete(permission);
-  return KEY_PERMISSION_OPTIONS.filter((candidate) => selected.has(candidate));
-}
 
 /**
  * Per-key concurrency ceiling input. Empty string OR a non-positive value →
@@ -234,7 +205,6 @@ export function KeyManagementSection({
   onDelete,
   onToggle,
   onSetMaxConcurrency,
-  onSetPermissions,
   onSetPolicy,
   onDismissCreated,
   onSetUpstreamBinding,
@@ -330,9 +300,6 @@ export function KeyManagementSection({
             const usedClients = integrations
               .filter((integration) => integration.key?.id === k.id)
               .map((integration) => integration.client);
-            const requiredPermissions = new Set(integrations
-              .filter((integration) => integration.key?.id === k.id)
-              .flatMap((integration) => integration.key?.requiredEndpoints ?? []));
             const integrationEligible = k.enabled && !k.revoked && k.revealable === true;
             return (
             <li
@@ -466,50 +433,6 @@ export function KeyManagementSection({
                   </Button>
                 )}
               </div>
-              {!k.revoked ? (
-                <div className="mt-2 border-t border-border/60 pt-2">
-                  <div className="mb-2">
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <KeyRound className="h-3 w-3" />
-                      {t('apiService.keys.permissions.title')}
-                      {k.legacyPermissions === true ? (
-                        <Badge variant="outline">{t('apiService.keys.permissions.legacy')}</Badge>
-                      ) : null}
-                    </div>
-                    <div className="mt-1.5 grid gap-1.5 sm:grid-cols-5">
-                      {KEY_PERMISSION_OPTIONS.map((permission) => (
-                        <label
-                          key={permission}
-                          className={permission === 'images'
-                            ? 'flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5 text-xs'
-                            : 'flex items-center gap-2 rounded-md border border-border/60 px-2 py-1.5 text-xs'}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={effectiveKeyPermissions(k.allowedEndpoints).includes(permission)}
-                            disabled={busy || (
-                              eventPermissionIsRequired(
-                                effectiveKeyPermissions(k.allowedEndpoints).includes(permission),
-                                requiredPermissions.has(permission),
-                              )
-                            )}
-                            onChange={(event) => void onSetPermissions(
-                              k.id,
-                              toggleKeyPermission(k.allowedEndpoints, permission, event.target.checked),
-                            )}
-                          />
-                          <span className="truncate text-foreground">
-                            {t(`apiService.keys.permissions.${permission}`)}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    <p className="mt-1.5 text-[10px] text-muted-foreground">
-                      {t('apiService.keys.permissions.hint')}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
               {!k.revoked && policyOpenId === k.id ? (
                 <KeyPolicyEditor
                   keyInfo={k}
@@ -567,7 +490,6 @@ export function KeyManagementSection({
         description={integrationTarget
           ? t('apiService.keys.integrations.confirmDescription', {
               key: integrationTarget.key.name,
-              permissions: integrationTarget.client === 'codex' ? 'responses, images' : 'messages',
             })
           : undefined}
         confirmLabel={t('apiService.keys.integrations.confirm')}
@@ -634,11 +556,15 @@ function upstreamBindingSummary(
 }
 
 /**
- * The upstream-binding editor: pick `all` (live whole-catalog reference), an
- * ORDERED explicit list (list order = routing priority), or roll back to the
- * legacy downstream-route semantics (`null`). Each catalog row also opens the
- * per-upstream mapping-table editor (data lives on the upstream — the entry
- * point merely shares this dialog).
+ * The upstream-binding editor: ONE ordered selection list (list order =
+ * routing priority; can-serve misses yield to the next entry). There is no
+ * separate "all upstreams" mode — a key whose binding says `all` (or a
+ * not-yet-migrated legacy key) simply opens with EVERY upstream selected, and
+ * saving always writes the explicit selection (all-selected = the default the
+ * gateway setting materializes at creation). An EMPTY selection is a valid,
+ * deliberate state: the key authenticates but every request is rejected.
+ * Each catalog row also opens the per-upstream mapping-table editor (the data
+ * lives on the upstream — the entry point merely shares this dialog).
  */
 function UpstreamBindingDialog({
   target,
@@ -656,29 +582,34 @@ function UpstreamBindingDialog({
   onCatalogRefresh: () => void;
 }) {
   const t = useTranslation();
-  const [mode, setMode] = useState<'all' | 'explicit' | 'legacy'>('legacy');
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [mappingKey, setMappingKey] = useState<string | null>(null);
+  // Which key row the current selection was seeded from (an 'all'/legacy row
+  // re-seeds once the catalog arrives, since "all" is catalog-dependent).
+  const [seededFor, setSeededFor] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!target) return;
+    if (!target) {
+      setSeededFor(null);
+      return;
+    }
     const binding = target.upstreamBinding;
-    if (!binding) {
-      setMode('legacy');
-      setSelected([]);
-    } else if (binding.mode === 'all') {
-      setMode('all');
-      setSelected([]);
-    } else {
-      setMode('explicit');
+    if (binding && binding.mode === 'explicit') {
       setSelected(
         binding.targets.map((entry) =>
           entry.kind === 'provider' ? entry.providerId : `sub:${entry.providerId}`,
         ),
       );
+      setSeededFor(target.id);
+      return;
     }
-  }, [target]);
+    // 'all' or legacy: default-select-everything, applied once the catalog is known.
+    if (catalog.length > 0 && seededFor !== target.id) {
+      setSelected(catalog.map((entry) => entry.key));
+      setSeededFor(target.id);
+    }
+  }, [catalog, seededFor, target]);
 
   const labelOf = (key: string): string =>
     catalog.find((entry) => entry.key === key)?.label ?? key;
@@ -702,20 +633,16 @@ function UpstreamBindingDialog({
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     try {
-      if (mode === 'legacy') await onSave(null);
-      else if (mode === 'all') await onSave({ mode: 'all' });
-      else {
-        await onSave({
-          mode: 'explicit',
-          targets: selected.map((key) => {
-            const entry = catalog.find((candidate) => candidate.key === key);
-            if (!entry || entry.target.kind === 'provider') {
-              return { kind: 'provider' as const, providerId: key };
-            }
-            return { kind: 'account-pool' as const, providerId: entry.target.providerId };
-          }),
-        });
-      }
+      await onSave({
+        mode: 'explicit',
+        targets: selected.map((key) => {
+          const entry = catalog.find((candidate) => candidate.key === key);
+          if (!entry || entry.target.kind === 'provider') {
+            return { kind: 'provider' as const, providerId: key };
+          }
+          return { kind: 'account-pool' as const, providerId: entry.target.providerId };
+        }),
+      });
     } finally {
       setSaving(false);
     }
@@ -728,75 +655,63 @@ function UpstreamBindingDialog({
           <DialogTitle>{t('apiService.keys.upstream.dialogTitle', { name: target?.name ?? '' })}</DialogTitle>
           <DialogDescription>{t('apiService.keys.upstream.dialogDesc')}</DialogDescription>
         </DialogHeader>
-        <Select
-          value={mode}
-          onChange={(value) => setMode(value as 'all' | 'explicit' | 'legacy')}
-          size="sm"
-          options={[
-            { value: 'all', label: t('apiService.keys.upstream.modeAll') },
-            { value: 'explicit', label: t('apiService.keys.upstream.modeExplicit') },
-            { value: 'legacy', label: t('apiService.keys.upstream.modeLegacy') },
-          ]}
-        />
-        {mode === 'explicit' ? (
-          <div className="max-h-64 space-y-1 overflow-y-auto">
-            {catalog.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('apiService.keys.upstream.emptyCatalog')}</p>
-            ) : null}
-            {catalog.map((entry) => {
-              const index = selected.indexOf(entry.key);
-              const checked = index >= 0;
-              return (
-                <div
-                  key={entry.key}
-                  className="flex items-center gap-2 rounded-md border border-border/50 px-2 py-1.5"
+        <div className="max-h-64 space-y-1 overflow-y-auto">
+          {catalog.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('apiService.keys.upstream.emptyCatalog')}</p>
+          ) : null}
+          {catalog.map((entry) => {
+            const index = selected.indexOf(entry.key);
+            const checked = index >= 0;
+            return (
+              <div
+                key={entry.key}
+                className="flex items-center gap-2 rounded-md border border-border/50 px-2 py-1.5"
+              >
+                <Button
+                  variant={checked ? 'secondary' : 'ghost'}
+                  size="xs"
+                  onClick={() => toggle(entry.key)}
+                  aria-pressed={checked}
                 >
-                  <Button
-                    variant={checked ? 'secondary' : 'ghost'}
-                    size="xs"
-                    onClick={() => toggle(entry.key)}
-                    aria-pressed={checked}
-                  >
-                    {checked ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                    {checked ? `#${index + 1}` : ''}
-                  </Button>
-                  <span className="min-w-0 flex-1 truncate text-xs text-foreground">{entry.label}</span>
-                  <Button
-                    variant="ghost" size="icon" className="h-6 w-6 shrink-0"
-                    onClick={() => setMappingKey(entry.key)}
-                    aria-label={t('apiService.keys.upstream.mappingEdit')}
-                    title={t('apiService.keys.upstream.mappingEdit')}
-                  >
-                    <Settings2 className="h-3 w-3" />
-                  </Button>
-                  {checked ? (
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <Button
-                        variant="ghost" size="icon" className="h-6 w-6"
-                        disabled={index === 0}
-                        onClick={() => move(index, -1)}
-                        aria-label={t('apiService.keys.upstream.orderUp')}
-                      >
-                        <ArrowUp className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="icon" className="h-6 w-6"
-                        disabled={index === selected.length - 1}
-                        onClick={() => move(index, 1)}
-                        aria-label={t('apiService.keys.upstream.orderDown')}
-                      >
-                        <ArrowDown className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-            <p className="text-[11px] text-muted-foreground">
-              {t('apiService.keys.upstream.orderHint')}
-            </p>
-          </div>
-        ) : null}
+                  {checked ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                  {checked ? `#${index + 1}` : ''}
+                </Button>
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground">{entry.label}</span>
+                <Button
+                  variant="ghost" size="icon" className="h-6 w-6 shrink-0"
+                  onClick={() => setMappingKey(entry.key)}
+                  aria-label={t('apiService.keys.upstream.mappingEdit')}
+                  title={t('apiService.keys.upstream.mappingEdit')}
+                >
+                  <Settings2 className="h-3 w-3" />
+                </Button>
+                {checked ? (
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6"
+                      disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                      aria-label={t('apiService.keys.upstream.orderUp')}
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6"
+                      disabled={index === selected.length - 1}
+                      onClick={() => move(index, 1)}
+                      aria-label={t('apiService.keys.upstream.orderDown')}
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-muted-foreground">
+            {t('apiService.keys.upstream.orderHint')}
+          </p>
+        </div>
         <UpstreamMappingEditor
           upstreamKey={mappingKey}
           label={mappingKey ? labelOf(mappingKey) : ''}
@@ -810,7 +725,7 @@ function UpstreamBindingDialog({
           <Button
             variant="default"
             onClick={() => void handleSave()}
-            disabled={saving || busy || (mode === 'explicit' && selected.length === 0)}
+            disabled={saving || busy}
           >
             {t('common.save')}
           </Button>
@@ -818,8 +733,4 @@ function UpstreamBindingDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function eventPermissionIsRequired(checked: boolean, required: boolean): boolean {
-  return checked && required;
 }

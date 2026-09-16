@@ -952,8 +952,6 @@ export interface OutboundApiKeyInfo {
   allowedEndpoints?: OutboundPermissionId[];
   /** UPSTREAM ROUTING MODEL: the key's ordered upstream set (absent = legacy). */
   upstreamBinding?: KeyUpstreamBinding;
-  /** Explicit compatibility marker from upgraded daemons; never contains key material. */
-  legacyPermissions?: boolean;
   loopbackOnly?: boolean;
   /**
    * Per-key outbound concurrency ceiling (planning-context §COMMITTED §2). Absent

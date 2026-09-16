@@ -175,11 +175,11 @@ async function callModels(opts: {
 // --- tests ---------------------------------------------------------------------
 
 describe('resolveModelsShape', () => {
-  it('auto: explicit Images → OpenAI; otherwise messages/unrestricted → Anthropic', () => {
+  it('auto: messages → Anthropic; Images-without-messages → OpenAI (client keys all carry messages now)', () => {
     expect(resolveModelsShape(undefined, undefined)).toBe('anthropic');
     expect(resolveModelsShape('auto', ['messages'])).toBe('anthropic');
     expect(resolveModelsShape('auto', ['messages', 'chat'])).toBe('anthropic');
-    expect(resolveModelsShape('auto', ['messages', 'images'])).toBe('openai');
+    expect(resolveModelsShape('auto', ['messages', 'images'])).toBe('anthropic');
     expect(resolveModelsShape('auto', ['images'])).toBe('openai');
     expect(resolveModelsShape('auto', ['chat', 'responses'])).toBe('openai');
   });
@@ -325,8 +325,8 @@ describe('GET /v1/models — Anthropic shape', () => {
     expect(json.data[0]?.display_name).toBe('gpt-x (via deepseek-v3)');
   });
 
-  it('still respects endpoint permissions when enumerating cross-endpoint', async () => {
-    const row: OutboundKeyDbRow = { ...enabledRow, allowedEndpoints: ['messages'] };
+  it('still respects endpoint permissions when enumerating cross-endpoint (integration rows)', async () => {
+    const row: OutboundKeyDbRow = { ...enabledRow, kind: 'integration', allowedEndpoints: ['messages'] };
     const res = await callModels({
       row,
       // The chat-only provider route is NOT visible to a messages-only key.
@@ -344,7 +344,7 @@ describe('GET /v1/models — OpenAI shape pins', () => {
   it('adds one image model only for explicit Images permission and effective capability', async () => {
     const listed = vi.fn();
     const res = await callModels({
-      row: { ...enabledRow, allowedEndpoints: ['chat', 'images'] },
+      row: { ...enabledRow, kind: 'integration', allowedEndpoints: ['chat', 'images'] },
       bindings: [binding({ id: 'b-chat', endpoint: 'chat', modelMode: 'passthrough' })],
       providerModels: ['gpt-image-2', 'deepseek-v3'],
       imageModels: ['gpt-image-2'],
@@ -359,7 +359,7 @@ describe('GET /v1/models — OpenAI shape pins', () => {
 
   it('lists every routed image model the fresh evidence affirmed (multi-provider)', async () => {
     const res = await callModels({
-      row: { ...enabledRow, allowedEndpoints: ['images'] },
+      row: { ...enabledRow, kind: 'integration', allowedEndpoints: ['images'] },
       bindings: [],
       imageModels: ['gpt-image-2', 'gemini-3-pro-image-preview'],
     });
@@ -376,7 +376,7 @@ describe('GET /v1/models — OpenAI shape pins', () => {
   ])('omits the image model and never inspects capability for a %s key', async (_label, permissions) => {
     const listed = vi.fn();
     const res = await callModels({
-      row: { ...enabledRow, allowedEndpoints: [...permissions] },
+      row: { ...enabledRow, kind: 'integration', allowedEndpoints: [...permissions] },
       bindings: [],
       imageModels: ['gpt-image-2'],
       onListImages: listed,
@@ -387,10 +387,10 @@ describe('GET /v1/models — OpenAI shape pins', () => {
     expect(listed).not.toHaveBeenCalled();
   });
 
-  it('keeps a legacy absent permission list image-blind', async () => {
+  it('keeps a legacy absent integration permission list image-blind', async () => {
     const listed = vi.fn();
     const res = await callModels({
-      row: enabledRow,
+      row: { ...enabledRow, kind: 'integration' },
       bindings: [],
       imageModels: ['gpt-image-2'],
       onListImages: listed,
@@ -403,7 +403,7 @@ describe('GET /v1/models — OpenAI shape pins', () => {
 
   it('omits the image model when enabled capability inspection is unavailable or stale', async () => {
     const res = await callModels({
-      row: { ...enabledRow, allowedEndpoints: ['images'] },
+      row: { ...enabledRow, kind: 'integration', allowedEndpoints: ['images'] },
       bindings: [],
       imageModels: [],
     });
@@ -411,17 +411,22 @@ describe('GET /v1/models — OpenAI shape pins', () => {
     expect(json).toEqual({ object: 'list', data: [] });
   });
 
-  it('keeps mixed Messages+Images auto discovery OpenAI-shaped', async () => {
+  it('mixed Messages+Images: messages wins the auto shape and the image model still lists', async () => {
     const res = await callModels({
       row: { ...enabledRow, allowedEndpoints: ['messages', 'images'] },
       imageModels: ['gpt-image-2'],
     });
-    const json = JSON.parse(res.body) as { object: string; data: Array<{ id: string }> };
-    expect(json.object).toBe('list');
+    // A key authorized for messages gets the Anthropic envelope (R4: the
+    // Claude-protocol clients are the ones that hard-fail on the wrong shape);
+    // the capability-gated image models join the Anthropic list too, so an
+    // OpenAI-SDK user (whose data[].id parsing is shape-agnostic) still finds
+    // them even though client keys no longer encode a protocol family.
+    const json = JSON.parse(res.body) as { first_id: string | null; data: Array<{ id: string }> };
+    expect(json.first_id).not.toBeUndefined();
     expect(json.data.map((entry) => entry.id)).toContain('gpt-image-2');
   });
 
-  it('forced Anthropic shape remains valid and does not inspect or expose the image model', async () => {
+  it('forced Anthropic shape remains valid and still lists the capability-gated image model', async () => {
     const listed = vi.fn();
     const res = await callModels({
       row: { ...enabledRow, allowedEndpoints: ['messages', 'images'] },
@@ -431,13 +436,13 @@ describe('GET /v1/models — OpenAI shape pins', () => {
     });
     const json = JSON.parse(res.body) as { data: Array<{ id: string }>; first_id: string | null };
     expect(json.first_id).not.toBeUndefined();
-    expect(json.data.map((entry) => entry.id)).not.toContain('gpt-image-2');
-    expect(listed).not.toHaveBeenCalled();
+    expect(json.data.map((entry) => entry.id)).toContain('gpt-image-2');
+    expect(listed).toHaveBeenCalledOnce();
   });
 
-  it('a chat/responses-only key keeps the OpenAI shape (regression pin)', async () => {
+  it('a chat/responses-only integration key keeps the OpenAI shape (regression pin)', async () => {
     const res = await callModels({
-      row: { ...enabledRow, allowedEndpoints: ['chat', 'responses'] },
+      row: { ...enabledRow, kind: 'integration', allowedEndpoints: ['chat', 'responses'] },
       bindings: [
         ...MESSAGES_BINDINGS,
         binding({ id: 'b-chat', endpoint: 'chat', models: ['deepseek,deepseek-v3'] }),
@@ -462,7 +467,7 @@ describe('GET /v1/models — OpenAI shape pins', () => {
 
   it("modelsShape:'anthropic' forces the Anthropic shape even for a chat-only key", async () => {
     const res = await callModels({
-      row: { ...enabledRow, allowedEndpoints: ['chat'] },
+      row: { ...enabledRow, kind: 'integration', allowedEndpoints: ['chat'] },
       anthropic: { modelsShape: 'anthropic' },
       bindings: MESSAGES_BINDINGS,
     });

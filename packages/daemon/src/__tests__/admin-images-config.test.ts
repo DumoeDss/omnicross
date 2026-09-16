@@ -190,12 +190,6 @@ describe('admin Images config', () => {
     const created = await adminFetch('POST', '/admin/api/keys', { name: 'images-coherence' });
     expect(created.status).toBe(201);
     const key = created.json as { id: string; plaintextOnce: string };
-    const permitted = await adminFetch(
-      'POST',
-      `/admin/api/keys/${encodeURIComponent(key.id)}/permissions`,
-      { permissions: ['images'] },
-    );
-    expect(permitted.status).toBe(200);
 
     const request = await fetch(`${loopbackUrl}/v1/images/generations`, {
       method: 'POST',

@@ -95,7 +95,7 @@ export async function createNamedKey(
     name: row.name,
     keyPrefix: row.keyPrefix,
     createdAt: row.createdAt,
-    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
+    allowedEndpoints: [...ALL_OUTBOUND_PERMISSIONS],
     plaintextOnce: secret,
   };
 }
@@ -143,6 +143,31 @@ const OUTBOUND_PERMISSION_SET = new Set<OutboundPermission>([
   ...LEGACY_OUTBOUND_PERMISSIONS,
   'images',
 ]);
+
+/**
+ * Every permission the vocabulary knows — what a CLIENT key always holds.
+ * Which endpoint a client key may touch is decided by the URL it is called
+ * on, not by the key; the per-endpoint permission concept survives only for
+ * internal `integration` keys.
+ */
+export const ALL_OUTBOUND_PERMISSIONS: readonly OutboundPermission[] = Object.freeze([
+  ...LEGACY_OUTBOUND_PERMISSIONS,
+  'images',
+]);
+
+/**
+ * Effective permissions of a stored row BY KIND: client keys hold every
+ * permission; integration keys keep their persisted (scoped) list. This is
+ * the one interpretation the wire layer, the admin DTO projection, and the
+ * integration/launch eligibility checks must agree on.
+ */
+export function effectivePermissionsForRow(
+  row: { kind?: 'client' | 'integration'; allowedEndpoints?: OutboundPermission[] },
+): readonly OutboundPermission[] {
+  return row.kind === 'integration'
+    ? effectiveOutboundPermissions(row.allowedEndpoints)
+    : ALL_OUTBOUND_PERMISSIONS;
+}
 
 /** Strict write-edge validator. Stored-row reads use fail-closed interpretation below. */
 export function validateOutboundPermissions(value: unknown): OutboundPermission[] {
@@ -270,7 +295,7 @@ function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   const key: VerifiedKey = {
     id: row.id,
     kind: row.kind,
-    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
+    allowedEndpoints: [...effectivePermissionsForRow(row)],
     loopbackOnly: row.loopbackOnly,
   };
   if (row.maxConcurrency !== undefined && row.maxConcurrency !== null) {

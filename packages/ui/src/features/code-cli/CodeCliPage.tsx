@@ -64,7 +64,7 @@ function CopyBlock({ label, value }: { label: string; value: string }) {
 
 export function CodeCliPage() {
   const t = useTranslation();
-  const { loading, clis, sessions, busy, error, refresh, install, launch, stop } = useCli();
+  const { loading, clis, sessions, busy, error, refresh, versions, versionsLoading, refreshVersions, install, upgrade, launch, stop } = useCli();
   const integrations = useCliIntegrations();
   // Per-client routing targets: Codex (Responses wire) and Claude Code
   // (Anthropic wire) each get their own provider/route/key lists.
@@ -76,11 +76,12 @@ export function CodeCliPage() {
   const handleRefresh = useCallback(() => {
     void Promise.all([
       refresh(),
+      refreshVersions(),
       integrations.refresh(),
       codexTargets.refresh(),
       claudeTargets.refresh(),
     ]);
-  }, [integrations.refresh, refresh, codexTargets, claudeTargets]);
+  }, [integrations.refresh, refresh, refreshVersions, codexTargets, claudeTargets]);
 
   const integrationRows = integrations.overview?.integrations ?? [];
   const integrationMutationBusy = integrations.busyTarget !== null;
@@ -121,7 +122,7 @@ export function CodeCliPage() {
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
                 aria-label={t('codeCli.refresh')}
               >
-                <RefreshCw className={`h-4 w-4 ${loading || integrations.loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${loading || integrations.loading || versionsLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </section>
@@ -219,6 +220,8 @@ export function CodeCliPage() {
                   sessions={sessions.filter((s) => s.cli === cli.id)}
                   busy={busy}
                   onInstall={() => install(cli.id)}
+                  onUpgrade={() => upgrade(cli.id)}
+                  version={versions[cli.id]}
                   onLaunch={(input) => launch(cli.id, input)}
                   onStop={(id) => void stop(id)}
                   {...(cli.id === 'codex'

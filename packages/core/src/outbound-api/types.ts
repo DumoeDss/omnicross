@@ -795,10 +795,9 @@ export interface OutboundApiKeyInfo {
   revoked: boolean;
   /** Intended consumer. Existing rows default to a general client key. */
   kind?: 'client' | 'integration';
-  /** Exact effective permission list; legacy absent rows project to text-only permissions. */
+  /** Effective permission list: client keys always hold every permission;
+   *  integration keys carry their persisted scope. */
   allowedEndpoints: OutboundPermission[];
-  /** True when the stored row omitted permissions and compatibility defaults were projected. */
-  legacyPermissions: boolean;
   /** When true the key is rejected unless the TCP peer is loopback. */
   loopbackOnly?: boolean;
   /**

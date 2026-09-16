@@ -146,3 +146,28 @@ assembleGatewayBindings(input: {
   角色键抽取、通配、legacy 合并剔除、路由锁定 id 兼容；
 - 路由器集成：有/无 upstreamBinding 的密钥共存、403 语义（explicit 空 + 无 legacy）；
 - 迁移：存量绑定快照固化、同名冲突检测。
+## 7. 2026-09-17 追加：面向用户的收敛（键页三改）
+
+接手 session 按用户指令对键页做的三处语义收敛（实现均以本设计为基础）：
+
+1. **端点权限概念退役**（D8）：客户端密钥一律持有全部端点权限——访问哪个
+   端点由请求的 URL 决定，不再由密钥决定。`effectivePermissionsForRow`
+   （core）是唯一解释点：client 行 → 全量；`integration` 行保留持久化
+   范围（内部托管键，codex/claude 集成的 `/v1/models` 形状与端点闸门仍
+   由它派生）。admin `POST /keys/:id/permissions` 端点与键页权限 UI 已删；
+   `outboundApiKeysSetPermissions` 存储方法保留（集成键内部使用）。
+   连带：`resolveModelsShape` auto 判序改为 messages 优先（客户端键全量
+   权限后，images-优先会让所有键变 OpenAI 形状、砸掉 Claude Code）；
+   能力闸门内的图像模型同时并入 Anthropic 形状列表（OpenAI SDK 用户
+   才仍能在 `/v1/models` 里发现图像模型）。
+2. **`'all'` 模式退役（创建面）**（D9）：新密钥默认 `'all'` = 创建时把
+   **当前目录整体快照**成 explicit 列表（“默认全选”，不是活的全部模式）。
+   键编辑弹窗只剩一个有序勾选列表：`'all'`/legacy 行打开即全选，保存
+   恒写 explicit；空选=该键可认证但所有请求 403。存储类型与
+   `POST /keys/:id/upstream-binding` 对 `'all'` 的接受保留至 P5 清理。
+3. **模型映射入口下沉到资源**：映射表本就长在上游（`providerId` /
+   `sub:<providerId>`），入口从上游页顶部的集中按钮改为每个上游资源
+   详情内的「模型映射」折叠区（提供商详情页 + 订阅池详情页；密钥绑定
+   弹窗行内 ⚙ 保留）。行编辑器回归原路由版宽列设计（列头 + datalist
+   建议 + effort 勾选锁定），抽为共享 `MappingRowsEditor`，弹窗
+   `!max-w-4xl`。

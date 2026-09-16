@@ -48,7 +48,6 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
-  OutboundPermissionId,
   OverloadCounterResponse,
   SearchDiagnosticsSnapshot,
   SearchQueryResult,
@@ -312,19 +311,6 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return await adminClient.post<ImagesVerifyLiveResult>('/images/verify-live', {});
       } catch {
         return null;
-      }
-    },
-
-    async setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult> {
-      try {
-        const data = await adminClient.post<{ ok: boolean; allowedEndpoints?: OutboundPermissionId[] }>(
-          `/keys/${encodeURIComponent(id)}/permissions`,
-          { permissions },
-        );
-        if (!data.ok) return { success: false, message: 'key not found or revoked' };
-        return { success: true };
-      } catch (err) {
-        return fail(err, 'failed to update key permissions');
       }
     },
 

@@ -446,7 +446,8 @@ describe('migration pack export/import (app-parity child 6)', () => {
     const target = (keys.json as {
       keys: Array<{ id: string; allowedEndpoints: string[] }>;
     }).keys.find((entry) => entry.id === keyId);
-    expect(target?.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini']);
+    // Client keys hold every permission now — the pack must not narrow them.
+    expect(target?.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini', 'images']);
 
     rmSync(srcDir, { recursive: true, force: true });
   });

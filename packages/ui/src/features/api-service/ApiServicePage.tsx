@@ -59,7 +59,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     setKeyMaxConcurrency,
     setKeyUpstreamBinding,
     setDefaultKeyUpstreamBinding,
-    setKeyPermissions,
     setKeyPolicy,
     queueStatus,
     vouchers,
@@ -178,7 +177,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   onDelete={deleteKey}
                   onToggle={setKeyEnabled}
                   onSetMaxConcurrency={setKeyMaxConcurrency}
-                  onSetPermissions={setKeyPermissions}
                   onSetPolicy={setKeyPolicy}
                   onDismissCreated={dismissCreatedKey}
                   integrations={cliIntegrations.overview?.integrations ?? []}

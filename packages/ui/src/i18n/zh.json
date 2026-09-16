@@ -866,17 +866,13 @@
       "signalPath": "{{key}} 到 {{endpoint}}，再到 {{resource}}，最终使用 {{model}}",
       "openFromUpstreams": "请在“下游与路由”中管理使用此账号的路由。"
     },
-    "manageMappings": "模型映射",
     "mappings": {
-      "title": "上游模型映射",
-      "description": "每个上游一张映射表：客户端模型名 → 上游模型 id；留空 = 透传。角色行 default / background 用于 Gemini 后台模型。",
       "loading": "正在加载上游目录…",
-      "empty": "没有可用上游 —— 先添加提供商或订阅账号。",
       "count": "{{count}} 条映射",
       "passthrough": "透传（未配置映射）",
-      "kindProvider": "提供商",
-      "kindSubscription": "订阅池",
-      "edit": "编辑"
+      "edit": "编辑",
+      "sectionTitle": "模型映射",
+      "sectionDescription": "客户端模型名 → 该上游的模型 id；表为空 = 直通（客户端的模型名原样转发）。"
     }
   },
   "images": {
@@ -998,10 +994,10 @@
       "description": "启动本地 API 服务器，将外部调用方的请求经由你的提供商路由。"
     },
     "upstreamDefault": {
-      "label": "新密钥默认上游绑定",
-      "description": "新建访问密钥时默认绑定全部上游，还是不绑定任何上游（未绑定的密钥请求会被拒绝）。",
-      "none": "不绑定（需手动配置）",
-      "all": "全部上游"
+      "label": "新密钥默认上游选择",
+      "description": "新建访问密钥时默认勾选全部上游，还是一个都不勾选（未勾选任何上游的密钥会拒绝请求）。",
+      "none": "默认全不选",
+      "all": "默认全选"
     },
     "networkBinding": {
       "label": "允许局域网访问",
@@ -1051,17 +1047,14 @@
       "upstream": {
         "edit": "上游绑定",
         "dialogTitle": "编辑 {{name}} 的上游绑定",
-        "dialogDesc": "选择这把密钥的路由域：绑定全部上游、按优先级指定有序列表，或回退到旧的下游路由语义。",
-        "modeAll": "全部上游（跟随目录）",
-        "modeExplicit": "指定上游（有序，顺序即优先级）",
-        "modeLegacy": "跟随下游路由（旧版语义）",
-        "summaryAll": "全部上游",
+        "dialogDesc": "选择此密钥的上游并排序（顺序 = 优先级：靠前的先服务，靠后的作为故障转移）。保存时总是存储明确的选择；一个都不选 = 所有请求被拒绝。",
+        "summaryAll": "已选全部上游",
         "summaryExplicit": "{{count}} 个上游",
         "summaryNone": "未绑定（请求将被拒绝）",
         "summaryLegacy": "跟随下游路由（旧版）",
         "orderUp": "上移",
         "orderDown": "下移",
-        "orderHint": "选中后用箭头排序，排前的优先接单、后面的作故障切换候补。",
+        "orderHint": "勾选后用箭头排序——靠前的先服务，靠后的作为故障转移候选。一个都不选时密钥仍可认证，但所有请求都会被拒绝。",
         "emptyCatalog": "没有可用上游 —— 先在上游与路由页添加提供商或订阅账号。",
         "mappingEdit": "模型映射",
         "mappingTitle": "编辑 {{name}} 的模型映射",
@@ -1084,16 +1077,6 @@
       "reveal": "查看密钥",
       "revealError": "查看密钥失败。",
       "revealHint": "按需解密——请像对待原始密钥一样妥善保管。",
-      "permissions": {
-        "title": "端点权限",
-        "legacy": "旧版默认值",
-        "chat": "聊天",
-        "responses": "Responses",
-        "messages": "Messages",
-        "gemini": "Gemini",
-        "images": "图像",
-        "hint": "Responses 与图像是独立权限。旧版密钥保留四个文本端点，但不会自动获得图像权限。"
-      },
       "bindings": {
         "title": "下游接口",
         "count": "已绑定 {{count}} 个下游接口",
@@ -1113,8 +1096,8 @@
         "inUse": "正在使用",
         "unavailable": "只有已启用、未吊销且可查看的密钥才能用于 CLI 集成。",
         "confirmTitle": "将此密钥用于 {{name}}？",
-        "confirmDescription": "Omnicross 将绑定“{{key}}”并补充所需端点权限：{{permissions}}。此前由用户选择的密钥不会被吊销。",
-        "confirm": "绑定密钥"
+        "confirm": "绑定密钥",
+        "confirmDescription": "Omnicross 将绑定“{{key}}”用于此集成。此前由用户选择的密钥不会被吊销。"
       },
       "policy": {
         "title": "策略",
@@ -2080,6 +2063,11 @@
       "install": "安装",
       "installing": "安装中…",
       "installingHint": "正在守护进程主机上安装，可能需要一分钟。",
+      "upgrade": "升级",
+      "upgrading": "升级中…",
+      "upgradingHint": "正在守护进程主机上重新安装最新版本——可能需要一分钟。",
+      "upgradeHint": "在守护进程主机上检测并安装最新版本。",
+      "upgradeToHint": "新版本 {{version}} 可用——在守护进程主机上升级。",
       "launch": "启动",
       "launchTitle": "启动 {{name}}",
       "launchDescription": "在守护进程主机上打开一个新终端运行该 CLI，并经由守护进程代理路由。可选填工作目录。",

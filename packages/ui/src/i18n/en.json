@@ -866,17 +866,13 @@
       "signalPath": "{{key}} to {{endpoint}}, then {{resource}}, then {{model}}",
       "openFromUpstreams": "Manage routes that use this account from Downstreams and routes."
     },
-    "manageMappings": "Model mappings",
     "mappings": {
-      "title": "Upstream model mappings",
-      "description": "One table per upstream: client model name → upstream model id; empty = passthrough. The default / background role rows drive the Gemini background model.",
       "loading": "Loading the upstream catalog…",
-      "empty": "No upstreams yet — add a provider or subscription first.",
       "count": "{{count}} mapping(s)",
       "passthrough": "Passthrough (no mappings)",
-      "kindProvider": "Provider",
-      "kindSubscription": "Pool",
-      "edit": "Edit"
+      "edit": "Edit",
+      "sectionTitle": "Model mappings",
+      "sectionDescription": "Client model name → this upstream's model id; an empty table passes the client's model id through verbatim."
     }
   },
   "images": {
@@ -995,10 +991,10 @@
       "description": "Start the local API server that routes external callers through your providers."
     },
     "upstreamDefault": {
-      "label": "Default upstream binding for new keys",
-      "description": "Whether a newly created access key binds every upstream by default or none (unbound keys reject requests).",
-      "none": "None (configure manually)",
-      "all": "All upstreams"
+      "label": "Default upstream selection for new keys",
+      "description": "Whether a newly created access key starts with every upstream selected or none selected (a key with no upstream selected rejects requests).",
+      "none": "None selected",
+      "all": "All selected"
     },
     "networkBinding": {
       "label": "Allow LAN access",
@@ -1048,17 +1044,14 @@
       "upstream": {
         "edit": "Upstream binding",
         "dialogTitle": "Edit upstream binding for {{name}}",
-        "dialogDesc": "Choose this key's routing domain: every upstream, an ordered explicit list (order = priority), or the legacy downstream-route semantics.",
-        "modeAll": "All upstreams (follows the catalog)",
-        "modeExplicit": "Explicit upstreams (ordered; order = priority)",
-        "modeLegacy": "Legacy downstream routes",
-        "summaryAll": "All upstreams",
+        "dialogDesc": "Select this key's upstreams and order them (order = priority; earlier entries serve first, later ones are failover candidates). Saving always stores the explicit selection; selecting none rejects every request.",
+        "summaryAll": "All upstreams selected",
         "summaryExplicit": "{{count}} upstream(s)",
         "summaryNone": "Unbound (requests rejected)",
         "summaryLegacy": "Legacy downstream routes",
         "orderUp": "Move up",
         "orderDown": "Move down",
-        "orderHint": "Select then order with the arrows — earlier entries serve first, later ones are failover candidates.",
+        "orderHint": "Select then order with the arrows — earlier entries serve first, later ones are failover candidates. Selecting none leaves the key able to authenticate but every request is rejected.",
         "emptyCatalog": "No upstreams available — add a provider or subscription on the Upstreams page first.",
         "mappingEdit": "Model mappings",
         "mappingTitle": "Edit model mappings for {{name}}",
@@ -1081,16 +1074,6 @@
       "reveal": "View key",
       "revealError": "Failed to reveal this key.",
       "revealHint": "Decrypted on demand — copy it and treat it as securely as the original.",
-      "permissions": {
-        "title": "Endpoint permissions",
-        "legacy": "Legacy defaults",
-        "chat": "Chat",
-        "responses": "Responses",
-        "messages": "Messages",
-        "gemini": "Gemini",
-        "images": "Images",
-        "hint": "Responses and Images are separate permissions. Legacy keys keep the four text endpoints but do not gain Images access."
-      },
       "bindings": {
         "title": "Downstream interfaces",
         "count": "Bound to {{count}} downstreams",
@@ -1110,8 +1093,8 @@
         "inUse": "In use",
         "unavailable": "Only enabled, non-revoked, revealable keys can be used for CLI integrations.",
         "confirmTitle": "Use this key for {{name}}?",
-        "confirmDescription": "Omnicross will bind \"{{key}}\" and add the required endpoint permissions: {{permissions}}. A previously selected user key will not be revoked.",
-        "confirm": "Bind key"
+        "confirm": "Bind key",
+        "confirmDescription": "Omnicross will bind \"{{key}}\" to this integration. Previously selected keys are not revoked."
       },
       "policy": {
         "title": "Policy",
@@ -2077,6 +2060,11 @@
       "install": "Install",
       "installing": "Installing…",
       "installingHint": "Installing on the daemon host — this can take a minute.",
+      "upgrade": "Upgrade",
+      "upgrading": "Upgrading…",
+      "upgradingHint": "Re-installing at the latest release on the daemon host — this can take a minute.",
+      "upgradeHint": "Check for and install the latest release on the daemon host.",
+      "upgradeToHint": "Version {{version}} is available — upgrade on the daemon host.",
       "launch": "Launch",
       "launchTitle": "Launch {{name}}",
       "launchDescription": "Opens a new terminal on the daemon host running this CLI, routed through the daemon proxy. Pick an optional working directory.",

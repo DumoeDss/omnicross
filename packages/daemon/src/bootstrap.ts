@@ -92,7 +92,7 @@ import { CodexSessionManager } from './admin/codexSessionManager';
 import type { AdminApiDeps } from './admin/adminApi';
 import { buildHealthReport } from './admin/health';
 import { DAEMON_VERSION } from './admin/version';
-import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener } from './admin/cliLaunch';
+import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener, type VersionRunner } from './admin/cliLaunch';
 import { OAuthSessionStore } from './admin/oauthSessions';
 import { awaitLoopbackCode } from './commands/loopbackCallback';
 import { AntigravityLoopbackFn, AntigravityOAuthSessionStore } from './admin/accountsAntigravityOAuth';
@@ -225,6 +225,12 @@ export interface DaemonPaths {
    * never invoke a real package manager. Absent → the real `exec`-based runner.
    */
   cliCommandRunner?: CommandRunner;
+  /**
+   * TEST SEAM (optional): override the Code CLI VERSION probe runner
+   * (`--version` / `npm view`) so tests never run a real CLI or npm.
+   * Absent → the real `exec`-based runner.
+   */
+  cliVersionRunner?: VersionRunner;
   /** TEST/COMPOSITION SEAM: prepared Images runtime generation for config transactions. */
   imageRuntimeConfig?: AdminApiDeps['imageRuntimeConfig'];
   /** TEST/COMPOSITION SEAM: metadata-only Images status reader. */
@@ -1117,6 +1123,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     cliTerminalOpener: paths.cliTerminalOpener,
     cliPathProbe: paths.cliPathProbe,
     cliCommandRunner: paths.cliCommandRunner,
+    cliVersionRunner: paths.cliVersionRunner,
     // One helper invocation shared by the integration install and KEY-SCOPED
     // launches (the latter append `--key-id` per spawn) — same entrypoint, same
     // config/master-key resolution, so the two paths can never drift.

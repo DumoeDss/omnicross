@@ -153,9 +153,11 @@ export {
   validateEndpointModelConfig,
 } from './kindDetection';
 export {
+  ALL_OUTBOUND_PERMISSIONS,
   createIntegrationKey,
   createNamedKey,
   effectiveOutboundPermissions,
+  effectivePermissionsForRow,
   hashKey,
   LEGACY_OUTBOUND_PERMISSIONS,
   type KeyVerification,

@@ -342,9 +342,11 @@ export function isAnthropicOauthUsagePath(url: string | undefined): boolean {
 /**
  * Resolve the `GET /v1/models` response shape (claude-api-protocol-fidelity,
  * R4). Explicit `anthropic`/`openai` config wins; `'auto'` (default) gives a
- * explicitly Images-authorized key the OpenAI shape; otherwise a key authorized
- * for messages (or an unrestricted legacy key) gets Anthropic shape and everyone
- * else keeps OpenAI shape. Explicit configuration still wins.
+ * messages-authorized key the Anthropic shape (client keys now hold every
+ * permission, so messages is the distinguishing signal — Claude-protocol
+ * clients are the ones that hard-fail on the wrong shape); an Images-only
+ * key (e.g. a codex integration key) keeps the OpenAI shape. Explicit
+ * configuration still wins.
  */
 export function resolveModelsShape(
   modelsShape: AnthropicConfigSegment['modelsShape'] | undefined,
@@ -352,9 +354,10 @@ export function resolveModelsShape(
 ): 'anthropic' | 'openai' {
   if (modelsShape === 'anthropic') return 'anthropic';
   if (modelsShape === 'openai') return 'openai';
+  if (allowedEndpoints?.includes('messages')) return 'anthropic';
   if (allowedEndpoints?.includes('images')) return 'openai';
   if (!allowedEndpoints || allowedEndpoints.length === 0) return 'anthropic';
-  return allowedEndpoints.includes('messages') ? 'anthropic' : 'openai';
+  return 'openai';
 }
 
 // ── Live upstream models discovery (passthrough provider routes) ─────────────
@@ -595,6 +598,11 @@ async function writeModelsListAnthropic(
   directTarget?: GatewayBindingTarget | null,
   /** Optional route pin (`x-omnicross-binding-id`): list only that route. */
   pinnedBindingId?: string,
+  /** Capability-gated image model ids (client keys hold the Images permission,
+   *  so the auto shape no longer implies the client's protocol family — the
+   *  image models join the Anthropic list too, or an OpenAI-SDK user listing
+   *  models could never find them). */
+  imageModels: readonly string[] = [],
 ): Promise<void> {
   const entries: AnthropicModelEntry[] = [];
   const seen = new Set<string>();
@@ -655,6 +663,9 @@ async function writeModelsListAnthropic(
     for (const id of await passthroughProviderModelIds(llmConfig, directTarget.providerId)) {
       push(id);
     }
+  }
+  for (const id of imageModels) {
+    push(id);
   }
 
   const limited = limit !== undefined ? entries.slice(0, limit) : entries;
@@ -1374,6 +1385,18 @@ export async function handleOutboundRequest(
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
+    // The capability-gated image models join BOTH shapes: client keys hold
+    // every permission now, so the auto shape no longer encodes client
+    // orientation — an OpenAI-SDK user listing models to find the image model
+    // must see it even when their key's auto shape is Anthropic.
+    let imageModels: readonly string[] = [];
+    if (verified.allowedEndpoints.includes('images') && deps.imageModelCatalog) {
+      try {
+        imageModels = await deps.imageModelCatalog.listAvailableModels(verified.id);
+      } catch {
+        // Discovery is fail-closed: capability inspection never breaks the list route.
+      }
+    }
     // R4: a messages-authorized key (auto) gets the Anthropic list shape so
     // Anthropic SDK `models.list()` parses and Claude Code's gateway discovery
     // sees the CLIENT-visible aliases; other keys keep the OpenAI shape.
@@ -1389,16 +1412,9 @@ export async function handleOutboundRequest(
         parseModelsLimit(req.url),
         verified.boundUpstream,
         pinnedBindingId,
+        imageModels,
       );
     } else {
-      let imageModels: readonly string[] = [];
-      if (verified.allowedEndpoints.includes('images') && deps.imageModelCatalog) {
-        try {
-          imageModels = await deps.imageModelCatalog.listAvailableModels(verified.id);
-        } catch {
-          // Discovery is fail-closed: capability inspection never breaks the list route.
-        }
-      }
       await writeModelsList(
         res,
         deps.llmConfig,

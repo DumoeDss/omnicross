@@ -357,8 +357,6 @@ export interface AgentApiServiceApi {
    * target (404 unknown provider; 400 non-claude/kimi subscription).
    */
   setKeyUpstream(id: string, target: GatewayBindingTarget | null): Promise<MutationResult>;
-  /** Atomically replace one key's exact authorization list. */
-  setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult>;
   /**
    * Set a key's policy envelope (`POST /keys/:id/policy`, outbound-key-policy):
    * expiry / activation / cost limits / per-key rate. Each field is three-way
@@ -680,7 +678,7 @@ export interface AgentAccountsApi {
 
 // ── Code CLI launch adapter (dashboard parity) ────────────────────────────────
 
-/** One launchable CLI + whether its binary is on the daemon host's PATH. */
+/** One tracked CLI + whether its binary is on the daemon host's PATH. */
 export interface CliStatus {
   id: string;
   displayName: string;
@@ -688,6 +686,24 @@ export interface CliStatus {
   installed: boolean;
   /** Has a known global install command (the card shows an Install button). */
   installable: boolean;
+  /** Has a launcher builder (install-only CLIs hide the Launch button). */
+  launchable?: boolean;
+}
+
+/** Version probe outcome for one installed CLI (each field is best-effort). */
+export interface CliVersionStatus {
+  /** Version reported by the installed binary (`--version`). */
+  installed?: string;
+  /** Latest release on the npm registry (npm-installed CLIs only). */
+  latest?: string;
+}
+
+/** CLI id → version status (installed CLIs only). */
+export type CliVersionMap = Record<string, CliVersionStatus>;
+
+/** Upgrade outcome; `version` is the re-probed version after a successful run. */
+export interface CliUpgradeResult extends MutationResult {
+  version?: string;
 }
 
 /** A running launch (token-free — the route token rides only the terminal env). */
@@ -869,6 +885,13 @@ export interface AgentCliApi {
   list(): Promise<CliStatus[]>;
   /** Run the CLI's global install command on the daemon host (npm/curl). */
   install(cli: string): Promise<MutationResult>;
+  /**
+   * Installed + npm-latest versions per CLI id (installed CLIs only; empty map
+   * when the daemon is unreachable). Drives the version display + Upgrade hint.
+   */
+  versions(): Promise<CliVersionMap>;
+  /** Re-install the CLI at its latest release on the daemon host. */
+  upgrade(cli: string): Promise<CliUpgradeResult>;
   launch(
     cli: string,
     input?: {

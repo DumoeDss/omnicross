@@ -6,7 +6,6 @@ import {
   Layers3,
   Plus,
   Route,
-  Settings2,
   Search,
   Server,
   UserRound,
@@ -48,7 +47,7 @@ import { cn } from '@/shared/utils/utils';
 
 import { AccountResourceDetails } from './AccountResourceDetails';
 import { AddAccountDialog } from './AddAccountDialog';
-import { UpstreamMappingsDialog } from './UpstreamMappingsDialog';
+import { UpstreamMappingSection } from './UpstreamMappingSection';
 import {
   DownstreamRoutesWorkspace,
   type DownstreamResourceOption,
@@ -167,7 +166,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const gateway = useApiService();
   const providersApi = useLlmProvidersData();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
-  const [mappingOpen, setMappingOpen] = useState(false);
   const [addProviderOpen, setAddProviderOpen] = useState(false);
   const [antigravityModels, setAntigravityModels] = useState<Array<{ id: string }>>([]);
   const antigravityAccountKey = JSON.stringify(
@@ -446,9 +444,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           </div>
           {activeTab === 'resources' ? (
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setMappingOpen(true)}>
-                <Settings2 className="mr-1.5 h-4 w-4" />{t('upstreams.manageMappings')}
-              </Button>
               <Button size="sm" variant="outline" onClick={() => setAddAccountOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addAccount')}
               </Button>
@@ -683,7 +678,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       )}
 
       <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
-      <UpstreamMappingsDialog open={mappingOpen} onClose={() => setMappingOpen(false)} />
       <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
         <DialogContent className="flex h-[88vh] !w-[min(94vw,72rem)] !max-w-6xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b border-border/70 px-6 py-4">
@@ -789,22 +783,32 @@ function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource
   const t = useTranslation();
   const schedulable = resource.accounts.filter((account) => account.schedulable).length;
   return (
-    <section className="rounded-xl border border-border/70 bg-surface-1/50 p-5">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Layers3 className="h-5 w-5 text-primary" /></span>
-        <div>
-          <h2 className="text-lg font-semibold">{resource.kind === 'account-group' ? resource.group : resource.label}</h2>
-          <p className="text-xs text-muted-foreground">{t(`accounts.provider.${resource.providerId}.title`)} · {t('upstreams.groupSummary', { total: resource.accounts.length, schedulable })}</p>
+    <section className="space-y-5">
+      <div className="rounded-xl border border-border/70 bg-surface-1/50 p-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Layers3 className="h-5 w-5 text-primary" /></span>
+          <div>
+            <h2 className="text-lg font-semibold">{resource.kind === 'account-group' ? resource.group : resource.label}</h2>
+            <p className="text-xs text-muted-foreground">{t(`accounts.provider.${resource.providerId}.title`)} · {t('upstreams.groupSummary', { total: resource.accounts.length, schedulable })}</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {resource.accounts.map((account) => (
+            <div key={account.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
+              <div className="min-w-0"><p className="truncate text-sm font-medium">{account.label || account.id}</p><p className="text-xs text-muted-foreground">{t(`accounts.status.${account.status}`)}</p></div>
+              <Badge variant={account.schedulable ? 'success' : 'secondary'}>{t(`accounts.management.schedulingState.${accountSchedulingState(account)}`)}</Badge>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        {resource.accounts.map((account) => (
-          <div key={account.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
-            <div className="min-w-0"><p className="truncate text-sm font-medium">{account.label || account.id}</p><p className="text-xs text-muted-foreground">{t(`accounts.status.${account.status}`)}</p></div>
-            <Badge variant={account.schedulable ? 'success' : 'secondary'}>{t(`accounts.management.schedulingState.${accountSchedulingState(account)}`)}</Badge>
-          </div>
-        ))}
-      </div>
+      {/* The POOL is the upstream (the mapping-table key `sub:<providerId>`);
+          groups and single accounts are scheduling lenses, not upstreams. */}
+      {resource.kind === 'account-pool' ? (
+        <UpstreamMappingSection
+          upstreamKey={`sub:${resource.providerId}`}
+          label={resource.label}
+        />
+      ) : null}
     </section>
   );
 }

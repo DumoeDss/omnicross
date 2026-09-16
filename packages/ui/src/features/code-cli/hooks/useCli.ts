@@ -10,7 +10,14 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { agent } from '@/shared/agent';
 
-import type { CliLaunchResult, CliSession, CliStatus, MutationResult } from '@/daemon/types';
+import type {
+  CliLaunchResult,
+  CliSession,
+  CliStatus,
+  CliUpgradeResult,
+  CliVersionMap,
+  MutationResult,
+} from '@/daemon/types';
 
 export interface UseCliResult {
   loading: boolean;
@@ -20,7 +27,12 @@ export interface UseCliResult {
   error: string | null;
   clearError: () => void;
   refresh: () => Promise<void>;
+  /** Installed + npm-latest versions per CLI (drives the version display). */
+  versions: CliVersionMap;
+  versionsLoading: boolean;
+  refreshVersions: () => Promise<void>;
   install: (cli: string) => Promise<MutationResult>;
+  upgrade: (cli: string) => Promise<CliUpgradeResult>;
   launch: (
     cli: string,
     input?: { cwd?: string; keyId?: string; providerId?: string; bindingId?: string },
@@ -34,11 +46,22 @@ export function useCli(): UseCliResult {
   const [sessions, setSessions] = useState<CliSession[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [versions, setVersions] = useState<CliVersionMap>({});
+  const [versionsLoading, setVersionsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     const [nextClis, nextSessions] = await Promise.all([agent.cli.list(), agent.cli.sessions()]);
     setClis(nextClis);
     setSessions(nextSessions);
+  }, []);
+
+  const refreshVersions = useCallback(async () => {
+    setVersionsLoading(true);
+    try {
+      setVersions(await agent.cli.versions());
+    } finally {
+      setVersionsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -51,11 +74,14 @@ export function useCli(): UseCliResult {
         setSessions(nextSessions);
         setLoading(false);
       }
+      // Version probes (one `--version` + one `npm view` per installed CLI) are
+      // slower than the PATH list — load them after the cards can render.
+      void refreshVersions();
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshVersions]);
 
   const install = useCallback(
     async (cli: string) => {
@@ -64,13 +90,29 @@ export function useCli(): UseCliResult {
       try {
         const result = await agent.cli.install(cli);
         if (!result.success) setError(result.message ?? 'install failed');
-        else await refresh();
+        else await Promise.all([refresh(), refreshVersions()]);
         return result;
       } finally {
         setBusy(false);
       }
     },
-    [refresh],
+    [refresh, refreshVersions],
+  );
+
+  const upgrade = useCallback(
+    async (cli: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.cli.upgrade(cli);
+        if (!result.success) setError(result.message ?? 'upgrade failed');
+        else await Promise.all([refresh(), refreshVersions()]);
+        return result;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh, refreshVersions],
   );
 
   const launch = useCallback(
@@ -106,5 +148,20 @@ export function useCli(): UseCliResult {
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { loading, clis, sessions, busy, error, clearError, refresh, install, launch, stop };
+  return {
+    loading,
+    clis,
+    sessions,
+    busy,
+    error,
+    clearError,
+    refresh,
+    versions,
+    versionsLoading,
+    refreshVersions,
+    install,
+    upgrade,
+    launch,
+    stop,
+  };
 }

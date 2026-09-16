@@ -276,7 +276,7 @@ describe('IntegrationManager', () => {
     expect(existsSync(join(customDir, 'auth.json'))).toBe(false);
   });
 
-  it('binds a selected key, grants Codex image permission, and leaves every key in place', async () => {
+  it('binds a selected key without rewriting its stored row, and leaves every key in place', async () => {
     const f = fixture();
     await f.manager.install('codex');
     const oldManagedId = f.store.load().keyBindings?.codex?.keyId;
@@ -288,10 +288,10 @@ describe('IntegrationManager', () => {
       key: { id: selected.id, ownership: 'selected' },
     });
     expect(await f.manager.getIntegrationToken('codex')).toBe(selected.plaintextOnce);
+    // Access keys hold every permission BY KIND — binding never rewrites the
+    // stored list (the fresh client row keeps its absent list).
     const rows = await f.db.outboundApiKeysList();
-    expect(rows.find((row) => row.id === selected.id)?.allowedEndpoints).toEqual([
-      'chat', 'responses', 'messages', 'gemini', 'images',
-    ]);
+    expect(rows.find((row) => row.id === selected.id)?.allowedEndpoints).toBeUndefined();
     // Rebinding is NOT a revocation: the superseded MANAGED key stays in place
     // (enabled, un-revoked) for manual cleanup.
     expect(rows.find((row) => row.id === oldManagedId)).toMatchObject({

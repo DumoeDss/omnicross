@@ -866,17 +866,13 @@
         }
       }
     },
-    "manageMappings": "模型映射",
     "mappings": {
-      "title": "上游模型映射",
-      "description": "每個上游一張映射表：用戶端模型名 → 上游模型 id；留空 = 透傳。角色行 default / background 用於 Gemini 背景模型。",
       "loading": "正在載入上游目錄…",
-      "empty": "沒有可用上游 —— 請先新增提供商或訂閱帳號。",
       "count": "{{count}} 條映射",
       "passthrough": "透傳（未配置映射）",
-      "kindProvider": "提供商",
-      "kindSubscription": "訂閱池",
-      "edit": "編輯"
+      "edit": "編輯",
+      "sectionTitle": "模型對應",
+      "sectionDescription": "用戶端模型名 → 該上游的模型 id；表為空 = 直通（用戶端的模型名原樣轉發）。"
     }
   },
   "images": {
@@ -998,10 +994,10 @@
       "description": "啟動本機 API 伺服器，將外部呼叫者的請求透過您的提供者進行路由。"
     },
     "upstreamDefault": {
-      "label": "新金鑰預設上游綁定",
-      "description": "新建存取金鑰時預設綁定全部上游，還是不綁定任何上游（未綁定的金鑰請求會被拒絕）。",
-      "none": "不綁定（需手動設定）",
-      "all": "全部上游"
+      "label": "新金鑰預設上游選擇",
+      "description": "新增存取金鑰時預設勾選全部上游，還是一個都不勾選（未勾選任何上游的金鑰會拒絕請求）。",
+      "none": "預設全不選",
+      "all": "預設全選"
     },
     "networkBinding": {
       "label": "允許區域網路存取",
@@ -1051,17 +1047,14 @@
       "upstream": {
         "edit": "上游綁定",
         "dialogTitle": "編輯 {{name}} 的上游綁定",
-        "dialogDesc": "選擇這把金鑰的路由域：綁定全部上游、按優先順序指定有序列表，或回退到舊的下游路由語義。",
-        "modeAll": "全部上游（跟隨目錄）",
-        "modeExplicit": "指定上游（有序，順序即優先順序）",
-        "modeLegacy": "跟隨下游路由（舊版語義）",
-        "summaryAll": "全部上游",
+        "dialogDesc": "選擇此金鑰的上游並排序（順序 = 優先級：靠前的先服務，靠後的作為故障轉移）。儲存時總是寫入明確的選擇；一個都不選 = 所有請求被拒絕。",
+        "summaryAll": "已選全部上游",
         "summaryExplicit": "{{count}} 個上游",
         "summaryNone": "未綁定（請求將被拒絕）",
         "summaryLegacy": "跟隨下游路由（舊版）",
         "orderUp": "上移",
         "orderDown": "下移",
-        "orderHint": "選取後用箭頭排序，排前的優先接單、後面的作故障切換候補。",
+        "orderHint": "勾選後用箭頭排序——靠前的先服務，靠後的作為故障轉移候選。一個都不選時金鑰仍可認證，但所有請求都會被拒絕。",
         "emptyCatalog": "沒有可用上游 —— 請先在上游與路由頁新增提供商或訂閱帳號。",
         "mappingEdit": "模型映射",
         "mappingTitle": "編輯 {{name}} 的模型映射",
@@ -1084,16 +1077,6 @@
       "reveal": "查看金鑰",
       "revealError": "查看金鑰失敗。",
       "revealHint": "按需解密——請像對待原始金鑰一樣妥善保管。",
-      "permissions": {
-        "title": "端點權限",
-        "legacy": "舊版預設值",
-        "chat": "聊天",
-        "responses": "Responses",
-        "messages": "Messages",
-        "gemini": "Gemini",
-        "images": "圖像",
-        "hint": "Responses 與圖像是獨立權限。舊版金鑰保留四個文字端點，但不會自動取得圖像權限。"
-      },
       "bindings": {
         "title": "下游介面",
         "count": "已綁定 {{count}} 個下游介面",
@@ -1113,8 +1096,8 @@
         "inUse": "正在使用",
         "unavailable": "只有已啟用、未撤銷且可查看的金鑰才能用於 CLI 整合。",
         "confirmTitle": "將此金鑰用於 {{name}}？",
-        "confirmDescription": "Omnicross 將綁定「{{key}}」並補充所需端點權限：{{permissions}}。此前由使用者選擇的金鑰不會被撤銷。",
-        "confirm": "綁定金鑰"
+        "confirm": "綁定金鑰",
+        "confirmDescription": "Omnicross 將綁定「{{key}}」用於此整合。此前由用戶選擇的金鑰不會被撤銷。"
       },
       "policy": {
         "title": "策略",
@@ -2080,6 +2063,11 @@
       "install": "安裝",
       "installing": "安裝中…",
       "installingHint": "正在 Daemon 主機上安裝，可能需要一點時間。",
+      "upgrade": "升級",
+      "upgrading": "升級中…",
+      "upgradingHint": "正在 Daemon 主機上重新安裝最新版本，可能需要一點時間。",
+      "upgradeHint": "在 Daemon 主機上偵測並安裝最新版本。",
+      "upgradeToHint": "新版本 {{version}} 可用——在 Daemon 主機上升級。",
       "launch": "啟動",
       "launchTitle": "啟動 {{name}}",
       "launchDescription": "在 Daemon 主機上開啟新的終端機視窗執行此 CLI，並透過 Daemon 代理路由。可選填工作目錄。",

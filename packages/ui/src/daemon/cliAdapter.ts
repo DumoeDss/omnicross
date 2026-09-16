@@ -10,12 +10,6 @@
 import { adminClient } from './adminClient';
 import type {
   AgentCliApi,
-  CodexSessionApplyResult,
-  CodexSessionListResponse,
-  CodexSessionListResult,
-  CodexSessionProviderApplyResult,
-  CodexSessionProviderPreview,
-  CodexSessionPreviewResult,
   CliIntegrationClient,
   CliIntegrationPlanResult,
   CliIntegrationsOverview,
@@ -23,6 +17,14 @@ import type {
   CliLaunchResult,
   CliSession,
   CliStatus,
+  CliUpgradeResult,
+  CliVersionMap,
+  CodexSessionApplyResult,
+  CodexSessionListResponse,
+  CodexSessionListResult,
+  CodexSessionProviderApplyResult,
+  CodexSessionProviderPreview,
+  CodexSessionPreviewResult,
   MutationResult,
 } from './types';
 
@@ -46,6 +48,26 @@ export function createCliAdapter(): AgentCliApi {
         return { success: true };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'failed to install CLI' };
+      }
+    },
+
+    async versions(): Promise<CliVersionMap> {
+      try {
+        return (await adminClient.get<{ versions: CliVersionMap }>('/cli/versions')).versions;
+      } catch {
+        return {};
+      }
+    },
+
+    async upgrade(cli: string): Promise<CliUpgradeResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; version?: string }>(
+          `/cli/${encodeURIComponent(cli)}/upgrade`,
+          {},
+        );
+        return { success: true, ...(data.version ? { version: data.version } : {}) };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to upgrade CLI' };
       }
     },
 

@@ -319,15 +319,17 @@ describe('upstream routing model (admin surface + gateway e2e)', () => {
     expect(afterRollback.status).toBe(200);
   });
 
-  it("the default-setting 'all' makes new keys serve the whole catalog", async () => {
+  it("the default-setting 'all' pre-selects the whole catalog as an explicit snapshot", async () => {
     const put = await adminFetch('PUT', '/admin/api/server', {
       defaultKeyUpstreamBinding: 'all',
     });
     expect(put.status).toBe(200);
 
     const key = await createKeyViaAdmin();
+    // No live "all" mode: creation snapshots every CURRENT upstream explicitly.
     expect((key as CreatedKey & { upstreamBinding?: unknown }).upstreamBinding).toEqual({
-      mode: 'all',
+      mode: 'explicit',
+      targets: [{ kind: 'provider', providerId: 'mock' }],
     });
     const served = await gatewayChat(key.plaintextOnce);
     expect(served.status).toBe(200);

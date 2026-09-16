@@ -59,7 +59,7 @@ import {
 } from '@omnicross/core/provider-proxy';
 import {
   candidateGatewayBindings,
-  effectiveOutboundPermissions,
+  effectivePermissionsForRow,
   GATEWAY_BINDING_PIN_HEADER,
   type GatewayBinding,
   type OutboundKeyDb,
@@ -85,23 +85,87 @@ export const LAUNCHABLE_CLIS = [
 export type LaunchCliId = (typeof LAUNCHABLE_CLIS)[number]['id'];
 
 /**
+ * CLIs the dashboard tracks for INSTALL/UPGRADE only — no cli-launcher builder
+ * speaks their env contract yet, so the Launch button stays hidden for them.
+ */
+export const INSTALL_ONLY_CLIS = [
+  { id: 'grok', displayName: 'Grok Build', command: 'grok' },
+  { id: 'openclaw', displayName: 'OpenClaw', command: 'openclaw' },
+  { id: 'hermes', displayName: 'Hermes Agent', command: 'hermes' },
+  { id: 'pi', displayName: 'Pi Coding Agent', command: 'pi' },
+] as const;
+
+/** Every CLI the dashboard lists (launchable + install-only). */
+export const TRACKED_CLIS = [...LAUNCHABLE_CLIS, ...INSTALL_ONLY_CLIS] as const;
+
+export type TrackedCliId = (typeof TRACKED_CLIS)[number]['id'];
+
+/**
  * Per-CLI global install command (run on the daemon host). CLIs absent from this
  * map are manual-install only — the dashboard hides the Install button for them.
- * `Partial` keeps the absence meaningful even though every launchable CLI
- * currently has one.
+ * `Partial` keeps the absence meaningful even though every tracked CLI currently
+ * has one.
  */
-export const INSTALL_COMMANDS: Partial<Record<LaunchCliId, string>> = {
+export const INSTALL_COMMANDS: Partial<Record<TrackedCliId, string>> = {
   claude: 'npm install -g @anthropic-ai/claude-code',
   codex: 'npm install -g @openai/codex',
   gemini: 'npm install -g @google/gemini-cli',
   qwen: 'npm install -g @qwen-code/qwen-code',
   copilot: 'npm install -g @github/copilot',
   opencode: 'npm install -g opencode-ai',
+  grok: 'npm install -g @xai-official/grok',
+  openclaw: 'npm install -g openclaw',
+  // Hermes has no npm package — its vendor installer is a PowerShell script
+  // (stored decoded: `irm <url> | iex`), so this entry is Windows-only.
+  hermes: 'powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex"',
+  pi: 'npm install -g @earendil-works/pi-coding-agent',
 };
+
+/** Install commands that only exist for Windows hosts (no POSIX equivalent). */
+const WINDOWS_ONLY_INSTALLS = new Set<string>(['hermes']);
 
 const LAUNCHABLE_IDS = new Set<string>(LAUNCHABLE_CLIS.map((c) => c.id));
 export function isLaunchCliId(id: string | undefined): id is LaunchCliId {
   return id !== undefined && LAUNCHABLE_IDS.has(id);
+}
+
+const TRACKED_IDS = new Set<string>(TRACKED_CLIS.map((c) => c.id));
+export function isTrackedCliId(id: string | undefined): id is TrackedCliId {
+  return id !== undefined && TRACKED_IDS.has(id);
+}
+
+/** The install command for this CLI on this platform, or null (manual only). */
+export function installCommandFor(
+  cli: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  const cmd = INSTALL_COMMANDS[cli as TrackedCliId];
+  if (!cmd) return null;
+  if (WINDOWS_ONLY_INSTALLS.has(cli) && platform !== 'win32') return null;
+  return cmd;
+}
+
+/** The npm package name behind a CLI's install command, or null (non-npm). */
+export function npmPackageFor(cli: string): string | null {
+  const cmd = INSTALL_COMMANDS[cli as TrackedCliId];
+  if (!cmd || !cmd.startsWith('npm ')) return null;
+  const token = cmd.split(/\s+/).pop();
+  // Filter the fixed verb flags, keeping only the package operand.
+  return token && !token.startsWith('-') ? token : null;
+}
+
+/**
+ * The upgrade command: npm-installed CLIs pin `@latest`; script installers are
+ * simply re-run (Hermes' installer refreshes in place).
+ */
+export function upgradeCommandFor(
+  cli: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  const install = installCommandFor(cli, platform);
+  if (!install) return null;
+  const pkg = npmPackageFor(cli);
+  return pkg ? `npm install -g ${pkg}@latest` : install;
 }
 
 /** Injectable PATH probe (tests stub this; default scans `process.env.PATH`). */
@@ -130,24 +194,27 @@ export function isCliInstalled(
 
 /** One row of the CLI availability list. */
 export interface CliStatus {
-  id: LaunchCliId;
+  id: TrackedCliId;
   displayName: string;
   command: string;
   installed: boolean;
   /** Has a known global install command (dashboard shows an Install button). */
   installable: boolean;
+  /** Has a cli-launcher builder (dashboard shows a Launch button). */
+  launchable: boolean;
 }
 
 export function detectClis(
   platform: NodeJS.Platform = process.platform,
   probe: PathProbe = probeDefault,
 ): CliStatus[] {
-  return LAUNCHABLE_CLIS.map((c) => ({
+  return TRACKED_CLIS.map((c) => ({
     id: c.id,
     displayName: c.displayName,
     command: c.command,
     installed: isCliInstalled(c.command, platform, probe),
-    installable: Boolean(INSTALL_COMMANDS[c.id]),
+    installable: installCommandFor(c.id, platform) !== null,
+    launchable: isLaunchCliId(c.id),
   }));
 }
 
@@ -341,7 +408,7 @@ export type KeyScopedPreflight =
  */
 async function keyScopedEligibilityError(
   deps: KeyScopedLaunchDeps,
-  row: { id: string; name: string; enabled: boolean; revokedAt: number | null; allowedEndpoints?: OutboundPermission[] },
+  row: { id: string; name: string; enabled: boolean; revokedAt: number | null; kind?: 'client' | 'integration'; allowedEndpoints?: OutboundPermission[] },
   client: KeyScopedClient,
 ): Promise<string | null> {
   if (!row.enabled || row.revokedAt !== null) {
@@ -351,7 +418,8 @@ async function keyScopedEligibilityError(
   if (!secret) {
     return `access key '${row.name}' is not revealable`;
   }
-  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
+  // Client keys hold every permission by kind; only integration keys scope.
+  const allowed = effectivePermissionsForRow(row);
   for (const permission of KEY_SCOPED_CONTRACT[client].permissions) {
     if (!allowed.includes(permission)) {
       return `access key '${row.name}' lacks the '${permission}' endpoint permission ${client} requires`;
@@ -806,15 +874,16 @@ const defaultCommandRunner: CommandRunner = (command) =>
 
 /**
  * POST /cli/:cli/install → run the CLI's global install command on the daemon
- * host (npm/curl). STATUS-ONLY `{ ok: true }` on success; a 400 when the CLI has
- * no known install command, a 500 (with the failure reason) when the command
- * fails. No secret is involved — this is a plain package-manager invocation.
+ * host (npm/PowerShell). STATUS-ONLY `{ ok: true }` on success; a 400 when the
+ * CLI has no known install command, a 500 (with the failure reason) when the
+ * command fails. No secret is involved — this is a plain package-manager
+ * invocation.
  */
 export async function handleCliInstall(
-  cli: LaunchCliId,
+  cli: TrackedCliId,
   runner: CommandRunner = defaultCommandRunner,
 ): Promise<CliHandlerResult> {
-  const cmd = INSTALL_COMMANDS[cli];
+  const cmd = installCommandFor(cli);
   if (!cmd) {
     return { status: 400, body: errBody(`no install command for cli '${cli}' (manual install only)`) };
   }
@@ -823,6 +892,141 @@ export async function handleCliInstall(
     return { status: 500, body: errBody(result.error || 'install failed') };
   }
   return { status: 200, body: { ok: true } };
+}
+
+// ── Version detection + upgrade (dashboard parity) ────────────────────────────
+
+/**
+ * Injectable command runner for the version probes (`<cli> --version`,
+ * `npm view <pkg> version`). Returns the command's stdout on success — version
+ * parsing happens in ONE place (`parseCliVersion`/`firstNonEmptyLine`).
+ */
+export type VersionRunner = (command: string) => Promise<{ ok: boolean; output?: string; error?: string }>;
+
+const defaultVersionRunner: VersionRunner = (command) =>
+  new Promise((resolve) => {
+    exec(command, { timeout: 20_000, maxBuffer: 64 * 1024 }, (err, stdout, stderr) => {
+      if (err) resolve({ ok: false, error: stderr.trim() || err.message });
+      else resolve({ ok: true, output: stdout });
+    });
+  });
+
+/**
+ * First semver-looking token in a `--version` output: the first line wins
+ * (every tracked CLI prints its version there), the rest of the output is a
+ * fallback for multi-line shapes. A leading `v` is left out of the match.
+ */
+const SEMVER_RE = /\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?/;
+
+export function parseCliVersion(output: string): string | null {
+  const text = output.trim();
+  if (!text) return null;
+  const firstLine = text.split(/\r?\n/)[0] ?? '';
+  const fromFirstLine = firstLine.match(SEMVER_RE);
+  if (fromFirstLine) return fromFirstLine[0];
+  const anywhere = text.match(SEMVER_RE);
+  return anywhere ? anywhere[0] : null;
+}
+
+function firstNonEmptyLine(output: string): string | null {
+  const line = output.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+  return line ?? null;
+}
+
+/** Version probe outcome for ONE CLI (each field is best-effort/absent). */
+export interface CliVersionStatus {
+  /** Version reported by the installed binary (`--version`). */
+  installed?: string;
+  /** Latest release on the npm registry (npm-installed CLIs only). */
+  latest?: string;
+}
+
+/** `npm view` prints the version bare; `--json` quoting is tolerated. */
+function parseRegistryVersion(output: string): string | null {
+  const line = firstNonEmptyLine(output);
+  if (!line) return null;
+  return line.replace(/^"|"$/g, '') || null;
+}
+
+/**
+ * Probe versions for every INSTALLED tracked CLI: the binary's own `--version`
+ * plus (npm CLIs) the registry's latest, so the dashboard can show "current →
+ * latest" and offer Upgrade. Not-installed CLIs are simply absent from the map;
+ * failed probes leave their field out rather than failing the whole call.
+ */
+export async function detectCliVersions(
+  platform: NodeJS.Platform = process.platform,
+  probe: PathProbe = probeDefault,
+  runner: VersionRunner = defaultVersionRunner,
+): Promise<Record<string, CliVersionStatus>> {
+  const settled = await Promise.all(TRACKED_CLIS.map(async (cli) => {
+    if (!isCliInstalled(cli.command, platform, probe)) return null;
+    const status: CliVersionStatus = {};
+    await Promise.all([
+      runner(`${cli.command} --version`)
+        .then((r) => {
+          const parsed = r.ok ? parseCliVersion(r.output ?? '') : null;
+          if (parsed) status.installed = parsed;
+        })
+        .catch(() => {}),
+      (async () => {
+        const pkg = npmPackageFor(cli.id);
+        if (!pkg) return;
+        try {
+          const r = await runner(`npm view ${pkg} version`);
+          const parsed = r.ok ? parseRegistryVersion(r.output ?? '') : null;
+          if (parsed) status.latest = parsed;
+        } catch {
+          /* offline / registry unreachable — latest stays unknown */
+        }
+      })(),
+    ]);
+    return [cli.id, status] as const;
+  }));
+  const versions: Record<string, CliVersionStatus> = {};
+  for (const entry of settled) {
+    if (entry) versions[entry[0]] = entry[1];
+  }
+  return versions;
+}
+
+/** GET /cli/versions → installed + npm-latest versions for the installed CLIs. */
+export async function handleCliVersions(
+  platform: NodeJS.Platform = process.platform,
+  probe: PathProbe = probeDefault,
+  runner: VersionRunner = defaultVersionRunner,
+): Promise<CliHandlerResult> {
+  return { status: 200, body: { versions: await detectCliVersions(platform, probe, runner) } };
+}
+
+/**
+ * POST /cli/:cli/upgrade → re-install at latest on the daemon host (npm CLIs
+ * pin `@latest`; script installers re-run their script). STATUS-ONLY `{ ok: true,
+ * version? }` — the version is re-probed so the dashboard can confirm the landed
+ * release; a probe failure still reports a successful upgrade without one.
+ */
+export async function handleCliUpgrade(
+  cli: TrackedCliId,
+  runner: CommandRunner = defaultCommandRunner,
+  versionRunner: VersionRunner = defaultVersionRunner,
+): Promise<CliHandlerResult> {
+  const cmd = upgradeCommandFor(cli);
+  if (!cmd) {
+    return { status: 400, body: errBody(`no install command for cli '${cli}' (manual install only)`) };
+  }
+  const result = await runner(cmd);
+  if (!result.ok) {
+    return { status: 500, body: errBody(result.error || 'upgrade failed') };
+  }
+  let version: string | undefined;
+  try {
+    const probed = await versionRunner(`${TRACKED_CLIS.find((c) => c.id === cli)!.command} --version`);
+    const parsed = probed.ok ? parseCliVersion(probed.output ?? '') : null;
+    if (parsed) version = parsed;
+  } catch {
+    /* best-effort confirmation only */
+  }
+  return { status: 200, body: { ok: true, ...(version ? { version } : {}) } };
 }
 
 /** GET /cli → the per-CLI availability list. */
@@ -884,14 +1088,22 @@ interface LaunchMaterial {
  * fetches it).
  */
 export async function handleCliLaunch(
-  cli: LaunchCliId,
+  cli: TrackedCliId,
   body: Record<string, unknown>,
   ctx: CliLaunchContext,
 ): Promise<CliHandlerResult> {
   const platform = ctx.platform ?? process.platform;
   const probe = ctx.probe ?? probeDefault;
   const meta = LAUNCHABLE_CLIS.find((c) => c.id === cli);
-  if (!meta) return { status: 404, body: errBody(`unknown cli '${cli}'`) };
+  if (!meta) {
+    // A tracked-but-not-launchable CLI deserves better than "unknown".
+    if (isTrackedCliId(cli)) {
+      return { status: 400, body: errBody(`'${cli}' is install-only — the dashboard cannot launch it in a terminal yet`) };
+    }
+    return { status: 404, body: errBody(`unknown cli '${cli}'`) };
+  }
+  // `cli` is now known launchable — the narrowed id types the builder calls below.
+  const launchCli: LaunchCliId = meta.id;
   if (!isCliInstalled(meta.command, platform, probe)) {
     return { status: 400, body: errBody(`"${meta.command}" is not installed (not found on PATH)`) };
   }
@@ -907,7 +1119,7 @@ export async function handleCliLaunch(
   let leaseId: string | undefined;
   let launch: LaunchMaterial;
   if (keyId || bindingId) {
-    if (!isKeyScopedClient(cli)) {
+    if (!isKeyScopedClient(launchCli)) {
       return { status: 400, body: errBody('key-scoped launch is only supported for codex and claude') };
     }
     const deps = ctx.keyScoped;
@@ -915,8 +1127,8 @@ export async function handleCliLaunch(
       return { status: 501, body: errBody('key-scoped launch is not available in this build') };
     }
     const preflight = bindingId
-      ? await preflightBindingScopedLaunch(deps, bindingId, keyId, cli)
-      : await preflightKeyScopedLaunch(deps, keyId!, cli);
+      ? await preflightBindingScopedLaunch(deps, bindingId, keyId, launchCli)
+      : await preflightKeyScopedLaunch(deps, keyId!, launchCli);
     if (!preflight.ok) return { status: preflight.status, body: errBody(preflight.message) };
     if (cli === 'codex') {
       if (platform === 'win32') {
@@ -999,7 +1211,7 @@ export async function handleCliLaunch(
           },
         };
       } else {
-        launch = await buildLaunchEnv(cli, ctx.llmConfig, resolved);
+        launch = await buildLaunchEnv(launchCli, ctx.llmConfig, resolved);
       }
     } catch (err) {
       const status = err instanceof RouteLeaseError ? err.status : 400;
@@ -1044,7 +1256,7 @@ export async function handleCliLaunch(
 
   sessions.set(id, {
     id,
-    cli,
+    cli: launchCli,
     providerId: target?.providerId ?? '',
     model: target?.model ?? '',
     ...(keyLaunch

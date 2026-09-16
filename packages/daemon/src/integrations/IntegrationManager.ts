@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 
 import {
   createIntegrationKey,
-  effectiveOutboundPermissions,
+  effectivePermissionsForRow,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   type OutboundPermission,
@@ -237,7 +237,9 @@ export class IntegrationManager {
     return this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
   }
 
-  /** Bind a user-confirmed access key and grant only this client's required endpoints. */
+  /** Bind a user-confirmed access key to this client. Access keys hold every
+   *  endpoint permission by kind (which endpoint they serve is decided by the
+   *  URL they are called on), so no permission supplementing happens here. */
   async bindIntegrationKey(
     client: IntegrationClientId,
     keyId: string,
@@ -254,20 +256,6 @@ export class IntegrationManager {
       throw new IntegrationConflictError('The selected access key cannot be revealed and cannot power a CLI integration.');
     }
 
-    const effective = [...effectiveOutboundPermissions(row.allowedEndpoints)];
-    const previousPermissions = row.allowedEndpoints === undefined
-      ? [...effective]
-      : [...row.allowedEndpoints];
-    const nextPermissions = [...effective];
-    for (const required of REQUIRED_PERMISSIONS[client]) {
-      if (!nextPermissions.includes(required)) nextPermissions.push(required);
-    }
-    const permissionsChanged = !samePermissions(effective, nextPermissions);
-    if (permissionsChanged) {
-      const updated = await this.options.keyDb.outboundApiKeysSetPermissions(keyId, nextPermissions);
-      if (!updated) throw new IntegrationConflictError('The selected access key permissions could not be updated.');
-    }
-
     if (!state.keyBindings) state.keyBindings = {};
     state.keyBindings[client] = { keyId, ownership: 'selected' };
     const changes: FileChange[] = [];
@@ -281,9 +269,6 @@ export class IntegrationManager {
       // is retired here.
       await this.retireManagedKeys(state, [legacyRetirement]);
     } catch (error) {
-      if (permissionsChanged) {
-        await this.options.keyDb.outboundApiKeysSetPermissions(keyId, previousPermissions).catch(() => false);
-      }
       throw error;
     }
     return this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
@@ -514,7 +499,7 @@ export class IntegrationManager {
     const row = rows.find((candidate) => candidate.id === keyId);
     if (!row) return { usable: false, message: 'The bound access key no longer exists.' };
     const secret = legacy?.secret ?? await this.options.keyDb.outboundApiKeysReveal(keyId) ?? undefined;
-    const allowedEndpoints = [...effectiveOutboundPermissions(row.allowedEndpoints)];
+    const allowedEndpoints = [...effectivePermissionsForRow(row)];
     const status: IntegrationKeyBindingStatus = {
       id: row.id,
       name: row.name,
@@ -574,12 +559,9 @@ export class IntegrationManager {
 }
 
 function hasRequiredPermissions(row: OutboundKeyDbRow, client: IntegrationClientId): boolean {
-  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
+  // Client keys hold every permission by kind; only integration keys scope.
+  const allowed = effectivePermissionsForRow(row);
   return REQUIRED_PERMISSIONS[client].every((permission) => allowed.includes(permission));
-}
-
-function samePermissions(a: readonly OutboundPermission[], b: readonly OutboundPermission[]): boolean {
-  return a.length === b.length && a.every((permission, index) => permission === b[index]);
 }
 
 function displayClient(client: IntegrationClientId): string {

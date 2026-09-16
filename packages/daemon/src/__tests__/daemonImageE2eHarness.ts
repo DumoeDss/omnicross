@@ -5,7 +5,6 @@ import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import type {
   ImagesServerConfig,
   OutboundApiServerConfig,
-  OutboundPermission,
 } from '@omnicross/core/outbound-api';
 
 import {
@@ -44,7 +43,6 @@ export interface DaemonImageE2eHarnessOptions {
   readonly tempHome?: string;
   readonly initializeConfig?: boolean;
   readonly imagesEnabled?: boolean;
-  readonly permissions?: readonly OutboundPermission[] | null;
   readonly existingKey?: { readonly token: string; readonly keyId: string };
   readonly removeTempHomeOnClose?: boolean;
   readonly imageConfigAudit?: DaemonPaths['imageConfigAudit'];
@@ -147,15 +145,7 @@ export async function createDaemonImageE2eHarness(
       const createdKey = created.json as { id: string; plaintextOnce: string };
       token = createdKey.plaintextOnce;
       keyId = createdKey.id;
-      const permissions = options.permissions === undefined ? ['images'] : options.permissions;
-      if (permissions !== null) {
-        const permitted = await adminFetch(
-          'POST',
-          `/admin/api/keys/${encodeURIComponent(keyId)}/permissions`,
-          { permissions },
-        );
-        if (permitted.status !== 200) throw new Error('failed to set Tier-A Images permissions');
-      }
+      // Client keys hold every endpoint permission by kind — no grant step.
     }
 
     const status = await adminFetch('GET', '/admin/api/status');

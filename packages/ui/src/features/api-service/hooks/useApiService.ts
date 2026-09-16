@@ -31,7 +31,6 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
-  OutboundPermissionId,
   OutboundQueueStatus,
   VoucherCreated,
   VoucherGenerateInput,
@@ -78,7 +77,6 @@ export interface UseApiServiceResult {
   /** Bind (or unbind, with `null`) a key's DIRECT upstream passthrough target. */
   setKeyUpstream: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
   setKeyUpstreamBinding: (id: string, binding: KeyUpstreamBinding | null) => Promise<void>;
-  setKeyPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   setKeyPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   updateQueueConfig: (patch: {
     userMessageQueue?: OutboundApiServerConfig['userMessageQueue'];
@@ -364,21 +362,6 @@ export function useApiService(): UseApiServiceResult {
     [],
   );
 
-  const setKeyPermissions = useCallback(async (
-    id: string,
-    permissions: OutboundPermissionId[],
-  ) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await agent.apiService.setKeyPermissions(id, permissions);
-      if (!result.success) setError(result.message ?? 'request failed');
-      setKeys(await agent.apiService.listKeys());
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
   const setKeyPolicy = useCallback(async (id: string, policy: OutboundKeyPolicyPatch) => {
     setBusy(true);
     setError(null);
@@ -542,7 +525,6 @@ export function useApiService(): UseApiServiceResult {
     setKeyMaxConcurrency,
     setKeyUpstream,
     setKeyUpstreamBinding,
-    setKeyPermissions,
     setKeyPolicy,
     updateQueueConfig,
     updateAllowanceSchedulingConfig,

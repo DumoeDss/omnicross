@@ -12,7 +12,7 @@
  * keys → different upstreams). Unpicked = the default lease launch.
  */
 
-import { Download, Loader2, Play, Square, Terminal } from 'lucide-react';
+import { ArrowUpCircle, Download, Loader2, Play, Square, Terminal } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
-import type { CliLaunchResult, CliSession, CliStatus, MutationResult } from '@/daemon/types';
+import type { CliLaunchResult, CliSession, CliStatus, CliVersionStatus, MutationResult } from '@/daemon/types';
 
 import type { LaunchTarget } from './hooks/useLaunchTargets';
 
@@ -38,6 +38,10 @@ interface CliCardProps {
   sessions: CliSession[];
   busy: boolean;
   onInstall: () => Promise<MutationResult>;
+  /** Re-install at the latest release (shown when a version probe reported one). */
+  onUpgrade?: () => Promise<MutationResult>;
+  /** Version probe outcome for this CLI (undefined = not probed/installed). */
+  version?: CliVersionStatus;
   onLaunch: (input?: {
     cwd?: string;
     keyId?: string;
@@ -63,13 +67,26 @@ function targetLaunchInput(value: string): { providerId?: string; bindingId?: st
   return {};
 }
 
-export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targets, wire }: CliCardProps) {
+export function CliCard({ cli, sessions, busy, onInstall, onUpgrade, version, onLaunch, onStop, targets, wire }: CliCardProps) {
   const t = useTranslation();
   const [open, setOpen] = useState(false);
   const [cwd, setCwd] = useState('');
   const [target, setTarget] = useState('');
   const [launching, setLaunching] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+
+  // Install-only CLIs (no launcher builder) keep Install/Upgrade but hide Launch.
+  const launchable = cli.launchable !== false;
+  const upgradeAvailable = Boolean(
+    cli.installed && cli.installable && version?.installed && version.latest && version.latest !== version.installed,
+  );
+  // "command · 1.2.3 → 1.3.0" — installed version always, latest only when it differs.
+  const versionText = version?.installed
+    ? version.latest && version.latest !== version.installed
+      ? `${version.installed} → ${version.latest}`
+      : version.installed
+    : null;
 
   const showTargetSelector = (cli.id === 'codex' || cli.id === 'claude') && (targets?.length ?? 0) > 0;
   const targetKind = target.slice(0, target.indexOf(':'));
@@ -80,6 +97,15 @@ export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targ
       await onInstall();
     } finally {
       setInstalling(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      await onUpgrade?.();
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -109,7 +135,10 @@ export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targ
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-medium text-foreground">{cli.displayName}</h3>
-            <p className="truncate font-mono text-xs text-muted-foreground">{cli.command}</p>
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {cli.command}
+              {versionText ? <span> · {versionText}</span> : null}
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -118,12 +147,31 @@ export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targ
           ) : (
             <Badge variant="secondary">{t('codeCli.cli.notFound')}</Badge>
           )}
-          {cli.installed ? (
+          {cli.installed && launchable ? (
             <Button size="sm" variant="default" disabled={busy} onClick={() => setOpen(true)}>
               <Play className="h-3.5 w-3.5" />
               {t('codeCli.cli.launch')}
             </Button>
-          ) : cli.installable ? (
+          ) : null}
+          {cli.installed && cli.installable ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || upgrading}
+              title={upgradeAvailable
+                ? t('codeCli.cli.upgradeToHint', { version: version?.latest ?? '' })
+                : t('codeCli.cli.upgradeHint')}
+              onClick={() => void handleUpgrade()}
+            >
+              {upgrading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ArrowUpCircle className={upgradeAvailable ? 'text-primary' : undefined} />
+              )}
+              {upgrading ? t('codeCli.cli.upgrading') : t('codeCli.cli.upgrade')}
+            </Button>
+          ) : null}
+          {!cli.installed && cli.installable ? (
             <Button
               size="sm"
               variant="outline"
@@ -145,6 +193,10 @@ export function CliCard({ cli, sessions, busy, onInstall, onLaunch, onStop, targ
         <p className="text-xs text-muted-foreground">
           {installing ? t('codeCli.cli.installingHint') : t('codeCli.cli.notFoundHint')}
         </p>
+      ) : null}
+
+      {upgrading ? (
+        <p className="text-xs text-muted-foreground">{t('codeCli.cli.upgradingHint')}</p>
       ) : null}
 
       {sessions.length > 0 ? (

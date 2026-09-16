@@ -21,7 +21,7 @@ import {
   createNamedKey,
   DEFAULT_IMAGES_SERVER_CONFIG,
   DEFAULT_SEARCH_SERVER_CONFIG,
-  effectiveOutboundPermissions,
+  effectivePermissionsForRow,
   gatewayBindingToEndpointConfig,
   isKindMappedEndpoint,
   loadServerConfig,
@@ -32,13 +32,11 @@ import {
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
-  type OutboundPermission,
   type ImagesServerConfig,
   type KeySpendReader,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   saveServerConfig,
-  validateOutboundPermissions,
   validateSearchServerConfig,
   type VoucherDb,
 } from '@omnicross/core/outbound-api';
@@ -172,9 +170,13 @@ import {
   handleCliList,
   handleCliSessions,
   handleCliStop,
+  handleCliUpgrade,
+  handleCliVersions,
   isLaunchCliId,
+  isTrackedCliId,
   type PathProbe,
   type TerminalOpener,
+  type VersionRunner,
 } from './cliLaunch';
 import { buildLogExportBundle } from './logsExport';
 import { validateAuditSegment } from './auditConfigBody';
@@ -450,6 +452,12 @@ export interface AdminApiDeps {
    */
   readonly cliCommandRunner?: CommandRunner;
   /**
+   * Injectable runner for the Code CLI VERSION probes (`--version`,
+   * `npm view <pkg> version`). Optional — defaults to the real `exec`-based
+   * runner; tests inject a stub so no CLI/npm ever runs.
+   */
+  readonly cliVersionRunner?: VersionRunner;
+  /**
    * Codex command-auth helper invocation for KEY-SCOPED launches (the `--key-id`
    * variant). Wired by bootstrap from the same inputs as the integration
    * install's helper; absent ⇒ `keyId` launches answer 501 (light embedders).
@@ -528,8 +536,7 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     lastUsedAt: row.lastUsedAt,
     revoked: row.revokedAt !== null,
     kind: row.kind,
-    allowedEndpoints: [...effectiveOutboundPermissions(row.allowedEndpoints)],
-    legacyPermissions: row.allowedEndpoints === undefined,
+    allowedEndpoints: [...effectivePermissionsForRow(row)],
     loopbackOnly: row.loopbackOnly,
     maxConcurrency: row.maxConcurrency,
     // UPSTREAM ROUTING MODEL: the key's ordered upstream set ('all' = live
@@ -1937,11 +1944,13 @@ async function handleKeys(
     const name = typeof body['name'] === 'string' && body['name'].trim() ? body['name'].trim() : 'key';
     const created = await createNamedKey(deps.keyDb, name);
     // UPSTREAM ROUTING MODEL: new keys materialize the configured default
-    // binding ('all' or 'none') as an EXPLICIT decision — the key never sits
-    // in the ambiguous "not migrated" state.
+    // ('all' = every CURRENT upstream selected, as a snapshot) as an EXPLICIT
+    // decision — there is no live "all" mode; 'all' simply pre-selects the
+    // whole catalog at creation time, and the key never sits in the ambiguous
+    // "not migrated" state.
     const serverConfig = await loadServerConfig(deps.settingsStore);
     const defaultBinding: KeyUpstreamBinding = serverConfig.defaultKeyUpstreamBinding === 'all'
-      ? { mode: 'all' }
+      ? { mode: 'explicit', targets: (await listUpstreamCatalog(deps)).map((entry) => entry.target) }
       : { mode: 'explicit', targets: [] };
     await deps.keyDb.outboundApiKeysSetUpstreamBinding(created.id, defaultBinding);
     await reapplyLiveServerConfig(deps);
@@ -1999,36 +2008,6 @@ async function handleKeys(
     }
     const ok = await deps.keyDb.outboundApiKeysSetEnabled(id, enabled);
     return writeJson(res, ok ? 200 : 404, { ok, enabled });
-  }
-  if (method === 'POST' && id && action === 'permissions') {
-    const body = await readJsonBody(req);
-    if (Object.keys(body).length !== 1 || !Object.prototype.hasOwnProperty.call(body, 'permissions')) {
-      return writeJsonError(res, 400, 'body must contain only permissions');
-    }
-    let permissions: OutboundPermission[];
-    try {
-      permissions = validateOutboundPermissions(body['permissions']);
-    } catch {
-      return writeJsonError(
-        res,
-        400,
-        'permissions must be an array of unique chat, responses, messages, gemini, or images values',
-      );
-    }
-
-    const before = (await deps.keyDb.outboundApiKeysList()).find((row) => row.id === id);
-    if (!before) return writeJson(res, 404, { ok: false });
-    if (before.revokedAt !== null) return writeJson(res, 409, { ok: false });
-
-    const required = await integrationKeyRequirement(deps, id, permissions);
-    if (required) return writeJsonError(res, 409, required);
-
-    const ok = await deps.keyDb.outboundApiKeysSetPermissions(id, permissions);
-    if (!ok) {
-      const current = (await deps.keyDb.outboundApiKeysList()).find((row) => row.id === id);
-      return writeJson(res, current?.revokedAt !== null ? 409 : 404, { ok: false });
-    }
-    return writeJson(res, 200, { ok: true, allowedEndpoints: permissions });
   }
   if (method === 'POST' && id && action === 'max-concurrency') {
     const body = await readJsonBody(req);
@@ -3156,21 +3135,35 @@ async function handleCli(
     const result = handleCliSessions();
     return writeJson(res, result.status, result.body);
   }
+  if (method === 'GET' && rest[0] === 'versions') {
+    const result = await handleCliVersions(process.platform, deps.cliPathProbe, deps.cliVersionRunner);
+    return writeJson(res, result.status, result.body);
+  }
   if (method === 'DELETE' && rest[0] === 'sessions' && rest[1]) {
     const result = handleCliStop(rest[1]);
     return writeJson(res, result.status, result.body);
   }
   if (method === 'POST' && rest[1] === 'install') {
     const cli = rest[0];
-    if (!isLaunchCliId(cli)) {
+    if (!isTrackedCliId(cli)) {
       return writeJsonError(res, 400, `unknown cli '${cli ?? ''}'`);
     }
     const result = await handleCliInstall(cli, deps.cliCommandRunner);
     return writeJson(res, result.status, result.body);
   }
+  if (method === 'POST' && rest[1] === 'upgrade') {
+    const cli = rest[0];
+    if (!isTrackedCliId(cli)) {
+      return writeJsonError(res, 400, `unknown cli '${cli ?? ''}'`);
+    }
+    const result = await handleCliUpgrade(cli, deps.cliCommandRunner, deps.cliVersionRunner);
+    return writeJson(res, result.status, result.body);
+  }
   if (method === 'POST' && rest[1] === 'launch') {
     const cli = rest[0];
-    if (!isLaunchCliId(cli)) {
+    // Tracked-but-install-only ids pass through — handleCliLaunch answers those
+    // with a clearer "install-only" 400 than a generic unknown-id one.
+    if (!isTrackedCliId(cli)) {
       return writeJsonError(res, 400, `unknown cli '${cli ?? ''}'`);
     }
     const body = await readJsonBody(req);
@@ -3285,24 +3278,11 @@ function isIntegrationClient(value: string | undefined): value is IntegrationCli
 async function integrationKeyRequirement(
   deps: AdminApiDeps,
   keyId: string,
-  proposedPermissions?: readonly OutboundPermission[],
 ): Promise<string | undefined> {
   const factory = deps.integrationManagerFactory;
   if (!factory) return undefined;
   const bound = (await factory().listStatus()).filter((status) => status.key?.id === keyId);
   if (bound.length === 0) return undefined;
-  if (proposedPermissions) {
-    const missing = new Set<OutboundPermission>();
-    for (const status of bound) {
-      for (const required of status.key?.requiredEndpoints ?? []) {
-        if (!proposedPermissions.includes(required)) missing.add(required);
-      }
-    }
-    if (missing.size === 0) return undefined;
-    return `key '${keyId}' is bound to a CLI integration; required permissions cannot be removed: ${[
-      ...missing,
-    ].join(', ')}`;
-  }
   return `key '${keyId}' is bound to a CLI integration; select another key or remove the integration first`;
 }
 

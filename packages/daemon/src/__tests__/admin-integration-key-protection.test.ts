@@ -97,21 +97,4 @@ describe('bound integration key protections', () => {
     expect(result.statusCode).toBe(409);
     expect(keyDb[mutation]).not.toHaveBeenCalled();
   });
-
-  it('blocks removal of a required permission but allows additive changes', async () => {
-    const blocked = fixture();
-    expect((await call(blocked.deps, 'POST', '/admin/api/keys/bound-key/permissions', {
-      permissions: ['responses'],
-    })).statusCode).toBe(409);
-    expect(blocked.keyDb.outboundApiKeysSetPermissions).not.toHaveBeenCalled();
-
-    const allowed = fixture();
-    expect((await call(allowed.deps, 'POST', '/admin/api/keys/bound-key/permissions', {
-      permissions: ['responses', 'images', 'messages'],
-    })).statusCode).toBe(200);
-    expect(allowed.keyDb.outboundApiKeysSetPermissions).toHaveBeenCalledWith(
-      'bound-key',
-      ['responses', 'images', 'messages'],
-    );
-  });
 });
