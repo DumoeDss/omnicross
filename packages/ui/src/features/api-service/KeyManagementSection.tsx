@@ -10,7 +10,7 @@
  * on dismiss).
  */
 
-import { ArrowRight, ArrowDown, ArrowUp, Settings2, Check, Copy, Eye, KeyRound, Link2, Network, Plus, Route, Server, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Settings2, Check, Copy, Eye, KeyRound, Link2, Network, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -25,12 +25,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select, type SelectOption } from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
-
-import type { LLMProvider } from '@shared/llm-config';
 
 import type {
   CliIntegrationClient,
@@ -41,20 +39,9 @@ import type {
   OutboundApiKeyInfo,
   OutboundKeyPolicyPatch,
   OutboundPermissionId,
-  GatewayBinding,
-  GatewayBindingTarget,
   UpstreamCatalogEntry,
 } from '@/daemon/types';
 
-import {
-  bindingAllowsClientKey,
-  bindingsForClientKey,
-  bindingTargetLabel,
-  decodeDirectUpstreamValue,
-  encodeDirectUpstreamValue,
-  legacyDirectUpstream,
-  setBindingForClientKey,
-} from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
 import { UpstreamMappingEditor } from './UpstreamMappingEditor';
 
@@ -71,14 +58,6 @@ interface KeyManagementSectionProps {
   onSetPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   onDismissCreated: () => void;
-  bindings?: GatewayBinding[];
-  onOpenBinding?: (binding: GatewayBinding) => void;
-  onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
-  /** Encoded options for the direct-upstream picker (providers + claude/kimi
-   *  subscriptions). Values decode via `decodeDirectUpstreamValue`. */
-  directUpstreamOptions?: SelectOption[];
-  /** Bind (null clears) a key's DIRECT upstream passthrough target. */
-  onSetUpstream?: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
   /** UPSTREAM ROUTING MODEL: set (or clear) a key's ordered upstream set. */
   onSetUpstreamBinding?: (id: string, binding: KeyUpstreamBinding | null) => Promise<void>;
   integrations?: CliIntegrationStatus[];
@@ -258,11 +237,6 @@ export function KeyManagementSection({
   onSetPermissions,
   onSetPolicy,
   onDismissCreated,
-  bindings = [],
-  onOpenBinding,
-  onChangeBindings,
-  directUpstreamOptions = [],
-  onSetUpstream,
   onSetUpstreamBinding,
   integrations = [],
   onBindIntegration,
@@ -290,7 +264,6 @@ export function KeyManagementSection({
   }, [bindingTarget]);
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
-  const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
   const [integrationTarget, setIntegrationTarget] = useState<{
     client: CliIntegrationClient;
     key: OutboundApiKeyInfo;
@@ -354,8 +327,6 @@ export function KeyManagementSection({
       ) : (
         <ul className="space-y-2">
           {keys.map((k) => {
-            const relatedBindings = bindingsForClientKey(bindings, k.id);
-            const directTarget = k.boundUpstream ?? legacyDirectUpstream(k.boundUpstreamProviderId);
             const usedClients = integrations
               .filter((integration) => integration.key?.id === k.id)
               .map((integration) => integration.client);
@@ -537,96 +508,6 @@ export function KeyManagementSection({
                       {t('apiService.keys.permissions.hint')}
                     </p>
                   </div>
-                  <div className="mb-2 rounded-md border border-primary/25 bg-primary/[0.04] p-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Server className="h-3 w-3 shrink-0 text-primary" />
-                      <span className="text-[11px] font-medium text-foreground">
-                        {t('apiService.keys.bindings.directUpstream.label')}
-                      </span>
-                      <Select
-                        className="min-w-40 flex-1"
-                        size="sm"
-                        value={encodeDirectUpstreamValue(directTarget)}
-                        disabled={busy || !onSetUpstream || !directUpstreamOptions.length}
-                        options={[
-                          { value: '', label: t('apiService.keys.bindings.directUpstream.none') },
-                          ...directUpstreamOptions,
-                        ]}
-                        onChange={(value) =>
-                          void onSetUpstream?.(k.id, decodeDirectUpstreamValue(value))
-                        }
-                      />
-                    </div>
-                    <p className="mt-1.5 px-0.5 text-[10px] text-muted-foreground">
-                      {directTarget && directTarget.kind !== 'provider'
-                        ? t('apiService.keys.bindings.directUpstream.boundSubscriptionHint')
-                        : directTarget
-                          ? t('apiService.keys.bindings.directUpstream.boundHint')
-                          : t('apiService.keys.bindings.directUpstream.hint')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Route className="h-3 w-3" />
-                    {relatedBindings.length
-                      ? t('apiService.keys.bindings.count', { count: relatedBindings.length })
-                      : t('apiService.keys.bindings.empty')}
-                  </div>
-                  {relatedBindings.length ? (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {relatedBindings.map((binding) => (
-                        <button
-                          key={binding.id}
-                          type="button"
-                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] text-foreground hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => onOpenBinding?.(binding)}
-                          disabled={!onOpenBinding}
-                        >
-                          <span className="truncate">{binding.name}</span>
-                          <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
-                          <span className="truncate">{bindingTargetLabel(binding)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {onChangeBindings ? (
-                    <div className="mt-2">
-                      <Button
-                        size="xs"
-                        variant={bindingOpenId === k.id ? 'secondary' : 'ghost'}
-                        onClick={() => setBindingOpenId((current) => current === k.id ? null : k.id)}
-                      >
-                        <Link2 className="h-3 w-3" />
-                        {t('apiService.keys.bindings.manage')}
-                      </Button>
-                      {bindingOpenId === k.id ? (
-                        <div className="mt-2 space-y-1 rounded-md border border-border/70 bg-surface-1/45 p-2">
-                          {bindings.map((binding) => (
-                            <label key={binding.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-surface-2/60">
-                              <input
-                                type="checkbox"
-                                checked={bindingAllowsClientKey(binding, k.id)}
-                                disabled={busy}
-                                onChange={(event) => void onChangeBindings(setBindingForClientKey(
-                                  bindings,
-                                  keys.map((key) => key.id),
-                                  k.id,
-                                  binding.id,
-                                  event.target.checked,
-                                ))}
-                              />
-                              <span className="min-w-0 flex-1 truncate text-foreground">{binding.name}</span>
-                              <Badge variant={binding.enabled ? 'outline' : 'secondary'}>
-                                {t(`apiService.endpoint.name.${binding.endpoint}`)}
-                              </Badge>
-                            </label>
-                          ))}
-                          <p className="px-2 pt-1 text-[10px] text-muted-foreground">
-                            {t('apiService.keys.bindings.manageHint')}
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               ) : null}
               {!k.revoked && policyOpenId === k.id ? (

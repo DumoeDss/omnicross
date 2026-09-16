@@ -865,6 +865,18 @@
       "deleteDescription": "Delete “{{name}}”. Requests will use another matching route, or fail if none matches.",
       "signalPath": "{{key}} to {{endpoint}}, then {{resource}}, then {{model}}",
       "openFromUpstreams": "Manage routes that use this account from Downstreams and routes."
+    },
+    "manageMappings": "Model mappings",
+    "mappings": {
+      "title": "Upstream model mappings",
+      "description": "One table per upstream: client model name → upstream model id; empty = passthrough. The default / background role rows drive the Gemini background model.",
+      "loading": "Loading the upstream catalog…",
+      "empty": "No upstreams yet — add a provider or subscription first.",
+      "count": "{{count}} mapping(s)",
+      "passthrough": "Passthrough (no mappings)",
+      "kindProvider": "Provider",
+      "kindSubscription": "Pool",
+      "edit": "Edit"
     }
   },
   "images": {

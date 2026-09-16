@@ -6,6 +6,7 @@ import {
   Layers3,
   Plus,
   Route,
+  Settings2,
   Search,
   Server,
   UserRound,
@@ -47,6 +48,7 @@ import { cn } from '@/shared/utils/utils';
 
 import { AccountResourceDetails } from './AccountResourceDetails';
 import { AddAccountDialog } from './AddAccountDialog';
+import { UpstreamMappingsDialog } from './UpstreamMappingsDialog';
 import {
   DownstreamRoutesWorkspace,
   type DownstreamResourceOption,
@@ -165,6 +167,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const gateway = useApiService();
   const providersApi = useLlmProvidersData();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(false);
   const [addProviderOpen, setAddProviderOpen] = useState(false);
   const [antigravityModels, setAntigravityModels] = useState<Array<{ id: string }>>([]);
   const antigravityAccountKey = JSON.stringify(
@@ -443,6 +446,9 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           </div>
           {activeTab === 'resources' ? (
             <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setMappingOpen(true)}>
+                <Settings2 className="mr-1.5 h-4 w-4" />{t('upstreams.manageMappings')}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setAddAccountOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addAccount')}
               </Button>
@@ -677,6 +683,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       )}
 
       <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
+      <UpstreamMappingsDialog open={mappingOpen} onClose={() => setMappingOpen(false)} />
       <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
         <DialogContent className="flex h-[88vh] w-[min(94vw,72rem)] max-w-6xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b border-border/70 px-6 py-4">

@@ -865,6 +865,18 @@
       "deleteDescription": "删除“{{name}}”。后续请求将使用其他匹配路由；没有匹配则失败。",
       "signalPath": "{{key}} 到 {{endpoint}}，再到 {{resource}}，最终使用 {{model}}",
       "openFromUpstreams": "请在“下游与路由”中管理使用此账号的路由。"
+    },
+    "manageMappings": "模型映射",
+    "mappings": {
+      "title": "上游模型映射",
+      "description": "每个上游一张映射表：客户端模型名 → 上游模型 id；留空 = 透传。角色行 default / background 用于 Gemini 后台模型。",
+      "loading": "正在加载上游目录…",
+      "empty": "没有可用上游 —— 先添加提供商或订阅账号。",
+      "count": "{{count}} 条映射",
+      "passthrough": "透传（未配置映射）",
+      "kindProvider": "提供商",
+      "kindSubscription": "订阅池",
+      "edit": "编辑"
     }
   },
   "images": {

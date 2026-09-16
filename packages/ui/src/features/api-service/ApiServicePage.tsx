@@ -20,11 +20,7 @@ import type { RouteNavigate } from '@/shared/state/hashRoute';
 import type { GatewayBinding } from '@/daemon/types';
 
 import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
-import {
-  buildDirectUpstreamOptions,
-  routeForBinding,
-  summarizeBindingCoverage,
-} from './gatewayBindingUiModel';
+import { summarizeBindingCoverage } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
 import { useCliIntegrations } from '../code-cli/hooks/useCliIntegrations';
 import { KeyManagementSection } from './KeyManagementSection';
@@ -55,14 +51,12 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     createdKey,
     dismissCreatedKey,
     setEnabled,
-    updateBindings,
     createKey,
     revealKey,
     revokeKey,
     deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
-    setKeyUpstream,
     setKeyUpstreamBinding,
     setDefaultKeyUpstreamBinding,
     setKeyPermissions,
@@ -82,14 +76,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
       ?.querySelector<HTMLElement>('[data-scroll-container]')
       ?.scrollTo({ top: 0 });
   }, [activeTab]);
-
-  // Direct key→upstream picker options: every BYO provider, plus the
-  // claude/kimi subscription pools / groups / accounts (the subscriptions whose
-  // upstream speaks the same Anthropic Messages wire as the client).
-  const directUpstreamOptions = React.useMemo<SelectOption[]>(
-    () => buildDirectUpstreamOptions(providers, accounts.providerAccounts, t),
-    [providers, accounts.providerAccounts, t],
-  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -197,11 +183,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   onDismissCreated={dismissCreatedKey}
                   integrations={cliIntegrations.overview?.integrations ?? []}
                   onBindIntegration={cliIntegrations.bindKey}
-                  bindings={config.bindings ?? []}
-                  onOpenBinding={onNavigate ? (binding) => onNavigate(routeForBinding(binding)) : undefined}
-                  onChangeBindings={updateBindings}
-                  directUpstreamOptions={directUpstreamOptions}
-                  onSetUpstream={setKeyUpstream}
                   onSetUpstreamBinding={setKeyUpstreamBinding}
                 />
 

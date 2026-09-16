@@ -865,6 +865,18 @@
           "switched": "金鑰已輪替"
         }
       }
+    },
+    "manageMappings": "模型映射",
+    "mappings": {
+      "title": "上游模型映射",
+      "description": "每個上游一張映射表：用戶端模型名 → 上游模型 id；留空 = 透傳。角色行 default / background 用於 Gemini 背景模型。",
+      "loading": "正在載入上游目錄…",
+      "empty": "沒有可用上游 —— 請先新增提供商或訂閱帳號。",
+      "count": "{{count}} 條映射",
+      "passthrough": "透傳（未配置映射）",
+      "kindProvider": "提供商",
+      "kindSubscription": "訂閱池",
+      "edit": "編輯"
     }
   },
   "images": {
