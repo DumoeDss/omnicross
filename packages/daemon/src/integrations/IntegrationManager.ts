@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 
 import {
   createIntegrationKey,
-  effectiveOutboundPermissions,
+  effectivePermissionsForRow,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   type OutboundPermission,
@@ -230,14 +230,16 @@ export class IntegrationManager {
     if (state.keyBindings) delete state.keyBindings[client];
     const legacyRetirement = clearLegacyGatewayWhenUnused(state);
     if (record || binding) persistStateThenFiles(this.options.stateStore, state, previousState, changes);
-    await this.retireManagedKeys(state, [
-      binding?.ownership === 'managed' ? binding.keyId : undefined,
-      legacyRetirement,
-    ]);
+    // The unbound MANAGED key stays in place (enabled) — the operator deletes
+    // it manually once it is no longer wanted. Only legacy shared-key state is
+    // cleaned up here.
+    await this.retireManagedKeys(state, [legacyRetirement]);
     return this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
   }
 
-  /** Bind a user-confirmed access key and grant only this client's required endpoints. */
+  /** Bind a user-confirmed access key to this client. Access keys hold every
+   *  endpoint permission by kind (which endpoint they serve is decided by the
+   *  URL they are called on), so no permission supplementing happens here. */
   async bindIntegrationKey(
     client: IntegrationClientId,
     keyId: string,
@@ -254,21 +256,6 @@ export class IntegrationManager {
       throw new IntegrationConflictError('The selected access key cannot be revealed and cannot power a CLI integration.');
     }
 
-    const effective = [...effectiveOutboundPermissions(row.allowedEndpoints)];
-    const previousPermissions = row.allowedEndpoints === undefined
-      ? [...effective]
-      : [...row.allowedEndpoints];
-    const nextPermissions = [...effective];
-    for (const required of REQUIRED_PERMISSIONS[client]) {
-      if (!nextPermissions.includes(required)) nextPermissions.push(required);
-    }
-    const permissionsChanged = !samePermissions(effective, nextPermissions);
-    if (permissionsChanged) {
-      const updated = await this.options.keyDb.outboundApiKeysSetPermissions(keyId, nextPermissions);
-      if (!updated) throw new IntegrationConflictError('The selected access key permissions could not be updated.');
-    }
-
-    const previousBinding = state.keyBindings?.[client];
     if (!state.keyBindings) state.keyBindings = {};
     state.keyBindings[client] = { keyId, ownership: 'selected' };
     const changes: FileChange[] = [];
@@ -277,20 +264,22 @@ export class IntegrationManager {
       if (record) this.rebindInstalledClient(client, record, secret, changes);
       const legacyRetirement = clearLegacyGatewayWhenUnused(state);
       persistStateThenFiles(this.options.stateStore, state, previousState, changes);
-      await this.retireManagedKeys(state, [
-        previousBinding?.ownership === 'managed' ? previousBinding.keyId : undefined,
-        legacyRetirement,
-      ]);
+      // The previously bound MANAGED key stays in place (enabled) for manual
+      // cleanup — rebinding is not a revocation. Only legacy shared-key state
+      // is retired here.
+      await this.retireManagedKeys(state, [legacyRetirement]);
     } catch (error) {
-      if (permissionsChanged) {
-        await this.options.keyDb.outboundApiKeysSetPermissions(keyId, previousPermissions).catch(() => false);
-      }
       throw error;
     }
     return this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
   }
 
-  /** Rotate every Omnicross-managed client binding; user-selected keys remain untouched. */
+  /**
+   * Rotate every Omnicross-managed client binding; user-selected keys remain
+   * untouched. The rotated-out MANAGED keys are revoked — retiring the old
+   * credential is the point of an explicit rotation (unlike unbind/rebind,
+   * which leaves managed keys in place).
+   */
   async rotateGatewayKey(): Promise<{ keyIds: Partial<Record<IntegrationClientId, string>> }> {
     const state = this.options.stateStore.load();
     const previousState = cloneState(state);
@@ -510,7 +499,7 @@ export class IntegrationManager {
     const row = rows.find((candidate) => candidate.id === keyId);
     if (!row) return { usable: false, message: 'The bound access key no longer exists.' };
     const secret = legacy?.secret ?? await this.options.keyDb.outboundApiKeysReveal(keyId) ?? undefined;
-    const allowedEndpoints = [...effectiveOutboundPermissions(row.allowedEndpoints)];
+    const allowedEndpoints = [...effectivePermissionsForRow(row)];
     const status: IntegrationKeyBindingStatus = {
       id: row.id,
       name: row.name,
@@ -533,6 +522,12 @@ export class IntegrationManager {
     return { status, secret, usable: true };
   }
 
+  /**
+   * Revoke candidate keys no binding still references. Used ONLY by explicit
+   * key rotation (the rotated-out managed keys) and legacy shared-key state
+   * cleanup — unbinding or rebinding a client NEVER retires its managed key;
+   * the operator deletes those manually.
+   */
   private async retireManagedKeys(
     state: IntegrationState,
     candidates: Array<string | undefined>,
@@ -564,12 +559,9 @@ export class IntegrationManager {
 }
 
 function hasRequiredPermissions(row: OutboundKeyDbRow, client: IntegrationClientId): boolean {
-  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
+  // Client keys hold every permission by kind; only integration keys scope.
+  const allowed = effectivePermissionsForRow(row);
   return REQUIRED_PERMISSIONS[client].every((permission) => allowed.includes(permission));
-}
-
-function samePermissions(a: readonly OutboundPermission[], b: readonly OutboundPermission[]): boolean {
-  return a.length === b.length && a.every((permission, index) => permission === b[index]);
 }
 
 function displayClient(client: IntegrationClientId): string {

@@ -16,7 +16,7 @@ import type { Logger } from '@omnicross/core';
 import type { UsageEventRecord } from '@omnicross/contracts/usage-stats-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { usageRollupName, usageShardName } from '../usage/usageFiles';
+import { usageRawShardName, usageRollupName, usageShardName } from '../usage/usageFiles';
 import { UsageRollupStore } from '../usage/usageRollupStore';
 import { UsagePruneSweeper } from '../usage/UsagePruneSweeper';
 
@@ -94,11 +94,15 @@ describe('UsagePruneSweeper', () => {
     const old1 = seedDay(1);
     const old2 = seedDay(5);
     const recent = seedDay(19);
+    // A raw sidecar rides one of the expired days (usage-raw) — same retention
+    // class as the shard, so it must go with it.
+    writeFileSync(join(usageDir, usageRawShardName(old1)), '{"id":"x","rawUsage":"{}"}\n', 'utf8');
 
     const sweeper = new UsagePruneSweeper(usageDir, rollups, logger, { retentionDays: 7 }, 60_000, now);
     expect(await sweeper.sweep()).toBe(2);
 
     expect(existsSync(join(usageDir, usageShardName(old1)))).toBe(false);
+    expect(existsSync(join(usageDir, usageRawShardName(old1)))).toBe(false);
     expect(existsSync(join(usageDir, usageShardName(old2)))).toBe(false);
     expect(existsSync(join(usageDir, usageShardName(recent)))).toBe(true);
 

@@ -346,8 +346,8 @@ describe('outbound Images own-body dispatch', () => {
     ['missing key', null, {}, '127.0.0.1', 401],
     ['invalid key', null, { authorization: 'Bearer invalid' }, '127.0.0.1', 401],
     ['loopback violation', { ...keyRow(['images']), loopbackOnly: true }, {}, '192.168.1.20', 403],
-    ['Responses-only key', keyRow(['responses']), {}, '127.0.0.1', 403],
-    ['legacy key', keyRow(undefined), {}, '127.0.0.1', 403],
+    ['Responses-only integration key', { ...keyRow(['responses']), kind: 'integration' }, {}, '127.0.0.1', 403],
+    ['legacy integration key', { ...keyRow(undefined), kind: 'integration' }, {}, '127.0.0.1', 403],
   ] as const)(
     'rejects %s before consuming the body or entering runtime/text work',
     async (_label, row, headers, remoteAddress, status) => {

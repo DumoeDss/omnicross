@@ -47,6 +47,7 @@ import { cn } from '@/shared/utils/utils';
 
 import { AccountResourceDetails } from './AccountResourceDetails';
 import { AddAccountDialog } from './AddAccountDialog';
+import { UpstreamMappingSection } from './UpstreamMappingSection';
 import {
   DownstreamRoutesWorkspace,
   type DownstreamResourceOption,
@@ -461,7 +462,11 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       ) : null}
 
       <nav className="flex shrink-0 items-end gap-1 border-b border-border/70 bg-surface-0 px-5 md:px-6" aria-label={t('upstreams.tabs.label')}>
-        {(['resources', 'routes'] as const).map((tab) => {
+        {/* UPSTREAM ROUTING MODEL: the manual 下游与路由 tab is hidden — routing
+            is key→upstream-set now. The workspace itself still renders for deep
+            links (`upstreamTab: 'routes'`), so existing bookmarks keep working
+            during the transition. */}
+        {(['resources'] as const).map((tab) => {
           const Icon = tab === 'resources' ? Server : Route;
           return (
             <button
@@ -474,8 +479,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
               onClick={() => onNavigate({
                 ...route,
                 page: 'upstreams',
-                upstreamTab: tab === 'resources' ? undefined : tab,
-                downstreamId: tab === 'routes' ? route.downstreamId : undefined,
+                upstreamTab: undefined,
+                downstreamId: undefined,
               })}
             >
               <Icon className="h-3.5 w-3.5" />{t(`upstreams.tabs.${tab}`)}
@@ -674,12 +679,22 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
 
       <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
       <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
-        <DialogContent className="flex h-[88vh] max-w-4xl flex-col overflow-hidden p-0">
+        <DialogContent className="flex h-[88vh] !w-[min(94vw,72rem)] !max-w-6xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b border-border/70 px-6 py-4">
             <DialogTitle>{t('upstreams.addProvider')}</DialogTitle>
             <DialogDescription>{t('upstreams.addProviderDescription')}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1"><ProviderSettings embedded mode="create" /></div>
+          {/* Create-in-a-modal: the dialog CLOSES on save (the new provider
+              lands in the workbench list) and on picker-cancel — it never falls
+              through to a provider config page inside this window. */}
+          <div className="min-h-0 flex-1">
+            <ProviderSettings
+              embedded
+              mode="create"
+              onProviderCreated={() => setAddProviderOpen(false)}
+              onRequestClose={() => setAddProviderOpen(false)}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
@@ -768,22 +783,32 @@ function GroupResourceDetails({ resource }: { resource: Extract<UpstreamResource
   const t = useTranslation();
   const schedulable = resource.accounts.filter((account) => account.schedulable).length;
   return (
-    <section className="rounded-xl border border-border/70 bg-surface-1/50 p-5">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Layers3 className="h-5 w-5 text-primary" /></span>
-        <div>
-          <h2 className="text-lg font-semibold">{resource.kind === 'account-group' ? resource.group : resource.label}</h2>
-          <p className="text-xs text-muted-foreground">{t(`accounts.provider.${resource.providerId}.title`)} · {t('upstreams.groupSummary', { total: resource.accounts.length, schedulable })}</p>
+    <section className="space-y-5">
+      <div className="rounded-xl border border-border/70 bg-surface-1/50 p-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10"><Layers3 className="h-5 w-5 text-primary" /></span>
+          <div>
+            <h2 className="text-lg font-semibold">{resource.kind === 'account-group' ? resource.group : resource.label}</h2>
+            <p className="text-xs text-muted-foreground">{t(`accounts.provider.${resource.providerId}.title`)} · {t('upstreams.groupSummary', { total: resource.accounts.length, schedulable })}</p>
+          </div>
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          {resource.accounts.map((account) => (
+            <div key={account.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
+              <div className="min-w-0"><p className="truncate text-sm font-medium">{account.label || account.id}</p><p className="text-xs text-muted-foreground">{t(`accounts.status.${account.status}`)}</p></div>
+              <Badge variant={account.schedulable ? 'success' : 'secondary'}>{t(`accounts.management.schedulingState.${accountSchedulingState(account)}`)}</Badge>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        {resource.accounts.map((account) => (
-          <div key={account.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
-            <div className="min-w-0"><p className="truncate text-sm font-medium">{account.label || account.id}</p><p className="text-xs text-muted-foreground">{t(`accounts.status.${account.status}`)}</p></div>
-            <Badge variant={account.schedulable ? 'success' : 'secondary'}>{t(`accounts.management.schedulingState.${accountSchedulingState(account)}`)}</Badge>
-          </div>
-        ))}
-      </div>
+      {/* The POOL is the upstream (the mapping-table key `sub:<providerId>`);
+          groups and single accounts are scheduling lenses, not upstreams. */}
+      {resource.kind === 'account-pool' ? (
+        <UpstreamMappingSection
+          upstreamKey={`sub:${resource.providerId}`}
+          label={resource.label}
+        />
+      ) : null}
     </section>
   );
 }

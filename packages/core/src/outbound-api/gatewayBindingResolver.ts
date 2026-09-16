@@ -26,6 +26,13 @@ export interface ResolveGatewayBindingInput {
   endpoint: OutboundEndpoint;
   requestedModel?: string;
   role?: RequestRole;
+  /**
+   * OPTIONAL per-request route pin (the `x-omnicross-binding-id` client
+   * header). When set, ONLY that binding may serve the request — and only if
+   * it is already among the key's own candidates, so a pin can narrow a key's
+   * routing but never widen it.
+   */
+  pinnedBindingId?: string;
 }
 
 const MESSAGE_FALLBACK_KINDS = ['sonnet', 'opus', 'haiku', 'fable'] as const;
@@ -237,17 +244,23 @@ export function gatewayBindingToEndpointConfig(
  * The enabled routes one verified key may enter on one endpoint, in resolution
  * order. Exact key-scoped routes outrank unscoped ones (and suppress them
  * entirely); within a tier the lower priority value wins, id breaking ties.
+ *
+ * `pinnedBindingId` (the `x-omnicross-binding-id` client header) narrows the
+ * result to that ONE binding when it is among the key's candidates — a pin to
+ * a binding the key cannot already enter yields `[]` (never widens access).
  */
 export function candidateGatewayBindings(
   bindings: readonly GatewayBinding[] | undefined,
   apiKeyId: string,
   endpoint: OutboundEndpoint,
+  pinnedBindingId?: string,
 ): GatewayBinding[] {
   const candidates = (bindings ?? []).filter(
     (binding) =>
       binding.enabled &&
       binding.endpoint === endpoint &&
-      gatewayBindingAllowsKey(binding, apiKeyId),
+      gatewayBindingAllowsKey(binding, apiKeyId) &&
+      (pinnedBindingId === undefined || binding.id === pinnedBindingId),
   );
   const scopeOf = (binding: GatewayBinding) =>
     binding.keyScope ?? (binding.apiKeyIds?.length ? 'selected' : 'all');
@@ -270,10 +283,11 @@ export function candidateBackgroundModelIds(
   bindings: readonly GatewayBinding[] | undefined,
   apiKeyId: string,
   endpoint: OutboundEndpoint,
+  pinnedBindingId?: string,
 ): string[] | undefined {
   const ids = [
     ...new Set(
-      candidateGatewayBindings(bindings, apiKeyId, endpoint).flatMap(
+      candidateGatewayBindings(bindings, apiKeyId, endpoint, pinnedBindingId).flatMap(
         (binding) => binding.backgroundModelIds ?? [],
       ),
     ),
@@ -292,7 +306,12 @@ export function candidateBackgroundModelIds(
  * for having no candidate route at all.
  */
 export function resolveGatewayBinding(input: ResolveGatewayBindingInput): GatewayBindingResolution {
-  const candidates = candidateGatewayBindings(input.bindings, input.apiKeyId, input.endpoint);
+  const candidates = candidateGatewayBindings(
+    input.bindings,
+    input.apiKeyId,
+    input.endpoint,
+    input.pinnedBindingId,
+  );
   const binding = candidates.find(
     (candidate) =>
       candidate.fallback === 'fail' ||

@@ -1,6 +1,7 @@
 /**
  * KeyManagementSection.tsx — named outbound-key CRUD: list (keyPrefix only) +
- * create + revoke + enable/disable.
+ * create + soft delete (row + spend history kept) + permanent purge on deleted
+ * rows + enable/disable.
  *
  * SECRET DISCIPLINE: the list rows show ONLY `keyPrefix` (never a full key). The
  * create response's `plaintextOnce` is the FULL client key returned exactly once
@@ -9,41 +10,38 @@
  * on dismiss).
  */
 
-import { ArrowRight, Check, Copy, Eye, KeyRound, Link2, Plus, Route, Server, SlidersHorizontal, Trash2 } from 'lucide-react';
-import React, { useState } from 'react';
+import { ArrowDown, ArrowUp, Settings2, Check, Copy, Eye, KeyRound, Link2, Network, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
-
-import type { LLMProvider } from '@shared/llm-config';
 
 import type {
   CliIntegrationClient,
   CliIntegrationStatus,
+  KeyUpstreamBinding,
   MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundKeyPolicyPatch,
-  OutboundPermissionId,
-  GatewayBinding,
-  GatewayBindingTarget,
+  UpstreamCatalogEntry,
 } from '@/daemon/types';
 
-import {
-  bindingAllowsClientKey,
-  bindingsForClientKey,
-  bindingTargetLabel,
-  decodeDirectUpstreamValue,
-  encodeDirectUpstreamValue,
-  legacyDirectUpstream,
-  setBindingForClientKey,
-} from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
+import { UpstreamMappingEditor } from '../upstreams/UpstreamMappingEditor';
 
 interface KeyManagementSectionProps {
   keys: OutboundApiKeyInfo[];
@@ -55,48 +53,15 @@ interface KeyManagementSectionProps {
   onDelete: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
-  onSetPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   onDismissCreated: () => void;
-  bindings?: GatewayBinding[];
-  onOpenBinding?: (binding: GatewayBinding) => void;
-  onChangeBindings?: (bindings: GatewayBinding[]) => Promise<void> | void;
-  /** Encoded options for the direct-upstream picker (providers + claude/kimi
-   *  subscriptions). Values decode via `decodeDirectUpstreamValue`. */
-  directUpstreamOptions?: SelectOption[];
-  /** Bind (null clears) a key's DIRECT upstream passthrough target. */
-  onSetUpstream?: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
+  /** UPSTREAM ROUTING MODEL: set (or clear) a key's ordered upstream set. */
+  onSetUpstreamBinding?: (id: string, binding: KeyUpstreamBinding | null) => Promise<void>;
   integrations?: CliIntegrationStatus[];
   onBindIntegration?: (client: CliIntegrationClient, keyId: string) => Promise<MutationResult>;
 }
 
 const INTEGRATION_CLIENTS: readonly CliIntegrationClient[] = ['codex', 'claude'];
-
-export const KEY_PERMISSION_OPTIONS: readonly OutboundPermissionId[] = Object.freeze([
-  'chat',
-  'responses',
-  'messages',
-  'gemini',
-  'images',
-]);
-
-/** Legacy absent lists preserve only the four historic text permissions. */
-export function effectiveKeyPermissions(
-  permissions: OutboundPermissionId[] | undefined,
-): readonly OutboundPermissionId[] {
-  return permissions ?? KEY_PERMISSION_OPTIONS.filter((permission) => permission !== 'images');
-}
-
-export function toggleKeyPermission(
-  permissions: OutboundPermissionId[] | undefined,
-  permission: OutboundPermissionId,
-  enabled: boolean,
-): OutboundPermissionId[] {
-  const selected = new Set(effectiveKeyPermissions(permissions));
-  if (enabled) selected.add(permission);
-  else selected.delete(permission);
-  return KEY_PERMISSION_OPTIONS.filter((candidate) => selected.has(candidate));
-}
 
 /**
  * Per-key concurrency ceiling input. Empty string OR a non-positive value →
@@ -240,24 +205,35 @@ export function KeyManagementSection({
   onDelete,
   onToggle,
   onSetMaxConcurrency,
-  onSetPermissions,
   onSetPolicy,
   onDismissCreated,
-  bindings = [],
-  onOpenBinding,
-  onChangeBindings,
-  directUpstreamOptions = [],
-  onSetUpstream,
+  onSetUpstreamBinding,
   integrations = [],
   onBindIntegration,
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
-  const [revokeTarget, setRevokeTarget] = useState<OutboundApiKeyInfo | null>(null);
+  // Soft delete (stops the key; row + history stay) and the separate permanent
+  // purge offered only on already-deleted rows.
   const [deleteTarget, setDeleteTarget] = useState<OutboundApiKeyInfo | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<OutboundApiKeyInfo | null>(null);
+  // UPSTREAM ROUTING MODEL: the editor dialog state + the upstream catalog.
+  const [bindingTarget, setBindingTarget] = useState<OutboundApiKeyInfo | null>(null);
+  const [catalog, setCatalog] = useState<UpstreamCatalogEntry[]>([]);
+
+  useEffect(() => {
+    if (!bindingTarget) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await agent.apiService.listUpstreams();
+      if (!cancelled) setCatalog(result.upstreams ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bindingTarget]);
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
-  const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
   const [integrationTarget, setIntegrationTarget] = useState<{
     client: CliIntegrationClient;
     key: OutboundApiKeyInfo;
@@ -321,14 +297,9 @@ export function KeyManagementSection({
       ) : (
         <ul className="space-y-2">
           {keys.map((k) => {
-            const relatedBindings = bindingsForClientKey(bindings, k.id);
-            const directTarget = k.boundUpstream ?? legacyDirectUpstream(k.boundUpstreamProviderId);
             const usedClients = integrations
               .filter((integration) => integration.key?.id === k.id)
               .map((integration) => integration.client);
-            const requiredPermissions = new Set(integrations
-              .filter((integration) => integration.key?.id === k.id)
-              .flatMap((integration) => integration.key?.requiredEndpoints ?? []));
             const integrationEligible = k.enabled && !k.revoked && k.revealable === true;
             return (
             <li
@@ -340,7 +311,7 @@ export function KeyManagementSection({
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-foreground">{k.name}</span>
                     {k.revoked ? (
-                      <Badge variant="destructive">{t('apiService.keys.revoked')}</Badge>
+                      <Badge variant="destructive">{t('apiService.keys.deleted')}</Badge>
                     ) : k.enabled ? (
                       <Badge variant="success">{t('apiService.keys.enabled')}</Badge>
                     ) : (
@@ -386,6 +357,17 @@ export function KeyManagementSection({
                       );
                     })}
                   </div>
+                  {onSetUpstreamBinding ? (
+                    <button
+                      type="button"
+                      className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => setBindingTarget(k)}
+                      title={t('apiService.keys.upstream.edit')}
+                    >
+                      <Network className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{upstreamBindingSummary(k, t)}</span>
+                    </button>
+                  ) : null}
                 </div>
                 {!k.revoked ? (
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -421,20 +403,9 @@ export function KeyManagementSection({
                   />
                 ) : null}
                 {!k.revoked ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={busy || usedClients.length > 0}
-                    onClick={() => setRevokeTarget(k)}
-                    aria-label={t('apiService.keys.revoke')}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                ) : (
-                  // A revoked key keeps its row for history; this permanently
-                  // removes it (hard delete). Offered ONLY on revoked keys so an
-                  // active key must be revoked first (a deliberate two-step).
+                  // The ONE delete affordance is a SOFT delete: the key stops
+                  // authenticating immediately, but its row and spend history
+                  // stay on the list.
                   <Button
                     variant="ghost"
                     size="icon"
@@ -446,142 +417,22 @@ export function KeyManagementSection({
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </Button>
+                ) : (
+                  // A soft-deleted key keeps its row for history; this is the
+                  // separate PERMANENT purge.
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={busy || usedClients.length > 0}
+                    onClick={() => setPurgeTarget(k)}
+                    aria-label={t('apiService.keys.purge')}
+                    title={t('apiService.keys.purge')}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
                 )}
               </div>
-              {!k.revoked ? (
-                <div className="mt-2 border-t border-border/60 pt-2">
-                  <div className="mb-2">
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <KeyRound className="h-3 w-3" />
-                      {t('apiService.keys.permissions.title')}
-                      {k.legacyPermissions === true ? (
-                        <Badge variant="outline">{t('apiService.keys.permissions.legacy')}</Badge>
-                      ) : null}
-                    </div>
-                    <div className="mt-1.5 grid gap-1.5 sm:grid-cols-5">
-                      {KEY_PERMISSION_OPTIONS.map((permission) => (
-                        <label
-                          key={permission}
-                          className={permission === 'images'
-                            ? 'flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1.5 text-xs'
-                            : 'flex items-center gap-2 rounded-md border border-border/60 px-2 py-1.5 text-xs'}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={effectiveKeyPermissions(k.allowedEndpoints).includes(permission)}
-                            disabled={busy || (
-                              eventPermissionIsRequired(
-                                effectiveKeyPermissions(k.allowedEndpoints).includes(permission),
-                                requiredPermissions.has(permission),
-                              )
-                            )}
-                            onChange={(event) => void onSetPermissions(
-                              k.id,
-                              toggleKeyPermission(k.allowedEndpoints, permission, event.target.checked),
-                            )}
-                          />
-                          <span className="truncate text-foreground">
-                            {t(`apiService.keys.permissions.${permission}`)}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    <p className="mt-1.5 text-[10px] text-muted-foreground">
-                      {t('apiService.keys.permissions.hint')}
-                    </p>
-                  </div>
-                  <div className="mb-2 rounded-md border border-primary/25 bg-primary/[0.04] p-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Server className="h-3 w-3 shrink-0 text-primary" />
-                      <span className="text-[11px] font-medium text-foreground">
-                        {t('apiService.keys.bindings.directUpstream.label')}
-                      </span>
-                      <Select
-                        className="min-w-40 flex-1"
-                        size="sm"
-                        value={encodeDirectUpstreamValue(directTarget)}
-                        disabled={busy || !onSetUpstream || !directUpstreamOptions.length}
-                        options={[
-                          { value: '', label: t('apiService.keys.bindings.directUpstream.none') },
-                          ...directUpstreamOptions,
-                        ]}
-                        onChange={(value) =>
-                          void onSetUpstream?.(k.id, decodeDirectUpstreamValue(value))
-                        }
-                      />
-                    </div>
-                    <p className="mt-1.5 px-0.5 text-[10px] text-muted-foreground">
-                      {directTarget && directTarget.kind !== 'provider'
-                        ? t('apiService.keys.bindings.directUpstream.boundSubscriptionHint')
-                        : directTarget
-                          ? t('apiService.keys.bindings.directUpstream.boundHint')
-                          : t('apiService.keys.bindings.directUpstream.hint')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Route className="h-3 w-3" />
-                    {relatedBindings.length
-                      ? t('apiService.keys.bindings.count', { count: relatedBindings.length })
-                      : t('apiService.keys.bindings.empty')}
-                  </div>
-                  {relatedBindings.length ? (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {relatedBindings.map((binding) => (
-                        <button
-                          key={binding.id}
-                          type="button"
-                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[11px] text-foreground hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => onOpenBinding?.(binding)}
-                          disabled={!onOpenBinding}
-                        >
-                          <span className="truncate">{binding.name}</span>
-                          <ArrowRight className="h-3 w-3 shrink-0 text-primary" />
-                          <span className="truncate">{bindingTargetLabel(binding)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {onChangeBindings ? (
-                    <div className="mt-2">
-                      <Button
-                        size="xs"
-                        variant={bindingOpenId === k.id ? 'secondary' : 'ghost'}
-                        onClick={() => setBindingOpenId((current) => current === k.id ? null : k.id)}
-                      >
-                        <Link2 className="h-3 w-3" />
-                        {t('apiService.keys.bindings.manage')}
-                      </Button>
-                      {bindingOpenId === k.id ? (
-                        <div className="mt-2 space-y-1 rounded-md border border-border/70 bg-surface-1/45 p-2">
-                          {bindings.map((binding) => (
-                            <label key={binding.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-surface-2/60">
-                              <input
-                                type="checkbox"
-                                checked={bindingAllowsClientKey(binding, k.id)}
-                                disabled={busy}
-                                onChange={(event) => void onChangeBindings(setBindingForClientKey(
-                                  bindings,
-                                  keys.map((key) => key.id),
-                                  k.id,
-                                  binding.id,
-                                  event.target.checked,
-                                ))}
-                              />
-                              <span className="min-w-0 flex-1 truncate text-foreground">{binding.name}</span>
-                              <Badge variant={binding.enabled ? 'outline' : 'secondary'}>
-                                {t(`apiService.endpoint.name.${binding.endpoint}`)}
-                              </Badge>
-                            </label>
-                          ))}
-                          <p className="px-2 pt-1 text-[10px] text-muted-foreground">
-                            {t('apiService.keys.bindings.manageHint')}
-                          </p>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
               {!k.revoked && policyOpenId === k.id ? (
                 <KeyPolicyEditor
                   keyInfo={k}
@@ -607,20 +458,22 @@ export function KeyManagementSection({
       )}
 
       <ConfirmDialog
-        open={revokeTarget !== null}
+        open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setRevokeTarget(null);
+          if (!open) setDeleteTarget(null);
         }}
-        title={t('apiService.keys.revokeConfirmTitle')}
+        title={t('apiService.keys.deleteConfirmTitle')}
         description={
-          revokeTarget ? t('apiService.keys.revokeConfirmDesc', { name: revokeTarget.name }) : undefined
+          deleteTarget ? t('apiService.keys.deleteConfirmDesc', { name: deleteTarget.name }) : undefined
         }
-        confirmLabel={t('apiService.keys.revoke')}
+        confirmLabel={t('apiService.keys.delete')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
         onConfirm={() => {
-          if (revokeTarget) void onRevoke(revokeTarget.id);
-          setRevokeTarget(null);
+          // Soft delete: the revoke endpoint stops the key while the row and
+          // its spend history stay on the list.
+          if (deleteTarget) void onRevoke(deleteTarget.id);
+          setDeleteTarget(null);
         }}
       />
 
@@ -637,7 +490,6 @@ export function KeyManagementSection({
         description={integrationTarget
           ? t('apiService.keys.integrations.confirmDescription', {
               key: integrationTarget.key.name,
-              permissions: integrationTarget.client === 'codex' ? 'responses, images' : 'messages',
             })
           : undefined}
         confirmLabel={t('apiService.keys.integrations.confirm')}
@@ -652,26 +504,233 @@ export function KeyManagementSection({
       />
 
       <ConfirmDialog
-        open={deleteTarget !== null}
+        open={purgeTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
+          if (!open) setPurgeTarget(null);
         }}
-        title={t('apiService.keys.deleteConfirmTitle')}
+        title={t('apiService.keys.purgeConfirmTitle')}
         description={
-          deleteTarget ? t('apiService.keys.deleteConfirmDesc', { name: deleteTarget.name }) : undefined
+          purgeTarget ? t('apiService.keys.purgeConfirmDesc', { name: purgeTarget.name }) : undefined
         }
-        confirmLabel={t('apiService.keys.delete')}
+        confirmLabel={t('apiService.keys.purge')}
         cancelLabel={t('common.cancel')}
         variant="destructive"
         onConfirm={() => {
-          if (deleteTarget) void onDelete(deleteTarget.id);
-          setDeleteTarget(null);
+          if (purgeTarget) void onDelete(purgeTarget.id);
+          setPurgeTarget(null);
+        }}
+      />
+
+      <UpstreamBindingDialog
+        target={bindingTarget}
+        catalog={catalog}
+        busy={busy}
+        onCatalogRefresh={() => {
+          // Keep the dialog's catalog snapshot fresh after a mapping write.
+          void agent.apiService
+            .listUpstreams()
+            .then((result) => setCatalog(result.upstreams ?? []));
+        }}
+        onClose={() => setBindingTarget(null)}
+        onSave={async (binding) => {
+          if (bindingTarget && onSetUpstreamBinding) {
+            await onSetUpstreamBinding(bindingTarget.id, binding);
+          }
+          setBindingTarget(null);
         }}
       />
     </section>
   );
 }
 
-function eventPermissionIsRequired(checked: boolean, required: boolean): boolean {
-  return checked && required;
+/** One key's upstream-binding summary line (the row's clickable affordance). */
+function upstreamBindingSummary(
+  key: OutboundApiKeyInfo,
+  t: (k: string, opts?: Record<string, unknown>) => string,
+): string {
+  const binding = key.upstreamBinding;
+  if (!binding) return t('apiService.keys.upstream.summaryLegacy');
+  if (binding.mode === 'all') return t('apiService.keys.upstream.summaryAll');
+  if (binding.targets.length === 0) return t('apiService.keys.upstream.summaryNone');
+  return t('apiService.keys.upstream.summaryExplicit', { count: binding.targets.length });
+}
+
+/**
+ * The upstream-binding editor: ONE ordered selection list (list order =
+ * routing priority; can-serve misses yield to the next entry). There is no
+ * separate "all upstreams" mode — a key whose binding says `all` (or a
+ * not-yet-migrated legacy key) simply opens with EVERY upstream selected, and
+ * saving always writes the explicit selection (all-selected = the default the
+ * gateway setting materializes at creation). An EMPTY selection is a valid,
+ * deliberate state: the key authenticates but every request is rejected.
+ * Each catalog row also opens the per-upstream mapping-table editor (the data
+ * lives on the upstream — the entry point merely shares this dialog).
+ */
+function UpstreamBindingDialog({
+  target,
+  catalog,
+  busy,
+  onClose,
+  onSave,
+  onCatalogRefresh,
+}: {
+  target: OutboundApiKeyInfo | null;
+  catalog: UpstreamCatalogEntry[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (binding: KeyUpstreamBinding | null) => Promise<void>;
+  onCatalogRefresh: () => void;
+}) {
+  const t = useTranslation();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [mappingKey, setMappingKey] = useState<string | null>(null);
+  // Which key row the current selection was seeded from (an 'all'/legacy row
+  // re-seeds once the catalog arrives, since "all" is catalog-dependent).
+  const [seededFor, setSeededFor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!target) {
+      setSeededFor(null);
+      return;
+    }
+    const binding = target.upstreamBinding;
+    if (binding && binding.mode === 'explicit') {
+      setSelected(
+        binding.targets.map((entry) =>
+          entry.kind === 'provider' ? entry.providerId : `sub:${entry.providerId}`,
+        ),
+      );
+      setSeededFor(target.id);
+      return;
+    }
+    // 'all' or legacy: default-select-everything, applied once the catalog is known.
+    if (catalog.length > 0 && seededFor !== target.id) {
+      setSelected(catalog.map((entry) => entry.key));
+      setSeededFor(target.id);
+    }
+  }, [catalog, seededFor, target]);
+
+  const labelOf = (key: string): string =>
+    catalog.find((entry) => entry.key === key)?.label ?? key;
+
+  const toggle = (key: string): void => {
+    setSelected((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+    );
+  };
+
+  const move = (index: number, delta: -1 | 1): void => {
+    setSelected((current) => {
+      const next = [...current];
+      const to = index + delta;
+      if (to < 0 || to >= next.length) return current;
+      [next[index], next[to]] = [next[to]!, next[index]!];
+      return next;
+    });
+  };
+
+  const handleSave = async (): Promise<void> => {
+    setSaving(true);
+    try {
+      await onSave({
+        mode: 'explicit',
+        targets: selected.map((key) => {
+          const entry = catalog.find((candidate) => candidate.key === key);
+          if (!entry || entry.target.kind === 'provider') {
+            return { kind: 'provider' as const, providerId: key };
+          }
+          return { kind: 'account-pool' as const, providerId: entry.target.providerId };
+        }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={target !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('apiService.keys.upstream.dialogTitle', { name: target?.name ?? '' })}</DialogTitle>
+          <DialogDescription>{t('apiService.keys.upstream.dialogDesc')}</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-64 space-y-1 overflow-y-auto">
+          {catalog.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('apiService.keys.upstream.emptyCatalog')}</p>
+          ) : null}
+          {catalog.map((entry) => {
+            const index = selected.indexOf(entry.key);
+            const checked = index >= 0;
+            return (
+              <div
+                key={entry.key}
+                className="flex items-center gap-2 rounded-md border border-border/50 px-2 py-1.5"
+              >
+                <Button
+                  variant={checked ? 'secondary' : 'ghost'}
+                  size="xs"
+                  onClick={() => toggle(entry.key)}
+                  aria-pressed={checked}
+                >
+                  {checked ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                  {checked ? `#${index + 1}` : ''}
+                </Button>
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground">{entry.label}</span>
+                <Button
+                  variant="ghost" size="icon" className="h-6 w-6 shrink-0"
+                  onClick={() => setMappingKey(entry.key)}
+                  aria-label={t('apiService.keys.upstream.mappingEdit')}
+                  title={t('apiService.keys.upstream.mappingEdit')}
+                >
+                  <Settings2 className="h-3 w-3" />
+                </Button>
+                {checked ? (
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6"
+                      disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                      aria-label={t('apiService.keys.upstream.orderUp')}
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6"
+                      disabled={index === selected.length - 1}
+                      onClick={() => move(index, 1)}
+                      aria-label={t('apiService.keys.upstream.orderDown')}
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-muted-foreground">
+            {t('apiService.keys.upstream.orderHint')}
+          </p>
+        </div>
+        <UpstreamMappingEditor
+          upstreamKey={mappingKey}
+          label={mappingKey ? labelOf(mappingKey) : ''}
+          onClose={() => setMappingKey(null)}
+          onSaved={onCatalogRefresh}
+        />
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="secondary" onClick={onClose} disabled={saving || busy}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => void handleSave()}
+            disabled={saving || busy}
+          >
+            {t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

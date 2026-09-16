@@ -12,7 +12,9 @@ describe('navigation model', () => {
       ['run', ['overview', 'usage-stats', 'gateway', 'route-activity']],
       // search-settings-tab D1: the Search page is the configure group's first
       // entry — a true sibling of the gateway item, not a section inside it.
-      ['configure', ['search', 'images', 'upstreams', 'access-keys', 'integrations']],
+      // chatgpt-web: the ChatGPT Web backend page joins the configure group
+      // right after the code CLI integrations entry.
+      ['configure', ['search', 'images', 'upstreams', 'access-keys', 'integrations', 'chatgpt-web']],
       ['system', ['settings']],
     ]);
   });
@@ -23,7 +25,7 @@ describe('navigation model', () => {
     expect(new Set(items.map((item) => item.key)).size).toBe(items.length);
     // … while the gateway page is reached via two entries (overview + access).
     const pages = new Set(items.map((item) => item.page));
-    expect(pages).toEqual(new Set(['overview', 'api-service', 'route-activity', 'upstreams', 'integrations', 'search', 'images', 'usage-stats', 'settings']));
+    expect(pages).toEqual(new Set(['overview', 'api-service', 'route-activity', 'upstreams', 'integrations', 'chatgpt-web', 'search', 'images', 'usage-stats', 'settings']));
     expect(items.filter((item) => item.page === 'api-service').map((item) => item.tab)).toEqual(['overview', 'access']);
     // The search entry points at the standalone page with its own label key.
     const search = items.find((item) => item.key === 'search');

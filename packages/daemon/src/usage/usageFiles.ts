@@ -9,7 +9,8 @@
  *  - LEGACY (pre-sharding): a single flat `usage-events.jsonl` holding every
  *    event ever recorded. Read ONCE, by the one-shot migration, then removed.
  *  - CURRENT: a `usage/` directory holding, per LOCAL calendar day,
- *      `usage-YYYY-MM-DD.jsonl`        the raw event rows (pruned past retention)
+ *      `usage-YYYY-MM-DD.jsonl`        the lean event rows (pruned past retention)
+ *      `usage-YYYY-MM-DD.raw.jsonl`    the per-event `rawUsage` forensic blobs
  *      `usage-YYYY-MM-DD.rollup.json`  the immutable day aggregate (kept FOREVER)
  *
  * The flat file is what made every stats query re-read and re-parse the whole
@@ -56,6 +57,15 @@ export function usageShardName(dayKey: string): string {
 /** The rollup sidecar file name for a day key. */
 export function usageRollupName(dayKey: string): string {
   return `usage-${dayKey}.rollup.json`;
+}
+
+/**
+ * The RAW-payload sidecar file name for a day key (`usage-raw` design: the
+ * forensic `rawUsage` blob lives BESIDE the lean shard line, never inside it).
+ * Matches neither the shard nor the rollup regex, so `listUsageDays` ignores it.
+ */
+export function usageRawShardName(dayKey: string): string {
+  return `usage-${dayKey}.raw.jsonl`;
 }
 
 /** The `usage/` shard directory that sits beside a legacy events-file path. */

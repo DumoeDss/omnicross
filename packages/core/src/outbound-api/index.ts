@@ -93,6 +93,19 @@ export {
   type GatewayBindingResolution,
   type ResolveGatewayBindingInput,
 } from './gatewayBindingResolver';
+export { GATEWAY_BINDING_PIN_HEADER, readBindingPin } from './outboundApiRouter';
+export {
+  assembleGatewayBindings,
+  deriveKeyUpstreamBindings,
+  KEY_UPSTREAM_ROLE_KEYS,
+  upstreamBindingTargets,
+} from './upstreamRouting';
+export {
+  migrateLegacyBindingsToUpstreams,
+  upstreamKeyOfTarget,
+  type UpstreamMigrationConflict,
+  type UpstreamMigrationResult,
+} from './upstreamMigration';
 export { injectMappingEffortDefault } from './mappingEffortInjection';
 export {
   AUDIT_REDACTED,
@@ -140,9 +153,11 @@ export {
   validateEndpointModelConfig,
 } from './kindDetection';
 export {
+  ALL_OUTBOUND_PERMISSIONS,
   createIntegrationKey,
   createNamedKey,
   effectiveOutboundPermissions,
+  effectivePermissionsForRow,
   hashKey,
   LEGACY_OUTBOUND_PERMISSIONS,
   type KeyVerification,
@@ -223,6 +238,7 @@ export type {
   GatewayBindingModelMode,
   GatewayBindingTarget,
   GatewayModelMapping,
+  KeyUpstreamBinding,
   KindMappedEndpoint,
   MessagesModelKind,
   ModelKind,

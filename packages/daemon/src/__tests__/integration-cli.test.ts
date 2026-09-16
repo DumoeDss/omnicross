@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createNamedKey } from '@omnicross/core/outbound-api';
+import { createIntegrationKey, createNamedKey } from '@omnicross/core/outbound-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runIntegrations } from '../commands/integrations';
@@ -94,15 +94,15 @@ describe('native integration CLI commands', () => {
       defaultKeysPath(p.config),
       new SecretBox(resolveMasterKey({ keyFilePath: p.master })),
     );
-    const noImages = await createNamedKey(db, 'no images permission');
+    const noImages = await createIntegrationKey(db, 'no images permission', ['responses']);
 
     await expect(runIntegrations([
       'token', 'codex', '--config', p.config, '--master-key-file', p.master,
       '--key-id', 'oak_missing',
     ])).rejects.toThrow(/does not exist/);
 
-    // Freshly created keys default to the legacy permission set, which lacks
-    // the images endpoint permission a Codex terminal requires.
+    // Client keys hold every permission now; an INTEGRATION row scoped
+    // without images is the one shape a Codex terminal still refuses.
     await expect(runIntegrations([
       'token', 'codex', '--config', p.config, '--master-key-file', p.master,
       '--key-id', noImages.id,

@@ -18,6 +18,7 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-http = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2.10.1"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
@@ -32,6 +33,17 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking"] 
 [target.'cfg(unix)'.dependencies]
 # Process-group kill for spawned children on Unix (kill(-pgid, ...)).
 libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# Job-object (KILL_ON_JOB_CLOSE) assignment for the spawned daemon: the kernel
+# kills the whole daemon tree when the app dies, however it dies — installer
+# force-close included. Version-matched with what Tauri already pulls in.
+windows-sys = { version = "0.60", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
 
 [features]
 # By default Tauri runs in production mode (uses the bundled frontendDist).

@@ -7,6 +7,7 @@
 
 mod daemon_runtime;
 mod kill;
+mod log_export;
 mod stderr_drain;
 mod ui_settings;
 mod update_manager;
@@ -17,6 +18,7 @@ use std::time::Duration;
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 use daemon_runtime::{adopt_or_spawn, daemon_status, daemon_stderr_tail, DaemonRuntime};
+use log_export::save_log_export;
 use ui_settings::{get_ui_settings, load_settings, set_ui_settings, setup_tray, UiSettingsState};
 use update_manager::{
     check_for_updates, download_update, install_update, new_desktop_manager, update_status,
@@ -86,6 +88,9 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
         ))
+        // Native save dialog for the log export (Rust-side use only — the
+        // webview gets no dialog capability; it invokes `save_log_export`).
+        .plugin(tauri_plugin_dialog::init())
         .manage(DaemonRuntime::new())
         .manage(UiSettingsState::default())
         .invoke_handler(tauri::generate_handler![
@@ -93,6 +98,7 @@ pub fn run() {
             daemon_stderr_tail,
             get_ui_settings,
             set_ui_settings,
+            save_log_export,
             update_status,
             check_for_updates,
             download_update,

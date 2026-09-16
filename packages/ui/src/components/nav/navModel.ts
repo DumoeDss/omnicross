@@ -8,6 +8,7 @@ export type NavIcon =
   | 'usage'
   | 'upstreams'
   | 'integrations'
+  | 'chatgpt-web'
   | 'search'
   | 'images'
   | 'settings';
@@ -47,6 +48,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
       { key: 'upstreams', page: 'upstreams', icon: 'upstreams', labelKey: 'nav.upstreams' },
       { key: 'access-keys', page: 'api-service', icon: 'access-keys', labelKey: 'nav.accessKeys', tab: 'access' },
       { key: 'integrations', page: 'integrations', icon: 'integrations', labelKey: 'nav.integrations' },
+      { key: 'chatgpt-web', page: 'chatgpt-web', icon: 'chatgpt-web', labelKey: 'nav.chatgptWeb' },
     ],
   },
   { id: 'system', items: [{ key: 'settings', page: 'settings', icon: 'settings', labelKey: 'nav.settings' }] },

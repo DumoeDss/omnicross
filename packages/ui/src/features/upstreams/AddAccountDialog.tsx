@@ -55,7 +55,7 @@ export function AddAccountDialog({ open, onOpenChange, accountsApi }: AddAccount
         else onOpenChange(true);
       }}
     >
-      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[88vh] !max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t('accounts.addDialog.title')}</DialogTitle>
           <DialogDescription>{t('accounts.addDialog.description')}</DialogDescription>

@@ -92,7 +92,7 @@ import { CodexSessionManager } from './admin/codexSessionManager';
 import type { AdminApiDeps } from './admin/adminApi';
 import { buildHealthReport } from './admin/health';
 import { DAEMON_VERSION } from './admin/version';
-import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener } from './admin/cliLaunch';
+import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpener, type VersionRunner } from './admin/cliLaunch';
 import { OAuthSessionStore } from './admin/oauthSessions';
 import { awaitLoopbackCode } from './commands/loopbackCallback';
 import { AntigravityLoopbackFn, AntigravityOAuthSessionStore } from './admin/accountsAntigravityOAuth';
@@ -225,6 +225,12 @@ export interface DaemonPaths {
    * never invoke a real package manager. Absent → the real `exec`-based runner.
    */
   cliCommandRunner?: CommandRunner;
+  /**
+   * TEST SEAM (optional): override the Code CLI VERSION probe runner
+   * (`--version` / `npm view`) so tests never run a real CLI or npm.
+   * Absent → the real `exec`-based runner.
+   */
+  cliVersionRunner?: VersionRunner;
   /** TEST/COMPOSITION SEAM: prepared Images runtime generation for config transactions. */
   imageRuntimeConfig?: AdminApiDeps['imageRuntimeConfig'];
   /** TEST/COMPOSITION SEAM: metadata-only Images status reader. */
@@ -243,6 +249,8 @@ export interface DaemonPaths {
 export interface Daemon {
   /** The injected `Logger` port (a `ConfigurableLogger` built from `config.logging`). */
   readonly logger: Logger;
+  /** The daemon's `config.json` path (BYO provider catalog reads, e.g. upstream derivation). */
+  readonly configPath: string;
   readonly llmConfig: ConfigFileProviderConfigSource;
   readonly keyDb: JsonOutboundKeyDb;
   readonly settingsStore: JsonApiServerSettingsStore;
@@ -355,6 +363,15 @@ export interface Daemon {
    * request served mid-migration would see a partial store.
    */
   readonly migrateUsageStore: () => Promise<UsageMigrationResult>;
+  /**
+   * Fire-and-forget rollup warm-up (rollup v2 / usage-filter): sequentially
+   * build/upgrade every closed day's sidecar in the background so the first
+   * dashboard query after an upgrade does not pay for the rebuilds itself.
+   * Correctness never depends on it — any day it has not reached is built
+   * lazily by the next query that needs it. Started only by the resident
+   * `start` command.
+   */
+  readonly warmUsageRollups: () => Promise<void>;
   /**
    * Durable-first billing publisher (billing-event-stream) — appends each event
    * to `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POSTs it.
@@ -503,7 +520,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // and a freeze left literally no evidence behind. A daemon that cannot explain
   // its own death is worse than a few MB of rotated log, so absent config now
   // means `<configDir>/logs/daemon.log` at `info` in `json`.
-  const logger = new ConfigurableLogger(resolveLoggingConfig(config.logging, paths.configPath));
+  const logging = resolveLoggingConfig(config.logging, paths.configPath);
+  const logger = new ConfigurableLogger(logging);
+  // The RESOLVED sink path feeds the admin log-export endpoint (bug reports).
+  const logFile = logging.file ?? undefined;
 
   // At-rest encryption wiring (secrets design D3/D5/D7). Build the shared
   // `SecretBox` with a LAZY master-key resolver (env → keyfile → auto-gen 0600)
@@ -1000,6 +1020,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   // in afterEach. `getAdminConfig` resolves defaults from the loaded config.
   const adminServer = new AdminServer({
     configPath: paths.configPath,
+    // The resolved ConfigurableLogger file sink — powers GET /admin/api/logs/export.
+    logFile,
     llmConfig,
     keyDb,
     // voucher-redemption #9: the admin `/admin/api/voucher` surface generates/
@@ -1101,6 +1123,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     cliTerminalOpener: paths.cliTerminalOpener,
     cliPathProbe: paths.cliPathProbe,
     cliCommandRunner: paths.cliCommandRunner,
+    cliVersionRunner: paths.cliVersionRunner,
     // One helper invocation shared by the integration install and KEY-SCOPED
     // launches (the latter append `--key-id` per spawn) — same entrypoint, same
     // config/master-key resolution, so the two paths can never drift.
@@ -1195,6 +1218,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     if (result.migrated) usageEventStore.resetCaches();
     return result;
   };
+  const warmUsageRollups = async (): Promise<void> => {
+    await usageEventStore.warmRollups();
+  };
 
   // Billing event stream (billing-event-stream) — the durable-first publisher
   // (append `billing/billing-YYYY-MM-DD.jsonl` FIRST, then best-effort POST) + its
@@ -1229,6 +1255,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
 
   return {
     logger,
+    configPath: paths.configPath,
     llmConfig,
     keyDb,
     settingsStore,
@@ -1264,6 +1291,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     auditPruneSweeper,
     usagePruneSweeper,
     migrateUsageStore,
+    warmUsageRollups,
     billingPublisher,
     billingRetrySweeper,
   };

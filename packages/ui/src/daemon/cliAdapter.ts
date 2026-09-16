@@ -10,12 +10,6 @@
 import { adminClient } from './adminClient';
 import type {
   AgentCliApi,
-  CodexSessionApplyResult,
-  CodexSessionListResponse,
-  CodexSessionListResult,
-  CodexSessionProviderApplyResult,
-  CodexSessionProviderPreview,
-  CodexSessionPreviewResult,
   CliIntegrationClient,
   CliIntegrationPlanResult,
   CliIntegrationsOverview,
@@ -23,6 +17,14 @@ import type {
   CliLaunchResult,
   CliSession,
   CliStatus,
+  CliUpgradeResult,
+  CliVersionMap,
+  CodexSessionApplyResult,
+  CodexSessionListResponse,
+  CodexSessionListResult,
+  CodexSessionProviderApplyResult,
+  CodexSessionProviderPreview,
+  CodexSessionPreviewResult,
   MutationResult,
 } from './types';
 
@@ -49,9 +51,35 @@ export function createCliAdapter(): AgentCliApi {
       }
     },
 
+    async versions(): Promise<CliVersionMap> {
+      try {
+        return (await adminClient.get<{ versions: CliVersionMap }>('/cli/versions')).versions;
+      } catch {
+        return {};
+      }
+    },
+
+    async upgrade(cli: string): Promise<CliUpgradeResult> {
+      try {
+        const data = await adminClient.post<{ ok: boolean; version?: string }>(
+          `/cli/${encodeURIComponent(cli)}/upgrade`,
+          {},
+        );
+        return { success: true, ...(data.version ? { version: data.version } : {}) };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'failed to upgrade CLI' };
+      }
+    },
+
     async launch(
       cli: string,
-      input?: { cwd?: string; providerId?: string; model?: string; keyId?: string },
+      input?: {
+        cwd?: string;
+        providerId?: string;
+        model?: string;
+        keyId?: string;
+        bindingId?: string;
+      },
     ): Promise<CliLaunchResult> {
       try {
         const data = await adminClient.post<{
@@ -60,6 +88,8 @@ export function createCliAdapter(): AgentCliApi {
           model?: string;
           keyId?: string;
           keyName?: string;
+          bindingId?: string;
+          bindingName?: string;
         }>(
           `/cli/${encodeURIComponent(cli)}/launch`,
           input ?? {},

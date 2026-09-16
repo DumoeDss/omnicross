@@ -539,7 +539,8 @@
     "pricing": "模型價格",
     "dashboard": "儀表板",
     "images": "圖像",
-"search": "搜尋"
+    "search": "搜尋",
+    "chatgptWeb": "ChatGPT 網頁"
   },
   "routeActivity": {
     "title": "路由活動",
@@ -581,7 +582,13 @@
       "unavailable": "無法取得",
       "unavailableHint": "此資料來源沒有回應；其他執行證據仍會顯示。"
     },
-    "state": { "ready": "就緒", "attention": "需要處理", "inactive": "未啟用", "loading": "載入中", "unavailable": "無法取得" },
+    "state": {
+      "ready": "就緒",
+      "attention": "需要處理",
+      "inactive": "未啟用",
+      "loading": "載入中",
+      "unavailable": "無法取得"
+    },
     "path": {
       "client": "客戶端",
       "gateway": "閘道",
@@ -858,6 +865,14 @@
           "switched": "金鑰已輪替"
         }
       }
+    },
+    "mappings": {
+      "loading": "正在載入上游目錄…",
+      "count": "{{count}} 條映射",
+      "passthrough": "透傳（未配置映射）",
+      "edit": "編輯",
+      "sectionTitle": "模型對應",
+      "sectionDescription": "用戶端模型名 → 該上游的模型 id；表為空 = 直通（用戶端的模型名原樣轉發）。"
     }
   },
   "images": {
@@ -884,16 +899,16 @@
       "strict": "嚴格選擇",
       "poolFallback": "允許帳號池回退"
     },
-    "defaultModel": "\u9810\u8a2d\u5716\u50cf\u6a21\u578b",
+    "defaultModel": "預設圖像模型",
     "routes": {
-      "title": "\u6a21\u578b\u8def\u7531",
-      "defaultBadge": "\u9810\u8a2d"
+      "title": "模型路由",
+      "defaultBadge": "預設"
     },
     "codex": {
-      "title": "Codex \u7dda\u8def\u8986\u5beb",
-      "imageModel": "\u5716\u50cf\u6a21\u578b",
-      "carrierModel": "\u8f09\u9ad4\u6a21\u578b",
-      "hint": "\u6e05\u7a7a\u5f8c\u56de\u843d\u5230\u5167\u5efa\u7dda\u8def\u9810\u8a2d\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
+      "title": "Codex 線路覆寫",
+      "imageModel": "圖像模型",
+      "carrierModel": "載體模型",
+      "hint": "清空後回落到內建線路預設值（gpt-image-2 / gpt-5.6-luna）。"
     },
     "features": {
       "title": "已驗證功能矩陣",
@@ -925,26 +940,26 @@
       "privateDefault": "圖像產物使用守護程序的私有應用程式資料儲存。"
     },
     "page": {
-      "title": "\u5716\u50cf\u751f\u6210",
-      "description": "\u6a21\u578b\u8def\u7531\u3001provider \u5065\u5eb7\u8207 Images \u7aef\u9ede\uff0c\u96c6\u4e2d\u4e00\u8655\u3002",
-      "loading": "\u6b63\u5728\u8f09\u5165\u5716\u50cf\u8a2d\u5b9a\u2026"
+      "title": "圖像生成",
+      "description": "模型路由、provider 健康與 Images 端點，集中一處。",
+      "loading": "正在載入圖像設定…"
     },
     "providers": {
-      "bootstrap": "\u5f15\u5c0e\u4e2d\uff08\u672a\u9a57\u8b49\uff09",
-      "healthy": "\u53ef\u7528",
-      "unhealthy": "\u4e0d\u53ef\u7528",
-      "evidence": "{{age}} \u79d2\u524d\u53d6\u5f97\u65b0\u9bae\u8b49\u64da\u3002",
-      "noEvidence": "\u66ab\u7121\u65b0\u9bae\u8b49\u64da\uff08\u9996\u6b21\u771f\u5be6\u8acb\u6c42\u6642\u5f15\u5c0e\uff09\u3002",
-      "noModels": "\u66ab\u7121\u65b0\u9bae\u8b49\u64da\u78ba\u8a8d\u7684\u6a21\u578b\u3002"
+      "bootstrap": "引導中（未驗證）",
+      "healthy": "可用",
+      "unhealthy": "不可用",
+      "evidence": "{{age}} 秒前取得新鮮證據。",
+      "noEvidence": "暫無新鮮證據（首次真實請求時引導）。",
+      "noModels": "暫無新鮮證據確認的模型。"
     },
     "verify": {
-      "title": "\u5be6\u6a5f\u9a57\u8b49",
-      "run": "\u57f7\u884c\u9a57\u8b49",
-      "running": "\u9a57\u8b49\u4e2d\u2026",
-      "warning": "\u26a0 \u6703\u6d88\u8017\u8a02\u95b1\u914d\u984d\uff1a\u5c07\u50b3\u9001\u4e00\u6b21\u6700\u4f4e\u54c1\u8cea PNG \u8acb\u6c42\u3002",
-      "codexOnly": "\u50c5\u8986\u84cb Codex \u7dda\u8def\uff1bAntigravity provider \u5728 v1 \u6c92\u6709\u7368\u7acb\u9a57\u8b49\u5668\u3002",
-      "codexOnlyPlain": "\u50c5\u8986\u84cb Codex \u7dda\u8def\u3002",
-      "success": "\u5df2\u9a57\u8b49 {{model}}\uff08{{quality}}\uff0c{{format}}\uff09\uff1b\u65b0\u9bae\u8b49\u64da\u9805\u76ee\uff1a{{count}}\u3002"
+      "title": "實機驗證",
+      "run": "執行驗證",
+      "running": "驗證中…",
+      "warning": "⚠ 會消耗訂閱配額：將傳送一次最低品質 PNG 請求。",
+      "codexOnly": "僅覆蓋 Codex 線路；Antigravity provider 在 v1 沒有獨立驗證器。",
+      "codexOnlyPlain": "僅覆蓋 Codex 線路。",
+      "success": "已驗證 {{model}}（{{quality}}，{{format}}）；新鮮證據項目：{{count}}。"
     }
   },
   "apiService": {
@@ -977,6 +992,12 @@
     "enable": {
       "label": "啟用對外伺服器",
       "description": "啟動本機 API 伺服器，將外部呼叫者的請求透過您的提供者進行路由。"
+    },
+    "upstreamDefault": {
+      "label": "新金鑰預設上游選擇",
+      "description": "新增存取金鑰時預設勾選全部上游，還是一個都不勾選（未勾選任何上游的金鑰會拒絕請求）。",
+      "none": "預設全不選",
+      "all": "預設全選"
     },
     "networkBinding": {
       "label": "允許區域網路存取",
@@ -1015,14 +1036,37 @@
       "empty": "尚無存取金鑰。",
       "enabled": "已啟用",
       "disabled": "已停用",
-      "revoked": "已撤銷",
+      "deleted": "已刪除",
       "toggle": "切換金鑰",
-      "revoke": "撤銷",
-      "revokeConfirmTitle": "撤銷此金鑰？",
-      "revokeConfirmDesc": "撤銷「{{name}}」後，它將立即無法用於驗證。此操作無法復原。",
       "delete": "刪除",
-      "deleteConfirmTitle": "永久刪除此金鑰？",
-      "deleteConfirmDesc": "刪除「{{name}}」會將其從列表中徹底移除。此操作無法復原。",
+      "deleteConfirmTitle": "刪除此金鑰？",
+      "deleteConfirmDesc": "刪除「{{name}}」後，它將立即無法用於驗證，但金鑰行與用量記錄會保留在列表中。此操作無法復原。",
+      "purge": "永久刪除",
+      "purgeConfirmTitle": "永久移除此金鑰？",
+      "purgeConfirmDesc": "永久刪除「{{name}}」會將其金鑰行從列表中徹底移除（歷史用量的金鑰名稱將失去引用）。此操作無法復原。",
+      "upstream": {
+        "edit": "上游綁定",
+        "dialogTitle": "編輯 {{name}} 的上游綁定",
+        "dialogDesc": "選擇此金鑰的上游並排序（順序 = 優先級：靠前的先服務，靠後的作為故障轉移）。儲存時總是寫入明確的選擇；一個都不選 = 所有請求被拒絕。",
+        "summaryAll": "已選全部上游",
+        "summaryExplicit": "{{count}} 個上游",
+        "summaryNone": "未綁定（請求將被拒絕）",
+        "summaryLegacy": "跟隨下游路由（舊版）",
+        "orderUp": "上移",
+        "orderDown": "下移",
+        "orderHint": "勾選後用箭頭排序——靠前的先服務，靠後的作為故障轉移候選。一個都不選時金鑰仍可認證，但所有請求都會被拒絕。",
+        "emptyCatalog": "沒有可用上游 —— 請先在上游與路由頁新增提供商或訂閱帳號。",
+        "mappingEdit": "模型映射",
+        "mappingTitle": "編輯 {{name}} 的模型映射",
+        "mappingDesc": "用戶端模型名 → 上游模型 id。精確名優先於 * 萬用；default / background 為角色行（Gemini 背景模型）；留空 = 透傳（原名直發上游）。",
+        "mappingEmpty": "暫無映射 —— 用戶端模型名將原樣透傳給該上游。",
+        "mappingSource": "用戶端模型名（如 claude-*）",
+        "mappingTarget": "上游模型 id",
+        "mappingEffort": "思考檔",
+        "mappingAdd": "新增映射行",
+        "mappingHint": "多行時需包含一行 * 作為兜底；角色行 default / background 不參與名字匹配。",
+        "mappingSaveFailed": "儲存映射失敗"
+      },
       "created": {
         "title": "金鑰已建立",
         "warning": "請立即複製此金鑰並妥善保管——之後仍可從金鑰列表中重新查看。",
@@ -1033,16 +1077,6 @@
       "reveal": "查看金鑰",
       "revealError": "查看金鑰失敗。",
       "revealHint": "按需解密——請像對待原始金鑰一樣妥善保管。",
-      "permissions": {
-        "title": "端點權限",
-        "legacy": "舊版預設值",
-        "chat": "聊天",
-        "responses": "Responses",
-        "messages": "Messages",
-        "gemini": "Gemini",
-        "images": "圖像",
-        "hint": "Responses 與圖像是獨立權限。舊版金鑰保留四個文字端點，但不會自動取得圖像權限。"
-      },
       "bindings": {
         "title": "下游介面",
         "count": "已綁定 {{count}} 個下游介面",
@@ -1062,8 +1096,8 @@
         "inUse": "正在使用",
         "unavailable": "只有已啟用、未撤銷且可查看的金鑰才能用於 CLI 整合。",
         "confirmTitle": "將此金鑰用於 {{name}}？",
-        "confirmDescription": "Omnicross 將綁定「{{key}}」並補充所需端點權限：{{permissions}}。此前由使用者選擇的金鑰不會被撤銷。",
-        "confirm": "綁定金鑰"
+        "confirm": "綁定金鑰",
+        "confirmDescription": "Omnicross 將綁定「{{key}}」用於此整合。此前由用戶選擇的金鑰不會被撤銷。"
       },
       "policy": {
         "title": "策略",
@@ -1471,30 +1505,115 @@
     "empty": "目前沒有可用的訂閱提供者。",
     "signIn": "登入",
     "management": {
-      "summary": { "total": "帳號總數", "schedulable": "可參與排程", "excluded": "已排除", "warnings": "需要處理" },
+      "summary": {
+        "total": "帳號總數",
+        "schedulable": "可參與排程",
+        "excluded": "已排除",
+        "warnings": "需要處理"
+      },
       "searchPlaceholder": "搜尋名稱、識別碼、群組或標籤",
-      "selected": "已選擇 {{count}} 個", "selectAll": "選擇目前可見帳號", "selectAccount": "選擇 {{name}}", "openDetails": "開啟帳號詳情",
-      "emptyFiltered": "沒有符合篩選條件的帳號。", "sortDirection": "反轉排序方向", "schedulable": "可排程", "excluded": "已排除", "priorityValue": "優先級 {{value}}",
-      "schedulingState": { "disabled": "已由管理員停用", "healthPaused": "因健康狀態暫停", "allowancePaused": "因限額暫停", "demoted": "已按限額降權", "schedulable": "可排程", "excluded": "已排除" },
-      "allowanceAction": { "normal": "正常", "demote": "降權", "pause": "暫停", "ignore": "未套用" },
+      "selected": "已選擇 {{count}} 個",
+      "selectAll": "選擇目前可見帳號",
+      "selectAccount": "選擇 {{name}}",
+      "openDetails": "開啟帳號詳情",
+      "emptyFiltered": "沒有符合篩選條件的帳號。",
+      "sortDirection": "反轉排序方向",
+      "schedulable": "可排程",
+      "excluded": "已排除",
+      "priorityValue": "優先級 {{value}}",
+      "schedulingState": {
+        "disabled": "已由管理員停用",
+        "healthPaused": "因健康狀態暫停",
+        "allowancePaused": "因限額暫停",
+        "demoted": "已按限額降權",
+        "schedulable": "可排程",
+        "excluded": "已排除"
+      },
+      "allowanceAction": {
+        "normal": "正常",
+        "demote": "降權",
+        "pause": "暫停",
+        "ignore": "未套用"
+      },
       "allowanceDecision": "限額策略：{{action}} · 已用 {{used}}%",
       "allowanceDecisionNoUsage": "限額策略：{{action}}",
       "effectivePriority": "基礎 {{base}} → 生效 {{effective}}",
       "filters": {
-        "allProviders": "全部提供商", "allGroups": "全部群組", "allHealth": "全部健康狀態", "allCredentials": "全部憑證狀態",
-        "scheduling": { "all": "全部排程狀態", "enabled": "已啟用", "disabled": "已停用", "schedulable": "可排程", "excluded": "已排除" }
+        "allProviders": "全部提供商",
+        "allGroups": "全部群組",
+        "allHealth": "全部健康狀態",
+        "allCredentials": "全部憑證狀態",
+        "scheduling": {
+          "all": "全部排程狀態",
+          "enabled": "已啟用",
+          "disabled": "已停用",
+          "schedulable": "可排程",
+          "excluded": "已排除"
+        }
       },
-      "sort": { "label": "名稱", "priority": "優先級", "last-used": "最近使用", "allowance": "額度用量", "reset-time": "重設時間" },
-      "columns": { "account": "帳號", "providerGroup": "提供商 / 群組", "status": "排程狀態", "priority": "優先級", "lastUsed": "最近使用", "actions": "操作" },
-      "batch": { "enable": "啟用", "disable": "停用", "setGroup": "設定群組", "groupPlaceholder": "群組名稱", "delete": "刪除", "deleteTitle": "刪除所選帳號？", "deleteDescription": "這會永久刪除 {{count}} 個帳號及其已儲存憑證。" },
-      "tabs": { "overview": "概覽", "routes": "路由", "allowance": "限額", "scheduling": "排程", "network": "網路", "diagnostics": "診斷", "danger": "危險操作" },
+      "sort": {
+        "label": "名稱",
+        "priority": "優先級",
+        "last-used": "最近使用",
+        "allowance": "額度用量",
+        "reset-time": "重設時間"
+      },
+      "columns": {
+        "account": "帳號",
+        "providerGroup": "提供商 / 群組",
+        "status": "排程狀態",
+        "priority": "優先級",
+        "lastUsed": "最近使用",
+        "actions": "操作"
+      },
+      "batch": {
+        "enable": "啟用",
+        "disable": "停用",
+        "setGroup": "設定群組",
+        "groupPlaceholder": "群組名稱",
+        "delete": "刪除",
+        "deleteTitle": "刪除所選帳號？",
+        "deleteDescription": "這會永久刪除 {{count}} 個帳號及其已儲存憑證。"
+      },
+      "tabs": {
+        "overview": "概覽",
+        "routes": "路由",
+        "allowance": "限額",
+        "scheduling": "排程",
+        "network": "網路",
+        "diagnostics": "診斷",
+        "danger": "危險操作"
+      },
       "fields": {
-        "enabled": "參與路由", "enabledHint": "停用後絕不會被選擇，即使它是唯一帳號。",
-        "label": "帳號名稱", "group": "群組", "tags": "標籤", "tagsPlaceholder": "正式環境, 團隊A", "credential": "憑證", "health": "健康狀態", "scheduling": "排程", "lastUsed": "最近使用", "priority": "優先級",
-        "allowanceAction": "限額策略", "effectivePriority": "生效優先級", "allowanceUsed": "限額已用", "allowanceResume": "限額重設"
+        "enabled": "參與路由",
+        "enabledHint": "停用後絕不會被選擇，即使它是唯一帳號。",
+        "label": "帳號名稱",
+        "group": "群組",
+        "tags": "標籤",
+        "tagsPlaceholder": "正式環境, 團隊A",
+        "credential": "憑證",
+        "health": "健康狀態",
+        "scheduling": "排程",
+        "lastUsed": "最近使用",
+        "priority": "優先級",
+        "allowanceAction": "限額策略",
+        "effectivePriority": "生效優先級",
+        "allowanceUsed": "限額已用",
+        "allowanceResume": "限額重設"
       },
-      "diagnostics": { "testConnection": "測試連線", "testPassed": "連線測試通過。", "generationPassed": "{{model}} 已傳回完整回應。", "testFailed": "連線測試失敗。", "history": "最近探測", "empty": "暫無探測事件。", "loadFailed": "無法載入探測歷史。" },
-      "danger": { "title": "刪除帳號", "description": "刪除該帳號及其加密憑證，此操作無法復原。" }
+      "diagnostics": {
+        "testConnection": "測試連線",
+        "testPassed": "連線測試通過。",
+        "generationPassed": "{{model}} 已傳回完整回應。",
+        "testFailed": "連線測試失敗。",
+        "history": "最近探測",
+        "empty": "暫無探測事件。",
+        "loadFailed": "無法載入探測歷史。"
+      },
+      "danger": {
+        "title": "刪除帳號",
+        "description": "刪除該帳號及其加密憑證，此操作無法復原。"
+      }
     },
     "oauth": {
       "title": "登入 {{name}}",
@@ -1758,6 +1877,111 @@
       "quota_exhausted": "額度耗盡"
     }
   },
+  "chatgptWeb": {
+    "title": "ChatGPT 網頁後端",
+    "description": "把你的 ChatGPT 網頁會話（含 Pro）經專用瀏覽器宿主作為 Codex 的模型後端。",
+    "refresh": "重新整理狀態",
+    "steps": {
+      "platform": {
+        "title": "在 platform.openai.com 建立通道和 API 金鑰",
+        "tunnel": "開啟「通道」頁 → 建立通道 → 複製它的 Tunnel ID（tunnel_…）。",
+        "key": "開啟「API 金鑰」頁 → 建立金鑰 → 複製。",
+        "tunnelsLink": "開啟通道頁",
+        "keysLink": "開啟 API 金鑰頁"
+      },
+      "config": {
+        "title": "把兩個值貼到這裡"
+      },
+      "connector": {
+        "title": "在 ChatGPT 裡建立連接器",
+        "open": "開啟 ChatGPT 的連接器（外掛）設定頁。",
+        "devMode": "開啟開發者模式。",
+        "create": "新建一個 Tunnel 類型的連接器。",
+        "name": "名稱精確填：Codex Native2。",
+        "permissions": "允許它執行所有操作。",
+        "link": "開啟 ChatGPT 連接器頁"
+      },
+      "login": {
+        "title": "在專用瀏覽器裡登入",
+        "click": "點下方「開啟登入視窗」，在彈出的視窗裡完成登入（Google 或電子郵件都可以）。",
+        "thenCheck": "回到本頁點「檢查登入」。"
+      },
+      "start": {
+        "title": "啟動橋",
+        "pick": "選好模型後啟動——tunnel 用戶端和瀏覽器執行時會在首次使用時自動下載。",
+        "note": "啟動後，把下方資訊複製進 Codex（現成指令一鍵複製）。"
+      },
+      "codex": {
+        "title": "連接 codex（一次性）",
+        "description": "往 ~/.codex/config.toml 寫入一個託管的 profile，並把持久化 token 寫入使用者環境變數。你原有的 codex 設定不受影響——純增量。"
+      },
+      "askPro": {
+        "title": "Pro 外腦 ask_pro（可選）",
+        "description": "給 codex 註冊一個 ask_pro MCP 工具：小模型幹活時諮詢 ChatGPT Pro，Pro 能自己唯讀檢查工作區再給建議。"
+      }
+    },
+    "codex": {
+      "setup": "連接 codex",
+      "rewrite": "重寫 profile",
+      "done": "codex profile 已寫入——新開一個終端機執行：codex --profile chatgptweb",
+      "newTerminalHint": "token 寫在使用者環境變數裡——已開啟的終端機要重開才能看到。"
+    },
+    "askPro": {
+      "install": "安裝 ask_pro",
+      "uninstall": "卸載",
+      "installed": "ask_pro 已安裝——重啟 codex 會話後即可使用（mcp_servers 對所有 codex 會話生效）。",
+      "removed": "ask_pro 已卸載。",
+      "hint": "諮詢時橋需要在 harness 模式運行（步驟 5）；一次諮詢約幾十秒到幾分鐘。",
+      "readonly": "預設唯讀：Pro 只能跑唯讀命令（git / 檔案讀取）。"
+    },
+    "config": {
+      "runtimeKey": "執行密鑰（API key）",
+      "save": "儲存並準備",
+      "saved": "設定已儲存——tunnel 用戶端開始下載。",
+      "saveHint": "只保存在本機；儲存後金鑰不會再顯示。",
+      "reconfigure": "重新設定"
+    },
+    "login": {
+      "open": "開啟登入視窗",
+      "opened": "登入視窗已開啟——在其中登入後，回來點「檢查登入」。",
+      "check": "檢查登入",
+      "signedIn": "已登入。",
+      "signedOut": "尚未登入——請開啟登入視窗完成登入。",
+      "runtimeHint": "瀏覽器執行時在首次使用時下載（約 100 MB）——先開啟一次登入視窗觸發下載。"
+    },
+    "tunnel": {
+      "running": "執行中",
+      "stopped": "已停止",
+      "healthy": "健康",
+      "installing": "正在下載 tunnel 用戶端…",
+      "installFailed": "tunnel 用戶端下載失敗",
+      "retry": "重試下載",
+      "retryStarted": "已重新開始下載。",
+      "willInstall": "啟動時自動安裝"
+    },
+    "bridge": {
+      "model": "模型",
+      "start": "啟動橋",
+      "started": "橋已啟動。",
+      "stop": "停止橋",
+      "stopped": "橋已停止。",
+      "running": "執行中",
+      "needConfig": "請先儲存 Harness 設定"
+    },
+    "images": {
+      "createTunnel": "在 platform.openai.com 建立通道",
+      "connector": "在 ChatGPT 中建立連接器",
+      "zoom": "點擊放大",
+      "zoomHint": "滾輪縮放 · 拖曳平移 · 雙擊重設",
+      "zoomInAction": "放大",
+      "zoomOut": "縮小",
+      "reset": "重設"
+    },
+    "guide": {
+      "cli": "本頁所有操作也可以在終端機完成：omnicross chatgpt-web check | login | launch | harness status。",
+      "experimental": "實驗特性：網頁會話隨時可能遇到限額或介面變更。"
+    }
+  },
   "codeCli": {
     "title": "整合",
     "description": "將 Codex 和 Claude Code 持久接入 Omnicross，或開啟僅本次生效的代理終端。",
@@ -1839,6 +2063,11 @@
       "install": "安裝",
       "installing": "安裝中…",
       "installingHint": "正在 Daemon 主機上安裝，可能需要一點時間。",
+      "upgrade": "升級",
+      "upgrading": "升級中…",
+      "upgradingHint": "正在 Daemon 主機上重新安裝最新版本，可能需要一點時間。",
+      "upgradeHint": "在 Daemon 主機上偵測並安裝最新版本。",
+      "upgradeToHint": "新版本 {{version}} 可用——在 Daemon 主機上升級。",
       "launch": "啟動",
       "launchTitle": "啟動 {{name}}",
       "launchDescription": "在 Daemon 主機上開啟新的終端機視窗執行此 CLI，並透過 Daemon 代理路由。可選填工作目錄。",
@@ -1846,10 +2075,17 @@
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "執行中 · {{provider}} / {{model}}",
       "stop": "停止",
-      "routeKeyLabel": "路由金鑰",
+      "routeKeyLabel": "路由目標",
       "routeKeyAuto": "自動（第一個啟用的提供者）",
-      "routeKeyHint": "此終端機的 Codex 將以所選存取金鑰身分連線閘道，路由與模型映射跟隨該金鑰的綁定設定，因此多個終端機可同時使用不同上游。",
-      "runningViaKey": "執行中 · 金鑰 {{name}}"
+      "targetHelp": "不選 = 自動租約。上游 = 同介面直連（不經閘道金鑰）；路由 = 鎖定到指定的一條下游路由（自動選一把可進入它的金鑰）；金鑰 = 以該金鑰身分進入閘道，路由跟隨這把金鑰的綁定。",
+      "routeKeyHint": "此終端機將以所選存取金鑰身分連線閘道，路由與模型映射跟隨該金鑰的綁定設定，因此多個終端機可同時使用不同上游。",
+      "targetGroupProvider": "上游",
+      "targetGroupRoute": "路由",
+      "targetGroupKey": "金鑰",
+      "targetProviderHint": "此終端機將透過代理路由租約固定到所選上游（{{wire}} 介面，模型使用該提供者的第一個模型）；其他介面的上游請透過下游路由使用。",
+      "targetRouteHint": "此終端機將以一個可進入該路由的存取金鑰身分連線閘道，並鎖定所選下游路由（x-omnicross-binding-id），模型映射完全跟隨該路由。",
+      "runningViaKey": "執行中 · 金鑰 {{name}}",
+      "runningViaRoute": "執行中 · 路由 {{name}}（金鑰 {{key}}）"
     },
     "manual": {
       "title": "手動設定",
@@ -1939,6 +2175,15 @@
         "issuesHint": "錯誤回報與功能請求。",
         "open": "開啟"
       },
+      "diagnostics": {
+        "title": "診斷",
+        "description": "回報 bug 時附上守護程序日誌，能大幅加快定位。",
+        "exportLogs": "匯出守護程序日誌",
+        "exportLogsHint": "打包 logs/daemon.log 及其輪轉分卷（已脫敏、有大小上限）。",
+        "export": "匯出",
+        "exported": "日誌已匯出到 {{path}}。",
+        "exportFailed": "匯出日誌失敗：{{reason}}"
+      },
       "project": {
         "title": "專案"
       },
@@ -1979,7 +2224,10 @@
         "refresh": "重新整理",
         "unavailable": "目前 daemon 版本不提供決策診斷。上方策略設定仍可編輯。",
         "empty": "尚未執行由額度觸發的降級或暫停。",
-        "action": { "demote": "已降級", "pause": "已暫停" },
+        "action": {
+          "demote": "已降級",
+          "pause": "已暫停"
+        },
         "priority": "優先級 {{base}} → {{effective}} · 已用 {{used}}%"
       }
     },
@@ -2094,7 +2342,11 @@
     "empty": "價格表為空。",
     "emptyHint": "取得最新價格以填入表格。",
     "noMatches": "沒有符合的條目。",
-    "pagination": { "summary": "第 {{page}} / {{pages}} 頁，共 {{count}} 個模型", "previous": "上一頁", "next": "下一頁" },
+    "pagination": {
+      "summary": "第 {{page}} / {{pages}} 頁，共 {{count}} 個模型",
+      "previous": "上一頁",
+      "next": "下一頁"
+    },
     "saved": "價格條目已儲存。",
     "saveFailed": "儲存失敗：{{message}}",
     "deleteFailed": "刪除失敗：{{message}}",

@@ -11,6 +11,7 @@ export default defineConfig({
       '@omnicross/core': '/packages/core/src',
       '@omnicross/subscriptions': '/packages/subscriptions/src',
       '@omnicross/cli-launcher': '/packages/cli-launcher/src',
+      '@omnicross/chatgpt-web': '/packages/chatgpt-web/src',
       '@omnicross/daemon': '/packages/daemon/src',
       '@shared': '/packages/ui/src/shared-types',
       '@': '/packages/ui/src',

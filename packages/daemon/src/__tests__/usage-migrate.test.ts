@@ -16,7 +16,7 @@ import type { UsageEventRecord } from '@omnicross/contracts/usage-stats-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { JsonlUsageEventStore } from '../ports/JsonlUsageEventStore';
-import { usageRollupName, usageShardName } from '../usage/usageFiles';
+import { usageRawShardName, usageRollupName, usageShardName } from '../usage/usageFiles';
 import { migrateLegacyUsageEvents } from '../usage/usageMigrate';
 
 let tmpDir: string;
@@ -89,6 +89,39 @@ describe('migrateLegacyUsageEvents', () => {
     // Both days are closed, so both get an immutable rollup.
     expect(existsSync(join(usageDir, usageRollupName('2026-06-12')))).toBe(true);
     expect(existsSync(join(usageDir, usageRollupName('2026-06-13')))).toBe(true);
+  });
+
+  it('splits rawUsage blobs out to the raw sidecar and writes v2 rollups', async () => {
+    const blob = JSON.stringify({ attribution: { items: { at_1: { input_tokens: 3 } } } });
+    const rows = [
+      row({ ts: local(2026, 6, 12, 3), rawUsage: blob }),
+      row({ ts: local(2026, 6, 12, 20), rawUsage: null }),
+    ];
+    writeLegacy(rows.map((r) => JSON.stringify(r)));
+
+    const result = await migrateLegacyUsageEvents({ eventsPath, usageDir });
+    expect(result).toMatchObject({ migrated: true, rowsWritten: 2, days: 1 });
+
+    // The shard lines are LEAN — no inline rawUsage anywhere.
+    const shardLines = readFileSync(join(usageDir, usageShardName('2026-06-12')), 'utf8')
+      .split('\n')
+      .filter(Boolean);
+    expect(shardLines).toHaveLength(2);
+    for (const line of shardLines) {
+      expect('rawUsage' in (JSON.parse(line) as Record<string, unknown>)).toBe(false);
+    }
+    // The blob rides the day's raw sidecar, keyed by its row id.
+    const rawLines = readFileSync(join(usageDir, usageRawShardName('2026-06-12')), 'utf8')
+      .split('\n')
+      .filter(Boolean);
+    expect(rawLines).toHaveLength(1);
+    expect(JSON.parse(rawLines[0]!)).toEqual({ id: rows[0]!.id, rawUsage: blob });
+    // And the rollup is v2 with attribute splits.
+    const rollup = JSON.parse(
+      readFileSync(join(usageDir, usageRollupName('2026-06-12')), 'utf8'),
+    ) as { version: number; byAttribute?: unknown[] };
+    expect(rollup.version).toBe(2);
+    expect(Array.isArray(rollup.byAttribute)).toBe(true);
   });
 
   it('counts guard-rejected lines as skipped and still reconciles', async () => {

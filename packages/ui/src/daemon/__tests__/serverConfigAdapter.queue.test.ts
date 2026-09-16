@@ -153,7 +153,7 @@ describe('updateQueueConfig', () => {
   });
 });
 
-describe('Images permission/config mutations', () => {
+describe('Images config mutations', () => {
   it('reads capability through the dedicated non-consuming admin endpoint', async () => {
     const capability = {
       configured: { enabled: true },
@@ -170,22 +170,6 @@ describe('Images permission/config mutations', () => {
   it('maps an unavailable capability endpoint to null', async () => {
     mocked.get.mockRejectedValueOnce(new Error('older daemon'));
     await expect(createApiServiceAdapter().getImagesCapability()).resolves.toBeNull();
-  });
-
-  it('posts the exact permission list without collapsing Images into a text endpoint', async () => {
-    mocked.post.mockResolvedValueOnce({ ok: true, allowedEndpoints: ['responses', 'images'] });
-    const adapter = createApiServiceAdapter();
-    const result = await adapter.setKeyPermissions('k1', ['responses', 'images']);
-    expect(mocked.post).toHaveBeenCalledWith('/keys/k1/permissions', {
-      permissions: ['responses', 'images'],
-    });
-    expect(result).toEqual({ success: true });
-  });
-
-  it('never reports a failed permission mutation as success', async () => {
-    mocked.post.mockResolvedValueOnce({ ok: false });
-    const result = await createApiServiceAdapter().setKeyPermissions('k1', ['images']);
-    expect(result).toEqual({ success: false, message: 'key not found or revoked' });
   });
 
   it('puts the complete Images segment and accepts only the normalized server echo', async () => {

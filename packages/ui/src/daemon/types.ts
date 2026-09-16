@@ -42,6 +42,7 @@ import type {
   GatewayBinding,
   GatewayBindingTarget,
   ImagesCapabilityStatus,
+  KeyUpstreamBinding,
   ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -53,6 +54,7 @@ import type {
   ProxyConfig,
   SearchDiagnosticsSnapshot,
   SearchQueryResult,
+  UpstreamCatalogResult,
   SearchServerConfig,
   SearchTestResult,
   VoucherCreated,
@@ -320,6 +322,8 @@ export interface AgentApiServiceApi {
   verifyImagesLive(): Promise<ImagesVerifyLiveResult | null>;
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
+  /** UPSTREAM ROUTING MODEL: the default binding materialized on NEW keys. */
+  setDefaultKeyUpstreamBinding(mode: 'all' | 'none'): Promise<MutationResult>;
   /** Replace the complete independent gateway-binding aggregate. */
   updateBindings(bindings: GatewayBinding[]): Promise<MutationResult>;
   /**
@@ -329,6 +333,23 @@ export interface AgentApiServiceApi {
    */
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
   /**
+   * UPSTREAM ROUTING MODEL: the upstream catalog (providers + non-empty
+   * subscription pools) with each entry's model-mapping table, plus the
+   * derived + legacy route aggregate actually being served.
+   */
+  listUpstreams(): Promise<UpstreamCatalogResult>;
+  /** Replace one upstream's model-mapping table (write-edge validated). */
+  setUpstreamMappings(
+    upstreamKey: string,
+    mappings: Array<{ source: string; target: string; effort?: string }>,
+  ): Promise<MutationResult>;
+  /**
+   * Set (or clear, with `null`) a key's ordered upstream set. `'all'` is the
+   * live whole-catalog reference; an explicit empty list binds nothing (403).
+   * `null` rolls the key back to the legacy downstream-route semantics.
+   */
+  setKeyUpstreamBinding(id: string, binding: KeyUpstreamBinding | null): Promise<MutationResult>;
+  /**
    * Set a key's DIRECT upstream passthrough target (`POST /keys/:id/upstream`).
    * A BYO provider target relays VERBATIM; a claude/kimi subscription
    * account/group/pool rides the messages same-format relay; `null` clears →
@@ -336,8 +357,6 @@ export interface AgentApiServiceApi {
    * target (404 unknown provider; 400 non-claude/kimi subscription).
    */
   setKeyUpstream(id: string, target: GatewayBindingTarget | null): Promise<MutationResult>;
-  /** Atomically replace one key's exact authorization list. */
-  setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult>;
   /**
    * Set a key's policy envelope (`POST /keys/:id/policy`, outbound-key-policy):
    * expiry / activation / cost limits / per-key rate. Each field is three-way
@@ -659,7 +678,7 @@ export interface AgentAccountsApi {
 
 // ── Code CLI launch adapter (dashboard parity) ────────────────────────────────
 
-/** One launchable CLI + whether its binary is on the daemon host's PATH. */
+/** One tracked CLI + whether its binary is on the daemon host's PATH. */
 export interface CliStatus {
   id: string;
   displayName: string;
@@ -667,6 +686,24 @@ export interface CliStatus {
   installed: boolean;
   /** Has a known global install command (the card shows an Install button). */
   installable: boolean;
+  /** Has a launcher builder (install-only CLIs hide the Launch button). */
+  launchable?: boolean;
+}
+
+/** Version probe outcome for one installed CLI (each field is best-effort). */
+export interface CliVersionStatus {
+  /** Version reported by the installed binary (`--version`). */
+  installed?: string;
+  /** Latest release on the npm registry (npm-installed CLIs only). */
+  latest?: string;
+}
+
+/** CLI id → version status (installed CLIs only). */
+export type CliVersionMap = Record<string, CliVersionStatus>;
+
+/** Upgrade outcome; `version` is the re-probed version after a successful run. */
+export interface CliUpgradeResult extends MutationResult {
+  version?: string;
 }
 
 /** A running launch (token-free — the route token rides only the terminal env). */
@@ -681,6 +718,9 @@ export interface CliSession {
    */
   keyId?: string;
   keyName?: string;
+  /** Route-pinned codex rows: the downstream route this terminal is pinned to. */
+  bindingId?: string;
+  bindingName?: string;
   startedAt: string;
 }
 
@@ -768,6 +808,9 @@ export interface CliLaunchResult {
   /** Key-scoped codex launches: the gateway key the terminal authenticates as. */
   keyId?: string;
   keyName?: string;
+  /** Route-pinned codex launches: the downstream route the terminal is pinned to. */
+  bindingId?: string;
+  bindingName?: string;
   message?: string;
 }
 
@@ -842,9 +885,23 @@ export interface AgentCliApi {
   list(): Promise<CliStatus[]>;
   /** Run the CLI's global install command on the daemon host (npm/curl). */
   install(cli: string): Promise<MutationResult>;
+  /**
+   * Installed + npm-latest versions per CLI id (installed CLIs only; empty map
+   * when the daemon is unreachable). Drives the version display + Upgrade hint.
+   */
+  versions(): Promise<CliVersionMap>;
+  /** Re-install the CLI at its latest release on the daemon host. */
+  upgrade(cli: string): Promise<CliUpgradeResult>;
   launch(
     cli: string,
-    input?: { cwd?: string; providerId?: string; model?: string; keyId?: string },
+    input?: {
+      cwd?: string;
+      providerId?: string;
+      model?: string;
+      keyId?: string;
+      /** Codex only: pin the launch to ONE downstream route (id). */
+      bindingId?: string;
+    },
   ): Promise<CliLaunchResult>;
   sessions(): Promise<CliSession[]>;
   stop(id: string): Promise<MutationResult>;

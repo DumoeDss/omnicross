@@ -124,7 +124,7 @@ describe('outboundApiKeyAuth', () => {
     const db = makeStubDb();
     const created = await createNamedKey(db, 'My laptop');
     expect(created.name).toBe('My laptop');
-    expect(created.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini']);
+    expect(created.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini', 'images']);
     expect(created.plaintextOnce.startsWith('sk-omnicross-')).toBe(true);
     expect(db.rows).toHaveLength(1);
     // The stored row carries the hash, never the plaintext.
@@ -212,7 +212,7 @@ describe('outboundApiKeyAuth', () => {
 });
 
 describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
-  it('a policy-less legacy key resolves with the four text permissions only', async () => {
+  it('a policy-less client key resolves with every permission', async () => {
     const db = makeStubDb();
     const created = await createNamedKey(db, 'plain');
     const res = await verifyKey(db, created.plaintextOnce);
@@ -220,7 +220,7 @@ describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
     if (res.status !== 'ok') return;
     expect(res.key).toEqual({
       id: created.id,
-      allowedEndpoints: ['chat', 'responses', 'messages', 'gemini'],
+      allowedEndpoints: ['chat', 'responses', 'messages', 'gemini', 'images'],
     });
     expect(res.key.costLimits).toBeUndefined();
     expect(res.key.rateLimit).toBeUndefined();
@@ -287,7 +287,7 @@ describe('verifyKey — expiry + activation (outbound-key-policy)', () => {
 });
 
 describe('outbound permission compatibility', () => {
-  it('interprets absent, empty, and explicit stored lists exactly', async () => {
+  it('client rows hold every permission regardless of the stored list; integration rows keep their scope', async () => {
     const secret = 'sk-omnicross-permission-compat';
     const base: OutboundKeyDbRow = {
       id: 'k-permissions',
@@ -299,21 +299,32 @@ describe('outbound permission compatibility', () => {
       lastUsedAt: null,
       revokedAt: null,
     };
+    const ALL = ['chat', 'responses', 'messages', 'gemini', 'images'];
 
     const absent = await verifyPresentedKey(makeStubDb([{ ...base }]), secret);
-    expect(absent?.allowedEndpoints).toEqual(['chat', 'responses', 'messages', 'gemini']);
+    expect(absent?.allowedEndpoints).toEqual(ALL);
 
+    // A stored restricted/empty list no longer scopes a CLIENT key — which
+    // endpoint it serves is decided by the URL it is called on.
     const empty = await verifyPresentedKey(makeStubDb([{ ...base, allowedEndpoints: [] }]), secret);
-    expect(empty?.allowedEndpoints).toEqual([]);
+    expect(empty?.allowedEndpoints).toEqual(ALL);
 
     const explicit = await verifyPresentedKey(
       makeStubDb([{ ...base, allowedEndpoints: ['responses', 'images'] }]),
       secret,
     );
-    expect(explicit?.allowedEndpoints).toEqual(['responses', 'images']);
+    expect(explicit?.allowedEndpoints).toEqual(ALL);
+
+    // INTEGRATION keys keep their persisted scope (their /v1/models shape and
+    // endpoint gating still derive from it).
+    const integration = await verifyPresentedKey(
+      makeStubDb([{ ...base, kind: 'integration', allowedEndpoints: ['responses', 'images'] }]),
+      secret,
+    );
+    expect(integration?.allowedEndpoints).toEqual(['responses', 'images']);
   });
 
-  it('fails malformed persisted lists closed without widening access', async () => {
+  it('fails malformed persisted integration lists closed without widening access', async () => {
     const secret = 'sk-omnicross-malformed-permissions';
     const malformed = {
       id: 'k-malformed',
@@ -324,6 +335,7 @@ describe('outbound permission compatibility', () => {
       createdAt: 1,
       lastUsedAt: null,
       revokedAt: null,
+      kind: 'integration',
       allowedEndpoints: ['responses', 'unknown'],
     } as unknown as OutboundKeyDbRow;
     const verified = await verifyPresentedKey(makeStubDb([malformed]), secret);

@@ -27,8 +27,10 @@ import type {
   AgentApiServiceApi,
   CreateKeyResult,
   GenerateVoucherResult,
+  KeyUpstreamBinding,
   MutationResult,
   SearchQueryOutcome,
+  UpstreamCatalogResult,
   VoucherGenerateInput,
   WebhookTestResult,
 } from './types';
@@ -46,7 +48,6 @@ import type {
   OutboundApiServerConfig,
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
-  OutboundPermissionId,
   OverloadCounterResponse,
   SearchDiagnosticsSnapshot,
   SearchQueryResult,
@@ -145,6 +146,17 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async setDefaultKeyUpstreamBinding(mode: 'all' | 'none'): Promise<MutationResult> {
+      try {
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          defaultKeyUpstreamBinding: mode,
+        });
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update the new-key upstream default');
+      }
+    },
+
     async setNetworkBinding(networkBinding: boolean): Promise<MutationResult> {
       try {
         const data = await adminClient.put<ServerPutResponse>('/server', { networkBinding });
@@ -231,6 +243,45 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async listUpstreams(): Promise<UpstreamCatalogResult> {
+      try {
+        return await adminClient.get<UpstreamCatalogResult>('/upstreams');
+      } catch (err) {
+        return {
+          upstreams: [],
+          liveBindings: [],
+          message: err instanceof Error ? err.message : 'failed to load upstream catalog',
+        };
+      }
+    },
+
+    async setUpstreamMappings(
+      upstreamKey: string,
+      mappings: Array<{ source: string; target: string; effort?: string }>,
+    ): Promise<MutationResult> {
+      try {
+        await adminClient.put(
+          `/upstreams/${encodeURIComponent(upstreamKey)}/mappings`,
+          { mappings },
+        );
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update upstream model mappings');
+      }
+    },
+
+    async setKeyUpstreamBinding(
+      id: string,
+      binding: KeyUpstreamBinding | null,
+    ): Promise<MutationResult> {
+      try {
+        await adminClient.post(`/keys/${encodeURIComponent(id)}/upstream-binding`, { binding });
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update key upstream binding');
+      }
+    },
+
     async setKeyUpstream(
       id: string,
       target: GatewayBindingTarget | null,
@@ -260,19 +311,6 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
         return await adminClient.post<ImagesVerifyLiveResult>('/images/verify-live', {});
       } catch {
         return null;
-      }
-    },
-
-    async setKeyPermissions(id: string, permissions: OutboundPermissionId[]): Promise<MutationResult> {
-      try {
-        const data = await adminClient.post<{ ok: boolean; allowedEndpoints?: OutboundPermissionId[] }>(
-          `/keys/${encodeURIComponent(id)}/permissions`,
-          { permissions },
-        );
-        if (!data.ok) return { success: false, message: 'key not found or revoked' };
-        return { success: true };
-      } catch (err) {
-        return fail(err, 'failed to update key permissions');
       }
     },
 

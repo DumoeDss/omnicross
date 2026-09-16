@@ -1,7 +1,12 @@
 const CODEX_BEGIN = '# >>> omnicross managed provider >>>';
 const CODEX_END = '# <<< omnicross managed provider <<<';
 const CODEX_PROVIDER = 'omnicross';
-const CLAUDE_API_KEY_SENTINEL = 'omnicross-gateway';
+/**
+ * Non-empty dummy for `ANTHROPIC_API_KEY`: an empty/absent value lets Claude
+ * Code fall back to its OAuth login state, so the install (and key-scoped
+ * terminal launches) pin this sentinel to force the AUTH_TOKEN path.
+ */
+export const CLAUDE_API_KEY_SENTINEL = 'omnicross-gateway';
 
 export interface CodexConfigInput {
   existing: string;

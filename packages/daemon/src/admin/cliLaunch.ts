@@ -14,13 +14,23 @@
  * never a provider key. On win32 the token rides the spawned process environment
  * (inherited by the terminal), never the command line / a file on disk.
  *
- * KEY-SCOPED LAUNCH (`{ keyId }` body, codex only): instead of a route lease, the
- * terminal's Codex authenticates to the RESIDENT outbound gateway as ONE chosen
- * access key, so routing follows that key's gateway bindings. Concurrent
- * terminals can then use different keys (hence different upstreams) at once.
- * The redirect rides `-c` overrides reusing the INSTALLED provider name
- * (`omnicross`) plus a `--key-id`-scoped auth command; no secret ever enters the
- * spawned env (Codex invokes the helper itself).
+ * KEY-SCOPED LAUNCH (`{ keyId }` body, codex + claude): instead of a route
+ * lease, the terminal's CLI authenticates to the RESIDENT outbound gateway as
+ * ONE chosen access key, so routing follows that key's gateway bindings.
+ * Concurrent terminals can then use different keys (hence different upstreams)
+ * at once. Codex redirects via `-c` overrides reusing the INSTALLED provider
+ * name (`omnicross`) plus a `--key-id`-scoped auth command — no secret enters
+ * the spawned env (Codex invokes the helper itself). Claude Code redirects via
+ * env (`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`), the only per-launch
+ * channel it offers.
+ *
+ * ROUTE-SCOPED LAUNCH (`{ bindingId }` body, codex + claude): pick a
+ * downstream ROUTE by id; the daemon picks an eligible key that can enter it
+ * (or honors an explicit `keyId`) and adds `x-omnicross-binding-id` to the
+ * client's request headers (Codex provider `http_headers`; Claude Code
+ * `ANTHROPIC_CUSTOM_HEADERS`, ≥ v2.1.227), so the gateway serves that terminal
+ * from exactly the chosen route instead of the key's priority-ordered
+ * candidates.
  *
  * @module @omnicross/daemon/admin/cliLaunch
  */
@@ -49,13 +59,16 @@ import {
 } from '@omnicross/core/provider-proxy';
 import {
   candidateGatewayBindings,
-  effectiveOutboundPermissions,
+  effectivePermissionsForRow,
+  GATEWAY_BINDING_PIN_HEADER,
   type GatewayBinding,
   type OutboundKeyDb,
+  type OutboundEndpoint,
   type OutboundPermission,
 } from '@omnicross/core/outbound-api';
 
 import type { CodexAuthHelperConfig } from '../integrations/codexAuthHelper';
+import { CLAUDE_API_KEY_SENTINEL } from '../integrations/configAdapters';
 import { startTerminalLeaseRenewal } from '../routeLeaseRenewal';
 
 
@@ -72,23 +85,87 @@ export const LAUNCHABLE_CLIS = [
 export type LaunchCliId = (typeof LAUNCHABLE_CLIS)[number]['id'];
 
 /**
+ * CLIs the dashboard tracks for INSTALL/UPGRADE only — no cli-launcher builder
+ * speaks their env contract yet, so the Launch button stays hidden for them.
+ */
+export const INSTALL_ONLY_CLIS = [
+  { id: 'grok', displayName: 'Grok Build', command: 'grok' },
+  { id: 'openclaw', displayName: 'OpenClaw', command: 'openclaw' },
+  { id: 'hermes', displayName: 'Hermes Agent', command: 'hermes' },
+  { id: 'pi', displayName: 'Pi Coding Agent', command: 'pi' },
+] as const;
+
+/** Every CLI the dashboard lists (launchable + install-only). */
+export const TRACKED_CLIS = [...LAUNCHABLE_CLIS, ...INSTALL_ONLY_CLIS] as const;
+
+export type TrackedCliId = (typeof TRACKED_CLIS)[number]['id'];
+
+/**
  * Per-CLI global install command (run on the daemon host). CLIs absent from this
  * map are manual-install only — the dashboard hides the Install button for them.
- * `Partial` keeps the absence meaningful even though every launchable CLI
- * currently has one.
+ * `Partial` keeps the absence meaningful even though every tracked CLI currently
+ * has one.
  */
-export const INSTALL_COMMANDS: Partial<Record<LaunchCliId, string>> = {
+export const INSTALL_COMMANDS: Partial<Record<TrackedCliId, string>> = {
   claude: 'npm install -g @anthropic-ai/claude-code',
   codex: 'npm install -g @openai/codex',
   gemini: 'npm install -g @google/gemini-cli',
   qwen: 'npm install -g @qwen-code/qwen-code',
   copilot: 'npm install -g @github/copilot',
   opencode: 'npm install -g opencode-ai',
+  grok: 'npm install -g @xai-official/grok',
+  openclaw: 'npm install -g openclaw',
+  // Hermes has no npm package — its vendor installer is a PowerShell script
+  // (stored decoded: `irm <url> | iex`), so this entry is Windows-only.
+  hermes: 'powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex"',
+  pi: 'npm install -g @earendil-works/pi-coding-agent',
 };
+
+/** Install commands that only exist for Windows hosts (no POSIX equivalent). */
+const WINDOWS_ONLY_INSTALLS = new Set<string>(['hermes']);
 
 const LAUNCHABLE_IDS = new Set<string>(LAUNCHABLE_CLIS.map((c) => c.id));
 export function isLaunchCliId(id: string | undefined): id is LaunchCliId {
   return id !== undefined && LAUNCHABLE_IDS.has(id);
+}
+
+const TRACKED_IDS = new Set<string>(TRACKED_CLIS.map((c) => c.id));
+export function isTrackedCliId(id: string | undefined): id is TrackedCliId {
+  return id !== undefined && TRACKED_IDS.has(id);
+}
+
+/** The install command for this CLI on this platform, or null (manual only). */
+export function installCommandFor(
+  cli: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  const cmd = INSTALL_COMMANDS[cli as TrackedCliId];
+  if (!cmd) return null;
+  if (WINDOWS_ONLY_INSTALLS.has(cli) && platform !== 'win32') return null;
+  return cmd;
+}
+
+/** The npm package name behind a CLI's install command, or null (non-npm). */
+export function npmPackageFor(cli: string): string | null {
+  const cmd = INSTALL_COMMANDS[cli as TrackedCliId];
+  if (!cmd || !cmd.startsWith('npm ')) return null;
+  const token = cmd.split(/\s+/).pop();
+  // Filter the fixed verb flags, keeping only the package operand.
+  return token && !token.startsWith('-') ? token : null;
+}
+
+/**
+ * The upgrade command: npm-installed CLIs pin `@latest`; script installers are
+ * simply re-run (Hermes' installer refreshes in place).
+ */
+export function upgradeCommandFor(
+  cli: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  const install = installCommandFor(cli, platform);
+  if (!install) return null;
+  const pkg = npmPackageFor(cli);
+  return pkg ? `npm install -g ${pkg}@latest` : install;
 }
 
 /** Injectable PATH probe (tests stub this; default scans `process.env.PATH`). */
@@ -117,24 +194,27 @@ export function isCliInstalled(
 
 /** One row of the CLI availability list. */
 export interface CliStatus {
-  id: LaunchCliId;
+  id: TrackedCliId;
   displayName: string;
   command: string;
   installed: boolean;
   /** Has a known global install command (dashboard shows an Install button). */
   installable: boolean;
+  /** Has a cli-launcher builder (dashboard shows a Launch button). */
+  launchable: boolean;
 }
 
 export function detectClis(
   platform: NodeJS.Platform = process.platform,
   probe: PathProbe = probeDefault,
 ): CliStatus[] {
-  return LAUNCHABLE_CLIS.map((c) => ({
+  return TRACKED_CLIS.map((c) => ({
     id: c.id,
     displayName: c.displayName,
     command: c.command,
     installed: isCliInstalled(c.command, platform, probe),
-    installable: Boolean(INSTALL_COMMANDS[c.id]),
+    installable: installCommandFor(c.id, platform) !== null,
+    launchable: isLaunchCliId(c.id),
   }));
 }
 
@@ -176,7 +256,7 @@ function firstModel(p: ProviderRowLike): string | undefined {
   return p.models?.[0] ?? p.modelConfigs?.[0]?.id;
 }
 
-// ── Key-scoped Codex launch (gateway-key routing) ────────────────────────────
+// ── Key-scoped terminal launches (gateway-key routing) ───────────────────────
 
 /**
  * cmd.exe metacharacters that would be re-interpreted inside the `cmd /k` line
@@ -187,8 +267,26 @@ function firstModel(p: ProviderRowLike): string | undefined {
  */
 const CMD_METACHAR_RE = /[&|<>^%]/;
 
-/** Endpoint permissions a key must hold to power a Codex terminal. */
-const KEY_SCOPED_CODEX_PERMISSIONS: readonly OutboundPermission[] = ['responses', 'images'];
+/** Terminal CLIs that can authenticate to the gateway as ONE access key. */
+export type KeyScopedClient = 'codex' | 'claude';
+
+/** Is this launchable CLI one of the key-scoped clients? */
+export function isKeyScopedClient(cli: LaunchCliId): cli is KeyScopedClient {
+  return cli === 'codex' || cli === 'claude';
+}
+
+/**
+ * Per-client key-scoped contract: the gateway endpoint the terminal speaks and
+ * the endpoint permissions its key must hold (Codex also generates images, so
+ * it needs `images` on top of `responses`; Claude Code only needs `messages`).
+ */
+const KEY_SCOPED_CONTRACT: Record<
+  KeyScopedClient,
+  { endpoint: OutboundEndpoint; permissions: readonly OutboundPermission[] }
+> = {
+  codex: { endpoint: 'responses', permissions: ['responses', 'images'] },
+  claude: { endpoint: 'messages', permissions: ['messages'] },
+};
 
 /** The deps the key-scoped branch needs beyond the lease-path context. */
 export interface KeyScopedLaunchDeps {
@@ -209,6 +307,12 @@ export interface KeyScopedCodexArgsInput {
   gatewayBaseUrl: string;
   authHelper: CodexAuthHelperConfig;
   keyId: string;
+  /**
+   * OPTIONAL downstream-route pin: every request this terminal sends carries
+   * `x-omnicross-binding-id`, and the gateway narrows the key's candidate
+   * routes to exactly that one. Absent keeps the key's normal routing.
+   */
+  bindingId?: string;
 }
 
 /**
@@ -227,13 +331,19 @@ export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[
   while (root.endsWith('/')) root = root.slice(0, -1);
   const name = CODEX_PROXY_PROVIDER_NAME;
   const helperArgs = [...input.authHelper.args, '--key-id', input.keyId];
+  // The static provider headers ride EVERY codex request. A route-pinned launch
+  // adds the binding pin alongside the actor marker so the gateway serves this
+  // terminal from exactly the chosen downstream route.
+  const httpHeaders = input.bindingId
+    ? `{"X-OpenAI-Actor-Authorization"="omnicross","${GATEWAY_BINDING_PIN_HEADER}"="${input.bindingId}"}`
+    : '{"X-OpenAI-Actor-Authorization"="omnicross"}';
   return [
     '-c', `model_provider="${name}"`,
     '-c', `model_providers.${name}.name="OmniCross Local Gateway"`,
     '-c', `model_providers.${name}.base_url="${root}/v1"`,
     '-c', `model_providers.${name}.wire_api="responses"`,
     '-c', `model_providers.${name}.supports_websockets=false`,
-    '-c', `model_providers.${name}.http_headers={"X-OpenAI-Actor-Authorization"="omnicross"}`,
+    '-c', `model_providers.${name}.http_headers=${httpHeaders}`,
     '-c', `model_providers.${name}.auth.command=${JSON.stringify(input.authHelper.command)}`,
     '-c', `model_providers.${name}.auth.args=${JSON.stringify(helperArgs)}`,
     '-c', `model_providers.${name}.auth.refresh_interval_ms=0`,
@@ -242,24 +352,111 @@ export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[
   ];
 }
 
-/** Preflight outcome for the chosen gateway key. */
+/**
+ * The env a key-scoped Claude Code terminal needs: point Claude Code at the
+ * RESIDENT outbound gateway and authenticate it as the chosen access key, so
+ * routing follows that key's bindings. Unlike Codex — whose auth-command
+ * helper fetches the token at CLI start — Claude Code has no per-launch
+ * helper hook, so the key plaintext rides the spawned terminal's environment
+ * (the same channel the lease path's route token already uses); the launch
+ * RESPONSE and session rows stay secret-free either way.
+ *
+ * `ANTHROPIC_API_KEY` carries the install sentinel (an empty value would let
+ * Claude Code fall back to its OAuth login state). A pinned launch adds
+ * `ANTHROPIC_CUSTOM_HEADERS` (`Name: Value`, newline-separated — Claude Code
+ * ≥ v2.1.227) carrying the gateway route pin.
+ */
+export function buildKeyScopedClaudeEnv(input: {
+  gatewayBaseUrl: string;
+  secret: string;
+  bindingId?: string;
+}): Record<string, string> {
+  let root = input.gatewayBaseUrl;
+  while (root.endsWith('/')) root = root.slice(0, -1);
+  const env: Record<string, string> = {
+    ANTHROPIC_BASE_URL: root,
+    ANTHROPIC_AUTH_TOKEN: input.secret,
+    ANTHROPIC_API_KEY: CLAUDE_API_KEY_SENTINEL,
+  };
+  if (input.bindingId) {
+    env['ANTHROPIC_CUSTOM_HEADERS'] = `${GATEWAY_BINDING_PIN_HEADER}: ${input.bindingId}`;
+  }
+  return env;
+}
+
+/** Preflight outcome for the chosen gateway key (optionally route-pinned). */
 export type KeyScopedPreflight =
-  | { ok: true; keyName: string }
+  | {
+      ok: true;
+      keyId: string;
+      keyName: string;
+      bindingId?: string;
+      bindingName?: string;
+      /**
+       * The revealed key plaintext. Codex discards it (its auth-command helper
+       * re-reveals at CLI start); Claude Code's env carries it — it never
+       * leaves this launch path (response + session rows stay secret-free).
+       */
+      secret: string;
+    }
   | { ok: false; status: number; message: string };
+
+/**
+ * Is this stored key row eligible to power a key-scoped terminal? Exists,
+ * enabled, not revoked, revealable, and holding the client-required endpoint
+ * permissions. Returns an error message instead of the row when NOT eligible.
+ */
+async function keyScopedEligibilityError(
+  deps: KeyScopedLaunchDeps,
+  row: { id: string; name: string; enabled: boolean; revokedAt: number | null; kind?: 'client' | 'integration'; allowedEndpoints?: OutboundPermission[] },
+  client: KeyScopedClient,
+): Promise<string | null> {
+  if (!row.enabled || row.revokedAt !== null) {
+    return `access key '${row.name}' is disabled or revoked`;
+  }
+  const secret = await deps.keyDb.outboundApiKeysReveal(row.id);
+  if (!secret) {
+    return `access key '${row.name}' is not revealable`;
+  }
+  // Client keys hold every permission by kind; only integration keys scope.
+  const allowed = effectivePermissionsForRow(row);
+  for (const permission of KEY_SCOPED_CONTRACT[client].permissions) {
+    if (!allowed.includes(permission)) {
+      return `access key '${row.name}' lacks the '${permission}' endpoint permission ${client} requires`;
+    }
+  }
+  return null;
+}
+
+/**
+ * The bindings that serve one key row — the mirror of the wire layer's
+ * UPSTREAM ROUTING MODEL rule: a key carrying an `upstreamBinding` is served
+ * ONLY by its derived (`keyup:<id>:*`) bindings, never by legacy stored
+ * routes. Keeps the launch preflight and the gateway from disagreeing.
+ */
+function bindingsServingKey(
+  bindings: readonly GatewayBinding[],
+  row: { id: string; upstreamBinding?: unknown },
+): readonly GatewayBinding[] {
+  if (!row.upstreamBinding) return bindings;
+  const prefix = `keyup:${row.id}:`;
+  return bindings.filter((binding) => binding.id.startsWith(prefix));
+}
 
 /**
  * Fail-fast checks for a key-scoped launch, so a misconfigured key surfaces as
  * a clear admin error instead of a terminal that 401s/404s on its first
- * request: gateway running; key exists, enabled, not revoked, revealable (the
- * helper re-reveals at CLI start — the plaintext is discarded here);
- * codex-required endpoint permissions; at least one enabled `responses`
- * binding scoped to the key (that binding is what routes this terminal's
- * upstream).
+ * request: gateway running; key exists, enabled, not revoked, revealable;
+ * client-required endpoint permissions; at least one enabled binding on the
+ * client's endpoint scoped to the key (that binding is what routes this
+ * terminal's upstream).
  */
 export async function preflightKeyScopedLaunch(
   deps: KeyScopedLaunchDeps,
   keyId: string,
+  client: KeyScopedClient,
 ): Promise<KeyScopedPreflight> {
+  const { endpoint } = KEY_SCOPED_CONTRACT[client];
   if (!deps.gatewayRunning) {
     return {
       ok: false,
@@ -270,33 +467,107 @@ export async function preflightKeyScopedLaunch(
   const rows = await deps.keyDb.outboundApiKeysList();
   const row = rows.find((candidate) => candidate.id === keyId);
   if (!row) return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
-  if (!row.enabled || row.revokedAt !== null) {
-    return { ok: false, status: 400, message: `access key '${row.name}' is disabled or revoked` };
-  }
-  const secret = await deps.keyDb.outboundApiKeysReveal(keyId);
-  if (!secret) {
-    return { ok: false, status: 400, message: `access key '${row.name}' is not revealable` };
-  }
-  const allowed = effectiveOutboundPermissions(row.allowedEndpoints);
-  for (const permission of KEY_SCOPED_CODEX_PERMISSIONS) {
-    if (!allowed.includes(permission)) {
-      return {
-        ok: false,
-        status: 400,
-        message: `access key '${row.name}' lacks the '${permission}' endpoint permission Codex requires`,
-      };
-    }
-  }
-  if (candidateGatewayBindings(deps.bindings, keyId, 'responses').length === 0) {
+  const eligibilityError = await keyScopedEligibilityError(deps, row, client);
+  if (eligibilityError) return { ok: false, status: 400, message: eligibilityError };
+  if (candidateGatewayBindings(bindingsServingKey(deps.bindings, row), keyId, endpoint).length === 0) {
     return {
       ok: false,
       status: 400,
       message:
-        `access key '${row.name}' has no enabled responses route — bind it to a downstream route ` +
+        `access key '${row.name}' has no enabled ${endpoint} route — bind it to a downstream route ` +
         'on the API Service page first',
     };
   }
-  return { ok: true, keyName: row.name };
+  const secret = await deps.keyDb.outboundApiKeysReveal(keyId);
+  return { ok: true, keyId, keyName: row.name, secret: secret ?? '' };
+}
+
+/**
+ * Fail-fast checks for a ROUTE-scoped launch (`{ bindingId }`): the terminal
+ * authenticates as an eligible gateway key (explicit `keyId`, or the first
+ * eligible key the route admits) and pins the chosen downstream route via
+ * `x-omnicross-binding-id`, so that exact route — not the key's
+ * priority-ordered candidates — serves the terminal. Binding ids are embedded
+ * in TOML/argv `-c` overrides and env values, so only a conservative id
+ * charset is accepted.
+ */
+const BINDING_ID_CHARSET_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+
+export async function preflightBindingScopedLaunch(
+  deps: KeyScopedLaunchDeps,
+  bindingId: string,
+  keyId: string | undefined,
+  client: KeyScopedClient,
+): Promise<KeyScopedPreflight> {
+  const { endpoint, permissions } = KEY_SCOPED_CONTRACT[client];
+  if (!deps.gatewayRunning) {
+    return {
+      ok: false,
+      status: 409,
+      message: 'the outbound gateway is not running — route-scoped launches route through it',
+    };
+  }
+  if (!BINDING_ID_CHARSET_RE.test(bindingId)) {
+    return {
+      ok: false,
+      status: 400,
+      message: 'route id contains characters that cannot be passed through a terminal launch',
+    };
+  }
+  const binding = deps.bindings.find((candidate) => candidate.id === bindingId);
+  if (!binding) {
+    return { ok: false, status: 404, message: `downstream route '${bindingId}' does not exist` };
+  }
+  if (!binding.enabled || binding.endpoint !== endpoint) {
+    return {
+      ok: false,
+      status: 400,
+      message: `downstream route '${binding.name}' is disabled or does not serve the ${endpoint} endpoint`,
+    };
+  }
+  const rows = await deps.keyDb.outboundApiKeysList();
+  const candidates = keyId
+    ? rows.filter((row) => row.id === keyId)
+    : rows;
+  if (keyId && candidates.length === 0) {
+    return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
+  }
+  // First eligible key the pinned route admits. Eligibility mirrors the
+  // key-scoped contract; admission is decided by the gateway's own candidate
+  // filter with the pin applied (never widens a key's routing).
+  for (const row of candidates) {
+    const eligibilityError = await keyScopedEligibilityError(deps, row, client);
+    if (eligibilityError) {
+      if (keyId) return { ok: false, status: 400, message: eligibilityError };
+      continue;
+    }
+    if (candidateGatewayBindings(bindingsServingKey(deps.bindings, row), row.id, endpoint, bindingId).length === 0) {
+      if (keyId) {
+        return {
+          ok: false,
+          status: 400,
+          message: `access key '${row.name}' cannot enter downstream route '${binding.name}'`,
+        };
+      }
+      continue;
+    }
+    const secret = await deps.keyDb.outboundApiKeysReveal(row.id);
+    return {
+      ok: true,
+      keyId: row.id,
+      keyName: row.name,
+      bindingId,
+      bindingName: binding.name,
+      secret: secret ?? '',
+    };
+  }
+  return {
+    ok: false,
+    status: 400,
+    message:
+      `downstream route '${binding.name}' has no eligible gateway key — an enabled, revealable key ` +
+      `with the ${permissions.join('+')} permissions must be able to enter it (bind one on the API Service page)`,
+  };
 }
 
 /** Dispatch to the matching cli-launcher builder (registers the resident route). */
@@ -552,6 +823,12 @@ interface CliSession {
    */
   keyId?: string;
   keyName?: string;
+  /**
+   * Route-pinned rows: the downstream route this terminal pinned via
+   * `x-omnicross-binding-id` (codex only). Absent on plain key-scoped rows.
+   */
+  bindingId?: string;
+  bindingName?: string;
   leaseId?: string;
   startedAt: string;
   onSessionEnd: () => void;
@@ -597,15 +874,16 @@ const defaultCommandRunner: CommandRunner = (command) =>
 
 /**
  * POST /cli/:cli/install → run the CLI's global install command on the daemon
- * host (npm/curl). STATUS-ONLY `{ ok: true }` on success; a 400 when the CLI has
- * no known install command, a 500 (with the failure reason) when the command
- * fails. No secret is involved — this is a plain package-manager invocation.
+ * host (npm/PowerShell). STATUS-ONLY `{ ok: true }` on success; a 400 when the
+ * CLI has no known install command, a 500 (with the failure reason) when the
+ * command fails. No secret is involved — this is a plain package-manager
+ * invocation.
  */
 export async function handleCliInstall(
-  cli: LaunchCliId,
+  cli: TrackedCliId,
   runner: CommandRunner = defaultCommandRunner,
 ): Promise<CliHandlerResult> {
-  const cmd = INSTALL_COMMANDS[cli];
+  const cmd = installCommandFor(cli);
   if (!cmd) {
     return { status: 400, body: errBody(`no install command for cli '${cli}' (manual install only)`) };
   }
@@ -614,6 +892,141 @@ export async function handleCliInstall(
     return { status: 500, body: errBody(result.error || 'install failed') };
   }
   return { status: 200, body: { ok: true } };
+}
+
+// ── Version detection + upgrade (dashboard parity) ────────────────────────────
+
+/**
+ * Injectable command runner for the version probes (`<cli> --version`,
+ * `npm view <pkg> version`). Returns the command's stdout on success — version
+ * parsing happens in ONE place (`parseCliVersion`/`firstNonEmptyLine`).
+ */
+export type VersionRunner = (command: string) => Promise<{ ok: boolean; output?: string; error?: string }>;
+
+const defaultVersionRunner: VersionRunner = (command) =>
+  new Promise((resolve) => {
+    exec(command, { timeout: 20_000, maxBuffer: 64 * 1024 }, (err, stdout, stderr) => {
+      if (err) resolve({ ok: false, error: stderr.trim() || err.message });
+      else resolve({ ok: true, output: stdout });
+    });
+  });
+
+/**
+ * First semver-looking token in a `--version` output: the first line wins
+ * (every tracked CLI prints its version there), the rest of the output is a
+ * fallback for multi-line shapes. A leading `v` is left out of the match.
+ */
+const SEMVER_RE = /\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?/;
+
+export function parseCliVersion(output: string): string | null {
+  const text = output.trim();
+  if (!text) return null;
+  const firstLine = text.split(/\r?\n/)[0] ?? '';
+  const fromFirstLine = firstLine.match(SEMVER_RE);
+  if (fromFirstLine) return fromFirstLine[0];
+  const anywhere = text.match(SEMVER_RE);
+  return anywhere ? anywhere[0] : null;
+}
+
+function firstNonEmptyLine(output: string): string | null {
+  const line = output.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+  return line ?? null;
+}
+
+/** Version probe outcome for ONE CLI (each field is best-effort/absent). */
+export interface CliVersionStatus {
+  /** Version reported by the installed binary (`--version`). */
+  installed?: string;
+  /** Latest release on the npm registry (npm-installed CLIs only). */
+  latest?: string;
+}
+
+/** `npm view` prints the version bare; `--json` quoting is tolerated. */
+function parseRegistryVersion(output: string): string | null {
+  const line = firstNonEmptyLine(output);
+  if (!line) return null;
+  return line.replace(/^"|"$/g, '') || null;
+}
+
+/**
+ * Probe versions for every INSTALLED tracked CLI: the binary's own `--version`
+ * plus (npm CLIs) the registry's latest, so the dashboard can show "current →
+ * latest" and offer Upgrade. Not-installed CLIs are simply absent from the map;
+ * failed probes leave their field out rather than failing the whole call.
+ */
+export async function detectCliVersions(
+  platform: NodeJS.Platform = process.platform,
+  probe: PathProbe = probeDefault,
+  runner: VersionRunner = defaultVersionRunner,
+): Promise<Record<string, CliVersionStatus>> {
+  const settled = await Promise.all(TRACKED_CLIS.map(async (cli) => {
+    if (!isCliInstalled(cli.command, platform, probe)) return null;
+    const status: CliVersionStatus = {};
+    await Promise.all([
+      runner(`${cli.command} --version`)
+        .then((r) => {
+          const parsed = r.ok ? parseCliVersion(r.output ?? '') : null;
+          if (parsed) status.installed = parsed;
+        })
+        .catch(() => {}),
+      (async () => {
+        const pkg = npmPackageFor(cli.id);
+        if (!pkg) return;
+        try {
+          const r = await runner(`npm view ${pkg} version`);
+          const parsed = r.ok ? parseRegistryVersion(r.output ?? '') : null;
+          if (parsed) status.latest = parsed;
+        } catch {
+          /* offline / registry unreachable — latest stays unknown */
+        }
+      })(),
+    ]);
+    return [cli.id, status] as const;
+  }));
+  const versions: Record<string, CliVersionStatus> = {};
+  for (const entry of settled) {
+    if (entry) versions[entry[0]] = entry[1];
+  }
+  return versions;
+}
+
+/** GET /cli/versions → installed + npm-latest versions for the installed CLIs. */
+export async function handleCliVersions(
+  platform: NodeJS.Platform = process.platform,
+  probe: PathProbe = probeDefault,
+  runner: VersionRunner = defaultVersionRunner,
+): Promise<CliHandlerResult> {
+  return { status: 200, body: { versions: await detectCliVersions(platform, probe, runner) } };
+}
+
+/**
+ * POST /cli/:cli/upgrade → re-install at latest on the daemon host (npm CLIs
+ * pin `@latest`; script installers re-run their script). STATUS-ONLY `{ ok: true,
+ * version? }` — the version is re-probed so the dashboard can confirm the landed
+ * release; a probe failure still reports a successful upgrade without one.
+ */
+export async function handleCliUpgrade(
+  cli: TrackedCliId,
+  runner: CommandRunner = defaultCommandRunner,
+  versionRunner: VersionRunner = defaultVersionRunner,
+): Promise<CliHandlerResult> {
+  const cmd = upgradeCommandFor(cli);
+  if (!cmd) {
+    return { status: 400, body: errBody(`no install command for cli '${cli}' (manual install only)`) };
+  }
+  const result = await runner(cmd);
+  if (!result.ok) {
+    return { status: 500, body: errBody(result.error || 'upgrade failed') };
+  }
+  let version: string | undefined;
+  try {
+    const probed = await versionRunner(`${TRACKED_CLIS.find((c) => c.id === cli)!.command} --version`);
+    const parsed = probed.ok ? parseCliVersion(probed.output ?? '') : null;
+    if (parsed) version = parsed;
+  } catch {
+    /* best-effort confirmation only */
+  }
+  return { status: 200, body: { ok: true, ...(version ? { version } : {}) } };
 }
 
 /** GET /cli → the per-CLI availability list. */
@@ -664,71 +1077,107 @@ interface LaunchMaterial {
 
 
 /**
- * POST /cli/:cli/launch { providerId?, model?, cwd?, keyId? } → register the
- * resident route (or, with `keyId`, skip the lease and authenticate the
- * terminal's Codex to the gateway as the chosen key), open a terminal with the
- * redirect env, track the session. STATUS-ONLY: the response carries the
- * sessionId + resolved provider/model (or key id/name) — NEVER the route token
- * or the key plaintext (the token rides only the spawned terminal's
- * environment; the key never even does that — Codex's auth helper fetches it).
+ * POST /cli/:cli/launch { providerId?, model?, cwd?, keyId?, bindingId? } →
+ * register the resident route (or, with `keyId`/`bindingId`, skip the lease and
+ * authenticate the terminal's Codex to the gateway as the chosen key — pinned
+ * to the chosen downstream route when `bindingId` is set), open a terminal with
+ * the redirect env, track the session. STATUS-ONLY: the response carries the
+ * sessionId + resolved provider/model (or key id/name + route id/name) — NEVER
+ * the route token or the key plaintext (the token rides only the spawned
+ * terminal's environment; the key never even does that — Codex's auth helper
+ * fetches it).
  */
 export async function handleCliLaunch(
-  cli: LaunchCliId,
+  cli: TrackedCliId,
   body: Record<string, unknown>,
   ctx: CliLaunchContext,
 ): Promise<CliHandlerResult> {
   const platform = ctx.platform ?? process.platform;
   const probe = ctx.probe ?? probeDefault;
   const meta = LAUNCHABLE_CLIS.find((c) => c.id === cli);
-  if (!meta) return { status: 404, body: errBody(`unknown cli '${cli}'`) };
+  if (!meta) {
+    // A tracked-but-not-launchable CLI deserves better than "unknown".
+    if (isTrackedCliId(cli)) {
+      return { status: 400, body: errBody(`'${cli}' is install-only — the dashboard cannot launch it in a terminal yet`) };
+    }
+    return { status: 404, body: errBody(`unknown cli '${cli}'`) };
+  }
+  // `cli` is now known launchable — the narrowed id types the builder calls below.
+  const launchCli: LaunchCliId = meta.id;
   if (!isCliInstalled(meta.command, platform, probe)) {
     return { status: 400, body: errBody(`"${meta.command}" is not installed (not found on PATH)`) };
   }
 
   const keyId = typeof body['keyId'] === 'string' && body['keyId'].trim() ? body['keyId'].trim() : undefined;
+  const bindingId = typeof body['bindingId'] === 'string' && body['bindingId'].trim()
+    ? body['bindingId'].trim()
+    : undefined;
 
   let target: LaunchTarget | undefined;
-  let keyLaunch: { keyId: string; keyName: string } | undefined;
+  let keyLaunch: { keyId: string; keyName: string; bindingId?: string; bindingName?: string } | undefined;
   const id = randomUUID();
   let leaseId: string | undefined;
   let launch: LaunchMaterial;
-  if (keyId) {
-    if (cli !== 'codex') {
-      return { status: 400, body: errBody('key-scoped launch is only supported for codex') };
+  if (keyId || bindingId) {
+    if (!isKeyScopedClient(launchCli)) {
+      return { status: 400, body: errBody('key-scoped launch is only supported for codex and claude') };
     }
     const deps = ctx.keyScoped;
     if (!deps) {
       return { status: 501, body: errBody('key-scoped launch is not available in this build') };
     }
-    const preflight = await preflightKeyScopedLaunch(deps, keyId);
+    const preflight = bindingId
+      ? await preflightBindingScopedLaunch(deps, bindingId, keyId, launchCli)
+      : await preflightKeyScopedLaunch(deps, keyId!, launchCli);
     if (!preflight.ok) return { status: preflight.status, body: errBody(preflight.message) };
-    if (platform === 'win32') {
-      // The auth-helper invocation rides argv through the terminal opener's
-      // `cmd /k` line on win32 — refuse metacharacter-bearing PATHs up front
-      // instead of letting cmd.exe silently corrupt the override.
-      const unsafe = [deps.codexAuthHelper.command, ...deps.codexAuthHelper.args]
-        .filter((value) => CMD_METACHAR_RE.test(value));
-      if (unsafe.length > 0) {
-        return {
-          status: 400,
-          body: errBody(
-            'the Codex auth-helper path contains cmd.exe metacharacters and cannot be ' +
-            'passed through a Windows terminal launch',
-          ),
-        };
+    if (cli === 'codex') {
+      if (platform === 'win32') {
+        // The auth-helper invocation rides argv through the terminal opener's
+        // `cmd /k` line on win32 — refuse metacharacter-bearing PATHs up front
+        // instead of letting cmd.exe silently corrupt the override.
+        const unsafe = [deps.codexAuthHelper.command, ...deps.codexAuthHelper.args]
+          .filter((value) => CMD_METACHAR_RE.test(value));
+        if (unsafe.length > 0) {
+          return {
+            status: 400,
+            body: errBody(
+              'the Codex auth-helper path contains cmd.exe metacharacters and cannot be ' +
+              'passed through a Windows terminal launch',
+            ),
+          };
+        }
       }
+      // Codex keeps its secret OUT of the spawned env — the auth-command
+      // helper re-reveals it at CLI start.
+      launch = {
+        env: {},
+        extraArgs: buildKeyScopedCodexArgs({
+          gatewayBaseUrl: deps.gatewayBaseUrl,
+          authHelper: deps.codexAuthHelper,
+          keyId: preflight.keyId,
+          ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
+        }),
+        // No route or lease exists to release — the gateway key outlives the
+        // terminal and its bindings route every request.
+        onSessionEnd: () => {},
+      };
+    } else {
+      // Claude Code has no per-launch helper hook, so its key rides the env
+      // (see buildKeyScopedClaudeEnv).
+      launch = {
+        env: buildKeyScopedClaudeEnv({
+          gatewayBaseUrl: deps.gatewayBaseUrl,
+          secret: preflight.secret,
+          ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
+        }),
+        onSessionEnd: () => {},
+      };
     }
-    keyLaunch = { keyId, keyName: preflight.keyName };
-    launch = {
-      env: {},
-      extraArgs: buildKeyScopedCodexArgs({
-        gatewayBaseUrl: deps.gatewayBaseUrl,
-        authHelper: deps.codexAuthHelper,
-        keyId,
-      }),
-      // No route or lease exists to release — the gateway key outlives the
-      // terminal and its bindings route every request.
-      onSessionEnd: () => {},
+    keyLaunch = {
+      keyId: preflight.keyId,
+      keyName: preflight.keyName,
+      ...(preflight.bindingId ? { bindingId: preflight.bindingId } : {}),
+      ...(preflight.bindingName ? { bindingName: preflight.bindingName } : {}),
     };
   } else {
     let resolved: LaunchTarget;
@@ -762,7 +1211,7 @@ export async function handleCliLaunch(
           },
         };
       } else {
-        launch = await buildLaunchEnv(cli, ctx.llmConfig, resolved);
+        launch = await buildLaunchEnv(launchCli, ctx.llmConfig, resolved);
       }
     } catch (err) {
       const status = err instanceof RouteLeaseError ? err.status : 400;
@@ -807,10 +1256,17 @@ export async function handleCliLaunch(
 
   sessions.set(id, {
     id,
-    cli,
+    cli: launchCli,
     providerId: target?.providerId ?? '',
     model: target?.model ?? '',
-    ...(keyLaunch ? { keyId: keyLaunch.keyId, keyName: keyLaunch.keyName } : {}),
+    ...(keyLaunch
+      ? {
+          keyId: keyLaunch.keyId,
+          keyName: keyLaunch.keyName,
+          ...(keyLaunch.bindingId ? { bindingId: keyLaunch.bindingId } : {}),
+          ...(keyLaunch.bindingName ? { bindingName: keyLaunch.bindingName } : {}),
+        }
+      : {}),
     ...(leaseId ? { leaseId } : {}),
     startedAt: new Date().toISOString(),
     onSessionEnd,
@@ -820,7 +1276,13 @@ export async function handleCliLaunch(
   return {
     status: 200,
     body: keyLaunch
-      ? { sessionId: id, keyId: keyLaunch.keyId, keyName: keyLaunch.keyName }
+      ? {
+          sessionId: id,
+          keyId: keyLaunch.keyId,
+          keyName: keyLaunch.keyName,
+          ...(keyLaunch.bindingId ? { bindingId: keyLaunch.bindingId } : {}),
+          ...(keyLaunch.bindingName ? { bindingName: keyLaunch.bindingName } : {}),
+        }
       : { sessionId: id, providerId: target?.providerId, model: target?.model },
   };
 }

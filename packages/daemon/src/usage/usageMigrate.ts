@@ -38,6 +38,7 @@ import type { Logger } from '@omnicross/core';
 
 import {
   usageDayKey,
+  usageRawShardName,
   usageRollupName,
   usageShardName,
   USAGE_MIGRATING_DIR,
@@ -125,6 +126,9 @@ export async function migrateLegacyUsageEvents(opts: {
   await mkdir(scratch, { recursive: true });
 
   const writers = new Map<string, DayWriter>();
+  // Per-day `usage-*.raw.jsonl` sidecar writers (usage-raw): the forensic
+  // rawUsage blob moves OUT of the lean shard line during the same pass.
+  const rawWriters = new Map<string, DayWriter>();
   const rollups = new Map<string, DayRollupAccumulator>();
   let linesRead = 0;
   let rowsWritten = 0;
@@ -156,19 +160,36 @@ export async function migrateLegacyUsageEvents(opts: {
       }
       // Re-serialise rather than echoing the source line: what lands in the
       // shard is then exactly what the guard accepted, so a query can never see
-      // a row the reconciliation counted differently.
-      await writeLine(writer, JSON.stringify(row) + '\n');
+      // a row the reconciliation counted differently. The rawUsage blob rides
+      // the day's raw sidecar keyed by the row id (usage-raw) — it is forensic
+      // payload, and no query ever parses it.
+      const { rawUsage, ...leanRow } = row;
+      await writeLine(writer, JSON.stringify(leanRow) + '\n');
+      if (typeof rawUsage === 'string' && rawUsage.length > 0) {
+        let rawWriter = rawWriters.get(dayKey);
+        if (!rawWriter) {
+          rawWriter = {
+            handle: await open(join(scratch, usageRawShardName(dayKey)), 'a'),
+            buffer: [],
+            bytes: 0,
+          };
+          rawWriters.set(dayKey, rawWriter);
+        }
+        await writeLine(rawWriter, JSON.stringify({ id: row.id, rawUsage }) + '\n');
+      }
       rollups.get(dayKey)?.add(row);
       rowsWritten += 1;
     }
   } catch (error) {
     await closeAll(writers);
+    await closeAll(rawWriters);
     await rm(scratch, { recursive: true, force: true }).catch(() => {});
     const reason = `read failed: ${error instanceof Error ? error.message : String(error)}`;
     logger?.error('[usage] migration aborted; legacy file left untouched', error, { reason });
     return { ...IDLE, reason };
   }
   await closeAll(writers);
+  await closeAll(rawWriters);
 
   if (rowsWritten + skipped !== linesRead) {
     await rm(scratch, { recursive: true, force: true }).catch(() => {});

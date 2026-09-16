@@ -43,10 +43,9 @@ async function serverConfig(harness: DaemonImageE2eHarness): Promise<OutboundApi
 }
 
 describe('daemon Images boot, hot reload, restart, and reset E2E', () => {
-  it('starts default-disabled, applies exact permissions, and rolls publication back atomically', async () => {
+  it('starts default-disabled and rolls publication back atomically', async () => {
     const harness = await createDaemonImageE2eHarness({}, {
       imagesEnabled: false,
-      permissions: null,
     });
     harnesses.push(harness);
 
@@ -56,15 +55,8 @@ describe('daemon Images boot, hot reload, restart, and reset E2E', () => {
     expect(harness.daemon.openAIOperationRegistry.has('images.edit')).toBe(true);
     expect(harness.daemon.imageRuntimeManager.status().current.enabled).toBe(false);
 
-    const legacyDenied = await generate(harness);
-    expect(legacyDenied.status).toBe(403);
-    expect(harness.capture.starts).toBe(0);
-
-    expect((await harness.adminFetch(
-      'POST',
-      `/admin/api/keys/${encodeURIComponent(harness.keyId)}/permissions`,
-      { permissions: ['images'] },
-    )).status).toBe(200);
+    // A fresh client key holds every permission (the URL decides the
+    // endpoint), so the disabled runtime — not a permission gate — answers.
     const disabled = await generate(harness);
     expect(disabled.status).toBe(501);
     expect(await disabled.json()).toMatchObject({
@@ -106,13 +98,6 @@ describe('daemon Images boot, hot reload, restart, and reset E2E', () => {
     await expect.poll(() => harness.daemon.imageRuntimeManager.status().draining).toEqual([]);
     expect(harness.daemon.imageObservability.snapshot().configurationChanges).toHaveLength(auditCount);
     expect((await generate(harness)).status).toBe(200);
-
-    expect((await harness.adminFetch(
-      'POST',
-      `/admin/api/keys/${encodeURIComponent(harness.keyId)}/permissions`,
-      { permissions: [] },
-    )).status).toBe(200);
-    expect((await generate(harness)).status).toBe(403);
 
     const status = await harness.adminFetch('GET', '/admin/api/status');
     const serialized = `${status.text}\n${JSON.stringify(harness.daemon.imageObservability.snapshot())}`;

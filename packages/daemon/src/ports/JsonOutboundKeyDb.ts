@@ -22,6 +22,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import {
   validateOutboundPermissions,
   type GatewayBindingTarget,
+  type KeyUpstreamBinding,
   type OutboundKeyDb,
   type OutboundKeyDbRow,
   type OutboundKeyPolicy,
@@ -176,6 +177,23 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
       } else {
         row.boundUpstream = target;
         delete row.boundUpstreamProviderId;
+      }
+      return true;
+    });
+  }
+
+  async outboundApiKeysSetUpstreamBinding(
+    id: string,
+    binding: KeyUpstreamBinding | null,
+  ): Promise<boolean> {
+    return this.mutateRow(id, (row) => {
+      // Unlike the legacy setters this one writes REVOKED rows too — a deleted
+      // key's binding stays in place so a future un-delete would restore it,
+      // and derivation only serves live keys anyway.
+      if (binding === null) {
+        delete row.upstreamBinding;
+      } else {
+        row.upstreamBinding = binding;
       }
       return true;
     });

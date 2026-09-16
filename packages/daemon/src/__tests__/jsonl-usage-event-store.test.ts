@@ -11,7 +11,7 @@
  * would pass without testing anything.
  */
 
-import { appendFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,7 +19,7 @@ import type { UsageEventInput } from '@omnicross/contracts/usage-stats-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { JsonlUsageEventStore } from '../ports/JsonlUsageEventStore';
-import { usageDayKey, usageShardName } from '../usage/usageFiles';
+import { usageDayKey, usageRawShardName, usageShardName } from '../usage/usageFiles';
 
 let tmpDir: string;
 let eventsPath: string;
@@ -258,6 +258,50 @@ describe('JsonlUsageEventStore', () => {
         endTs: 999,
       });
       expect(none).toEqual({ totalUsd: 0, dailyUsd: 0, weeklyUsd: 0 });
+    });
+  });
+
+  describe('rawUsage sidecar routing (usage-raw)', () => {
+    const rawPathFor = (ts: number): string =>
+      join(tmpDir, 'usage', usageRawShardName(usageDayKey(ts)));
+    const linesOf = (path: string): string[] =>
+      readFileSync(path, 'utf8').split('\n').filter((l) => l.trim());
+
+    it('routes the forensic blob to the raw sidecar; the shard line stays lean', async () => {
+      const blob = JSON.stringify({ attribution: { items: { at_1: { input_tokens: 3 } } } });
+      const id = await store.insert(event({ ts: 100, rawUsage: blob }));
+      const shardLine = JSON.parse(linesOf(shardFor(100))[0]!) as Record<string, unknown>;
+      expect('rawUsage' in shardLine).toBe(false);
+      expect(shardLine['id']).toBe(id);
+      const rawLines = linesOf(rawPathFor(100));
+      expect(rawLines).toHaveLength(1);
+      expect(JSON.parse(rawLines[0]!)).toEqual({ id, rawUsage: blob });
+      // …and the lean row still aggregates like any other.
+      const totals = await store.getTotals({ startTs: 0, endTs: 1000 });
+      expect(totals.eventCount).toBe(1);
+      expect(totals.inputTokens).toBe(10);
+    });
+
+    it('writes no raw sidecar for null or empty blobs', async () => {
+      await store.insert(event({ ts: 100, rawUsage: null }));
+      await store.insert(event({ ts: 100, rawUsage: '' }));
+      expect(linesOf(shardFor(100))).toHaveLength(2);
+      expect(existsSync(rawPathFor(100))).toBe(false);
+    });
+
+    it('still parses historical rows with INLINE rawUsage', async () => {
+      await store.insert(event({ ts: 50 })); // creates the day's shard
+      const legacy: UsageEventInput & { id: string; ts: number } = {
+        ...event({ ts: 100 }),
+        id: 'legacy-inline-row',
+        ts: 100,
+        rawUsage: '{"old":"inline"}',
+      };
+      appendFileSync(shardFor(100), JSON.stringify(legacy) + '\n', 'utf8');
+      const totals = await store.getTotals({ startTs: 0, endTs: 1000 });
+      expect(totals.eventCount).toBe(2);
+      const series = await store.getTimeSeries({ startTs: 0, endTs: 1000 }, 'day');
+      expect(series[0]).toMatchObject({ requests: 2 });
     });
   });
 });

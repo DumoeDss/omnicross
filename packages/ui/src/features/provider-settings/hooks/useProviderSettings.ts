@@ -14,6 +14,8 @@ export interface UseProviderSettingsOptions {
   /** Optional externally-owned selection used by the Upstreams workbench. */
   selectedProviderId?: string | null;
   onSelectedProviderChange?: (providerId: string | null) => void;
+  /** Fires after a provider is CREATED (not edited) and the list has refreshed. */
+  onProviderCreated?: (providerId: string) => void;
 }
 
 /** daemon preset apiFormat ('openai'|'anthropic'|'gemini') → UI ApiFormat. */
@@ -154,7 +156,7 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
   const form = useProviderForm(
     providers, effectiveSelectedProviderId, setSelectedProviderId,
     selectedProvider, refreshProviders, updateProviderInCache,
-    isAddingNew, setIsAddingNew,
+    isAddingNew, setIsAddingNew, options.onProviderCreated,
   );
 
   const models = useModelManagement(selectedProvider, updateProviderInCache);

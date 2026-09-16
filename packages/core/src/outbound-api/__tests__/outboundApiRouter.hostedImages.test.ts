@@ -206,9 +206,9 @@ describe('handleOutboundRequest — hosted image permission projection', () => {
     expect(route.hostedImageGenerationAllowed).toBe(true);
   });
 
-  it('does not grant hosted Images to a legacy text-permission row', async () => {
+  it('grants hosted Images to every client row — permissions are URL-decided now', async () => {
     const route = await mintedRouteFor({ ...baseRow, allowedEndpoints: undefined });
-    expect(route.hostedImageGenerationAllowed).toBe(false);
+    expect(route.hostedImageGenerationAllowed).toBe(true);
   });
 });
 

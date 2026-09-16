@@ -30,6 +30,26 @@
  *  - Torn-line and partial-row tolerance, via the shared guard in `usageRow`.
  *
  * WHAT CHANGED, deliberately
+ *  - FILTERED QUERIES ARE ROLLUP-SERVED TOO (rollup v2). The attribute filter
+ *    (`providerId`/`apiKeyId`) used to drop every day back to a full row scan —
+ *    fine at 2 MB/day, an outage at 200 MB/day (a 30-day provider-filtered
+ *    dashboard load re-parsed >1 GB per endpoint). A v2 rollup carries
+ *    (provider, key)-split cells for totals (with per-cell hit-rate histograms
+ *    and eligible/cold counts), a model×key cross-tab for by-model, and
+ *    hour×attribute cells for the time-series, so a filtered query composes
+ *    closed days from the same few-KB sidecars an unfiltered one does —
+ *    exactly. v1 rollups whose shard still exists are upgraded to v2 on first
+ *    touch; a v1 rollup whose shard was pruned is served as-is with the old
+ *    composition fallbacks (see `usageRollupStore`).
+ *  - `rawUsage` moved OUT of the shard line (usage-raw). The forensic provider
+ *    usage blob measured ~40 KB per row on Codex traffic — ~98% of shard bytes
+ *    and of every parse — while nothing ever reads it back. It now rides a
+ *    parallel per-day `usage-YYYY-MM-DD.raw.jsonl` sidecar (same retention
+ *    class as the shard: pruned with it, never aggregated), and the shard line
+ *    carries the accounted fields only. Historical inline rows still parse.
+ *  - Row-read days (today, partially-covered edges) go through the INCREMENTAL
+ *    shard cache on filtered queries too — the filtered path used to re-stream
+ *    the whole shard per call.
  *  - `medianCacheHitRate` is recovered from a 1000-bin histogram (±0.0005)
  *    rather than an exact sort, because a median is the one aggregate that
  *    cannot be composed from per-day summaries. See `usageRollup`.
@@ -70,6 +90,7 @@ import {
   listUsageDays,
   usageDayKey,
   usageDirFor,
+  usageRawShardName,
   usageShardName,
   type UsageDayEntry,
 } from '../usage/usageFiles';
@@ -156,12 +177,15 @@ export class JsonlUsageEventStore implements UsageEventStore {
   }
 
   /**
-   * Persist one event: assign `id`, stamp `ts` when absent, append ONE line to
-   * that timestamp's LOCAL-day shard.
+   * Persist one event: assign `id`, stamp `ts` when absent, append ONE lean line
+   * to that timestamp's LOCAL-day shard — plus, when a forensic `rawUsage` blob
+   * is present, ONE `{id, rawUsage}` line to the day's raw sidecar (usage-raw).
    *
    * Still `appendFileSync`: a single short line is cheap, and the synchronous
    * write is what makes "the row is on disk before the request is acknowledged"
-   * true. The reads are what had to stop being synchronous, not this.
+   * true. The reads are what had to stop being synchronous, not this. A crash
+   * between the two writes loses at most the forensic blob, never the accounted
+   * row.
    */
   async insert(input: UsageEventInput): Promise<string> {
     const row: UsageEventRecord = {
@@ -171,8 +195,15 @@ export class JsonlUsageEventStore implements UsageEventStore {
     };
     const dayKey = usageDayKey(row.ts);
     this.ensureDir();
-    const line = JSON.stringify(row) + '\n';
-    appendFileSync(join(this.usageDir, usageShardName(dayKey)), line, 'utf8');
+    const { rawUsage, ...leanRow } = row;
+    appendFileSync(join(this.usageDir, usageShardName(dayKey)), JSON.stringify(leanRow) + '\n', 'utf8');
+    if (typeof rawUsage === 'string' && rawUsage.length > 0) {
+      appendFileSync(
+        join(this.usageDir, usageRawShardName(dayKey)),
+        JSON.stringify({ id: row.id, rawUsage }) + '\n',
+        'utf8',
+      );
+    }
     // No cache write-through: the next read tails exactly these bytes off disk,
     // which costs a stat and a few hundred bytes, and cannot race a catch-up
     // that is already in flight for the same day.
@@ -191,38 +222,27 @@ export class JsonlUsageEventStore implements UsageEventStore {
   async getTotals(range: UsageDateRange, filter?: UsageQueryFilter): Promise<UsageTotals> {
     const totals = emptyTotals();
     const bins = new Map<number, number>();
-    if (hasFilter(filter)) {
-      // FILTERED: exact per-row aggregation. Days with a shard are streamed
-      // (chunked async reads — the same discipline as the rollup builder, never
-      // a blocking whole-file parse). A PRUNED day (rollup only) is composed
-      // from the rollup's sub-groups — provider split via byModel, key split via
-      // byApiKey — which cannot feed the whole-day hit-rate bins, so cache-rate
-      // metrics cover streamed days only.
-      for (const plan of await this.planRange(range)) {
-        if (!plan.hasShard) {
-          const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
-          if (rollup) addFilteredTotalsFromRollup(totals, rollup, filter);
-          continue;
-        }
-        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
-          if (row.ts < range.startTs || row.ts >= range.endTs) return;
-          if (!rowMatchesFilter(row, filter)) return;
-          addRowToTotals(totals, row);
-          const promptSide = promptSideTokens(row);
-          if (promptSide > 0) addRateToBins(bins, row.cacheReadTokens / promptSide);
-        });
-      }
-      return { ...totals, medianCacheHitRate: medianFromBins(bins) };
-    }
+    const activeFilter = hasFilter(filter) ? filter : null;
     for (const plan of await this.planRange(range)) {
-      if (plan.fromRollup) {
+      // Rollup-served: a closed fully-covered day — and, under a filter, a
+      // PRUNED day too (the historical filtered behaviour composed a pruned day
+      // whole, intra-day range bounds notwithstanding, and that is preserved).
+      if (plan.fromRollup || (activeFilter !== null && !plan.hasShard)) {
         const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
         if (!rollup) continue;
-        mergeTotals(totals, rollup.totals);
-        mergeBins(bins, rollup.hitRateBins);
+        if (activeFilter !== null) {
+          addFilteredTotalsFromRollup(totals, bins, rollup, activeFilter);
+        } else {
+          mergeTotals(totals, rollup.totals);
+          mergeBins(bins, rollup.hitRateBins);
+        }
         continue;
       }
+      // Today or a partially-covered day: incrementally-tailed shard rows,
+      // attribute-filtered. (Unfiltered + pruned partial day ⇒ nothing to read.)
+      if (!plan.hasShard) continue;
       for (const row of await this.rowsInRange(plan, range)) {
+        if (activeFilter !== null && !rowMatchesFilter(row, activeFilter)) continue;
         addRowToTotals(totals, row);
         const promptSide = promptSideTokens(row);
         if (promptSide > 0) addRateToBins(bins, row.cacheReadTokens / promptSide);
@@ -273,43 +293,37 @@ export class JsonlUsageEventStore implements UsageEventStore {
       g.costUsd += m.costUsd;
       g.costSavedByCacheUsd += m.costSavedByCacheUsd;
     };
-    if (hasFilter(filter)) {
-      // FILTERED: exact per-row grouping; a pruned day contributes through its
-      // rollup's per-model rows ONLY for a provider filter — the rollup has no
-      // model×key cross-tab, so an apiKeyId filter cannot see a pruned day.
-      for (const plan of await this.planRange(range)) {
-        if (!plan.hasShard) {
-          if (filter.apiKeyId !== undefined) continue;
-          const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
-          if (!rollup) continue;
+    const activeFilter = hasFilter(filter) ? filter : null;
+    for (const plan of await this.planRange(range)) {
+      if (plan.fromRollup || (activeFilter !== null && !plan.hasShard)) {
+        const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
+        if (!rollup) continue;
+        if (activeFilter === null) {
           for (const m of rollup.byModel) {
-            if (m.providerId !== filter.providerId) continue;
             mergeModelRow(m);
           }
           continue;
         }
-        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
-          if (row.ts < range.startTs || row.ts >= range.endTs) return;
-          if (!rowMatchesFilter(row, filter)) return;
-          mergeModelRow({ ...row, eventCount: 1 });
-        });
-      }
-      const rows = Array.from(groups.values());
-      for (const g of rows) {
-        g.unpriced = !(await this.isPriced(g.providerId, g.model));
-      }
-      return rows;
-    }
-    for (const plan of await this.planRange(range)) {
-      if (plan.fromRollup) {
-        const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
-        if (!rollup) continue;
+        // v2: exact per-(provider, model, key) cells answer ANY filter.
+        if (rollup.byModelKey) {
+          for (const mk of rollup.byModelKey) {
+            if (!keyRowMatchesFilter(mk, activeFilter)) continue;
+            mergeModelRow(mk);
+          }
+          continue;
+        }
+        // v1 (pre-split) rollup: a provider-only filter composes from byModel;
+        // a key filter has no model×key cross-tab and cannot see this day.
+        if (activeFilter.apiKeyId !== undefined) continue;
         for (const m of rollup.byModel) {
+          if (m.providerId !== activeFilter.providerId) continue;
           mergeModelRow(m);
         }
         continue;
       }
+      if (!plan.hasShard) continue;
       for (const row of await this.rowsInRange(plan, range)) {
+        if (activeFilter !== null && !rowMatchesFilter(row, activeFilter)) continue;
         mergeModelRow({ ...row, eventCount: 1 });
       }
     }
@@ -345,40 +359,32 @@ export class JsonlUsageEventStore implements UsageEventStore {
       }
       return g;
     };
-    if (hasFilter(filter)) {
-      // FILTERED: exact per-row grouping; a pruned day contributes through its
-      // rollup's per-key rows (both splits are carried there).
-      for (const plan of await this.planRange(range)) {
-        if (!plan.hasShard) {
-          const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
-          if (!rollup) continue;
-          for (const k of rollup.byApiKey) {
-            if (!keyRowMatchesFilter(k, filter)) continue;
-            const g = group(k.apiKeyId, k.providerId);
-            g.eventCount += k.eventCount;
-            g.inputTokens += k.inputTokens;
-            g.outputTokens += k.outputTokens;
-            g.costUsd += k.costUsd;
+    const activeFilter = hasFilter(filter) ? filter : null;
+    for (const plan of await this.planRange(range)) {
+      if (plan.fromRollup || (activeFilter !== null && !plan.hasShard)) {
+        const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
+        if (!rollup) continue;
+        if (activeFilter !== null && rollup.byAttribute) {
+          // v2: exact (provider, key) cells. Composing from these rather than
+          // `byApiKey` matters under a provider filter: the flat key table
+          // records `providerId: null` for the unattributed group, so an
+          // unattributed row routed via provider 'codex' would vanish; the
+          // attribute cell carries its TRUE provider.
+          for (const a of rollup.byAttribute) {
+            if (!keyRowMatchesFilter(a, activeFilter)) continue;
+            const g = group(a.apiKeyId, a.providerId);
+            g.eventCount += a.eventCount;
+            g.inputTokens += a.inputTokens;
+            g.outputTokens += a.outputTokens;
+            g.costUsd += a.costUsd;
           }
           continue;
         }
-        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
-          if (row.ts < range.startTs || row.ts >= range.endTs) return;
-          if (!rowMatchesFilter(row, filter)) return;
-          const g = group(row.apiKeyId, row.providerId);
-          g.eventCount += 1;
-          g.inputTokens += row.inputTokens;
-          g.outputTokens += row.outputTokens;
-          g.costUsd += row.costUsd;
-        });
-      }
-      return Array.from(groups.values());
-    }
-    for (const plan of await this.planRange(range)) {
-      if (plan.fromRollup) {
-        const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
-        if (!rollup) continue;
+        // Unfiltered (any version), or a v1 rollup's historical composition:
+        // `byApiKey` carries BOTH attribute ids, plus the additive cache/cost
+        // fields on rollups built after they were introduced.
         for (const k of rollup.byApiKey) {
+          if (activeFilter !== null && !keyRowMatchesFilter(k, activeFilter)) continue;
           const g = group(k.apiKeyId, k.providerId);
           g.eventCount += k.eventCount;
           g.inputTokens += k.inputTokens;
@@ -387,7 +393,9 @@ export class JsonlUsageEventStore implements UsageEventStore {
         }
         continue;
       }
+      if (!plan.hasShard) continue;
       for (const row of await this.rowsInRange(plan, range)) {
+        if (activeFilter !== null && !rowMatchesFilter(row, activeFilter)) continue;
         const g = group(row.apiKeyId, row.providerId);
         g.eventCount += 1;
         g.inputTokens += row.inputTokens;
@@ -450,9 +458,11 @@ export class JsonlUsageEventStore implements UsageEventStore {
    * `[floor(startTs), endTs)` is present (empty ones zero-filled), ascending by
    * `bucketStartTs`; an empty range (`startTs >= endTs`) returns `[]`.
    *
-   * A whole closed day contributes through its rollup's per-hour rows, which
-   * fold into hour, day and month buckets alike; a partial day is read from its
-   * rows so a mid-bucket `startTs` still excludes the events before it.
+   * A whole closed day contributes through its rollup's per-hour rows — under a
+   * filter via the v2 hour×attribute cells (a pre-split v1 rollup has none, so a
+   * v1 day contributes nothing to a filtered trend — the documented limitation
+   * such days always had); a partial day is read from its rows so a mid-bucket
+   * `startTs` still excludes the events before it.
    */
   async getTimeSeries(
     range: UsageDateRange,
@@ -474,33 +484,35 @@ export class JsonlUsageEventStore implements UsageEventStore {
         costUsd: 0,
       });
     }
-    if (hasFilter(filter)) {
-      // FILTERED: exact per-row bucketing. A pruned day's byHour rollup rows
-      // carry no attribute split, so pruned days contribute nothing here — a
-      // filtered trend reaches back only as far as raw rows are retained
-      // (keep-everything is the default; retention pruning is opt-in).
-      for (const plan of await this.planRange(range)) {
-        if (!plan.hasShard) continue;
-        await streamShardRows(this.usageDir, plan.dayKey, (row) => {
-          if (row.ts < range.startTs || row.ts >= range.endTs) return;
-          if (!rowMatchesFilter(row, filter)) return;
-          const g = buckets.get(floorToBucket(row.ts, bucket));
-          if (!g) return;
-          g.requests += 1;
-          g.inputTokens += row.inputTokens;
-          g.outputTokens += row.outputTokens;
-          g.cacheReadTokens += row.cacheReadTokens;
-          g.cacheCreationTokens += row.cacheCreationTokens;
-          g.costUsd += row.costUsd;
-        });
-      }
-      return Array.from(buckets.values());
-    }
+    const activeFilter = hasFilter(filter) ? filter : null;
     for (const plan of await this.planRange(range)) {
+      // NOTE: unlike the totals/grouping views, a PARTIALLY covered pruned day
+      // contributes nothing here — hour cells cannot be clipped to a mid-day
+      // range bound, and the historical behaviour excluded such days.
       if (plan.fromRollup) {
         const rollup = await this.rollups.get(plan.dayKey, plan.hasShard);
         if (!rollup) continue;
         const dayStart = new Date(plan.startTs);
+        if (activeFilter !== null) {
+          for (const hk of rollup.byHourKey ?? []) {
+            if (!keyRowMatchesFilter(hk, activeFilter)) continue;
+            const hourStart = new Date(
+              dayStart.getFullYear(),
+              dayStart.getMonth(),
+              dayStart.getDate(),
+              hk.hour,
+            ).getTime();
+            const g = buckets.get(floorToBucket(hourStart, bucket));
+            if (!g) continue;
+            g.requests += hk.requests;
+            g.inputTokens += hk.inputTokens;
+            g.outputTokens += hk.outputTokens;
+            g.cacheReadTokens += hk.cacheReadTokens;
+            g.cacheCreationTokens += hk.cacheCreationTokens;
+            g.costUsd += hk.costUsd;
+          }
+          continue;
+        }
         for (const h of rollup.byHour) {
           const hourStart = new Date(
             dayStart.getFullYear(),
@@ -519,7 +531,9 @@ export class JsonlUsageEventStore implements UsageEventStore {
         }
         continue;
       }
+      if (!plan.hasShard) continue;
       for (const row of await this.rowsInRange(plan, range)) {
+        if (activeFilter !== null && !rowMatchesFilter(row, activeFilter)) continue;
         const g = buckets.get(floorToBucket(row.ts, bucket));
         if (!g) continue; // defensive — every in-range row floors into an enumerated bucket
         g.requests += 1;
@@ -649,6 +663,28 @@ export class JsonlUsageEventStore implements UsageEventStore {
     }
     return out;
   }
+
+  /**
+   * Sequentially ensure every CLOSED day's rollup: build the missing, refresh
+   * the stale, upgrade v1 sidecars to v2. Called fire-and-forget at daemon
+   * start (`start.ts`) so the FIRST dashboard query after an upgrade finds the
+   * few-KB sidecars instead of paying every rebuild itself; `UsageRollupStore`'s
+   * in-flight dedupe keeps a concurrent query from double-building. Never
+   * throws — a failed day is simply rebuilt by the next query that needs it.
+   */
+  async warmRollups(): Promise<void> {
+    const today = usageDayKey(Date.now());
+    let days: UsageDayEntry[];
+    try {
+      days = await listUsageDays(this.usageDir);
+    } catch {
+      return; // an unreadable directory is every query's problem, not just ours
+    }
+    for (const entry of days) {
+      if (entry.dayKey === today || !entry.hasShard) continue;
+      await this.rollups.ensure(entry.dayKey).catch(() => null);
+    }
+  }
 }
 
 // ── Time-series bucketing (pure, LOCAL-time boundaries) ─────────────────────────
@@ -717,7 +753,7 @@ function rowMatchesFilter(row: UsageEventRecord, filter: UsageQueryFilter): bool
   return true;
 }
 
-/** Whether a rollup per-key group matches (null providerId only matches unfiltered). */
+/** Whether a rollup attribute cell matches (null providerId only matches unfiltered). */
 function keyRowMatchesFilter(
   k: { apiKeyId: string | null; providerId: string | null },
   filter: UsageQueryFilter,
@@ -728,18 +764,34 @@ function keyRowMatchesFilter(
 }
 
 /**
- * Fold a PRUNED day's rollup into a filtered totals accumulator. The key split
- * comes from `byApiKey`; a provider-only filter uses `byModel` (the finer
- * provider-exact split). Additive rollup fields read as 0 on pre-upgrade
+ * Fold one PRUNED-or-closed day's rollup into a FILTERED totals accumulator.
+ *
+ * v2 (`byAttribute` present): exact for any filter combination — every additive
+ * field, the eligible/cold counts, and the cell's own hit-rate histogram feed
+ * the binned median, so a filtered rollup-served day is indistinguishable from
+ * a streamed one.
+ *
+ * v1 (pre-split sidecar, only reachable for a day whose shard was pruned): the
+ * key split comes from `byApiKey`; a provider-only filter uses `byModel` (the
+ * finer provider-exact split). Additive rollup fields read as 0 on pre-upgrade
  * rollups — exact again for every rollup built after they were introduced.
  * Whole-day cache-rate metrics (bins, eligible/cold counts) cannot be split by
- * attribute and so contribute only from streamed days.
+ * attribute and so contribute only from row-read days.
  */
 function addFilteredTotalsFromRollup(
   totals: ReturnType<typeof emptyTotals>,
+  bins: Map<number, number>,
   rollup: UsageDayRollup,
   filter: UsageQueryFilter,
 ): void {
+  if (rollup.byAttribute) {
+    for (const a of rollup.byAttribute) {
+      if (!keyRowMatchesFilter(a, filter)) continue;
+      mergeTotals(totals, a);
+      mergeBins(bins, a.hitRateBins);
+    }
+    return;
+  }
   if (filter.apiKeyId !== undefined) {
     for (const k of rollup.byApiKey) {
       if (!keyRowMatchesFilter(k, filter)) continue;

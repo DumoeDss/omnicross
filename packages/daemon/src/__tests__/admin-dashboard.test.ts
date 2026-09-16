@@ -408,6 +408,11 @@ describe('omnicross admin dashboard (localhost, no token)', () => {
 
   it('forwards a playground request to the outbound /v1/chat/completions', async () => {
     const created = await adminFetch('POST', '/admin/api/keys', { name: 'pg' });
+    // UPSTREAM ROUTING MODEL: new keys bind nothing by default — bind the
+    // whole catalog so the playground key reaches the mock provider.
+    await adminFetch('POST', `/admin/api/keys/${(created.json as { id: string }).id}/upstream-binding`, {
+      binding: { mode: 'all' },
+    });
     const key = (created.json as { plaintextOnce: string }).plaintextOnce;
     const hitsBefore = upstream.hits;
 
@@ -600,6 +605,11 @@ describe('omnicross admin dashboard (at-rest ENCRYPTED config + tokens)', () => 
 
   it('playground reaches the upstream with the DECRYPTED provider key', async () => {
     const created = await adminFetch('POST', '/admin/api/keys', { name: 'pg-enc' });
+    // UPSTREAM ROUTING MODEL: new keys bind nothing by default — bind the
+    // whole catalog so the playground key reaches the mock provider.
+    await adminFetch('POST', `/admin/api/keys/${(created.json as { id: string }).id}/upstream-binding`, {
+      binding: { mode: 'all' },
+    });
     const key = (created.json as { plaintextOnce: string }).plaintextOnce;
     const hitsBefore = upstream.hits;
     const r = await adminFetch('POST', '/admin/api/playground', {

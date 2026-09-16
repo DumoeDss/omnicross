@@ -1,0 +1,9 @@
+This package adapts portions of third-party work under their own licenses:
+
+- codex-chatgpt-web (https://github.com/miuuyy/codex-chatgpt-web), MIT License.
+  The Responses-request parser taxonomy, the chatgpt-web model route table and
+  measured context/composer limits, the compaction envelope (ocx1), the prompt
+  compiler contract, the ChatGPT DOM selectors, the markdown streaming buffer,
+  and the completion/DOM-health tracker semantics are derived from its source.
+- The CDP discovery/WebSocket patterns adapt the chrome-use skill's CDP proxy
+  (private tooling, same repository family).

@@ -525,6 +525,7 @@
     "routeActivity": "Routing activity",
     "upstreams": "Upstreams & Routes",
     "integrations": "Integrations",
+    "chatgptWeb": "ChatGPT Web",
     "group": {
       "run": "Run",
       "configure": "Configure",
@@ -539,7 +540,7 @@
     "pricing": "Pricing",
     "dashboard": "Dashboard",
     "images": "Images",
-"search": "Search"
+    "search": "Search"
   },
   "routeActivity": {
     "title": "Routing activity",
@@ -864,6 +865,14 @@
       "deleteDescription": "Delete “{{name}}”. Requests will use another matching route, or fail if none matches.",
       "signalPath": "{{key}} to {{endpoint}}, then {{resource}}, then {{model}}",
       "openFromUpstreams": "Manage routes that use this account from Downstreams and routes."
+    },
+    "mappings": {
+      "loading": "Loading the upstream catalog…",
+      "count": "{{count}} mapping(s)",
+      "passthrough": "Passthrough (no mappings)",
+      "edit": "Edit",
+      "sectionTitle": "Model mappings",
+      "sectionDescription": "Client model name → this upstream's model id; an empty table passes the client's model id through verbatim."
     }
   },
   "images": {
@@ -933,7 +942,7 @@
     "page": {
       "title": "Image generation",
       "description": "Model routing, provider health, and the Images endpoints in one place.",
-      "loading": "Loading Images configuration\u2026"
+      "loading": "Loading Images configuration…"
     },
     "providers": {
       "bootstrap": "bootstrap (unverified)",
@@ -946,8 +955,8 @@
     "verify": {
       "title": "Live verification",
       "run": "Run verification",
-      "running": "Verifying\u2026",
-      "warning": "\u26a0 Consumes subscription quota: one minimal low-quality PNG request will be sent.",
+      "running": "Verifying…",
+      "warning": "⚠ Consumes subscription quota: one minimal low-quality PNG request will be sent.",
       "codexOnly": "Covers the Codex wire only; the Antigravity provider has no independent verifier in v1.",
       "codexOnlyPlain": "Covers the Codex wire only.",
       "success": "Verified {{model}} ({{quality}}, {{format}}); fresh evidence entries: {{count}}."
@@ -980,6 +989,12 @@
     "enable": {
       "label": "Enable outbound server",
       "description": "Start the local API server that routes external callers through your providers."
+    },
+    "upstreamDefault": {
+      "label": "Default upstream selection for new keys",
+      "description": "Whether a newly created access key starts with every upstream selected or none selected (a key with no upstream selected rejects requests).",
+      "none": "None selected",
+      "all": "All selected"
     },
     "networkBinding": {
       "label": "Allow LAN access",
@@ -1018,14 +1033,37 @@
       "empty": "No access keys yet.",
       "enabled": "Enabled",
       "disabled": "Disabled",
-      "revoked": "Revoked",
+      "deleted": "Deleted",
       "toggle": "Toggle key",
-      "revoke": "Revoke",
-      "revokeConfirmTitle": "Revoke this key?",
-      "revokeConfirmDesc": "Revoking \"{{name}}\" immediately stops it from authenticating. This cannot be undone.",
       "delete": "Delete",
-      "deleteConfirmTitle": "Permanently delete this key?",
-      "deleteConfirmDesc": "Deleting \"{{name}}\" removes it from the list entirely. This cannot be undone.",
+      "deleteConfirmTitle": "Delete this key?",
+      "deleteConfirmDesc": "Deleting \"{{name}}\" stops it from authenticating immediately; its row and usage history stay on the list. This cannot be undone.",
+      "purge": "Delete permanently",
+      "purgeConfirmTitle": "Remove this key permanently?",
+      "purgeConfirmDesc": "Permanently deleting \"{{name}}\" removes its row from the list entirely (past usage loses the key's name). This cannot be undone.",
+      "upstream": {
+        "edit": "Upstream binding",
+        "dialogTitle": "Edit upstream binding for {{name}}",
+        "dialogDesc": "Select this key's upstreams and order them (order = priority; earlier entries serve first, later ones are failover candidates). Saving always stores the explicit selection; selecting none rejects every request.",
+        "summaryAll": "All upstreams selected",
+        "summaryExplicit": "{{count}} upstream(s)",
+        "summaryNone": "Unbound (requests rejected)",
+        "summaryLegacy": "Legacy downstream routes",
+        "orderUp": "Move up",
+        "orderDown": "Move down",
+        "orderHint": "Select then order with the arrows — earlier entries serve first, later ones are failover candidates. Selecting none leaves the key able to authenticate but every request is rejected.",
+        "emptyCatalog": "No upstreams available — add a provider or subscription on the Upstreams page first.",
+        "mappingEdit": "Model mappings",
+        "mappingTitle": "Edit model mappings for {{name}}",
+        "mappingDesc": "Client model name → upstream model id. Exact names beat * wildcards; default / background are role rows (Gemini background model); empty = passthrough.",
+        "mappingEmpty": "No mappings — the client's model id is forwarded verbatim.",
+        "mappingSource": "Client model name (e.g. claude-*)",
+        "mappingTarget": "Upstream model id",
+        "mappingEffort": "Effort",
+        "mappingAdd": "Add a mapping row",
+        "mappingHint": "With multiple rows include a * fallback row; the default / background role rows never match by name.",
+        "mappingSaveFailed": "Failed to save mappings"
+      },
       "created": {
         "title": "Key created",
         "warning": "Copy this key now and store it securely — you can view it again anytime from the key list.",
@@ -1036,16 +1074,6 @@
       "reveal": "View key",
       "revealError": "Failed to reveal this key.",
       "revealHint": "Decrypted on demand — copy it and treat it as securely as the original.",
-      "permissions": {
-        "title": "Endpoint permissions",
-        "legacy": "Legacy defaults",
-        "chat": "Chat",
-        "responses": "Responses",
-        "messages": "Messages",
-        "gemini": "Gemini",
-        "images": "Images",
-        "hint": "Responses and Images are separate permissions. Legacy keys keep the four text endpoints but do not gain Images access."
-      },
       "bindings": {
         "title": "Downstream interfaces",
         "count": "Bound to {{count}} downstreams",
@@ -1065,8 +1093,8 @@
         "inUse": "In use",
         "unavailable": "Only enabled, non-revoked, revealable keys can be used for CLI integrations.",
         "confirmTitle": "Use this key for {{name}}?",
-        "confirmDescription": "Omnicross will bind \"{{key}}\" and add the required endpoint permissions: {{permissions}}. A previously selected user key will not be revoked.",
-        "confirm": "Bind key"
+        "confirm": "Bind key",
+        "confirmDescription": "Omnicross will bind \"{{key}}\" to this integration. Previously selected keys are not revoked."
       },
       "policy": {
         "title": "Policy",
@@ -1474,30 +1502,115 @@
     "empty": "No subscription providers are available.",
     "signIn": "Sign in",
     "management": {
-      "summary": { "total": "Total accounts", "schedulable": "Ready to route", "excluded": "Excluded", "warnings": "Needs attention" },
+      "summary": {
+        "total": "Total accounts",
+        "schedulable": "Ready to route",
+        "excluded": "Excluded",
+        "warnings": "Needs attention"
+      },
       "searchPlaceholder": "Search name, ID, group, or tag",
-      "selected": "{{count}} selected", "selectAll": "Select all visible accounts", "selectAccount": "Select {{name}}", "openDetails": "Open account details",
-      "emptyFiltered": "No accounts match these filters.", "sortDirection": "Reverse sort direction", "schedulable": "Schedulable", "excluded": "Excluded", "priorityValue": "Priority {{value}}",
-      "schedulingState": { "disabled": "Disabled by operator", "healthPaused": "Paused by health", "allowancePaused": "Paused by allowance", "demoted": "Allowance demoted", "schedulable": "Schedulable", "excluded": "Excluded" },
-      "allowanceAction": { "normal": "Normal", "demote": "Demote", "pause": "Pause", "ignore": "Ignored" },
+      "selected": "{{count}} selected",
+      "selectAll": "Select all visible accounts",
+      "selectAccount": "Select {{name}}",
+      "openDetails": "Open account details",
+      "emptyFiltered": "No accounts match these filters.",
+      "sortDirection": "Reverse sort direction",
+      "schedulable": "Schedulable",
+      "excluded": "Excluded",
+      "priorityValue": "Priority {{value}}",
+      "schedulingState": {
+        "disabled": "Disabled by operator",
+        "healthPaused": "Paused by health",
+        "allowancePaused": "Paused by allowance",
+        "demoted": "Allowance demoted",
+        "schedulable": "Schedulable",
+        "excluded": "Excluded"
+      },
+      "allowanceAction": {
+        "normal": "Normal",
+        "demote": "Demote",
+        "pause": "Pause",
+        "ignore": "Ignored"
+      },
       "allowanceDecision": "Allowance: {{action}} · {{used}}% used",
       "allowanceDecisionNoUsage": "Allowance: {{action}}",
       "effectivePriority": "Base {{base}} → effective {{effective}}",
       "filters": {
-        "allProviders": "All providers", "allGroups": "All groups", "allHealth": "All health", "allCredentials": "All credentials",
-        "scheduling": { "all": "All scheduling", "enabled": "Enabled", "disabled": "Disabled", "schedulable": "Schedulable", "excluded": "Excluded" }
+        "allProviders": "All providers",
+        "allGroups": "All groups",
+        "allHealth": "All health",
+        "allCredentials": "All credentials",
+        "scheduling": {
+          "all": "All scheduling",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "schedulable": "Schedulable",
+          "excluded": "Excluded"
+        }
       },
-      "sort": { "label": "Name", "priority": "Priority", "last-used": "Last used", "allowance": "Allowance used", "reset-time": "Reset time" },
-      "columns": { "account": "Account", "providerGroup": "Provider / group", "status": "Routing status", "priority": "Priority", "lastUsed": "Last used", "actions": "Actions" },
-      "batch": { "enable": "Enable", "disable": "Disable", "setGroup": "Set group", "groupPlaceholder": "Group name", "delete": "Delete", "deleteTitle": "Delete selected accounts?", "deleteDescription": "This permanently deletes {{count}} stored credentials." },
-      "tabs": { "overview": "Overview", "routes": "Routes", "allowance": "Allowance", "scheduling": "Scheduling", "network": "Network", "diagnostics": "Diagnostics", "danger": "Danger zone" },
+      "sort": {
+        "label": "Name",
+        "priority": "Priority",
+        "last-used": "Last used",
+        "allowance": "Allowance used",
+        "reset-time": "Reset time"
+      },
+      "columns": {
+        "account": "Account",
+        "providerGroup": "Provider / group",
+        "status": "Routing status",
+        "priority": "Priority",
+        "lastUsed": "Last used",
+        "actions": "Actions"
+      },
+      "batch": {
+        "enable": "Enable",
+        "disable": "Disable",
+        "setGroup": "Set group",
+        "groupPlaceholder": "Group name",
+        "delete": "Delete",
+        "deleteTitle": "Delete selected accounts?",
+        "deleteDescription": "This permanently deletes {{count}} stored credentials."
+      },
+      "tabs": {
+        "overview": "Overview",
+        "routes": "Routes",
+        "allowance": "Allowance",
+        "scheduling": "Scheduling",
+        "network": "Network",
+        "diagnostics": "Diagnostics",
+        "danger": "Danger zone"
+      },
       "fields": {
-        "enabled": "Use for routing", "enabledHint": "Disabled accounts are never selected, even when they are the only account.",
-        "label": "Account name", "group": "Group", "tags": "Tags", "tagsPlaceholder": "production, team-a", "credential": "Credential", "health": "Health", "scheduling": "Scheduling", "lastUsed": "Last used", "priority": "Priority",
-        "allowanceAction": "Allowance policy", "effectivePriority": "Effective priority", "allowanceUsed": "Allowance used", "allowanceResume": "Allowance resets"
+        "enabled": "Use for routing",
+        "enabledHint": "Disabled accounts are never selected, even when they are the only account.",
+        "label": "Account name",
+        "group": "Group",
+        "tags": "Tags",
+        "tagsPlaceholder": "production, team-a",
+        "credential": "Credential",
+        "health": "Health",
+        "scheduling": "Scheduling",
+        "lastUsed": "Last used",
+        "priority": "Priority",
+        "allowanceAction": "Allowance policy",
+        "effectivePriority": "Effective priority",
+        "allowanceUsed": "Allowance used",
+        "allowanceResume": "Allowance resets"
       },
-      "diagnostics": { "testConnection": "Test connection", "testPassed": "Connection test passed.", "generationPassed": "{{model}} returned a complete response.", "testFailed": "Connection test failed.", "history": "Recent probes", "empty": "No probe events yet.", "loadFailed": "Probe history could not be loaded." },
-      "danger": { "title": "Delete account", "description": "Deletes this account and its encrypted credential. This cannot be undone." }
+      "diagnostics": {
+        "testConnection": "Test connection",
+        "testPassed": "Connection test passed.",
+        "generationPassed": "{{model}} returned a complete response.",
+        "testFailed": "Connection test failed.",
+        "history": "Recent probes",
+        "empty": "No probe events yet.",
+        "loadFailed": "Probe history could not be loaded."
+      },
+      "danger": {
+        "title": "Delete account",
+        "description": "Deletes this account and its encrypted credential. This cannot be undone."
+      }
     },
     "oauth": {
       "title": "Sign in to {{name}}",
@@ -1761,6 +1874,111 @@
       "until": "Until {{time}}"
     }
   },
+  "chatgptWeb": {
+    "title": "ChatGPT Web backend",
+    "description": "Use your ChatGPT web session (including Pro) as a Codex model backend over a dedicated browser host.",
+    "refresh": "Refresh status",
+    "steps": {
+      "platform": {
+        "title": "Create a tunnel and an API key on platform.openai.com",
+        "tunnel": "Open the Tunnels page → Create a tunnel → copy its Tunnel ID (tunnel_…).",
+        "key": "Open the API keys page → Create a key → copy it.",
+        "tunnelsLink": "Open the Tunnels page",
+        "keysLink": "Open the API keys page"
+      },
+      "config": {
+        "title": "Paste the two values here"
+      },
+      "connector": {
+        "title": "Create the connector in ChatGPT",
+        "open": "Open the ChatGPT connectors (plugins) settings page.",
+        "devMode": "Enable developer mode.",
+        "create": "Create a new connector of type Tunnel.",
+        "name": "Name it exactly: Codex Native2.",
+        "permissions": "Allow it to run all actions.",
+        "link": "Open ChatGPT connectors"
+      },
+      "login": {
+        "title": "Sign in inside the dedicated browser",
+        "click": "Click \"Open login window\" below, then sign in inside that window (Google or email both work).",
+        "thenCheck": "Come back here and click \"Check login\"."
+      },
+      "start": {
+        "title": "Start the bridge",
+        "pick": "Pick a model and start — the tunnel client and the browser runtime install automatically on first use.",
+        "note": "Once running, copy the values below into Codex (the ready-made command is one click away)."
+      },
+      "codex": {
+        "title": "Wire up codex (one time)",
+        "description": "Writes a managed profile into ~/.codex/config.toml and a persistent token into your user environment. Your normal codex setup is untouched — the profile is additive."
+      },
+      "askPro": {
+        "title": "Pro advisor ask_pro (optional)",
+        "description": "Registers an ask_pro MCP tool for codex: while the small model works, it can consult ChatGPT Pro — and Pro can inspect the workspace read-only itself before advising."
+      }
+    },
+    "codex": {
+      "setup": "Wire up codex",
+      "rewrite": "Rewrite profile",
+      "done": "codex profile written — open a NEW terminal and run: codex --profile chatgptweb",
+      "newTerminalHint": "The token lands in your user environment — already-open terminals won't see it until reopened."
+    },
+    "askPro": {
+      "install": "Install ask_pro",
+      "uninstall": "Uninstall",
+      "installed": "ask_pro installed — restart your codex session and it is available (mcp_servers apply to every codex session).",
+      "removed": "ask_pro uninstalled.",
+      "hint": "Consulting needs the bridge running in harness mode (step 5); one consult takes tens of seconds to a few minutes.",
+      "readonly": "Read-only by default: Pro can only run read-only commands (git / file reading)."
+    },
+    "config": {
+      "runtimeKey": "Runtime key (API key)",
+      "save": "Save & prepare",
+      "saved": "Harness config saved — tunnel client download started.",
+      "saveHint": "Stored locally only; the key is never shown again after saving.",
+      "reconfigure": "Reconfigure"
+    },
+    "login": {
+      "open": "Open login window",
+      "opened": "Login window opened — sign in there, then run the login check.",
+      "check": "Check login",
+      "signedIn": "Signed in.",
+      "signedOut": "Not signed in yet — open the login window and sign in.",
+      "runtimeHint": "The browser runtime downloads on first use (~100 MB) — open the login window once to trigger it."
+    },
+    "tunnel": {
+      "running": "running",
+      "stopped": "stopped",
+      "healthy": "healthy",
+      "installing": "downloading tunnel client…",
+      "installFailed": "tunnel client download failed",
+      "retry": "Retry download",
+      "retryStarted": "Download restarted.",
+      "willInstall": "tunnel client installs on start"
+    },
+    "bridge": {
+      "model": "Model",
+      "start": "Start bridge",
+      "started": "Bridge started.",
+      "stop": "Stop bridge",
+      "stopped": "Bridge stopped.",
+      "running": "running",
+      "needConfig": "Save the harness config first"
+    },
+    "images": {
+      "createTunnel": "Creating a tunnel on platform.openai.com",
+      "connector": "Creating the connector in ChatGPT",
+      "zoom": "Click to enlarge",
+      "zoomHint": "Wheel to zoom · drag to pan · double-click to reset",
+      "zoomInAction": "Zoom in",
+      "zoomOut": "Zoom out",
+      "reset": "Reset"
+    },
+    "guide": {
+      "cli": "Everything on this page also works from the terminal: omnicross chatgpt-web check | login | launch | harness status.",
+      "experimental": "Experimental feature: the web session can hit rate limits or UI changes at any time."
+    }
+  },
   "codeCli": {
     "title": "Integrations",
     "description": "Connect Codex and Claude Code to Omnicross persistently, or open a one-off routed terminal.",
@@ -1842,16 +2060,28 @@
       "install": "Install",
       "installing": "Installing…",
       "installingHint": "Installing on the daemon host — this can take a minute.",
+      "upgrade": "Upgrade",
+      "upgrading": "Upgrading…",
+      "upgradingHint": "Re-installing at the latest release on the daemon host — this can take a minute.",
+      "upgradeHint": "Check for and install the latest release on the daemon host.",
+      "upgradeToHint": "Version {{version}} is available — upgrade on the daemon host.",
       "launch": "Launch",
       "launchTitle": "Launch {{name}}",
       "launchDescription": "Opens a new terminal on the daemon host running this CLI, routed through the daemon proxy. Pick an optional working directory.",
       "cwdLabel": "Working directory",
       "cwdPlaceholder": "/path/to/your/project",
-      "routeKeyLabel": "Route key",
+      "routeKeyLabel": "Routing target",
       "routeKeyAuto": "Auto (first enabled provider)",
-      "routeKeyHint": "This terminal's Codex authenticates as the selected access key; routing and model mapping follow that key's gateway bindings, so concurrent terminals can use different upstreams.",
+      "targetHelp": "Unpicked = auto lease. Provider = direct, same-wire connection (no gateway key); Route = pinned to ONE chosen downstream route (an eligible key is picked to enter it); Key = the terminal enters the gateway as that key, routing follows the key's bindings.",
+      "routeKeyHint": "This terminal authenticates as the selected access key; routing and model mapping follow that key's gateway bindings, so concurrent terminals can use different upstreams.",
+      "targetGroupProvider": "Provider",
+      "targetGroupRoute": "Route",
+      "targetGroupKey": "Key",
+      "targetProviderHint": "This terminal launches a proxy route lease pinned to the selected upstream ({{wire}} wire only, its first model is used); serve other formats through a downstream route.",
+      "targetRouteHint": "This terminal authenticates as an eligible gateway key and is pinned to the selected downstream route (x-omnicross-binding-id); model mapping follows exactly that route.",
       "runningVia": "Running · {{provider}} / {{model}}",
       "runningViaKey": "Running · key {{name}}",
+      "runningViaRoute": "Running · route {{name}} (key {{key}})",
       "stop": "Stop"
     },
     "manual": {
@@ -1934,6 +2164,15 @@
         "issuesHint": "Bug reports and feature requests.",
         "open": "Open"
       },
+      "diagnostics": {
+        "title": "Diagnostics",
+        "description": "Attach the daemon log when filing a bug report — it makes triage far faster.",
+        "exportLogs": "Export daemon logs",
+        "exportLogsHint": "Bundles logs/daemon.log and its rotated generations (redacted, size-capped).",
+        "export": "Export",
+        "exported": "Log export saved to {{path}}.",
+        "exportFailed": "Log export failed: {{reason}}"
+      },
       "project": {
         "title": "Project"
       },
@@ -1981,7 +2220,10 @@
         "refresh": "Refresh",
         "unavailable": "Decision diagnostics are unavailable on this daemon version. The policy configuration above remains editable.",
         "empty": "No allowance-driven demotion or pause has been applied yet.",
-        "action": { "demote": "Demoted", "pause": "Paused" },
+        "action": {
+          "demote": "Demoted",
+          "pause": "Paused"
+        },
         "priority": "priority {{base}} → {{effective}} · {{used}}% used"
       }
     },
@@ -2094,7 +2336,11 @@
     "empty": "The pricing table is empty.",
     "emptyHint": "Fetch the latest prices to populate it.",
     "noMatches": "No entries match your search.",
-    "pagination": { "summary": "Page {{page}} of {{pages}} · {{count}} models", "previous": "Previous", "next": "Next" },
+    "pagination": {
+      "summary": "Page {{page}} of {{pages}} · {{count}} models",
+      "previous": "Previous",
+      "next": "Next"
+    },
     "saved": "Pricing entry saved.",
     "saveFailed": "Save failed: {{message}}",
     "deleteFailed": "Delete failed: {{message}}",

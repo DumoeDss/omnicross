@@ -12,6 +12,7 @@
  */
 
 import { runAudit } from './commands/audit';
+import { runChatgptWeb } from './commands/chatgpt-web';
 import { runDoctor } from './commands/doctor';
 import { runImportCcr } from './commands/import-ccr';
 import { runIntegrations } from './commands/integrations';
@@ -43,6 +44,16 @@ Usage:
   omnicross launch <cli> --provider <id> --model <m> --config <p> [--cwd <dir>] [-- <cli-args…>]
                                            Launch a Code CLI (claude|codex|gemini|qwen|copilot|opencode)
                                            against an in-process proxy (route-token auth; BYO).
+  omnicross chatgpt-web check [--cdp-port <n>] [--smoke]
+                                           EXPERIMENTAL: verify Chrome remote debugging + ChatGPT login
+                                           + account capabilities for the browser bridge.
+  omnicross chatgpt-web launch [--model <chatgpt-web/…>] [--port <n>] [--cdp-port <n>] [--cwd <dir>] [-- <codex-args…>]
+                                           EXPERIMENTAL: start the ChatGPT Web Responses bridge and
+                                           launch Codex wired to it (browser automation over your Chrome).
+  omnicross chatgpt-web ask-pro install [--model <chatgpt-web/pro>] [--writable]
+                                           EXPERIMENTAL: register ChatGPT Pro as an MCP advisor (ask_pro)
+                                           for codex; Pro inspects the workspace read-only through the
+                                           harness bridge. uninstall | status also available.
   omnicross integrations status --config <p>  Inspect native CLI gateway integration.
   omnicross integrations plan <codex|claude> --config <p> [--target <path>]
                                            Preview redacted configuration changes.
@@ -103,6 +114,9 @@ async function main(): Promise<void> {
       return;
     case 'launch':
       process.exitCode = await runLaunch(rest);
+      return;
+    case 'chatgpt-web':
+      process.exitCode = await runChatgptWeb(rest);
       return;
     case 'integrations':
       await runIntegrations(rest);

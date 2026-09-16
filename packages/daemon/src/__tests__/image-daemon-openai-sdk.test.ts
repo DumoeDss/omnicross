@@ -1,3 +1,5 @@
+import http from 'node:http';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { InMemoryImageAsset } from '@omnicross/core/image-generation';
@@ -144,11 +146,6 @@ describe('official OpenAI JavaScript SDK through the booted daemon', () => {
     const second = await harness.adminFetch('POST', '/admin/api/keys', { name: 'other-tenant' });
     expect(second.status).toBe(201);
     const other = second.json as { id: string; plaintextOnce: string };
-    expect((await harness.adminFetch(
-      'POST',
-      `/admin/api/keys/${encodeURIComponent(other.id)}/permissions`,
-      { permissions: ['images'] },
-    )).status).toBe(200);
     const crossTenant = await jsonEdit(harness, other.plaintextOnce, reference.referenceId);
     expect(crossTenant.status).toBe(404);
     expect(await crossTenant.json()).toMatchObject({
@@ -196,17 +193,43 @@ describe('official OpenAI JavaScript SDK through the booted daemon', () => {
     const cancelled = await setup({
       beforeComplete: () => new Promise((resolve) => setTimeout(resolve, 150)),
     });
-    const controller = new AbortController();
-    const stream = await cancelled.client.images.generate({
-      model: 'gpt-image-2',
-      prompt: 'cancel the real daemon stream',
-      stream: true,
-      partial_images: 0,
-    }, { signal: controller.signal });
-    controller.abort();
-    await (async () => {
-      for await (const _event of stream) { /* no terminal is expected */ }
-    })().catch(() => undefined);
+    // Cancellation needs a REAL wire abort. The SDK's AbortController path no
+    // longer produces one on current Node: undici errors the local body
+    // iterator but keeps DRAINING the connection so it stays pool-reusable —
+    // the daemon never sees a disconnect and the generation completes into
+    // the void (observed: starts=1, cancels=0 on Node v24/undici-current).
+    // `socket.resetAndDestroy()` (RST) is the disconnect the registry's
+    // `req.aborted` / early-`res.close` listeners exist for — what a browser
+    // EventSource abort or a killed client process actually looks like.
+    await new Promise<void>((resolveCancellation) => {
+      const url = new URL(`${cancelled.harness.baseURL}/images/generations`);
+      const request = http.request({
+        hostname: url.hostname,
+        port: url.port,
+        path: `${url.pathname}${url.search}`,
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cancelled.harness.token}`,
+          'Content-Type': 'application/json',
+        },
+      }, (response) => {
+        response.on('data', () => { /* stream drains until the reset */ });
+        response.on('error', () => undefined);
+        // Headers are live once the provider's `accepted` event flushed them;
+        // reset mid-generation (beforeComplete holds completion for 150ms).
+        setTimeout(() => {
+          response.socket?.resetAndDestroy();
+          resolveCancellation();
+        }, 50);
+      });
+      request.on('error', () => undefined);
+      request.end(JSON.stringify({
+        model: 'gpt-image-2',
+        prompt: 'cancel the real daemon stream',
+        stream: true,
+        partial_images: 0,
+      }));
+    });
     await expect.poll(() => cancelled.harness.capture.cancels).toBe(1);
     await expect.poll(() => cancelled.harness.daemon.imageRuntimeManager.resourceStatus())
       .toMatchObject({

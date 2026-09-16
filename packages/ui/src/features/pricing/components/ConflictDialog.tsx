@@ -85,7 +85,7 @@ export function ConflictDialog({ state, onDecision, onSetAll, onSubmit, onCancel
         if (!open && !state.submitting) onCancel();
       }}
     >
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="!max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('pricing.conflictTitle')}</DialogTitle>
           <DialogDescription>{t('pricing.conflictHint')}</DialogDescription>

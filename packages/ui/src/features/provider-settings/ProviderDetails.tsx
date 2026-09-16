@@ -25,6 +25,7 @@ import { useTranslation } from '@/shared/state/LocaleContext';
 
 import type { LLMProvider, ModelConfig, ModelGroup } from '@shared/llm-config';
 
+import { UpstreamMappingSection } from '../upstreams/UpstreamMappingSection';
 import { ApiKeyPoolSection } from './ApiKeyPoolSection';
 import { ModelTestDialog } from './ModelTestDialog';
 import { ProviderApiModeSwitcher } from './ProviderApiModeSwitcher';
@@ -501,6 +502,13 @@ export function ProviderDetails({
           </p>
         </div>
       </div>
+
+      {/* Model mappings (upstream routing model): the mapping table lives ON
+          this upstream — client model name → this provider's model id. */}
+      <UpstreamMappingSection
+        upstreamKey={selectedProvider.id}
+        label={getProviderDisplayName(t, selectedProvider)}
+      />
 
       {/* Model list - always shown */}
       <div className="space-y-2">

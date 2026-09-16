@@ -11,37 +11,10 @@ import {
   UI_DEFAULT_CODEX_CARRIER_MODEL,
   UI_DEFAULT_CODEX_IMAGE_MODEL,
 } from '../ImagesSection';
-import {
-  effectiveKeyPermissions,
-  toggleKeyPermission,
-} from '../../api-service/KeyManagementSection';
 
 const BASE_CONFIG = {
   account: { fallback: 'strict' },
 } as ImagesServerConfig;
-
-describe('exact Images key permissions', () => {
-  it('keeps legacy keys on the four text permissions without granting Images', () => {
-    expect(effectiveKeyPermissions(undefined)).toEqual([
-      'chat',
-      'responses',
-      'messages',
-      'gemini',
-    ]);
-  });
-
-  it('preserves canonical ordering and treats Responses and Images independently', () => {
-    const withImages = toggleKeyPermission(['responses'], 'images', true);
-    expect(withImages).toEqual(['responses', 'images']);
-    expect(toggleKeyPermission(withImages, 'responses', false)).toEqual(['images']);
-    expect(toggleKeyPermission(['images'], 'responses', true)).toEqual(['responses', 'images']);
-  });
-
-  it('honors an explicit empty list as deny-all', () => {
-    expect(effectiveKeyPermissions([])).toEqual([]);
-    expect(toggleKeyPermission([], 'images', true)).toEqual(['images']);
-  });
-});
 
 describe('Images account and resource display helpers', () => {
   it('selects exactly one fixed account or group and preserves fallback policy', () => {

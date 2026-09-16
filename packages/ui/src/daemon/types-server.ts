@@ -656,6 +656,10 @@ export interface OutboundApiServerConfig {
   endpoints: EndpointRoutingConfig[];
   /** Resource-centric routes; absent on older daemons. */
   bindings?: GatewayBinding[];
+  /** UPSTREAM ROUTING MODEL: per-upstream model-mapping tables. */
+  upstreamModelMappings?: Record<string, Array<{ source: string; target: string; effort?: string }>>;
+  /** UPSTREAM ROUTING MODEL: what a NEW key binds by default ('none' if absent). */
+  defaultKeyUpstreamBinding?: 'all' | 'none';
   port?: number;
   /** Per-account serial queue (OPTIONAL — absent on a pre-upgrade daemon). */
   userMessageQueue?: OutboundUserMessageQueueConfig;
@@ -904,6 +908,32 @@ export interface OutboundApiServerStatus {
 // ── Named keys (GET/POST /admin/api/keys + revoke/enabled) ────────────────────
 
 /** A stored key DTO (never carries the plaintext secret). */
+/**
+ * UPSTREAM ROUTING MODEL (mirrors core's `KeyUpstreamBinding`): one key's
+ * ordered upstream set. `'all'` is the live whole-catalog reference; an
+ * explicit EMPTY list deliberately binds nothing (403). Absent on rows from
+ * pre-migration daemons (legacy downstream-route semantics).
+ */
+export type KeyUpstreamBinding =
+  | { mode: 'all' }
+  | { mode: 'explicit'; targets: Array<{ kind: 'provider' | 'account-pool'; providerId: string }> };
+
+/** One upstream catalog entry (GET /admin/api/upstreams). */
+export interface UpstreamCatalogEntry {
+  /** The mapping-table key (`providerId` or `sub:<providerId>`). */
+  key: string;
+  label: string;
+  target: { kind: string; providerId: string };
+  mappings: Array<{ source: string; target: string; effort?: string }>;
+}
+
+export interface UpstreamCatalogResult {
+  upstreams: UpstreamCatalogEntry[];
+  /** The derived + legacy route aggregate actually being served. */
+  liveBindings?: GatewayBinding[];
+  message?: string;
+}
+
 export interface OutboundApiKeyInfo {
   id: string;
   name: string;
@@ -920,8 +950,8 @@ export interface OutboundApiKeyInfo {
   revoked: boolean;
   kind?: 'client' | 'integration';
   allowedEndpoints?: OutboundPermissionId[];
-  /** Explicit compatibility marker from upgraded daemons; never contains key material. */
-  legacyPermissions?: boolean;
+  /** UPSTREAM ROUTING MODEL: the key's ordered upstream set (absent = legacy). */
+  upstreamBinding?: KeyUpstreamBinding;
   loopbackOnly?: boolean;
   /**
    * Per-key outbound concurrency ceiling (planning-context §COMMITTED §2). Absent

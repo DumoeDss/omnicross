@@ -190,19 +190,21 @@ pub fn set_ui_settings<R: Runtime>(
     Ok(())
 }
 
-fn tray_labels(language: &str) -> (&'static str, &'static str) {
+fn tray_labels(language: &str) -> (&'static str, &'static str, &'static str) {
     if language.starts_with("zh") {
-        ("显示", "退出")
+        ("显示", "导出日志", "退出")
     } else {
-        ("Show", "Quit")
+        ("Show", "Export logs", "Quit")
     }
 }
 
 fn build_tray_menu<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Result<Menu<R>> {
-    let (show, quit) = tray_labels(language);
+    let (show, export_logs, quit) = tray_labels(language);
     let show_item = MenuItem::with_id(app, "tray-show", show, true, None::<&str>)?;
+    let export_item = MenuItem::with_id(app, "tray-export-logs", export_logs, true, None::<&str>)?;
+    let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "tray-quit", quit, true, None::<&str>)?;
-    Menu::with_items(app, &[&show_item, &quit_item])
+    Menu::with_items(app, &[&show_item, &export_item, &separator, &quit_item])
 }
 
 /// Bring the main window to the foreground (tray click / "Show").
@@ -227,7 +229,8 @@ fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Build the system tray (icon + localized Show/Quit menu, left-click reveals).
+/// Build the system tray (icon + localized Show / Export logs / Quit menu,
+/// left-click reveals).
 pub fn setup_tray<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Result<()> {
     let menu = build_tray_menu(app, language)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
@@ -236,6 +239,14 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Resu
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "tray-show" => show_main_window(app),
+            // The WEBVIEW runs the export (daemon admin API fetch + native
+            // save dialog via `save_log_export`); reveal the window first so
+            // the save dialog and its result are visible.
+            "tray-export-logs" => {
+                show_main_window(app);
+                use tauri::Emitter as _;
+                let _ = app.emit("tray-export-logs", ());
+            }
             "tray-quit" => app.exit(0),
             _ => {}
         })

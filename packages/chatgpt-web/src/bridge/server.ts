@@ -1,0 +1,444 @@
+/**
+ * server.ts — the loopback OpenAI-Responses bridge over the browser worker.
+ *
+ * Serves exactly what Codex needs from a custom `model_providers` base_url:
+ *   GET  /healthz              liveness + active turn count
+ *   GET  /v1/models            the chatgpt-web/* catalog (full list, unfiltered)
+ *   POST /v1/responses         SSE (stream=true) or JSON; chatgpt-web/* only
+ *   POST /v1/responses/compact remote compaction v1 (unary replacement history)
+ *
+ * Loopback-only bind, optional bearer token (the codex launch wiring passes
+ * one via env_key), request-abort propagation (Codex Esc → click Stop → close
+ * the tab), and an explicit JSON error envelope for every failure.
+ *
+ * @module @omnicross/chatgpt-web/bridge/server
+ */
+
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { Readable } from 'node:stream';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+
+import { ChatGptWebCapacityError, ChatGptWebBridgeWorker } from './worker';
+import {
+  connectTunnel,
+  installTunnelClient,
+  startTunnelRuntime,
+  stopTunnel,
+  tunnelBinaryPath,
+  tunnelStatus,
+  type TunnelRuntimeConfig,
+  type TunnelRuntimeHandle,
+} from '../tunnel/tunnelClient';
+import { loadHarnessConfig, type HarnessConfig } from '../tunnel/harnessConfig';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildCompactV1Output, extractCompactUserMessages } from './compaction';
+import { buildChatGptWebModelsDocument } from './models';
+import { parseRequest } from './parser';
+import { bridgeToResponsesSSE, formatErrorPayload } from './sse';
+import type { BridgeEvent } from './types';
+
+const MAX_BODY_BYTES = 160 * 1024 * 1024;
+
+export interface ChatGptWebBridgeServerOptions {
+  port?: number;
+  /** Require this bearer token on /v1/* (omit to accept any loopback caller). */
+  authToken?: string;
+  cdpPort?: number;
+  onDiagnostic?: (checkpoint: string) => void;
+  onError?: (error: Error) => void;
+  /** Full-harness mode: install + connect the OpenAI tunnel and route tool calls. */
+  harness?: boolean;
+  /** Override for the harness config path (tests). */
+  harnessConfigPath?: string;
+  /**
+   * Browser host: 'chrome' (default) drives the user's Chrome via its debug
+   * port; 'electron' spawns a dedicated isolated Electron host whose profile
+   * owns the ChatGPT login — the user's Chrome is never touched.
+   */
+  browserHost?: 'chrome' | 'electron';
+  /** Data dir for the Electron host profile (defaults to ~/.omnicross/chatgpt-web). */
+  browserHostDataDir?: string;
+  /** Keep the Electron host window visible (dogfooding / first login). */
+  browserHostVisible?: boolean;
+}
+
+export interface RunningBridge {
+  server: Server;
+  port: number;
+  baseUrl: string;
+  worker: ChatGptWebBridgeWorker;
+  harness: HarnessRuntime | null;
+  stop: () => Promise<void>;
+}
+
+/** The connected tunnel runtime (absent in browser-only mode). */
+export interface HarnessRuntime {
+  config: HarnessConfig;
+  runtimeHandle: TunnelRuntimeHandle;
+  status: () => Promise<import('../tunnel/tunnelClient').TunnelRuntimeStatus>;
+}
+
+/** Poll the runtime status until healthy+ready, surfacing the log tail. */
+async function waitForTunnelReady(
+  probe: () => Promise<import('../tunnel/tunnelClient').TunnelRuntimeStatus>,
+  timeoutMs = 120_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastDetail = '';
+  for (;;) {
+    const status = await probe();
+    if (status.healthy && status.ready) return;
+    lastDetail = status.detail;
+    if (Date.now() >= deadline) {
+      throw new Error(`tunnel runtime did not become ready within ${timeoutMs}ms (last: ${lastDetail.slice(0, 400)})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+}
+
+/** Error carrying an HTTP status for the JSON error envelope. */
+class BridgeHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly type = 'server_error',
+  ) {
+    super(message);
+  }
+}
+
+/** Start the bridge on 127.0.0.1. Resolves once listening. */
+export async function startChatGptWebBridge(options: ChatGptWebBridgeServerOptions = {}): Promise<RunningBridge> {
+  let harnessConfig: HarnessConfig | null = null;
+  if (options.harness) {
+    harnessConfig = loadHarnessConfig(options.harnessConfigPath);
+    if (!harnessConfig) {
+      throw new Error(
+        'Full-harness mode is enabled but no harness config was found. Run: omnicross chatgpt-web harness setup --tunnel-id <id> --runtime-key <key>',
+      );
+    }
+  }
+  // Dedicated Electron host: start BEFORE the worker so its endpoint is live.
+  let electronHost: import('../browserHost/electronHost').ElectronHostHandle | null = null;
+  if (options.browserHost === 'electron') {
+    const host = await import('../browserHost/electronHost');
+    const { homedir } = await import('node:os');
+    const dataDir = options.browserHostDataDir ?? join(homedir(), '.omnicross', 'chatgpt-web');
+    electronHost = await host.startElectronHost({
+      dataDir,
+      visible: options.browserHostVisible,
+      onStderr: (line) => options.onDiagnostic?.(`electron-host: ${line.slice(0, 120)}`),
+    });
+  }
+  const worker = new ChatGptWebBridgeWorker({
+    cdpPort: options.cdpPort,
+    ...(electronHost
+      ? {
+        endpoint: { port: electronHost.port, wsPath: electronHost.wsPath },
+        targetFactory: electronHost.targetFactory,
+      }
+      : {}),
+    onDiagnostic: options.onDiagnostic,
+    ...(harnessConfig ? { harness: harnessConfig } : {}),
+  });
+  const authToken = options.authToken;
+  const server = createServer((req, res) => {
+    void handleRequest(req, res, { worker, authToken, onError: options.onError }).catch((error) => {
+      options.onError?.(error instanceof Error ? error : new Error(String(error)));
+      if (!res.headersSent) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+      }
+      res.end(JSON.stringify(formatErrorPayload(500, 'server_error', 'bridge internal error')));
+    });
+  });
+  const port = options.port ?? 0;
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => resolve());
+  });
+  const address = server.address();
+  const actualPort = typeof address === 'object' && address ? address.port : port;
+
+  // Full harness: broker + tunnel-client with our MCP server as its child.
+  let harnessRuntime: HarnessRuntime | null = null;
+  if (harnessConfig) {
+    const { port: brokerPort, secret } = await worker.broker.listen();
+    const installed = await installTunnelClient(join(harnessConfig.dataDir, 'bin'));
+    const mcpEntry = resolveMcpServerEntry();
+    if (!mcpEntry || !existsSync(mcpEntry)) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      throw new Error(
+        `Full-harness MCP server entry not found (expected ${mcpEntry ?? '<unknown>'}); build @omnicross/chatgpt-web first.`,
+      );
+    }
+    // The tunnel REJECTS mcp-command argv containing secret material AND
+    // spawns the MCP child with a sanitized environment, so the broker
+    // secret travels via a private file whose PATH is argv-safe.
+    const secretsDir = join(harnessConfig.dataDir, 'tunnel', 'profiles', 'secrets');
+    mkdirSync(secretsDir, { recursive: true });
+    const brokerSecretFile = join(secretsDir, 'broker.secret');
+    writeFileSync(brokerSecretFile, secret);
+    const runtime: TunnelRuntimeConfig = {
+      binaryPath: installed.binaryPath,
+      tunnelId: harnessConfig.tunnelId,
+      runtimeKey: harnessConfig.runtimeKey,
+      alias: 'omnicross-chatgpt-web',
+      profileDir: join(harnessConfig.dataDir, 'tunnel', 'profiles'),
+      mcpCommand: [process.execPath, mcpEntry, `--broker-port=${brokerPort}`, `--broker-secret-file=${brokerSecretFile}`],
+    };
+    await connectTunnel(runtime);
+    // `connect` only writes the profile and probes once; `run` is the
+    // long-lived daemon that keeps the tunnel + MCP child available.
+    const runtimeHandle = startTunnelRuntime({ binaryPath: runtime.binaryPath, profileDir: runtime.profileDir });
+    try {
+      await waitForTunnelReady(() => tunnelStatus({ binaryPath: runtime.binaryPath, alias: runtime.alias }));
+    } catch (error) {
+      await runtimeHandle.stop();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      throw error;
+    }
+    harnessRuntime = {
+      config: harnessConfig,
+      runtimeHandle,
+      status: () => tunnelStatus({ binaryPath: tunnelBinaryPath(join(harnessConfig!.dataDir, 'bin')), alias: runtime.alias }),
+    };
+  }
+
+  return {
+    server,
+    port: actualPort,
+    baseUrl: `http://127.0.0.1:${actualPort}`,
+    worker,
+    harness: harnessRuntime,
+    stop: async () => {
+      if (electronHost) {
+        await electronHost.stop().catch(() => undefined);
+      }
+      if (harnessConfig) {
+        await harnessRuntime?.runtimeHandle.stop().catch(() => undefined);
+        await stopTunnel({
+          binaryPath: tunnelBinaryPath(join(harnessConfig.dataDir, 'bin')),
+          alias: 'omnicross-chatgpt-web',
+        }).catch(() => undefined);
+        await worker.broker.stop();
+      }
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      worker.connection.close();
+    },
+  };
+}
+
+/** Locate the built MCP server entry (dist layout, or dist from src runs). */
+function resolveMcpServerEntry(): string | null {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const candidates = [
+      join(here, 'tunnel', 'mcpServer.js'), // dist/server.js layout
+      join(here, '..', 'tunnel', 'mcpServer.js'), // dist/bridge/server.js layout
+      join(here, '..', '..', 'dist', 'tunnel', 'mcpServer.js'), // src/bridge/server.ts (tsx) -> dist
+    ];
+    return candidates.find((candidate) => existsSync(candidate)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+interface RequestContext {
+  worker: ChatGptWebBridgeWorker;
+  authToken?: string;
+  onError?: (error: Error) => void;
+}
+
+async function handleRequest(req: IncomingMessage, res: import('node:http').ServerResponse, context: RequestContext): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+  const pathname = url.pathname.replace(/\/+$/, '') || '/';
+
+  if (req.method === 'GET' && pathname === '/healthz') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        service: 'omnicross-chatgpt-web',
+        pid: process.pid,
+        // ask_pro's precheck distinguishes "bridge down" from "bridge without harness".
+        harness: context.worker.harnessEnabled,
+      }),
+    );
+    return;
+  }
+
+  if (pathname === '/v1/models' && req.method === 'GET') {
+    // Serve the full catalog unfiltered: model selection rides `-m`, and gating
+    // this on a live probe would break Codex startup while Chrome is closed.
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(buildChatGptWebModelsDocument({ solAvailable: true, proAvailable: true })));
+    return;
+  }
+
+  if (pathname.startsWith('/v1/')) {
+    if (context.authToken !== undefined && !authorized(req, context.authToken)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(formatErrorPayload(401, 'authentication_error', 'missing or invalid bearer token')));
+      return;
+    }
+    if (pathname === '/v1/responses' && req.method === 'POST') {
+      await handleResponses(req, res, context);
+      return;
+    }
+    if (pathname === '/v1/responses/compact' && req.method === 'POST') {
+      await handleCompact(req, res, context);
+      return;
+    }
+    if (pathname === '/v1/responses' && req.method === 'GET') {
+      // Codex's WebSocket prewarm probe: 426 = capability negotiation signal.
+      res.writeHead(426, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Responses WebSocket transport is not enabled on this local route');
+      return;
+    }
+  }
+
+  res.writeHead(404, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(formatErrorPayload(404, 'invalid_request_error', `unknown route: ${req.method} ${pathname}`)));
+}
+
+function authorized(req: IncomingMessage, token: string): boolean {
+  const header = req.headers['authorization'] ?? '';
+  const expected = Buffer.from(`Bearer ${token}`);
+  const actual = Buffer.from(String(header));
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY_BYTES) {
+      throw new BridgeHttpError('request body exceeds the bridge size limit', 413, 'invalid_request_error');
+    }
+    chunks.push(chunk as Buffer);
+  }
+  if (chunks.length === 0) return {};
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+async function handleResponses(req: IncomingMessage, res: import('node:http').ServerResponse, context: RequestContext): Promise<void> {
+  let parsed;
+  try {
+    const body = await readJsonBody(req);
+    parsed = parseRequest(body);
+  } catch (error) {
+    respondJson(res, 400, formatErrorPayload(400, 'invalid_request_error', error instanceof Error ? error.message : String(error)));
+    return;
+  }
+
+  const abort = new AbortController();
+  req.on('close', () => abort.abort());
+  let events: AsyncGenerator<BridgeEvent>;
+  try {
+    events = context.worker.runRequest(parsed, abort.signal);
+  } catch (error) {
+    respondError(res, error, context);
+    return;
+  }
+
+  if (!parsed.stream) {
+    const collected: BridgeEvent[] = [];
+    try {
+      for await (const event of events) collected.push(event);
+    } catch (error) {
+      respondError(res, error, context);
+      return;
+    }
+    const { buildResponseJSON } = await import('./sse');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(buildResponseJSON(collected, parsed.modelId, {
+      hideThinkingSummary: parsed.options.hideThinkingSummary,
+      compaction: parsed._compactionRequest === true,
+    })));
+    return;
+  }
+
+  const stream = bridgeToResponsesSSE(events, parsed.modelId, {
+    hideThinkingSummary: parsed.options.hideThinkingSummary,
+    compaction: parsed._compactionRequest === true,
+  });
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+  });
+  const nodeStream = Readable.fromWeb(stream as import('node:stream/web').ReadableStream);
+  nodeStream.pipe(res);
+  nodeStream.on('error', (error) => {
+    context.onError?.(error instanceof Error ? error : new Error(String(error)));
+    res.end();
+  });
+}
+
+async function handleCompact(req: IncomingMessage, res: import('node:http').ServerResponse, context: RequestContext): Promise<void> {
+  let parsed;
+  let rawInput: unknown;
+  try {
+    const body = await readJsonBody(req);
+    rawInput = (body as { input?: unknown })?.input;
+    parsed = parseRequest(body);
+  } catch (error) {
+    respondJson(res, 400, formatErrorPayload(400, 'invalid_request_error', error instanceof Error ? error.message : String(error)));
+    return;
+  }
+  // v1 compaction: run the summarization turn and return replacement history.
+  const summarized = Object.assign(parsed, { _compactionRequest: true });
+  const abort = new AbortController();
+  req.on('close', () => abort.abort());
+  let summary = '';
+  try {
+    for await (const event of context.worker.runRequest(summarized, abort.signal)) {
+      if (event.type === 'text_delta') summary += event.text;
+      if (event.type === 'error') throw new BridgeHttpError(event.message, event.status ?? 502);
+    }
+  } catch (error) {
+    respondError(res, error, context);
+    return;
+  }
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      object: 'response',
+      output: buildCompactV1Output(extractCompactUserMessages(rawInput), summary.trim()),
+    }),
+  );
+}
+
+function respondError(res: import('node:http').ServerResponse, error: unknown, context: RequestContext): void {
+  if (error instanceof ChatGptWebCapacityError) {
+    respondJson(res, 429, formatErrorPayload(429, 'rate_limit_error', error.message, 'browser_turn_capacity'));
+    return;
+  }
+  const carried = (error as { status?: unknown })?.status;
+  const status =
+    typeof carried === 'number' && Number.isInteger(carried) && carried >= 400 && carried <= 599
+      ? carried
+      : (error as { name?: unknown })?.name === 'AbortError'
+        ? 499
+        : 500;
+  const message = error instanceof Error ? error.message : String(error);
+  context.onError?.(error instanceof Error ? error : new Error(message));
+  respondJson(
+    res,
+    status,
+    formatErrorPayload(status, status === 400 ? 'invalid_request_error' : 'server_error', message),
+  );
+}
+
+function respondJson(res: import('node:http').ServerResponse, status: number, payload: Record<string, unknown>): void {
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(payload));
+}
+
+/** Generate a random bearer token for the codex launch wiring. */
+export function generateBridgeToken(): string {
+  return randomBytes(24).toString('hex');
+}

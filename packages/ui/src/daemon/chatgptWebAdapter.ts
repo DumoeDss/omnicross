@@ -1,0 +1,122 @@
+/**
+ * chatgptWebAdapter.ts — the daemon ⇄ ChatGPT Web page adapter.
+ *
+ * Wraps the daemon's `/admin/api/chatgpt-web` routes: aggregated status,
+ * opening the CDP-less login window, probing the persisted login cookie,
+ * and the background bridge lifecycle.
+ */
+
+import { adminClient } from './adminClient';
+import type {
+  ChatGptWebApi,
+  ChatGptWebBridgeStartInput,
+  ChatGptWebBridgeStatus,
+  ChatGptWebConfigSaveInput,
+  ChatGptWebStatus,
+} from './types-chatgpt-web';
+
+function failure(error: unknown, fallback: string): { success: false; message: string } {
+  return { success: false, message: error instanceof Error ? error.message : fallback };
+}
+
+export function createChatGptWebAdapter(): ChatGptWebApi {
+  return {
+    async status(): Promise<ChatGptWebStatus | null> {
+      try {
+        return await adminClient.get<ChatGptWebStatus>('/chatgpt-web');
+      } catch {
+        return null;
+      }
+    },
+
+    async saveConfig(
+      input: ChatGptWebConfigSaveInput,
+    ): Promise<{ success: boolean; message?: string; status?: ChatGptWebStatus }> {
+      try {
+        const status = await adminClient.post<ChatGptWebStatus>('/chatgpt-web/config', input);
+        return { success: true, status };
+      } catch (err) {
+        return failure(err, 'failed to save the harness config');
+      }
+    },
+
+    async retryTunnelInstall(): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/tunnel-install', {});
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to start the tunnel client download');
+      }
+    },
+
+    async setupCodexProfile(
+      input: { model: string },
+    ): Promise<{ success: boolean; message?: string; profileName?: string; envVarWritten?: boolean; command?: string }> {
+      try {
+        const data = await adminClient.post<{ profileName: string; envVarWritten: boolean; command: string }>(
+          '/chatgpt-web/codex-setup',
+          input,
+        );
+        return { success: true, ...data };
+      } catch (err) {
+        return failure(err, 'failed to write the codex profile');
+      }
+    },
+
+    async installAskPro(input: { model?: string }): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/ask-pro/install', input);
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to install ask_pro');
+      }
+    },
+
+    async uninstallAskPro(): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/ask-pro/uninstall', {});
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to uninstall ask_pro');
+      }
+    },
+
+    async openLoginWindow(): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.post('/chatgpt-web/login', {});
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to open the login window');
+      }
+    },
+
+    async checkLogin(): Promise<{ success: boolean; authenticated: boolean; message?: string }> {
+      try {
+        const data = await adminClient.post<{ authenticated: boolean }>('/chatgpt-web/login-check', {});
+        return { success: true, authenticated: data.authenticated === true };
+      } catch (err) {
+        return { ...failure(err, 'login check failed'), authenticated: false };
+      }
+    },
+
+    async startBridge(
+      input: ChatGptWebBridgeStartInput,
+    ): Promise<{ success: boolean; message?: string; bridge?: ChatGptWebBridgeStatus }> {
+      try {
+        const bridge = await adminClient.post<ChatGptWebBridgeStatus>('/chatgpt-web/bridge', input);
+        return { success: true, bridge };
+      } catch (err) {
+        return failure(err, 'failed to start the bridge');
+      }
+    },
+
+    async stopBridge(): Promise<{ success: boolean; message?: string }> {
+      try {
+        await adminClient.delete('/chatgpt-web/bridge');
+        return { success: true };
+      } catch (err) {
+        return failure(err, 'failed to stop the bridge');
+      }
+    },
+  };
+}

@@ -20,6 +20,13 @@ export interface ProviderSettingsProps {
   onSelectedProviderChange?: (providerId: string | null) => void;
   /** Open directly in the provider creation form. */
   mode?: 'manage' | 'create';
+  /** Fires after a provider is CREATED (not edited) and the list has refreshed —
+      a modal create flow closes itself here instead of dropping into the new
+      provider's config page. */
+  onProviderCreated?: (providerId: string) => void;
+  /** Ask the owner to tear this view down (e.g. close the hosting dialog) when
+      the user cancels OUT of the create flow at the template picker. */
+  onRequestClose?: () => void;
 }
 
 export function ProviderSettings({
@@ -27,6 +34,8 @@ export function ProviderSettings({
   selectedProviderId: controlledProviderId,
   onSelectedProviderChange,
   mode = 'manage',
+  onProviderCreated,
+  onRequestClose,
 }: ProviderSettingsProps = {}) {
   const t = useTranslation();
   // Re-entry banner dismiss state (per-view, resets on remount) — non-blocking.
@@ -119,6 +128,7 @@ export function ProviderSettings({
   } = useProviderSettings({
     selectedProviderId: controlledProviderId,
     onSelectedProviderChange,
+    onProviderCreated,
   });
 
   const initializedMode = useRef(false);
@@ -188,7 +198,11 @@ export function ProviderSettings({
                 addedPresetIds={addedPresetIds}
                 onUseTemplate={handleUsePresetTemplate}
                 onStartCustom={handleStartCustomProvider}
-                onCancel={handleCancelEdit}
+                /* The picker's cancel LEAVES the add flow entirely. In a hosting
+                   dialog that means closing it — staying open would drop the
+                   user onto an auto-selected existing provider's config page
+                   inside an "add provider" modal. */
+                onCancel={onRequestClose ?? handleCancelEdit}
               />
             ) : isAddingNew ? (
               /* Cancel INSIDE the add flow (step 2 form) steps back to the

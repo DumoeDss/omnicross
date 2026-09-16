@@ -13,18 +13,14 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SettingRow } from '@/components/ui/setting-row';
-import type { SelectOption } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import type { RouteNavigate } from '@/shared/state/hashRoute';
 import type { GatewayBinding } from '@/daemon/types';
 
 import { normalizeApiServiceTab, type ApiServiceTabId } from './apiServiceTabModel';
-import {
-  buildDirectUpstreamOptions,
-  routeForBinding,
-  summarizeBindingCoverage,
-} from './gatewayBindingUiModel';
+import { summarizeBindingCoverage } from './gatewayBindingUiModel';
 import { useApiService } from './hooks/useApiService';
 import { useCliIntegrations } from '../code-cli/hooks/useCliIntegrations';
 import { KeyManagementSection } from './KeyManagementSection';
@@ -55,15 +51,14 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     createdKey,
     dismissCreatedKey,
     setEnabled,
-    updateBindings,
     createKey,
     revealKey,
     revokeKey,
     deleteKey,
     setKeyEnabled,
     setKeyMaxConcurrency,
-    setKeyUpstream,
-    setKeyPermissions,
+    setKeyUpstreamBinding,
+    setDefaultKeyUpstreamBinding,
     setKeyPolicy,
     queueStatus,
     vouchers,
@@ -80,14 +75,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
       ?.querySelector<HTMLElement>('[data-scroll-container]')
       ?.scrollTo({ top: 0 });
   }, [activeTab]);
-
-  // Direct key→upstream picker options: every BYO provider, plus the
-  // claude/kimi subscription pools / groups / accounts (the subscriptions whose
-  // upstream speaks the same Anthropic Messages wire as the client).
-  const directUpstreamOptions = React.useMemo<SelectOption[]>(
-    () => buildDirectUpstreamOptions(providers, accounts.providerAccounts, t),
-    [providers, accounts.providerAccounts, t],
-  );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -153,6 +140,23 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   />
                 </SettingRow>
 
+                <SettingRow
+                  label={t('apiService.upstreamDefault.label')}
+                  description={t('apiService.upstreamDefault.description')}
+                >
+                  <Select
+                    value={config.defaultKeyUpstreamBinding ?? 'none'}
+                    onChange={(value) => void setDefaultKeyUpstreamBinding(value as 'all' | 'none')}
+                    size="sm"
+                    disabled={busy}
+                    options={[
+                      { value: 'none', label: t('apiService.upstreamDefault.none') },
+                      { value: 'all', label: t('apiService.upstreamDefault.all') },
+                    ]}
+                    aria-label={t('apiService.upstreamDefault.label')}
+                  />
+                </SettingRow>
+
               </div>
 
               <div
@@ -173,16 +177,11 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   onDelete={deleteKey}
                   onToggle={setKeyEnabled}
                   onSetMaxConcurrency={setKeyMaxConcurrency}
-                  onSetPermissions={setKeyPermissions}
                   onSetPolicy={setKeyPolicy}
                   onDismissCreated={dismissCreatedKey}
                   integrations={cliIntegrations.overview?.integrations ?? []}
                   onBindIntegration={cliIntegrations.bindKey}
-                  bindings={config.bindings ?? []}
-                  onOpenBinding={onNavigate ? (binding) => onNavigate(routeForBinding(binding)) : undefined}
-                  onChangeBindings={updateBindings}
-                  directUpstreamOptions={directUpstreamOptions}
-                  onSetUpstream={setKeyUpstream}
+                  onSetUpstreamBinding={setKeyUpstreamBinding}
                 />
 
                 <VoucherSection

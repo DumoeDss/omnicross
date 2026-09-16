@@ -1,7 +1,8 @@
 /**
  * UsagePruneSweeper — retention for the sharded usage store.
  *
- * Prunes RAW day shards past `retentionDays` and NEVER touches a rollup. That
+ * Prunes RAW day shards (and their `usage-*.raw.jsonl` forensic sidecars) past
+ * `retentionDays` and NEVER touches a rollup. That
  * asymmetry is the whole design: aggregates (totals, per-model, per-key, hourly
  * trend) stay complete for the lifetime of the install, while the per-row detail
  * that costs 5 MB a day is bounded. In particular `getSpendByKey().totalUsd` —
@@ -27,7 +28,7 @@ import { join } from 'node:path';
 
 import type { Logger } from '@omnicross/core';
 
-import { dayKeyStartTs, listUsageDays, usageShardName } from './usageFiles';
+import { dayKeyStartTs, listUsageDays, usageRawShardName, usageShardName } from './usageFiles';
 import type { UsageRollupStore } from './usageRollupStore';
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -135,6 +136,10 @@ export class UsagePruneSweeper {
           });
           continue;
         }
+        // The day's raw sidecar (usage-raw) is the same retention class as the
+        // shard — forensic payload, never aggregated — so it goes with it. A
+        // missing sidecar (days written before the split) is not an error.
+        await unlink(join(this.usageDir, usageRawShardName(entry.dayKey))).catch(() => {});
         // The rollup just became the sole authority for this day; drop the memo
         // so the next read re-resolves it against a now-absent shard.
         this.rollups.invalidate(entry.dayKey);

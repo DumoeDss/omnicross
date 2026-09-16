@@ -89,7 +89,39 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return json as T;
 }
 
+/**
+ * Raw (non-JSON) GET for file downloads — e.g. the log export attachment.
+ * Returns the body text plus the server's `filename=` from Content-Disposition
+ * (null when absent). Errors go through the same typed envelope as `request`.
+ */
+async function rawGet(path: string): Promise<{ text: string; filename: string | null }> {
+  const headers: Record<string, string> = {};
+  if (ADMIN_TOKEN) headers['Authorization'] = `Bearer ${ADMIN_TOKEN}`;
+
+  let res: Response;
+  try {
+    res = await daemonFetch(`${DAEMON_BASE_URL}/admin/api${path}`, { method: 'GET', headers });
+  } catch (err) {
+    throw new AdminApiError(0, err instanceof Error ? err.message : 'network error');
+  }
+  const text = await res.text();
+  if (!res.ok) {
+    let message = `request failed (${res.status})`;
+    try {
+      const json = text ? (JSON.parse(text) as unknown) : null;
+      message = (json as DaemonErrorBody)?.error?.message || message;
+    } catch {
+      // Non-JSON error body — keep the status-line message.
+    }
+    throw new AdminApiError(res.status, message);
+  }
+  const match = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '');
+  return { text, filename: match?.[1] ?? null };
+}
+
 export const adminClient = {
+  /** Raw non-JSON GET (file exports). */
+  getRaw: (path: string) => rawGet(path),
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),

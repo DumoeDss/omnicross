@@ -33,7 +33,7 @@ const repo = resolve(here, '..', '..', '..');
 const staging = resolve(here, '..', 'src-tauri', 'daemon-runtime');
 const tarballDir = join(staging, 'tarballs');
 
-const PACKAGES = ['contracts', 'core', 'subscriptions', 'cli-launcher', 'ui', 'daemon'];
+const PACKAGES = ['contracts', 'core', 'subscriptions', 'cli-launcher', 'chatgpt-web', 'ui', 'daemon'];
 
 function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit' });

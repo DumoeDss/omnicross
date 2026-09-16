@@ -867,6 +867,33 @@ export function normalizeGatewayBindings(raw: unknown): GatewayBinding[] {
   return bindings;
 }
 
+/**
+ * UPSTREAM ROUTING MODEL: sanitize the per-upstream mapping tables. Rows with
+ * a blank source/target are dropped and duplicate sources collapse to the
+ * first; the multiple-rows-without-`*` rule is a WRITE-EDGE error (admin
+ * API), not a normalize-time drop. Returns undefined when nothing usable
+ * remains (⇒ passthrough everywhere).
+ */
+export function normalizeUpstreamModelMappings(
+  raw: unknown,
+): Record<string, GatewayModelMapping[]> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const result: Record<string, GatewayModelMapping[]> = {};
+  let any = false;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const keyTrimmed = key.trim();
+    if (keyTrimmed === '' || !Array.isArray(value)) continue;
+    const rows = normalizeGatewayModelMappings(value).filter(
+      (row, index, all) => all.findIndex((r) => r.source === row.source) === index,
+    );
+    if (rows.length > 0) {
+      result[keyTrimmed] = rows;
+      any = true;
+    }
+  }
+  return any ? result : undefined;
+}
+
 /** The default server config: disabled, loopback, four blank endpoints. */
 export function defaultServerConfig(): OutboundApiServerConfig {
   const queues = normalizeQueueSegments(undefined);
@@ -876,6 +903,8 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     endpoints: ALL_ENDPOINTS.map(defaultEndpointConfig),
     bindings: [],
     port: DEFAULT_OUTBOUND_PORT,
+    upstreamModelMappings: undefined,
+    defaultKeyUpstreamBinding: 'none',
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(undefined),
@@ -923,6 +952,9 @@ export function normalizeServerConfig(
     endpoints: ALL_ENDPOINTS.map(defaultEndpointConfig),
     bindings,
     port: raw.port ?? base.port,
+    upstreamModelMappings: normalizeUpstreamModelMappings(raw.upstreamModelMappings),
+    defaultKeyUpstreamBinding: raw.defaultKeyUpstreamBinding === 'all' ? 'all' : 'none',
+    upstreamMigrationDone: raw.upstreamMigrationDone === true ? true : undefined,
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
     accountHealth: normalizeAccountHealth(raw),
@@ -973,6 +1005,12 @@ export function mergeServerConfig(
     networkBinding: patch.networkBinding ?? current.networkBinding,
     endpoints: patch.endpoints ?? current.endpoints,
     bindings: patch.bindings ?? current.bindings,
+    upstreamModelMappings:
+      patch.upstreamModelMappings !== undefined
+        ? patch.upstreamModelMappings
+        : current.upstreamModelMappings,
+    defaultKeyUpstreamBinding: patch.defaultKeyUpstreamBinding ?? current.defaultKeyUpstreamBinding,
+    upstreamMigrationDone: patch.upstreamMigrationDone ?? current.upstreamMigrationDone,
     port: patch.port ?? current.port,
     userMessageQueue: patch.userMessageQueue ?? current.userMessageQueue,
     concurrencyQueue: patch.concurrencyQueue ?? current.concurrencyQueue,
