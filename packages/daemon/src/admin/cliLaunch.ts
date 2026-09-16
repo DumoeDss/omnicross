@@ -361,6 +361,21 @@ async function keyScopedEligibilityError(
 }
 
 /**
+ * The bindings that serve one key row — the mirror of the wire layer's
+ * UPSTREAM ROUTING MODEL rule: a key carrying an `upstreamBinding` is served
+ * ONLY by its derived (`keyup:<id>:*`) bindings, never by legacy stored
+ * routes. Keeps the launch preflight and the gateway from disagreeing.
+ */
+function bindingsServingKey(
+  bindings: readonly GatewayBinding[],
+  row: { id: string; upstreamBinding?: unknown },
+): readonly GatewayBinding[] {
+  if (!row.upstreamBinding) return bindings;
+  const prefix = `keyup:${row.id}:`;
+  return bindings.filter((binding) => binding.id.startsWith(prefix));
+}
+
+/**
  * Fail-fast checks for a key-scoped launch, so a misconfigured key surfaces as
  * a clear admin error instead of a terminal that 401s/404s on its first
  * request: gateway running; key exists, enabled, not revoked, revealable;
@@ -386,7 +401,7 @@ export async function preflightKeyScopedLaunch(
   if (!row) return { ok: false, status: 404, message: `access key '${keyId}' does not exist` };
   const eligibilityError = await keyScopedEligibilityError(deps, row, client);
   if (eligibilityError) return { ok: false, status: 400, message: eligibilityError };
-  if (candidateGatewayBindings(deps.bindings, keyId, endpoint).length === 0) {
+  if (candidateGatewayBindings(bindingsServingKey(deps.bindings, row), keyId, endpoint).length === 0) {
     return {
       ok: false,
       status: 400,
@@ -458,7 +473,7 @@ export async function preflightBindingScopedLaunch(
       if (keyId) return { ok: false, status: 400, message: eligibilityError };
       continue;
     }
-    if (candidateGatewayBindings(deps.bindings, row.id, endpoint, bindingId).length === 0) {
+    if (candidateGatewayBindings(bindingsServingKey(deps.bindings, row), row.id, endpoint, bindingId).length === 0) {
       if (keyId) {
         return {
           ok: false,

@@ -28,6 +28,7 @@ import {
   mergeServerConfig,
   normalizeProxyConfig,
   type GatewayBindingTarget,
+  type KeyUpstreamBinding,
   type OutboundApiKeyInfo,
   type OutboundApiServer,
   type OutboundApiServerConfig,
@@ -106,6 +107,15 @@ import {
 } from '../integrations';
 import { listMappablePresets } from '../preset-map';
 import { preserveOutboundProxySecrets, redactOutboundProxy } from '../proxy/sanitizeProxy';
+import {
+  assembledGatewayBindings,
+  listUpstreamCatalog,
+  migrateLegacyUpstreamRouting,
+  rollbackLegacyUpstreamRouting,
+  sanitizeUpstreamMappingRows,
+  upstreamMappingKeyOf,
+  validateUpstreamMappingTable,
+} from './upstreamRoutingAdmin';
 import { setServerProxyConfig } from '../proxy/upstreamProxyResolver';
 
 import {
@@ -522,6 +532,10 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
     legacyPermissions: row.allowedEndpoints === undefined,
     loopbackOnly: row.loopbackOnly,
     maxConcurrency: row.maxConcurrency,
+    // UPSTREAM ROUTING MODEL: the key's ordered upstream set ('all' = live
+    // reference; explicit empty = deliberately bound to nothing). Absent on
+    // legacy rows (downstream-route semantics).
+    ...(row.upstreamBinding ? { upstreamBinding: row.upstreamBinding } : {}),
     // Key-policy envelope (outbound-key-policy) — all secret-free scalar fields;
     // the UI reads them to render + pre-fill the policy editor.
     expiresAt: row.expiresAt,
@@ -644,6 +658,8 @@ export async function handleAdminApi(
         return handlePresets(res, method);
       case 'keys':
         return await handleKeys(req, res, method, rest, deps);
+      case 'upstreams':
+        return await handleUpstreams(req, res, method, rest, deps);
       case 'voucher':
         return await handleVoucher(req, res, method, rest, deps);
       case 'server':
@@ -652,8 +668,14 @@ export async function handleAdminApi(
         return await handleImages(req, res, method, rest, deps);
       case 'search':
         return await handleSearchAdmin(req, res, method, rest, deps);
-      case 'accounts':
-        return await handleAccounts(req, res, method, rest, deps);
+      case 'accounts': {
+        const result = await handleAccounts(req, res, method, rest, deps);
+        // UPSTREAM ROUTING MODEL: an account add/remove changes which
+        // subscription pools the catalog admits — re-derive after every
+        // mutation (best-effort; a derive failure must not fail the response).
+        if (method !== 'GET') await reapplyLiveServerConfig(deps).catch(() => undefined);
+        return result;
+      }
       case 'cli':
         return await handleCli(req, res, method, rest, deps);
       case 'chatgpt-web':
@@ -916,7 +938,7 @@ async function handleProviders(
       return writeJsonError(res, 409, `provider '${provider.id}' already exists`);
     }
     cfg.providers.push(provider);
-    persistProviders(cfg, deps);
+    await persistProviders(cfg, deps);
     return writeJson(res, 201, { provider: toProviderView(provider) });
   }
 
@@ -932,13 +954,13 @@ async function handleProviders(
     const updated = parseProviderInput(body, existing);
     if (!updated) return writeJsonError(res, 400, 'invalid provider (apiFormat, baseUrl required)');
     cfg.providers[idx] = updated;
-    persistProviders(cfg, deps);
+    await persistProviders(cfg, deps);
     return writeJson(res, 200, { provider: toProviderView(updated) });
   }
 
   if (method === 'DELETE') {
     cfg.providers.splice(idx, 1);
-    persistProviders(cfg, deps);
+    await persistProviders(cfg, deps);
     return writeJson(res, 200, { ok: true });
   }
 
@@ -946,9 +968,12 @@ async function handleProviders(
 }
 
 /** Persist the config to disk AND hot-reload the live provider catalog. */
-function persistProviders(cfg: DaemonConfig, deps: AdminApiDeps): void {
+async function persistProviders(cfg: DaemonConfig, deps: AdminApiDeps): Promise<void> {
   saveConfig(deps.configPath, cfg);
   deps.llmConfig.reload(cfg);
+  // UPSTREAM ROUTING MODEL: the provider catalog feeds `mode:'all'` expansion
+  // and derived-binding labels — re-derive so live routing follows the edit.
+  await reapplyLiveServerConfig(deps).catch(() => undefined);
 }
 
 /**
@@ -989,7 +1014,7 @@ async function handleProviderReorder(
     }
   }
   cfg.providers = reordered;
-  persistProviders(cfg, deps);
+  await persistProviders(cfg, deps);
   return writeJson(res, 200, { ok: true, providers: cfg.providers.map(toProviderView) });
 }
 
@@ -1356,7 +1381,7 @@ async function handleAddProviderKey(
 
   const row = cfg.providers[idx];
   row.apiKeys = [...(row.apiKeys ?? []), entry];
-  persistProviders(cfg, deps);
+  await persistProviders(cfg, deps);
   const cooldown = await deps.apiKeyPool.getKeyHealth(id);
   return writeJson(res, 201, { keys: toPoolKeyView(row, cooldown, deps) });
 }
@@ -1394,7 +1419,7 @@ async function handleUpdateProviderKey(
   if (parsed.weight !== undefined) entry.weight = parsed.weight;
   row.apiKeys![keyIdx] = entry;
 
-  persistProviders(cfg, deps);
+  await persistProviders(cfg, deps);
   const cooldown = await deps.apiKeyPool.getKeyHealth(id);
   return writeJson(res, 200, { keys: toPoolKeyView(row, cooldown, deps) });
 }
@@ -1422,7 +1447,7 @@ async function handleDeleteProviderKey(
 
   row.apiKeys!.splice(keyIdx, 1);
   if (row.apiKeys!.length === 0) row.apiKeys = undefined;
-  persistProviders(cfg, deps);
+  await persistProviders(cfg, deps);
   const cooldown = await deps.apiKeyPool.getKeyHealth(id);
   return writeJson(res, 200, { keys: toPoolKeyView(row, cooldown, deps) });
 }
@@ -1450,7 +1475,7 @@ async function handleToggleProviderKey(
 
   const body = await readJsonBody(req);
   row.apiKeys![keyIdx].enabled = Boolean(body['enabled']);
-  persistProviders(cfg, deps);
+  await persistProviders(cfg, deps);
   const cooldown = await deps.apiKeyPool.getKeyHealth(id);
   return writeJson(res, 200, { keys: toPoolKeyView(row, cooldown, deps) });
 }
@@ -1911,6 +1936,15 @@ async function handleKeys(
     const body = await readJsonBody(req);
     const name = typeof body['name'] === 'string' && body['name'].trim() ? body['name'].trim() : 'key';
     const created = await createNamedKey(deps.keyDb, name);
+    // UPSTREAM ROUTING MODEL: new keys materialize the configured default
+    // binding ('all' or 'none') as an EXPLICIT decision — the key never sits
+    // in the ambiguous "not migrated" state.
+    const serverConfig = await loadServerConfig(deps.settingsStore);
+    const defaultBinding: KeyUpstreamBinding = serverConfig.defaultKeyUpstreamBinding === 'all'
+      ? { mode: 'all' }
+      : { mode: 'explicit', targets: [] };
+    await deps.keyDb.outboundApiKeysSetUpstreamBinding(created.id, defaultBinding);
+    await reapplyLiveServerConfig(deps);
     // `plaintextOnce` is the ONLY place a full key crosses the wire (design D4).
     return writeJson(res, 201, {
       id: created.id,
@@ -1918,6 +1952,7 @@ async function handleKeys(
       keyPrefix: created.keyPrefix,
       createdAt: created.createdAt,
       allowedEndpoints: created.allowedEndpoints,
+      upstreamBinding: defaultBinding,
       plaintextOnce: created.plaintextOnce,
     });
   }
@@ -2093,7 +2128,159 @@ async function handleKeys(
     return writeJson(res, ok ? 200 : 404, { ok });
   }
 
+  // UPSTREAM ROUTING MODEL — POST /keys/:id/upstream-binding
+  // `{ binding: null | { mode: 'all' } | { mode: 'explicit', targets: [...] } }`.
+  // `null` rolls the key back to the legacy downstream-route semantics;
+  // an explicit EMPTY list deliberately binds nothing (403 per request).
+  if (method === 'POST' && id && action === 'upstream-binding') {
+    const body = await readJsonBody(req);
+    const raw = body['binding'] === undefined ? body : body['binding'];
+    if (raw === null) {
+      const ok = await deps.keyDb.outboundApiKeysSetUpstreamBinding(id, null);
+      if (!ok) return writeJson(res, 404, { ok: false });
+      await reapplyLiveServerConfig(deps);
+      return writeJson(res, 200, { ok: true, upstreamBinding: null });
+    }
+    const parsed = parseKeyUpstreamBinding(raw, await listUpstreamCatalog(deps));
+    if (!parsed.ok) return writeJsonError(res, 400, parsed.message);
+    const ok = await deps.keyDb.outboundApiKeysSetUpstreamBinding(id, parsed.binding);
+    if (!ok) return writeJson(res, 404, { ok: false });
+    await reapplyLiveServerConfig(deps);
+    return writeJson(res, 200, { ok: true, upstreamBinding: parsed.binding });
+  }
+
   return writeJsonError(res, 405, `method ${method} not allowed on keys`);
+}
+
+/** Parse + validate a key upstream binding against the live upstream catalog. */
+function parseKeyUpstreamBinding(
+  raw: unknown,
+  catalog: Array<{ target: GatewayBindingTarget }>,
+): { ok: true; binding: KeyUpstreamBinding } | { ok: false; message: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, message: 'binding must be an object or null' };
+  }
+  const value = raw as Record<string, unknown>;
+  const knownTargets = new Set(catalog.map((entry) => JSON.stringify(entry.target)));
+  if (value['mode'] === 'all') return { ok: true, binding: { mode: 'all' } };
+  if (value['mode'] !== 'explicit') {
+    return { ok: false, message: "binding.mode must be 'all' or 'explicit'" };
+  }
+  if (!Array.isArray(value['targets'])) {
+    return { ok: false, message: 'binding.targets must be an array' };
+  }
+  if (value['targets'].length > 32) {
+    return { ok: false, message: 'binding.targets cannot exceed 32 upstreams' };
+  }
+  const targets: GatewayBindingTarget[] = [];
+  for (const entry of value['targets']) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return { ok: false, message: 'each target must be an object' };
+    }
+    const kind = (entry as Record<string, unknown>)['kind'];
+    const providerId = (entry as Record<string, unknown>)['providerId'];
+    if (kind !== 'provider' && kind !== 'account-pool') {
+      return { ok: false, message: "target.kind must be 'provider' or 'account-pool'" };
+    }
+    if (typeof providerId !== 'string' || providerId.trim() === '') {
+      return { ok: false, message: 'target.providerId is required' };
+    }
+    const target = { kind, providerId: providerId.trim() } as GatewayBindingTarget;
+    if (!knownTargets.has(JSON.stringify(target))) {
+      return { ok: false, message: `unknown upstream '${providerId}' (kind ${kind})` };
+    }
+    if (targets.some((existing) => JSON.stringify(existing) === JSON.stringify(target))) continue;
+    targets.push(target);
+  }
+  return { ok: true, binding: { mode: 'explicit', targets } };
+}
+
+/**
+ * Re-apply the outbound server config with DERIVED bindings after any
+ * key/upstream/mapping mutation. Keeps the listener's running state as-is
+ * (the live `running` flag wins over the stored `enabled` toggle, so a
+ * re-derive can never silently stop or start the gateway).
+ */
+async function reapplyLiveServerConfig(deps: AdminApiDeps): Promise<void> {
+  const serverConfig = await loadServerConfig(deps.settingsStore);
+  await deps.outboundApiServer.applyConfig({
+    ...outboundServerConfigInput(serverConfig),
+    enabled: deps.outboundApiServer.getStatus().running || serverConfig.enabled,
+    bindings: await assembledGatewayBindings(deps, serverConfig),
+  });
+}
+
+// ── Upstream routing model (catalog + mapping tables) ────────────────────────
+
+/**
+ * `GET /admin/api/upstreams` → the upstream catalog (providers + subscription
+ * pools) with each entry's mapping table. `PUT /admin/api/upstreams/:key/mappings`
+ * `{ mappings: [...] }` replaces one table (write-edge validation: non-blank
+ * unique sources; >1 name rows without a `*` wildcard → 400).
+ */
+async function handleUpstreams(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  method: string,
+  rest: string[],
+  deps: AdminApiDeps,
+): Promise<void> {
+  if (method === 'GET' && rest.length === 0) {
+    const [catalog, serverConfig] = await Promise.all([
+      listUpstreamCatalog(deps),
+      loadServerConfig(deps.settingsStore),
+    ]);
+    return writeJson(res, 200, {
+      upstreams: catalog.map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        target: entry.target,
+        mappings: serverConfig.upstreamModelMappings?.[entry.key] ?? [],
+      })),
+      // The derived + legacy aggregate actually being served (the UI's launch
+      // target picker and route coverage read this instead of the stored
+      // `server.bindings`, which only carries the legacy routes).
+      liveBindings: await assembledGatewayBindings(deps, serverConfig),
+    });
+  }
+  if (method === 'PUT' && rest.length === 2 && rest[1] === 'mappings') {
+    const key = decodeURIComponent(rest[0]).trim();
+    if (key === '') return writeJsonError(res, 400, 'upstream key is required');
+    const catalog = await listUpstreamCatalog(deps);
+    if (!catalog.some((entry) => entry.key === key)) {
+      return writeJsonError(res, 404, `unknown upstream '${key}'`);
+    }
+    const body = await readJsonBody(req);
+    if (!Object.prototype.hasOwnProperty.call(body, 'mappings')) {
+      return writeJsonError(res, 400, 'body must contain mappings');
+    }
+    const invalid = validateUpstreamMappingTable(body['mappings']);
+    if (invalid) return writeJsonError(res, 400, invalid);
+    const rows = sanitizeUpstreamMappingRows(body['mappings']);
+    const current = await loadServerConfig(deps.settingsStore);
+    const tables = { ...(current.upstreamModelMappings ?? {}) };
+    if (rows.length === 0) delete tables[key];
+    else tables[key] = rows;
+    const next = { ...current, upstreamModelMappings: Object.keys(tables).length > 0 ? tables : undefined };
+    await saveServerConfig(deps.settingsStore, next);
+    await reapplyLiveServerConfig(deps);
+    return writeJson(res, 200, { ok: true, key, mappings: rows });
+  }
+  // P4 (D7): the one-time legacy→upstream-model conversion. The stored legacy
+  // routes are NOT removed — rollback is wholesale below or per key.
+  if (method === 'POST' && rest.length === 1 && rest[0] === 'migrate-legacy') {
+    const result = await migrateLegacyUpstreamRouting(deps);
+    await reapplyLiveServerConfig(deps);
+    return writeJson(res, 200, { ok: true, ...result });
+  }
+  // P4 (D7): the wholesale rollback — every key returns to the stored legacy
+  // routes (its `upstreamBinding` field is cleared, nothing is deleted).
+  if (method === 'POST' && rest.length === 1 && rest[0] === 'rollback-legacy') {
+    const result = await rollbackLegacyUpstreamRouting(deps);
+    await reapplyLiveServerConfig(deps);
+    return writeJson(res, 200, { ok: true, cleared: result.cleared });
+  }
+  return writeJsonError(res, 405, `method ${method} not allowed on upstreams`);
 }
 
 // ── Server config (live apply) ────────────────────────────────────────────────
@@ -2433,7 +2620,13 @@ async function handleServer(
               dispose: () => undefined,
             });
             changes.push(
-              await deps.outboundApiServer.prepareConfig(outboundServerConfigInput(next)),
+              // UPSTREAM ROUTING MODEL: apply the DERIVED aggregate (per-key
+              // upstream sets + upstream mappings + legacy routes for
+              // unmigrated keys), never the stored routes alone.
+              await deps.outboundApiServer.prepareConfig({
+                ...outboundServerConfigInput(next),
+                bindings: await assembledGatewayBindings(deps, next),
+              }),
             );
             return changes;
           } catch (error) {
@@ -2991,7 +3184,9 @@ async function handleCli(
           const serverConfig = await loadServerConfig(deps.settingsStore);
           return {
             keyDb: deps.keyDb,
-            bindings: serverConfig.bindings ?? [],
+            // Derived + legacy aggregate — a key-scoped launch on a migrated
+            // key must preflight against its DERIVED candidates.
+            bindings: await assembledGatewayBindings(deps, serverConfig),
             gatewayRunning: gateway.running,
             gatewayBaseUrl: gateway.loopbackUrl ?? `http://127.0.0.1:${gateway.port}`,
             codexAuthHelper,

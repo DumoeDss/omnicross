@@ -540,7 +540,7 @@
     "pricing": "Pricing",
     "dashboard": "Dashboard",
     "images": "Images",
-"search": "Search"
+    "search": "Search"
   },
   "routeActivity": {
     "title": "Routing activity",
@@ -934,7 +934,7 @@
     "page": {
       "title": "Image generation",
       "description": "Model routing, provider health, and the Images endpoints in one place.",
-      "loading": "Loading Images configuration\u2026"
+      "loading": "Loading Images configuration…"
     },
     "providers": {
       "bootstrap": "bootstrap (unverified)",
@@ -947,8 +947,8 @@
     "verify": {
       "title": "Live verification",
       "run": "Run verification",
-      "running": "Verifying\u2026",
-      "warning": "\u26a0 Consumes subscription quota: one minimal low-quality PNG request will be sent.",
+      "running": "Verifying…",
+      "warning": "⚠ Consumes subscription quota: one minimal low-quality PNG request will be sent.",
       "codexOnly": "Covers the Codex wire only; the Antigravity provider has no independent verifier in v1.",
       "codexOnlyPlain": "Covers the Codex wire only.",
       "success": "Verified {{model}} ({{quality}}, {{format}}); fresh evidence entries: {{count}}."
@@ -981,6 +981,12 @@
     "enable": {
       "label": "Enable outbound server",
       "description": "Start the local API server that routes external callers through your providers."
+    },
+    "upstreamDefault": {
+      "label": "Default upstream binding for new keys",
+      "description": "Whether a newly created access key binds every upstream by default or none (unbound keys reject requests).",
+      "none": "None (configure manually)",
+      "all": "All upstreams"
     },
     "networkBinding": {
       "label": "Allow LAN access",
@@ -1027,6 +1033,32 @@
       "purge": "Delete permanently",
       "purgeConfirmTitle": "Remove this key permanently?",
       "purgeConfirmDesc": "Permanently deleting \"{{name}}\" removes its row from the list entirely (past usage loses the key's name). This cannot be undone.",
+      "upstream": {
+        "edit": "Upstream binding",
+        "dialogTitle": "Edit upstream binding for {{name}}",
+        "dialogDesc": "Choose this key's routing domain: every upstream, an ordered explicit list (order = priority), or the legacy downstream-route semantics.",
+        "modeAll": "All upstreams (follows the catalog)",
+        "modeExplicit": "Explicit upstreams (ordered; order = priority)",
+        "modeLegacy": "Legacy downstream routes",
+        "summaryAll": "All upstreams",
+        "summaryExplicit": "{{count}} upstream(s)",
+        "summaryNone": "Unbound (requests rejected)",
+        "summaryLegacy": "Legacy downstream routes",
+        "orderUp": "Move up",
+        "orderDown": "Move down",
+        "orderHint": "Select then order with the arrows — earlier entries serve first, later ones are failover candidates.",
+        "emptyCatalog": "No upstreams available — add a provider or subscription on the Upstreams page first.",
+        "mappingEdit": "Model mappings",
+        "mappingTitle": "Edit model mappings for {{name}}",
+        "mappingDesc": "Client model name → upstream model id. Exact names beat * wildcards; default / background are role rows (Gemini background model); empty = passthrough.",
+        "mappingEmpty": "No mappings — the client's model id is forwarded verbatim.",
+        "mappingSource": "Client model name (e.g. claude-*)",
+        "mappingTarget": "Upstream model id",
+        "mappingEffort": "Effort",
+        "mappingAdd": "Add a mapping row",
+        "mappingHint": "With multiple rows include a * fallback row; the default / background role rows never match by name.",
+        "mappingSaveFailed": "Failed to save mappings"
+      },
       "created": {
         "title": "Key created",
         "warning": "Copy this key now and store it securely — you can view it again anytime from the key list.",
@@ -1475,30 +1507,115 @@
     "empty": "No subscription providers are available.",
     "signIn": "Sign in",
     "management": {
-      "summary": { "total": "Total accounts", "schedulable": "Ready to route", "excluded": "Excluded", "warnings": "Needs attention" },
+      "summary": {
+        "total": "Total accounts",
+        "schedulable": "Ready to route",
+        "excluded": "Excluded",
+        "warnings": "Needs attention"
+      },
       "searchPlaceholder": "Search name, ID, group, or tag",
-      "selected": "{{count}} selected", "selectAll": "Select all visible accounts", "selectAccount": "Select {{name}}", "openDetails": "Open account details",
-      "emptyFiltered": "No accounts match these filters.", "sortDirection": "Reverse sort direction", "schedulable": "Schedulable", "excluded": "Excluded", "priorityValue": "Priority {{value}}",
-      "schedulingState": { "disabled": "Disabled by operator", "healthPaused": "Paused by health", "allowancePaused": "Paused by allowance", "demoted": "Allowance demoted", "schedulable": "Schedulable", "excluded": "Excluded" },
-      "allowanceAction": { "normal": "Normal", "demote": "Demote", "pause": "Pause", "ignore": "Ignored" },
+      "selected": "{{count}} selected",
+      "selectAll": "Select all visible accounts",
+      "selectAccount": "Select {{name}}",
+      "openDetails": "Open account details",
+      "emptyFiltered": "No accounts match these filters.",
+      "sortDirection": "Reverse sort direction",
+      "schedulable": "Schedulable",
+      "excluded": "Excluded",
+      "priorityValue": "Priority {{value}}",
+      "schedulingState": {
+        "disabled": "Disabled by operator",
+        "healthPaused": "Paused by health",
+        "allowancePaused": "Paused by allowance",
+        "demoted": "Allowance demoted",
+        "schedulable": "Schedulable",
+        "excluded": "Excluded"
+      },
+      "allowanceAction": {
+        "normal": "Normal",
+        "demote": "Demote",
+        "pause": "Pause",
+        "ignore": "Ignored"
+      },
       "allowanceDecision": "Allowance: {{action}} · {{used}}% used",
       "allowanceDecisionNoUsage": "Allowance: {{action}}",
       "effectivePriority": "Base {{base}} → effective {{effective}}",
       "filters": {
-        "allProviders": "All providers", "allGroups": "All groups", "allHealth": "All health", "allCredentials": "All credentials",
-        "scheduling": { "all": "All scheduling", "enabled": "Enabled", "disabled": "Disabled", "schedulable": "Schedulable", "excluded": "Excluded" }
+        "allProviders": "All providers",
+        "allGroups": "All groups",
+        "allHealth": "All health",
+        "allCredentials": "All credentials",
+        "scheduling": {
+          "all": "All scheduling",
+          "enabled": "Enabled",
+          "disabled": "Disabled",
+          "schedulable": "Schedulable",
+          "excluded": "Excluded"
+        }
       },
-      "sort": { "label": "Name", "priority": "Priority", "last-used": "Last used", "allowance": "Allowance used", "reset-time": "Reset time" },
-      "columns": { "account": "Account", "providerGroup": "Provider / group", "status": "Routing status", "priority": "Priority", "lastUsed": "Last used", "actions": "Actions" },
-      "batch": { "enable": "Enable", "disable": "Disable", "setGroup": "Set group", "groupPlaceholder": "Group name", "delete": "Delete", "deleteTitle": "Delete selected accounts?", "deleteDescription": "This permanently deletes {{count}} stored credentials." },
-      "tabs": { "overview": "Overview", "routes": "Routes", "allowance": "Allowance", "scheduling": "Scheduling", "network": "Network", "diagnostics": "Diagnostics", "danger": "Danger zone" },
+      "sort": {
+        "label": "Name",
+        "priority": "Priority",
+        "last-used": "Last used",
+        "allowance": "Allowance used",
+        "reset-time": "Reset time"
+      },
+      "columns": {
+        "account": "Account",
+        "providerGroup": "Provider / group",
+        "status": "Routing status",
+        "priority": "Priority",
+        "lastUsed": "Last used",
+        "actions": "Actions"
+      },
+      "batch": {
+        "enable": "Enable",
+        "disable": "Disable",
+        "setGroup": "Set group",
+        "groupPlaceholder": "Group name",
+        "delete": "Delete",
+        "deleteTitle": "Delete selected accounts?",
+        "deleteDescription": "This permanently deletes {{count}} stored credentials."
+      },
+      "tabs": {
+        "overview": "Overview",
+        "routes": "Routes",
+        "allowance": "Allowance",
+        "scheduling": "Scheduling",
+        "network": "Network",
+        "diagnostics": "Diagnostics",
+        "danger": "Danger zone"
+      },
       "fields": {
-        "enabled": "Use for routing", "enabledHint": "Disabled accounts are never selected, even when they are the only account.",
-        "label": "Account name", "group": "Group", "tags": "Tags", "tagsPlaceholder": "production, team-a", "credential": "Credential", "health": "Health", "scheduling": "Scheduling", "lastUsed": "Last used", "priority": "Priority",
-        "allowanceAction": "Allowance policy", "effectivePriority": "Effective priority", "allowanceUsed": "Allowance used", "allowanceResume": "Allowance resets"
+        "enabled": "Use for routing",
+        "enabledHint": "Disabled accounts are never selected, even when they are the only account.",
+        "label": "Account name",
+        "group": "Group",
+        "tags": "Tags",
+        "tagsPlaceholder": "production, team-a",
+        "credential": "Credential",
+        "health": "Health",
+        "scheduling": "Scheduling",
+        "lastUsed": "Last used",
+        "priority": "Priority",
+        "allowanceAction": "Allowance policy",
+        "effectivePriority": "Effective priority",
+        "allowanceUsed": "Allowance used",
+        "allowanceResume": "Allowance resets"
       },
-      "diagnostics": { "testConnection": "Test connection", "testPassed": "Connection test passed.", "generationPassed": "{{model}} returned a complete response.", "testFailed": "Connection test failed.", "history": "Recent probes", "empty": "No probe events yet.", "loadFailed": "Probe history could not be loaded." },
-      "danger": { "title": "Delete account", "description": "Deletes this account and its encrypted credential. This cannot be undone." }
+      "diagnostics": {
+        "testConnection": "Test connection",
+        "testPassed": "Connection test passed.",
+        "generationPassed": "{{model}} returned a complete response.",
+        "testFailed": "Connection test failed.",
+        "history": "Recent probes",
+        "empty": "No probe events yet.",
+        "loadFailed": "Probe history could not be loaded."
+      },
+      "danger": {
+        "title": "Delete account",
+        "description": "Deletes this account and its encrypted credential. This cannot be undone."
+      }
     },
     "oauth": {
       "title": "Sign in to {{name}}",
@@ -2103,7 +2220,10 @@
         "refresh": "Refresh",
         "unavailable": "Decision diagnostics are unavailable on this daemon version. The policy configuration above remains editable.",
         "empty": "No allowance-driven demotion or pause has been applied yet.",
-        "action": { "demote": "Demoted", "pause": "Paused" },
+        "action": {
+          "demote": "Demoted",
+          "pause": "Paused"
+        },
         "priority": "priority {{base}} → {{effective}} · {{used}}% used"
       }
     },
@@ -2216,7 +2336,11 @@
     "empty": "The pricing table is empty.",
     "emptyHint": "Fetch the latest prices to populate it.",
     "noMatches": "No entries match your search.",
-    "pagination": { "summary": "Page {{page}} of {{pages}} · {{count}} models", "previous": "Previous", "next": "Next" },
+    "pagination": {
+      "summary": "Page {{page}} of {{pages}} · {{count}} models",
+      "previous": "Previous",
+      "next": "Next"
+    },
     "saved": "Pricing entry saved.",
     "saveFailed": "Save failed: {{message}}",
     "deleteFailed": "Delete failed: {{message}}",

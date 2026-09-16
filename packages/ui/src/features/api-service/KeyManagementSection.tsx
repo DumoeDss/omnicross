@@ -10,15 +10,24 @@
  * on dismiss).
  */
 
-import { ArrowRight, Check, Copy, Eye, KeyRound, Link2, Plus, Route, Server, SlidersHorizontal, Trash2 } from 'lucide-react';
-import React, { useState } from 'react';
+import { ArrowRight, ArrowDown, ArrowUp, Settings2, Check, Copy, Eye, KeyRound, Link2, Network, Plus, Route, Server, SlidersHorizontal, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import type { LLMProvider } from '@shared/llm-config';
@@ -26,6 +35,7 @@ import type { LLMProvider } from '@shared/llm-config';
 import type {
   CliIntegrationClient,
   CliIntegrationStatus,
+  KeyUpstreamBinding,
   MutationResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -33,6 +43,7 @@ import type {
   OutboundPermissionId,
   GatewayBinding,
   GatewayBindingTarget,
+  UpstreamCatalogEntry,
 } from '@/daemon/types';
 
 import {
@@ -45,6 +56,7 @@ import {
   setBindingForClientKey,
 } from './gatewayBindingUiModel';
 import { KeyPolicyEditor } from './KeyPolicyEditor';
+import { UpstreamMappingEditor } from './UpstreamMappingEditor';
 
 interface KeyManagementSectionProps {
   keys: OutboundApiKeyInfo[];
@@ -67,6 +79,8 @@ interface KeyManagementSectionProps {
   directUpstreamOptions?: SelectOption[];
   /** Bind (null clears) a key's DIRECT upstream passthrough target. */
   onSetUpstream?: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
+  /** UPSTREAM ROUTING MODEL: set (or clear) a key's ordered upstream set. */
+  onSetUpstreamBinding?: (id: string, binding: KeyUpstreamBinding | null) => Promise<void>;
   integrations?: CliIntegrationStatus[];
   onBindIntegration?: (client: CliIntegrationClient, keyId: string) => Promise<MutationResult>;
 }
@@ -249,6 +263,7 @@ export function KeyManagementSection({
   onChangeBindings,
   directUpstreamOptions = [],
   onSetUpstream,
+  onSetUpstreamBinding,
   integrations = [],
   onBindIntegration,
 }: KeyManagementSectionProps) {
@@ -258,6 +273,21 @@ export function KeyManagementSection({
   // purge offered only on already-deleted rows.
   const [deleteTarget, setDeleteTarget] = useState<OutboundApiKeyInfo | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<OutboundApiKeyInfo | null>(null);
+  // UPSTREAM ROUTING MODEL: the editor dialog state + the upstream catalog.
+  const [bindingTarget, setBindingTarget] = useState<OutboundApiKeyInfo | null>(null);
+  const [catalog, setCatalog] = useState<UpstreamCatalogEntry[]>([]);
+
+  useEffect(() => {
+    if (!bindingTarget) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await agent.apiService.listUpstreams();
+      if (!cancelled) setCatalog(result.upstreams ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bindingTarget]);
   // Which key's policy editor is expanded (only one open at a time).
   const [policyOpenId, setPolicyOpenId] = useState<string | null>(null);
   const [bindingOpenId, setBindingOpenId] = useState<string | null>(null);
@@ -389,6 +419,17 @@ export function KeyManagementSection({
                       );
                     })}
                   </div>
+                  {onSetUpstreamBinding ? (
+                    <button
+                      type="button"
+                      className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => setBindingTarget(k)}
+                      title={t('apiService.keys.upstream.edit')}
+                    >
+                      <Network className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{upstreamBindingSummary(k, t)}</span>
+                    </button>
+                  ) : null}
                 </div>
                 {!k.revoked ? (
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -676,7 +717,225 @@ export function KeyManagementSection({
           setPurgeTarget(null);
         }}
       />
+
+      <UpstreamBindingDialog
+        target={bindingTarget}
+        catalog={catalog}
+        busy={busy}
+        onCatalogRefresh={() => {
+          // Keep the dialog's catalog snapshot fresh after a mapping write.
+          void agent.apiService
+            .listUpstreams()
+            .then((result) => setCatalog(result.upstreams ?? []));
+        }}
+        onClose={() => setBindingTarget(null)}
+        onSave={async (binding) => {
+          if (bindingTarget && onSetUpstreamBinding) {
+            await onSetUpstreamBinding(bindingTarget.id, binding);
+          }
+          setBindingTarget(null);
+        }}
+      />
     </section>
+  );
+}
+
+/** One key's upstream-binding summary line (the row's clickable affordance). */
+function upstreamBindingSummary(
+  key: OutboundApiKeyInfo,
+  t: (k: string, opts?: Record<string, unknown>) => string,
+): string {
+  const binding = key.upstreamBinding;
+  if (!binding) return t('apiService.keys.upstream.summaryLegacy');
+  if (binding.mode === 'all') return t('apiService.keys.upstream.summaryAll');
+  if (binding.targets.length === 0) return t('apiService.keys.upstream.summaryNone');
+  return t('apiService.keys.upstream.summaryExplicit', { count: binding.targets.length });
+}
+
+/**
+ * The upstream-binding editor: pick `all` (live whole-catalog reference), an
+ * ORDERED explicit list (list order = routing priority), or roll back to the
+ * legacy downstream-route semantics (`null`). Each catalog row also opens the
+ * per-upstream mapping-table editor (data lives on the upstream — the entry
+ * point merely shares this dialog).
+ */
+function UpstreamBindingDialog({
+  target,
+  catalog,
+  busy,
+  onClose,
+  onSave,
+  onCatalogRefresh,
+}: {
+  target: OutboundApiKeyInfo | null;
+  catalog: UpstreamCatalogEntry[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (binding: KeyUpstreamBinding | null) => Promise<void>;
+  onCatalogRefresh: () => void;
+}) {
+  const t = useTranslation();
+  const [mode, setMode] = useState<'all' | 'explicit' | 'legacy'>('legacy');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [mappingKey, setMappingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!target) return;
+    const binding = target.upstreamBinding;
+    if (!binding) {
+      setMode('legacy');
+      setSelected([]);
+    } else if (binding.mode === 'all') {
+      setMode('all');
+      setSelected([]);
+    } else {
+      setMode('explicit');
+      setSelected(
+        binding.targets.map((entry) =>
+          entry.kind === 'provider' ? entry.providerId : `sub:${entry.providerId}`,
+        ),
+      );
+    }
+  }, [target]);
+
+  const labelOf = (key: string): string =>
+    catalog.find((entry) => entry.key === key)?.label ?? key;
+
+  const toggle = (key: string): void => {
+    setSelected((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+    );
+  };
+
+  const move = (index: number, delta: -1 | 1): void => {
+    setSelected((current) => {
+      const next = [...current];
+      const to = index + delta;
+      if (to < 0 || to >= next.length) return current;
+      [next[index], next[to]] = [next[to]!, next[index]!];
+      return next;
+    });
+  };
+
+  const handleSave = async (): Promise<void> => {
+    setSaving(true);
+    try {
+      if (mode === 'legacy') await onSave(null);
+      else if (mode === 'all') await onSave({ mode: 'all' });
+      else {
+        await onSave({
+          mode: 'explicit',
+          targets: selected.map((key) => {
+            const entry = catalog.find((candidate) => candidate.key === key);
+            if (!entry || entry.target.kind === 'provider') {
+              return { kind: 'provider' as const, providerId: key };
+            }
+            return { kind: 'account-pool' as const, providerId: entry.target.providerId };
+          }),
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={target !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('apiService.keys.upstream.dialogTitle', { name: target?.name ?? '' })}</DialogTitle>
+          <DialogDescription>{t('apiService.keys.upstream.dialogDesc')}</DialogDescription>
+        </DialogHeader>
+        <Select
+          value={mode}
+          onChange={(value) => setMode(value as 'all' | 'explicit' | 'legacy')}
+          size="sm"
+          options={[
+            { value: 'all', label: t('apiService.keys.upstream.modeAll') },
+            { value: 'explicit', label: t('apiService.keys.upstream.modeExplicit') },
+            { value: 'legacy', label: t('apiService.keys.upstream.modeLegacy') },
+          ]}
+        />
+        {mode === 'explicit' ? (
+          <div className="max-h-64 space-y-1 overflow-y-auto">
+            {catalog.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t('apiService.keys.upstream.emptyCatalog')}</p>
+            ) : null}
+            {catalog.map((entry) => {
+              const index = selected.indexOf(entry.key);
+              const checked = index >= 0;
+              return (
+                <div
+                  key={entry.key}
+                  className="flex items-center gap-2 rounded-md border border-border/50 px-2 py-1.5"
+                >
+                  <Button
+                    variant={checked ? 'secondary' : 'ghost'}
+                    size="xs"
+                    onClick={() => toggle(entry.key)}
+                    aria-pressed={checked}
+                  >
+                    {checked ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                    {checked ? `#${index + 1}` : ''}
+                  </Button>
+                  <span className="min-w-0 flex-1 truncate text-xs text-foreground">{entry.label}</span>
+                  <Button
+                    variant="ghost" size="icon" className="h-6 w-6 shrink-0"
+                    onClick={() => setMappingKey(entry.key)}
+                    aria-label={t('apiService.keys.upstream.mappingEdit')}
+                    title={t('apiService.keys.upstream.mappingEdit')}
+                  >
+                    <Settings2 className="h-3 w-3" />
+                  </Button>
+                  {checked ? (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        variant="ghost" size="icon" className="h-6 w-6"
+                        disabled={index === 0}
+                        onClick={() => move(index, -1)}
+                        aria-label={t('apiService.keys.upstream.orderUp')}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-6 w-6"
+                        disabled={index === selected.length - 1}
+                        onClick={() => move(index, 1)}
+                        aria-label={t('apiService.keys.upstream.orderDown')}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+            <p className="text-[11px] text-muted-foreground">
+              {t('apiService.keys.upstream.orderHint')}
+            </p>
+          </div>
+        ) : null}
+        <UpstreamMappingEditor
+          upstreamKey={mappingKey}
+          label={mappingKey ? labelOf(mappingKey) : ''}
+          onClose={() => setMappingKey(null)}
+          onSaved={onCatalogRefresh}
+        />
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="secondary" onClick={onClose} disabled={saving || busy}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => void handleSave()}
+            disabled={saving || busy || (mode === 'explicit' && selected.length === 0)}
+          >
+            {t('common.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

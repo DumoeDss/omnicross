@@ -71,9 +71,9 @@ export function useLaunchTargets(client: LaunchTargetClient): {
   const contract = CLIENT_CONTRACT[client];
 
   const load = useCallback(async () => {
-    const [providers, server, keys] = await Promise.all([
+    const [providers, upstreamCatalog, keys] = await Promise.all([
       agent.llmConfig.getProviders().catch(() => []),
-      agent.apiService.getConfig().catch(() => null),
+      agent.apiService.listUpstreams().catch(() => null),
       agent.apiService.listKeys().catch(() => []),
     ]);
     // Upstreams: ONLY providers natively speaking the client's wire, with at
@@ -87,10 +87,10 @@ export function useLaunchTargets(client: LaunchTargetClient): {
           ((p.models?.length ?? 0) > 0 || (p.modelConfigs?.length ?? 0) > 0),
       )
       .map((p) => ({ kind: 'provider', providerId: p.id, label: p.name || p.id }));
-    // Downstream routes: every enabled route on the client's endpoint — the
-    // daemon's preflight fails fast (with a clear error) when no eligible key
-    // can enter the chosen one.
-    const routeTargets: LaunchTarget[] = (server?.bindings ?? [])
+    // Downstream routes: the DERIVED + legacy aggregate actually being served
+    // (GET /upstreams `liveBindings`) — a migrated key's `keyup:<id>:*` routes
+    // appear here, which the stored `server.bindings` alone would miss.
+    const routeTargets: LaunchTarget[] = (upstreamCatalog?.liveBindings ?? [])
       .filter((b) => b.enabled && b.endpoint === contract.endpoint)
       .map((b) => ({ kind: 'route', bindingId: b.id, label: b.name }));
     // Raw gateway keys: the daemon preflight contract for key-scoped launches.

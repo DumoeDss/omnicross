@@ -1184,6 +1184,17 @@ export async function handleOutboundRequest(
   // Route pin (route-pinned Codex launches): narrows this key's candidate
   // routes to the one named by the header, everywhere candidates are computed.
   const pinnedBindingId = readBindingPin(req.headers);
+  // UPSTREAM ROUTING MODEL: a migrated key's binding is AUTHORITATIVE — the
+  // key is served only by its derived (`keyup:<id>:*`) bindings, never by
+  // legacy stored routes. Zero derived bindings ⇒ zero candidates ⇒ the
+  // pre-body gate answers with the actionable 403.
+  if (verified.upstreamBinding) {
+    const derivedPrefix = `keyup:${verified.id}:`;
+    config = {
+      ...config,
+      bindings: (config.bindings ?? []).filter((binding) => binding.id.startsWith(derivedPrefix)),
+    };
+  }
 
   if (verified.loopbackOnly && !isLoopbackPeer(req.socket?.remoteAddress)) {
     writeJsonError(res, 403, 'This integration key is restricted to loopback clients');
@@ -1253,8 +1264,10 @@ export async function handleOutboundRequest(
   // Per-key rate limit + revocation/expiry (above) and the per-key concurrency
   // ceiling still apply to both flavors.
   const directProvider =
-    verified.boundUpstream?.kind === 'provider' ? verified.boundUpstream : null;
-  if (verified.boundUpstream && !directProvider) {
+    verified.boundUpstream?.kind === 'provider' && !verified.upstreamBinding
+      ? verified.boundUpstream
+      : null;
+  if (verified.boundUpstream && !directProvider && !verified.upstreamBinding) {
     config = {
       ...config,
       bindings: [
@@ -1423,10 +1436,21 @@ export async function handleOutboundRequest(
   // on this endpoint can never be served — UNLESS the direct tier can relay it.
   // (The route pin applies here too: a pin to a route this key cannot enter
   // leaves zero candidates, and the specific 503 below names the endpoint.)
+  // UPSTREAM ROUTING MODEL: a key carrying an upstream binding that resolves
+  // to nothing (explicit empty list / 'all' with no upstreams) is a DECISION,
+  // not a misconfiguration — answer with an actionable 403, not the 503.
   if (
     candidateGatewayBindings(config.bindings, verified.id, endpoint, pinnedBindingId).length === 0 &&
     !directProvider
   ) {
+    if (verified.upstreamBinding) {
+      writeJsonError(
+        res,
+        403,
+        'this key has no upstream bound — bind one on the Access Keys page (or set the key to all upstreams)',
+      );
+      return;
+    }
     writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
     return;
   }

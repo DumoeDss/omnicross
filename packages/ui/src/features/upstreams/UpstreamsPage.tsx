@@ -461,7 +461,11 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       ) : null}
 
       <nav className="flex shrink-0 items-end gap-1 border-b border-border/70 bg-surface-0 px-5 md:px-6" aria-label={t('upstreams.tabs.label')}>
-        {(['resources', 'routes'] as const).map((tab) => {
+        {/* UPSTREAM ROUTING MODEL: the manual 下游与路由 tab is hidden — routing
+            is key→upstream-set now. The workspace itself still renders for deep
+            links (`upstreamTab: 'routes'`), so existing bookmarks keep working
+            during the transition. */}
+        {(['resources'] as const).map((tab) => {
           const Icon = tab === 'resources' ? Server : Route;
           return (
             <button
@@ -474,8 +478,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
               onClick={() => onNavigate({
                 ...route,
                 page: 'upstreams',
-                upstreamTab: tab === 'resources' ? undefined : tab,
-                downstreamId: tab === 'routes' ? route.downstreamId : undefined,
+                upstreamTab: undefined,
+                downstreamId: undefined,
               })}
             >
               <Icon className="h-3.5 w-3.5" />{t(`upstreams.tabs.${tab}`)}

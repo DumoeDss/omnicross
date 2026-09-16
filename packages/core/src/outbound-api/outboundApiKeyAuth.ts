@@ -15,6 +15,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { computeKeyExpiry, type KeyCostLimits, type ModelRestriction } from './keyPolicy';
 import type {
   GatewayBindingTarget,
+  KeyUpstreamBinding,
   OutboundApiKeyCreated,
   OutboundPermission,
   OutboundKeyDb,
@@ -213,6 +214,12 @@ export interface VerifiedKey {
    * the downstream routes as before.
    */
   boundUpstream?: GatewayBindingTarget;
+  /**
+   * UPSTREAM ROUTING MODEL: the key's ordered upstream set, carried from the
+   * row so the wire layer can distinguish "bound to nothing by decision"
+   * (403, actionable) from "legacy key with no candidate route" (503).
+   */
+  upstreamBinding?: KeyUpstreamBinding;
 }
 
 /** The reason-bearing verify outcome (design D2). */
@@ -277,6 +284,9 @@ function toVerifiedKey(row: OutboundKeyDbRow): VerifiedKey {
   if (modelRestriction) key.modelRestriction = modelRestriction;
   const directTarget = extractBoundUpstream(row);
   if (directTarget) key.boundUpstream = directTarget;
+  // UPSTREAM ROUTING MODEL: carried so the wire layer can answer a key with
+  // no servable upstream set with a precise 403 instead of a generic 503.
+  if (row.upstreamBinding) key.upstreamBinding = row.upstreamBinding;
   return key;
 }
 

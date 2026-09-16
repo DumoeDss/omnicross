@@ -243,6 +243,8 @@ export interface DaemonPaths {
 export interface Daemon {
   /** The injected `Logger` port (a `ConfigurableLogger` built from `config.logging`). */
   readonly logger: Logger;
+  /** The daemon's `config.json` path (BYO provider catalog reads, e.g. upstream derivation). */
+  readonly configPath: string;
   readonly llmConfig: ConfigFileProviderConfigSource;
   readonly keyDb: JsonOutboundKeyDb;
   readonly settingsStore: JsonApiServerSettingsStore;
@@ -1246,6 +1248,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
 
   return {
     logger,
+    configPath: paths.configPath,
     llmConfig,
     keyDb,
     settingsStore,

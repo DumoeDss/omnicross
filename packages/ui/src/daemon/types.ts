@@ -42,6 +42,7 @@ import type {
   GatewayBinding,
   GatewayBindingTarget,
   ImagesCapabilityStatus,
+  KeyUpstreamBinding,
   ImagesVerifyLiveResult,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
@@ -53,6 +54,7 @@ import type {
   ProxyConfig,
   SearchDiagnosticsSnapshot,
   SearchQueryResult,
+  UpstreamCatalogResult,
   SearchServerConfig,
   SearchTestResult,
   VoucherCreated,
@@ -320,6 +322,8 @@ export interface AgentApiServiceApi {
   verifyImagesLive(): Promise<ImagesVerifyLiveResult | null>;
   setEnabled(enabled: boolean): Promise<MutationResult>;
   setNetworkBinding(networkBinding: boolean): Promise<MutationResult>;
+  /** UPSTREAM ROUTING MODEL: the default binding materialized on NEW keys. */
+  setDefaultKeyUpstreamBinding(mode: 'all' | 'none'): Promise<MutationResult>;
   /** Replace the complete independent gateway-binding aggregate. */
   updateBindings(bindings: GatewayBinding[]): Promise<MutationResult>;
   /**
@@ -328,6 +332,23 @@ export interface AgentApiServiceApi {
    * handling (`ok:false` → "key not found").
    */
   setKeyMaxConcurrency(id: string, maxConcurrency: number | null): Promise<MutationResult>;
+  /**
+   * UPSTREAM ROUTING MODEL: the upstream catalog (providers + non-empty
+   * subscription pools) with each entry's model-mapping table, plus the
+   * derived + legacy route aggregate actually being served.
+   */
+  listUpstreams(): Promise<UpstreamCatalogResult>;
+  /** Replace one upstream's model-mapping table (write-edge validated). */
+  setUpstreamMappings(
+    upstreamKey: string,
+    mappings: Array<{ source: string; target: string; effort?: string }>,
+  ): Promise<MutationResult>;
+  /**
+   * Set (or clear, with `null`) a key's ordered upstream set. `'all'` is the
+   * live whole-catalog reference; an explicit empty list binds nothing (403).
+   * `null` rolls the key back to the legacy downstream-route semantics.
+   */
+  setKeyUpstreamBinding(id: string, binding: KeyUpstreamBinding | null): Promise<MutationResult>;
   /**
    * Set a key's DIRECT upstream passthrough target (`POST /keys/:id/upstream`).
    * A BYO provider target relays VERBATIM; a claude/kimi subscription

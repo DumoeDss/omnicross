@@ -18,6 +18,7 @@ import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/Ac
 
 import { applyAuditConfig } from '../audit/auditRuntime';
 import { applyBillingConfig } from '../billing/billingRuntime';
+import { assembledGatewayBindings } from '../admin/upstreamRoutingAdmin';
 import { buildDaemon, type DaemonPaths } from '../bootstrap';
 import { loadConfig } from '../config';
 import { applyFingerprintConfig } from '../identity/identityRuntime';
@@ -101,7 +102,16 @@ export async function runStart(argv: string[]): Promise<StartResult> {
     networkBinding: serverConfig.networkBinding,
     imagesEnabled: serverConfig.images?.enabled === true,
     endpoints: serverConfig.endpoints,
-    bindings: serverConfig.bindings,
+    // UPSTREAM ROUTING MODEL: boot applies the DERIVED aggregate (per-key
+    // upstream sets + upstream mapping tables + legacy routes for keys that
+    // were never migrated), never the stored routes alone.
+    bindings: await assembledGatewayBindings(
+      // The credential store (not on the Daemon surface used elsewhere)
+      // supplies the account counts that gate empty subscription pools out
+      // of the upstream catalog.
+      { ...daemon, subscriptionTokenWriter: daemon.credentialStore },
+      serverConfig,
+    ),
     port: serverConfig.port,
     userMessageQueue: serverConfig.userMessageQueue,
     concurrencyQueue: serverConfig.concurrencyQueue,

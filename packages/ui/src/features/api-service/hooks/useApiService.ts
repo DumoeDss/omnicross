@@ -25,6 +25,7 @@ import type {
   GatewayBinding,
   GatewayBindingTarget,
   MutationResult,
+  KeyUpstreamBinding,
   OutboundApiKeyCreated,
   OutboundApiKeyInfo,
   OutboundApiServerConfig,
@@ -64,6 +65,7 @@ export interface UseApiServiceResult {
   dismissCreatedKey: () => void;
   setEnabled: (enabled: boolean) => Promise<void>;
   setNetworkBinding: (networkBinding: boolean) => Promise<void>;
+  setDefaultKeyUpstreamBinding: (mode: 'all' | 'none') => Promise<void>;
   updateBindings: (bindings: GatewayBinding[]) => Promise<void>;
   createKey: (name: string) => Promise<boolean>;
   /** Reveal a key's stored plaintext (view-key affordance); no state mutation. */
@@ -75,6 +77,7 @@ export interface UseApiServiceResult {
   setKeyMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
   /** Bind (or unbind, with `null`) a key's DIRECT upstream passthrough target. */
   setKeyUpstream: (id: string, target: GatewayBindingTarget | null) => Promise<void>;
+  setKeyUpstreamBinding: (id: string, binding: KeyUpstreamBinding | null) => Promise<void>;
   setKeyPermissions: (id: string, permissions: OutboundPermissionId[]) => Promise<void>;
   setKeyPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
   updateQueueConfig: (patch: {
@@ -254,6 +257,13 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const setDefaultKeyUpstreamBinding = useCallback(
+    async (mode: 'all' | 'none') => {
+      await runWrite(() => agent.apiService.setDefaultKeyUpstreamBinding(mode));
+    },
+    [runWrite],
+  );
+
 
   const createKey = useCallback(async (name: string): Promise<boolean> => {
     setBusy(true);
@@ -338,6 +348,21 @@ export function useApiService(): UseApiServiceResult {
       setBusy(false);
     }
   }, []);
+
+  const setKeyUpstreamBinding = useCallback(
+    async (id: string, binding: KeyUpstreamBinding | null) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await agent.apiService.setKeyUpstreamBinding(id, binding);
+        if (!result.success) setError(result.message ?? 'request failed');
+        setKeys(await agent.apiService.listKeys());
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
 
   const setKeyPermissions = useCallback(async (
     id: string,
@@ -507,6 +532,7 @@ export function useApiService(): UseApiServiceResult {
     dismissCreatedKey,
     setEnabled,
     setNetworkBinding,
+    setDefaultKeyUpstreamBinding,
     updateBindings,
     createKey,
     revealKey,
@@ -515,6 +541,7 @@ export function useApiService(): UseApiServiceResult {
     setKeyEnabled,
     setKeyMaxConcurrency,
     setKeyUpstream,
+    setKeyUpstreamBinding,
     setKeyPermissions,
     setKeyPolicy,
     updateQueueConfig,

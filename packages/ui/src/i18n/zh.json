@@ -539,7 +539,7 @@
     "pricing": "模型价格",
     "dashboard": "仪表板",
     "images": "图像",
-"search": "搜索",
+    "search": "搜索",
     "chatgptWeb": "ChatGPT 网页"
   },
   "routeActivity": {
@@ -582,7 +582,13 @@
       "unavailable": "不可用",
       "unavailableHint": "此数据源没有响应；其他运行证据仍会显示。"
     },
-    "state": { "ready": "就绪", "attention": "需要处理", "inactive": "未启用", "loading": "正在加载", "unavailable": "不可用" },
+    "state": {
+      "ready": "就绪",
+      "attention": "需要处理",
+      "inactive": "未启用",
+      "loading": "正在加载",
+      "unavailable": "不可用"
+    },
     "path": {
       "client": "客户端",
       "gateway": "网关",
@@ -885,16 +891,16 @@
       "strict": "严格选择",
       "poolFallback": "允许账号池回退"
     },
-    "defaultModel": "\u9ed8\u8ba4\u56fe\u50cf\u6a21\u578b",
+    "defaultModel": "默认图像模型",
     "routes": {
-      "title": "\u6a21\u578b\u8def\u7531",
-      "defaultBadge": "\u9ed8\u8ba4"
+      "title": "模型路由",
+      "defaultBadge": "默认"
     },
     "codex": {
-      "title": "Codex \u7ebf\u8def\u8986\u76d6",
-      "imageModel": "\u56fe\u50cf\u6a21\u578b",
-      "carrierModel": "\u8f7d\u4f53\u6a21\u578b",
-      "hint": "\u6e05\u7a7a\u540e\u56de\u843d\u5230\u5185\u7f6e\u7ebf\u8def\u9ed8\u8ba4\u503c\uff08gpt-image-2 / gpt-5.6-luna\uff09\u3002"
+      "title": "Codex 线路覆盖",
+      "imageModel": "图像模型",
+      "carrierModel": "载体模型",
+      "hint": "清空后回落到内置线路默认值（gpt-image-2 / gpt-5.6-luna）。"
     },
     "features": {
       "title": "已验证功能矩阵",
@@ -926,26 +932,26 @@
       "privateDefault": "图像产物使用守护进程的私有应用数据存储。"
     },
     "page": {
-      "title": "\u56fe\u50cf\u751f\u6210",
-      "description": "\u6a21\u578b\u8def\u7531\u3001provider \u5065\u5eb7\u4e0e Images \u7aef\u70b9\uff0c\u96c6\u4e2d\u4e00\u5904\u3002",
-      "loading": "\u6b63\u5728\u52a0\u8f7d\u56fe\u50cf\u914d\u7f6e\u2026"
+      "title": "图像生成",
+      "description": "模型路由、provider 健康与 Images 端点，集中一处。",
+      "loading": "正在加载图像配置…"
     },
     "providers": {
-      "bootstrap": "\u5f15\u5bfc\u4e2d\uff08\u672a\u9a8c\u8bc1\uff09",
-      "healthy": "\u53ef\u7528",
-      "unhealthy": "\u4e0d\u53ef\u7528",
-      "evidence": "{{age}} \u79d2\u524d\u83b7\u5f97\u65b0\u9c9c\u8bc1\u636e\u3002",
-      "noEvidence": "\u6682\u65e0\u65b0\u9c9c\u8bc1\u636e\uff08\u9996\u6b21\u771f\u5b9e\u8bf7\u6c42\u65f6\u5f15\u5bfc\uff09\u3002",
-      "noModels": "\u6682\u65e0\u65b0\u9c9c\u8bc1\u636e\u786e\u8ba4\u7684\u6a21\u578b\u3002"
+      "bootstrap": "引导中（未验证）",
+      "healthy": "可用",
+      "unhealthy": "不可用",
+      "evidence": "{{age}} 秒前获得新鲜证据。",
+      "noEvidence": "暂无新鲜证据（首次真实请求时引导）。",
+      "noModels": "暂无新鲜证据确认的模型。"
     },
     "verify": {
-      "title": "\u5b9e\u673a\u9a8c\u8bc1",
-      "run": "\u8fd0\u884c\u9a8c\u8bc1",
-      "running": "\u9a8c\u8bc1\u4e2d\u2026",
-      "warning": "\u26a0 \u4f1a\u6d88\u8017\u8ba2\u9605\u914d\u989d\uff1a\u5c06\u53d1\u9001\u4e00\u6b21\u6700\u4f4e\u8d28\u91cf PNG \u8bf7\u6c42\u3002",
-      "codexOnly": "\u4ec5\u8986\u76d6 Codex \u7ebf\u8def\uff1bAntigravity provider \u5728 v1 \u6ca1\u6709\u72ec\u7acb\u9a8c\u8bc1\u5668\u3002",
-      "codexOnlyPlain": "\u4ec5\u8986\u76d6 Codex \u7ebf\u8def\u3002",
-      "success": "\u5df2\u9a8c\u8bc1 {{model}}\uff08{{quality}}\uff0c{{format}}\uff09\uff1b\u65b0\u9c9c\u8bc1\u636e\u6761\u76ee\uff1a{{count}}\u3002"
+      "title": "实机验证",
+      "run": "运行验证",
+      "running": "验证中…",
+      "warning": "⚠ 会消耗订阅配额：将发送一次最低质量 PNG 请求。",
+      "codexOnly": "仅覆盖 Codex 线路；Antigravity provider 在 v1 没有独立验证器。",
+      "codexOnlyPlain": "仅覆盖 Codex 线路。",
+      "success": "已验证 {{model}}（{{quality}}，{{format}}）；新鲜证据条目：{{count}}。"
     }
   },
   "apiService": {
@@ -978,6 +984,12 @@
     "enable": {
       "label": "启用对外服务器",
       "description": "启动本地 API 服务器，将外部调用方的请求经由你的提供商路由。"
+    },
+    "upstreamDefault": {
+      "label": "新密钥默认上游绑定",
+      "description": "新建访问密钥时默认绑定全部上游，还是不绑定任何上游（未绑定的密钥请求会被拒绝）。",
+      "none": "不绑定（需手动配置）",
+      "all": "全部上游"
     },
     "networkBinding": {
       "label": "允许局域网访问",
@@ -1024,6 +1036,32 @@
       "purge": "永久删除",
       "purgeConfirmTitle": "永久移除此密钥？",
       "purgeConfirmDesc": "永久删除“{{name}}”会将其密钥行从列表中彻底移除（历史用量的密钥名将失去引用）。此操作不可撤销。",
+      "upstream": {
+        "edit": "上游绑定",
+        "dialogTitle": "编辑 {{name}} 的上游绑定",
+        "dialogDesc": "选择这把密钥的路由域：绑定全部上游、按优先级指定有序列表，或回退到旧的下游路由语义。",
+        "modeAll": "全部上游（跟随目录）",
+        "modeExplicit": "指定上游（有序，顺序即优先级）",
+        "modeLegacy": "跟随下游路由（旧版语义）",
+        "summaryAll": "全部上游",
+        "summaryExplicit": "{{count}} 个上游",
+        "summaryNone": "未绑定（请求将被拒绝）",
+        "summaryLegacy": "跟随下游路由（旧版）",
+        "orderUp": "上移",
+        "orderDown": "下移",
+        "orderHint": "选中后用箭头排序，排前的优先接单、后面的作故障切换候补。",
+        "emptyCatalog": "没有可用上游 —— 先在上游与路由页添加提供商或订阅账号。",
+        "mappingEdit": "模型映射",
+        "mappingTitle": "编辑 {{name}} 的模型映射",
+        "mappingDesc": "客户端模型名 → 上游模型 id。精确名优先于 * 通配；default / background 为角色行（Gemini 后台模型）；留空 = 透传（原名直发上游）。",
+        "mappingEmpty": "暂无映射 —— 客户端模型名将原样透传给该上游。",
+        "mappingSource": "客户端模型名（如 claude-*）",
+        "mappingTarget": "上游模型 id",
+        "mappingEffort": "思考档",
+        "mappingAdd": "添加映射行",
+        "mappingHint": "多行时需包含一行 * 作为兜底；角色行 default / background 不参与名字匹配。",
+        "mappingSaveFailed": "保存映射失败"
+      },
       "created": {
         "title": "密钥已创建",
         "warning": "请立即复制此密钥并妥善保存——之后仍可在密钥列表中重新查看。",
@@ -1472,30 +1510,115 @@
     "empty": "暂无可用的订阅提供商。",
     "signIn": "登录",
     "management": {
-      "summary": { "total": "账户总数", "schedulable": "可参与调度", "excluded": "已排除", "warnings": "需要处理" },
+      "summary": {
+        "total": "账户总数",
+        "schedulable": "可参与调度",
+        "excluded": "已排除",
+        "warnings": "需要处理"
+      },
       "searchPlaceholder": "搜索名称、标识、分组或标签",
-      "selected": "已选择 {{count}} 个", "selectAll": "选择当前可见账户", "selectAccount": "选择 {{name}}", "openDetails": "打开账户详情",
-      "emptyFiltered": "没有符合筛选条件的账户。", "sortDirection": "反转排序方向", "schedulable": "可调度", "excluded": "已排除", "priorityValue": "优先级 {{value}}",
-      "schedulingState": { "disabled": "已由管理员停用", "healthPaused": "因健康状态暂停", "allowancePaused": "因限额暂停", "demoted": "已按限额降权", "schedulable": "可调度", "excluded": "已排除" },
-      "allowanceAction": { "normal": "正常", "demote": "降权", "pause": "暂停", "ignore": "未应用" },
+      "selected": "已选择 {{count}} 个",
+      "selectAll": "选择当前可见账户",
+      "selectAccount": "选择 {{name}}",
+      "openDetails": "打开账户详情",
+      "emptyFiltered": "没有符合筛选条件的账户。",
+      "sortDirection": "反转排序方向",
+      "schedulable": "可调度",
+      "excluded": "已排除",
+      "priorityValue": "优先级 {{value}}",
+      "schedulingState": {
+        "disabled": "已由管理员停用",
+        "healthPaused": "因健康状态暂停",
+        "allowancePaused": "因限额暂停",
+        "demoted": "已按限额降权",
+        "schedulable": "可调度",
+        "excluded": "已排除"
+      },
+      "allowanceAction": {
+        "normal": "正常",
+        "demote": "降权",
+        "pause": "暂停",
+        "ignore": "未应用"
+      },
       "allowanceDecision": "限额策略：{{action}} · 已用 {{used}}%",
       "allowanceDecisionNoUsage": "限额策略：{{action}}",
       "effectivePriority": "基础 {{base}} → 生效 {{effective}}",
       "filters": {
-        "allProviders": "全部提供商", "allGroups": "全部分组", "allHealth": "全部健康状态", "allCredentials": "全部凭证状态",
-        "scheduling": { "all": "全部调度状态", "enabled": "已启用", "disabled": "已停用", "schedulable": "可调度", "excluded": "已排除" }
+        "allProviders": "全部提供商",
+        "allGroups": "全部分组",
+        "allHealth": "全部健康状态",
+        "allCredentials": "全部凭证状态",
+        "scheduling": {
+          "all": "全部调度状态",
+          "enabled": "已启用",
+          "disabled": "已停用",
+          "schedulable": "可调度",
+          "excluded": "已排除"
+        }
       },
-      "sort": { "label": "名称", "priority": "优先级", "last-used": "最近使用", "allowance": "额度用量", "reset-time": "重置时间" },
-      "columns": { "account": "账户", "providerGroup": "提供商 / 分组", "status": "调度状态", "priority": "优先级", "lastUsed": "最近使用", "actions": "操作" },
-      "batch": { "enable": "启用", "disable": "停用", "setGroup": "设置分组", "groupPlaceholder": "分组名称", "delete": "删除", "deleteTitle": "删除所选账户？", "deleteDescription": "这会永久删除 {{count}} 个账户及其已存储凭证。" },
-      "tabs": { "overview": "概览", "routes": "路由", "allowance": "限额", "scheduling": "调度", "network": "网络", "diagnostics": "诊断", "danger": "危险操作" },
+      "sort": {
+        "label": "名称",
+        "priority": "优先级",
+        "last-used": "最近使用",
+        "allowance": "额度用量",
+        "reset-time": "重置时间"
+      },
+      "columns": {
+        "account": "账户",
+        "providerGroup": "提供商 / 分组",
+        "status": "调度状态",
+        "priority": "优先级",
+        "lastUsed": "最近使用",
+        "actions": "操作"
+      },
+      "batch": {
+        "enable": "启用",
+        "disable": "停用",
+        "setGroup": "设置分组",
+        "groupPlaceholder": "分组名称",
+        "delete": "删除",
+        "deleteTitle": "删除所选账户？",
+        "deleteDescription": "这会永久删除 {{count}} 个账户及其已存储凭证。"
+      },
+      "tabs": {
+        "overview": "概览",
+        "routes": "路由",
+        "allowance": "限额",
+        "scheduling": "调度",
+        "network": "网络",
+        "diagnostics": "诊断",
+        "danger": "危险操作"
+      },
       "fields": {
-        "enabled": "参与路由", "enabledHint": "停用后绝不会被选择，即使它是唯一账户。",
-        "label": "账户名称", "group": "分组", "tags": "标签", "tagsPlaceholder": "生产环境, 团队A", "credential": "凭证", "health": "健康状态", "scheduling": "调度", "lastUsed": "最近使用", "priority": "优先级",
-        "allowanceAction": "限额策略", "effectivePriority": "生效优先级", "allowanceUsed": "限额已用", "allowanceResume": "限额重置"
+        "enabled": "参与路由",
+        "enabledHint": "停用后绝不会被选择，即使它是唯一账户。",
+        "label": "账户名称",
+        "group": "分组",
+        "tags": "标签",
+        "tagsPlaceholder": "生产环境, 团队A",
+        "credential": "凭证",
+        "health": "健康状态",
+        "scheduling": "调度",
+        "lastUsed": "最近使用",
+        "priority": "优先级",
+        "allowanceAction": "限额策略",
+        "effectivePriority": "生效优先级",
+        "allowanceUsed": "限额已用",
+        "allowanceResume": "限额重置"
       },
-      "diagnostics": { "testConnection": "测试连接", "testPassed": "连接测试通过。", "generationPassed": "{{model}} 已返回完整响应。", "testFailed": "连接测试失败。", "history": "最近探测", "empty": "暂无探测事件。", "loadFailed": "无法加载探测历史。" },
-      "danger": { "title": "删除账户", "description": "删除该账户及其加密凭证，此操作不可撤销。" }
+      "diagnostics": {
+        "testConnection": "测试连接",
+        "testPassed": "连接测试通过。",
+        "generationPassed": "{{model}} 已返回完整响应。",
+        "testFailed": "连接测试失败。",
+        "history": "最近探测",
+        "empty": "暂无探测事件。",
+        "loadFailed": "无法加载探测历史。"
+      },
+      "danger": {
+        "title": "删除账户",
+        "description": "删除该账户及其加密凭证，此操作不可撤销。"
+      }
     },
     "oauth": {
       "title": "登录 {{name}}",
@@ -2101,7 +2224,10 @@
         "refresh": "刷新",
         "unavailable": "当前 daemon 版本不提供决策诊断。上方策略配置仍可编辑。",
         "empty": "尚未执行过由额度触发的降级或暂停。",
-        "action": { "demote": "已降级", "pause": "已暂停" },
+        "action": {
+          "demote": "已降级",
+          "pause": "已暂停"
+        },
         "priority": "优先级 {{base}} → {{effective}} · 已用 {{used}}%"
       }
     },
@@ -2216,7 +2342,11 @@
     "empty": "价格表为空。",
     "emptyHint": "获取最新价格以填充表格。",
     "noMatches": "没有匹配的条目。",
-    "pagination": { "summary": "第 {{page}} / {{pages}} 页，共 {{count}} 个模型", "previous": "上一页", "next": "下一页" },
+    "pagination": {
+      "summary": "第 {{page}} / {{pages}} 页，共 {{count}} 个模型",
+      "previous": "上一页",
+      "next": "下一页"
+    },
     "saved": "价格条目已保存。",
     "saveFailed": "保存失败：{{message}}",
     "deleteFailed": "删除失败：{{message}}",

@@ -13,7 +13,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SettingRow } from '@/components/ui/setting-row';
-import type { SelectOption } from '@/components/ui/select';
+import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import type { RouteNavigate } from '@/shared/state/hashRoute';
@@ -63,6 +63,8 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     setKeyEnabled,
     setKeyMaxConcurrency,
     setKeyUpstream,
+    setKeyUpstreamBinding,
+    setDefaultKeyUpstreamBinding,
     setKeyPermissions,
     setKeyPolicy,
     queueStatus,
@@ -153,6 +155,23 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   />
                 </SettingRow>
 
+                <SettingRow
+                  label={t('apiService.upstreamDefault.label')}
+                  description={t('apiService.upstreamDefault.description')}
+                >
+                  <Select
+                    value={config.defaultKeyUpstreamBinding ?? 'none'}
+                    onChange={(value) => void setDefaultKeyUpstreamBinding(value as 'all' | 'none')}
+                    size="sm"
+                    disabled={busy}
+                    options={[
+                      { value: 'none', label: t('apiService.upstreamDefault.none') },
+                      { value: 'all', label: t('apiService.upstreamDefault.all') },
+                    ]}
+                    aria-label={t('apiService.upstreamDefault.label')}
+                  />
+                </SettingRow>
+
               </div>
 
               <div
@@ -183,6 +202,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                   onChangeBindings={updateBindings}
                   directUpstreamOptions={directUpstreamOptions}
                   onSetUpstream={setKeyUpstream}
+                  onSetUpstreamBinding={setKeyUpstreamBinding}
                 />
 
                 <VoucherSection

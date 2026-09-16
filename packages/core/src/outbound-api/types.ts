@@ -413,6 +413,24 @@ export type GatewayBindingTarget =
     };
 
 /**
+ * UPSTREAM ROUTING MODEL: one key's ordered upstream set (routing = list
+ * order; can-serve misses yield to the next entry; mapping lives on the
+ * upstream; conversion is derived per endpoint). See
+ * `docs/design/upstream-routing-model.md`.
+ *
+ * - `'all'` is a LIVE reference to every upstream — kept current as upstreams
+ *   are added, and collapsed to `'explicit'` once the operator hand-edits
+ *   the list (the list, once customized, is a snapshot).
+ * - `'explicit'` with an EMPTY `targets` deliberately binds nothing: the key
+ *   authenticates but every request 403s with a "no upstream bound" error.
+ * - Absent on a row ⇒ the key is not migrated and keeps the legacy
+ *   downstream-route (`server.bindings`) semantics.
+ */
+export type KeyUpstreamBinding =
+  | { mode: 'all' }
+  | { mode: 'explicit'; targets: GatewayBindingTarget[] };
+
+/**
  * Behavior when a binding cannot serve the requested model or credential.
  * `next` yields to the next matching route (and lets a bound account fall back
  * to its provider pool); `fail` keeps the route strict and errors instead.
@@ -613,6 +631,29 @@ export interface OutboundApiServerConfig {
    * persisted shape; normalized Omnicross configs always carry an array.
    */
   bindings?: GatewayBinding[];
+  /**
+   * UPSTREAM ROUTING MODEL: per-upstream model-mapping tables (name rows with
+   * wildcards + `default`/`background` role rows), keyed by upstream resource
+   * — a BYO provider's id, or `sub:<providerId>` for a subscription pool.
+   * Derivation consumes these (`assembleGatewayBindings`); the write edge
+   * (admin API) enforces the shape rules (non-blank unique sources; multiple
+   * rows without a `*` wildcard are rejected). Absent ⇒ every table empty ⇒
+   * passthrough.
+   */
+  upstreamModelMappings?: Record<string, GatewayModelMapping[]>;
+  /**
+   * UPSTREAM ROUTING MODEL: what a NEWLY created key binds by default —
+   * `'all'` (live reference to every upstream) or `'none'` (binds nothing;
+   * requests 403 until the operator binds upstreams). Absent ⇒ `'none'`.
+   */
+  defaultKeyUpstreamBinding?: 'all' | 'none';
+  /**
+   * UPSTREAM ROUTING MODEL: set once the one-time legacy→model mapping-table
+   * conversion has run (`POST /upstreams/migrate-legacy`); further migrations
+   * only materialize key bindings, never resurrect deleted legacy-derived
+   * mapping rows. The wholesale rollback clears it.
+   */
+  upstreamMigrationDone?: boolean;
   /** Persisted port (fixed default; falls back to ephemeral on EADDRINUSE). */
   port?: number;
   /**
@@ -803,6 +844,15 @@ export interface OutboundApiKeyInfo {
   /** LEGACY first-cut shape of `boundUpstream` (a bare BYO provider id). */
   boundUpstreamProviderId?: string;
   /**
+   * UPSTREAM ROUTING MODEL (upstream-routing-model.md): the key's ordered
+   * upstream set — routing = list order, mapping = upstream-level table,
+   * conversion = automatic per endpoint. `'all'` is a LIVE reference to every
+   * upstream (collapses to `'explicit'` the moment the list is hand-edited);
+   * an explicit EMPTY list deliberately binds nothing (403). Absent ⇒ the key
+   * is not migrated and keeps the legacy downstream-route semantics.
+   */
+  upstreamBinding?: KeyUpstreamBinding;
+  /**
    * The key's OWN accumulated spend (outbound-key-policy), surfaced by the admin
    * so an operator sees spend-vs-limit. Present only when the host wired a spend
    * reader. Leak-safe: each key carries only ITS own numbers — the same data the
@@ -936,6 +986,15 @@ export interface OutboundKeyDbRow {
    * `boundUpstream` wins when both are present.
    */
   boundUpstreamProviderId?: string;
+  /**
+   * UPSTREAM ROUTING MODEL (upstream-routing-model.md): the key's ordered
+   * upstream set — routing = list order, mapping = upstream-level table,
+   * conversion = automatic per endpoint. `'all'` is a LIVE reference to every
+   * upstream (collapses to `'explicit'` the moment the list is hand-edited);
+   * an explicit EMPTY list deliberately binds nothing (403). Absent ⇒ the key
+   * is not migrated and keeps the legacy downstream-route semantics.
+   */
+  upstreamBinding?: KeyUpstreamBinding;
 }
 
 export interface OutboundKeyDb {
@@ -985,6 +1044,19 @@ export interface OutboundKeyDb {
   outboundApiKeysSetUpstream(
     id: string,
     target: GatewayBindingTarget | null,
+  ): Promise<boolean>;
+  /**
+   * UPSTREAM ROUTING MODEL: set (or clear, with `null`) a key's ordered
+   * upstream set — routing = list order, can-serve misses yield to the next
+   * entry, mapping/conversion live on the upstream side. `'all'` is the live
+   * reference (collapses to `'explicit'` on first hand edit); an explicit
+   * EMPTY list deliberately binds nothing (403). `null` returns the key to
+   * the legacy downstream-route semantics (rollback). Returns `false` when
+   * the key is missing. Target VALIDITY is enforced by the admin write edge.
+   */
+  outboundApiKeysSetUpstreamBinding(
+    id: string,
+    binding: KeyUpstreamBinding | null,
   ): Promise<boolean>;
   /**
    * Set (or clear) a key's policy envelope (expiry / activation window / cost
