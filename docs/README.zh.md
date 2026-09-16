@@ -650,7 +650,7 @@ npm run build        # 各包 tsup → dist/（ESM + CJS + .d.ts）
 
 测试与类型检查经别名把 `@omnicross/*` 解析到包**源码**，无需预先构建；`npm run build` 产出各包可发布的 `dist/`。
 
-- **控制面板开发** —— 仓库根 `npm run dev` 一条命令：首跑生成 gitignored 的 `omnicross.dev.config.json`，守护进程跑在 `127.0.0.1:8766`，UI Vite 开发服务器跑在 `http://localhost:1430`（Ctrl+C 同停）。开发服务器在服务端把 `/admin/*` 代理给守护进程，浏览器始终同源 —— 守护进程按设计不发 CORS 头。
+- **控制面板开发** —— 仓库根 `npm run dev` 一条命令：首跑在 `~/.omnicross-dev/` 生成 `omnicross.dev.config.json`（守护进程把 config 所在目录当应用数据根，不能位于 git 检出内，故不放仓库根；旧的仓库根配置会自动迁移过去），守护进程跑在 `127.0.0.1:8766`，UI Vite 开发服务器跑在 `http://localhost:1430`（Ctrl+C 同停）。开发服务器在服务端把 `/admin/*` 代理给守护进程，浏览器始终同源 —— 守护进程按设计不发 CORS 头。
 - **原生窗口**（需 Rust）—— `npm run dev:app` 跑 `tauri dev`；`npm run build:app` 打包发布可执行文件与安装器，内置守护进程运行时**和私有 Node 二进制**（输出在 `apps/desktop/src-tauri/target/release/`）。
 - **发布** —— 维护者须先做一次全包同步版本再打 tag；发布工作流会拒绝不完整的版本提升，并在所有桌面目标构建成功后才发布六个 `@omnicross/*` 包。见 [`releasing.md`](releasing.md)。
 

@@ -2,27 +2,36 @@
  * dev.mjs — one-command dev environment: `npm run dev` at the repo root.
  *
  * Starts BOTH halves of the Control Panel dev loop:
- *   [daemon] node packages/daemon/dist/cli.js start --config omnicross.dev.config.json
+ *   [daemon] node packages/daemon/dist/cli.js start --config ~/.omnicross-dev/omnicross.dev.config.json
  *   [ui]     vite dev server in packages/ui (http://localhost:1430)
  *
  * Conveniences:
  *  - missing daemon dist  → runs `npm run build` once first,
- *  - missing dev config   → seeds `omnicross.dev.config.json` (gitignored;
- *    empty providers, admin on 8766 — add providers via the UI or the CLI),
+ *  - missing dev config   → seeds one (empty providers, admin on 8766 — add
+ *    providers via the UI or the CLI); a legacy repo-root
+ *    omnicross.dev.config.json is migrated there on first run,
  *  - Ctrl+C (or either process dying) tears both down.
+ *
+ * The dev config lives in ~/.omnicross-dev (NOT the repo root): the daemon
+ * treats the config file's directory as its application-data root, and the
+ * Images runtime rejects a data root that contains the process cwd or sits
+ * inside a git checkout/worktree — both true for the repo root.
  *
  * This is the dev-mode analogue of the installed `omnicross ui` command (which
  * serves the prebuilt UI from the daemon itself at /ui).
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const daemonCli = join(root, 'packages', 'daemon', 'dist', 'cli.js');
-const devConfig = join(root, 'omnicross.dev.config.json');
+const devDataDir = join(homedir(), '.omnicross-dev');
+const devConfig = join(devDataDir, 'omnicross.dev.config.json');
+const legacyDevConfig = join(root, 'omnicross.dev.config.json');
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 const DEFAULT_DEV_CONFIG = {
@@ -56,10 +65,17 @@ if (!existsSync(daemonCli)) {
   if (code !== 0) process.exit(code ?? 1);
 }
 
-// 2. Seed a dev config on first run.
+// 2. Seed (or migrate) a dev config. Must live OUTSIDE the repo — see the
+// header note about the daemon's application-data-root validation.
+mkdirSync(devDataDir, { recursive: true });
 if (!existsSync(devConfig)) {
-  writeFileSync(devConfig, JSON.stringify(DEFAULT_DEV_CONFIG, null, 2) + '\n', 'utf8');
-  console.info('[dev] seeded omnicross.dev.config.json (no providers yet — add them in the UI)');
+  if (existsSync(legacyDevConfig)) {
+    copyFileSync(legacyDevConfig, devConfig);
+    console.info(`[dev] migrated ${legacyDevConfig} → ${devConfig} (the old file is left in place)`);
+  } else {
+    writeFileSync(devConfig, JSON.stringify(DEFAULT_DEV_CONFIG, null, 2) + '\n', 'utf8');
+    console.info(`[dev] seeded ${devConfig} (no providers yet — add them in the UI)`);
+  }
 }
 
 // 3. Start both; either one dying (or Ctrl+C) stops the other.
