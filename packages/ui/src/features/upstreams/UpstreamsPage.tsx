@@ -685,7 +685,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
       <UpstreamMappingsDialog open={mappingOpen} onClose={() => setMappingOpen(false)} />
       <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
-        <DialogContent className="flex h-[88vh] w-[min(94vw,72rem)] max-w-6xl flex-col overflow-hidden p-0">
+        <DialogContent className="flex h-[88vh] !w-[min(94vw,72rem)] !max-w-6xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b border-border/70 px-6 py-4">
             <DialogTitle>{t('upstreams.addProvider')}</DialogTitle>
             <DialogDescription>{t('upstreams.addProviderDescription')}</DialogDescription>
