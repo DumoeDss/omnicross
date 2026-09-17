@@ -3,8 +3,9 @@
  * and the project's GitHub presence.
  */
 
-import { Bug, ExternalLink, FileDown, Github, Loader2, Rocket, ServerCog, Tag } from 'lucide-react';
+import { Bug, ExternalLink, FileDown, FolderOpen, Github, Loader2, Rocket, ServerCog, Tag } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,6 +15,7 @@ import { daemonFetch } from '@/daemon/httpFetch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { exportDaemonLogs } from '@/shared/logExport';
 import { openExternal } from '@/shared/tauri/openExternal';
+import { isDesktop } from '@/shared/tauri/uiSettings';
 
 import {
   APP_AUTHOR,
@@ -75,20 +77,31 @@ export function AboutSection({ appVersion }: AboutSectionProps) {
   const daemonVersion = useDaemonHealthVersion();
   const version = resolveAboutVersion(appVersion, daemonVersion);
   const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleExportLogs = async () => {
     setExporting(true);
-    setExportMessage(null);
+    setStatusMessage(null);
     try {
       const result = await exportDaemonLogs();
       if (result.ok) {
-        setExportMessage(t('settings.about.diagnostics.exported', { path: result.savedPath ?? '' }));
+        setStatusMessage(t('settings.about.diagnostics.exported', { path: result.savedPath ?? '' }));
       } else if (result.message !== 'cancelled') {
-        setExportMessage(t('settings.about.diagnostics.exportFailed', { reason: result.message ?? '' }));
+        setStatusMessage(t('settings.about.diagnostics.exportFailed', { reason: result.message ?? '' }));
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleOpenLogsFolder = async () => {
+    setStatusMessage(null);
+    try {
+      await invoke('open_logs_folder');
+    } catch (err) {
+      setStatusMessage(
+        t('settings.about.diagnostics.openFailed', { reason: err instanceof Error ? err.message : String(err) }),
+      );
     }
   };
 
@@ -161,8 +174,20 @@ export function AboutSection({ appVersion }: AboutSectionProps) {
               {t('settings.about.diagnostics.export')}
             </Button>
           </SettingRow>
-          {exportMessage ? (
-            <p className="break-all text-xs text-muted-foreground">{exportMessage}</p>
+          {isDesktop() ? (
+            <SettingRow
+              icon={FolderOpen}
+              label={t('settings.about.diagnostics.openLogsFolder')}
+              description={t('settings.about.diagnostics.openLogsFolderHint')}
+            >
+              <Button size="sm" variant="outline" onClick={() => void handleOpenLogsFolder()}>
+                <FolderOpen aria-hidden="true" />
+                {t('settings.about.diagnostics.openFolder')}
+              </Button>
+            </SettingRow>
+          ) : null}
+          {statusMessage ? (
+            <p className="break-all text-xs text-muted-foreground">{statusMessage}</p>
           ) : null}
         </section>
 

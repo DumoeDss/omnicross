@@ -2182,7 +2182,11 @@
         "exportLogsHint": "打包 logs/daemon.log 及其轮转分卷（已脱敏、有大小上限）。",
         "export": "导出",
         "exported": "日志已导出到 {{path}}。",
-        "exportFailed": "导出日志失败：{{reason}}"
+        "exportFailed": "导出日志失败：{{reason}}",
+        "openLogsFolder": "打开日志文件夹",
+        "openLogsFolderHint": "在文件管理器中打开守护进程的 logs/ 目录。",
+        "openFolder": "打开",
+        "openFailed": "打开日志文件夹失败：{{reason}}"
       },
       "project": {
         "title": "项目"

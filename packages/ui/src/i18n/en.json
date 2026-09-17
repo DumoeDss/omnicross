@@ -2171,7 +2171,11 @@
         "exportLogsHint": "Bundles logs/daemon.log and its rotated generations (redacted, size-capped).",
         "export": "Export",
         "exported": "Log export saved to {{path}}.",
-        "exportFailed": "Log export failed: {{reason}}"
+        "exportFailed": "Log export failed: {{reason}}",
+        "openLogsFolder": "Open logs folder",
+        "openLogsFolderHint": "Reveals the daemon's logs/ directory in your file manager.",
+        "openFolder": "Open",
+        "openFailed": "Could not open the logs folder: {{reason}}"
       },
       "project": {
         "title": "Project"

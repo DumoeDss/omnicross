@@ -190,21 +190,31 @@ pub fn set_ui_settings<R: Runtime>(
     Ok(())
 }
 
-fn tray_labels(language: &str) -> (&'static str, &'static str, &'static str) {
+fn tray_labels(language: &str) -> (&'static str, &'static str, &'static str, &'static str) {
     if language.starts_with("zh") {
-        ("显示", "导出日志", "退出")
+        ("显示", "导出日志", "打开日志文件夹", "退出")
     } else {
-        ("Show", "Export logs", "Quit")
+        ("Show", "Export logs", "Open logs folder", "Quit")
     }
 }
 
 fn build_tray_menu<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Result<Menu<R>> {
-    let (show, export_logs, quit) = tray_labels(language);
+    let (show, export_logs, open_logs, quit) = tray_labels(language);
     let show_item = MenuItem::with_id(app, "tray-show", show, true, None::<&str>)?;
     let export_item = MenuItem::with_id(app, "tray-export-logs", export_logs, true, None::<&str>)?;
+    let open_logs_item = MenuItem::with_id(app, "tray-open-logs", open_logs, true, None::<&str>)?;
     let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "tray-quit", quit, true, None::<&str>)?;
-    Menu::with_items(app, &[&show_item, &export_item, &separator, &quit_item])
+    Menu::with_items(
+        app,
+        &[
+            &show_item,
+            &export_item,
+            &open_logs_item,
+            &separator,
+            &quit_item,
+        ],
+    )
 }
 
 /// Bring the main window to the foreground (tray click / "Show").
@@ -229,8 +239,8 @@ fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// Build the system tray (icon + localized Show / Export logs / Quit menu,
-/// left-click reveals).
+/// Build the system tray (icon + localized Show / Export logs / Open logs
+/// folder / Quit menu, left-click reveals).
 pub fn setup_tray<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Result<()> {
     let menu = build_tray_menu(app, language)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
@@ -246,6 +256,10 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>, language: &str) -> tauri::Resu
                 show_main_window(app);
                 use tauri::Emitter as _;
                 let _ = app.emit("tray-export-logs", ());
+            }
+            // Pure Rust — no webview round-trip needed to open a folder.
+            "tray-open-logs" => {
+                let _ = crate::log_export::open_logs_folder(app.clone());
             }
             "tray-quit" => app.exit(0),
             _ => {}
