@@ -24,9 +24,13 @@
  *  - `resetsAt` MOVED by ≈ its window length → `scheduled` (the ordinary
  *    weekly roll). `cycleStartMs` = the PREVIOUS `resetsAt`, which is the exact
  *    expiry instant of the old window even when observed late.
- *  - `resetsAt` moved any other way → `unscheduled` (anchor drift, or a reset
- *    card that replaced the window). `cycleStartMs` = the observation time —
- *    the best locally knowable instant.
+ *  - `resetsAt` moved any other way BEYOND {@link RESET_JITTER_TOLERANCE_MS} →
+ *    `unscheduled` (anchor drift, or a reset card that replaced the window).
+ *    `cycleStartMs` = the observation time — the best locally knowable instant.
+ *    Smaller moves are vendor clock jitter (observed: codex flips
+ *    `09:41:06.000Z ↔ 09:41:07.000Z`, opencodego wobbles sub-second, on every
+ *    poll) and are NOT boundaries; the baseline keeps the first-seen anchor so
+ *    a wobble can neither fire nor accumulate into a phantom boundary.
  *  - `resetsAt` UNCHANGED while `usedPercent` DROPPED by at least
  *    {@link IN_PLACE_DROP_PERCENT} points → `in-place` (counter cleared without
  *    moving the reset date — the reset-card signature; within a window the
@@ -55,6 +59,16 @@ export const IN_PLACE_DROP_PERCENT = 5;
 
 /** A `scheduled` roll may deviate from exactly one window by this much. */
 export const SCHEDULED_TOLERANCE_MS = 60 * 60 * 1000;
+
+/**
+ * A `resetsAt` move smaller than this is vendor clock jitter, not a boundary.
+ * Codex's usage API flip-flops the instant by ±1 s and opencodego's wobbles
+ * sub-second on every poll — without a dead band each wobble logs an
+ * `unscheduled` event whose `cycleStartMs` is "now", slicing the dashboard's
+ * by-cycle view into 5-minute phantom periods. Real re-anchors (drift, reset
+ * cards) move the instant by minutes-to-days, far above this band.
+ */
+export const RESET_JITTER_TOLERANCE_MS = 5 * 60_000;
 
 /** Fail-safe cap: a boundary ledger larger than this stops appending. */
 export const MAX_BOUNDARY_LOG_BYTES = 1_000_000;
@@ -144,21 +158,32 @@ export function detectAllowanceBoundaryEvents(
     const window = trackedAllowanceWindow(snapshot);
     if (!window) continue; // nothing tracked for this account — leave no baseline
     const key = baselineKey(snapshot.providerId, snapshot.accountId);
+    const prev = previous.get(key);
+
+    const prevResetMs = prev?.resetsAt !== undefined ? Date.parse(prev.resetsAt) : Number.NaN;
+    const nextResetMs = window.resetsAt !== undefined ? Date.parse(window.resetsAt) : Number.NaN;
+    const bothFinite = Number.isFinite(prevResetMs) && Number.isFinite(nextResetMs);
+    // Sub-tolerance wobble ≡ unchanged anchor. The baseline keeps the
+    // first-seen instant so a flip-flopping wobble can neither fire on each
+    // poll nor accumulate step-by-step into a phantom boundary; a genuine
+    // re-anchor still crosses the band and fires once.
+    const jittered =
+      bothFinite &&
+      prevResetMs !== nextResetMs &&
+      Math.abs(nextResetMs - prevResetMs) < RESET_JITTER_TOLERANCE_MS;
+
     next.set(key, {
-      resetsAt: window.resetsAt,
+      resetsAt: jittered ? prev!.resetsAt : window.resetsAt,
       usedPercent: window.usedPercent,
       windowMinutes: window.windowMinutes,
     });
 
-    const prev = previous.get(key);
     if (!prev) continue; // first observation: establish the baseline silently
 
-    const prevResetMs = prev.resetsAt !== undefined ? Date.parse(prev.resetsAt) : Number.NaN;
-    const nextResetMs = window.resetsAt !== undefined ? Date.parse(window.resetsAt) : Number.NaN;
     const windowMs =
       (window.windowMinutes ?? prev.windowMinutes ?? 0) * 60_000 || 604_800_000;
 
-    if (Number.isFinite(prevResetMs) && Number.isFinite(nextResetMs) && prevResetMs !== nextResetMs) {
+    if (bothFinite && prevResetMs !== nextResetMs && !jittered) {
       const rolledOnSchedule =
         Math.abs(nextResetMs - prevResetMs - windowMs) <= SCHEDULED_TOLERANCE_MS;
       events.push({
@@ -200,9 +225,29 @@ export function detectAllowanceBoundaryEvents(
 }
 
 /**
+ * A ledger row whose `resetsAt` "move" is inside the jitter dead band — a
+ * phantom boundary written before the band existed. Such rows self-heal out of
+ * every consumer's view at parse time (the ledger itself is append-only and
+ * never rewritten). Rows without both instants (`in-place`) never qualify.
+ */
+function isJitterBoundaryRow(parsed: Partial<AccountAllowanceBoundaryEvent>): boolean {
+  if (typeof parsed.previousResetsAt !== 'string' || typeof parsed.resetsAt !== 'string') {
+    return false;
+  }
+  const prevMs = Date.parse(parsed.previousResetsAt);
+  const nextMs = Date.parse(parsed.resetsAt);
+  return (
+    Number.isFinite(prevMs) &&
+    Number.isFinite(nextMs) &&
+    Math.abs(nextMs - prevMs) < RESET_JITTER_TOLERANCE_MS
+  );
+}
+
+/**
  * Parse the ledger. Torn/malformed lines are skipped (the JSONL contract);
  * an oversized or unreadable file reads as empty — a damaged ledger must never
- * take the allowance surface down with it.
+ * take the allowance surface down with it. Phantom jitter rows are filtered
+ * (see {@link isJitterBoundaryRow}).
  */
 export function readAllowanceBoundaryEvents(logPath: string): AccountAllowanceBoundaryEvent[] {
   if (!existsSync(logPath)) return [];
@@ -221,7 +266,8 @@ export function readAllowanceBoundaryEvents(logPath: string): AccountAllowanceBo
           typeof parsed.providerId === 'string' &&
           typeof parsed.accountId === 'string' &&
           (parsed.kind === 'scheduled' || parsed.kind === 'unscheduled' || parsed.kind === 'in-place') &&
-          typeof parsed.cycleStartMs === 'number' && Number.isFinite(parsed.cycleStartMs)
+          typeof parsed.cycleStartMs === 'number' && Number.isFinite(parsed.cycleStartMs) &&
+          !isJitterBoundaryRow(parsed)
         ) {
           out.push(parsed as AccountAllowanceBoundaryEvent);
         }

@@ -155,6 +155,75 @@ describe('detectAllowanceBoundaryEvents', () => {
     const next = codexSnapshot({ resetsAt: iso(T0 + 604_800_000), usedPercent: 8 });
     expect(detect(prev, next)).toHaveLength(0);
   });
+
+  it('ignores a sub-tolerance resetsAt wobble (vendor clock jitter, the codex ±1 s flip)', () => {
+    const prev = codexSnapshot({ resetsAt: iso(T0), usedPercent: 100 });
+    const next = codexSnapshot({ resetsAt: iso(T0 + 1_000), usedPercent: 100 });
+    expect(detect(prev, next)).toHaveLength(0);
+  });
+
+  it('keeps the wobble from accumulating: repeated flips never fire, a drift past the band fires once', () => {
+    // Baseline anchored at T0; each save wobbles or drifts the instant a little.
+    let baseline = detectAllowanceBoundaryEvents(
+      [codexSnapshot({ resetsAt: iso(T0), usedPercent: 50 })],
+      new Map(),
+      T0,
+    ).next;
+    // Flip-flop ±1 s — no events, baseline anchor stays pinned at T0.
+    for (const [resetsAt, at] of [
+      [iso(T0 + 1_000), T0 + 300_000],
+      [iso(T0), T0 + 600_000],
+      [iso(T0 + 1_000), T0 + 900_000],
+    ] as const) {
+      const { events, next } = detectAllowanceBoundaryEvents(
+        [codexSnapshot({ resetsAt, usedPercent: 50 })],
+        baseline,
+        at,
+      );
+      expect(events).toHaveLength(0);
+      baseline = next;
+    }
+    // Slow genuine drift: steps of 2 min stay silent while cumulatively under
+    // the 5-min band, then the step that crosses it fires exactly one
+    // `unscheduled` event anchored at its observation time.
+    let drifted = T0;
+    let observed = T0 + 1_200_000;
+    for (let i = 0; i < 3; i += 1) {
+      drifted += 2 * 60_000;
+      observed += 2 * 60_000;
+      const { events, next } = detectAllowanceBoundaryEvents(
+        [codexSnapshot({ resetsAt: iso(drifted), usedPercent: 50 })],
+        baseline,
+        observed,
+      );
+      if (drifted - T0 < 5 * 60_000) {
+        expect(events).toHaveLength(0);
+      } else {
+        expect(events).toHaveLength(1);
+        expect(events[0].kind).toBe('unscheduled');
+        expect(events[0].cycleStartMs).toBe(observed);
+      }
+      baseline = next;
+    }
+  });
+
+  it('still classifies a full-window roll as scheduled after a sub-tolerance wobble', () => {
+    const prev = codexSnapshot({ resetsAt: iso(T0), usedPercent: 96 });
+    const wobbled = detectAllowanceBoundaryEvents(
+      [codexSnapshot({ resetsAt: iso(T0 + 1_000), usedPercent: 96 })],
+      baselineOf(prev),
+      T0 + 60_000,
+    );
+    expect(wobbled.events).toHaveLength(0); // jitter swallowed, anchor pinned
+    const rolled = detectAllowanceBoundaryEvents(
+      [codexSnapshot({ resetsAt: iso(T0 + 604_801_000), usedPercent: 4 })],
+      wobbled.next,
+      T0 + 604_900_000,
+    );
+    expect(rolled.events).toHaveLength(1);
+    expect(rolled.events[0].kind).toBe('scheduled');
+    expect(rolled.events[0].cycleStartMs).toBe(T0); // the pinned anchor, not T0+1 s
+  });
 });
 
 describe('AllowanceBoundaryLog (decorator)', () => {
@@ -263,5 +332,47 @@ describe('readAllowanceBoundaryEvents', () => {
 
   it('reads a missing file as empty', () => {
     expect(readAllowanceBoundaryEvents(join(tmpDir, 'nope.jsonl'))).toEqual([]);
+  });
+
+  it('filters phantom sub-tolerance rows (pre-dead-band ledger self-heal), keeps genuine ones', () => {
+    // Shape lifted from the live ledger: codex rows flipping 09:41:06↔09:41:07.
+    const phantom = {
+      version: 1,
+      observedAt: iso(T0),
+      providerId: 'codex',
+      accountId: 'a',
+      kind: 'unscheduled',
+      cycleStartMs: T0,
+      windowMinutes: WEEK_MIN,
+      previousResetsAt: '2026-09-19T09:41:06.000Z',
+      resetsAt: '2026-09-19T09:41:07.000Z',
+      previousUsedPercent: 100,
+      usedPercent: 100,
+    };
+    const scheduled = {
+      ...phantom,
+      kind: 'scheduled',
+      previousResetsAt: iso(T0),
+      resetsAt: iso(T0 + 604_800_000),
+    };
+    const genuineUnscheduled = {
+      ...phantom,
+      previousResetsAt: iso(T0),
+      resetsAt: iso(T0 + 3 * 24 * 3_600_000),
+    };
+    const inPlace = {
+      ...phantom,
+      kind: 'in-place',
+      previousResetsAt: undefined,
+      resetsAt: iso(T0 + 604_800_000),
+    };
+    writeFileSync(
+      logPath,
+      [phantom, scheduled, genuineUnscheduled, inPlace].map((e) => JSON.stringify(e)).join('\n'),
+      'utf8',
+    );
+    const events = readAllowanceBoundaryEvents(logPath);
+    expect(events).toHaveLength(3);
+    expect(events.map((e) => e.kind)).toEqual(['scheduled', 'unscheduled', 'in-place']);
   });
 });
