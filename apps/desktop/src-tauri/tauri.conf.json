@@ -36,7 +36,8 @@
     "windows": {
       "nsis": {
         "installMode": "both",
-        "installerHooks": "nsis-installer.nsh"
+        "installerHooks": "nsis-installer.nsh",
+        "template": "nsis/installer.nsi"
       }
     },
     "icon": [

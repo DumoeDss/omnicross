@@ -73,6 +73,20 @@ FunctionEnd
   ; section still lands on the same locked files, so kill here too. Harmless
   ; no-op when the page already did it.
   Call KillProcessesFromInstallDir
+  ; Fully silent (/S) installs also never reach the auto-uninstall page (see
+  ; nsis/installer.nsi) - without this they would fall back to the stock
+  ; overwrite-in-place ("add") behavior. Uninstall the previous version here
+  ; so /S installs get the same clean replacement the wizard flow enforces.
+  ; (Passive /P installs DO run the page; this is /S-only.)
+  ${If} ${Silent}
+    ReadRegStr $0 SHCTX "${UNINSTKEY}" "UninstallString"
+    ${If} "$0" != ""
+      ReadRegStr $1 SHCTX "${MANUPRODUCTKEY}" ""
+      DetailPrint "omnicross: silently removing the previous installation"
+      nsExec::ExecToLog '"$0" /S _?=$1'
+      Pop $2
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL

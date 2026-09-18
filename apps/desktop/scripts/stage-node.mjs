@@ -24,6 +24,14 @@
  *     so a local proxy (e.g. Clash/V2Ray at 127.0.0.1:7890) or a corporate proxy
  *     unblocks fetch. Without this, Node's built-in fetch() ignores proxy env vars
  *     and a direct connection stalls to the timeout below.
+ *   - curl fallback: EnvHttpProxyAgent is still experimental and has been seen
+ *     stalling through a local proxy while curl happily downloads the same URL
+ *     (2026-09: every mirror timed out in fetch, curl took 4.5 s via the SAME
+ *     proxy). On the first fetch() failure this script switches to curl for the
+ *     rest of the run - first honoring the proxy env, then, if that fails too,
+ *     direct (`--noproxy '*'`) - with stall detection so a hung connection dies
+ *     in seconds instead of burning the full timeout. Checksums are verified
+ *     regardless of which transport delivered the bytes.
  *   - OMNICROSS_NODE_FETCH_TIMEOUT_MS=<ms> → per-request timeout (default 300000);
  *     converts a stalled connection into a clear error instead of an infinite hang.
  *
@@ -82,10 +90,47 @@ if (proxyUrl) {
   console.info(`[stage-node] routing fetch through proxy (${proxyUrl})`);
 }
 
+let undiciFetchFailed = false;
+
 async function fetchBuffer(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`download failed (${res.status}): ${url}`);
-  return Buffer.from(await res.arrayBuffer());
+  // See the curl-fallback note in the header: one undici failure (timeout /
+  // abort) predicts the next in the same run, so after the first we skip the
+  // full-timeout stall for every later file and go straight to curl.
+  if (!undiciFetchFailed) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+      throw new Error(`download failed (${res.status}): ${url}`);
+    } catch (err) {
+      undiciFetchFailed = true;
+      console.warn(`[stage-node] fetch() failed (${err.message}); falling back to curl`);
+    }
+  }
+  try {
+    return curlBuffer(url); // proxy env honored, like fetch above
+  } catch (err) {
+    console.warn(`[stage-node] curl via proxy failed (${err.message.split('\n')[0]}); trying direct`);
+    return curlBuffer(url, { direct: true });
+  }
+}
+
+/**
+ * Fetch a URL with the system curl. `-sSfL` = quiet + show errors + fail on
+ * HTTP errors + follow redirects. `--speed-limit/--speed-time` abort a
+ * transfer that drops below 10 KiB/s for 20 s, so a stalled proxy/connection
+ * fails in seconds instead of eating the whole --max-time budget. `direct`
+ * adds `--noproxy '*'` for the case where the proxy itself is the problem.
+ */
+function curlBuffer(url, { direct = false } = {}) {
+  const args = [
+    '-sSfL',
+    '--max-time', String(Math.ceil(FETCH_TIMEOUT_MS / 1000)),
+    '--speed-limit', '10240',
+    '--speed-time', '20',
+  ];
+  if (direct) args.push('--noproxy', '*');
+  args.push(url);
+  return Buffer.from(execFileSync('curl', args, { maxBuffer: 512 * 1024 * 1024 }));
 }
 
 // Fetch a path (relative to /v<ver>/) trying each mirror until one works. The
