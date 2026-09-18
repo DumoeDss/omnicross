@@ -109,6 +109,12 @@ export interface AllowanceWeeklyItem {
   usedPercent?: number;
   state: AllowanceWindowState;
   resetsAt?: string;
+  /** The same account's five-hour rolling window, when the provider reports one. */
+  fiveHour?: {
+    usedPercent?: number;
+    state: AllowanceWindowState;
+    resetsAt?: string;
+  };
 }
 
 /** One BYO key-quota window row in the overview account-pool card. */
@@ -327,7 +333,7 @@ function weeklyAccountLabel(provider: string, label: string): string {
 function buildWeeklyTop(
   source: OverviewSource<AccountAllowanceSnapshot[]>,
   accounts: AccountEntry[],
-  limit = 3,
+  limit = 6,
 ): AllowanceWeeklyItem[] {
   if (source.state !== 'ready' || !source.data) return [];
   const labelFor = new Map(
@@ -339,18 +345,32 @@ function buildWeeklyTop(
   const items: AllowanceWeeklyItem[] = [];
   for (const snapshot of source.data) {
     const weekly = snapshot.windows.find((window) => window.id === 'seven-day' || window.windowMinutes === 10_080);
-    if (!weekly) continue;
+    const fiveHour = snapshot.windows.find((window) => window.id === 'five-hour' || window.windowMinutes === 300);
+    if (!weekly && !fiveHour) continue;
     const key = allowanceKey(snapshot.providerId, snapshot.accountId);
     items.push({
       providerId: snapshot.providerId,
       accountId: snapshot.accountId,
       label: labelFor.get(key) ?? weeklyAccountLabel(snapshot.providerId, snapshot.accountId),
-      usedPercent: typeof weekly.usedPercent === 'number' ? Math.max(0, Math.min(100, weekly.usedPercent)) : undefined,
-      state: weekly.state,
-      resetsAt: weekly.resetsAt,
+      usedPercent: typeof weekly?.usedPercent === 'number' ? Math.max(0, Math.min(100, weekly.usedPercent)) : undefined,
+      state: weekly?.state ?? 'unsupported',
+      resetsAt: weekly?.resetsAt,
+      ...(fiveHour
+        ? {
+            fiveHour: {
+              usedPercent: typeof fiveHour.usedPercent === 'number' ? Math.max(0, Math.min(100, fiveHour.usedPercent)) : undefined,
+              state: fiveHour.state,
+              resetsAt: fiveHour.resetsAt,
+            },
+          }
+        : {}),
     });
   }
-  items.sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1));
+  // Weekly usage dominates the ranking; the five-hour window breaks ties so a
+  // session about to hit its rolling limit can still surface.
+  items.sort((left, right) =>
+    (right.usedPercent ?? -1) - (left.usedPercent ?? -1) ||
+    (right.fiveHour?.usedPercent ?? -1) - (left.fiveHour?.usedPercent ?? -1));
   return items.slice(0, limit);
 }
 

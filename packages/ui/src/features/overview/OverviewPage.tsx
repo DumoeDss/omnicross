@@ -1,22 +1,16 @@
 import {
   Activity,
-  AlertTriangle,
-  ArrowRight,
-  Boxes,
-  Cable,
-  CircleAlert,
+  Check,
   CircleDot,
   Gauge,
-  KeyRound,
+  Loader2,
   PlugZap,
   RefreshCw,
-  Route,
-  ServerCog,
+  Rocket,
   Users,
-  WalletCards,
   Zap,
 } from 'lucide-react';
-import React, { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,24 +24,29 @@ import { useLiveThroughput, THROUGHPUT_POLL_MS } from './useLiveThroughput';
 import {
   buildThroughputView,
   sparklinePoints,
+  throughputProviderTabs,
   DEFAULT_THROUGHPUT_WINDOW_MS,
   THROUGHPUT_WINDOW_OPTIONS,
   type ThroughputView,
   type ThroughputWindowMs,
 } from './throughputModel';
+import type { UsageThroughputProviderSlice } from '@/daemon/types-usage-pricing';
 import {
   buildOverviewModel,
   type AllowanceWeeklyItem,
   type DataSourceState,
   type KeyQuotaDisplayItem,
-  type OverviewIssue,
   type OverviewMetric,
   type PathState,
-  type RequestPathStage,
 } from './overviewModel';
+import type {
+  AllowanceWindowState,
+  CliIntegrationClient,
+  CliIntegrationStatusKind,
+} from '@/daemon/types';
+import { useCliIntegrations, type UseCliIntegrationsResult } from '../code-cli/hooks/useCliIntegrations';
 import { localizedQuotaWindowLabel } from '../upstreams/useProviderKeyQuota';
 
-const STAGE_ICONS = { client: Cable, gateway: ServerCog, routing: Route, upstream: Boxes } as const;
 const STATE_CLASS: Record<PathState, string> = {
   ready: 'border-success/50 bg-success/10 text-success',
   attention: 'border-warning/50 bg-warning/10 text-warning',
@@ -106,26 +105,6 @@ const THROUGHPUT_WINDOW_KEY: Record<number, string> = {
   900_000: 'overview.throughput.window15m',
 };
 
-function PathStage({ stage }: { stage: RequestPathStage }) {
-  const t = useTranslation();
-  const Icon = STAGE_ICONS[stage.id];
-  const detail = stage.detailState === 'ready' && stage.detail !== null
-    ? t(`overview.path.detail.${stage.id}`, { value: stage.detail })
-    : sourceText(stage.detailState, t);
-  return (
-    <div className="relative flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-border/70 bg-surface-1 px-3 py-3 md:block md:px-4 md:py-4">
-      <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full border', STATE_CLASS[stage.state])}>
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </div>
-      <div className="min-w-0 md:mt-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t(`overview.path.${stage.id}`)}</p>
-        <p className="mt-1 truncate font-mono text-sm text-foreground" title={detail}>{detail}</p>
-      </div>
-      <span className="sr-only">{t(`overview.state.${stage.state}`)}</span>
-    </div>
-  );
-}
-
 function SectionHeading({
   icon: Icon,
   title,
@@ -178,6 +157,54 @@ function EvidenceRow({
   );
 }
 
+/** One labeled quota bar (5h or weekly) — label + percent, bar, reset time. */
+function AllowanceWindowBar({
+  label,
+  usedPercent,
+  state,
+  resetsAt,
+  threshold,
+}: {
+  label: string;
+  usedPercent?: number;
+  state: AllowanceWindowState;
+  resetsAt?: string;
+  threshold: number;
+}) {
+  const t = useTranslation();
+  const hasData = typeof usedPercent === 'number';
+  const percent = hasData ? usedPercent : 0;
+  const nearLimit = hasData && (usedPercent as number) >= threshold;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="truncate text-muted-foreground">{label}</span>
+        <span className={cn('shrink-0 font-mono tabular-nums', nearLimit ? 'text-warning' : 'text-foreground')}>
+          {hasData ? t('accounts.allowance.used', { percent: Math.round(percent) }) : t(`accounts.allowance.state.${state}`)}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
+        <div
+          className={cn(
+            'h-full rounded-full transition-[width]',
+            !hasData || state !== 'fresh'
+              ? 'bg-muted-foreground/50'
+              : nearLimit
+                ? 'bg-warning'
+                : 'bg-primary',
+          )}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      {resetsAt ? (
+        <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+          {t('accounts.allowance.resetsAt', { time: new Date(resetsAt).toLocaleString() })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function WeeklyAllowanceList({
   items,
   threshold,
@@ -185,48 +212,39 @@ function WeeklyAllowanceList({
 }: {
   items: AllowanceWeeklyItem[];
   threshold: number;
-  /** Row label; defaults to the weekly-quota wording. */
+  /** Row label; defaults to the account-quota wording. */
   heading?: string;
 }) {
   const t = useTranslation();
   if (!items.length) return null;
   return (
     <div className="grid gap-2 border-t border-border/60 py-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-start sm:gap-4">
-      <span className="text-xs text-muted-foreground">{heading ?? t('overview.accounts.weeklyQuota')}</span>
-      <div className="space-y-2">
-        {items.map((item) => {
-          const hasData = typeof item.usedPercent === 'number';
-          const percent = hasData ? (item.usedPercent as number) : 0;
-          const nearLimit = hasData && (item.usedPercent as number) >= threshold;
-          return (
-            <div key={`${item.providerId}:${item.accountId}`} className="min-w-0">
-              <div className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="truncate text-muted-foreground" title={item.label}>{item.label}</span>
-                <span className={cn('shrink-0 font-mono tabular-nums', nearLimit ? 'text-warning' : 'text-foreground')}>
-                  {hasData ? t('accounts.allowance.used', { percent: Math.round(item.usedPercent as number) }) : t(`accounts.allowance.state.${item.state}`)}
-                </span>
-              </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-[width]',
-                    !hasData || item.state !== 'fresh'
-                      ? 'bg-muted-foreground/50'
-                      : nearLimit
-                        ? 'bg-warning'
-                        : 'bg-primary',
-                  )}
-                  style={{ width: `${percent}%` }}
+      <span className="text-xs text-muted-foreground">{heading ?? t('overview.accounts.accountQuota')}</span>
+      <div className="space-y-2.5">
+        {items.map((item) => (
+          // One account per row: its 5h rolling and weekly quota bars side by side.
+          <div key={`${item.providerId}:${item.accountId}`} className="min-w-0">
+            <p className="truncate text-[11px] font-medium text-foreground" title={item.label}>{item.label}</p>
+            <div className="mt-1 grid gap-3 sm:grid-cols-2">
+              {item.fiveHour ? (
+                <AllowanceWindowBar
+                  label={t('accounts.allowance.fiveHour')}
+                  usedPercent={item.fiveHour.usedPercent}
+                  state={item.fiveHour.state}
+                  resetsAt={item.fiveHour.resetsAt}
+                  threshold={threshold}
                 />
-              </div>
-              {item.resetsAt ? (
-                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                  {t('accounts.allowance.resetsAt', { time: new Date(item.resetsAt).toLocaleString() })}
-                </p>
               ) : null}
+              <AllowanceWindowBar
+                label={t('accounts.allowance.weekly')}
+                usedPercent={item.usedPercent}
+                state={item.state}
+                resetsAt={item.resetsAt}
+                threshold={threshold}
+              />
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -310,11 +328,19 @@ function LiveThroughputEvidence({
   view,
   windowMs,
   onWindowChange,
+  providers,
+  providerFilter,
+  onProviderChange,
   onNavigate,
 }: {
   view: ThroughputView;
   windowMs: ThroughputWindowMs;
   onWindowChange: (next: ThroughputWindowMs) => void;
+  /** Providers with traffic inside retention, most-recently-active first. */
+  providers: UsageThroughputProviderSlice[];
+  /** Selected provider id; null = 全部 (the default). */
+  providerFilter: string | null;
+  onProviderChange: (next: string | null) => void;
   onNavigate: (route: AppRoute) => void;
 }) {
   const t = useTranslation();
@@ -369,6 +395,40 @@ function LiveThroughputEvidence({
           </div>
         }
       />
+      {providers.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5" role="group" aria-label={t('overview.throughput.providerAria')}>
+          <button
+            type="button"
+            onClick={() => onProviderChange(null)}
+            aria-pressed={providerFilter === null}
+            className={cn(
+              'rounded-full border px-2.5 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              providerFilter === null
+                ? 'border-primary/50 bg-primary-soft/30 text-foreground'
+                : 'border-border/70 bg-surface-2/40 text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {t('overview.throughput.providerAll')}
+          </button>
+          {providers.map((provider) => (
+            <button
+              key={provider.providerId}
+              type="button"
+              onClick={() => onProviderChange(provider.providerId)}
+              aria-pressed={providerFilter === provider.providerId}
+              className={cn(
+                'max-w-44 truncate rounded-full border px-2.5 py-1 font-mono text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                providerFilter === provider.providerId
+                  ? 'border-primary/50 bg-primary-soft/30 text-foreground'
+                  : 'border-border/70 bg-surface-2/40 text-muted-foreground hover:text-foreground',
+              )}
+              title={provider.providerId}
+            >
+              {provider.providerId}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-4 border-t border-border/60 pt-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -582,14 +642,169 @@ function TodayEvidence({
   );
 }
 
-function IntegrationsEvidence({
+// ── CLI 接入：状态 → 快捷动作 ────────────────────────────────────────────────
+
+/** The one-click action a client's status admits: enable, repair, or none. */
+function clientQuickAction(status: CliIntegrationStatusKind): 'install' | 'repair' | null {
+  if (status === 'not-installed') return 'install';
+  if (status === 'configuration-drift' || status === 'configuration-missing' || status === 'key-missing') {
+    return 'repair';
+  }
+  return null; // enabled — nothing to do
+}
+
+/** One client's quick-action button (启用 / 修复), wired to the integrations hook. */
+function ClientActionButton({
+  client,
+  status,
+  integrations,
+  installLabel,
+  repairLabel,
+}: {
+  client: CliIntegrationClient;
+  status: CliIntegrationStatusKind;
+  integrations: UseCliIntegrationsResult;
+  /** Optional label overrides (the wizard prefixes the client name). */
+  installLabel?: string;
+  repairLabel?: string;
+}) {
+  const t = useTranslation();
+  const action = clientQuickAction(status);
+  if (!action) return null;
+  const busy = integrations.busyTarget === client;
+  return (
+    <Button
+      size="sm"
+      variant={action === 'install' ? 'default' : 'outline'}
+      disabled={integrations.busyTarget !== null}
+      onClick={() => {
+        void (action === 'install'
+          ? integrations.install(client)
+          : integrations.repair(client));
+      }}
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+      {busy
+        ? (action === 'install' ? t('overview.integrations.enabling') : t('overview.integrations.repairing'))
+        : (action === 'install'
+          ? (installLabel ?? t('overview.integrations.enable'))
+          : (repairLabel ?? t('overview.integrations.repair')))}
+    </Button>
+  );
+}
+
+/**
+ * 快速开始 — the setup checklist shown while the deployment is not fully
+ * configured (not first-run-only: it reappears whenever an upstream or a CLI
+ * integration is missing, and hides itself once both steps are green).
+ */
+function QuickStartCard({
   view,
+  integrations,
   onNavigate,
 }: {
   view: ReturnType<typeof buildOverviewModel>;
+  integrations: UseCliIntegrationsResult;
   onNavigate: (route: AppRoute) => void;
 }) {
   const t = useTranslation();
+  // An upstream is "configured" when subscription accounts exist or any
+  // enabled route carries a target — the same bar the model's noUpstream
+  // issue uses, just expressed positively.
+  const upstreamReady = (view.accounts.total.state === 'ready' && (view.accounts.total.value ?? 0) > 0)
+    || view.configuredTargetCount > 0;
+  const rows = integrations.overview?.integrations ?? [];
+  const integrationReady = rows.some((row) => row.status === 'enabled');
+  const usedOnce = view.today.requests.state === 'ready' && (view.today.requests.value ?? 0) > 0;
+  if (upstreamReady && integrationReady) return null;
+
+  const pendingClients = rows.filter((row) => clientQuickAction(row.status) !== null);
+  const steps: Array<{ done: boolean; title: string; hint: string; action?: ReactNode }> = [
+    {
+      done: upstreamReady,
+      title: t('overview.quickStart.step1.title'),
+      hint: t('overview.quickStart.step1.hint'),
+      action: upstreamReady ? undefined : (
+        <Button size="sm" onClick={() => onNavigate({ page: 'upstreams' })}>
+          {t('overview.quickStart.step1.action')}
+        </Button>
+      ),
+    },
+    {
+      done: integrationReady,
+      title: t('overview.quickStart.step2.title'),
+      hint: t('overview.quickStart.step2.hint'),
+      action: integrationReady || rows.length === 0 ? undefined : (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {pendingClients.map((row) => (
+            <ClientActionButton
+              key={row.client}
+              client={row.client}
+              status={row.status}
+              integrations={integrations}
+              installLabel={t('overview.quickStart.connect', { client: t(`overview.integrations.${row.client}`) })}
+              repairLabel={t('overview.quickStart.repairClient', { client: t(`overview.integrations.${row.client}`) })}
+            />
+          ))}
+        </div>
+      ),
+    },
+    {
+      done: usedOnce,
+      title: t('overview.quickStart.step3.title'),
+      hint: t('overview.quickStart.step3.hint'),
+    },
+  ];
+
+  return (
+    <section className="rounded-xl border border-primary/30 bg-primary-soft/10 p-4 md:p-5" aria-labelledby="quickstart-title">
+      <SectionHeading
+        icon={Rocket}
+        titleId="quickstart-title"
+        title={t('overview.quickStart.title')}
+        description={t('overview.quickStart.description')}
+      />
+      <ol className="mt-4 space-y-2">
+        {steps.map((step, index) => (
+          <li
+            key={step.title}
+            className={cn(
+              'flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5',
+              step.done ? 'border-success/30 bg-success/5' : 'border-border/70 bg-surface-1/70',
+            )}
+          >
+            <span
+              className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border font-mono text-[11px]',
+                step.done ? 'border-success/50 bg-success/10 text-success' : 'border-border bg-surface-2 text-muted-foreground',
+              )}
+              aria-hidden="true"
+            >
+              {step.done ? <Check className="h-3.5 w-3.5" /> : index + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-foreground">{step.title}</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{step.hint}</p>
+            </div>
+            {step.action ? <div className="shrink-0">{step.action}</div> : null}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/** CLI 接入 actionable card — per-client status + one-click 启用/修复. */
+function IntegrationActionsCard({
+  integrations,
+  onNavigate,
+}: {
+  integrations: UseCliIntegrationsResult;
+  onNavigate: (route: AppRoute) => void;
+}) {
+  const t = useTranslation();
+  const overview = integrations.overview;
+  const rows = overview?.integrations ?? [];
   return (
     <section className="rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5" aria-labelledby="integrations-evidence-title">
       <SectionHeading
@@ -598,82 +813,36 @@ function IntegrationsEvidence({
         description={t('overview.integrations.description')}
         action={<Button variant="ghost" size="sm" onClick={() => onNavigate({ page: 'integrations' })}>{t('overview.integrations.open')}</Button>}
       />
+      {integrations.error ? (
+        <div className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{integrations.error}</div>
+      ) : null}
+      {overview && !overview.gateway.running ? (
+        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {t('codeCli.persistent.gatewayStoppedHint')}
+        </div>
+      ) : null}
       <div className="mt-4 divide-y divide-border/60 border-y border-border/60">
-        {view.integrations.map((integration) => {
-          const label = t(`overview.integrations.${integration.client}`);
-          const statusLabel = integration.state !== 'ready' || !integration.status
-            ? sourceText(integration.state, t)
-            : t(`overview.integrations.status.${integration.status}`);
-          const variant = integration.state !== 'ready'
-            ? integration.state === 'loading' ? 'default' : 'destructive'
-            : integration.needsAttention ? 'destructive' : integration.status === 'enabled' ? 'success' : 'secondary';
+        {integrations.loading && rows.length === 0 ? (
+          <p className="py-3 text-xs text-muted-foreground">{t('overview.source.loading')}</p>
+        ) : null}
+        {rows.map((row) => {
+          const label = t(`overview.integrations.${row.client}`);
+          const needsAttention = clientQuickAction(row.status) === 'repair';
+          const variant = row.status === 'enabled' ? 'success' : needsAttention ? 'destructive' : 'secondary';
           return (
-            <div key={integration.client} className="flex min-w-0 items-center gap-3 py-3">
-              <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', integration.needsAttention ? 'bg-warning/15 text-warning' : 'bg-surface-2 text-muted-foreground')}>
+            <div key={row.client} className="flex min-w-0 flex-wrap items-center gap-3 py-3">
+              <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', needsAttention ? 'bg-warning/15 text-warning' : 'bg-surface-2 text-muted-foreground')}>
                 <PlugZap className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">{label}</p>
-                <p className="truncate text-[11px] text-muted-foreground">{integration.gatewayBaseUrl ?? t('overview.integrations.persistentHint')}</p>
+                <p className="truncate text-[11px] text-muted-foreground" title={row.message ?? undefined}>
+                  {row.message ?? row.gatewayBaseUrl ?? t('overview.integrations.persistentHint')}
+                </p>
               </div>
-              <Badge variant={variant}>{statusLabel}</Badge>
+              <Badge variant={variant}>{t(`overview.integrations.status.${row.status}`)}</Badge>
+              <ClientActionButton client={row.client} status={row.status} integrations={integrations} />
             </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function issueIcon(issue: OverviewIssue) {
-  if (issue.id.includes('AccessKey')) return KeyRound;
-  if (issue.id.includes('Account') || issue.id.includes('Upstream') || issue.id.includes('Schedulable') || issue.id.includes('Allowance')) return WalletCards;
-  if (issue.id.includes('Integration')) return PlugZap;
-  if (issue.id.includes('Usage') || issue.id.includes('Rate')) return Activity;
-  if (issue.id.includes('Routing')) return Route;
-  if (issue.id.includes('Config') || issue.id.includes('Gateway')) return ServerCog;
-  return AlertTriangle;
-}
-
-function AttentionEvidence({
-  issues,
-  loading,
-  onNavigate,
-}: {
-  issues: OverviewIssue[];
-  loading: boolean;
-  onNavigate: (route: AppRoute) => void;
-}) {
-  const t = useTranslation();
-  return (
-    <section className="rounded-xl border border-border/70 bg-surface-1/60 p-4 md:p-5" aria-labelledby="attention-title">
-      <SectionHeading
-        icon={CircleAlert}
-        title={t('overview.attention.title')}
-        description={t('overview.attention.description')}
-      />
-      <div className="mt-4 space-y-2" aria-live="polite">
-        {loading ? <p className="rounded-lg border border-border/70 bg-surface-0/60 px-3 py-3 text-xs text-muted-foreground">{t('overview.source.loading')}</p> : null}
-        {!loading && issues.length === 0 ? <div className="rounded-lg border border-success/30 bg-success/10 px-3 py-3 text-xs text-success">{t('overview.attention.empty')}</div> : null}
-        {!loading && issues.map((issue) => {
-          const Icon = issueIcon(issue);
-          const label = issue.count === undefined
-            ? t(`overview.attention.${issue.id}`)
-            : t(`overview.attention.${issue.id}`, { count: issue.count });
-          return (
-            <button
-              key={issue.id}
-              type="button"
-              onClick={() => onNavigate(issue.route)}
-              className={cn(
-                'flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                issue.severity === 'blocking' ? 'border-destructive/40 bg-destructive/5 hover:border-destructive/70' : 'border-warning/40 bg-warning/5 hover:border-warning/70',
-              )}
-            >
-              <Icon className={cn('h-4 w-4 shrink-0', issue.severity === 'blocking' ? 'text-destructive' : 'text-warning')} aria-hidden="true" />
-              <span className="min-w-0 flex-1 text-xs text-foreground">{label}</span>
-              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            </button>
           );
         })}
       </div>
@@ -690,12 +859,22 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
   const data = useOverviewData();
   const view = buildOverviewModel(data.sources);
   const throughput = useLiveThroughput();
-  // Window selection is client-side: one poll carries all three, so switching
-  // re-reads the response already in hand rather than hitting the daemon again.
+  const integrations = useCliIntegrations();
+  // Window + provider selection is client-side: one poll carries all three
+  // windows and every provider slice, so switching re-reads the response
+  // already in hand rather than hitting the daemon again.
   const [throughputWindowMs, setThroughputWindowMs] = useState<ThroughputWindowMs>(
     DEFAULT_THROUGHPUT_WINDOW_MS,
   );
-  const throughputView = buildThroughputView(throughput.source, throughputWindowMs);
+  const [throughputProvider, setThroughputProvider] = useState<string | null>(null);
+  const providerTabs = throughputProviderTabs(throughput.source);
+  // A provider that goes idle past retention drops out of the snapshot — fall
+  // back to 全部 instead of showing a stale, all-zero filter.
+  const effectiveProvider = throughputProvider !== null
+    && providerTabs.some((provider) => provider.providerId === throughputProvider)
+    ? throughputProvider
+    : null;
+  const throughputView = buildThroughputView(throughput.source, throughputWindowMs, effectiveProvider);
   const headerReady = view.overallState === 'operational';
   const headerClass = view.overallState === 'loading'
     ? STATE_CLASS.loading
@@ -704,62 +883,54 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
   return (
     <ScrollArea className="h-full">
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-4 md:px-7 md:py-6">
-        <section aria-labelledby="request-path-title">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 id="request-path-title" className="text-sm font-semibold text-foreground">{t('overview.requestPath')}</h1>
-              <p className="mt-1 text-xs text-muted-foreground">{t('overview.requestPathHint')}</p>
-            </div>
-            <div className="flex min-w-0 items-center gap-2">
-              {view.gateway.address.state === 'ready' && view.gateway.address.value ? <code className="hidden max-w-56 truncate font-mono text-[11px] text-muted-foreground xl:block">{view.gateway.address.value}</code> : null}
-              <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-xs', headerClass)} aria-live="polite">
-                <CircleDot className={cn('h-3.5 w-3.5', headerReady && 'motion-safe:animate-pulse')} aria-hidden="true" />
-                {view.overallState === 'loading' ? t('overview.source.loading') : headerReady ? t('overview.operational') : t('overview.actionRequired')}
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={data.refreshing}
-                onClick={() => {
-                  data.refresh();
-                  throughput.refresh();
-                }}
-                aria-label={t('overview.refresh')}
-                title={t('overview.refresh')}
-              >
-                <RefreshCw className={data.refreshing ? 'animate-spin' : undefined} aria-hidden="true" />
-              </Button>
-            </div>
+        {/* Page controls only — the request-path visualization was removed;
+            the status chip + manual refresh remain the page-level affordances. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {view.gateway.address.state === 'ready' && view.gateway.address.value ? <code className="hidden max-w-56 truncate font-mono text-[11px] text-muted-foreground xl:block">{view.gateway.address.value}</code> : null}
+          <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-xs', headerClass)} aria-live="polite">
+            <CircleDot className={cn('h-3.5 w-3.5', headerReady && 'motion-safe:animate-pulse')} aria-hidden="true" />
+            {view.overallState === 'loading' ? t('overview.source.loading') : headerReady ? t('overview.operational') : t('overview.actionRequired')}
           </div>
-          <div className="relative grid gap-2 rounded-xl border border-border/70 bg-surface-2/30 p-2 md:grid-cols-4">
-            <div className={cn('pointer-events-none absolute left-[12.5%] right-[12.5%] top-[2.1rem] hidden h-px bg-border md:block', view.pathOperational && 'request-path-live')} aria-hidden="true" />
-            {view.stages.map((stage, index) => (
-              <React.Fragment key={stage.id}>
-                <PathStage stage={stage} />
-                {index < view.stages.length - 1 ? <ArrowRight className="mx-auto h-3.5 w-3.5 rotate-90 text-muted-foreground md:hidden" aria-hidden="true" /> : null}
-              </React.Fragment>
-            ))}
-          </div>
-        </section>
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={data.refreshing}
+            onClick={() => {
+              data.refresh();
+              throughput.refresh();
+              void integrations.refresh();
+            }}
+            aria-label={t('overview.refresh')}
+            title={t('overview.refresh')}
+          >
+            <RefreshCw className={data.refreshing ? 'animate-spin' : undefined} aria-hidden="true" />
+          </Button>
+        </div>
+
+        {/* Setup checklist — visible until an upstream AND a CLI integration
+            are configured; gone entirely for a fully set-up deployment. */}
+        <QuickStartCard view={view} integrations={integrations} onNavigate={onNavigate} />
 
         <LiveThroughputEvidence
           view={throughputView}
           windowMs={throughputWindowMs}
           onWindowChange={setThroughputWindowMs}
+          providers={providerTabs}
+          providerFilter={effectiveProvider}
+          onProviderChange={setThroughputProvider}
           onNavigate={onNavigate}
         />
 
+        {/* Per-client persistent-integration status with one-click enable/repair. */}
+        <IntegrationActionsCard integrations={integrations} onNavigate={onNavigate} />
+
         <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <GatewayEvidence view={view} onNavigate={onNavigate} />
-          <AccountsEvidence view={view} onNavigate={onNavigate} />
-        </div>
-
-        <div className="grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <TodayEvidence view={view} onNavigate={onNavigate} />
-          <IntegrationsEvidence view={view} onNavigate={onNavigate} />
         </div>
 
-        <AttentionEvidence issues={view.issues} loading={data.loading} onNavigate={onNavigate} />
+        {/* Full-width account pool: each account's 5h + weekly bars share a row. */}
+        <AccountsEvidence view={view} onNavigate={onNavigate} />
       </div>
     </ScrollArea>
   );

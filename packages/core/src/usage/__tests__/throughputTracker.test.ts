@@ -157,4 +157,63 @@ describe('UsageThroughputTracker', () => {
     expect(windowOf(snapshot, 60_000).requests).toBe(0);
     expect(windowOf(snapshot, 60_000).complete).toBe(true);
   });
+
+  it('carries per-provider slices that sum to the ALL totals', () => {
+    const tracker = new UsageThroughputTracker(T0);
+    const now = T0 + 60_000;
+    tracker.record(event({ providerId: 'claude', outputTokens: 30 }), now - 50_000);
+    tracker.record(event({ providerId: 'claude', outputTokens: 10 }), now - 40_000);
+    tracker.record(event({ providerId: 'codex', outputTokens: 5 }), now - 30_000);
+
+    const snapshot = tracker.snapshot(now);
+    // Most-recently-active first: codex's newest sample (now-30s) beats claude's (now-40s).
+    expect(snapshot.providers.map((slice) => slice.providerId)).toEqual(['codex', 'claude']);
+
+    const claude = snapshot.providers.find((slice) => slice.providerId === 'claude')!;
+    expect(claude.windows.map((w) => w.windowMs)).toEqual([...THROUGHPUT_WINDOWS_MS]);
+    expect(claude.windows.find((w) => w.windowMs === 60_000)!.requests).toBe(2);
+    expect(claude.windows.find((w) => w.windowMs === 60_000)!.outputTokens).toBe(40);
+    expect(claude.windows.find((w) => w.windowMs === 300_000)!.requests).toBe(2);
+    expect(claude.buckets).toHaveLength(THROUGHPUT_BUCKET_COUNT);
+    expect(claude.buckets.reduce((sum, bucket) => sum + bucket.requests, 0)).toBe(2);
+
+    // Slice counts sum back to the ALL row (no double counting, no loss).
+    const allMinute = windowOf(snapshot, 60_000);
+    const sliceSum = snapshot.providers
+      .map((slice) => slice.windows.find((w) => w.windowMs === 60_000)!.requests)
+      .reduce((a, b) => a + b, 0);
+    expect(sliceSum).toBe(allMinute.requests);
+  });
+
+  it('orders provider slices most-recently-active first', () => {
+    const tracker = new UsageThroughputTracker(T0);
+    const now = T0 + 60_000;
+    tracker.record(event({ providerId: 'claude' }), now - 50_000);
+    tracker.record(event({ providerId: 'codex' }), now - 10_000);
+
+    expect(tracker.snapshot(now).providers.map((slice) => slice.providerId)).toEqual(['codex', 'claude']);
+  });
+
+  it('counts provider-less samples in the ALL totals only — no slice is invented', () => {
+    const tracker = new UsageThroughputTracker(T0);
+    const now = T0 + 60_000;
+    tracker.record(event({ outputTokens: 7 }), now - 10_000);
+
+    const snapshot = tracker.snapshot(now);
+    expect(windowOf(snapshot, 60_000).requests).toBe(1);
+    expect(snapshot.providers).toEqual([]);
+  });
+
+  it('drops a provider slice once its samples pass the retention horizon', () => {
+    const tracker = new UsageThroughputTracker(T0);
+    tracker.record(event({ providerId: 'claude' }), T0 + 1_000);
+    // Retention is 15 minutes: read at T0+16min so claude's only sample (T0+1s)
+    // falls past the horizon while codex stays live.
+    const now = T0 + 16 * 60_000;
+    tracker.record(event({ providerId: 'codex' }), now);
+
+    const snapshot = tracker.snapshot(now);
+    expect(snapshot.providers.map((slice) => slice.providerId)).toEqual(['codex']);
+    expect(windowOf(snapshot, 60_000).requests).toBe(1);
+  });
 });

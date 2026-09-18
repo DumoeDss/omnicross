@@ -4,6 +4,7 @@ import {
   buildThroughputView,
   selectThroughputWindow,
   sparklinePoints,
+  throughputProviderTabs,
   windowBuckets,
   DEFAULT_THROUGHPUT_WINDOW_MS,
   THROUGHPUT_WINDOW_OPTIONS,
@@ -185,6 +186,69 @@ describe('buildThroughputView', () => {
     }));
     const view = buildThroughputView(ready(snapshot({ buckets })), 300_000);
     expect(view.points[view.points.length - 1]).toBe(290);
+  });
+
+  it('reads the selected provider slice (windows AND trend) instead of the totals', () => {
+    const sliceBuckets = Array.from({ length: 30 }, (_unused, index) => ({
+      startTs: NOW - 900_000 + index * BUCKET_MS,
+      requests: 1,
+      tokens: 100,
+      outputTokens: 40,
+    }));
+    const data = snapshot({
+      windows: [
+        windowRow(60_000, { requests: 9, outputTokens: 900 }),
+        windowRow(300_000, { requests: 99, outputTokens: 9_900 }),
+        windowRow(900_000),
+      ],
+      providers: [
+        {
+          providerId: 'claude',
+          windows: [
+            windowRow(60_000, { requests: 2, outputTokens: 60 }),
+            windowRow(300_000, { requests: 5, outputTokens: 150 }),
+            windowRow(900_000, { requests: 5, outputTokens: 150 }),
+          ],
+          buckets: sliceBuckets,
+        },
+      ],
+    });
+    const view = buildThroughputView(ready(data), 300_000, 'claude');
+
+    expect(view.state).toBe('ready');
+    expect(view.requests).toBe(5);
+    expect(view.outputTokensPerMinute).toBe(30);
+    expect(view.idle).toBe(false);
+    // The trend comes from the slice's own bucket grid.
+    expect(view.points).toHaveLength(10);
+    expect(view.points[0]).toBe(40);
+  });
+
+  it('falls back to the ALL totals when the provider slice is absent, never fakes a zero', () => {
+    const data = snapshot({
+      windows: [
+        windowRow(60_000, { requests: 7, outputTokens: 700 }),
+        windowRow(300_000, { requests: 7, outputTokens: 700 }),
+        windowRow(900_000, { requests: 7, outputTokens: 700 }),
+      ],
+      providers: [{ providerId: 'codex', windows: [], buckets: [] }],
+    });
+    const view = buildThroughputView(ready(data), 300_000, 'claude');
+    expect(view.state).toBe('ready');
+    expect(view.requests).toBe(7);
+  });
+
+  it('exposes the daemon-ordered provider tabs, empty for slice-less snapshots', () => {
+    expect(throughputProviderTabs(ready(snapshot()))).toEqual([]);
+    expect(throughputProviderTabs({ state: 'loading' })).toEqual([]);
+    const data = snapshot({
+      providers: [
+        { providerId: 'codex', windows: [], buckets: [] },
+        { providerId: 'claude', windows: [], buckets: [] },
+      ],
+    });
+    expect(throughputProviderTabs(ready(data)).map((slice) => slice.providerId))
+      .toEqual(['codex', 'claude']);
   });
 });
 

@@ -64,12 +64,19 @@ export interface UsageThroughputInput {
   cacheCreationTokens: number;
   reasoningTokens: number;
   costUsd: number;
+  /**
+   * Provider attribution for the per-provider slices. Optional only so older
+   * synthetic callers keep type-checking; real usage events always carry it.
+   * Samples without one still count toward the ALL totals but form no slice.
+   */
+  providerId?: string;
   /** Epoch-ms of the event. Omit to use the `now` argument. */
   ts?: number;
 }
 
 interface ThroughputSample {
   ts: number;
+  providerId: string;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -137,6 +144,20 @@ export interface UsageThroughputSnapshot {
    * does not shimmer.
    */
   buckets: UsageThroughputBucket[];
+  /**
+   * Per-provider slices of everything above (same windows, same bucket grid),
+   * most-recently-active provider first. One poll carries all slices, so the
+   * UI's provider tabs switch without re-polling. Additive — older UIs ignore
+   * it. Providers with no sample inside retention form no slice.
+   */
+  providers: UsageThroughputProviderSlice[];
+}
+
+/** One provider's slice of the live snapshot (same shapes as the totals). */
+export interface UsageThroughputProviderSlice {
+  providerId: string;
+  windows: UsageThroughputWindow[];
+  buckets: UsageThroughputBucket[];
 }
 
 export class UsageThroughputTracker {
@@ -155,6 +176,7 @@ export class UsageThroughputTracker {
   record(input: UsageThroughputInput, now: number = Date.now()): void {
     this.samples.push({
       ts: input.ts ?? now,
+      providerId: input.providerId ?? '',
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
       cacheReadTokens: input.cacheReadTokens,
@@ -176,6 +198,7 @@ export class UsageThroughputTracker {
       bucketMs: THROUGHPUT_RETENTION_MS / THROUGHPUT_BUCKET_COUNT,
       windows: THROUGHPUT_WINDOWS_MS.map((windowMs) => this.window(windowMs, now)),
       buckets: this.buckets(now),
+      providers: this.providerSlices(now),
     };
   }
 
@@ -215,71 +238,158 @@ export class UsageThroughputTracker {
 
   private window(windowMs: number, now: number): UsageThroughputWindow {
     const startTs = now - windowMs;
-    const row: UsageThroughputWindow = {
-      windowMs,
-      requests: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreationTokens: 0,
-      reasoningTokens: 0,
-      totalTokens: 0,
-      costUsd: 0,
-      requestsPerMinute: 0,
-      tokensPerMinute: 0,
-      inputTokensPerMinute: 0,
-      outputTokensPerMinute: 0,
-      cacheTokensPerMinute: 0,
-      costUsdPerMinute: 0,
-      complete: this.evictedThroughTs === null || this.evictedThroughTs < startTs,
-    };
+    const counters: WindowCounters = emptyWindowCounters();
     for (let i = this.head; i < this.samples.length; i += 1) {
       const sample = this.samples[i]!;
       if (sample.ts < startTs) continue;
-      row.requests += 1;
-      row.inputTokens += sample.inputTokens;
-      row.outputTokens += sample.outputTokens;
-      row.cacheReadTokens += sample.cacheReadTokens;
-      row.cacheCreationTokens += sample.cacheCreationTokens;
-      row.reasoningTokens += sample.reasoningTokens;
-      row.costUsd += sample.costUsd;
+      accumulate(counters, sample);
     }
-    row.totalTokens =
-      row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheCreationTokens;
-
-    const minutes = windowMs / 60_000;
-    row.requestsPerMinute = row.requests / minutes;
-    row.tokensPerMinute = row.totalTokens / minutes;
-    row.inputTokensPerMinute = row.inputTokens / minutes;
-    row.outputTokensPerMinute = row.outputTokens / minutes;
-    row.cacheTokensPerMinute = (row.cacheReadTokens + row.cacheCreationTokens) / minutes;
-    row.costUsdPerMinute = row.costUsd / minutes;
-    return row;
+    return windowRow(windowMs, counters, this.windowComplete(startTs));
   }
 
   private buckets(now: number): UsageThroughputBucket[] {
     const bucketMs = THROUGHPUT_RETENTION_MS / THROUGHPUT_BUCKET_COUNT;
     const endTs = Math.floor(now / bucketMs) * bucketMs + bucketMs;
     const startTs = endTs - THROUGHPUT_RETENTION_MS;
-    const out: UsageThroughputBucket[] = [];
-    for (let i = 0; i < THROUGHPUT_BUCKET_COUNT; i += 1) {
-      out.push({ startTs: startTs + i * bucketMs, requests: 0, tokens: 0, outputTokens: 0 });
-    }
+    const out = emptyBuckets(startTs);
     for (let i = this.head; i < this.samples.length; i += 1) {
       const sample = this.samples[i]!;
       if (sample.ts < startTs || sample.ts >= endTs) continue;
       const bucket = out[Math.floor((sample.ts - startTs) / bucketMs)];
       if (!bucket) continue;
-      bucket.requests += 1;
-      bucket.outputTokens += sample.outputTokens;
-      bucket.tokens +=
-        sample.inputTokens +
-        sample.outputTokens +
-        sample.cacheReadTokens +
-        sample.cacheCreationTokens;
+      addBucket(bucket, sample);
     }
     return out;
   }
+
+  /**
+   * Per-provider windows + trend buckets, computed in ONE pass over the live
+   * samples (the provider tabs re-read one poll client-side, so the snapshot
+   * must carry every slice). Samples without a providerId count toward the ALL
+   * totals only. Slices come back most-recently-active first.
+   */
+  private providerSlices(now: number): UsageThroughputProviderSlice[] {
+    const bucketMs = THROUGHPUT_RETENTION_MS / THROUGHPUT_BUCKET_COUNT;
+    const endTs = Math.floor(now / bucketMs) * bucketMs + bucketMs;
+    const seriesStart = endTs - THROUGHPUT_RETENTION_MS;
+    const byProvider = new Map<string, {
+      newestTs: number;
+      windows: Map<number, WindowCounters>;
+      buckets: UsageThroughputBucket[];
+    }>();
+    for (let i = this.head; i < this.samples.length; i += 1) {
+      const sample = this.samples[i]!;
+      if (!sample.providerId) continue;
+      let acc = byProvider.get(sample.providerId);
+      if (!acc) {
+        acc = {
+          newestTs: sample.ts,
+          windows: new Map(THROUGHPUT_WINDOWS_MS.map((windowMs) => [windowMs, emptyWindowCounters()])),
+          buckets: emptyBuckets(seriesStart),
+        };
+        byProvider.set(sample.providerId, acc);
+      }
+      if (sample.ts > acc.newestTs) acc.newestTs = sample.ts;
+      for (const windowMs of THROUGHPUT_WINDOWS_MS) {
+        if (sample.ts >= now - windowMs) accumulate(acc.windows.get(windowMs)!, sample);
+      }
+      if (sample.ts >= seriesStart && sample.ts < endTs) {
+        const bucket = acc.buckets[Math.floor((sample.ts - seriesStart) / bucketMs)];
+        if (bucket) addBucket(bucket, sample);
+      }
+    }
+    return [...byProvider.entries()]
+      .sort((left, right) => right[1].newestTs - left[1].newestTs || left[0].localeCompare(right[0]))
+      .map(([providerId, acc]) => ({
+        providerId,
+        windows: THROUGHPUT_WINDOWS_MS.map((windowMs) =>
+          windowRow(windowMs, acc.windows.get(windowMs)!, this.windowComplete(now - windowMs))),
+        buckets: acc.buckets,
+      }));
+  }
+
+  /** Cap eviction affects every provider equally — same honesty rule per slice. */
+  private windowComplete(startTs: number): boolean {
+    return this.evictedThroughTs === null || this.evictedThroughTs < startTs;
+  }
+}
+
+// ── shared aggregation helpers (one implementation of every rate) ────────────
+
+interface WindowCounters {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  reasoningTokens: number;
+  costUsd: number;
+}
+
+function emptyWindowCounters(): WindowCounters {
+  return {
+    requests: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    reasoningTokens: 0,
+    costUsd: 0,
+  };
+}
+
+function accumulate(counters: WindowCounters, sample: ThroughputSample): void {
+  counters.requests += 1;
+  counters.inputTokens += sample.inputTokens;
+  counters.outputTokens += sample.outputTokens;
+  counters.cacheReadTokens += sample.cacheReadTokens;
+  counters.cacheCreationTokens += sample.cacheCreationTokens;
+  counters.reasoningTokens += sample.reasoningTokens;
+  counters.costUsd += sample.costUsd;
+}
+
+/** Finalize one window row — the ONLY place rates are computed. */
+function windowRow(windowMs: number, counters: WindowCounters, complete: boolean): UsageThroughputWindow {
+  const totalTokens =
+    counters.inputTokens + counters.outputTokens + counters.cacheReadTokens + counters.cacheCreationTokens;
+  const minutes = windowMs / 60_000;
+  return {
+    windowMs,
+    requests: counters.requests,
+    inputTokens: counters.inputTokens,
+    outputTokens: counters.outputTokens,
+    cacheReadTokens: counters.cacheReadTokens,
+    cacheCreationTokens: counters.cacheCreationTokens,
+    reasoningTokens: counters.reasoningTokens,
+    totalTokens,
+    costUsd: counters.costUsd,
+    requestsPerMinute: counters.requests / minutes,
+    tokensPerMinute: totalTokens / minutes,
+    inputTokensPerMinute: counters.inputTokens / minutes,
+    outputTokensPerMinute: counters.outputTokens / minutes,
+    cacheTokensPerMinute: (counters.cacheReadTokens + counters.cacheCreationTokens) / minutes,
+    costUsdPerMinute: counters.costUsd / minutes,
+    complete,
+  };
+}
+
+function emptyBuckets(startTs: number): UsageThroughputBucket[] {
+  const bucketMs = THROUGHPUT_RETENTION_MS / THROUGHPUT_BUCKET_COUNT;
+  const out: UsageThroughputBucket[] = [];
+  for (let i = 0; i < THROUGHPUT_BUCKET_COUNT; i += 1) {
+    out.push({ startTs: startTs + i * bucketMs, requests: 0, tokens: 0, outputTokens: 0 });
+  }
+  return out;
+}
+
+function addBucket(bucket: UsageThroughputBucket, sample: ThroughputSample): void {
+  bucket.requests += 1;
+  bucket.outputTokens += sample.outputTokens;
+  bucket.tokens +=
+    sample.inputTokens +
+    sample.outputTokens +
+    sample.cacheReadTokens +
+    sample.cacheCreationTokens;
 }
 
 let sharedTracker: UsageThroughputTracker | null = null;

@@ -16,6 +16,7 @@ import type { DataSourceState, OverviewSource } from './overviewModel';
 
 import type {
   UsageThroughputBucket,
+  UsageThroughputProviderSlice,
   UsageThroughputResult,
   UsageThroughputWindow,
 } from '../../daemon/types-usage-pricing';
@@ -93,16 +94,24 @@ export function windowBuckets(
 export function buildThroughputView(
   source: OverviewSource<UsageThroughputResult>,
   windowMs: number,
+  providerId?: string | null,
 ): ThroughputView {
   if (source.state !== 'ready' || !source.data) return NOT_READY(source.state, windowMs);
   const data = source.data;
   // A daemon without the endpoint is UNAVAILABLE, never a measured zero.
   if (data.available !== true) return NOT_READY('unavailable', windowMs);
 
-  const row = selectThroughputWindow(data.windows, windowMs);
+  // Provider tab: read the matching slice (same windows, same bucket grid). A
+  // slice absent from the snapshot (provider idle past retention, or a daemon
+  // predating slices) falls back to the ALL totals — never a fake zero.
+  const slice = providerId ? data.providers?.find((row) => row.providerId === providerId) : undefined;
+  const windows = slice ? slice.windows : data.windows;
+  const buckets = slice ? slice.buckets : data.buckets;
+
+  const row = selectThroughputWindow(windows, windowMs);
   if (!row) return NOT_READY('unavailable', windowMs);
 
-  const series = windowBuckets(data.buckets, row.windowMs, data.bucketMs);
+  const series = windowBuckets(buckets, row.windowMs, data.bucketMs);
   return {
     state: 'ready',
     windowMs: row.windowMs,
@@ -120,6 +129,18 @@ export function buildThroughputView(
     // bucket; a daemon predating the per-bucket split falls back to totals.
     points: series.map((bucket) => bucket.outputTokens ?? bucket.tokens),
   };
+}
+
+/**
+ * The provider tabs available for the current snapshot, daemon order
+ * (most-recently-active first). Empty when the daemon predates slices or only
+ * the totals exist — the card then hides the tab row entirely.
+ */
+export function throughputProviderTabs(
+  source: OverviewSource<UsageThroughputResult>,
+): UsageThroughputProviderSlice[] {
+  if (source.state !== 'ready' || !source.data || source.data.available !== true) return [];
+  return source.data.providers ?? [];
 }
 
 /**

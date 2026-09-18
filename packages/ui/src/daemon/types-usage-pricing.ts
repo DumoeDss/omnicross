@@ -168,6 +168,14 @@ export interface UsageThroughputBucket {
   outputTokens?: number;
 }
 
+/** One provider's slice of the live snapshot (same shapes as the totals). */
+export interface UsageThroughputProviderSlice {
+  providerId: string;
+  windows: UsageThroughputWindow[];
+  /** Oldest → newest, zero-filled, same grid as the snapshot's own series. */
+  buckets: UsageThroughputBucket[];
+}
+
 /**
  * Live throughput snapshot. Every rate divides by its FULL window, never by the
  * daemon's uptime — a daemon that was down genuinely served nothing over that
@@ -185,6 +193,8 @@ export interface UsageThroughputSnapshot {
   windows: UsageThroughputWindow[];
   /** Oldest → newest, fixed length, zero-filled. */
   buckets: UsageThroughputBucket[];
+  /** Most-recently-active first. Optional — daemons predating the field. */
+  providers?: UsageThroughputProviderSlice[];
 }
 
 /** A daemon too old to serve `/usage/throughput` — reported, never faked as 0. */

@@ -554,6 +554,25 @@
     "actionRequired": "鏈路需要處理",
     "requestPath": "即時請求路徑",
     "requestPathHint": "依目前金鑰、閘道狀態、端點路由與帳號健康狀態產生。",
+    "quickStart": {
+      "title": "快速開始",
+      "description": "三步完成接入：新增上游 → 啟用 CLI 接入 → 在終端機驗證。",
+      "step1": {
+        "title": "新增上游",
+        "hint": "先新增一個訂閱帳號或 BYO Provider，作為請求的上游。",
+        "action": "去新增上游"
+      },
+      "step2": {
+        "title": "啟用 CLI 接入",
+        "hint": "一鍵改寫 Codex / Claude Code 的本機設定，日常命令自動走 OmniCross。"
+      },
+      "step3": {
+        "title": "在終端機驗證",
+        "hint": "執行一次 codex 或 claude 發起請求；出現流量後本精靈會自動收起。"
+      },
+      "connect": "接入 {{client}}",
+      "repairClient": "修復 {{client}}"
+    },
     "open": "開啟",
     "refresh": "重新整理",
     "throughput": {
@@ -569,6 +588,8 @@
       "window15m": "15 分鐘",
       "windowLabel": "最近 {{window}}",
       "windowAria": "統計時間窗",
+      "providerAll": "全部",
+      "providerAria": "依提供商篩選",
       "hint": "每 {{seconds}} 秒重新整理一次。",
       "idle": "此時間窗內沒有完成任何請求。",
       "warmingUp": "守護行程的觀測時間尚不足一個時間窗，速率仍在累積。",
@@ -630,6 +651,7 @@
       "expiringSoonHint": "48 小時內到期的憑證",
       "open": "開啟帳號",
       "weeklyQuota": "週額度",
+      "accountQuota": "帳號額度",
       "keyQuota": "金鑰配額"
     },
     "today": {
@@ -653,6 +675,10 @@
       "claude": "Claude Code",
       "persistentHint": "持久原生 CLI 設定",
       "open": "開啟整合",
+      "enable": "啟用",
+      "enabling": "啟用中…",
+      "repair": "修復",
+      "repairing": "修復中…",
       "status": {
         "not-installed": "未安裝",
         "enabled": "已啟用",

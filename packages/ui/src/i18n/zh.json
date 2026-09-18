@@ -554,6 +554,25 @@
     "actionRequired": "链路需要处理",
     "requestPath": "实时请求路径",
     "requestPathHint": "根据当前密钥、网关状态、端点路由与账号健康状态生成。",
+    "quickStart": {
+      "title": "快速开始",
+      "description": "三步完成接入：添加上游 → 启用 CLI 接入 → 在终端验证。",
+      "step1": {
+        "title": "添加上游",
+        "hint": "先添加一个订阅账号或 BYO Provider，作为请求的上游。",
+        "action": "去添加上游"
+      },
+      "step2": {
+        "title": "启用 CLI 接入",
+        "hint": "一键改写 Codex / Claude Code 的本地配置，日常命令自动走 OmniCross。"
+      },
+      "step3": {
+        "title": "在终端验证",
+        "hint": "运行一次 codex 或 claude 发起请求；出现流量后本向导会自动收起。"
+      },
+      "connect": "接入 {{client}}",
+      "repairClient": "修复 {{client}}"
+    },
     "open": "打开",
     "refresh": "刷新",
     "throughput": {
@@ -569,6 +588,8 @@
       "window15m": "15 分钟",
       "windowLabel": "最近 {{window}}",
       "windowAria": "统计时间窗",
+      "providerAll": "全部",
+      "providerAria": "按提供商筛选",
       "hint": "每 {{seconds}} 秒刷新一次。",
       "idle": "该时间窗内没有完成任何请求。",
       "warmingUp": "守护进程的观测时间尚不足一个时间窗，速率仍在累积。",
@@ -630,6 +651,7 @@
       "expiringSoonHint": "48 小时内到期的凭证",
       "open": "打开账号",
       "weeklyQuota": "周额度",
+      "accountQuota": "账号额度",
       "keyQuota": "密钥配额"
     },
     "today": {
@@ -653,6 +675,10 @@
       "claude": "Claude Code",
       "persistentHint": "持久原生 CLI 配置",
       "open": "打开集成",
+      "enable": "启用",
+      "enabling": "启用中…",
+      "repair": "修复",
+      "repairing": "修复中…",
       "status": {
         "not-installed": "未安装",
         "enabled": "已启用",

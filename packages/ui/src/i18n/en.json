@@ -554,6 +554,25 @@
     "actionRequired": "Path needs attention",
     "requestPath": "Live request path",
     "requestPathHint": "Derived from current keys, Gateway status, endpoint routing and account health.",
+    "quickStart": {
+      "title": "Quick start",
+      "description": "Three steps: add an upstream → enable a CLI → verify in a terminal.",
+      "step1": {
+        "title": "Add an upstream",
+        "hint": "Add a subscription account or a BYO provider to serve your requests.",
+        "action": "Add upstream"
+      },
+      "step2": {
+        "title": "Enable CLI access",
+        "hint": "Rewire Codex / Claude Code's local config in one click — everyday commands go through OmniCross."
+      },
+      "step3": {
+        "title": "Verify in a terminal",
+        "hint": "Run codex or claude once and send a request; this guide hides itself once traffic appears."
+      },
+      "connect": "Connect {{client}}",
+      "repairClient": "Repair {{client}}"
+    },
     "open": "Open",
     "refresh": "Refresh",
     "throughput": {
@@ -569,6 +588,8 @@
       "window15m": "15m",
       "windowLabel": "last {{window}}",
       "windowAria": "Measurement window",
+      "providerAll": "All",
+      "providerAria": "Filter by provider",
       "hint": "Refreshed every {{seconds}}s.",
       "idle": "No request completed in this window.",
       "warmingUp": "The daemon has been observing for less than this window, so the rate is still filling in.",
@@ -630,6 +651,7 @@
       "expiringSoonHint": "Credentials expiring within 48 hours",
       "open": "Open Accounts",
       "weeklyQuota": "Weekly quota",
+      "accountQuota": "Account quotas",
       "keyQuota": "API key quotas"
     },
     "today": {
@@ -653,6 +675,10 @@
       "claude": "Claude Code",
       "persistentHint": "Persistent native-CLI configuration",
       "open": "Open Integrations",
+      "enable": "Enable",
+      "enabling": "Enabling…",
+      "repair": "Repair",
+      "repairing": "Repairing…",
       "status": {
         "not-installed": "Not installed",
         "enabled": "Enabled",

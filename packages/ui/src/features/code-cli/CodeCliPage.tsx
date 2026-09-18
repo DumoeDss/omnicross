@@ -131,9 +131,9 @@ export function CodeCliPage() {
             <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
           ) : null}
 
-          <CodexSessionManager />
-
-          {/* Persistent native config — normal `codex` / `claude` commands keep using Omnicross. */}
+          {/* Persistent native config — normal `codex` / `claude` commands keep
+              using Omnicross. FIRST on the page: enabling an integration is the
+              one action a new user comes here for; session migration is rarer. */}
           <section className="space-y-4">
             <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-surface-1/60 p-4 md:flex-row md:items-center md:justify-between md:p-5">
               <div className="flex items-start gap-3">
@@ -197,6 +197,10 @@ export function CodeCliPage() {
               </div>
             )}
           </section>
+
+          {/* Codex session migration — an advanced, lower-frequency tool, kept
+              below the persistent integration + terminal-launch sections. */}
+          <CodexSessionManager />
 
           {/* One-off terminal launch. It does not change the native CLI's persistent config. */}
           <section className="space-y-3">
