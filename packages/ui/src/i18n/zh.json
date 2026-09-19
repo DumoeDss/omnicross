@@ -1091,7 +1091,8 @@
         "mappingEffort": "思考档",
         "mappingAdd": "添加映射行",
         "mappingHint": "多行时需包含一行 * 作为兜底；角色行 default / background 不参与名字匹配。",
-        "mappingSaveFailed": "保存映射失败"
+        "mappingSaveFailed": "保存映射失败",
+        "mappingIncomplete": "部分行只填了客户端模型名或只填了上游模型 id。请补全或删除这些行再保存——半填的行不会被保存。"
       },
       "created": {
         "title": "密钥已创建",

@@ -111,6 +111,17 @@ export function UpstreamMappingEditor({
     setSaving(true);
     setError(null);
     try {
+      // A HALF-FILLED row (source without target or vice versa) must never be
+      // silently dropped: the daemon would store a smaller/empty table while
+      // the operator believes their visible rows were saved — the exact
+      // "saved but reopen shows nothing" trap. Block the save instead.
+      const incomplete = rows.some(
+        (row) => (row.source.trim() === '') !== (row.target.trim() === ''),
+      );
+      if (incomplete) {
+        setError(t('apiService.keys.upstream.mappingIncomplete'));
+        return;
+      }
       const payload = rows
         .filter((row) => row.source.trim() !== '' && row.target.trim() !== '')
         .map((row) => ({

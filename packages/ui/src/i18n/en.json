@@ -1088,7 +1088,8 @@
         "mappingEffort": "Effort",
         "mappingAdd": "Add a mapping row",
         "mappingHint": "With multiple rows include a * fallback row; the default / background role rows never match by name.",
-        "mappingSaveFailed": "Failed to save mappings"
+        "mappingSaveFailed": "Failed to save mappings",
+        "mappingIncomplete": "Some rows have a client model name but no upstream model id (or vice versa). Fill or delete those rows before saving — half-filled rows are never saved."
       },
       "created": {
         "title": "Key created",
