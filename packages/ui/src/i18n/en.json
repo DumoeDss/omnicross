@@ -1064,9 +1064,6 @@
       "delete": "Delete",
       "deleteConfirmTitle": "Delete this key?",
       "deleteConfirmDesc": "Deleting \"{{name}}\" stops it from authenticating immediately; its row and usage history stay on the list. This cannot be undone.",
-      "purge": "Delete permanently",
-      "purgeConfirmTitle": "Remove this key permanently?",
-      "purgeConfirmDesc": "Permanently deleting \"{{name}}\" removes its row from the list entirely (past usage loses the key's name). This cannot be undone.",
       "upstream": {
         "edit": "Upstream binding",
         "dialogTitle": "Edit upstream binding for {{name}}",

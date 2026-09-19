@@ -1,7 +1,9 @@
 /**
  * KeyManagementSection.tsx — named outbound-key CRUD: list (keyPrefix only) +
- * create + soft delete (row + spend history kept) + permanent purge on deleted
- * rows + enable/disable.
+ * create + soft delete (row + spend history kept) + enable/disable.
+ *
+ * There is exactly ONE delete: the soft one (revoke). Deleted rows keep their
+ * place and history forever — no hard delete exists anywhere in the product.
  *
  * SECRET DISCIPLINE: the list rows show ONLY `keyPrefix` (never a full key). The
  * create response's `plaintextOnce` is the FULL client key returned exactly once
@@ -50,7 +52,6 @@ interface KeyManagementSectionProps {
   onCreate: (name: string) => Promise<boolean>;
   onReveal: (id: string) => Promise<{ success: boolean; key?: string; message?: string }>;
   onRevoke: (id: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onSetMaxConcurrency: (id: string, maxConcurrency: number | null) => Promise<void>;
   onSetPolicy: (id: string, policy: OutboundKeyPolicyPatch) => Promise<void>;
@@ -202,7 +203,6 @@ export function KeyManagementSection({
   onCreate,
   onReveal,
   onRevoke,
-  onDelete,
   onToggle,
   onSetMaxConcurrency,
   onSetPolicy,
@@ -213,10 +213,8 @@ export function KeyManagementSection({
 }: KeyManagementSectionProps) {
   const t = useTranslation();
   const [name, setName] = useState('');
-  // Soft delete (stops the key; row + history stay) and the separate permanent
-  // purge offered only on already-deleted rows.
+  // Soft delete (stops the key; row + history stay) — the only delete there is.
   const [deleteTarget, setDeleteTarget] = useState<OutboundApiKeyInfo | null>(null);
-  const [purgeTarget, setPurgeTarget] = useState<OutboundApiKeyInfo | null>(null);
   // UPSTREAM ROUTING MODEL: the editor dialog state + the upstream catalog.
   const [bindingTarget, setBindingTarget] = useState<OutboundApiKeyInfo | null>(null);
   const [catalog, setCatalog] = useState<UpstreamCatalogEntry[]>([]);
@@ -417,21 +415,7 @@ export function KeyManagementSection({
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </Button>
-                ) : (
-                  // A soft-deleted key keeps its row for history; this is the
-                  // separate PERMANENT purge.
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={busy || usedClients.length > 0}
-                    onClick={() => setPurgeTarget(k)}
-                    aria-label={t('apiService.keys.purge')}
-                    title={t('apiService.keys.purge')}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                )}
+                ) : null}
               </div>
               {!k.revoked && policyOpenId === k.id ? (
                 <KeyPolicyEditor
@@ -500,24 +484,6 @@ export function KeyManagementSection({
             void onBindIntegration(integrationTarget.client, integrationTarget.key.id);
           }
           setIntegrationTarget(null);
-        }}
-      />
-
-      <ConfirmDialog
-        open={purgeTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setPurgeTarget(null);
-        }}
-        title={t('apiService.keys.purgeConfirmTitle')}
-        description={
-          purgeTarget ? t('apiService.keys.purgeConfirmDesc', { name: purgeTarget.name }) : undefined
-        }
-        confirmLabel={t('apiService.keys.purge')}
-        cancelLabel={t('common.cancel')}
-        variant="destructive"
-        onConfirm={() => {
-          if (purgeTarget) void onDelete(purgeTarget.id);
-          setPurgeTarget(null);
         }}
       />
 

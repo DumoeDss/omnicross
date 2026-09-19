@@ -89,7 +89,6 @@ async function call(deps: AdminApiDeps, method: string, path: string, body?: unk
 describe('bound integration key protections', () => {
   it.each([
     ['POST', '/admin/api/keys/bound-key/revoke', undefined, 'outboundApiKeysRevoke'],
-    ['DELETE', '/admin/api/keys/bound-key', undefined, 'outboundApiKeysDelete'],
     ['POST', '/admin/api/keys/bound-key/enabled', { enabled: false }, 'outboundApiKeysSetEnabled'],
   ] as const)('blocks %s %s', async (method, path, body, mutation) => {
     const { deps, keyDb } = fixture();

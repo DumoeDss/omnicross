@@ -1067,9 +1067,6 @@
       "delete": "删除",
       "deleteConfirmTitle": "删除此密钥？",
       "deleteConfirmDesc": "删除“{{name}}”后它将立即失效，但密钥行与用量记录会保留在列表中。此操作不可撤销。",
-      "purge": "永久删除",
-      "purgeConfirmTitle": "永久移除此密钥？",
-      "purgeConfirmDesc": "永久删除“{{name}}”会将其密钥行从列表中彻底移除（历史用量的密钥名将失去引用）。此操作不可撤销。",
       "upstream": {
         "edit": "上游绑定",
         "dialogTitle": "编辑 {{name}} 的上游绑定",

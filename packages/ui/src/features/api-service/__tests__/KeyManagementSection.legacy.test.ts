@@ -33,7 +33,6 @@ describe('KeyManagementSection', () => {
       onCreate: async () => true,
       onReveal: async () => ({ success: false }),
       onRevoke: async () => undefined,
-      onDelete: async () => undefined,
       onToggle: async () => undefined,
       onSetMaxConcurrency: async () => undefined,
       onSetPolicy: async () => undefined,
