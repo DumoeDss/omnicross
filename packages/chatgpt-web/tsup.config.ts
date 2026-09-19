@@ -37,7 +37,13 @@ export default defineConfig([
     format: ['esm', 'cjs'],
     dts: true,
     sourcemap: false,
-    clean: true,
+    // clean MUST stay false in BOTH configs: tsup builds array configs in
+    // parallel, and this config's clean (a rimraf of the whole dist) races
+    // the other config's writes — when it loses the race it deletes
+    // tunnel/mcpServer.js and askpro/askProServer.js, and the packaged
+    // daemon dies at startup with ERR_MODULE_NOT_FOUND (nondeterministic
+    // per build). The build script wipes dist once, before tsup runs.
+    clean: false,
     splitting: true,
     external: ['ws'],
     // Ship the Electron host main script beside the compiled host module.
