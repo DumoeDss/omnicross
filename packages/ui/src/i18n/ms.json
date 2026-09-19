@@ -517,7 +517,7 @@
     "pricing": "Harga",
     "dashboard": "Dashboard",
     "images": "Imej",
-"search": "Carian"
+    "search": "Carian"
   },
   "images": {
     "title": "Penjanaan imej",
@@ -586,7 +586,7 @@
     "page": {
       "title": "Penjanaan imej",
       "description": "Pemilihan laluan model, keadaan penyedia dan endpoint Images di satu tempat.",
-      "loading": "Memuatkan konfigurasi Images\u2026"
+      "loading": "Memuatkan konfigurasi Images…"
     },
     "providers": {
       "bootstrap": "bootstrap (belum disahkan)",
@@ -599,8 +599,8 @@
     "verify": {
       "title": "Pengesahan langsung",
       "run": "Jalankan pengesahan",
-      "running": "Mengesahkan\u2026",
-      "warning": "\u26a0 Mengguna kuota langganan: satu permintaan PNG minimal kualiti rendah akan dihantar.",
+      "running": "Mengesahkan…",
+      "warning": "⚠ Mengguna kuota langganan: satu permintaan PNG minimal kualiti rendah akan dihantar.",
       "codexOnly": "Meliputi laluan Codex sahaja; penyedia Antigravity tiada pengesah bebas dalam v1.",
       "codexOnlyPlain": "Meliputi laluan Codex sahaja.",
       "success": "Disahkan {{model}} ({{quality}}, {{format}}); entri bukti segar: {{count}}."
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Pilih huluan untuk kunci ini dan susun tertibnya (tertib = keutamaan; entri awal dilayan dahulu, entri kemudian ialah calon failover). Semasa menyimpan, pilihan tersurat sentiasa disimpan; tanpa sebarang pilihan, setiap permintaan ditolak.",
+        "dialogTitle": "Sunting pengikatan huluan untuk {{name}}",
+        "edit": "Pengikatan huluan",
+        "emptyCatalog": "Tiada huluan tersedia — tambah penyedia atau langganan di halaman Huluan dahulu.",
+        "mappingAdd": "Tambah baris pemetaan",
+        "mappingDesc": "Nama model klien → ID model huluan. Nama tepat mengatasi * wildcard; default / background ialah baris peranan (model background Gemini); kosong = passthrough.",
+        "mappingEdit": "Pemetaan model",
+        "mappingEffort": "Tahap pemikiran",
+        "mappingEmpty": "Tiada pemetaan — ID model klien diteruskan tanpa diubah.",
+        "mappingHint": "Jika ada berbilang baris, sertakan baris * sebagai sandaran; baris peranan default / background tidak pernah dipadankan mengikut nama.",
+        "mappingIncomplete": "Sesetengah baris mempunyai nama model klien tetapi tiada ID model huluan (atau sebaliknya). Lengkapkan atau padamkan baris tersebut sebelum menyimpan — baris yang separuh isi tidak akan disimpan.",
+        "mappingSaveFailed": "Gagal menyimpan pemetaan",
+        "mappingSource": "Nama model klien (cth. claude-*)",
+        "mappingTarget": "ID model huluan",
+        "mappingTitle": "Sunting pemetaan model untuk {{name}}",
+        "orderDown": "Alih ke bawah",
+        "orderHint": "Pilih kemudian susun dengan anak panah — entri awal dilayan dahulu, entri kemudian ialah calon failover. Tanpa sebarang pilihan, kunci masih boleh mengesahkan diri tetapi setiap permintaan ditolak.",
+        "orderUp": "Alih ke atas",
+        "summaryAll": "Semua huluan dipilih",
+        "summaryExplicit": "{{count}} huluan",
+        "summaryLegacy": "Laluan hiliran warisan",
+        "summaryNone": "Tidak terikat (permintaan ditolak)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Semua dipilih",
+      "description": "Sama ada kunci akses yang baharu dibuat bermula dengan semua huluan dipilih atau tiada yang dipilih (kunci tanpa sebarang huluan dipilih akan menolak permintaan).",
+      "label": "Pilihan huluan lalai untuk kunci baharu",
+      "none": "Tiada dipilih"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Direktori kerja",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Berjalan · {{provider}} / {{model}}",
-      "stop": "Henti"
+      "stop": "Henti",
+      "upgrade": "Naik taraf",
+      "upgradeHint": "Semak dan pasang keluaran terkini pada hos daemon.",
+      "upgradeToHint": "Versi {{version}} tersedia — naik taraf pada hos daemon.",
+      "upgrading": "Sedang naik taraf…",
+      "upgradingHint": "Memasang semula keluaran terkini pada hos daemon — ini mungkin mengambil masa kira-kira satu minit."
     },
     "manual": {
       "title": "Persediaan manual",
@@ -1202,7 +1237,13 @@
       },
       "license": "Lesen",
       "licenseHint": "Omnicross ialah perisian sumber terbuka bebas yang dikeluarkan di bawah Lesen MIT.",
-      "author": "Pembangun"
+      "author": "Pembangun",
+      "diagnostics": {
+        "openFailed": "Tidak dapat membuka folder log: {{reason}}",
+        "openFolder": "Buka",
+        "openLogsFolder": "Buka folder log",
+        "openLogsFolderHint": "Paparkan direktori logs/ daemon dalam pengurus fail anda."
+      }
     },
     "title": "Tetapan",
     "description": "Pilihan aplikasi desktop.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "baru sahaja",
       "overloadMinsAgo": "{{n}} min lalu",
       "overloadHoursAgo": "{{n}} jam lalu"
+    },
+    "mappings": {
+      "count": "{{count}} pemetaan",
+      "edit": "Sunting",
+      "loading": "Memuatkan katalog huluan…",
+      "passthrough": "Passthrough (tiada pemetaan)",
+      "sectionDescription": "Nama model klien → ID model huluan ini; jadual kosong bermakna ID model klien diteruskan tanpa diubah.",
+      "sectionTitle": "Pemetaan model"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Kuota akaun"
+    },
+    "integrations": {
+      "enable": "Dayakan",
+      "enabling": "Sedang mendayakan…",
+      "repair": "Baiki",
+      "repairing": "Sedang membaiki…"
+    },
+    "quickStart": {
+      "connect": "Sambungkan {{client}}",
+      "description": "Tiga langkah: tambah huluan → dayakan CLI → sahkan dalam terminal.",
+      "repairClient": "Baiki {{client}}",
+      "step1": {
+        "action": "Tambah huluan",
+        "hint": "Tambah akaun langganan atau penyedia BYO untuk melayan permintaan anda.",
+        "title": "Tambah huluan"
+      },
+      "step2": {
+        "hint": "Tulis semula konfigurasi tempatan Codex / Claude Code dalam satu klik — arahan harian melalui OmniCross.",
+        "title": "Dayakan akses CLI"
+      },
+      "step3": {
+        "hint": "Jalankan codex atau claude sekali dan hantar permintaan; panduan ini akan sembunyi sendiri setelah ada trafik.",
+        "title": "Sahkan dalam terminal"
+      },
+      "title": "Mula pantas"
+    },
+    "throughput": {
+      "providerAll": "Semua",
+      "providerAria": "Tapis mengikut penyedia"
     }
   }
 }

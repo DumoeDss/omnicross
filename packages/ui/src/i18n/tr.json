@@ -517,7 +517,7 @@
     "pricing": "Fiyatlar",
     "dashboard": "Dashboard",
     "images": "Görseller",
-"search": "Arama"
+    "search": "Arama"
   },
   "images": {
     "title": "Görsel oluşturma",
@@ -543,16 +543,16 @@
       "strict": "Katı seçim",
       "poolFallback": "Havuzdan yedek seçime izin ver"
     },
-    "defaultModel": "Varsay\u0131lan g\u00f6r\u00fcnt\u00fc modeli",
+    "defaultModel": "Varsayılan görüntü modeli",
     "routes": {
-      "title": "Model y\u00f6nlendirme",
-      "defaultBadge": "varsay\u0131lan"
+      "title": "Model yönlendirme",
+      "defaultBadge": "varsayılan"
     },
     "codex": {
-      "title": "Codex ge\u00e7ersiz k\u0131lmalar\u0131",
-      "imageModel": "G\u00f6r\u00fcnt\u00fc modeli",
-      "carrierModel": "Ta\u015f\u0131y\u0131c\u0131 model",
-      "hint": "Temizlenen alanlar sabit varsay\u0131lanlara d\u00f6ner (gpt-image-2 / gpt-5.6-luna)."
+      "title": "Codex geçersiz kılmaları",
+      "imageModel": "Görüntü modeli",
+      "carrierModel": "Taşıyıcı model",
+      "hint": "Temizlenen alanlar sabit varsayılanlara döner (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Doğrulanmış özellik matrisi",
@@ -584,26 +584,26 @@
       "privateDefault": "Yapıtlar daemonun özel uygulama verisi depolamasını kullanır."
     },
     "page": {
-      "title": "G\u00f6rsel olu\u015fturma",
-      "description": "Model y\u00f6nlendirme, sa\u011flay\u0131c\u0131 durumu ve Images u\u00e7 noktalar\u0131 tek bir yerde.",
-      "loading": "G\u00f6rsel yap\u0131land\u0131rmas\u0131 y\u00fckleniyor\u2026"
+      "title": "Görsel oluşturma",
+      "description": "Model yönlendirme, sağlayıcı durumu ve Images uç noktaları tek bir yerde.",
+      "loading": "Görsel yapılandırması yükleniyor…"
     },
     "providers": {
-      "bootstrap": "\u00f6ny\u00fckleme (do\u011frulanmam\u0131\u015f)",
-      "healthy": "Kullan\u0131labilir",
-      "unhealthy": "Kullan\u0131lamaz",
-      "evidence": "{{age}} saniye \u00f6nce taze kan\u0131t al\u0131nd\u0131.",
-      "noEvidence": "Hen\u00fcz taze kan\u0131t yok (ilk ger\u00e7ek istekte \u00f6ny\u00fckleme).",
-      "noModels": "Taze kan\u0131tla do\u011frulanm\u0131\u015f model yok."
+      "bootstrap": "önyükleme (doğrulanmamış)",
+      "healthy": "Kullanılabilir",
+      "unhealthy": "Kullanılamaz",
+      "evidence": "{{age}} saniye önce taze kanıt alındı.",
+      "noEvidence": "Henüz taze kanıt yok (ilk gerçek istekte önyükleme).",
+      "noModels": "Taze kanıtla doğrulanmış model yok."
     },
     "verify": {
-      "title": "Canl\u0131 do\u011frulama",
-      "run": "Do\u011frulamay\u0131 \u00e7al\u0131\u015ft\u0131r",
-      "running": "Do\u011frulan\u0131yor\u2026",
-      "warning": "\u26a0 Abonelik kotas\u0131n\u0131 t\u00fcketir: bir adet d\u00fc\u015f\u00fck kaliteli minimal PNG iste\u011fi g\u00f6nderilir.",
-      "codexOnly": "Yaln\u0131zca Codex hatt\u0131n\u0131 kapsar; Antigravity sa\u011flay\u0131c\u0131s\u0131n\u0131n v1\u2019de ba\u011f\u0131ms\u0131z do\u011frulay\u0131c\u0131s\u0131 yoktur.",
-      "codexOnlyPlain": "Yaln\u0131zca Codex hatt\u0131n\u0131 kapsar.",
-      "success": "Do\u011fruland\u0131 {{model}} ({{quality}}, {{format}}); taze kan\u0131t girdileri: {{count}}."
+      "title": "Canlı doğrulama",
+      "run": "Doğrulamayı çalıştır",
+      "running": "Doğrulanıyor…",
+      "warning": "⚠ Abonelik kotasını tüketir: bir adet düşük kaliteli minimal PNG isteği gönderilir.",
+      "codexOnly": "Yalnızca Codex hattını kapsar; Antigravity sağlayıcısının v1’de bağımsız doğrulayıcısı yoktur.",
+      "codexOnlyPlain": "Yalnızca Codex hattını kapsar.",
+      "success": "Doğrulandı {{model}} ({{quality}}, {{format}}); taze kanıt girdileri: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Bu anahtarın upstream'lerini seçin ve sıralayın (sıra = öncelik; önceki girdiler önce hizmet verir, sonrakiler yedek adaylarıdır). Kaydetme, her zaman açık seçimi kaydeder; hiçbir şey seçilmezse tüm istekler reddedilir.",
+        "dialogTitle": "{{name}} için upstream bağlamasını düzenle",
+        "edit": "Upstream bağlaması",
+        "emptyCatalog": "Kullanılabilir upstream yok — önce Upstreams sayfasından bir sağlayıcı veya abonelik ekleyin.",
+        "mappingAdd": "Eşleme satırı ekle",
+        "mappingDesc": "İstemci model adı → upstream model kimliği. Tam adlar * joker karakterlerini geçersiz kılar; default / background birer rol satırıdır (Gemini background model); boş = geçiş.",
+        "mappingEdit": "Model Eşlemeleri",
+        "mappingEffort": "Çaba",
+        "mappingEmpty": "Eşleme yok — istemcinin model kimliği olduğu gibi iletilir.",
+        "mappingHint": "Birden fazla satır varsa bir * yedek satırı ekleyin; default / background rol satırları asla ada göre eşleşmez.",
+        "mappingIncomplete": "Bazı satırlarda istemci model adı var ama upstream model kimliği yok (veya tersi). Kaydetmeden önce bu satırları doldurun veya silin — yarım dolu satırlar asla kaydedilmez.",
+        "mappingSaveFailed": "Eşlemeler kaydedilemedi",
+        "mappingSource": "İstemci model adı (örn. claude-*)",
+        "mappingTarget": "Upstream model kimliği",
+        "mappingTitle": "{{name}} için model eşlemelerini düzenle",
+        "orderDown": "Aşağı taşı",
+        "orderHint": "Oklarla seçin ve sıralayın — önceki girdiler önce hizmet verir, sonrakiler yedek adaylarıdır. Hiçbir şey seçilmezse anahtar kimlik doğrulaması yapabilir ama tüm istekler reddedilir.",
+        "orderUp": "Yukarı taşı",
+        "summaryAll": "Tüm upstream'ler seçildi",
+        "summaryExplicit": "{{count}} upstream",
+        "summaryLegacy": "Eski downstream rotaları",
+        "summaryNone": "Bağlantısız (istekler reddedilir)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Tümü seçildi",
+      "description": "Yeni oluşturulan bir erişim anahtarının tüm upstream'ler seçili mi yoksa hiçbiri seçili değil mi olarak başlayacağı (upstream seçilmemiş bir anahtar istekleri reddeder).",
+      "label": "Yeni anahtarlar için varsayılan upstream seçimi",
+      "none": "Hiçbiri seçilmedi"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Çalışma dizini",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Çalışıyor · {{provider}} / {{model}}",
-      "stop": "Durdur"
+      "stop": "Durdur",
+      "upgrade": "Yükselt",
+      "upgradeHint": "En son sürümü denetleyin ve daemon ana makinesine yükleyin.",
+      "upgradeToHint": "{{version}} sürümü kullanılabilir — daemon ana makinesinde yükseltin.",
+      "upgrading": "Yükseltiliyor…",
+      "upgradingHint": "Daemon ana makinesine en son sürüm yeniden yükleniyor — bu bir dakika sürebilir."
     },
     "manual": {
       "title": "Manuel kurulum",
@@ -1202,7 +1237,13 @@
       },
       "license": "Lisans",
       "licenseHint": "Omnicross, MIT lisansı ile yayınlanan ücretsiz ve açık kaynaklı bir yazılımdır.",
-      "author": "Geliştirici"
+      "author": "Geliştirici",
+      "diagnostics": {
+        "openFailed": "Günlük klasörü açılamadı: {{reason}}",
+        "openFolder": "Aç",
+        "openLogsFolder": "Günlük klasörünü aç",
+        "openLogsFolderHint": "Daemon'un logs/ klasörünü dosya gezgininizde gösterir."
+      }
     },
     "title": "Ayarlar",
     "description": "Masaüstü uygulaması tercihleri.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "az önce",
       "overloadMinsAgo": "{{n}} dk önce",
       "overloadHoursAgo": "{{n}} sa önce"
+    },
+    "mappings": {
+      "count": "{{count}} eşleme",
+      "edit": "Düzenle",
+      "loading": "Upstream kataloğu yükleniyor…",
+      "passthrough": "Geçiş (eşleme yok)",
+      "sectionDescription": "İstemci model adı → bu upstream'in model kimliği; boş bir tablo, istemcinin model kimliğini olduğu gibi iletir.",
+      "sectionTitle": "Model Eşlemeleri"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Hesap kotaları"
+    },
+    "integrations": {
+      "enable": "Etkinleştir",
+      "enabling": "Etkinleştiriliyor…",
+      "repair": "Onar",
+      "repairing": "Onarılıyor…"
+    },
+    "quickStart": {
+      "connect": "{{client}} istemcisini bağla",
+      "description": "Üç adım: bir upstream ekleyin → bir CLI'ı etkinleştirin → terminalde doğrulayın.",
+      "repairClient": "{{client}} istemcisini onar",
+      "step1": {
+        "action": "Upstream ekle",
+        "hint": "İsteklerinizi karşılamak için bir abonelik hesabı veya BYO sağlayıcı ekleyin.",
+        "title": "Bir upstream ekleyin"
+      },
+      "step2": {
+        "hint": "Codex / Claude Code'un yerel yapılandırmasını tek tıkla yeniden yapılandırın — günlük komutlar OmniCross üzerinden geçer.",
+        "title": "CLI erişimini etkinleştir"
+      },
+      "step3": {
+        "hint": "codex veya claude komutunu bir kez çalıştırın ve bir istek gönderin; trafik göründüğünde bu kılavuz kendiliğinden gizlenir.",
+        "title": "Terminalde doğrulayın"
+      },
+      "title": "Hızlı başlangıç"
+    },
+    "throughput": {
+      "providerAll": "Tümü",
+      "providerAria": "Sağlayıcıya göre filtrele"
     }
   }
 }

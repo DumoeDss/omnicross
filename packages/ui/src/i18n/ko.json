@@ -517,7 +517,7 @@
     "pricing": "가격",
     "dashboard": "Dashboard",
     "images": "이미지",
-"search": "검색"
+    "search": "검색"
   },
   "images": {
     "title": "이미지 생성",
@@ -543,16 +543,16 @@
       "strict": "엄격한 선택",
       "poolFallback": "풀 대체 허용"
     },
-    "defaultModel": "\uae30\ubcf8 \uc774\ubbf8\uc9c0 \ubaa8\ub378",
+    "defaultModel": "기본 이미지 모델",
     "routes": {
-      "title": "\ubaa8\ub378 \ub77c\uc6b0\ud305",
-      "defaultBadge": "\uae30\ubcf8"
+      "title": "모델 라우팅",
+      "defaultBadge": "기본"
     },
     "codex": {
-      "title": "Codex \uc640\uc774\uc5b4 \uc7ac\uc815\uc758",
-      "imageModel": "\uc774\ubbf8\uc9c0 \ubaa8\ub378",
-      "carrierModel": "\uce90\ub9ac\uc5b4 \ubaa8\ub378",
-      "hint": "\ube44\uc6b4 \ud544\ub4dc\ub294 \uace0\uc815 \uae30\ubcf8\uac12(gpt-image-2 / gpt-5.6-luna)\uc73c\ub85c \ub418\ub3cc\uc544\uac11\ub2c8\ub2e4."
+      "title": "Codex 와이어 재정의",
+      "imageModel": "이미지 모델",
+      "carrierModel": "캐리어 모델",
+      "hint": "비운 필드는 고정 기본값(gpt-image-2 / gpt-5.6-luna)으로 되돌아갑니다."
     },
     "features": {
       "title": "검증된 기능 매트릭스",
@@ -584,26 +584,26 @@
       "privateDefault": "산출물은 데몬의 비공개 애플리케이션 데이터 저장소를 사용합니다."
     },
     "page": {
-      "title": "\uc774\ubbf8\uc9c0 \uc0dd\uc131",
-      "description": "\ubaa8\ub378 \ub77c\uc6b0\ud305, \uacf5\uae09\uc790 \uc0c1\ud0dc, Images \uc5d4\ub4dc\ud3ec\uc778\ud2b8\ub97c \ud55c\uacf3\uc5d0.",
-      "loading": "\uc774\ubbf8\uc9c0 \uad6c\uc131 \ub85c\ub4dc \uc911\u2026"
+      "title": "이미지 생성",
+      "description": "모델 라우팅, 공급자 상태, Images 엔드포인트를 한곳에.",
+      "loading": "이미지 구성 로드 중…"
     },
     "providers": {
-      "bootstrap": "\ubd80\ud2b8\uc2a4\ud2b8\ub7a9(\ubbf8\uac80\uc99d)",
-      "healthy": "\uc0ac\uc6a9 \uac00\ub2a5",
-      "unhealthy": "\uc0ac\uc6a9 \ubd88\uac00",
-      "evidence": "{{age}}\ucd08 \uc804 \uc2e0\uc120\ud55c \uc99d\uac70 \ud655\ubcf4.",
-      "noEvidence": "\uc544\uc9c1 \uc2e0\uc120\ud55c \uc99d\uac70 \uc5c6\uc74c(\uccab \uc2e4\uc81c \uc694\uccad \uc2dc \ubd80\ud2b8\uc2a4\ud2b8\ub7a9).",
-      "noModels": "\uc2e0\uc120\ud55c \uc99d\uac70\ub85c \ud655\uc778\ub41c \ubaa8\ub378 \uc5c6\uc74c."
+      "bootstrap": "부트스트랩(미검증)",
+      "healthy": "사용 가능",
+      "unhealthy": "사용 불가",
+      "evidence": "{{age}}초 전 신선한 증거 확보.",
+      "noEvidence": "아직 신선한 증거 없음(첫 실제 요청 시 부트스트랩).",
+      "noModels": "신선한 증거로 확인된 모델 없음."
     },
     "verify": {
-      "title": "\uc2e4\uae30 \uac80\uc99d",
-      "run": "\uac80\uc99d \uc2e4\ud589",
-      "running": "\uac80\uc99d \uc911\u2026",
-      "warning": "\u26a0 \uad6c\ub3c5 \ud560\ub2f9\ub7c9\uc744 \uc18c\ube44\ud569\ub2c8\ub2e4: \ucd5c\uc800 \ud488\uc9c8 PNG \uc694\uccad 1\uac74\uc774 \uc804\uc1a1\ub429\ub2c8\ub2e4.",
-      "codexOnly": "Codex \ud68c\uc120\ub9cc \ub300\uc0c1. Antigravity \uacf5\uae09\uc790\ub294 v1\uc5d0 \ub3c5\ub9bd \uac80\uc99d\uae30\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.",
-      "codexOnlyPlain": "Codex \ud68c\uc120\ub9cc \ub300\uc0c1.",
-      "success": "{{model}} \uac80\uc99d\ub428({{quality}}, {{format}}); \uc2e0\uc120\ud55c \uc99d\uac70 \ud56d\ubaa9: {{count}}."
+      "title": "실기 검증",
+      "run": "검증 실행",
+      "running": "검증 중…",
+      "warning": "⚠ 구독 할당량을 소비합니다: 최저 품질 PNG 요청 1건이 전송됩니다.",
+      "codexOnly": "Codex 회선만 대상. Antigravity 공급자는 v1에 독립 검증기가 없습니다.",
+      "codexOnlyPlain": "Codex 회선만 대상.",
+      "success": "{{model}} 검증됨({{quality}}, {{format}}); 신선한 증거 항목: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "이 키의 업스트림을 선택하고 순서를 정합니다(순서 = 우선순위. 앞의 항목부터 먼저 처리되며, 뒤의 항목은 페일오버 후보입니다). 저장하면 항상 명시적인 선택이 저장되며, 아무것도 선택하지 않으면 모든 요청이 거부됩니다.",
+        "dialogTitle": "{{name}}의 업스트림 바인딩 편집",
+        "edit": "업스트림 바인딩",
+        "emptyCatalog": "사용 가능한 업스트림이 없습니다 — 먼저 업스트림 페이지에서 프로바이더 또는 구독을 추가하세요.",
+        "mappingAdd": "매핑 행 추가",
+        "mappingDesc": "클라이언트 모델 이름 → 업스트림 모델 ID. 정확한 이름이 * 와일드카드보다 우선합니다. default / background는 역할 행(Gemini 백그라운드 모델)이며, 비워 두면 패스스루입니다.",
+        "mappingEdit": "모델 매핑",
+        "mappingEffort": "추론 수준",
+        "mappingEmpty": "매핑 없음 — 클라이언트의 모델 ID가 그대로 전달됩니다.",
+        "mappingHint": "행이 여러 개인 경우 * 폴백 행을 포함하세요. default / background 역할 행은 이름으로는 매칭되지 않습니다.",
+        "mappingIncomplete": "클라이언트 모델 이름만 있고 업스트림 모델 ID가 없는 행(또는 그 반대)이 있습니다. 저장하기 전에 해당 행을 채우거나 삭제하세요 — 절반만 채워진 행은 저장되지 않습니다.",
+        "mappingSaveFailed": "매핑을 저장하지 못했습니다",
+        "mappingSource": "클라이언트 모델 이름(예: claude-*)",
+        "mappingTarget": "업스트림 모델 ID",
+        "mappingTitle": "{{name}}의 모델 매핑 편집",
+        "orderDown": "아래로 이동",
+        "orderHint": "선택한 뒤 화살표로 순서를 정하세요 — 앞의 항목부터 먼저 처리되며, 뒤의 항목은 페일오버 후보입니다. 아무것도 선택하지 않으면 키는 인증할 수 있지만 모든 요청이 거부됩니다.",
+        "orderUp": "위로 이동",
+        "summaryAll": "모든 업스트림 선택됨",
+        "summaryExplicit": "업스트림 {{count}}개",
+        "summaryLegacy": "기존 다운스트림 라우트",
+        "summaryNone": "바인딩되지 않음(요청 거부)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "모두 선택",
+      "description": "새로 생성되는 액세스 키가 모든 업스트림이 선택된 상태로 시작할지, 하나도 선택되지 않은 상태로 시작할지를 결정합니다(업스트림이 선택되지 않은 키는 요청을 거부합니다).",
+      "label": "새 키의 기본 업스트림 선택",
+      "none": "선택 안 함"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "작업 디렉토리",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "실행 중 · {{provider}} / {{model}}",
-      "stop": "중지"
+      "stop": "중지",
+      "upgrade": "업그레이드",
+      "upgradeHint": "데몬 호스트에서 최신 릴리스를 확인하고 설치합니다.",
+      "upgradeToHint": "버전 {{version}}을 사용할 수 있습니다 — 데몬 호스트에서 업그레이드하세요.",
+      "upgrading": "업그레이드 중…",
+      "upgradingHint": "데몬 호스트에 최신 릴리스를 다시 설치하는 중입니다 — 1분 정도 걸릴 수 있습니다."
     },
     "manual": {
       "title": "수동 설정",
@@ -1202,7 +1237,13 @@
       },
       "license": "라이선스",
       "licenseHint": "Omnicross는 MIT 라이선스로 배포되는 무료 오픈소스 소프트웨어입니다.",
-      "author": "작성자"
+      "author": "작성자",
+      "diagnostics": {
+        "openFailed": "로그 폴더를 열 수 없습니다: {{reason}}",
+        "openFolder": "열기",
+        "openLogsFolder": "로그 폴더 열기",
+        "openLogsFolderHint": "파일 관리자에서 데몬의 logs/ 디렉터리를 표시합니다."
+      }
     },
     "title": "설정",
     "description": "데스크톱 앱 환경 설정입니다.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "방금",
       "overloadMinsAgo": "{{n}}분 전",
       "overloadHoursAgo": "{{n}}시간 전"
+    },
+    "mappings": {
+      "count": "매핑 {{count}}개",
+      "edit": "편집",
+      "loading": "업스트림 카탈로그를 불러오는 중…",
+      "passthrough": "패스스루(매핑 없음)",
+      "sectionDescription": "클라이언트 모델 이름 → 이 업스트림의 모델 ID. 표가 비어 있으면 클라이언트의 모델 ID가 그대로 전달됩니다.",
+      "sectionTitle": "모델 매핑"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "계정 할당량"
+    },
+    "integrations": {
+      "enable": "활성화",
+      "enabling": "활성화 중…",
+      "repair": "복구",
+      "repairing": "복구 중…"
+    },
+    "quickStart": {
+      "connect": "{{client}} 연결",
+      "description": "세 단계로 연결합니다: 업스트림 추가 → CLI 활성화 → 터미널에서 확인.",
+      "repairClient": "{{client}} 복구",
+      "step1": {
+        "action": "업스트림 추가",
+        "hint": "요청을 처리할 구독 계정 또는 BYO 프로바이더를 추가하세요.",
+        "title": "업스트림 추가"
+      },
+      "step2": {
+        "hint": "한 번의 클릭으로 Codex / Claude Code의 로컬 설정을 다시 연결합니다 — 일상적인 명령이 OmniCross를 거쳐 갑니다.",
+        "title": "CLI 액세스 활성화"
+      },
+      "step3": {
+        "hint": "codex 또는 claude를 한 번 실행해 요청을 보내 보세요. 트래픽이 감지되면 이 가이드는 자동으로 숨겨집니다.",
+        "title": "터미널에서 확인"
+      },
+      "title": "빠른 시작"
+    },
+    "throughput": {
+      "providerAll": "전체",
+      "providerAria": "프로바이더별 필터"
     }
   }
 }

@@ -517,7 +517,7 @@
     "pricing": "Cennik",
     "dashboard": "Dashboard",
     "images": "Obrazy",
-"search": "Wyszukiwanie"
+    "search": "Wyszukiwanie"
   },
   "images": {
     "title": "Generowanie obrazów",
@@ -543,16 +543,16 @@
       "strict": "Ścisły wybór",
       "poolFallback": "Zezwól na wybór zapasowy z puli"
     },
-    "defaultModel": "Domy\u015blny model obrazu",
+    "defaultModel": "Domyślny model obrazu",
     "routes": {
       "title": "Routing modeli",
-      "defaultBadge": "domy\u015blny"
+      "defaultBadge": "domyślny"
     },
     "codex": {
       "title": "Nadpisania Codex",
       "imageModel": "Model obrazu",
-      "carrierModel": "Model no\u015bny",
-      "hint": "Wyczyszczone pola wracaj\u0105 do przypi\u0119tych warto\u015bci domy\u015blnych (gpt-image-2 / gpt-5.6-luna)."
+      "carrierModel": "Model nośny",
+      "hint": "Wyczyszczone pola wracają do przypiętych wartości domyślnych (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Zweryfikowana macierz funkcji",
@@ -584,26 +584,26 @@
       "privateDefault": "Artefakty korzystają z prywatnej pamięci danych aplikacji daemona."
     },
     "page": {
-      "title": "Generowanie obraz\u00f3w",
-      "description": "Routing modeli, stan dostawc\u00f3w i endpointy Images w jednym miejscu.",
-      "loading": "\u0141adowanie konfiguracji obraz\u00f3w\u2026"
+      "title": "Generowanie obrazów",
+      "description": "Routing modeli, stan dostawców i endpointy Images w jednym miejscu.",
+      "loading": "Ładowanie konfiguracji obrazów…"
     },
     "providers": {
       "bootstrap": "bootstrap (niezweryfikowany)",
-      "healthy": "Dost\u0119pny",
-      "unhealthy": "Niedost\u0119pny",
-      "evidence": "\u015awie\u017ce dowody {{age}} sekund temu.",
-      "noEvidence": "Brak \u015bwie\u017cych dowod\u00f3w (bootstrap przy pierwszym prawdziwym \u017c\u0105daniu).",
-      "noModels": "Brak modeli potwierdzonych \u015bwie\u017cymi dowodami."
+      "healthy": "Dostępny",
+      "unhealthy": "Niedostępny",
+      "evidence": "Świeże dowody {{age}} sekund temu.",
+      "noEvidence": "Brak świeżych dowodów (bootstrap przy pierwszym prawdziwym żądaniu).",
+      "noModels": "Brak modeli potwierdzonych świeżymi dowodami."
     },
     "verify": {
-      "title": "Weryfikacja na \u017cywo",
-      "run": "Uruchom weryfikacj\u0119",
-      "running": "Weryfikowanie\u2026",
-      "warning": "\u26a0 Zu\u017cywa limit subskrypcji: zostanie wys\u0142ane jedno minimalne \u017c\u0105danie PNG w niskiej jako\u015bci.",
-      "codexOnly": "Obejmuje tylko lini\u0119 Codex; dostawca Antigravity nie ma niezale\u017cnego weryfikatora w v1.",
-      "codexOnlyPlain": "Obejmuje tylko lini\u0119 Codex.",
-      "success": "Zweryfikowano {{model}} ({{quality}}, {{format}}); \u015bwie\u017ce dowody: {{count}}."
+      "title": "Weryfikacja na żywo",
+      "run": "Uruchom weryfikację",
+      "running": "Weryfikowanie…",
+      "warning": "⚠ Zużywa limit subskrypcji: zostanie wysłane jedno minimalne żądanie PNG w niskiej jakości.",
+      "codexOnly": "Obejmuje tylko linię Codex; dostawca Antigravity nie ma niezależnego weryfikatora w v1.",
+      "codexOnlyPlain": "Obejmuje tylko linię Codex.",
+      "success": "Zweryfikowano {{model}} ({{quality}}, {{format}}); świeże dowody: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Wybierz serwery nadrzędne dla tego klucza i ustaw ich kolejność (kolejność = priorytet; wcześniejsze pozycje obsługują żądania jako pierwsze, późniejsze są kandydatami awaryjnymi). Zapisanie zawsze przechowuje jawny wybór; brak wyboru powoduje odrzucanie każdego żądania.",
+        "dialogTitle": "Edytuj powiązanie z serwerami nadrzędnymi dla {{name}}",
+        "edit": "Powiązanie z serwerami nadrzędnymi",
+        "emptyCatalog": "Brak dostępnych serwerów nadrzędnych — najpierw dodaj dostawcę lub subskrypcję na stronie „Serwery nadrzędne“.",
+        "mappingAdd": "Dodaj wiersz mapowania",
+        "mappingDesc": "Nazwa modelu klienta → identyfikator modelu nadrzędnego. Dokładne nazwy mają pierwszeństwo przed wzorcem *; default / background to wiersze ról (model tła Gemini); puste = przekazywanie bezpośrednie.",
+        "mappingEdit": "Mapowania modeli",
+        "mappingEffort": "Wysiłek",
+        "mappingEmpty": "Brak mapowań — identyfikator modelu klienta jest przekazywany bez zmian.",
+        "mappingHint": "Przy wielu wierszach dodaj zapasowy wiersz *; wiersze ról default / background nigdy nie są dopasowywane po nazwie.",
+        "mappingIncomplete": "Niektóre wiersze mają nazwę modelu klienta, ale brak identyfikatora modelu nadrzędnego (albo odwrotnie). Wypełnij lub usuń te wiersze przed zapisaniem — wypełnione w połowie wiersze nie są nigdy zapisywane.",
+        "mappingSaveFailed": "Nie udało się zapisać mapowań",
+        "mappingSource": "Nazwa modelu klienta (np. claude-*)",
+        "mappingTarget": "Identyfikator modelu nadrzędnego",
+        "mappingTitle": "Edytuj mapowania modeli dla {{name}}",
+        "orderDown": "Przenieś w dół",
+        "orderHint": "Zaznacz, a następnie ustaw kolejność strzałkami — wcześniejsze pozycje obsługują żądania jako pierwsze, późniejsze są kandydatami awaryjnymi. Brak zaznaczenia pozostawia klucz zdolny do uwierzytelniania, ale każde żądanie jest odrzucane.",
+        "orderUp": "Przenieś w górę",
+        "summaryAll": "Wybrano wszystkie serwery nadrzędne",
+        "summaryExplicit": "{{count}} serwer(y) nadrzędne",
+        "summaryLegacy": "Starsze trasy podrzędne",
+        "summaryNone": "Bez powiązania (żądania odrzucane)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Wybrano wszystkie",
+      "description": "Określa, czy nowo utworzony klucz dostępu rozpoczyna ze wszystkimi zaznaczonymi serwerami nadrzędnymi czy bez żadnego (klucz bez zaznaczonych serwerów nadrzędnych odrzuca żądania).",
+      "label": "Domyślny wybór serwerów nadrzędnych dla nowych kluczy",
+      "none": "Nic nie zaznaczono"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Katalog roboczy",
       "cwdPlaceholder": "/ścieżka/do/projektu",
       "runningVia": "Działa · {{provider}} / {{model}}",
-      "stop": "Zatrzymaj"
+      "stop": "Zatrzymaj",
+      "upgrade": "Uaktualnij",
+      "upgradeHint": "Sprawdzenie i instalacja najnowszego wydania na hoście demona.",
+      "upgradeToHint": "Dostępna wersja {{version}} — uaktualnij na hoście demona.",
+      "upgrading": "Uaktualnianie…",
+      "upgradingHint": "Ponowna instalacja w najnowszym wydaniu na hoście demona — może to potrwać minutę."
     },
     "manual": {
       "title": "Ręczna konfiguracja",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licencja",
       "licenseHint": "Omnicross to wolne oprogramowanie open source wydane na licencji MIT.",
-      "author": "Autor"
+      "author": "Autor",
+      "diagnostics": {
+        "openFailed": "Nie można otworzyć folderu dzienników: {{reason}}",
+        "openFolder": "Otwórz",
+        "openLogsFolder": "Otwórz folder dzienników",
+        "openLogsFolderHint": "Otwiera katalog logs/ demona w menedżerze plików."
+      }
     },
     "title": "Ustawienia",
     "description": "Preferencje aplikacji desktopowej.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "przed chwilą",
       "overloadMinsAgo": "{{n}} min temu",
       "overloadHoursAgo": "{{n}} godz. temu"
+    },
+    "mappings": {
+      "count": "{{count}} mapowanie(-ń)",
+      "edit": "Edytuj",
+      "loading": "Ładowanie katalogu serwerów nadrzędnych…",
+      "passthrough": "Przekazywanie bezpośrednie (bez mapowań)",
+      "sectionDescription": "Nazwa modelu klienta → identyfikator modelu tego serwera nadrzędnego; pusta tabela przekazuje identyfikator modelu klienta bez zmian.",
+      "sectionTitle": "Mapowania modeli"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Limity kont"
+    },
+    "integrations": {
+      "enable": "Włącz",
+      "enabling": "Włączanie…",
+      "repair": "Napraw",
+      "repairing": "Naprawianie…"
+    },
+    "quickStart": {
+      "connect": "Połącz {{client}}",
+      "description": "Trzy kroki: dodaj serwer nadrzędny → włącz CLI → zweryfikuj w terminalu.",
+      "repairClient": "Napraw {{client}}",
+      "step1": {
+        "action": "Dodaj serwer nadrzędny",
+        "hint": "Dodaj konto subskrypcyjne lub własnego dostawcę (BYO) do obsługi Twoich żądań.",
+        "title": "Dodaj serwer nadrzędny"
+      },
+      "step2": {
+        "hint": "Jednym kliknięciem przełącz lokalną konfigurację Codex / Claude Code — codzienne polecenia przechodzą przez OmniCross.",
+        "title": "Włącz dostęp CLI"
+      },
+      "step3": {
+        "hint": "Uruchom raz codex lub claude i wyślij żądanie; ten przewodnik sam się ukryje, gdy pojawi się ruch.",
+        "title": "Zweryfikuj w terminalu"
+      },
+      "title": "Szybki start"
+    },
+    "throughput": {
+      "providerAll": "Wszystkie",
+      "providerAria": "Filtruj według dostawcy"
     }
   }
 }

@@ -517,7 +517,7 @@
     "pricing": "Priser",
     "dashboard": "Dashboard",
     "images": "Bilder",
-"search": "Søk"
+    "search": "Søk"
   },
   "images": {
     "title": "Bildegenerering",
@@ -551,8 +551,8 @@
     "codex": {
       "title": "Codex-overstyringer",
       "imageModel": "Bildemodell",
-      "carrierModel": "B\u00e6rermodell",
-      "hint": "T\u00f8mte felter faller tilbake til de faste standardverdiene (gpt-image-2 / gpt-5.6-luna)."
+      "carrierModel": "Bærermodell",
+      "hint": "Tømte felter faller tilbake til de faste standardverdiene (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Verifisert funksjonsmatrise",
@@ -585,22 +585,22 @@
     },
     "page": {
       "title": "Bildegenerering",
-      "description": "Modellruting, tilstand til tilbydere og Images-endepunktene p\u00e5 ett sted.",
-      "loading": "Laster bildekonfigurasjon\u2026"
+      "description": "Modellruting, tilstand til tilbydere og Images-endepunktene på ett sted.",
+      "loading": "Laster bildekonfigurasjon…"
     },
     "providers": {
       "bootstrap": "oppstart (uverifisert)",
       "healthy": "Tilgjengelig",
       "unhealthy": "Utilgjengelig",
       "evidence": "Ferske bevis for {{age}} sekunder siden.",
-      "noEvidence": "Ingen ferske bevis enn\u00e5 (oppstart ved f\u00f8rste reelle foresp\u00f8rsel).",
+      "noEvidence": "Ingen ferske bevis ennå (oppstart ved første reelle forespørsel).",
       "noModels": "Ingen modeller bekreftet av ferske bevis."
     },
     "verify": {
       "title": "Levende verifikasjon",
-      "run": "Kj\u00f8r verifikasjon",
-      "running": "Verifiserer\u2026",
-      "warning": "\u26a0 Forbruker abonnementskvote: \u00e9n minimal PNG-foresp\u00f8rsel i lav kvalitet sendes.",
+      "run": "Kjør verifikasjon",
+      "running": "Verifiserer…",
+      "warning": "⚠ Forbruker abonnementskvote: én minimal PNG-forespørsel i lav kvalitet sendes.",
       "codexOnly": "Dekker kun Codex-linjen; Antigravity-tilbyderen har ingen uavhengig verifikator i v1.",
       "codexOnlyPlain": "Dekker kun Codex-linjen.",
       "success": "Verifisert {{model}} ({{quality}}, {{format}}); ferske bevis: {{count}}."
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Velg denne nøkkelens oppstrømmer og ordne dem (rekkefølge = prioritet; tidligere poster betjenes først, senere er reservekandidater). Ved lagring lagres alltid det eksplisitte valget; velges ingen, avvises alle forespørsler.",
+        "dialogTitle": "Rediger oppstrømskobling for {{name}}",
+        "edit": "Oppstrømskobling",
+        "emptyCatalog": "Ingen oppstrømmer tilgjengelig — legg først til en leverandør eller et abonnement på siden Oppstrømmer.",
+        "mappingAdd": "Legg til mappingrad",
+        "mappingDesc": "Klientens modellnavn → oppstrømmens modell-ID. Eksakte navn slår *-jokertegn; default / background er rolle-rader (Gemini background model); tom = gjennomstrømning.",
+        "mappingEdit": "Modellmappinger",
+        "mappingEffort": "Innsats",
+        "mappingEmpty": "Ingen mappinger — klientens modell-ID videresendes uendret.",
+        "mappingHint": "Med flere rader: ta med en *-reserve-rad; rolle-radene default / background matcher aldri på navn.",
+        "mappingIncomplete": "Noen rader har et klientmodellnavn men ingen oppstrøms modell-ID (eller omvendt). Fyll ut eller slett disse radene før du lagrer — halvt utfylte rader lagres aldri.",
+        "mappingSaveFailed": "Kunne ikke lagre mappinger",
+        "mappingSource": "Klientens modellnavn (f.eks. claude-*)",
+        "mappingTarget": "Oppstrømmens modell-ID",
+        "mappingTitle": "Rediger modellmappinger for {{name}}",
+        "orderDown": "Flytt ned",
+        "orderHint": "Velg og ordne med pilene — tidligere poster betjenes først, senere er reservekandidater. Uten valg kan nøkkelen fortsatt autentisere seg, men alle forespørsler avvises.",
+        "orderUp": "Flytt opp",
+        "summaryAll": "Alle oppstrømmer valgt",
+        "summaryExplicit": "{{count}} oppstrømmer",
+        "summaryLegacy": "Eldre nedstrømsruter",
+        "summaryNone": "Ikke koblet (forespørsler avvises)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Alle valgt",
+      "description": "Om en nyopprettet tilgangsnøkkel starter med alle oppstrømmer valgt eller ingen (en nøkkel uten valgt oppstrøm avviser forespørsler).",
+      "label": "Standard oppstrømsvalg for nye nøkler",
+      "none": "Ingen valgt"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Arbeidsmappe",
       "cwdPlaceholder": "/sti/til/prosjektet/ditt",
       "runningVia": "Kjører · {{provider}} / {{model}}",
-      "stop": "Stopp"
+      "stop": "Stopp",
+      "upgrade": "Oppgrader",
+      "upgradeHint": "Søk etter og installer den nyeste utgivelsen på daemonverten.",
+      "upgradeToHint": "Versjon {{version}} er tilgjengelig — oppgrader på daemonverten.",
+      "upgrading": "Oppgraderer…",
+      "upgradingHint": "Installerer på nytt i den nyeste utgivelsen på daemonverten — dette kan ta et minutt."
     },
     "manual": {
       "title": "Manuelt oppsett",
@@ -1202,7 +1237,13 @@
       },
       "license": "Lisens",
       "licenseHint": "Omnicross er fri programvare med åpen kildekode, utgitt under MIT-lisensen.",
-      "author": "Utvikler"
+      "author": "Utvikler",
+      "diagnostics": {
+        "openFailed": "Kunne ikke åpne loggmappen: {{reason}}",
+        "openFolder": "Åpne",
+        "openLogsFolder": "Åpne loggmappe",
+        "openLogsFolderHint": "Viser daemonens mappe logs/ i filbehandlingen din."
+      }
     },
     "title": "Innstillinger",
     "description": "Preferanser for skrivebordsprogrammet.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "akkurat nå",
       "overloadMinsAgo": "{{n}} min siden",
       "overloadHoursAgo": "{{n}} t siden"
+    },
+    "mappings": {
+      "count": "{{count}} mapping(er)",
+      "edit": "Rediger",
+      "loading": "Laster inn oppstrømskatalogen…",
+      "passthrough": "Gjennomstrømning (ingen mappinger)",
+      "sectionDescription": "Klientens modellnavn → oppstrømmens modell-ID; en tom tabell sender klientens modell-ID uendret videre.",
+      "sectionTitle": "Modellmappinger"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Kontokvoter"
+    },
+    "integrations": {
+      "enable": "Aktiver",
+      "enabling": "Aktiverer…",
+      "repair": "Reparer",
+      "repairing": "Reparerer…"
+    },
+    "quickStart": {
+      "connect": "Koble til {{client}}",
+      "description": "Tre trinn: legg til en oppstrøm → aktiver et CLI → bekreft i en terminal.",
+      "repairClient": "Reparer {{client}}",
+      "step1": {
+        "action": "Legg til oppstrøm",
+        "hint": "Legg til en abonnementskonto eller en BYO-leverandør som skal betjene forespørsler.",
+        "title": "Legg til en oppstrøm"
+      },
+      "step2": {
+        "hint": "Omkonfigurer Codex / Claude Codes lokale konfigurasjon med ett klikk — daglige kommandoer går via OmniCross.",
+        "title": "Aktiver CLI-tilgang"
+      },
+      "step3": {
+        "hint": "Kjør codex eller claude én gang og send en forespørsel; veiledningen skjuler seg selv så snart det kommer trafikk.",
+        "title": "Bekreft i en terminal"
+      },
+      "title": "Hurtigstart"
+    },
+    "throughput": {
+      "providerAll": "Alle",
+      "providerAria": "Filtrer etter leverandør"
     }
   }
 }

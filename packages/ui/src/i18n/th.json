@@ -517,7 +517,7 @@
     "pricing": "ราคา",
     "dashboard": "Dashboard",
     "images": "รูปภาพ",
-"search": "ค้นหา"
+    "search": "ค้นหา"
   },
   "images": {
     "title": "การสร้างรูปภาพ",
@@ -543,16 +543,16 @@
       "strict": "เลือกแบบเข้มงวด",
       "poolFallback": "อนุญาตให้เลือกสำรองจากกลุ่ม"
     },
-    "defaultModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19",
+    "defaultModel": "โมเดลรูปภาพเริ่มต้น",
     "routes": {
-      "title": "\u0e01\u0e32\u0e23\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07\u0e42\u0e21\u0e40\u0e14\u0e25",
-      "defaultBadge": "\u0e04\u0e48\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19"
+      "title": "การกำหนดเส้นทางโมเดล",
+      "defaultBadge": "ค่าเริ่มต้น"
     },
     "codex": {
-      "title": "\u0e01\u0e32\u0e23\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u0e04\u0e48\u0e32 Codex",
-      "imageModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e",
-      "carrierModel": "\u0e42\u0e21\u0e40\u0e14\u0e25\u0e15\u0e31\u0e27\u0e1e\u0e32",
-      "hint": "\u0e0a\u0e48\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e25\u0e49\u0e32\u0e07\u0e41\u0e25\u0e49\u0e27\u0e08\u0e30\u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e43\u0e0a\u0e49\u0e04\u0e48\u0e32\u0e40\u0e23\u0e34\u0e48\u0e21\u0e15\u0e49\u0e19\u0e17\u0e35\u0e48\u0e15\u0e23\u0e36\u0e07\u0e44\u0e27\u0e49 (gpt-image-2 / gpt-5.6-luna)"
+      "title": "การแทนที่ค่า Codex",
+      "imageModel": "โมเดลรูปภาพ",
+      "carrierModel": "โมเดลตัวพา",
+      "hint": "ช่องที่ล้างแล้วจะกลับไปใช้ค่าเริ่มต้นที่ตรึงไว้ (gpt-image-2 / gpt-5.6-luna)"
     },
     "features": {
       "title": "ตารางคุณสมบัติที่ยืนยันแล้ว",
@@ -584,26 +584,26 @@
       "privateDefault": "อาร์ติแฟกต์ใช้ที่เก็บข้อมูลแอปพลิเคชันส่วนตัวของดีมอน"
     },
     "page": {
-      "title": "\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e",
-      "description": "\u0e01\u0e32\u0e23\u0e01\u0e33\u0e2b\u0e19\u0e14\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07\u0e42\u0e21\u0e40\u0e14\u0e25 \u0e2a\u0e16\u0e32\u0e19\u0e30\u0e1c\u0e39\u0e49\u0e43\u0e2b\u0e49\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23 \u0e41\u0e25\u0e30 endpoint \u0e02\u0e2d\u0e07 Images \u0e43\u0e19\u0e17\u0e35\u0e48\u0e40\u0e14\u0e35\u0e22\u0e27",
-      "loading": "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e42\u0e2b\u0e25\u0e14\u0e01\u0e32\u0e23\u0e15\u0e31\u0e49\u0e07\u0e04\u0e48\u0e32\u0e23\u0e39\u0e1b\u0e20\u0e32\u0e1e\u2026"
+      "title": "สร้างรูปภาพ",
+      "description": "การกำหนดเส้นทางโมเดล สถานะผู้ให้บริการ และ endpoint ของ Images ในที่เดียว",
+      "loading": "กำลังโหลดการตั้งค่ารูปภาพ…"
     },
     "providers": {
-      "bootstrap": "bootstrap (\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19)",
-      "healthy": "\u0e43\u0e0a\u0e49\u0e44\u0e14\u0e49",
-      "unhealthy": "\u0e43\u0e0a\u0e49\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49",
-      "evidence": "\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14\u0e40\u0e21\u0e37\u0e48\u0e2d {{age}} \u0e27\u0e34\u0e19\u0e32\u0e17\u0e35\u0e17\u0e35\u0e48\u0e41\u0e25\u0e49\u0e27",
-      "noEvidence": "\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14 (\u0e08\u0e30 bootstrap \u0e40\u0e21\u0e37\u0e48\u0e2d\u0e04\u0e33\u0e02\u0e2d\u0e08\u0e23\u0e34\u0e07\u0e04\u0e23\u0e31\u0e49\u0e07\u0e41\u0e23\u0e01)",
-      "noModels": "\u0e44\u0e21\u0e48\u0e21\u0e35\u0e42\u0e21\u0e40\u0e14\u0e25\u0e17\u0e35\u0e48\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e14\u0e49\u0e27\u0e22\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14"
+      "bootstrap": "bootstrap (ยังไม่ยืนยัน)",
+      "healthy": "ใช้ได้",
+      "unhealthy": "ใช้ไม่ได้",
+      "evidence": "หลักฐานล่าสุดเมื่อ {{age}} วินาทีที่แล้ว",
+      "noEvidence": "ยังไม่มีหลักฐานล่าสุด (จะ bootstrap เมื่อคำขอจริงครั้งแรก)",
+      "noModels": "ไม่มีโมเดลที่ยืนยันด้วยหลักฐานล่าสุด"
     },
     "verify": {
-      "title": "\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u0e41\u0e1a\u0e1a\u0e2a\u0e14",
-      "run": "\u0e40\u0e23\u0e34\u0e48\u0e21\u0e01\u0e32\u0e23\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a",
-      "running": "\u0e01\u0e33\u0e25\u0e31\u0e07\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u2026",
-      "warning": "\u26a0 \u0e43\u0e0a\u0e49\u0e42\u0e04\u0e27\u0e15\u0e32\u0e41\u0e1a\u0e1a\u0e2a\u0e21\u0e31\u0e04\u0e23\u0e2a\u0e21\u0e32\u0e0a\u0e34\u0e01: \u0e08\u0e30\u0e2a\u0e48\u0e07\u0e04\u0e33\u0e02\u0e2d PNG \u0e04\u0e38\u0e13\u0e20\u0e32\u0e1e\u0e15\u0e48\u0e33\u0e2b\u0e19\u0e36\u0e48\u0e07\u0e04\u0e23\u0e31\u0e49\u0e07",
-      "codexOnly": "\u0e04\u0e23\u0e2d\u0e1a\u0e04\u0e25\u0e38\u0e21\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07 Codex; \u0e1c\u0e39\u0e49\u0e43\u0e2b\u0e49\u0e1a\u0e23\u0e34\u0e01\u0e32\u0e23 Antigravity \u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e21\u0e35\u0e15\u0e31\u0e27\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a\u0e2d\u0e34\u0e2a\u0e23\u0e30\u0e43\u0e19 v1",
-      "codexOnlyPlain": "\u0e04\u0e23\u0e2d\u0e1a\u0e04\u0e25\u0e38\u0e21\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e40\u0e2a\u0e49\u0e19\u0e17\u0e32\u0e07 Codex",
-      "success": "\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e41\u0e25\u0e49\u0e27 {{model}} ({{quality}}, {{format}}); \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e2b\u0e25\u0e31\u0e01\u0e10\u0e32\u0e19\u0e25\u0e48\u0e32\u0e2a\u0e38\u0e14: {{count}}"
+      "title": "ตรวจสอบแบบสด",
+      "run": "เริ่มการตรวจสอบ",
+      "running": "กำลังตรวจสอบ…",
+      "warning": "⚠ ใช้โควตาแบบสมัครสมาชิก: จะส่งคำขอ PNG คุณภาพต่ำหนึ่งครั้ง",
+      "codexOnly": "ครอบคลุมเฉพาะเส้นทาง Codex; ผู้ให้บริการ Antigravity ยังไม่มีตัวตรวจสอบอิสระใน v1",
+      "codexOnlyPlain": "ครอบคลุมเฉพาะเส้นทาง Codex",
+      "success": "ยืนยันแล้ว {{model}} ({{quality}}, {{format}}); รายการหลักฐานล่าสุด: {{count}}"
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "เลือก upstream ของ key นี้และจัดลำดับ (ลำดับ = ลำดับความสำคัญ รายการแรกให้บริการก่อน ส่วนรายการหลังเป็นตัวสำรองเมื่อล้มเหลว) การบันทึกจะเก็บเฉพาะรายการที่เลือกไว้เสมอ ถ้าไม่เลือกเลย ทุก request จะถูกปฏิเสธ",
+        "dialogTitle": "แก้ไขการผูก upstream ของ {{name}}",
+        "edit": "การผูก upstream",
+        "emptyCatalog": "ไม่มี upstream ที่พร้อมใช้งาน — เพิ่ม provider หรือ subscription ในหน้า Upstreams ก่อน",
+        "mappingAdd": "เพิ่มแถวการจับคู่",
+        "mappingDesc": "ชื่อโมเดลของ client → model id ของ upstream ชื่อที่ตรงเป๊ะจะชนะ * wildcard; default / background เป็นแถวบทบาท (โมเดล background ของ Gemini); ปล่อยว่าง = passthrough",
+        "mappingEdit": "การจับคู่โมเดล",
+        "mappingEffort": "ระดับการคิด",
+        "mappingEmpty": "ไม่มีการจับคู่ — model id ของ client จะถูกส่งต่อตามเดิม",
+        "mappingHint": "ถ้ามีหลายแถว ให้ใส่แถว * ไว้เป็นตัวสำรอง; แถวบทบาท default / background จะไม่ถูกจับคู่ตามชื่อ",
+        "mappingIncomplete": "บางแถวมีชื่อโมเดลของ client แต่ไม่มี model id ของ upstream (หรือกลับกัน) กรอกหรือลบแถวเหล่านั้นก่อนบันทึก — แถวที่กรอกครึ่งเดียวจะไม่ถูกบันทึก",
+        "mappingSaveFailed": "บันทึกการจับคู่ไม่สำเร็จ",
+        "mappingSource": "ชื่อโมเดลของ client (เช่น claude-*)",
+        "mappingTarget": "model id ของ upstream",
+        "mappingTitle": "แก้ไขการจับคู่โมเดลของ {{name}}",
+        "orderDown": "ย้ายลง",
+        "orderHint": "เลือกแล้วจัดลำดับด้วยลูกศร — รายการแรกให้บริการก่อน ส่วนรายการหลังเป็นตัวสำรองเมื่อล้มเหลว ถ้าไม่เลือกเลย key ยังใช้ยืนยันตัวตนได้แต่ทุก request จะถูกปฏิเสธ",
+        "orderUp": "ย้ายขึ้น",
+        "summaryAll": "เลือก upstream ทั้งหมด",
+        "summaryExplicit": "upstream {{count}} รายการ",
+        "summaryLegacy": "downstream route แบบเดิม",
+        "summaryNone": "ยังไม่ผูก (request จะถูกปฏิเสธ)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "เลือกทั้งหมด",
+      "description": "กำหนดว่า access key ที่สร้างใหม่จะเริ่มด้วยการเลือก upstream ทั้งหมดหรือไม่เลือกเลย (key ที่ไม่ได้เลือก upstream ไว้จะปฏิเสธ request)",
+      "label": "การเลือก upstream เริ่มต้นสำหรับ key ใหม่",
+      "none": "ไม่เลือกเลย"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Working directory",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "กำลังทำงาน · {{provider}} / {{model}}",
-      "stop": "หยุด"
+      "stop": "หยุด",
+      "upgrade": "อัปเกรด",
+      "upgradeHint": "ตรวจหาและติดตั้งรุ่นล่าสุดบนเครื่อง daemon",
+      "upgradeToHint": "มีเวอร์ชัน {{version}} ใหม่ — อัปเกรดบนเครื่อง daemon",
+      "upgrading": "กำลังอัปเกรด…",
+      "upgradingHint": "กำลังติดตั้งรุ่นล่าสุดใหม่บนเครื่อง daemon — อาจใช้เวลาสักครู่"
     },
     "manual": {
       "title": "ตั้งค่าด้วยตนเอง",
@@ -1202,7 +1237,13 @@
       },
       "license": "สัญญาอนุญาต",
       "licenseHint": "Omnicross เป็นซอฟต์แวร์เสรีแบบโอเพนซอร์สที่เผยแพร่ภายใต้สัญญาอนุญาต MIT",
-      "author": "ผู้พัฒนา"
+      "author": "ผู้พัฒนา",
+      "diagnostics": {
+        "openFailed": "ไม่สามารถเปิดโฟลเดอร์ logs: {{reason}}",
+        "openFolder": "เปิด",
+        "openLogsFolder": "เปิดโฟลเดอร์ logs",
+        "openLogsFolderHint": "เปิดไดเรกทอรี logs/ ของ daemon ใน file manager ของคุณ"
+      }
     },
     "title": "การตั้งค่า",
     "description": "การตั้งค่าแอป desktop",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "เมื่อสักครู่",
       "overloadMinsAgo": "{{n}} นาทีที่แล้ว",
       "overloadHoursAgo": "{{n}} ชม. ที่แล้ว"
+    },
+    "mappings": {
+      "count": "การจับคู่ {{count}} รายการ",
+      "edit": "แก้ไข",
+      "loading": "กำลังโหลดรายการ upstream…",
+      "passthrough": "Passthrough (ไม่มีการจับคู่)",
+      "sectionDescription": "ชื่อโมเดลของ client → model id ของ upstream นี้ ถ้าตารางว่าง model id ของ client จะถูกส่งต่อตามเดิม",
+      "sectionTitle": "การจับคู่โมเดล"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "โควตาของบัญชี"
+    },
+    "integrations": {
+      "enable": "เปิดใช้",
+      "enabling": "กำลังเปิดใช้…",
+      "repair": "ซ่อมแซม",
+      "repairing": "กำลังซ่อมแซม…"
+    },
+    "quickStart": {
+      "connect": "เชื่อมต่อ {{client}}",
+      "description": "สามขั้นตอน: เพิ่ม upstream → เปิดใช้ CLI → ตรวจสอบในเทอร์มินัล",
+      "repairClient": "ซ่อมแซม {{client}}",
+      "step1": {
+        "action": "เพิ่ม upstream",
+        "hint": "เพิ่มบัญชี subscription หรือ provider แบบ BYO เพื่อให้บริการ request ของคุณ",
+        "title": "เพิ่ม upstream"
+      },
+      "step2": {
+        "hint": "ตั้งค่า config ในเครื่องของ Codex / Claude Code ใหม่ด้วยคลิกเดียว — คำสั่งประจำวันจะผ่าน OmniCross",
+        "title": "เปิดใช้การเข้าถึง CLI"
+      },
+      "step3": {
+        "hint": "รัน codex หรือ claude สักครั้งเพื่อส่ง request เมื่อมี traffic แล้วคำแนะนำนี้จะซ่อนตัวเอง",
+        "title": "ตรวจสอบในเทอร์มินัล"
+      },
+      "title": "เริ่มต้นอย่างรวดเร็ว"
+    },
+    "throughput": {
+      "providerAll": "ทั้งหมด",
+      "providerAria": "กรองตามผู้ให้บริการ"
     }
   }
 }

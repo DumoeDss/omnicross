@@ -517,7 +517,7 @@
     "pricing": "Precios",
     "dashboard": "Dashboard",
     "images": "Imágenes",
-"search": "Búsqueda"
+    "search": "Búsqueda"
   },
   "images": {
     "title": "Generación de imágenes",
@@ -552,7 +552,7 @@
       "title": "Invalidaciones de Codex",
       "imageModel": "Modelo de imagen",
       "carrierModel": "Modelo portador",
-      "hint": "Los campos vac\u00edos vuelven a los valores predeterminados fijados (gpt-image-2 / gpt-5.6-luna)."
+      "hint": "Los campos vacíos vuelven a los valores predeterminados fijados (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Matriz de funciones verificadas",
@@ -584,25 +584,25 @@
       "privateDefault": "Los artefactos usan el almacenamiento privado de datos de la aplicación del daemon."
     },
     "page": {
-      "title": "Generaci\u00f3n de im\u00e1genes",
+      "title": "Generación de imágenes",
       "description": "Enrutamiento de modelos, estado de proveedores y los endpoints de Images en un solo lugar.",
-      "loading": "Cargando la configuraci\u00f3n de Images\u2026"
+      "loading": "Cargando la configuración de Images…"
     },
     "providers": {
       "bootstrap": "arranque (sin verificar)",
       "healthy": "Disponible",
       "unhealthy": "No disponible",
       "evidence": "Evidencia fresca hace {{age}} segundos.",
-      "noEvidence": "A\u00fan no hay evidencia fresca (arranque en la primera solicitud real).",
-      "noModels": "Ning\u00fan modelo afirmado por evidencia fresca."
+      "noEvidence": "Aún no hay evidencia fresca (arranque en la primera solicitud real).",
+      "noModels": "Ningún modelo afirmado por evidencia fresca."
     },
     "verify": {
-      "title": "Verificaci\u00f3n en vivo",
-      "run": "Ejecutar verificaci\u00f3n",
-      "running": "Verificando\u2026",
-      "warning": "\u26a0 Consume cuota de suscripci\u00f3n: se enviar\u00e1 una solicitud PNG m\u00ednima de baja calidad.",
-      "codexOnly": "Cubre solo la l\u00ednea Codex; el proveedor Antigravity no tiene verificador independiente en v1.",
-      "codexOnlyPlain": "Cubre solo la l\u00ednea Codex.",
+      "title": "Verificación en vivo",
+      "run": "Ejecutar verificación",
+      "running": "Verificando…",
+      "warning": "⚠ Consume cuota de suscripción: se enviará una solicitud PNG mínima de baja calidad.",
+      "codexOnly": "Cubre solo la línea Codex; el proveedor Antigravity no tiene verificador independiente en v1.",
+      "codexOnlyPlain": "Cubre solo la línea Codex.",
       "success": "Verificado {{model}} ({{quality}}, {{format}}); entradas de evidencia fresca: {{count}}."
     }
   },
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Selecciona los upstreams de esta clave y ordénalos (orden = prioridad; las primeras entradas se sirven primero, las demás son candidatas de respaldo). Al guardar se almacena siempre la selección explícita; si no seleccionas ninguno, se rechazan todas las solicitudes.",
+        "dialogTitle": "Editar la vinculación de upstream de {{name}}",
+        "edit": "Vinculación de upstream",
+        "emptyCatalog": "No hay upstreams disponibles — añade primero un proveedor o una suscripción en la página de Upstreams.",
+        "mappingAdd": "Añadir una fila de asignación",
+        "mappingDesc": "Nombre del modelo del cliente → id de modelo del upstream. Los nombres exactos ganan a los comodines *; default / background son filas de rol (modelo background de Gemini); vacío = paso directo.",
+        "mappingEdit": "Asignaciones de modelos",
+        "mappingEffort": "Esfuerzo",
+        "mappingEmpty": "No hay asignaciones — el id de modelo del cliente se reenvía tal cual.",
+        "mappingHint": "Con varias filas, incluye una fila * de reserva; las filas de rol default / background nunca coinciden por nombre.",
+        "mappingIncomplete": "Algunas filas tienen nombre de modelo del cliente pero falta el id de modelo del upstream (o al revés). Rellena o elimina esas filas antes de guardar — las filas a medias nunca se guardan.",
+        "mappingSaveFailed": "No se pudieron guardar las asignaciones",
+        "mappingSource": "Nombre del modelo del cliente (p. ej. claude-*)",
+        "mappingTarget": "Id de modelo del upstream",
+        "mappingTitle": "Editar las asignaciones de modelos de {{name}}",
+        "orderDown": "Bajar",
+        "orderHint": "Selecciona y ordena con las flechas — las primeras entradas se sirven primero, las demás son candidatas de respaldo. Si no seleccionas ninguno, la clave podrá autenticarse, pero se rechazarán todas las solicitudes.",
+        "orderUp": "Subir",
+        "summaryAll": "Todos los upstreams seleccionados",
+        "summaryExplicit": "{{count}} upstream(s)",
+        "summaryLegacy": "Rutas downstream heredadas",
+        "summaryNone": "Sin vincular (solicitudes rechazadas)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Todos seleccionados",
+      "description": "Define si una clave de acceso recién creada empieza con todos los upstreams seleccionados o con ninguno (una clave sin upstream seleccionado rechaza las solicitudes).",
+      "label": "Selección de upstream predeterminada para las nuevas claves",
+      "none": "Ninguno seleccionado"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Directorio de trabajo",
       "cwdPlaceholder": "/ruta/a/tu/proyecto",
       "runningVia": "En ejecución · {{provider}} / {{model}}",
-      "stop": "Detener"
+      "stop": "Detener",
+      "upgrade": "Actualizar",
+      "upgradeHint": "Busca e instala la última versión en el host del daemon.",
+      "upgradeToHint": "La versión {{version}} está disponible — actualiza en el host del daemon.",
+      "upgrading": "Actualizando…",
+      "upgradingHint": "Reinstalando en la última versión en el host del daemon — esto puede tardar un momento."
     },
     "manual": {
       "title": "Configuración manual",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licencia",
       "licenseHint": "Omnicross es software libre y de código abierto publicado bajo la licencia MIT.",
-      "author": "Autor"
+      "author": "Autor",
+      "diagnostics": {
+        "openFailed": "No se pudo abrir la carpeta de registros: {{reason}}",
+        "openFolder": "Abrir",
+        "openLogsFolder": "Abrir la carpeta de registros",
+        "openLogsFolderHint": "Muestra el directorio logs/ del daemon en tu explorador de archivos."
+      }
     },
     "title": "Ajustes",
     "description": "Preferencias de la aplicación de escritorio.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "justo ahora",
       "overloadMinsAgo": "hace {{n}} min",
       "overloadHoursAgo": "hace {{n}} h"
+    },
+    "mappings": {
+      "count": "{{count}} asignación(es)",
+      "edit": "Editar",
+      "loading": "Cargando el catálogo de upstreams…",
+      "passthrough": "Paso directo (sin asignaciones)",
+      "sectionDescription": "Nombre del modelo del cliente → id de modelo de este upstream; una tabla vacía deja pasar el id de modelo del cliente tal cual.",
+      "sectionTitle": "Asignaciones de modelos"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Cuotas de las cuentas"
+    },
+    "integrations": {
+      "enable": "Activar",
+      "enabling": "Activando…",
+      "repair": "Reparar",
+      "repairing": "Reparando…"
+    },
+    "quickStart": {
+      "connect": "Conectar {{client}}",
+      "description": "Tres pasos: añadir un upstream → activar una CLI → verificar en un terminal.",
+      "repairClient": "Reparar {{client}}",
+      "step1": {
+        "action": "Añadir upstream",
+        "hint": "Añade una cuenta de suscripción o un proveedor BYO para atender tus solicitudes.",
+        "title": "Añadir un upstream"
+      },
+      "step2": {
+        "hint": "Reconfigura con un clic la configuración local de Codex / Claude Code — los comandos del día a día pasan por OmniCross.",
+        "title": "Activar el acceso por CLI"
+      },
+      "step3": {
+        "hint": "Ejecuta codex o claude una vez y envía una solicitud; esta guía se oculta en cuanto aparece tráfico.",
+        "title": "Verificar en un terminal"
+      },
+      "title": "Inicio rápido"
+    },
+    "throughput": {
+      "providerAll": "Todos",
+      "providerAria": "Filtrar por proveedor"
     }
   }
 }

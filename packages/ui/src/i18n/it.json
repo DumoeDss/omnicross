@@ -517,7 +517,7 @@
     "pricing": "Prezzi",
     "dashboard": "Dashboard",
     "images": "Immagini",
-"search": "Ricerca"
+    "search": "Ricerca"
   },
   "images": {
     "title": "Generazione di immagini",
@@ -586,7 +586,7 @@
     "page": {
       "title": "Generazione immagini",
       "description": "Routing dei modelli, stato dei provider e gli endpoint Images in un unico posto.",
-      "loading": "Caricamento della configurazione Images\u2026"
+      "loading": "Caricamento della configurazione Images…"
     },
     "providers": {
       "bootstrap": "bootstrap (non verificato)",
@@ -599,8 +599,8 @@
     "verify": {
       "title": "Verifica dal vivo",
       "run": "Esegui verifica",
-      "running": "Verifica in corso\u2026",
-      "warning": "\u26a0 Consuma quota dell\u2019abbonamento: verr\u00e0 inviata una richiesta PNG minima a bassa qualit\u00e0.",
+      "running": "Verifica in corso…",
+      "warning": "⚠ Consuma quota dell’abbonamento: verrà inviata una richiesta PNG minima a bassa qualità.",
       "codexOnly": "Copre solo la linea Codex; il provider Antigravity non ha un verificatore indipendente in v1.",
       "codexOnlyPlain": "Copre solo la linea Codex.",
       "success": "Verificato {{model}} ({{quality}}, {{format}}); prove fresche: {{count}}."
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Seleziona gli upstream di questa chiave e ordinali (ordine = priorità; le prime voci servono per prime, le altre sono candidate di fallback). Il salvataggio memorizza sempre la selezione esplicita; se non ne selezioni nessuno, ogni richiesta viene rifiutata.",
+        "dialogTitle": "Modifica l'associazione upstream di {{name}}",
+        "edit": "Associazione upstream",
+        "emptyCatalog": "Nessun upstream disponibile — aggiungi prima un provider o un abbonamento nella pagina Upstreams.",
+        "mappingAdd": "Aggiungi una riga di mappatura",
+        "mappingDesc": "Nome del modello client → id del modello upstream. I nomi esatti hanno la precedenza sui caratteri jolly *; default / background sono righe di ruolo (modello background di Gemini); vuoto = passthrough.",
+        "mappingEdit": "Mappature dei modelli",
+        "mappingEffort": "Impegno",
+        "mappingEmpty": "Nessuna mappatura — l'id del modello del client viene inoltrato così com'è.",
+        "mappingHint": "Con più righe, includi una riga di fallback *; le righe di ruolo default / background non corrispondono mai per nome.",
+        "mappingIncomplete": "Alcune righe hanno un nome del modello client ma nessun id del modello upstream (o viceversa). Compila o elimina quelle righe prima di salvare — le righe compilate a metà non vengono mai salvate.",
+        "mappingSaveFailed": "Salvataggio delle mappature non riuscito",
+        "mappingSource": "Nome del modello client (es. claude-*)",
+        "mappingTarget": "Id del modello upstream",
+        "mappingTitle": "Modifica le mappature dei modelli di {{name}}",
+        "orderDown": "Sposta in basso",
+        "orderHint": "Seleziona e ordina con le frecce — le prime voci servono per prime, le altre sono candidate di fallback. Se non ne selezioni nessuno, la chiave può autenticarsi ma ogni richiesta viene rifiutata.",
+        "orderUp": "Sposta in alto",
+        "summaryAll": "Tutti gli upstream selezionati",
+        "summaryExplicit": "{{count}} upstream(s)",
+        "summaryLegacy": "Route downstream legacy",
+        "summaryNone": "Non associata (richieste rifiutate)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Tutti selezionati",
+      "description": "Determina se una chiave di accesso appena creata parte con tutti gli upstream selezionati o con nessuno (una chiave senza upstream selezionato rifiuta le richieste).",
+      "label": "Selezione upstream predefinita per le nuove chiavi",
+      "none": "Nessuno selezionato"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Directory di lavoro",
       "cwdPlaceholder": "/percorso/al/tuo/progetto",
       "runningVia": "In esecuzione · {{provider}} / {{model}}",
-      "stop": "Arresta"
+      "stop": "Arresta",
+      "upgrade": "Aggiorna",
+      "upgradeHint": "Cerca e installa l'ultima versione sull'host daemon.",
+      "upgradeToHint": "La versione {{version}} è disponibile — esegui l'aggiornamento sull'host daemon.",
+      "upgrading": "Aggiornamento…",
+      "upgradingHint": "Reinstallazione all'ultima versione sull'host daemon — potrebbe richiedere un minuto."
     },
     "manual": {
       "title": "Configurazione manuale",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licenza",
       "licenseHint": "Omnicross è software libero e open source distribuito con licenza MIT.",
-      "author": "Autore"
+      "author": "Autore",
+      "diagnostics": {
+        "openFailed": "Impossibile aprire la cartella dei log: {{reason}}",
+        "openFolder": "Apri",
+        "openLogsFolder": "Apri la cartella dei log",
+        "openLogsFolderHint": "Mostra la directory logs/ del daemon nel gestore file."
+      }
     },
     "title": "Impostazioni",
     "description": "Preferenze dell'applicazione desktop.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "adesso",
       "overloadMinsAgo": "{{n}} min fa",
       "overloadHoursAgo": "{{n}} h fa"
+    },
+    "mappings": {
+      "count": "{{count}} mappatura/e",
+      "edit": "Modifica",
+      "loading": "Caricamento del catalogo upstream…",
+      "passthrough": "Passthrough (nessuna mappatura)",
+      "sectionDescription": "Nome del modello client → id del modello di questo upstream; una tabella vuota lascia passare l'id del modello del client così com'è.",
+      "sectionTitle": "Mappature dei modelli"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Quote degli account"
+    },
+    "integrations": {
+      "enable": "Abilita",
+      "enabling": "Abilitazione…",
+      "repair": "Ripara",
+      "repairing": "Riparazione…"
+    },
+    "quickStart": {
+      "connect": "Connetti {{client}}",
+      "description": "Tre passaggi: aggiungi un upstream → abilita un CLI → verifica in un terminale.",
+      "repairClient": "Ripara {{client}}",
+      "step1": {
+        "action": "Aggiungi upstream",
+        "hint": "Aggiungi un account in abbonamento o un provider BYO per servire le tue richieste.",
+        "title": "Aggiungi un upstream"
+      },
+      "step2": {
+        "hint": "Riconfigura con un clic la configurazione locale di Codex / Claude Code — i comandi di tutti i giorni passano da OmniCross.",
+        "title": "Abilita l'accesso CLI"
+      },
+      "step3": {
+        "hint": "Esegui codex o claude una volta e invia una richiesta; questa guida si nasconde appena compare traffico.",
+        "title": "Verifica in un terminale"
+      },
+      "title": "Avvio rapido"
+    },
+    "throughput": {
+      "providerAll": "Tutti",
+      "providerAria": "Filtra per provider"
     }
   }
 }

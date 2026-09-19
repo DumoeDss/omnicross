@@ -517,7 +517,7 @@
     "pricing": "Prețuri",
     "dashboard": "Dashboard",
     "images": "Imagini",
-"search": "Căutare"
+    "search": "Căutare"
   },
   "images": {
     "title": "Generare de imagini",
@@ -551,8 +551,8 @@
     "codex": {
       "title": "Suprascrieri Codex",
       "imageModel": "Model de imagine",
-      "carrierModel": "Model purt\u0103tor",
-      "hint": "C\u00e2mpurile golite revin la valorile implicite fixate (gpt-image-2 / gpt-5.6-luna)."
+      "carrierModel": "Model purtător",
+      "hint": "Câmpurile golite revin la valorile implicite fixate (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Matrice de funcții verificate",
@@ -585,24 +585,24 @@
     },
     "page": {
       "title": "Generarea imaginilor",
-      "description": "Rutarea modelelor, starea furnizorilor \u0219i endpoint-urile Images \u00eentr-un singur loc.",
-      "loading": "Se \u00eencarc\u0103 configura\u021bia imaginilor\u2026"
+      "description": "Rutarea modelelor, starea furnizorilor și endpoint-urile Images într-un singur loc.",
+      "loading": "Se încarcă configurația imaginilor…"
     },
     "providers": {
       "bootstrap": "bootstrap (neverificat)",
       "healthy": "Disponibil",
       "unhealthy": "Indisponibil",
       "evidence": "Dovezi proaspete acum {{age}} secunde.",
-      "noEvidence": "\u00cenc\u0103 f\u0103r\u0103 dovezi proaspete (bootstrap la prima cerere real\u0103).",
+      "noEvidence": "Încă fără dovezi proaspete (bootstrap la prima cerere reală).",
       "noModels": "Niciun model afirmat de dovezi proaspete."
     },
     "verify": {
       "title": "Verificare live",
-      "run": "Ruleaz\u0103 verificarea",
-      "running": "Se verific\u0103\u2026",
-      "warning": "\u26a0 Consum\u0103 cot\u0103 de abonament: va fi trimis\u0103 o cerere PNG minimal\u0103, de calitate sc\u0103zut\u0103.",
-      "codexOnly": "Acoper\u0103 doar linia Codex; furnizorul Antigravity nu are un verificator independent \u00een v1.",
-      "codexOnlyPlain": "Acoper\u0103 doar linia Codex.",
+      "run": "Rulează verificarea",
+      "running": "Se verifică…",
+      "warning": "⚠ Consumă cotă de abonament: va fi trimisă o cerere PNG minimală, de calitate scăzută.",
+      "codexOnly": "Acoperă doar linia Codex; furnizorul Antigravity nu are un verificator independent în v1.",
+      "codexOnlyPlain": "Acoperă doar linia Codex.",
       "success": "Verificat {{model}} ({{quality}}, {{format}}); dovezi proaspete: {{count}}."
     }
   },
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Selectați upstream-urile acestei chei și ordonați-le (ordinea = prioritate; intrările anterioare sunt deservite primele, cele ulterioare sunt rezerve în caz de eșec). Salvarea stochează întotdeauna selecția explicită; dacă nu selectați nimic, fiecare cerere este respinsă.",
+        "dialogTitle": "Editați legătura upstream pentru {{name}}",
+        "edit": "Legătură upstream",
+        "emptyCatalog": "Nu există upstream-uri disponibile — adăugați mai întâi un furnizor sau un abonament pe pagina \"Upstream-uri\".",
+        "mappingAdd": "Adăugați un rând de mapare",
+        "mappingDesc": "Numele modelului client → ID-ul modelului upstream. Numele exacte au prioritate față de metacaracterul *; default / background sunt rânduri de roluri (modelul de fundal Gemini); gol = trecere directă.",
+        "mappingEdit": "Mapări modele",
+        "mappingEffort": "Efort",
+        "mappingEmpty": "Nicio mapare — ID-ul modelului client este transmis ca atare.",
+        "mappingHint": "Cu mai multe rânduri, includeți un rând de rezervă *; rândurile de roluri default / background nu se potrivesc niciodată după nume.",
+        "mappingIncomplete": "Unele rânduri au nume de model client, dar fără ID de model upstream (sau invers). Completați sau ștergeți acele rânduri înainte de salvare — rândurile completate pe jumătate nu se salvează niciodată.",
+        "mappingSaveFailed": "Mapările nu au putut fi salvate",
+        "mappingSource": "Numele modelului client (ex.: claude-*)",
+        "mappingTarget": "ID-ul modelului upstream",
+        "mappingTitle": "Editați mapările modelelor pentru {{name}}",
+        "orderDown": "Mutare în jos",
+        "orderHint": "Selectați, apoi ordonați cu săgețile — intrările anterioare sunt deservite primele, cele ulterioare sunt rezerve în caz de eșec. Dacă nu selectați nimic, cheia se poate autentifica, dar fiecare cerere este respinsă.",
+        "orderUp": "Mutare în sus",
+        "summaryAll": "Toate upstream-urile selectate",
+        "summaryExplicit": "{{count}} upstream(uri)",
+        "summaryLegacy": "Rute downstream vechi",
+        "summaryNone": "Fără legătură (cererile sunt respinse)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Toate selectate",
+      "description": "Dacă o cheie de acces creată recent începe cu toate upstream-urile selectate sau cu niciunul (o cheie fără niciun upstream selectat respinge cererile).",
+      "label": "Selecția implicită de upstream pentru cheile noi",
+      "none": "Niciunul selectat"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Director de lucru",
       "cwdPlaceholder": "/cale/catre/proiect",
       "runningVia": "Rulează · {{provider}} / {{model}}",
-      "stop": "Oprire"
+      "stop": "Oprire",
+      "upgrade": "Actualizare",
+      "upgradeHint": "Verifică și instalează cea mai recentă lansare pe gazda daemon.",
+      "upgradeToHint": "Versiunea {{version}} este disponibilă — actualizați pe gazda daemon.",
+      "upgrading": "Se actualizează…",
+      "upgradingHint": "Reinstalare la cea mai recentă lansare pe gazda daemon — poate dura un minut."
     },
     "manual": {
       "title": "Configurare manuală",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licență",
       "licenseHint": "Omnicross este software liber și open source, publicat sub licența MIT.",
-      "author": "Autor"
+      "author": "Autor",
+      "diagnostics": {
+        "openFailed": "Nu s-a putut deschide folderul de jurnale: {{reason}}",
+        "openFolder": "Deschidere",
+        "openLogsFolder": "Deschide folderul de jurnale",
+        "openLogsFolderHint": "Afișează directorul logs/ al daemon-ului în managerul de fișiere."
+      }
     },
     "title": "Setări",
     "description": "Preferințe aplicație desktop.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "chiar acum",
       "overloadMinsAgo": "acum {{n}} min",
       "overloadHoursAgo": "acum {{n}} h"
+    },
+    "mappings": {
+      "count": "{{count}} mapare(ări)",
+      "edit": "Editare",
+      "loading": "Se încarcă catalogul de upstream-uri…",
+      "passthrough": "Trecere directă (fără mapări)",
+      "sectionDescription": "Numele modelului client → ID-ul modelului acestui upstream; un tabel gol transmite ID-ul modelului client ca atare.",
+      "sectionTitle": "Mapări modele"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Cotele conturilor"
+    },
+    "integrations": {
+      "enable": "Activare",
+      "enabling": "Se activează…",
+      "repair": "Reparare",
+      "repairing": "Se repară…"
+    },
+    "quickStart": {
+      "connect": "Conectează {{client}}",
+      "description": "Trei pași: adăugați un upstream → activați un CLI → verificați într-un terminal.",
+      "repairClient": "Repară {{client}}",
+      "step1": {
+        "action": "Adaugă upstream",
+        "hint": "Adăugați un cont cu abonament sau un furnizor BYO pentru a servi cererile dvs.",
+        "title": "Adăugați un upstream"
+      },
+      "step2": {
+        "hint": "Reconfigurați cu un singur clic configurația locală Codex / Claude Code — comenzile de zi cu zi trec prin OmniCross.",
+        "title": "Activați accesul CLI"
+      },
+      "step3": {
+        "hint": "Rulați codex sau claude o dată și trimiteți o cerere; acest ghid se ascunde singur după ce apare traficul.",
+        "title": "Verificați într-un terminal"
+      },
+      "title": "Pornire rapidă"
+    },
+    "throughput": {
+      "providerAll": "Toate",
+      "providerAria": "Filtrare după furnizor"
     }
   }
 }

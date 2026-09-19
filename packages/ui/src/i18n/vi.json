@@ -517,7 +517,7 @@
     "pricing": "Bảng giá",
     "dashboard": "Dashboard",
     "images": "Hình ảnh",
-"search": "Tìm kiếm"
+    "search": "Tìm kiếm"
   },
   "images": {
     "title": "Tạo hình ảnh",
@@ -543,16 +543,16 @@
       "strict": "Lựa chọn nghiêm ngặt",
       "poolFallback": "Cho phép dự phòng từ nhóm"
     },
-    "defaultModel": "M\u00f4 h\u00ecnh \u1ea3nh m\u1eb7c \u0111\u1ecbnh",
+    "defaultModel": "Mô hình ảnh mặc định",
     "routes": {
-      "title": "\u0110\u1ecbnh tuy\u1ebfn m\u00f4 h\u00ecnh",
-      "defaultBadge": "m\u1eb7c \u0111\u1ecbnh"
+      "title": "Định tuyến mô hình",
+      "defaultBadge": "mặc định"
     },
     "codex": {
-      "title": "Ghi \u0111\u00e8 Codex",
-      "imageModel": "M\u00f4 h\u00ecnh \u1ea3nh",
-      "carrierModel": "M\u00f4 h\u00ecnh mang",
-      "hint": "Tr\u01b0\u1eddng b\u1ecb x\u00f3a s\u1ebd tr\u1edf v\u1ec1 m\u1eb7c \u0111\u1ecbnh \u0111\u01b0\u1ee3c ghim (gpt-image-2 / gpt-5.6-luna)."
+      "title": "Ghi đè Codex",
+      "imageModel": "Mô hình ảnh",
+      "carrierModel": "Mô hình mang",
+      "hint": "Trường bị xóa sẽ trở về mặc định được ghim (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Ma trận tính năng đã xác minh",
@@ -584,26 +584,26 @@
       "privateDefault": "Hiện vật sử dụng bộ nhớ dữ liệu ứng dụng riêng của daemon."
     },
     "page": {
-      "title": "T\u1ea1o h\u00ecnh \u1ea3nh",
-      "description": "\u0110\u1ecbnh tuy\u1ebfn m\u00f4 h\u00ecnh, tr\u1ea1ng th\u00e1i nh\u00e0 cung c\u1ea5p v\u00e0 c\u00e1c endpoint Images t\u1ea1i m\u1ed9t n\u01a1i.",
-      "loading": "\u0110ang t\u1ea3i c\u1ea5u h\u00ecnh Images\u2026"
+      "title": "Tạo hình ảnh",
+      "description": "Định tuyến mô hình, trạng thái nhà cung cấp và các endpoint Images tại một nơi.",
+      "loading": "Đang tải cấu hình Images…"
     },
     "providers": {
-      "bootstrap": "bootstrap (ch\u01b0a x\u00e1c minh)",
-      "healthy": "Kh\u1ea3 d\u1ee5ng",
-      "unhealthy": "Kh\u00f4ng kh\u1ea3 d\u1ee5ng",
-      "evidence": "B\u1eb1ng ch\u1ee9ng m\u1edbi {{age}} gi\u00e2y tr\u01b0\u1edbc.",
-      "noEvidence": "Ch\u01b0a c\u00f3 b\u1eb1ng ch\u1ee9ng m\u1edbi (bootstrap \u1edf y\u00eau c\u1ea7u th\u1ef1c \u0111\u1ea7u ti\u00ean).",
-      "noModels": "Kh\u00f4ng c\u00f3 m\u00f4 h\u00ecnh n\u00e0o \u0111\u01b0\u1ee3c b\u1eb1ng ch\u1ee9ng m\u1edbi kh\u1eb3ng \u0111\u1ecbnh."
+      "bootstrap": "bootstrap (chưa xác minh)",
+      "healthy": "Khả dụng",
+      "unhealthy": "Không khả dụng",
+      "evidence": "Bằng chứng mới {{age}} giây trước.",
+      "noEvidence": "Chưa có bằng chứng mới (bootstrap ở yêu cầu thực đầu tiên).",
+      "noModels": "Không có mô hình nào được bằng chứng mới khẳng định."
     },
     "verify": {
-      "title": "X\u00e1c minh tr\u1ef1c ti\u1ebfp",
-      "run": "Ch\u1ea1y x\u00e1c minh",
-      "running": "\u0110ang x\u00e1c minh\u2026",
-      "warning": "\u26a0 Ti\u00eau t\u1ed1n h\u1ea1n m\u1ee9c \u0111\u0103ng k\u00fd: s\u1ebd g\u1eedi m\u1ed9t y\u00eau c\u1ea7u PNG t\u1ed1i thi\u1ec3u ch\u1ea5t l\u01b0\u1ee3ng th\u1ea5p.",
-      "codexOnly": "Ch\u1ec9 \u00e1p d\u1ee5ng \u0111\u01b0\u1eddng truy\u1ec1n Codex; nh\u00e0 cung c\u1ea5p Antigravity ch\u01b0a c\u00f3 tr\u00ecnh x\u00e1c minh \u0111\u1ed9c l\u1eadp trong v1.",
-      "codexOnlyPlain": "Ch\u1ec9 \u00e1p d\u1ee5ng \u0111\u01b0\u1eddng truy\u1ec1n Codex.",
-      "success": "\u0110\u00e3 x\u00e1c minh {{model}} ({{quality}}, {{format}}); m\u1ee5c b\u1eb1ng ch\u1ee9ng m\u1edbi: {{count}}."
+      "title": "Xác minh trực tiếp",
+      "run": "Chạy xác minh",
+      "running": "Đang xác minh…",
+      "warning": "⚠ Tiêu tốn hạn mức đăng ký: sẽ gửi một yêu cầu PNG tối thiểu chất lượng thấp.",
+      "codexOnly": "Chỉ áp dụng đường truyền Codex; nhà cung cấp Antigravity chưa có trình xác minh độc lập trong v1.",
+      "codexOnlyPlain": "Chỉ áp dụng đường truyền Codex.",
+      "success": "Đã xác minh {{model}} ({{quality}}, {{format}}); mục bằng chứng mới: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Chọn upstream cho key này và sắp xếp thứ tự (thứ tự = mức ưu tiên; mục trước được dùng trước, mục sau là ứng viên dự phòng). Khi lưu, lựa chọn tường minh luôn được ghi lại; không chọn gì thì mọi request bị từ chối.",
+        "dialogTitle": "Chỉnh sửa liên kết upstream cho {{name}}",
+        "edit": "Liên kết upstream",
+        "emptyCatalog": "Chưa có upstream nào — hãy thêm provider hoặc subscription trên trang Upstreams trước.",
+        "mappingAdd": "Thêm hàng ánh xạ",
+        "mappingDesc": "Tên mô hình client → ID mô hình upstream. Tên chính xác ưu tiên hơn * wildcard; default / background là hàng vai trò (mô hình background của Gemini); để trống = passthrough.",
+        "mappingEdit": "Ánh xạ mô hình",
+        "mappingEffort": "Mức suy luận",
+        "mappingEmpty": "Chưa có ánh xạ — ID mô hình của client được chuyển tiếp nguyên vẹn.",
+        "mappingHint": "Nếu có nhiều hàng, hãy thêm một hàng * dự phòng; các hàng vai trò default / background không bao giờ khớp theo tên.",
+        "mappingIncomplete": "Một số hàng có tên mô hình client nhưng thiếu ID mô hình upstream (hoặc ngược lại). Hãy điền hoặc xóa các hàng đó trước khi lưu — hàng điền dở không bao giờ được lưu.",
+        "mappingSaveFailed": "Không thể lưu ánh xạ",
+        "mappingSource": "Tên mô hình client (ví dụ: claude-*)",
+        "mappingTarget": "ID mô hình upstream",
+        "mappingTitle": "Chỉnh sửa ánh xạ mô hình cho {{name}}",
+        "orderDown": "Chuyển xuống",
+        "orderHint": "Chọn rồi sắp xếp bằng các mũi tên — mục trước được dùng trước, mục sau là ứng viên dự phòng. Không chọn gì thì key vẫn xác thực được nhưng mọi request đều bị từ chối.",
+        "orderUp": "Chuyển lên",
+        "summaryAll": "Đã chọn tất cả upstream",
+        "summaryExplicit": "{{count}} upstream",
+        "summaryLegacy": "Tuyến downstream kiểu cũ",
+        "summaryNone": "Chưa liên kết (request bị từ chối)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Chọn tất cả",
+      "description": "Access key mới tạo sẽ bắt đầu với tất cả upstream được chọn hay không chọn gì (key không chọn upstream nào sẽ từ chối request).",
+      "label": "Lựa chọn upstream mặc định cho key mới",
+      "none": "Không chọn gì"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Thư mục làm việc",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Đang chạy · {{provider}} / {{model}}",
-      "stop": "Dừng"
+      "stop": "Dừng",
+      "upgrade": "Nâng cấp",
+      "upgradeHint": "Kiểm tra và cài đặt bản phát hành mới nhất trên máy daemon.",
+      "upgradeToHint": "Đã có phiên bản {{version}} — hãy nâng cấp trên máy daemon.",
+      "upgrading": "Đang nâng cấp…",
+      "upgradingHint": "Đang cài đặt lại bản phát hành mới nhất trên máy daemon — có thể mất khoảng một phút."
     },
     "manual": {
       "title": "Cài đặt thủ công",
@@ -1202,7 +1237,13 @@
       },
       "license": "Giấy phép",
       "licenseHint": "Omnicross là phần mềm tự do mã nguồn mở được phát hành theo giấy phép MIT.",
-      "author": "Tác giả"
+      "author": "Tác giả",
+      "diagnostics": {
+        "openFailed": "Không thể mở thư mục nhật ký: {{reason}}",
+        "openFolder": "Mở",
+        "openLogsFolder": "Mở thư mục nhật ký",
+        "openLogsFolderHint": "Hiện thư mục logs/ của daemon trong trình quản lý tệp của bạn."
+      }
     },
     "title": "Cài đặt",
     "description": "Tùy chọn ứng dụng desktop.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "vừa xong",
       "overloadMinsAgo": "{{n}} phút trước",
       "overloadHoursAgo": "{{n}} giờ trước"
+    },
+    "mappings": {
+      "count": "{{count}} ánh xạ",
+      "edit": "Chỉnh sửa",
+      "loading": "Đang tải danh mục upstream…",
+      "passthrough": "Passthrough (không có ánh xạ)",
+      "sectionDescription": "Tên mô hình client → ID mô hình của upstream này; bảng trống nghĩa là ID mô hình của client được chuyển tiếp nguyên vẹn.",
+      "sectionTitle": "Ánh xạ mô hình"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Hạn mức tài khoản"
+    },
+    "integrations": {
+      "enable": "Bật",
+      "enabling": "Đang bật…",
+      "repair": "Sửa chữa",
+      "repairing": "Đang sửa chữa…"
+    },
+    "quickStart": {
+      "connect": "Kết nối {{client}}",
+      "description": "Ba bước: thêm upstream → bật CLI → xác minh trong terminal.",
+      "repairClient": "Sửa chữa {{client}}",
+      "step1": {
+        "action": "Thêm upstream",
+        "hint": "Thêm tài khoản subscription hoặc BYO provider để phục vụ các request của bạn.",
+        "title": "Thêm upstream"
+      },
+      "step2": {
+        "hint": "Đổi cấu hình cục bộ của Codex / Claude Code chỉ với một cú nhấp — các lệnh hằng ngày sẽ đi qua OmniCross.",
+        "title": "Bật truy cập CLI"
+      },
+      "step3": {
+        "hint": "Chạy codex hoặc claude một lần để gửi request; hướng dẫn này sẽ tự ẩn khi có traffic.",
+        "title": "Xác minh trong terminal"
+      },
+      "title": "Bắt đầu nhanh"
+    },
+    "throughput": {
+      "providerAll": "Tất cả",
+      "providerAria": "Lọc theo nhà cung cấp"
     }
   }
 }

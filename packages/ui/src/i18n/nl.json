@@ -517,7 +517,7 @@
     "pricing": "Prijzen",
     "dashboard": "Dashboard",
     "images": "Afbeeldingen",
-"search": "Zoeken"
+    "search": "Zoeken"
   },
   "images": {
     "title": "Afbeeldingen genereren",
@@ -585,8 +585,8 @@
     },
     "page": {
       "title": "Afbeeldinggeneratie",
-      "description": "Modelroutering, aanbiederstatus en de Images-endpoints op \u00e9\u00e9n plek.",
-      "loading": "Images-configuratie laden\u2026"
+      "description": "Modelroutering, aanbiederstatus en de Images-endpoints op één plek.",
+      "loading": "Images-configuratie laden…"
     },
     "providers": {
       "bootstrap": "bootstrap (ongeverifieerd)",
@@ -599,8 +599,8 @@
     "verify": {
       "title": "Live-verificatie",
       "run": "Verificatie uitvoeren",
-      "running": "Verifi\u00ebren\u2026",
-      "warning": "\u26a0 Verbruikt abonnementsquotum: \u00e9\u00e9n minimale PNG-verzoek in lage kwaliteit wordt verzonden.",
+      "running": "Verifiëren…",
+      "warning": "⚠ Verbruikt abonnementsquotum: één minimale PNG-verzoek in lage kwaliteit wordt verzonden.",
       "codexOnly": "Dekt alleen de Codex-lijn; de Antigravity-aanbieder heeft geen onafhankelijke verificateur in v1.",
       "codexOnlyPlain": "Dekt alleen de Codex-lijn.",
       "success": "{{model}} geverifieerd ({{quality}}, {{format}}); verse bewijzen: {{count}}."
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Selecteer de upstreams van deze sleutel en bepaal de volgorde (volgorde = prioriteit; eerdere items worden eerst gebruikt, latere dienen als terugvaloptie). Bij opslaan wordt altijd de expliciete selectie opgeslagen; zonder selectie wordt elk verzoek geweigerd.",
+        "dialogTitle": "Upstream-koppeling van {{name}} bewerken",
+        "edit": "Upstream-koppeling",
+        "emptyCatalog": "Geen upstreams beschikbaar — voeg eerst een provider of abonnement toe op de pagina Upstreams.",
+        "mappingAdd": "Toewijzingsrij toevoegen",
+        "mappingDesc": "Modelnaam van de client → model-id van de upstream. Exacte namen gaan vóór *-jokertekens; default / background zijn rolrijen (Gemini background model); leeg = doorvoer.",
+        "mappingEdit": "Modeltoewijzingen",
+        "mappingEffort": "Effort",
+        "mappingEmpty": "Geen toewijzingen — de model-id van de client wordt ongewijzigd doorgestuurd.",
+        "mappingHint": "Bij meerdere rijen: voeg een *-terugvalrij toe; de rolrijen default / background komen nooit op naam overeen.",
+        "mappingIncomplete": "Sommige rijen hebben een modelnaam van de client maar geen model-id van de upstream (of andersom). Vul die rijen aan of verwijder ze vóór het opslaan — half ingevulde rijen worden nooit opgeslagen.",
+        "mappingSaveFailed": "Opslaan van toewijzingen mislukt",
+        "mappingSource": "Modelnaam van de client (bijv. claude-*)",
+        "mappingTarget": "Model-id van de upstream",
+        "mappingTitle": "Modeltoewijzingen van {{name}} bewerken",
+        "orderDown": "Omlaag verplaatsen",
+        "orderHint": "Selecteer en rangschik met de pijlen — eerdere items worden eerst gebruikt, latere dienen als terugvaloptie. Zonder selectie kan de sleutel zich nog steeds authenticeren, maar elk verzoek wordt geweigerd.",
+        "orderUp": "Omhoog verplaatsen",
+        "summaryAll": "Alle upstreams geselecteerd",
+        "summaryExplicit": "{{count}} upstreams",
+        "summaryLegacy": "Verouderde downstream-routes",
+        "summaryNone": "Niet gekoppeld (verzoeken geweigerd)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Alle geselecteerd",
+      "description": "Of een nieuw aangemaakte toegangssleutel met alle upstreams geselecteerd start of met geen enkele (een sleutel zonder geselecteerde upstream wijst verzoeken af).",
+      "label": "Standaardselectie van upstreams voor nieuwe sleutels",
+      "none": "Niets geselecteerd"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Werkmap",
       "cwdPlaceholder": "/pad/naar/uw/project",
       "runningVia": "Actief · {{provider}} / {{model}}",
-      "stop": "Stoppen"
+      "stop": "Stoppen",
+      "upgrade": "Upgraden",
+      "upgradeHint": "Zoek de nieuwste release op en installeer deze op de daemonhost.",
+      "upgradeToHint": "Versie {{version}} is beschikbaar — upgrade op de daemonhost.",
+      "upgrading": "Upgraden…",
+      "upgradingHint": "Opnieuw installeren in de nieuwste release op de daemonhost — dit kan even duren."
     },
     "manual": {
       "title": "Handmatige installatie",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licentie",
       "licenseHint": "Omnicross is vrije open-sourcesoftware, uitgebracht onder de MIT-licentie.",
-      "author": "Auteur"
+      "author": "Auteur",
+      "diagnostics": {
+        "openFailed": "Kan de logboekmap niet openen: {{reason}}",
+        "openFolder": "Openen",
+        "openLogsFolder": "Logboekmap openen",
+        "openLogsFolderHint": "Toont de map logs/ van de daemon in uw bestandsverkenner."
+      }
     },
     "title": "Instellingen",
     "description": "Voorkeuren voor desktopapplicatie.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "zojuist",
       "overloadMinsAgo": "{{n}} min geleden",
       "overloadHoursAgo": "{{n}} u geleden"
+    },
+    "mappings": {
+      "count": "{{count}} toewijzing(en)",
+      "edit": "Bewerken",
+      "loading": "Upstreamcatalogus laden…",
+      "passthrough": "Doorvoer (geen toewijzingen)",
+      "sectionDescription": "Modelnaam van de client → model-id van deze upstream; een lege tabel geeft de model-id van de client ongewijzigd door.",
+      "sectionTitle": "Modeltoewijzingen"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Accountquota's"
+    },
+    "integrations": {
+      "enable": "Inschakelen",
+      "enabling": "Inschakelen…",
+      "repair": "Repareren",
+      "repairing": "Repareren…"
+    },
+    "quickStart": {
+      "connect": "{{client}} verbinden",
+      "description": "Drie stappen: voeg een upstream toe → schakel een CLI in → controleer in een terminal.",
+      "repairClient": "{{client}} repareren",
+      "step1": {
+        "action": "Upstream toevoegen",
+        "hint": "Voeg een abonnementsaccount of een BYO provider toe om uw verzoeken af te handelen.",
+        "title": "Een upstream toevoegen"
+      },
+      "step2": {
+        "hint": "Koppel de lokale configuratie van Codex / Claude Code met één klik opnieuw — alledaagse opdrachten lopen via OmniCross.",
+        "title": "CLI-toegang inschakelen"
+      },
+      "step3": {
+        "hint": "Voer codex of claude eenmaal uit en verstuur een verzoek; deze gids verbergt zichzelf zodra er verkeer verschijnt.",
+        "title": "Controleer in een terminal"
+      },
+      "title": "Snelstart"
+    },
+    "throughput": {
+      "providerAll": "Alle",
+      "providerAria": "Filteren op provider"
     }
   }
 }

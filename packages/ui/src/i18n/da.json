@@ -517,7 +517,7 @@
     "pricing": "Priser",
     "dashboard": "Dashboard",
     "images": "Billeder",
-"search": "Søgning"
+    "search": "Søgning"
   },
   "images": {
     "title": "Billedgenerering",
@@ -549,9 +549,9 @@
       "defaultBadge": "standard"
     },
     "codex": {
-      "title": "Codex-tilsides\u00e6ttelser",
+      "title": "Codex-tilsidesættelser",
       "imageModel": "Billedmodel",
-      "carrierModel": "B\u00e6rermodel",
+      "carrierModel": "Bærermodel",
       "hint": "Rydde felter falder tilbage til de fastgjorte standarder (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
@@ -585,24 +585,24 @@
     },
     "page": {
       "title": "Billedgenerering",
-      "description": "Modelruting, udbydertilstand og Images-endpoints samlet \u00e9t sted.",
-      "loading": "Indl\u00e6ser billedkonfiguration\u2026"
+      "description": "Modelruting, udbydertilstand og Images-endpoints samlet ét sted.",
+      "loading": "Indlæser billedkonfiguration…"
     },
     "providers": {
       "bootstrap": "bootstrap (uverificeret)",
-      "healthy": "Tilg\u00e6ngelig",
-      "unhealthy": "Utilg\u00e6ngelig",
+      "healthy": "Tilgængelig",
+      "unhealthy": "Utilgængelig",
       "evidence": "Friske beviser for {{age}} sekunder siden.",
-      "noEvidence": "Ingen friske beviser endnu (bootstrap ved f\u00f8rste rigtige anmodning).",
-      "noModels": "Ingen modeller bekr\u00e6ftet af friske beviser."
+      "noEvidence": "Ingen friske beviser endnu (bootstrap ved første rigtige anmodning).",
+      "noModels": "Ingen modeller bekræftet af friske beviser."
     },
     "verify": {
       "title": "Live-verifikation",
-      "run": "K\u00f8r verifikation",
-      "running": "Verificerer\u2026",
-      "warning": "\u26a0 Forbruger abonnementskvote: \u00e9n minimal PNG-anmodning i lav kvalitet sendes.",
-      "codexOnly": "D\u00e6kker kun Codex-linjen; Antigravity-udbyderen har ingen selvst\u00e6ndig verifikator i v1.",
-      "codexOnlyPlain": "D\u00e6kker kun Codex-linjen.",
+      "run": "Kør verifikation",
+      "running": "Verificerer…",
+      "warning": "⚠ Forbruger abonnementskvote: én minimal PNG-anmodning i lav kvalitet sendes.",
+      "codexOnly": "Dækker kun Codex-linjen; Antigravity-udbyderen har ingen selvstændig verifikator i v1.",
+      "codexOnlyPlain": "Dækker kun Codex-linjen.",
       "success": "Verificeret {{model}} ({{quality}}, {{format}}); friske beviser: {{count}}."
     }
   },
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Vælg denne nøgles opstrømme og rækkefør dem (rækkefølge = prioritet; tidligere poster betjenes først, senere er fallback-kandidater). Ved gemning gemmes altid det eksplicitte valg; vælges ingen, afvises alle anmodninger.",
+        "dialogTitle": "Redigér opstrømskobling for {{name}}",
+        "edit": "Opstrømskobling",
+        "emptyCatalog": "Ingen opstrømme tilgængelige — tilføj først en udbyder eller et abonnement på siden Opstrømme.",
+        "mappingAdd": "Tilføj tilknytningsrække",
+        "mappingDesc": "Klientens modelnavn → opstrømmens model-id. Præcise navne slår *-jokertegn; default / background er rolle-rækker (Gemini background model); tom = videregivelse.",
+        "mappingEdit": "Modeltilknytninger",
+        "mappingEffort": "Indsats",
+        "mappingEmpty": "Ingen tilknytninger — klientens model-id videresendes uændret.",
+        "mappingHint": "Med flere rækker: medtag en *-fallback-række; rolle-rækkerne default / background matcher aldrig på navn.",
+        "mappingIncomplete": "Nogle rækker har et klientmodelnavn men intet opstrøms model-id (eller omvendt). Udfyld eller slet disse rækker, inden du gemmer — halvt udfyldte rækker gemmes aldrig.",
+        "mappingSaveFailed": "Kunne ikke gemme tilknytninger",
+        "mappingSource": "Klientens modelnavn (f.eks. claude-*)",
+        "mappingTarget": "Opstrømmens model-id",
+        "mappingTitle": "Redigér modeltilknytninger for {{name}}",
+        "orderDown": "Flyt ned",
+        "orderHint": "Vælg og rækkefør med pilene — tidligere poster betjenes først, senere er fallback-kandidater. Uden valg kan nøglen stadig autentificere, men alle anmodninger afvises.",
+        "orderUp": "Flyt op",
+        "summaryAll": "Alle opstrømme valgt",
+        "summaryExplicit": "{{count}} opstrømme",
+        "summaryLegacy": "Ældre nedstrømsruter",
+        "summaryNone": "Ikke koblet (anmodninger afvises)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Alle valgt",
+      "description": "Hvorvidt en nyoprettet adgangsnøgle starter med alle opstrømme valgt eller ingen (en nøgle uden valgt opstrøm afviser anmodninger).",
+      "label": "Standardvalg af opstrømme for nye nøgler",
+      "none": "Intet valgt"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Arbejdsmappe",
       "cwdPlaceholder": "/sti/til/dit/projekt",
       "runningVia": "Kører · {{provider}} / {{model}}",
-      "stop": "Stop"
+      "stop": "Stop",
+      "upgrade": "Opgradér",
+      "upgradeHint": "Søg efter og installér den nyeste udgivelse på dæmonværten.",
+      "upgradeToHint": "Version {{version}} er tilgængelig — opgradér på dæmonværten.",
+      "upgrading": "Opgraderer…",
+      "upgradingHint": "Installerer igen i den nyeste udgivelse på dæmonværten — dette kan tage et øjeblik."
     },
     "manual": {
       "title": "Manuel opsætning",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licens",
       "licenseHint": "Omnicross er fri open source-software, udgivet under MIT-licensen.",
-      "author": "Forfatter"
+      "author": "Forfatter",
+      "diagnostics": {
+        "openFailed": "Kunne ikke åbne logmappen: {{reason}}",
+        "openFolder": "Åbn",
+        "openLogsFolder": "Åbn logmappe",
+        "openLogsFolderHint": "Viser dæmonens mappe logs/ i din filhåndtering."
+      }
     },
     "title": "Indstillinger",
     "description": "Præferencer for desktopapplicationen.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "lige nu",
       "overloadMinsAgo": "{{n}} min siden",
       "overloadHoursAgo": "{{n}} t siden"
+    },
+    "mappings": {
+      "count": "{{count}} tilknytning(er)",
+      "edit": "Rediger",
+      "loading": "Indlæser opstrømskataloget…",
+      "passthrough": "Videregivelse (ingen tilknytninger)",
+      "sectionDescription": "Klientens modelnavn → opstrømmens model-id; en tom tabel sender klientens model-id uændret videre.",
+      "sectionTitle": "Modeltilknytninger"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Kontokvoter"
+    },
+    "integrations": {
+      "enable": "Aktivér",
+      "enabling": "Aktiverer…",
+      "repair": "Reparér",
+      "repairing": "Reparerer…"
+    },
+    "quickStart": {
+      "connect": "Forbind {{client}}",
+      "description": "Tre trin: tilføj en opstrøm → aktivér en CLI → verificér i en terminal.",
+      "repairClient": "Reparér {{client}}",
+      "step1": {
+        "action": "Tilføj opstrøm",
+        "hint": "Tilføj en abonnementskonto eller en BYO provider, der skal betjene dine anmodninger.",
+        "title": "Tilføj en opstrøm"
+      },
+      "step2": {
+        "hint": "Omkonfigurér Codex / Claude Codes lokale konfiguration med ét klik — daglige kommandoer går via OmniCross.",
+        "title": "Aktivér CLI-adgang"
+      },
+      "step3": {
+        "hint": "Kør codex eller claude én gang og send en anmodning; vejledningen skjuler sig selv, så snart der kommer trafik.",
+        "title": "Verificér i en terminal"
+      },
+      "title": "Hurtig start"
+    },
+    "throughput": {
+      "providerAll": "Alle",
+      "providerAria": "Filtrér efter udbyder"
     }
   }
 }

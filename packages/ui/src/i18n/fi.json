@@ -517,7 +517,7 @@
     "pricing": "Hinnat",
     "dashboard": "Dashboard",
     "images": "Kuvat",
-"search": "Haku"
+    "search": "Haku"
   },
   "images": {
     "title": "Kuvien luonti",
@@ -552,7 +552,7 @@
       "title": "Codex-ohitukset",
       "imageModel": "Kuvamalli",
       "carrierModel": "Kantajamalli",
-      "hint": "Tyhjennetyt kent\u00e4t palaavat kiinnitettyihin oletusarvoihin (gpt-image-2 / gpt-5.6-luna)."
+      "hint": "Tyhjennetyt kentät palaavat kiinnitettyihin oletusarvoihin (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Vahvistettu ominaisuusmatriisi",
@@ -585,23 +585,23 @@
     },
     "page": {
       "title": "Kuvien luonti",
-      "description": "Mallien reititys, palveluntarjoajien tila ja Images-p\u00e4\u00e4tepisteet yhdess\u00e4 paikassa.",
-      "loading": "Ladataan kuvien asetuksia\u2026"
+      "description": "Mallien reititys, palveluntarjoajien tila ja Images-päätepisteet yhdessä paikassa.",
+      "loading": "Ladataan kuvien asetuksia…"
     },
     "providers": {
-      "bootstrap": "k\u00e4ynnistys (varmentamaton)",
-      "healthy": "K\u00e4ytett\u00e4viss\u00e4",
-      "unhealthy": "Ei k\u00e4ytett\u00e4viss\u00e4",
+      "bootstrap": "käynnistys (varmentamaton)",
+      "healthy": "Käytettävissä",
+      "unhealthy": "Ei käytettävissä",
       "evidence": "Tuoreita todisteita {{age}} sekuntia sitten.",
-      "noEvidence": "Ei viel\u00e4 tuoreita todisteita (k\u00e4ynnistys ensimm\u00e4isell\u00e4 oikealla pyynn\u00f6ll\u00e4).",
+      "noEvidence": "Ei vielä tuoreita todisteita (käynnistys ensimmäisellä oikealla pyynnöllä).",
       "noModels": "Ei malleja, jotka tuoreet todisteet vahvistaisivat."
     },
     "verify": {
       "title": "Suora varmennus",
       "run": "Suorita varmennus",
-      "running": "Varmennetaan\u2026",
-      "warning": "\u26a0 Kuluttaa tilauskiinti\u00f6t\u00e4: l\u00e4hetet\u00e4\u00e4n yksi minimaalinen pienlaatuinen PNG-pyynt\u00f6.",
-      "codexOnly": "Kattaa vain Codex-linjan; Antigravity-palveluntarjoajalla ei ole itsen\u00e4ist\u00e4 varmistinta v1:ss\u00e4.",
+      "running": "Varmennetaan…",
+      "warning": "⚠ Kuluttaa tilauskiintiötä: lähetetään yksi minimaalinen pienlaatuinen PNG-pyyntö.",
+      "codexOnly": "Kattaa vain Codex-linjan; Antigravity-palveluntarjoajalla ei ole itsenäistä varmistinta v1:ssä.",
       "codexOnlyPlain": "Kattaa vain Codex-linjan.",
       "success": "Varmennettu {{model}} ({{quality}}, {{format}}); tuoreita todisteita: {{count}}."
     }
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Valitse tämän avaimen upstreamit ja järjestä ne (järjestys = prioriteetti; aiemmat rivit palvelevat ensin, myöhemmät ovat varavaihtoehtoja). Tallennettaessa tallennetaan aina eksplisiittinen valinta; jos mitään ei valitse, kaikki pyynnöt hylätään.",
+        "dialogTitle": "Muokkaa kohteen {{name}} upstream-sidontaa",
+        "edit": "Upstream-sidonta",
+        "emptyCatalog": "Upstreameja ei ole käytettävissä — lisää ensin palveluntarjoaja tai tilaus Upstreamit-sivulla.",
+        "mappingAdd": "Lisää mappausrivi",
+        "mappingDesc": "Asiakkaan mallin nimi → upstreamin mallitunnus. Tarkat nimet voittavat *-jokerimerkit; default / background ovat roolirivejä (Geminin background-malli); tyhjä = läpivienti.",
+        "mappingEdit": "Mallimappaukset",
+        "mappingEffort": "Ponnistus",
+        "mappingEmpty": "Ei mappauksia — asiakkaan mallitunnus välitetään sellaisenaan.",
+        "mappingHint": "Jos rivejä on useita, lisää *-vararivi; roolirivit default / background eivät koskaan täsmää nimen perusteella.",
+        "mappingIncomplete": "Joillakin riveillä on asiakkaan mallin nimi mutta ei upstreamin mallitunnusta (tai päinvastoin). Täytä tai poista nämä rivit ennen tallentamista — puoliksi täytettyjä rivejä ei koskaan tallenneta.",
+        "mappingSaveFailed": "Mappausten tallentaminen epäonnistui",
+        "mappingSource": "Asiakkaan mallin nimi (esim. claude-*)",
+        "mappingTarget": "Upstreamin mallitunnus",
+        "mappingTitle": "Muokkaa kohteen {{name}} mallimappauksia",
+        "orderDown": "Siirrä alas",
+        "orderHint": "Valitse ja järjestä nuolilla — aiemmat rivit palvelevat ensin, myöhemmät ovat varavaihtoehtoja. Jos mitään ei valita, avain voi yhä todentautua, mutta kaikki pyynnöt hylätään.",
+        "orderUp": "Siirrä ylös",
+        "summaryAll": "Kaikki upstreamit valittu",
+        "summaryExplicit": "{{count}} upstreamia",
+        "summaryLegacy": "Vanhat alavirtareitit",
+        "summaryNone": "Ei sidottu (pyynnöt hylätään)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Kaikki valittu",
+      "description": "Valitseeko vasta luotu käyttöavain kaikki upstreamit vai ei mitään (avain ilman valittua upstreamia hylkää pyynnöt).",
+      "label": "Uusien avainten upstream-oletusvalinta",
+      "none": "Ei yhtään valittu"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Työhakemisto",
       "cwdPlaceholder": "/polku/projektillesi",
       "runningVia": "Käynnissä · {{provider}} / {{model}}",
-      "stop": "Pysäytä"
+      "stop": "Pysäytä",
+      "upgrade": "Päivitä",
+      "upgradeHint": "Etsi uusin julkaisu ja asenna se demonin isäntäkoneelle.",
+      "upgradeToHint": "Versio {{version}} on saatavilla — päivitä demonin isäntäkoneella.",
+      "upgrading": "Päivitetään…",
+      "upgradingHint": "Asennetaan uudelleen uusin julkaisu demonin isäntäkoneelle — tämä voi kestää hetken."
     },
     "manual": {
       "title": "Manuaalinen asetus",
@@ -1202,7 +1237,13 @@
       },
       "license": "Lisenssi",
       "licenseHint": "Omnicross on vapaa avoimen lähdekoodin ohjelmisto, joka julkaistaan MIT-lisenssillä.",
-      "author": "Tekijä"
+      "author": "Tekijä",
+      "diagnostics": {
+        "openFailed": "Lokikansiota ei voitu avata: {{reason}}",
+        "openFolder": "Avaa",
+        "openLogsFolder": "Avaa lokikansio",
+        "openLogsFolderHint": "Näyttää demonin logs/-kansion tiedostonhallinnassa."
+      }
     },
     "title": "Asetukset",
     "description": "Työpöytäsovelluksen asetukset.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "juuri nyt",
       "overloadMinsAgo": "{{n}} min sitten",
       "overloadHoursAgo": "{{n}} t sitten"
+    },
+    "mappings": {
+      "count": "{{count}} mappausta",
+      "edit": "Muokkaa",
+      "loading": "Ladataan upstream-luetteloa…",
+      "passthrough": "Läpivienti (ei mappauksia)",
+      "sectionDescription": "Asiakkaan mallin nimi → tämän upstreamin mallitunnus; tyhjä taulukko välittää asiakkaan mallitunnuksen sellaisenaan.",
+      "sectionTitle": "Mallimappaukset"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Tilien kiintiöt"
+    },
+    "integrations": {
+      "enable": "Ota käyttöön",
+      "enabling": "Otetaan käyttöön…",
+      "repair": "Korjaa",
+      "repairing": "Korjataan…"
+    },
+    "quickStart": {
+      "connect": "Yhdistä {{client}}",
+      "description": "Kolme vaihetta: lisää upstream → ota CLI käyttöön → varmista päätteessä.",
+      "repairClient": "Korjaa {{client}}",
+      "step1": {
+        "action": "Lisää upstream",
+        "hint": "Lisää tilauspohjainen tili tai BYO-palveluntarjoaja palvelemaan pyyntöjäsi.",
+        "title": "Lisää upstream"
+      },
+      "step2": {
+        "hint": "Määritä Codexin / Claude Coden paikallinen kokoonpano uudelleen yhdellä napsautuksella — tavalliset komennot kulkevat OmniCrossin kautta.",
+        "title": "Ota CLI-käyttö käyttöön"
+      },
+      "step3": {
+        "hint": "Suorita codex tai claude kerran ja lähetä pyyntö; tämä opas piiloutuu itsestään, kun liikennettä alkaa näkyä.",
+        "title": "Varmista päätteessä"
+      },
+      "title": "Pika-aloitus"
+    },
+    "throughput": {
+      "providerAll": "Kaikki",
+      "providerAria": "Suodata palveluntarjoajan mukaan"
     }
   }
 }

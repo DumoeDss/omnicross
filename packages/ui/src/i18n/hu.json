@@ -517,7 +517,7 @@
     "pricing": "Árak",
     "dashboard": "Dashboard",
     "images": "Képek",
-"search": "Keresés"
+    "search": "Keresés"
   },
   "images": {
     "title": "Képgenerálás",
@@ -543,16 +543,16 @@
       "strict": "Szigorú kiválasztás",
       "poolFallback": "Tartalék választás engedélyezése a készletből"
     },
-    "defaultModel": "Alap\u00e9rtelmezett k\u00e9pmodell",
+    "defaultModel": "Alapértelmezett képmodell",
     "routes": {
-      "title": "Modell-\u00fatv\u00e1laszt\u00e1s",
-      "defaultBadge": "alap\u00e9rtelmezett"
+      "title": "Modell-útválasztás",
+      "defaultBadge": "alapértelmezett"
     },
     "codex": {
-      "title": "Codex-fel\u00fclb\u00edr\u00e1l\u00e1sok",
-      "imageModel": "K\u00e9pmodell",
-      "carrierModel": "Hordoz\u00f3modell",
-      "hint": "A t\u00f6r\u00f6lt mez\u0151k a r\u00f6gz\u00edtett alap\u00e9rt\u00e9kekre \u00e1llnak vissza (gpt-image-2 / gpt-5.6-luna)."
+      "title": "Codex-felülbírálások",
+      "imageModel": "Képmodell",
+      "carrierModel": "Hordozómodell",
+      "hint": "A törölt mezők a rögzített alapértékekre állnak vissza (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Ellenőrzött funkciómátrix",
@@ -584,26 +584,26 @@
       "privateDefault": "A műtermékek a daemon privát alkalmazásadat-tárhelyét használják."
     },
     "page": {
-      "title": "K\u00e9pgener\u00e1l\u00e1s",
-      "description": "Modell-\u00fatv\u00e1laszt\u00e1s, szolg\u00e1ltat\u00f3k \u00e1llapota \u00e9s az Images-v\u00e9gpontok egy helyen.",
-      "loading": "K\u00e9pbe\u00e1ll\u00edt\u00e1sok bet\u00f6lt\u00e9se\u2026"
+      "title": "Képgenerálás",
+      "description": "Modell-útválasztás, szolgáltatók állapota és az Images-végpontok egy helyen.",
+      "loading": "Képbeállítások betöltése…"
     },
     "providers": {
-      "bootstrap": "bootstrap (nem ellen\u0151rz\u00f6tt)",
-      "healthy": "El\u00e9rhet\u0151",
-      "unhealthy": "Nem el\u00e9rhet\u0151",
-      "evidence": "Friss bizony\u00edt\u00e9k {{age}} m\u00e1sodperccel ezel\u0151tt.",
-      "noEvidence": "M\u00e9g nincs friss bizony\u00edt\u00e9k (bootstrap az els\u0151 val\u00f3di k\u00e9r\u00e9sn\u00e9l).",
-      "noModels": "Nincs friss bizony\u00edt\u00e9kkal meger\u0151s\u00edtett modell."
+      "bootstrap": "bootstrap (nem ellenőrzött)",
+      "healthy": "Elérhető",
+      "unhealthy": "Nem elérhető",
+      "evidence": "Friss bizonyíték {{age}} másodperccel ezelőtt.",
+      "noEvidence": "Még nincs friss bizonyíték (bootstrap az első valódi kérésnél).",
+      "noModels": "Nincs friss bizonyítékkal megerősített modell."
     },
     "verify": {
-      "title": "\u00c9l\u0151 ellen\u0151rz\u00e9s",
-      "run": "Ellen\u0151z\u00e9s futtat\u00e1sa",
-      "running": "Ellen\u0151rz\u00e9s\u2026",
-      "warning": "\u26a0 El\u0151fizet\u00e9si kv\u00f3t\u00e1t fogyaszt: egy minim\u00e1lis, alacsony min\u0151s\u00e9g\u0171 PNG-k\u00e9r\u00e9s ker\u00fcl elk\u00fcld\u00e9sre.",
-      "codexOnly": "Csak a Codex vonalat fedi le; az Antigravity szolg\u00e1ltat\u00f3nak nincs \u00f6n\u00e1ll\u00f3 ellen\u0151rz\u0151je a v1-ben.",
+      "title": "Élő ellenőrzés",
+      "run": "Ellenőzés futtatása",
+      "running": "Ellenőrzés…",
+      "warning": "⚠ Előfizetési kvótát fogyaszt: egy minimális, alacsony minőségű PNG-kérés kerül elküldésre.",
+      "codexOnly": "Csak a Codex vonalat fedi le; az Antigravity szolgáltatónak nincs önálló ellenőrzője a v1-ben.",
       "codexOnlyPlain": "Csak a Codex vonalat fedi le.",
-      "success": "Ellen\u0151rizve: {{model}} ({{quality}}, {{format}}); friss bizony\u00edt\u00e9kok: {{count}}."
+      "success": "Ellenőrizve: {{model}} ({{quality}}, {{format}}); friss bizonyítékok: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Válassza ki a kulcs upstream-jait, és rendezze őket (a sorrend = prioritás; a korábbi bejegyzések szolgálnak először, a későbbiek tartalék jelöltek). A mentés mindig a kifejezett kijelölést tárolja; ha semmit sem választ, minden kérés elutasításra kerül.",
+        "dialogTitle": "Upstream-kapcsolat szerkesztése: {{name}}",
+        "edit": "Upstream-kapcsolat",
+        "emptyCatalog": "Nincs elérhető upstream — először adjon hozzá szolgáltatót vagy előfizetést az Upstreamek oldalon.",
+        "mappingAdd": "Térképezési sor hozzáadása",
+        "mappingDesc": "Kliens modellneve → upstream modellazonosító. A pontos nevek elsőbbséget élveznek a * helyettesítő karakterrel szemben; a default / background szerepsorok (Gemini háttérmodell); üres = közvetlen átvitel.",
+        "mappingEdit": "Modelltérképezések",
+        "mappingEffort": "Erőfeszítés",
+        "mappingEmpty": "Nincsenek térképezések — a kliens modellazonosítója változatlanul továbbítódik.",
+        "mappingHint": "Több sor esetén vegyen fel egy * tartaléksort; a default / background szerepsorok soha nem egyeznek név szerint.",
+        "mappingIncomplete": "Néhány sorban van kliens modellnév, de nincs upstream modellazonosító (vagy fordítva). Mentés előtt töltse ki vagy törölje ezeket a sorokat — a félig kitöltött sorok soha nem kerülnek mentésre.",
+        "mappingSaveFailed": "A térképezések mentése sikertelen",
+        "mappingSource": "Kliens modellneve (pl. claude-*)",
+        "mappingTarget": "Upstream modellazonosító",
+        "mappingTitle": "Modelltérképezések szerkesztése: {{name}}",
+        "orderDown": "Mozgatás lefelé",
+        "orderHint": "Válassza ki, majd rendezze a nyilakkal — a korábbi bejegyzések szolgálnak először, a későbbiek tartalék jelöltek. Ha semmit sem választ, a kulcs hitelesítani tud, de minden kérés elutasításra kerül.",
+        "orderUp": "Mozgatás felfelé",
+        "summaryAll": "Az összes upstream kijelölve",
+        "summaryExplicit": "{{count}} upstream",
+        "summaryLegacy": "Korábbi downstream útvonalak",
+        "summaryNone": "Nincs kapcsolat (a kérések elutasítva)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Mind kijelölve",
+      "description": "Azt szabályozza, hogy az újonnan létrehozott hozzáférési kulcs minden upstream kijelölésével vagy egyikkel sem indul-e (az a kulcs, amelyhez nincs upstream kijelölve, elutasítja a kéréseket).",
+      "label": "Alapértelmezett upstream-kijelölés az új kulcsokhoz",
+      "none": "Semmi nincs kijelölve"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Munkakönyvtár",
       "cwdPlaceholder": "/elérési/út/a/projekthez",
       "runningVia": "Fut · {{provider}} / {{model}}",
-      "stop": "Leállítás"
+      "stop": "Leállítás",
+      "upgrade": "Verziófrissítés",
+      "upgradeHint": "A legújabb kiadás ellenőrzése és telepítése a daemon gazdagépén.",
+      "upgradeToHint": "A(z) {{version}} verzió elérhető — frissítsen a daemon gazdagépén.",
+      "upgrading": "Verziófrissítés…",
+      "upgradingHint": "Újratelepítés a legújabb kiadásra a daemon gazdagépén — ez eltarthat egy percig."
     },
     "manual": {
       "title": "Manuális beállítás",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licenc",
       "licenseHint": "Az Omnicross szabad, nyílt forráskódú szoftver, MIT licenc alatt közzétéve.",
-      "author": "Szerző"
+      "author": "Szerző",
+      "diagnostics": {
+        "openFailed": "A naplómappát nem sikerült megnyitni: {{reason}}",
+        "openFolder": "Megnyitás",
+        "openLogsFolder": "Naplómappa megnyitása",
+        "openLogsFolderHint": "Megnyitja a daemon logs/ könyvtárát a fájlkezelőben."
+      }
     },
     "title": "Beállítások",
     "description": "Asztali alkalmazás beállításai.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "éppen most",
       "overloadMinsAgo": "{{n}} perce",
       "overloadHoursAgo": "{{n}} órája"
+    },
+    "mappings": {
+      "count": "{{count}} térképezés",
+      "edit": "Szerkesztés",
+      "loading": "Upstream-katalógus betöltése…",
+      "passthrough": "Közvetlen átvitel (nincs térképezés)",
+      "sectionDescription": "Kliens modellneve → ezen upstream modellazonosítója; üres táblázat esetén a kliens modellazonosítója változatlanul továbbítódik.",
+      "sectionTitle": "Modelltérképezések"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Fiókkvóták"
+    },
+    "integrations": {
+      "enable": "Engedélyezés",
+      "enabling": "Engedélyezés…",
+      "repair": "Javítás",
+      "repairing": "Javítás…"
+    },
+    "quickStart": {
+      "connect": "{{client}} csatlakoztatása",
+      "description": "Három lépés: adjon hozzá upstreamet → engedélyezzen CLI-t → ellenőrizze terminálban.",
+      "repairClient": "{{client}} javítása",
+      "step1": {
+        "action": "Upstream hozzáadása",
+        "hint": "Adjon hozzá előfizetési fiókot vagy saját (BYO) szolgáltatót a kérései kiszolgálásához.",
+        "title": "Upstream hozzáadása"
+      },
+      "step2": {
+        "hint": "Egy kattintással írja át a Codex / Claude Code helyi konfigurációját — a mindennapi parancsok az OmniCrosson mennek keresztül.",
+        "title": "CLI-hozzáférés engedélyezése"
+      },
+      "step3": {
+        "hint": "Futtassa egyszer a codex vagy a claude parancsot, és küldjön egy kérést; ez az útmutató eltűnik, amint megjelenik a forgalom.",
+        "title": "Ellenőrzés terminálban"
+      },
+      "title": "Gyorsindítás"
+    },
+    "throughput": {
+      "providerAll": "Összes",
+      "providerAria": "Szűrés szolgáltató szerint"
     }
   }
 }

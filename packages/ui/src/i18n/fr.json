@@ -517,7 +517,7 @@
     "pricing": "Tarifs",
     "dashboard": "Dashboard",
     "images": "Images",
-"search": "Recherche"
+    "search": "Recherche"
   },
   "images": {
     "title": "Génération d’images",
@@ -543,16 +543,16 @@
       "strict": "Sélection stricte",
       "poolFallback": "Autoriser le repli sur le groupe"
     },
-    "defaultModel": "Mod\u00e8le d'image par d\u00e9faut",
+    "defaultModel": "Modèle d'image par défaut",
     "routes": {
-      "title": "Routage des mod\u00e8les",
-      "defaultBadge": "par d\u00e9faut"
+      "title": "Routage des modèles",
+      "defaultBadge": "par défaut"
     },
     "codex": {
       "title": "Substitutions Codex",
-      "imageModel": "Mod\u00e8le d'image",
-      "carrierModel": "Mod\u00e8le porteur",
-      "hint": "Les champs vid\u00e9s reviennent aux valeurs par d\u00e9faut \u00e9pingl\u00e9es (gpt-image-2 / gpt-5.6-luna)."
+      "imageModel": "Modèle d'image",
+      "carrierModel": "Modèle porteur",
+      "hint": "Les champs vidés reviennent aux valeurs par défaut épinglées (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Matrice des fonctionnalités vérifiées",
@@ -584,26 +584,26 @@
       "privateDefault": "Les artefacts utilisent le stockage privé des données d’application du démon."
     },
     "page": {
-      "title": "G\u00e9n\u00e9ration d'images",
-      "description": "Routage des mod\u00e8les, \u00e9tat des fournisseurs et endpoints Images en un seul endroit.",
-      "loading": "Chargement de la configuration Images\u2026"
+      "title": "Génération d'images",
+      "description": "Routage des modèles, état des fournisseurs et endpoints Images en un seul endroit.",
+      "loading": "Chargement de la configuration Images…"
     },
     "providers": {
-      "bootstrap": "amor\u00e7age (non v\u00e9rifi\u00e9)",
+      "bootstrap": "amorçage (non vérifié)",
       "healthy": "Disponible",
       "unhealthy": "Indisponible",
-      "evidence": "Preuves r\u00e9centes il y a {{age}} secondes.",
-      "noEvidence": "Pas encore de preuves r\u00e9centes (amor\u00e7age \u00e0 la premi\u00e8re requ\u00eate r\u00e9elle).",
-      "noModels": "Aucun mod\u00e8le affirm\u00e9 par des preuves r\u00e9centes."
+      "evidence": "Preuves récentes il y a {{age}} secondes.",
+      "noEvidence": "Pas encore de preuves récentes (amorçage à la première requête réelle).",
+      "noModels": "Aucun modèle affirmé par des preuves récentes."
     },
     "verify": {
-      "title": "V\u00e9rification en direct",
-      "run": "Lancer la v\u00e9rification",
-      "running": "V\u00e9rification\u2026",
-      "warning": "\u26a0 Consomme du quota d\u2019abonnement : une requ\u00eate PNG minimale en basse qualit\u00e9 sera envoy\u00e9e.",
-      "codexOnly": "Couvre uniquement la ligne Codex ; le fournisseur Antigravity n\u2019a pas de v\u00e9rificateur ind\u00e9pendant en v1.",
+      "title": "Vérification en direct",
+      "run": "Lancer la vérification",
+      "running": "Vérification…",
+      "warning": "⚠ Consomme du quota d’abonnement : une requête PNG minimale en basse qualité sera envoyée.",
+      "codexOnly": "Couvre uniquement la ligne Codex ; le fournisseur Antigravity n’a pas de vérificateur indépendant en v1.",
       "codexOnlyPlain": "Couvre uniquement la ligne Codex.",
-      "success": "{{model}} v\u00e9rifi\u00e9 ({{quality}}, {{format}}) ; preuves r\u00e9centes : {{count}}."
+      "success": "{{model}} vérifié ({{quality}}, {{format}}) ; preuves récentes : {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Sélectionnez les upstreams de cette clé et ordonnez-les (ordre = priorité ; les premières entrées servent d'abord, les suivantes sont des candidates de repli). L'enregistrement stocke toujours la sélection explicite ; n'en sélectionner aucun rejette chaque requête.",
+        "dialogTitle": "Modifier la liaison upstream de {{name}}",
+        "edit": "Liaison upstream",
+        "emptyCatalog": "Aucun upstream disponible — ajoutez d'abord un fournisseur ou un abonnement sur la page Upstreams.",
+        "mappingAdd": "Ajouter une ligne de mappage",
+        "mappingDesc": "Nom du modèle client → id de modèle upstream. Les noms exacts l'emportent sur les jokers * ; default / background sont des lignes de rôle (modèle background de Gemini) ; vide = transmission directe.",
+        "mappingEdit": "Mappages de modèles",
+        "mappingEffort": "Effort",
+        "mappingEmpty": "Aucun mappage — l'id de modèle du client est transmis tel quel.",
+        "mappingHint": "Avec plusieurs lignes, incluez une ligne de repli * ; les lignes de rôle default / background ne correspondent jamais par nom.",
+        "mappingIncomplete": "Certaines lignes ont un nom de modèle client mais pas d'id de modèle upstream (ou l'inverse). Remplissez ou supprimez ces lignes avant d'enregistrer — les lignes à moitié remplies ne sont jamais enregistrées.",
+        "mappingSaveFailed": "Échec de l'enregistrement des mappages",
+        "mappingSource": "Nom du modèle client (ex. claude-*)",
+        "mappingTarget": "Id de modèle upstream",
+        "mappingTitle": "Modifier les mappages de modèles de {{name}}",
+        "orderDown": "Descendre",
+        "orderHint": "Sélectionnez, puis ordonnez avec les flèches — les premières entrées servent d'abord, les suivantes sont des candidates de repli. Ne rien sélectionner laisse la clé s'authentifier, mais chaque requête est rejetée.",
+        "orderUp": "Monter",
+        "summaryAll": "Tous les upstreams sélectionnés",
+        "summaryExplicit": "{{count}} upstream(s)",
+        "summaryLegacy": "Routes downstream héritées",
+        "summaryNone": "Non liée (requêtes rejetées)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Tous sélectionnés",
+      "description": "Indique si une clé d'accès nouvellement créée démarre avec tous les upstreams sélectionnés ou aucun (une clé sans upstream sélectionné rejette les requêtes).",
+      "label": "Sélection upstream par défaut pour les nouvelles clés",
+      "none": "Aucun sélectionné"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Répertoire de travail",
       "cwdPlaceholder": "/chemin/vers/votre/projet",
       "runningVia": "En cours · {{provider}} / {{model}}",
-      "stop": "Arrêter"
+      "stop": "Arrêter",
+      "upgrade": "Mettre à niveau",
+      "upgradeHint": "Rechercher et installer la dernière version sur l'hôte daemon.",
+      "upgradeToHint": "La version {{version}} est disponible — mettez à niveau sur l'hôte daemon.",
+      "upgrading": "Mise à niveau…",
+      "upgradingHint": "Réinstallation à la dernière version sur l'hôte daemon — cela peut prendre une minute."
     },
     "manual": {
       "title": "Configuration manuelle",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licence",
       "licenseHint": "Omnicross est un logiciel libre distribué sous licence MIT.",
-      "author": "Auteur"
+      "author": "Auteur",
+      "diagnostics": {
+        "openFailed": "Impossible d'ouvrir le dossier des journaux : {{reason}}",
+        "openFolder": "Ouvrir",
+        "openLogsFolder": "Ouvrir le dossier des journaux",
+        "openLogsFolderHint": "Ouvre le répertoire logs/ du daemon dans votre gestionnaire de fichiers."
+      }
     },
     "title": "Paramètres",
     "description": "Préférences de l'application de bureau.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "à l'instant",
       "overloadMinsAgo": "il y a {{n}} min",
       "overloadHoursAgo": "il y a {{n}} h"
+    },
+    "mappings": {
+      "count": "{{count}} mappage(s)",
+      "edit": "Modifier",
+      "loading": "Chargement du catalogue d'upstreams…",
+      "passthrough": "Transmission directe (aucun mappage)",
+      "sectionDescription": "Nom du modèle client → id de modèle de cet upstream ; un tableau vide transmet l'id de modèle du client tel quel.",
+      "sectionTitle": "Mappages de modèles"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Quotas des comptes"
+    },
+    "integrations": {
+      "enable": "Activer",
+      "enabling": "Activation…",
+      "repair": "Réparer",
+      "repairing": "Réparation…"
+    },
+    "quickStart": {
+      "connect": "Connecter {{client}}",
+      "description": "Trois étapes : ajouter un upstream → activer un CLI → vérifier dans un terminal.",
+      "repairClient": "Réparer {{client}}",
+      "step1": {
+        "action": "Ajouter un upstream",
+        "hint": "Ajoutez un compte d'abonnement ou un fournisseur BYO pour servir vos requêtes.",
+        "title": "Ajouter un upstream"
+      },
+      "step2": {
+        "hint": "Reconfigurez en un clic la configuration locale de Codex / Claude Code — les commandes du quotidien passent par OmniCross.",
+        "title": "Activer l'accès CLI"
+      },
+      "step3": {
+        "hint": "Exécutez codex ou claude une fois et envoyez une requête ; ce guide se masque dès que du trafic apparaît.",
+        "title": "Vérifier dans un terminal"
+      },
+      "title": "Démarrage rapide"
+    },
+    "throughput": {
+      "providerAll": "Tous",
+      "providerAria": "Filtrer par fournisseur"
     }
   }
 }

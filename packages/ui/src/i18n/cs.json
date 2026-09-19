@@ -517,7 +517,7 @@
     "pricing": "Ceník",
     "dashboard": "Dashboard",
     "images": "Obrázky",
-"search": "Hledání"
+    "search": "Hledání"
   },
   "images": {
     "title": "Generování obrázků",
@@ -543,16 +543,16 @@
       "strict": "Přísný výběr",
       "poolFallback": "Povolit náhradní výběr z fondu"
     },
-    "defaultModel": "V\u00fdchoz\u00ed model obr\u00e1zk\u016f",
+    "defaultModel": "Výchozí model obrázků",
     "routes": {
-      "title": "Sm\u011brov\u00e1n\u00ed model\u016f",
-      "defaultBadge": "v\u00fdchoz\u00ed"
+      "title": "Směrování modelů",
+      "defaultBadge": "výchozí"
     },
     "codex": {
-      "title": "P\u0159episy p\u0159enosu Codex",
-      "imageModel": "Model obr\u00e1zku",
-      "carrierModel": "Nosn\u00fd model",
-      "hint": "Vymazan\u00e1 pole se vr\u00e1t\u00ed na v\u00fdchoz\u00ed upevn\u011bn\u00e9 hodnoty (gpt-image-2 / gpt-5.6-luna)."
+      "title": "Přepisy přenosu Codex",
+      "imageModel": "Model obrázku",
+      "carrierModel": "Nosný model",
+      "hint": "Vymazaná pole se vrátí na výchozí upevněné hodnoty (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Ověřená matice funkcí",
@@ -584,26 +584,26 @@
       "privateDefault": "Artefakty používají soukromé úložiště aplikačních dat daemonu."
     },
     "page": {
-      "title": "Generov\u00e1n\u00ed obr\u00e1zk\u016f",
-      "description": "Sm\u011brov\u00e1n\u00ed model\u016f, stav poskytovatel\u016f a Images endpointy na jednom m\u00edst\u011b.",
-      "loading": "Na\u010d\u00edt\u00e1n\u00ed konfigurace obr\u00e1zk\u016f\u2026"
+      "title": "Generování obrázků",
+      "description": "Směrování modelů, stav poskytovatelů a Images endpointy na jednom místě.",
+      "loading": "Načítání konfigurace obrázků…"
     },
     "providers": {
-      "bootstrap": "bootstrap (neov\u011b\u0159eno)",
-      "healthy": "Dostupn\u00e9",
-      "unhealthy": "Nedostupn\u00e9",
-      "evidence": "\u010cerstv\u00e9 d\u016fkazy p\u0159ed {{age}} sekundami.",
-      "noEvidence": "Zat\u00edm \u017e\u00e1dn\u00e9 \u010derstv\u00e9 d\u016fkazy (bootstrap p\u0159i prvn\u00edm re\u00e1ln\u00e9m po\u017eadavku).",
-      "noModels": "\u017d\u00e1dn\u00e9 modely potvrzen\u00e9 \u010derstv\u00fdmi d\u016fkazy."
+      "bootstrap": "bootstrap (neověřeno)",
+      "healthy": "Dostupné",
+      "unhealthy": "Nedostupné",
+      "evidence": "Čerstvé důkazy před {{age}} sekundami.",
+      "noEvidence": "Zatím žádné čerstvé důkazy (bootstrap při prvním reálném požadavku).",
+      "noModels": "Žádné modely potvrzené čerstvými důkazy."
     },
     "verify": {
-      "title": "Ov\u011b\u0159en\u00ed na\u017eivo",
-      "run": "Spustit ov\u011b\u0159en\u00ed",
-      "running": "Ov\u011b\u0159uje se\u2026",
-      "warning": "\u26a0 Spot\u0159ebov\u00e1v\u00e1 kv\u00f3tu p\u0159edplatn\u00e9ho: ode\u0161le se jeden minim\u00e1ln\u00ed PNG po\u017eadavek v n\u00edzk\u00e9 kvalit\u011b.",
-      "codexOnly": "Pokr\u00fdv\u00e1 pouze linku Codex; poskytovatel Antigravity nem\u00e1 v 1. verzi nez\u00e1visl\u00fd verifik\u00e1tor.",
-      "codexOnlyPlain": "Pokr\u00fdv\u00e1 pouze linku Codex.",
-      "success": "Ov\u011b\u0159eno {{model}} ({{quality}}, {{format}}); z\u00e1znamy \u010derstv\u00fdch d\u016fkaz\u016f: {{count}}."
+      "title": "Ověření naživo",
+      "run": "Spustit ověření",
+      "running": "Ověřuje se…",
+      "warning": "⚠ Spotřebovává kvótu předplatného: odešle se jeden minimální PNG požadavek v nízké kvalitě.",
+      "codexOnly": "Pokrývá pouze linku Codex; poskytovatel Antigravity nemá v 1. verzi nezávislý verifikátor.",
+      "codexOnlyPlain": "Pokrývá pouze linku Codex.",
+      "success": "Ověřeno {{model}} ({{quality}}, {{format}}); záznamy čerstvých důkazů: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Vyberte nadřazené servery tohoto klíče a seřaďte je (pořadí = priorita; dřívější položky obsluhují požadavky jako první, pozdější jsou záložními kandidáty). Uložení vždy uchová explicitní výběr; prázdný výběr znamená odmítnutí všech požadavků.",
+        "dialogTitle": "Upravit napojení na nadřazené servery pro {{name}}",
+        "edit": "Napojení na nadřazené servery",
+        "emptyCatalog": "Nejsou k dispozici žádné nadřazené servery — nejprve přidejte poskytovatele nebo předplatné na stránce „Nadřazené servery“.",
+        "mappingAdd": "Přidat řádek mapování",
+        "mappingDesc": "Název modelu klienta → ID modelu nadřazeného serveru. Přesné názvy mají přednost před zástupným znakem *; default / background jsou řádky rolí (model na pozadí Gemini); prázdné = přímé předání.",
+        "mappingEdit": "Mapování modelů",
+        "mappingEffort": "Úsilí",
+        "mappingEmpty": "Žádná mapování — ID modelu klienta se přeposílá beze změny.",
+        "mappingHint": "Pokud je řádků více, zahrňte záložní řádek *; řádky rolí default / background se nikdy nespárují podle názvu.",
+        "mappingIncomplete": "Některé řádky mají název modelu klienta, ale chybí u nich ID modelu nadřazeného serveru (nebo naopak). Před uložením tyto řádky vyplňte nebo odstraňte — napůl vyplněné řádky se nikdy neukládají.",
+        "mappingSaveFailed": "Mapování se nepodařilo uložit",
+        "mappingSource": "Název modelu klienta (např. claude-*)",
+        "mappingTarget": "ID modelu nadřazeného serveru",
+        "mappingTitle": "Upravit mapování modelů pro {{name}}",
+        "orderDown": "Přesunout dolů",
+        "orderHint": "Vyberte a seřaďte pomocí šipek — dřívější položky obsluhují požadavky jako první, pozdější jsou záložními kandidáty. Prázdný výběr ponechá klíč schopný autentizace, ale každý požadavek bude odmítnut.",
+        "orderUp": "Přesunout nahoru",
+        "summaryAll": "Vybrány všechny nadřazené servery",
+        "summaryExplicit": "{{count}} nadřazených serverů",
+        "summaryLegacy": "Původní podřízené trasy",
+        "summaryNone": "Bez napojení (požadavky jsou odmítány)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Vybráno vše",
+      "description": "Určuje, zda nově vytvořený přístupový klíč začíná se všemi vybranými nadřazenými servery, nebo s žádným (klíč bez vybraného nadřazeného serveru odmítá požadavky).",
+      "label": "Výchozí výběr nadřazených serverů pro nové klíče",
+      "none": "Nevybráno nic"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Pracovní adresář",
       "cwdPlaceholder": "/cesta/k/vašemu/projektu",
       "runningVia": "Běží · {{provider}} / {{model}}",
-      "stop": "Zastavit"
+      "stop": "Zastavit",
+      "upgrade": "Aktualizovat",
+      "upgradeHint": "Kontrola a instalace nejnovějšího vydání na hostu démona.",
+      "upgradeToHint": "Verze {{version}} je k dispozici — aktualizujte na hostu démona.",
+      "upgrading": "Aktualizace…",
+      "upgradingHint": "Přeinstalace na nejnovější vydání na hostu démona — může to trvat minutu."
     },
     "manual": {
       "title": "Ruční nastavení",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licence",
       "licenseHint": "Omnicross je svobodný software s otevřeným zdrojovým kódem šířený pod licencí MIT.",
-      "author": "Autor"
+      "author": "Autor",
+      "diagnostics": {
+        "openFailed": "Nepodařilo se otevřít složku protokolů: {{reason}}",
+        "openFolder": "Otevřít",
+        "openLogsFolder": "Otevřít složku protokolů",
+        "openLogsFolderHint": "Zobrazí adresář logs/ démona ve vašem správci souborů."
+      }
     },
     "title": "Nastavení",
     "description": "Předvolby desktopové aplikace.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "právě teď",
       "overloadMinsAgo": "před {{n}} min",
       "overloadHoursAgo": "před {{n}} h"
+    },
+    "mappings": {
+      "count": "{{count}} mapování",
+      "edit": "Upravit",
+      "loading": "Načítání katalogu nadřazených serverů…",
+      "passthrough": "Přímé předání (bez mapování)",
+      "sectionDescription": "Název modelu klienta → ID modelu tohoto nadřazeného serveru; prázdná tabulka předává ID modelu klienta beze změny.",
+      "sectionTitle": "Mapování modelů"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Kvóty účtů"
+    },
+    "integrations": {
+      "enable": "Povolit",
+      "enabling": "Povolování…",
+      "repair": "Opravit",
+      "repairing": "Opravování…"
+    },
+    "quickStart": {
+      "connect": "Připojit {{client}}",
+      "description": "Tři kroky: přidejte nadřazený server → povolte CLI → ověřte v terminálu.",
+      "repairClient": "Opravit {{client}}",
+      "step1": {
+        "action": "Přidat nadřazený server",
+        "hint": "Přidejte účet s předplatným nebo vlastního poskytovatele (BYO) pro obsluhu vašich požadavků.",
+        "title": "Přidejte nadřazený server"
+      },
+      "step2": {
+        "hint": "Jedním kliknutím přepněte místní konfiguraci Codex / Claude Code — běžné příkazy vedou přes OmniCross.",
+        "title": "Povolte přístup přes CLI"
+      },
+      "step3": {
+        "hint": "Spusťte jednou codex nebo claude a odešlete požadavek; po objevení provozu se tato příručka sama skryje.",
+        "title": "Ověřte v terminálu"
+      },
+      "title": "Rychlý start"
+    },
+    "throughput": {
+      "providerAll": "Všechny",
+      "providerAria": "Filtrovat podle poskytovatele"
     }
   }
 }

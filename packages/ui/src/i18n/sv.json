@@ -517,7 +517,7 @@
     "pricing": "Priser",
     "dashboard": "Dashboard",
     "images": "Bilder",
-"search": "Sök"
+    "search": "Sök"
   },
   "images": {
     "title": "Bildgenerering",
@@ -549,10 +549,10 @@
       "defaultBadge": "standard"
     },
     "codex": {
-      "title": "Codex-\u00f6verstyrningar",
+      "title": "Codex-överstyrningar",
       "imageModel": "Bildmodell",
-      "carrierModel": "B\u00e4rarmodell",
-      "hint": "Rensade f\u00e4lt faller tillbaka p\u00e5 de fastn\u00e5lade standardv\u00e4rdena (gpt-image-2 / gpt-5.6-luna)."
+      "carrierModel": "Bärarmodell",
+      "hint": "Rensade fält faller tillbaka på de fastnålade standardvärdena (gpt-image-2 / gpt-5.6-luna)."
     },
     "features": {
       "title": "Verifierad funktionsmatris",
@@ -585,25 +585,25 @@
     },
     "page": {
       "title": "Bildgenerering",
-      "description": "Modellroutning, leverant\u00f6rsstatus och Images-endpoints p\u00e5 ett st\u00e4lle.",
-      "loading": "L\u00e4ser in bildkonfiguration\u2026"
+      "description": "Modellroutning, leverantörsstatus och Images-endpoints på ett ställe.",
+      "loading": "Läser in bildkonfiguration…"
     },
     "providers": {
       "bootstrap": "bootstrap (overifierad)",
-      "healthy": "Tillg\u00e4nglig",
-      "unhealthy": "Otillg\u00e4nglig",
-      "evidence": "F\u00e4rska bevis f\u00f6r {{age}} sekunder sedan.",
-      "noEvidence": "Inga f\u00e4rska bevis \u00e4n (bootstrap vid f\u00f6rsta riktiga f\u00f6rfr\u00e5gan).",
-      "noModels": "Inga modeller bekr\u00e4ftade av f\u00e4rska bevis."
+      "healthy": "Tillgänglig",
+      "unhealthy": "Otillgänglig",
+      "evidence": "Färska bevis för {{age}} sekunder sedan.",
+      "noEvidence": "Inga färska bevis än (bootstrap vid första riktiga förfrågan).",
+      "noModels": "Inga modeller bekräftade av färska bevis."
     },
     "verify": {
       "title": "Live-verifiering",
-      "run": "K\u00f6r verifiering",
-      "running": "Verifierar\u2026",
-      "warning": "\u26a0 F\u00f6rbrukar prenumerationskvot: en minimal PNG-f\u00f6rfr\u00e5gan i l\u00e5g kvalitet skickas.",
-      "codexOnly": "T\u00e4cker bara Codex-linjen; Antigravity-leverant\u00f6ren har ingen egen verifierare i v1.",
-      "codexOnlyPlain": "T\u00e4cker bara Codex-linjen.",
-      "success": "Verifierad {{model}} ({{quality}}, {{format}}); f\u00e4rska bevis: {{count}}."
+      "run": "Kör verifiering",
+      "running": "Verifierar…",
+      "warning": "⚠ Förbrukar prenumerationskvot: en minimal PNG-förfrågan i låg kvalitet skickas.",
+      "codexOnly": "Täcker bara Codex-linjen; Antigravity-leverantören har ingen egen verifierare i v1.",
+      "codexOnlyPlain": "Täcker bara Codex-linjen.",
+      "success": "Verifierad {{model}} ({{quality}}, {{format}}); färska bevis: {{count}}."
     }
   },
   "apiService": {
@@ -719,6 +719,30 @@
         "modelRestrictionList": "Models",
         "modelRestrictionListHint": "One model id per line",
         "modelRestrictionEmptyAllowlistWarning": "An enabled allowlist with no models denies every request."
+      },
+      "upstream": {
+        "dialogDesc": "Välj denna nyckels uppströmmar och ordna dem (ordning = prioritet; tidigare poster servas först, senare är reservkandidater). När du sparar sparas alltid det uttryckliga valet; väljer du inget avvisas varje förfrågan.",
+        "dialogTitle": "Redigera uppströmskoppling för {{name}}",
+        "edit": "Uppströmskoppling",
+        "emptyCatalog": "Inga uppströmmar tillgängliga — lägg till en leverantör eller prenumeration på sidan Uppströmmar först.",
+        "mappingAdd": "Lägg till mappningsrad",
+        "mappingDesc": "Klientens modellnamn → uppströmmens modell-id. Exakta namn slår *-jokertecken; default / background är rollrader (Gemini background model); tomt = genomströmning.",
+        "mappingEdit": "Modellmappningar",
+        "mappingEffort": "Ansträngning",
+        "mappingEmpty": "Inga mappningar — klientens modell-id vidarebefordras oförändrat.",
+        "mappingHint": "Med flera rader: ta med en *-reservrad; rollraderna default / background matchar aldrig på namn.",
+        "mappingIncomplete": "Vissa rader har ett modellnamn från klienten men inget modell-id från uppströmmen (eller tvärtom). Fyll i eller ta bort dessa rader innan du sparar — halvfyllda rader sparas aldrig.",
+        "mappingSaveFailed": "Det gick inte att spara mappningar",
+        "mappingSource": "Klientens modellnamn (t.ex. claude-*)",
+        "mappingTarget": "Uppströmmens modell-id",
+        "mappingTitle": "Redigera modellmappningar för {{name}}",
+        "orderDown": "Flytta nedåt",
+        "orderHint": "Välj och ordna med pilarna — tidigare poster servas först, senare är reservkandidater. Om inget väljs kan nyckeln fortfarande autentisera sig, men varje förfrågan avvisas.",
+        "orderUp": "Flytta uppåt",
+        "summaryAll": "Alla uppströmmar valda",
+        "summaryExplicit": "{{count}} uppströmmar",
+        "summaryLegacy": "Äldre nedströmsrutter",
+        "summaryNone": "Ej kopplad (förfrågningar avvisas)"
       }
     },
     "queue": {
@@ -780,6 +804,12 @@
         "title": "Per-provider overrides"
       },
       "byoLabel": "BYO providers"
+    },
+    "upstreamDefault": {
+      "all": "Alla valda",
+      "description": "Huruvida en nyligen skapad åtkomstnyckel startar med alla uppströmmar valda eller inga (en nyckel utan vald uppström avvisar förfrågningar).",
+      "label": "Standardval av uppströmmar för nya nycklar",
+      "none": "Inget valt"
     }
   },
   "search": {
@@ -1166,7 +1196,12 @@
       "cwdLabel": "Arbetskatalog",
       "cwdPlaceholder": "/sökväg/till/ditt/projekt",
       "runningVia": "Körs · {{provider}} / {{model}}",
-      "stop": "Stoppa"
+      "stop": "Stoppa",
+      "upgrade": "Uppgradera",
+      "upgradeHint": "Sök efter och installera den senaste utgåvan på daemonvärden.",
+      "upgradeToHint": "Version {{version}} är tillgänglig — uppgradera på daemonvärden.",
+      "upgrading": "Uppgraderar…",
+      "upgradingHint": "Installerar om till den senaste utgåvan på daemonvärden — det kan ta en minut."
     },
     "manual": {
       "title": "Manuell inställning",
@@ -1202,7 +1237,13 @@
       },
       "license": "Licens",
       "licenseHint": "Omnicross är fri programvara med öppen källkod, utgiven under MIT-licensen.",
-      "author": "Utvecklare"
+      "author": "Utvecklare",
+      "diagnostics": {
+        "openFailed": "Det gick inte att öppna loggmappen: {{reason}}",
+        "openFolder": "Öppna",
+        "openLogsFolder": "Öppna loggmapp",
+        "openLogsFolderHint": "Visar daemonens katalog logs/ i filhanteraren."
+      }
     },
     "title": "Inställningar",
     "description": "Skrivbordsprogramsinställningar.",
@@ -1369,6 +1410,48 @@
       "overloadJustNow": "just nu",
       "overloadMinsAgo": "{{n}} min sedan",
       "overloadHoursAgo": "{{n}} tim sedan"
+    },
+    "mappings": {
+      "count": "{{count}} mappning(ar)",
+      "edit": "Redigera",
+      "loading": "Läser in uppströmskatalogen…",
+      "passthrough": "Genomströmning (inga mappningar)",
+      "sectionDescription": "Klientens modellnamn → uppströmmens modell-id; en tom tabell skickar klientens modell-id vidare oförändrat.",
+      "sectionTitle": "Modellmappningar"
+    }
+  },
+  "overview": {
+    "accounts": {
+      "accountQuota": "Kontokvoter"
+    },
+    "integrations": {
+      "enable": "Aktivera",
+      "enabling": "Aktiverar…",
+      "repair": "Reparera",
+      "repairing": "Reparerar…"
+    },
+    "quickStart": {
+      "connect": "Anslut {{client}}",
+      "description": "Tre steg: lägg till en uppström → aktivera ett CLI → verifiera i en terminal.",
+      "repairClient": "Reparera {{client}}",
+      "step1": {
+        "action": "Lägg till uppström",
+        "hint": "Lägg till ett prenumerationskonto eller en BYO provider som ska hantera dina förfrågningar.",
+        "title": "Lägg till en uppström"
+      },
+      "step2": {
+        "hint": "Ställ om Codex / Claude Codes lokala konfiguration med ett klick — vardagliga kommandon går via OmniCross.",
+        "title": "Aktivera CLI-åtkomst"
+      },
+      "step3": {
+        "hint": "Kör codex eller claude en gång och skicka en förfrågan; guiden döljer sig själv så snart trafik visas.",
+        "title": "Verifiera i en terminal"
+      },
+      "title": "Snabbstart"
+    },
+    "throughput": {
+      "providerAll": "Alla",
+      "providerAria": "Filtrera efter leverantör"
     }
   }
 }
