@@ -165,6 +165,18 @@ assembleGatewayBindings(input: {
    键编辑弹窗只剩一个有序勾选列表：`'all'`/legacy 行打开即全选，保存
    恒写 explicit；空选=该键可认证但所有请求 403。存储类型与
    `POST /keys/:id/upstream-binding` 对 `'all'` 的接受保留至 P5 清理。
+4. **零配置预配置（D10，2026-09-19）**：`POST /admin/api/providers`
+   创建 provider 后自动做两件事（`provisionNewProvider`，best-effort 不影响
+   创建本身）：① 为新上游写一条 `* -> <默认模型>` 映射——聚合型走
+   `DEFAULT_MAPPING_TARGETS` 人工表（opencodego→deepseek-flash），其余取
+   `models[0]`（预设目录按最新在前排序：glm-5.3 / deepseek-flash），
+   已有表（如删除后重建同 id）不覆盖；② 首个 provider 且无任何在世密钥
+   时，创建 `omnicross` 密钥（`ONBOARDING_ACCESS_KEY_NAME`）并快照绑定全部
+   当前上游——CLI 安装（含 onboarding 的「启用接入」）优先绑定该密钥
+   而非另铸托管密钥（`resolveOnboardingKey`）。deepseek 预设模型
+   `deepseek-v4-flash` 更名 `deepseek-flash`（canonical/thinking 注册表
+   保留旧名兼容存量配置）。
+
 3. **模型映射入口下沉到资源**：映射表本就长在上游（`providerId` /
    `sub:<providerId>`），入口从上游页顶部的集中按钮改为每个上游资源
    详情内的「模型映射」折叠区（提供商详情页 + 订阅池详情页；密钥绑定

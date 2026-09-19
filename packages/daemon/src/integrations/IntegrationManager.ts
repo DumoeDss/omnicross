@@ -36,6 +36,15 @@ const REQUIRED_PERMISSIONS: Record<IntegrationClientId, readonly OutboundPermiss
   claude: ['messages'],
 };
 
+/**
+ * The name of the access key the daemon AUTO-CREATES when the operator adds
+ * their first provider (zero-config onboarding): it binds every upstream and
+ * model-mapping defaults land beside it, so a fresh install is usable without
+ * visiting the keys page. CLI installs PREFER this key over minting a managed
+ * one — identified by name because key rows have no rename path.
+ */
+export const ONBOARDING_ACCESS_KEY_NAME = 'omnicross';
+
 export class IntegrationConflictError extends Error {
   constructor(message: string) {
     super(message);
@@ -368,7 +377,15 @@ export class IntegrationManager {
     state: IntegrationState,
   ): Promise<ResolvedClientKey> {
     const binding = state.keyBindings?.[client];
-    if (!binding) return this.createManagedClientKey(client, state);
+    if (!binding) {
+      // Zero-config onboarding: when the daemon's auto-created access key
+      // exists and is usable, a fresh install BINDS IT instead of minting a
+      // separate managed key — one key serves the operator's CLI and their own
+      // clients alike. Never created:true, so a failed install never revokes it.
+      const onboarded = await this.resolveOnboardingKey(client, state);
+      if (onboarded) return onboarded;
+      return this.createManagedClientKey(client, state);
+    }
     const rows = await this.options.keyDb.outboundApiKeysList();
     const row = rows.find((candidate) => candidate.id === binding.keyId);
     const secret = row ? await this.options.keyDb.outboundApiKeysReveal(binding.keyId) : null;
@@ -378,6 +395,28 @@ export class IntegrationManager {
         `${client} integration key is missing, disabled, revoked, non-revealable, or lacks required permissions`,
       );
     }
+    return { binding, row, secret, created: false };
+  }
+
+  /** The auto-created onboarding access key, when one is still usable. Records
+   *  the binding into `state` so the caller's persist makes it durable. */
+  private async resolveOnboardingKey(
+    client: IntegrationClientId,
+    state: IntegrationState,
+  ): Promise<ResolvedClientKey | null> {
+    const rows = await this.options.keyDb.outboundApiKeysList();
+    const row = rows.find((candidate) =>
+      candidate.name === ONBOARDING_ACCESS_KEY_NAME
+      && candidate.kind !== 'integration'
+      && candidate.enabled
+      && candidate.revokedAt === null
+      && hasRequiredPermissions(candidate, client));
+    if (!row) return null;
+    const secret = await this.options.keyDb.outboundApiKeysReveal(row.id);
+    if (!secret) return null;
+    const binding: IntegrationKeyBinding = { keyId: row.id, ownership: 'selected' };
+    if (!state.keyBindings) state.keyBindings = {};
+    state.keyBindings[client] = binding;
     return { binding, row, secret, created: false };
   }
 

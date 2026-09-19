@@ -154,6 +154,7 @@ const COPILOT_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const DEEPSEEK_MODELS: Record<string, KnownModelCapabilities> = {
+  'deepseek-flash': { category: 'chat', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'deepseek-v4-flash': { category: 'chat', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'deepseek-v4-pro': { category: 'reasoning', contextLength: 1000000, maxTokens: 384000, functionCall: true, reasoning: true, thinkingLevels: ['none', 'high', 'max'], thinkingTokenLimit: { min: 0, max: 32768 } },
   'deepseek-v3': { category: 'chat', contextLength: 65536, maxTokens: 8192, functionCall: true },

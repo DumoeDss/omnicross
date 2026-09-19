@@ -99,6 +99,7 @@ import type { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsS
 import type { JsonPricingStore } from '../ports/JsonPricingStore';
 import {
   IntegrationConflictError,
+  ONBOARDING_ACCESS_KEY_NAME,
   type CodexAuthHelperConfig,
   type IntegrationManager,
   type IntegrationClientId,
@@ -944,8 +945,10 @@ async function handleProviders(
     if (cfg.providers.some((p) => p.id === provider.id)) {
       return writeJsonError(res, 409, `provider '${provider.id}' already exists`);
     }
+    const isFirstProvider = cfg.providers.length === 0;
     cfg.providers.push(provider);
     await persistProviders(cfg, deps);
+    await provisionNewProvider(deps, provider, isFirstProvider);
     return writeJson(res, 201, { provider: toProviderView(provider) });
   }
 
@@ -981,6 +984,75 @@ async function persistProviders(cfg: DaemonConfig, deps: AdminApiDeps): Promise<
   // UPSTREAM ROUTING MODEL: the provider catalog feeds `mode:'all'` expansion
   // and derived-binding labels — re-derive so live routing follows the edit.
   await reapplyLiveServerConfig(deps).catch(() => undefined);
+}
+
+/**
+ * Curated `*`-fallback targets for providers whose default is not derivable
+ * from their advertised list. Aggregators (opencodego) proxy many vendors with
+ * no single "newest" of their own — a cheap, broadly available model keeps a
+ * fresh aggregator usable out of the box.
+ */
+const DEFAULT_MAPPING_TARGETS: Record<string, string> = {
+  opencodego: 'deepseek-flash',
+};
+
+/**
+ * The `*` fallback target for a freshly created provider: the curated id when
+ * we know better, else the FIRST advertised model — preset lists are curated
+ * newest-first (glm-5.3, deepseek-flash, …). `undefined` when the provider
+ * advertises nothing and nothing is curated (no honest default to write).
+ */
+function defaultMappingTargetFor(provider: DaemonProviderConfig): string | undefined {
+  const curated = DEFAULT_MAPPING_TARGETS[provider.id];
+  if (curated) return curated;
+  return provider.models?.find((model) => model.trim() !== '')?.trim();
+}
+
+/**
+ * Zero-config provisioning after a provider is created:
+ *  - a `* -> <default model>` mapping row lands on the new upstream unless a
+ *    table already exists, so it serves ANY client model name immediately —
+ *    the operator never has to open the mapping editor to get a working route;
+ *  - on the FIRST provider, when no live access key exists yet, an
+ *    {@link ONBOARDING_ACCESS_KEY_NAME} key is created and bound to EVERY
+ *    current upstream — the onboarding "enable access" step and CLI installs
+ *    then have a key to use without ever visiting the keys page.
+ *
+ * Best-effort BY DESIGN: the provider itself was already created; onboarding
+ * conveniences must never fail (or roll back) the create.
+ */
+async function provisionNewProvider(
+  deps: AdminApiDeps,
+  provider: DaemonProviderConfig,
+  isFirstProvider: boolean,
+): Promise<void> {
+  try {
+    const target = defaultMappingTargetFor(provider);
+    const current = await loadServerConfig(deps.settingsStore);
+    if (target && !current.upstreamModelMappings?.[provider.id]) {
+      await saveServerConfig(deps.settingsStore, {
+        ...current,
+        upstreamModelMappings: {
+          ...(current.upstreamModelMappings ?? {}),
+          [provider.id]: [{ source: '*', target }],
+        },
+      });
+    }
+    if (isFirstProvider) {
+      const rows = await deps.keyDb.outboundApiKeysList();
+      const hasLiveKey = rows.some((row) => row.revokedAt === null);
+      if (!hasLiveKey) {
+        const created = await createNamedKey(deps.keyDb, ONBOARDING_ACCESS_KEY_NAME);
+        await deps.keyDb.outboundApiKeysSetUpstreamBinding(created.id, {
+          mode: 'explicit',
+          targets: (await listUpstreamCatalog(deps)).map((entry) => entry.target),
+        });
+      }
+    }
+    await reapplyLiveServerConfig(deps);
+  } catch {
+    // Provisioning is a convenience layer — never fail the provider create.
+  }
 }
 
 /**
@@ -1989,14 +2061,6 @@ async function handleKeys(
     const bound = await integrationKeyRequirement(deps, id);
     if (bound) return writeJsonError(res, 409, bound);
     const ok = await deps.keyDb.outboundApiKeysRevoke(id);
-    return writeJson(res, ok ? 200 : 404, { ok });
-  }
-  // DELETE /keys/:id → permanently remove a key row (hard delete). Intended for
-  // cleaning up already-revoked keys; unlike revoke (soft), this purges the row.
-  if (method === 'DELETE' && id && !action) {
-    const bound = await integrationKeyRequirement(deps, id);
-    if (bound) return writeJsonError(res, 409, bound);
-    const ok = await deps.keyDb.outboundApiKeysDelete(id);
     return writeJson(res, ok ? 200 : 404, { ok });
   }
   if (method === 'POST' && id && action === 'enabled') {

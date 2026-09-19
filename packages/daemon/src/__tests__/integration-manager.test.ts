@@ -7,7 +7,7 @@ import { createIntegrationKey, createNamedKey } from '@omnicross/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultIntegrationsPath, defaultKeysPath } from '../commands/paths';
-import { IntegrationConflictError, IntegrationManager, IntegrationStateStore } from '../integrations';
+import { ONBOARDING_ACCESS_KEY_NAME, IntegrationConflictError, IntegrationManager, IntegrationStateStore } from '../integrations';
 import { JsonOutboundKeyDb } from '../ports/JsonOutboundKeyDb';
 import { SecretBox } from '../secrets';
 
@@ -41,6 +41,21 @@ function fixture() {
 }
 
 describe('IntegrationManager', () => {
+  it('a fresh install binds the auto-created onboarding key instead of minting a managed one', async () => {
+    const f = fixture();
+    const onboarding = await createNamedKey(f.db, ONBOARDING_ACCESS_KEY_NAME);
+    await f.db.outboundApiKeysSetUpstreamBinding(onboarding.id, { mode: 'explicit', targets: [] });
+
+    const status = await f.manager.install('codex');
+    expect(status.key).toMatchObject({ id: onboarding.id, ownership: 'selected' });
+    // The rendered config carries the ONBOARDING key's secret, and no managed
+    // key was minted beside it.
+    expect(await f.manager.getIntegrationToken('codex')).toBe(onboarding.plaintextOnce);
+    const names = (await f.db.outboundApiKeysList()).map((row) => row.name);
+    expect(names).toEqual([ONBOARDING_ACCESS_KEY_NAME]);
+  });
+
+
   it('encrypts arbitrary snapshots even when their content begins with $', () => {
     const f = fixture();
     f.store.save({

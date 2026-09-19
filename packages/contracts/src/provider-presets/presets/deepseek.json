@@ -6,13 +6,13 @@
   "apiType": "openai",
   "api_base_url": "https://api.deepseek.com/v1/chat/completions",
   "models": [
-    "deepseek-v4-flash",
+    "deepseek-flash",
     "deepseek-v4-pro"
   ],
   "modelConfigs": [
     {
-      "id": "deepseek-v4-flash",
-      "name": "DeepSeek V4 Flash",
+      "id": "deepseek-flash",
+      "name": "DeepSeek Flash",
       "enabled": true
     },
     {

@@ -87,6 +87,7 @@ export const LEGACY_THINKING_TOKEN_LIMITS: Record<string, { min: number; max: nu
 
   // DeepSeek
   'deepseek-v4-pro': { min: 0, max: 32768 },
+  'deepseek-flash': { min: 0, max: 32768 },
   'deepseek-v4-flash': { min: 0, max: 32768 },
   'deepseek-r1': { min: 0, max: 32768 },
   'deepseek-reasoner': { min: 0, max: 32768 },

@@ -1,4 +1,4 @@
-export { IntegrationManager, IntegrationConflictError } from './IntegrationManager';
+export { IntegrationConflictError, IntegrationManager, ONBOARDING_ACCESS_KEY_NAME } from './IntegrationManager';
 export { IntegrationStateStore } from './IntegrationStateStore';
 export { currentProcessCodexAuthHelper } from './codexAuthHelper';
 export type { CodexAuthHelperConfig } from './codexAuthHelper';

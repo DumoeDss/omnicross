@@ -531,9 +531,9 @@ export const PROVIDER_TEMPLATES: ProviderTemplate[] = [
     apiFormat: 'openai',
     apiType: 'openai',
     api_base_url: 'https://api.deepseek.com/v1/chat/completions',
-    models: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'],
+    models: ['deepseek-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'],
     modelConfigs: [
-      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', enabled: true },
+      { id: 'deepseek-flash', name: 'DeepSeek Flash', enabled: true },
       { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', enabled: true },
       { id: 'deepseek-chat', name: 'DeepSeek Chat (Legacy)', enabled: false },
       { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner (Legacy)', enabled: false },
