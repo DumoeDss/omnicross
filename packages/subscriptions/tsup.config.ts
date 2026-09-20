@@ -11,6 +11,8 @@ export default defineConfig({
     // `accountSupportsModel`). A subpath entry must be registered here or the
     // `./*` exports wildcard resolves to a dist file that was never built.
     'scheduler/accountModelMap': 'src/scheduler/accountModelMap.ts',
+    // Consumed as a subpath by the daemon's route-lease preflight.
+    'ports/credential-store': 'src/ports/credential-store.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

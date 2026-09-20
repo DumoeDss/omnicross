@@ -35,6 +35,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./account-allowance-types": {
+      "types": "./dist/account-allowance-types.d.ts",
+      "import": "./dist/account-allowance-types.js",
+      "require": "./dist/account-allowance-types.cjs"
+    },
     "./account-tokens-types": {
       "types": "./dist/account-tokens-types.d.ts",
       "import": "./dist/account-tokens-types.js",

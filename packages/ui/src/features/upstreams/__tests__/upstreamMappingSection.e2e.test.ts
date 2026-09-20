@@ -31,7 +31,7 @@ vi.mock('@/daemon/httpFetch', () => ({
 import { UpstreamMappingSection } from '../UpstreamMappingSection';
 
 describe('UpstreamMappingSection end-to-end against a temp daemon', () => {
-  let daemon: { adminServer: { start(): Promise<void>; stop(): Promise<void>; getStatus(): { url: string } }; outboundApiServer: { applyConfig(c: unknown): Promise<void>; stop(): Promise<void> }; apiKeyPool: { dispose(): void }; llmConfig: { ready(): Promise<void> } };
+  let daemon: { adminServer: { start(): Promise<number>; stop(): Promise<void>; getStatus(): { url: string | null } }; outboundApiServer: { applyConfig(c: unknown): Promise<void>; stop(): Promise<void> }; apiKeyPool: { dispose(): void }; llmConfig: { ready(): Promise<void> } };
   let tmp: string;
   let root: Root | null = null;
 
@@ -54,7 +54,9 @@ describe('UpstreamMappingSection end-to-end against a temp daemon', () => {
     await daemon.llmConfig.ready();
     await daemon.outboundApiServer.applyConfig({ enabled: false, networkBinding: false, endpoints: [], bindings: [], port: 0 });
     await daemon.adminServer.start();
-    holder.base = daemon.adminServer.getStatus().url;
+    const base = daemon.adminServer.getStatus().url;
+    if (base === null) throw new Error('admin server did not report a url');
+    holder.base = base;
   });
 
   afterAll(async () => {

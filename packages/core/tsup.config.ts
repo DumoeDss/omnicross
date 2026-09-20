@@ -25,6 +25,7 @@ export default defineConfig({
     'auth/GeminiCodeAssistProjectResolver': 'src/auth/GeminiCodeAssistProjectResolver.ts',
     completion: 'src/completion/index.ts',
     'image-generation': 'src/image-generation/index.ts',
+    'image-generation/responses': 'src/image-generation/responses/index.ts',
     'openai-operation': 'src/openai-operation/index.ts',
     'completion/ApiKeyPoolService': 'src/completion/ApiKeyPoolService.ts',
     'completion/BuiltinToolExecutor': 'src/completion/BuiltinToolExecutor.ts',

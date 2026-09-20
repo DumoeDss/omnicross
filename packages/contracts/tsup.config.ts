@@ -7,6 +7,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: [
     'src/index.ts',
+    'src/account-allowance-types.ts',
     'src/account-tokens-types.ts',
     'src/audit-types.ts',
     'src/billing-types.ts',
