@@ -20,8 +20,15 @@
  *
  * WHICH UPSTREAM: the provider row to read through is the 'other'-category row
  * (prefer id `open-jev`), created from the open-jev preset under LLM Providers
- * → Other. Its baseUrl/apiKey point at any OpenAI-compatible chat API that
- * returns top_logprobs (default preset: NIM DiffusionGemma). The row never
+ * → Other. Two upstream kinds, picked by the row's baseUrl:
+ *  - any OpenAI-compatible chat API that returns top_logprobs (default
+ *    preset: NIM DiffusionGemma) → the boundary-read path above;
+ *  - OpenRouter (host openrouter.ai) → NATIVE passthrough: OpenRouter serves
+ *    the real Jev on its Decisions API (`POST
+ *    https://openrouter.ai/api/alpha/decisions`, verified against
+ *    @openrouter/sdk 1.3.8's alphaDecisionsCreate), so the request forwards
+ *    verbatim and its answers return untouched — no logprobs trick needed.
+ *    Models: `typesafe/jev-1.13` / `typesafe/jev-latest`. The row never
  * routes chat traffic (category 'other' is excluded from the bindable
  * catalog); its models list — fillable via Discover models (/v1/models) —
  * supplies the default read model, overridable per request via `model`
@@ -232,6 +239,40 @@ function answerFor(q: JevQuestion, labels: string[], top: TopMap): Record<string
   return { type: 'noul', noul: round5(noul) };
 }
 
+/** True when the row points at OpenRouter, whose Jev is served natively on
+ *  the Decisions API (host match covers api./www./bare openrouter.ai). */
+export function isOpenRouterUpstream(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.endsWith('openrouter.ai');
+  } catch {
+    return false;
+  }
+}
+
+/** The Decisions API URL is ORIGIN-scoped (/api/alpha), independent of whether
+ *  the row's base ends in /api/v1, /v1, or bare — so derive from the origin. */
+export function openRouterDecisionsUrl(baseUrl: string): string {
+  return new URL(baseUrl).origin + '/api/alpha/decisions';
+}
+
+/** Map OpenRouter's DecisionsResponse (camelCase usage) onto our Jev shape. */
+export function mapDecisionsResponse(
+  data: Record<string, unknown>,
+  questionCount: number,
+): Record<string, unknown> {
+  const usage = (data['usage'] ?? {}) as Record<string, unknown>;
+  return {
+    model: data['model'],
+    answers: data['answers'],
+    usage: {
+      input_tokens: Number(usage['inputTokens'] ?? 0),
+      output_tokens: Number(usage['outputTokens'] ?? 0),
+      reads: questionCount,
+      ...(usage['cost'] !== undefined ? { cost: usage['cost'] } : {}),
+    },
+  };
+}
+
 // ── upstream resolution + read ───────────────────────────────────────────────
 
 interface JevUpstream {
@@ -303,6 +344,45 @@ async function readBoundary(
     await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
   }
   throw new JevUpstreamError(`upstream chat failed (${status}): ${text}`);
+}
+
+/** Native Decisions passthrough for OpenRouter rows: forward the Jev body
+ *  verbatim, return its answers untouched (only usage is normalized). */
+async function readDecisionsNative(
+  upstream: JevUpstream,
+  model: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const url = openRouterDecisionsUrl(upstream.baseUrl);
+  const payload = JSON.stringify({ model, state: body['state'], questions: body['questions'] });
+  let status = 0;
+  let text = '';
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetchUpstream(
+      url,
+      { method: 'POST', headers: upstream.headers, body: payload },
+      { providerId: 'byo' },
+    ).catch((err: unknown) => {
+      status = 0;
+      text = err instanceof Error ? err.message : String(err);
+      return null;
+    });
+    if (response) {
+      if (response.ok) {
+        const data = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+        if (data && data['answers'] && typeof data['answers'] === 'object') {
+          return mapDecisionsResponse(data, Object.keys(body['questions'] as object).length);
+        }
+        throw new JevUpstreamError('upstream decisions response missing answers');
+      }
+      status = response.status;
+      text = (await response.text().catch(() => '')).slice(0, 300);
+      if (![429, 500, 502, 503, 504].includes(status)) break;
+    }
+    if (attempt >= RETRY_DELAYS_MS.length - 1) break;
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+  }
+  throw new JevUpstreamError(`upstream decisions failed (${status}): ${text}`);
 }
 
 // ── gateway mount ─────────────────────────────────────────────────────────────
@@ -400,6 +480,14 @@ export function createJevSystemoneMount(deps: {
     }
 
     try {
+      if (isOpenRouterUpstream(upstream.baseUrl)) {
+        if (images.length > 0) {
+          writeJsonError(res, 422, 'images are not supported on the OpenRouter decisions path (text state only)');
+          return true;
+        }
+        writeJson(res, 200, await readDecisionsNative(upstream, model, body));
+        return true;
+      }
       const results = await Promise.all(
         normalized.map(async ([, q]) => {
           const { content, labels } = buildPrompt(body['state'], q, images);

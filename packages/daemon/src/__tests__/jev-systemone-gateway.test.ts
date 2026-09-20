@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildDaemon, type Daemon, resetDaemonSingletonsForTests } from '../bootstrap';
+import { isOpenRouterUpstream, mapDecisionsResponse, openRouterDecisionsUrl } from '../jevSystemone';
 import { loadConfig } from '../config';
 
 let tmpDir: string;
@@ -226,5 +227,31 @@ describe('POST /v1/systemone (outbound server)', () => {
       questions: { q: { type: 'noul', instructions: 'ok?' } },
     }, accessKey);
     expect(r.status).toBe(422);
+  });
+});
+
+describe('open-jev OpenRouter native path helpers', () => {
+  it('detects OpenRouter bases (any path shape)', () => {
+    expect(isOpenRouterUpstream('https://openrouter.ai/api/v1')).toBe(true);
+    expect(isOpenRouterUpstream('https://openrouter.ai')).toBe(true);
+    expect(isOpenRouterUpstream('https://api.openrouter.ai/v1')).toBe(true);
+    expect(isOpenRouterUpstream('https://integrate.api.nvidia.com/v1')).toBe(false);
+    expect(isOpenRouterUpstream('https://simple-jev-demo-api.featherless.ai')).toBe(false);
+    expect(isOpenRouterUpstream('not a url')).toBe(false);
+  });
+
+  it('derives the decisions URL from the origin (path-independent)', () => {
+    expect(openRouterDecisionsUrl('https://openrouter.ai/api/v1')).toBe('https://openrouter.ai/api/alpha/decisions');
+    expect(openRouterDecisionsUrl('https://openrouter.ai')).toBe('https://openrouter.ai/api/alpha/decisions');
+  });
+
+  it('maps the DecisionsResponse (camelCase usage) onto the Jev shape', () => {
+    const out = mapDecisionsResponse(
+      { model: 'typesafe/jev-1.13', answers: { q: { type: 'noul', noul: 0.9 } }, usage: { inputTokens: 12, outputTokens: 0, cost: 0.0005 } },
+      1,
+    );
+    expect(out.model).toBe('typesafe/jev-1.13');
+    expect((out.answers as Record<string, unknown>)['q']).toEqual({ type: 'noul', noul: 0.9 });
+    expect(out.usage).toEqual({ input_tokens: 12, output_tokens: 0, reads: 1, cost: 0.0005 });
   });
 });
