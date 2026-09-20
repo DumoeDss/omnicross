@@ -419,7 +419,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "Other"
     },
     "alerts": {
       "deleteConfirm": "Are you sure you want to delete this provider?"
@@ -523,7 +524,7 @@
     "gateway": "Gateway",
     "accessKeys": "Access keys",
     "routeActivity": "Routing activity",
-    "upstreams": "Upstreams & Routes",
+    "upstreams": "LLM Providers",
     "integrations": "Integrations",
     "chatgptWeb": "ChatGPT Web",
     "group": {
@@ -714,7 +715,7 @@
     }
   },
   "upstreams": {
-    "title": "Upstreams and routes",
+    "title": "LLM Providers",
     "description": "Manage upstream connections separately from the downstream routes clients enter through.",
     "addAccount": "Add account",
     "addProvider": "Add provider",
@@ -744,7 +745,7 @@
     "routeCount": "{{count}} routes",
     "manageAccount": "Manage account",
     "tabs": {
-      "label": "Upstreams and routes",
+      "label": "LLM Providers",
       "resources": "Upstream resources",
       "routes": "Downstreams and routes",
       "activity": "Routing activity"

@@ -413,7 +413,8 @@
         "vision": "Зрение",
         "mcp": "MCP",
         "codingPlan": "План кодирования"
-      }
+      },
+      "categoryOther": "Другие"
     },
     "alerts": {
       "deleteConfirm": "Вы уверены, что хотите удалить этого провайдера?"

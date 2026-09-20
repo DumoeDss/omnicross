@@ -89,6 +89,70 @@ export function ProviderTemplatePicker({
     });
   }, [presets, query, t]);
 
+  // `category: 'other'` presets (e.g. Jev — a decision engine whose key this
+  // app merely stores for external tools) render under their own labeled
+  // section instead of mixing into the chat-provider grid.
+  const mainPresets = useMemo(
+    () => visiblePresets.filter((preset) => preset.category !== 'other'),
+    [visiblePresets],
+  );
+  const otherPresets = useMemo(
+    () => visiblePresets.filter((preset) => preset.category === 'other'),
+    [visiblePresets],
+  );
+
+  const renderCard = (preset: DaemonPresetView) => {
+    const added = addedPresetIds.has(preset.id);
+    const tags = featureLabels(preset.features, t);
+    return (
+      <div
+        key={preset.id}
+        className={cn(
+          'flex flex-col gap-3 rounded-xl border border-border/40 bg-surface-1 p-4 transition-colors',
+          added ? 'opacity-60' : 'hover:border-primary/40 hover:bg-surface-2/60',
+        )}
+      >
+        <div className="flex items-center gap-2.5">
+          {getProviderIcon(preset.icon)}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            {getProviderDisplayName(t, { name: preset.name, nameKey: preset.nameKey })}
+          </span>
+          {added ? (
+            <Badge variant="success" className="shrink-0 text-[10px]">
+              <Check className="h-3 w-3" />
+              {t('providerSettings.presets.added')}
+            </Badge>
+          ) : null}
+        </div>
+
+        {tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {tags.map((label) => (
+              <Badge key={label} variant="secondary" className="text-[10px]">
+                {label}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        {preset.description ? (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{preset.description}</p>
+        ) : null}
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-auto w-full"
+          disabled={added}
+          onClick={() => onUseTemplate(preset)}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          {added ? t('providerSettings.presets.added') : t('providerSettings.presets.add')}
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5 p-4">
       {/* Start from an API type — the no-template path, kept above the fold. */}
@@ -154,59 +218,21 @@ export function ProviderTemplatePicker({
               : t('providerSettings.presets.empty')}
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visiblePresets.map((preset) => {
-              const added = addedPresetIds.has(preset.id);
-              const tags = featureLabels(preset.features, t);
-              return (
-                <div
-                  key={preset.id}
-                  className={cn(
-                    'flex flex-col gap-3 rounded-xl border border-border/40 bg-surface-1 p-4 transition-colors',
-                    added ? 'opacity-60' : 'hover:border-primary/40 hover:bg-surface-2/60',
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {getProviderIcon(preset.icon)}
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {getProviderDisplayName(t, { name: preset.name, nameKey: preset.nameKey })}
-                    </span>
-                    {added ? (
-                      <Badge variant="success" className="shrink-0 text-[10px]">
-                        <Check className="h-3 w-3" />
-                        {t('providerSettings.presets.added')}
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  {tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {tags.map((label) => (
-                        <Badge key={label} variant="secondary" className="text-[10px]">
-                          {label}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {preset.description ? (
-                    <p className="line-clamp-2 text-xs text-muted-foreground">{preset.description}</p>
-                  ) : null}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-auto w-full"
-                    disabled={added}
-                    onClick={() => onUseTemplate(preset)}
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    {added ? t('providerSettings.presets.added') : t('providerSettings.presets.add')}
-                  </Button>
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {mainPresets.map(renderCard)}
+            </div>
+            {otherPresets.length > 0 ? (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('providerSettings.presets.categoryOther')}
+                </h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {otherPresets.map(renderCard)}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
 

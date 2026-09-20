@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Kodningsplan"
-      }
+      },
+      "categoryOther": "Övriga"
     },
     "alerts": {
       "deleteConfirm": "Är du säker på att du vill ta bort den här leverantören?"

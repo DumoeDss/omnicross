@@ -413,7 +413,8 @@
         "vision": "Penglihatan",
         "mcp": "MCP",
         "codingPlan": "Pelan Pengekodan"
-      }
+      },
+      "categoryOther": "Lain-lain"
     },
     "alerts": {
       "deleteConfirm": "Adakah anda pasti ingin memadam penyedia ini?"

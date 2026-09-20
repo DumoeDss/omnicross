@@ -190,6 +190,8 @@ export interface DaemonPresetView {
   baseUrl: string;
   models: string[];
   nameKey?: string;
+  /** Catalog grouping ('other' = not a chat backend; rendered in its own section). */
+  category?: string;
   icon?: string;
   description?: string;
   features?: string[];

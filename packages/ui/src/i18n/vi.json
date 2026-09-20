@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "Khác"
     },
     "alerts": {
       "deleteConfirm": "Bạn có chắc muốn xóa nhà cung cấp này không?"

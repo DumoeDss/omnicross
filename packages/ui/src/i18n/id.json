@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "Lainnya"
     },
     "alerts": {
       "deleteConfirm": "Apakah Anda yakin ingin menghapus penyedia ini?"

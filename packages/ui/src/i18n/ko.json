@@ -413,7 +413,8 @@
         "vision": "비전",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "기타"
     },
     "alerts": {
       "deleteConfirm": "이 프로바이더를 삭제하시겠습니까?"

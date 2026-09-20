@@ -413,7 +413,8 @@
         "vision": "Зір",
         "mcp": "MCP",
         "codingPlan": "План кодування"
-      }
+      },
+      "categoryOther": "Інші"
     },
     "alerts": {
       "deleteConfirm": "Ви впевнені, що хочете видалити цього провайдера?"

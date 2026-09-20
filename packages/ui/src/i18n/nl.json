@@ -413,7 +413,8 @@
         "vision": "Visie",
         "mcp": "MCP",
         "codingPlan": "Codeerplan"
-      }
+      },
+      "categoryOther": "Overige"
     },
     "alerts": {
       "deleteConfirm": "Weet u zeker dat u deze provider wilt verwijderen?"

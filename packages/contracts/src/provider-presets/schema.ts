@@ -117,6 +117,7 @@ export const presetSchema = z
     models: z.array(z.string()),
     apiType: z.string().optional(),
     nameKey: z.string().optional(),
+    category: z.string().optional(),
     modelsEndpoint: z.string().optional(),
     apiVersion: z.string().optional(),
     modelConfigs: z.array(modelConfigSchema).optional(),

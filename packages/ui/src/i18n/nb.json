@@ -413,7 +413,8 @@
         "vision": "Visjon",
         "mcp": "MCP",
         "codingPlan": "Kodingsplan"
-      }
+      },
+      "categoryOther": "Annet"
     },
     "alerts": {
       "deleteConfirm": "Er du sikker på at du vil slette denne leverandøren?"

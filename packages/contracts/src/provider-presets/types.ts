@@ -137,6 +137,14 @@ export interface PresetProviderTemplate extends ProviderTemplate {
   /** Preset ID for matching with CODING_PLAN_URL_PRESETS and PROVIDER_MODEL_MAPPINGS */
   presetId: string;
   /**
+   * Catalog grouping. Undefined = the main chat-provider grid. `'other'` =
+   * entries that are NOT chat backends at all (e.g. Jev, a decision engine
+   * whose API key this app only stores for external tools) — the picker
+   * renders them under a separate labeled section so they can never be
+   * mistaken for a routable LLM provider.
+   */
+  category?: string;
+  /**
    * Optional i18n key for the display name (e.g. `presetName.tencent`). When
    * present, clients prefer this over the seed `name` field for list
    * display (so Chinese-named built-in providers render translated in non-zh

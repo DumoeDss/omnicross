@@ -413,7 +413,8 @@
         "vision": "Visão",
         "mcp": "MCP",
         "codingPlan": "Plano de programação"
-      }
+      },
+      "categoryOther": "Outros"
     },
     "alerts": {
       "deleteConfirm": "Tem a certeza de que pretende eliminar este fornecedor?"

@@ -115,7 +115,11 @@ export async function listUpstreamCatalog(
   };
   return [
     ...providers
-      .filter((provider) => provider.enabled !== false)
+      // Enabled AND non-empty model list: a provider with no models can never
+      // serve (same black-hole rule as an empty account pool), and the
+      // "other"-category presets (e.g. Jev, key storage only) seed exactly
+      // that shape so they never become bindable upstreams.
+      .filter((provider) => provider.enabled !== false && (provider.models?.length ?? 0) > 0)
       .map((provider) => ({
       key: provider.id,
       label: typeof provider.name === 'string' && provider.name.trim() !== ''

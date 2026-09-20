@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Kodningsplan"
-      }
+      },
+      "categoryOther": "Andre"
     },
     "alerts": {
       "deleteConfirm": "Er du sikker på, at du vil slette denne udbyder?"

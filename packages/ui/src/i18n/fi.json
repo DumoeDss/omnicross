@@ -413,7 +413,8 @@
         "vision": "Visio",
         "mcp": "MCP",
         "codingPlan": "Koodaussuunnitelma"
-      }
+      },
+      "categoryOther": "Muut"
     },
     "alerts": {
       "deleteConfirm": "Haluatko varmasti poistaa tämän palveluntarjoajan?"

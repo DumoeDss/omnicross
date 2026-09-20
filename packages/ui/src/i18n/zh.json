@@ -419,7 +419,8 @@
         "vision": "视觉",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "其他"
     },
     "alerts": {
       "deleteConfirm": "确定要删除该提供商吗？"
@@ -521,7 +522,7 @@
     "gateway": "网关",
     "accessKeys": "访问密钥",
     "routeActivity": "路由活动",
-    "upstreams": "上游与路由",
+    "upstreams": "LLM 提供商",
     "integrations": "集成",
     "group": {
       "run": "运行",
@@ -714,7 +715,7 @@
     }
   },
   "upstreams": {
-    "title": "上游与路由",
+    "title": "LLM 提供商",
     "description": "分别管理上游连接，以及客户端进入网关后的下游路由。",
     "addAccount": "添加账号",
     "addProvider": "添加提供商",
@@ -744,7 +745,7 @@
     "routeCount": "{{count}} 条路由",
     "manageAccount": "管理账号",
     "tabs": {
-      "label": "上游与路由",
+      "label": "LLM 提供商",
       "resources": "上游资源",
       "routes": "下游与路由",
       "activity": "路由活动"

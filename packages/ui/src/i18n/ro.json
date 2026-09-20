@@ -413,7 +413,8 @@
         "vision": "Viziune",
         "mcp": "MCP",
         "codingPlan": "Plan programare"
-      }
+      },
+      "categoryOther": "Altele"
     },
     "alerts": {
       "deleteConfirm": "Sigur doriți să ștergeți acest furnizor?"

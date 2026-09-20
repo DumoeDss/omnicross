@@ -413,7 +413,8 @@
         "vision": "رؤية",
         "mcp": "MCP",
         "codingPlan": "خطة البرمجة"
-      }
+      },
+      "categoryOther": "أخرى"
     },
     "alerts": {
       "deleteConfirm": "هل أنت متأكد من حذف هذا الموفر؟"

@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "Άλλα"
     },
     "alerts": {
       "deleteConfirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον provider;"

@@ -144,6 +144,8 @@ export interface MappablePreset {
   baseUrl: string;
   models: string[];
   nameKey?: string;
+  /** Catalog grouping ('other' = not a chat backend; see PresetProviderTemplate). */
+  category?: string;
   icon?: string;
   description?: string;
   features?: string[];
@@ -181,6 +183,7 @@ export function listMappablePresets(): ListMappableResult {
       baseUrl: preset.api_base_url,
       models: Array.isArray(preset.models) ? preset.models : [],
       nameKey: preset.nameKey,
+      category: preset.category,
       icon: preset.icon,
       description: preset.description,
       features: preset.features,

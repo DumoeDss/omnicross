@@ -1968,6 +1968,7 @@ function handlePresets(res: http.ServerResponse, method: string): void {
     baseUrl: p.baseUrl,
     models: p.models,
     nameKey: p.nameKey,
+    category: p.category,
     icon: p.icon,
     description: p.description,
     features: p.features,

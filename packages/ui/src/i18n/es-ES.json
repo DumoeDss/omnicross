@@ -413,7 +413,8 @@
         "vision": "Visión",
         "mcp": "MCP",
         "codingPlan": "Plan de codificación"
-      }
+      },
+      "categoryOther": "Otros"
     },
     "alerts": {
       "deleteConfirm": "¿Estás seguro de que quieres eliminar este proveedor?"

@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Piano di codifica"
-      }
+      },
+      "categoryOther": "Altro"
     },
     "alerts": {
       "deleteConfirm": "Sei sicuro di voler eliminare questo provider?"

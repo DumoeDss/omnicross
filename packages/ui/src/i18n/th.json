@@ -413,7 +413,8 @@
         "vision": "Vision",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "อื่น ๆ"
     },
     "alerts": {
       "deleteConfirm": "คุณแน่ใจหรือไม่ว่าต้องการลบผู้ให้บริการนี้?"

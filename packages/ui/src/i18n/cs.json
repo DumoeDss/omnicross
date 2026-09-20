@@ -413,7 +413,8 @@
         "vision": "Vidění",
         "mcp": "MCP",
         "codingPlan": "Plán kódování"
-      }
+      },
+      "categoryOther": "Jiné"
     },
     "alerts": {
       "deleteConfirm": "Opravdu chcete smazat tohoto poskytovatele?"

@@ -413,7 +413,8 @@
         "vision": "Görsel",
         "mcp": "MCP",
         "codingPlan": "Kodlama Planı"
-      }
+      },
+      "categoryOther": "Diğer"
     },
     "alerts": {
       "deleteConfirm": "Bu sağlayıcıyı silmek istediğinizden emin misiniz?"

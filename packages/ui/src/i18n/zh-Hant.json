@@ -419,7 +419,8 @@
         "vision": "視覺",
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
-      }
+      },
+      "categoryOther": "其他"
     },
     "alerts": {
       "deleteConfirm": "確定要刪除此提供者嗎？"
@@ -521,7 +522,7 @@
     "gateway": "閘道",
     "accessKeys": "存取金鑰",
     "routeActivity": "路由活動",
-    "upstreams": "上游與路由",
+    "upstreams": "LLM 供應商",
     "integrations": "整合",
     "group": {
       "run": "執行",
@@ -714,7 +715,7 @@
     }
   },
   "upstreams": {
-    "title": "上游與路由",
+    "title": "LLM 供應商",
     "description": "分別管理上游連線，以及客戶端進入閘道後的下游路由。",
     "addAccount": "新增帳號",
     "addProvider": "新增提供者",
@@ -744,7 +745,7 @@
     "routeCount": "{{count}} 條路由",
     "manageAccount": "管理帳號",
     "tabs": {
-      "label": "上游與路由",
+      "label": "LLM 供應商",
       "resources": "上游資源",
       "routes": "下游與路由",
       "activity": "路由活動"

@@ -413,7 +413,8 @@
         "vision": "Látás",
         "mcp": "MCP",
         "codingPlan": "Kódolási terv"
-      }
+      },
+      "categoryOther": "Egyéb"
     },
     "alerts": {
       "deleteConfirm": "Biztosan törli ezt a szolgáltatót?"

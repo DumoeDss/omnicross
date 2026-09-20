@@ -413,7 +413,8 @@
         "vision": "Визия",
         "mcp": "MCP",
         "codingPlan": "План за кодиране"
-      }
+      },
+      "categoryOther": "Други"
     },
     "alerts": {
       "deleteConfirm": "Сигурни ли сте, че искате да изтриете този доставчик?"
