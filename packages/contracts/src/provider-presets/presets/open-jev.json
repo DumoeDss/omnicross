@@ -4,13 +4,19 @@
   "name": "open-jev",
   "category": "other",
   "apiFormat": "openai",
-  "api_base_url": "http://127.0.0.1:8012",
-  "transformer": { "use": ["openai"] },
+  "api_base_url": "https://integrate.api.nvidia.com/v1",
+  "transformer": {
+    "use": [
+      "openai"
+    ]
+  },
   "models": [],
-  "description": "本地 open-jev 桥（_others/jev/open-jev）：把任意 OpenAI 兼容 chat 上游（需返回 top_logprobs，默认 NIM DiffusionGemma）转成 Jev systemone 决策 API。此条目保管桥的地址与密钥（BRIDGE_API_KEY，未设可留空）；点「发现模型」可拉到上游模型列表。不能作为对话上游。",
+  "description": "open-jev：omnicross 守护进程内置的 Jev systemone 决策桥。此行配置读取上游（任意 OpenAI 兼容 chat、需返回 top_logprobs，默认 NIM DiffusionGemma）：Base URL 填上游地址、密钥填上游 key；点「发现模型」可拉到上游模型列表（首个即默认读取模型）。Jev 客户端（Jev-cu 等）把 endpoint 指向 http://127.0.0.1:8766/admin/api/jev/systemone 即可。不能作为对话上游。",
   "icon": "open-jev",
   "website": "https://simple-jev.featherless.ai/",
   "docsUrl": "https://docs.typesafe.ai/",
   "isSystem": true,
-  "features": ["decision-engine"]
+  "features": [
+    "decision-engine"
+  ]
 }

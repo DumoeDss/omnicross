@@ -192,6 +192,7 @@ import { preserveSearchSecrets, redactSearchServerConfig } from './searchAdminVi
 import { parseKeyPolicyBody } from './keyPolicyBody';
 import { validateGatewayBindingsSegment } from './gatewayBindingBody';
 import { handleVoucher } from './voucherAdmin';
+import { handleJev } from './jevSystemone';
 import {
   preserveWebhookSecrets,
   redactWebhookConfig,
@@ -488,7 +489,7 @@ function readBody(req: http.IncomingMessage): Promise<string> {
 }
 
 /** Parse the request body as JSON (→ `{}` on an empty/invalid body). */
-async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+export async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   const raw = await readBody(req);
   if (!raw.trim()) return {};
   try {
@@ -501,12 +502,12 @@ async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, u
   }
 }
 
-function writeJson(res: http.ServerResponse, status: number, body: unknown): void {
+export function writeJson(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
 }
 
-function writeJsonError(res: http.ServerResponse, status: number, message: string): void {
+export function writeJsonError(res: http.ServerResponse, status: number, message: string): void {
   writeJson(res, status, { error: { type: 'admin_api_error', message } });
 }
 
@@ -667,6 +668,8 @@ export async function handleAdminApi(
         return await handleProviders(req, res, method, rest, deps);
       case 'presets':
         return handlePresets(res, method);
+      case 'jev':
+        return await handleJev(req, res, method, rest, deps);
       case 'keys':
         return await handleKeys(req, res, method, rest, deps);
       case 'upstreams':
@@ -1952,6 +1955,7 @@ export function parseProviderInput(
     modelConfigs,
     apiKeys,
     enabled,
+    category,
     isOfficial,
     apiVersion,
     maxConcurrency,

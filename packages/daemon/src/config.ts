@@ -868,6 +868,7 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
     modelConfigs: validateModelConfigs(p['modelConfigs']),
     apiKeys: validateApiKeys(p['apiKeys']),
     enabled,
+    category,
     isOfficial,
     apiVersion,
     maxConcurrency,
