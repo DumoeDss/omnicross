@@ -29,6 +29,7 @@ import { DEFAULT_BILLING_CONFIG } from '@omnicross/contracts/billing-types';
 import { OpenAIOperationRegistry, type Logger } from '@omnicross/core';
 import type { SearchFrontendModes, SearchRuntime } from '@omnicross/core/search';
 import { getGeminiCodeAssistProjectResolver } from '@omnicross/core/auth/GeminiCodeAssistProjectResolver';
+import { createJevSystemoneMount } from './jevSystemone';
 import { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
 import {
   __resetOutboundApiServerForTests,
@@ -993,6 +994,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     proxyDeps: providerProxy.getDeps(),
     imageModelCatalog: imageRuntimeManager,
     healthReportProvider: getHealthReport,
+    // open-jev: the Jev systemone decision API on the TRAFFIC port
+    // (`POST /v1/systemone`, access-key Bearer auth) — reads through the
+    // 'other'-category provider row (prefer id 'open-jev').
+    jevSystemone: createJevSystemoneMount({ configPath: paths.configPath, keyDb }),
     // outbound-key-policy: the wire layer's 402 cost check reads per-key spend.
     keySpendTracker,
     // configurable-logging: route the server's OWN lifecycle + relay dispatch-error

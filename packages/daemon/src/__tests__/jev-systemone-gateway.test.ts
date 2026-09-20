@@ -1,13 +1,15 @@
 /**
- * admin-jev-systemone.test.ts — `POST /admin/api/jev/systemone`.
+ * jev-systemone-gateway.test.ts — `POST /v1/systemone` on the OUTBOUND server.
  *
- * Boots the FULL daemon in process against a config whose provider row is a
- * 'other'-category open-jev row pointing at a local MOCK upstream that returns
- * a fixed top-logprobs distribution. Covers:
+ * Boots the FULL daemon in process (traffic server enabled on an ephemeral
+ * port) against a config whose provider row is a 'other'-category open-jev row
+ * pointing at a local MOCK upstream that returns a fixed top-logprobs
+ * distribution. Covers:
  *  - the three Jev primitives answer in Jev shapes (choice/score/noul);
- *  - the read call carries logprobs params + the row's Bearer key;
+ *  - the read call carries logprobs params + the row's Bearer key upstream;
  *  - `jev-latest`/absent model resolves to the row's default model;
- *  - no 'other' row → 409 with guidance; an upstream without logprobs → 502.
+ *  - the caller must present a named ACCESS KEY (Jev's Bearer convention);
+ *  - no 'other' row → 409 with guidance; malformed question → 422.
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -22,6 +24,8 @@ import { loadConfig } from '../config';
 let tmpDir: string;
 let daemon: Daemon;
 let adminBase: string;
+let gwBase: string;
+let accessKey = '';
 let mockUpstream: Server;
 let mockUrl = '';
 /** 固定分布：A 强、B 弱、数字 3/8 有质量；数组形状（NIM 实测形状）。 */
@@ -80,7 +84,7 @@ async function boot(withOtherRow: boolean): Promise<void> {
   const configPath = join(tmpDir, 'config.json');
   writeFileSync(configPath, JSON.stringify({
     providers,
-    server: { enabled: false, networkBinding: false, port: 0, endpoints: [] },
+    server: { enabled: true, networkBinding: false, port: 0, endpoints: [] },
     admin: { port: 0 },
   }, null, 2), 'utf8');
   daemon = buildDaemon(loadConfig(configPath), {
@@ -92,12 +96,27 @@ async function boot(withOtherRow: boolean): Promise<void> {
   await daemon.llmConfig.ready();
   await daemon.adminServer.start();
   adminBase = daemon.adminServer.getStatus().url as string;
-}
-
-async function post(body: unknown): Promise<{ status: number; json: any }> {
-  const res = await fetch(`${adminBase}/admin/api/jev/systemone`, {
+  await daemon.outboundApiServer.applyConfig({ enabled: true, networkBinding: false, endpoints: [], bindings: [], port: 0 });
+  const status = daemon.outboundApiServer.getStatus();
+  if (!status.loopbackUrl) throw new Error('outbound server not running');
+  gwBase = status.loopbackUrl;
+  // 建一个命名访问密钥（与 CLI 客户端同款），拿到一次性明文。
+  const res = await fetch(`${adminBase}/admin/api/keys`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'jev-test' }),
+  });
+  const created = await res.json() as { plaintextOnce?: string };
+  if (!created.plaintextOnce) throw new Error('access key creation failed');
+  accessKey = created.plaintextOnce;
+}
+
+async function post(body: unknown, key?: string): Promise<{ status: number; json: any }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key !== undefined) headers['Authorization'] = `Bearer ${key}`;
+  const res = await fetch(`${gwBase}/v1/systemone`, {
+    method: 'POST',
+    headers,
     body: JSON.stringify(body),
   });
   return { status: res.status, json: await res.json().catch(() => null) };
@@ -120,7 +139,7 @@ afterEach(async () => {
   if (mockUpstream) await new Promise<void>((resolve) => mockUpstream.close(() => resolve()));
 });
 
-describe('POST /admin/api/jev/systemone', () => {
+describe('POST /v1/systemone (outbound server)', () => {
   it('answers the three primitives in Jev shapes and reads with logprobs', async () => {
     await boot(true);
     const r = await post({
@@ -130,12 +149,12 @@ describe('POST /admin/api/jev/systemone', () => {
         tone: { type: 'score', instructions: 'How angry?', criteria: ['calm', 'annoyed', 'frustrated', 'furious'] },
         refund: { type: 'noul', instructions: 'Refund demanded?' },
       },
-    });
+    }, accessKey);
     expect(r.status).toBe(200);
     // A 强（choice → 第一项 billing，高 confidence）
     expect(r.json.answers.bucket.choice).toBe('billing');
     expect(r.json.answers.bucket.confidence).toBeGreaterThan(0.9);
-    // 数字位 3 比 8 略强? 3:-2.0, 8:-1.5 → 8 略强；score 期望在 2~3 之间且有限
+    // 数字位 3:-2.0 / 8:-1.5 → score 期望落在 2..3
     expect(r.json.answers.tone.score).toBeGreaterThanOrEqual(2);
     expect(r.json.answers.tone.score).toBeLessThanOrEqual(3);
     expect(Object.keys(r.json.answers.tone.legend)).toHaveLength(4);
@@ -157,21 +176,27 @@ describe('POST /admin/api/jev/systemone', () => {
 
   it('jev-latest and absent model both resolve to the row default', async () => {
     await boot(true);
-    const r = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } }, model: 'jev-latest' });
+    const r = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } }, model: 'jev-latest' }, accessKey);
     expect(r.status).toBe(200);
     expect(r.json.model).toBe('mock-dgemma');
   });
 
+  it('401 without a valid access key (Jev Bearer convention)', async () => {
+    await boot(true);
+    expect((await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } })).status).toBe(401);
+    expect((await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } }, 'wrong-key')).status).toBe(401);
+  });
+
   it('409 with guidance when no other-category row exists', async () => {
     await boot(false);
-    const r = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } });
+    const r = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } }, accessKey);
     expect(r.status).toBe(409);
     expect(String(r.json?.error?.message ?? '')).toContain('open-jev');
   });
 
   it('422 on a malformed question', async () => {
     await boot(true);
-    const r = await post({ questions: { q: { type: 'maybe', instructions: 'x' } } });
+    const r = await post({ questions: { q: { type: 'maybe', instructions: 'x' } } }, accessKey);
     expect(r.status).toBe(422);
   });
 });

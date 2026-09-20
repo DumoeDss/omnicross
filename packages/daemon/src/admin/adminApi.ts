@@ -192,7 +192,6 @@ import { preserveSearchSecrets, redactSearchServerConfig } from './searchAdminVi
 import { parseKeyPolicyBody } from './keyPolicyBody';
 import { validateGatewayBindingsSegment } from './gatewayBindingBody';
 import { handleVoucher } from './voucherAdmin';
-import { handleJev } from './jevSystemone';
 import {
   preserveWebhookSecrets,
   redactWebhookConfig,
@@ -668,8 +667,6 @@ export async function handleAdminApi(
         return await handleProviders(req, res, method, rest, deps);
       case 'presets':
         return handlePresets(res, method);
-      case 'jev':
-        return await handleJev(req, res, method, rest, deps);
       case 'keys':
         return await handleKeys(req, res, method, rest, deps);
       case 'upstreams':

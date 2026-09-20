@@ -1,10 +1,11 @@
 /**
- * jevSystemone — the Jev systemone decision API, served by the daemon itself.
- *
- * `POST /admin/api/jev/systemone` speaks Jev's wire shape
- * (`{ model?, state, questions }` → `{ model, answers, usage }`, question
- * types choice / score / noul) so Jev-cu and every other Jev client can point
- * at `http://127.0.0.1:8766/admin/api/jev/systemone` with zero changes.
+ * jevSystemone — the Jev systemone decision API, mounted on the daemon's
+ * OUTBOUND (client traffic) server at the canonical `POST /v1/systemone`, so
+ * Jev-cu and every other Jev client points at
+ * `http://127.0.0.1:8765/v1/systemone` (default outbound port) exactly like
+ * they would at api.typesafe.ai. Auth follows the Jev wire convention: the
+ * `Authorization: Bearer <key>` must be one of omnicross's named ACCESS KEYS
+ * (the same keys CLI clients use), hashed via core's `hashKey`.
  *
  * HOW IT READS (verified against NIM's hosted DiffusionGemma on 2026-09-20 —
  * see _others/jev/nim-jev-test for the probe program):
@@ -30,10 +31,9 @@ import type http from 'node:http';
 
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
-import type { AdminApiDeps } from './adminApi';
-import { readJsonBody, writeJson, writeJsonError } from './adminApi';
-import { loadConfig } from '../config';
-import { resolveEnvKey } from '../pool/resolveEnvKey';
+import { hashKey, type OutboundKeyDb } from '@omnicross/core';
+import { loadConfig } from './config';
+import { resolveEnvKey } from './pool/resolveEnvKey';
 
 /** choice labels: A–Z then a–x (Simple Jev's 48-label space). */
 const LETTERS = [...Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)),
@@ -200,8 +200,8 @@ interface JevUpstream {
 }
 
 /** The 'other'-category row (prefer id `open-jev`) is the Jev read upstream. */
-function resolveJevUpstream(deps: AdminApiDeps): JevUpstream | null {
-  const cfg = loadConfig(deps.configPath);
+function resolveJevUpstream(configPath: string): JevUpstream | null {
+  const cfg = loadConfig(configPath);
   const others = (cfg.providers ?? []).filter((p) => p.category === 'other');
   const row = others.find((p) => p.id === 'open-jev') ?? others[0];
   if (!row) return null;
@@ -216,7 +216,6 @@ function resolveJevUpstream(deps: AdminApiDeps): JevUpstream | null {
 }
 
 async function readBoundary(
-  deps: AdminApiDeps,
   upstream: JevUpstream,
   model: string,
   content: string,
@@ -265,67 +264,112 @@ async function readBoundary(
   throw new JevUpstreamError(`upstream chat failed (${status}): ${text}`);
 }
 
-// ── route handler ────────────────────────────────────────────────────────────
+// ── gateway mount ─────────────────────────────────────────────────────────────
 
-/** `POST /admin/api/jev/systemone` (+ `GET /admin/api/jev/upstream` hint). */
-export async function handleJev(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-  method: string,
-  rest: string[],
-  deps: AdminApiDeps,
-): Promise<void> {
-  if (rest[0] !== 'systemone' || rest.length !== 1) {
-    return writeJsonError(res, 404, `unknown jev resource '${rest.join('/') || '(none)'}'`);
-  }
-  if (method !== 'POST') {
-    return writeJsonError(res, 405, `method ${method} not allowed on jev`);
-  }
-  const body = await readJsonBody(req);
-  const questionsRaw = body['questions'];
-  if (!questionsRaw || typeof questionsRaw !== 'object' || Array.isArray(questionsRaw)) {
-    return writeJsonError(res, 422, 'questions must be a non-empty object');
-  }
-  const questions = Object.entries(questionsRaw as Record<string, unknown>);
-  if (questions.length === 0) {
-    return writeJsonError(res, 422, 'questions must be a non-empty object');
-  }
+/** Minimal JSON helpers (local to this module — it mounts OUTSIDE adminApi). */
+function writeJson(res: http.ServerResponse, status: number, body: unknown): void {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) });
+  res.end(payload);
+}
 
-  const upstream = resolveJevUpstream(deps);
-  if (!upstream) {
-    return writeJsonError(
-      res, 409,
-      "no Jev upstream: add the open-jev provider (LLM Providers → Other) and fill its key",
-    );
-  }
-  const requested = typeof body['model'] === 'string' && body['model'].trim() ? body['model'].trim() : '';
-  const model = !requested || requested === 'jev-latest' ? upstream.defaultModel : requested;
+function writeJsonError(res: http.ServerResponse, status: number, message: string): void {
+  writeJson(res, status, { error: { type: 'jev_error', message } });
+}
 
-  let normalized: Array<[string, JevQuestion]>;
-  try {
-    normalized = questions.map(([qid, raw]) => [qid, normalizeQuestion(qid, raw)]);
-  } catch (err) {
-    return writeJsonError(res, 422, err instanceof Error ? err.message : String(err));
+async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  const raw = Buffer.concat(chunks).toString('utf8');
+  const parsed: unknown = raw ? JSON.parse(raw) : {};
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new JevBadRequest('body must be a JSON object');
   }
+  return parsed as Record<string, unknown>;
+}
 
-  try {
-    const results = await Promise.all(
-      normalized.map(async ([, q]) => {
-        const { text, labels } = buildPrompt(body['state'], q);
-        const { top, usage } = await readBoundary(deps, upstream, model, text);
-        return { answer: answerFor(q, labels, top), usage };
-      }),
-    );
-    const usage = {
-      input_tokens: results.reduce((acc, r) => acc + Number(r.usage['prompt_tokens'] ?? 0), 0),
-      output_tokens: results.reduce((acc, r) => acc + Number(r.usage['completion_tokens'] ?? 0), 0),
-      reads: results.length,
-    };
-    const answers: Record<string, unknown> = {};
-    normalized.forEach(([qid], i) => { answers[qid] = results[i].answer; });
-    return writeJson(res, 200, { model, answers, usage });
-  } catch (err) {
-    if (err instanceof JevBadRequest) return writeJsonError(res, 422, err.message);
-    return writeJsonError(res, 502, err instanceof Error ? err.message : String(err));
-  }
+/** Bearer 必须 hash 命中一个启用的访问密钥（与 CLI 客户端同款密钥）。 */
+async function authorize(req: http.IncomingMessage, keyDb: OutboundKeyDb): Promise<boolean> {
+  const header = req.headers['authorization'];
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return false;
+  const row = await keyDb.outboundApiKeysGetByHash(hashKey(header.slice('Bearer '.length).trim()));
+  return row !== null;
+}
+
+/**
+ * The listener-level mount wired into the outbound server's deps by bootstrap.
+ * Owns path/method matching and its own access-key auth; returns true iff the
+ * request was handled (the chat router must then not run).
+ */
+export function createJevSystemoneMount(deps: {
+  configPath: string;
+  keyDb: OutboundKeyDb;
+}): (req: http.IncomingMessage, res: http.ServerResponse) => Promise<boolean> {
+  return async (req, res): Promise<boolean> => {
+    const method = (req.method ?? 'GET').toUpperCase();
+    const path = (req.url ?? '/').split('?')[0]?.replace(/\/+$/, '') || '/';
+    if (path !== '/v1/systemone') return false;
+    if (method !== 'POST') {
+      writeJsonError(res, 405, `method ${method} not allowed on /v1/systemone`);
+      return true;
+    }
+    if (!(await authorize(req, deps.keyDb))) {
+      writeJsonError(res, 401, "invalid or missing access key (Authorization: Bearer <omnicross access key>)");
+      return true;
+    }
+    let body: Record<string, unknown>;
+    try {
+      body = await readJsonBody(req);
+    } catch (err) {
+      writeJsonError(res, 422, err instanceof Error ? err.message : String(err));
+      return true;
+    }
+    const questionsRaw = body['questions'];
+    if (!questionsRaw || typeof questionsRaw !== 'object' || Array.isArray(questionsRaw)) {
+      writeJsonError(res, 422, 'questions must be a non-empty object');
+      return true;
+    }
+    const entries = Object.entries(questionsRaw as Record<string, unknown>);
+    if (entries.length === 0) {
+      writeJsonError(res, 422, 'questions must be a non-empty object');
+      return true;
+    }
+
+    const upstream = resolveJevUpstream(deps.configPath);
+    if (!upstream) {
+      writeJsonError(res, 409, "no Jev upstream: add the open-jev provider (LLM Providers → Other) and fill its key");
+      return true;
+    }
+    const requested = typeof body['model'] === 'string' && body['model'].trim() ? body['model'].trim() : '';
+    const model = !requested || requested === 'jev-latest' ? upstream.defaultModel : requested;
+
+    let normalized: Array<[string, JevQuestion]>;
+    try {
+      normalized = entries.map(([qid, raw]) => [qid, normalizeQuestion(qid, raw)]);
+    } catch (err) {
+      writeJsonError(res, 422, err instanceof Error ? err.message : String(err));
+      return true;
+    }
+
+    try {
+      const results = await Promise.all(
+        normalized.map(async ([, q]) => {
+          const { text, labels } = buildPrompt(body['state'], q);
+          const { top, usage } = await readBoundary(upstream, model, text);
+          return { answer: answerFor(q, labels, top), usage };
+        }),
+      );
+      const usage = {
+        input_tokens: results.reduce((acc, r) => acc + Number(r.usage['prompt_tokens'] ?? 0), 0),
+        output_tokens: results.reduce((acc, r) => acc + Number(r.usage['completion_tokens'] ?? 0), 0),
+        reads: results.length,
+      };
+      const answers: Record<string, unknown> = {};
+      normalized.forEach(([qid], i) => { answers[qid] = results[i].answer; });
+      writeJson(res, 200, { model, answers, usage });
+    } catch (err) {
+      writeJsonError(res, 502, err instanceof Error ? err.message : String(err));
+    }
+    return true;
+  };
 }

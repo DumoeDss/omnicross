@@ -13,6 +13,8 @@
  * @module outbound-api/types
  */
 
+import type http from 'node:http';
+
 import type { ProxyConfig } from '@omnicross/contracts/account-tokens-types';
 import type { AuditConfig } from '@omnicross/contracts/audit-types';
 import type { BillingConfig } from '@omnicross/contracts/billing-types';
@@ -1121,6 +1123,15 @@ export interface OutboundApiDeps {
    * zero-regression for embedders that do not wire it).
    */
   readonly healthReportProvider?: () => HealthReport;
+  /**
+   * Listener-level mount for the Jev systemone decision API
+   * (`POST /v1/systemone`), served on the TRAFFIC port before the chat key
+   * auth. The daemon wires the full handler (upstream read via the
+   * 'other'-category provider row); returning true means the request was
+   * handled and the chat router must not run. Absent → path falls through
+   * untouched (zero-regression).
+   */
+  readonly jevSystemone?: (req: http.IncomingMessage, res: http.ServerResponse) => Promise<boolean>;
   /**
    * OPTIONAL per-key spend reader (outbound-key-policy). When wired (by the
    * daemon bootstrap), a key carrying a cost limit is checked against its

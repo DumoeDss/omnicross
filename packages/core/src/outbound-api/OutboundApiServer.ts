@@ -277,7 +277,7 @@ export class OutboundApiServer {
 
   private createHttpServer(): http.Server {
     return http.createServer((req, res) => {
-      this.onRequest(req, res);
+      void this.onRequest(req, res);
     });
   }
 
@@ -382,7 +382,7 @@ export class OutboundApiServer {
   }
 
   /** Per-request handler. Auth is enforced on EVERY request (incl. loopback). */
-  private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+  private async onRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     // Defensively collapse a doubled `/v1/messages/v1/messages` (etc.) request
     // path ONCE at the entry so audit / selectEndpoint / dispatch all see the
     // clean path. elftia's baseUrl already ends in `/v1/messages` and some
@@ -400,6 +400,11 @@ export class OutboundApiServer {
     // key auth) but honors its own switch (default ON; `apiHello:false` keeps
     // the previous fall-through behavior).
     if (this.tryServeApiHello(req, res)) return;
+    // Jev systemone decision API (`POST /v1/systemone`) — the daemon-mounted
+    // handler owns path/method matching AND its own Bearer (access-key) auth,
+    // so it sits at the listener level beside /health. Returning true means
+    // handled; absent → untouched fall-through.
+    if (this.deps.jevSystemone && (await this.deps.jevSystemone(req, res))) return;
     handleOutboundRequest(
       req,
       res,
