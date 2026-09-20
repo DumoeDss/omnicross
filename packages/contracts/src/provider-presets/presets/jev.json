@@ -5,12 +5,18 @@
   "category": "other",
   "apiFormat": "openai",
   "api_base_url": "https://api.typesafe.ai",
-  "transformer": { "use": ["openai"] },
+  "transformer": {
+    "use": [
+      "openai"
+    ]
+  },
   "models": [],
-  "description": "TypeSafe System One 决策引擎（choice / score / noul），没有文本生成能力，不能作为 CLI agent 的对话上游。此条目只用于集中保管 API 密钥（console.typesafe.ai 获取），供 Jev-cu 等外部工具以 TYPESAFE_API_KEY 读取；模型列表留空，因此永远不会进入路由绑定。",
+  "description": "TypeSafe System One 决策引擎（choice / score / noul），没有文本生成能力，不能作为 CLI agent 的对话上游。此条目只用于集中保管 API 密钥（console.typesafe.ai 获取），供 Jev-cu 等外部工具以 TYPESAFE_API_KEY 读取。Base URL 三种写法均可：服务根（api.typesafe.ai，自动补 /v1/systemone 与 /v1/models）、完整端点（如 simple-jev 的 …/v1/classifier，直接使用；模型发现自动改走 /v1/models）。兼容 Simple Jev（api.featherless.ai，模型需选 featherless-ai/*-classifier）。模型列表留空，永不进入路由绑定。",
   "icon": "jev",
   "website": "https://typesafe.ai",
   "docsUrl": "https://docs.typesafe.ai",
   "isSystem": true,
-  "features": ["decision-engine"]
+  "features": [
+    "decision-engine"
+  ]
 }

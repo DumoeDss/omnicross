@@ -116,6 +116,8 @@ export interface DaemonProviderView {
   enabled?: boolean;
   /** app-parity child 1: optional non-secret scalar fields (absent = prior default). */
   isOfficial?: boolean;
+  /** Catalog category: 'other' = key-storage row for a non-chat tool (e.g. Jev). */
+  category?: 'other';
   apiVersion?: string;
   maxConcurrency?: number;
   modelsEndpoint?: string;

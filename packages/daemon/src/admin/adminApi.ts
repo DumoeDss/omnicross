@@ -578,6 +578,7 @@ function toProviderView(row: DaemonProviderConfig): {
   hasApiKey: boolean;
   apiKeyMasked: string;
   enabled: boolean;
+  category?: 'other';
   isOfficial?: boolean;
   apiVersion?: string;
   maxConcurrency?: number;
@@ -603,6 +604,8 @@ function toProviderView(row: DaemonProviderConfig): {
     apiKeyMasked: maskProviderApiKey(row.apiKey),
     // app-foundation D8: absent `enabled` reads as enabled (back-compat).
     enabled: row.enabled !== false,
+    // Catalog category round-trips verbatim ('other' = non-chat key storage).
+    category: row.category,
     // app-parity child 1: non-secret scalar fields round-trip verbatim (no masking).
     isOfficial: row.isOfficial,
     apiVersion: row.apiVersion,
@@ -1139,7 +1142,20 @@ async function handleDiscoverModels(
   // path (`resolveEnvKey`). Used ONLY as the upstream auth header, never echoed.
   const resolvedKey = resolveEnvKey(row.apiKey);
   const base = row.baseUrl.replace(/\/+$/, '');
-  const url = `${base}/models`;
+  // 'other'-category rows (Jev-style decision engines) expose an OpenAI-shaped
+  // `/v1/models` at the SERVICE ROOT, and the operator may enter either the
+  // bare root or a full evaluation endpoint as the baseUrl:
+  //   `…/v1/systemone` | `…/v1/classifier` → replace the /v1 tail with models
+  //   `…/v1`                            → append `/models`
+  //   bare root (no /v1)                → append `/v1/models`
+  const url =
+    row.category === 'other'
+      ? /\/v1\/[^/]+$/.test(base)
+        ? `${base.replace(/\/v1\/[^/]+$/, '/v1')}/models`
+        : base.endsWith('/v1')
+          ? `${base}/models`
+          : `${base}/v1/models`
+      : `${base}/models`;
   try {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
@@ -1827,6 +1843,14 @@ export function parseProviderInput(
   //   value (right type) → set it.
   const isOfficial =
     typeof body['isOfficial'] === 'boolean' ? (body['isOfficial'] as boolean) : existing?.isOfficial;
+  // Catalog category ('other' = key-storage row for a non-chat tool): the same
+  // three-way write contract — 'other' sets, explicit null clears, absent keeps.
+  const category =
+    body['category'] === 'other'
+      ? ('other' as const)
+      : body['category'] === null
+        ? undefined
+        : existing?.category;
   // apiVersion / modelsEndpoint (string): non-empty string sets; explicit `null`
   // clears; absent keeps (the app sends `null`, never `''`, to clear — D4 / OQ2).
   const apiVersion =

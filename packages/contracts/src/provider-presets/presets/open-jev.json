@@ -1,0 +1,16 @@
+{
+  "id": "open-jev",
+  "presetId": "open-jev",
+  "name": "open-jev",
+  "category": "other",
+  "apiFormat": "openai",
+  "api_base_url": "http://127.0.0.1:8012",
+  "transformer": { "use": ["openai"] },
+  "models": [],
+  "description": "本地 open-jev 桥（_others/jev/open-jev）：把任意 OpenAI 兼容 chat 上游（需返回 top_logprobs，默认 NIM DiffusionGemma）转成 Jev systemone 决策 API。此条目保管桥的地址与密钥（BRIDGE_API_KEY，未设可留空）；点「发现模型」可拉到上游模型列表。不能作为对话上游。",
+  "icon": "open-jev",
+  "website": "https://simple-jev.featherless.ai/",
+  "docsUrl": "https://docs.typesafe.ai/",
+  "isSystem": true,
+  "features": ["decision-engine"]
+}

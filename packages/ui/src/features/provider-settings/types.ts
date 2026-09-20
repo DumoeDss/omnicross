@@ -41,6 +41,8 @@ export interface ProviderFormData {
   modelConfigs?: ModelConfig[];
   modelGroups?: ModelGroup[];
   modelsEndpoint?: string;
+  /** Catalog category ('other' = key-storage row for a non-chat tool, e.g. Jev). */
+  category?: 'other';
   enabled: boolean;
   icon?: string;
   // Transformer configuration for API conversion

@@ -79,6 +79,7 @@ export function toClientProvider(dto: DaemonProviderView): LLMProvider {
   };
   // app-parity child 1: hydrate the now-backed scalar fields when present.
   if (dto.isOfficial !== undefined) provider.isOfficial = dto.isOfficial;
+  if (dto.category !== undefined) provider.category = dto.category;
   if (dto.apiVersion !== undefined) provider.apiVersion = dto.apiVersion;
   if (dto.maxConcurrency !== undefined) provider.maxConcurrency = dto.maxConcurrency;
   if (dto.modelsEndpoint !== undefined) provider.modelsEndpoint = dto.modelsEndpoint;
@@ -148,7 +149,7 @@ export function toClientProvider(dto: DaemonProviderView): LLMProvider {
  * Update half's `| null` (the explicit-clear contract) wins.
  */
 type ProviderWriteInput = Partial<
-  Omit<LLMProviderInput, 'apiVersion' | 'modelsEndpoint' | 'maxConcurrency' | 'extraHeaders'> &
+  Omit<LLMProviderInput, 'apiVersion' | 'modelsEndpoint' | 'maxConcurrency' | 'extraHeaders' | 'category'> &
     LLMProviderUpdateInput
 > & { id?: string };
 
@@ -178,6 +179,10 @@ function fromClientInput(input: ProviderWriteInput): Record<string, unknown> {
   // editors emit `null` to clear; we forward it so the daemon removes the stored
   // value (the daemon treats explicit null as clear, absent as keep — D4/OQ2).
   if (typeof input.isOfficial === 'boolean') body['isOfficial'] = input.isOfficial;
+  // Catalog category ('other' = key-storage row for a non-chat tool): the same
+  // three-way contract — 'other' sets, explicit null clears, omit keeps.
+  if (input.category === 'other') body['category'] = 'other';
+  else if (input.category === null) body['category'] = null;
   if (typeof input.apiVersion === 'string') body['apiVersion'] = input.apiVersion;
   else if (input.apiVersion === null) body['apiVersion'] = null;
   if (typeof input.modelsEndpoint === 'string') body['modelsEndpoint'] = input.modelsEndpoint;
@@ -447,6 +452,7 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
         };
         // Static identity headers (e.g. the Cline client set) must land on the
         // row — gateways that gate on them 403 without the full set.
+        if (preset.category === 'other') body['category'] = 'other';
         if (preset.extraHeaders && Object.keys(preset.extraHeaders).length > 0) {
           body['extraHeaders'] = preset.extraHeaders;
         }

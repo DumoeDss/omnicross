@@ -206,6 +206,13 @@ export interface LLMProvider {
   updatedAt?: string;
   codingPlan?: CodingPlanConfig;
   presetId?: string;
+  /**
+   * Catalog category. `'other'` = not a chat backend (e.g. the Jev decision
+   * engine): the row stores credentials for external tools, is never offered
+   * as a bindable upstream, and derives its model-discovery URL from the
+   * service's `/v1/models` instead of `{base}/models`. Absent = normal.
+   */
+  category?: 'other';
   sortOrder?: number;
   apiModes?: ApiMode[];
   selectedApiModeId?: string;
@@ -238,6 +245,8 @@ export interface LLMProviderInput {
   modelConfigs?: ModelConfig[];
   modelGroups?: ModelGroup[];
   modelsEndpoint?: string;
+  /** Catalog category ('other' = key-storage row for a non-chat tool, e.g. Jev). */
+  category?: 'other';
   enabled?: boolean;
   transformer?: TransformerConfig;
   rerouterEnabled?: boolean;
@@ -273,6 +282,8 @@ export interface LLMProviderUpdateInput {
   // contract — omit→keep, `null`→clear, value→set. The `| null` models the
   // explicit-clear signal the inline editors emit (no cast needed downstream).
   modelsEndpoint?: string | null;
+  /** Catalog category — three-way write contract: omit→keep, null→clear, 'other'→set. */
+  category?: 'other' | null;
   enabled?: boolean;
   transformer?: TransformerConfig;
   rerouterEnabled?: boolean;

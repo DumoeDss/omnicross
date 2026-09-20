@@ -117,6 +117,8 @@ export function mapPresetToProvider(
     apiFormat: resolved.format,
     baseUrl: opts.baseUrlOverride ?? preset.api_base_url,
     apiKey: opts.key,
+    // 'other'-category presets (Jev) materialize as non-routable rows.
+    ...(preset.category === 'other' ? { category: 'other' as const } : {}),
     models: Array.isArray(preset.models) ? preset.models : undefined,
     // Static identity headers (e.g. the Cline client set) survive the mapping —
     // the CLI-seeded row needs them as much as an admin-API-created one.

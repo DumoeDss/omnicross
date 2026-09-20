@@ -115,11 +115,16 @@ export async function listUpstreamCatalog(
   };
   return [
     ...providers
-      // Enabled AND non-empty model list: a provider with no models can never
-      // serve (same black-hole rule as an empty account pool), and the
-      // "other"-category presets (e.g. Jev, key storage only) seed exactly
-      // that shape so they never become bindable upstreams.
-      .filter((provider) => provider.enabled !== false && (provider.models?.length ?? 0) > 0)
+      // Enabled, a chat backend, and a non-empty model list: an 'other'-category
+      // row (e.g. Jev — key storage for a non-chat tool) is never bindable even
+      // after model discovery fills its list, and a provider with no models can
+      // never serve (same black-hole rule as an empty account pool).
+      .filter(
+        (provider) =>
+          provider.enabled !== false &&
+          provider.category !== 'other' &&
+          (provider.models?.length ?? 0) > 0,
+      )
       .map((provider) => ({
       key: provider.id,
       label: typeof provider.name === 'string' && provider.name.trim() !== ''

@@ -112,6 +112,7 @@ export function useProviderForm(
       api_base_url: preset.baseUrl,
       models: [...(preset.models ?? [])],
       modelsEndpoint: preset.modelsEndpoint ?? '',
+      category: preset.category === 'other' ? 'other' : undefined,
       icon: preset.icon,
       // Gateways that hard-gate on a client-identity header set (Cline) would
       // 403 every request if the template-prefilled create dropped them.
@@ -207,6 +208,7 @@ export function useProviderForm(
       modelConfigs: selectedProvider.modelConfigs || [],
       modelGroups: selectedProvider.modelGroups || [],
       modelsEndpoint: selectedProvider.modelsEndpoint || '',
+      category: selectedProvider.category,
       enabled: selectedProvider.enabled,
       icon: selectedProvider.icon,
       transformer: selectedProvider.transformer,
@@ -278,6 +280,7 @@ export function useProviderForm(
           modelConfigs: formData.modelConfigs,
           modelGroups: formData.modelGroups,
           modelsEndpoint: formData.modelsEndpoint,
+          category: formData.category,
           enabled: formData.enabled,
           icon: formData.icon,
           transformer: formData.transformer,
@@ -303,6 +306,7 @@ export function useProviderForm(
           modelConfigs: formData.modelConfigs,
           modelGroups: formData.modelGroups,
           modelsEndpoint: formData.modelsEndpoint,
+          category: formData.category,
           enabled: formData.enabled,
           icon: formData.icon,
           transformer: formData.transformer,

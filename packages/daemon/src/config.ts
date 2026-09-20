@@ -200,6 +200,15 @@ export interface DaemonProviderConfig {
   /** Stable id referenced by the per-endpoint `"<id>,<model>"` model refs. */
   id: string;
   /**
+   * OPTIONAL catalog category. `'other'` = NOT a chat backend — the row only
+   * stores credentials for external tools (e.g. the Jev decision engine at
+   * api.typesafe.ai / simple-jev). Such rows are never routable: excluded from
+   * the bindable upstream catalog regardless of their model list, and model
+   * discovery derives the `/v1/models` URL from the service root instead of
+   * `{base}/models`. Absent = a normal chat provider (back-compat).
+   */
+  category?: 'other';
+  /**
    * OPTIONAL mutable display name (app-parity-2 child 1), SEPARATE from the
    * immutable `id`. The `id` stays the identity key (model refs, pool, accounts);
    * `name` is a free-text label the rename UI edits. Additive + back-compat:
@@ -823,6 +832,9 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
   // (collapse-to-undefined guard, never throws). Mutable; separate from `id`.
   const name =
     typeof p['name'] === 'string' && p['name'].length > 0 ? (p['name'] as string) : undefined;
+  // Catalog category: only the one defined value is carried; anything else
+  // (absent/garbage) collapses to `undefined` → a normal chat provider.
+  const category = p['category'] === 'other' ? ('other' as const) : undefined;
   // Optional enable flag (app-foundation D8): only a real boolean is carried;
   // anything else (absent/garbage) collapses to `undefined` → read as enabled.
   const enabled = typeof p['enabled'] === 'boolean' ? (p['enabled'] as boolean) : undefined;

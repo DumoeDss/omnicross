@@ -45,6 +45,7 @@ function synthesizePresetRow(p: DaemonPresetView): LLMProvider {
     models: p.models ?? [],
     enabled: false,
     presetId: p.presetId,
+    category: p.category === 'other' ? 'other' : undefined,
     __preset: true,
     // A not-yet-added catalog preset is BUILT-IN: it can be configured
     // (key/enable) but NOT renamed or deleted. `isSystem` gates the rename
