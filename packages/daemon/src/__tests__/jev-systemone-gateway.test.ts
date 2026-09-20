@@ -199,4 +199,32 @@ describe('POST /v1/systemone (outbound server)', () => {
     const r = await post({ questions: { q: { type: 'maybe', instructions: 'x' } } }, accessKey);
     expect(r.status).toBe(422);
   });
+
+  it('forwards images as text-first content parts (djev-spark shape)', async () => {
+    await boot(true);
+    const dataUrl = 'data:image/png;base64,aGVsbG8=';
+    const r = await post({
+      state: 'a screenshot',
+      images: [dataUrl],
+      questions: { q: { type: 'choice', instructions: 'What color?', criteria: { red: 'r', blue: 'b' } } },
+    }, accessKey);
+    expect(r.status).toBe(200);
+    expect(r.json.answers.q.choice).toBe('red');
+    // 上游收到的是数组 content：text 在前，image_url 在后。
+    const sent = lastBodies.at(-1) as { messages: Array<{ content: unknown }> };
+    const content = sent.messages[0].content;
+    expect(Array.isArray(content)).toBe(true);
+    const parts = content as Array<Record<string, unknown>>;
+    expect(parts[0]).toEqual({ type: 'text', text: expect.stringContaining('What color?') });
+    expect(parts[1]).toEqual({ type: 'image_url', image_url: { url: dataUrl } });
+  });
+
+  it('422 on a non-data: URL image', async () => {
+    await boot(true);
+    const r = await post({
+      images: ['https://example.com/x.png'],
+      questions: { q: { type: 'noul', instructions: 'ok?' } },
+    }, accessKey);
+    expect(r.status).toBe(422);
+  });
 });

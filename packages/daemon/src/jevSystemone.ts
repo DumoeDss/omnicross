@@ -90,9 +90,38 @@ function normalizeQuestion(qid: string, raw: unknown): JevQuestion {
   return { type, instructions };
 }
 
-/** Prompt text + allowed labels. Enumerating the candidate letters measurably
- *  keeps them inside the returned top-k (real-NIM finding). */
-function buildPrompt(state: unknown, q: JevQuestion): { text: string; labels: string[] } {
+/** djev-spark's extension shape: an `images` array of data: URLs beside the
+ *  state. Validated hard (data: prefix only — no http fetches, no paths). */
+function extractImages(body: Record<string, unknown>): string[] {
+  const raw = body['images'];
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new JevBadRequest('images must be an array of data: URLs');
+  const urls = raw.filter((x): x is string => typeof x === 'string' && x.startsWith('data:'));
+  if (urls.length !== raw.length) throw new JevBadRequest('every image must be a data: URL');
+  if (urls.length > MAX_IMAGES) throw new JevBadRequest(`at most ${MAX_IMAGES} images per request`);
+  return urls;
+}
+
+/** Max images per request (size/cost guard; the upstream enforces its own
+ *  payload limits on top). */
+const MAX_IMAGES = 4;
+
+/**
+ * Request content + allowed labels. Enumerating the candidate letters
+ * measurably keeps them inside the returned top-k (real-NIM finding).
+ *
+ * IMAGES (verified multimodal on NIM diffusiongemma 2026-09-20: image parts
+ * are consumed — prompt tokens jump 32 → 290 for a 16×16 PNG — and the
+ * boundary read works verbatim): djev-spark's extension shape, an `images`
+ * array of data: URLs beside `state`. TEXT FIRST, IMAGES AFTER — that order
+ * gave the cleanest label distribution in the probes (A:-0.00 vs B:-7.57);
+ * image-first left the labels mid-pack.
+ */
+function buildPrompt(
+  state: unknown,
+  q: JevQuestion,
+  images: string[],
+): { content: string | Array<Record<string, unknown>>; labels: string[] } {
   const parts: string[] = [];
   const stateText =
     typeof state === 'string'
@@ -113,16 +142,28 @@ function buildPrompt(state: unknown, q: JevQuestion): { text: string; labels: st
     const letters = LETTERS.slice(0, (q.keys as string[]).length);
     const shown = letters.slice(0, 6).join(', ') + (letters.length > 6 ? ', …' : '');
     parts.push(`Answer with one letter (${shown}).`);
-    return { text: parts.join('\n'), labels: letters };
+    return withImages(parts.join('\n'), images, letters);
   }
   if (q.type === 'score') {
     const levels = (q.levels as string[]).map((lvl, i) => `${i}=${lvl}`).join(', ');
     parts.push(`Levels (low to high): ${levels}`);
     parts.push(`Answer with one digit from 0 to ${(q.levels as string[]).length - 1}.`);
-    return { text: parts.join('\n'), labels: (q.levels as string[]).map((_, i) => String(i)) };
+    return withImages(parts.join('\n'), images, (q.levels as string[]).map((_, i) => String(i)));
   }
   parts.push('Answer with one digit: 1 = clearly no, 9 = clearly yes.');
-  return { text: parts.join('\n'), labels: [...NOUL_DIGITS] };
+  return withImages(parts.join('\n'), images, [...NOUL_DIGITS]);
+}
+
+/** Wrap the text prompt with image parts (text first — see buildPrompt). */
+function withImages(
+  text: string,
+  images: string[],
+  labels: string[],
+): { content: string | Array<Record<string, unknown>>; labels: string[] } {
+  if (images.length === 0) return { content: text, labels };
+  const parts: Array<Record<string, unknown>> = [{ type: 'text', text }];
+  for (const url of images) parts.push({ type: 'image_url', image_url: { url } });
+  return { content: parts, labels };
 }
 
 // ── distribution math ────────────────────────────────────────────────────────
@@ -218,7 +259,7 @@ function resolveJevUpstream(configPath: string): JevUpstream | null {
 async function readBoundary(
   upstream: JevUpstream,
   model: string,
-  content: string,
+  content: string | Array<Record<string, unknown>>,
 ): Promise<{ top: TopMap; usage: Record<string, unknown> }> {
   const url = `${upstream.baseUrl}/chat/completions`;
   const body = JSON.stringify({
@@ -324,6 +365,13 @@ export function createJevSystemoneMount(deps: {
       writeJsonError(res, 422, err instanceof Error ? err.message : String(err));
       return true;
     }
+    let images: string[];
+    try {
+      images = extractImages(body);
+    } catch (err) {
+      writeJsonError(res, 422, err instanceof Error ? err.message : String(err));
+      return true;
+    }
     const questionsRaw = body['questions'];
     if (!questionsRaw || typeof questionsRaw !== 'object' || Array.isArray(questionsRaw)) {
       writeJsonError(res, 422, 'questions must be a non-empty object');
@@ -354,8 +402,8 @@ export function createJevSystemoneMount(deps: {
     try {
       const results = await Promise.all(
         normalized.map(async ([, q]) => {
-          const { text, labels } = buildPrompt(body['state'], q);
-          const { top, usage } = await readBoundary(upstream, model, text);
+          const { content, labels } = buildPrompt(body['state'], q, images);
+          const { top, usage } = await readBoundary(upstream, model, content);
           return { answer: answerFor(q, labels, top), usage };
         }),
       );
