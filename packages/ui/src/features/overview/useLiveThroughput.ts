@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getUsageThroughput } from '@/daemon/usagePricingAdapter';
+import { useDaemonReadyEpoch } from '@/shared/state/useDaemonStatus';
 
 import type { OverviewSource } from './overviewModel';
 
@@ -31,6 +32,8 @@ export interface UseLiveThroughputResult {
 
 export function useLiveThroughput(): UseLiveThroughputResult {
   const [source, setSource] = useState<OverviewSource<UsageThroughputResult>>({ state: 'loading' });
+  // Cold start: re-kick the poll the moment the daemon is observed running.
+  const daemonEpoch = useDaemonReadyEpoch();
   const inFlight = useRef(false);
   const mounted = useRef(true);
 
@@ -67,7 +70,7 @@ export function useLiveThroughput(): UseLiveThroughputResult {
       mounted.current = false;
       window.clearInterval(timer);
     };
-  }, [load]);
+  }, [load, daemonEpoch]);
 
   const refresh = useCallback(() => {
     void load();

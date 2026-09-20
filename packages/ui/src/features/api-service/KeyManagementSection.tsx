@@ -13,7 +13,7 @@
  */
 
 import { ArrowDown, ArrowUp, Settings2, Check, Copy, Eye, KeyRound, Link2, Network, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -244,6 +244,10 @@ export function KeyManagementSection({
     | null
   >(null);
 
+  // The list renders LIVE keys only: a soft-deleted (revoked) key stays in the
+  // daemon's data for spend history but must not appear in the UI.
+  const visibleKeys = useMemo(() => keys.filter((k) => !k.revoked), [keys]);
+
   const handleCreate = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -288,13 +292,15 @@ export function KeyManagementSection({
         </Button>
       </div>
 
-      {keys.length === 0 ? (
+      {/* Soft-deleted keys STAY in the daemon's data (history) but never
+          render here — the list shows only live keys. */}
+      {visibleKeys.length === 0 ? (
         <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
           {t('apiService.keys.empty')}
         </p>
       ) : (
         <ul className="space-y-2">
-          {keys.map((k) => {
+          {visibleKeys.map((k) => {
             const usedClients = integrations
               .filter((integration) => integration.key?.id === k.id)
               .map((integration) => integration.client);
@@ -308,9 +314,7 @@ export function KeyManagementSection({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-foreground">{k.name}</span>
-                    {k.revoked ? (
-                      <Badge variant="destructive">{t('apiService.keys.deleted')}</Badge>
-                    ) : k.enabled ? (
+                    {k.enabled ? (
                       <Badge variant="success">{t('apiService.keys.enabled')}</Badge>
                     ) : (
                       <Badge variant="secondary">{t('apiService.keys.disabled')}</Badge>
@@ -367,57 +371,49 @@ export function KeyManagementSection({
                     </button>
                   ) : null}
                 </div>
-                {!k.revoked ? (
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      {t('apiService.queue.key.label')}
-                    </span>
-                    <KeyConcurrencyInput
-                      value={k.maxConcurrency}
-                      busy={busy}
-                      onCommit={(next) => void onSetMaxConcurrency(k.id, next)}
-                    />
-                  </div>
-                ) : null}
-                {!k.revoked ? (
-                  <Button
-                    variant={policyOpenId === k.id ? 'secondary' : 'ghost'}
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={busy}
-                    onClick={() => setPolicyOpenId((cur) => (cur === k.id ? null : k.id))}
-                    aria-label={t('apiService.keys.policy.title')}
-                    title={t('apiService.keys.policy.title')}
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                ) : null}
-                {!k.revoked ? (
-                  <Switch
-                    checked={k.enabled}
-                    disabled={busy || usedClients.length > 0}
-                    onCheckedChange={(checked) => void onToggle(k.id, checked)}
-                    aria-label={t('apiService.keys.toggle')}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    {t('apiService.queue.key.label')}
+                  </span>
+                  <KeyConcurrencyInput
+                    value={k.maxConcurrency}
+                    busy={busy}
+                    onCommit={(next) => void onSetMaxConcurrency(k.id, next)}
                   />
-                ) : null}
-                {!k.revoked ? (
-                  // The ONE delete affordance is a SOFT delete: the key stops
-                  // authenticating immediately, but its row and spend history
-                  // stay on the list.
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={busy || usedClients.length > 0}
-                    onClick={() => setDeleteTarget(k)}
-                    aria-label={t('apiService.keys.delete')}
-                    title={t('apiService.keys.delete')}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                ) : null}
+                </div>
+                <Button
+                  variant={policyOpenId === k.id ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={busy}
+                  onClick={() => setPolicyOpenId((cur) => (cur === k.id ? null : k.id))}
+                  aria-label={t('apiService.keys.policy.title')}
+                  title={t('apiService.keys.policy.title')}
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                </Button>
+                <Switch
+                  checked={k.enabled}
+                  disabled={busy || usedClients.length > 0}
+                  onCheckedChange={(checked) => void onToggle(k.id, checked)}
+                  aria-label={t('apiService.keys.toggle')}
+                />
+                {/* The ONE delete affordance is a SOFT delete: the key stops
+                    authenticating immediately; its row and spend history stay
+                    in the daemon's data (hidden from this list). */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={busy || usedClients.length > 0}
+                  onClick={() => setDeleteTarget(k)}
+                  aria-label={t('apiService.keys.delete')}
+                  title={t('apiService.keys.delete')}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
               </div>
-              {!k.revoked && policyOpenId === k.id ? (
+              {policyOpenId === k.id ? (
                 <KeyPolicyEditor
                   keyInfo={k}
                   busy={busy}
@@ -561,19 +557,31 @@ function UpstreamBindingDialog({
       return;
     }
     const binding = target.upstreamBinding;
-    if (binding && binding.mode === 'explicit') {
-      setSelected(
-        binding.targets.map((entry) =>
-          entry.kind === 'provider' ? entry.providerId : `sub:${entry.providerId}`,
-        ),
-      );
-      setSeededFor(target.id);
+    if (seededFor !== target.id) {
+      if (binding && binding.mode === 'explicit') {
+        setSelected(
+          binding.targets.map((entry) =>
+            entry.kind === 'provider' ? entry.providerId : `sub:${entry.providerId}`,
+          ),
+        );
+        setSeededFor(target.id);
+        return;
+      }
+      // 'all' or legacy: default-select-everything, applied once the catalog is known.
+      if (catalog.length > 0) {
+        setSelected(catalog.map((entry) => entry.key));
+        setSeededFor(target.id);
+      }
       return;
     }
-    // 'all' or legacy: default-select-everything, applied once the catalog is known.
-    if (catalog.length > 0 && seededFor !== target.id) {
-      setSelected(catalog.map((entry) => entry.key));
-      setSeededFor(target.id);
+    // Already seeded and the catalog just arrived (or changed): drop any
+    // selection whose upstream no longer exists — a provider/pool deleted
+    // after the binding was saved, or one the catalog no longer offers
+    // (disabled upstreams are unbindable). Saving a stale target would fail
+    // the whole write with "unknown upstream".
+    if (catalog.length > 0) {
+      const catalogKeys = new Set(catalog.map((entry) => entry.key));
+      setSelected((current) => current.filter((key) => catalogKeys.has(key)));
     }
   }, [catalog, seededFor, target]);
 
@@ -601,12 +609,15 @@ function UpstreamBindingDialog({
     try {
       await onSave({
         mode: 'explicit',
-        targets: selected.map((key) => {
+        targets: selected.flatMap((key) => {
           const entry = catalog.find((candidate) => candidate.key === key);
-          if (!entry || entry.target.kind === 'provider') {
-            return { kind: 'provider' as const, providerId: key };
-          }
-          return { kind: 'account-pool' as const, providerId: entry.target.providerId };
+          // An upstream that vanished (or became unbindable) mid-edit cannot
+          // be part of the saved binding — sending it would 400 the write.
+          if (!entry) return [];
+          return [{
+            kind: entry.target.kind === 'provider' ? ('provider' as const) : ('account-pool' as const),
+            providerId: entry.target.providerId,
+          }];
         }),
       });
     } finally {

@@ -75,11 +75,12 @@ export function upstreamMappingKeyOf(target: GatewayBindingTarget): string {
 }
 
 /**
- * The full upstream catalog: every BYO provider row + every registered
- * subscription provider (as an account-pool target). Account pools with zero
- * accounts stay listed on purpose — binding to one is representable and fails
- * per-request exactly like an empty pool route, and it keeps the catalog
- * stable across account add/remove (no re-derivation triggers there).
+ * The BINDABLE upstream catalog: every ENABLED BYO provider row + every
+ * subscription pool that holds at least one ENABLED account. Disabled
+ * upstreams are not bindable — offering one in the key-binding editor (or
+ * letting "all" expand onto one) routes traffic at something that can never
+ * serve. Pools with zero accounts stay out for the same reason (see the deps
+ * doc: an empty pool is a request black hole under passthrough can-serve).
  */
 export async function listUpstreamCatalog(
   deps: UpstreamRoutingDeps,
@@ -103,13 +104,19 @@ export async function listUpstreamCatalog(
   const accountRows = deps.subscriptionTokenWriter
     ? await deps.subscriptionTokenWriter.listSanitizedAccounts().catch(() => ({} as Record<string, unknown[]>))
     : ({} as Record<string, unknown[]>);
-  const hasAccounts = (providerId: string): boolean => {
+  // Only rows with at least one ENABLED account make the pool bindable.
+  const hasEnabledAccounts = (providerId: string): boolean => {
     if (!deps.subscriptionTokenWriter) return false;
     const rows = accountRows[providerId];
-    return Array.isArray(rows) && rows.length > 0;
+    return (
+      Array.isArray(rows) &&
+      rows.some((row) => (row as { enabled?: boolean }).enabled !== false)
+    );
   };
   return [
-    ...providers.map((provider) => ({
+    ...providers
+      .filter((provider) => provider.enabled !== false)
+      .map((provider) => ({
       key: provider.id,
       label: typeof provider.name === 'string' && provider.name.trim() !== ''
         ? provider.name
@@ -117,7 +124,7 @@ export async function listUpstreamCatalog(
       target: { kind: 'provider', providerId: provider.id } as GatewayBindingTarget,
     })),
     ...subscriptions
-      .filter((entry) => hasAccounts(entry.providerId))
+      .filter((entry) => hasEnabledAccounts(entry.providerId))
       .map((entry) => ({
         key: `sub:${entry.providerId}`,
         label: entry.displayName?.trim() || entry.providerId,

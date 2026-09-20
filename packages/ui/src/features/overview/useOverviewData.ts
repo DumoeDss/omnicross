@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { loadOverviewAllowances, loadOverviewKeyQuotas, loadOverviewSources } from './overviewData';
+import { useDaemonReadyEpoch } from '@/shared/state/useDaemonStatus';
 import type { OverviewSource, OverviewSources } from './overviewModel';
 
 /** Keep the account-pool allowance display current without reloading the full Overview. */
@@ -41,6 +42,11 @@ export function useOverviewData(): UseOverviewDataResult {
   const [sources, setSources] = useState<OverviewSources>(() => loadingSources());
   const [refreshTick, setRefreshTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Cold start: the webview mounts while the bundled daemon is still spawning,
+  // so the first load can fail wholesale. Retry once the daemon is observed
+  // running (epoch bump) instead of latching "unavailable" until a manual
+  // refresh.
+  const daemonEpoch = useDaemonReadyEpoch();
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +60,7 @@ export function useOverviewData(): UseOverviewDataResult {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick]);
+  }, [refreshTick, daemonEpoch]);
 
   useEffect(() => {
     let cancelled = false;

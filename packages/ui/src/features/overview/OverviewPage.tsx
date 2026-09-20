@@ -921,6 +921,9 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           onNavigate={onNavigate}
         />
 
+        {/* Full-width account pool: each account's 5h + weekly bars share a row. */}
+        <AccountsEvidence view={view} onNavigate={onNavigate} />
+
         {/* Per-client persistent-integration status with one-click enable/repair. */}
         <IntegrationActionsCard integrations={integrations} onNavigate={onNavigate} />
 
@@ -928,9 +931,6 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           <GatewayEvidence view={view} onNavigate={onNavigate} />
           <TodayEvidence view={view} onNavigate={onNavigate} />
         </div>
-
-        {/* Full-width account pool: each account's 5h + weekly bars share a row. */}
-        <AccountsEvidence view={view} onNavigate={onNavigate} />
       </div>
     </ScrollArea>
   );

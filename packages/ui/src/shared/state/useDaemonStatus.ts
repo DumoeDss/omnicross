@@ -83,3 +83,57 @@ export function useDaemonStatus(): DaemonStatus {
 
   return status;
 }
+
+/**
+ * Bumps (0 → 1 → …) each time the daemon lifecycle is OBSERVED transitioning
+ * into `running` from a non-running state. Data hooks that load once per
+ * mount add this to their effect deps so the app's cold start — the webview
+ * mounts while the bundled daemon is still spawning — self-heals: the failed
+ * first load is retried the moment the daemon binds, instead of latching
+ * "unavailable" until a manual refresh. A hook that first observes an already
+ * running daemon never bumps (the mount-time load succeeds on its own), and
+ * polling stops at a terminal state like `useDaemonStatus`.
+ */
+export function useDaemonReadyEpoch(): number {
+  const [epoch, setEpoch] = useState(0);
+  const aliveRef = useRef(true);
+  const previousRef = useRef<DaemonState | null>(null);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function tick(): Promise<void> {
+      let next: DaemonStatus;
+      if (isTauri()) {
+        try {
+          next = await invoke<DaemonStatus>('daemon_status');
+        } catch {
+          // Command unavailable (browser-dev): nothing to wait for — the dev
+          // daemon is started by hand, so keep fail-fast semantics there.
+          return;
+        }
+      } else {
+        return;
+      }
+      if (!aliveRef.current) return;
+      const previous = previousRef.current;
+      previousRef.current = next.state;
+      if (next.state === 'running' && previous !== null && previous !== 'running') {
+        setEpoch((value) => value + 1);
+      }
+      if (!isTerminal(next.state)) {
+        timer = setTimeout(() => void tick(), POLL_INTERVAL_MS);
+      }
+    }
+
+    void tick();
+
+    return () => {
+      aliveRef.current = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  return epoch;
+}

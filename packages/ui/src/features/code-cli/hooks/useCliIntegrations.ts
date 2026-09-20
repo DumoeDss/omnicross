@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { agent } from '@/shared/agent';
+import { useDaemonReadyEpoch } from '@/shared/state/useDaemonStatus';
 
 import type {
   CliIntegrationClient,
@@ -27,6 +28,8 @@ export interface UseCliIntegrationsResult {
 
 export function useCliIntegrations(): UseCliIntegrationsResult {
   const [loading, setLoading] = useState(true);
+  // Cold start: retry the one-shot load once the daemon is observed running.
+  const daemonEpoch = useDaemonReadyEpoch();
   const [overview, setOverview] = useState<CliIntegrationsOverview | null>(null);
   const [busyTarget, setBusyTarget] = useState<IntegrationBusyTarget>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export function useCliIntegrations(): UseCliIntegrationsResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [daemonEpoch]);
 
   const run = useCallback(async (
     target: Exclude<IntegrationBusyTarget, null>,
