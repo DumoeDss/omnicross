@@ -771,12 +771,14 @@ export interface OutboundApiServerStatus {
   lanImages?: { generations: string; edits: string } | null;
 }
 
-/** The four format endpoint URLs for one base. */
+/** The format endpoint URLs for one base. */
 export interface OutboundFormatUrls {
   chat: string;
   responses: string;
   messages: string;
   gemini: string;
+  /** Jev System One decision API (POST), served on the traffic port. */
+  jev: string;
 }
 
 /** A stored key DTO (never carries the plaintext secret). */

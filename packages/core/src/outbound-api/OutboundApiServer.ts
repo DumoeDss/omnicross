@@ -547,13 +547,14 @@ export class OutboundApiServer {
   }
 }
 
-/** Build the four format endpoint URLs for a base URL. */
+/** Build the format endpoint URLs for a base URL. */
 export function formatUrls(base: string): OutboundFormatUrls {
   return {
     chat: `${base}/v1/chat/completions`,
     responses: `${base}/v1/responses`,
     messages: `${base}/v1/messages`,
     gemini: `${base}/v1beta/models/{model}:generateContent`,
+    jev: `${base}/v1/systemone`,
   };
 }
 

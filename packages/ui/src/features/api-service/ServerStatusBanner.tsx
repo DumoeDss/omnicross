@@ -1,6 +1,6 @@
 /**
  * ServerStatusBanner.tsx — the live running/stopped + bound-port banner, driven
- * off `GET /status`. Shows the four format endpoint URLs (loopback always; LAN
+ * off `GET /status`. Shows the format endpoint URLs (loopback always; LAN
  * when network binding is on, i.e. `status.lanFormats` is present).
  */
 
@@ -18,7 +18,7 @@ interface ServerStatusBannerProps {
   status: OutboundApiServerStatus | null;
 }
 
-const FORMAT_KEYS: Array<keyof OutboundFormatUrls> = ['chat', 'responses', 'messages', 'gemini'];
+const FORMAT_KEYS: Array<keyof OutboundFormatUrls> = ['chat', 'responses', 'messages', 'gemini', 'jev'];
 
 function UrlRow({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);

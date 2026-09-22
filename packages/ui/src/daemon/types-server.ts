@@ -713,12 +713,14 @@ export interface OutboundApiServerConfig {
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────
 
-/** The four format endpoint URLs for one base. */
+/** The format endpoint URLs for one base. */
 export interface OutboundFormatUrls {
   chat: string;
   responses: string;
   messages: string;
   gemini: string;
+  /** Jev System One decision API (POST), served on the traffic port. */
+  jev: string;
 }
 
 /**
