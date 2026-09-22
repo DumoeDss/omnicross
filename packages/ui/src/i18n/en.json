@@ -518,7 +518,12 @@
     "notSupportedByDaemon": "Not yet supported by the daemon",
     "discoveryUnsupportedFormat": "Model discovery is not supported for this provider format yet. Add models manually."
   },
+  "otherProviders": {
+    "title": "Other Providers",
+    "description": "Decision engines and non-chat tools — keys stored here for external use."
+  },
   "nav": {
+    "otherProviders": "Other",
     "subtitle": "Control Panel",
     "primary": "Primary navigation",
     "more": "More",
@@ -531,6 +536,7 @@
     "chatgptWeb": "ChatGPT Web",
     "group": {
       "run": "Run",
+      "providers": "Providers",
       "configure": "Configure",
       "system": "System"
     },

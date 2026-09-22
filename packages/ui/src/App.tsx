@@ -12,6 +12,7 @@ import { ImagesPage } from '@/features/images';
 import { OverviewPage } from '@/features/overview';
 import { RouteActivityPage } from '@/features/route-activity/RouteActivityPage';
 import { SearchPage } from '@/features/search';
+import { OtherProvidersPage } from '@/features/provider-settings/OtherProvidersPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { UpstreamsPage } from '@/features/upstreams';
 import type { SettingsTabId } from '@/features/settings/settingsTabModel';
@@ -30,6 +31,7 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
     case 'chatgpt-web': return <ChatGptWebPage />;
     case 'search': return <SearchPage />;
     case 'images': return <ImagesPage />;
+    case 'other-providers': return <OtherProvidersPage />;
     case 'usage-stats': return <UsageStatsPage />;
     case 'settings': return <SettingsPage activeTab={(route.tab as SettingsTabId | undefined) ?? 'general'} onTabChange={(tab) => navigate({ page: 'settings', tab })} />;
     default: return <OverviewPage onNavigate={navigate} />;

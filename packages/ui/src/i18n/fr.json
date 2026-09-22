@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Pas encore pris en charge par le daemon",
     "discoveryUnsupportedFormat": "La découverte de modèles n'est pas encore prise en charge pour ce format de fournisseur. Ajoutez les modèles manuellement."
   },
+  "otherProviders": {
+    "title": "Autres fournisseurs",
+    "description": "Stockage de clés et configuration pour outils non-chat comme Jev."
+  },
   "nav": {
+    "otherProviders": "Autres",
+    "group": {
+      "providers": "Fournisseurs"
+    },
     "subtitle": "Panneau de contrôle",
     "providers": "Fournisseurs",
     "apiService": "Service API",

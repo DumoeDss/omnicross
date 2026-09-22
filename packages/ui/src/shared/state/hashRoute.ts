@@ -14,6 +14,7 @@ export type PageId =
   | 'chatgpt-web'
   | 'search'
   | 'images'
+  | 'other-providers'
   | 'usage-stats'
   | 'settings';
 
@@ -57,6 +58,7 @@ const PAGE_IDS = new Set<PageId>([
   'chatgpt-web',
   'search',
   'images',
+  'other-providers',
   'usage-stats',
   'settings',
 ]);

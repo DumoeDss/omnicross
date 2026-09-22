@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Nie jest jeszcze obsługiwane przez daemon",
     "discoveryUnsupportedFormat": "Wykrywanie modeli nie jest jeszcze obsługiwane dla tego formatu dostawcy. Dodaj modele ręcznie."
   },
+  "otherProviders": {
+    "title": "Inni dostawcy",
+    "description": "Przechowywanie kluczy i konfiguracja narzędzi bez czatu, np. Jev."
+  },
   "nav": {
+    "otherProviders": "Inne",
+    "group": {
+      "providers": "Dostawcy"
+    },
     "subtitle": "Panel sterowania",
     "providers": "Dostawcy",
     "apiService": "Usługa API",

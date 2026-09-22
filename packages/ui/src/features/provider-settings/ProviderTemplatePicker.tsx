@@ -58,6 +58,12 @@ export interface ProviderTemplatePickerProps {
   loading?: boolean;
   /** Ids of presets that already exist as real providers (badged "added"). */
   addedPresetIds: Set<string>;
+  /**
+   * The 其他/Other page's add flow: only category-'other' presets arrive
+   * (filtered by the owner), the custom chat-API-type escape hatch is hidden,
+   * and the "Other" sub-heading is redundant.
+   */
+  otherOnly?: boolean;
   onUseTemplate: (preset: DaemonPresetView) => void;
   onStartCustom: (apiFormat: ApiFormat) => void;
   onCancel: () => void;
@@ -67,6 +73,7 @@ export function ProviderTemplatePicker({
   presets,
   loading = false,
   addedPresetIds,
+  otherOnly = false,
   onUseTemplate,
   onStartCustom,
   onCancel,
@@ -156,7 +163,9 @@ export function ProviderTemplatePicker({
 
   return (
     <div className="space-y-5 p-4">
-      {/* Start from an API type — the no-template path, kept above the fold. */}
+      {/* Start from an API type — the no-template path, kept above the fold
+          (hidden on the 其他 page: a bare chat API type is never the goal). */}
+      {!otherOnly ? (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -180,6 +189,7 @@ export function ProviderTemplatePicker({
           ))}
         </div>
       </div>
+      ) : null}
 
       {/* Built-in catalog */}
       <div className="space-y-3">
@@ -225,9 +235,11 @@ export function ProviderTemplatePicker({
             </div>
             {otherPresets.length > 0 ? (
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t('providerSettings.presets.categoryOther')}
-                </h4>
+                {otherOnly ? null : (
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('providerSettings.presets.categoryOther')}
+                  </h4>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {otherPresets.map(renderCard)}
                 </div>

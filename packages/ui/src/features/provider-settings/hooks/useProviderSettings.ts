@@ -16,6 +16,13 @@ export interface UseProviderSettingsOptions {
   onSelectedProviderChange?: (providerId: string | null) => void;
   /** Fires after a provider is CREATED (not edited) and the list has refreshed. */
   onProviderCreated?: (providerId: string) => void;
+  /**
+   * Restrict the whole view to one catalog category. `'other'` drives the
+   * dedicated 其他/Other page: only category-'other' rows (Jev-style decision
+   * engines / key storage for external tools) appear — list, selection
+   * fallback, and the add flow's preset picker all stay consistent.
+   */
+  categoryFilter?: 'other';
 }
 
 /** daemon preset apiFormat ('openai'|'anthropic'|'gemini') → UI ApiFormat. */
@@ -114,10 +121,14 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
     };
   }, []);
 
-  const providers = useMemo(
-    () => mergeWithPresets(realProviders, presets),
-    [realProviders, presets],
-  );
+  const providers = useMemo(() => {
+    const merged = mergeWithPresets(realProviders, presets);
+    // categoryFilter applies AFTER the merge so preset-synthesized rows are
+    // filtered on equal terms with materialized providers.
+    return options.categoryFilter === 'other'
+      ? merged.filter((provider) => provider.category === 'other')
+      : merged;
+  }, [realProviders, presets, options.categoryFilter]);
 
   const [searchTerm, setSearchTerm] = useState('');
   // Owned here (not in `useProviderForm`) so the selection fallback below can see

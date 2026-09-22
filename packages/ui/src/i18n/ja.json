@@ -517,7 +517,12 @@
     "notSupportedByDaemon": "デーモンではまだサポートされていません",
     "discoveryUnsupportedFormat": "このプロバイダー形式ではモデルの自動検出がサポートされていません。モデルを手動で追加してください。"
   },
+  "otherProviders": {
+    "title": "その他のプロバイダー",
+    "description": "Jev などの非チャットツール向けのキー保管と設定。"
+  },
   "nav": {
+    "otherProviders": "その他",
     "subtitle": "コントロールパネル",
     "primary": "メインナビゲーション",
     "more": "その他",
@@ -527,6 +532,7 @@
     "integrations": "連携",
     "group": {
       "run": "運用",
+      "providers": "プロバイダー",
       "configure": "設定",
       "system": "システム"
     },

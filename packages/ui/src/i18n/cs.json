@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Daemon to zatím nepodporuje",
     "discoveryUnsupportedFormat": "Zjišťování modelů pro tento formát poskytovatele zatím není podporováno. Přidejte modely ručně."
   },
+  "otherProviders": {
+    "title": "Ostatní poskytovatelé",
+    "description": "Ukládání klíčů a nastavení pro nechatovací nástroje jako Jev."
+  },
   "nav": {
+    "otherProviders": "Ostatní",
+    "group": {
+      "providers": "Poskytovatelé"
+    },
     "subtitle": "Ovládací panel",
     "providers": "Poskytovatelé",
     "apiService": "Služba API",

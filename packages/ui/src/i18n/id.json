@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Belum didukung oleh daemon",
     "discoveryUnsupportedFormat": "Penemuan model belum didukung untuk format penyedia ini. Tambahkan model secara manual."
   },
+  "otherProviders": {
+    "title": "Penyedia lainnya",
+    "description": "Penyimpanan kunci dan konfigurasi untuk alat non-chat seperti Jev."
+  },
   "nav": {
+    "otherProviders": "Lainnya",
+    "group": {
+      "providers": "Penyedia"
+    },
     "subtitle": "Panel Kontrol",
     "providers": "Penyedia",
     "apiService": "Layanan API",

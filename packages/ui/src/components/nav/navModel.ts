@@ -11,6 +11,7 @@ export type NavIcon =
   | 'chatgpt-web'
   | 'search'
   | 'images'
+  | 'other-providers'
   | 'settings';
 
 export interface NavItemDef {
@@ -23,7 +24,7 @@ export interface NavItemDef {
   tab?: string;
 }
 
-export interface NavGroupDef { id: 'run' | 'configure' | 'system'; items: NavItemDef[] }
+export interface NavGroupDef { id: 'run' | 'providers' | 'configure' | 'system'; items: NavItemDef[] }
 
 export const NAV_GROUPS: NavGroupDef[] = [
   {
@@ -36,19 +37,30 @@ export const NAV_GROUPS: NavGroupDef[] = [
     ],
   },
   {
-    id: 'configure',
+    // The provider group gathers every upstream/capability surface: chat LLMs,
+    // search, images, non-chat key storage (Jev & friends), ChatGPT Web.
+    id: 'providers',
     items: [
+      { key: 'upstreams', page: 'upstreams', icon: 'upstreams', labelKey: 'nav.upstreams' },
       // search-settings-tab D1: the search runtime is a first-class capability
       // with its own configuration surface — a true sibling of the gateway
-      // entry, first in the configure group.
+      // entry, first among the provider surfaces.
       { key: 'search', page: 'search', icon: 'search', labelKey: 'nav.search' },
       // images-settings-tab D1: image generation is a first-class capability
-      // with its own page, a sibling of Search in the configure group.
+      // with its own page, a sibling of Search.
       { key: 'images', page: 'images', icon: 'images', labelKey: 'nav.images' },
-      { key: 'upstreams', page: 'upstreams', icon: 'upstreams', labelKey: 'nav.upstreams' },
+      // other-providers: category-'other' catalog rows (decision engines /
+      // key storage for external tools) get their own surface instead of
+      // hiding inside the add-provider picker's collapsed section.
+      { key: 'other-providers', page: 'other-providers', icon: 'other-providers', labelKey: 'nav.otherProviders' },
+      { key: 'chatgpt-web', page: 'chatgpt-web', icon: 'chatgpt-web', labelKey: 'nav.chatgptWeb' },
+    ],
+  },
+  {
+    id: 'configure',
+    items: [
       { key: 'access-keys', page: 'api-service', icon: 'access-keys', labelKey: 'nav.accessKeys', tab: 'access' },
       { key: 'integrations', page: 'integrations', icon: 'integrations', labelKey: 'nav.integrations' },
-      { key: 'chatgpt-web', page: 'chatgpt-web', icon: 'chatgpt-web', labelKey: 'nav.chatgptWeb' },
     ],
   },
   { id: 'system', items: [{ key: 'settings', page: 'settings', icon: 'settings', labelKey: 'nav.settings' }] },

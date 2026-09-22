@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Поки не підтримується демоном",
     "discoveryUnsupportedFormat": "Виявлення моделей не підтримується для цього формату провайдера. Додайте моделі вручну."
   },
+  "otherProviders": {
+    "title": "Інші провайдери",
+    "description": "Зберігання ключів і налаштування для нечат-інструментів як-от Jev."
+  },
   "nav": {
+    "otherProviders": "Інші",
+    "group": {
+      "providers": "Провайдери"
+    },
     "subtitle": "Панель керування",
     "providers": "Провайдери",
     "apiService": "API-сервіс",

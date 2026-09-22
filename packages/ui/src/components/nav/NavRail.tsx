@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, Cable, Globe, Image as ImageIcon, KeyRound, Menu, Route, Search, ServerCog, Settings } from 'lucide-react';
+import { Activity, BarChart3, Boxes, Cable, CircleEllipsis, Globe, Image as ImageIcon, KeyRound, Menu, Route, Search, ServerCog, Settings } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { DAEMON_BASE_URL } from '@/daemon/adminClient';
@@ -20,6 +20,7 @@ const NAV_ICONS = {
   'chatgpt-web': Globe,
   search: Search,
   images: ImageIcon,
+  'other-providers': CircleEllipsis,
   settings: Settings,
 } as const;
 

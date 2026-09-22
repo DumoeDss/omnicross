@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Δεν υποστηρίζεται ακόμα από το daemon",
     "discoveryUnsupportedFormat": "Η ανακάλυψη μοντέλων δεν υποστηρίζεται ακόμα για αυτή τη μορφή provider. Προσθέστε μοντέλα χειροκίνητα."
   },
+  "otherProviders": {
+    "title": "Άλλοι πάροχοι",
+    "description": "Αποθήκευση κλειδιών και ρυθμίσεις για εργαλεία χωρίς συνομιλία όπως το Jev."
+  },
   "nav": {
+    "otherProviders": "Άλλα",
+    "group": {
+      "providers": "Πάροχοι"
+    },
     "subtitle": "Πίνακας Ελέγχου",
     "providers": "Providers",
     "apiService": "Υπηρεσία API",

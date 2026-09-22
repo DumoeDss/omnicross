@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Stöds inte ännu av daemonen",
     "discoveryUnsupportedFormat": "Modellupptäckning stöds inte ännu för det här leverantörformatet. Lägg till modeller manuellt."
   },
+  "otherProviders": {
+    "title": "Övriga leverantörer",
+    "description": "Nyckellagring och konfiguration för icke-chattverktyg som Jev."
+  },
   "nav": {
+    "otherProviders": "Övrigt",
+    "group": {
+      "providers": "Leverantörer"
+    },
     "subtitle": "Kontrollpanel",
     "providers": "Leverantörer",
     "apiService": "API-tjänst",

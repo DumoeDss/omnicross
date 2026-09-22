@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Ikke understøttet af dæmonen endnu",
     "discoveryUnsupportedFormat": "Modelregistrering understøttes endnu ikke for dette udbydervformat. Tilføj modeller manuelt."
   },
+  "otherProviders": {
+    "title": "Andre udbydere",
+    "description": "Nøglelagring og konfiguration til ikke-chatværktøjer som Jev."
+  },
   "nav": {
+    "otherProviders": "Andre",
+    "group": {
+      "providers": "Udbydere"
+    },
     "subtitle": "Kontrolpanel",
     "providers": "Udbydere",
     "apiService": "API-tjeneste",

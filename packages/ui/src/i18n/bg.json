@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Все още не се поддържа от демона",
     "discoveryUnsupportedFormat": "Откриването на модели не се поддържа за този формат на доставчика. Добавете модели ръчно."
   },
+  "otherProviders": {
+    "title": "Други доставчици",
+    "description": "Съхранение на ключове и настройки за нечатови инструменти като Jev."
+  },
   "nav": {
+    "otherProviders": "Други",
+    "group": {
+      "providers": "Доставчици"
+    },
     "subtitle": "Контролен панел",
     "providers": "Доставчици",
     "apiService": "API услуга",

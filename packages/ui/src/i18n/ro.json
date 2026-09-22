@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Nesuportat încă de daemon",
     "discoveryUnsupportedFormat": "Descoperirea modelelor nu este suportată pentru acest format de furnizor. Adăugați modele manual."
   },
+  "otherProviders": {
+    "title": "Alți furnizori",
+    "description": "Stocarea cheilor și configurarea pentru instrumente non-chat precum Jev."
+  },
   "nav": {
+    "otherProviders": "Altele",
+    "group": {
+      "providers": "Furnizori"
+    },
     "subtitle": "Panou de control",
     "providers": "Furnizori",
     "apiService": "Serviciu API",

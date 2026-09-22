@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "데몬에서 아직 지원하지 않습니다",
     "discoveryUnsupportedFormat": "이 프로바이더 형식은 모델 자동 검색을 지원하지 않습니다. 모델을 직접 추가하세요."
   },
+  "otherProviders": {
+    "title": "기타 공급자",
+    "description": "Jev 등 비채팅 도구를 위한 키 저장 및 설정."
+  },
   "nav": {
+    "otherProviders": "기타",
+    "group": {
+      "providers": "공급자"
+    },
     "subtitle": "제어판",
     "providers": "프로바이더",
     "apiService": "API 서비스",

@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "daemon ยังไม่รองรับฟีเจอร์นี้",
     "discoveryUnsupportedFormat": "ยังไม่รองรับการค้นพบโมเดลสำหรับรูปแบบผู้ให้บริการนี้ กรุณาเพิ่มโมเดลด้วยตนเอง"
   },
+  "otherProviders": {
+    "title": "ผู้ให้บริการอื่น ๆ",
+    "description": "จัดเก็บคีย์และการตั้งค่าสำหรับเครื่องมือที่ไม่ใช่แชท เช่น Jev"
+  },
   "nav": {
+    "otherProviders": "อื่น ๆ",
+    "group": {
+      "providers": "ผู้ให้บริการ"
+    },
     "subtitle": "แผงควบคุม",
     "providers": "ผู้ให้บริการ",
     "apiService": "บริการ API",

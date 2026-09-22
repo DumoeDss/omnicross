@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Vom Daemon noch nicht unterstützt",
     "discoveryUnsupportedFormat": "Die Modellerkennung wird für dieses Anbieterformat noch nicht unterstützt. Fügen Sie Modelle manuell hinzu."
   },
+  "otherProviders": {
+    "title": "Weitere Anbieter",
+    "description": "Schlüsselspeicher und Konfiguration für Nicht-Chat-Tools wie Jev."
+  },
   "nav": {
+    "otherProviders": "Sonstige",
+    "group": {
+      "providers": "Anbieter"
+    },
     "subtitle": "Systemsteuerung",
     "providers": "Anbieter",
     "apiService": "API-Dienst",

@@ -27,6 +27,12 @@ export interface ProviderSettingsProps {
   /** Ask the owner to tear this view down (e.g. close the hosting dialog) when
       the user cancels OUT of the create flow at the template picker. */
   onRequestClose?: () => void;
+  /**
+   * Restrict the view to one catalog category — `'other'` backs the dedicated
+   * 其他/Other page (list, selection, and the add flow all filter together;
+   * see useProviderSettings).
+   */
+  categoryFilter?: 'other';
 }
 
 export function ProviderSettings({
@@ -36,6 +42,7 @@ export function ProviderSettings({
   mode = 'manage',
   onProviderCreated,
   onRequestClose,
+  categoryFilter,
 }: ProviderSettingsProps = {}) {
   const t = useTranslation();
   // Re-entry banner dismiss state (per-view, resets on remount) — non-blocking.
@@ -129,6 +136,7 @@ export function ProviderSettings({
     selectedProviderId: controlledProviderId,
     onSelectedProviderChange,
     onProviderCreated,
+    categoryFilter,
   });
 
   const initializedMode = useRef(false);
@@ -138,7 +146,13 @@ export function ProviderSettings({
     handleAddProvider();
   }, [handleAddProvider, mode]);
 
-  const showReentryBanner = missingKeyCount > 0 && !reentryDismissed;
+  const showReentryBanner =
+    missingKeyCount > 0 && !reentryDismissed && !categoryFilter;
+  // In a category-filtered view the add flow must only offer that category's
+  // presets — a bare chat API type is never what the 其他 page is for.
+  const pickerPresets = categoryFilter === 'other'
+    ? presets.filter((preset) => preset.category === 'other')
+    : presets;
 
   return (
     <>
@@ -193,9 +207,10 @@ export function ProviderSettings({
               /* Step 1 of ADD: pick a built-in template, or start from a bare
                  API type. Nothing is written until the form is saved. */
               <ProviderTemplatePicker
-                presets={presets}
+                presets={pickerPresets}
                 loading={presetsLoading}
                 addedPresetIds={addedPresetIds}
+                otherOnly={categoryFilter === 'other'}
                 onUseTemplate={handleUsePresetTemplate}
                 onStartCustom={handleStartCustomProvider}
                 /* The picker's cancel LEAVES the add flow entirely. In a hosting

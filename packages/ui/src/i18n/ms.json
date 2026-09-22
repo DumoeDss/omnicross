@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Belum disokong oleh daemon",
     "discoveryUnsupportedFormat": "Penemuan model belum disokong untuk format penyedia ini. Tambah model secara manual."
   },
+  "otherProviders": {
+    "title": "Penyedia lain",
+    "description": "Storan kunci dan konfigurasi untuk alat bukan sembang seperti Jev."
+  },
   "nav": {
+    "otherProviders": "Lain-lain",
+    "group": {
+      "providers": "Penyedia"
+    },
     "subtitle": "Panel Kawalan",
     "providers": "Penyedia",
     "apiService": "Perkhidmatan API",

@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Demoni ei vielä tue tätä",
     "discoveryUnsupportedFormat": "Mallien etsintä ei vielä tue tätä palveluntarjoajamuotoa. Lisää mallit manuaalisesti."
   },
+  "otherProviders": {
+    "title": "Muut tarjoajat",
+    "description": "Avainten tallennus ja asetukset ei-keskustelutyökaluille, kuten Jev."
+  },
   "nav": {
+    "otherProviders": "Muut",
+    "group": {
+      "providers": "Tarjoajat"
+    },
     "subtitle": "Ohjauspaneeli",
     "providers": "Palveluntarjoajat",
     "apiService": "API-palvelu",

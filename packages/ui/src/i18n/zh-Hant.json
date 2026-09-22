@@ -518,7 +518,12 @@
     "notSupportedByDaemon": "Daemon 尚未支援此功能",
     "discoveryUnsupportedFormat": "此提供者格式目前不支援自動探索模型，請手動新增模型。"
   },
+  "otherProviders": {
+    "title": "其他提供商",
+    "description": "Jev 決策引擎等非對話工具的金鑰儲存與設定。"
+  },
   "nav": {
+    "otherProviders": "其他",
     "primary": "主導覽",
     "overview": "總覽",
     "gateway": "閘道",
@@ -528,6 +533,7 @@
     "integrations": "整合",
     "group": {
       "run": "執行",
+      "providers": "提供商",
       "configure": "設定",
       "system": "系統"
     },

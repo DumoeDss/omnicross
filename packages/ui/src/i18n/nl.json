@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Nog niet ondersteund door de daemon",
     "discoveryUnsupportedFormat": "Modeldetectie wordt nog niet ondersteund voor dit providerformaat. Voeg modellen handmatig toe."
   },
+  "otherProviders": {
+    "title": "Overige providers",
+    "description": "Sleutelopslag en configuratie voor niet-chattools zoals Jev."
+  },
   "nav": {
+    "otherProviders": "Overige",
+    "group": {
+      "providers": "Providers"
+    },
     "subtitle": "Configuratiescherm",
     "providers": "Providers",
     "apiService": "API-service",

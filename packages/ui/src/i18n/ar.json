@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "غير مدعوم بعد من قِبَل Daemon",
     "discoveryUnsupportedFormat": "اكتشاف النماذج غير مدعوم لتنسيق هذا الموفر بعد. أضف النماذج يدويًا."
   },
+  "otherProviders": {
+    "title": "مزودون آخرون",
+    "description": "تخزين المفاتيح وإعدادات الأدوات غير المحادثة مثل Jev."
+  },
   "nav": {
+    "otherProviders": "أخرى",
+    "group": {
+      "providers": "المزودون"
+    },
     "subtitle": "لوحة التحكم",
     "providers": "الموفرون",
     "apiService": "خدمة API",

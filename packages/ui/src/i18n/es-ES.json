@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Aún no compatible con el daemon",
     "discoveryUnsupportedFormat": "El descubrimiento de modelos aún no está disponible para este formato de proveedor. Añade los modelos manualmente."
   },
+  "otherProviders": {
+    "title": "Otros proveedores",
+    "description": "Almacenamiento de claves y configuración para herramientas no conversacionales como Jev."
+  },
   "nav": {
+    "otherProviders": "Otros",
+    "group": {
+      "providers": "Proveedores"
+    },
     "subtitle": "Panel de control",
     "providers": "Proveedores",
     "apiService": "Servicio de API",

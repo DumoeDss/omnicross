@@ -7,14 +7,14 @@ import zhHant from '../../../i18n/zh-Hant.json';
 import { MOBILE_MORE_LABEL_KEY, MOBILE_PRIMARY_KEYS, NAV_GROUPS } from '../navModel';
 
 describe('navigation model', () => {
-  it('groups work by running, configuring and system concerns', () => {
+  it('groups work by running, provider surfaces, configuring and system concerns', () => {
     expect(NAV_GROUPS.map((group) => [group.id, group.items.map((item) => item.key)])).toEqual([
       ['run', ['overview', 'usage-stats', 'gateway', 'route-activity']],
-      // search-settings-tab D1: the Search page is the configure group's first
-      // entry — a true sibling of the gateway item, not a section inside it.
-      // chatgpt-web: the ChatGPT Web backend page joins the configure group
-      // right after the code CLI integrations entry.
-      ['configure', ['search', 'images', 'upstreams', 'access-keys', 'integrations', 'chatgpt-web']],
+      // Provider surfaces (owner feedback 2026-09-23): every upstream /
+      // capability in ONE group — chat LLMs, search, images, category-'other'
+      // key storage (Jev & friends), ChatGPT Web.
+      ['providers', ['upstreams', 'search', 'images', 'other-providers', 'chatgpt-web']],
+      ['configure', ['access-keys', 'integrations']],
       ['system', ['settings']],
     ]);
   });
@@ -25,11 +25,16 @@ describe('navigation model', () => {
     expect(new Set(items.map((item) => item.key)).size).toBe(items.length);
     // … while the gateway page is reached via two entries (overview + access).
     const pages = new Set(items.map((item) => item.page));
-    expect(pages).toEqual(new Set(['overview', 'api-service', 'route-activity', 'upstreams', 'integrations', 'chatgpt-web', 'search', 'images', 'usage-stats', 'settings']));
+    expect(pages).toEqual(new Set(['overview', 'api-service', 'route-activity', 'upstreams', 'integrations', 'chatgpt-web', 'search', 'images', 'other-providers', 'usage-stats', 'settings']));
     expect(items.filter((item) => item.page === 'api-service').map((item) => item.tab)).toEqual(['overview', 'access']);
     // The search entry points at the standalone page with its own label key.
     const search = items.find((item) => item.key === 'search');
     expect(search).toMatchObject({ page: 'search', icon: 'search', labelKey: 'nav.search' });
+    // The 其他 page surfaces category-'other' providers under its own key.
+    const otherProviders = items.find((item) => item.key === 'other-providers');
+    expect(otherProviders).toMatchObject({
+      page: 'other-providers', icon: 'other-providers', labelKey: 'nav.otherProviders',
+    });
 
     expect(MOBILE_PRIMARY_KEYS).toEqual(['overview', 'gateway', 'upstreams', 'usage-stats']);
     expect(MOBILE_PRIMARY_KEYS.every((key) => items.some((item) => item.key === key))).toBe(true);

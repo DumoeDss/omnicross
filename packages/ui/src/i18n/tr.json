@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Daemon tarafından henüz desteklenmiyor",
     "discoveryUnsupportedFormat": "Bu sağlayıcı formatı için model keşfi henüz desteklenmiyor. Modelleri manuel olarak ekleyin."
   },
+  "otherProviders": {
+    "title": "Diğer sağlayıcılar",
+    "description": "Jev gibi sohbet dışı araçlar için anahtar depolama ve yapılandırma."
+  },
   "nav": {
+    "otherProviders": "Diğer",
+    "group": {
+      "providers": "Sağlayıcılar"
+    },
     "subtitle": "Kontrol Paneli",
     "providers": "Sağlayıcılar",
     "apiService": "API Hizmeti",

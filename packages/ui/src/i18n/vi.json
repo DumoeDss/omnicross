@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Daemon chưa hỗ trợ tính năng này",
     "discoveryUnsupportedFormat": "Chưa hỗ trợ khám phá mô hình cho định dạng nhà cung cấp này. Hãy thêm mô hình thủ công."
   },
+  "otherProviders": {
+    "title": "Nhà cung cấp khác",
+    "description": "Lưu trữ khóa và cấu hình cho công cụ không trò chuyện như Jev."
+  },
   "nav": {
+    "otherProviders": "Khác",
+    "group": {
+      "providers": "Nhà cung cấp"
+    },
     "subtitle": "Bảng điều khiển",
     "providers": "Nhà cung cấp",
     "apiService": "Dịch vụ API",

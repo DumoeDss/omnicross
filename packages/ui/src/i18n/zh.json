@@ -518,7 +518,12 @@
     "notSupportedByDaemon": "守护进程暂不支持此项",
     "discoveryUnsupportedFormat": "当前提供商格式暂不支持模型发现，请手动添加模型。"
   },
+  "otherProviders": {
+    "title": "其他提供商",
+    "description": "Jev 决策引擎等非对话工具的密钥存储与配置。"
+  },
   "nav": {
+    "otherProviders": "其他",
     "primary": "主导航",
     "overview": "总览",
     "gateway": "网关",
@@ -528,6 +533,7 @@
     "integrations": "集成",
     "group": {
       "run": "运行",
+      "providers": "提供商",
       "configure": "配置",
       "system": "系统"
     },

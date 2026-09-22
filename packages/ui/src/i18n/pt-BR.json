@@ -509,7 +509,15 @@
     "notSupportedByDaemon": "Ainda não suportado pelo daemon",
     "discoveryUnsupportedFormat": "A descoberta de modelos ainda não é suportada para este formato de provedor. Adicione os modelos manualmente."
   },
+  "otherProviders": {
+    "title": "Outros provedores",
+    "description": "Armazenamento de chaves e configuração para ferramentas sem chat, como a Jev."
+  },
   "nav": {
+    "otherProviders": "Outros",
+    "group": {
+      "providers": "Provedores"
+    },
     "subtitle": "Painel de controle",
     "providers": "Provedores",
     "apiService": "Serviço de API",
