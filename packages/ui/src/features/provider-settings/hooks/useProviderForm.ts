@@ -117,6 +117,7 @@ export function useProviderForm(
       // Gateways that hard-gate on a client-identity header set (Cline) would
       // 403 every request if the template-prefilled create dropped them.
       extraHeaders: preset.extraHeaders,
+      logjev: preset.logjev,
     });
     setShowTemplates(false);
     setFormError(null);
@@ -187,6 +188,7 @@ export function useProviderForm(
       enabled: true,
       icon: template.icon,
       transformer: template.transformer,
+      logjev: template.logjev,
       apiVersion: template.apiVersion,
       maxConcurrency: template.maxConcurrency,
     });
@@ -196,6 +198,7 @@ export function useProviderForm(
   const handleEditProvider = () => {
     if (!selectedProvider) return;
     setFormData({
+      id: selectedProvider.id,
       name: selectedProvider.name,
       apiFormat: selectedProvider.apiFormat || 'openai',
       chatApiFormat: selectedProvider.chatApiFormat || selectedProvider.apiFormat || 'openai',
@@ -212,6 +215,7 @@ export function useProviderForm(
       enabled: selectedProvider.enabled,
       icon: selectedProvider.icon,
       transformer: selectedProvider.transformer,
+      logjev: selectedProvider.logjev,
       apiVersion: selectedProvider.apiVersion,
       isOfficial: selectedProvider.isOfficial,
       maxConcurrency: selectedProvider.maxConcurrency,
@@ -248,7 +252,7 @@ export function useProviderForm(
     // first CATALOG row (OpenAI). Without the gate, saving a hand-filled add form
     // materialized that preset instead — the saved provider came back named
     // "openai" on OpenAI's endpoint, discarding everything the user typed.
-    if (!isAddingNew && selectedProvider?.__preset) {
+    if (!isAddingNew && selectedProvider?.__preset && formData.category !== 'other') {
       const materialized = await materializePreset(selectedProvider, {
         apiKey: formData.api_key.trim() || undefined,
         enabled: formData.enabled,
@@ -263,12 +267,12 @@ export function useProviderForm(
     try {
       // Set only on the CREATE path — drives `onProviderCreated` below.
       let createdProviderId: string | null = null;
-      if (isEditing && selectedProviderId) {
+      if (isEditing && selectedProviderId && !selectedProvider?.__preset) {
         // provider-storage-secrets leave-unchanged-on-empty: only send `api_key`
         // when the user actually typed a replacement; an empty field preserves
         // the stored (encrypted) key rather than wiping it.
         const keyEdited = formData.api_key.trim().length > 0;
-        await agent.llmConfig.updateProvider({
+        const result = await agent.llmConfig.updateProvider({
           id: selectedProviderId,
           name: formData.name,
           apiFormat: formData.apiFormat,
@@ -284,12 +288,17 @@ export function useProviderForm(
           enabled: formData.enabled,
           icon: formData.icon,
           transformer: formData.transformer,
+          logjev: formData.logjev,
           apiVersion: formData.apiVersion,
           isOfficial: formData.isOfficial,
           maxConcurrency: formData.maxConcurrency,
           codingPlan: formData.codingPlan,
           presetId: formData.presetId,
         });
+        if (!result.success) {
+          setFormError(result.message ?? t('providerSettings.errors.saveFailed'));
+          return;
+        }
       } else {
         const result = await agent.llmConfig.addProvider({
           // Present only for a template-prefilled create (the preset's own id, so
@@ -310,6 +319,7 @@ export function useProviderForm(
           enabled: formData.enabled,
           icon: formData.icon,
           transformer: formData.transformer,
+          logjev: formData.logjev,
           apiVersion: formData.apiVersion,
           isOfficial: formData.isOfficial,
           maxConcurrency: formData.maxConcurrency,

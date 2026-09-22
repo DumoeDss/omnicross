@@ -21,6 +21,7 @@ export default defineConfig({
   },
   entry: {
     index: 'src/index.ts',
+    logjev: 'src/logjev/index.ts',
     ApiConverter: 'src/ApiConverter.ts',
     'auth/GeminiCodeAssistProjectResolver': 'src/auth/GeminiCodeAssistProjectResolver.ts',
     completion: 'src/completion/index.ts',

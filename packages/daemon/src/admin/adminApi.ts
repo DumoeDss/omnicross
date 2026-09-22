@@ -105,6 +105,7 @@ import {
   type IntegrationClientId,
 } from '../integrations';
 import { listMappablePresets } from '../preset-map';
+import { parseLogJevSettings } from '@omnicross/contracts/logjev';
 import { preserveOutboundProxySecrets, redactOutboundProxy } from '../proxy/sanitizeProxy';
 import {
   assembledGatewayBindings,
@@ -569,6 +570,7 @@ export function toKeyInfo(row: OutboundKeyDbRow): OutboundApiKeyInfo {
 
 /** Project a provider row to the masked GET shape (literal apiKey never serialized). */
 function toProviderView(row: DaemonProviderConfig): {
+  logjev?: DaemonProviderConfig['logjev'];
   id: string;
   name?: string;
   apiFormat: string;
@@ -594,6 +596,7 @@ function toProviderView(row: DaemonProviderConfig): {
     // app-parity-2 child 1: mutable display name (non-secret) round-trips verbatim;
     // absent stays absent (the app falls back to the id for display).
     name: row.name,
+    logjev: row.logjev,
     apiFormat: row.apiFormat,
     baseUrl: row.baseUrl,
     models: row.models ?? [],
@@ -1782,6 +1785,12 @@ export function parseProviderInput(
   body: Record<string, unknown>,
   existing: DaemonProviderConfig | undefined,
 ): DaemonProviderConfig | null {
+  let logjev = existing?.logjev;
+  if (body['logjev'] === null) logjev = undefined;
+  else if (body['logjev'] !== undefined) {
+    try { logjev = parseLogJevSettings(body['logjev']); }
+    catch { return null; }
+  }
   // `id` is the IMMUTABLE identity (model refs `"<id>,<model>"`, pool + account
   // keys). On a PUT (existing present) the STORED id ALWAYS wins — a body `id` is
   // ignored, so a mismatched/forged `id` can never silently rename/orphan the row
@@ -1959,6 +1968,7 @@ export function parseProviderInput(
     modelsEndpoint,
     extraHeaders,
     transformer: migrated.transformer,
+    logjev,
     codingPlan,
     apiModes,
     selectedApiModeId,
@@ -2002,6 +2012,7 @@ function handlePresets(res: http.ServerResponse, method: string): void {
     // Static extra headers ride along so `addFromPreset` can seed them onto the
     // row (the write gateway re-validates via the shared allowlist).
     extraHeaders: p.extraHeaders,
+    logjev: p.logjev,
   }));
   return writeJson(res, 200, { presets, excluded });
 }

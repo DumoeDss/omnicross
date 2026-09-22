@@ -1,7 +1,7 @@
 {
   "id": "open-jev",
   "presetId": "open-jev",
-  "name": "open-jev",
+  "name": "LogJev (legacy open-jev)",
   "category": "other",
   "apiFormat": "openai",
   "api_base_url": "https://integrate.api.nvidia.com/v1",
@@ -11,7 +11,7 @@
     ]
   },
   "models": [],
-  "description": "open-jev：omnicross 守护进程内置的 Jev systemone 决策桥。此行配置读取上游，两种皆可：①任意 OpenAI 兼容 chat 且返回 top_logprobs（默认 NIM DiffusionGemma，实测支持图片，走边界读数）；②OpenRouter（Base URL 填 https://openrouter.ai/api/v1 + OpenRouter 密钥，自动走原生 Decisions API，模型 typesafe/jev-1.13 / jev-latest，真 Jev 直通）。点「发现模型」拉到的模型列表首个即默认读取模型。Jev 客户端 endpoint 指向网关的 http://127.0.0.1:8765/v1/systemone，key 填 omnicross 访问密钥。不能作为对话上游。",
+  "description": "LogJev 的旧 open-jev 预设，保留配置兼容。支持 logprobs 的 LLM 经聊天 API 读取；原生 Jev 请在决策后端中明确选择。OpenRouter 上普通聊天模型继续走 chat/completions。新配置建议使用 LogJev 预设。",
   "icon": "open-jev",
   "website": "https://simple-jev.featherless.ai/",
   "docsUrl": "https://docs.typesafe.ai/",

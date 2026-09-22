@@ -177,6 +177,8 @@ describe('GET /admin/api/presets', () => {
       'website',
       'modelsEndpoint',
       'extraHeaders',
+      'category',
+      'logjev',
     ]);
     for (const p of body.presets) {
       for (const key of required) expect(Object.keys(p)).toContain(key);

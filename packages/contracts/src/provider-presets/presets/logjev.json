@@ -1,0 +1,16 @@
+{
+  "id": "logjev",
+  "presetId": "logjev",
+  "name": "LogJev",
+  "category": "other",
+  "apiFormat": "openai",
+  "api_base_url": "https://integrate.api.nvidia.com/v1",
+  "models": [],
+  "logjev": { "kind": "chat", "promptMode": "full", "topk": 20, "concurrency": 4 },
+  "description": "LogJev 决策桥：使用支持 top_logprobs 的 OpenAI 兼容模型返回 choice / score / noul；支持消息历史、图片和音频（取决于模型能力）。也可切换到原生 Jev 端点。请配置默认模型。客户端使用网关 /v1/systemone 和 Omnicross 访问密钥。",
+  "icon": "open-jev",
+  "website": "https://github.com/DumoeDss/logjev",
+  "docsUrl": "https://github.com/DumoeDss/omnicross/blob/main/docs/logjev.md",
+  "isSystem": true,
+  "features": ["decision-engine", "logprobs", "multimodal"]
+}

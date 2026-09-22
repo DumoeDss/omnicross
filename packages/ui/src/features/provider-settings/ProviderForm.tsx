@@ -23,6 +23,7 @@ import {
 } from '@shared/llm-config';
 
 import type { ProviderFormData } from './types';
+import { LogJevFields } from './LogJevFields';
 
 /** The transform-rule NAME of a `use[]` entry (bare string or `[name, opts]` tuple). */
 function transformerEntryName(entry: TransformerEntry): string {
@@ -89,6 +90,7 @@ export function ProviderForm({
 }: ProviderFormProps) {
   const t = useTranslation();
   const [showTransformerConfig, setShowTransformerConfig] = useState(false);
+  const [logjevValid, setLogjevValid] = useState(true);
 
   // Provider-level transform chain `use[]` (app-parity child 5). The minimal
   // checklist edits the chain by NAME; the count badge reads its length.
@@ -420,6 +422,9 @@ export function ProviderForm({
       )}
 
       {/* Enabled — daemon-backed (D8); stays LIVE. */}
+      {formData.category === 'other' && <LogJevFields value={formData.logjev}
+        onChange={logjev => setFormData(prev => ({ ...prev, logjev }))} onValidity={setLogjevValid} />}
+
       <div className="flex items-center gap-2">
         <Switch
           checked={formData.enabled}
@@ -439,7 +444,7 @@ export function ProviderForm({
         <Button variant="outline" onClick={onCancel}>
           {t('providerSettings.form.buttons.cancel')}
         </Button>
-        <Button onClick={onSave}>
+        <Button onClick={onSave} disabled={!logjevValid}>
           {isEditing
             ? t('providerSettings.form.buttons.submitUpdate')
             : t('providerSettings.form.buttons.submitAdd')}

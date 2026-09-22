@@ -21,6 +21,7 @@ export interface ModelCatalogFilterDefinition {
 }
 
 export interface ProviderFormData {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   /**
    * Explicit provider id for a CREATE. Only set when the form was prefilled from
    * a catalog template — the row must land on the preset's OWN id so the

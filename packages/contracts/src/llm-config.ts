@@ -8,6 +8,7 @@
  */
 
 import type { ThinkLevel } from './completion-types';
+import type { LogJevSettings } from './logjev';
 import type { ApiMode, CodingPlanConfig } from './provider-presets';
 
 // ============================================================================
@@ -164,6 +165,7 @@ export interface ModelConfig {
  * LLM Provider configuration.
  */
 export interface LLMProvider {
+  logjev?: LogJevSettings;
   id: string;
   name: string;
   apiFormat?: ApiFormat;
@@ -295,6 +297,7 @@ export interface GlobalModelParameters {
  * this into `PresetProviderTemplate`.
  */
 export interface ProviderTemplate {
+  logjev?: LogJevSettings;
   id: string;
   name: string;
   apiFormat?: ApiFormat;

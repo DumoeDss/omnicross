@@ -2432,5 +2432,18 @@
     "save": "保存代理",
     "saveHint": "上游请求将通过此代理转发。",
     "disabledHint": "未启用代理，上游请求直连。"
+  },
+  "logjev": {
+    "mode": "决策后端",
+    "legacy": "沿用现有兼容配置",
+    "chat": "支持 logprobs 的 LLM",
+    "native": "原生 Jev",
+    "endpointNote": "LLM 使用聊天 API Base URL；原生 Jev 使用完整 System One 端点。模型列表中的首项是默认模型。",
+    "prompt": "提示词模式",
+    "full": "完整（推荐）",
+    "minimal": "精简",
+    "topk": "Top logprobs（受提供商上限限制）",
+    "extra": "模型附加参数（JSON，不含凭证）",
+    "invalidJson": "请输入有效的 JSON 对象。"
   }
 }

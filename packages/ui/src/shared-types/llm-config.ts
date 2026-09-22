@@ -178,6 +178,7 @@ export interface ModelConfig {
 }
 
 export interface LLMProvider {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   id: string;
   name: string;
   apiFormat?: ApiFormat;
@@ -235,6 +236,7 @@ export interface LLMProvider {
 }
 
 export interface LLMProviderInput {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   name: string;
   apiFormat?: ApiFormat;
   chatApiFormat?: ChatApiFormat;
@@ -269,6 +271,7 @@ export interface LLMProviderInput {
 }
 
 export interface LLMProviderUpdateInput {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings | null;
   name?: string;
   apiFormat?: ApiFormat;
   chatApiFormat?: ChatApiFormat;
@@ -369,6 +372,7 @@ export interface ApiKeyEntryInput {
 
 // ── Provider template (legacy compat consts) ────────────────────────────────────
 export interface ProviderTemplate {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   id: string;
   name: string;
   apiFormat?: ApiFormat;

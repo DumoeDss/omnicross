@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/ui",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Omnicross Control Panel — the React frontend over the daemon admin HTTP API. Published as prebuilt static assets (dist/), served by @omnicross/daemon at /ui; also the frontend for the Tauri desktop shell.",
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "i18n:baseline": "node scripts/refresh-locale-baseline.mjs"
   },
   "devDependencies": {
-    "@omnicross/contracts": "^0.5.0",
+    "@omnicross/contracts": "^0.6.0",
     "@radix-ui/react-dialog": "^1.1.2",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-http": "^2.5.2",

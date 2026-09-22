@@ -18,6 +18,7 @@ export default defineConfig({
     'src/health-logging-types.ts',
     'src/image-generation-types.ts',
     'src/llm-config.ts',
+    'src/logjev.ts',
     'src/mcp-types.ts',
     'src/message-blocks.ts',
     'src/pricing-types.ts',

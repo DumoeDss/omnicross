@@ -24,6 +24,7 @@ const require = createRequire(import.meta.url);
 
 /** Entry point -> runtime values that must survive the build. */
 const ENTRY_POINTS = {
+  '@omnicross/core/logjev': ['createLogJevClient', 'LogJevError', 'parseLogJevSettings'],
   // search-phase1-orchestrator (阶段3): the search runtime. This is the subpath
   // 阶段5's protocol frontends and Phase-2 hosts import, so a missing build
   // output here breaks consumers that no test in this repo can see.

@@ -123,6 +123,7 @@ export function mapPresetToProvider(
     // Static identity headers (e.g. the Cline client set) survive the mapping —
     // the CLI-seeded row needs them as much as an admin-API-created one.
     extraHeaders: preset.extraHeaders,
+    logjev: preset.logjev,
   };
   return { provider };
 }
@@ -139,6 +140,7 @@ export function mapPresetToProvider(
  * A preset that declares none of them keeps exactly the prior six keys.
  */
 export interface MappablePreset {
+  logjev?: DaemonProviderConfig['logjev'];
   id: string;
   presetId: string;
   name: string;
@@ -192,6 +194,7 @@ export function listMappablePresets(): ListMappableResult {
       website: preset.website,
       modelsEndpoint: preset.modelsEndpoint,
       extraHeaders: preset.extraHeaders,
+      logjev: preset.logjev,
     });
   }
   return { mappable, excluded };

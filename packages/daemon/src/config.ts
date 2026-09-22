@@ -26,6 +26,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
+import { parseLogJevSettings, type LogJevSettings } from '@omnicross/contracts/logjev';
 import type { UsageRetentionConfig } from './usage/UsagePruneSweeper';
 import type { ThinkLevel } from '@omnicross/contracts/completion-types';
 import { EXTRA_HEADER_RESERVED_NAMES, type OutboundApiServerConfig } from '@omnicross/core';
@@ -197,6 +198,7 @@ export interface DaemonApiMode {
 
 /** One BYO provider row — the unit the `ProviderConfigSource` serves. */
 export interface DaemonProviderConfig {
+  logjev?: LogJevSettings;
   /** Stable id referenced by the per-endpoint `"<id>,<model>"` model refs. */
   id: string;
   /**
@@ -881,6 +883,7 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
     // Format-axis entries are stripped by `migrateFormatAxis` — `use[]` is the
     // MODIFIER axis only.
     transformer: migratedTransformer,
+    logjev: p['logjev'] == null ? undefined : parseLogJevSettings(p['logjev']),
     // Coding-plan endpoint (app-parity-2 child 3): load-guard, collapse-to-undefined.
     // SECRET-bearing (apiKey encrypted at rest); enforced by core's resolveProviderEndpoint.
     codingPlan: validateCodingPlan(p['codingPlan']),

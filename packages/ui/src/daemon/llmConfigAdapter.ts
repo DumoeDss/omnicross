@@ -86,6 +86,7 @@ export function toClientProvider(dto: DaemonProviderView): LLMProvider {
   // Static identity headers (non-secret) hydrate verbatim so form edits can
   // round-trip them (omitting the field on edit keeps the stored value).
   if (dto.extraHeaders !== undefined) provider.extraHeaders = dto.extraHeaders;
+  if (dto.logjev !== undefined) provider.logjev = dto.logjev;
   // app-parity child 2: hydrate the now-backed per-model metadata when present
   // (the daemon serializes only the named-five fields; absent for a flat-models-
   // only row, so the model controls show defaults). `modelGroups` stays unmapped —
@@ -149,7 +150,7 @@ export function toClientProvider(dto: DaemonProviderView): LLMProvider {
  * Update half's `| null` (the explicit-clear contract) wins.
  */
 type ProviderWriteInput = Partial<
-  Omit<LLMProviderInput, 'apiVersion' | 'modelsEndpoint' | 'maxConcurrency' | 'extraHeaders' | 'category'> &
+  Omit<LLMProviderInput, 'apiVersion' | 'modelsEndpoint' | 'maxConcurrency' | 'extraHeaders' | 'category' | 'logjev'> &
     LLMProviderUpdateInput
 > & { id?: string };
 
@@ -219,6 +220,7 @@ function fromClientInput(input: ProviderWriteInput): Record<string, unknown> {
   // re-validates via its allowlist), `null`→clear, omit→keep. Form edits that
   // don't touch headers omit the key, so a preset-seeded identity set survives.
   if (input.extraHeaders !== undefined) body['extraHeaders'] = input.extraHeaders;
+  if (input.logjev !== undefined) body['logjev'] = input.logjev;
   return body;
 }
 
@@ -456,6 +458,7 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
         if (preset.extraHeaders && Object.keys(preset.extraHeaders).length > 0) {
           body['extraHeaders'] = preset.extraHeaders;
         }
+        if (preset.logjev) body['logjev'] = preset.logjev;
         // Carry the user-supplied key + enable state from the inline configure
         // flow (a masked/blank value is never sent — same discipline as edits).
         if (typeof apiKey === 'string' && apiKey.trim().length > 0) body['apiKey'] = apiKey;

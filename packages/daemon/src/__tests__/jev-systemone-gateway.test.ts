@@ -63,7 +63,7 @@ function startMockUpstream(): Promise<void> {
   return new Promise((resolve) => mockUpstream.listen(0, '127.0.0.1', resolve));
 }
 
-async function boot(withOtherRow: boolean): Promise<void> {
+async function boot(withOtherRow: boolean, overrides: Record<string, unknown> = {}): Promise<void> {
   resetDaemonSingletonsForTests();
   tmpDir = mkdtempSync(join(tmpdir(), 'omnicross-jev-'));
   const providers = withOtherRow
@@ -74,6 +74,7 @@ async function boot(withOtherRow: boolean): Promise<void> {
         apiKey: 'mock-key',
         models: ['mock-dgemma'],
         category: 'other' as const,
+        ...overrides,
       }]
     : [{
         id: 'chat',
@@ -141,6 +142,23 @@ afterEach(async () => {
 });
 
 describe('POST /v1/systemone (outbound server)', () => {
+  it('supports the LogJev provider ID, configured options and audio history through the gateway', async () => {
+    await boot(true, { id: 'logjev', logjev: { kind: 'chat', promptMode: 'minimal', topk: 10, extraBody: { chat_template_kwargs: { enable_thinking: false } } } });
+    const messages = [{ role: 'user', content: [{ type: 'input_audio', input_audio: { data: 'aGVsbG8=', format: 'wav' } }] }];
+    const result = await post({ provider: 'logjev', messages, questions: { q: { type: 'noul', instructions: 'ok?' } } }, accessKey);
+    expect(result.status).toBe(200);
+    expect(lastBodies[0]).toMatchObject({ top_logprobs: 10, temperature: 1, chat_template_kwargs: { enable_thinking: false } });
+    expect((lastBodies[0].messages as unknown[])[0]).toEqual(messages[0]);
+    expect(result.json.logjev.calibrated).toBe(false);
+  });
+
+  it('does not select a disabled decision provider', async () => {
+    await boot(true, { enabled: false });
+    const result = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } }, accessKey);
+    expect(result.status).toBe(409);
+    expect(lastBodies).toHaveLength(0);
+  });
+
   it('answers the three primitives in Jev shapes and reads with logprobs', async () => {
     await boot(true);
     const r = await post({

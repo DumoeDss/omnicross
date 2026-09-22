@@ -25,6 +25,7 @@ import geminiVertex from './presets/gemini-vertex.json';
 import grok from './presets/grok.json';
 import groq from './presets/groq.json';
 import jev from './presets/jev.json';
+import logjev from './presets/logjev.json';
 import kimi from './presets/kimi.json';
 import kuaishou from './presets/kuaishou.json';
 import minimax from './presets/minimax.json';
@@ -96,5 +97,6 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   cerebras,
   // Other (not chat backends — key storage for external tools; see category)
   jev,
+  logjev,
   openJev,
 ];

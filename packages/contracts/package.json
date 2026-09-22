@@ -1,6 +1,6 @@
 {
   "name": "@omnicross/contracts",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Dependency-light, host-agnostic contract types + runtime-value helpers shared by the @omnicross/* packages.",
   "license": "MIT",
   "author": "Sayo (https://github.com/Dumoedss)",
@@ -89,6 +89,11 @@
       "types": "./dist/llm-config.d.ts",
       "import": "./dist/llm-config.js",
       "require": "./dist/llm-config.cjs"
+    },
+    "./logjev": {
+      "types": "./dist/logjev.d.ts",
+      "import": "./dist/logjev.js",
+      "require": "./dist/logjev.cjs"
     },
     "./mcp-types": {
       "types": "./dist/mcp-types.d.ts",

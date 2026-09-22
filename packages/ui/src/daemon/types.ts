@@ -97,6 +97,7 @@ export type SearchQueryOutcome =
 
 /** `GET /admin/api/providers` row (secrets IN-never-OUT; literal key absent). */
 export interface DaemonProviderView {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   id: string;
   /** app-parity-2 child 1: optional mutable display name (absent → app falls back to id). */
   name?: string;
@@ -185,6 +186,7 @@ export interface DaemonPoolKeyView {
  * plus the preset's `modelsEndpoint` so a prefilled row can discover models.
  */
 export interface DaemonPresetView {
+  logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   id: string;
   presetId: string;
   name: string;

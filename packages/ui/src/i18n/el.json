@@ -1454,5 +1454,18 @@
       "providerAll": "Όλα",
       "providerAria": "Φίλτρο ανά provider"
     }
+  },
+  "logjev": {
+    "mode": "Decision backend",
+    "legacy": "Existing compatibility defaults",
+    "chat": "LLM with logprobs",
+    "native": "Native Jev",
+    "endpointNote": "Use a chat API base URL for LLMs, or the full System One endpoint for native Jev. The first configured model is the default.",
+    "prompt": "Prompt mode",
+    "full": "Full (recommended)",
+    "minimal": "Minimal",
+    "topk": "Top logprobs (provider limit applies)",
+    "extra": "Additional model options (JSON, no credentials)",
+    "invalidJson": "Enter a valid JSON object."
   }
 }
