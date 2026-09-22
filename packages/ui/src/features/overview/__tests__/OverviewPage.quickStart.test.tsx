@@ -57,9 +57,12 @@ describe('quick start completion', () => {
   it('hides when the first live request arrives and does not reopen when the window goes idle', () => {
     render();
     expect(wizard()).not.toBeNull();
+    // Partial window fixture — only the fields the wizard's liveness check
+    // reads (requests / outputTokens); the full token breakdown is irrelevant
+    // here, hence the through-unknown cast.
     state.throughput = { available: true, collectedAt: Date.now(), startedAt: Date.now(), retentionMs: 900000, bucketMs: 60000,
       windows: [{ windowMs: 300000, requests: 1, outputTokens: 10, outputTokensPerMinute: 2, costUsdPerMinute: 0, requestsPerMinute: 0.2, complete: true }], buckets: [],
-    } as UsageThroughputResult;
+    } as unknown as UsageThroughputResult;
     render();
     expect(wizard()).toBeNull();
     state.throughput = { available: false, collectedAt: Date.now() };
