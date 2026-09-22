@@ -149,6 +149,13 @@ export interface UnifiedChatRequest {
   stream?: boolean;
   tools?: UnifiedTool[];
   tool_choice?: ToolChoice;
+  /**
+   * OpenAI-chat / Responses `parallel_tool_calls`. The chat wire carries it
+   * natively (identity passthrough), Anthropic encodes the inverse as
+   * `tool_choice.disable_parallel_tool_use`, Gemini has no counterpart
+   * (dropped + audited).
+   */
+  parallel_tool_calls?: boolean;
   reasoning?: ReasoningConfig;
   /** Native OpenAI Chat field retained by the identity-shaped ingress. */
   reasoning_effort?: string;

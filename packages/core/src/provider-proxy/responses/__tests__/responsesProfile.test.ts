@@ -111,16 +111,69 @@ describe('validateReducedResponsesRequest', () => {
     }));
   });
 
+  it('accepts the codex CLI request surface over reduced targets', () => {
+    expect(validateReducedResponsesRequest({
+      model: 'glm-4.7',
+      instructions: 'Be precise',
+      input: [{ type: 'message', role: 'user', content: 'hello' }],
+      tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' } }],
+      tool_choice: 'auto',
+      parallel_tool_calls: false,
+      top_p: 0.9,
+      // 'auto' is best-effort: a summary-less target answers without summaries.
+      reasoning: { effort: 'high', summary: 'auto' },
+      store: false,
+      stream: true,
+      include: ['reasoning.encrypted_content'],
+      prompt_cache_key: 'codex-session',
+      truncation: 'auto',
+      text: { verbosity: 'medium' },
+    }, chatCapabilities)).toEqual([]);
+  });
+
+  it('admits unknown top-level fields and returns their names for the audit', () => {
+    // A codex/CLI update adding a request field must degrade to an ignored
+    // knob (audit-dropped downstream), not a hard 400.
+    expect(validateReducedResponsesRequest({
+      input: 'x',
+      future_field: true,
+      another_new_knob: 'value',
+    }, chatCapabilities)).toEqual(['future_field', 'another_new_knob']);
+  });
+
+  it('accepts the function and allowed_tools tool_choice forms', () => {
+    expect(() => validateReducedResponsesRequest({
+      input: 'x',
+      tool_choice: { type: 'function', name: 'shell' },
+    }, chatCapabilities)).not.toThrow();
+    expect(() => validateReducedResponsesRequest({
+      input: 'x',
+      tool_choice: {
+        type: 'allowed_tools',
+        mode: 'required',
+        tools: [{ type: 'function', name: 'shell' }],
+      },
+    }, chatCapabilities)).not.toThrow();
+  });
+
   const rejected: Array<[string, Record<string, unknown>, string]> = [
-    ['unknown field', { input: 'x', future_field: true }, '$.future_field'],
     ['state reference', { input: 'x', previous_response_id: 'resp_secret' }, '$.previous_response_id'],
     ['background', { input: 'x', background: true }, '$.background'],
+    ['stateful store', { input: 'x', store: true }, '$.store'],
+    ['top_p type', { input: 'x', top_p: '0.9' }, '$.top_p'],
+    ['tool choice mode', { input: 'x', tool_choice: 'sometimes' }, '$.tool_choice'],
+    ['hosted tool choice', { input: 'x', tool_choice: { type: 'web_search' } }, '$.tool_choice.type'],
+    ['allowed_tools mode', { input: 'x', tool_choice: { type: 'allowed_tools', mode: 'sometimes', tools: [{ type: 'function', name: 'f' }] } }, '$.tool_choice.mode'],
+    ['allowed_tools hosted entry', { input: 'x', tool_choice: { type: 'allowed_tools', mode: 'auto', tools: [{ type: 'web_search' }] } }, '$.tool_choice.tools[0].type'],
+    ['parallel_tool_calls type', { input: 'x', parallel_tool_calls: 'no' }, '$.parallel_tool_calls'],
+    ['include type', { input: 'x', include: [7] }, '$.include'],
+    ['truncation value', { input: 'x', truncation: 'aggressive' }, '$.truncation'],
+    ['text format', { input: 'x', text: { format: { type: 'json_object' } } }, '$.text.format'],
     ['hosted tool', { input: 'x', tools: [{ type: 'web_search_preview' }] }, '$.tools[0].type'],
     ['image part', { input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'secret' }] }] }, '$.input[0].content[0].type'],
     ['file part', { input: [{ role: 'user', content: [{ type: 'input_file', file_id: 'file_secret' }] }] }, '$.input[0].content[0].type'],
     ['opaque item', { input: [{ type: 'reasoning', encrypted_content: 'secret' }] }, '$.input[0].type'],
     ['bad reasoning shape', { input: 'x', reasoning: { effort: 7 } }, '$.reasoning.effort'],
-    ['prompt cache hint', { input: 'x', prompt_cache_key: 'opaque-cache' }, '$.prompt_cache_key'],
     ['function strict', { input: 'x', tools: [{ type: 'function', name: 'f', strict: true }] }, '$.tools[0].strict'],
     ['custom format', { input: 'x', tools: [{ type: 'custom', name: 'c', format: { type: 'grammar' } }] }, '$.tools[0].format'],
     ['message status', { input: [{ type: 'message', role: 'user', content: 'x', status: 'completed' }] }, '$.input[0].status'],

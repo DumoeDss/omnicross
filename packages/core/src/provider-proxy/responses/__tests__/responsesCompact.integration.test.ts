@@ -382,8 +382,11 @@ describe('native Responses create/compact integration', () => {
     const port = await proxy.start();
     const token = proxy.addRoute(route);
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    // NOTE: `prompt_cache_key` is deliberately ABSENT from this list — codex
+    // puts it on every request, so the reduced gate admits it (consumed for
+    // session derivation, never forwarded upstream).
     const rejectedCases = [
-      ['prompt cache hint', '/v1/responses', { model: 'x', input: 'hello', prompt_cache_key: 'opaque' }],
+      ['stateful store', '/v1/responses', { model: 'x', input: 'hello', store: true }],
       ['function strict mode', '/v1/responses', {
         model: 'x', input: 'hello', tools: [{ type: 'function', name: 'lookup', strict: true }],
       }],

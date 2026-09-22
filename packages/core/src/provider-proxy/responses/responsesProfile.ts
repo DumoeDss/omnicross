@@ -68,19 +68,61 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
   }
 }
 
+// ── Reduced-profile admission policy (three tiers) ─────────────────────────
+//
+// The codex CLI (and any Responses-native client) evolves its request surface
+// every few months. A strict unknown-field 400 turns each such update into
+// client downtime, so top-level fields are tiered instead:
+//
+//   1. KNOWN (TOP_LEVEL_FIELDS) — validated, then mapped where representable
+//      or audited-dropped where they are session hints. `tool_choice` /
+//      `parallel_tool_calls` / `top_p` are representable on every reduced
+//      target (chat native; Anthropic maps them; Gemini maps tool_choice+top_p
+//      and drops parallel_tool_calls). `store:false`, `include`,
+//      `truncation`, `prompt_cache_key`, `text.verbosity` are codex's
+//      stateless-session contract — no reduced-wire meaning, and none is a
+//      server-state REFERENCE, so they are dropped at the transform boundary
+//      with a dropped_field audit (field NAMES only).
+//   2. DENIED (DENIED_TOP_LEVEL_FIELDS) — serving these SILENTLY WRONG is the
+//      risk, not lost fidelity: `previous_response_id` references server-side
+//      state on the ORIGINAL provider; `background:true` switches the
+//      response protocol to async job semantics. These fail loudly.
+//   3. UNKNOWN — admitted and audit-dropped. The transform layers below are
+//      field-by-field builders, so an unknown field physically cannot reach
+//      the upstream; the gate's job is to report it (the returned names feed
+//      the dropped_field counter), not to break the client over a knob it
+//      will never see honored.
+//
+// Nested shapes stay STRICT: an unknown input-item / content-part / tool /
+// tool_choice type can carry conversation content, and dropping one silently
+// corrupts the history — that must stay a loud, structured 400.
 const TOP_LEVEL_FIELDS = new Set([
   'model',
   'input',
   'instructions',
+  'prompt',
   'stream',
   'max_output_tokens',
   'temperature',
+  'top_p',
   'reasoning',
   'tools',
+  'tool_choice',
+  'parallel_tool_calls',
+  'store',
+  'include',
+  'prompt_cache_key',
+  'truncation',
+  'text',
 ]);
+
+const DENIED_TOP_LEVEL_FIELDS = new Set(['previous_response_id', 'background']);
 
 const REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
 const REASONING_SUMMARIES = new Set(['auto', 'concise', 'detailed']);
+const TOOL_CHOICE_MODES = new Set(['auto', 'none', 'required']);
+const TOOL_CHOICE_ALLOWED_MODES = new Set(['auto', 'required']);
+const TRUNCATION_VALUES = new Set(['auto', 'none']);
 const MESSAGE_ROLES = new Set(['developer', 'system', 'user', 'assistant']);
 const TEXT_PART_TYPES = new Set(['text', 'input_text', 'output_text', 'summary_text']);
 
@@ -175,6 +217,40 @@ function validateToolDeclaration(
   fail(`${path}.type`, 'is a hosted or unsupported tool type');
 }
 
+function validateToolChoice(value: unknown, path: string): void {
+  if (typeof value === 'string') {
+    if (!TOOL_CHOICE_MODES.has(value)) {
+      fail(path, 'must be "auto", "none", "required", a function choice, or an allowed_tools choice');
+    }
+    return;
+  }
+  if (!isRecord(value)) fail(path, 'must be a tool choice');
+  if (value.type === 'function') {
+    assertOnlyFields(value, new Set(['type', 'name']), path);
+    assertString(value.name, `${path}.name`);
+    return;
+  }
+  if (value.type === 'allowed_tools') {
+    assertOnlyFields(value, new Set(['type', 'mode', 'tools']), path);
+    if (typeof value.mode !== 'string' || !TOOL_CHOICE_ALLOWED_MODES.has(value.mode)) {
+      fail(`${path}.mode`, 'must be "auto" or "required"');
+    }
+    if (!Array.isArray(value.tools) || value.tools.length === 0) {
+      fail(`${path}.tools`, 'must be a non-empty array');
+    }
+    value.tools.forEach((tool, index) => {
+      const toolPath = `${path}.tools[${index}]`;
+      if (!isRecord(tool) || tool.type !== 'function') {
+        fail(`${toolPath}.type`, 'must be a function tool choice');
+      }
+      assertOnlyFields(tool, new Set(['type', 'name']), toolPath);
+      assertString(tool.name, `${toolPath}.name`);
+    });
+    return;
+  }
+  fail(`${path}.type`, 'is a hosted or unsupported tool choice');
+}
+
 function validateInputItem(value: unknown, path: string): void {
   if (!isRecord(value)) fail(path, 'must be a supported input item');
   const type = typeof value.type === 'string' ? value.type : undefined;
@@ -218,16 +294,29 @@ function validateInputItem(value: unknown, path: string): void {
   fail(`${path}.type`, 'is an opaque or unsupported input item type');
 }
 
-/** Validate the exact subset the declared reduced target preserves. */
+/**
+ * Validate a reduced-profile Responses request. Known fields are shape-checked
+ * (a violation fails with `unsupported_capability`); DENIED fields fail; any
+ * OTHER top-level field is admitted and its NAME returned so the caller can
+ * feed the dropped_field audit — the field itself evaporates at the transform
+ * boundary below. Nested shapes stay strict for the same reason as DENIED:
+ * silently dropping them corrupts semantics instead of just a knob.
+ */
 export function validateReducedResponsesRequest(
   body: unknown,
   capabilities: ReducedResponsesCapabilities,
-): asserts body is Record<string, unknown> {
+): string[] {
   if (!isRecord(body)) fail('$', 'must be a JSON object');
-  assertOnlyFields(body, TOP_LEVEL_FIELDS, '$');
+  const unknownFields: string[] = [];
+  for (const field of Object.keys(body)) {
+    if (DENIED_TOP_LEVEL_FIELDS.has(field)) fail(`$.${field}`);
+    if (!TOP_LEVEL_FIELDS.has(field)) unknownFields.push(field);
+  }
 
   if (body.model !== undefined) assertString(body.model, '$.model');
   if (body.instructions !== undefined) assertString(body.instructions, '$.instructions');
+  // Newer Responses clients may send `prompt` instead of `instructions`.
+  if (body.prompt !== undefined) assertString(body.prompt, '$.prompt');
   if (body.stream !== undefined && typeof body.stream !== 'boolean') fail('$.stream', 'must be a boolean');
   if (
     body.max_output_tokens !== undefined &&
@@ -237,6 +326,9 @@ export function validateReducedResponsesRequest(
   }
   if (body.temperature !== undefined && typeof body.temperature !== 'number') {
     fail('$.temperature', 'must be a number');
+  }
+  if (body.top_p !== undefined && typeof body.top_p !== 'number') {
+    fail('$.top_p', 'must be a number');
   }
 
   if (body.reasoning !== undefined) {
@@ -251,7 +343,16 @@ export function validateReducedResponsesRequest(
     ) {
       fail('$.reasoning.summary', 'is not supported');
     }
-    if (body.reasoning.summary !== undefined && !capabilities.reasoningSummary) {
+    // `summary:'auto'` is best-effort ("include summaries if the model
+    // produces them") — codex sends it on every reasoning-model turn and must
+    // tolerate a target that produces none, so it passes for every target. An
+    // explicit 'concise'/'detailed' level is a fidelity demand only
+    // summary-preserving targets accept.
+    if (
+      body.reasoning.summary !== undefined &&
+      body.reasoning.summary !== 'auto' &&
+      !capabilities.reasoningSummary
+    ) {
       fail('$.reasoning.summary');
     }
   }
@@ -266,4 +367,32 @@ export function validateReducedResponsesRequest(
     if (!Array.isArray(body.tools)) fail('$.tools', 'must be an array');
     body.tools.forEach((tool, index) => validateToolDeclaration(tool, `$.tools[${index}]`));
   }
+  if (body.tool_choice !== undefined) validateToolChoice(body.tool_choice, '$.tool_choice');
+
+  if (body.parallel_tool_calls !== undefined && typeof body.parallel_tool_calls !== 'boolean') {
+    fail('$.parallel_tool_calls', 'must be a boolean');
+  }
+  // Only `store:false` (the codex stateless-mode constant) is admissible —
+  // `store:true` asks for server-side response storage, which is exactly the
+  // native-Responses state the reduced relay replaces with stateless replay.
+  if (body.store !== undefined && body.store !== false) {
+    fail('$.store', 'requires a native Responses provider (the reduced relay is stateless)');
+  }
+  if (body.include !== undefined) {
+    if (!Array.isArray(body.include) || body.include.some((item) => typeof item !== 'string')) {
+      fail('$.include', 'must be an array of strings');
+    }
+  }
+  if (body.prompt_cache_key !== undefined) assertString(body.prompt_cache_key, '$.prompt_cache_key');
+  if (body.truncation !== undefined) {
+    if (typeof body.truncation !== 'string' || !TRUNCATION_VALUES.has(body.truncation)) {
+      fail('$.truncation', 'must be "auto" or "none"');
+    }
+  }
+  if (body.text !== undefined) {
+    if (!isRecord(body.text)) fail('$.text', 'must be an object');
+    assertOnlyFields(body.text, new Set(['verbosity']), '$.text');
+    if (body.text.verbosity !== undefined) assertString(body.text.verbosity, '$.text.verbosity');
+  }
+  return unknownFields;
 }

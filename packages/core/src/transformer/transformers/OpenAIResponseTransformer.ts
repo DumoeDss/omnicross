@@ -40,12 +40,22 @@ interface ResponseApiRequest {
   input: Array<ResponseApiInput | Record<string, unknown>>;
   /** The public Responses API's system prompt (codex sends a `developer` item instead). */
   instructions?: string;
+  /** Newer Responses clients' spelling of `instructions`. */
+  prompt?: string;
   stream?: boolean;
   max_output_tokens?: number;
   temperature?: number;
+  /** The Responses wire's `top_p` — representable on every reduced target. */
+  top_p?: number;
   tools?: Array<Record<string, unknown>>;
   tool_choice?: string | Record<string, unknown>;
+  parallel_tool_calls?: boolean;
   reasoning?: { effort: string; summary?: string };
+  /** codex's stateless-session contract — admitted by the reduced gate, dropped here. */
+  store?: boolean;
+  include?: string[];
+  truncation?: string;
+  text?: { verbosity?: string };
 }
 
 // ============================================================================
@@ -170,6 +180,9 @@ export class OpenAIResponseTransformer implements Transformer {
       // R7 (claude-api-transform-fidelity): the Responses wire HAS `top_p`, so
       // the decoded hub value maps through — conditionally (absent ⇒ absent).
       ...(request.top_p !== undefined ? { top_p: request.top_p } : {}),
+      ...(request.parallel_tool_calls !== undefined
+        ? { parallel_tool_calls: request.parallel_tool_calls }
+        : {}),
       ...(context.responsesSourceFormat === this.name && request.max_tokens !== undefined
         ? { max_output_tokens: request.max_tokens }
         : {}),
@@ -260,9 +273,12 @@ export class OpenAIResponseTransformer implements Transformer {
     }
 
     // The public Responses API carries the system prompt in `instructions`
-    // (codex instead sends it as a `developer` message item). Dropping it lost
-    // the caller's entire system prompt silently.
-    const instructions = typeof req.instructions === 'string' ? req.instructions.trim() : '';
+    // (codex instead sends it as a `developer` message item); newer clients
+    // spell it `prompt`. Dropping it lost the caller's entire system prompt
+    // silently.
+    const instructions = typeof req.instructions === 'string'
+      ? req.instructions.trim()
+      : typeof req.prompt === 'string' ? req.prompt.trim() : '';
     if (instructions) {
       messages.push({ role: 'system', content: instructions });
     }
@@ -405,6 +421,39 @@ export class OpenAIResponseTransformer implements Transformer {
       tools.push(...codexTools.tools.filter((t) => !declared.has(t.function.name)));
     }
     if (tools.length) result.tools = tools;
+
+    // tool_choice — the Responses forms onto the unified (chat) form. String
+    // modes pass through; the Responses function form `{type:'function',
+    // name}` becomes the chat `{type:'function', function:{name}}`
+    // (namespace-qualified names flatten to their last segment — the same bare
+    // name namespace declarations flatten to). codex's `allowed_tools` choice
+    // restricts WHICH declared tools may run and HOW they may be chosen; no
+    // target wire has that construct, so it is emulated: the mode maps to the
+    // closest choice mode and the declared tool list is filtered to the
+    // allowlist (every target selects among the declared tools only, so the
+    // filter IS the restriction).
+    applyResponsesToolChoice(result, req.tool_choice);
+
+    if (typeof req.parallel_tool_calls === 'boolean') {
+      result.parallel_tool_calls = req.parallel_tool_calls;
+    }
+
+    // The Responses wire's `top_p` maps through to every reduced target (the
+    // decode-side mirror of transformRequestIn's R7 comment).
+    if (typeof req.top_p === 'number') {
+      result.top_p = req.top_p;
+    }
+
+    // Session/decoration hints admitted by the reduced-profile gate with no
+    // unified representation: the stateless codex contract (`store:false`),
+    // encrypted-reasoning replay (`include`), server-side compaction
+    // (`truncation`), output verbosity (`text.verbosity`). Audited, never
+    // forwarded. `prompt_cache_key` is consumed by the ingress (session
+    // derivation / cache attribution) before this point and needs no audit.
+    if (req.store !== undefined) recordDroppedField(result, 'store', 'openai-responses');
+    if (req.include !== undefined) recordDroppedField(result, 'include', 'openai-responses');
+    if (req.truncation !== undefined) recordDroppedField(result, 'truncation', 'openai-responses');
+    if (req.text !== undefined) recordDroppedField(result, 'text', 'openai-responses');
 
     // Thread the custom-tool / namespace state to the response encoder. `meta`
     // is internal-only and never serialised into the outbound body.
@@ -746,6 +795,56 @@ function rememberToolNamespace(
     typeof rawNamespace === 'string' && rawNamespace
   ) {
     state.toolNamespaces[rawName] = rawNamespace;
+  }
+}
+
+function isResponsesRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** `collaboration.spawn_agent` → `spawn_agent` — the flattened declaration name. */
+function bareToolName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot === -1 ? name : name.slice(dot + 1);
+}
+
+/** Namespace-qualified allowlist entries match the flattened declaration name. */
+function toolNameAllowed(allowed: Set<string>, name: string): boolean {
+  if (allowed.has(name)) return true;
+  for (const entry of allowed) {
+    if (entry.endsWith(`.${name}`) || name.endsWith(`.${entry}`)) return true;
+  }
+  return false;
+}
+
+function applyResponsesToolChoice(
+  result: UnifiedChatRequest,
+  choice: unknown,
+): void {
+  if (choice === undefined || choice === null) return;
+  if (typeof choice === 'string') {
+    result.tool_choice = choice;
+    return;
+  }
+  if (!isResponsesRecord(choice)) return;
+  if (choice.type === 'function' && typeof choice.name === 'string') {
+    result.tool_choice = {
+      type: 'function',
+      function: { name: bareToolName(choice.name) },
+    };
+    return;
+  }
+  if (choice.type === 'allowed_tools') {
+    result.tool_choice = choice.mode === 'required' ? 'required' : 'auto';
+    const entries = Array.isArray(choice.tools) ? choice.tools : [];
+    const allowed = new Set(
+      entries
+        .map((tool) => isResponsesRecord(tool) && typeof tool.name === 'string' ? tool.name : undefined)
+        .filter((name): name is string => name !== undefined),
+    );
+    if (result.tools?.length && allowed.size) {
+      result.tools = result.tools.filter((tool) => toolNameAllowed(allowed, tool.function.name));
+    }
   }
 }
 

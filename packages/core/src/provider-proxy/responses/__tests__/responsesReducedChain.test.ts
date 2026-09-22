@@ -119,17 +119,24 @@ const targets: ReducedTargetCase[] = [
   },
 ];
 
+/** Gate a request exactly as the ingress would for this target's chain. */
+function validateReducedRequestsForTarget(
+  body: Record<string, unknown>,
+  transformer: Transformer,
+): string[] {
+  return validateReducedResponsesRequest(body, resolveReducedResponsesCapabilities({
+    authMode: 'subscription',
+    subscriptionTransformerNames: [transformer.name],
+  }));
+}
+
 describe('reduced Responses target chains', () => {
   it.each(targets)('$name receives bare namespace tools and restores the namespace on output', async ({
     transformer,
     responseBody,
     findToolName,
   }) => {
-    const capabilities = resolveReducedResponsesCapabilities({
-      authMode: 'subscription',
-      subscriptionTransformerNames: [transformer.name],
-    });
-    validateReducedResponsesRequest(request, capabilities);
+    expect(validateReducedRequestsForTarget(request, transformer)).toEqual([]);
     let upstreamBody: Record<string, unknown> | undefined;
 
     const result = await executeProviderCall({
@@ -165,5 +172,76 @@ describe('reduced Responses target chains', () => {
         name: 'spawn_agent',
       }),
     ]));
+  });
+
+  // The codex CLI puts tool_choice + parallel_tool_calls + the stateless
+  // session hints on every request; the reduced gate must admit them and each
+  // target wire must receive its representable equivalent.
+  const codexRequest = {
+    model: 'mapped-model',
+    input: [{ type: 'message', role: 'user', content: 'delegate' }],
+    tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' } }],
+    tool_choice: 'auto',
+    parallel_tool_calls: false,
+    top_p: 0.9,
+    store: false,
+    include: ['reasoning.encrypted_content'],
+    prompt_cache_key: 'codex-session',
+    // Stands in for whatever field the NEXT codex release adds: admitted by
+    // the gate, audit-dropped, and physically unable to reach the upstream.
+    future_field: true,
+    stream: false,
+  };
+
+  const wireExpectations: Record<string, (body: Record<string, unknown>) => void> = {
+    'OpenAI Chat': (body) => {
+      expect(body.tool_choice).toBe('auto');
+      expect(body.parallel_tool_calls).toBe(false);
+      expect(body.top_p).toBe(0.9);
+    },
+    Anthropic: (body) => {
+      expect(body.tool_choice).toEqual({ type: 'auto', disable_parallel_tool_use: true });
+      expect(body.top_p).toBe(0.9);
+      expect('parallel_tool_calls' in body).toBe(false);
+    },
+    Gemini: (body) => {
+      expect(body.toolConfig).toEqual({ functionCallingConfig: { mode: 'auto' } });
+      expect((body.generationConfig as Record<string, unknown>).topP).toBe(0.9);
+      expect('parallel_tool_calls' in body).toBe(false);
+    },
+  };
+
+  it.each(targets)('$name forwards codex tool_choice / parallel_tool_calls / drops session hints', async ({
+    name,
+    transformer,
+    responseBody,
+  }) => {
+    expect(validateReducedRequestsForTarget(codexRequest, transformer)).toEqual(['future_field']);
+    let upstreamBody: Record<string, unknown> | undefined;
+
+    await executeProviderCall({
+      executor: new TransformerChainExecutor(),
+      request: codexRequest,
+      provider,
+      chain: { providerTransformers: [transformer], modelTransformers: [] },
+      endpointTransformer: new OpenAIResponseTransformer(),
+      resolveUrl: () => 'https://example.test/upstream',
+      buildHeaders: () => ({}),
+      fetchFn: async (_url, _headers, body) => {
+        upstreamBody = body as Record<string, unknown>;
+        return new Response(JSON.stringify(responseBody), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+      runResponseChain: true,
+      preserveEndpointRequestForResponseChain: true,
+    });
+
+    expect(upstreamBody).toBeDefined();
+    wireExpectations[name]?.(upstreamBody!);
+    expect(JSON.stringify(upstreamBody)).not.toContain('prompt_cache_key');
+    expect(JSON.stringify(upstreamBody)).not.toContain('encrypted_content');
+    expect(JSON.stringify(upstreamBody)).not.toContain('future_field');
   });
 });

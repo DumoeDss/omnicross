@@ -504,6 +504,42 @@ describe('buildAnthropicRequestBody', () => {
     expect(body.max_tokens).toBe(1024);
   });
 
+  // codex sends `parallel_tool_calls:false` on every request; Anthropic spells
+  // the inverse inside tool_choice. The field must never appear verbatim.
+  it('encodes parallel_tool_calls:false as disable_parallel_tool_use on an implicit auto choice', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [{ type: 'function', function: { name: 'fn', description: '', parameters: { type: 'object' } } }],
+      parallel_tool_calls: false,
+    });
+
+    expect(body.tool_choice).toEqual({ type: 'auto', disable_parallel_tool_use: true });
+    expect('parallel_tool_calls' in body).toBe(false);
+  });
+
+  it('merges disable_parallel_tool_use into an explicit mapped choice', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude',
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [{ type: 'function', function: { name: 'fn', description: '', parameters: { type: 'object' } } }],
+      tool_choice: 'required',
+      parallel_tool_calls: false,
+    });
+
+    expect(body.tool_choice).toEqual({ type: 'any', disable_parallel_tool_use: true });
+  });
+
+  it('omits tool_choice entirely when no tools are declared', () => {
+    const body = buildAnthropicRequestBody({
+      model: 'claude',
+      messages: [{ role: 'user', content: 'hi' }],
+      parallel_tool_calls: false,
+    });
+
+    expect(body.tool_choice).toBeUndefined();
+  });
+
   it('converts assistant tool_calls to tool_use blocks', () => {
     const request: UnifiedChatRequest = {
       model: 'claude',

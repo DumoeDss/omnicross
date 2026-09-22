@@ -388,6 +388,87 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
   });
 
   // =========================================================================
+  // 2.4 codex session surface — tool_choice / parallel_tool_calls / hints
+  //
+  // The codex CLI puts these on EVERY request; the reduced-profile gate
+  // admits them, so the decode must carry the representable ones onto the
+  // unified request and let the session hints evaporate here.
+  // =========================================================================
+  describe('2.4 codex session surface', () => {
+    it('carries string tool_choice + parallel_tool_calls; session hints never survive', async () => {
+      const unified = await transformer.transformRequestOut({
+        model: 'glm-4.7',
+        input: [{ role: 'user', content: 'go' }],
+        tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' } }],
+        tool_choice: 'auto',
+        parallel_tool_calls: false,
+        top_p: 0.9,
+        store: false,
+        include: ['reasoning.encrypted_content'],
+        prompt_cache_key: 'codex-session',
+        truncation: 'auto',
+        text: { verbosity: 'medium' },
+      }, mockContext);
+
+      expect(unified.tool_choice).toBe('auto');
+      expect(unified.parallel_tool_calls).toBe(false);
+      expect(unified.top_p).toBe(0.9);
+      // The session hints have NO unified property — they only leave field
+      // NAMES in the audit channel (values must never ride the request).
+      expect('store' in unified).toBe(false);
+      expect('include' in unified).toBe(false);
+      expect('prompt_cache_key' in unified).toBe(false);
+      expect('truncation' in unified).toBe(false);
+      expect('text' in unified).toBe(false);
+      expect(JSON.stringify(unified)).not.toContain('codex-session');
+      expect(JSON.stringify(unified)).not.toContain('reasoning.encrypted_content');
+    });
+
+    it('decodes the Responses function form (namespace-qualified names flatten)', async () => {
+      const unified = await transformer.transformRequestOut({
+        model: 'm',
+        input: [{ role: 'user', content: 'go' }],
+        tool_choice: { type: 'function', name: 'collaboration.spawn_agent' },
+      }, mockContext);
+
+      expect(unified.tool_choice).toEqual({
+        type: 'function',
+        function: { name: 'spawn_agent' },
+      });
+    });
+
+    it('emulates allowed_tools: mode maps, declarations filter to the allowlist', async () => {
+      const unified = await transformer.transformRequestOut({
+        model: 'm',
+        input: [{ role: 'user', content: 'go' }],
+        tools: [
+          { type: 'function', name: 'shell', parameters: { type: 'object' } },
+          { type: 'function', name: 'read_file', parameters: { type: 'object' } },
+        ],
+        tool_choice: {
+          type: 'allowed_tools',
+          mode: 'required',
+          tools: [{ type: 'function', name: 'shell' }],
+        },
+      }, mockContext);
+
+      expect(unified.tool_choice).toBe('required');
+      expect(unified.tools).toHaveLength(1);
+      expect(unified.tools![0].function.name).toBe('shell');
+    });
+
+    it('falls back to `prompt` when `instructions` is absent', async () => {
+      const unified = await transformer.transformRequestOut({
+        model: 'm',
+        prompt: 'You are thorough.',
+        input: [{ role: 'user', content: 'go' }],
+      }, mockContext);
+
+      expect(unified.messages[0]).toEqual({ role: 'system', content: 'You are thorough.' });
+    });
+  });
+
+  // =========================================================================
   // 2.5 Codex history decode — the shapes a RESUMED session replays
   //
   // Codex resends its whole history every turn (`store:false`). A resumed

@@ -41,6 +41,7 @@ import {
 } from './providerProxyShared';
 import { getSharedAccountRouteActivity } from '../../pipeline/AccountRouteActivity';
 import { getSharedOverloadCounter } from '../../pipeline/ServerOverloadCounter';
+import { countDroppedField } from '../../transformer/transformWarnings';
 import { markCodexUsageLimitExhaustion } from './codexUsageLimitDetection';
 import {
   getResponsesAffinityStore,
@@ -295,7 +296,14 @@ export async function handleResponsesOperation(
     throw unsupportedResponsesCapability('$', 'requires a native Responses provider');
   }
   if (operation === 'create' && resolved.profile === 'reduced') {
-    validateReducedResponsesRequest(responsesBody, resolved.capabilities);
+    // Unknown top-level fields are ADMITTED and audit-dropped (field NAMES
+    // only) — a codex/CLI update adding a request field degrades to an ignored
+    // knob instead of a hard 400. The denied set (server-state references,
+    // background execution) and all nested shapes still fail loudly; see
+    // responsesProfile for the tiering rationale.
+    for (const field of validateReducedResponsesRequest(responsesBody, resolved.capabilities)) {
+      countDroppedField(field, 'openai-responses');
+    }
   }
 
   const clientScope = route.apiKeyId

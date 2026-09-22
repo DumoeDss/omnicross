@@ -224,6 +224,17 @@ export function buildAnthropicRequestBody(
     }
   }
 
+  // `parallel_tool_calls:false` (the codex CLI's constant) has no direct
+  // Anthropic field — the wire spells the INVERSE inside tool_choice. Guarded
+  // on tool declarations: Anthropic rejects a tool_choice sent with no tools.
+  if (request.parallel_tool_calls === false && request.tools?.length) {
+    if (body.tool_choice && typeof body.tool_choice === 'object') {
+      (body.tool_choice as { disable_parallel_tool_use?: boolean }).disable_parallel_tool_use = true;
+    } else {
+      body.tool_choice = { type: 'auto', disable_parallel_tool_use: true };
+    }
+  }
+
   // Convert reasoning immediately before the Anthropic wire boundary. Models
   // declaring discrete levels use adaptive thinking; older targets retain the
   // bounded budget_tokens contract.

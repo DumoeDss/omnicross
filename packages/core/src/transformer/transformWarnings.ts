@@ -41,6 +41,16 @@ export function recordDroppedField(
   target: string,
 ): void {
   attachTransformWarnings(request).push({ field, target });
+  countDroppedField(field, target);
+}
+
+/**
+ * Count-only variant for call sites that have no Unified request to carry the
+ * side channel (e.g. the reduced-Responses admission gate, which drops client
+ * fields before any unified request exists). Same counters, same once-per-field
+ * warn — the §9 observability contract, minus the per-request entries.
+ */
+export function countDroppedField(field: string, target: string): void {
   const key = `${field}\0${target}`;
   droppedFieldCounts[key] = (droppedFieldCounts[key] ?? 0) + 1;
   if (!warnedOnce.has(key)) {
