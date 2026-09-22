@@ -35,6 +35,12 @@ export interface ChatGptWebBridgeStatus {
   startedAt?: number;
   /** Daemon-generated copy-paste codex command (full provider definition). */
   codexCommand?: string;
+  /** BYO provider id the bridge registered itself under on start — codex
+   *  keeps the single `omnicross` provider and routes chatgpt-web/* models
+   *  through the normal mapping table. */
+  providerId?: string;
+  /** Whether THIS bridge session ensured the provider row. */
+  providerRegistered?: boolean;
 }
 
 export type ChatGptWebInstallState = 'idle' | 'installing' | 'done' | 'failed';

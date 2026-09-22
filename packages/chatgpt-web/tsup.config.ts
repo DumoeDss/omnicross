@@ -31,6 +31,9 @@ export default defineConfig([
       // the direct `@omnicross/chatgpt-web/tunnel/tunnelClient` resolution 404s
       // at daemon startup (ERR_MODULE_NOT_FOUND in the packaged runtime).
       'tunnel/tunnelClient': 'src/tunnel/tunnelClient.ts',
+      // Same static-import contract: the daemon admin API imports the bridge
+      // model routes to seed the chatgpt-web BYO provider row.
+      'bridge/models': 'src/bridge/models.ts',
       // Dedicated Electron browser host.
       'browserHost/electronHost': 'src/browserHost/electronHost.ts',
     },

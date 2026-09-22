@@ -20,10 +20,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { CHATGPT_WEB_MODEL_ROUTES } from '@omnicross/chatgpt-web/bridge/models';
 import { loadHarnessConfig, saveHarnessConfig } from '@omnicross/chatgpt-web/tunnel/harnessConfig';
 import { installTunnelClient, isValidTunnelId } from '@omnicross/chatgpt-web/tunnel/tunnelClient';
 
-import { buildChatGptWebConfigOverrides, CHATGPT_WEB_TOKEN_ENV } from '../commands/chatgpt-web';
+import { buildCodexCommand } from '../commands/chatgpt-web';
 import {
   askProInstalledEntryFile,
   askProMcpInstalled,
@@ -34,6 +35,17 @@ import {
   uninstallAskProServer,
   writeCodexProfile,
 } from './chatgptWebCodexProfile';
+
+/** Stable BYO provider id the bridge registers itself under on start. */
+export const CHATGPT_WEB_PROVIDER_ID = 'chatgpt-web';
+/**
+ * Universal (non-Pro) bridge routes seeded on first registration. The
+ * account-gated rows (`extra-high`, `pro`) and Luna routes stay a
+ * discover-models / manual edit away — they depend on the signed-in account.
+ */
+export const CHATGPT_WEB_BRIDGE_MODELS: readonly string[] = CHATGPT_WEB_MODEL_ROUTES
+  .filter((route) => !route.requiresPro)
+  .map((route) => route.slug);
 
 /** One background bridge owned by this daemon (singleton). */
 interface BridgeState {
@@ -46,6 +58,8 @@ interface BridgeState {
 }
 
 let bridge: BridgeState | null = null;
+/** Whether THIS bridge session successfully ensured its BYO provider row. */
+let bridgeProviderRegistered = false;
 let loginCache: { authenticated: boolean; checkedAt: number } | null = null;
 /** Background tunnel-client download kicked by a config save. */
 let tunnelInstall: 'idle' | 'installing' | 'done' | 'failed' = 'idle';
@@ -195,19 +209,16 @@ async function probeLogin(): Promise<boolean> {
  * The copy-paste command for the operator's shell: mirrors the flags the
  * daemon's own launch path uses (full model_providers definition — codex
  * rejects a bare `model_provider` selection — token via env_key, /v1 base).
+ * Shell syntax per platform lives in buildCodexCommand (both forms must stay
+ * paste-runnable: PowerShell statement vs POSIX prefix assignment).
  */
 function codexCommandFor(): string {
   if (!bridge) return '';
-  const envAssignment =
-    process.platform === 'win32'
-      ? `$env:${CHATGPT_WEB_TOKEN_ENV}="${bridge.token}"`
-      : `export ${CHATGPT_WEB_TOKEN_ENV}="${bridge.token}"`;
-  return [
-    envAssignment,
-    'codex',
-    ...buildChatGptWebConfigOverrides(bridge.baseUrl),
-    `-m ${bridge.model}`,
-  ].join(' ');
+  return buildCodexCommand({
+    token: bridge.token,
+    baseUrl: bridge.baseUrl,
+    model: bridge.model,
+  });
 }
 
 function bridgeView() {
@@ -220,6 +231,8 @@ function bridgeView() {
     harness: bridge.harness,
     startedAt: bridge.startedAt,
     codexCommand: codexCommandFor(),
+    providerId: CHATGPT_WEB_PROVIDER_ID,
+    providerRegistered: bridgeProviderRegistered,
   };
 }
 
@@ -279,11 +292,25 @@ async function saveConfig(tunnelId: string, runtimeKey: string): Promise<void> {
   kickTunnelInstall();
 }
 
+/**
+ * Optional seams the host (adminApi) injects. The bridge provider
+ * registration lives in adminApi so it can reuse the provider CRUD's
+ * persistence path (encrypt-at-rest + catalog hot-reload + routing rederive)
+ * without an import cycle.
+ */
+export interface ChatGptWebHooks {
+  /** Ensure the BYO provider row exists for a freshly started bridge.
+   *  Best-effort at the call site: a failure must never take the (already
+   *  running) bridge down with it — the row can be ensured on the next start. */
+  registerBridgeProvider?: (bridge: { baseUrl: string; token: string }) => Promise<void>;
+}
+
 export async function handleChatGptWeb(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   method: string,
   rest: string[],
+  hooks: ChatGptWebHooks = {},
 ): Promise<void> {
   const respond = (status: number, body: unknown): void => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -404,6 +431,20 @@ export async function handleChatGptWeb(
         harness,
         startedAt: Date.now(),
       };
+      // The bridge IS a native Responses upstream — ensure its BYO provider
+      // row so codex keeps using the single `omnicross` provider and routes
+      // chatgpt-web/* models through the normal mapping table. Best-effort:
+      // the bridge is already serving; registration retries on next start.
+      bridgeProviderRegistered = false;
+      try {
+        await hooks.registerBridgeProvider?.({ baseUrl: handle.baseUrl, token });
+        bridgeProviderRegistered = true;
+      } catch (error) {
+        console.error(
+          '[chatgpt-web] bridge provider registration failed (the bridge keeps running):',
+          error instanceof Error ? error.message : error,
+        );
+      }
       return respond(200, bridgeView());
     }
     if (method === 'DELETE' && rest[0] === 'bridge') {

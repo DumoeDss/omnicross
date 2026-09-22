@@ -73,7 +73,11 @@ import {
   type PreparedServerConfigChange,
   ServerConfigTransactionError,
 } from './serverConfigTransaction';
-import { handleChatGptWeb } from './chatgptWebApi';
+import {
+  CHATGPT_WEB_BRIDGE_MODELS,
+  CHATGPT_WEB_PROVIDER_ID,
+  handleChatGptWeb,
+} from './chatgptWebApi';
 
 import {
   type DaemonApiKeyEntry,
@@ -695,7 +699,9 @@ export async function handleAdminApi(
       case 'cli':
         return await handleCli(req, res, method, rest, deps);
       case 'chatgpt-web':
-        return await handleChatGptWeb(req, res, method, rest);
+        return await handleChatGptWeb(req, res, method, rest, {
+          registerBridgeProvider: (bridge) => ensureChatGptWebBridgeProvider(deps, bridge),
+        });
       case 'integrations':
         return await handleIntegrations(req, res, method, rest, deps);
       case 'status':
@@ -992,6 +998,52 @@ async function persistProviders(cfg: DaemonConfig, deps: AdminApiDeps): Promise<
   // UPSTREAM ROUTING MODEL: the provider catalog feeds `mode:'all'` expansion
   // and derived-binding labels — re-derive so live routing follows the edit.
   await reapplyLiveServerConfig(deps).catch(() => undefined);
+}
+
+/**
+ * Ensure the chatgpt-web BRIDGE exists as a BYO provider row, so codex keeps
+ * a single `omnicross` provider and routes `chatgpt-web/*` models through the
+ * normal mapping table instead of a second provider entry. Called on every
+ * bridge start (the token is persistent; the upsert is idempotent).
+ *
+ * CREATE seeds the full row (native Responses wire, universal model routes).
+ * UPDATE refreshes ONLY `baseUrl` + `apiKey` — the operator's edits on the
+ * row (name, model list — e.g. Pro/Luna routes via discover-models, enabled)
+ * must survive a bridge restart (parseProviderInput's omit-keeps contract).
+ */
+export async function ensureChatGptWebBridgeProvider(
+  deps: AdminApiDeps,
+  bridge: { baseUrl: string; token: string },
+): Promise<void> {
+  const cfg = loadConfig(deps.configPath);
+  const index = cfg.providers.findIndex((p) => p.id === CHATGPT_WEB_PROVIDER_ID);
+  const existing = index >= 0 ? cfg.providers[index] : undefined;
+  const row = parseProviderInput(existing
+    ? {
+      // PUT semantics: only the bridge-owned facts refresh; apiFormat is
+      // re-asserted because parseProviderInput validates it from the body.
+      apiFormat: 'openai-response',
+      baseUrl: bridge.baseUrl,
+      apiKey: bridge.token,
+    }
+    : {
+      id: CHATGPT_WEB_PROVIDER_ID,
+      name: 'ChatGPT Web (bridge)',
+      apiFormat: 'openai-response',
+      baseUrl: bridge.baseUrl,
+      apiKey: bridge.token,
+      models: [...CHATGPT_WEB_BRIDGE_MODELS],
+      enabled: true,
+    }, existing);
+  if (!row) throw new Error(`invalid ${CHATGPT_WEB_PROVIDER_ID} provider shape`);
+  if (index >= 0) cfg.providers[index] = row;
+  else cfg.providers.push(row);
+  await persistProviders(cfg, deps);
+  if (!existing) {
+    // Same onboarding conveniences as a manual provider create (best-effort
+    // by design — the row itself was already persisted above).
+    await provisionNewProvider(deps, row, cfg.providers.length === 1).catch(() => undefined);
+  }
 }
 
 /**

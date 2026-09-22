@@ -464,6 +464,9 @@ export function ChatGptWebPage() {
               <div className="space-y-3 border-t border-border/40 pt-3">
                 <CopyBlock label="Base URL" value={bridge.baseUrl} />
                 <CopyBlock label="API Token" value={bridge.token ?? ''} />
+                {bridge.providerId ? (
+                  <CopyBlock label="provider (route via upstreams)" value={bridge.providerId} />
+                ) : null}
                 {codexCommand ? <CopyBlock label="codex" value={codexCommand} /> : null}
               </div>
             ) : null}

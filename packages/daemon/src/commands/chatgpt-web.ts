@@ -47,6 +47,31 @@ export function buildChatGptWebConfigOverrides(baseUrl: string): string[] {
 }
 
 /**
+ * The copy-paste command for the operator's shell, env token included. The
+ * platform branches are SYNTAX-precise, not cosmetic: PowerShell requires the
+ * assignment to stand as its own statement (`$env:VAR="…"; codex …` — a bare
+ * `$env:VAR="…" codex …` is a parse error), while POSIX shells take the
+ * one-shot prefix assignment (`VAR="…" codex …` — `export VAR="…" codex …`
+ * would EXPORT the trailing words instead of ever running codex).
+ */
+export function buildCodexCommand(options: {
+  token: string;
+  baseUrl: string;
+  model: string;
+  platform?: NodeJS.Platform;
+}): string {
+  const envAssignment = (options.platform ?? process.platform) === 'win32'
+    ? `$env:${CHATGPT_WEB_TOKEN_ENV}="${options.token}";`
+    : `${CHATGPT_WEB_TOKEN_ENV}="${options.token}"`;
+  return [
+    envAssignment,
+    'codex',
+    ...buildChatGptWebConfigOverrides(options.baseUrl),
+    `-m ${options.model}`,
+  ].join(' ');
+}
+
+/**
  * Win32 hardening: npm `.cmd` shims re-quote argv through cmd.exe, which
  * splits values containing spaces (e.g. a provider name). When the shim
  * references a JS entry (`"%dp0%\node_modules\…\bin\….js"`), spawn it directly
