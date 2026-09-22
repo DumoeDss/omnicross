@@ -20,6 +20,7 @@
     "test:images-sdk-contract": "node scripts/require-node-major.mjs 22 && vitest run packages/core/src/image-generation/openai-images/__tests__/openaiSdk.contract.test.ts packages/core/src/image-generation/openai-images/__tests__/pythonSdk.contract.test.ts",
     "test:node-tooling-policy": "node --test scripts/__tests__/node-tooling-policy.test.mjs",
     "test:release-contract": "node --test scripts/__tests__/updater-contract.test.mjs scripts/__tests__/release-version.test.mjs scripts/__tests__/publish-workspaces.test.mjs",
+    "audit:codex-sessions": "node scripts/audit-codex-sessions.mjs",
     "test:daemon-runtime-packaging": "npm run test:daemon-runtime-packaging -w omnicross-desktop",
     "release:prepare": "node scripts/release-version.mjs prepare",
     "release:check": "node scripts/release-version.mjs check",
