@@ -33,7 +33,6 @@ import minimaxTokenPlan from './presets/minimax-token-plan.json';
 import mistral from './presets/mistral.json';
 import mthreads from './presets/mthreads.json';
 import ollama from './presets/ollama.json';
-import openJev from './presets/open-jev.json';
 import openai from './presets/openai.json';
 import openaiResponse from './presets/openai-response.json';
 import openrouter from './presets/openrouter.json';
@@ -100,5 +99,4 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   // Other (not chat backends — key storage for external tools; see category)
   jev,
   logjev,
-  openJev,
 ];

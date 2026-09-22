@@ -19,10 +19,13 @@ describe('LogJev provider configuration', () => {
     expect(() => validateConfig({ providers: [{ ...row, logjev: { kind: 'auto' } }] })).toThrow('logjev.kind');
     expect(parseProviderInput({ ...row, logjev: { ...settings, extraBody: { apiKey: 'fixture-key' } } }, undefined)).toBeNull();
   });
-  it('offers separate native and logprob presets while retaining the legacy ID', () => {
+  it('offers separate native and logprob presets (legacy open-jev preset removed 2026-09-23)', () => {
     const { mappable } = listMappablePresets();
     expect(mappable.find(p => p.id === 'jev')?.logjev?.kind).toBe('jev');
     expect(mappable.find(p => p.id === 'logjev')?.logjev?.kind).toBe('chat');
-    expect(mappable.find(p => p.id === 'open-jev')?.category).toBe('other');
+    // The open-jev PRESET is gone; already-configured open-jev provider rows
+    // keep working (jevSystemone's row fallback), but the catalog no longer
+    // offers it.
+    expect(mappable.find(p => p.id === 'open-jev')).toBeUndefined();
   });
 });
