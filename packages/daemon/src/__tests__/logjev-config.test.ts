@@ -23,6 +23,11 @@ describe('LogJev provider configuration', () => {
     const { mappable } = listMappablePresets();
     expect(mappable.find(p => p.id === 'jev')?.logjev?.kind).toBe('jev');
     expect(mappable.find(p => p.id === 'logjev')?.logjev?.kind).toBe('chat');
+    // OpenRouter preset: native kind by default — the client routes it to
+    // OpenRouter's /api/alpha/decisions (isOpenRouterUpstream).
+    const openrouter = mappable.find(p => p.id === 'logjev-openrouter');
+    expect(openrouter?.category).toBe('other');
+    expect(openrouter?.logjev?.kind).toBe('jev');
     // The open-jev PRESET is gone; already-configured open-jev provider rows
     // keep working (jevSystemone's row fallback), but the catalog no longer
     // offers it.

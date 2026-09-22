@@ -1,0 +1,16 @@
+{
+  "id": "logjev-openrouter",
+  "presetId": "logjev-openrouter",
+  "name": "LogJev (OpenRouter)",
+  "category": "other",
+  "apiFormat": "openai",
+  "api_base_url": "https://openrouter.ai/api/v1",
+  "models": [],
+  "logjev": { "kind": "jev" },
+  "description": "经 OpenRouter 的 LogJev 决策桥：默认走 OpenRouter 原生 Decisions 接口（/api/alpha/decisions，建议配置 typesafe/jev-* 模型）；也可在配置中切换 chat 模式，用支持 top_logprobs 的 OpenRouter 模型读取。客户端使用网关 /v1/systemone 和 Omnicross 访问密钥。",
+  "icon": "open-jev",
+  "website": "https://openrouter.ai/",
+  "docsUrl": "https://github.com/DumoeDss/omnicross/blob/main/docs/logjev.md",
+  "isSystem": true,
+  "features": ["decision-engine"]
+}
