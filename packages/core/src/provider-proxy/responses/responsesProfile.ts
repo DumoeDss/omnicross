@@ -109,12 +109,15 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
 //      the dropped_field counter), not to break the client over a knob it
 //      will never see honored.
 //
-// Nested shapes stay STRICT: an unknown input-item / content-part / tool /
-// tool_choice type can carry conversation content, and dropping one silently
-// corrupts the history — that must stay a loud, structured 400. The ONE
-// nested exception is `reasoning`, a knob container: its unknown sub-fields
-// (e.g. codex's `reasoning.context`) are treated like unknown top-level
-// knobs — admitted, audit-dropped, reported by name.
+// Nested CARRIERS stay strict at the TYPE level: an unknown input-item /
+// content-part / tool / tool_choice type can carry conversation content, and
+// dropping one silently corrupts the history — that stays a loud, structured
+// 400. Nested FIELDS are metadata-tier: every codex ResponseItem variant
+// carries optional bookkeeping (`id`, `status`, `phase`, passthrough blocks,
+// encrypted duplicates) for the ORIGINAL provider's dedup/state — the stateless
+// relay reads only each type's content fields, so extra fields are admitted
+// and audit-dropped by name (collectDroppableExtras). `reasoning` sub-fields
+// get the same treatment (knob container).
 const TOP_LEVEL_FIELDS = new Set([
   'model',
   'input',
@@ -203,15 +206,39 @@ const CUSTOM_CALL_FIELDS = new Set(['type', 'call_id', 'name', 'input']);
 const OUTPUT_FIELDS = new Set(['type', 'call_id', 'output']);
 const ADDITIONAL_TOOLS_FIELDS = new Set(['type', 'role', 'tools']);
 
+/**
+ * Item/field-tier flip (the 2026-09-23 codex-Lite fallout): every ResponseItem
+ * variant carries OPTIONAL BOOKKEEPING (`id`, `status`, `phase`,
+ * `internal_chat_message_metadata_passthrough`, `encrypted_function_args`, …)
+ * that exists for the ORIGINAL provider's dedup/state and is meaningless to a
+ * stateless relay — the transformer drops them naturally (it reads only the
+ * content fields). So: validate the CONTENT fields per type, and treat any
+ * other field as droppable metadata (collected into the audit list). A future
+ * codex adding another bookkeeping field can no longer 400 here. Only the
+ * item TYPE stays gated — an unknown type may carry conversation content.
+ */
+function collectDroppableExtras(
+  value: Record<string, unknown>,
+  contentFields: ReadonlySet<string>,
+  path: string,
+  dropped: string[],
+): void {
+  for (const field of Object.keys(value)) {
+    if (!contentFields.has(field)) dropped.push(`${path}.${field}`);
+  }
+}
+
 function validateToolDeclaration(
   value: unknown,
   path: string,
+  dropped: string[],
   allowNamespace = false,
 ): void {
   if (!isRecord(value)) fail(path, 'must be a tool declaration object');
   const type = value.type;
   if (type === 'function') {
-    assertOnlyFields(value, new Set(['type', 'name', 'description', 'parameters']), path);
+    // `strict` and future declaration knobs ride along as droppable extras.
+    collectDroppableExtras(value, new Set(['type', 'name', 'description', 'parameters']), path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     if (value.parameters !== undefined && !isRecord(value.parameters)) {
@@ -220,18 +247,20 @@ function validateToolDeclaration(
     return;
   }
   if (type === 'custom') {
-    assertOnlyFields(value, new Set(['type', 'name', 'description']), path);
+    // `format` (grammar contracts) degrades to free-form custom input on wires
+    // without grammar support — a fidelity loss, not corruption; audited.
+    collectDroppableExtras(value, new Set(['type', 'name', 'description']), path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     return;
   }
   if (type === 'namespace' && allowNamespace) {
-    assertOnlyFields(value, new Set(['type', 'name', 'description', 'tools']), path);
+    collectDroppableExtras(value, new Set(['type', 'name', 'description', 'tools']), path, dropped);
     assertString(value.name, `${path}.name`);
     if (value.description !== undefined) assertString(value.description, `${path}.description`);
     if (!Array.isArray(value.tools)) fail(`${path}.tools`, 'must be an array');
     value.tools.forEach((tool, index) =>
-      validateToolDeclaration(tool, `${path}.tools[${index}]`, true));
+      validateToolDeclaration(tool, `${path}.tools[${index}]`, dropped, true));
     return;
   }
   fail(`${path}.type`, 'is a hosted or unsupported tool type');
@@ -271,20 +300,28 @@ function validateToolChoice(value: unknown, path: string): void {
   fail(`${path}.type`, 'is a hosted or unsupported tool choice');
 }
 
-function validateInputItem(value: unknown, path: string): void {
+function validateInputItem(value: unknown, path: string, dropped: string[]): void {
   if (!isRecord(value)) fail(path, 'must be a supported input item');
   const type = typeof value.type === 'string' ? value.type : undefined;
 
   if (type === undefined || type === 'message') {
-    assertOnlyFields(value, MESSAGE_FIELDS, path);
+    collectDroppableExtras(value, MESSAGE_FIELDS, path, dropped);
     if (typeof value.role !== 'string' || !MESSAGE_ROLES.has(value.role)) {
       fail(`${path}.role`, 'is not a supported message role');
     }
     validateTextContent(value.content, `${path}.content`);
     return;
   }
+  // Admitted and then SKIPPED by the transformer (SKIPPED_INPUT_ITEM_TYPES):
+  // `reasoning` is model-internal thinking (its summary/encrypted_content are
+  // regenerated, never relayed); `agent_message` is agent-channel bookkeeping.
+  // Neither carries conversation content the upstream needs.
+  if (type === 'reasoning' || type === 'agent_message') {
+    collectDroppableExtras(value, new Set(['type']), path, dropped);
+    return;
+  }
   if (type === 'function_call') {
-    assertOnlyFields(value, CALL_FIELDS, path);
+    collectDroppableExtras(value, CALL_FIELDS, path, dropped);
     assertString(value.call_id, `${path}.call_id`);
     assertString(value.name, `${path}.name`);
     if (value.namespace !== undefined) assertString(value.namespace, `${path}.namespace`);
@@ -292,23 +329,23 @@ function validateInputItem(value: unknown, path: string): void {
     return;
   }
   if (type === 'custom_tool_call') {
-    assertOnlyFields(value, CUSTOM_CALL_FIELDS, path);
+    collectDroppableExtras(value, CUSTOM_CALL_FIELDS, path, dropped);
     assertString(value.call_id, `${path}.call_id`);
     assertString(value.name, `${path}.name`);
     assertString(value.input, `${path}.input`);
     return;
   }
   if (type === 'function_call_output' || type === 'custom_tool_call_output') {
-    assertOnlyFields(value, OUTPUT_FIELDS, path);
+    collectDroppableExtras(value, OUTPUT_FIELDS, path, dropped);
     assertString(value.call_id, `${path}.call_id`);
     validateTextContent(value.output, `${path}.output`);
     return;
   }
   if (type === 'additional_tools') {
-    assertOnlyFields(value, ADDITIONAL_TOOLS_FIELDS, path);
+    collectDroppableExtras(value, ADDITIONAL_TOOLS_FIELDS, path, dropped);
     if (!Array.isArray(value.tools)) fail(`${path}.tools`, 'must be an array');
     value.tools.forEach((tool, index) =>
-      validateToolDeclaration(tool, `${path}.tools[${index}]`, true));
+      validateToolDeclaration(tool, `${path}.tools[${index}]`, dropped, true));
     return;
   }
   fail(`${path}.type`, 'is an opaque or unsupported input item type');
@@ -388,12 +425,12 @@ export function validateReducedResponsesRequest(
   if (body.input !== undefined) {
     if (typeof body.input !== 'string') {
       if (!Array.isArray(body.input)) fail('$.input', 'must be text or an array');
-      body.input.forEach((item, index) => validateInputItem(item, `$.input[${index}]`));
+      body.input.forEach((item, index) => validateInputItem(item, `$.input[${index}]`, unknownFields));
     }
   }
   if (body.tools !== undefined) {
     if (!Array.isArray(body.tools)) fail('$.tools', 'must be an array');
-    body.tools.forEach((tool, index) => validateToolDeclaration(tool, `$.tools[${index}]`));
+    body.tools.forEach((tool, index) => validateToolDeclaration(tool, `$.tools[${index}]`, unknownFields));
   }
   if (body.tool_choice !== undefined) validateToolChoice(body.tool_choice, '$.tool_choice');
 

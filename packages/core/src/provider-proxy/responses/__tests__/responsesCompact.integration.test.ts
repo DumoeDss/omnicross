@@ -387,15 +387,12 @@ describe('native Responses create/compact integration', () => {
     // session derivation, never forwarded upstream).
     const rejectedCases = [
       ['stateful store', '/v1/responses', { model: 'x', input: 'hello', store: true }],
-      ['function strict mode', '/v1/responses', {
-        model: 'x', input: 'hello', tools: [{ type: 'function', name: 'lookup', strict: true }],
-      }],
-      ['custom tool format', '/v1/responses', {
-        model: 'x', input: 'hello', tools: [{ type: 'custom', name: 'shell', format: { type: 'grammar' } }],
-      }],
-      ['message id and status', '/v1/responses', {
+      // (item/bookkeeping fields — id/status/phase/strict/format — are
+      // admitted and audit-dropped since the codex-Lite surface; only
+      // unservable TYPES and content shapes stay rejected)
+      ['hosted call item', '/v1/responses', {
         model: 'x',
-        input: [{ type: 'message', id: 'msg_1', role: 'user', content: 'hello', status: 'completed' }],
+        input: [{ type: 'local_shell_call', call_id: 'call_1', action: {} }],
       }],
       ['invalid function item namespace', '/v1/responses', {
         model: 'x',

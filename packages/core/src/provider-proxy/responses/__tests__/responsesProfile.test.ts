@@ -154,6 +154,76 @@ describe('validateReducedResponsesRequest', () => {
     }, chatCapabilities)).toEqual(['reasoning.context']);
   });
 
+  it('admits the full codex Responses-Lite item surface (bookkeeping = droppable)', () => {
+    // Everything codex 0.155.x puts on items when use_responses_lite is on:
+    // deterministic dedup ids on prefix items, status/phase bookkeeping,
+    // passthrough metadata blocks, reasoning history, encrypted duplicates.
+    // All metadata-tier: admitted, dropped by name, never a 400.
+    expect(validateReducedResponsesRequest({
+      model: 'glm-4.7',
+      instructions: '',
+      input: [
+        {
+          type: 'additional_tools',
+          id: 'at_dedup_1',
+          role: 'developer',
+          tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' }, strict: true }],
+        },
+        {
+          type: 'message',
+          id: 'msg_dedup_1',
+          role: 'user',
+          content: 'build it',
+          status: 'completed',
+          phase: 'commentary',
+        },
+        {
+          type: 'reasoning',
+          id: 'rs_dedup_1',
+          summary: [{ type: 'summary_text', text: 'thinking' }],
+          encrypted_content: 'ENCRYPTED_SENTINEL',
+        },
+        {
+          type: 'function_call',
+          id: 'fc_1',
+          call_id: 'call_1',
+          name: 'shell',
+          arguments: '{"cmd":"ls"}',
+          encrypted_function_args: ['ENCRYPTED_ARGS_SENTINEL'],
+        },
+        {
+          type: 'function_call_output',
+          id: 'fco_1',
+          call_id: 'call_1',
+          output: 'ok',
+          status: 'completed',
+        },
+      ],
+      tool_choice: 'auto',
+      parallel_tool_calls: false,
+      reasoning: { effort: 'high', summary: 'auto', context: 'all_turns' },
+      store: false,
+      stream: true,
+      include: ['reasoning.encrypted_content'],
+      prompt_cache_key: 'codex-session',
+      text: { verbosity: 'medium' },
+    }, chatCapabilities)).toEqual([
+      'reasoning.context',
+      '$.input[0].id',
+      '$.input[0].tools[0].strict',
+      '$.input[1].id',
+      '$.input[1].status',
+      '$.input[1].phase',
+      '$.input[2].id',
+      '$.input[2].summary',
+      '$.input[2].encrypted_content',
+      '$.input[3].id',
+      '$.input[3].encrypted_function_args',
+      '$.input[4].id',
+      '$.input[4].status',
+    ]);
+  });
+
   it('maps text.format where the target wire has a structured-output counterpart', () => {
     expect(validateReducedResponsesRequest({
       input: 'x',
@@ -198,6 +268,10 @@ describe('validateReducedResponsesRequest', () => {
     }, chatCapabilities)).not.toThrow();
   });
 
+  // NOTE: item/bookkeeping FIELDS (id, status, phase, passthrough blocks,
+  // strict, format) are deliberately ABSENT from this list — they are
+  // metadata-tier, admitted and audit-dropped (see the codex-Lite surface
+  // test). Only TYPES and CONTENT shapes that cannot be served stay rejected.
   const rejected: Array<[string, Record<string, unknown>, string]> = [
     ['state reference', { input: 'x', previous_response_id: 'resp_secret' }, '$.previous_response_id'],
     ['background', { input: 'x', background: true }, '$.background'],
@@ -215,17 +289,11 @@ describe('validateReducedResponsesRequest', () => {
     ['hosted tool', { input: 'x', tools: [{ type: 'web_search_preview' }] }, '$.tools[0].type'],
     ['image part', { input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'secret' }] }] }, '$.input[0].content[0].type'],
     ['file part', { input: [{ role: 'user', content: [{ type: 'input_file', file_id: 'file_secret' }] }] }, '$.input[0].content[0].type'],
-    ['opaque item', { input: [{ type: 'reasoning', encrypted_content: 'secret' }] }, '$.input[0].type'],
+    ['hosted call item', { input: [{ type: 'local_shell_call', call_id: 'call_1', action: {} }] }, '$.input[0].type'],
+    ['unknown item type', { input: [{ type: 'future_item', role: 'user', content: 'x' }] }, '$.input[0].type'],
     ['bad reasoning shape', { input: 'x', reasoning: { effort: 7 } }, '$.reasoning.effort'],
-    ['function strict', { input: 'x', tools: [{ type: 'function', name: 'f', strict: true }] }, '$.tools[0].strict'],
-    ['custom format', { input: 'x', tools: [{ type: 'custom', name: 'c', format: { type: 'grammar' } }] }, '$.tools[0].format'],
-    ['message status', { input: [{ type: 'message', role: 'user', content: 'x', status: 'completed' }] }, '$.input[0].status'],
-    ['message id', { input: [{ type: 'message', role: 'user', content: 'x', id: 'msg_1' }] }, '$.input[0].id'],
-    ['function item id', { input: [{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'f', arguments: '{}' }] }, '$.input[0].id'],
-    ['function item status', { input: [{ type: 'function_call', call_id: 'call_1', name: 'f', arguments: '{}', status: 'completed' }] }, '$.input[0].status'],
     ['invalid function namespace', { input: [{ type: 'function_call', call_id: 'call_1', name: 'f', arguments: '{}', namespace: 7 }] }, '$.input[0].namespace'],
-    ['custom item id', { input: [{ type: 'custom_tool_call', id: 'ctc_1', call_id: 'call_1', name: 'c', input: 'x' }] }, '$.input[0].id'],
-    ['output status', { input: [{ type: 'function_call_output', call_id: 'call_1', output: 'x', status: 'completed' }] }, '$.input[0].status'],
+    ['missing call id', { input: [{ type: 'function_call', name: 'f', arguments: '{}' }] }, '$.input[0].call_id'],
     ['top-level namespace declaration', { input: 'x', tools: [{ type: 'namespace', name: 'ns', tools: [] }] }, '$.tools[0].type'],
   ];
 
