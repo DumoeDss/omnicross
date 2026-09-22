@@ -15,6 +15,13 @@ export interface ResponsesProfileDeclaration {
 export interface ReducedResponsesCapabilities {
   /** Whether the target wire can preserve `reasoning.summary`. */
   readonly reasoningSummary: boolean;
+  /**
+   * Whether the target wire has a structured-output counterpart for the
+   * Responses `text.format` (chat `response_format`, Gemini
+   * `responseMimeType`/`responseSchema`). Anthropic-shaped wires have none —
+   * a structured-output contract there must fail loudly, not answer free text.
+   */
+  readonly textFormat: boolean;
 }
 
 /**
@@ -47,7 +54,10 @@ export function resolveReducedResponsesCapabilities(
   declaration: ResponsesProfileDeclaration,
 ): ReducedResponsesCapabilities {
   if (declaration.authMode === 'byo') {
-    return { reasoningSummary: declaration.providerApiFormat === 'openai-response' };
+    return {
+      reasoningSummary: declaration.providerApiFormat === 'openai-response',
+      textFormat: declaration.providerApiFormat !== 'anthropic',
+    };
   }
 
   const transformerNames = declaration.subscriptionTransformerNames ?? [];
@@ -56,6 +66,7 @@ export function resolveReducedResponsesCapabilities(
     // resolveSubscriptionChain, so it has the same summary fidelity.
     reasoningSummary:
       transformerNames.length === 0 || transformerNames.includes('openai-response'),
+    textFormat: !transformerNames.includes('anthropic'),
   };
 }
 
@@ -82,7 +93,12 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
 //      `truncation`, `prompt_cache_key`, `text.verbosity` are codex's
 //      stateless-session contract — no reduced-wire meaning, and none is a
 //      server-state REFERENCE, so they are dropped at the transform boundary
-//      with a dropped_field audit (field NAMES only).
+//      with a dropped_field audit (field NAMES only). `text.format` splits
+//      from its sibling: it is the structured-output CONTRACT — mapped onto
+//      wires with a counterpart (chat `response_format`, Gemini
+//      `responseSchema`) and REFUSED on wires without one (Anthropic-shaped),
+//      because silently answering free text where the caller parses JSON
+//      corrupts the caller.
 //   2. DENIED (DENIED_TOP_LEVEL_FIELDS) — serving these SILENTLY WRONG is the
 //      risk, not lost fidelity: `previous_response_id` references server-side
 //      state on the ORIGINAL provider; `background:true` switches the
@@ -95,7 +111,10 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
 //
 // Nested shapes stay STRICT: an unknown input-item / content-part / tool /
 // tool_choice type can carry conversation content, and dropping one silently
-// corrupts the history — that must stay a loud, structured 400.
+// corrupts the history — that must stay a loud, structured 400. The ONE
+// nested exception is `reasoning`, a knob container: its unknown sub-fields
+// (e.g. codex's `reasoning.context`) are treated like unknown top-level
+// knobs — admitted, audit-dropped, reported by name.
 const TOP_LEVEL_FIELDS = new Set([
   'model',
   'input',
@@ -123,6 +142,7 @@ const REASONING_SUMMARIES = new Set(['auto', 'concise', 'detailed']);
 const TOOL_CHOICE_MODES = new Set(['auto', 'none', 'required']);
 const TOOL_CHOICE_ALLOWED_MODES = new Set(['auto', 'required']);
 const TRUNCATION_VALUES = new Set(['auto', 'none']);
+const TEXT_FORMAT_TYPES = new Set(['text', 'json_object', 'json_schema']);
 const MESSAGE_ROLES = new Set(['developer', 'system', 'user', 'assistant']);
 const TEXT_PART_TYPES = new Set(['text', 'input_text', 'output_text', 'summary_text']);
 
@@ -333,7 +353,15 @@ export function validateReducedResponsesRequest(
 
   if (body.reasoning !== undefined) {
     if (!isRecord(body.reasoning)) fail('$.reasoning', 'must be an object');
-    assertOnlyFields(body.reasoning, new Set(['effort', 'summary']), '$.reasoning');
+    // `reasoning` is a KNOB container (effort / summary / context / …), not
+    // conversation content: an unknown sub-field (codex added
+    // `reasoning.context` in the wild) is an ignored knob, so it joins the
+    // audit-dropped list instead of 400-ing. Structural containers (input
+    // items, tools, tool_choice, text) stay strict — see the policy note
+    // above.
+    for (const field of Object.keys(body.reasoning)) {
+      if (field !== 'effort' && field !== 'summary') unknownFields.push(`reasoning.${field}`);
+    }
     if (typeof body.reasoning.effort !== 'string' || !REASONING_EFFORTS.has(body.reasoning.effort)) {
       fail('$.reasoning.effort', 'is not supported');
     }
@@ -391,8 +419,26 @@ export function validateReducedResponsesRequest(
   }
   if (body.text !== undefined) {
     if (!isRecord(body.text)) fail('$.text', 'must be an object');
-    assertOnlyFields(body.text, new Set(['verbosity']), '$.text');
+    assertOnlyFields(body.text, new Set(['verbosity', 'format']), '$.text');
     if (body.text.verbosity !== undefined) assertString(body.text.verbosity, '$.text.verbosity');
+    if (body.text.format !== undefined) {
+      const format = body.text.format;
+      if (!isRecord(format)) fail('$.text.format', 'must be an object');
+      assertOnlyFields(format, new Set(['type', 'name', 'strict', 'schema']), '$.text.format');
+      if (typeof format.type !== 'string' || !TEXT_FORMAT_TYPES.has(format.type)) {
+        fail('$.text.format.type', 'must be "text", "json_object", or "json_schema"');
+      }
+      // A structured-output contract is SEMANTICS, not a knob: on wires with
+      // no counterpart (Anthropic-shaped) the request must fail loudly —
+      // silently answering free text where the caller parses JSON corrupts
+      // the caller. The plain "text" format is a no-op anywhere.
+      if (format.type !== 'text' && !capabilities.textFormat) {
+        fail('$.text.format.type', 'requires a target wire with structured-output support');
+      }
+      if (format.type === 'json_schema' && !isRecord(format.schema)) {
+        fail('$.text.format.schema', 'must be an object');
+      }
+    }
   }
   return unknownFields;
 }

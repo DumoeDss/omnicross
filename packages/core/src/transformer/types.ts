@@ -156,6 +156,21 @@ export interface UnifiedChatRequest {
    * (dropped + audited).
    */
   parallel_tool_calls?: boolean;
+  /**
+   * OpenAI-chat `response_format`, mapped from the Responses wire's
+   * `text.format` (codex's structured-output contract). The chat wire carries
+   * it natively (identity passthrough); Gemini maps it to
+   * `responseMimeType`/`responseSchema`; Anthropic has no counterpart (the
+   * reduced gate refuses it there before a body is built).
+   */
+  response_format?: {
+    type: 'text' | 'json_object' | 'json_schema';
+    json_schema?: {
+      name?: string;
+      strict?: boolean;
+      schema: Record<string, unknown>;
+    };
+  };
   reasoning?: ReasoningConfig;
   /** Native OpenAI Chat field retained by the identity-shaped ingress. */
   reasoning_effort?: string;

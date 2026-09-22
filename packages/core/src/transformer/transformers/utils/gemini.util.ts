@@ -88,6 +88,11 @@ export interface GeminiGenerationConfig {
   // Image output (chat-inline-images): image models require
   // responseModalities to be requested explicitly.
   responseModalities?: string[];
+  // Structured output (Responses `text.format` → chat `response_format`):
+  // Gemini spells it responseMimeType + responseSchema (an OpenAPI-schema
+  // subset; the caller's JSON schema passes through as-is, best-effort).
+  responseMimeType?: string;
+  responseSchema?: Record<string, unknown>;
   // R7 (claude-api-transform-fidelity): decoded sampling/stop knobs.
   stopSequences?: string[];
   topP?: number;
@@ -274,6 +279,15 @@ export function buildRequestBody(
   if (request.top_k !== undefined) generationConfig.topK = request.top_k;
   if (request.metadata_user_id !== undefined) {
     recordDroppedField(request, 'metadata_user_id', 'gemini');
+  }
+
+  // Structured output: the chat wire's response_format (mapped from the
+  // Responses `text.format`) becomes Gemini's responseMimeType + responseSchema.
+  if (request.response_format?.type === 'json_schema' && request.response_format.json_schema?.schema) {
+    generationConfig.responseMimeType = 'application/json';
+    generationConfig.responseSchema = request.response_format.json_schema.schema;
+  } else if (request.response_format?.type === 'json_object') {
+    generationConfig.responseMimeType = 'application/json';
   }
 
   const reasoningPlan = resolveReasoningPlan({

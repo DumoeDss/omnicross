@@ -55,7 +55,7 @@ interface ResponseApiRequest {
   store?: boolean;
   include?: string[];
   truncation?: string;
-  text?: { verbosity?: string };
+  text?: { verbosity?: string; format?: Record<string, unknown> };
 }
 
 // ============================================================================
@@ -453,7 +453,29 @@ export class OpenAIResponseTransformer implements Transformer {
     if (req.store !== undefined) recordDroppedField(result, 'store', 'openai-responses');
     if (req.include !== undefined) recordDroppedField(result, 'include', 'openai-responses');
     if (req.truncation !== undefined) recordDroppedField(result, 'truncation', 'openai-responses');
-    if (req.text !== undefined) recordDroppedField(result, 'text', 'openai-responses');
+    if (req.text?.verbosity !== undefined) {
+      recordDroppedField(result, 'text.verbosity', 'openai-responses');
+    }
+
+    // `text.format` is the structured-output CONTRACT, not a hint: json_schema
+    // maps onto the chat wire's `response_format` (Gemini re-maps it to
+    // responseMimeType/responseSchema downstream; Anthropic-shaped targets
+    // never reach here — the gate refuses the field for them).
+    const textFormat = req.text?.format;
+    if (isResponsesRecord(textFormat) && typeof textFormat.type === 'string') {
+      if (textFormat.type === 'json_schema' && isResponsesRecord(textFormat.schema)) {
+        result.response_format = {
+          type: 'json_schema',
+          json_schema: {
+            ...(typeof textFormat.name === 'string' ? { name: textFormat.name } : {}),
+            ...(textFormat.strict === true ? { strict: true } : {}),
+            schema: textFormat.schema,
+          },
+        };
+      } else if (textFormat.type === 'text' || textFormat.type === 'json_object') {
+        result.response_format = { type: textFormat.type };
+      }
+    }
 
     // Thread the custom-tool / namespace state to the response encoder. `meta`
     // is internal-only and never serialised into the outbound body.

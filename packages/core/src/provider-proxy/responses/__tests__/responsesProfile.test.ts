@@ -10,6 +10,10 @@ const chatCapabilities = resolveReducedResponsesCapabilities({
   authMode: 'subscription',
   subscriptionTransformerNames: ['openai'],
 });
+const anthropicCapabilities = resolveReducedResponsesCapabilities({
+  authMode: 'subscription',
+  subscriptionTransformerNames: ['anthropic'],
+});
 const responsesCapabilities = resolveReducedResponsesCapabilities({
   authMode: 'subscription',
   subscriptionTransformerNames: ['openai-response'],
@@ -141,6 +145,44 @@ describe('validateReducedResponsesRequest', () => {
     }, chatCapabilities)).toEqual(['future_field', 'another_new_knob']);
   });
 
+  it('admits unknown reasoning sub-fields (knob container) with audit names', () => {
+    // codex started sending `reasoning.context` in the wild — same tier as an
+    // unknown top-level knob, NOT a structural rejection.
+    expect(validateReducedResponsesRequest({
+      input: 'x',
+      reasoning: { effort: 'high', context: { compress: true } },
+    }, chatCapabilities)).toEqual(['reasoning.context']);
+  });
+
+  it('maps text.format where the target wire has a structured-output counterpart', () => {
+    expect(validateReducedResponsesRequest({
+      input: 'x',
+      text: {
+        verbosity: 'medium',
+        format: { type: 'json_schema', name: 'plan', strict: true, schema: { type: 'object' } },
+      },
+    }, chatCapabilities)).toEqual([]);
+  });
+
+  it('refuses text.format on wires with no structured-output counterpart', () => {
+    // Anthropic-shaped wires have no response_format: silently answering free
+    // text where the caller parses JSON corrupts the caller — fail loudly.
+    for (const format of [{ type: 'json_object' }, { type: 'json_schema', schema: { type: 'object' } }]) {
+      expect(() => validateReducedResponsesRequest({
+        input: 'x',
+        text: { format },
+      }, anthropicCapabilities)).toThrow(expect.objectContaining({
+        code: 'unsupported_capability',
+        message: expect.stringContaining('$.text.format.type'),
+      }));
+    }
+    // The plain "text" format is a no-op and stays admissible everywhere.
+    expect(validateReducedResponsesRequest({
+      input: 'x',
+      text: { format: { type: 'text' } },
+    }, anthropicCapabilities)).toEqual([]);
+  });
+
   it('accepts the function and allowed_tools tool_choice forms', () => {
     expect(() => validateReducedResponsesRequest({
       input: 'x',
@@ -168,7 +210,8 @@ describe('validateReducedResponsesRequest', () => {
     ['parallel_tool_calls type', { input: 'x', parallel_tool_calls: 'no' }, '$.parallel_tool_calls'],
     ['include type', { input: 'x', include: [7] }, '$.include'],
     ['truncation value', { input: 'x', truncation: 'aggressive' }, '$.truncation'],
-    ['text format', { input: 'x', text: { format: { type: 'json_object' } } }, '$.text.format'],
+    ['text format type', { input: 'x', text: { format: { type: 'yaml' } } }, '$.text.format.type'],
+    ['text format schema shape', { input: 'x', text: { format: { type: 'json_schema', schema: 'oops' } } }, '$.text.format.schema'],
     ['hosted tool', { input: 'x', tools: [{ type: 'web_search_preview' }] }, '$.tools[0].type'],
     ['image part', { input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'secret' }] }] }, '$.input[0].content[0].type'],
     ['file part', { input: [{ role: 'user', content: [{ type: 'input_file', file_id: 'file_secret' }] }] }, '$.input[0].content[0].type'],
