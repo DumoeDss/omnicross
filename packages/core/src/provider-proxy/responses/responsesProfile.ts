@@ -185,6 +185,19 @@ function assertString(value: unknown, path: string): asserts value is string {
 function validateTextPart(value: unknown, path: string): void {
   if (!isRecord(value)) fail(path, 'must be a text content part');
   const type = value.type;
+  // Inline images (codex's view_image results / pasted screenshots) ARE
+  // relayable: every reduced target has a vision shape (Anthropic image
+  // blocks incl. tool_result, chat image_url parts, Gemini inlineData). Only
+  // the INLINE form is admitted — a `file_id` references the ORIGINAL
+  // provider's file store and cannot be served here.
+  if (type === 'input_image') {
+    assertOnlyFields(value, new Set(['type', 'image_url', 'detail']), path);
+    if (typeof value.image_url !== 'string' || !value.image_url) {
+      fail(`${path}.image_url`, 'must be an inline image URL (file_id references cannot be relayed)');
+    }
+    if (value.detail !== undefined) assertString(value.detail, `${path}.detail`);
+    return;
+  }
   if (typeof type !== 'string' || !TEXT_PART_TYPES.has(type)) {
     fail(`${path}.type`, 'is not a supported text content part');
   }

@@ -246,10 +246,24 @@ export function buildRequestBody(
         const functionResponses: GeminiFunctionResponsePart[] = message.tool_calls.map(
           (tool) => {
             const response = toolResponses.find((item) => item.tool_call_id === tool.id);
+            // functionResponse has no image channel: block content flattens to
+            // its text parts and images are audit-dropped (a raw base64 blob in
+            // `result` would be a token bomb the model cannot render anyway).
+            let result: unknown = response?.content;
+            if (Array.isArray(result)) {
+              const hasImage = result.some(
+                (part) => part && typeof part === 'object' && part.type === 'image_url',
+              );
+              if (hasImage) recordDroppedField(request, 'tool_result_image', 'gemini');
+              result = result
+                .map((part) => part && typeof part === 'object' && part.type === 'text' ? String(part.text) : '')
+                .filter(Boolean)
+                .join('\n');
+            }
             return {
               functionResponse: {
                 name: tool.function?.name ?? '',
-                response: { result: response?.content },
+                response: { result },
               },
             };
           }

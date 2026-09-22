@@ -304,7 +304,7 @@ export class OpenAIResponseTransformer implements Transformer {
           rememberCustomCall(codexTools, entry.call_id);
           messages.push({
             role: 'tool',
-            content: flattenContent(entry.output),
+            content: responsesContentToUnified(entry.output) ?? '',
             tool_call_id: (entry.call_id as string) || undefined,
           });
           continue;
@@ -345,7 +345,7 @@ export class OpenAIResponseTransformer implements Transformer {
         if (itemType === 'function_call_output') {
           messages.push({
             role: 'tool',
-            content: flattenContent(entry.output),
+            content: responsesContentToUnified(entry.output) ?? '',
             tool_call_id: (entry.call_id as string) || undefined,
           });
           continue;
@@ -383,15 +383,19 @@ export class OpenAIResponseTransformer implements Transformer {
         // model literally read `[{"type":"input_text","text":"…"}]` instead of
         // the text. Flatten it.
         const role = entry.role as string;
-        const text = flattenContent(entry.content);
-        // Defensive: an item with a role but no usable text would otherwise emit
-        // a `{"role":"system"}` message with `content: undefined`, which some
-        // upstreams reject outright.
-        if (!text) continue;
+        // Defensive: an item with a role but no usable content would otherwise
+        // emit a `{"role":"system"}` message with `content: undefined`, which
+        // some upstreams reject outright. System/developer stays text-only
+        // (no vision shape for system prompts); user content may promote to
+        // text+image blocks (responsesContentToUnified).
         if (role === 'developer' || role === 'system') {
+          const text = flattenContent(entry.content);
+          if (!text) continue;
           messages.push({ role: 'system', content: text });
         } else if (role === 'user' || role === 'assistant') {
-          messages.push({ role, content: text });
+          const content = responsesContentToUnified(entry.content);
+          if (content === undefined) continue;
+          messages.push({ role, content });
         }
       }
     }
@@ -822,6 +826,39 @@ function rememberToolNamespace(
 
 function isResponsesRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Responses content → unified message content. Text-only input collapses to a
+ * plain string (byte-identical to the historical flatten); input_image parts
+ * promote the value to the unified block array so the vision-capable wires
+ * (Anthropic image blocks — including tool_result — chat image_url parts,
+ * Gemini inlineData) can carry them.
+ */
+function responsesContentToUnified(
+  content: unknown,
+): string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> | undefined {
+  if (typeof content === 'string') return content || undefined;
+  if (!Array.isArray(content) || content.length === 0) return undefined;
+  const blocks: Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }> = [];
+  for (const part of content) {
+    if (typeof part === 'string') {
+      if (part) blocks.push({ type: 'text', text: part });
+      continue;
+    }
+    if (!isResponsesRecord(part)) continue;
+    if (part.type === 'input_image' && typeof part.image_url === 'string' && part.image_url) {
+      blocks.push({ type: 'image_url', image_url: { url: part.image_url } });
+      continue;
+    }
+    if (typeof part.type === 'string' && TEXT_PART_TYPES.has(part.type) && typeof part.text === 'string' && part.text) {
+      blocks.push({ type: 'text', text: part.text });
+    }
+  }
+  if (blocks.length === 0) return undefined;
+  const hasImage = blocks.some((block) => block.type === 'image_url');
+  if (!hasImage) return blocks.map((block) => (block as { text: string }).text).join('\n');
+  return blocks;
 }
 
 /** `collaboration.spawn_agent` → `spawn_agent` — the flattened declaration name. */

@@ -32,6 +32,26 @@ import type {
 } from './AnthropicTypes';
 
 /**
+ * Unified block content → Anthropic tool_result content blocks: text parts to
+ * `{type:'text'}`, image_url parts to base64 (data: URLs) or url image
+ * sources — the official vision shape for tool results.
+ */
+function toolResultContentBlocks(content: NonNullable<UnifiedChatRequest['messages'][number]['content']>): unknown[] {
+  if (!Array.isArray(content)) return [String(content)];
+  return content.map((part) => {
+    if (part && typeof part === 'object' && part.type === 'image_url') {
+      const url = part.image_url.url;
+      const match = url.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+      }
+      return { type: 'image', source: { type: 'url', url } };
+    }
+    return { type: 'text', text: part && typeof part === 'object' && 'text' in part ? String(part.text) : String(part) };
+  });
+}
+
+/**
  * Build an Anthropic Messages API request body from a unified request.
  */
 export function buildAnthropicRequestBody(
@@ -124,7 +144,13 @@ export function buildAnthropicRequestBody(
         toolResults.push({
           type: 'tool_result',
           tool_use_id: t.tool_call_id || '',
-          content: typeof t.content === 'string' ? t.content : JSON.stringify(t.content),
+          // A block array (Responses input_image / Claude Code screenshots)
+          // maps to real tool_result content blocks — text parts to text,
+          // image_url to base64/url image sources. Stringifying blocks here
+          // used to feed the model a JSON dump instead of the image.
+          content: typeof t.content === 'string' || t.content === null
+            ? (t.content ?? '')
+            : toolResultContentBlocks(t.content),
           ...(t.cache_control ? { cache_control: t.cache_control } : {}),
         });
         j++;

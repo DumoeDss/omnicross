@@ -465,6 +465,33 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(unified.tools![0].function.name).toBe('shell');
     });
 
+    it('promotes input_image parts to unified vision blocks (text-only stays a string)', async () => {
+      const unified = await transformer.transformRequestOut({
+        model: 'm',
+        input: [
+          { type: 'message', role: 'user', content: [
+            { type: 'input_text', text: 'what is this' },
+            { type: 'input_image', image_url: 'data:image/png;base64,QUJD' },
+          ] },
+          { type: 'function_call', call_id: 'call_1', name: 'view_image', arguments: '{}' },
+          { type: 'function_call_output', call_id: 'call_1', output: [
+            { type: 'input_image', image_url: 'data:image/png;base64,REVG' },
+          ] },
+          { type: 'message', role: 'user', content: 'plain follow-up' },
+        ],
+      }, mockContext);
+
+      expect(unified.messages[0].content).toEqual([
+        { type: 'text', text: 'what is this' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+      ]);
+      expect(unified.messages.find((m) => m.role === 'tool')?.content).toEqual([
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,REVG' } },
+      ]);
+      // text-only content keeps the historical plain-string shape
+      expect(unified.messages[unified.messages.length - 1].content).toBe('plain follow-up');
+    });
+
     it('falls back to `prompt` when `instructions` is absent', async () => {
       const unified = await transformer.transformRequestOut({
         model: 'm',

@@ -179,7 +179,14 @@ describe('reduced Responses target chains', () => {
   // target wire must receive its representable equivalent.
   const codexRequest = {
     model: 'mapped-model',
-    input: [{ type: 'message', role: 'user', content: 'delegate' }],
+    input: [
+      { type: 'message', role: 'user', content: 'delegate' },
+      { type: 'function_call', call_id: 'call_img', name: 'view_image', arguments: '{}' },
+      { type: 'function_call_output', call_id: 'call_img', output: [
+        { type: 'input_text', text: 'shot' },
+        { type: 'input_image', image_url: 'data:image/png;base64,QUJD' },
+      ] },
+    ],
     tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' } }],
     tool_choice: 'auto',
     parallel_tool_calls: false,
@@ -198,16 +205,39 @@ describe('reduced Responses target chains', () => {
       expect(body.tool_choice).toBe('auto');
       expect(body.parallel_tool_calls).toBe(false);
       expect(body.top_p).toBe(0.9);
+      const toolMessage = (body.messages as Array<Record<string, unknown>>).find((m) => m.role === 'tool');
+      expect(toolMessage?.content).toEqual([
+        { type: 'text', text: 'shot' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+      ]);
     },
     Anthropic: (body) => {
       expect(body.tool_choice).toEqual({ type: 'auto', disable_parallel_tool_use: true });
       expect(body.top_p).toBe(0.9);
       expect('parallel_tool_calls' in body).toBe(false);
+      const userTurn = (body.messages as Array<Record<string, unknown>>).find(
+        (m) => m.role === 'user' && Array.isArray(m.content),
+      );
+      const toolResult = (userTurn?.content as Array<Record<string, unknown>>).find(
+        (block) => block.type === 'tool_result',
+      );
+      expect(toolResult?.content).toEqual([
+        { type: 'text', text: 'shot' },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+      ]);
     },
     Gemini: (body) => {
       expect(body.toolConfig).toEqual({ functionCallingConfig: { mode: 'auto' } });
       expect((body.generationConfig as Record<string, unknown>).topP).toBe(0.9);
       expect('parallel_tool_calls' in body).toBe(false);
+      // functionResponse has no image channel: text parts flatten into
+      // `result`, the image is audit-dropped (never a base64 token bomb).
+      const allParts = (body.contents as Array<{ parts: Array<Record<string, unknown>> }>).flatMap((c) => c.parts);
+      const functionResponse = allParts.find((part) => 'functionResponse' in part)?.functionResponse as {
+        response: { result: unknown };
+      };
+      expect(functionResponse?.response.result).toBe('shot');
+      expect(JSON.stringify(body)).not.toContain('QUJD');
     },
   };
 

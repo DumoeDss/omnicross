@@ -272,6 +272,24 @@ describe('validateReducedResponsesRequest', () => {
   // strict, format) are deliberately ABSENT from this list — they are
   // metadata-tier, admitted and audit-dropped (see the codex-Lite surface
   // test). Only TYPES and CONTENT shapes that cannot be served stay rejected.
+  it('relays inline input_image parts (message content and tool outputs)', () => {
+    // codex's view_image results / pasted screenshots ride as input_image
+    // parts; every reduced target has a vision shape, so they are relayed.
+    expect(validateReducedResponsesRequest({
+      input: [
+        { type: 'message', role: 'user', content: [
+          { type: 'input_text', text: 'what is this' },
+          { type: 'input_image', image_url: 'data:image/png;base64,QUJD', detail: 'high' },
+        ] },
+        { type: 'function_call', call_id: 'call_1', name: 'view_image', arguments: '{}' },
+        { type: 'function_call_output', call_id: 'call_1', output: [
+          { type: 'input_text', text: 'screenshot' },
+          { type: 'input_image', image_url: 'data:image/png;base64,REVG' },
+        ] },
+      ],
+    }, chatCapabilities)).toEqual([]);
+  });
+
   const rejected: Array<[string, Record<string, unknown>, string]> = [
     ['state reference', { input: 'x', previous_response_id: 'resp_secret' }, '$.previous_response_id'],
     ['background', { input: 'x', background: true }, '$.background'],
@@ -287,7 +305,8 @@ describe('validateReducedResponsesRequest', () => {
     ['text format type', { input: 'x', text: { format: { type: 'yaml' } } }, '$.text.format.type'],
     ['text format schema shape', { input: 'x', text: { format: { type: 'json_schema', schema: 'oops' } } }, '$.text.format.schema'],
     ['hosted tool', { input: 'x', tools: [{ type: 'web_search_preview' }] }, '$.tools[0].type'],
-    ['image part', { input: [{ role: 'user', content: [{ type: 'input_image', image_url: 'secret' }] }] }, '$.input[0].content[0].type'],
+    ['image file reference', { input: [{ role: 'user', content: [{ type: 'input_image', file_id: 'file_secret' }] }] }, '$.input[0].content[0].file_id'],
+    ['audio part', { input: [{ role: 'user', content: [{ type: 'input_audio', audio_url: 'secret' }] }] }, '$.input[0].content[0].type'],
     ['file part', { input: [{ role: 'user', content: [{ type: 'input_file', file_id: 'file_secret' }] }] }, '$.input[0].content[0].type'],
     ['hosted call item', { input: [{ type: 'local_shell_call', call_id: 'call_1', action: {} }] }, '$.input[0].type'],
     ['unknown item type', { input: [{ type: 'future_item', role: 'user', content: 'x' }] }, '$.input[0].type'],
