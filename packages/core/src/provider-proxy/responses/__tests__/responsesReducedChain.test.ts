@@ -244,4 +244,78 @@ describe('reduced Responses target chains', () => {
     expect(JSON.stringify(upstreamBody)).not.toContain('encrypted_content');
     expect(JSON.stringify(upstreamBody)).not.toContain('future_field');
   });
+
+  // Structured output (codex TextControls' `text.format`): mapped onto the
+  // wires with a counterpart; Anthropic-shaped targets refuse it loudly
+  // before any upstream byte.
+  const structuredRequest = {
+    model: 'mapped-model',
+    input: [{ type: 'message', role: 'user', content: 'emit json' }],
+    tools: [{ type: 'function', name: 'shell', parameters: { type: 'object' } }],
+    text: {
+      verbosity: 'medium',
+      format: {
+        type: 'json_schema',
+        name: 'plan',
+        strict: true,
+        schema: { type: 'object', properties: { step: { type: 'string' } } },
+      },
+    },
+    stream: false,
+  };
+
+  it.each(targets)('$name maps codex text.format onto its structured-output wire', async ({
+    name,
+    transformer,
+    responseBody,
+  }) => {
+    if (name === 'Anthropic') {
+      expect(() => validateReducedRequestsForTarget(structuredRequest, transformer)).toThrow(
+        expect.objectContaining({ code: 'unsupported_capability' }),
+      );
+      return;
+    }
+    expect(validateReducedRequestsForTarget(structuredRequest, transformer)).toEqual([]);
+    let upstreamBody: Record<string, unknown> | undefined;
+
+    await executeProviderCall({
+      executor: new TransformerChainExecutor(),
+      request: structuredRequest,
+      provider,
+      chain: { providerTransformers: [transformer], modelTransformers: [] },
+      endpointTransformer: new OpenAIResponseTransformer(),
+      resolveUrl: () => 'https://example.test/upstream',
+      buildHeaders: () => ({}),
+      fetchFn: async (_url, _headers, body) => {
+        upstreamBody = body as Record<string, unknown>;
+        return new Response(JSON.stringify(responseBody), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+      runResponseChain: true,
+      preserveEndpointRequestForResponseChain: true,
+    });
+
+    expect(upstreamBody).toBeDefined();
+    if (name === 'OpenAI Chat') {
+      expect(upstreamBody!.response_format).toEqual({
+        type: 'json_schema',
+        json_schema: {
+          name: 'plan',
+          strict: true,
+          schema: { type: 'object', properties: { step: { type: 'string' } } },
+        },
+      });
+    } else {
+      const generationConfig = upstreamBody!.generationConfig as Record<string, unknown>;
+      expect(generationConfig.responseMimeType).toBe('application/json');
+      expect(generationConfig.responseSchema).toEqual({
+        type: 'object',
+        properties: { step: { type: 'string' } },
+      });
+    }
+    // verbosity is a dropped knob — only the format maps.
+    expect(JSON.stringify(upstreamBody)).not.toContain('verbosity');
+  });
 });

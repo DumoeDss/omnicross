@@ -407,12 +407,20 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
         include: ['reasoning.encrypted_content'],
         prompt_cache_key: 'codex-session',
         truncation: 'auto',
-        text: { verbosity: 'medium' },
+        text: {
+          verbosity: 'medium',
+          format: { type: 'json_schema', name: 'plan', strict: true, schema: { type: 'object' } },
+        },
       }, mockContext);
 
       expect(unified.tool_choice).toBe('auto');
       expect(unified.parallel_tool_calls).toBe(false);
       expect(unified.top_p).toBe(0.9);
+      // The structured-output CONTRACT maps; only verbosity is a dropped knob.
+      expect(unified.response_format).toEqual({
+        type: 'json_schema',
+        json_schema: { name: 'plan', strict: true, schema: { type: 'object' } },
+      });
       // The session hints have NO unified property — they only leave field
       // NAMES in the audit channel (values must never ride the request).
       expect('store' in unified).toBe(false);
