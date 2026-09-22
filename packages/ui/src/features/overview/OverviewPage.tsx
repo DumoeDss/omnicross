@@ -10,7 +10,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -694,18 +694,19 @@ function ClientActionButton({
 }
 
 /**
- * 快速开始 — the setup checklist shown while the deployment is not fully
- * configured (not first-run-only: it reappears whenever an upstream or a CLI
- * integration is missing, and hides itself once both steps are green).
+ * First-use checklist. Recorded traffic completes onboarding independently
+ * of managed CLI configuration; integration drift remains in its own card.
  */
 function QuickStartCard({
   view,
   integrations,
   onNavigate,
+  hasObservedUsage,
 }: {
   view: ReturnType<typeof buildOverviewModel>;
   integrations: UseCliIntegrationsResult;
   onNavigate: (route: AppRoute) => void;
+  hasObservedUsage: boolean;
 }) {
   const t = useTranslation();
   // An upstream is "configured" when subscription accounts exist or any
@@ -715,8 +716,8 @@ function QuickStartCard({
     || view.configuredTargetCount > 0;
   const rows = integrations.overview?.integrations ?? [];
   const integrationReady = rows.some((row) => row.status === 'enabled');
-  const usedOnce = view.today.requests.state === 'ready' && (view.today.requests.value ?? 0) > 0;
-  if (upstreamReady && integrationReady) return null;
+  const usedOnce = view.hasRecordedUsage || hasObservedUsage;
+  if (usedOnce || (upstreamReady && integrationReady) || view.today.requests.state === 'loading') return null;
 
   const pendingClients = rows.filter((row) => clientQuickAction(row.status) !== null);
   const steps: Array<{ done: boolean; title: string; hint: string; action?: ReactNode }> = [
@@ -875,6 +876,14 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
     ? throughputProvider
     : null;
   const throughputView = buildThroughputView(throughput.source, throughputWindowMs, effectiveProvider);
+  // Observe the unfiltered stream: changing the provider tab must not reset
+  // onboarding. Latch live evidence while this page stays mounted, including
+  // after the rolling window goes idle or a refresh temporarily fails.
+  const hasLiveUsage = throughput.source.data?.available === true
+    && throughput.source.data.windows.some((window) => window.requests > 0);
+  const [hasObservedUsage, setHasObservedUsage] = useState(false);
+  const hasUsage = view.hasRecordedUsage || hasLiveUsage;
+  useEffect(() => { if (hasUsage) setHasObservedUsage(true); }, [hasUsage]);
   const headerReady = view.overallState === 'operational';
   const headerClass = view.overallState === 'loading'
     ? STATE_CLASS.loading
@@ -907,9 +916,7 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           </Button>
         </div>
 
-        {/* Setup checklist — visible until an upstream AND a CLI integration
-            are configured; gone entirely for a fully set-up deployment. */}
-        <QuickStartCard view={view} integrations={integrations} onNavigate={onNavigate} />
+        <QuickStartCard view={view} integrations={integrations} onNavigate={onNavigate} hasObservedUsage={hasUsage || hasObservedUsage} />
 
         <LiveThroughputEvidence
           view={throughputView}

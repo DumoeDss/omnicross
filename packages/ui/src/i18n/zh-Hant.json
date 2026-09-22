@@ -463,6 +463,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API 模式",
     "standard": "標準",
     "codingPlan": "Coding Plan",
@@ -481,6 +482,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "智譜 GLM",
     "volcengine": "火山方舟",
+    "volcengineAgentPlan": "火山方舟 Agent Plan",
     "dashscope": "阿里雲百煉",
     "tencent": "騰訊混元",
     "tencentAnthropic": "騰訊混元 (Token Plan)",
@@ -1413,10 +1415,10 @@
     "diagnosticsUnsupported": "目前的守護程序版本不支援搜尋診斷；供應方組態仍可完整編輯。",
     "restartBanner": "需要重新啟動守護程序才會生效：{{providers}}",
     "restartHint": "重新啟動守護程序後生效",
-    "immediateHint": "立即生效",
+    "immediateHint": "儲存後立即生效",
     "modes": {
       "title": "前端模式",
-      "description": "每個協定前端由誰執行搜尋。",
+      "description": "修改後請點擊「儲存搜尋設定」。離開頁面會遺失尚未儲存的修改。",
       "codex": "Codex（/v1/alpha/search）",
       "responses": "Responses（web_search）",
       "anthropic": "Anthropic（web_search_*）"

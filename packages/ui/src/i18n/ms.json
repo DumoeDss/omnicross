@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Mod API",
     "standard": "Standard",
     "codingPlan": "Pelan Pengekodan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Pelan Token)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Diagnostik carian langsung tidak tersedia pada versi daemon ini; konfigurasi penyedia kekal boleh disunting sepenuhnya.",
     "restartBanner": "Mulakan semula daemon diperlukan untuk perubahan berkuat kuasa: {{providers}}",
     "restartHint": "Berkuat kuasa selepas daemon dimulakan semula",
-    "immediateHint": "Berkuat kuasa serta-merta",
+    "immediateHint": "Berkuat kuasa serta-merta selepas disimpan",
     "modes": {
       "title": "Mod setiap frontend",
-      "description": "Siapa melaksanakan carian bagi setiap frontend protokol.",
+      "description": "Simpan tetapan carian sebelum meninggalkan halaman ini; perubahan yang belum disimpan akan hilang.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

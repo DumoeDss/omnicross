@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Režim API",
     "standard": "Standardní",
     "codingPlan": "Plán kódování",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Diagnostika vyhledávání není v této verzi démona k dispozici; nastavení poskytovatelů zůstává plně upravitelné.",
     "restartBanner": "Pro uplatnění změn je vyžadován restart démona: {{providers}}",
     "restartHint": "Uplatní se po restartu démona",
-    "immediateHint": "Uplatní se okamžitě",
+    "immediateHint": "Uplatní se ihned po uložení",
     "modes": {
       "title": "Režimy frontendů",
-      "description": "Kdo provádí vyhledávání pro každý frontend protokolu.",
+      "description": "Před opuštěním stránky uložte nastavení vyhledávání; neuložené změny se ztratí.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

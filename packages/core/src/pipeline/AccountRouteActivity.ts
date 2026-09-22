@@ -13,7 +13,7 @@
 
 export const ACCOUNT_ROUTE_ACTIVITY_LIMIT = 300;
 
-export type AccountRouteEndpoint = 'responses' | 'messages' | 'chat' | 'generateContent';
+export type AccountRouteEndpoint = 'responses' | 'messages' | 'chat' | 'generateContent' | 'search';
 
 /**
  * Which kind of upstream credential a row attributes. Absent on records minted

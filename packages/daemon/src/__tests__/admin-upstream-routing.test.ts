@@ -241,11 +241,27 @@ describe('upstream routing model (admin surface + gateway e2e)', () => {
     expect(live.some((b) => b.id === `keyup:${key.id}:0:chat`)).toBe(true);
     expect(live.some((b) => b.id === `keyup:${key.id}:0:messages`)).toBe(true);
 
-    // Passthrough: the client's model name is forwarded verbatim.
-    const served = await gatewayChat(key.plaintextOnce, 'mock-model');
+    // Missing stored tables inherit defaults on both GET and live dispatch.
+    expect((catalog.json as { upstreams: Array<{ key: string; mappings: unknown[] }> }).upstreams[0].mappings)
+      .toContainEqual({ source: '*', target: 'mock-model' });
+    const served = await gatewayChat(key.plaintextOnce, 'a-new-client-model');
     expect(served.status).toBe(200);
     expect(upstream.hits).toBeGreaterThan(0);
     expect(upstream.lastModel).toBe('mock-model');
+  });
+
+  it('an explicitly cleared table remains passthrough after reload and live reapplication', async () => {
+    const key = await createKeyViaAdmin();
+    await adminFetch('POST', `/admin/api/keys/${key.id}/upstream-binding`, { binding: { mode: 'all' } });
+    expect((await adminFetch('PUT', '/admin/api/upstreams/mock/mappings', { mappings: [] })).status).toBe(200);
+    const saved = await loadServerConfig(daemon.settingsStore);
+    expect(saved.upstreamModelMappings?.mock).toEqual([]);
+    await adminFetch('PUT', '/admin/api/server', { defaultKeyUpstreamBinding: 'all' });
+    expect((await adminFetch('POST', '/admin/api/upstreams/migrate-legacy')).status).toBe(200);
+    const catalog = await adminFetch('GET', '/admin/api/upstreams');
+    expect((catalog.json as { upstreams: Array<{ mappings: unknown[] }> }).upstreams[0].mappings).toEqual([]);
+    expect((await gatewayChat(key.plaintextOnce, 'custom-native-model')).status).toBe(200);
+    expect(upstream.lastModel).toBe('custom-native-model');
   });
 
   it('the upstream mapping table drives name resolution (exact-before-wildcard)', async () => {

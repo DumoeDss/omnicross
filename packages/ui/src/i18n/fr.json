@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Mode API",
     "standard": "Standard",
     "codingPlan": "Plan de codage",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Les diagnostics de recherche en direct ne sont pas disponibles sur cette version du démon ; la configuration des fournisseurs reste entièrement modifiable.",
     "restartBanner": "Un redémarrage du démon est requis pour appliquer les modifications : {{providers}}",
     "restartHint": "Appliqué au redémarrage du démon",
-    "immediateHint": "Appliqué immédiatement",
+    "immediateHint": "Appliqué immédiatement après l’enregistrement",
     "modes": {
       "title": "Modes par frontend",
-      "description": "Qui exécute la recherche pour chaque frontend de protocole.",
+      "description": "Enregistrez les paramètres de recherche avant de quitter cette page ; les modifications non enregistrées seront perdues.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

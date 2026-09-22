@@ -215,7 +215,10 @@ describe('production image runtime generation factory', () => {
     expect(getStrategy).not.toHaveBeenCalled();
   });
 
-  it('lists routed models per provider with one capability resolution each (6.1)', async () => {
+  // Real temp-sandbox filesystem + HMAC derivation on Windows routinely
+  // exceeds vitest's 5s default (observed 6–10s while functionally green) —
+  // give the bootstrapping inspections an honest ceiling.
+  it('lists routed models per provider with one capability resolution each (6.1)', { timeout: 30_000 }, async () => {
     const sharedStorage = storage(sandbox());
     const auth = authStrategy();
     const antigravityAuth = authStrategy('antigravity');

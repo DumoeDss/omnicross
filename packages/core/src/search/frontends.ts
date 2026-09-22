@@ -61,10 +61,9 @@ export const SEARCH_FRONTEND_MODES: readonly SearchFrontendMode[] = Object.freez
 /**
  * The behavior-preserving defaults.
  *
- * `codex: 'off'` is not "search disabled" — the route exists and answers with a
- * structured `unsupported_capability`. It is off because the Codex request and
- * response schemas are UNVERIFIED (see `docs/design/search-baseline/wire-baseline.md`
- * §1.2/§1.3); enabling it is a deliberate operator decision.
+ * Codex standalone search remains opt-in for existing installations. `off`
+ * answers with a structured `unsupported_capability`; `native` relays to the
+ * selected Responses upstream and `managed` uses the shared search runtime.
  */
 export const DEFAULT_SEARCH_FRONTEND_MODES: SearchFrontendModes = Object.freeze({
   codex: 'off',

@@ -9,6 +9,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { buildOpenAIApiUrl } from '@omnicross/core/completion/url-builder';
+import { resolveFollowProviderModel } from '@omnicross/contracts/provider-presets';
 
 import { getCatalog, getPresetById } from '../preset-catalog';
 import {
@@ -27,6 +29,44 @@ describe('preset-catalog seam (D1 — vitest runtime)', () => {
 });
 
 describe('preset → daemon-row mapping', () => {
+  it('maps Ark Agent Plan independently of the existing standard and Coding Plan endpoints', () => {
+    const preset = getPresetById('volcengine-agent-plan')!;
+    const result = mapPresetToProvider(preset, { key: '$ARK_AGENT_PLAN_KEY' });
+    if (!('provider' in result)) throw new Error('expected provider');
+    expect(result.provider).toMatchObject({
+      id: 'volcengine-agent-plan',
+      apiFormat: 'openai',
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/plan/v3',
+      apiKey: '$ARK_AGENT_PLAN_KEY',
+    });
+    expect(buildOpenAIApiUrl(result.provider.baseUrl)).toBe(
+      'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions',
+    );
+    expect(result.provider.models).toContain('ark-code-latest');
+    expect(result.provider.models).toContain('deepseek-v4.1-flash');
+    expect(result.provider.models).toContain('kimi-k3');
+    expect(result.provider.models).not.toContain('doubao-seed-2.0-code');
+    expect(preset.modelConfigs?.map((m) => m.id)).toEqual(preset.models);
+    expect(preset.modelConfigs?.find((m) => m.id === 'deepseek-v4.1-flash')).toMatchObject({
+      contextLength: 1048576, maxTokens: 393216, vision: true,
+    });
+    expect(preset.modelConfigs?.find((m) => m.id === 'deepseek-v4-pro')?.vision).toBe(false);
+    expect(preset.modelConfigs?.find((m) => m.id === 'minimax-m3')?.contextLength).toBeUndefined();
+    const view = listMappablePresets().mappable.find((p) => p.id === preset.id);
+    expect(view).toMatchObject({
+      presetId: preset.id, baseUrl: result.provider.baseUrl,
+      nameKey: 'presetName.volcengineAgentPlan', icon: 'volcengine',
+      models: preset.models,
+    });
+    expect(view?.features).toContain('agent-plan');
+    expect(resolveFollowProviderModel('ark-plan', preset.presetId, 'vision'))
+      .toBe('ark-plan,doubao-seed-2.1-turbo');
+    expect(getPresetById('volcengine')?.api_base_url)
+      .toBe('https://ark.cn-beijing.volces.com/api/v3');
+    expect(getPresetById('volcengine')?.codingPlanBaseUrl)
+      .toBe('https://ark.cn-beijing.volces.com/api/coding/v3');
+  });
+
   it('passes through an openai preset', () => {
     const preset = getPresetById('openai')!;
     const r = mapPresetToProvider(preset, { key: 'sk-x' });

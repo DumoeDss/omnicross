@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Mode API",
     "standard": "Standar",
     "codingPlan": "Coding Plan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Diagnostik pencarian langsung tidak tersedia pada versi daemon ini; konfigurasi penyedia tetap dapat diedit sepenuhnya.",
     "restartBanner": "Diperlukan mulai ulang daemon agar perubahan berlaku: {{providers}}",
     "restartHint": "Berlaku setelah daemon dimulai ulang",
-    "immediateHint": "Berlaku segera",
+    "immediateHint": "Berlaku segera setelah disimpan",
     "modes": {
       "title": "Mode per frontend",
-      "description": "Siapa yang mengeksekusi pencarian untuk setiap frontend protokol.",
+      "description": "Simpan pengaturan pencarian sebelum meninggalkan halaman ini; perubahan yang belum disimpan akan hilang.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

@@ -22,6 +22,9 @@
 
 import type http from 'node:http';
 
+import { handleCodexSearchRequest, isCodexSearchRequest } from '../outbound-api/searchRoute';
+import { DEFAULT_SEARCH_FRONTEND_MODES } from '../search/frontends';
+
 import {
   classifyOpenAIOperation,
   OpenAIOperationError,
@@ -46,6 +49,7 @@ import {
 import {
   handleOpenAIResponsesRequest,
 } from './ingress/openaiResponsesIngress';
+import { handleNativeCodexSearchRequest } from './ingress/codexSearchIngress';
 import { readBody, writeError } from './ingress/providerProxyShared';
 import {
   createResponsesAbortScope,
@@ -114,6 +118,35 @@ export async function routeRequest(
   const method = req.method;
   const url = req.url;
   const openAIOperation = classifyOpenAIOperation(method, url);
+
+  if (isCodexSearchRequest(method, url)) {
+    const mode = deps.searchFrontendModes?.codex ?? DEFAULT_SEARCH_FRONTEND_MODES.codex;
+    const abortScope = createResponsesAbortScope({ request: req, response: res });
+    try {
+      if (mode === 'native') {
+        const rawBody = await readBody(req, abortScope.signal);
+        await handleNativeCodexSearchRequest(res, rawBody, route, deps, req.headers, abortScope.signal);
+      } else {
+        await handleCodexSearchRequest(req, res, {
+          mode,
+          runtime: deps.searchRuntime,
+          signal: abortScope.signal,
+        });
+      }
+    } catch (error) {
+      if (abortScope.signal.reason instanceof ResponsesRequestTimeoutError) {
+        writeOpenAIOperationError(res, new OpenAIOperationError({
+          status: 504, code: 'request_timeout', message: 'Search request timed out', retryable: true,
+        }));
+      } else if (!abortScope.signal.aborted) {
+        if (error instanceof OpenAIOperationError) writeOpenAIOperationError(res, error);
+        else throw error;
+      }
+    } finally {
+      abortScope.dispose();
+    }
+    return;
+  }
 
   if (openAIOperation?.owner === 'extension') {
     const registry = deps.openAIOperationRegistry;

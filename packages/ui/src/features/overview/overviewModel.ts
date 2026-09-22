@@ -138,6 +138,8 @@ export interface OverviewModel {
   routeCount: number;
   /** Distinct upstream resources those routes point at. */
   configuredTargetCount: number;
+  /** Durable usage evidence, including requests before today's midnight. */
+  hasRecordedUsage: boolean;
   gateway: {
     status: OverviewMetric<'running' | 'stopped'>;
     address: OverviewMetric<string>;
@@ -626,6 +628,7 @@ export function buildOverviewModel(input: OverviewSources, now = Date.now()): Ov
     issues,
     routeCount,
     configuredTargetCount,
+    hasRecordedUsage: (input.usage.data?.total?.eventCount ?? input.usage.data?.today.eventCount ?? 0) > 0,
     gateway: {
       status: input.gateway.status.state === 'ready' && status
         ? metric(input.gateway.status, status.running ? 'running' : 'stopped')

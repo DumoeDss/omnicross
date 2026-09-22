@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API-läge",
     "standard": "Standard",
     "codingPlan": "Kodningsplan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Tokenplan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Live-sökdiagnostik är inte tillgänglig i denna daemonversion; leverantörskonfigurationen förblir fullt redigerbar.",
     "restartBanner": "Omstart av daemonen krävs för att ändringarna ska träda i kraft: {{providers}}",
     "restartHint": "Träder i kraft vid omstart av daemonen",
-    "immediateHint": "Träder i kraft omedelbart",
+    "immediateHint": "Träder i kraft direkt efter att du sparat",
     "modes": {
       "title": "Frontendlägen",
-      "description": "Vem som kör sökningen för varje protokollfrontend.",
+      "description": "Spara sökinställningarna innan du lämnar sidan; osparade ändringar går förlorade.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

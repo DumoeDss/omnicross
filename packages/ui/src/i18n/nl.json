@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API-modus",
     "standard": "Standaard",
     "codingPlan": "Codeerplan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Tokenplan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Live zoekdiagnose is niet beschikbaar op deze daemon-versie; de providerconfiguratie blijft volledig bewerkbaar.",
     "restartBanner": "Herstart van de daemon is vereist om wijzigingen door te voeren: {{providers}}",
     "restartHint": "Wordt van kracht na herstart van de daemon",
-    "immediateHint": "Wordt direct van kracht",
+    "immediateHint": "Wordt direct na opslaan van kracht",
     "modes": {
       "title": "Frontend-modi",
-      "description": "Wie de zoekopdracht uitvoert per protocolfrontend.",
+      "description": "Sla de zoekinstellingen op voordat je deze pagina verlaat; niet-opgeslagen wijzigingen gaan verloren.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

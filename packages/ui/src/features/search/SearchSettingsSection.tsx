@@ -21,7 +21,7 @@
  * - unconfigured is an EMPTY STATE naming the missing field, never an error;
  * - the keyless HTTP pair is always-available — no config fields, no fake
  *   enable toggle (configure-state IS enablement);
- * - the codex mode applies immediately, everything else needs a daemon restart
+ * - after saving, the codex mode applies immediately; everything else needs a daemon restart
  *   — labeled statically, plus a pending-restart banner when the persisted
  *   provider set diverges from the running runtime;
  * - the per-provider test panel runs the OPERATOR's query through the daemon's
@@ -142,6 +142,12 @@ export function SearchSettingsSection({ config, diagnostics, busy, onUpdate, onQ
     <section className="rounded-xl border border-border/70 bg-surface-1/50 p-4 space-y-4">
       {/* The page header carries the section's title/description — no double
           heading on the standalone page. */}
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-surface-0 px-3 py-2">
+        <p className="text-xs text-muted-foreground">{t('search.modes.description')}</p>
+        <Button size="sm" className="shrink-0" disabled={disabled} onClick={() => void save()}>
+          {t('search.action.save')}
+        </Button>
+      </div>
       {pendingRestart.length > 0 ? (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning" role="status">
           <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" aria-hidden="true" />
@@ -223,19 +229,17 @@ function ModesEditor({
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <h4 className="text-sm font-semibold text-foreground">{t('search.modes.title')}</h4>
-        <span className="text-[11px] text-muted-foreground">{t('search.modes.description')}</span>
       </div>
       {FRONTENDS.map((frontend) => (
         <SettingRow
           key={frontend}
           label={t(`search.modes.${frontend}`)}
-          description={t(
-            frontend === 'codex'
-              ? 'search.immediateHint'
-              : 'search.restartHint',
-          )}
+          description={frontend === 'codex'
+            ? t('search.immediateHint')
+            : t('search.restartHint')}
         >
           <Select
+            id={`search-mode-${frontend}`}
             value={draft.modes[frontend]}
             onChange={(mode) => setMode(frontend, mode as SearchFrontendMode)}
             options={options}

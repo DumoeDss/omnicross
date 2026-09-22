@@ -243,20 +243,21 @@ describe('GET /admin/api/presets', () => {
 });
 
 describe('dashboard prefill → existing provider write path', () => {
-  it('a preset-prefilled POST lands a hot-reloaded, masked, persisted row', async () => {
+  it.each(['deepseek', 'volcengine-agent-plan'])('%s prefill lands a hot-reloaded, masked, persisted row', async (presetId) => {
     // Read the preset DTO the dashboard would prefill from.
     const presetsRes = await adminFetch('GET', '/admin/api/presets');
     const presets = (presetsRes.json as { presets: Array<{ id: string; apiFormat: string; baseUrl: string; models: string[] }> }).presets;
-    const deepseek = presets.find((p) => p.id === 'deepseek') ?? presets[0];
+    const preset = presets.find((p) => p.id === presetId)!;
+    expect(preset).toBeDefined();
 
     // Emulate saveProvider(): prefilled format/baseUrl/models + a user key, via
     // the EXISTING POST /admin/api/providers (no preset write endpoint).
     const created = await adminFetch('POST', '/admin/api/providers', {
       id: 'from-preset',
-      apiFormat: deepseek.apiFormat,
-      baseUrl: deepseek.baseUrl,
+      apiFormat: preset.apiFormat,
+      baseUrl: preset.baseUrl,
       apiKey: 'sk-userkey-SENTINEL',
-      models: deepseek.models,
+      models: preset.models,
     });
     expect(created.status).toBe(201);
 
@@ -266,11 +267,13 @@ describe('dashboard prefill → existing provider write path', () => {
     const row = (list.json as { providers: Array<Record<string, unknown>> }).providers.find((p) => p['id'] === 'from-preset')!;
     expect(row).toBeTruthy();
     expect(row['hasApiKey']).toBe(true);
-    expect((row['models'] as string[]).length).toBe(deepseek.models.length);
+    expect(row['models']).toEqual(preset.models);
+    expect(row['baseUrl']).toBe(preset.baseUrl);
 
     // Hot-reloaded into the live catalog (no restart).
     const live = await daemon.llmConfig.getProvider('from-preset');
     expect(live?.id).toBe('from-preset');
+    expect(live?.api_base_url).toBe(preset.baseUrl);
 
     // Persisted to config.json on disk.
     const onDisk = loadConfig(configPath);

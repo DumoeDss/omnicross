@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API-tila",
     "standard": "Vakio",
     "codingPlan": "Koodaussuunnitelma",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Tokenisuunnitelma)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Live-hakudiagnostiikka ei ole käytettävissä tässä daemon-versiossa; palveluntarjoajien asetukset pysyvät täysin muokattavina.",
     "restartBanner": "Muutosten voimaantulo vaatii daemonin uudelleenkäynnistyksen: {{providers}}",
     "restartHint": "Tulee voimaan daemonin uudelleenkäynnistyksen jälkeen",
-    "immediateHint": "Tulee voimaan heti",
+    "immediateHint": "Tulee voimaan heti tallennuksen jälkeen",
     "modes": {
       "title": "Frontend-tilat",
-      "description": "Kuka suorittaa haun kullekin protokolla-frontendille.",
+      "description": "Tallenna hakuasetukset ennen sivulta poistumista; tallentamattomat muutokset menetetään.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

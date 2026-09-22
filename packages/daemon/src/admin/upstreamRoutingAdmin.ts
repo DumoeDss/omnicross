@@ -32,7 +32,59 @@ import {
   type UpstreamMigrationResult,
 } from '@omnicross/core';
 
-import { loadConfig } from '../config';
+import { SUBSCRIPTION_MODEL_CATALOG } from '@omnicross/contracts/subscription-model-catalog';
+
+import { loadConfig, type DaemonProviderConfig } from '../config';
+
+/** Defaults for pools whose preferred model is not the first catalog entry. */
+const DEFAULT_MAPPING_TARGETS: Record<string, string> = {
+  opencodego: 'deepseek-flash',
+  codex: 'gpt-6-astra',
+  claude: 'claude-sonnet-5',
+};
+
+export function defaultProviderMappingTarget(provider: DaemonProviderConfig): string | undefined {
+  return (provider.id === 'opencodego' ? DEFAULT_MAPPING_TARGETS.opencodego : undefined)
+    ?? provider.models?.find((model) => model.trim() !== '')?.trim();
+}
+
+/**
+ * The same effective tables feed the editor and live route assembly. Existing
+ * installations inherit their legacy model choices; missing tables receive
+ * defaults without a write during GET/boot. An explicit [] means passthrough.
+ */
+export function resolveUpstreamModelMappings(
+  config: OutboundApiServerConfig,
+  providers: readonly DaemonProviderConfig[],
+  catalog: readonly UpstreamCatalogEntry[],
+): Record<string, GatewayModelMapping[]> {
+  const tables = { ...(config.upstreamModelMappings ?? {}) };
+  const legacy = migrateLegacyBindingsToUpstreams({
+    bindings: (config.bindings ?? []).filter((binding) => binding.enabled && binding.modelMode !== 'passthrough'),
+    keys: [],
+  }).mappingTables;
+  for (const entry of catalog) {
+    if (Object.prototype.hasOwnProperty.call(tables, entry.key)) continue;
+    const rows = [...(legacy[entry.key] ?? [])];
+    const providerId = entry.target.providerId;
+    let fallback: string | undefined;
+    if (entry.target.kind === 'provider') {
+      const provider = providers.find((candidate) => candidate.id === providerId);
+      if (provider) fallback = defaultProviderMappingTarget(provider);
+    } else {
+      const models = SUBSCRIPTION_MODEL_CATALOG[providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG] ?? [];
+      // Native model choices retain their identity even with a wildcard
+      // fallback, so selecting a smaller model still selects that model.
+      for (const model of models) {
+        if (!rows.some((row) => row.source === model)) rows.push({ source: model, target: model });
+      }
+      fallback = DEFAULT_MAPPING_TARGETS[providerId] ?? models[0];
+    }
+    if (fallback && !rows.some((row) => row.source === '*')) rows.push({ source: '*', target: fallback });
+    if (rows.length > 0) tables[entry.key] = rows;
+  }
+  return tables;
+}
 
 /** The minimal deps this module needs (structural — no adminApi import cycle). */
 export interface UpstreamRoutingDeps {
@@ -157,11 +209,12 @@ export async function assembledGatewayBindings(
     listUpstreamCatalog(deps),
   ]);
   const labels = new Map(catalog.map((entry) => [JSON.stringify(entry.target), entry.label]));
+  const mappings = resolveUpstreamModelMappings(serverConfig, loadConfig(deps.configPath).providers, catalog);
   return assembleGatewayBindings({
     keys: keys.map((row) => ({ id: row.id, upstreamBinding: row.upstreamBinding })),
     allUpstreams: catalog.map((entry) => entry.target),
     mappingsFor: (target) =>
-      serverConfig.upstreamModelMappings?.[upstreamMappingKeyOf(target)],
+      mappings[upstreamMappingKeyOf(target)],
     labelFor: (target) => labels.get(JSON.stringify(target)),
     legacyBindings: serverConfig.bindings ?? [],
   });
@@ -230,8 +283,8 @@ export async function migrateLegacyUpstreamRouting(
     const tables: Record<string, GatewayModelMapping[]> = { ...(result.mappingTables) };
     for (const [key, rows] of Object.entries(serverConfig.upstreamModelMappings ?? {})) {
       const existing = tables[key] ?? [];
-      const sources = new Set(existing.map((row) => row.source));
-      tables[key] = [...existing, ...rows.filter((row) => !sources.has(row.source))];
+      const sources = new Set(rows.map((row) => row.source));
+      tables[key] = rows.length === 0 ? [] : [...rows, ...existing.filter((row) => !sources.has(row.source))];
     }
     next = {
       ...next,

@@ -46,9 +46,10 @@ import {
   resolveReducedResponsesCapabilities,
   type ResponsesProfile,
 } from './responsesProfile';
-import { deriveResponsesCompactUrl } from './responsesUrl';
+import { deriveCodexSearchUrl, deriveResponsesCompactUrl } from './responsesUrl';
 
 export type ResponsesOperationKind = 'create' | 'compact';
+type NativeOperationKind = ResponsesOperationKind | 'search';
 
 export interface ResolvedResponsesRouteProfile {
   readonly profile: ResponsesProfile;
@@ -386,12 +387,21 @@ export async function resolveAntigravityProjectThreaded(
 export async function executeResponsesUpstream(
   body: Record<string, unknown>,
   plan: ResponsesCallPlan,
-  operation: ResponsesOperationKind,
+  operation: NativeOperationKind,
   signal: AbortSignal,
+  rawBody?: string,
 ): Promise<ResponsesPipelineResult> {
+  if (operation === 'search' && plan.profile !== 'native') {
+    throw new OpenAIOperationError({
+      status: 400,
+      code: 'unsupported_capability',
+      message: 'Native Codex search requires a native Responses upstream',
+    });
+  }
+  const originalBody = rawBody === undefined ? undefined : { text: rawBody, model: body.model };
   const run = (): Promise<ResponsesPipelineResult> =>
     plan.profile === 'native'
-      ? runNative(body, plan, operation, signal)
+      ? runNative(body, plan, operation, signal, originalBody)
       : runReduced(body, plan, signal);
   let result = await run();
   throwIfResponsesAborted(signal);
@@ -431,6 +441,7 @@ function buildResponsesRouteActivity(
   accountId: string | undefined,
   actualModel: string,
   onRecorded: (record: AccountRouteActivityRecord) => void,
+  operation: NativeOperationKind = 'create',
 ): AccountRouteActivityContext {
   if (plan.proxyProviderId === 'byo') {
     const contentKey = plan.sessionKey?.trim() || undefined;
@@ -439,7 +450,7 @@ function buildResponsesRouteActivity(
       providerId: plan.byoActivity?.providerId ?? plan.providerIdentity,
       credentialKind: 'provider-key',
       keyId: plan.byoActivity?.resolveKeyId(),
-      endpoint: 'responses',
+      endpoint: operation === 'search' ? 'search' : 'responses',
       sessionKey: contentKey ?? routeSessionId,
       sessionSource: contentKey ? plan.sessionSource ?? 'none' : routeSessionId ? 'route-session-id' : 'none',
       model: actualModel,
@@ -450,7 +461,7 @@ function buildResponsesRouteActivity(
     providerId: plan.proxyProviderId,
     credentialKind: 'subscription-account',
     accountId,
-    endpoint: 'responses',
+    endpoint: operation === 'search' ? 'search' : 'responses',
     sessionKey: plan.sessionKey,
     sessionSource: plan.sessionSource ?? 'none',
     model: actualModel,
@@ -461,6 +472,7 @@ function buildResponsesRouteActivity(
 async function applyPlanAuth(
   body: Record<string, unknown>,
   plan: ResponsesCallPlan,
+  operation: NativeOperationKind = 'create',
 ): Promise<{
   headers: Record<string, string>;
   accountId: string | undefined;
@@ -470,7 +482,7 @@ async function applyPlanAuth(
   let actualModel = plan.resolvedModel;
   const headers: Record<string, string> = {};
   await plan.auth.applyHeaders(headers, {
-    upstreamUrl: plan.upstreamUrl,
+    upstreamUrl: operation === 'search' ? deriveCodexSearchUrl(plan.upstreamUrl) : plan.upstreamUrl,
     model: plan.resolvedModel,
     sessionKey: plan.sessionKey,
     callerOpenCodeSession: plan.callerOpenCodeSession,
@@ -493,7 +505,7 @@ async function applyPlanAuth(
   // forced SSE back into the single `response` JSON it expects. Scoped to the
   // codex SUBSCRIPTION relay: a BYO OpenAI-compatible endpoint keeps the
   // caller's body verbatim (its backend may legitimately allow both).
-  if (plan.proxyProviderId === 'codex') {
+  if (plan.proxyProviderId === 'codex' && operation !== 'search') {
     body.store = false;
     if (!plan.isStream) body.stream = true;
   }
@@ -504,7 +516,19 @@ function decorateCodexHeaders(
   headers: Record<string, string>,
   plan: ResponsesCallPlan,
   body: Record<string, unknown>,
+  operation: NativeOperationKind = 'create',
 ): void {
+  if (operation === 'search') {
+    fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
+    fillMissingHeaders(headers, { accept: codexAcceptHeader(false) });
+    if (plan.proxyProviderId === 'codex') {
+      if (typeof body.id === 'string' && body.id.trim()) {
+        fillMissingHeaders(headers, { 'session-id': body.id });
+      }
+      fillMissingCodexCliIdentity(headers);
+    }
+    return;
+  }
   if (plan.proxyProviderId !== 'codex') return;
   fillMissingHeaders(headers, plan.callerClientHeaders ?? {});
   // Accept follows the EFFECTIVE stream flag — the codex upstream ALWAYS
@@ -525,24 +549,32 @@ function decorateCodexHeaders(
 async function runNative(
   body: Record<string, unknown>,
   plan: ResponsesCallPlan,
-  operation: ResponsesOperationKind,
+  operation: NativeOperationKind,
   signal: AbortSignal,
+  originalBody?: { text: string; model: unknown },
 ): Promise<ResponsesPipelineResult> {
   throwIfResponsesAborted(signal);
-  const { headers, accountId, actualModel } = await applyPlanAuth(body, plan);
+  const { headers, accountId, actualModel } = await applyPlanAuth(body, plan, operation);
   fillMissingHeaders(headers, { 'content-type': 'application/json' });
-  decorateCodexHeaders(headers, plan, body);
-  const url = operation === 'compact' ? deriveResponsesCompactUrl(plan.upstreamUrl) : plan.upstreamUrl;
+  decorateCodexHeaders(headers, plan, body, operation);
+  const url = operation === 'search'
+    ? deriveCodexSearchUrl(plan.upstreamUrl)
+    : operation === 'compact' ? deriveResponsesCompactUrl(plan.upstreamUrl) : plan.upstreamUrl;
+  // Search bodies contain opaque history and forward-compatible commands.
+  // Preserve their original bytes unless this route/account maps the model.
+  const wireBody = operation === 'search' && originalBody && originalBody.model === body.model
+    ? originalBody.text
+    : JSON.stringify(body);
   let activityRecordId: string | undefined;
   const response = await fetchUpstream(
     url,
-    { method: 'POST', headers, body: JSON.stringify(body), signal },
+    { method: 'POST', headers, body: wireBody, signal },
     {
       providerId: plan.proxyProviderId,
       accountId,
       routeActivity: buildResponsesRouteActivity(plan, accountId, actualModel, (record) => {
         activityRecordId = record.id;
-      }),
+      }, operation),
     },
   );
   return {

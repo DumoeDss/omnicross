@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API mód",
     "standard": "Szabványos",
     "codingPlan": "Kódolási terv",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Az élő keresési diagnosztika nem érhető el a démon e verzióján; a szolgáltatók beállítása továbbra is teljesen szerkeszthető.",
     "restartBanner": "A módosítások életbe lépéséhez a démon újraindítása szükséges: {{providers}}",
     "restartHint": "A démon újraindítása után lép életbe",
-    "immediateHint": "Azonnal életbe lép",
+    "immediateHint": "Mentés után azonnal életbe lép",
     "modes": {
       "title": "Frontend-módok",
-      "description": "Ki hajtja végre a keresést az egyes protokoll-frontendeknél.",
+      "description": "Az oldal elhagyása előtt mentse a keresési beállításokat; a nem mentett módosítások elvesznek.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

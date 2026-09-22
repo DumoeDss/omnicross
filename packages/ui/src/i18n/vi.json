@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Chế độ API",
     "standard": "Chuẩn",
     "codingPlan": "Coding Plan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Chẩn đoán tìm kiếm trực tiếp không khả dụng trên phiên bản daemon này; cấu hình nhà cung cấp vẫn chỉnh sửa được đầy đủ.",
     "restartBanner": "Cần khởi động lại daemon để thay đổi có hiệu lực: {{providers}}",
     "restartHint": "Có hiệu lực sau khi khởi động lại daemon",
-    "immediateHint": "Có hiệu lực ngay",
+    "immediateHint": "Có hiệu lực ngay sau khi lưu",
     "modes": {
       "title": "Chế độ frontend",
-      "description": "Ai thực thi tìm kiếm cho từng frontend giao thức.",
+      "description": "Lưu cài đặt tìm kiếm trước khi rời trang này; các thay đổi chưa lưu sẽ bị mất.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

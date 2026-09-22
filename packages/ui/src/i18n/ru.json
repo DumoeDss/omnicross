@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Режим API",
     "standard": "Стандартный",
     "codingPlan": "План кодирования",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Диагностика поиска недоступна в этой версии демона; настройка провайдеров остаётся полностью доступной.",
     "restartBanner": "Для применения изменений требуется перезапуск демона: {{providers}}",
     "restartHint": "Применяется после перезапуска демона",
-    "immediateHint": "Применяется сразу",
+    "immediateHint": "Применяется сразу после сохранения",
     "modes": {
       "title": "Режимы фронтендов",
-      "description": "Кто выполняет поиск для каждого фронтенда протокола.",
+      "description": "Сохраните настройки поиска перед уходом с этой страницы; несохранённые изменения будут потеряны.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

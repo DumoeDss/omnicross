@@ -48,6 +48,11 @@ export const PROVIDER_MODEL_MAPPINGS: Record<string, ProviderModelMapping> = {
     background: 'doubao-seed-2.0-lite',
     vision: 'doubao-seed-2.0-code',
   },
+  'volcengine-agent-plan': {
+    primary: 'ark-code-latest',
+    background: 'doubao-seed-2.0-mini',
+    vision: 'doubao-seed-2.1-turbo',
+  },
   kimi: {
     primary: 'kimi-k2.5',
     background: 'kimi-k2-0905-preview',
@@ -209,6 +214,7 @@ export const MAX_CONCURRENCY_DEFAULTS: Record<string, number> = {
   'minimax-token-plan': 5,
   dashscope: 5,
   volcengine: 5,
+  'volcengine-agent-plan': 5,
   tencent: 5,
   'tencent-anthropic': 5,
   baidu: 5,
@@ -255,6 +261,7 @@ export const DEFAULT_SEED_PRESET_IDS: readonly string[] = [
   'xiaomi-mimo',
   'dashscope',
   'volcengine',
+  'volcengine-agent-plan',
   'tencent',
   // Tier 3 — international extras + fast inference + local
   'siliconflow',

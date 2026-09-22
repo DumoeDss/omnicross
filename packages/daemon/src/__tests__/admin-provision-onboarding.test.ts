@@ -140,8 +140,9 @@ describe('provider-create provisioning (zero-config onboarding)', () => {
     expect(recreated.status).toBe(201);
 
     const catalog = await adminFetch('GET', '/admin/api/upstreams');
-    // bare: nothing advertised and nothing curated → no table written.
-    expect(catalog.json.upstreams.find((u: any) => u.key === 'bare').mappings).toEqual([]);
+    // A provider with no models is not bindable and has no stored default.
+    expect(catalog.json.upstreams.find((u: any) => u.key === 'bare')).toBeUndefined();
+    expect(loadConfig(join(tmpDir, 'config.json')).server?.upstreamModelMappings?.bare).toBeUndefined();
     // tabled: the table that SURVIVED the delete is kept, not reset to the default.
     expect(catalog.json.upstreams.find((u: any) => u.key === 'tabled').mappings)
       .toEqual([{ source: 'claude-*', target: 'kept' }, { source: '*', target: 'kept-any' }]);

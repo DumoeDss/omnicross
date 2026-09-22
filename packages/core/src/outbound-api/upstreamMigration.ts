@@ -64,12 +64,14 @@ export function upstreamKeyOfTarget(target: GatewayBindingTarget): string {
 }
 
 /** Project ONE legacy binding's model config into mapping rows. */
-function bindingToMappingRows(binding: GatewayBinding): Array<[string, string]> {
-  const rows: Array<[string, string]> = [];
+function bindingToMappingRows(binding: GatewayBinding): GatewayModelMapping[] {
+  const rows: GatewayModelMapping[] = [];
   const push = (source: string, target: string | undefined): void => {
-    if (source.trim() !== '' && target && target.trim() !== '') rows.push([source.trim(), target.trim()]);
+    if (source.trim() !== '' && target && target.trim() !== '') rows.push({ source: source.trim(), target: target.trim() });
   };
-  for (const row of binding.modelMappings ?? []) push(row.source, row.target);
+  for (const row of binding.modelMappings ?? []) {
+    if (row.source.trim() && row.target.trim()) rows.push({ ...row, source: row.source.trim(), target: row.target.trim() });
+  }
   if (binding.endpoint === 'responses') {
     push('*', binding.modelMap?.codex);
     push('*mini*', binding.modelMap?.mini);
@@ -132,7 +134,8 @@ export function migrateLegacyBindingsToUpstreams(input: {
       table = new Map();
       tables.set(tableKey, table);
     }
-    for (const [source, target] of bindingToMappingRows(binding)) {
+    for (const row of bindingToMappingRows(binding)) {
+      const { source, target } = row;
       const value = bareModelId(target);
       const existing = table.get(source);
       if (existing) {
@@ -146,7 +149,7 @@ export function migrateLegacyBindingsToUpstreams(input: {
         }
         continue;
       }
-      table.set(source, { source, target: value });
+      table.set(source, { ...row, source, target: value });
     }
   }
 

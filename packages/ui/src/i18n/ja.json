@@ -463,6 +463,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API モード",
     "standard": "スタンダード",
     "codingPlan": "Coding Plan",
@@ -481,6 +482,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -1138,10 +1140,10 @@
     "diagnosticsUnsupported": "このデーモンのバージョンでは検索診断を利用できません。プロバイダー設定は引き続き編集できます。",
     "restartBanner": "変更の反映にはデーモンの再起動が必要です：{{providers}}",
     "restartHint": "デーモン再起動後に適用",
-    "immediateHint": "即時適用",
+    "immediateHint": "保存後、即時適用",
     "modes": {
       "title": "フロントエンドモード",
-      "description": "各プロトコルフロントエンドで検索を実行する主体。",
+      "description": "このページを離れる前に検索設定を保存してください。未保存の変更は失われます。",
       "codex": "Codex（/v1/alpha/search）",
       "responses": "Responses（web_search）",
       "anthropic": "Anthropic（web_search_*）"

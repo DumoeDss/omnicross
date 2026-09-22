@@ -109,9 +109,11 @@ import { parseLogJevSettings } from '@omnicross/contracts/logjev';
 import { preserveOutboundProxySecrets, redactOutboundProxy } from '../proxy/sanitizeProxy';
 import {
   assembledGatewayBindings,
+  defaultProviderMappingTarget,
   listUpstreamCatalog,
   migrateLegacyUpstreamRouting,
   rollbackLegacyUpstreamRouting,
+  resolveUpstreamModelMappings,
   sanitizeUpstreamMappingRows,
   upstreamMappingKeyOf,
   validateUpstreamMappingTable,
@@ -993,28 +995,6 @@ async function persistProviders(cfg: DaemonConfig, deps: AdminApiDeps): Promise<
 }
 
 /**
- * Curated `*`-fallback targets for providers whose default is not derivable
- * from their advertised list. Aggregators (opencodego) proxy many vendors with
- * no single "newest" of their own — a cheap, broadly available model keeps a
- * fresh aggregator usable out of the box.
- */
-const DEFAULT_MAPPING_TARGETS: Record<string, string> = {
-  opencodego: 'deepseek-flash',
-};
-
-/**
- * The `*` fallback target for a freshly created provider: the curated id when
- * we know better, else the FIRST advertised model — preset lists are curated
- * newest-first (glm-5.3, deepseek-flash, …). `undefined` when the provider
- * advertises nothing and nothing is curated (no honest default to write).
- */
-function defaultMappingTargetFor(provider: DaemonProviderConfig): string | undefined {
-  const curated = DEFAULT_MAPPING_TARGETS[provider.id];
-  if (curated) return curated;
-  return provider.models?.find((model) => model.trim() !== '')?.trim();
-}
-
-/**
  * Zero-config provisioning after a provider is created:
  *  - a `* -> <default model>` mapping row lands on the new upstream unless a
  *    table already exists, so it serves ANY client model name immediately —
@@ -1033,7 +1013,7 @@ async function provisionNewProvider(
   isFirstProvider: boolean,
 ): Promise<void> {
   try {
-    const target = defaultMappingTargetFor(provider);
+    const target = defaultProviderMappingTarget(provider);
     const current = await loadServerConfig(deps.settingsStore);
     if (target && !current.upstreamModelMappings?.[provider.id]) {
       await saveServerConfig(deps.settingsStore, {
@@ -2310,12 +2290,13 @@ async function handleUpstreams(
       listUpstreamCatalog(deps),
       loadServerConfig(deps.settingsStore),
     ]);
+    const mappings = resolveUpstreamModelMappings(serverConfig, loadConfig(deps.configPath).providers, catalog);
     return writeJson(res, 200, {
       upstreams: catalog.map((entry) => ({
         key: entry.key,
         label: entry.label,
         target: entry.target,
-        mappings: serverConfig.upstreamModelMappings?.[entry.key] ?? [],
+        mappings: mappings[entry.key] ?? [],
       })),
       // The derived + legacy aggregate actually being served (the UI's launch
       // target picker and route coverage read this instead of the stored
@@ -2339,8 +2320,9 @@ async function handleUpstreams(
     const rows = sanitizeUpstreamMappingRows(body['mappings']);
     const current = await loadServerConfig(deps.settingsStore);
     const tables = { ...(current.upstreamModelMappings ?? {}) };
-    if (rows.length === 0) delete tables[key];
-    else tables[key] = rows;
+    // Persist an explicit passthrough choice so default resolution cannot
+    // recreate a table the operator deliberately cleared.
+    tables[key] = rows;
     const next = { ...current, upstreamModelMappings: Object.keys(tables).length > 0 ? tables : undefined };
     await saveServerConfig(deps.settingsStore, next);
     await reapplyLiveServerConfig(deps);

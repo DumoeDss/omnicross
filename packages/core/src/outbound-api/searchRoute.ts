@@ -23,6 +23,10 @@
  *
  * ## The designed side effect
  *
+ * Native mode is dispatched through the authorized Responses routing pipeline
+ * to `provider-proxy/ingress/codexSearchIngress.ts`. This module executes only
+ * managed searches and the off-mode response.
+ *
  * A dispatched request reaches route resolution and is given a `sessionKey`, so
  * the audit body store finally persists `/v1/alpha/search` exchanges. The
  * capture that 阶段0 proved impossible becomes possible when a real client talks
@@ -119,8 +123,8 @@ export function searchCapabilityOffError(): OpenAIOperationError {
     status: 400,
     code: SEARCH_UNSUPPORTED_CAPABILITY_CODE,
     message:
-      `Omnicross-managed search is not enabled for the Codex frontend ` +
-      `(set search.modes.codex to 'managed' to enable it)`,
+      `Codex search is unavailable in this mode; set search.modes.codex to ` +
+      `'native' for upstream search or 'managed' for gateway search`,
   });
 }
 
@@ -296,10 +300,7 @@ export async function handleCodexSearchRequest(
   deps: CodexSearchRouteDeps,
 ): Promise<void> {
   const runtime = deps.runtime ?? null;
-  // `off`, `native` and a missing runtime all land here. `native` is included
-  // deliberately: there is no upstream passthrough for this route — Codex is
-  // asking OMNICROSS to search — so claiming a native lane would be a lie. The
-  // mode model still carries `native` for the other two frontends.
+  // Native mode is handled by the routed proxy ingress, never by this runtime.
   if (deps.mode !== 'managed' || !runtime) {
     writeOpenAIOperationError(res, searchCapabilityOffError());
     return;
@@ -314,13 +315,8 @@ export async function handleCodexSearchRequest(
     } catch {
       parseFailed = true;
     }
-    // The hook fires for EVERY body that was read, whatever shape it turned out
-    // to be — including one that is not JSON at all. A real codex-tui body we
-    // cannot parse is the single most informative capture this route could
-    // produce, since the request schema is UNVERIFIED; dropping it because it
-    // failed our guess would discard exactly the evidence that would correct
-    // the guess. The second argument is what the session key is derived from,
-    // so a non-object body still gets a key (from the route-scoped fallback).
+    // Keep malformed requests observable under the configured audit policy.
+    // A non-object body still gets a route-scoped session-key fallback.
     deps.onRequestBody?.(raw, isRecord(parsed) ? parsed : {});
     if (parseFailed) {
       throw new OpenAIOperationError({

@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Λειτουργία API",
     "standard": "Τυπική",
     "codingPlan": "Coding Plan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Η ζωντανή διάγνωση αναζήτησης δεν είναι διαθέσιμη σε αυτή την έκδοση του δαίμονα· η ρύθμιση των παρόχων παραμένει πλήρως επεξεργάσιμη.",
     "restartBanner": "Απαιτείται επανεκκίνηση του δαίμονα για να τεθούν σε ισχύ οι αλλαγές: {{providers}}",
     "restartHint": "Τίθεται σε ισχύ μετά την επανεκκίνηση του δαίμονα",
-    "immediateHint": "Τίθεται σε ισχύ άμεσα",
+    "immediateHint": "Τίθεται σε ισχύ αμέσως μετά την αποθήκευση",
     "modes": {
       "title": "Λειτουργίες ανά frontend",
-      "description": "Ποιος εκτελεί την αναζήτηση για κάθε frontend πρωτοκόλλου.",
+      "description": "Αποθηκεύστε τις ρυθμίσεις αναζήτησης πριν φύγετε από τη σελίδα· οι μη αποθηκευμένες αλλαγές θα χαθούν.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

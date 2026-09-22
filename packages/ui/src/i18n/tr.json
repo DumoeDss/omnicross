@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API Modu",
     "standard": "Standart",
     "codingPlan": "Kodlama Planı",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Planı)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Canlı arama tanılaması bu daemon sürümünde kullanılamıyor; sağlayıcı yapılandırması tamamen düzenlenebilir kalır.",
     "restartBanner": "Değişikliklerin etkili olması için daemon yeniden başlatılmalıdır: {{providers}}",
     "restartHint": "Daemon yeniden başlatıldığında etkili olur",
-    "immediateHint": "Anında etkili olur",
+    "immediateHint": "Kaydettikten hemen sonra etkili olur",
     "modes": {
       "title": "Ön yüz modları",
-      "description": "Her protokol ön yüzü için aramayı kim yürütür.",
+      "description": "Bu sayfadan ayrılmadan önce arama ayarlarını kaydedin; kaydedilmemiş değişiklikler kaybolur.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

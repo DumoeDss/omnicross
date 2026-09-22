@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "โหมด API",
     "standard": "มาตรฐาน",
     "codingPlan": "Coding Plan",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "การวินิจฉัยการค้นหาแบบสดไม่พร้อมใช้งานในเวอร์ชันดีมอนนี้ แต่การตั้งค่าผู้ให้บริการยังแก้ไขได้ครบถ้วน",
     "restartBanner": "ต้องรีสตาร์ทดีมอนเพื่อให้การเปลี่ยนแปลงมีผล: {{providers}}",
     "restartHint": "มีผลหลังรีสตาร์ทดีมอน",
-    "immediateHint": "มีผลทันที",
+    "immediateHint": "มีผลทันทีหลังบันทึก",
     "modes": {
       "title": "โหมดของฟรอนต์เอนด์",
-      "description": "ใครเป็นผู้ประมวลผลการค้นหาของแต่ละฟรอนต์เอนด์โปรโตคอล",
+      "description": "บันทึกการตั้งค่าการค้นหาก่อนออกจากหน้านี้ มิฉะนั้นการเปลี่ยนแปลงที่ยังไม่ได้บันทึกจะหายไป",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

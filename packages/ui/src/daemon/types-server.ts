@@ -44,7 +44,7 @@ export interface AccountRouteActivityRecord {
   accountId?: string;
   /** ApiKeyPool key id (provider-key rows, when the pool bound one). */
   keyId?: string;
-  endpoint: 'responses' | 'messages' | 'chat' | 'generateContent';
+  endpoint: 'responses' | 'messages' | 'chat' | 'generateContent' | 'search';
   sessionKey?: string;
   sessionSource: AccountRouteSessionSource;
   model: string;

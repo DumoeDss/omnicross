@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Mod API",
     "standard": "Standard",
     "codingPlan": "Plan programare",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Plan tokenuri)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Diagnostica căutării în direct nu este disponibilă pe această versiune de daemon; configurația furnizorilor rămâne complet editabilă.",
     "restartBanner": "Este necesară repornirea daemonului pentru ca modificările să intre în vigoare: {{providers}}",
     "restartHint": "Intră în vigoare după repornirea daemonului",
-    "immediateHint": "Intră în vigoare imediat",
+    "immediateHint": "Intră în vigoare imediat după salvare",
     "modes": {
       "title": "Moduri per frontend",
-      "description": "Cine execută căutarea pentru fiecare frontend de protocol.",
+      "description": "Salvați setările de căutare înainte de a părăsi această pagină; modificările nesalvate se vor pierde.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

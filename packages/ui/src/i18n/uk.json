@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Режим API",
     "standard": "Стандартний",
     "codingPlan": "План кодування",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Діагностика пошуку недоступна в цій версії демона; налаштування провайдерів залишається повністю редагованим.",
     "restartBanner": "Щоб зміни набули чинності, потрібно перезапустити демона: {{providers}}",
     "restartHint": "Набирає чинності після перезапуску демона",
-    "immediateHint": "Набирає чинності одразу",
+    "immediateHint": "Набирає чинності одразу після збереження",
     "modes": {
       "title": "Режими фронтендів",
-      "description": "Хто виконує пошук для кожного фронтенду протоколу.",
+      "description": "Збережіть налаштування пошуку перед виходом із цієї сторінки; незбережені зміни буде втрачено.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

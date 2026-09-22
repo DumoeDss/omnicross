@@ -46,6 +46,7 @@ import tencentAnthropic from './presets/tencent-anthropic.json';
 import together from './presets/together.json';
 import umans from './presets/umans.json';
 import volcengine from './presets/volcengine.json';
+import volcengineAgentPlan from './presets/volcengine-agent-plan.json';
 import xiaomiMimo from './presets/xiaomi-mimo.json';
 import xiaomiMimoAnthropic from './presets/xiaomi-mimo-anthropic.json';
 import zhipu from './presets/zhipu.json';
@@ -79,6 +80,7 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   zhipu,
   zhipuBigmodel,
   volcengine,
+  volcengineAgentPlan,
   kimi,
   dashscope,
   tencent,

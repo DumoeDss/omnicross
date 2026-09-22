@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Tryb API",
     "standard": "Standardowy",
     "codingPlan": "Plan kodowania",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Token Plan)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "Diagnostyka wyszukiwania na żywo jest niedostępna w tej wersji demona; konfiguracja dostawców pozostaje w pełni edytowalna.",
     "restartBanner": "Aby zmiany weszły w życie, wymagany jest restart demona: {{providers}}",
     "restartHint": "Wchodzi w życie po restarcie demona",
-    "immediateHint": "Wchodzi w życie natychmiast",
+    "immediateHint": "Wchodzi w życie natychmiast po zapisaniu",
     "modes": {
       "title": "Tryby frontendów",
-      "description": "Kto wykonuje wyszukiwanie dla każdego frontendu protokołu.",
+      "description": "Zapisz ustawienia wyszukiwania przed opuszczeniem tej strony; niezapisane zmiany zostaną utracone.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"

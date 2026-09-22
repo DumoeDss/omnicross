@@ -463,6 +463,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "API 模式",
     "standard": "按量付费",
     "codingPlan": "Coding Plan",
@@ -481,6 +482,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "智谱 GLM",
     "volcengine": "火山方舟",
+    "volcengineAgentPlan": "火山方舟 Agent Plan",
     "dashscope": "阿里云百炼",
     "tencent": "腾讯云混元",
     "tencentAnthropic": "腾讯云混元 (Token Plan)",
@@ -1413,10 +1415,10 @@
     "diagnosticsUnsupported": "当前守护进程版本不支持搜索诊断；提供方配置仍可完整编辑。",
     "restartBanner": "需要重启守护进程才能生效：{{providers}}",
     "restartHint": "重启守护进程后生效",
-    "immediateHint": "立即生效",
+    "immediateHint": "保存后立即生效",
     "modes": {
       "title": "前端模式",
-      "description": "每个协议前端由谁执行搜索。",
+      "description": "修改后请点击“保存搜索设置”。离开页面会丢失未保存的修改。",
       "codex": "Codex（/v1/alpha/search）",
       "responses": "Responses（web_search）",
       "anthropic": "Anthropic（web_search_*）"

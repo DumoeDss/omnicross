@@ -23,3 +23,11 @@ export function deriveResponsesCompactUrl(createUrl: string): string {
   url.pathname = `${path}/compact`;
   return url.toString();
 }
+
+/** Codex SearchClient appends `alpha/search` to the same provider base as Responses. */
+export function deriveCodexSearchUrl(createUrl: string): string {
+  // Reuse validation, including base-prefix and provider query preservation.
+  const url = new URL(deriveResponsesCompactUrl(createUrl));
+  url.pathname = url.pathname.replace(/\/responses\/compact$/, '/alpha/search');
+  return url.toString();
+}

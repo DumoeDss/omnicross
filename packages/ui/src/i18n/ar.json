@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "وضع API",
     "standard": "قياسي",
     "codingPlan": "خطة البرمجة",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (خطة الرموز)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "تشخيصات البحث المباشرة غير متاحة في هذا الإصدار من الخادم؛ يظل إعداد المزوّدين متاحًا بالكامل.",
     "restartBanner": "يلزم إعادة تشغيل الخادم لتطبيق التغييرات: {{providers}}",
     "restartHint": "يُطبَّق بعد إعادة تشغيل الخادم",
-    "immediateHint": "يُطبَّق فورًا",
+    "immediateHint": "يُطبَّق فورًا بعد الحفظ",
     "modes": {
       "title": "أوضاع الواجهات الأمامية",
-      "description": "من ينفّذ البحث لكل واجهة أمامية للبروتوكول.",
+      "description": "احفظ إعدادات البحث قبل مغادرة الصفحة؛ ستُفقد التغييرات غير المحفوظة.",
       "codex": "Codex ‏(/v1/alpha/search)",
       "responses": "Responses ‏(web_search)",
       "anthropic": "Anthropic ‏(web_search_*)"

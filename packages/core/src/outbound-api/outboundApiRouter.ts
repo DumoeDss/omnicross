@@ -1340,12 +1340,9 @@ export async function handleOutboundRequest(
   // cannot accidentally shadow it. Default mode `off` answers a structured
   // `unsupported_capability`; `managed` executes through the shared runtime.
   //
-  // Unlike the Images branch above, audit bodies are NOT suppressed: making the
-  // request body capturable is a DESIGNED outcome here (see `searchRoute.ts`),
-  // because the Codex request schema is UNVERIFIED and a routed request is the
-  // only way evidence for it can ever accumulate.
+  // Search follows the normal configured audit policy for request bodies.
   //
-  // GATING, decided deliberately: this route checks no `allowedEndpoints`
+  // GATING for managed search: this branch checks no `allowedEndpoints`
   // permission, unlike Images. Search is not one of the four text endpoints and
   // inventing a fifth permission value would ripple through the key schema, the
   // admin surface and every stored key for a capability that is OFF by default
@@ -1353,7 +1350,11 @@ export async function handleOutboundRequest(
   // therefore the MODE, not the key. Per-key gating is a real option if search
   // ever becomes on-by-default; it is recorded as an open decision rather than
   // an oversight (behavior-comparison-report.md §5.6).
-  if (isCodexSearchRequest(req.method, req.url)) {
+  const codexSearch = isCodexSearchRequest(req.method, req.url);
+  const nativeCodexSearch = codexSearch && config.search?.modes.codex === 'native';
+  // Native search uses the same authorized Responses binding, account/key
+  // selection, quotas, and concurrency gate as this client's model requests.
+  if (codexSearch && !nativeCodexSearch) {
     await handleCodexSearchRequest(req, res, {
       mode: config.search?.modes.codex ?? DEFAULT_SEARCH_FRONTEND_MODES.codex,
       runtime: deps.searchRuntime ?? null,
@@ -1428,7 +1429,7 @@ export async function handleOutboundRequest(
     }
     return;
   }
-  const endpoint = selectEndpoint(req.method, req.url);
+  const endpoint = nativeCodexSearch ? 'responses' : selectEndpoint(req.method, req.url);
   if (!endpoint) {
     // No gateway endpoint matches — a direct-bound key still relays the path
     // VERBATIM to its provider (the transparent-proxy tier); the upstream's
@@ -1645,7 +1646,7 @@ export async function handleOutboundRequest(
     // count_tokens skips it — a thinking level never changes a token count.
     let replayBody = rawBody;
     if (
-      !isCountTokens &&
+      !isCountTokens && !nativeCodexSearch &&
       effectiveEndpointConfig.reasoningEffort &&
       injectMappingEffortDefault(endpoint, effectiveEndpointConfig.reasoningEffort, parsedBody)
     ) {
@@ -1749,7 +1750,7 @@ export async function handleOutboundRequest(
     if (
       config.userMessageQueue?.enabled &&
       providerKey &&
-      !isCountTokens &&
+      !isCountTokens && !nativeCodexSearch &&
       isUserMessageRequest(endpoint, parsedBody)
     ) {
       const umq = config.userMessageQueue;
@@ -1818,7 +1819,16 @@ export async function handleOutboundRequest(
       // re-reads the body via `req.on('data'/'end')`, so replay the buffered
       // bytes through a fresh readable that carries the request's metadata.
       const replay = makeReplayRequest(req, replayBody);
-      await routeRequest(replay, res, routeMap, deps.proxyDeps);
+      await routeRequest(replay, res, routeMap, nativeCodexSearch
+        ? {
+            ...deps.proxyDeps,
+            searchFrontendModes: {
+              ...DEFAULT_SEARCH_FRONTEND_MODES,
+              ...deps.proxyDeps.searchFrontendModes,
+              codex: 'native',
+            },
+          }
+        : deps.proxyDeps);
     } catch (err) {
       if (isBoundAccountSelectionError(err)) {
         const headers: Record<string, string> = {};

@@ -133,7 +133,7 @@ describe('default mode: structured unsupported, never a bare 404', () => {
       .toBe('unsupported_capability');
   });
 
-  it('refuses `native` too: there is no upstream passthrough for this route', async () => {
+  it('does not execute native requests through the managed runtime', async () => {
     const { res, captured } = fakeResponse();
     const runtime = stubRuntime(async () => okResponse('q'));
 

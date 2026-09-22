@@ -35,6 +35,9 @@ describe('UpstreamMappingSection end-to-end against a temp daemon', () => {
   let tmp: string;
   let root: Root | null = null;
 
+  // Dynamically imports the whole daemon package and boots a temp instance —
+  // under a full-suite parallel run that import alone can exceed vitest's 10s
+  // default hook timeout (it passes comfortably in isolation).
   beforeAll(async () => {
     const { buildDaemon } = await import('../../../../../daemon/src/bootstrap');
     const { loadConfig } = await import('../../../../../daemon/src/config');
@@ -57,7 +60,7 @@ describe('UpstreamMappingSection end-to-end against a temp daemon', () => {
     const base = daemon.adminServer.getStatus().url;
     if (base === null) throw new Error('admin server did not report a url');
     holder.base = base;
-  });
+  }, 60_000);
 
   afterAll(async () => {
     await daemon.adminServer.stop();

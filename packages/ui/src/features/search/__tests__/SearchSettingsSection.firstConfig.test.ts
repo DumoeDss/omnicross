@@ -95,6 +95,58 @@ function clickSave(): void {
   });
 }
 
+function openMode(frontend: string): HTMLButtonElement {
+  const trigger = container!.querySelector<HTMLButtonElement>(`#search-mode-${frontend}`)!;
+  expect(trigger).not.toBeNull();
+  act(() => trigger.click());
+  return trigger;
+}
+
+function modeOption(mode: string): HTMLButtonElement {
+  const option = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).find(
+    (button) => !container!.contains(button) && button.textContent === `search.mode.${mode}`,
+  );
+  expect(option).toBeDefined();
+  return option!;
+}
+
+describe('search mode editing', () => {
+  it('offers both native and managed Codex search', () => {
+    openMode('codex');
+    expect(modeOption('native').disabled).toBe(false);
+    expect(modeOption('managed').disabled).toBe(false);
+    expect(modeOption('off').disabled).toBe(false);
+
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    openMode('responses');
+    expect(modeOption('native').disabled).toBe(false);
+  });
+
+  it('saves the selected mode from the visible top action and restores it on remount', async () => {
+    const trigger = openMode('codex');
+    const topSave = container!.querySelector<HTMLButtonElement>('.sticky button')!;
+    expect(topSave).not.toBeNull();
+    expect(topSave.compareDocumentPosition(trigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    act(() => modeOption('native').click());
+    expect(savedPayload).toBeNull();
+    await act(async () => topSave.click());
+    expect(savedPayload!.modes).toEqual({ codex: 'native', responses: 'native', anthropic: 'native' });
+
+    const persisted = savedPayload!;
+    act(() => root!.unmount());
+    root = createRoot(container!);
+    act(() => root!.render(React.createElement(SearchSettingsSection, {
+      config: persisted,
+      diagnostics: null,
+      busy: false,
+      onUpdate: async () => undefined,
+      onQuery: async (): Promise<SearchQueryOutcome> => ({ ok: false, error: 'unused' }),
+    })));
+    expect(container!.querySelector('#search-mode-codex')!.textContent).toBe('search.mode.native');
+  });
+});
+
 describe('first-time key configuration from an EMPTY config (the owner repro)', () => {
   it('renders the tavily key input on an unconfigured card — present, focusable, next to the missing-field hint', () => {
     const card = cardFor('Tavily');

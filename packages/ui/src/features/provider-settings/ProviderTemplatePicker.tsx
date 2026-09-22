@@ -41,6 +41,7 @@ const FEATURE_KEYS: Record<string, string> = {
   'mcp-vision': 'providerSettings.presets.features.vision',
   mcp: 'providerSettings.presets.features.mcp',
   'coding-plan': 'providerSettings.presets.features.codingPlan',
+  'agent-plan': 'apiMode.agentPlan',
 };
 
 function featureLabels(features: string[] | undefined, t: (key: string) => string): string[] {

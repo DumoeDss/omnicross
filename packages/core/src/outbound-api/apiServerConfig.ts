@@ -871,8 +871,8 @@ export function normalizeGatewayBindings(raw: unknown): GatewayBinding[] {
  * UPSTREAM ROUTING MODEL: sanitize the per-upstream mapping tables. Rows with
  * a blank source/target are dropped and duplicate sources collapse to the
  * first; the multiple-rows-without-`*` rule is a WRITE-EDGE error (admin
- * API), not a normalize-time drop. Returns undefined when nothing usable
- * remains (⇒ passthrough everywhere).
+ * API), not a normalize-time drop. Explicit empty arrays are retained as the
+ * operator's passthrough choice; missing tables may receive daemon defaults.
  */
 export function normalizeUpstreamModelMappings(
   raw: unknown,
@@ -886,7 +886,7 @@ export function normalizeUpstreamModelMappings(
     const rows = normalizeGatewayModelMappings(value).filter(
       (row, index, all) => all.findIndex((r) => r.source === row.source) === index,
     );
-    if (rows.length > 0) {
+    if (rows.length > 0 || value.length === 0) {
       result[keyTrimmed] = rows;
       any = true;
     }

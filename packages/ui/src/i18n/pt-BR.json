@@ -457,6 +457,7 @@
     }
   },
   "apiMode": {
+    "agentPlan": "Agent Plan",
     "label": "Modo de API",
     "standard": "Padrão",
     "codingPlan": "Plano de codificação",
@@ -475,6 +476,7 @@
     "zhipu": "z.ai",
     "zhipuBigmodel": "Zhipu GLM",
     "volcengine": "Volcengine Ark",
+    "volcengineAgentPlan": "Volcengine Ark Agent Plan",
     "dashscope": "Alibaba DashScope",
     "tencent": "Tencent Hunyuan",
     "tencentAnthropic": "Tencent Hunyuan (Plano de tokens)",
@@ -820,10 +822,10 @@
     "diagnosticsUnsupported": "O diagnóstico de pesquisa ao vivo não está disponível nesta versão do daemon; a configuração dos provedores continua totalmente editável.",
     "restartBanner": "É necessário reiniciar o daemon para aplicar as alterações: {{providers}}",
     "restartHint": "Aplica-se após reiniciar o daemon",
-    "immediateHint": "Aplica-se imediatamente",
+    "immediateHint": "Aplica-se imediatamente após salvar",
     "modes": {
       "title": "Modos por frontend",
-      "description": "Quem executa a pesquisa em cada frontend de protocolo.",
+      "description": "Salve as configurações de pesquisa antes de sair desta página; as alterações não salvas serão perdidas.",
       "codex": "Codex (/v1/alpha/search)",
       "responses": "Responses (web_search)",
       "anthropic": "Anthropic (web_search_*)"
