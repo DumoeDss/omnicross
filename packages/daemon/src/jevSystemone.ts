@@ -4,7 +4,9 @@ import type http from 'node:http';
 import { hashKey, type OutboundKeyDb } from '@omnicross/core';
 import { createLogJevClient, isOpenRouterUpstream, LogJevError } from '@omnicross/core/logjev';
 import type { JevRequest, LogJevClient, LogJevProvider } from '@omnicross/core/logjev';
+import { getOpenCodeGoUserAgent } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
+import { normalizeOpenCodeGoBaseUrl } from '@omnicross/subscriptions';
 
 import { loadConfig } from './config';
 import type { DaemonProviderConfig } from './config';
@@ -12,11 +14,36 @@ import { resolveEnvKey } from './pool/resolveEnvKey';
 
 export { isOpenRouterUpstream, openRouterDecisionsUrl, mapDecisionsResponse } from '@omnicross/core/logjev';
 
-function providerConfig(row: DaemonProviderConfig, allRows: readonly DaemonProviderConfig[]): LogJevProvider {
+/** One opencodego account's chat-relevant credential (secret used in-process only). */
+export interface JevOpenCodeGoAccount {
+  apiKey: string | null;
+  zenBaseUrl?: string;
+}
+
+/** The zen-half chat BASE (`…/zen/v1`) the LogJev client appends its
+ *  `/chat/completions` to — exported for the probe route. */
+export function openCodeGoChatBase(zenBaseUrl?: string): string {
+  return `${normalizeOpenCodeGoBaseUrl(zenBaseUrl ?? 'https://opencode.ai/zen')}/v1`;
+}
+
+/** The opencode.ai egress identity headers (announcement: identify the tool;
+ *  stable session id for cache affinity). Same discipline as the relay path. */
+function openCodeGoIdentityHeaders(): Record<string, string> {
+  return {
+    'user-agent': getOpenCodeGoUserAgent(),
+    'x-opencode-session': 'omnicross-logjev',
+  };
+}
+
+function providerConfig(
+  row: DaemonProviderConfig,
+  allRows: readonly DaemonProviderConfig[],
+  ocAccount?: JevOpenCodeGoAccount | null,
+): LogJevProvider {
   // LogJev-as-selector (chat mode): the row references an ALREADY configured
-  // provider instead of carrying its own key/url — resolve that row's
-  // credentials here so the referenced provider stays the single source of
-  // truth (key rotation, proxy, headers all follow it).
+  // upstream instead of carrying its own key/url — resolve that upstream's
+  // credentials here so it stays the single source of truth (key rotation,
+  // proxy, headers all follow it).
   const upstreamRef = row.logjev?.kind === 'chat' ? row.logjev.upstream : undefined;
   if (upstreamRef?.kind === 'provider') {
     const target = allRows.find(p => p.id === upstreamRef.id && p.category !== 'other'
@@ -31,6 +58,16 @@ function providerConfig(row: DaemonProviderConfig, allRows: readonly DaemonProvi
     const chatBase = target.baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
     return { ...row.logjev, kind: 'chat', baseUrl: chatBase, model: upstreamRef.model,
       apiKey: resolveEnvKey(target.apiKey), headers: target.extraHeaders };
+  }
+  if (upstreamRef?.kind === 'account-pool') {
+    // opencodego's zen half serves the OpenAI chat wire; the account's static
+    // key + zen host override resolve per call (the ACTIVE account today).
+    if (!ocAccount?.apiKey) {
+      throw new LogJevError('invalid_request',
+        'LogJev upstream opencodego account has no API key (账号订阅)');
+    }
+    return { ...row.logjev, kind: 'chat', baseUrl: openCodeGoChatBase(ocAccount.zenBaseUrl),
+      model: upstreamRef.model, apiKey: ocAccount.apiKey, headers: openCodeGoIdentityHeaders() };
   }
   const model = row.models?.[0] ?? 'jev-latest';
   // Preserve old native Jev rows without misrouting Qwen/etc on OpenRouter.
@@ -68,6 +105,12 @@ async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, u
 export function createJevSystemoneMount(deps: {
   configPath: string;
   keyDb: OutboundKeyDb;
+  /**
+   * Resolve an opencodego account's chat credential for account-pool upstream
+   * references (the ACTIVE account; secret used daemon-side only). Optional
+   * for tests; absent ⇒ an account-pool reference fails 422 with guidance.
+   */
+  resolveOpenCodeGoAccount?: () => Promise<JevOpenCodeGoAccount | null>;
 }): (req: http.IncomingMessage, res: http.ServerResponse) => Promise<boolean> {
   const clients = new Map<string, { signature: string; client: LogJevClient }>();
   return async (req, res) => {
@@ -95,11 +138,21 @@ export function createJevSystemoneMount(deps: {
         writeError(res, 409, 'no enabled Jev upstream: add LogJev under LLM Providers → Other (existing open-jev rows remain supported)');
         return true;
       }
-      const config = providerConfig(row, allProviders);
+      // Account-pool references resolve the account credential per call — the
+      // resolved key/zen-host ride the config SIGNATURE below, so an account
+      // switch (rotation, re-keying) transparently rebuilds the client.
+      const needsOcAccount = row.logjev?.kind === 'chat' && row.logjev.upstream?.kind === 'account-pool';
+      const ocAccount = needsOcAccount
+        ? await (deps.resolveOpenCodeGoAccount?.() ?? Promise.resolve(null)).catch(() => null)
+        : undefined;
+      const config = providerConfig(row, allProviders, ocAccount);
       const signature = JSON.stringify(config);
       let entry = clients.get(row.id);
       if (!entry || entry.signature !== signature) {
-        const fetcher: typeof globalThis.fetch = (input, init) => fetchUpstream(String(input), init ?? {}, { providerId: 'byo' });
+        // Account-pool egress rides the opencodego proxy lane + identity; BYO
+        // references keep the byo lane.
+        const fetchProviderId = needsOcAccount ? 'opencodego' : 'byo';
+        const fetcher: typeof globalThis.fetch = (input, init) => fetchUpstream(String(input), init ?? {}, { providerId: fetchProviderId });
         entry = { signature, client: createLogJevClient(config, { fetch: fetcher }) };
         clients.set(row.id, entry);
       }

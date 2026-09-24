@@ -49,6 +49,7 @@ import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-t
 import { getSharedAccountAllowanceScheduling } from '@omnicross/core/pipeline/AccountAllowanceScheduling';
 import { getSharedAccountHealth } from '@omnicross/core/pipeline/SubscriptionAccountHealth';
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
+import { getOpenCodeGoUserAgent } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 import { mergeExtraHeaders } from '@omnicross/core';
 import type { PricingEngine, UsageRecorder } from '@omnicross/core/usage';
 import type { RouteLeaseManager } from '@omnicross/core/provider-proxy';
@@ -156,6 +157,7 @@ import {
   handleOpenCodeGoModelsRoute,
   type OpenCodeGoModelsAccount,
 } from '../allowance/OpenCodeGoModelDiscovery';
+import { openCodeGoChatBase } from '../jevSystemone';
 import {
   handleCopilotOAuthCancel,
   handleCopilotOAuthStart,
@@ -940,11 +942,11 @@ async function handleProviders(
     return await handleProviderReorder(req, res, cfg, deps);
   }
 
-  // POST /providers/logjev-probe { providerId, model } → the LogJev config's
-  // logprobs-support probe (one minimal completion with the reader's exact
-  // parameters). Matched before the `:id` fallthrough, same as `reorder`.
+  // POST /providers/logjev-probe { kind?, providerId, model } → the LogJev
+  // config's logprobs-support probe (one minimal completion with the reader's
+  // exact parameters). Matched before the `:id` fallthrough, same as `reorder`.
   if (method === 'POST' && rest.length === 1 && rest[0] === 'logjev-probe') {
-    return await handleLogJevProbe(req, res, cfg);
+    return await handleLogJevProbe(req, res, cfg, deps);
   }
 
   // POST /providers/:id/discover-models → list upstream models (OpenAI-format
@@ -1523,11 +1525,13 @@ export function chatCompletionsUrlForRow(baseUrl: string): string {
 }
 
 /**
- * `POST /providers/logjev-probe` `{ providerId, model }` — the LogJev
+ * `POST /providers/logjev-probe` `{ kind?, providerId, model }` — the LogJev
  * configuration's SUPPORT probe: one minimal completion carrying the exact
  * logprobs parameters the chat reader sends (`logprobs: true`,
  * `top_logprobs`, `max_tokens: 1`), then the same evidence check the reader
- * applies (`choices[0].logprobs.content[0].top_logprobs` non-empty). Answers
+ * applies (`choices[0].logprobs.content[0].top_logprobs` non-empty).
+ * `kind` defaults to `'provider'` (a 模型服务 row); `'account-pool'` probes
+ * the ACTIVE opencodego account's zen chat wire. Answers
  * `{ ok, supported, message? }`; HTTP 200 even on an unsupported upstream so
  * the UI can render the reason instead of an error.
  */
@@ -1535,31 +1539,58 @@ async function handleLogJevProbe(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   cfg: DaemonConfig,
+  deps: AdminApiDeps,
 ): Promise<void> {
-  const body = (await readJsonBody(req)) as { providerId?: unknown; model?: unknown };
+  const body = (await readJsonBody(req)) as { kind?: unknown; providerId?: unknown; model?: unknown };
+  const kind = body['kind'] === 'account-pool' ? 'account-pool' : 'provider';
   const providerId = typeof body['providerId'] === 'string' ? body['providerId'].trim() : '';
   const model = typeof body['model'] === 'string' ? body['model'].trim() : '';
   if (!providerId || !model) {
     return writeJsonError(res, 400, 'logjev-probe requires { providerId, model } strings');
   }
-  const row = cfg.providers.find((p) => p.id === providerId && p.category !== 'other');
-  if (!row) return writeJsonError(res, 404, `provider '${providerId}' not found`);
-  if (row.apiFormat !== 'openai') {
-    return writeJson(res, 200, { ok: false, supported: false, message: 'LogJev requires an OpenAI-wire (chat completions) provider' });
-  }
-  const resolvedKey = resolveEnvKey(row.apiKey);
-  if (!resolvedKey) {
-    return writeJson(res, 200, { ok: false, supported: false, message: 'no API key configured for this provider' });
+
+  // Resolve the TARGET: url + key + headers for either reference kind.
+  let url: string;
+  let headers: Record<string, string>;
+  let fetchProviderId: 'byo' | 'opencodego' = 'byo';
+  if (kind === 'account-pool') {
+    if (providerId !== 'opencodego') {
+      return writeJson(res, 200, { ok: false, supported: false, message: 'account-pool probes support opencodego only (the sole OpenAI-chat subscription wire)' });
+    }
+    const account = await (deps.resolveOpenCodeGoModelsAccount?.() ?? Promise.resolve(null)).catch(() => null);
+    if (!account?.apiKey) {
+      return writeJson(res, 200, { ok: false, supported: false, message: 'no opencodego account or API key configured (账号订阅)' });
+    }
+    url = `${openCodeGoChatBase(account.zenBaseUrl)}/chat/completions`;
+    headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${account.apiKey}`,
+      // opencode.ai egress identity (same discipline as the relay path).
+      'user-agent': getOpenCodeGoUserAgent(),
+      'x-opencode-session': 'omnicross-logjev-probe',
+    };
+    fetchProviderId = 'opencodego';
+  } else {
+    const row = cfg.providers.find((p) => p.id === providerId && p.category !== 'other');
+    if (!row) return writeJsonError(res, 404, `provider '${providerId}' not found`);
+    if (row.apiFormat !== 'openai') {
+      return writeJson(res, 200, { ok: false, supported: false, message: 'LogJev requires an OpenAI-wire (chat completions) provider' });
+    }
+    const resolvedKey = resolveEnvKey(row.apiKey);
+    if (!resolvedKey) {
+      return writeJson(res, 200, { ok: false, supported: false, message: 'no API key configured for this provider' });
+    }
+    url = chatCompletionsUrlForRow(row.baseUrl);
+    headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${resolvedKey}`,
+    };
+    Object.assign(headers, expandRowExtraHeaders(row));
+    applyAdminProbeIdentity(headers, row);
   }
 
   // Mirror the reader's exact read shape (core/logjev client.ts) so "probe
   // passed" ⇔ "evaluations will find evidence".
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${resolvedKey}`,
-  };
-  Object.assign(headers, expandRowExtraHeaders(row));
-  applyAdminProbeIdentity(headers, row);
   const payload = {
     model,
     messages: [{ role: 'user', content: 'ping' }],
@@ -1574,9 +1605,9 @@ async function handleLogJevProbe(
   const startedAt = Date.now();
   try {
     const response = await fetchUpstream(
-      chatCompletionsUrlForRow(row.baseUrl),
+      url,
       { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(20_000) },
-      { providerId: 'byo' },
+      { providerId: fetchProviderId },
     );
     const latencyMs = Date.now() - startedAt;
     const text = await response.text().catch(() => '');

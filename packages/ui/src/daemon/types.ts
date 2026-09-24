@@ -272,8 +272,13 @@ export interface AgentLLMConfigApi {
   discoverModels(id: string, options?: { forceRefresh?: boolean }): Promise<ProviderModelDiscoveryResult>;
   /** Issue one minimal upstream completion for `model` via the provider's key. */
   testModel(providerId: string, model: string): Promise<ModelTestResult>;
-  /** Probe whether `providerId` + `model` return top_logprobs (LogJev support). */
-  probeLogJev(providerId: string, model: string): Promise<LogJevProbeResult>;
+  /** Probe whether the referenced upstream + `model` return top_logprobs
+   * (LogJev support) — a provider row or an opencodego account pool. */
+  probeLogJev(target: {
+    kind: 'provider' | 'account-pool';
+    id: string;
+    model: string;
+  }): Promise<LogJevProbeResult>;
   addFromPreset(payload: {
     presetId: string;
     apiKey?: string;

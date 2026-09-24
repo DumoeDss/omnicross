@@ -29,4 +29,17 @@ describe('parseLogJevSettings (upstream reference)', () => {
     expect(parsed.upstream).toBeUndefined();
     expect(parsed.promptMode).toBe('minimal');
   });
+
+  it('parses an opencodego account-pool reference (the zen chat wire)', () => {
+    const parsed = parseLogJevSettings({
+      kind: 'chat',
+      upstream: { kind: 'account-pool', providerId: 'opencodego', model: 'kimi-k2.6' },
+    });
+    expect(parsed.upstream).toEqual({ kind: 'account-pool', providerId: 'opencodego', model: 'kimi-k2.6' });
+  });
+
+  it('rejects an account pool other than opencodego, or a missing model', () => {
+    expect(() => parseLogJevSettings({ kind: 'chat', upstream: { kind: 'account-pool', providerId: 'codex', model: 'x' } })).toThrow(/account-pool/);
+    expect(() => parseLogJevSettings({ kind: 'chat', upstream: { kind: 'account-pool', providerId: 'opencodego', model: '' } })).toThrow(/account-pool/);
+  });
 });

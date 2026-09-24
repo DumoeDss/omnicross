@@ -431,11 +431,16 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
       }
     },
 
-    async probeLogJev(providerId: string, model: string): Promise<LogJevProbeResult> {
+    async probeLogJev(target: {
+      kind: 'provider' | 'account-pool';
+      id: string;
+      model: string;
+    }): Promise<LogJevProbeResult> {
       try {
         return await adminClient.post<LogJevProbeResult>('/providers/logjev-probe', {
-          providerId,
-          model,
+          kind: target.kind,
+          providerId: target.id,
+          model: target.model,
         });
       } catch (err) {
         return { ok: false, supported: false, message: err instanceof Error ? err.message : 'probe failed' };

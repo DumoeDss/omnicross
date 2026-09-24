@@ -14,16 +14,20 @@
  */
 import { Activity } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { parseLogJevSettings, type LogJevSettings } from '@omnicross/contracts/logjev';
+import { parseLogJevSettings, type LogJevSettings, type LogJevUpstream } from '@omnicross/contracts/logjev';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { useLlmProvidersData } from '@/shared/state/settingsStore';
 
 import type { LLMProvider } from '@shared/llm-config';
+
+/** Selector value for the opencodego account-pool option. */
+const OC_POOL_VALUE = 'account-pool:opencodego';
 
 /** Candidates for the upstream selector: enabled OpenAI-wire chat providers. */
 function selectableUpstreamProviders(providers: readonly LLMProvider[]): LLMProvider[] {
@@ -45,6 +49,7 @@ export function LogJevFields({ value, onChange, onValidity }: {
 }) {
   const t = useTranslation();
   const { providers } = useLlmProvidersData();
+  const accountsApi = useAccounts();
   const [extra, setExtra] = useState(() => JSON.stringify(value?.extraBody ?? {}, null, 2));
   const [invalid, setInvalid] = useState(false);
   // Probe state for the CURRENT upstream selection.
@@ -52,18 +57,39 @@ export function LogJevFields({ value, onChange, onValidity }: {
   const [probeResult, setProbeResult] = useState<
     { supported: boolean; message?: string; latencyMs?: number } | null
   >(null);
+  // Live model list for the opencodego account-pool option (fetched on select).
+  const [ocModels, setOcModels] = useState<string[] | null>(null);
+  const [ocModelsLoading, setOcModelsLoading] = useState(false);
   const update = (patch: Partial<LogJevSettings>) => onChange({ kind: 'chat', ...value, ...patch });
 
   const upstream = value?.upstream;
+  const isOcPool = upstream?.kind === 'account-pool';
+  const ocAccounts = accountsApi.data.providerAccounts.opencodego ?? [];
   const upstreamProviders = useMemo(() => selectableUpstreamProviders(providers), [providers]);
-  const selectedUpstream = upstreamProviders.find((p) => p.id === upstream?.id);
-  const modelIds = useMemo(() => providerModelIds(selectedUpstream), [selectedUpstream]);
-  const probeReady = Boolean(upstream?.id && upstream?.model);
+  const selectedUpstream = !isOcPool ? upstreamProviders.find((p) => p.id === upstream?.id) : undefined;
+  const modelIds = useMemo(
+    () => (isOcPool ? ocModels ?? [] : providerModelIds(selectedUpstream)),
+    [isOcPool, ocModels, selectedUpstream],
+  );
+  const probeReady = Boolean(upstream && upstream.model);
+  const selectorValue = isOcPool ? OC_POOL_VALUE : upstream?.id ?? '';
 
   const setUpstreamProvider = (id: string) => {
     setProbeResult(null);
+    setOcModels(null);
     if (!id) {
       update({ upstream: undefined });
+      return;
+    }
+    if (id === OC_POOL_VALUE) {
+      update({ upstream: { kind: 'account-pool', providerId: 'opencodego', model: '' } });
+      // Pull the pool's live model list to offer a dropdown (fallback: free
+      // input when the fetch fails or returns nothing).
+      setOcModelsLoading(true);
+      void agent.accounts.listOpenCodeGoModels().then((result) => {
+        setOcModelsLoading(false);
+        setOcModels(result.models);
+      });
       return;
     }
     const target = upstreamProviders.find((p) => p.id === id);
@@ -73,14 +99,22 @@ export function LogJevFields({ value, onChange, onValidity }: {
 
   const setUpstreamModel = (model: string) => {
     setProbeResult(null);
-    update({ upstream: { kind: 'provider', id: upstream?.id ?? '', model } });
+    if (!upstream) return;
+    const next: LogJevUpstream = isOcPool
+      ? { kind: 'account-pool', providerId: 'opencodego', model }
+      : { kind: 'provider', id: upstream.id, model };
+    update({ upstream: next });
   };
 
   const runProbe = async () => {
-    if (!upstream?.id || !upstream.model) return;
+    if (!upstream?.model) return;
     setProbing(true);
     setProbeResult(null);
-    const result = await agent.llmConfig.probeLogJev(upstream.id, upstream.model);
+    const result = await agent.llmConfig.probeLogJev({
+      kind: isOcPool ? 'account-pool' : 'provider',
+      id: isOcPool ? 'opencodego' : (upstream as { id: string }).id,
+      model: upstream.model,
+    });
     setProbing(false);
     setProbeResult({ supported: result.supported, message: result.message, latencyMs: result.latencyMs });
   };
@@ -104,13 +138,18 @@ export function LogJevFields({ value, onChange, onValidity }: {
       <label className="block space-y-1 text-sm">
         <span>{t('logjev.upstream')}</span>
         <Select
-          value={upstream?.id ?? ''}
+          value={selectorValue}
           options={[
             { value: '', label: t('logjev.upstreamSelf') },
             ...upstreamProviders.map((p) => ({
               value: p.id,
               label: p.name || p.id,
             })),
+            // The opencodego ACCOUNT pool (zen half serves the OpenAI chat
+            // wire) — only offered when at least one account exists.
+            ...(ocAccounts.length > 0
+              ? [{ value: OC_POOL_VALUE, label: `${t('accounts.provider.opencodego.title')} · ${t('upstreams.kind.account-pool')}` }]
+              : []),
           ]}
           onChange={setUpstreamProvider}
         />
@@ -130,11 +169,11 @@ export function LogJevFields({ value, onChange, onValidity }: {
               onChange={setUpstreamModel}
             />
           ) : (
-            /* A provider with an empty model list (or one outside the catalog):
-               free-form model id entry. */
+            /* A provider with an empty model list, or the account pool while
+               its live list is loading / unavailable: free-form model entry. */
             <Input
               value={upstream.model}
-              placeholder={t('logjev.upstreamModelPlaceholder')}
+              placeholder={ocModelsLoading ? t('common.loading') : t('logjev.upstreamModelPlaceholder')}
               onChange={(event) => setUpstreamModel(event.target.value)}
               spellCheck={false}
             />

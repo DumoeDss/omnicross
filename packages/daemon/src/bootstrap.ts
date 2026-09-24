@@ -997,7 +997,23 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // open-jev: the Jev systemone decision API on the TRAFFIC port
     // (`POST /v1/systemone`, access-key Bearer auth) — reads through the
     // 'other'-category provider row (prefer id 'open-jev').
-    jevSystemone: createJevSystemoneMount({ configPath: paths.configPath, keyDb }),
+    jevSystemone: createJevSystemoneMount({
+      configPath: paths.configPath,
+      keyDb,
+      // Account-pool upstream references: the ACTIVE opencodego account's chat
+      // credential (secret used daemon-side only).
+      resolveOpenCodeGoAccount: async () => {
+        const config = await credentialStore.getFullConfig();
+        const accounts = config.opencodegoAccounts ?? [];
+        const active = accounts.find((entry) => entry.id === config.activeOpencodegoAccountId) ?? accounts[0];
+        return active
+          ? {
+              apiKey: active.tokens?.apiKey ?? null,
+              ...(active.tokens?.zenBaseUrl ? { zenBaseUrl: active.tokens.zenBaseUrl } : {}),
+            }
+          : null;
+      },
+    }),
     // outbound-key-policy: the wire layer's 402 cost check reads per-key spend.
     keySpendTracker,
     // configurable-logging: route the server's OWN lifecycle + relay dispatch-error

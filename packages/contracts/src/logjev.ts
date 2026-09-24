@@ -7,19 +7,13 @@ export interface LogJevSettings {
   kind: 'chat' | 'jev';
   /**
    * Chat-mode upstream REFERENCE (LogJev-as-selector): instead of storing
-   * another key/url on this row, point at an ALREADY configured provider
-   * (模型服务) and a model on it — the daemon resolves that row's
-   * baseUrl/key/headers at call time. Only meaningful with `kind: 'chat'`;
-   * when set, this row's own url/key/models are ignored.
+   * another key/url on this row, point at an ALREADY configured upstream —
+   * a 模型服务 provider row, or an opencodego ACCOUNT pool (the zen half
+   * serves the OpenAI chat wire) — and a model on it. The daemon resolves
+   * credentials at call time. Only meaningful with `kind: 'chat'`; when set,
+   * this row's own url/key/models are ignored.
    */
-  upstream?: {
-    /** The referenced row's kind (a 模型服务 provider row today). */
-    kind: 'provider';
-    /** The referenced provider row's id. */
-    id: string;
-    /** The model to read logprobs from on that upstream. */
-    model: string;
-  };
+  upstream?: LogJevUpstream;
   promptMode?: JevPromptMode;
   topk?: number;
   readTemperature?: number;
@@ -30,6 +24,25 @@ export interface LogJevSettings {
   /** Nonsecret model options, e.g. chat_template_kwargs.enable_thinking. */
   extraBody?: JevJsonObject;
 }
+/** A chat-mode upstream reference (see `LogJevSettings.upstream`). */
+export type LogJevUpstream =
+  | {
+      /** A 模型服务 provider row (its baseUrl/key/headers resolve at call time). */
+      kind: 'provider';
+      /** The referenced provider row's id. */
+      id: string;
+      /** The model to read logprobs from on that upstream. */
+      model: string;
+    }
+  | {
+      /** An opencodego ACCOUNT pool — the zen half serves `/v1/chat/completions`. */
+      kind: 'account-pool';
+      /** The subscription provider id (opencodego — the only chat-wire pool today). */
+      providerId: 'opencodego';
+      /** The model to read logprobs from on that upstream. */
+      model: string;
+    };
+
 export interface JevMessage {
   role: 'system' | 'user' | 'assistant';
   content: string | JevJsonObject[];
@@ -87,12 +100,21 @@ export function parseLogJevSettings(value: unknown): LogJevSettings {
   const out: LogJevSettings = { kind: value.kind };
   if (value.upstream !== undefined) {
     const upstream = value.upstream;
-    if (!isRecord(upstream) || upstream.kind !== 'provider' ||
-        typeof upstream.id !== 'string' || !upstream.id.trim() ||
-        typeof upstream.model !== 'string' || !upstream.model.trim()) {
-      throw new Error('logjev.upstream must be { kind: "provider", id, model } with non-empty id and model');
+    if (!isRecord(upstream)) throw new Error('logjev.upstream must be an object');
+    const model = typeof upstream.model === 'string' ? upstream.model.trim() : '';
+    if (upstream.kind === 'provider') {
+      if (typeof upstream.id !== 'string' || !upstream.id.trim() || !model) {
+        throw new Error('logjev.upstream must be { kind: "provider", id, model } with non-empty id and model');
+      }
+      out.upstream = { kind: 'provider', id: upstream.id, model };
+    } else if (upstream.kind === 'account-pool') {
+      if (upstream.providerId !== 'opencodego' || !model) {
+        throw new Error('logjev.upstream account pools must be { kind: "account-pool", providerId: "opencodego", model }');
+      }
+      out.upstream = { kind: 'account-pool', providerId: 'opencodego', model };
+    } else {
+      throw new Error('logjev.upstream.kind must be "provider" or "account-pool"');
     }
-    out.upstream = { kind: 'provider', id: upstream.id, model: upstream.model };
   }
   if (value.promptMode !== undefined) {
     if (value.promptMode !== 'full' && value.promptMode !== 'minimal') {
