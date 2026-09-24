@@ -27,6 +27,18 @@ describe('normalizeFingerprint', () => {
   it('coerces a non-true enabled to false', () => {
     expect(normalizeFingerprint({ fingerprint: { enabled: 'yes' as never } }).enabled).toBe(false);
   });
+
+  it('carries a strict three-part minCliVersion (trimmed)', () => {
+    const f = normalizeFingerprint({ fingerprint: { enabled: true, minCliVersion: ' 2.1.280 ' } });
+    expect(f.minCliVersion).toBe('2.1.280');
+  });
+
+  it('DROPS a non-semver minCliVersion (never a floor naming a nonexistent version)', () => {
+    for (const bad of ['2.1', 'v2.1.280', '2.1.280-local', 'abc', '']) {
+      expect(normalizeFingerprint({ fingerprint: { enabled: true, minCliVersion: bad } }).minCliVersion)
+        .toBeUndefined();
+    }
+  });
 });
 
 describe('normalizeServerConfig — fingerprint segment', () => {

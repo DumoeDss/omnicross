@@ -3,7 +3,8 @@
  * daemon's persisted account entries (subscription-client-fingerprint #7, P2).
  *
  * Mirrors `getSharedAccountHealth().configure(...)` at boot: `applyFingerprintConfig`
- * `configure`s the shared `SubscriptionIdentityStore` (enabled + UA baseline) from
+ * `configure`s the shared `SubscriptionIdentityStore` (enabled + UA baseline +
+ * claude-cli version floor) from
  * the persisted `fingerprint` segment, and — when ENABLED — SEEDS the in-memory
  * store from each account's persisted `identity` (so a claude account's replayed
  * identity survives restart) and installs a write-through persistence port (so a
@@ -56,7 +57,12 @@ export async function applyFingerprintConfig(
 ): Promise<void> {
   const store = getSharedIdentityStore();
   const enabled = config?.enabled === true;
-  store.configure({ enabled, ua: config?.ua ?? null });
+  store.configure({
+    enabled,
+    ua: config?.ua ?? null,
+    // claude-cli-version-floor: absent/invalid ⇒ the store's built-in pin.
+    cliVersionFloor: config?.minCliVersion ?? null,
+  });
 
   if (!enabled) {
     store.setPersistence(null);

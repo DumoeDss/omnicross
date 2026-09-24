@@ -18,8 +18,13 @@
  *    (the auth strategy owns auth; content-type is fixed) and never overwrites a
  *    header the outbound build already set (case-insensitive).
  *  - Values are only ever REAL captured client headers — nothing here fabricates
- *    a `x-stainless-*` value. The only synthesizable piece is the operator-set UA
- *    baseline, applied in `applyFingerprint` ONLY when NOTHING was captured.
+ *    a `x-stainless-*` value. The only synthesizable pieces are the operator-set
+ *    UA baseline, applied in `applyFingerprint` ONLY when NOTHING was captured,
+ *    and the claude-cli version FLOOR (`floorClaudeCliUserAgent`): on replay a
+ *    `claude-cli/X.Y.Z` UA strictly older than the floor has its version segment
+ *    raised (never lowered, never a non-claude-cli UA) — the ONE deliberate
+ *    departure from byte-honest replay, because Anthropic's per-model
+ *    client-version gates would otherwise reject a stale frozen identity forever.
  *
  * @module provider-proxy/identity/fingerprintHeaders
  */
@@ -28,6 +33,79 @@ import type { SubscriptionIdentityStore } from './SubscriptionIdentityStore';
 
 /** Header-name prefix that marks a stainless (SDK-runtime) fingerprint header. */
 export const STAINLESS_PREFIX = 'x-stainless-';
+
+/**
+ * The built-in `claude-cli` version floor applied to REPLAYED identity
+ * user-agents (claude-cli-version-floor). Anthropic enforces PER-MODEL
+ * client-version minimums keyed off the relayed `user-agent` (e.g. a model
+ * requiring `claude-cli >= 2.1.280` answers
+ * `Claude Code X.Y.Z does not support this model; version A.B.C or newer is
+ * required` — surfaced by the CLI as an "upgrade required" prompt). A frozen
+ * fingerprint captured with an older CLI would fail that gate FOREVER (the
+ * 7-day TTL refresh only helps once a newer client actually flows through the
+ * account), so on replay the claude-cli version is RAISED to this floor —
+ * never lowered. Operator-raisable via `fingerprint.minCliVersion`.
+ */
+export const DEFAULT_CLAUDE_CLI_VERSION_FLOOR = '2.1.280';
+
+/** `claude-cli/2.1.280 (external, cli)` — product, three-part version, suffix. */
+const CLAUDE_CLI_UA_REGEX = /^claude-cli\/(\d+)\.(\d+)\.(\d+)(.*)$/;
+
+/**
+ * Strict three-part numeric semver ("2.1.280"): no `v` prefix, no omitted
+ * segments, no prerelease/build suffix. The SAME predicate gates the operator
+ * `fingerprint.minCliVersion` override at config-normalize AND at store
+ * configure, so an invalid value can never become the replay floor (a floor
+ * like "2.1.x" would rewrite every frozen UA to a nonexistent client version).
+ */
+export function isValidCliSemver(version: string | undefined | null): boolean {
+  return typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version.trim());
+}
+
+/** Numeric triple compare: -1 / 0 / +1. An unparsable value compares as 0.0.0. */
+export function compareCliSemver(a: string, b: string): number {
+  const parse = (v: string): [number, number, number] => {
+    const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v.trim());
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0];
+  };
+  const [a1, a2, a3] = parse(a);
+  const [b1, b2, b3] = parse(b);
+  return a1 - b1 || a2 - b2 || a3 - b3;
+}
+
+/**
+ * Raise a `claude-cli/X.Y.Z` user-agent's version to `floor` when it is
+ * strictly older — NEVER lower, and never touch a non-claude-cli UA (the
+ * operator baseline may name another product) or an absent one. The product
+ * name and suffix (` (external, cli)` etc.) are preserved verbatim, so the
+ * rewritten UA stays a shape the real client plausibly sent. Returns
+ * `undefined` for a UA the floor does not apply to.
+ */
+export function floorClaudeCliUserAgent(
+  ua: string | undefined,
+  floor: string,
+): { ua: string; changed: boolean } | undefined {
+  if (typeof ua !== 'string') return undefined;
+  const match = CLAUDE_CLI_UA_REGEX.exec(ua);
+  if (!match) return undefined;
+  const [, maj, min, patch, suffix] = match;
+  if (compareCliSemver(`${maj}.${min}.${patch}`, floor) >= 0) {
+    return { ua, changed: false };
+  }
+  return { ua: `claude-cli/${floor}${suffix}`, changed: true };
+}
+
+/**
+ * Floor the `user-agent` in an outbound header bag IN PLACE (case-insensitive
+ * lookup; the original key spelling is preserved). No-op for a bag with no
+ * user-agent or a non-claude-cli one.
+ */
+function applyUserAgentFloor(headers: Record<string, string>, floor: string): void {
+  const key = Object.keys(headers).find((k) => k.toLowerCase() === 'user-agent');
+  if (!key) return;
+  const floored = floorClaudeCliUserAgent(headers[key], floor);
+  if (floored?.changed) headers[key] = floored.ua;
+}
 
 /**
  * Positive whitelist of NON-stainless fingerprint header names a real Claude Code
@@ -197,10 +275,16 @@ export function applyFingerprint(
   const identity = store.replay(providerId, accountId);
   if (identity) {
     mergeFrozenIdentity(headers, identity);
+    // claude-cli-version-floor: raise a stale frozen UA past Anthropic's
+    // per-model client-version gates (never lowered; see the constant).
+    applyUserAgentFloor(headers, store.cliVersionFloor());
     return;
   }
   // Never captured → NO fabricated stainless. The ONLY synthesizable piece is the
   // operator UA baseline (a plausible stable UA is safer than a bare one).
   const ua = store.uaBaseline();
-  if (ua) mergeFrozenIdentity(headers, { 'user-agent': ua });
+  if (ua) {
+    mergeFrozenIdentity(headers, { 'user-agent': ua });
+    applyUserAgentFloor(headers, store.cliVersionFloor());
+  }
 }

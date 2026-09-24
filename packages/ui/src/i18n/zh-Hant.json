@@ -1295,7 +1295,7 @@
     },
     "fingerprint": {
       "title": "用戶端指紋",
-      "description": "在中轉的 Claude 訂閱流量上呈現穩定、真實的每帳號用戶端身分，使其與真正的 Claude Code 用戶端難以區分。指紋標頭（x-stainless-*、user-agent、anthropic-beta）從真實用戶端請求中擷取、依帳號凍結並重播——絕不偽造。預設關閉；關閉時出站標頭保持不變。重新啟動後生效。",
+      "description": "在中轉的 Claude 訂閱流量上呈現穩定、真實的每帳號用戶端身分，使其與真正的 Claude Code 用戶端難以區分。指紋標頭（x-stainless-*、user-agent、anthropic-beta）從真實用戶端請求中擷取、依帳號凍結並重播——絕不偽造（唯一例外：重播的 claude-cli 版本低於下方下限時會被抬升到該值）。預設關閉；關閉時出站標頭保持不變。重新啟動後生效。",
       "enable": {
         "label": "啟用指紋重播",
         "description": "總開關。關閉時不擷取也不重播任何標頭（零回歸）。"
@@ -1304,6 +1304,11 @@
         "label": "User-Agent 基準",
         "description": "選填。僅套用於尚無擷取身分的帳號（絕不偽造 stainless 標頭）。留空則在擷取到真實用戶端前傳送目前的標頭。",
         "placeholder": "例如 claude-cli/1.0.0"
+      },
+      "minCliVersion": {
+        "label": "claude-cli 最低版本",
+        "description": "Anthropic 會依中轉請求的 user-agent 對新模型設定用戶端版本下限（版本過舊的 CLI 在新模型上會收到「需要升級」錯誤）。重播時，低於該下限的凍結 claude-cli 版本會被抬升到此值——只升不降，非 claude-cli 的 UA 不受影響——確保過期指紋也能通過新模型的版本閘門。嚴格三段版本號；無效值將被忽略。",
+        "placeholder": "例如 2.1.280（內建預設）"
       },
       "save": "儲存指紋設定",
       "restartHint": "重新啟動守護行程後生效。"

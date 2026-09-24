@@ -314,6 +314,12 @@ export interface FingerprintConfig {
   enabled: boolean;
   /** Operator UA baseline for un-captured accounts (never a fabricated stainless). */
   ua?: string;
+  /**
+   * Operator override of the claude-cli version floor for replayed identity
+   * user-agents (claude-cli-version-floor). Strict three-part semver; invalid
+   * values are dropped by the daemon and the built-in default applies.
+   */
+  minCliVersion?: string;
 }
 
 /** Default-off allowance-aware subscription account scheduling policy. */

@@ -1296,7 +1296,7 @@
     },
     "fingerprint": {
       "title": "客户端指纹",
-      "description": "在中转的 Claude 订阅流量上呈现稳定、真实的每账号客户端身份，使其与真正的 Claude Code 客户端难以区分。指纹请求头（x-stainless-*、user-agent、anthropic-beta）从真实客户端请求中捕获、按账号冻结并重放——绝不伪造。默认关闭；关闭时出站请求头保持不变。重启后生效。",
+      "description": "在中转的 Claude 订阅流量上呈现稳定、真实的每账号客户端身份，使其与真正的 Claude Code 客户端难以区分。指纹请求头（x-stainless-*、user-agent、anthropic-beta）从真实客户端请求中捕获、按账号冻结并重放——绝不伪造（唯一例外：重放的 claude-cli 版本低于下方下限时会被抬升到该值）。默认关闭；关闭时出站请求头保持不变。重启后生效。",
       "enable": {
         "label": "启用指纹重放",
         "description": "总开关。关闭时不捕获也不重放任何请求头（零回归）。"
@@ -1305,6 +1305,11 @@
         "label": "User-Agent 基线",
         "description": "可选。仅应用于尚无捕获身份的账号（绝不伪造 stainless 头）。留空则在捕获到真实客户端前发送当前请求头。",
         "placeholder": "例如 claude-cli/1.0.0"
+      },
+      "minCliVersion": {
+        "label": "claude-cli 最低版本",
+        "description": "Anthropic 会按中转请求的 user-agent 对新模型设置客户端版本下限（版本过旧的 CLI 在新模型上会收到“需要升级”错误）。重放时，低于该下限的冻结 claude-cli 版本会被抬升到此值——只升不降，非 claude-cli 的 UA 不受影响——确保过期指纹也能通过新模型的版本闸门。严格三段版本号；非法值将被忽略。",
+        "placeholder": "例如 2.1.280（内置默认）"
       },
       "save": "保存指纹设置",
       "restartHint": "重启守护进程后生效。"

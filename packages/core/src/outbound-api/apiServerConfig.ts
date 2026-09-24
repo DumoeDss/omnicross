@@ -27,6 +27,7 @@ import {
   type WebhookEventKind,
 } from '@omnicross/contracts/webhook-types';
 
+import { isValidCliSemver } from '../provider-proxy/identity/fingerprintHeaders';
 import { isKindMappedEndpoint, modelKindsForEndpoint } from './kindDetection';
 import { DEFAULT_OUTBOUND_PORT } from './OutboundApiServer';
 import { normalizeImagesServerConfig } from './imagesServerConfig';
@@ -247,6 +248,13 @@ export function normalizeFingerprint(
   const f = raw?.fingerprint;
   const out: FingerprintConfig = { enabled: f?.enabled === true };
   if (typeof f?.ua === 'string' && f.ua.trim().length > 0) out.ua = f.ua.trim();
+  // claude-cli-version-floor: carry the operator floor ONLY when it is a strict
+  // three-part semver — an invalid value is dropped (not coerced) so the store's
+  // built-in pin applies and the frozen UAs never get floored to a nonexistent
+  // client version.
+  if (typeof f?.minCliVersion === 'string' && isValidCliSemver(f.minCliVersion)) {
+    out.minCliVersion = f.minCliVersion.trim();
+  }
   return out;
 }
 

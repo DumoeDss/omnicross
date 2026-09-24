@@ -14,7 +14,11 @@ import { describe, expect, it } from 'vitest';
 import {
   applyFingerprint,
   captureCallerIdentity,
+  compareCliSemver,
+  DEFAULT_CLAUDE_CLI_VERSION_FLOOR,
   extractFingerprintHeaders,
+  floorClaudeCliUserAgent,
+  isValidCliSemver,
   mergeFrozenIdentity,
   refreshNonStainless,
   sanitizeFrozenHeaders,
@@ -37,6 +41,14 @@ function claudeCodeHeaders(): Record<string, string | string[] | undefined> {
     authorization: 'Bearer sk-ant-oat01-SECRET',
     'x-api-key': 'sk-ant-SECRET',
     cookie: 'session=SECRET',
+  };
+}
+
+/** The relay's built header bag `applyFingerprint` merges the identity into. */
+function relayBaseHeaders(): Record<string, string> {
+  return {
+    'content-type': 'application/json',
+    authorization: 'Bearer live-oauth-token',
   };
 }
 
@@ -148,21 +160,17 @@ describe('captureCallerIdentity (the ingress gate)', () => {
 });
 
 describe('applyFingerprint (the relay composition)', () => {
-  const baseHeaders = (): Record<string, string> => ({
-    'content-type': 'application/json',
-    authorization: 'Bearer live-oauth-token',
-  });
 
   it('disabled ⇒ strict no-op (outbound headers byte-identical)', () => {
     const store = new SubscriptionIdentityStore({ enabled: false });
-    const headers = baseHeaders();
+    const headers = relayBaseHeaders();
     applyFingerprint(store, headers, 'claude', 'acc-1', extractFingerprintHeaders(claudeCodeHeaders()));
     expect(headers).toEqual({ 'content-type': 'application/json', authorization: 'Bearer live-oauth-token' });
   });
 
   it('no account id ⇒ strict no-op even when enabled', () => {
     const store = new SubscriptionIdentityStore({ enabled: true });
-    const headers = baseHeaders();
+    const headers = relayBaseHeaders();
     applyFingerprint(store, headers, 'claude', undefined, extractFingerprintHeaders(claudeCodeHeaders()));
     expect(headers).toEqual({ 'content-type': 'application/json', authorization: 'Bearer live-oauth-token' });
   });
@@ -171,29 +179,30 @@ describe('applyFingerprint (the relay composition)', () => {
     const store = new SubscriptionIdentityStore({ enabled: true });
     const caller = extractFingerprintHeaders(claudeCodeHeaders());
 
-    // First request captures-then-replays (its own real headers).
-    const first = baseHeaders();
+    // First request captures-then-replays (its own real headers). The 1.2.3 UA is
+    // below the default floor ⇒ raised (see the floor describe below).
+    const first = relayBaseHeaders();
     applyFingerprint(store, first, 'claude', 'acc-1', caller);
     expect(first['x-stainless-lang']).toBe('js');
-    expect(first['user-agent']).toBe('claude-cli/1.2.3 (external, cli)');
+    expect(first['user-agent']).toBe(`claude-cli/${DEFAULT_CLAUDE_CLI_VERSION_FLOOR} (external, cli)`);
     expect(first['authorization']).toBe('Bearer live-oauth-token');
     expect(first['content-type']).toBe('application/json');
 
     // A SUBSEQUENT request with NO caller headers still replays the frozen set.
-    const later = baseHeaders();
+    const later = relayBaseHeaders();
     applyFingerprint(store, later, 'claude', 'acc-1', undefined);
     expect(later['x-stainless-lang']).toBe('js');
     expect(later['x-stainless-package-version']).toBe('0.30.1');
-    expect(later['user-agent']).toBe('claude-cli/1.2.3 (external, cli)');
+    expect(later['user-agent']).toBe(`claude-cli/${DEFAULT_CLAUDE_CLI_VERSION_FLOOR} (external, cli)`);
     // And NEVER an auth/secret value:
     expect(Object.values(later).join('|').toLowerCase()).not.toContain('sk-ant');
   });
 
   it('per-account isolation: account A identity never appears on account B', () => {
     const store = new SubscriptionIdentityStore({ enabled: true });
-    applyFingerprint(store, baseHeaders(), 'claude', 'acc-A', { 'x-stainless-lang': 'js-A' });
+    applyFingerprint(store, relayBaseHeaders(), 'claude', 'acc-A', { 'x-stainless-lang': 'js-A' });
 
-    const bHeaders = baseHeaders();
+    const bHeaders = relayBaseHeaders();
     applyFingerprint(store, bHeaders, 'claude', 'acc-B', undefined);
     expect(bHeaders['x-stainless-lang']).toBeUndefined();
     expect(bHeaders).toEqual({ 'content-type': 'application/json', authorization: 'Bearer live-oauth-token' });
@@ -201,7 +210,7 @@ describe('applyFingerprint (the relay composition)', () => {
 
   it('uncaptured account ⇒ NO fabricated stainless (no UA baseline configured ⇒ no-op)', () => {
     const store = new SubscriptionIdentityStore({ enabled: true });
-    const headers = baseHeaders();
+    const headers = relayBaseHeaders();
     applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
     expect(headers).toEqual({ 'content-type': 'application/json', authorization: 'Bearer live-oauth-token' });
     // No x-stainless-* invented.
@@ -210,7 +219,7 @@ describe('applyFingerprint (the relay composition)', () => {
 
   it('uncaptured account + UA baseline ⇒ ONLY user-agent applied (never a stainless value)', () => {
     const store = new SubscriptionIdentityStore({ enabled: true, ua: 'omnicross-baseline/1.0' });
-    const headers = baseHeaders();
+    const headers = relayBaseHeaders();
     applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
     expect(headers['user-agent']).toBe('omnicross-baseline/1.0');
     expect(Object.keys(headers).some((k) => k.startsWith('x-stainless-'))).toBe(false);
@@ -218,9 +227,133 @@ describe('applyFingerprint (the relay composition)', () => {
 
   it('a request carrying NO fingerprint headers freezes nothing ⇒ falls back to UA baseline', () => {
     const store = new SubscriptionIdentityStore({ enabled: true, ua: 'baseline/1' });
-    const headers = baseHeaders();
+    const headers = relayBaseHeaders();
     applyFingerprint(store, headers, 'claude', 'acc-1', {}); // empty caller bag
     expect(headers['user-agent']).toBe('baseline/1');
     expect(store.hasIdentity('claude', 'acc-1')).toBe(false);
+  });
+});
+
+describe('claude-cli version floor (claude-cli-version-floor)', () => {
+  describe('isValidCliSemver / compareCliSemver', () => {
+    it('accepts only strict three-part numeric semver', () => {
+      expect(isValidCliSemver('2.1.280')).toBe(true);
+      expect(isValidCliSemver(' 2.1.280 ')).toBe(true); // trimmed
+      expect(isValidCliSemver('2.1')).toBe(false);
+      expect(isValidCliSemver('v2.1.280')).toBe(false);
+      expect(isValidCliSemver('2.1.280-local')).toBe(false);
+      expect(isValidCliSemver('2.1.280+build')).toBe(false);
+      expect(isValidCliSemver('')).toBe(false);
+      expect(isValidCliSemver(undefined)).toBe(false);
+    });
+
+    it('compares numeric triples, not strings', () => {
+      expect(compareCliSemver('2.1.9', '2.1.10')).toBeLessThan(0);
+      expect(compareCliSemver('2.2.0', '2.1.280')).toBeGreaterThan(0);
+      expect(compareCliSemver('2.1.280', '2.1.280')).toBe(0);
+      expect(compareCliSemver('10.0.0', '9.9.9')).toBeGreaterThan(0);
+    });
+  });
+
+  describe('floorClaudeCliUserAgent', () => {
+    it('raises an older claude-cli version, preserving product + suffix verbatim', () => {
+      expect(floorClaudeCliUserAgent('claude-cli/1.2.3 (external, cli)', '2.1.280')).toEqual({
+        ua: 'claude-cli/2.1.280 (external, cli)',
+        changed: true,
+      });
+      expect(floorClaudeCliUserAgent('claude-cli/2.0.53', '2.1.280')).toEqual({
+        ua: 'claude-cli/2.1.280',
+        changed: true,
+      });
+    });
+
+    it('NEVER lowers: an equal/newer version is returned unchanged', () => {
+      expect(floorClaudeCliUserAgent('claude-cli/2.1.280 (external, cli)', '2.1.280')).toEqual({
+        ua: 'claude-cli/2.1.280 (external, cli)',
+        changed: false,
+      });
+      expect(floorClaudeCliUserAgent('claude-cli/3.0.0 (external, cli)', '2.1.280')?.changed).toBe(false);
+    });
+
+    it('leaves non-claude-cli and absent UAs alone (undefined)', () => {
+      expect(floorClaudeCliUserAgent('omnicross-baseline/1.0', '2.1.280')).toBeUndefined();
+      expect(floorClaudeCliUserAgent(undefined, '2.1.280')).toBeUndefined();
+      // Not a version-shaped claude-cli UA either — do not guess a rewrite.
+      expect(floorClaudeCliUserAgent('claude-cli/dev', '2.1.280')).toBeUndefined();
+    });
+  });
+
+  describe('applyFingerprint floors the REPLAYED user-agent', () => {
+    it('stale frozen UA (captured with an old CLI) is raised to the configured floor', () => {
+      const store = new SubscriptionIdentityStore({ enabled: true, cliVersionFloor: '2.1.200' });
+      applyFingerprint(store, relayBaseHeaders(), 'claude', 'acc-1', {
+        'user-agent': 'claude-cli/2.0.10 (external, cli)',
+      });
+      const headers = relayBaseHeaders();
+      applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
+      expect(headers['user-agent']).toBe('claude-cli/2.1.200 (external, cli)');
+    });
+
+    it('frozen UA already at/above the floor replays byte-identically', () => {
+      const store = new SubscriptionIdentityStore({ enabled: true, cliVersionFloor: '2.1.200' });
+      applyFingerprint(store, relayBaseHeaders(), 'claude', 'acc-1', {
+        'user-agent': 'claude-cli/9.9.9 (external, cli)',
+      });
+      const headers = relayBaseHeaders();
+      applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
+      expect(headers['user-agent']).toBe('claude-cli/9.9.9 (external, cli)');
+    });
+
+    it('the UA baseline is floored too when it names claude-cli; other products untouched', () => {
+      const store = new SubscriptionIdentityStore({
+        enabled: true,
+        ua: 'claude-cli/2.0.53 (external, cli)',
+        cliVersionFloor: '2.1.280',
+      });
+      const headers = relayBaseHeaders();
+      applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
+      expect(headers['user-agent']).toBe('claude-cli/2.1.280 (external, cli)');
+
+      const other = new SubscriptionIdentityStore({
+        enabled: true,
+        ua: 'omnicross-baseline/1.0',
+        cliVersionFloor: '2.1.280',
+      });
+      const otherHeaders = relayBaseHeaders();
+      applyFingerprint(other, otherHeaders, 'claude', 'acc-1', undefined);
+      expect(otherHeaders['user-agent']).toBe('omnicross-baseline/1.0');
+    });
+
+    it('default floor: the built-in pin applies with no operator override', () => {
+      const store = new SubscriptionIdentityStore({ enabled: true });
+      applyFingerprint(store, relayBaseHeaders(), 'claude', 'acc-1', {
+        'user-agent': 'claude-cli/1.2.3 (external, cli)',
+      });
+      const headers = relayBaseHeaders();
+      applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
+      expect(headers['user-agent']).toBe(`claude-cli/${DEFAULT_CLAUDE_CLI_VERSION_FLOOR} (external, cli)`);
+    });
+
+    it('floors under the original key spelling (case-insensitive lookup)', () => {
+      const store = new SubscriptionIdentityStore({ enabled: true, cliVersionFloor: '2.1.280' });
+      applyFingerprint(store, relayBaseHeaders(), 'claude', 'acc-1', {
+        'user-agent': 'claude-cli/2.0.0 (external, cli)',
+      });
+      const headers: Record<string, string> = {
+        ...relayBaseHeaders(),
+        'User-Agent': 'claude-cli/2.0.0 (external, cli)',
+      };
+      applyFingerprint(store, headers, 'claude', 'acc-1', undefined);
+      expect(headers['User-Agent']).toBe('claude-cli/2.1.280 (external, cli)');
+      expect(headers['user-agent']).toBeUndefined();
+    });
+
+    it('the frozen STORE keeps the honest captured bytes (floor is replay-only)', () => {
+      const store = new SubscriptionIdentityStore({ enabled: true, cliVersionFloor: '2.1.280' });
+      applyFingerprint(store, relayBaseHeaders(), 'claude', 'acc-1', {
+        'user-agent': 'claude-cli/2.0.0 (external, cli)',
+      });
+      expect(store.replay('claude', 'acc-1')?.['user-agent']).toBe('claude-cli/2.0.0 (external, cli)');
+    });
   });
 });

@@ -532,6 +532,16 @@ export interface FingerprintConfig {
   enabled: boolean;
   /** Operator UA baseline for un-captured accounts (piece 4). Absent ⇒ none. */
   ua?: string;
+  /**
+   * Operator override of the claude-cli version floor applied to REPLAYED
+   * identity user-agents (claude-cli-version-floor). Anthropic enforces
+   * per-model client-version minimums on the relayed `user-agent`; a frozen
+   * fingerprint captured with an older CLI would fail that gate forever, so on
+   * replay the version is raised to this floor (never lowered; non-claude-cli
+   * UAs untouched). Strict three-part semver — anything else is DROPPED at
+   * normalize and the built-in default applies. Absent ⇒ built-in default.
+   */
+  minCliVersion?: string;
 }
 
 /**

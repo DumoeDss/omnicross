@@ -1292,7 +1292,7 @@
     },
     "fingerprint": {
       "title": "Client fingerprint",
-      "description": "Present a stable, real per-account client identity on relayed Claude subscription traffic so it blends with a genuine Claude Code client. Fingerprint headers (x-stainless-*, user-agent, anthropic-beta) are captured from real client requests, frozen per account, and replayed — never fabricated. Off by default; when off, outbound headers are unchanged. Takes effect on restart.",
+      "description": "Present a stable, real per-account client identity on relayed Claude subscription traffic so it blends with a genuine Claude Code client. Fingerprint headers (x-stainless-*, user-agent, anthropic-beta) are captured from real client requests, frozen per account, and replayed — never fabricated (the one exception: a replayed claude-cli version older than the floor below is raised to it). Off by default; when off, outbound headers are unchanged. Takes effect on restart.",
       "enable": {
         "label": "Enable fingerprint replay",
         "description": "Master switch. When off, no headers are captured or replayed (zero regression)."
@@ -1301,6 +1301,11 @@
         "label": "User-Agent baseline",
         "description": "Optional. Applied only to an account with no captured identity yet (never a fabricated stainless header). Leave blank to send today's headers until a real client is captured.",
         "placeholder": "e.g. claude-cli/1.0.0"
+      },
+      "minCliVersion": {
+        "label": "Minimum claude-cli version",
+        "description": "Anthropic enforces per-model client-version minimums on the relayed user-agent (an older CLI gets an \"upgrade required\" error on new models). On replay, a frozen claude-cli version below this floor is raised to it — never lowered, non-claude-cli UAs untouched — so a stale fingerprint still passes new-model version gates. Strict three-part version; invalid values are ignored.",
+        "placeholder": "e.g. 2.1.280 (built-in default)"
       },
       "save": "Save fingerprint settings",
       "restartHint": "Takes effect on daemon restart."

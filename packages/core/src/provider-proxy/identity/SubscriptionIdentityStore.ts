@@ -30,7 +30,12 @@
  * @module provider-proxy/identity/SubscriptionIdentityStore
  */
 
-import { refreshNonStainless, sanitizeFrozenHeaders } from './fingerprintHeaders';
+import {
+  DEFAULT_CLAUDE_CLI_VERSION_FLOOR,
+  isValidCliSemver,
+  refreshNonStainless,
+  sanitizeFrozenHeaders,
+} from './fingerprintHeaders';
 
 /** A frozen per-account client identity (the captured fingerprint headers). */
 export interface FrozenIdentity {
@@ -64,6 +69,13 @@ export interface SubscriptionIdentityStoreOptions {
   ua?: string;
   /** The CC-header refresh TTL (ms). Default {@link CC_HEADER_TTL_MS}. */
   ccHeaderTtlMs?: number;
+  /**
+   * The claude-cli version floor replayed user-agents are raised to
+   * (claude-cli-version-floor). Strict three-part semver; anything else falls
+   * back to {@link DEFAULT_CLAUDE_CLI_VERSION_FLOOR} (with a warning — an
+   * invalid floor must never rewrite UAs to a nonexistent client version).
+   */
+  cliVersionFloor?: string;
 }
 
 const KEY_SEP = '\0';
@@ -74,12 +86,31 @@ function normalizeUa(ua: string | undefined): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Resolve a configured floor to a usable version: valid strict semver wins;
+ * anything else (including absent) falls back to the built-in pin. An explicit
+ * but invalid override warns — silently ignoring it would leave the operator
+ * believing the floor was applied.
+ */
+function normalizeCliFloor(value: string | undefined): string {
+  if (value === undefined) return DEFAULT_CLAUDE_CLI_VERSION_FLOOR;
+  const trimmed = value.trim();
+  if (isValidCliSemver(trimmed)) return trimmed;
+  console.warn(
+    `[SubscriptionIdentityStore] ignoring invalid claude-cli version floor ${JSON.stringify(value)}; ` +
+      `using the built-in ${DEFAULT_CLAUDE_CLI_VERSION_FLOOR} ` +
+      '(requirement: strict three-part semver, e.g. 2.1.280)',
+  );
+  return DEFAULT_CLAUDE_CLI_VERSION_FLOOR;
+}
+
 export class SubscriptionIdentityStore {
   private readonly identities = new Map<string, FrozenIdentity>();
   private readonly now: () => number;
   private enabled: boolean;
   private ua: string | undefined;
   private ccHeaderTtlMs: number;
+  private cliFloor: string;
   private persistence: IdentityPersistencePort | null = null;
 
   constructor(opts: SubscriptionIdentityStoreOptions = {}) {
@@ -87,6 +118,7 @@ export class SubscriptionIdentityStore {
     this.enabled = opts.enabled ?? false;
     this.ua = normalizeUa(opts.ua);
     this.ccHeaderTtlMs = opts.ccHeaderTtlMs ?? CC_HEADER_TTL_MS;
+    this.cliFloor = normalizeCliFloor(opts.cliVersionFloor);
   }
 
   /** Whether capture/replay is engaged (config flag). */
@@ -99,14 +131,22 @@ export class SubscriptionIdentityStore {
     return this.ua;
   }
 
+  /** The effective claude-cli version floor (claude-cli-version-floor). */
+  cliVersionFloor(): string {
+    return this.cliFloor;
+  }
+
   /**
    * Re-apply config to the LIVE shared instance (bootstrap, mirroring the health
    * tracker's `configure`). Only defined fields override; `ua: null` clears the
-   * baseline.
+   * baseline; `cliVersionFloor: null` resets the floor to the built-in pin.
    */
-  configure(opts: { enabled?: boolean; ua?: string | null }): void {
+  configure(opts: { enabled?: boolean; ua?: string | null; cliVersionFloor?: string | null }): void {
     if (opts.enabled !== undefined) this.enabled = opts.enabled;
     if (opts.ua !== undefined) this.ua = normalizeUa(opts.ua ?? undefined);
+    if (opts.cliVersionFloor !== undefined) {
+      this.cliFloor = normalizeCliFloor(opts.cliVersionFloor ?? undefined);
+    }
   }
 
   /** Install (or clear) the write-through persistence port (P2). */

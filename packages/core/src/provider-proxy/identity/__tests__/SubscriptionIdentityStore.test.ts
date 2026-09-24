@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_CLAUDE_CLI_VERSION_FLOOR } from '../fingerprintHeaders';
 import {
   CC_HEADER_TTL_MS,
   type FrozenIdentity,
@@ -99,6 +100,27 @@ describe('SubscriptionIdentityStore config + UA baseline', () => {
     store.configure({ ua: null });
     expect(store.uaBaseline()).toBeUndefined();
     expect(store.isEnabled()).toBe(true); // enabled untouched
+  });
+
+  it('cliVersionFloor: built-in default, valid override, null reset, invalid fallback', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const store = new SubscriptionIdentityStore();
+      expect(store.cliVersionFloor()).toBe(DEFAULT_CLAUDE_CLI_VERSION_FLOOR);
+      store.configure({ cliVersionFloor: ' 2.2.0 ' });
+      expect(store.cliVersionFloor()).toBe('2.2.0');
+      store.configure({ cliVersionFloor: null });
+      expect(store.cliVersionFloor()).toBe(DEFAULT_CLAUDE_CLI_VERSION_FLOOR);
+      // Invalid overrides fall back to the built-in pin AND warn (never a floor
+      // like "2.1.x" that would rewrite UAs to a nonexistent client version).
+      store.configure({ cliVersionFloor: '2.1' });
+      expect(store.cliVersionFloor()).toBe(DEFAULT_CLAUDE_CLI_VERSION_FLOOR);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(new SubscriptionIdentityStore({ cliVersionFloor: 'v2.1.280' }).cliVersionFloor())
+        .toBe(DEFAULT_CLAUDE_CLI_VERSION_FLOOR);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

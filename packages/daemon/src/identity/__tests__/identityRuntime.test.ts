@@ -12,6 +12,7 @@ import {
   __resetSharedIdentityStoreForTests,
   getSharedIdentityStore,
 } from '@omnicross/core/provider-proxy/identity/SubscriptionIdentityStore';
+import { DEFAULT_CLAUDE_CLI_VERSION_FLOOR } from '@omnicross/core/provider-proxy/identity/fingerprintHeaders';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import * as accountMulti from '../../ports/account-multi';
@@ -82,6 +83,16 @@ describe('applyFingerprintConfig', () => {
     const store = new FakeCredentialStore(configWithClaudeAccount());
     await applyFingerprintConfig({ enabled: true, ua: 'baseline/2' }, store);
     expect(getSharedIdentityStore().uaBaseline()).toBe('baseline/2');
+  });
+
+  it('enabled ⇒ applies the operator claude-cli version floor; absent ⇒ built-in pin', async () => {
+    const store = new FakeCredentialStore(configWithClaudeAccount());
+    await applyFingerprintConfig({ enabled: true, minCliVersion: '2.2.0' }, store);
+    expect(getSharedIdentityStore().cliVersionFloor()).toBe('2.2.0');
+
+    const unset = new FakeCredentialStore(configWithClaudeAccount());
+    await applyFingerprintConfig({ enabled: true }, unset);
+    expect(getSharedIdentityStore().cliVersionFloor()).toBe(DEFAULT_CLAUDE_CLI_VERSION_FLOOR);
   });
 
   it('disabled ⇒ store stays disabled and NO write-through is wired', async () => {

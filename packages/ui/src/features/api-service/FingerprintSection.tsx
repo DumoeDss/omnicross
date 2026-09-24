@@ -4,7 +4,10 @@
  *
  * Edits the `server.fingerprint` segment: a master enable switch + an OPTIONAL
  * operator UA baseline (applied only to accounts with no captured identity —
- * never a fabricated stainless value). Opt-in, default OFF: disabled ⇒ the
+ * never a fabricated stainless value) + an OPTIONAL claude-cli version floor
+ * (replayed identity UAs older than the floor are raised to it, never lowered,
+ * so a stale frozen fingerprint still passes Anthropic's per-model
+ * client-version gates). Opt-in, default OFF: disabled ⇒ the
  * claude-subscription outbound headers are byte-identical to before. A change
  * takes effect on daemon restart. Carries NO secret and never surfaces another
  * account's captured headers.
@@ -71,6 +74,20 @@ export function FingerprintSection({ config, busy, onUpdate }: FingerprintSectio
           placeholder={t('apiService.fingerprint.ua.placeholder')}
           onChange={(e) => patch({ ua: e.target.value || undefined })}
           aria-label={t('apiService.fingerprint.ua.label')}
+        />
+      </SettingRow>
+
+      <SettingRow
+        label={t('apiService.fingerprint.minCliVersion.label')}
+        description={t('apiService.fingerprint.minCliVersion.description')}
+      >
+        <Input
+          className="w-64"
+          value={draft.minCliVersion ?? ''}
+          disabled={busy || !draft.enabled}
+          placeholder={t('apiService.fingerprint.minCliVersion.placeholder')}
+          onChange={(e) => patch({ minCliVersion: e.target.value || undefined })}
+          aria-label={t('apiService.fingerprint.minCliVersion.label')}
         />
       </SettingRow>
 
