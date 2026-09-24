@@ -91,6 +91,50 @@ describe('composeAllowanceCycles', () => {
     });
   });
 
+  it('does not infer a cycle from an unused Codex window whose deadline follows the clock', () => {
+    const snapshot = liveSnapshot(NOW + WEEK);
+    snapshot.windows[0].usedPercent = 0;
+    expect(composeAllowanceCycles([], [snapshot], NOW)).toEqual([]);
+    // Reading the same cached snapshot later must not make its projection
+    // look like an established cycle.
+    expect(composeAllowanceCycles([], [snapshot], NOW + DAY)).toEqual([]);
+  });
+
+  it('keeps a real reset open until first use fixes its deadline without splitting the cycle', () => {
+    const reset = NOW - 6 * 60 * MIN;
+    const event = boundary({
+      kind: 'unscheduled',
+      cycleStartMs: reset,
+      windowMinutes: WEEK / MIN,
+      previousUsedPercent: 100,
+      usedPercent: 0,
+      resetsAt: new Date(reset + WEEK).toISOString(),
+    });
+    const idle = liveSnapshot(NOW + WEEK);
+    idle.windows[0].usedPercent = 0;
+    expect(composeAllowanceCycles([event], [idle], NOW)).toMatchObject([
+      { startTs: reset, endTs: null, resetsAt: null, kind: 'unscheduled' },
+    ]);
+    const firstUse = NOW - 60 * MIN;
+    const active = liveSnapshot(firstUse + WEEK);
+    expect(composeAllowanceCycles([event], [active], NOW)).toMatchObject([
+      { startTs: reset, endTs: firstUse + WEEK, kind: 'unscheduled' },
+    ]);
+  });
+
+  it('still infers a later cycle after a full window has passed since a reset', () => {
+    const reset = NOW - 2 * WEEK;
+    const event = boundary({
+      cycleStartMs: reset,
+      windowMinutes: WEEK / MIN,
+      usedPercent: 0,
+      resetsAt: new Date(reset + WEEK).toISOString(),
+    });
+    const cycles = composeAllowanceCycles([event], [liveSnapshot(NOW + 5 * DAY)], NOW);
+    expect(cycles).toHaveLength(2);
+    expect(cycles[0]).toMatchObject({ kind: 'live', startTs: NOW - 2 * DAY });
+  });
+
   it('does not duplicate a live start an event already marks', () => {
     const resetsAt = NOW + 5 * DAY;
     const start = resetsAt - WEEK;

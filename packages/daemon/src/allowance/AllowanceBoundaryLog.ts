@@ -21,6 +21,8 @@
  * WHAT COUNTS AS A BOUNDARY (per account, on the tracked window — the widest
  * window of at least MIN_TRACKED_WINDOW_MINUTES, i.e. the weekly/billing
  * window; a 5-hour Claude window is deliberately noise):
+ *  - An unused Codex window can report `resetsAt = observedAt + window` on
+ *    every poll until first use. This moving projection is NOT a reset.
  *  - `resetsAt` MOVED by ≈ its window length → `scheduled` (the ordinary
  *    weekly roll). `cycleStartMs` = the PREVIOUS `resetsAt`, which is the exact
  *    expiry instant of the old window even when observed late.
@@ -102,10 +104,25 @@ export function trackedAllowanceWindow(
   return best;
 }
 
+/**
+ * Before first use, Codex can project a full window from every observation.
+ * This is not an anchored deadline, even when supplied as absolute reset_at.
+ * Compare with the snapshot's observation time, not the later cache-read time.
+ */
+export function isUnstartedCodexWindow(
+  window: { resetsAt?: string; windowMinutes?: number; usedPercent?: number | null },
+  observedMs: number,
+): boolean {
+  if (window.usedPercent !== 0 || !window.resetsAt || !window.windowMinutes) return false;
+  const inferredStart = Date.parse(window.resetsAt) - window.windowMinutes * 60_000;
+  return Number.isFinite(observedMs) && Math.abs(inferredStart - observedMs) < 90_000;
+}
+
 interface BaselineEntry {
   resetsAt: string | undefined;
   usedPercent: number | null | undefined;
   windowMinutes: number | undefined;
+  unstarted: boolean;
 }
 
 type Baseline = Map<string, BaselineEntry>;
@@ -136,6 +153,8 @@ function baselineFromLoaded(loaded: unknown): Baseline {
       resetsAt: window.resetsAt,
       usedPercent: window.usedPercent,
       windowMinutes: window.windowMinutes,
+      unstarted: snapshot.providerId === 'codex' &&
+        isUnstartedCodexWindow(window, Date.parse(normalized.observedAt)),
     });
   }
   return out;
@@ -163,6 +182,13 @@ export function detectAllowanceBoundaryEvents(
     const prevResetMs = prev?.resetsAt !== undefined ? Date.parse(prev.resetsAt) : Number.NaN;
     const nextResetMs = window.resetsAt !== undefined ? Date.parse(window.resetsAt) : Number.NaN;
     const bothFinite = Number.isFinite(prevResetMs) && Number.isFinite(nextResetMs);
+    const unstarted = snapshot.providerId === 'codex' &&
+      isUnstartedCodexWindow(window, Date.parse(snapshot.observedAt));
+    // A floating deadline, including its final move on first use, must not
+    // create a boundary. A real expiry or a nonzero -> zero reset still does.
+    const idleAnchorMoved = snapshot.providerId === 'codex' && bothFinite &&
+      nextResetMs >= prevResetMs &&
+      (prev?.unstarted || (prev?.usedPercent === 0 && unstarted && prevResetMs > observedMs));
     // Sub-tolerance wobble ≡ unchanged anchor. The baseline keeps the
     // first-seen instant so a flip-flopping wobble can neither fire on each
     // poll nor accumulate step-by-step into a phantom boundary; a genuine
@@ -173,12 +199,14 @@ export function detectAllowanceBoundaryEvents(
       Math.abs(nextResetMs - prevResetMs) < RESET_JITTER_TOLERANCE_MS;
 
     next.set(key, {
-      resetsAt: jittered ? prev!.resetsAt : window.resetsAt,
+      resetsAt: jittered && !idleAnchorMoved ? prev!.resetsAt : window.resetsAt,
       usedPercent: window.usedPercent,
       windowMinutes: window.windowMinutes,
+      unstarted,
     });
 
     if (!prev) continue; // first observation: establish the baseline silently
+    if (idleAnchorMoved) continue;
 
     const windowMs =
       (window.windowMinutes ?? prev.windowMinutes ?? 0) * 60_000 || 604_800_000;
@@ -228,12 +256,18 @@ export function detectAllowanceBoundaryEvents(
  * A ledger row whose `resetsAt` "move" is inside the jitter dead band — a
  * phantom boundary written before the band existed. Such rows self-heal out of
  * every consumer's view at parse time (the ledger itself is append-only and
- * never rewritten). Rows without both instants (`in-place`) never qualify.
+ * never rewritten). Counter-reset rows (`in-place`) and legacy `unscheduled`
+ * rows with a meaningful usage drop never qualify.
  */
 function isJitterBoundaryRow(parsed: Partial<AccountAllowanceBoundaryEvent>): boolean {
-  if (typeof parsed.previousResetsAt !== 'string' || typeof parsed.resetsAt !== 'string') {
+  if (parsed.kind !== 'unscheduled' ||
+      typeof parsed.previousResetsAt !== 'string' || typeof parsed.resetsAt !== 'string') {
     return false;
   }
+  // Older detectors classified any deadline movement as unscheduled before
+  // checking the counter. Preserve the real reset when both happened together.
+  if (typeof parsed.previousUsedPercent === 'number' && typeof parsed.usedPercent === 'number' &&
+      parsed.previousUsedPercent - parsed.usedPercent >= IN_PLACE_DROP_PERCENT) return false;
   const prevMs = Date.parse(parsed.previousResetsAt);
   const nextMs = Date.parse(parsed.resetsAt);
   return (
@@ -243,11 +277,21 @@ function isJitterBoundaryRow(parsed: Partial<AccountAllowanceBoundaryEvent>): bo
   );
 }
 
+/** Ignore legacy rows created by polling an unused Codex window. */
+function isIdleCodexBoundaryRow(parsed: Partial<AccountAllowanceBoundaryEvent>): boolean {
+  if (parsed.providerId !== 'codex' || parsed.kind !== 'unscheduled' ||
+      parsed.previousUsedPercent !== 0 || typeof parsed.previousResetsAt !== 'string' ||
+      typeof parsed.observedAt !== 'string') return false;
+  const observedMs = Date.parse(parsed.observedAt);
+  return Date.parse(parsed.previousResetsAt) > observedMs &&
+    isUnstartedCodexWindow(parsed, observedMs);
+}
+
 /**
  * Parse the ledger. Torn/malformed lines are skipped (the JSONL contract);
  * an oversized or unreadable file reads as empty — a damaged ledger must never
- * take the allowance surface down with it. Phantom jitter rows are filtered
- * (see {@link isJitterBoundaryRow}).
+ * take the allowance surface down with it. Phantom jitter and idle-window rows
+ * are filtered without rewriting the ledger.
  */
 export function readAllowanceBoundaryEvents(logPath: string): AccountAllowanceBoundaryEvent[] {
   if (!existsSync(logPath)) return [];
@@ -267,7 +311,7 @@ export function readAllowanceBoundaryEvents(logPath: string): AccountAllowanceBo
           typeof parsed.accountId === 'string' &&
           (parsed.kind === 'scheduled' || parsed.kind === 'unscheduled' || parsed.kind === 'in-place') &&
           typeof parsed.cycleStartMs === 'number' && Number.isFinite(parsed.cycleStartMs) &&
-          !isJitterBoundaryRow(parsed)
+          !isJitterBoundaryRow(parsed) && !isIdleCodexBoundaryRow(parsed)
         ) {
           out.push(parsed as AccountAllowanceBoundaryEvent);
         }

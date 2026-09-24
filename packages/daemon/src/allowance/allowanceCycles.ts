@@ -4,7 +4,7 @@
  *
  * The ledger holds OBSERVED boundaries (and will hold none for cycles that
  * began before the feature existed or while the daemon was down); the live
- * snapshot's `resetsAt`/`windowMinutes` always pins the CURRENT cycle's span.
+ * snapshot's anchored `resetsAt`/`windowMinutes` pins the CURRENT cycle's span.
  * Merging the two: each boundary event contributes a start; the live window's
  * start (`resetsAt − windowMinutes`) is added when no event already marks it —
  * such an inferred start is flagged `kind: 'live'` so the UI can say the exact
@@ -21,7 +21,11 @@ import type {
 } from '@omnicross/contracts/account-allowance-types';
 import type { SubscriptionProviderId } from '@omnicross/contracts/subscription-types';
 
-import { trackedAllowanceWindow, type AccountAllowanceBoundaryEvent } from './AllowanceBoundaryLog';
+import {
+  isUnstartedCodexWindow,
+  trackedAllowanceWindow,
+  type AccountAllowanceBoundaryEvent,
+} from './AllowanceBoundaryLog';
 
 /** How the start of a cycle was established. */
 export type AllowanceCycleKind = AccountAllowanceBoundaryEvent['kind'] | 'live';
@@ -73,6 +77,8 @@ interface StartEntry {
   startMs: number;
   kind: AllowanceCycleKind;
   boundaryObservedAt: string | null;
+  /** A real reset observed before Codex anchored the new window on first use. */
+  awaitingFirstUse: boolean;
 }
 
 /**
@@ -94,7 +100,13 @@ export function composeAllowanceCycles(
     const list = starts.get(key) ?? [];
     const last = list[list.length - 1];
     if (last && Math.abs(last.startMs - event.cycleStartMs) < SAME_BOUNDARY_MS) continue;
-    list.push({ startMs: event.cycleStartMs, kind: event.kind, boundaryObservedAt: event.observedAt });
+    list.push({
+      startMs: event.cycleStartMs,
+      kind: event.kind,
+      boundaryObservedAt: event.observedAt,
+      awaitingFirstUse: event.providerId === 'codex' &&
+        isUnstartedCodexWindow(event, Date.parse(event.observedAt)),
+    });
     starts.set(key, list);
   }
 
@@ -103,6 +115,10 @@ export function composeAllowanceCycles(
   for (const snapshot of snapshots) {
     const window: AllowanceWindow | null = trackedAllowanceWindow(snapshot);
     if (!window?.resetsAt || !window.windowMinutes) continue;
+    // Zero usage with a full window remaining is only a moving projection.
+    // Keep any observed reset open until first use supplies an anchored end.
+    if (snapshot.providerId === 'codex' &&
+        isUnstartedCodexWindow(window, Date.parse(snapshot.observedAt))) continue;
     const resetMs = Date.parse(window.resetsAt);
     if (!Number.isFinite(resetMs)) continue;
     const key = keyOf(snapshot);
@@ -110,8 +126,14 @@ export function composeAllowanceCycles(
     const liveStartMs = resetMs - window.windowMinutes * 60_000;
     const list = starts.get(key) ?? [];
     const covered = list.some((entry) => Math.abs(entry.startMs - liveStartMs) < SAME_BOUNDARY_MS);
-    if (!covered && liveStartMs <= now) {
-      list.push({ startMs: liveStartMs, kind: 'live', boundaryObservedAt: null });
+    const latest = list[list.length - 1];
+    // The reset and the later first request belong to one cycle. Do not add
+    // an inferred start between them just because the idle deadline moved.
+    const followsObservedReset = latest?.awaitingFirstUse &&
+      latest.startMs <= liveStartMs &&
+      liveStartMs - latest.startMs < window.windowMinutes * 60_000;
+    if (!covered && !followsObservedReset && liveStartMs <= now) {
+      list.push({ startMs: liveStartMs, kind: 'live', boundaryObservedAt: null, awaitingFirstUse: false });
       starts.set(key, list);
     }
   }
