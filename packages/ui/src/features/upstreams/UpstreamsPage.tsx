@@ -403,6 +403,15 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     if (provider?.kind !== 'provider') return undefined;
     return (provider.provider.models ?? []).map((model) => model.trim()).find(Boolean);
   };
+  /** The guidance dialog is chat-routing advice — a category-'other' provider
+   *  (Jev / LogJev) never routes, so it gets no post-add guidance at all. */
+  const createdProviderIsOther = (providerId: string | null): boolean => {
+    if (!providerId) return false;
+    const provider = resources.find(
+      (resource) => resource.kind === 'provider' && resource.providerId === providerId,
+    );
+    return provider?.kind === 'provider' && provider.provider.category === 'other';
+  };
   const dismissProviderHint = (): void => {
     if (hintMuted) {
       try {
@@ -659,7 +668,10 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           ) : selectedResource.kind === 'provider' ? (
             <div className="flex h-full min-h-0 flex-col">
               {/* Providers are mapping-table keys too — the mapping affordance
-                  lives on their detail page (same as subscription pools). */}
+                  lives on their detail page (same as subscription pools).
+                  category-'other' rows (Jev / LogJev — decision engines) never
+                  enter chat routing, so they carry no mapping surface. */}
+              {selectedResource.provider.category === 'other' ? null : (
               <div className="shrink-0 border-b border-border/70 px-5 py-3 md:px-6">
                 <UpstreamMappingSection
                   upstreamKey={selectedResource.providerId}
@@ -668,6 +680,7 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
                   onAutoOpened={() => setMappingAutoOpenKey(null)}
                 />
               </div>
+              )}
               <div className="min-h-0 flex-1">
                 <ProviderSettings
                   embedded
@@ -729,7 +742,9 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
               mode="create"
               onProviderCreated={(providerId) => {
                 setAddProviderOpen(false);
-                if (!providerCreatedHintMuted()) setCreatedProviderHint(providerId);
+                if (!providerCreatedHintMuted() && !createdProviderIsOther(providerId)) {
+                  setCreatedProviderHint(providerId);
+                }
               }}
               onRequestClose={() => setAddProviderOpen(false)}
             />

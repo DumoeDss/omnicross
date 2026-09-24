@@ -74,10 +74,9 @@ export const prettifyGroupLabel = (value: string) => {
     .join(' ');
 };
 
-export const deriveAutoGroupIdFromModelId = (providerId: string | undefined, modelId: string): string | null => {
-  if (!providerId || !AGGREGATED_PROVIDER_IDS.has(providerId)) {
-    return null;
-  }
+/** The `vendor` segment of an aggregator-style model id (`vendor/model`,
+ *  `vendor:model`) — `null` when the id carries no prefix. */
+export const vendorSegmentOfModelId = (modelId: string): string | null => {
   const normalized = modelId.trim();
   if (!normalized) {
     return null;
@@ -93,16 +92,34 @@ export const deriveAutoGroupIdFromModelId = (providerId: string | undefined, mod
   return null;
 };
 
+export const deriveAutoGroupIdFromModelId = (providerId: string | undefined, modelId: string): string | null => {
+  if (!providerId || !AGGREGATED_PROVIDER_IDS.has(providerId)) {
+    return null;
+  }
+  return vendorSegmentOfModelId(modelId);
+};
+
+/**
+ * Whether a provider's rows get vendor-prefix auto-grouping (`vendor/model`
+ * → a `vendor` group). The preset-id set covers the stock aggregators; the
+ * URL check picks up every OTHER row pointing at the same aggregator (the
+ * `openrouter-response` preset, a custom OpenRouter row under any id).
+ */
+export const isAggregatedProvider = (provider: LLMProvider | null): boolean => {
+  if (!provider) return false;
+  return AGGREGATED_PROVIDER_IDS.has(provider.id) || isOpenRouterProvider(provider);
+};
+
 export const buildAutoGroupsFromConfigs = (
   provider: LLMProvider | null,
   configs: ModelConfig[]
 ): ModelGroup[] | null => {
-  if (!provider || !AGGREGATED_PROVIDER_IDS.has(provider.id)) {
+  if (!isAggregatedProvider(provider)) {
     return null;
   }
   const buckets = new Map<string, ModelConfig[]>();
   configs.forEach((model) => {
-    const derived = deriveAutoGroupIdFromModelId(provider.id, model.id);
+    const derived = vendorSegmentOfModelId(model.id);
     const groupId = derived || DEFAULT_MODEL_GROUP_ID;
     const entry = buckets.get(groupId) ?? [];
     entry.push(model);
@@ -127,10 +144,12 @@ export const buildAutoGroupsFromCatalog = (
   if (!provider || !entries.length) {
     return [];
   }
+  const aggregated = isAggregatedProvider(provider);
   const buckets = new Map<string, ProviderModelDiscoveryEntry[]>();
   entries.forEach((entry) => {
-    // First try to derive group from model ID (for aggregated providers like OpenRouter)
-    const derived = deriveAutoGroupIdFromModelId(provider.id, entry.id);
+    // First try to derive group from model ID (for aggregated providers like
+    // OpenRouter — matched by preset id OR base URL)
+    const derived = aggregated ? vendorSegmentOfModelId(entry.id) : null;
     // Then use entry.group (e.g., "Gemini 2.5", "Claude Sonnet") for UI grouping
     // Finally fall back to entry.category or default
     const groupId =

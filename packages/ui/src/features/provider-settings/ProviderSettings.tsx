@@ -130,6 +130,7 @@ export function ProviderSettings({
     handleApplyModelEdit,
     handleApplyEditModelDialog,
     handleToggleModelEnabled,
+    handleSetModelsEnabled,
     loadModelDiscovery,
     onShowEditModelDialog
   } = useProviderSettings({
@@ -149,10 +150,13 @@ export function ProviderSettings({
   const showReentryBanner =
     missingKeyCount > 0 && !reentryDismissed && !categoryFilter;
   // In a category-filtered view the add flow must only offer that category's
-  // presets — a bare chat API type is never what the 其他 page is for.
+  // presets — a bare chat API type is never what the 其他 page is for. The
+  // REVERSE also holds: category-'other' presets (Jev / LogJev — decision
+  // engines, not chat backends) are ONLY addable from the 其他 page, so the
+  // unfiltered chat add flow (模型服务 / provider settings) never offers them.
   const pickerPresets = categoryFilter === 'other'
     ? presets.filter((preset) => preset.category === 'other')
-    : presets;
+    : presets.filter((preset) => preset.category !== 'other');
 
   return (
     <>
@@ -287,6 +291,7 @@ export function ProviderSettings({
                 onShowAddModelDialog={() => setShowAddModelDialog(true)}
                 onApplyModelEdit={handleApplyModelEdit}
                 onToggleModelEnabled={handleToggleModelEnabled}
+                onSetModelsEnabled={handleSetModelsEnabled}
                 onRemoveModel={handleRemoveModel}
                 onShowEditModelDialog={onShowEditModelDialog}
               />

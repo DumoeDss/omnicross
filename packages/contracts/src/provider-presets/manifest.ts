@@ -33,6 +33,7 @@ import minimax from './presets/minimax.json';
 import minimaxTokenPlan from './presets/minimax-token-plan.json';
 import mistral from './presets/mistral.json';
 import mthreads from './presets/mthreads.json';
+import nim from './presets/nim.json';
 import ollama from './presets/ollama.json';
 import openai from './presets/openai.json';
 import openaiResponse from './presets/openai-response.json';
@@ -72,6 +73,7 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   openrouterResponse,
   mistral,
   together,
+  nim,
   perplexity,
   synthetic,
   umans,

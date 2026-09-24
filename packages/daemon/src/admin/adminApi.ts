@@ -1121,6 +1121,24 @@ export function anthropicModelDiscoveryUrls(baseUrl: string): string[] {
   return [...new Set(candidates)];
 }
 
+/**
+ * Scope a LOGJEV row's discovered ids to the Jev family. A logjev provider's
+ * model list feeds DECISIONS only, but aggregator upstreams (OpenRouter)
+ * answer `/models` with their whole chat catalog — keep just the ids whose
+ * model segment is `jev` or `jev-*` (e.g. `typesafe/jev-latest`, `jev-latest`).
+ * Non-logjev rows pass through untouched. Pure; exported for tests.
+ */
+export function scopeDiscoveredIdsToJev(
+  row: DaemonProviderConfig,
+  ids: readonly string[],
+): string[] {
+  if (!row.logjev) return [...ids];
+  return ids.filter((id) => {
+    const model = id.slice(Math.max(id.lastIndexOf('/'), id.lastIndexOf(':')) + 1);
+    return /^jev(-|$)/i.test(model);
+  });
+}
+
 /** Fetch one `/models` URL; `ids` empty + `error` set on any failure (the
  *  caller tries the next candidate). Shared by the openai-wire path and the
  *  anthropic probe list. Never throws. */
@@ -1152,10 +1170,15 @@ async function fetchModelsFromUrl(
     }
     const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
     if (!Array.isArray(data?.data)) return { ids: [], error: 'discovery failed: unexpected /models payload' };
-    const ids = data.data
+    const rawIds = data.data
       .map((entry) => (typeof entry?.id === 'string' ? entry.id.trim() : ''))
       .filter((id) => id.length > 0);
-    if (ids.length === 0) return { ids: [], error: 'discovery failed: the /models endpoint returned no models' };
+    if (rawIds.length === 0) return { ids: [], error: 'discovery failed: the /models endpoint returned no models' };
+    // A logjev row keeps only the Jev-family ids (see scopeDiscoveredIdsToJev).
+    const ids = scopeDiscoveredIdsToJev(row, rawIds);
+    if (ids.length === 0) {
+      return { ids: [], error: 'discovery failed: the /models response carries no Jev-family models (jev / jev-*)' };
+    }
     return { ids };
   } catch (err) {
     return { ids: [], error: `discovery failed: ${err instanceof Error ? err.message : String(err)}` };

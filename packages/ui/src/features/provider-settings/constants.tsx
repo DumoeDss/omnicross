@@ -47,6 +47,8 @@ export const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   groq: <Cpu className="h-5 w-5 text-orange-500" />,
   grok: <Zap className="h-5 w-5 text-red-500" />,
   cerebras: <Cpu className="h-5 w-5 text-red-500" />,
+  // NVIDIA NIM (build.nvidia.com hosted inference)
+  nim: <Cpu className="h-5 w-5 text-green-600" />,
   // Others
   mistral: <Zap className="h-5 w-5 text-orange-600" />,
   together: <Cloud className="h-5 w-5 text-blue-500" />,

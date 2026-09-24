@@ -259,7 +259,11 @@
         "retest": "Re-test",
         "testButton": "Test model",
         "unsupportedFormat": "Testing isn't supported for this provider format yet."
-      }
+      },
+      "toggleAll": "All",
+      "enabledCount": "{{enabled}}/{{total}} enabled",
+      "expandGroup": "Expand group",
+      "collapseGroup": "Collapse group"
     },
     "router": {
       "title": "Router Configuration",

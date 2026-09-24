@@ -259,7 +259,11 @@
         "retest": "重新測試",
         "testButton": "測試模型",
         "unsupportedFormat": "此提供者格式目前不支援測試。"
-      }
+      },
+      "toggleAll": "全部",
+      "enabledCount": "已啟用 {{enabled}}/{{total}}",
+      "expandGroup": "展開分組",
+      "collapseGroup": "收合分組"
     },
     "router": {
       "title": "路由設定",

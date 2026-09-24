@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeServerConfig } from '@omnicross/core/outbound-api';
 
 import { resolveUpstreamModelMappings, effectiveUpstreamModelMappings, type UpstreamCatalogEntry } from '../admin/upstreamRoutingAdmin';
-import { anthropicModelDiscoveryUrls, mergeProviderModels } from '../admin/adminApi';
+import { anthropicModelDiscoveryUrls, mergeProviderModels, scopeDiscoveredIdsToJev } from '../admin/adminApi';
 import type { DaemonProviderConfig } from '../config';
 
 const providers: DaemonProviderConfig[] = [{
@@ -158,5 +158,25 @@ describe('anthropicModelDiscoveryUrls (cross-wire /models candidates)', () => {
       'https://gw.example/paas/v4/models',
       'https://gw.example/api/paas/v4/models',
     ]);
+  });
+});
+
+describe('scopeDiscoveredIdsToJev (logjev rows keep only Jev-family ids)', () => {
+  const jevRow = { ...providers[0], id: 'logjev-openrouter', logjev: { kind: 'jev' as const } };
+
+  it('keeps jev / jev-* ids across vendor prefixes, drops the rest', () => {
+    expect(scopeDiscoveredIdsToJev(jevRow, [
+      'typesafe/jev-latest',
+      'typesafe/jev-mini',
+      'jev-latest',
+      'openai/gpt-5.6-sol',
+      'anthropic/claude-sonnet-5',
+      'weird/vendor/notjev-model',
+    ])).toEqual(['typesafe/jev-latest', 'typesafe/jev-mini', 'jev-latest']);
+  });
+
+  it('passes a NON-logjev row through untouched', () => {
+    expect(scopeDiscoveredIdsToJev(providers[0], ['gpt-5.6-sol', 'anything/else']))
+      .toEqual(['gpt-5.6-sol', 'anything/else']);
   });
 });

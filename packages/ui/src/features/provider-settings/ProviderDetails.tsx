@@ -73,6 +73,8 @@ interface ProviderDetailsProps {
   onShowAddModelDialog: () => void;
   onApplyModelEdit: () => Promise<void>;
   onToggleModelEnabled: (id: string, enabled: boolean) => Promise<void>;
+  /** Bulk enable/disable — one daemon write for a whole set (all/group). */
+  onSetModelsEnabled: (ids: string[], enabled: boolean) => Promise<void>;
   onRemoveModel: (id: string) => Promise<void>;
   onShowEditModelDialog: (model: ModelConfig) => void;
 }
@@ -111,6 +113,7 @@ export function ProviderDetails({
   onShowAddModelDialog,
   onApplyModelEdit,
   onToggleModelEnabled,
+  onSetModelsEnabled,
   onRemoveModel,
   onShowEditModelDialog
 }: ProviderDetailsProps) {
@@ -132,6 +135,16 @@ export function ProviderDetails({
   }
 
   const emptyState = visibleModelGroups.length === 0;
+
+  // Aggregator-scale bulk toggles: the master switch covers EVERY visible
+  // model; each group header carries its own. One daemon write per flip.
+  const allModels = visibleModelGroups.flatMap((group) => group.models);
+  const allEnabledCount = allModels.filter((model) => model.enabled !== false).length;
+  const allEnabled = allModels.length > 0 && allEnabledCount === allModels.length;
+
+  // category-'other' rows (Jev / LogJev — decision engines) never enter the
+  // chat routing/mapping surface, so the mapping editor is not offered here.
+  const isOtherCategory = selectedProvider.category === 'other';
 
   // provider-storage-overlay: show "restore defaults" only when the user has
   // customized a preset-tracked field. `overriddenFields` is the read-only
@@ -511,8 +524,10 @@ export function ProviderDetails({
 
       {/* Model mappings (upstream routing model): the mapping table lives ON
           this upstream — client model name → this provider's model id. Skipped
-          when the hosting workbench already renders its own section above. */}
-      {hideMappingSection ? null : (
+          when the hosting workbench already renders its own section above, and
+          for category-'other' rows (Jev / LogJev — decision engines that never
+          enter chat routing). */}
+      {hideMappingSection || isOtherCategory ? null : (
         <UpstreamMappingSection
           upstreamKey={selectedProvider.id}
           label={getProviderDisplayName(t, selectedProvider)}
@@ -521,30 +536,75 @@ export function ProviderDetails({
 
       {/* Model list - always shown */}
       <div className="space-y-2">
+        {/* Master switch — one write flips EVERY visible model (aggregator
+            catalogs run to hundreds of rows; per-model switches don't scale). */}
+        {!emptyState ? (
+          <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+            <div>
+              <div className="text-sm font-medium">{t('providerSettings.modelsManager.toggleAll')}</div>
+              <div className="text-xs text-muted-foreground">
+                {t('providerSettings.modelsManager.enabledCount', { enabled: allEnabledCount, total: allModels.length })}
+              </div>
+            </div>
+            <Switch
+              checked={allEnabled}
+              onCheckedChange={(checked) => void onSetModelsEnabled(allModels.map((model) => model.id), checked)}
+            />
+          </div>
+        ) : null}
         {emptyState ? (
           <div className="text-sm text-muted-foreground italic">
             {t('providerSettings.modelsManager.empty')}
           </div>
         ) : (
-          visibleModelGroups.map(group => (
+          visibleModelGroups.map(group => {
+            const groupEnabledCount = group.models.filter((model) => model.enabled !== false).length;
+            const groupAllEnabled = group.models.length > 0 && groupEnabledCount === group.models.length;
+            return (
             <div key={group.id} className="border rounded-md overflow-hidden">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between px-3 py-2 bg-muted/40 hover:bg-muted/60 transition-colors"
-                onClick={() => toggleGroupCollapse(group.id)}
+              <div
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-muted/40"
               >
-                <div>
-                  <div className="text-sm font-medium">{getGroupDisplayName(group)}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {t('providerSettings.listStatus', { count: group.models.length })}
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left hover:bg-muted/60 transition-colors -mx-3 px-3 py-2 rounded"
+                  onClick={() => toggleGroupCollapse(group.id)}
+                >
+                  <div>
+                    <div className="text-sm font-medium">{getGroupDisplayName(group)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('providerSettings.listStatus', { count: group.models.length })}
+                    </div>
                   </div>
+                </button>
+                {/* Per-group bulk switch — same one-write flip, group-scoped.
+                    Hidden for a single-group list (the master row already
+                    covers exactly those models — a duplicate switch reads as
+                    two controls doing one thing). */}
+                {visibleModelGroups.length > 1 ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {t('providerSettings.modelsManager.enabledCount', { enabled: groupEnabledCount, total: group.models.length })}
+                  </span>
+                  <Switch
+                    checked={groupAllEnabled}
+                    onCheckedChange={(checked) => void onSetModelsEnabled(group.models.map((model) => model.id), checked)}
+                  />
                 </div>
-                {collapsedGroups[group.id] ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronUp className="h-4 w-4" />
-                )}
-              </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => toggleGroupCollapse(group.id)}
+                  aria-label={collapsedGroups[group.id] ? t('providerSettings.modelsManager.expandGroup') : t('providerSettings.modelsManager.collapseGroup')}
+                >
+                  {collapsedGroups[group.id] ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
               {!collapsedGroups[group.id] && (
                 <div className="divide-y">
                   {group.models.map(model => {
@@ -636,7 +696,8 @@ export function ProviderDetails({
                 </div>
               )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

@@ -20,7 +20,8 @@ import {
   attachModelToGroup,
   buildAutoGroupsFromConfigs,
   buildGroupsPayload,
-  deriveAutoGroupIdFromModelId,
+  isAggregatedProvider,
+  vendorSegmentOfModelId,
 } from '../utils';
 
 /**
@@ -211,7 +212,7 @@ export function useModelManagement(
     const baseGroups = buildGroupsPayload(selectedProvider, nextConfigs);
     const normalizedGroupId =
       groupId.trim() ||
-      deriveAutoGroupIdFromModelId(selectedProvider.id, trimmedId) ||
+      (isAggregatedProvider(selectedProvider) ? vendorSegmentOfModelId(trimmedId) : null) ||
       baseGroups[0]?.id ||
       DEFAULT_MODEL_GROUP_ID;
     const targetGroupId = normalizedGroupId || DEFAULT_MODEL_GROUP_ID;
@@ -313,6 +314,17 @@ export function useModelManagement(
     await persistModelChanges(selectedProvider, configs);
   };
 
+  // Aggregator-scale bulk flip (all models / one group) — ONE daemon write for
+  // the whole set, not N per-model updates.
+  const handleSetModelsEnabled = async (ids: string[], enabled: boolean) => {
+    if (!selectedProvider || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const configs = getCurrentModelConfigs().map(cfg =>
+      idSet.has(cfg.id) ? { ...cfg, enabled } : cfg,
+    );
+    await persistModelChanges(selectedProvider, configs);
+  };
+
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
   };
@@ -382,6 +394,7 @@ export function useModelManagement(
     handleApplyModelEdit,
     handleApplyEditModelDialog,
     handleToggleModelEnabled,
+    handleSetModelsEnabled,
     loadModelDiscovery,
     onShowEditModelDialog,
   };

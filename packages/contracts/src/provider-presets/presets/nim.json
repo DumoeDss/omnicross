@@ -1,0 +1,14 @@
+{
+  "id": "nim",
+  "presetId": "nim",
+  "name": "NVIDIA NIM",
+  "apiFormat": "openai",
+  "api_base_url": "https://integrate.api.nvidia.com/v1",
+  "models": [],
+  "modelsEndpoint": "https://integrate.api.nvidia.com/v1/models",
+  "description": "NVIDIA NIM — build.nvidia.com 托管的开源模型推理 API（OpenAI 兼容），模型列表自动发现",
+  "icon": "nim",
+  "website": "https://build.nvidia.com",
+  "isSystem": true,
+  "features": []
+}
