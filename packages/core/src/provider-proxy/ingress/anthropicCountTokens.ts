@@ -41,6 +41,7 @@ import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanc
 import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
 
 import type { ProviderProxyDeps, RouteContext } from '../types';
+import { deriveSubscriptionSessionKey } from '../matchText';
 
 import { buildByoPlan, runSameFormatFetch } from './anthropicMessagesByo';
 import {
@@ -133,7 +134,16 @@ export async function handleAnthropicCountTokens(
     const plan =
       route.authMode === 'subscription'
         ? await buildSubscriptionPlan(res, route, deps, body, route.model, false)
-        : await buildByoPlan(res, route, deps, route.model, false);
+        : await buildByoPlan(
+            res,
+            route,
+            deps,
+            route.model,
+            false,
+            // opencodego-egress-identity (BYO half): the body-anchor session key
+            // feeds `x-opencode-session` for an opencode.ai provider row.
+            deriveSubscriptionSessionKey(body),
+          );
     if (!plan) return;
 
     const strategy = resolveCountTokensStrategy(route.anthropicCountTokensMode, plan.sameFormat);

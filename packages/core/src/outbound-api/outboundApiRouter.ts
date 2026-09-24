@@ -46,6 +46,7 @@ import { emitWebhookEvent } from '../pipeline/webhookEmit';
 import { requestLifecycleSignal } from '../pipeline/requestLifecycleSignal';
 import { getSharedAccountAllowanceStore } from '../pipeline/AccountAllowanceStore';
 import { classifyAnthropicMessagesPath } from '../provider-proxy/ingress/anthropicPathMatch';
+import { extractOpenCodeSessionHeader } from '../provider-proxy/identity/openCodeGoHeaders';
 import {
   isAnthropicProtocolResponse,
   markAnthropicProtocolResponse,
@@ -925,7 +926,12 @@ async function relayDirectUpstream(
     // Upstream headers: the provider's format-correct credential set, plus the
     // client's own Content-Type/Accept (body framing matters; the gateway's
     // named-key credential must NEVER reach the upstream).
-    const headers = getProviderHeaders(provider, resolveProviderKeyLiteral(provider.api_key));
+    // opencodego-egress-identity (BYO half): a provider row pointing at
+    // opencode.ai picks up the identity headers; the caller's own
+    // `x-opencode-session` is forwarded verbatim when present.
+    const headers = getProviderHeaders(provider, resolveProviderKeyLiteral(provider.api_key), {
+      openCodeSession: extractOpenCodeSessionHeader(req.headers),
+    });
     delete headers['Content-Type'];
     const clientContentType = req.headers['content-type'];
     if (typeof clientContentType === 'string' && clientContentType) {

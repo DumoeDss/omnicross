@@ -36,22 +36,20 @@
 
 import {
   getOpenCodeGoUserAgent,
+  isOpenCodeUpstream,
   OPENCODE_SESSION_HEADER,
 } from '@omnicross/core/provider-proxy/identity/openCodeGoHeaders';
 
 /** The session value admin probes present to opencode.ai upstreams. */
 export const ADMIN_PROBE_OPENCODE_SESSION = 'omnicross-admin-probe';
 
-/** Whether a provider `baseUrl` points at opencode.ai (apex or any subdomain). */
-export function isOpenCodeUpstream(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return false;
-  try {
-    const host = new URL(baseUrl).hostname.toLowerCase();
-    return host === 'opencode.ai' || host.endsWith('.opencode.ai');
-  } catch {
-    return false;
-  }
-}
+/**
+ * Whether a provider `baseUrl` points at opencode.ai (apex or any subdomain).
+ * Re-exported from the core identity module — the SAME host gate the BYO relay
+ * paths (`getProviderHeaders`) key off, so a probe and a relay agree on what
+ * counts as an opencode upstream.
+ */
+export { isOpenCodeUpstream };
 
 /** Case-insensitive header-name presence over a plain string bag. */
 function hasHeader(headers: Record<string, string>, name: string): boolean {

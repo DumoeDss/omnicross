@@ -35,7 +35,16 @@ opencode.ai 公告要求访问其 API 的代理类工具明确标识自身（不
 
 ## 生效范围
 
-覆盖全部 OpenCodeGo 生产出站：`/v1/messages` 同格式透传（含 count_tokens）、translate/fallback 形状、`/v1/responses` native/reduced 两条分支、额度采集器。BYO provider 行即使撞名 `opencodego` 也不受影响（订阅策略不参与该路径）。管理 UI 暂不提供该配置的可视化编辑。
+覆盖全部 OpenCodeGo 生产出站：`/v1/messages` 同格式透传（含 count_tokens）、translate/fallback 形状、`/v1/responses` native/reduced 两条分支、额度采集器。管理 UI 暂不提供该配置的可视化编辑。
+
+## BYO provider 行（host 判定）
+
+用户经"添加 provider"建的非订阅 provider 行不走订阅策略；当其 `api_base_url`（或该请求解析出的实际 upstream URL）的 host 是 `opencode.ai`（apex 或任意子域，判定函数 `isOpenCodeUpstream`，与管理探针共用）时，`getProviderHeaders` 漏斗同样补齐两个头：
+
+- `user-agent`：与订阅路径同一库级身份，fill-only——行级 `extraHeaders` 自带的 `user-agent` 永远优先；
+- `x-opencode-session`：优先透传下游客户端自带的值（各 ingress 已提取），否则用该入口派生的会话亲和键（Anthropic/chat 入口为 body 锚点 FNV-1a，Responses 入口为 header 感知 SHA-256），两者皆无则不发。
+
+覆盖 BYO 全部出站点：`/v1/messages` 同格式透传与 transformer 路径（含 count_tokens）、`/v1/chat/completions`、`/v1/responses` native/reduced、出站 API 的 direct 透传；模型目录 `GET /models` 只带 UA（无会话概念）。非 opencode host 的行保持字节不变。
 
 ## 验证
 

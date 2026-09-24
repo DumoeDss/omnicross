@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ApiKeyPoolService } from '../../completion/ApiKeyPoolService';
 import { getProviderHeaders } from '../../completion/header-builder';
+import { getOpenCodeGoUserAgent } from '../../provider-proxy/identity/openCodeGoHeaders';
 import { LlmConfigProviderAuth } from '../LlmConfigProviderAuth';
 
 // Minimal provider rows for each auth format. Only fields read by
@@ -74,6 +75,59 @@ describe('LlmConfigProviderAuth.applyHeaders', () => {
 
     expect(headers['x-pre-existing']).toBe('keep');
     expect(headers.Authorization).toBe('Bearer sk-abc');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyHeaders — opencode.ai egress identity (opencodego-egress-identity BYO
+// half). A provider row pointing at opencode.ai picks up `user-agent` +
+// `x-opencode-session`; the session value prefers the caller's own header,
+// else the ingress-derived per-conversation key. Non-opencode hosts are
+// byte-identical (covered by the parity tests above).
+// ---------------------------------------------------------------------------
+
+describe('LlmConfigProviderAuth.applyHeaders opencode identity', () => {
+  const ocgProvider = makeProvider({
+    id: 'ocg-byo',
+    apiFormat: 'openai',
+    api_base_url: 'https://opencode.ai/zen/v1',
+  });
+  const ocgHints = { upstreamUrl: 'https://opencode.ai/zen/v1/chat/completions', model: 'm-1' };
+
+  it('forwards the caller session verbatim', () => {
+    const auth = new LlmConfigProviderAuth({ provider: ocgProvider, apiKey: 'sk-ocg' });
+    const headers: Record<string, string> = {};
+    auth.applyHeaders(headers, { ...ocgHints, callerOpenCodeSession: 'client-sess-42' });
+    expect(headers['x-opencode-session']).toBe('client-sess-42');
+    expect(headers['user-agent']).toBe(getOpenCodeGoUserAgent());
+  });
+
+  it('falls back to the derived session key when the caller sent none', () => {
+    const auth = new LlmConfigProviderAuth({ provider: ocgProvider, apiKey: 'sk-ocg' });
+    const headers: Record<string, string> = {};
+    auth.applyHeaders(headers, { ...ocgHints, sessionKey: 'fnv1a8hex' });
+    expect(headers['x-opencode-session']).toBe('fnv1a8hex');
+  });
+
+  it('omits the session header entirely when neither is present', () => {
+    const auth = new LlmConfigProviderAuth({ provider: ocgProvider, apiKey: 'sk-ocg' });
+    const headers: Record<string, string> = {};
+    auth.applyHeaders(headers, ocgHints);
+    expect(headers['x-opencode-session']).toBeUndefined();
+    expect(headers['user-agent']).toBe(getOpenCodeGoUserAgent());
+  });
+
+  it('keys off hints.upstreamUrl, not just the row base', () => {
+    // A NON-opencode row whose resolved upstream was overridden to opencode.ai.
+    const provider = makeProvider({ id: 'openai', apiFormat: 'openai' });
+    const auth = new LlmConfigProviderAuth({ provider, apiKey: 'sk-abc' });
+    const headers: Record<string, string> = {};
+    auth.applyHeaders(headers, {
+      ...hints,
+      upstreamUrl: 'https://opencode.ai/zen/v1/chat/completions',
+      sessionKey: 'anchor-key',
+    });
+    expect(headers['x-opencode-session']).toBe('anchor-key');
   });
 });
 

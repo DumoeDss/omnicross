@@ -40,13 +40,15 @@ export interface AuthApplyHints {
   /**
    * OPTIONAL stable per-conversation session key (subscription-account-scheduling,
    * D5) — mapped through to the subscription strategy's sticky account affinity.
-   * BYO auth sources ignore it.
+   * BYO auth sources use it only as the derived fallback for the
+   * `x-opencode-session` egress header (opencodego-egress-identity BYO half).
    */
   sessionKey?: string;
   /**
-   * OPTIONAL caller-supplied `x-opencode-session` value (opencodego only,
-   * opencodego-egress-identity) — mapped through to the subscription strategy's
-   * outbound session header, verbatim when present. BYO auth sources ignore it.
+   * OPTIONAL caller-supplied `x-opencode-session` value (opencodego-egress-identity)
+   * — mapped through to the outbound session header VERBATIM when present, on both
+   * the subscription strategy and (host-gated) BYO provider rows pointing at
+   * opencode.ai.
    */
   callerOpenCodeSession?: string;
   /**

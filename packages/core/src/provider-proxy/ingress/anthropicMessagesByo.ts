@@ -51,6 +51,7 @@ import {
   resolveApiFormat,
 } from '../../completion';
 import { DEFAULT_ANTHROPIC_VERSION } from '../identity/claudeCodeHeaders';
+import { deriveSubscriptionSessionKey } from '../matchText';
 import { LlmConfigProviderAuth } from '../../pipeline/LlmConfigProviderAuth';
 import { resolveProviderChain } from '../../pipeline/resolveProviderChain';
 import type {
@@ -126,7 +127,17 @@ export async function handleAnthropicMessagesByo(
     const plan =
       route.authMode === 'subscription'
         ? await buildSubscriptionPlan(res, route, deps, anthropicBody, resolvedModel, isStream)
-        : await buildByoPlan(res, route, deps, resolvedModel, isStream);
+        : await buildByoPlan(
+            res,
+            route,
+            deps,
+            resolvedModel,
+            isStream,
+            // opencodego-egress-identity (BYO half): the same body-anchor session
+            // key the subscription path derives — feeds `x-opencode-session` when
+            // the provider row points at opencode.ai and the caller sent none.
+            deriveSubscriptionSessionKey(anthropicBody),
+          );
     if (!plan) return;
 
     // The subscription plan may have rewritten `model` (modelMapper); keep the
@@ -364,6 +375,7 @@ export async function buildByoPlan(
   deps: ProviderProxyDeps,
   resolvedModel: string,
   isStream: boolean,
+  sessionKey?: string,
 ): Promise<AnthropicCallPlan | null> {
   const providerId = route.providerId;
   if (!providerId) {
@@ -438,6 +450,7 @@ export async function buildByoPlan(
     upstreamUrl: byoUrl,
     sameFormat,
     isSubscription: false,
+    sessionKey,
     provider,
     apiKey,
     extendedContextEnabled: route.anthropicSdkHints?.extendedContext?.enabled ?? false,
@@ -477,7 +490,14 @@ export async function runSameFormatFetch(
   // verbatim fetch sends the rebound key (this path bypasses `auth.applyHeaders`,
   // so it cannot pick up the rotated `LlmConfigProviderAuth.apiKey` on its own).
   const effectiveKey = keyOverride ?? apiKey ?? '';
-  const headers = getProviderHeaders(provider, effectiveKey);
+  const url = urlOverride ?? buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
+  const headers = getProviderHeaders(provider, effectiveKey, {
+    // opencodego-egress-identity (BYO half): a provider row pointing at
+    // opencode.ai carries the identity headers on this verbatim path too —
+    // the caller's session id verbatim, else the plan's body-anchor key.
+    upstreamUrl: url,
+    openCodeSession: options.callerOpenCodeSession ?? plan.sessionKey,
+  });
 
   // Merge the caller's request-side `anthropic-beta` (LEAD OQ1: DO forward).
   const callerBeta = options.callerAnthropicBeta?.trim();
@@ -504,7 +524,6 @@ export async function runSameFormatFetch(
   const callerVersion = options.callerAnthropicVersion?.trim();
   headers['anthropic-version'] = callerVersion || DEFAULT_ANTHROPIC_VERSION;
 
-  const url = urlOverride ?? buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
   console.info(`[ProviderProxy:anthropic] (same-format) -> ${url} model=${resolvedModel} stream=${isStream}`);
   // upstream-proxy: BYO egress honors the global/provider proxy (providerId 'byo').
   // Route-activity row id for THIS attempt — the in-band overload observer seam.
@@ -587,7 +606,13 @@ async function runPipelineWithPoolReporting(
   const runOnce = (keyOverride?: string): Promise<AnthropicRunResult> =>
     plan.sameFormat
       ? runSameFormatFetch(sameFormatBody, plan, options, keyOverride)
-      : runPipeline(anthropicBody, plan, undefined, options.signal);
+      : runPipeline(
+          anthropicBody,
+          plan,
+          undefined,
+          options.signal,
+          options.callerOpenCodeSession ?? undefined,
+        );
 
   const first = await runOnce();
   const outcome = await plan.auth.onResult?.(first.rawStatus);

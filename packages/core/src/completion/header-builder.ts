@@ -6,14 +6,38 @@
 
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
+import { applyOpenCodeUpstreamIdentity } from '../provider-proxy/identity/openCodeGoHeaders';
 import { isOpenRouterProvider, OPENROUTER_APP_HEADERS } from '../openrouter';
 
 import { resolveApiFormat } from './url-builder';
 
 /**
+ * Optional per-request inputs for {@link getProviderHeaders}'s opencode.ai
+ * egress identity (opencodego-egress-identity, BYO half).
+ */
+export interface ProviderHeaderOptions {
+  /**
+   * The RESOLVED upstream URL for this request. Defaults to the provider row's
+   * `api_base_url`. Only consulted for the opencode.ai host gate — a URL that
+   * differs from the row base (an override) still gets the correct decision.
+   */
+  upstreamUrl?: string;
+  /**
+   * The preferred `x-opencode-session` value for an opencode.ai upstream: the
+   * caller's own session id verbatim, or the relay's derived per-conversation
+   * key. Absent/empty ⇒ the header is omitted (never an empty value).
+   */
+  openCodeSession?: string | null;
+}
+
+/**
  * Get request headers based on provider format
  */
-export function getProviderHeaders(provider: LLMProvider, apiKey: string): Record<string, string> {
+export function getProviderHeaders(
+  provider: LLMProvider,
+  apiKey: string,
+  opts?: ProviderHeaderOptions,
+): Record<string, string> {
   const format = resolveApiFormat(provider);
 
   // Base headers by format
@@ -59,11 +83,20 @@ export function getProviderHeaders(provider: LLMProvider, apiKey: string): Recor
   // Static per-provider identity headers (config-guarded — no auth/content
   // header names can appear here), then OpenRouter app attribution on top.
   const withExtra = mergeExtraHeaders(headers, provider.extraHeaders);
-  if (isOpenRouterProvider(provider)) {
-    return { ...withExtra, ...OPENROUTER_APP_HEADERS };
-  }
+  const withOpenRouter = isOpenRouterProvider(provider)
+    ? { ...withExtra, ...OPENROUTER_APP_HEADERS }
+    : withExtra;
 
-  return withExtra;
+  // opencodego-egress-identity (BYO half): a provider row whose base URL points
+  // at opencode.ai presents the same identity the OpenCodeGo relay does. Applied
+  // AFTER the extraHeaders merge, fill-only, so a row-level `user-agent` /
+  // `x-opencode-session` always wins; every other host is a strict no-op.
+  applyOpenCodeUpstreamIdentity(
+    withOpenRouter,
+    opts?.upstreamUrl ?? provider.api_base_url,
+    opts?.openCodeSession,
+  );
+  return withOpenRouter;
 }
 
 /**

@@ -104,12 +104,65 @@ export function extractOpenCodeSessionHeader(
  */
 export function resolveOpenCodeSessionHeader(
   callerSession: string | null | undefined,
-  sessionKey?: string,
+  sessionKey?: string | null,
 ): string | undefined {
   const caller = typeof callerSession === 'string' ? callerSession.trim() : '';
   if (caller.length > 0) return caller;
   if (typeof sessionKey === 'string' && sessionKey.trim().length > 0) return sessionKey;
   return undefined;
+}
+
+/**
+ * Whether a URL points at opencode.ai (apex or any subdomain). The canonical
+ * host gate for the egress identity: the OpenCodeGo relay paths key off the
+ * subscription provider id, but BYO provider rows key off their RESOLVED base
+ * URL — a user-added provider pointing at `opencode.ai` gets the same identity
+ * handling without naming the provider `opencodego`.
+ */
+export function isOpenCodeUpstream(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'opencode.ai' || host.endsWith('.opencode.ai');
+  } catch {
+    return false;
+  }
+}
+
+/** Case-insensitive header-name presence over a plain string bag. */
+function hasHeader(headers: Record<string, string>, name: string): boolean {
+  const lower = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === lower);
+}
+
+/**
+ * Fill the opencode.ai egress identity into `headers` IN PLACE — a no-op for
+ * every other host. Fill-only: a header the bag already carries (a provider
+ * row's `extraHeaders` value, or a caller-set spelling) always wins.
+ *
+ *  - `user-agent`: the library identity (`getOpenCodeGoUserAgent()`), never
+ *    Node's bare `node` default;
+ *  - `x-opencode-session`: the caller's session verbatim when present, else the
+ *    relay's stable per-conversation session key; neither ⇒ the header is
+ *    omitted entirely (same semantics as the subscription path).
+ *
+ * The BYO mirror of the subscription strategy's `applyHeaders` block — shared
+ * by `getProviderHeaders` (the provider-key header funnel) so every BYO egress
+ * point presents one identity.
+ */
+export function applyOpenCodeUpstreamIdentity(
+  headers: Record<string, string>,
+  upstreamUrl: string | undefined,
+  callerSession: string | null | undefined,
+  sessionKey?: string | null,
+): void {
+  if (!isOpenCodeUpstream(upstreamUrl)) return;
+  if (!hasHeader(headers, 'user-agent')) {
+    headers['user-agent'] = getOpenCodeGoUserAgent();
+  }
+  if (hasHeader(headers, OPENCODE_SESSION_HEADER)) return;
+  const session = resolveOpenCodeSessionHeader(callerSession, sessionKey);
+  if (session) headers[OPENCODE_SESSION_HEADER] = session;
 }
 
 /** TEST SEAM — clear the configured UA slot so a suite starts from the default. */

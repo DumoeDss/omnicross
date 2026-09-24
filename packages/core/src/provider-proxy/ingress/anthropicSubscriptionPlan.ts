@@ -169,8 +169,10 @@ export interface AnthropicCallPlan {
   /** Stable per-conversation session key (subscription-account-scheduling, D5) —
    *  threaded into `auth.applyHeaders`/`onUnauthorized` so the account pool's
    *  sticky affinity holds across a conversation's turns and its 401 retry. Derived
-   *  once in `buildSubscriptionPlan` and carried across fallback iterations.
-   *  `undefined` for BYO / no-anchor requests (⇒ pure priority/LRU). */
+   *  once in `buildSubscriptionPlan` and carried across fallback iterations. BYO
+   *  plans carry the SAME body-anchor derivation (opencodego-egress-identity BYO
+   *  half: it feeds `x-opencode-session` when the provider row points at
+   *  opencode.ai); `undefined` for no-anchor requests (⇒ pure priority/LRU). */
   readonly sessionKey?: string;
   /** BYO-only: route-activity metadata (provider row id + live key-id resolver).
    *  Set by the BYO plan builder; absent on subscription plans and on delegated

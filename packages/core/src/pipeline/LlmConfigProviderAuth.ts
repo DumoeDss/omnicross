@@ -83,11 +83,19 @@ export class LlmConfigProviderAuth implements AuthSource {
   /**
    * Merge the provider auth headers (and content-type / OpenRouter app
    * headers) into `headers`, exactly as a direct `getProviderHeaders` call
-   * would produce them. `hints` are accepted for contract symmetry but the
-   * provider-key path does not vary headers by URL/model.
+   * would produce them — PLUS the opencode.ai egress identity
+   * (opencodego-egress-identity, BYO half): when the resolved upstream (hints)
+   * or the provider row's base URL points at opencode.ai, the funnel applies
+   * `user-agent` + `x-opencode-session`. The session value prefers the
+   * caller's own `x-opencode-session` (hints), else the ingress-derived
+   * per-conversation session key — the same precedence the subscription
+   * strategy uses.
    */
-  applyHeaders(headers: Record<string, string>, _hints: AuthApplyHints): void {
-    const authHeaders = getProviderHeaders(this.provider, this.apiKey);
+  applyHeaders(headers: Record<string, string>, hints: AuthApplyHints): void {
+    const authHeaders = getProviderHeaders(this.provider, this.apiKey, {
+      upstreamUrl: hints?.upstreamUrl,
+      openCodeSession: hints?.callerOpenCodeSession ?? hints?.sessionKey,
+    });
     for (const [k, v] of Object.entries(authHeaders)) {
       headers[k] = v;
     }

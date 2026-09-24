@@ -51,6 +51,7 @@ import {
 } from './ingress/openaiResponsesIngress';
 import { handleNativeCodexSearchRequest } from './ingress/codexSearchIngress';
 import { readBody, writeError } from './ingress/providerProxyShared';
+import { extractOpenCodeSessionHeader } from './identity/openCodeGoHeaders';
 import {
   createResponsesAbortScope,
   ResponsesRequestTimeoutError,
@@ -211,7 +212,12 @@ export async function routeRequest(
 
   if (openAIOperation?.id === 'chat.completions.create') {
     const rawBody = await readBody(req);
-    await handleOpenAIChatRequest(res, rawBody, route, deps);
+    // opencodego-egress-identity: the caller's own session id, forwarded
+    // verbatim to opencode.ai when this route resolves a BYO provider row
+    // pointing there.
+    await handleOpenAIChatRequest(res, rawBody, route, deps, {
+      callerOpenCodeSession: extractOpenCodeSessionHeader(req.headers),
+    });
     return;
   }
 

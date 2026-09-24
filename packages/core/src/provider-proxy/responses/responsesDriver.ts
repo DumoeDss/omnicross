@@ -77,8 +77,9 @@ export interface ResponsesCallPlan {
   readonly providerIdentity: string;
   readonly callerClientHeaders?: Record<string, string>;
   /** The caller's `x-opencode-session` value (opencodego-egress-identity) —
-   *  forwarded verbatim to opencode.ai; absent ⇒ the strategy falls back to
-   *  `sessionKey`. Set only on opencodego subscription plans. */
+   *  forwarded verbatim to opencode.ai; absent ⇒ the plan's `sessionKey` stands
+   *  in. Set on opencodego subscription plans AND BYO provider rows pointing at
+   *  opencode.ai (the same host gate, applied via `LlmConfigProviderAuth`). */
   readonly callerOpenCodeSession?: string;
   readonly statefulContinuation: boolean;
   readonly credential: ResponsesCredentialIdentity;
@@ -157,7 +158,19 @@ export async function buildResponsesCallPlan(
   affinity?: ResponsesAffinityEntry,
 ): Promise<ResponsesCallPlan> {
   if (route.authMode === 'byo') {
-    return buildByoPlan(route, deps, resolved, resolvedModel, isStream, sessionKey, sessionSource, affinity);
+    return buildByoPlan(
+      route,
+      deps,
+      resolved,
+      resolvedModel,
+      isStream,
+      sessionKey,
+      sessionSource,
+      affinity,
+      // opencodego-egress-identity (BYO half): the caller's own session id,
+      // forwarded verbatim when the provider row points at opencode.ai.
+      extractOpenCodeSessionHeader(requestHeaders),
+    );
   }
   return buildSubscriptionPlan(
     route,
@@ -181,6 +194,7 @@ async function buildByoPlan(
   sessionKey: string,
   sessionSource: SessionKeySource,
   affinity?: ResponsesAffinityEntry,
+  callerOpenCodeSession?: string,
 ): Promise<ResponsesCallPlan> {
   const providerId = route.providerId!;
   const provider = resolved.provider!;
@@ -248,6 +262,7 @@ async function buildByoPlan(
     },
     byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
     byoSessionId: route.sessionId ?? null,
+    callerOpenCodeSession,
     sessionKey,
     sessionSource,
   };

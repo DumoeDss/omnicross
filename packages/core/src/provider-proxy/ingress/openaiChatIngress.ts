@@ -164,16 +164,31 @@ interface ChatCallPlan {
   readonly isSubscription: boolean;
   /** BYO-only: route-activity metadata (provider row id + live key-id resolver). */
   readonly byoActivity?: ByoRouteActivityMeta;
-  /** Subscription-only: the stable per-conversation content session key (the
-   *  matchText SSOT anchor — same derivation as the `/v1/messages` path) fed to
-   *  `auth.applyHeaders`. The opencodego strategy derives `x-opencode-session`
-   *  from it (the go upstream REJECTS a request without one), and every pooled
-   *  provider uses it for sticky account affinity. */
+  /** The stable per-conversation content session key (the matchText SSOT anchor
+   *  — same derivation as the `/v1/messages` path) fed to `auth.applyHeaders`.
+   *  The opencodego strategy derives `x-opencode-session` from it (the go
+   *  upstream REJECTS a request without one), and every pooled provider uses it
+   *  for sticky account affinity. BYO plans carry the same derivation as the
+   *  derived fallback for an opencode.ai provider row (opencodego-egress-identity
+   *  BYO half). */
   readonly contentSessionKey?: string;
   /** Route-activity session key fallback: the internal route session id (the
    *  ApiKeyPool binding id). This ingress derives no content session key, so
    *  BOTH kinds group their affinity rows by it. */
   readonly routeSessionId?: string | null;
+  /** The caller's `x-opencode-session` value (opencodego-egress-identity) —
+   *  forwarded verbatim when a BYO provider row points at opencode.ai;
+   *  absent ⇒ the plan's derived session key stands in. */
+  readonly callerOpenCodeSession?: string;
+}
+
+/** Optional inputs threaded from the ingress router (which holds the raw `req`). */
+export interface OpenAIChatByoOptions {
+  /** The caller's `x-opencode-session` value (opencodego-egress-identity) —
+   *  extracted UNGATED at the router; forwarded verbatim to opencode.ai on a
+   *  BYO provider row pointing there. `null`/absent for callers that never
+   *  set it. */
+  readonly callerOpenCodeSession?: string | null;
 }
 
 /**
@@ -186,6 +201,7 @@ export async function handleOpenAIChatRequest(
   rawBody: string,
   route: RouteContext,
   deps: ProviderProxyDeps,
+  options: OpenAIChatByoOptions = {},
 ): Promise<void> {
   let chatBody: Record<string, unknown>;
   try {
@@ -205,7 +221,17 @@ export async function handleOpenAIChatRequest(
     const plan =
       route.authMode === 'subscription'
         ? await buildSubscriptionPlan(res, route, deps, chatBody, resolvedModel, isStream)
-        : await buildByoPlan(res, route, deps, resolvedModel, isStream);
+        : await buildByoPlan(
+            res,
+            route,
+            deps,
+            resolvedModel,
+            isStream,
+            // opencodego-egress-identity (BYO half): the body-anchor session key
+            // feeds `x-opencode-session` for an opencode.ai provider row.
+            deriveSubscriptionSessionKey(chatBody),
+            options.callerOpenCodeSession ?? undefined,
+          );
     if (!plan) return;
 
     let providerResponse = plan.isSubscription
@@ -287,6 +313,8 @@ async function buildByoPlan(
   deps: ProviderProxyDeps,
   resolvedModel: string,
   isStream: boolean,
+  contentSessionKey?: string,
+  callerOpenCodeSession?: string,
 ): Promise<ChatCallPlan | null> {
   const providerId = route.providerId;
   if (!providerId) {
@@ -351,6 +379,8 @@ async function buildByoPlan(
     isSubscription: false,
     byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
     routeSessionId: route.sessionId ?? null,
+    contentSessionKey,
+    callerOpenCodeSession,
   };
 }
 
@@ -541,6 +571,7 @@ async function runPipeline(
     upstreamUrl,
     model: resolvedModel,
     sessionKey: plan.contentSessionKey,
+    callerOpenCodeSession: plan.callerOpenCodeSession,
     preferredAccountId: plan.preferredAccountId,
     preferredAccountGroup: plan.preferredAccountGroup,
     boundAccountFallbackPolicy: plan.boundAccountFallbackPolicy,
