@@ -15,7 +15,8 @@
  * launches NO secret appears anywhere at all (the auth helper fetches it).
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -31,6 +32,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   buildKeyScopedCodexArgs,
+  tomlCliString,
   type CommandRunner,
   detectClis,
   openTerminal,
@@ -397,10 +399,14 @@ describe('Key-scoped codex launch', () => {
     expect(call.cli).toBe('codex');
     expect(call.cwd).toBe('/tmp/proj');
     const args = call.extraArgs;
-    expect(args).toContain('model_provider="omnicross"');
+    expect(args).toContain("model_provider='omnicross'");
     // The installed provider NAME is reused (codex sessions bind to it).
     expect(args.some((a) => a.startsWith('model_providers.omnicross.base_url='))).toBe(true);
-    expect(args.some((a) => a.includes('/v1"'))).toBe(true);
+    expect(args.some((a) => a.includes("/v1'"))).toBe(true);
+    // PS 5.1 + the npm codex.ps1 shim RAW-passthrough quote-bearing args (no
+    // outer quotes) and MSVCRT splits them at inner spaces — the argv must
+    // stay double-quote-free (TOML literal strings).
+    expect(args.every((a) => !a.includes('"'))).toBe(true);
     const authArgs = args.find((a) => a.startsWith('model_providers.omnicross.auth.args='));
     expect(authArgs).toBeDefined();
     // The helper invocation carries the chosen key id…
@@ -494,7 +500,7 @@ describe('Route-pinned codex launch', () => {
     expect(openerCalls).toHaveLength(1);
     const args = openerCalls[0].extraArgs;
     const headers = args.find((a) => a.startsWith('model_providers.omnicross.http_headers='));
-    expect(headers).toContain('"x-omnicross-binding-id"="test-responses-route"');
+    expect(headers).toContain("'x-omnicross-binding-id'='test-responses-route'");
     expect(JSON.stringify(openerCalls[0])).not.toContain(key.plaintext);
     expect(r.text).not.toContain(key.plaintext);
 
@@ -674,14 +680,14 @@ describe('buildKeyScopedCodexArgs', () => {
       keyId: 'oak_1',
     });
     expect(args).toEqual([
-      '-c', 'model_provider="omnicross"',
-      '-c', 'model_providers.omnicross.name="OmniCross Local Gateway"',
-      '-c', 'model_providers.omnicross.base_url="http://127.0.0.1:8765/v1"',
-      '-c', 'model_providers.omnicross.wire_api="responses"',
+      '-c', "model_provider='omnicross'",
+      '-c', "model_providers.omnicross.name='OmniCross Local Gateway'",
+      '-c', "model_providers.omnicross.base_url='http://127.0.0.1:8765/v1'",
+      '-c', "model_providers.omnicross.wire_api='responses'",
       '-c', 'model_providers.omnicross.supports_websockets=false',
-      '-c', 'model_providers.omnicross.http_headers={"X-OpenAI-Actor-Authorization"="omnicross"}',
-      '-c', 'model_providers.omnicross.auth.command="C:/node/node.exe"',
-      '-c', 'model_providers.omnicross.auth.args=["cli.js","integrations","token","codex","--config","cfg.json","--key-id","oak_1"]',
+      '-c', "model_providers.omnicross.http_headers={'X-OpenAI-Actor-Authorization'='omnicross'}",
+      '-c', "model_providers.omnicross.auth.command='C:/node/node.exe'",
+      '-c', "model_providers.omnicross.auth.args=['cli.js','integrations','token','codex','--config','cfg.json','--key-id','oak_1']",
       '-c', 'model_providers.omnicross.auth.refresh_interval_ms=0',
       '-c', 'model_providers.omnicross.auth.timeout_ms=5000',
       '-c', 'disable_response_storage=true',
@@ -696,8 +702,41 @@ describe('buildKeyScopedCodexArgs', () => {
       bindingId: 'route-9',
     });
     expect(args).toContain(
-      'model_providers.omnicross.http_headers={"X-OpenAI-Actor-Authorization"="omnicross","x-omnicross-binding-id"="route-9"}',
+      "model_providers.omnicross.http_headers={'X-OpenAI-Actor-Authorization'='omnicross','x-omnicross-binding-id'='route-9'}",
     );
+  });
+
+  it('keeps every override double-quote-free (ps1-shim splitting guard)', () => {
+    // The win32 launch line goes `launch.ps1 → npm codex.ps1 → node`, and the
+    // middle hop RAW-passthrough quote-bearing args (PS 5.1 adds no outer
+    // quotes) — any `"` in a value with spaces splits the token at those
+    // spaces (codex: `unrecognized subcommand 'Gateway"'`). Literal-string
+    // TOML keeps the whole argv `"`-free even for `C:\Program Files\…`
+    // helper paths and spaced display names.
+    const args = buildKeyScopedCodexArgs({
+      gatewayBaseUrl: 'http://127.0.0.1:8765',
+      authHelper: {
+        command: 'C:\\Program Files\\Omnicross\\daemon-runtime\\runtime\\node.exe',
+        args: ['C:\\Program Files\\Omnicross\\daemon-runtime\\node_modules\\@omnicross\\daemon\\dist\\cli.js'],
+      },
+      keyId: 'oak_1',
+      bindingId: 'keyup:oak_1:0:responses',
+    });
+    expect(args.every((a) => !a.includes('"'))).toBe(true);
+    expect(args).toContain(
+      "model_providers.omnicross.auth.command='C:\\Program Files\\Omnicross\\daemon-runtime\\runtime\\node.exe'",
+    );
+    expect(args).toContain(
+      "model_providers.omnicross.auth.args=['C:\\Program Files\\Omnicross\\daemon-runtime\\node_modules\\@omnicross\\daemon\\dist\\cli.js','--key-id','oak_1']",
+    );
+  });
+
+  it('tomlCliString: literal strings; apostrophe values fall back to basic strings', () => {
+    expect(tomlCliString('OmniCross Local Gateway')).toBe("'OmniCross Local Gateway'");
+    expect(tomlCliString('')).toBe("''");
+    // Rare fallback — correct TOML, no worse than the old encoding.
+    expect(tomlCliString("Sayo's relay")).toBe(`"Sayo's relay"`);
+    expect(tomlCliString('a\\b')).toBe("'a\\b'");
   });
 });
 
@@ -782,5 +821,68 @@ describe('openTerminal (win32) — PowerShell launcher', () => {
     const script = readFileSync(scriptPathOf(fakeCalls[0]), 'utf8');
     expect(script).toContain(String.raw`& 'claude' 'cfg=\"C:\dir\\\"'`);
   });
+
+  // END-TO-END (win32 only): the REAL generated launch.ps1 → a PATH-front
+  // npm-shaped codex.ps1 shim (argv dump) → node. This is the chain that
+  // split `name=\"OmniCross Local Gateway\"` into three codex argv tokens
+  // (`unrecognized subcommand 'Gateway"'`): PS 5.1 RAW-passthrough
+  // quote-bearing args at the shim's `& node … $args` hop. The literal-string
+  // TOML args must arrive as ONE token each, double-quote-free.
+  it.skipIf(process.platform !== 'win32')(
+    'e2e: generated script → npm ps1 shim → node keeps each -c override one token',
+    () => {
+      const launchDir = mkdtempSync(join(tmpdir(), 'omnicross-terminal-e2e-'));
+      const shimDir = join(launchDir, 'shim');
+      mkdirSync(shimDir);
+      try {
+        const args = buildKeyScopedCodexArgs({
+          gatewayBaseUrl: 'http://127.0.0.1:8765',
+          authHelper: {
+            command: 'C:\\Program Files\\Omnicross\\daemon-runtime\\runtime\\node.exe',
+            args: ['C:\\Program Files\\Omnicross\\daemon-runtime\\node_modules\\@omnicross\\daemon\\dist\\cli.js'],
+          },
+          keyId: 'oak_1',
+          bindingId: 'keyup:oak_1:0:responses',
+        });
+        openTerminal({
+          cli: 'codex',
+          command: 'codex',
+          extraArgs: args,
+          env: {},
+          platform: 'win32',
+        }, fakeSpawn());
+        const script = readFileSync(scriptPathOf(fakeCalls[0]), 'utf8');
+
+        // npm-shaped ps1 shim: forwards $args to node verbatim (the RAW hop).
+        writeFileSync(join(shimDir, 'codex.ps1'),
+          `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n` +
+          `& "node.exe" "$basedir/dump.js" $args\n` +
+          `exit $LASTEXITCODE\n`);
+        writeFileSync(join(shimDir, 'dump.js'),
+          `require('node:fs').writeFileSync(__dirname + '/argv.json', JSON.stringify(process.argv.slice(2)));\n`);
+
+        // Dedupe any PATH/Path casing before overriding (a duplicated-cased
+        // pair in the env block lets the ORIGINAL win in the child) — the
+        // prefix must put the shim ahead of the real npm codex on PATH.
+        const childEnv: NodeJS.ProcessEnv = { ...process.env };
+        for (const key of Object.keys(childEnv)) {
+          if (key.toLowerCase() === 'path') delete childEnv[key];
+        }
+        childEnv['Path'] = `${shimDir};${process.env['PATH'] ?? process.env['Path'] ?? ''}`;
+        const run = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPathOf(fakeCalls[0])], {
+          env: childEnv,
+          encoding: 'utf8',
+          timeout: 30_000,
+        });
+        expect(run.status).toBe(0);
+        const received = JSON.parse(readFileSync(join(shimDir, 'argv.json'), 'utf8')) as string[];
+        const values = received.filter((_, i) => received[i - 1] === '-c');
+        expect(values).toEqual(args.filter((_, i) => args[i - 1] === '-c'));
+        expect(values.some((v) => v === "model_providers.omnicross.name='OmniCross Local Gateway'")).toBe(true);
+      } finally {
+        rmSync(launchDir, { recursive: true, force: true });
+      }
+    },
+  );
 });
 

@@ -317,6 +317,32 @@ export interface KeyScopedCodexArgsInput {
 }
 
 /**
+ * Encode one TOML string for a `-c key=value` argv override as a LITERAL
+ * string (`'value'`), never a double-quoted basic string.
+ *
+ * WHY (win32 terminal launch): `& codex …` in the generated launch.ps1
+ * resolves to npm's `codex.ps1` shim, whose `& node … $args` native hop
+ * RAW-passthrough any argument that already contains a `"` (PowerShell 5.1
+ * assumes the caller pre-quoted it and adds NO outer quotes). A basic string
+ * with spaces — `name="OmniCross Local Gateway"` — then rides the process
+ * command line unquoted and MSVCRT splits it at the spaces: codex died at
+ * startup with `unrecognized subcommand 'Gateway"'` (and `auth.command`'s
+ * `C:\Program Files\…` split the same way). A literal string carries no
+ * double quote at all, so every layer — the PS binder's wrap-on-whitespace,
+ * cmd.exe, MSVCRT argv — round-trips it as ONE token. Codex's `-c` parser
+ * reads standard TOML, so literal strings are value-identical.
+ *
+ * An apostrophe cannot appear inside a TOML literal string; the astronomically
+ * rare value containing one falls back to a basic string (correct TOML, and
+ * no worse than the previous encoding on the terminal paths).
+ */
+export function tomlCliString(value: string): string {
+  return value.includes("'")
+    ? `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+    : `'${value}'`;
+}
+
+/**
  * The `-c` config overrides for a key-scoped Codex launch: the SAME provider
  * shape the integration install writes (`renderCodexConfig`) under the SAME
  * provider NAME — Codex sessions are bound to the provider name, so a
@@ -326,6 +352,10 @@ export interface KeyScopedCodexArgsInput {
  * `~/.codex/config.toml` holds: the launch is self-contained whether or not
  * the install is enabled, and the file's own `auth` sub-table is shadowed —
  * never mixed with `env_key`, whose precedence against `auth` is undocumented.
+ *
+ * String values use TOML literal strings (`tomlCliString`) so the argv stays
+ * double-quote-free — see that helper's doc for the win32 ps1-shim splitting
+ * this exists to prevent.
  */
 export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[] {
   let root = input.gatewayBaseUrl;
@@ -335,18 +365,20 @@ export function buildKeyScopedCodexArgs(input: KeyScopedCodexArgsInput): string[
   // The static provider headers ride EVERY codex request. A route-pinned launch
   // adds the binding pin alongside the actor marker so the gateway serves this
   // terminal from exactly the chosen downstream route.
+  const headerPair = (header: string, value: string): string =>
+    `${tomlCliString(header)}=${tomlCliString(value)}`;
   const httpHeaders = input.bindingId
-    ? `{"X-OpenAI-Actor-Authorization"="omnicross","${GATEWAY_BINDING_PIN_HEADER}"="${input.bindingId}"}`
-    : '{"X-OpenAI-Actor-Authorization"="omnicross"}';
+    ? `{${headerPair('X-OpenAI-Actor-Authorization', 'omnicross')},${headerPair(GATEWAY_BINDING_PIN_HEADER, input.bindingId)}}`
+    : `{${headerPair('X-OpenAI-Actor-Authorization', 'omnicross')}}`;
   return [
-    '-c', `model_provider="${name}"`,
-    '-c', `model_providers.${name}.name="OmniCross Local Gateway"`,
-    '-c', `model_providers.${name}.base_url="${root}/v1"`,
-    '-c', `model_providers.${name}.wire_api="responses"`,
+    '-c', `model_provider=${tomlCliString(name)}`,
+    '-c', `model_providers.${name}.name=${tomlCliString('OmniCross Local Gateway')}`,
+    '-c', `model_providers.${name}.base_url=${tomlCliString(`${root}/v1`)}`,
+    '-c', `model_providers.${name}.wire_api=${tomlCliString('responses')}`,
     '-c', `model_providers.${name}.supports_websockets=false`,
     '-c', `model_providers.${name}.http_headers=${httpHeaders}`,
-    '-c', `model_providers.${name}.auth.command=${JSON.stringify(input.authHelper.command)}`,
-    '-c', `model_providers.${name}.auth.args=${JSON.stringify(helperArgs)}`,
+    '-c', `model_providers.${name}.auth.command=${tomlCliString(input.authHelper.command)}`,
+    '-c', `model_providers.${name}.auth.args=[${helperArgs.map(tomlCliString).join(',')}]`,
     '-c', `model_providers.${name}.auth.refresh_interval_ms=0`,
     '-c', `model_providers.${name}.auth.timeout_ms=5000`,
     '-c', 'disable_response_storage=true',
@@ -623,11 +655,16 @@ function psLiteral(value: string): string {
 /**
  * Encode one argument for the final native hop out of PowerShell. PowerShell
  * (5.1 AND 7) passes a string arg verbatim when it has no whitespace and
- * wraps it in quotes when it does — but never escapes embedded `"` — so the
- * quotes must be pre-encoded MSVCRT-style (`\"`, with preceding backslashes
- * doubled) HERE, or codex.exe's own argv parsing strips them and TOML values
- * like `http_headers={"X"="y"}` arrive as a bare string (the
- * `expected a map` launch failure).
+ * wraps it in quotes when it does — but never escapes embedded `"` — so any
+ * `"` must be pre-encoded MSVCRT-style (`\"`, with preceding backslashes
+ * doubled) HERE, or codex.exe's own argv parsing strips them.
+ *
+ * DEFENSE ONLY today: the key-scoped codex args carry no `"` at all (TOML
+ * literal strings, `tomlCliString`) — that is the LOAD-BEARING fix, because
+ * PS 5.1 RAW-passthrough an argument that already contains `"` (no outer
+ * quotes added), and a `\"`-bearing arg with spaces then splits at those
+ * spaces on the command line. This encoder keeps any hypothetical
+ * quote-bearing argument at least MSVCRT-correct on the direct-exe hop.
  */
 function msvcrtArg(arg: string): string {
   let out = '';
@@ -711,7 +748,12 @@ export function openTerminal(
     // startup with `model_providers.omnicross.http_headers … expected a
     // map`. `-File` keeps every argument exact: the script single-quotes each
     // token for PowerShell and pre-encodes embedded quotes MSVCRT-style
-    // (msvcrtArg) for the final native hop.
+    // (msvcrtArg) for the final native hop. SECOND trap (both routes share
+    // it): `& codex` resolves to npm's `codex.ps1` shim, and PS 5.1
+    // RAW-passthrough quote-bearing args at the shim's `& node … $args` hop
+    // (no outer quotes) — a `\"`-encoded arg with inner spaces splits there.
+    // That is why the key-scoped args carry NO double quotes at all (TOML
+    // literal strings, `tomlCliString`).
     const launchDir = mkdtempSync(join(tmpdir(), 'omnicross-terminal-'));
     const scriptFile = join(launchDir, 'launch.ps1');
     const script = [
