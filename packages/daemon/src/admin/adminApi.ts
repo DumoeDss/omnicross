@@ -1059,20 +1059,93 @@ export async function ensureChatGptWebBridgeProvider(
  * Best-effort BY DESIGN: the provider itself was already created; onboarding
  * conveniences must never fail (or roll back) the create.
  */
+/** Union of a provider's existing model ids and discovered ones — existing
+ *  entries keep their order and lead (the template's first model stays the
+ *  provisioned default); discovered ids append deduped. */
+export function mergeProviderModels(
+  existing: readonly string[] | undefined,
+  discovered: readonly string[],
+): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const model of [...(existing ?? []), ...discovered]) {
+    const id = model.trim();
+    const key = id.toLocaleLowerCase();
+    if (id === '' || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(id);
+  }
+  return merged;
+}
+
+/**
+ * Fetch a provider's OpenAI-wire `/models` ids — the silent core of the
+ * discover-models route, reused by create-time provisioning. Any failure
+ * (unsupported format, network, non-2xx, odd payload) yields [] — callers
+ * treat discovery as purely additive.
+ */
+async function fetchProviderModelIds(
+  row: DaemonProviderConfig,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  if (row.apiFormat !== 'openai' && row.apiFormat !== 'openai-response') return [];
+  const resolvedKey = resolveEnvKey(row.apiKey);
+  const base = row.baseUrl.replace(/\/+$/, '');
+  const url =
+    row.category === 'other'
+      ? /\/v1\/[^/]+$/.test(base)
+        ? `${base.replace(/\/v1\/[^/]+$/, '/v1')}/models`
+        : base.endsWith('/v1')
+          ? `${base}/models`
+          : `${base}/v1/models`
+      : `${base}/models`;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
+  Object.assign(headers, expandRowExtraHeaders(row));
+  applyAdminProbeIdentity(headers, row);
+  const response = await fetchUpstream(url, { method: 'GET', headers, signal }, { providerId: 'byo' });
+  if (!response.ok) return [];
+  const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
+  if (!Array.isArray(data?.data)) return [];
+  return data.data
+    .map((entry) => (typeof entry?.id === 'string' ? entry.id.trim() : ''))
+    .filter((id) => id.length > 0);
+}
+
 async function provisionNewProvider(
   deps: AdminApiDeps,
   provider: DaemonProviderConfig,
   isFirstProvider: boolean,
 ): Promise<void> {
   try {
-    const target = defaultProviderMappingTarget(provider);
+    // MODEL DISCOVERY FIRST (best-effort, time-bounded): a provider created
+    // without a model list can neither serve nor enter the upstream catalog —
+    // the mapping editor then fails its save with `unknown upstream <id>`.
+    // Discovered ids merge INTO the row's list; template-provided models keep
+    // their order and lead (so the provisioned default below stays the
+    // template's first model when the template configured one).
+    let row = provider;
+    if (row.apiFormat === 'openai' || row.apiFormat === 'openai-response') {
+      const discovered = await fetchProviderModelIds(row, AbortSignal.timeout(8000)).catch(() => [] as string[]);
+      const merged = mergeProviderModels(row.models, discovered);
+      if (merged.length !== (row.models?.length ?? 0)) {
+        row = { ...row, models: merged };
+        const cfg = loadConfig(deps.configPath);
+        const index = cfg.providers.findIndex((candidate) => candidate.id === row.id);
+        if (index >= 0) {
+          cfg.providers[index] = row;
+          await persistProviders(cfg, deps);
+        }
+      }
+    }
+    const target = defaultProviderMappingTarget(row);
     const current = await loadServerConfig(deps.settingsStore);
-    if (target && !current.upstreamModelMappings?.[provider.id]) {
+    if (target && !current.upstreamModelMappings?.[row.id]) {
       await saveServerConfig(deps.settingsStore, {
         ...current,
         upstreamModelMappings: {
           ...(current.upstreamModelMappings ?? {}),
-          [provider.id]: [{ source: '*', target }],
+          [row.id]: [{ source: '*', target }],
         },
       });
     }
@@ -2365,7 +2438,13 @@ async function handleUpstreams(
     const key = decodeURIComponent(rest[0]).trim();
     if (key === '') return writeJsonError(res, 400, 'upstream key is required');
     const catalog = await listUpstreamCatalog(deps);
-    if (!catalog.some((entry) => entry.key === key)) {
+    // The SERVING catalog excludes modelless/disabled providers, but their
+    // mapping tables are still legit edit targets (edit-ahead-of-enablement;
+    // create-time discovery fills the model list moments later). Accept any
+    // configured BYO provider id; subscription pools stay catalog-gated.
+    const knownProvider = !key.startsWith('sub:')
+      && loadConfig(deps.configPath).providers.some((provider) => provider.id === key);
+    if (!catalog.some((entry) => entry.key === key) && !knownProvider) {
       return writeJsonError(res, 404, `unknown upstream '${key}'`);
     }
     const body = await readJsonBody(req);

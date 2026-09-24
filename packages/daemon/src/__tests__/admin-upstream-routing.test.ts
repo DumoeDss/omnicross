@@ -147,6 +147,15 @@ beforeEach(async () => {
             apiKey: PROVIDER_REAL_KEY,
             models: ['mock-model'],
           },
+          // Modelless (pre-discovery) — NOT in the serving catalog, but its
+          // mapping table must still be editable (edit-ahead-of-enablement).
+          {
+            id: 'bare',
+            apiFormat: 'openai-response',
+            baseUrl: providerBase,
+            apiKey: PROVIDER_REAL_KEY,
+            models: [],
+          },
         ],
         server: {
           enabled: true,
@@ -300,6 +309,22 @@ describe('upstream routing model (admin surface + gateway e2e)', () => {
       mappings: [],
     });
     expect(unknown.status).toBe(404);
+  });
+
+  it('accepts mapping edits for a MODELLESS (pre-discovery) provider', async () => {
+    // `bare` has no models → not in the serving catalog; the mapping PUT must
+    // still succeed so the editor isn't dead until discovery fills the list.
+    const saved = await adminFetch('PUT', '/admin/api/upstreams/bare/mappings', {
+      mappings: [{ source: '*', target: 'future-model' }],
+    });
+    expect(saved.status).toBe(200);
+    const catalog = await adminFetch('GET', '/admin/api/upstreams');
+    const bare = (catalog.json as { upstreams: Array<{ key: string }> }).upstreams.find(
+      (entry) => entry.key === 'bare',
+    );
+    // Still NOT in the catalog (nothing serveable yet) — the table is stored
+    // for when discovery/enabling brings it in.
+    expect(bare).toBeUndefined();
   });
 
   it('rejects upstream bindings to unknown upstreams', async () => {

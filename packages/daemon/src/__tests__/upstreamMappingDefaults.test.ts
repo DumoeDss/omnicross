@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeServerConfig } from '@omnicross/core/outbound-api';
 
 import { resolveUpstreamModelMappings, effectiveUpstreamModelMappings, type UpstreamCatalogEntry } from '../admin/upstreamRoutingAdmin';
+import { mergeProviderModels } from '../admin/adminApi';
 import type { DaemonProviderConfig } from '../config';
 
 const providers: DaemonProviderConfig[] = [{
@@ -111,5 +112,22 @@ describe('auto (non-force) declared-model passthrough', () => {
     const effective = effectiveUpstreamModelMappings(config, withConfigs, catalog);
     expect(effective['z-ai']).toContainEqual({ source: 'glm-5.2', target: 'glm-5.2' });
     expect(effective['z-ai']).not.toContainEqual({ source: 'glm-5.3', target: 'glm-5.3' });
+  });
+});
+
+describe('mergeProviderModels (create-time discovery merge)', () => {
+  it('existing order leads; discovered ids append deduped (case-insensitive)', () => {
+    expect(mergeProviderModels(['glm-5.2'], ['GLM-5.2', 'glm-5.3', '', 'glm-5.4']))
+      .toEqual(['glm-5.2', 'glm-5.3', 'glm-5.4']);
+  });
+
+  it('an empty list adopts the discovered ids verbatim', () => {
+    expect(mergeProviderModels([], ['deepseek-flash', 'deepseek-v4-pro']))
+      .toEqual(['deepseek-flash', 'deepseek-v4-pro']);
+  });
+
+  it('a failed discovery ([]) changes nothing', () => {
+    expect(mergeProviderModels(['glm-5.2'], [])).toEqual(['glm-5.2']);
+    expect(mergeProviderModels(undefined, [])).toEqual([]);
   });
 });
