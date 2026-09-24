@@ -259,11 +259,12 @@ function firstModel(p: ProviderRowLike): string | undefined {
 // ── Key-scoped terminal launches (gateway-key routing) ───────────────────────
 
 /**
- * cmd.exe metacharacters that would be re-interpreted inside the `cmd /k` line
- * the win32 terminal opener builds. Quotes are deliberately EXCLUDED — they are
- * structural in the `-c` TOML values. Key-scoped launches embed real PATHs
- * (auth helper + config file), so they are checked up front rather than
- * silently corrupted by cmd.exe parsing.
+ * Conservative allowlist for key-scoped launch paths (auth helper + config
+ * file), checked up front rather than silently corrupted downstream. The
+ * win32 terminal is now a PowerShell `-File` launcher where these characters
+ * are all safely single-quoted, but the refusal is kept: paths carrying
+ * shell metacharacters are exotic, and the allowlist documents what the
+ * launch pipeline is actually exercised against.
  */
 const CMD_METACHAR_RE = /[&|<>^%]/;
 
@@ -614,6 +615,37 @@ function shq(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+/** Single-quote a PowerShell string literal (`'` doubles, everything else literal). */
+function psLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+/**
+ * Encode one argument for the final native hop out of PowerShell. PowerShell
+ * (5.1 AND 7) passes a string arg verbatim when it has no whitespace and
+ * wraps it in quotes when it does — but never escapes embedded `"` — so the
+ * quotes must be pre-encoded MSVCRT-style (`\"`, with preceding backslashes
+ * doubled) HERE, or codex.exe's own argv parsing strips them and TOML values
+ * like `http_headers={"X"="y"}` arrive as a bare string (the
+ * `expected a map` launch failure).
+ */
+function msvcrtArg(arg: string): string {
+  let out = '';
+  let backslashes = 0;
+  for (const ch of arg) {
+    if (ch === '\\') {
+      backslashes += 1;
+    } else if (ch === '"') {
+      out += '\\'.repeat(backslashes * 2 + 1) + '"';
+      backslashes = 0;
+    } else {
+      out += '\\'.repeat(backslashes) + ch;
+      backslashes = 0;
+    }
+  }
+  return out + '\\'.repeat(backslashes);
+}
+
 /**
  * Secret-free bootstrap used by macOS Terminal. The descriptor arrives over a
  * private one-shot local socket, then only the final CLI child receives it.
@@ -672,12 +704,27 @@ export function openTerminal(
 ): () => void {
   const childEnv = { ...process.env, ...env };
   if (platform === 'win32') {
-    const args = ['/c', 'start', `"omnicross ${cli}"`];
-    if (cwd) args.push('/D', `"${cwd}"`);
-    args.push('cmd', '/k', command, ...extraArgs);
-    spawnProcess(process.env['ComSpec'] || 'cmd.exe', args, {
+    // PowerShell + a generated launcher script, mirroring the macOS
+    // `.command` flow. The old cmd.exe route (`start … cmd /k <line>`) parsed
+    // the line twice and handed the CLI tokens whose inner quotes its own
+    // MSVCRT argv parsing then stripped — key-scoped launches died at codex
+    // startup with `model_providers.omnicross.http_headers … expected a
+    // map`. `-File` keeps every argument exact: the script single-quotes each
+    // token for PowerShell and pre-encodes embedded quotes MSVCRT-style
+    // (msvcrtArg) for the final native hop.
+    const launchDir = mkdtempSync(join(tmpdir(), 'omnicross-terminal-'));
+    const scriptFile = join(launchDir, 'launch.ps1');
+    const script = [
+      `$Host.UI.RawUI.WindowTitle = ${psLiteral(`omnicross ${cli}`)}`,
+      `& ${[command, ...extraArgs].map((a) => psLiteral(msvcrtArg(a))).join(' ')}`,
+      '',
+    ].join('\r\n');
+    // BOM: PowerShell 5.1 reads BOM-less files as ANSI — non-ASCII paths and
+    // titles would mojibake.
+    writeFileSync(scriptFile, `﻿${script}`, 'utf8');
+    spawnProcess('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', scriptFile], {
       env: childEnv,
-      windowsVerbatimArguments: true,
+      cwd: cwd || undefined,
       detached: true,
       stdio: 'ignore',
     }).unref();

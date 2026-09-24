@@ -15,9 +15,9 @@
  * launches NO secret appears anywhere at all (the auth helper fetches it).
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
   createIntegrationKey,
@@ -33,6 +33,7 @@ import {
   buildKeyScopedCodexArgs,
   type CommandRunner,
   detectClis,
+  openTerminal,
   parseCliVersion,
   resetCliSessions,
   type TerminalOpener,
@@ -697,6 +698,74 @@ describe('buildKeyScopedCodexArgs', () => {
     expect(args).toContain(
       'model_providers.omnicross.http_headers={"X-OpenAI-Actor-Authorization"="omnicross","x-omnicross-binding-id"="route-9"}',
     );
+  });
+});
+
+describe('openTerminal (win32) — PowerShell launcher', () => {
+  const scriptDirs: string[] = [];
+
+  function fakeSpawn(): typeof import('node:child_process').spawn {
+    return ((command: string, args: string[], options: Record<string, unknown>) => {
+      scriptDirs.push(dirname(args[5] as string));
+      (fakeCalls as Array<{ command: string; args: string[]; options: Record<string, unknown> }>).push({
+        command, args, options,
+      });
+      return { unref(): void {} } as unknown as ReturnType<typeof import('node:child_process').spawn>;
+    }) as unknown as typeof import('node:child_process').spawn;
+  }
+  const fakeCalls: Array<{ command: string; args: string[]; options: Record<string, unknown> }> = [];
+
+  afterEach(() => {
+    fakeCalls.length = 0;
+    for (const dir of scriptDirs.splice(0)) {
+      try { rmSync(dir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  it('spawns powershell -File whose script preserves quote-bearing -c TOML verbatim', () => {
+    // The regression: through the old `cmd /c start … cmd /k <line>` opener,
+    // this token's inner quotes were stripped by codex.exe's own argv parser
+    // and codex rejected the provider block ("expected a map").
+    const httpHeadersArg = String.raw`model_providers.omnicross.http_headers={"X-OpenAI-Actor-Authorization"="omnicross","x-omnicross-binding-id"="keyup:oak_1:0:responses"}`;
+    openTerminal({
+      cli: 'codex',
+      command: 'codex',
+      extraArgs: ['-c', httpHeadersArg],
+      env: { OMNICROSS_LAUNCH_SENTINEL: 'v' },
+      cwd: 'D:\\work dir',
+      platform: 'win32',
+    }, fakeSpawn());
+
+    expect(fakeCalls).toHaveLength(1);
+    const call = fakeCalls[0];
+    expect(call.command).toBe('powershell.exe');
+    expect(call.args.slice(0, 5)).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File']);
+    expect(call.options).toMatchObject({ detached: true, cwd: 'D:\\work dir' });
+    expect((call.options.env as Record<string, string>).OMNICROSS_LAUNCH_SENTINEL).toBe('v');
+
+    const script = readFileSync(call.args[5] as string, 'utf8');
+    // BOM first — PowerShell 5.1 reads BOM-less files as ANSI (non-ASCII
+    // paths/titles would mojibake).
+    expect(script.charCodeAt(0)).toBe(0xfeff);
+    expect(script).toContain(`$Host.UI.RawUI.WindowTitle = 'omnicross codex'`);
+    // Each token is PS-single-quoted; embedded quotes are MSVCRT-escaped so
+    // the final native hop restores them literally.
+    expect(script).toContain(
+      `& 'codex' '-c' '${httpHeadersArg.replaceAll('"', '\\"')}'`,
+    );
+  });
+
+  it('doubles backslashes immediately before an escaped quote (MSVCRT rule)', () => {
+    openTerminal({
+      cli: 'claude',
+      command: 'claude',
+      extraArgs: [String.raw`cfg="C:\dir\"`],
+      env: {},
+      platform: 'win32',
+    }, fakeSpawn());
+
+    const script = readFileSync(fakeCalls[0].args![5] as string, 'utf8');
+    expect(script).toContain(String.raw`& 'claude' 'cfg=\"C:\dir\\\"'`);
   });
 });
 
