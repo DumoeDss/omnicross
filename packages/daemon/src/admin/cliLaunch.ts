@@ -716,17 +716,31 @@ export function openTerminal(
     const scriptFile = join(launchDir, 'launch.ps1');
     const script = [
       `$Host.UI.RawUI.WindowTitle = ${psLiteral(`omnicross ${cli}`)}`,
+      ...(cwd ? [`Set-Location -LiteralPath ${psLiteral(cwd)}`] : []),
       `& ${[command, ...extraArgs].map((a) => psLiteral(msvcrtArg(a))).join(' ')}`,
       '',
     ].join('\r\n');
     // BOM: PowerShell 5.1 reads BOM-less files as ANSI — non-ASCII paths and
     // titles would mojibake.
     writeFileSync(scriptFile, `﻿${script}`, 'utf8');
-    spawnProcess('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', scriptFile], {
+    // WINDOW: a direct detached spawn of powershell.exe runs HEADLESS —
+    // Node's detached sets DETACHED_PROCESS, which creates NO console. The
+    // window has to come from `start` (exactly how the old cmd route got
+    // one). The cmd surface is minimal and quote-safe: only the title and
+    // the temp script PATH ride the line — every complex argument lives in
+    // the .ps1 itself.
+    const comSpec = process.env['ComSpec'] || 'cmd.exe';
+    const startArgs = [
+      '/c', 'start',
+      `"omnicross ${cli}"`,
+      'powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File',
+      `"${scriptFile}"`,
+    ];
+    spawnProcess(comSpec, startArgs, {
       env: childEnv,
-      cwd: cwd || undefined,
       detached: true,
       stdio: 'ignore',
+      windowsVerbatimArguments: true,
     }).unref();
     return () => {};
   }

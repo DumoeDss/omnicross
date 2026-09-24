@@ -704,9 +704,16 @@ describe('buildKeyScopedCodexArgs', () => {
 describe('openTerminal (win32) — PowerShell launcher', () => {
   const scriptDirs: string[] = [];
 
+  // `cmd /c start "title" powershell … -File "<script>"` — the script path is
+  // the LAST argv element, wrapped in quotes.
+  function scriptPathOf(call: { args: string[] }): string {
+    const quoted = call.args[call.args.length - 1] as string;
+    return quoted.replace(/^"|"$/g, '');
+  }
+
   function fakeSpawn(): typeof import('node:child_process').spawn {
     return ((command: string, args: string[], options: Record<string, unknown>) => {
-      scriptDirs.push(dirname(args[5] as string));
+      scriptDirs.push(dirname(scriptPathOf({ args })));
       (fakeCalls as Array<{ command: string; args: string[]; options: Record<string, unknown> }>).push({
         command, args, options,
       });
@@ -722,10 +729,12 @@ describe('openTerminal (win32) — PowerShell launcher', () => {
     }
   });
 
-  it('spawns powershell -File whose script preserves quote-bearing -c TOML verbatim', () => {
-    // The regression: through the old `cmd /c start … cmd /k <line>` opener,
-    // this token's inner quotes were stripped by codex.exe's own argv parser
-    // and codex rejected the provider block ("expected a map").
+  it('opens powershell via cmd start (the WINDOW) with a quote-exact -File script', () => {
+    // Two regressions this shape pins: (1) the old `cmd /k <line>` opener
+    // stripped the http_headers token's quotes at codex.exe's argv parse
+    // ("expected a map"); (2) a DIRECT detached powershell spawn runs
+    // HEADLESS (DETACHED_PROCESS = no console) — the window must come from
+    // `start`.
     const httpHeadersArg = String.raw`model_providers.omnicross.http_headers={"X-OpenAI-Actor-Authorization"="omnicross","x-omnicross-binding-id"="keyup:oak_1:0:responses"}`;
     openTerminal({
       cli: 'codex',
@@ -738,16 +747,22 @@ describe('openTerminal (win32) — PowerShell launcher', () => {
 
     expect(fakeCalls).toHaveLength(1);
     const call = fakeCalls[0];
-    expect(call.command).toBe('powershell.exe');
-    expect(call.args.slice(0, 5)).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File']);
-    expect(call.options).toMatchObject({ detached: true, cwd: 'D:\\work dir' });
+    expect(call.command).toBe(process.env['ComSpec'] || 'cmd.exe');
+    expect(call.args[0]).toBe('/c');
+    expect(call.args[1]).toBe('start');
+    expect(call.args[2]).toBe('"omnicross codex"');
+    expect(call.args[3]).toBe('powershell');
+    expect(call.args.slice(4, 9)).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File']);
+    expect(call.options).toMatchObject({ detached: true, windowsVerbatimArguments: true });
     expect((call.options.env as Record<string, string>).OMNICROSS_LAUNCH_SENTINEL).toBe('v');
 
-    const script = readFileSync(call.args[5] as string, 'utf8');
+    const script = readFileSync(scriptPathOf(call), 'utf8');
     // BOM first — PowerShell 5.1 reads BOM-less files as ANSI (non-ASCII
     // paths/titles would mojibake).
     expect(script.charCodeAt(0)).toBe(0xfeff);
     expect(script).toContain(`$Host.UI.RawUI.WindowTitle = 'omnicross codex'`);
+    // cwd rides INSIDE the script now (the start wrapper has no cwd option).
+    expect(script).toContain(`Set-Location -LiteralPath 'D:\\work dir'`);
     // Each token is PS-single-quoted; embedded quotes are MSVCRT-escaped so
     // the final native hop restores them literally.
     expect(script).toContain(
@@ -764,7 +779,7 @@ describe('openTerminal (win32) — PowerShell launcher', () => {
       platform: 'win32',
     }, fakeSpawn());
 
-    const script = readFileSync(fakeCalls[0].args![5] as string, 'utf8');
+    const script = readFileSync(scriptPathOf(fakeCalls[0]), 'utf8');
     expect(script).toContain(String.raw`& 'claude' 'cfg=\"C:\dir\\\"'`);
   });
 });
