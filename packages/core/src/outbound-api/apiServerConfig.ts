@@ -894,6 +894,23 @@ export function normalizeUpstreamModelMappings(
   return any ? result : undefined;
 }
 
+/**
+ * Normalize the per-upstream strict-mapping flags. Only `true` entries are
+ * kept (absent/`false` both mean auto — the default), so the persisted map
+ * stays lean and a cleared flag disappears rather than lingering as `false`.
+ */
+export function normalizeUpstreamModelMappingForce(
+  raw: unknown,
+): Record<string, boolean> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const result: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const keyTrimmed = key.trim();
+    if (keyTrimmed !== '' && value === true) result[keyTrimmed] = true;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 /** The default server config: disabled, loopback, four blank endpoints. */
 export function defaultServerConfig(): OutboundApiServerConfig {
   const queues = normalizeQueueSegments(undefined);
@@ -904,6 +921,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     bindings: [],
     port: DEFAULT_OUTBOUND_PORT,
     upstreamModelMappings: undefined,
+    upstreamModelMappingForce: undefined,
     defaultKeyUpstreamBinding: 'none',
     userMessageQueue: queues.userMessageQueue,
     concurrencyQueue: queues.concurrencyQueue,
@@ -953,6 +971,7 @@ export function normalizeServerConfig(
     bindings,
     port: raw.port ?? base.port,
     upstreamModelMappings: normalizeUpstreamModelMappings(raw.upstreamModelMappings),
+    upstreamModelMappingForce: normalizeUpstreamModelMappingForce(raw.upstreamModelMappingForce),
     defaultKeyUpstreamBinding: raw.defaultKeyUpstreamBinding === 'all' ? 'all' : 'none',
     upstreamMigrationDone: raw.upstreamMigrationDone === true ? true : undefined,
     userMessageQueue: queues.userMessageQueue,
@@ -1009,6 +1028,10 @@ export function mergeServerConfig(
       patch.upstreamModelMappings !== undefined
         ? patch.upstreamModelMappings
         : current.upstreamModelMappings,
+    upstreamModelMappingForce:
+      patch.upstreamModelMappingForce !== undefined
+        ? patch.upstreamModelMappingForce
+        : current.upstreamModelMappingForce,
     defaultKeyUpstreamBinding: patch.defaultKeyUpstreamBinding ?? current.defaultKeyUpstreamBinding,
     upstreamMigrationDone: patch.upstreamMigrationDone ?? current.upstreamMigrationDone,
     port: patch.port ?? current.port,

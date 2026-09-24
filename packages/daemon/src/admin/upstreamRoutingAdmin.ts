@@ -48,6 +48,60 @@ export function defaultProviderMappingTarget(provider: DaemonProviderConfig): st
     ?? provider.models?.find((model) => model.trim() !== '')?.trim();
 }
 
+/** The models an upstream DECLARES (its local existence list — never a live
+ *  probe): a BYO provider's models/modelConfigs union, or the subscription
+ *  pool's catalog. */
+function declaredUpstreamModels(
+  target: GatewayBindingTarget,
+  providers: readonly DaemonProviderConfig[],
+): string[] {
+  if (target.kind === 'provider') {
+    const provider = providers.find((candidate) => candidate.id === target.providerId);
+    if (!provider) return [];
+    return [...new Set([
+      ...(provider.models ?? []).map((model) => model.trim()).filter(Boolean),
+      ...(provider.modelConfigs ?? [])
+        .filter((config) => config.enabled !== false)
+        .map((config) => config.id.trim())
+        .filter(Boolean),
+    ])];
+  }
+  return SUBSCRIPTION_MODEL_CATALOG[target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG] ?? [];
+}
+
+/**
+ * The SERVING tables: the resolved tables, plus — for AUTO (non-force)
+ * upstreams with a non-empty table — derived identity rows
+ * (`declared model → same name`) prepended for every declared model not
+ * already named by a stored row. Effect: a requested model the upstream
+ * declares is passed through VERBATIM; only undeclared names fall to the
+ * configured rows (typically the `*` default). Explicit rows keep winning
+ * (their sources are skipped); the stored table itself is never rewritten;
+ * empty tables stay passthrough. FORCE upstreams get their rows verbatim.
+ */
+export function effectiveUpstreamModelMappings(
+  config: OutboundApiServerConfig,
+  providers: readonly DaemonProviderConfig[],
+  catalog: readonly UpstreamCatalogEntry[],
+): Record<string, GatewayModelMapping[]> {
+  const resolved = resolveUpstreamModelMappings(config, providers, catalog);
+  const force = config.upstreamModelMappingForce ?? {};
+  const effective: Record<string, GatewayModelMapping[]> = {};
+  for (const entry of catalog) {
+    const rows = resolved[entry.key] ?? [];
+    if (force[entry.key] === true || rows.length === 0) {
+      effective[entry.key] = rows;
+      continue;
+    }
+    const named = new Set(rows.map((row) => row.source.trim().toLocaleLowerCase()));
+    const identity = declaredUpstreamModels(entry.target, providers)
+      .filter((model) => !named.has(model.toLocaleLowerCase()))
+      .map((model) => ({ source: model, target: model }));
+    effective[entry.key] = [...identity, ...rows];
+  }
+  return effective;
+}
+
 /**
  * The same effective tables feed the editor and live route assembly. Existing
  * installations inherit their legacy model choices; missing tables receive
@@ -209,7 +263,7 @@ export async function assembledGatewayBindings(
     listUpstreamCatalog(deps),
   ]);
   const labels = new Map(catalog.map((entry) => [JSON.stringify(entry.target), entry.label]));
-  const mappings = resolveUpstreamModelMappings(serverConfig, loadConfig(deps.configPath).providers, catalog);
+  const mappings = effectiveUpstreamModelMappings(serverConfig, loadConfig(deps.configPath).providers, catalog);
   return assembleGatewayBindings({
     keys: keys.map((row) => ({ id: row.id, upstreamBinding: row.upstreamBinding })),
     allUpstreams: catalog.map((entry) => entry.target),

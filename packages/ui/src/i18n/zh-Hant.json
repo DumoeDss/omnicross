@@ -529,7 +529,7 @@
     "gateway": "閘道",
     "accessKeys": "存取金鑰",
     "routeActivity": "路由活動",
-    "upstreams": "LLM 供應商",
+    "upstreams": "模型服務",
     "integrations": "整合",
     "group": {
       "run": "執行",
@@ -723,8 +723,7 @@
     }
   },
   "upstreams": {
-    "title": "LLM 供應商",
-    "description": "分別管理上游連線，以及客戶端進入閘道後的下游路由。",
+    "title": "模型服務",
     "addAccount": "新增帳號",
     "addProvider": "新增提供者",
     "addProviderDescription": "建立提供者並設定連線資訊；模型清單不是必填項。",
@@ -753,12 +752,16 @@
     "routeCount": "{{count}} 條路由",
     "manageAccount": "管理帳號",
     "tabs": {
-      "label": "LLM 供應商",
-      "resources": "上游資源",
-      "routes": "下游與路由",
-      "activity": "路由活動"
+      "label": "模型服務",
+      "resources": "上游資源"
     },
-    "downstreams": {
+    "guidance": {
+      "title": "提供商已新增",
+      "body": "目前預設模型為 {{model}}——所有未匹配的客戶端模型名都會路由到它。你可以在模型映射中修改。",
+      "noModel": "（未設定）",
+      "mute": "不再提示",
+      "openMapping": "開啟模型映射"
+    },    "downstreams": {
       "listTitle": "客戶端應用",
       "listCount": "{{count}} 個下游介面",
       "boundKeysShort": "{{count}} Key",
@@ -803,6 +806,7 @@
         "target": "上游模型（自由填寫）",
         "add": "新增映射",
         "effort": "強度",
+        "effortHintToggle": "強度說明",
         "effortHint": "為無法在請求裡設置思考強度的客戶端釘一個等級——僅在該請求未自帶任何強度設定時生效。候選按目標模型的已知檔位給出，也可手輸自訂檔位（同格式上游原樣透傳）。"
       },
       "noResource": "未選擇上游",
@@ -1090,11 +1094,13 @@
         "emptyCatalog": "沒有可用上游 —— 請先在上游與路由頁新增提供商或訂閱帳號。",
         "mappingEdit": "模型映射",
         "mappingTitle": "編輯 {{name}} 的模型映射",
-        "mappingDesc": "用戶端模型名 → 上游模型 id。精確名優先於 * 萬用；default / background 為角色行（Gemini 背景模型）；留空 = 透傳（原名直發上游）。",
+        "mappingDesc": "codex 等客戶端會發送固定的模型名（如 gpt-6-astra）。這裡把這些名字改道：命中「下游請求模型」的請求，改用對應的「上游模型」。精確名優先於 * 萬用；default / background 為角色行（Gemini 背景模型）；留空 = 透傳（原名直發上游）。",
         "mappingEmpty": "暫無映射 —— 用戶端模型名將原樣透傳給該上游。",
         "mappingSource": "用戶端模型名（如 claude-*）",
         "mappingTarget": "上游模型 id",
         "mappingEffort": "思考檔",
+        "mappingForce": "強制映射",
+        "mappingForceHint": "關閉（預設）：客戶端請求的模型若已在上游聲明，就直接使用該模型；未聲明的名字才按規則映射（通常落到 * 兜底行）。開啟：嚴格按規則映射，不做同名直傳。",
         "mappingAdd": "新增映射行",
         "mappingHint": "多行時需包含一行 * 作為兜底；角色行 default / background 不參與名字匹配。",
         "mappingSaveFailed": "儲存映射失敗",

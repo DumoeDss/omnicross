@@ -27,6 +27,7 @@ import {
 import { agent } from '@/shared/agent';
 import { useLlmProvidersData } from '@/shared/state/settingsStore';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { Switch } from '@/components/ui/switch';
 
 import { mergeSubscriptionModelIds, SUBSCRIPTION_MODEL_CATALOG } from '../api-service/subscriptionModelCatalog';
 import { MappingRowsEditor, type MappingDraft } from './MappingRowsEditor';
@@ -81,6 +82,7 @@ export function UpstreamMappingEditor({
 }) {
   const t = useTranslation();
   const [rows, setRows] = useState<MappingDraft[]>([]);
+  const [force, setForce] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const suggestions = useUpstreamModelSuggestions(upstreamKey);
@@ -97,9 +99,12 @@ export function UpstreamMappingEditor({
         (entry?.mappings ?? []).map((row) => ({
           source: row.source,
           target: row.target,
-          effort: row.effort ?? '',
+          // undefined stays undefined — the effort pin must load UNCHECKED
+          // (`?? ''` made every row render as checked-with-empty-value).
+          effort: row.effort,
         })),
       );
+      setForce(entry?.force === true);
     })();
     return () => {
       cancelled = true;
@@ -129,7 +134,7 @@ export function UpstreamMappingEditor({
           target: row.target.trim(),
           ...(row.effort && row.effort.trim() !== '' ? { effort: row.effort.trim() } : {}),
         }));
-      const result = await agent.apiService.setUpstreamMappings(upstreamKey, payload);
+      const result = await agent.apiService.setUpstreamMappings(upstreamKey, payload, force);
       if (!result.success) {
         setError(result.message ?? t('apiService.keys.upstream.mappingSaveFailed'));
         return;
@@ -149,6 +154,21 @@ export function UpstreamMappingEditor({
           <DialogDescription>{t('apiService.keys.upstream.mappingDesc')}</DialogDescription>
         </DialogHeader>
         <div className="max-h-[55vh] overflow-y-auto pr-1">
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-border/70 px-3 py-2.5">
+            <div className="min-w-0">
+              <label htmlFor="upstream-mapping-force" className="text-sm font-medium">
+                {t('apiService.keys.upstream.mappingForce')}
+              </label>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                {t('apiService.keys.upstream.mappingForceHint')}
+              </p>
+            </div>
+            <Switch
+              id="upstream-mapping-force"
+              checked={force}
+              onCheckedChange={setForce}
+            />
+          </div>
           {rows.length === 0 ? (
             <p className="px-1 text-xs text-muted-foreground">{t('apiService.keys.upstream.mappingEmpty')}</p>
           ) : null}

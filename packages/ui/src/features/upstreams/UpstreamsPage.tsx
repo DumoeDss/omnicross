@@ -19,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -167,6 +168,12 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
   const providersApi = useLlmProvidersData();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [addProviderOpen, setAddProviderOpen] = useState(false);
+  // Post-add guidance: the created provider's id while its dialog is open.
+  const [createdProviderHint, setCreatedProviderHint] = useState<string | null>(null);
+  const [hintMuted, setHintMuted] = useState(false);
+  // Landing flag for the guidance dialog's "打开模型映射": auto-opens the
+  // provider's mapping editor once its section mounts.
+  const [mappingAutoOpenKey, setMappingAutoOpenKey] = useState<string | null>(null);
   const [antigravityModels, setAntigravityModels] = useState<Array<{ id: string }>>([]);
   const antigravityAccountKey = JSON.stringify(
     (accountsApi.data.providerAccounts.antigravity ?? []).map((account) => [account.id, account.isActive]),
@@ -379,6 +386,47 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
     onNavigate(next, replace ? { replace: true } : undefined);
   };
 
+  // ── Post-add provider guidance ───────────────────────────────────
+  const PROVIDER_HINT_MUTE_KEY = 'omnicross:provider-created-hint-muted';
+  const providerCreatedHintMuted = (): boolean => {
+    try {
+      return window.localStorage.getItem(PROVIDER_HINT_MUTE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+  /** The provisioned `*` default target: the provider's first declared model. */
+  const createdHintModel = (providerId: string | null): string | undefined => {
+    if (!providerId) return undefined;
+    const provider = resources.find(
+      (resource) => resource.kind === 'provider' && resource.providerId === providerId,
+    );
+    if (provider?.kind !== 'provider') return undefined;
+    return (provider.provider.models ?? []).map((model) => model.trim()).find(Boolean);
+  };
+  const dismissProviderHint = (): void => {
+    if (hintMuted) {
+      try {
+        window.localStorage.setItem(PROVIDER_HINT_MUTE_KEY, '1');
+      } catch {
+        // Best-effort persistence; the dialog still closes.
+      }
+    }
+    setHintMuted(false);
+    setCreatedProviderHint(null);
+  };
+  const openMappingFromProviderHint = (): void => {
+    const providerId = createdProviderHint;
+    dismissProviderHint();
+    if (!providerId) return;
+    const target = resources.find(
+      (resource) => resource.kind === 'provider' && resource.providerId === providerId,
+    );
+    if (!target) return;
+    setMappingAutoOpenKey(providerId);
+    navigateSelection(target);
+  };
+
   useEffect(() => {
     if (activeTab !== 'resources') return;
     if (!selectedResource || selectedKey === selectedResource.key) return;
@@ -439,7 +487,6 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-foreground">{t('upstreams.title')}</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">{t('upstreams.description')}</p>
             </div>
           </div>
           {activeTab === 'resources' ? (
@@ -635,14 +682,28 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
               {t('upstreams.empty')}
             </div>
           ) : selectedResource.kind === 'provider' ? (
-            <ProviderSettings
-              embedded
-              selectedProviderId={selectedResource.providerId}
-              onSelectedProviderChange={(providerId) => {
-                const next = resources.find((resource) => resource.kind === 'provider' && resource.providerId === providerId);
-                if (next) navigateSelection(next);
-              }}
-            />
+            <div className="flex h-full min-h-0 flex-col">
+              {/* Providers are mapping-table keys too — the mapping affordance
+                  lives on their detail page (same as subscription pools). */}
+              <div className="shrink-0 border-b border-border/70 px-5 py-3 md:px-6">
+                <UpstreamMappingSection
+                  upstreamKey={selectedResource.providerId}
+                  label={selectedResource.label}
+                  autoOpen={mappingAutoOpenKey === selectedResource.providerId}
+                  onAutoOpened={() => setMappingAutoOpenKey(null)}
+                />
+              </div>
+              <div className="min-h-0 flex-1">
+                <ProviderSettings
+                  embedded
+                  selectedProviderId={selectedResource.providerId}
+                  onSelectedProviderChange={(providerId) => {
+                    const next = resources.find((resource) => resource.kind === 'provider' && resource.providerId === providerId);
+                    if (next) navigateSelection(next);
+                  }}
+                />
+              </div>
+            </div>
           ) : (
             <ScrollArea className="h-full">
               <div className="space-y-5 p-5 md:p-6">
@@ -691,10 +752,44 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
             <ProviderSettings
               embedded
               mode="create"
-              onProviderCreated={() => setAddProviderOpen(false)}
+              onProviderCreated={(providerId) => {
+                setAddProviderOpen(false);
+                if (!providerCreatedHintMuted()) setCreatedProviderHint(providerId);
+              }}
               onRequestClose={() => setAddProviderOpen(false)}
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post-add guidance: the provisioned `*` default + where to change it. */}
+      <Dialog open={createdProviderHint !== null} onOpenChange={(open) => { if (!open) dismissProviderHint(); }}>
+        <DialogContent className="!max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('upstreams.guidance.title')}</DialogTitle>
+            <DialogDescription>
+              {t('upstreams.guidance.body', {
+                model: createdHintModel(createdProviderHint) ?? t('upstreams.guidance.noModel'),
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-primary"
+              checked={hintMuted}
+              onChange={(event) => setHintMuted(event.target.checked)}
+            />
+            {t('upstreams.guidance.mute')}
+          </label>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="secondary" onClick={dismissProviderHint}>
+              {t('common.close')}
+            </Button>
+            <Button variant="default" onClick={openMappingFromProviderHint}>
+              {t('upstreams.guidance.openMapping')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

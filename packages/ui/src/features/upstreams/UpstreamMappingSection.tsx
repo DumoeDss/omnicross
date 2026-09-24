@@ -8,7 +8,7 @@
  */
 
 import { ChevronDown, ChevronRight, Shuffle } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/shared/state/LocaleContext';
@@ -19,16 +19,32 @@ import { useUpstreamMappingInfo } from './useUpstreamMappingInfo';
 export function UpstreamMappingSection({
   upstreamKey,
   label,
+  autoOpen,
+  onAutoOpened,
 }: {
   /** The mapping-table key (`providerId` or `sub:<providerId>`). */
   upstreamKey: string;
   /** Display name for the dialog title (defaults to the key). */
   label: string;
+  /** Expand + open the editor ONCE on mount (the post-add guidance dialog's
+   *  "打开模型映射" landing). */
+  autoOpen?: boolean;
+  /** Fired when an autoOpen has been consumed (lets the host clear its flag). */
+  onAutoOpened?: () => void;
 }) {
   const t = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
+  const autoOpenedRef = useRef(false);
   const { count, refresh } = useUpstreamMappingInfo(expanded || editing ? upstreamKey : null);
+
+  useEffect(() => {
+    if (!autoOpen || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    setExpanded(true);
+    setEditing(true);
+    onAutoOpened?.();
+  }, [autoOpen, onAutoOpened]);
 
   return (
     <div className="border rounded-lg">

@@ -246,11 +246,13 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
     async setUpstreamMappings(
       upstreamKey: string,
       mappings: Array<{ source: string; target: string; effort?: string }>,
+      force?: boolean,
     ): Promise<MutationResult> {
       try {
         await adminClient.put(
           `/upstreams/${encodeURIComponent(upstreamKey)}/mappings`,
-          { mappings },
+          // `force` rides only when the caller manages it (absent = keep).
+          { mappings, ...(force !== undefined ? { force } : {}) },
         );
         return { success: true };
       } catch (err) {

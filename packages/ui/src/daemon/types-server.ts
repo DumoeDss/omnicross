@@ -927,6 +927,12 @@ export interface UpstreamCatalogEntry {
   label: string;
   target: { kind: string; providerId: string };
   mappings: Array<{ source: string; target: string; effort?: string }>;
+  /**
+   * Strict-mapping flag. `false` (auto): a requested model the upstream
+   * declares is passed through verbatim; only undeclared names fall to the
+   * configured rows. `true` (force): exactly the configured rows.
+   */
+  force?: boolean;
 }
 
 export interface UpstreamCatalogResult {

@@ -11,7 +11,7 @@
 
 import { lookupCanonicalCapabilities } from '@omnicross/contracts/canonical-models';
 
-import { ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, CircleHelp, Plus, Trash2 } from 'lucide-react';
 import React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -59,17 +59,34 @@ export function MappingRowsEditor({
 }) {
   const t = useTranslation();
   const targetListId = listId ?? 'mapping-model-suggestions';
+  const [effortHintOpen, setEffortHintOpen] = React.useState(false);
   const patch = (index: number, next: Partial<GatewayModelMapping>) => {
     onChange(mappings.map((mapping, itemIndex) => itemIndex === index ? { ...mapping, ...next } : mapping));
   };
   return (
     <div className="mt-3 space-y-2">
       <datalist id={targetListId}>{suggestions.map((model) => <option key={model} value={model} />)}</datalist>
-      <div className="hidden grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_172px_32px] gap-2 px-1 font-mono text-[9px] uppercase text-muted-foreground sm:grid">
+      <div className="hidden grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_172px_32px] gap-2 px-1 text-sm font-medium text-foreground sm:grid">
         <span>{t('upstreams.downstreams.mapping.source')}</span><span />
         <span>{t('upstreams.downstreams.mapping.target')}</span>
-        <span className="text-center">{t('upstreams.downstreams.mapping.effort')}</span><span />
+        <span className="flex items-center justify-center gap-1">
+          {t('upstreams.downstreams.mapping.effort')}
+          <button
+            type="button"
+            className="text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+            aria-label={t('upstreams.downstreams.mapping.effortHintToggle')}
+            aria-expanded={effortHintOpen}
+            onClick={() => setEffortHintOpen(!effortHintOpen)}
+          >
+            <CircleHelp className="h-3.5 w-3.5" />
+          </button>
+        </span><span />
       </div>
+      {effortHintOpen ? (
+        <p className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          {t('upstreams.downstreams.mapping.effortHint')}
+        </p>
+      ) : null}
       {mappings.map((mapping, index) => {
         // Preset-aware suggestions: the target model's canonical thinking
         // levels when the registry knows it, the full shared domain otherwise.
@@ -108,9 +125,6 @@ export function MappingRowsEditor({
           </div>
         );
       })}
-      <p className="px-1 text-[10px] leading-4 text-muted-foreground">
-        {t('upstreams.downstreams.mapping.effortHint')}
-      </p>
       <Button size="sm" variant="outline" onClick={() => onChange([...mappings, { source: '', target: '' }])}>
         <Plus className="h-3.5 w-3.5" />{t('upstreams.downstreams.mapping.add')}
       </Button>

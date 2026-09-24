@@ -344,10 +344,15 @@ export interface AgentApiServiceApi {
    * derived + legacy route aggregate actually being served.
    */
   listUpstreams(): Promise<UpstreamCatalogResult>;
-  /** Replace one upstream's model-mapping table (write-edge validated). */
+  /**
+   * Replace one upstream's model-mapping table (write-edge validated). The
+   * optional third argument sets the strict-mapping flag; `undefined` keeps
+   * the stored value.
+   */
   setUpstreamMappings(
     upstreamKey: string,
     mappings: Array<{ source: string; target: string; effort?: string }>,
+    force?: boolean,
   ): Promise<MutationResult>;
   /**
    * Set (or clear, with `null`) a key's ordered upstream set. `'all'` is the

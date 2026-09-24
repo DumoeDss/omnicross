@@ -528,7 +528,7 @@
     "more": "その他",
     "overview": "概要",
     "gateway": "ゲートウェイ",
-    "upstreams": "LLM プロバイダー",
+    "upstreams": "モデルサービス",
     "integrations": "連携",
     "group": {
       "run": "運用",
@@ -583,8 +583,7 @@
     }
   },
   "upstreams": {
-    "title": "LLM プロバイダー",
-    "description": "ゲートウェイのトラフィックを受け取るアカウント、アカウントグループ、プロバイダーを管理します。",
+    "title": "モデルサービス",
     "addAccount": "アカウントを追加",
     "addProvider": "プロバイダーを追加",
     "addProviderDescription": "プロバイダーを作成し、モデルとキープールを設定します。",

@@ -529,7 +529,7 @@
     "gateway": "网关",
     "accessKeys": "访问密钥",
     "routeActivity": "路由活动",
-    "upstreams": "LLM 提供商",
+    "upstreams": "模型服务",
     "integrations": "集成",
     "group": {
       "run": "运行",
@@ -723,8 +723,7 @@
     }
   },
   "upstreams": {
-    "title": "LLM 提供商",
-    "description": "分别管理上游连接，以及客户端进入网关后的下游路由。",
+    "title": "模型服务",
     "addAccount": "添加账号",
     "addProvider": "添加提供商",
     "addProviderDescription": "创建提供商并配置连接信息；模型列表不是必填项。",
@@ -753,10 +752,15 @@
     "routeCount": "{{count}} 条路由",
     "manageAccount": "管理账号",
     "tabs": {
-      "label": "LLM 提供商",
-      "resources": "上游资源",
-      "routes": "下游与路由",
-      "activity": "路由活动"
+      "label": "模型服务",
+      "resources": "上游资源"
+    },
+    "guidance": {
+      "title": "提供商已添加",
+      "body": "当前默认模型为 {{model}}——所有未匹配的客户端模型名都会路由到它。你可以在模型映射中修改。",
+      "noModel": "（未设置）",
+      "mute": "不再提示",
+      "openMapping": "打开模型映射"
     },
     "activity": {
       "title": "最近路由",
@@ -862,6 +866,7 @@
         "target": "上游模型（自由填写）",
         "add": "添加映射",
         "effort": "强度",
+        "effortHintToggle": "强度说明",
         "effortHint": "为无法在请求里设置思考强度的客户端钉一个等级——仅在该请求未自带任何强度设置时生效。候选按目标模型的已知档位给出，也可手输自定义档位（同格式上游原样透传）。"
       },
       "noResource": "未选择上游"
@@ -1090,11 +1095,13 @@
         "emptyCatalog": "没有可用上游 —— 先在上游与路由页添加提供商或订阅账号。",
         "mappingEdit": "模型映射",
         "mappingTitle": "编辑 {{name}} 的模型映射",
-        "mappingDesc": "客户端模型名 → 上游模型 id。精确名优先于 * 通配；default / background 为角色行（Gemini 后台模型）；留空 = 透传（原名直发上游）。",
+        "mappingDesc": "codex 等客户端会发送固定的模型名（如 gpt-6-astra）。这里把这些名字改道：命中「下游请求模型」的请求，改用对应的「上游模型」。精确名优先于 * 通配；default / background 为角色行（Gemini 后台模型）；留空 = 透传（原名直发上游）。",
         "mappingEmpty": "暂无映射 —— 客户端模型名将原样透传给该上游。",
         "mappingSource": "客户端模型名（如 claude-*）",
         "mappingTarget": "上游模型 id",
         "mappingEffort": "思考档",
+        "mappingForce": "强制映射",
+        "mappingForceHint": "关闭（默认）：客户端请求的模型若已在上游声明，就直接使用该模型；未声明的名字才按规则映射（通常落到 * 兜底行）。开启：严格按规则映射，不做同名直传。",
         "mappingAdd": "添加映射行",
         "mappingHint": "多行时需包含一行 * 作为兜底；角色行 default / background 不参与名字匹配。",
         "mappingSaveFailed": "保存映射失败",

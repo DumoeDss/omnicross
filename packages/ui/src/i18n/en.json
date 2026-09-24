@@ -531,7 +531,7 @@
     "gateway": "Gateway",
     "accessKeys": "Access keys",
     "routeActivity": "Routing activity",
-    "upstreams": "LLM Providers",
+    "upstreams": "Model Services",
     "integrations": "Integrations",
     "chatgptWeb": "ChatGPT Web",
     "group": {
@@ -723,8 +723,7 @@
     }
   },
   "upstreams": {
-    "title": "LLM Providers",
-    "description": "Manage upstream connections separately from the downstream routes clients enter through.",
+    "title": "Model Services",
     "addAccount": "Add account",
     "addProvider": "Add provider",
     "addProviderDescription": "Create a provider and configure its connection; a model list is optional.",
@@ -753,12 +752,16 @@
     "routeCount": "{{count}} routes",
     "manageAccount": "Manage account",
     "tabs": {
-      "label": "LLM Providers",
-      "resources": "Upstream resources",
-      "routes": "Downstreams and routes",
-      "activity": "Routing activity"
+      "label": "Model Services",
+      "resources": "Upstream resources"
     },
-    "activity": {
+    "guidance": {
+      "title": "Provider added",
+      "body": "The default model is {{model}} — every unmatched client model name routes to it. You can change this in the model mappings.",
+      "noModel": "(none set)",
+      "mute": "Don't show this again",
+      "openMapping": "Open model mappings"
+    },    "activity": {
       "title": "Recent routing",
       "description": "See which credential actually served each request — subscription pool accounts and BYO provider API keys on one timeline. Session identifiers are hashed; prompts, headers, tokens and key strings are never collected.",
       "metadataOnly": "Metadata only",
@@ -862,6 +865,7 @@
         "target": "Upstream model (free text)",
         "add": "Add mapping",
         "effort": "Effort",
+        "effortHintToggle": "About effort",
         "effortHint": "Pin a thinking level for clients that cannot send one — applied only when the request carries no reasoning setting of its own. Suggestions follow the target model's known levels; a custom level passes same-format upstreams verbatim."
       },
       "noResource": "No upstream selected"
@@ -1087,11 +1091,13 @@
         "emptyCatalog": "No upstreams available — add a provider or subscription on the Upstreams page first.",
         "mappingEdit": "Model mappings",
         "mappingTitle": "Edit model mappings for {{name}}",
-        "mappingDesc": "Client model name → upstream model id. Exact names beat * wildcards; default / background are role rows (Gemini background model); empty = passthrough.",
+        "mappingDesc": "Clients like codex send fixed model names (e.g. gpt-6-astra). This table reroutes them: a request matching a downstream model name uses its upstream model instead. Exact names beat * wildcards; default / background are role rows (Gemini background model); empty = passthrough.",
         "mappingEmpty": "No mappings — the client's model id is forwarded verbatim.",
         "mappingSource": "Client model name (e.g. claude-*)",
         "mappingTarget": "Upstream model id",
         "mappingEffort": "Effort",
+        "mappingForce": "Strict mapping",
+        "mappingForceHint": "Off (default): a requested model the upstream declares is used verbatim; only undeclared names follow the rules below (usually the * fallback row). On: map strictly by the rules below — no same-name passthrough.",
         "mappingAdd": "Add a mapping row",
         "mappingHint": "With multiple rows include a * fallback row; the default / background role rows never match by name.",
         "mappingSaveFailed": "Failed to save mappings",
