@@ -149,6 +149,12 @@ export interface DaemonProviderView {
    * request time). Absent for rows created before the field existed.
    */
   extraHeaders?: Record<string, string>;
+  /**
+   * MULTI-FORMAT FAN-OUT: extra-wire base URLs (dual/tri-wire providers).
+   * Non-secret — round-trips verbatim; consumed by the serving ingresses'
+   * per-wire view swap.
+   */
+  formatVariants?: Partial<Record<'openai' | 'anthropic' | 'openai-response', string>>;
 }
 
 /** `GET /admin/api/providers/:id/keys` pool-health row (masked). */
@@ -203,6 +209,11 @@ export interface DaemonPresetView {
   modelsEndpoint?: string;
   /** Static identity headers seeded onto the row on add (non-secret; verbatim). */
   extraHeaders?: Record<string, string>;
+  /**
+   * MULTI-FORMAT FAN-OUT: extra-wire base URLs seeded onto the row on add
+   * (dual/tri-wire providers — deepseek, z.ai, mimo). Non-secret.
+   */
+  formatVariants?: Partial<Record<'openai' | 'anthropic' | 'openai-response', string>>;
 }
 
 /** `POST /admin/api/providers/:id/discover-models` response. */

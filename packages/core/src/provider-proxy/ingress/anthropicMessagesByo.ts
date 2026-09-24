@@ -85,6 +85,7 @@ import {
   buildByoRouteActivityMeta,
   cancelDiscardedResponse,
   relayResponse,
+  providerForWire,
   resolvePoolBoundKey,
   writeBoundAccountError,
   writeError,
@@ -382,11 +383,15 @@ export async function buildByoPlan(
     writeError(res, 502, 'BYO route is missing a providerId');
     return null;
   }
-  const provider = await deps.llmConfig.getProvider(providerId);
-  if (!provider) {
+  const storedProvider = await deps.llmConfig.getProvider(providerId);
+  if (!storedProvider) {
     writeError(res, 502, `Provider not found: ${providerId}`);
     return null;
   }
+  // MULTI-FORMAT FAN-OUT: a row declaring an anthropic variant serves this
+  // wire VERBATIM from that base (same key, same routing) instead of going
+  // through the unified-pivot translate path. No variant → the row itself.
+  const provider = providerForWire(storedProvider, 'anthropic');
 
   // First-choice key via the shared pool-seam helper (design D2(b)): when the
   // pool is wired AND the route carries a synthesized `outbound:<keyId>`

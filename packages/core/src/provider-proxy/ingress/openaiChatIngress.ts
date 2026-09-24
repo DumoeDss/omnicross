@@ -81,6 +81,7 @@ import {
   buildByoRouteActivityMeta,
   getSharedExecutor,
   relayResponse,
+  providerForWire,
   resolvePoolBoundKey,
   sniffIsSseResponse,
   writeBoundAccountError,
@@ -321,11 +322,15 @@ async function buildByoPlan(
     writeError(res, 502, 'BYO route is missing a providerId');
     return null;
   }
-  const provider = await deps.llmConfig.getProvider(providerId);
-  if (!provider) {
+  const storedProvider = await deps.llmConfig.getProvider(providerId);
+  if (!storedProvider) {
     writeError(res, 502, `Provider not found: ${providerId}`);
     return null;
   }
+  // MULTI-FORMAT FAN-OUT: an openai variant serves this chat-completions wire
+  // natively from that base (identity passthrough, no conversion). No variant
+  // → the row itself.
+  const provider = providerForWire(storedProvider, 'openai');
 
   // First-choice key via the shared pool-seam helper (design D2(b)): when the
   // pool is wired AND the route carries a synthesized `outbound:<keyId>`

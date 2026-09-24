@@ -458,6 +458,10 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
         if (preset.extraHeaders && Object.keys(preset.extraHeaders).length > 0) {
           body['extraHeaders'] = preset.extraHeaders;
         }
+        // Fan-out variants land on the row too (extra-wire base URLs).
+        if (preset.formatVariants && Object.keys(preset.formatVariants).length > 0) {
+          body['formatVariants'] = preset.formatVariants;
+        }
         if (preset.logjev) body['logjev'] = preset.logjev;
         // Carry the user-supplied key + enable state from the inline configure
         // flow (a masked/blank value is never sent — same discipline as edits).

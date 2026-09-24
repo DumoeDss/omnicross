@@ -1856,6 +1856,7 @@
       "modelListEmpty": "暂无模型。Codex / Claude 账号展示预设模型；OpenCodeGo 账号可获取在线列表。",
       "modelListRemap": "重映射为实际上游模型",
       "modelListRemapPlaceholder": "实际上游模型（可选重映射）",
+      "modelListRemove": "移除",
       "modelListHint": "已选 {{count}} 个。勾选的模型为此账号可服务的模型（仅多账号池生效）；设置实际模型会把出站模型名重写。全部不勾选表示支持所有模型。"
     },
     "oauthFlow": {

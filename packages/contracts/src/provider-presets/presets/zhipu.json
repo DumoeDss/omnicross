@@ -5,6 +5,7 @@
   "nameKey": "presetName.zhipu",
   "apiFormat": "openai",
   "api_base_url": "https://api.z.ai/api/paas/v4",
+  "formatVariants": {"anthropic":"https://api.z.ai/api/anthropic","openai-response":"https://api.z.ai/api/paas/v4"},
   "codingPlanBaseUrl": "https://api.z.ai/api/coding/paas/v4",
   "modelsEndpoint": "https://api.z.ai/api/paas/v4/models",
   "models": [

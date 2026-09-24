@@ -174,6 +174,13 @@ export interface LLMProvider {
   /** @deprecated Use apiFormat instead */
   apiType?: ProviderApiType;
   api_base_url: string;
+  /**
+   * MULTI-FORMAT FAN-OUT: base URL per additional wire this provider serves
+   * natively (see ProviderTemplate.formatVariants). The serving ingresses
+   * swap to the matching variant view per request wire — verbatim relay,
+   * never transcode — sharing the row's key, models, and routing identity.
+   */
+  formatVariants?: Partial<Record<ApiFormat, string>>;
   api_key: string;
   hasKey?: boolean;
   models: string[];
@@ -306,6 +313,15 @@ export interface ProviderTemplate {
   /** @deprecated Use apiFormat instead */
   apiType?: ProviderApiType;
   api_base_url: string;
+  /**
+   * MULTI-FORMAT FAN-OUT (dual/tri-wire providers — deepseek, z.ai, mimo —
+   * one key across wires): base URL per additional wire this provider serves
+   * NATIVELY. When a client's ingress wire has a variant, the gateway relays
+   * verbatim to THAT base (same key, same provider id) instead of
+   * transcoding; wires without a variant keep the transcode path. The row's
+   * own `apiFormat`/`api_base_url` stay the PRIMARY wire.
+   */
+  formatVariants?: Partial<Record<ApiFormat, string>>;
   models: string[];
   modelConfigs?: ModelConfig[];
   modelGroups?: ModelGroup[];

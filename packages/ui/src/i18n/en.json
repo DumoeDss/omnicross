@@ -761,7 +761,8 @@
       "noModel": "(none set)",
       "mute": "Don't show this again",
       "openMapping": "Open model mappings"
-    },    "activity": {
+    },
+    "activity": {
       "title": "Recent routing",
       "description": "See which credential actually served each request — subscription pool accounts and BYO provider API keys on one timeline. Session identifiers are hashed; prompts, headers, tokens and key strings are never collected.",
       "metadataOnly": "Metadata only",
@@ -1852,6 +1853,7 @@
       "modelListEmpty": "No models yet. Codex/Claude accounts show presets; OpenCodeGo accounts can fetch the live list.",
       "modelListRemap": "Remap to the actual upstream model",
       "modelListRemapPlaceholder": "Actual upstream model (optional remap)",
+      "modelListRemove": "Remove",
       "modelListHint": "Selected {{count}}. Checked models are the ones this account serves (multi-account pools only); an actual-model remap rewrites the outbound model id. Nothing checked = every model."
     },
     "oauthFlow": {

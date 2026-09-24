@@ -5,6 +5,7 @@
   "nameKey": "presetName.xiaomiMimoOpenai",
   "apiFormat": "openai",
   "api_base_url": "https://api.xiaomimimo.com/v1",
+  "formatVariants": {"anthropic":"https://api.xiaomimimo.com/anthropic","openai-response":"https://api.xiaomimimo.com/v1"},
   "codingPlanBaseUrl": "https://token-plan-cn.xiaomimimo.com/v1",
   "models": [
     "mimo-v2.5",

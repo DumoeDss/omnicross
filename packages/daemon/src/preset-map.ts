@@ -123,6 +123,9 @@ export function mapPresetToProvider(
     // Static identity headers (e.g. the Cline client set) survive the mapping —
     // the CLI-seeded row needs them as much as an admin-API-created one.
     extraHeaders: preset.extraHeaders,
+    // Fan-out variants survive the mapping (multi-format providers seed their
+    // extra-wire base URLs onto the row).
+    formatVariants: preset.formatVariants,
     logjev: preset.logjev,
   };
   return { provider };
@@ -157,6 +160,8 @@ export interface MappablePreset {
   modelsEndpoint?: string;
   /** Static identity headers the row must carry (non-secret; verbatim). */
   extraHeaders?: Record<string, string>;
+  /** Multi-format fan-out variants (extra-wire base URLs; non-secret). */
+  formatVariants?: DaemonProviderConfig['formatVariants'];
 }
 
 /** The split of the whole catalog into mappable + excluded. */
@@ -194,6 +199,7 @@ export function listMappablePresets(): ListMappableResult {
       website: preset.website,
       modelsEndpoint: preset.modelsEndpoint,
       extraHeaders: preset.extraHeaders,
+      formatVariants: preset.formatVariants,
       logjev: preset.logjev,
     });
   }

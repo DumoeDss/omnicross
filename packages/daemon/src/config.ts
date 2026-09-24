@@ -293,6 +293,14 @@ export interface DaemonProviderConfig {
    */
   extraHeaders?: Record<string, string>;
   /**
+   * MULTI-FORMAT FAN-OUT (dual/tri-wire providers, one key): base URL per
+   * additional wire served natively (`openai` | `anthropic` |
+   * `openai-response`). The serving ingresses swap to the matching variant
+   * view per request wire — verbatim relay, never transcode. NON-SECRET;
+   * absent = the row's single primary wire (byte-identical behavior).
+   */
+  formatVariants?: Partial<Record<'openai' | 'anthropic' | 'openai-response', string>>;
+  /**
    * OPTIONAL provider transformer config (app-parity child 5). Additive +
    * back-compat: absent reads as the prior default (undefined). NON-SECRET —
    * round-trips verbatim on GET (no masking). ENFORCED (parity-2 child 2): the
@@ -537,6 +545,31 @@ export function validateExtraHeaders(raw: unknown): Record<string, string> | und
     if (typeof value !== 'string') continue;
     if (reserved.has(name.toLowerCase())) continue;
     out[name] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** The wires a formatVariants entry may name (the routable chat wires). */
+const VARIANT_WIRES: ReadonlySet<string> = new Set(['openai', 'anthropic', 'openai-response']);
+
+/**
+ * Shape-guard the optional `formatVariants` map (multi-format fan-out).
+ * Non-object collapses to `undefined`; only known wires with non-blank http(s)
+ * URLs survive; the row's own wire may appear (harmless — the serving swap
+ * ignores a variant that matches the primary). Exported so the admin write
+ * gateway reuses the same guard (two-gateway lockstep).
+ */
+export function validateFormatVariants(
+  raw: unknown,
+): Partial<Record<'openai' | 'anthropic' | 'openai-response', string>> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Partial<Record<'openai' | 'anthropic' | 'openai-response', string>> = {};
+  for (const [wire, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!VARIANT_WIRES.has(wire)) continue;
+    if (typeof value !== 'string') continue;
+    const url = value.trim();
+    if (!/^https?:\/\//i.test(url)) continue;
+    out[wire as 'openai' | 'anthropic' | 'openai-response'] = url;
   }
   return Object.keys(out).length > 0 ? out : undefined;
 }
@@ -878,6 +911,9 @@ function validateProvider(raw: unknown, index: number): DaemonProviderConfig {
     // Static extra headers: load-guard (reserved names dropped), collapse-to-
     // undefined; enforced by the outbound header funnel + admin probes.
     extraHeaders: validateExtraHeaders(p['extraHeaders']),
+    // Multi-format fan-out variants: load-guard (known wires + http(s) URLs),
+    // collapse-to-undefined; consumed by the serving ingresses' wire swap.
+    formatVariants: validateFormatVariants(p['formatVariants']),
     // Provider transformer config (app-parity child 5): load-guard, collapse-to-
     // undefined; non-secret; ENFORCED via resolveTransformerChain (parity-2 child 2).
     // Format-axis entries are stripped by `migrateFormatAxis` — `use[]` is the

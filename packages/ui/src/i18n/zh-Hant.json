@@ -761,7 +761,8 @@
       "noModel": "（未設定）",
       "mute": "不再提示",
       "openMapping": "開啟模型映射"
-    },    "downstreams": {
+    },
+    "downstreams": {
       "listTitle": "客戶端應用",
       "listCount": "{{count}} 個下游介面",
       "boundKeysShort": "{{count}} Key",
@@ -1855,6 +1856,7 @@
       "modelListEmpty": "尚無模型。Codex / Claude 帳號顯示預設模型；OpenCodeGo 帳號可取得線上列表。",
       "modelListRemap": "重映射為實際上游模型",
       "modelListRemapPlaceholder": "實際上游模型（可選重映射）",
+      "modelListRemove": "移除",
       "modelListHint": "已選 {{count}} 個。勾選的模型為此帳號可服務的模型（僅多帳號池生效）；設定實際模型會重寫出站模型名。全部不勾選表示支援所有模型。"
     },
     "oauthFlow": {

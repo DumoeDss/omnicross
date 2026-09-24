@@ -17,7 +17,7 @@ import type http from 'node:http';
 
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
-import { resolveProviderEndpoint } from '../../completion';
+import { resolveApiFormat, resolveProviderEndpoint } from '../../completion';
 import {
   boundAccountSelectionMessage,
   type BoundAccountSelectionError,
@@ -995,5 +995,36 @@ export function buildByoRouteActivityMeta(
         return undefined;
       }
     },
+  };
+}
+
+// ── Multi-format fan-out (dual/tri-wire providers, one key) ──────────────────
+
+/** The routable chat wires an ingress may request a variant view for. */
+export type FanOutWire = 'openai' | 'anthropic' | 'openai-response';
+
+/**
+ * The provider view for ONE request wire: when the row declares a
+ * `formatVariants` base for the wire AND the row's primary format differs, the
+ * view swaps to that wire (base URL + format) so the ingress takes its
+ * VERBATIM relay path — same key, same id, same routing, no transcoding. No
+ * variant (or the variant IS the primary) returns the row unchanged, so wires
+ * without fan-out behave byte-identically.
+ */
+export function providerForWire(provider: LLMProvider, wire: FanOutWire): LLMProvider {
+  const variant = provider.formatVariants?.[wire];
+  if (!variant) return provider;
+  // The primary wire already serves natively — the variant entry (if any)
+  // would just restate the primary base; keep the row untouched. Compare the
+  // RESOLVED format so legacy rows (deprecated apiType fallback) are honored.
+  if (resolveApiFormat(provider) === wire) return provider;
+  return {
+    ...provider,
+    apiFormat: wire,
+    api_base_url: variant,
+    // Clear the deprecated format axes so resolveApiFormat can only see the
+    // swapped primary — no legacy fallback may resurrect the stored format.
+    chatApiFormat: undefined,
+    apiType: undefined,
   };
 }

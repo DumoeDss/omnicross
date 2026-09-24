@@ -177,6 +177,7 @@ describe('GET /admin/api/presets', () => {
       'website',
       'modelsEndpoint',
       'extraHeaders',
+      'formatVariants',
       'category',
       'logjev',
     ]);

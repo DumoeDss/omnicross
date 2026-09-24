@@ -479,7 +479,7 @@ describe('handleOutboundRequest — auth', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body) as { data: Array<{ id: string }> };
     expect(body.data.map((model) => model.id)).toEqual([
-      'gpt-5.6-luna',
+      'gpt-6-luna',
       'gpt-5.6-terra',
       'gpt-5.6-sol',
       'gpt-6-astra',

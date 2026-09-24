@@ -343,19 +343,24 @@ describe('POST /admin/api/providers/:id/discover-models (app-foundation D8)', ()
     }
   });
 
-  it('anthropic/gemini formats return unsupportedFormat with no upstream call', async () => {
+  it('anthropic probes the OpenAI-wire /models candidates; gemini stays unsupported with no call', async () => {
     await bootDaemon((b) => [
       { id: 'ant', apiFormat: 'anthropic', baseUrl: b, apiKey: 'sk-ant' },
       { id: 'gem', apiFormat: 'gemini', baseUrl: b, apiKey: 'sk-gem' },
     ]);
     const before = upstream.lastAuthHeader;
+    // The mock answers any `…/models` path with the canned catalog — the
+    // anthropic row's FIRST candidate (`{root}/v1/models`) hits it.
     const a = await adminFetch('POST', '/admin/api/providers/ant/discover-models');
     expect(a.status).toBe(200);
-    expect(a.json).toEqual({ models: [], unsupportedFormat: true });
+    expect(a.json).toEqual({ models: ['gpt-x', 'gpt-y'] });
+    // The probe authenticated on the OpenAI wire with the SAME key (Bearer).
+    expect(upstream.lastAuthHeader).toBe('Bearer sk-ant');
     const g = await adminFetch('POST', '/admin/api/providers/gem/discover-models');
     expect(g.json).toEqual({ models: [], unsupportedFormat: true });
-    // No upstream /models call happened for either.
-    expect(upstream.lastAuthHeader).toBe(before);
+    // No upstream call happened for the gemini row.
+    expect(upstream.lastAuthHeader).toBe('Bearer sk-ant');
+    expect(before).toBeUndefined();
   });
 
   it('upstream failure is reported inline (HTTP 200, { error }) without leaking the key', async () => {

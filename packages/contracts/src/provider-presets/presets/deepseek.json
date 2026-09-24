@@ -5,6 +5,7 @@
   "apiFormat": "openai",
   "apiType": "openai",
   "api_base_url": "https://api.deepseek.com/v1/chat/completions",
+  "formatVariants": {"anthropic":"https://api.deepseek.com/anthropic","openai-response":"https://api.deepseek.com"},
   "models": [
     "deepseek-flash",
     "deepseek-v4-pro"

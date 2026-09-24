@@ -5,6 +5,7 @@
   "nameKey": "presetName.xiaomiMimoAnthropic",
   "apiFormat": "anthropic",
   "api_base_url": "https://api.xiaomimimo.com/anthropic",
+  "formatVariants": {"openai":"https://api.xiaomimimo.com/v1","openai-response":"https://api.xiaomimimo.com/v1"},
   "codingPlanBaseUrl": "https://token-plan-cn.xiaomimimo.com/anthropic",
   "transformer": {
     "use": [

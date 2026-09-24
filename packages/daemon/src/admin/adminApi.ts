@@ -92,6 +92,7 @@ import {
   migrateFormatAxis,
   saveConfig,
   validateExtraHeaders,
+  validateFormatVariants,
   validateThinkingLevels,
   validateThinkingTokenLimit,
   validateTransformerEntry,
@@ -605,6 +606,7 @@ function toProviderView(row: DaemonProviderConfig): {
   maxConcurrency?: number;
   modelsEndpoint?: string;
   extraHeaders?: Record<string, string>;
+  formatVariants?: DaemonProviderConfig['formatVariants'];
   transformer?: DaemonTransformerConfig;
   codingPlan?: { enabled: boolean; baseUrl?: string; hasApiKey: boolean; note?: string };
   apiModes?: Array<{ id: string; label: string; baseUrl: string; hasApiKey: boolean; apiKeyPrefix?: string; note?: string }>;
@@ -636,6 +638,7 @@ function toProviderView(row: DaemonProviderConfig): {
     // Static extra headers round-trip VERBATIM (non-secret identity values;
     // auth/content names were already dropped at the write/load gate).
     extraHeaders: row.extraHeaders,
+    formatVariants: row.formatVariants,
     // app-parity child 5: transformer config round-trips VERBATIM (non-secret —
     // transform-rule names + options, no key material; absent stays absent).
     transformer: row.transformer,
@@ -1092,17 +1095,91 @@ export function mergeProviderModels(
 }
 
 /**
- * Fetch a provider's OpenAI-wire `/models` ids — the silent core of the
- * discover-models route, reused by create-time provisioning. Any failure
- * (unsupported format, network, non-2xx, odd payload) yields [] — callers
- * treat discovery as purely additive.
+ * Candidate OpenAI-wire `/models` URLs for an ANTHROPIC-format row. The
+ * dual/tri-format providers (verified keyless 2026-09-24 — a 401 means the
+ * route exists behind auth) share one key across wires:
+ *   deepseek  https://api.deepseek.com/anthropic   → /models AND /v1/models
+ *   mimo      https://api.xiaomimimo.com/anthropic → /v1/models
+ *   z.ai      https://api.z.ai/api/anthropic       → /api/paas/v4/models
+ * (`/v1/models` on z.ai and bare `/models` on mimo are 404 — hence the
+ * candidate LIST, tried in order, first authenticated hit wins.)
+ */
+export function anthropicModelDiscoveryUrls(baseUrl: string): string[] {
+  const base = baseUrl.replace(/\/+$/, '');
+  const root = base.toLowerCase().endsWith('/anthropic')
+    ? base.slice(0, -'/anthropic'.length)
+    : base;
+  const candidates = [
+    `${root}/v1/models`,
+    `${root}/models`,
+    // z.ai's OpenAI wire lives under paas/v4 — reached from an /api-rooted
+    // anthropic base (`…/api/anthropic` → `…/api/paas/v4/models`); the /api
+    // variant covers operators who entered a domain-root base.
+    `${root}/paas/v4/models`,
+    `${root}/api/paas/v4/models`,
+  ];
+  return [...new Set(candidates)];
+}
+
+/** Fetch one `/models` URL; `ids` empty + `error` set on any failure (the
+ *  caller tries the next candidate). Shared by the openai-wire path and the
+ *  anthropic probe list. Never throws. */
+async function fetchModelsFromUrl(
+  url: string,
+  row: DaemonProviderConfig,
+  signal?: AbortSignal,
+): Promise<{ ids: string[]; error?: string }> {
+  try {
+    const resolvedKey = resolveEnvKey(row.apiKey);
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
+    // Static extra headers (e.g. the Cline identity set) gate the SAME
+    // /models surface as completions.
+    Object.assign(headers, expandRowExtraHeaders(row));
+    applyAdminProbeIdentity(headers, row);
+    // upstream-proxy: BYO discovery egress honors the global/provider proxy.
+    const response = await fetchUpstream(url, { method: 'GET', headers, signal }, { providerId: 'byo' });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      let message = text.slice(0, 300);
+      try {
+        const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
+        message = parsed?.error?.message || parsed?.message || message;
+      } catch {
+        // keep the raw text slice
+      }
+      return { ids: [], error: `discovery failed (${response.status})${message ? `: ${message}` : ''}` };
+    }
+    const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
+    if (!Array.isArray(data?.data)) return { ids: [], error: 'discovery failed: unexpected /models payload' };
+    const ids = data.data
+      .map((entry) => (typeof entry?.id === 'string' ? entry.id.trim() : ''))
+      .filter((id) => id.length > 0);
+    if (ids.length === 0) return { ids: [], error: 'discovery failed: the /models endpoint returned no models' };
+    return { ids };
+  } catch (err) {
+    return { ids: [], error: `discovery failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/**
+ * Fetch a provider's `/models` ids — the SILENT core reused by create-time
+ * provisioning (any failure ⇒ []). OpenAI wires hit their own `{base}/models`;
+ * ANTHROPIC-format rows probe the provider's OpenAI wire (dual-format
+ * providers share the key across wires).
  */
 async function fetchProviderModelIds(
   row: DaemonProviderConfig,
   signal?: AbortSignal,
 ): Promise<string[]> {
+  if (row.apiFormat === 'anthropic') {
+    for (const url of anthropicModelDiscoveryUrls(row.baseUrl)) {
+      const result = await fetchModelsFromUrl(url, row, signal);
+      if (result.ids.length > 0) return result.ids;
+    }
+    return [];
+  }
   if (row.apiFormat !== 'openai' && row.apiFormat !== 'openai-response') return [];
-  const resolvedKey = resolveEnvKey(row.apiKey);
   const base = row.baseUrl.replace(/\/+$/, '');
   const url =
     row.category === 'other'
@@ -1112,17 +1189,42 @@ async function fetchProviderModelIds(
           ? `${base}/models`
           : `${base}/v1/models`
       : `${base}/models`;
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
-  Object.assign(headers, expandRowExtraHeaders(row));
-  applyAdminProbeIdentity(headers, row);
-  const response = await fetchUpstream(url, { method: 'GET', headers, signal }, { providerId: 'byo' });
-  if (!response.ok) return [];
-  const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
-  if (!Array.isArray(data?.data)) return [];
-  return data.data
-    .map((entry) => (typeof entry?.id === 'string' ? entry.id.trim() : ''))
-    .filter((id) => id.length > 0);
+  return (await fetchModelsFromUrl(url, row, signal)).ids;
+}
+
+/**
+ * The DISCOVER-MODELS ROUTE's detailed variant: same probing, but the error
+ * says which candidate URLs were tried (anthropic) or carries the upstream's
+ * own message (openai wires).
+ */
+async function discoverProviderModelsDetailed(
+  row: DaemonProviderConfig,
+  signal?: AbortSignal,
+): Promise<{ models: string[]; error?: string }> {
+  if (row.apiFormat === 'anthropic') {
+    const tried = anthropicModelDiscoveryUrls(row.baseUrl);
+    let lastError = '';
+    for (const url of tried) {
+      const result = await fetchModelsFromUrl(url, row, signal);
+      if (result.ids.length > 0) return { models: result.ids };
+      lastError = result.error ?? lastError;
+    }
+    return {
+      models: [],
+      error: `${lastError || 'no OpenAI-wire /models endpoint answered'} (tried ${tried.join(', ')})`,
+    };
+  }
+  const result = await fetchModelsFromUrl(discoveryUrlForOpenAiWire(row), row, signal);
+  return { models: result.ids, ...(result.error ? { error: result.error } : {}) };
+}
+
+function discoveryUrlForOpenAiWire(row: DaemonProviderConfig): string {
+  const base = row.baseUrl.replace(/\/+$/, '');
+  if (row.category === 'other') {
+    if (/\/v1\/[^/]+$/.test(base)) return `${base.replace(/\/v1\/[^/]+$/, '/v1')}/models`;
+    return base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
+  }
+  return `${base}/models`;
 }
 
 async function provisionNewProvider(
@@ -1138,7 +1240,7 @@ async function provisionNewProvider(
     // their order and lead (so the provisioned default below stays the
     // template's first model when the template configured one).
     let row = provider;
-    if (row.apiFormat === 'openai' || row.apiFormat === 'openai-response') {
+    if (row.apiFormat !== 'gemini') {
       const discovered = await fetchProviderModelIds(row, AbortSignal.timeout(8000)).catch(() => [] as string[]);
       const merged = mergeProviderModels(row.models, discovered);
       if (merged.length !== (row.models?.length ?? 0)) {
@@ -1252,67 +1354,15 @@ async function handleDiscoverModels(
   const row = cfg.providers.find((p) => p.id === id);
   if (!row) return writeJsonError(res, 404, `provider '${id}' not found`);
 
-  // Both OpenAI wires serve the same `GET {base}/models` catalog — the request
-  // and response wire only diverges at the completion endpoint, which discovery
-  // never touches. anthropic/gemini have no equivalent, so they stay unsupported.
-  if (row.apiFormat !== 'openai' && row.apiFormat !== 'openai-response') {
+  // OpenAI wires serve `GET {base}/models`; anthropic-format rows probe the
+  // provider's OpenAI wire instead (dual/tri-format providers share the key
+  // across wires — see anthropicModelDiscoveryUrls). gemini has no
+  // OpenAI-wire equivalent at all, so it stays unsupported.
+  if (row.apiFormat === 'gemini') {
     return writeJson(res, 200, { models: [], unsupportedFormat: true });
   }
-
-  // Resolve the stored key (literal or `$ENV`) — same semantics as the outbound
-  // path (`resolveEnvKey`). Used ONLY as the upstream auth header, never echoed.
-  const resolvedKey = resolveEnvKey(row.apiKey);
-  const base = row.baseUrl.replace(/\/+$/, '');
-  // 'other'-category rows (Jev-style decision engines) expose an OpenAI-shaped
-  // `/v1/models` at the SERVICE ROOT, and the operator may enter either the
-  // bare root or a full evaluation endpoint as the baseUrl:
-  //   `…/v1/systemone` | `…/v1/classifier` → replace the /v1 tail with models
-  //   `…/v1`                            → append `/models`
-  //   bare root (no /v1)                → append `/v1/models`
-  const url =
-    row.category === 'other'
-      ? /\/v1\/[^/]+$/.test(base)
-        ? `${base.replace(/\/v1\/[^/]+$/, '/v1')}/models`
-        : base.endsWith('/v1')
-          ? `${base}/models`
-          : `${base}/v1/models`
-      : `${base}/models`;
-  try {
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (resolvedKey) headers['Authorization'] = `Bearer ${resolvedKey}`;
-    // Static extra headers (e.g. the Cline identity set) gate the SAME `/models`
-    // surface as completions — without them discovery 403s on gated gateways.
-    Object.assign(headers, expandRowExtraHeaders(row));
-    // Probe egress identity (product user-agent; opencode.ai session hint) —
-    // fill-only after the merge, so row-level extraHeaders still win.
-    applyAdminProbeIdentity(headers, row);
-    // upstream-proxy: BYO discover-models egress honors the global/provider proxy.
-    const response = await fetchUpstream(url, { method: 'GET', headers }, { providerId: 'byo' });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      let message = text.slice(0, 300);
-      try {
-        const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
-        message = parsed?.error?.message || parsed?.message || message;
-      } catch {
-        // keep the raw text slice
-      }
-      return writeJson(res, 200, {
-        models: [],
-        error: `discovery failed (${response.status})${message ? `: ${message}` : ''}`,
-      });
-    }
-    const data = (await response.json()) as { data?: Array<{ id?: unknown }> };
-    const models = Array.isArray(data?.data)
-      ? data.data
-          .map((m) => (typeof m?.id === 'string' ? m.id : ''))
-          .filter((m): m is string => m.length > 0)
-      : [];
-    return writeJson(res, 200, { models });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return writeJson(res, 200, { models: [], error: `discovery failed: ${message}` });
-  }
+  const { models, error } = await discoverProviderModelsDetailed(row, AbortSignal.timeout(15000));
+  return writeJson(res, 200, { models, ...(error ? { error } : {}) });
 }
 
 /**
@@ -2011,6 +2061,14 @@ export function parseProviderInput(
       : body['extraHeaders'] === undefined
         ? existing?.extraHeaders
         : validateExtraHeaders(body['extraHeaders']);
+  // Multi-format fan-out variants: the SAME three-way write contract, guarded
+  // by the shared load-edge shape (known wires + http(s) URLs only).
+  const formatVariants =
+    body['formatVariants'] === null
+      ? undefined
+      : body['formatVariants'] === undefined
+        ? existing?.formatVariants
+        : validateFormatVariants(body['formatVariants']);
   // Transformer config (app-parity child 5): the SAME three-way write contract —
   //   OMIT (key absent)  → keep the existing stored value (no accidental wipe);
   //   null               → CLEAR the stored config (→ undefined);
@@ -2085,6 +2143,7 @@ export function parseProviderInput(
     maxConcurrency,
     modelsEndpoint,
     extraHeaders,
+    formatVariants,
     transformer: migrated.transformer,
     logjev,
     codingPlan,
@@ -2130,6 +2189,9 @@ function handlePresets(res: http.ServerResponse, method: string): void {
     // Static extra headers ride along so `addFromPreset` can seed them onto the
     // row (the write gateway re-validates via the shared allowlist).
     extraHeaders: p.extraHeaders,
+    // Fan-out variants ride along for the same reason (multi-format providers
+    // seed their extra-wire base URLs onto the row).
+    formatVariants: p.formatVariants,
     logjev: p.logjev,
   }));
   return writeJson(res, 200, { presets, excluded });

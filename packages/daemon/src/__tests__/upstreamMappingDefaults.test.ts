@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeServerConfig } from '@omnicross/core/outbound-api';
 
 import { resolveUpstreamModelMappings, effectiveUpstreamModelMappings, type UpstreamCatalogEntry } from '../admin/upstreamRoutingAdmin';
-import { mergeProviderModels } from '../admin/adminApi';
+import { anthropicModelDiscoveryUrls, mergeProviderModels } from '../admin/adminApi';
 import type { DaemonProviderConfig } from '../config';
 
 const providers: DaemonProviderConfig[] = [{
@@ -129,5 +129,34 @@ describe('mergeProviderModels (create-time discovery merge)', () => {
   it('a failed discovery ([]) changes nothing', () => {
     expect(mergeProviderModels(['glm-5.2'], [])).toEqual(['glm-5.2']);
     expect(mergeProviderModels(undefined, [])).toEqual([]);
+  });
+});
+
+describe('anthropicModelDiscoveryUrls (cross-wire /models candidates)', () => {
+  // Verified keyless 2026-09-24: deepseek answers at /models AND /v1/models,
+  // mimo at /v1/models, z.ai at /api/paas/v4/models; z.ai /v1/models and mimo
+  // /models are 404 — hence the ordered candidate list.
+  it('strips the /anthropic suffix and offers the known OpenAI-wire roots', () => {
+    // z.ai's real models URL (verified) is …/api/paas/v4/models — reachable
+    // from the /api-rooted anthropic base via the paas candidate.
+    expect(anthropicModelDiscoveryUrls('https://api.z.ai/api/anthropic')).toContain(
+      'https://api.z.ai/api/paas/v4/models',
+    );
+  });
+
+  it('mimo and deepseek roots hit /v1/models first', () => {
+    expect(anthropicModelDiscoveryUrls('https://api.xiaomimimo.com/anthropic')[0])
+      .toBe('https://api.xiaomimimo.com/v1/models');
+    expect(anthropicModelDiscoveryUrls('https://api.deepseek.com/anthropic')[0])
+      .toBe('https://api.deepseek.com/v1/models');
+  });
+
+  it('trailing slashes and non-/anthropic bases still produce candidates', () => {
+    expect(anthropicModelDiscoveryUrls('https://gw.example/anthropic/')).toEqual([
+      'https://gw.example/v1/models',
+      'https://gw.example/models',
+      'https://gw.example/paas/v4/models',
+      'https://gw.example/api/paas/v4/models',
+    ]);
   });
 });

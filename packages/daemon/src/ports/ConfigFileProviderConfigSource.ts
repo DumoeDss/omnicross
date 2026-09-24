@@ -244,6 +244,7 @@ function toLLMProvider(row: DaemonProviderConfig): LLMProvider {
     name: row.id,
     apiFormat,
     api_base_url: row.baseUrl,
+    formatVariants: row.formatVariants,
     api_key: resolvePreferredApiKey(row),
     models,
     modelConfigs: row.modelConfigs?.map((config) => ({

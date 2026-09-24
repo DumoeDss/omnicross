@@ -33,6 +33,7 @@ import {
   type ByoRouteActivityMeta,
   getResponsesEndpointTransformer,
   getSharedExecutor,
+  providerForWire,
   resolvePoolBoundKey,
 } from '../ingress/providerProxyShared';
 import { markCodexUsageLimitExhaustion } from '../ingress/codexUsageLimitDetection';
@@ -110,10 +111,13 @@ export async function resolveResponsesRouteProfile(
     if (!providerId) {
       throw new OpenAIOperationError({ status: 502, code: 'provider_configuration_error', message: 'BYO route is missing a provider' });
     }
-    const provider = await deps.llmConfig.getProvider(providerId);
-    if (!provider) {
+    const storedProvider = await deps.llmConfig.getProvider(providerId);
+    if (!storedProvider) {
       throw new OpenAIOperationError({ status: 502, code: 'provider_configuration_error', message: 'Configured provider was not found' });
     }
+    // MULTI-FORMAT FAN-OUT: an openai-response variant classifies as NATIVE —
+    // the request relays verbatim to that base (no reduced-profile loss).
+    const provider = providerForWire(storedProvider, 'openai-response');
     const declaration = { authMode: 'byo', providerApiFormat: resolveApiFormat(provider) } as const;
     return {
       profile: classifyResponsesProfile(declaration),
