@@ -168,6 +168,9 @@ export function AccountResourceDetails({
 
       <CollapsibleSection open={modelsOpen} onToggle={() => setModelsOpen((v) => !v)} title={t('accounts.detail.supportedModels')}>
         <SupportedModelsEditor
+          key={`${account.providerId}:${account.id}`}
+          providerId={account.providerId}
+          accountId={account.id}
           value={account.supportedModels}
           busy={busy}
           onSave={(value) => void onSetSupportedModels(value)}

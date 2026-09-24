@@ -14,11 +14,11 @@ describe('SUBSCRIPTION_MODEL_CATALOG', () => {
     expect(SUBSCRIPTION_MODEL_CATALOG.claude).toEqual([
       'claude-haiku-4-5',
       'claude-sonnet-5',
-      'claude-opus-5',
+      'claude-opus-5-5',
       'claude-fable-5-1',
     ]);
     expect(SUBSCRIPTION_MODEL_CATALOG.codex).toEqual([
-      'gpt-5.6-luna',
+      'gpt-6-luna',
       'gpt-5.6-terra',
       'gpt-5.6-sol',
       'gpt-6-astra',
@@ -36,7 +36,7 @@ describe('SUBSCRIPTION_MODEL_CATALOG', () => {
     ]);
   });
 
-  it('leaves gemini/opencodego empty until their upstream ids are confirmed', () => {
+  it('leaves gemini/opencodego empty (gemini unconfirmed; opencodego discovered live)', () => {
     expect(SUBSCRIPTION_MODEL_CATALOG.gemini).toEqual([]);
     expect(SUBSCRIPTION_MODEL_CATALOG.opencodego).toEqual([]);
   });

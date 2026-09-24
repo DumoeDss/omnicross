@@ -1840,10 +1840,18 @@
       "proxy": "代理覆盖",
       "proxyLabel": "账号级代理",
       "proxyHint": "仅为此账号覆盖全局/提供方代理。",
-      "supportedModels": "支持的模型",
+      "supportedModels": "模型列表",
       "supportedModelsPlaceholder": "claude-sonnet-4\nclaude-opus-4 = claude-opus-4-20250514",
       "supportedModelsHint": "每行一个模型。`逻辑名 = 实际名` 会把该模型重映射为此账号的上游模型；仅列出模型名则限制此账号可服务的模型（仅多账号池生效）。",
-      "supportedModelsClear": "清除"
+      "supportedModelsClear": "清除",
+      "modelListAddPlaceholder": "添加模型，或 `逻辑名 = 实际名` 设置重映射",
+      "modelListAdd": "添加",
+      "modelListFetch": "获取模型列表",
+      "modelListFetchFailed": "获取模型列表失败：{{error}}",
+      "modelListEmpty": "暂无模型。Codex / Claude 账号展示预设模型；OpenCodeGo 账号可获取在线列表。",
+      "modelListRemap": "重映射为实际上游模型",
+      "modelListRemapPlaceholder": "实际上游模型（可选重映射）",
+      "modelListHint": "已选 {{count}} 个。勾选的模型为此账号可服务的模型（仅多账号池生效）；设置实际模型会把出站模型名重写。全部不勾选表示支持所有模型。"
     },
     "oauthFlow": {
       "step1": {

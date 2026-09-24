@@ -1839,10 +1839,18 @@
       "proxy": "代理覆寫",
       "proxyLabel": "帳號級代理",
       "proxyHint": "僅為此帳號覆寫全域/提供方代理。",
-      "supportedModels": "支援的模型",
+      "supportedModels": "模型列表",
       "supportedModelsPlaceholder": "claude-sonnet-4\nclaude-opus-4 = claude-opus-4-20250514",
       "supportedModelsHint": "每行一個模型。`邏輯名 = 實際名` 會把該模型重新映射為此帳號的上游模型；僅列出模型名則限制此帳號可服務的模型（僅多帳號池生效）。",
-      "supportedModelsClear": "清除"
+      "supportedModelsClear": "清除",
+      "modelListAddPlaceholder": "新增模型，或 `邏輯名 = 實際名` 設定重映射",
+      "modelListAdd": "新增",
+      "modelListFetch": "取得模型列表",
+      "modelListFetchFailed": "取得模型列表失敗：{{error}}",
+      "modelListEmpty": "尚無模型。Codex / Claude 帳號顯示預設模型；OpenCodeGo 帳號可取得線上列表。",
+      "modelListRemap": "重映射為實際上游模型",
+      "modelListRemapPlaceholder": "實際上游模型（可選重映射）",
+      "modelListHint": "已選 {{count}} 個。勾選的模型為此帳號可服務的模型（僅多帳號池生效）；設定實際模型會重寫出站模型名。全部不勾選表示支援所有模型。"
     },
     "oauthFlow": {
       "step1": {

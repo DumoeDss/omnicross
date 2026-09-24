@@ -199,6 +199,21 @@ export function createAccountsAdapter(): AgentAccountsApi {
       }
     },
 
+    async listOpenCodeGoModels(accountId?: string) {
+      try {
+        const query = accountId ? `?accountId=${encodeURIComponent(accountId)}` : '';
+        return await adminClient.get<import('./types').OpenCodeGoModelsResult>(
+          `/accounts/opencodego/models${query}`,
+        );
+      } catch (err) {
+        return {
+          models: [],
+          discovered: false,
+          error: err instanceof Error ? err.message : 'failed to fetch model list',
+        };
+      }
+    },
+
     async writeTokens(payload: AccountTokenInput): Promise<WriteTokensResult> {
       try {
         const body = buildBody(payload);

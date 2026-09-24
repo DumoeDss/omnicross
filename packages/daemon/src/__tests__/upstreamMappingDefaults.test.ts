@@ -22,7 +22,7 @@ describe('effective upstream mapping defaults', () => {
     expect(tables['z-ai']).toEqual([{ source: '*', target: 'glm-5.2' }]);
     expect(tables['sub:opencodego']).toEqual([{ source: '*', target: 'deepseek-flash' }]);
     expect(tables['sub:codex']).toContainEqual({ source: '*', target: 'gpt-6-astra' });
-    expect(tables['sub:codex']).toContainEqual({ source: 'gpt-5.6-luna', target: 'gpt-5.6-luna' });
+    expect(tables['sub:codex']).toContainEqual({ source: 'gpt-6-luna', target: 'gpt-6-luna' });
     expect(config.upstreamModelMappings).toBeUndefined();
   });
 

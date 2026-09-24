@@ -393,6 +393,8 @@ export function AccountList({
                         {t('accounts.detail.supportedModels')}
                       </label>
                       <SupportedModelsEditor
+                        providerId={providerId}
+                        accountId={acc.id}
                         value={acc.supportedModels}
                         busy={rowBusy}
                         onSave={(value) => void onSetSupportedModels(acc.id, value)}

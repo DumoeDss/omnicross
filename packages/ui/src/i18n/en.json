@@ -1836,10 +1836,18 @@
       "proxy": "Proxy override",
       "proxyLabel": "Per-account proxy",
       "proxyHint": "Overrides the global/provider proxy for this account only.",
-      "supportedModels": "Supported models",
+      "supportedModels": "Model list",
       "supportedModelsPlaceholder": "claude-sonnet-4\nclaude-opus-4 = claude-opus-4-20250514",
       "supportedModelsHint": "One model per line. `logical = actual` remaps that model to the account's upstream model; a bare list limits which models this account serves (multi-account pools only).",
-      "supportedModelsClear": "Clear"
+      "supportedModelsClear": "Clear",
+      "modelListAddPlaceholder": "Add a model, or `logical = actual` to remap",
+      "modelListAdd": "Add",
+      "modelListFetch": "Fetch model list",
+      "modelListFetchFailed": "Failed to fetch the model list: {{error}}",
+      "modelListEmpty": "No models yet. Codex/Claude accounts show presets; OpenCodeGo accounts can fetch the live list.",
+      "modelListRemap": "Remap to the actual upstream model",
+      "modelListRemapPlaceholder": "Actual upstream model (optional remap)",
+      "modelListHint": "Selected {{count}}. Checked models are the ones this account serves (multi-account pools only); an actual-model remap rewrites the outbound model id. Nothing checked = every model."
     },
     "oauthFlow": {
       "step1": {

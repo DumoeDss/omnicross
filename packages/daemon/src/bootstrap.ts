@@ -1118,6 +1118,21 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
       const activeId = config.activeAntigravityAccountId ?? config.antigravityAccounts?.[0]?.id;
       return activeId ? credentialStore.getAccessTokenForAccount('antigravity', activeId) : null;
     },
+    // The opencodego live model-list probe's account source (requested id, else
+    // the ACTIVE account). Static keys have no refresh; the key + zen-half host
+    // override are used daemon-side only.
+    resolveOpenCodeGoModelsAccount: async (accountId?: string) => {
+      const config = await credentialStore.getFullConfig();
+      const accounts = config.opencodegoAccounts ?? [];
+      const account = accountId
+        ? accounts.find((entry) => entry.id === accountId)
+        : accounts.find((entry) => entry.id === config.activeOpencodegoAccountId) ?? accounts[0];
+      if (!account) return null;
+      return {
+        apiKey: account.tokens?.apiKey ?? null,
+        ...(account.tokens?.zenBaseUrl ? { zenBaseUrl: account.tokens.zenBaseUrl } : {}),
+      };
+    },
     // Migration pack (app-parity child 6, design D2/D3) — the concrete credential
     // store provides BOTH the full DECRYPTED read (`getFullConfig`, export) and
     // the multi-account append (`appendProviderAccount`, import re-encrypts at-

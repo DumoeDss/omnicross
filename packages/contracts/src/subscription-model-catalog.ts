@@ -13,10 +13,12 @@
  * Ordering is small → large within each provider (matches the editor's
  * picker render order).
  *
- * `gemini` / `opencodego` are intentionally empty for now — their upstream
- * subscription model ids are not yet confirmed; the UI disables model
- * selection for those types until they are filled in (does not block the
- * Claude/Codex paths).
+ * `gemini` is intentionally empty for now — its upstream subscription model
+ * ids are not yet confirmed; the UI disables model selection for that type
+ * until it is filled in (does not block the Claude/Codex paths).
+ * `opencodego` stays empty too: its list is DISCOVERED live per account over
+ * the admin API (`GET /accounts/opencodego/models`, OpenAI-wire `/v1/models`
+ * on the zen base) instead of a hand-maintained preset.
  */
 
 import type { SubscriptionProviderId } from './subscription-types';
@@ -24,12 +26,12 @@ import type { SubscriptionProviderId } from './subscription-types';
 /**
  * The model ids each subscription provider serves, small → large.
  *
- * - claude: `claude-haiku-4-5` < `claude-sonnet-5` < `claude-opus-5` < `claude-fable-5-1`
- * - codex:  `gpt-5.6-luna` (nano) < `gpt-5.6-terra` (mini) < `gpt-5.6-sol` (flagship) < `gpt-6-astra`
+ * - claude: `claude-haiku-4-5` < `claude-sonnet-5` < `claude-opus-5-5` < `claude-fable-5-1`
+ * - codex:  `gpt-6-luna` (nano) < `gpt-5.6-terra` (mini) < `gpt-5.6-sol` (flagship) < `gpt-6-astra`
  */
 export const SUBSCRIPTION_MODEL_CATALOG: Record<SubscriptionProviderId, string[]> = {
-  claude: ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5', 'claude-fable-5-1'],
-  codex: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-6-astra'],
+  claude: ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5', 'claude-fable-5-1'],
+  codex: ['gpt-6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-6-astra'],
   gemini: [],
   opencodego: [],
   // Kimi Code's subscription catalog (the official CLI's built-ins + the

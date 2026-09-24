@@ -585,9 +585,18 @@ export interface SubscriptionModelsResult {
   discovered: boolean;
 }
 
+/** `GET /accounts/opencodego/models` — the live zen-half `/v1/models` list. */
+export interface OpenCodeGoModelsResult {
+  models: string[];
+  discovered: boolean;
+  error?: string;
+}
+
 export interface AgentAccountsApi {
   list(): Promise<AccountsListResponse>;
   listAntigravityModels(): Promise<SubscriptionModelsResult>;
+  /** Fetch one (or the ACTIVE) opencodego account's live model list. */
+  listOpenCodeGoModels(accountId?: string): Promise<OpenCodeGoModelsResult>;
   /** Read secret-free five-hour/weekly (or provider-equivalent) allowance snapshots. */
   listAllowances(): Promise<AccountAllowancesResult>;
   /** Force-refresh one account's usage endpoint (Claude, Codex, Kimi, OpenCodeGo, Grok, Copilot, Gemini, Antigravity). */

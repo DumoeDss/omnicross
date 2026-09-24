@@ -152,6 +152,10 @@ import {
 } from './accountsAntigravityOAuth';
 import { handleAntigravityModelsRoute } from '../allowance/AntigravityModelDiscovery';
 import {
+  handleOpenCodeGoModelsRoute,
+  type OpenCodeGoModelsAccount,
+} from '../allowance/OpenCodeGoModelDiscovery';
+import {
   handleCopilotOAuthCancel,
   handleCopilotOAuthStart,
   handleCopilotOAuthStatus,
@@ -418,6 +422,15 @@ export interface AdminApiDeps {
    * secret-free). Optional for older tests; absent → static-only catalog.
    */
   readonly resolveAntigravityAccessToken?: () => Promise<string | null>;
+  /**
+   * Resolve an opencodego account's key + zen-half host override for the live
+   * model-list probe (`GET /accounts/opencodego/models`). Secret used
+   * daemon-side only; the route is secret-free. Optional for older tests;
+   * absent → `discovered: false` with an error string.
+   */
+  readonly resolveOpenCodeGoModelsAccount?: (
+    accountId?: string,
+  ) => Promise<OpenCodeGoModelsAccount | null>;
   /**
    * Codex loopback listener (app-parity-2 child 5) — defaults to `awaitLoopbackCode`
    * (binds 127.0.0.1:1455) in `bootstrap.ts`; tests inject a mock so no real port
@@ -2979,6 +2992,18 @@ async function handleAccounts(
       resolveAntigravityAccessToken:
         deps.resolveAntigravityAccessToken ?? (async () => null),
     });
+    return writeJson(res, result.status, result.body);
+  }
+
+  // GET /accounts/opencodego/models?accountId=… — the LIVE zen-half
+  // `/v1/models` list for one (or the ACTIVE) opencodego account. No static
+  // preset exists for this provider; an unreachable upstream answers
+  // `{ models: [], discovered: false, error }` (HTTP 200). Secret-free.
+  if (method === 'GET' && rest[0] === 'opencodego' && rest[1] === 'models') {
+    const result = await handleOpenCodeGoModelsRoute(
+      { resolveAccount: deps.resolveOpenCodeGoModelsAccount ?? (async () => null) },
+      requestQuery(req).get('accountId') ?? undefined,
+    );
     return writeJson(res, result.status, result.body);
   }
 
