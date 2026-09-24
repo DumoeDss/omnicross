@@ -751,10 +751,6 @@
     "groupSummary": "{{count}} accounts in {{provider}}",
     "routeCount": "{{count}} routes",
     "manageAccount": "Manage account",
-    "tabs": {
-      "label": "Model Services",
-      "resources": "Upstream resources"
-    },
     "guidance": {
       "title": "Provider added",
       "body": "The default model is {{model}} — every unmatched client model name routes to it. You can change this in the model mappings.",

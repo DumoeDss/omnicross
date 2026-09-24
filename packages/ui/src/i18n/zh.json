@@ -751,10 +751,6 @@
     "groupSummary": "{{provider}} 中的 {{count}} 个账号",
     "routeCount": "{{count}} 条路由",
     "manageAccount": "管理账号",
-    "tabs": {
-      "label": "模型服务",
-      "resources": "上游资源"
-    },
     "guidance": {
       "title": "提供商已添加",
       "body": "当前默认模型为 {{model}}——所有未匹配的客户端模型名都会路由到它。你可以在模型映射中修改。",

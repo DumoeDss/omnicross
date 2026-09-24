@@ -58,6 +58,11 @@ interface ProviderDetailsProps {
   onInlineUpdate: (field: string, value: string) => Promise<void>;
   /** Fetch + show the stored API key (the daemon holds it reversibly). */
   onRevealApiKey?: () => Promise<void>;
+  /** Hide the embedded model-mapping section: the HOSTING workbench (the
+   *  upstreams page's provider detail) renders its own UpstreamMappingSection
+   *  above this view — showing both is a duplicate. Standalone views (the
+   *  Other-providers page) keep it: there it is the only mapping affordance. */
+  hideMappingSection?: boolean;
   onSelectApiMode?: (modeId: string, opts?: { keepCustomizations?: boolean }) => Promise<boolean>;
   onToggleProvider: (enabled: boolean) => Promise<void>;
   onToggleOfficial: (isOfficial: boolean) => Promise<void>;
@@ -96,6 +101,7 @@ export function ProviderDetails({
   setInlineMaxConcurrency,
   onInlineUpdate,
   onRevealApiKey,
+  hideMappingSection = false,
   onSelectApiMode,
   onToggleProvider,
   onToggleOfficial,
@@ -504,11 +510,14 @@ export function ProviderDetails({
       </div>
 
       {/* Model mappings (upstream routing model): the mapping table lives ON
-          this upstream — client model name → this provider's model id. */}
-      <UpstreamMappingSection
-        upstreamKey={selectedProvider.id}
-        label={getProviderDisplayName(t, selectedProvider)}
-      />
+          this upstream — client model name → this provider's model id. Skipped
+          when the hosting workbench already renders its own section above. */}
+      {hideMappingSection ? null : (
+        <UpstreamMappingSection
+          upstreamKey={selectedProvider.id}
+          label={getProviderDisplayName(t, selectedProvider)}
+        />
+      )}
 
       {/* Model list - always shown */}
       <div className="space-y-2">

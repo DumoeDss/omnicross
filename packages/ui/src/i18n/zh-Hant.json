@@ -751,10 +751,6 @@
     "groupSummary": "{{provider}} 中的 {{count}} 個帳號",
     "routeCount": "{{count}} 條路由",
     "manageAccount": "管理帳號",
-    "tabs": {
-      "label": "模型服務",
-      "resources": "上游資源"
-    },
     "guidance": {
       "title": "提供商已新增",
       "body": "目前預設模型為 {{model}}——所有未匹配的客戶端模型名都會路由到它。你可以在模型映射中修改。",

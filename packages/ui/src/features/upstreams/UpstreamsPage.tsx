@@ -5,7 +5,6 @@ import {
   KeyRound,
   Layers3,
   Plus,
-  Route,
   Search,
   Server,
   UserRound,
@@ -508,34 +507,10 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
         </div>
       ) : null}
 
-      <nav className="flex shrink-0 items-end gap-1 border-b border-border/70 bg-surface-0 px-5 md:px-6" aria-label={t('upstreams.tabs.label')}>
-        {/* UPSTREAM ROUTING MODEL: the manual 下游与路由 tab is hidden — routing
-            is key→upstream-set now. The workspace itself still renders for deep
-            links (`upstreamTab: 'routes'`), so existing bookmarks keep working
-            during the transition. */}
-        {(['resources'] as const).map((tab) => {
-          const Icon = tab === 'resources' ? Server : Route;
-          return (
-            <button
-              key={tab}
-              type="button"
-              className={cn(
-                'flex min-h-10 items-center gap-2 border-b-2 px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-              onClick={() => onNavigate({
-                ...route,
-                page: 'upstreams',
-                upstreamTab: undefined,
-                downstreamId: undefined,
-              })}
-            >
-              <Icon className="h-3.5 w-3.5" />{t(`upstreams.tabs.${tab}`)}
-            </button>
-          );
-        })}
-      </nav>
-
+      {/* UPSTREAM ROUTING MODEL: the tab strip is gone — the resources view is
+          the page now. The routes workspace itself still renders for deep links
+          (`upstreamTab: 'routes'`), so existing bookmarks keep working during
+          the transition. */}
       {activeTab === 'routes' ? (
         <DownstreamRoutesWorkspace
           bindings={gateway.config?.bindings ?? []}

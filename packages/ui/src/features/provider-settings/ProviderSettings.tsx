@@ -275,6 +275,9 @@ export function ProviderSettings({
                 setEditingModel={setEditingModel}
                 onInlineUpdate={handleInlineUpdate}
                 onRevealApiKey={revealApiKey}
+                // Embedded workbench (upstreams provider detail) renders its own
+                // UpstreamMappingSection above this view — skip the duplicate.
+                hideMappingSection={embedded}
                 onSelectApiMode={handleSelectApiMode}
                 onToggleProvider={handleToggleProvider}
                 onToggleOfficial={handleToggleOfficial}

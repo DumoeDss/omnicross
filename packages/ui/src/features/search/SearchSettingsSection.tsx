@@ -196,12 +196,8 @@ export function SearchSettingsSection({ config, diagnostics, busy, onUpdate, onQ
         setEgressInput={setEgressInput}
         disabled={disabled}
       />
-
-      <div className="flex items-center gap-2 pt-1">
-        <Button size="sm" disabled={disabled} onClick={() => void save()}>
-          {t('search.action.save')}
-        </Button>
-      </div>
+      {/* Saving lives in the STICKY top bar only — it stays reachable from any
+          scroll position, so a second button at the bottom is redundant. */}
     </section>
   );
 }
