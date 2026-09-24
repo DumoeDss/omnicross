@@ -118,6 +118,7 @@ export function ProviderSettings({
     handleSaveProvider,
     handleCancelEdit,
     handleInlineUpdate,
+    handleUpdateLogJev,
     handleToggleProvider,
     handleToggleOfficial,
     handleDeleteProvider,
@@ -292,6 +293,7 @@ export function ProviderSettings({
                 onApplyModelEdit={handleApplyModelEdit}
                 onToggleModelEnabled={handleToggleModelEnabled}
                 onSetModelsEnabled={handleSetModelsEnabled}
+                onUpdateLogJev={handleUpdateLogJev}
                 onRemoveModel={handleRemoveModel}
                 onShowEditModelDialog={onShowEditModelDialog}
               />

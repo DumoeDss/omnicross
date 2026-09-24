@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 
+import type { LogJevSettings } from '@omnicross/contracts/logjev';
+
 import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
@@ -150,13 +152,14 @@ export function useProviderForm(
    */
   const materializePreset = async (
     provider: LLMProvider,
-    opts: { apiKey?: string; enabled?: boolean },
+    opts: { apiKey?: string; enabled?: boolean; logjev?: LogJevSettings },
   ): Promise<boolean> => {
     try {
       const result = await agent.llmConfig.addFromPreset?.({
         presetId: provider.presetId ?? provider.id,
         apiKey: opts.apiKey,
         enabled: opts.enabled,
+        logjev: opts.logjev,
       });
       if (result && !result.success) {
         setFormError(result.message ?? t('providerSettings.errors.saveFailed'));
@@ -400,6 +403,30 @@ export function useProviderForm(
   };
 
   /**
+   * Persist a new LogJev settings block on the selected category-'other' row
+   * (the LogJevFields panel's save path). A not-yet-materialized preset row
+   * MATERIALIZES with the chosen settings — same discipline as the first key
+   * entry; a real row PATCHes `logjev` only.
+   */
+  const handleUpdateLogJev = async (logjev: LogJevSettings) => {
+    if (!selectedProvider) return;
+    if (selectedProvider.__preset) {
+      await materializePreset(selectedProvider, { logjev });
+      return;
+    }
+    try {
+      const result = await agent.llmConfig.updateProvider({ id: selectedProvider.id, logjev });
+      if (!result.success) {
+        setFormError(result.message ?? t('providerSettings.errors.saveFailed'));
+        return;
+      }
+      await refreshProviders();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : t('providerSettings.errors.saveFailed'));
+    }
+  };
+
+  /**
    * Switch the selected API mode for the currently-selected provider.
    *
    * Persists `selectedApiModeId` + the daemon-required `apiFormat`/`baseUrl`. On a
@@ -627,6 +654,7 @@ export function useProviderForm(
     handleSaveProvider,
     handleCancelEdit,
     handleInlineUpdate,
+    handleUpdateLogJev,
     handleReorderProviders,
     handleSelectApiMode,
     handleToggleProvider,

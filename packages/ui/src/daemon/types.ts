@@ -233,6 +233,15 @@ export interface ModelTestResult {
   unsupportedFormat?: boolean;
 }
 
+/** `POST /admin/api/providers/logjev-probe` result — whether the selected
+ * upstream + model serves the top_logprobs evidence LogJev reads. */
+export interface LogJevProbeResult {
+  ok: boolean;
+  supported: boolean;
+  latencyMs?: number;
+  message?: string;
+}
+
 // ── The LLM-config API subset the page calls ────────────────────────────────────
 //
 // UI contract for the supported `AgentLLMConfigApi` methods.
@@ -263,10 +272,14 @@ export interface AgentLLMConfigApi {
   discoverModels(id: string, options?: { forceRefresh?: boolean }): Promise<ProviderModelDiscoveryResult>;
   /** Issue one minimal upstream completion for `model` via the provider's key. */
   testModel(providerId: string, model: string): Promise<ModelTestResult>;
+  /** Probe whether `providerId` + `model` return top_logprobs (LogJev support). */
+  probeLogJev(providerId: string, model: string): Promise<LogJevProbeResult>;
   addFromPreset(payload: {
     presetId: string;
     apiKey?: string;
     enabled?: boolean;
+    /** Operator-configured LogJev block overriding the preset's default. */
+    logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
   }): Promise<LLMProviderResult>;
   // API key pool — READ + MUTATIONS are daemon-backed (app-parity child 3). Each
   // mutation maps a provider-scoped pool-key write endpoint and returns the masked

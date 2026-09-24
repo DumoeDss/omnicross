@@ -940,6 +940,13 @@ async function handleProviders(
     return await handleProviderReorder(req, res, cfg, deps);
   }
 
+  // POST /providers/logjev-probe { providerId, model } → the LogJev config's
+  // logprobs-support probe (one minimal completion with the reader's exact
+  // parameters). Matched before the `:id` fallthrough, same as `reorder`.
+  if (method === 'POST' && rest.length === 1 && rest[0] === 'logjev-probe') {
+    return await handleLogJevProbe(req, res, cfg);
+  }
+
   // POST /providers/:id/discover-models → list upstream models (OpenAI-format
   // scoped, D8). Matched before the generic `:id` write handlers.
   if (method === 'POST' && rest.length === 2 && rest[1] === 'discover-models') {
@@ -1502,6 +1509,116 @@ function extractSampleText(text: string, apiFormat: DaemonProviderConfig['apiFor
     return typeof content === 'string' ? content.slice(0, 200) : '';
   } catch {
     return '';
+  }
+}
+
+/**
+ * The OpenAI-chat endpoint for a BYO row's baseUrl. Rows store EITHER the full
+ * endpoint (`…/v1/chat/completions` — openai/deepseek presets) or a base
+ * (`…/v1` — openrouter/nim); normalize both shapes to the endpoint.
+ */
+export function chatCompletionsUrlForRow(baseUrl: string): string {
+  const base = baseUrl.replace(/\/+$/, '');
+  return /\/chat\/completions$/.test(base) ? base : `${base}/chat/completions`;
+}
+
+/**
+ * `POST /providers/logjev-probe` `{ providerId, model }` — the LogJev
+ * configuration's SUPPORT probe: one minimal completion carrying the exact
+ * logprobs parameters the chat reader sends (`logprobs: true`,
+ * `top_logprobs`, `max_tokens: 1`), then the same evidence check the reader
+ * applies (`choices[0].logprobs.content[0].top_logprobs` non-empty). Answers
+ * `{ ok, supported, message? }`; HTTP 200 even on an unsupported upstream so
+ * the UI can render the reason instead of an error.
+ */
+async function handleLogJevProbe(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  cfg: DaemonConfig,
+): Promise<void> {
+  const body = (await readJsonBody(req)) as { providerId?: unknown; model?: unknown };
+  const providerId = typeof body['providerId'] === 'string' ? body['providerId'].trim() : '';
+  const model = typeof body['model'] === 'string' ? body['model'].trim() : '';
+  if (!providerId || !model) {
+    return writeJsonError(res, 400, 'logjev-probe requires { providerId, model } strings');
+  }
+  const row = cfg.providers.find((p) => p.id === providerId && p.category !== 'other');
+  if (!row) return writeJsonError(res, 404, `provider '${providerId}' not found`);
+  if (row.apiFormat !== 'openai') {
+    return writeJson(res, 200, { ok: false, supported: false, message: 'LogJev requires an OpenAI-wire (chat completions) provider' });
+  }
+  const resolvedKey = resolveEnvKey(row.apiKey);
+  if (!resolvedKey) {
+    return writeJson(res, 200, { ok: false, supported: false, message: 'no API key configured for this provider' });
+  }
+
+  // Mirror the reader's exact read shape (core/logjev client.ts) so "probe
+  // passed" ⇔ "evaluations will find evidence".
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${resolvedKey}`,
+  };
+  Object.assign(headers, expandRowExtraHeaders(row));
+  applyAdminProbeIdentity(headers, row);
+  const payload = {
+    model,
+    messages: [{ role: 'user', content: 'ping' }],
+    max_tokens: 1,
+    temperature: 1,
+    logprobs: true,
+    top_logprobs: 20,
+    stream: false,
+    n: 1,
+  };
+
+  const startedAt = Date.now();
+  try {
+    const response = await fetchUpstream(
+      chatCompletionsUrlForRow(row.baseUrl),
+      { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(20_000) },
+      { providerId: 'byo' },
+    );
+    const latencyMs = Date.now() - startedAt;
+    const text = await response.text().catch(() => '');
+    if (!response.ok) {
+      let message = text.slice(0, 300);
+      try {
+        const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
+        message = parsed?.error?.message || parsed?.message || message;
+      } catch {
+        // keep the raw slice
+      }
+      return writeJson(res, 200, {
+        ok: false,
+        supported: false,
+        latencyMs,
+        message: `upstream rejected the probe (${response.status})${message ? `: ${message}` : ''}`,
+      });
+    }
+    // The reader's evidence shape: choices[0].logprobs.content[0].top_logprobs.
+    let supported = false;
+    try {
+      const data = JSON.parse(text) as {
+        choices?: Array<{ logprobs?: { content?: Array<{ top_logprobs?: unknown }> } }>;
+      };
+      const topLogprobs = data.choices?.[0]?.logprobs?.content?.[0]?.top_logprobs;
+      supported = Array.isArray(topLogprobs) && topLogprobs.length > 0;
+    } catch {
+      supported = false;
+    }
+    return writeJson(res, 200, {
+      ok: true,
+      supported,
+      latencyMs,
+      ...(supported ? {} : { message: 'the model answered but returned no top_logprobs — it cannot serve LogJev readings' }),
+    });
+  } catch (err) {
+    return writeJson(res, 200, {
+      ok: false,
+      supported: false,
+      latencyMs: Date.now() - startedAt,
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 

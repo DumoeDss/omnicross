@@ -12,7 +12,26 @@ import { resolveEnvKey } from './pool/resolveEnvKey';
 
 export { isOpenRouterUpstream, openRouterDecisionsUrl, mapDecisionsResponse } from '@omnicross/core/logjev';
 
-function providerConfig(row: DaemonProviderConfig): LogJevProvider {
+function providerConfig(row: DaemonProviderConfig, allRows: readonly DaemonProviderConfig[]): LogJevProvider {
+  // LogJev-as-selector (chat mode): the row references an ALREADY configured
+  // provider instead of carrying its own key/url — resolve that row's
+  // credentials here so the referenced provider stays the single source of
+  // truth (key rotation, proxy, headers all follow it).
+  const upstreamRef = row.logjev?.kind === 'chat' ? row.logjev.upstream : undefined;
+  if (upstreamRef?.kind === 'provider') {
+    const target = allRows.find(p => p.id === upstreamRef.id && p.category !== 'other'
+      && p.enabled !== false && p.apiFormat === 'openai');
+    if (!target) {
+      throw new LogJevError('invalid_request',
+        `LogJev upstream provider '${upstreamRef.id}' is missing or disabled (模型服务)`);
+    }
+    // BYO rows store EITHER a base (`…/v1`) or the full endpoint
+    // (`…/v1/chat/completions`); the client appends `/chat/completions`
+    // itself, so strip a pre-existing suffix.
+    const chatBase = target.baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+    return { ...row.logjev, kind: 'chat', baseUrl: chatBase, model: upstreamRef.model,
+      apiKey: resolveEnvKey(target.apiKey), headers: target.extraHeaders };
+  }
   const model = row.models?.[0] ?? 'jev-latest';
   // Preserve old native Jev rows without misrouting Qwen/etc on OpenRouter.
   const kind = row.logjev?.kind ?? (row.id === 'jev' || isOpenRouterUpstream(row.baseUrl) && /^(typesafe\/)?jev[-/]/i.test(model) ? 'jev' : 'chat');
@@ -66,7 +85,8 @@ export function createJevSystemoneMount(deps: {
     res.once('close', disconnect);
     try {
       const body = await readJsonBody(req);
-      const rows = loadConfig(deps.configPath).providers.filter(p => p.category === 'other' && p.enabled !== false);
+      const allProviders = loadConfig(deps.configPath).providers;
+      const rows = allProviders.filter(p => p.category === 'other' && p.enabled !== false);
       for (const id of clients.keys()) if (!rows.some(row => row.id === id)) clients.delete(id);
       if (body.provider !== undefined && typeof body.provider !== 'string') throw new LogJevError('invalid_request', 'provider must be a provider ID');
       const row = typeof body.provider === 'string' ? rows.find(p => p.id === body.provider)
@@ -75,7 +95,7 @@ export function createJevSystemoneMount(deps: {
         writeError(res, 409, 'no enabled Jev upstream: add LogJev under LLM Providers → Other (existing open-jev rows remain supported)');
         return true;
       }
-      const config = providerConfig(row);
+      const config = providerConfig(row, allProviders);
       const signature = JSON.stringify(config);
       let entry = clients.get(row.id);
       if (!entry || entry.signature !== signature) {

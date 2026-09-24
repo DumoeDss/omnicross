@@ -38,6 +38,7 @@ import type {
   DaemonPoolKeyView,
   DaemonPresetView,
   DaemonProviderView,
+  LogJevProbeResult,
   ModelTestResult,
 } from './types';
 
@@ -430,14 +431,27 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
       }
     },
 
+    async probeLogJev(providerId: string, model: string): Promise<LogJevProbeResult> {
+      try {
+        return await adminClient.post<LogJevProbeResult>('/providers/logjev-probe', {
+          providerId,
+          model,
+        });
+      } catch (err) {
+        return { ok: false, supported: false, message: err instanceof Error ? err.message : 'probe failed' };
+      }
+    },
+
     async addFromPreset({
       presetId,
       apiKey,
       enabled,
+      logjev,
     }: {
       presetId: string;
       apiKey?: string;
       enabled?: boolean;
+      logjev?: import('@omnicross/contracts/logjev').LogJevSettings;
     }): Promise<LLMProviderResult> {
       try {
         const presets = await this.getPresets();
@@ -463,6 +477,10 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
           body['formatVariants'] = preset.formatVariants;
         }
         if (preset.logjev) body['logjev'] = preset.logjev;
+        // An operator-configured LogJev block (the panel's materialize path)
+        // overrides the preset's default — the row must land with the settings
+        // the user just chose, not the template's.
+        if (logjev) body['logjev'] = logjev;
         // Carry the user-supplied key + enable state from the inline configure
         // flow (a masked/blank value is never sent — same discipline as edits).
         if (typeof apiKey === 'string' && apiKey.trim().length > 0) body['apiKey'] = apiKey;

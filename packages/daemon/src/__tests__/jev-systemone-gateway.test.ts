@@ -63,7 +63,7 @@ function startMockUpstream(): Promise<void> {
   return new Promise((resolve) => mockUpstream.listen(0, '127.0.0.1', resolve));
 }
 
-async function boot(withOtherRow: boolean, overrides: Record<string, unknown> = {}): Promise<void> {
+async function boot(withOtherRow: boolean, overrides: Record<string, unknown> = {}, extraProviders: Array<Record<string, unknown>> = []): Promise<void> {
   resetDaemonSingletonsForTests();
   tmpDir = mkdtempSync(join(tmpdir(), 'omnicross-jev-'));
   const providers = withOtherRow
@@ -83,6 +83,7 @@ async function boot(withOtherRow: boolean, overrides: Record<string, unknown> = 
         apiKey: 'mock-key',
         models: ['chat-model'],
       }];
+  providers.push(...extraProviders);
   const configPath = join(tmpDir, 'config.json');
   writeFileSync(configPath, JSON.stringify({
     providers,
@@ -156,6 +157,43 @@ describe('POST /v1/systemone (outbound server)', () => {
     await boot(true, { enabled: false });
     const result = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } }, accessKey);
     expect(result.status).toBe(409);
+    expect(lastBodies).toHaveLength(0);
+  });
+
+  it('LogJev-as-selector: an upstream reference resolves the referenced row\'s credentials and model', async () => {
+    // The referenced provider row stores the FULL endpoint shape
+    // (`…/v1/chat/completions`) — the resolver must normalize it. The logjev
+    // row itself carries no key/url of its own.
+    await boot(true, {
+      id: 'logjev',
+      baseUrl: 'https://unused.example.invalid/v1',
+      // A placeholder key — the row-level credential is dead config under an
+      // upstream reference (config validation still requires a string).
+      apiKey: 'unused-key',
+      logjev: { kind: 'chat', upstream: { kind: 'provider', id: 'nim-row', model: 'mock-dgemma' } },
+    }, [{
+      id: 'nim-row',
+      apiFormat: 'openai',
+      baseUrl: `${mockUrl}/v1/chat/completions`,
+      apiKey: 'mock-key',
+      models: ['other-model'],
+    }]);
+    const result = await post({ provider: 'logjev', questions: { q: { type: 'noul', instructions: 'ok?' } } }, accessKey);
+    expect(result.status).toBe(200);
+    expect(lastBodies).toHaveLength(1);
+    // The read went out under the REFERENCED row's model (not the logjev
+    // row's own — it configured none) and its key (else the mock 401s).
+    expect(lastBodies[0]).toMatchObject({ model: 'mock-dgemma', logprobs: true });
+  });
+
+  it('LogJev-as-selector: a missing/disabled referenced provider fails honestly (422)', async () => {
+    await boot(true, {
+      id: 'logjev',
+      logjev: { kind: 'chat', upstream: { kind: 'provider', id: 'ghost', model: 'x' } },
+    });
+    const result = await post({ questions: { q: { type: 'noul', instructions: 'ok?' } } }, accessKey);
+    expect(result.status).toBe(422);
+    expect(result.json.error.message).toContain("'ghost'");
     expect(lastBodies).toHaveLength(0);
   });
 

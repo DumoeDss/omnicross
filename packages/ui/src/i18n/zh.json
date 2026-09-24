@@ -2473,6 +2473,14 @@
     "minimal": "精简",
     "topk": "Top logprobs（受提供商上限限制）",
     "extra": "模型附加参数（JSON，不含凭证）",
-    "invalidJson": "请输入有效的 JSON 对象。"
+    "invalidJson": "请输入有效的 JSON 对象。",
+    "upstream": "上游提供商",
+    "upstreamSelf": "使用本行配置（API 密钥 / URL）",
+    "upstreamModel": "模型",
+    "upstreamModelPlaceholder": "模型 ID",
+    "probe": "探测 logprobs 支持",
+    "probeSupported": "支持（{{latency}}ms）",
+    "probeUnsupported": "不支持返回 logprobs",
+    "upstreamNote": "评估请求会使用所选提供商已存的密钥直接发往其上游；请先探测确认该模型支持 top_logprobs。"
   }
 }

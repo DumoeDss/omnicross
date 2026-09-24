@@ -1,9 +1,42 @@
-import { useState } from 'react';
+/**
+ * LogJevFields — the LogJev decision-backend configuration.
+ *
+ * Chat mode is SELECTOR-shaped: instead of re-entering an API key / URL on
+ * this row, pick an ALREADY configured provider (模型服务) plus one of its
+ * models — the daemon resolves that row's credentials at call time
+ * (`logjev.upstream`). The PROBE button issues one minimal completion with
+ * the reader's exact logprobs parameters and reports whether the selected
+ * provider+model actually returns top_logprobs (a model without logprobs
+ * evidence cannot serve LogJev readings).
+ *
+ * Legacy rows (own key/url) keep working: the empty upstream option means
+ * "use this row's own configuration". Native `jev` mode is unchanged.
+ */
+import { Activity } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { parseLogJevSettings, type LogJevSettings } from '@omnicross/contracts/logjev';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { useLlmProvidersData } from '@/shared/state/settingsStore';
+
+import type { LLMProvider } from '@shared/llm-config';
+
+/** Candidates for the upstream selector: enabled OpenAI-wire chat providers. */
+function selectableUpstreamProviders(providers: readonly LLMProvider[]): LLMProvider[] {
+  return providers.filter(
+    (p) => p.enabled !== false && p.category !== 'other' && (p.apiFormat || 'openai') === 'openai',
+  );
+}
+
+function providerModelIds(provider: LLMProvider | undefined): string[] {
+  if (!provider) return [];
+  if (provider.modelConfigs?.length) return provider.modelConfigs.map((m) => m.id);
+  return provider.models ?? [];
+}
 
 export function LogJevFields({ value, onChange, onValidity }: {
   value?: LogJevSettings;
@@ -11,9 +44,47 @@ export function LogJevFields({ value, onChange, onValidity }: {
   onValidity: (valid: boolean) => void;
 }) {
   const t = useTranslation();
+  const { providers } = useLlmProvidersData();
   const [extra, setExtra] = useState(() => JSON.stringify(value?.extraBody ?? {}, null, 2));
   const [invalid, setInvalid] = useState(false);
+  // Probe state for the CURRENT upstream selection.
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<
+    { supported: boolean; message?: string; latencyMs?: number } | null
+  >(null);
   const update = (patch: Partial<LogJevSettings>) => onChange({ kind: 'chat', ...value, ...patch });
+
+  const upstream = value?.upstream;
+  const upstreamProviders = useMemo(() => selectableUpstreamProviders(providers), [providers]);
+  const selectedUpstream = upstreamProviders.find((p) => p.id === upstream?.id);
+  const modelIds = useMemo(() => providerModelIds(selectedUpstream), [selectedUpstream]);
+  const probeReady = Boolean(upstream?.id && upstream?.model);
+
+  const setUpstreamProvider = (id: string) => {
+    setProbeResult(null);
+    if (!id) {
+      update({ upstream: undefined });
+      return;
+    }
+    const target = upstreamProviders.find((p) => p.id === id);
+    const firstModel = providerModelIds(target)[0] ?? '';
+    update({ upstream: { kind: 'provider', id, model: firstModel } });
+  };
+
+  const setUpstreamModel = (model: string) => {
+    setProbeResult(null);
+    update({ upstream: { kind: 'provider', id: upstream?.id ?? '', model } });
+  };
+
+  const runProbe = async () => {
+    if (!upstream?.id || !upstream.model) return;
+    setProbing(true);
+    setProbeResult(null);
+    const result = await agent.llmConfig.probeLogJev(upstream.id, upstream.model);
+    setProbing(false);
+    setProbeResult({ supported: result.supported, message: result.message, latencyMs: result.latencyMs });
+  };
+
   return <fieldset className="space-y-3 rounded border p-3">
     <legend className="px-1 text-sm font-medium">LogJev</legend>
     <label className="block space-y-1 text-sm">
@@ -27,8 +98,73 @@ export function LogJevFields({ value, onChange, onValidity }: {
         setInvalid(false); onValidity(true);
       }} />
     </label>
-    <p className="text-xs text-muted-foreground">{t('logjev.endpointNote')}</p>
     {value?.kind !== 'jev' && <>
+      {/* Upstream selector — reuse an already-configured provider instead of
+          storing a second key/url on this row. */}
+      <label className="block space-y-1 text-sm">
+        <span>{t('logjev.upstream')}</span>
+        <Select
+          value={upstream?.id ?? ''}
+          options={[
+            { value: '', label: t('logjev.upstreamSelf') },
+            ...upstreamProviders.map((p) => ({
+              value: p.id,
+              label: p.name || p.id,
+            })),
+          ]}
+          onChange={setUpstreamProvider}
+        />
+      </label>
+      {upstream ? <>
+        <label className="block space-y-1 text-sm">
+          <span>{t('logjev.upstreamModel')}</span>
+          {modelIds.length > 0 ? (
+            <Select
+              value={upstream.model && modelIds.includes(upstream.model) ? upstream.model : ''}
+              options={[
+                ...(upstream.model && !modelIds.includes(upstream.model)
+                  ? [{ value: upstream.model, label: upstream.model }]
+                  : []),
+                ...modelIds.map((id) => ({ value: id, label: id })),
+              ]}
+              onChange={setUpstreamModel}
+            />
+          ) : (
+            /* A provider with an empty model list (or one outside the catalog):
+               free-form model id entry. */
+            <Input
+              value={upstream.model}
+              placeholder={t('logjev.upstreamModelPlaceholder')}
+              onChange={(event) => setUpstreamModel(event.target.value)}
+              spellCheck={false}
+            />
+          )}
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={!probeReady || probing} onClick={() => void runProbe()}>
+            <Activity className={probing ? 'mr-1 h-3.5 w-3.5 animate-pulse' : 'mr-1 h-3.5 w-3.5'} />
+            {t('logjev.probe')}
+          </Button>
+          {probeResult ? (
+            <span
+              role="status"
+              className={
+                probeResult.supported
+                  ? 'text-xs text-emerald-600 dark:text-emerald-500'
+                  : 'text-xs text-destructive'
+              }
+            >
+              {probeResult.supported
+                ? t('logjev.probeSupported', { latency: probeResult.latencyMs ?? 0 })
+                : t('logjev.probeUnsupported')}
+              {probeResult.message ? ` — ${probeResult.message}` : ''}
+            </span>
+          ) : null}
+        </div>
+        <p className="text-xs text-muted-foreground">{t('logjev.upstreamNote')}</p>
+      </> : (
+        <p className="text-xs text-muted-foreground">{t('logjev.endpointNote')}</p>
+      )}
       <label className="block space-y-1 text-sm">
         <span>{t('logjev.prompt')}</span>
         <Select value={value?.promptMode ?? 'full'} options={[

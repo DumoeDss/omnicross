@@ -5,6 +5,21 @@ export type JevPromptMode = 'full' | 'minimal';
 export interface LogJevSettings {
   /** chat = OpenAI-compatible logprobs; jev = native System One endpoint. */
   kind: 'chat' | 'jev';
+  /**
+   * Chat-mode upstream REFERENCE (LogJev-as-selector): instead of storing
+   * another key/url on this row, point at an ALREADY configured provider
+   * (模型服务) and a model on it — the daemon resolves that row's
+   * baseUrl/key/headers at call time. Only meaningful with `kind: 'chat'`;
+   * when set, this row's own url/key/models are ignored.
+   */
+  upstream?: {
+    /** The referenced row's kind (a 模型服务 provider row today). */
+    kind: 'provider';
+    /** The referenced provider row's id. */
+    id: string;
+    /** The model to read logprobs from on that upstream. */
+    model: string;
+  };
   promptMode?: JevPromptMode;
   topk?: number;
   readTemperature?: number;
@@ -70,6 +85,15 @@ export function parseLogJevSettings(value: unknown): LogJevSettings {
     throw new Error('logjev.kind must be chat or jev');
   }
   const out: LogJevSettings = { kind: value.kind };
+  if (value.upstream !== undefined) {
+    const upstream = value.upstream;
+    if (!isRecord(upstream) || upstream.kind !== 'provider' ||
+        typeof upstream.id !== 'string' || !upstream.id.trim() ||
+        typeof upstream.model !== 'string' || !upstream.model.trim()) {
+      throw new Error('logjev.upstream must be { kind: "provider", id, model } with non-empty id and model');
+    }
+    out.upstream = { kind: 'provider', id: upstream.id, model: upstream.model };
+  }
   if (value.promptMode !== undefined) {
     if (value.promptMode !== 'full' && value.promptMode !== 'minimal') {
       throw new Error('logjev.promptMode must be full or minimal');

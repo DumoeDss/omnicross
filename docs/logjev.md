@@ -4,7 +4,9 @@ Omnicross exposes one reusable decision client in `@omnicross/core/logjev` and a
 
 ## Configure a provider
 
-In **LLM Providers → Other**, choose **LogJev** for an OpenAI-compatible model that returns `top_logprobs`, or **Jev (TypeSafe)** for the native API. Enter the URL, API key and models; the first model is the default. The provider editor exposes the decision backend, full/minimal prompt mode, top-k and additional nonsecret model options. Other locales currently use English fallback labels for these new fields.
+In **LLM Providers → Other**, choose **LogJev** for an OpenAI-compatible model that returns `top_logprobs`, **Jev (TypeSafe)** for the native API, or **Jev (OpenRouter)** to use OpenRouter's Jev models (`typesafe/jev-*` via the native Decisions endpoint). 
+
+The LogJev editor is SELECTOR-shaped: instead of re-entering a key/URL, pick an already-configured provider from 模型服务 (Model Services) plus one of its models — the daemon resolves that row's credentials at call time. The **probe** button sends one minimal completion with the reader's exact logprobs parameters and warns when the selected provider+model does not return `top_logprobs`. Rows that carry their own URL/key/models (legacy) keep working; the provider editor also exposes the decision backend, full/minimal prompt mode, top-k and additional nonsecret model options. Other locales currently use English fallback labels for these new fields.
 
 The same settings can be written through the provider admin API or `config.json`:
 

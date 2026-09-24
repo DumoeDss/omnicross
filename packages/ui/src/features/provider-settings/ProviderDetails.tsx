@@ -27,6 +27,7 @@ import type { LLMProvider, ModelConfig, ModelGroup } from '@shared/llm-config';
 
 import { UpstreamMappingSection } from '../upstreams/UpstreamMappingSection';
 import { ApiKeyPoolSection } from './ApiKeyPoolSection';
+import { LogJevFields } from './LogJevFields';
 import { ModelTestDialog } from './ModelTestDialog';
 import { ProviderApiModeSwitcher } from './ProviderApiModeSwitcher';
 import { getProviderDisplayName } from './utils';
@@ -77,6 +78,8 @@ interface ProviderDetailsProps {
   onSetModelsEnabled: (ids: string[], enabled: boolean) => Promise<void>;
   onRemoveModel: (id: string) => Promise<void>;
   onShowEditModelDialog: (model: ModelConfig) => void;
+  /** Persist a new LogJev settings block on this category-'other' row. */
+  onUpdateLogJev?: (settings: import('@omnicross/contracts/logjev').LogJevSettings) => Promise<void>;
 }
 
 export function ProviderDetails({
@@ -115,7 +118,8 @@ export function ProviderDetails({
   onToggleModelEnabled,
   onSetModelsEnabled,
   onRemoveModel,
-  onShowEditModelDialog
+  onShowEditModelDialog,
+  onUpdateLogJev
 }: ProviderDetailsProps) {
   const t = useTranslation();
   const [testingModel, setTestingModel] = useState<{ id: string; name: string } | null>(null);
@@ -145,6 +149,12 @@ export function ProviderDetails({
   // category-'other' rows (Jev / LogJev — decision engines) never enter the
   // chat routing/mapping surface, so the mapping editor is not offered here.
   const isOtherCategory = selectedProvider.category === 'other';
+  // LogJev-as-selector: a chat-kind row with an upstream reference takes its
+  // credentials from the referenced provider — this row's own key/url/model
+  // list are dead config and are hidden.
+  const usesLogJevUpstream = isOtherCategory
+    && selectedProvider.logjev?.kind !== 'jev'
+    && Boolean(selectedProvider.logjev?.upstream);
 
   // provider-storage-overlay: show "restore defaults" only when the user has
   // customized a preset-tracked field. `overriddenFields` is the read-only
@@ -250,9 +260,22 @@ export function ProviderDetails({
         </div>
       </div>
 
+      {/* LogJev configuration (category-'other' rows): backend mode, upstream
+          provider/model selector + logprobs probe, prompt/top-k options. */}
+      {isOtherCategory && onUpdateLogJev ? (
+        <LogJevFields
+          value={selectedProvider.logjev}
+          onChange={(settings) => void onUpdateLogJev(settings)}
+          onValidity={() => undefined}
+        />
+      ) : null}
+
       {/* API Key - Inline Editable. provider-storage-secrets: the stored key is
           never echoed back, so the field shows a masked "key is set" placeholder
-          when `hasKey` and an empty blur leaves the stored key unchanged. */}
+          when `hasKey` and an empty blur leaves the stored key unchanged.
+          Hidden for upstream-referencing LogJev rows (the referenced provider
+          owns the credentials). */}
+      {!usesLogJevUpstream ? (
       <FormField
         label={t('providerSettings.credentials.apiKey')}
         description={selectedProvider.hasKey
@@ -296,9 +319,10 @@ export function ProviderDetails({
           }}
         />
       </FormField>
+      ) : null}
 
       {/* API Key Pool */}
-      <ApiKeyPoolSection providerId={selectedProvider.id} />
+      {!usesLogJevUpstream ? <ApiKeyPoolSection providerId={selectedProvider.id} /> : null}
 
       {/* API mode switcher — only renders when provider declares >= 2 modes */}
       {(() => {
@@ -378,7 +402,8 @@ export function ProviderDetails({
         </DialogContent>
       </Dialog>
 
-      {/* API URL - Inline Editable */}
+      {/* API URL - Inline Editable (hidden for upstream-referencing LogJev rows) */}
+      {!usesLogJevUpstream ? (
       <FormField
         label={t('providerSettings.credentials.apiBaseUrl')}
         labelAction={selectedProvider.website ? (
@@ -409,6 +434,7 @@ export function ProviderDetails({
           }}
         />
       </FormField>
+      ) : null}
 
       {/* Official Anthropic API toggle — daemon-backed (app-parity child 1):
           persisted as the provider row's `isOfficial`. */}
@@ -458,6 +484,7 @@ export function ProviderDetails({
           {modelStatus.message}
         </div> : null}
 
+      {!usesLogJevUpstream ? <>
       {/* Model management section */}
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
@@ -700,6 +727,7 @@ export function ProviderDetails({
           })
         )}
       </div>
+      </> : null}
 
       {/* Model Test Dialog */}
       {selectedProvider && testingModel ? <ModelTestDialog
