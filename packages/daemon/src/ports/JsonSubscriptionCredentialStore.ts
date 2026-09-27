@@ -235,6 +235,12 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * each provider's accounts to the secret-free `SubscriptionAccountSanitized`
    * shape (id/label/status/expiresAt/hasAccessToken/isActive) NEVER a token.
    * Used by the admin accounts GET (secret-IN-never-OUT).
+   *
+   * Every provider key is ALWAYS present (empty array when unused) — the wire
+   * shape must match the UI's `AccountsListResponse`, whose consumers index
+   * `providerAccounts[provider]` directly. An earlier sparse variant (keys
+   * omitted when empty) crashed the Images page for users without Codex
+   * accounts (`undefined.map`).
    */
   async listSanitizedAccounts(): Promise<Record<string, SubscriptionAccountSanitized[]>> {
     const config = this.readConfig();
@@ -246,8 +252,11 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     const identityStore = getSharedIdentityStore();
     const fingerprintOn = identityStore.isEnabled();
     const now = Date.now();
-    const out: Record<string, SubscriptionAccountSanitized[]> = {};
-    for (const provider of ['claude', 'codex', 'gemini', 'opencodego', 'kimi', 'grok', 'copilot', 'antigravity'] as const) {
+    const PROVIDERS = ['claude', 'codex', 'gemini', 'opencodego', 'kimi', 'grok', 'copilot', 'antigravity'] as const;
+    const out: Record<string, SubscriptionAccountSanitized[]> = Object.fromEntries(
+      PROVIDERS.map((provider) => [provider, [] as SubscriptionAccountSanitized[]]),
+    );
+    for (const provider of PROVIDERS) {
       const sanitized = accountMulti.sanitizeAccounts(config, provider);
       if (sanitized.length === 0) continue;
       // Attach the live (in-memory) scheduling-health state so the admin accounts

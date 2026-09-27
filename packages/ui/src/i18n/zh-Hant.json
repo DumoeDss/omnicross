@@ -2188,6 +2188,12 @@
     "failed": "Daemon 無法啟動",
     "failedHint": "請確認已安裝 Node.js 且 Daemon 已建置（dist 存在），或將 OMNICROSS_DAEMON_ENTRY 設定為 Daemon 的 cli.js 路徑。"
   },
+  "errorBoundary": {
+    "title": "出現了一個錯誤",
+    "description": "面板遇到意外錯誤，頁面渲染中斷。下方資訊有助於定位原因。",
+    "reload": "重新載入",
+    "retry": "重試"
+  },
   "settings": {
     "security": {
       "title": "安全性與隱私",

@@ -2188,6 +2188,12 @@
     "failed": "守护进程启动失败",
     "failedHint": "请确认已安装 Node.js 且守护进程已构建（dist 存在），或将 OMNICROSS_DAEMON_ENTRY 设为守护进程的 cli.js 路径。"
   },
+  "errorBoundary": {
+    "title": "出现了一个错误",
+    "description": "面板遇到意外错误，页面渲染中断。下方信息有助于定位原因。",
+    "reload": "重新加载",
+    "retry": "重试"
+  },
   "settings": {
     "security": {
       "title": "安全与隐私",

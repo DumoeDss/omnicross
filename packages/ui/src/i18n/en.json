@@ -2185,6 +2185,12 @@
     "failed": "The daemon could not start",
     "failedHint": "Ensure Node.js is installed and the daemon is built (dist present), or set OMNICROSS_DAEMON_ENTRY to the daemon's cli.js."
   },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "The dashboard hit an unexpected error and stopped rendering this page. The details below help identify the cause.",
+    "reload": "Reload app",
+    "retry": "Try again"
+  },
   "settings": {
     "security": {
       "title": "Security and privacy",

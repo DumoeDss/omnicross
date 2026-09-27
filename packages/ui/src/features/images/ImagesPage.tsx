@@ -81,7 +81,7 @@ export function ImagesPage() {
                 config={config}
                 capability={capability}
                 status={status}
-                accounts={accounts.providerAccounts.codex}
+                accounts={accounts.providerAccounts.codex ?? []}
                 busy={busy}
                 onUpdate={updateImagesConfig}
               />

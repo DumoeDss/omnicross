@@ -229,6 +229,23 @@ describe('secrets at-rest (D6)', () => {
     expect(sanitized.claude).toHaveLength(2);
     expect(sanitized.claude.filter((a) => a.isActive)).toHaveLength(1);
   });
+
+  // Regression (2026-09-27 field reports): the sparse variant omitted empty
+  // providers, so users without Codex accounts got `providerAccounts.codex
+  // === undefined` and the UI's Images page crashed with `undefined.map`,
+  // blanking the whole webview. The wire shape must always carry every key.
+  it('listSanitizedAccounts always emits every provider key (empty array when unused)', async () => {
+    const store = makeStore();
+    await store.appendProviderAccount('claude', claudeBlock('sparse-AT-1'), 'A');
+    const sanitized = await store.listSanitizedAccounts();
+    expect(Object.keys(sanitized).sort()).toEqual(
+      ['antigravity', 'claude', 'codex', 'copilot', 'gemini', 'grok', 'kimi', 'opencodego'],
+    );
+    expect(sanitized.claude).toHaveLength(1);
+    for (const provider of ['codex', 'gemini', 'opencodego', 'kimi', 'grok', 'copilot', 'antigravity']) {
+      expect(sanitized[provider]).toEqual([]);
+    }
+  });
 });
 
 describe('corrupt tokens.json quarantine (2026-09-06 incident)', () => {
