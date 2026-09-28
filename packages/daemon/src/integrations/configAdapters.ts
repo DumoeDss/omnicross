@@ -1,6 +1,12 @@
 const CODEX_BEGIN = '# >>> omnicross managed provider >>>';
 const CODEX_END = '# <<< omnicross managed provider <<<';
 const CODEX_PROVIDER = 'omnicross';
+/** Root key an external tool may set to pin Codex to a static model catalog
+ *  file; while our integration owns routing it suppresses the runtime
+ *  discovery our `model_catalog_url` rides, so the install comments it out. */
+const CODEX_EXTERNAL_CATALOG_KEY = 'model_catalog_json';
+/** Marker suffix on the commented-out line — what restore matches to undo. */
+const CODEX_EXTERNAL_CATALOG_DISABLED_MARKER = '# disabled by Omnicross';
 /**
  * Non-empty dummy for `ANTHROPIC_API_KEY`: an empty/absent value lets Claude
  * Code fall back to its OAuth login state, so the install (and key-scoped
@@ -52,6 +58,19 @@ export function renderCodexConfig(input: CodexConfigInput): string {
     else lines[index] = managedRoot[key];
   }
   if (missing.length > 0) lines.splice(rootEnd, 0, ...missing, '');
+
+  // model-name-visibility: an ACTIVE root `model_catalog_json` (another tool's
+  // static catalog) makes Codex ignore our runtime model-list discovery — the
+  // picker would stay locked to that tool's models whatever our toggle says.
+  // Comment it out IN PLACE (lossless: the assignment text survives verbatim
+  // inside the comment); restoreCodexBase un-comments it on remove/repair.
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^\s*#/.test(line) || !new RegExp(`^\\s*${CODEX_EXTERNAL_CATALOG_KEY}\\s*=`).test(line)) continue;
+    lines[index] =
+      `# ${line.trim()} ${CODEX_EXTERNAL_CATALOG_DISABLED_MARKER} ` +
+      '(runtime model-list discovery is active while the Omnicross integration is installed)';
+  }
 
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   const base = lines.length > 0 ? `${lines.join('\n')}\n\n` : '';
@@ -115,6 +134,25 @@ export function renderClaudeSettings(
   return JSON.stringify(settings, null, 2) + '\n';
 }
 
+/**
+ * True when the config's ROOT carries an EXTERNAL `model_catalog_json`
+ * assignment (another tool's static catalog). Codex then routes ALL model-list
+ * behavior through that file and IGNORES per-provider runtime discovery — our
+ * managed `model_catalog_url` fetch never runs, so the picker stays locked to
+ * the other tool's models regardless of `modelNaming.realNames`. DETECTION
+ * ONLY: Omnicross never writes or removes the key (it is not ours to manage);
+ * plan + status surface the conflict for the user to resolve.
+ */
+export function hasExternalModelCatalog(existing: string): boolean {
+  const lines = existing.replace(/\r\n/g, '\n').split('\n');
+  const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
+  const rootEnd = firstTable < 0 ? lines.length : firstTable;
+  // A commented-out assignment (`# model_catalog_json = ...`) is not active.
+  return lines
+    .slice(0, rootEnd)
+    .some((line) => /^\s*model_catalog_json\s*=/.test(line) && !/^\s*#/.test(line));
+}
+
 /** Remove our Codex block and restore only the pre-install root selectors. */
 export function restoreCodexBase(current: string, original: string): string {
   const hasBegin = current.includes(CODEX_BEGIN);
@@ -143,6 +181,23 @@ export function restoreCodexBase(current: string, original: string): string {
     if (managedIndex >= 0) {
       if (originalAssignment) lines[managedIndex] = originalAssignment;
       else lines.splice(managedIndex, 1);
+    }
+  }
+  // model-name-visibility: put the external static catalog back exactly as the
+  // pre-install snapshot had it. The disabled line only exists when the
+  // original carried the key, so restore verbatim (delete as a safety net).
+  {
+    const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
+    const rootEnd = firstTable < 0 ? lines.length : firstTable;
+    const disabledIndex = lines.slice(0, rootEnd).findIndex((line) =>
+      new RegExp(
+        `^\\s*#\\s*${CODEX_EXTERNAL_CATALOG_KEY}\\s*=.*${CODEX_EXTERNAL_CATALOG_DISABLED_MARKER}`,
+      ).test(line),
+    );
+    if (disabledIndex >= 0) {
+      const originalAssignment = rootAssignment(original, CODEX_EXTERNAL_CATALOG_KEY);
+      if (originalAssignment) lines[disabledIndex] = originalAssignment;
+      else lines.splice(disabledIndex, 1);
     }
   }
   return lines.join('\n').replace(/\n/g, eol);

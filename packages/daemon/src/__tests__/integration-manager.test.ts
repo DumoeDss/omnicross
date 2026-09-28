@@ -488,6 +488,76 @@ describe('IntegrationManager', () => {
     expect(await f.manager.refreshInstalledClients()).toEqual([]);
   });
 
+  it('comments out an external model_catalog_json at install; remove restores it verbatim', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    const codexPath = join(codexDir, 'config.toml');
+    mkdirSync(codexDir, { recursive: true });
+    // Another tool's static catalog at the ROOT of config.toml (pre-install).
+    const original = 'model_catalog_json = "C:/somewhere/models.json"\n';
+    writeFileSync(codexPath, original, 'utf8');
+
+    const plan = await f.manager.plan('codex');
+    expect(plan.action).toBe('install');
+    expect(plan.canApply).toBe(true);
+    expect(plan.changes).toContain('model_providers.omnicross.model_catalog_url');
+    expect(plan.warnings.join(' ')).toMatch(/model_catalog_json/);
+
+    // Install proceeds and DISABLES the external key in place (commented,
+    // marker-suffixed) so our runtime model-list discovery is not suppressed.
+    const status = await f.manager.install('codex');
+    expect(status.status).toBe('enabled');
+    expect(status.message).toBeUndefined();
+    const toml = readFileSync(codexPath, 'utf8');
+    expect(toml).toContain(
+      '# model_catalog_json = "C:/somewhere/models.json" # disabled by Omnicross',
+    );
+    expect(toml).toContain('model_catalog_url = "http://127.0.0.1:8765/v1/codex-model-catalog"');
+    // The ACTIVE form is gone — that is the point.
+    expect(toml).not.toMatch(/^model_catalog_json\s*=/m);
+
+    // Uninstall restores the user's original exactly (active key back).
+    await f.manager.remove('codex');
+    expect(readFileSync(codexPath, 'utf8')).toBe(original);
+  });
+
+  it('a re-enabled external catalog is drift; repair re-disables it', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    const codexPath = join(codexDir, 'config.toml');
+    mkdirSync(codexDir, { recursive: true });
+    const original = 'model_catalog_json = "C:/somewhere/models.json"\n';
+    writeFileSync(codexPath, original, 'utf8');
+    await f.manager.install('codex');
+
+    // The other tool (or the user) re-writes the active key post-install.
+    writeFileSync(codexPath, 'model_catalog_json = "C:/elsewhere/models.json"\n', 'utf8');
+    const drifted = (await f.manager.listStatus()).find((s) => s.client === 'codex');
+    expect(drifted?.status).toBe('configuration-drift');
+
+    // Repair disables it again — preserving the CURRENT value (repair keeps
+    // unrelated user edits; only our managed bits are re-applied).
+    await f.manager.repair('codex');
+    const toml = readFileSync(codexPath, 'utf8');
+    expect(toml).not.toMatch(/^model_catalog_json\s*=/m);
+    expect(toml).toContain('# model_catalog_json = "C:/elsewhere/models.json" # disabled by Omnicross');
+  });
+
+  it('a commented-out or table-scoped model_catalog_json is NOT flagged', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    mkdirSync(codexDir, { recursive: true });
+    writeFileSync(
+      join(codexDir, 'config.toml'),
+      '# model_catalog_json = "C:/somewhere/models.json"\n[some_tool]\nmodel_catalog_json = "x"\n',
+      'utf8',
+    );
+    const plan = await f.manager.plan('codex');
+    expect(plan.warnings).toEqual([]);
+    const status = await f.manager.install('codex');
+    expect(status.message).toBeUndefined();
+  });
+
   it('revokes a freshly minted key when state persistence fails before installation', async () => {
     const f = fixture();
     vi.spyOn(f.store, 'save').mockImplementation(() => {
