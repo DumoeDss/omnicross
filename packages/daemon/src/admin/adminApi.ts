@@ -1469,9 +1469,12 @@ async function handleTestModel(
   const startedAt = Date.now();
   try {
     // upstream-proxy: BYO test-model egress honors the global/provider proxy.
+    // BOUNDED: a hung/black-holed upstream (or proxy) must surface as a
+    // failure here — without a signal the await never settles and the dialog
+    // spins forever (same bound as the logjev probe below).
     const response = await fetchUpstream(
       url,
-      { method: 'POST', headers, body: JSON.stringify(payload) },
+      { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(20_000) },
       { providerId: 'byo' },
     );
     const latencyMs = Date.now() - startedAt;

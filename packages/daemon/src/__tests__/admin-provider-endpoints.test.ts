@@ -444,6 +444,51 @@ describe('POST /admin/api/providers/:id/test', () => {
     expect((await adminFetch('POST', '/admin/api/providers/a/test', {})).status).toBe(400);
     expect((await adminFetch('POST', '/admin/api/providers/nope/test', { model: 'm' })).status).toBe(404);
   });
+
+  it('a hung upstream surfaces as ok:false within the bound instead of spinning forever', async () => {
+    // A black-holed upstream: accepts the request, never replies, and TRACKS the
+    // sockets so teardown can destroy them (an idle never-responding connection
+    // otherwise keeps the worker's event loop alive past the test run).
+    // Pre-fix this left the admin request pending forever (the UI dialog spins).
+    const sockets = new Set<import('node:net').Socket>();
+    const stall = createServer((req, res) => {
+      void res;
+      req.resume();
+    });
+    stall.on('connection', (socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+    });
+    await new Promise<void>((resolve) => stall.listen(0, '127.0.0.1', resolve));
+    const stallPort = (stall.address() as AddressInfo).port;
+    try {
+      await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' }]);
+      // Point the row at the stalling server (bootDaemon wires baseUrl to the
+      // well-behaved mock; overwrite via PUT to target the hang).
+      const put = await adminFetch('PUT', '/admin/api/providers/a', {
+        id: 'a',
+        apiFormat: 'openai',
+        baseUrl: `http://127.0.0.1:${stallPort}/v1`,
+        apiKey: 'sk-a',
+      });
+      expect(put.status).toBe(200);
+
+      const startedAt = Date.now();
+      const r = await adminFetch('POST', '/admin/api/providers/a/test', { model: 'gpt-x' });
+      const elapsed = Date.now() - startedAt;
+      expect(r.status).toBe(200);
+      const body = r.json as { ok: boolean; message?: string };
+      expect(body.ok).toBe(false);
+      expect(body.message).toMatch(/timeout|abort/i);
+      // The bound actually applied: the 20s timeout fired (not a hang), and
+      // the response landed on the test's own 30s budget.
+      expect(elapsed).toBeGreaterThanOrEqual(19_000);
+      expect(elapsed).toBeLessThan(25_000);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => stall.close(() => resolve()));
+    }
+  }, 30_000);
 });
 
 // ── probe egress identity (testEgressIdentity) ────────────────────────────────
