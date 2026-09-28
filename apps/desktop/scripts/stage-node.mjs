@@ -42,7 +42,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -174,13 +174,39 @@ async function expectedSha(name) {
 }
 
 // relPath doubles as the SHASUMS256.txt key (e.g. 'win-x64/node.exe', '<tar>.tar.gz').
+// A successful download is cached in the OS tmpdir keyed by version + file. The
+// staged runtime dir is wiped on every packaging run, so without this cache the
+// same ~87 MB node.exe is re-fetched for each local build attempt.
+function cachePathFor(relPath) {
+  return join(tmpdir(), `omnicross-node-v${NODE_VERSION}-${relPath.replaceAll('/', '_')}`);
+}
+
 async function download(relPath) {
-  console.info(`[stage-node] downloading ${relPath} …`);
-  const buf = await fetchRelative(relPath);
   const want = await expectedSha(relPath);
   if (!want) throw new Error(`no checksum for ${relPath} in SHASUMS256.txt`);
+  const cachedPath = cachePathFor(relPath);
+  if (existsSync(cachedPath)) {
+    try {
+      const buf = readFileSync(cachedPath);
+      const got = createHash('sha256').update(buf).digest('hex');
+      if (got === want) {
+        console.info(`[stage-node] reusing cached ${relPath} → ${cachedPath}`);
+        return buf;
+      }
+      console.warn(`[stage-node] cached ${relPath} checksum mismatch — re-downloading`);
+    } catch (err) {
+      console.warn(`[stage-node] cached ${relPath} unreadable (${err.message}) — re-downloading`);
+    }
+  }
+  console.info(`[stage-node] downloading ${relPath} …`);
+  const buf = await fetchRelative(relPath);
   const got = createHash('sha256').update(buf).digest('hex');
-  if (got !== want) throw new Error(`checksum mismatch for ${relPath}:\n  got  ${got}\n  want ${want}`);
+  if (got !== want) throw new Error(`checksum mismatch for ${relPath}:\n  got  ${got}\n  want  ${want}`);
+  try {
+    writeFileSync(cachedPath, buf);
+  } catch (err) {
+    console.warn(`[stage-node] could not cache ${relPath} (${err.message}) — continuing`);
+  }
   return buf;
 }
 
