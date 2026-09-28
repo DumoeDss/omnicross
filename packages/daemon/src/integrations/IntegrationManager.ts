@@ -15,6 +15,7 @@ import type { ModelNamingConfig } from '@omnicross/core/outbound-api';
 import { currentProcessCodexAuthHelper, type CodexAuthHelperConfig } from './codexAuthHelper';
 import { atomicWrite, IntegrationStateStore } from './IntegrationStateStore';
 import {
+  hasExternalModelCatalog,
   renderClaudeSettings,
   renderCodexConfig,
   restoreClaudeBase,
@@ -108,15 +109,35 @@ export class IntegrationManager {
     const target = record?.configPath ?? resolve(configPath);
     const status = await this.statusFor(client, state, await this.options.keyDb.outboundApiKeysList());
     const changes = client === 'codex'
-      ? ['model_provider', 'model_providers.omnicross', 'model_providers.omnicross.auth']
+      ? [
+          'model_provider',
+          'model_providers.omnicross',
+          'model_providers.omnicross.model_catalog_url',
+          'model_providers.omnicross.auth',
+        ]
       : ['env.ANTHROPIC_BASE_URL', 'env.ANTHROPIC_AUTH_TOKEN', 'env.ANTHROPIC_API_KEY'];
+    // An external root `model_catalog_json` (another tool's static catalog)
+    // makes Codex ignore our runtime discovery entirely — the picker would stay
+    // locked to that tool's models whatever Omnicross's modelNaming setting.
+    // Install comments the key out (uninstall/repair restore it verbatim);
+    // warn on EVERY plan path so the takeover is never silent.
+    const warnings: string[] = [];
+    if (client === 'codex') {
+      const current = readOptional(target);
+      if (current !== null && hasExternalModelCatalog(current)) {
+        warnings.push(
+          'config.toml sets model_catalog_json from another tool; installing comments it out so ' +
+            'Omnicross\'s runtime model list applies (removing the integration restores it verbatim).',
+        );
+      }
+    }
     if (!record) {
-      return { client, configPath: target, action: 'install', canApply: true, changes, warnings: [] };
+      return { client, configPath: target, action: 'install', canApply: true, changes, warnings };
     }
     if (status.status === 'enabled') {
-      return { client, configPath: target, action: 'none', canApply: true, changes: [], warnings: [] };
+      return { client, configPath: target, action: 'none', canApply: true, changes: [], warnings };
     }
-    const warnings = ['Configuration changed after installation; repair preserves unrelated current settings.'];
+    warnings.unshift('Configuration changed after installation; repair preserves unrelated current settings.');
     if (client === 'codex' && record.credentialFile) {
       warnings.push('Repair migrates Codex away from managed auth.json and restores its original contents.');
     }
@@ -560,6 +581,18 @@ export class IntegrationManager {
     const current = readOptional(record.configPath);
     if (current === null) return { ...shared, status: 'configuration-missing' };
     if (sha256(current) !== record.installedHash) return { ...shared, status: 'configuration-drift' };
+    // Same external-catalog conflict as plan(). On current installs the key is
+    // commented out at install, so an ACTIVE one on a pristine file means the
+    // install predates that behavior — repairing re-applies it. Never blocking.
+    if (client === 'codex' && hasExternalModelCatalog(current)) {
+      return {
+        ...shared,
+        status: 'enabled',
+        message:
+          'An external model_catalog_json is active; repairing the integration comments it out so ' +
+            "Codex's model list follows Omnicross.",
+      };
+    }
     if (client === 'codex' && record.credentialFile) {
       return {
         ...shared,

@@ -3,6 +3,7 @@ export { IntegrationStateStore } from './IntegrationStateStore';
 export { currentProcessCodexAuthHelper } from './codexAuthHelper';
 export type { CodexAuthHelperConfig } from './codexAuthHelper';
 export {
+  hasExternalModelCatalog,
   renderClaudeSettings,
   renderCodexConfig,
   restoreClaudeBase,
