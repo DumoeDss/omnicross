@@ -189,6 +189,37 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
     });
   });
 
+    it('transformRequestIn: preserves a path prefix in the upstream URL (commandcode regression)', async () => {
+      // FIELD CASE 2026-09-29: a commandcode provider base
+      // `https://api.commandcode.ai/provider/v1/responses` used to collapse to
+      // `<origin>/v1/responses` — `new URL('/v1/responses', base)` drops the
+      // WHOLE path — so the gateway's chat→responses relay 404'd upstream.
+      const encoded = await transformer.transformRequestIn(
+        { model: 'deepseek/deepseek-v4.1-flash', messages: [{ role: 'user', content: 'hi' }] },
+        { name: 'command', baseUrl: 'https://api.commandcode.ai/provider/v1/responses', apiKey: 'k', models: [] },
+        mockContext,
+      );
+      expect((encoded as Record<string, any>).config.url.toString()).toBe(
+        'https://api.commandcode.ai/provider/v1/responses',
+      );
+    });
+
+    it('transformRequestIn: host-root and versioned bases keep their prior resolution', async () => {
+      const bare = await transformer.transformRequestIn(
+        { model: 'm', messages: [{ role: 'user', content: 'x' }] },
+        { name: 'oai', baseUrl: 'https://api.openai.com', apiKey: 'k', models: [] },
+        mockContext,
+      );
+      expect((bare as Record<string, any>).config.url.toString()).toBe('https://api.openai.com/v1/responses');
+
+      const versioned = await transformer.transformRequestIn(
+        { model: 'm', messages: [{ role: 'user', content: 'x' }] },
+        { name: 'zen', baseUrl: 'https://opencode.ai/zen/go/v1', apiKey: 'k', models: [] },
+        mockContext,
+      );
+      expect((versioned as Record<string, any>).config.url.toString()).toBe('https://opencode.ai/zen/go/v1/responses');
+    });
+
   // =========================================================================
   // 2.2 Tool round-trips
   // =========================================================================

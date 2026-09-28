@@ -24,6 +24,7 @@ import {
 } from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
 import { recordDroppedField } from '../transformWarnings';
+import { buildOpenAIResponseApiUrl } from '../../completion/url-builder';
 
 // ============================================================================
 // Response API Types
@@ -241,16 +242,15 @@ export class OpenAIResponseTransformer implements Transformer {
       }
     }
 
-    // HOST-ROOT-ABSOLUTE BY DESIGN: `new URL('/v1/responses', baseUrl)` keeps only
-    // the base's ORIGIN and replaces the WHOLE path with `/v1/responses`. This is
-    // correct for the public OpenAI / ChatGPT Responses endpoints (their path IS
-    // `/v1/responses` at the host root). Consumers whose provider base carries a
-    // PATH PREFIX (e.g. opencode-zen `…/zen/v1/responses`, codex
-    // `…/backend-api/codex/responses`) MUST NOT use this `config.url` — it would
-    // drop the prefix. Such consumers prefer their own complete `upstreamUrl`
-    // instead (see `usesResponsesChain` in `anthropicSubscriptionPlan.ts` /
-    // `SubscriptionDispatcher.ts`, which gate the Responses chain onto `upstreamUrl`).
-    const url = new URL('/v1/responses', provider.baseUrl);
+    // PATH-PRESERVING URL: append the Responses path the SAME way
+    // `buildOpenAIResponseApiUrl` does — a base path PREFIX (commandcode
+    // `…/provider/v1/responses`, opencode-zen `…/zen/v1/responses`) must survive.
+    // The previous `new URL('/v1/responses', baseUrl)` kept only the ORIGIN and
+    // silently dropped every prefix, so a chat→responses BYO relay hit
+    // `<origin>/v1/responses` → upstream 404 (commandcode field case 2026-09-29).
+    // Full-endpoint bases (`…/responses`) and versioned bases (`…/v1`) keep
+    // their prior resolution; only the prefix-dropping case changes.
+    const url = new URL(buildOpenAIResponseApiUrl(provider.baseUrl));
 
     return { body, config: { url } };
   }
