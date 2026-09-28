@@ -292,6 +292,8 @@ npm install -g @omnicross/daemon
 
    密钥需要 `responses` 权限（要用图像生成再加 `images`）。`env_key` 与 `[model_providers.omnicross.auth]` 不要同时配置 —— 后者是一键集成用的 auth helper 写法。
 
+   > ⚠️ 按本节手动配置过后，若想改用「集成」页的一键持久集成，直接点「启用」即可 —— omnicross 会自动接管上面这段手动配置（包括删除 `env_key`、换成托管 auth helper），「移除」时再原样还原。不需要先手动清理。
+
 跑通了。接下来按需细调：多条路由怎么分流、密钥限什么、CLI 怎么接 —— 见下方使用指南。
 
 > 💡 **排障**：返回 `503 … has no downstream route for this key` = 走的是路由派发，但第 4 步情况 B 的路由没配、没启用，或端点跟客户端对不上（情况 A 请检查密钥是否漏绑「直连上游」）；返回 `403` = 第 5 步密钥缺少该端点权限。

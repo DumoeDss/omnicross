@@ -155,6 +155,90 @@ describe('IntegrationManager', () => {
     expect(readFileSync(join(codexDir, 'auth.json'), 'utf8')).toBe(originalAuth);
   });
 
+  it('adopts a hand-written README-style provider table instead of failing, then restores it on remove', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    const codexPath = join(codexDir, 'config.toml');
+    mkdirSync(codexDir, { recursive: true });
+    // The exact shape docs/README.zh.md §5③ teaches users to write by hand.
+    const manual = [
+      'model = "gpt-5.6-sol"',
+      'model_provider = "omnicross"',
+      '',
+      '[model_providers.omnicross]',
+      'name = "Omnicross Local Gateway"',
+      'base_url = "http://127.0.0.1:8765/v1"',
+      'wire_api = "responses"',
+      'supports_websockets = false',
+      'env_key = "OMNICROSS_API_KEY"',
+      'http_headers = { "X-OpenAI-Actor-Authorization" = "omnicross" }',
+      '',
+      '[mcp_servers.local]',
+      'command = "demo"',
+      '',
+    ].join('\r\n');
+    writeFileSync(codexPath, manual, 'utf8');
+
+    const status = await f.manager.install('codex');
+    expect(status.status).toBe('enabled');
+    const installed = readFileSync(codexPath, 'utf8');
+    // The manual table (and its env_key) is superseded by the managed block.
+    expect(installed).toContain('model_provider = "omnicross" # managed by Omnicross');
+    expect(installed).toContain('[model_providers.omnicross.auth]');
+    expect(installed).not.toContain('env_key = "OMNICROSS_API_KEY"');
+    expect(installed.match(/^\[model_providers\.omnicross\]$/gm)).toHaveLength(1);
+    // Unrelated tables and root keys survive adoption untouched.
+    expect(installed).toContain('model = "gpt-5.6-sol"');
+    expect(installed).toContain('[mcp_servers.local]');
+    expect(installed).toContain('command = "demo"');
+
+    await f.manager.remove('codex');
+    expect(readFileSync(codexPath, 'utf8')).toBe(manual);
+  });
+
+  it('adoption strips dotted sub-tables of the unmanaged provider too', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    const codexPath = join(codexDir, 'config.toml');
+    mkdirSync(codexDir, { recursive: true });
+    const manual = [
+      '[model_providers.omnicross]',
+      'name = "manual"',
+      '',
+      '[model_providers.omnicross.auth]',
+      'type = "api_key"',
+      '',
+      '[model_providers.other]',
+      'name = "keep me"',
+      '',
+    ].join('\n');
+    writeFileSync(codexPath, manual, 'utf8');
+
+    const status = await f.manager.install('codex');
+    expect(status.status).toBe('enabled');
+    const installed = readFileSync(codexPath, 'utf8');
+    expect(installed.match(/^\[model_providers\.omnicross(\.auth)?\]$/gm)).toHaveLength(2);
+    expect(installed).not.toContain('name = "manual"');
+    expect(installed).not.toContain('type = "api_key"');
+    expect(installed).toContain('[model_providers.other]');
+    expect(installed).toContain('name = "keep me"');
+
+    await f.manager.remove('codex');
+    expect(readFileSync(codexPath, 'utf8')).toBe(manual);
+  });
+
+  it('still refuses an orphaned marker, with an actionable message', async () => {
+    const f = fixture();
+    const codexDir = join(f.home, '.codex');
+    const codexPath = join(codexDir, 'config.toml');
+    mkdirSync(codexDir, { recursive: true });
+    writeFileSync(codexPath, '# >>> omnicross managed provider >>>\n[model_providers.omnicross]\n', 'utf8');
+
+    await expect(f.manager.install('codex')).rejects.toThrow(/leftover\/incomplete Omnicross marker.*Delete the lines/s);
+    expect((await f.manager.listStatus())[0].status).toBe('not-installed');
+    expect(readFileSync(codexPath, 'utf8')).toBe('# >>> omnicross managed provider >>>\n[model_providers.omnicross]\n');
+  });
+
   it('changes Claude settings only, never .credentials.json, then restores exactly', async () => {
     const f = fixture();
     const claudeDir = join(f.home, '.claude');

@@ -7,6 +7,9 @@ const CODEX_PROVIDER = 'omnicross';
 const CODEX_EXTERNAL_CATALOG_KEY = 'model_catalog_json';
 /** Marker suffix on the commented-out line — what restore matches to undo. */
 const CODEX_EXTERNAL_CATALOG_DISABLED_MARKER = '# disabled by Omnicross';
+/** An UNMARKED provider table (e.g. hand-written following the README's
+ *  manual-setup snippet) — adopted, not rejected, by renderCodexConfig. */
+const UNMANAGED_PROVIDER_TABLE = /^\s*\[\s*model_providers\s*\.\s*["']?omnicross["']?\s*(\.[^\]]*)?\s*]/;
 /**
  * Non-empty dummy for `ANTHROPIC_API_KEY`: an empty/absent value lets Claude
  * Code fall back to its OAuth login state, so the install (and key-scoped
@@ -23,17 +26,26 @@ export interface CodexConfigInput {
   };
 }
 
-/** Lossless outside the two managed regions; uninstall restores the exact snapshot. */
+/**
+ * Lossless outside the two managed regions; uninstall restores the exact snapshot.
+ *
+ * A pre-existing UNMARKED `[model_providers.omnicross]` table (e.g. written by
+ * hand following the README's manual-setup snippet) is ADOPTED, not rejected:
+ * the table plus its dotted sub-tables is stripped from the base and superseded
+ * by the managed block below. The pre-install snapshot `install()` persists
+ * keeps the original bytes, so `remove()` still restores them exactly.
+ */
 export function renderCodexConfig(input: CodexConfigInput): string {
   if (input.existing.includes(CODEX_BEGIN) || input.existing.includes(CODEX_END)) {
-    throw new Error('Codex config contains an unmanaged/orphaned Omnicross marker');
-  }
-  if (/^\s*\[\s*model_providers\s*\.\s*["']?omnicross["']?\s*]/m.test(input.existing)) {
-    throw new Error("Codex config already defines model_providers.omnicross");
+    throw new Error(
+      'Codex config.toml has a leftover/incomplete Omnicross marker. '
+      + 'Delete the lines between (and including) "# >>> omnicross managed provider >>>" '
+      + 'and "# <<< omnicross managed provider <<<", then retry.',
+    );
   }
 
   const eol = input.existing.includes('\r\n') ? '\r\n' : '\n';
-  const lines = input.existing.replace(/\r\n/g, '\n').split('\n');
+  const lines = stripUnmanagedProviderTables(input.existing.replace(/\r\n/g, '\n').split('\n'));
   const firstTable = lines.findIndex((line) => /^\s*\[/.test(line) && !/^\s*#/.test(line));
   const rootEnd = firstTable < 0 ? lines.length : firstTable;
   const assignments: Record<'model_provider', number[]> = {
@@ -100,6 +112,32 @@ export function renderCodexConfig(input: CodexConfigInput): string {
   return (base + block).replace(/\n/g, eol);
 }
 
+/**
+ * Remove every `[model_providers.omnicross…]` table header AND its body —
+ * from the header line through the line before the next table header of the
+ * same or an unrelated name. Blank lines left behind collapse away.
+ */
+function stripUnmanagedProviderTables(lines: string[]): string[] {
+  const out: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    const isTableHeader = /^\s*\[/.test(line) && !/^\s*#/.test(line);
+    if (skipping) {
+      // A header inside the skip: another omnicross sub-table keeps the skip
+      // alive; any unrelated table ends it (and is kept).
+      if (!isTableHeader) continue;
+      if (UNMANAGED_PROVIDER_TABLE.test(line)) continue;
+      skipping = false;
+    } else if (isTableHeader && UNMANAGED_PROVIDER_TABLE.test(line)) {
+      skipping = true;
+      continue;
+    }
+    out.push(line);
+  }
+  while (out.length > 0 && out[out.length - 1] === '') out.pop();
+  return out;
+}
+
 /** Env key for Claude Code's LLM-gateway model-list discovery (see
  *  code.claude.com/docs/en/model-config — populates the picker from the
  *  gateway's `/v1/models`). Only injected while `modelNaming.realNames` is on:
@@ -138,7 +176,7 @@ export function renderClaudeSettings(
  * True when the config's ROOT carries an EXTERNAL `model_catalog_json`
  * assignment (another tool's static catalog). Codex then routes ALL model-list
  * behavior through that file and IGNORES per-provider runtime discovery — our
- * managed `model_catalog_url` fetch never runs, so the picker stays locked to
+ * managed `model_catalog_url` fetch never run, so the picker stays locked to
  * the other tool's models regardless of `modelNaming.realNames`. DETECTION
  * ONLY: Omnicross never writes or removes the key (it is not ours to manage);
  * plan + status surface the conflict for the user to resolve.
