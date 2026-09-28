@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { normalizeServerConfig } from '@omnicross/core/outbound-api';
 
 import { resolveUpstreamModelMappings, effectiveUpstreamModelMappings, type UpstreamCatalogEntry } from '../admin/upstreamRoutingAdmin';
-import { anthropicModelDiscoveryUrls, mergeProviderModels, scopeDiscoveredIdsToJev } from '../admin/adminApi';
+import {
+  anthropicModelDiscoveryUrls,
+  mergeProviderModels,
+  openAiWireModelDiscoveryUrls,
+  scopeDiscoveredIdsToJev,
+} from '../admin/adminApi';
 import type { DaemonProviderConfig } from '../config';
 
 const providers: DaemonProviderConfig[] = [{
@@ -157,6 +162,38 @@ describe('anthropicModelDiscoveryUrls (cross-wire /models candidates)', () => {
       'https://gw.example/models',
       'https://gw.example/paas/v4/models',
       'https://gw.example/api/paas/v4/models',
+    ]);
+  });
+});
+
+describe('openAiWireModelDiscoveryUrls (full-endpoint / bare-root bases)', () => {
+  it('strips a trailing /chat/completions before appending /models (commandcode regression)', () => {
+    // Rows may store the FULL completion endpoint (openai/deepseek preset
+    // shape); a raw `{base}/models` append produced
+    // …/v1/chat/completions/models → 404 on every OpenAI-wire gateway.
+    expect(openAiWireModelDiscoveryUrls('https://api.commandcode.ai/provider/v1/chat/completions'))
+      .toEqual(['https://api.commandcode.ai/provider/v1/models']);
+  });
+
+  it('bare-root bases fall back to /v1/models (…/provider shape)', () => {
+    expect(openAiWireModelDiscoveryUrls('https://api.commandcode.ai/provider')).toEqual([
+      'https://api.commandcode.ai/provider/models',
+      'https://api.commandcode.ai/provider/v1/models',
+    ]);
+  });
+
+  it('strips /responses and /messages suffixes too; dedupes /v1 bases', () => {
+    expect(openAiWireModelDiscoveryUrls('https://gw.example/v1/responses')).toEqual([
+      'https://gw.example/v1/models',
+    ]);
+    expect(openAiWireModelDiscoveryUrls('https://gw.example/v1/messages')).toEqual([
+      'https://gw.example/v1/models',
+    ]);
+  });
+
+  it('trailing slash is trimmed', () => {
+    expect(openAiWireModelDiscoveryUrls('https://gw.example/v1/')).toEqual([
+      'https://gw.example/v1/models',
     ]);
   });
 });

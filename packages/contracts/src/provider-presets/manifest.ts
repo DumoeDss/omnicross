@@ -18,6 +18,7 @@ import azureOpenai from './presets/azure-openai.json';
 import baidu from './presets/baidu.json';
 import cerebras from './presets/cerebras.json';
 import clinePass from './presets/cline-pass.json';
+import commandcode from './presets/commandcode.json';
 import dashscope from './presets/dashscope.json';
 import deepseek from './presets/deepseek.json';
 import gemini from './presets/gemini.json';
@@ -78,6 +79,7 @@ export const RAW_PRESETS_IN_ORDER: unknown[] = [
   synthetic,
   umans,
   clinePass,
+  commandcode,
   // Chinese cloud
   zhipu,
   zhipuBigmodel,

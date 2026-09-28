@@ -48,6 +48,8 @@ interface MockUpstream {
   /** When set, the `/models` handler replies with this canned body + status. */
   modelsStatus: number;
   modelsBody: string;
+  /** When set, a per-URL gate: answer canned (true) or 404 (false). */
+  modelsHandler?: (url: string) => boolean;
 }
 
 function startMockUpstream(): Promise<MockUpstream> {
@@ -60,6 +62,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     lastCompletionHeaders: undefined,
     modelsStatus: 200,
     modelsBody: JSON.stringify({ data: [{ id: 'gpt-x' }, { id: 'gpt-y' }] }),
+    modelsHandler: undefined,
   };
   const server = createServer((req, res) => {
     let body = '';
@@ -68,6 +71,11 @@ function startMockUpstream(): Promise<MockUpstream> {
       if (req.url && req.url.endsWith('/models')) {
         state.lastAuthHeader = req.headers['authorization'];
         state.lastExtraHeaders = req.headers;
+        if (state.modelsHandler && !state.modelsHandler(req.url)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ message: 'not found' }));
+          return;
+        }
         res.writeHead(state.modelsStatus, { 'Content-Type': 'application/json' });
         res.end(state.modelsBody);
         return;
@@ -373,6 +381,76 @@ describe('POST /admin/api/providers/:id/discover-models (app-foundation D8)', ()
     expect(body.models).toEqual([]);
     expect(body.error).toContain('500');
     expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
+  });
+
+  it('a full-endpoint baseUrl (…/chat/completions) derives /models, not /chat/completions/models', async () => {
+    // commandcode regression: the row stored the FULL completion endpoint
+    // (preset shape), the raw `{base}/models` append 404'd on every gateway.
+    await bootDaemon((b) => [
+      { id: 'a', apiFormat: 'openai', baseUrl: `${b}/chat/completions`, apiKey: 'sk-a' },
+    ]);
+    const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
+    expect(r.status).toBe(200);
+    expect((r.json as { models: string[] }).models).toEqual(['gpt-x', 'gpt-y']);
+  });
+
+  it('a bare-root baseUrl falls back to {root}/v1/models on 404', async () => {
+    // First candidate ({base}/models) 404s; the /v1/models fallback answers.
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b.replace(/\/v1$/, ''), apiKey: 'sk-a' }]);
+    let calls = 0;
+    upstream.modelsHandler = (url) => {
+      calls += 1;
+      return url.endsWith('/v1/models');
+    };
+    try {
+      const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
+      expect(r.status).toBe(200);
+      expect((r.json as { models: string[] }).models).toEqual(['gpt-x', 'gpt-y']);
+      expect(calls).toBe(2);
+    } finally {
+      delete upstream.modelsHandler;
+    }
+  });
+
+  it('a user-set modelsEndpoint is tried alone, overriding every derived URL', async () => {
+    await bootDaemon((b) => [
+      { id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a', modelsEndpoint: `${b}/custom/models` },
+    ]);
+    let seen = '';
+    upstream.modelsHandler = (url) => {
+      seen = url;
+      return true;
+    };
+    try {
+      const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
+      expect(r.status).toBe(200);
+      expect((r.json as { models: string[] }).models).toEqual(['gpt-x', 'gpt-y']);
+      expect(seen.endsWith('/custom/models')).toBe(true);
+    } finally {
+      delete upstream.modelsHandler;
+    }
+  });
+
+  it('the discovery error names the URL that failed and surfaces cause', async () => {
+    await bootDaemon((b) => [
+      { id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: 'sk-a' },
+    ]);
+    upstream.modelsStatus = 404;
+    upstream.modelsBody = JSON.stringify({
+      message: '404 Not found. Check the docs for available routes.',
+      cause: 'GET https://x.test/v1/models is not a registered API route',
+    });
+    try {
+      const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
+      const body = r.json as { error?: string };
+      // The operator sees WHICH candidate failed and the gateway's own cause,
+      // instead of a generic 404 they must guess the URL for.
+      expect(body.error).toContain('/v1/models');
+      expect(body.error).toContain('not a registered API route');
+    } finally {
+      upstream.modelsStatus = 200;
+      upstream.modelsBody = JSON.stringify({ data: [{ id: 'gpt-x' }, { id: 'gpt-y' }] });
+    }
   });
 
   it('returns 404 for an unknown provider id', async () => {

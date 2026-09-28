@@ -125,6 +125,29 @@ describe('preset → daemon-row mapping', () => {
     expect(view?.extraHeaders).toEqual(preset.extraHeaders);
   });
 
+  it('maps the Command Code preset with its multi-wire variants and explicit models endpoint', () => {
+    const preset = getPresetById('commandcode')!;
+    expect(preset.apiFormat).toBe('openai');
+    expect(preset.formatVariants).toMatchObject({
+      anthropic: 'https://api.commandcode.ai/provider/v1/messages',
+      'openai-response': 'https://api.commandcode.ai/provider/v1/responses',
+    });
+    const r = mapPresetToProvider(preset, { key: 'sk-cc' });
+    if (!('provider' in r)) throw new Error('expected provider');
+    expect(r.provider).toMatchObject({
+      id: 'commandcode',
+      apiFormat: 'openai',
+      baseUrl: 'https://api.commandcode.ai/provider/v1/chat/completions',
+      modelsEndpoint: 'https://api.commandcode.ai/provider/v1/models',
+      formatVariants: preset.formatVariants,
+      apiKey: 'sk-cc',
+    });
+    // The wire split the catalog encodes: Claude models are /messages-only,
+    // everything else rides chat/completions (+ /responses via the variant).
+    expect(r.provider.models).toContain('claude-sonnet-5');
+    expect(r.provider.models).toContain('deepseek/deepseek-v4.1-flash');
+  });
+
   it('excludes azure-openai with a reason', () => {
     const preset = getPresetById('azure-openai')!;
     const r = mapPresetToProvider(preset, { key: 'sk-x' });

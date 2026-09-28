@@ -53,6 +53,8 @@ export const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   mistral: <Zap className="h-5 w-5 text-orange-600" />,
   together: <Cloud className="h-5 w-5 text-blue-500" />,
   perplexity: <Sparkles className="h-5 w-5 text-teal-500" />,
+  // Command Code Provider API (multi-wire aggregator)
+  commandcode: <Zap className="h-5 w-5 text-violet-500" />,
   // SiliconFlow shares the silicon icon (already declared above)
   siliconflow: <Cpu className="h-5 w-5 text-cyan-500" />,
   claudecode: <Bot className="h-5 w-5 text-amber-500" />,

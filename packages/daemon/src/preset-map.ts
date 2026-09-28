@@ -123,6 +123,10 @@ export function mapPresetToProvider(
     // Static identity headers (e.g. the Cline client set) survive the mapping —
     // the CLI-seeded row needs them as much as an admin-API-created one.
     extraHeaders: preset.extraHeaders,
+    // A preset-declared /models endpoint rides along verbatim (same reason as
+    // the headers: discovery must hit the RIGHT catalog URL from row-creation
+    // time, before any admin save re-derives it).
+    modelsEndpoint: preset.modelsEndpoint,
     // Fan-out variants survive the mapping (multi-format providers seed their
     // extra-wire base URLs onto the row).
     formatVariants: preset.formatVariants,

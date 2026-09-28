@@ -1152,7 +1152,11 @@ export function scopeDiscoveredIdsToJev(
 
 /** Fetch one `/models` URL; `ids` empty + `error` set on any failure (the
  *  caller tries the next candidate). Shared by the openai-wire path and the
- *  anthropic probe list. Never throws. */
+ *  anthropic probe list. Never throws.
+ *
+ *  The error string names the URL it tried — a gateway that 404s EVERY unknown
+ *  route with the same generic message (e.g. "404 Not found. Check the docs…")
+ *  otherwise leaves the operator guessing which candidate actually failed. */
 async function fetchModelsFromUrl(
   url: string,
   row: DaemonProviderConfig,
@@ -1172,12 +1176,22 @@ async function fetchModelsFromUrl(
       const text = await response.text().catch(() => '');
       let message = text.slice(0, 300);
       try {
-        const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
-        message = parsed?.error?.message || parsed?.message || message;
+        const parsed = JSON.parse(text) as {
+          error?: { message?: string };
+          message?: string;
+          cause?: string;
+        };
+        // `cause` first: gateways like commandcode put the actionable detail
+        // ("GET <url> is not a registered API route") there, while `message`
+        // stays generic ("404 Not found. Check the docs…").
+        message = parsed?.cause || parsed?.error?.message || parsed?.message || message;
       } catch {
         // keep the raw text slice
       }
-      return { ids: [], error: `discovery failed (${response.status})${message ? `: ${message}` : ''}` };
+      return {
+        ids: [],
+        error: `discovery failed (${response.status}) from ${url}${message ? `: ${message}` : ''}`,
+      };
     }
     const data = (await response.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
     if (!Array.isArray(data?.data)) return { ids: [], error: 'discovery failed: unexpected /models payload' };
@@ -1206,59 +1220,71 @@ async function fetchProviderModelIds(
   row: DaemonProviderConfig,
   signal?: AbortSignal,
 ): Promise<string[]> {
-  if (row.apiFormat === 'anthropic') {
-    for (const url of anthropicModelDiscoveryUrls(row.baseUrl)) {
-      const result = await fetchModelsFromUrl(url, row, signal);
-      if (result.ids.length > 0) return result.ids;
-    }
-    return [];
+  if (row.apiFormat === 'gemini') return [];
+  if (row.apiFormat !== 'openai' && row.apiFormat !== 'openai-response' && row.apiFormat !== 'anthropic') return [];
+  for (const url of modelDiscoveryCandidates(row)) {
+    const ids = (await fetchModelsFromUrl(url, row, signal)).ids;
+    if (ids.length > 0) return ids;
   }
-  if (row.apiFormat !== 'openai' && row.apiFormat !== 'openai-response') return [];
-  const base = row.baseUrl.replace(/\/+$/, '');
-  const url =
-    row.category === 'other'
-      ? /\/v1\/[^/]+$/.test(base)
-        ? `${base.replace(/\/v1\/[^/]+$/, '/v1')}/models`
-        : base.endsWith('/v1')
-          ? `${base}/models`
-          : `${base}/v1/models`
-      : `${base}/models`;
-  return (await fetchModelsFromUrl(url, row, signal)).ids;
+  return [];
 }
 
 /**
  * The DISCOVER-MODELS ROUTE's detailed variant: same probing, but the error
- * says which candidate URLs were tried (anthropic) or carries the upstream's
- * own message (openai wires).
+ * says which candidate URLs were tried.
  */
 async function discoverProviderModelsDetailed(
   row: DaemonProviderConfig,
   signal?: AbortSignal,
 ): Promise<{ models: string[]; error?: string }> {
-  if (row.apiFormat === 'anthropic') {
-    const tried = anthropicModelDiscoveryUrls(row.baseUrl);
-    let lastError = '';
-    for (const url of tried) {
-      const result = await fetchModelsFromUrl(url, row, signal);
-      if (result.ids.length > 0) return { models: result.ids };
-      lastError = result.error ?? lastError;
-    }
-    return {
-      models: [],
-      error: `${lastError || 'no OpenAI-wire /models endpoint answered'} (tried ${tried.join(', ')})`,
-    };
+  const tried = modelDiscoveryCandidates(row);
+  let lastError = '';
+  for (const url of tried) {
+    const result = await fetchModelsFromUrl(url, row, signal);
+    if (result.ids.length > 0) return { models: result.ids };
+    lastError = result.error ?? lastError;
   }
-  const result = await fetchModelsFromUrl(discoveryUrlForOpenAiWire(row), row, signal);
-  return { models: result.ids, ...(result.error ? { error: result.error } : {}) };
+  return {
+    models: [],
+    error: `${lastError || 'no /models endpoint answered'} (tried ${tried.join(', ')})`,
+  };
 }
 
-function discoveryUrlForOpenAiWire(row: DaemonProviderConfig): string {
-  const base = row.baseUrl.replace(/\/+$/, '');
-  if (row.category === 'other') {
-    if (/\/v1\/[^/]+$/.test(base)) return `${base.replace(/\/v1\/[^/]+$/, '/v1')}/models`;
-    return base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
+/**
+ * Candidate `/models` URLs for an OpenAI-wire row, tried in order, first
+ * authenticated hit wins. Rows may store EITHER the API base (`…/v1`) or the
+ * FULL completion endpoint (`…/v1/chat/completions` — the openai/deepseek
+ * preset shape); appending `/models` to the latter produces a 404. The first
+ * candidate strips a trailing completion suffix, matching the UI's
+ * models-endpoint placeholder and `chatCompletionsUrlForRow`'s normalization.
+ * The `/v1/models` fallback covers a bare-root base (`…/provider`).
+ */
+export function openAiWireModelDiscoveryUrls(baseUrl: string, category?: 'other'): string[] {
+  const base = baseUrl.replace(/\/+$/, '');
+  const root = base.replace(/\/(chat\/completions|responses|messages)$/, '');
+  const candidates = [
+    root === base ? `${base}/models` : `${root}/models`,
+    ...(/\/v\d+[a-z]*$/.test(root) ? [] : [`${root}/v1/models`]),
+  ];
+  if (category === 'other') {
+    // 'other' rows are non-chat tool storage: the legacy derivation kept a
+    // trailing `/v1/<leaf>` (e.g. an embeddings endpoint) and swapped it for
+    // `/v1/models` — preserve that shape as an extra candidate.
+    candidates.push(`${root.replace(/\/v1\/[^/]+$/, '/v1')}/models`);
   }
-  return `${base}/models`;
+  return [...new Set(candidates)];
+}
+
+/**
+ * The FINAL candidate list for one row's model discovery: a user-configured
+ * `modelsEndpoint` (the "Models Endpoint" field) overrides every derived
+ * candidate — tried alone, exactly as typed.
+ */
+function modelDiscoveryCandidates(row: DaemonProviderConfig): string[] {
+  const explicit = row.modelsEndpoint?.trim();
+  if (explicit) return [explicit];
+  if (row.apiFormat === 'anthropic') return anthropicModelDiscoveryUrls(row.baseUrl);
+  return openAiWireModelDiscoveryUrls(row.baseUrl, row.category);
 }
 
 async function provisionNewProvider(
