@@ -715,6 +715,21 @@ export interface OutboundApiServerConfig {
    * only); the daemon preserves stored secrets for omitted/blanked fields on PUT.
    */
   search?: SearchServerConfig;
+  /**
+   * Client-facing model-name presentation (model-name-visibility). OPTIONAL —
+   * absent on older daemons. Carries no secret; read live per request.
+   */
+  modelNaming?: ModelNamingConfig;
+}
+
+/**
+ * Client-facing model-name presentation (model-name-visibility; mirrors
+ * `@omnicross/core`'s segment — keep in sync). `realNames` advertises the REAL
+ * upstream model ids on every discovery surface instead of the client-visible
+ * aliases.
+ */
+export interface ModelNamingConfig {
+  realNames?: boolean;
 }
 
 // ── Live status (GET /admin/api/status) ──────────────────────────────────────

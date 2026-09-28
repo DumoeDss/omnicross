@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Valódi modellnevek megjelenítése",
+      "description": "A modelllisták és választók a valódi upstream modellazonosítókat mutatják a leképezett ügyfélnév helyett. A következő listafrissítéskor lép érvénybe."
+    },
+
     "title": "API szolgáltatás",
     "description": "Konfigurálja a kimenő API-kiszolgálót, a végpontonkénti modellútvonalasztást és a névvel ellátott hozzáférési kulcsokat.",
     "loading": "Kiszolgáló konfiguráció betöltése…",

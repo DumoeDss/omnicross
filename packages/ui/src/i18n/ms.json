@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Tunjukkan nama model sebenar",
+      "description": "Senarai dan pemilih model menunjukkan ID model huluan sebenar dan bukannya nama klien yang dipetakan. Berkuat kuasa pada muat semula senarai model seterusnya."
+    },
+
     "title": "Perkhidmatan API",
     "description": "Konfigurasikan pelayan API keluar, penghalaan model setiap endpoint, dan kunci akses bernama.",
     "loading": "Memuatkan konfigurasi pelayan…",

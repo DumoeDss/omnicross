@@ -532,6 +532,15 @@ export interface AgentApiServiceApi {
    * Carries no secret.
    */
   updateVoucherConfig(voucher: OutboundApiServerConfig['voucher'] | undefined): Promise<MutationResult>;
+  /**
+   * Persist the modelNaming segment (`PUT /server` with `{ modelNaming }`,
+   * model-name-visibility). Pass `undefined` to reset to defaults (aliases).
+   * Carries no secret; the daemon rewrites the Claude integration file when
+   * `realNames` changed.
+   */
+  updateModelNamingConfig(
+    modelNaming: OutboundApiServerConfig['modelNaming'] | undefined,
+  ): Promise<MutationResult>;
   /** List redemption cards (`GET /admin/api/voucher`) — safe DTOs (no code hash). */
   listVouchers(): Promise<VoucherInfo[]>;
   /**

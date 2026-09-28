@@ -556,6 +556,24 @@ export type AnthropicCountTokensMode = CountTokensMode;
 export type AnthropicModelsShape = 'auto' | 'anthropic' | 'openai';
 
 /**
+ * Client-facing model-name presentation (model-name-visibility). Default
+ * (`realNames:false`) keeps the CLIENT-VISIBLE aliases — the mapping sources a
+ * downstream client names — exactly as before. `realNames:true` advertises the
+ * REAL upstream model ids instead: the ids a passthrough route forwards, a
+ * wildcard mapping accepts by name, and the wildcard's own targets. Exact-map
+ * targets are NOT addressable by their own name and stay unadvertised in this
+ * mode (a client wanting a specific upstream should bind it passthrough or via
+ * a wildcard).
+ */
+export interface ModelNamingConfig {
+  /**
+   * Advertise real upstream model ids in `GET /v1/models` (both shapes) and in
+   * the Codex-native catalog endpoint. Default false = client-visible aliases.
+   */
+  realNames?: boolean;
+}
+
+/**
  * Anthropic-protocol tuning segment (`claude-api-protocol-fidelity`, §10
  * skeleton — count_tokens strategy/budget, /v1/models shape, synthetic-SSE
  * heartbeat). Persisted + normalized like the other segments; read live per
@@ -763,6 +781,14 @@ export interface OutboundApiServerConfig {
   anthropic?: AnthropicConfigSegment;
   /** Default-off Images serving policy; capability still requires fresh evidence. */
   images?: ImagesServerConfig;
+  /**
+   * Client-facing model-name presentation (model-name-visibility). Optional in
+   * the persisted shape; `normalizeServerConfig` always fills it with the
+   * frozen defaults. Read live per request — the `GET /v1/models` lists and the
+   * Codex-native `model_catalog_url` endpoint both resolve from it, so a change
+   * reaches clients on their next discovery fetch with no restart.
+   */
+  modelNaming?: ModelNamingConfig;
   /**
    * Search assembly (plan 阶段5/§6.3): which API providers exist, where they may
    * egress, which frontend runs in which mode, and the runtime's default policy.

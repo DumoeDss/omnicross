@@ -40,6 +40,30 @@ function fixture() {
   return { root, home, configPath, db, store, manager };
 }
 
+/** Fixture whose IntegrationManager reads a LIVE modelNaming segment (the
+ *  daemon wires the outbound server's live getter the same way). */
+function fixtureWithModelNaming(modelNaming: () => { realNames?: boolean } | undefined) {
+  const root = mkdtempSync(join(tmpdir(), 'omnicross-integration-'));
+  dirs.push(root);
+  const home = join(root, 'home');
+  const configPath = join(root, 'config.json');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(configPath, '{"providers":[]}\n', 'utf8');
+  const box = new SecretBox(randomBytes(32));
+  const db = new JsonOutboundKeyDb(defaultKeysPath(configPath), box);
+  const store = new IntegrationStateStore(defaultIntegrationsPath(configPath), box);
+  const manager = new IntegrationManager({
+    configPath,
+    gatewayBaseUrl: 'http://127.0.0.1:8765',
+    keyDb: db,
+    stateStore: store,
+    homeDir: home,
+    codexAuthHelper: { command: 'node.exe', args: ['omnicross.js', 'integrations', 'token', 'codex'] },
+    modelNaming,
+  });
+  return { root, home, configPath, db, store, manager };
+}
+
 describe('IntegrationManager', () => {
   it('a fresh install binds the auto-created onboarding key instead of minting a managed one', async () => {
     const f = fixture();
@@ -405,6 +429,63 @@ describe('IntegrationManager', () => {
         stateStore: f.store,
       })).toThrow(/literal HTTP loopback/);
     }
+  });
+
+  it('writes the Codex managed block with the runtime model_catalog_url (model-name-visibility)', async () => {
+    const f = fixture();
+    await f.manager.install('codex');
+    const codexPath = join(f.home, '.codex', 'config.toml');
+    const toml = readFileSync(codexPath, 'utf8');
+    // The catalog URL rides the managed provider block; the gateway decides its
+    // content (empty until modelNaming.realNames is on), so install alone is
+    // behavior-neutral for the picker.
+    expect(toml).toContain('model_catalog_url = "http://127.0.0.1:8765/v1/codex-model-catalog"');
+    await f.manager.remove('codex');
+    // Uninstall restores the pre-install state exactly (the file never existed,
+    // so remove deletes it — no catalog residue).
+    expect(existsSync(codexPath)).toBe(false);
+  });
+
+  it('modelNaming off installs Claude WITHOUT the gateway-discovery env; on adds it', async () => {
+    let realNames = false;
+    const f = fixtureWithModelNaming(() => ({ realNames }));
+    const settingsPath = join(f.home, '.claude', 'settings.json');
+
+    await f.manager.install('claude');
+    let env = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { env: Record<string, string> }).env;
+    expect(env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY).toBeUndefined();
+
+    realNames = true;
+    const rewritten = await f.manager.refreshInstalledClients();
+    expect(rewritten).toEqual(['claude']);
+    env = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { env: Record<string, string> }).env;
+    expect(env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY).toBe('1');
+    // The rest of the managed env survives the rewrite.
+    expect(env.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:8765');
+    expect(env.ANTHROPIC_AUTH_TOKEN).toMatch(/^sk-omnicross-/);
+
+    realNames = false;
+    await f.manager.refreshInstalledClients();
+    env = (JSON.parse(readFileSync(settingsPath, 'utf8')) as { env: Record<string, string> }).env;
+    expect(env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY).toBeUndefined();
+
+    // Uninstall still restores the original exactly (no discovery residue).
+    await f.manager.remove('claude');
+    expect(existsSync(settingsPath)).toBe(false);
+  });
+
+  it('refreshInstalledClients is a no-op for a drifted install and without a Claude install', async () => {
+    const f = fixtureWithModelNaming(() => ({ realNames: true }));
+    expect(await f.manager.refreshInstalledClients()).toEqual([]);
+
+    const settingsPath = join(f.home, '.claude', 'settings.json');
+    mkdirSync(join(f.home, '.claude'), { recursive: true });
+    writeFileSync(settingsPath, '{\n  "env": {}\n}\n', 'utf8');
+    await f.manager.install('claude');
+    // Drift the file: refresh must skip it (status reports drift; repair renders
+    // with the live setting) and never throw.
+    writeFileSync(settingsPath, '{\n  "env": {},\n  "userEdit": true\n}\n', 'utf8');
+    expect(await f.manager.refreshInstalledClients()).toEqual([]);
   });
 
   it('revokes a freshly minted key when state persistence fails before installation', async () => {

@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Afișează numele reale ale modelelor",
+      "description": "Listele și selectoarele de modele afișează ID-urile reale ale modelului upstream în locul numelor mapate. Intră în vigoare la următoarea reîmprospătare a listei."
+    },
+
     "title": "Serviciu API",
     "description": "Configurați serverul API de ieșire, rutarea modelelor per endpoint și cheile de acces cu nume.",
     "loading": "Se încarcă configurația serverului…",

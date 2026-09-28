@@ -22,6 +22,7 @@
 import type http from 'node:http';
 import { Readable } from 'node:stream';
 
+import { resolveModelCapabilities } from '@omnicross/contracts/canonical-models';
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 import { SUBSCRIPTION_MODEL_CATALOG } from '@omnicross/contracts/subscription-model-catalog';
 import type { VoucherConfig } from '@omnicross/contracts/voucher-types';
@@ -67,6 +68,7 @@ import {
   resolveGatewayBinding,
   resolveGatewayModelMappingRow,
 } from './gatewayBindingResolver';
+import { buildCodexModelCatalog, EMPTY_CODEX_MODEL_CATALOG, type RealModelEntry } from './codexModelCatalog';
 import { injectMappingEffortDefault } from './mappingEffortInjection';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey, type VerifiedKey } from './outboundApiKeyAuth';
@@ -83,6 +85,7 @@ import type {
   EndpointRoutingConfig,
   GatewayBinding,
   GatewayBindingTarget,
+  ModelNamingConfig,
   OutboundApiDeps,
   OutboundEndpoint,
   OutboundPermission,
@@ -162,6 +165,13 @@ export interface OutboundRequestConfig {
    * (`off`/`native`/`native`), which preserve today's behavior.
    */
   search?: SearchServerConfig;
+  /**
+   * Client-facing model-name presentation (model-name-visibility). Read live
+   * per request: `GET /v1/models` (both shapes) and the Codex-native
+   * `/codex-model-catalog` route both resolve from it. Absent ⇒ the frozen
+   * default (`realNames:false` = client-visible aliases).
+   */
+  modelNaming?: ModelNamingConfig;
 }
 
 /**
@@ -325,6 +335,19 @@ export function isModelsListRequest(url: string | undefined): boolean {
   if (!url) return false;
   const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
   return path.endsWith('/models');
+}
+
+/**
+ * True for `GET <base>/codex-model-catalog` — the Codex-native catalog route
+ * the managed integration's `model_catalog_url` points at. Codex appends its
+ * own `client_version` query param (tolerated); the trailing-slash and
+ * base-path tolerance mirror `isModelsListRequest`. Deliberately NOT a
+ * `/models` suffix so it can never collide with the OpenAI discovery route.
+ */
+export function isCodexModelCatalogRequest(url: string | undefined): boolean {
+  if (!url) return false;
+  const path = url.split('?')[0]?.replace(/\/+$/, '') ?? '';
+  return path.endsWith('/codex-model-catalog');
 }
 
 /**
@@ -679,6 +702,196 @@ async function writeModelsListAnthropic(
       last_id: limited[limited.length - 1]?.id ?? null,
     }),
   );
+}
+
+// ── Real-model presentation (model-name-visibility) ───────────────────────────
+//
+// `modelNaming.realNames` swaps every discovery surface from the CLIENT-VISIBLE
+// aliases (the mapping sources a downstream names) to the REAL upstream ids
+// that are addressable BY NAME: passthrough catalogs, wildcard-mapping target
+// catalogs + the wildcard's own target ids, and kind-mapped target refs (the
+// same ids the alias mode already advertises). Exact-map TARGETS are excluded
+// in this mode — a request naming them does not resolve through the mapping.
+
+/** Resolve one real model id's metadata: provider-row config over canonical. */
+function realModelEntryFor(
+  id: string,
+  provider?: LLMProvider | null,
+): RealModelEntry {
+  const rowConfig = provider?.modelConfigs?.find((mc) => mc.id === id);
+  const capabilities = resolveModelCapabilities(id, undefined, rowConfig);
+  const entry: RealModelEntry = {
+    id,
+    displayName: rowConfig?.name,
+    contextWindow: capabilities.contextLength,
+    thinkingLevels: capabilities.thinkingLevels,
+  };
+  return entry;
+}
+
+/**
+ * Collect the deduped, insertion-stable real model entries a key may name.
+ * The ENUMERATION mirrors the alias-mode list (same binding walk, same wildcard
+ * and kind-mapped advertisement rules) minus the exact-mapping sources; the
+ * ENRICHMENT is new — each id carries the provider row's `modelConfigs` entry
+ * fused with the canonical capability registry.
+ */
+async function collectRealModelEntries(
+  llmConfig: OutboundApiDeps['llmConfig'],
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+  allowedEndpoints: readonly OutboundPermission[] | undefined,
+  /** The key's direct passthrough provider (its catalog joins the union). */
+  directTarget?: GatewayBindingTarget | null,
+  /** Optional route pin (`x-omnicross-binding-id`): list only that route. */
+  pinnedBindingId?: string,
+): Promise<RealModelEntry[]> {
+  const entries: RealModelEntry[] = [];
+  const seen = new Set<string>();
+  const push = (id: string | undefined, provider?: LLMProvider | null): void => {
+    if (!id || id.trim() === '' || seen.has(id)) return;
+    seen.add(id);
+    entries.push(realModelEntryFor(id, provider));
+  };
+  /** A provider target's servable ids (with row metadata); subscription ids
+   * carry canonical-only metadata. */
+  const pushTargetEntries = async (
+    target: GatewayBindingTarget,
+    metadataProvider?: LLMProvider | null,
+  ): Promise<void> => {
+    if (target.kind === 'provider') {
+      const provider = metadataProvider ?? (await llmConfig.getProvider(target.providerId)) ?? null;
+      for (const id of await passthroughProviderModelIds(llmConfig, target.providerId)) {
+        push(id, provider);
+      }
+    } else if (Object.prototype.hasOwnProperty.call(SUBSCRIPTION_MODEL_CATALOG, target.providerId)) {
+      for (const id of SUBSCRIPTION_MODEL_CATALOG[
+        target.providerId as keyof typeof SUBSCRIPTION_MODEL_CATALOG
+      ]) {
+        push(id, null);
+      }
+    }
+  };
+  for (const endpoint of MODEL_LIST_ENDPOINTS) {
+    if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) continue;
+    for (const binding of candidateGatewayBindings(config.bindings, apiKeyId, endpoint, pinnedBindingId)) {
+      const targetProvider = binding.target.kind === 'provider'
+        ? (await llmConfig.getProvider(binding.target.providerId)) ?? null
+        : null;
+      if (binding.modelMode === 'passthrough') {
+        await pushTargetEntries(binding.target, targetProvider);
+        continue;
+      }
+      if (binding.modelMappings?.length) {
+        // A wildcard mapping routes ANY client model id — the target's whole
+        // servable catalog plus the wildcard's own TARGET id are name-addressable.
+        if (hasWildcardMapping(binding)) {
+          await pushTargetEntries(binding.target, targetProvider);
+          for (const mapping of binding.modelMappings ?? []) {
+            if (!mapping.source.includes('*') || mapping.target.trim() === '') continue;
+            push(parseModelRef(mapping.target)?.modelId ?? mapping.target.trim(), targetProvider);
+          }
+        }
+        continue;
+      }
+      const endpointConfig = gatewayBindingToEndpointConfig(binding);
+      const refs: string[] = [];
+      if (endpointConfig.endpoint === 'chat') refs.push(...(endpointConfig.models ?? []));
+      else if (endpointConfig.endpoint === 'messages' || endpointConfig.endpoint === 'responses') {
+        refs.push(...Object.values(endpointConfig.modelMap ?? {}));
+      } else {
+        if (endpointConfig.defaultModel) refs.push(endpointConfig.defaultModel);
+        if (endpointConfig.backgroundModel) refs.push(endpointConfig.backgroundModel);
+      }
+      for (const ref of refs) {
+        push(parseModelRef(ref)?.modelId, targetProvider);
+      }
+    }
+  }
+  // DIRECT TIER: the key's direct passthrough provider contributes its catalog.
+  if (directTarget?.kind === 'provider') {
+    await pushTargetEntries(directTarget);
+  }
+  return entries;
+}
+
+/** Anthropic-shape `GET /v1/models` for `realNames` mode (same envelope as the
+ *  alias list: `data[]` + first/last/has_more, display_name from row config,
+ *  route pin honored, image models joined like the alias list). */
+async function writeRealModelsListAnthropic(
+  res: http.ServerResponse,
+  llmConfig: OutboundApiDeps['llmConfig'],
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+  allowedEndpoints: readonly OutboundPermission[] | undefined,
+  limit: number | undefined,
+  directTarget: GatewayBindingTarget | null | undefined,
+  pinnedBindingId: string | undefined,
+  imageModels: readonly string[] = [],
+): Promise<void> {
+  const collected = await collectRealModelEntries(
+    llmConfig,
+    config,
+    apiKeyId,
+    allowedEndpoints,
+    directTarget,
+    pinnedBindingId,
+  );
+  const seen = new Set(collected.map((entry) => entry.id));
+  const entries = [
+    ...collected.map((entry) => ({
+      id: entry.id,
+      type: 'model' as const,
+      ...(entry.displayName ? { display_name: entry.displayName } : {}),
+      created_at: ANTHROPIC_MODELS_CREATED_AT,
+    })),
+    // Image models join BOTH shapes in realNames mode too (same rationale as
+    // the alias list: an OpenAI-SDK user listing models must find them).
+    ...imageModels
+      .filter((id) => (seen.has(id) ? false : (seen.add(id), true)))
+      .map((id) => ({ id, type: 'model' as const, created_at: ANTHROPIC_MODELS_CREATED_AT })),
+  ];
+  const limited = limit !== undefined ? entries.slice(0, limit) : entries;
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      data: limited,
+      first_id: limited[0]?.id ?? null,
+      has_more: limited.length < entries.length,
+      last_id: limited[limited.length - 1]?.id ?? null,
+    }),
+  );
+}
+
+/** OpenAI-shape `GET /v1/models` for `realNames` mode (image models appended —
+ *  they are real, evidence-gated ids the alias mode also lists). */
+async function writeRealModelsList(
+  res: http.ServerResponse,
+  llmConfig: OutboundApiDeps['llmConfig'],
+  config: OutboundRequestConfig,
+  apiKeyId: string,
+  allowedEndpoints: readonly OutboundPermission[] | undefined,
+  imageModels: readonly string[] = [],
+  directTarget?: GatewayBindingTarget | null,
+  pinnedBindingId?: string,
+): Promise<void> {
+  const entries = await collectRealModelEntries(
+    llmConfig,
+    config,
+    apiKeyId,
+    allowedEndpoints,
+    directTarget,
+    pinnedBindingId,
+  );
+  const seen = new Set(entries.map((entry) => entry.id));
+  const data = [
+    ...entries.map((entry) => ({ id: entry.id, object: 'model', owned_by: 'omnicross' })),
+    ...imageModels
+      .filter((id) => (seen.has(id) ? false : (seen.add(id), true)))
+      .map((id) => ({ id, object: 'model', owned_by: 'omnicross' })),
+  ];
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ object: 'list', data }));
 }
 
 /** The api.anthropic.com usage wire keys ↔ the store's stable window ids. */
@@ -1384,6 +1597,33 @@ export async function handleOutboundRequest(
     return;
   }
 
+  // 3a. CODEX-NATIVE CATALOG (model-name-visibility). The managed Codex
+  // integration's `model_catalog_url` points here; Codex fetches it at runtime
+  // (command-auth discovery) and merges the response into its bundled catalog.
+  // Same authorization rule as the models list — discovery metadata, not a
+  // chat-only operation; a key may discover for any endpoint it can use.
+  if (req.method === 'GET' && isCodexModelCatalogRequest(req.url)) {
+    if (verified.allowedEndpoints && verified.allowedEndpoints.length === 0) {
+      writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
+      return;
+    }
+    const catalog = config.modelNaming?.realNames === true
+      ? buildCodexModelCatalog(
+          await collectRealModelEntries(
+            deps.llmConfig,
+            config,
+            verified.id,
+            verified.allowedEndpoints,
+            verified.boundUpstream,
+            pinnedBindingId,
+          ),
+        )
+      : EMPTY_CODEX_MODEL_CATALOG;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(catalog));
+    return;
+  }
+
   // 3. ENDPOINT SELECT. `GET <base>/models` is shared discovery metadata rather
   // than a chat-only operation. A scoped key may discover models for any endpoint
   // it can use, but never sees models belonging only to another endpoint.
@@ -1404,34 +1644,64 @@ export async function handleOutboundRequest(
         // Discovery is fail-closed: capability inspection never breaks the list route.
       }
     }
+    // model-name-visibility: `realNames` swaps BOTH shapes onto the real
+    // name-addressable upstream ids (see collectRealModelEntries).
+    const realNames = config.modelNaming?.realNames === true;
     // R4: a messages-authorized key (auto) gets the Anthropic list shape so
     // Anthropic SDK `models.list()` parses and Claude Code's gateway discovery
     // sees the CLIENT-visible aliases; other keys keep the OpenAI shape.
     if (
       resolveModelsShape(config.anthropic?.modelsShape, verified.allowedEndpoints) === 'anthropic'
     ) {
-      await writeModelsListAnthropic(
-        res,
-        deps.llmConfig,
-        config,
-        verified.id,
-        verified.allowedEndpoints,
-        parseModelsLimit(req.url),
-        verified.boundUpstream,
-        pinnedBindingId,
-        imageModels,
-      );
+      if (realNames) {
+        await writeRealModelsListAnthropic(
+          res,
+          deps.llmConfig,
+          config,
+          verified.id,
+          verified.allowedEndpoints,
+          parseModelsLimit(req.url),
+          verified.boundUpstream,
+          pinnedBindingId,
+          imageModels,
+        );
+      } else {
+        await writeModelsListAnthropic(
+          res,
+          deps.llmConfig,
+          config,
+          verified.id,
+          verified.allowedEndpoints,
+          parseModelsLimit(req.url),
+          verified.boundUpstream,
+          pinnedBindingId,
+          imageModels,
+        );
+      }
     } else {
-      await writeModelsList(
-        res,
-        deps.llmConfig,
-        config,
-        verified.id,
-        verified.allowedEndpoints,
-        imageModels,
-        verified.boundUpstream,
-        pinnedBindingId,
-      );
+      if (realNames) {
+        await writeRealModelsList(
+          res,
+          deps.llmConfig,
+          config,
+          verified.id,
+          verified.allowedEndpoints,
+          imageModels,
+          verified.boundUpstream,
+          pinnedBindingId,
+        );
+      } else {
+        await writeModelsList(
+          res,
+          deps.llmConfig,
+          config,
+          verified.id,
+          verified.allowedEndpoints,
+          imageModels,
+          verified.boundUpstream,
+          pinnedBindingId,
+        );
+      }
     }
     return;
   }

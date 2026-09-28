@@ -123,6 +123,9 @@ export async function runStart(argv: string[]): Promise<StartResult> {
     anthropic: serverConfig.anthropic,
     // plan 阶段5: the Codex frontend mode is read live per request from here.
     search: serverConfig.search,
+    // model-name-visibility: /v1/models + the Codex-native catalog route read
+    // this live per request.
+    modelNaming: serverConfig.modelNaming,
   });
 
   // Admin dashboard (RT3) — always-on by default; opt out via `--no-dashboard`

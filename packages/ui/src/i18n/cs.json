@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Zobrazovat skutečné názvy modelů",
+      "description": "Seznamy a výběry modelů zobrazují skutečné upstream ID modelů namísto mapovaných klientských názvů. Projeví se při příštím obnovení seznamu."
+    },
+
     "title": "Služba API",
     "description": "Nakonfigurujte odchozí API server, směrování modelů pro každý koncový bod a pojmenované přístupové klíče.",
     "loading": "Načítání konfigurace serveru…",

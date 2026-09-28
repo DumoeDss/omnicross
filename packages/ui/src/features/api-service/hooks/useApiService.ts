@@ -108,6 +108,9 @@ export interface UseApiServiceResult {
   updateVoucherConfig: (
     voucher: OutboundApiServerConfig['voucher'] | undefined,
   ) => Promise<void>;
+  updateModelNamingConfig: (
+    modelNaming: OutboundApiServerConfig['modelNaming'] | undefined,
+  ) => Promise<void>;
   generateVoucher: (input: VoucherGenerateInput) => Promise<boolean>;
   revokeVoucher: (id: string) => Promise<void>;
 }
@@ -446,6 +449,13 @@ export function useApiService(): UseApiServiceResult {
     [runWrite],
   );
 
+  const updateModelNamingConfig = useCallback(
+    async (modelNaming: OutboundApiServerConfig['modelNaming'] | undefined) => {
+      await runWrite(() => agent.apiService.updateModelNamingConfig(modelNaming));
+    },
+    [runWrite],
+  );
+
   const updateVoucherConfig = useCallback(
     async (voucher: OutboundApiServerConfig['voucher'] | undefined) => {
       await runWrite(() => agent.apiService.updateVoucherConfig(voucher));
@@ -527,6 +537,7 @@ export function useApiService(): UseApiServiceResult {
     createdVoucher,
     dismissCreatedVoucher,
     updateVoucherConfig,
+    updateModelNamingConfig,
     generateVoucher,
     revokeVoucher,
   };

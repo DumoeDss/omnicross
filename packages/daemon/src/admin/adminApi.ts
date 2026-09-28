@@ -2864,6 +2864,7 @@ function outboundServerConfigInput(
     voucher: config.voucher,
     anthropic: config.anthropic,
     search: config.search,
+    modelNaming: config.modelNaming,
   };
 }
 
@@ -3103,6 +3104,16 @@ async function handleServer(
         return writeJsonError(res, 500, error.message);
       }
       throw error;
+    }
+    // model-name-visibility: the Claude integration's discovery env tracks the
+    // toggle — rewrite the installed file when the setting changed. Best-effort:
+    // a failed rewrite surfaces as integration drift (never fails the save).
+    if (current.modelNaming?.realNames !== merged.modelNaming?.realNames) {
+      try {
+        await deps.integrationManagerFactory?.().refreshInstalledClients();
+      } catch {
+        // The integration status panel reports the drift; the config save stands.
+      }
     }
     const imageAuditFields = imageConfigurationAuditFields(current.images, merged.images);
     if (imageAuditFields.length > 0) {

@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Mostrar nomes reais dos modelos",
+      "description": "Listas e seletores de modelos mostram os IDs reais do provedor upstream em vez dos nomes mapeados. Surte efeito na próxima atualização da lista."
+    },
+
     "title": "Serviço de API",
     "description": "Configure o servidor de API de saída, o roteamento de modelos por endpoint e as chaves de acesso nomeadas.",
     "loading": "Carregando configuração do servidor…",

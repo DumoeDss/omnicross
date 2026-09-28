@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Visa riktiga modellnamn",
+      "description": "Modellistor och väljare visar de verkliga uppströmsmodell-ID:na i stället för de mappade klientnamnen. Träder i kraft vid nästa uppdatering av modellistan."
+    },
+
     "title": "API-tjänst",
     "description": "Konfigurera den utgående API-servern, modellrouting per slutpunkt och namngivna åtkomstnycklar.",
     "loading": "Läser in serverkonfiguration…",

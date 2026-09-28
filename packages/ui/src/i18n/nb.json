@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Vis ekte modellnavn",
+      "description": "Modellister og velgere viser de ekte oppstrømsmodell-ID-ene i stedet for de tilordnede klientnavnene. Treffer kraft ved neste oppdatering av modellisten."
+    },
+
     "title": "API-tjeneste",
     "description": "Konfigurer den utgående API-serveren, modellruting per endepunkt og navngitte tilgangsnøkler.",
     "loading": "Laster serverkonfigurasjon…",

@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Hiện tên mô hình thực",
+      "description": "Danh sách và bộ chọn mô hình hiển thị ID mô hình thượng nguồn thực thay vì tên đã ánh xạ. Có hiệu lực khi làm mới danh sách mô hình lần tiếp theo."
+    },
+
     "title": "Dịch vụ API",
     "description": "Cấu hình máy chủ API đầu ra, định tuyến mô hình theo endpoint và access key được đặt tên.",
     "loading": "Đang tải cấu hình máy chủ…",

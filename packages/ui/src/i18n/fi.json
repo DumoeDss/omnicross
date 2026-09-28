@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Näytä todelliset mallinimet",
+      "description": "Mallilistat ja valitsimet näyttävät todelliset upstream-mallitunnukset yhdistettyjen asiakasnimien sijaan. Astuu voimaan seuraavassa listan päivityksessä."
+    },
+
     "title": "API-palvelu",
     "description": "Määritä lähtevä API-palvelin, mallireititys päätepistettä kohden ja nimetyt käyttöavaimet.",
     "loading": "Ladataan palvelinasetuksia…",
