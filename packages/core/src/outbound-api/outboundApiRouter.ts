@@ -58,7 +58,12 @@ import type { RouteContext } from '../provider-proxy/types';
 import { DEFAULT_SEARCH_FRONTEND_MODES } from '../search/frontends';
 
 import { DEFAULT_CONCURRENCY_QUEUE } from './apiServerConfig';
-import { beginAuditCapture, type AuditCaptureContext } from './auditCapture';
+import {
+  beginAuditCapture,
+  beginRequestLogging,
+  type AuditCaptureContext,
+  type RequestLogContext,
+} from './auditCapture';
 import { deriveAuditSessionKey } from './auditSessionKey';
 import { beginBillingCapture } from './billingCapture';
 import {
@@ -1074,6 +1079,7 @@ async function relayDirectUpstream(
    * fired, so late callers MUST pass the buffered body.
    */
   preReadBody?: string,
+  rlog?: RequestLogContext,
 ): Promise<void> {
   const direct = verified.boundUpstream;
   const providerId = direct?.kind === 'provider' ? direct.providerId : '';
@@ -1166,6 +1172,7 @@ async function relayDirectUpstream(
       { providerId: 'byo' },
     );
     if (audit) audit.provider = provider.id;
+    if (rlog) rlog.provider = provider.id;
 
     const responseHeaders: Record<string, string> = {};
     const contentType = upstream.headers.get('content-type');
@@ -1199,6 +1206,7 @@ async function relayDirectUpstream(
     else console.error('[OutboundApi] direct relay error:', message);
     emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
     if (audit) audit.error = message;
+    if (rlog) rlog.error = message;
     if (!res.headersSent) writeJsonError(res, 502, message);
     else res.destroy();
   }
@@ -1385,6 +1393,12 @@ export async function handleOutboundRequest(
   const audit = beginAuditCapture(req, res, now, {
     suppressBodies: imageOperation !== null,
   });
+  // REQUEST LOG (request-logging P0) — the ALWAYS-ON access log. Unlike the
+  // audit capture above this is NOT gated on the audit config: one line per
+  // request with method/path/status/latency (+ keyId/provider/model/reason as
+  // the handler progresses) so a bug-report log answers "what happened to my
+  // request" without reading a second store.
+  const rlog = beginRequestLogging(req, res, now, deps.logger);
 
   // BILLING (billing-event-stream, design D4). Gated inside `beginBillingCapture`
   // on the core billing-config slot: billing-disabled ⇒ `null` (one slot read, no
@@ -1401,6 +1415,7 @@ export async function handleOutboundRequest(
   const presented = extractPresentedKey(req);
   const verification = await verifyKey(deps.db, presented, now);
   if (verification.status !== 'ok') {
+    rlog.reason = verification.status === 'expired' ? 'auth-expired' : 'auth-invalid';
     writeJsonError(
       res,
       401,
@@ -1410,6 +1425,7 @@ export async function handleOutboundRequest(
   }
   const verified = verification.key;
   if (audit) audit.keyId = verified.id;
+  rlog.keyId = verified.id;
   if (billing) billing.keyId = verified.id;
   // Route pin (route-pinned Codex launches): narrows this key's candidate
   // routes to the one named by the header, everywhere candidates are computed.
@@ -1427,6 +1443,7 @@ export async function handleOutboundRequest(
   }
 
   if (verified.loopbackOnly && !isLoopbackPeer(req.socket?.remoteAddress)) {
+    rlog.reason = 'loopback-only-key';
     writeJsonError(res, 403, 'This integration key is restricted to loopback clients');
     return;
   }
@@ -1440,6 +1457,7 @@ export async function handleOutboundRequest(
   // the plaintext code never reaches the audit/billing capture.
   if (isRedeemRequest(req.method, req.url)) {
     if (verified.kind === 'integration') {
+      rlog.reason = 'redeem-not-allowed';
       writeJsonError(res, 403, 'Integration keys cannot redeem vouchers');
       return;
     }
@@ -1460,6 +1478,7 @@ export async function handleOutboundRequest(
   // 2. RATE LIMIT — per-key window when the key configures one (else 60/60s).
   const decision = rateLimiter.check(verified.id, now, verified.rateLimit);
   if (!decision.allowed) {
+    rlog.reason = 'rate-limit';
     writeJsonError(res, 429, 'Rate limit exceeded', {
       'Retry-After': String(decision.retryAfterSeconds),
     });
@@ -1530,6 +1549,7 @@ export async function handleOutboundRequest(
   // key headers have been removed from its trusted local context.
   if (imageOperation) {
     if (!verified.allowedEndpoints.includes('images')) {
+      rlog.reason = 'endpoint-not-allowed';
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
@@ -1604,6 +1624,7 @@ export async function handleOutboundRequest(
   // chat-only operation; a key may discover for any endpoint it can use.
   if (req.method === 'GET' && isCodexModelCatalogRequest(req.url)) {
     if (verified.allowedEndpoints && verified.allowedEndpoints.length === 0) {
+      rlog.reason = 'endpoint-not-allowed';
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
@@ -1629,6 +1650,7 @@ export async function handleOutboundRequest(
   // it can use, but never sees models belonging only to another endpoint.
   if (req.method === 'GET' && isModelsListRequest(req.url)) {
     if (verified.allowedEndpoints && verified.allowedEndpoints.length === 0) {
+      rlog.reason = 'endpoint-not-allowed';
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
@@ -1711,10 +1733,11 @@ export async function handleOutboundRequest(
     // VERBATIM to its provider (the transparent-proxy tier); the upstream's
     // own 404 answers, not this server's.
     if (directProvider) {
-      await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit);
+      await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, undefined, rlog);
       return;
     }
     writeJsonError(res, 404, `Unsupported: ${req.method} ${req.url}`);
+    rlog.reason = 'unsupported-path';
     return;
   }
   // A direct-bound key's binding IS the authorization (the provider flavor
@@ -1722,6 +1745,7 @@ export async function handleOutboundRequest(
   // upstream natively speaks, so the four-endpoint permission vocabulary
   // would only produce a confusing 403 here.
   if (verified.allowedEndpoints && !verified.boundUpstream && !verified.allowedEndpoints.includes(endpoint)) {
+    rlog.reason = 'endpoint-not-allowed';
     writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
     return;
   }
@@ -1840,6 +1864,7 @@ export async function handleOutboundRequest(
     try {
       parsedBody = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
     } catch {
+      rlog.reason = 'invalid-json';
       writeJsonError(res, 400, 'Invalid JSON in request body');
       return;
     }
@@ -1898,7 +1923,7 @@ export async function handleOutboundRequest(
     // with no candidate route and no direct tier — but keeps the resolution total.
     if (bindingResolution.source === 'none') {
       if (directProvider) {
-        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody);
+        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody, rlog);
         return;
       }
       writeJsonError(res, 503, `endpoint '${endpoint}' has no downstream route for this key`);
@@ -1980,7 +2005,7 @@ export async function handleOutboundRequest(
       // tier takes everything else. A key with NO direct binding keeps the
       // per-request error unchanged.
       if (directProvider) {
-        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody);
+        await relayDirectUpstream(req, res, deps, verified, config, concurrencyGate, audit, rawBody, rlog);
         return;
       }
       writeJsonError(res, resolved.error.status, resolved.error.message);
@@ -1991,6 +2016,8 @@ export async function handleOutboundRequest(
       audit.model = resolved.route.model;
       audit.provider = resolved.route.providerId;
     }
+    rlog.model = resolved.route.model;
+    rlog.provider = resolved.route.providerId;
     // BILLING: stamp the RESOLVED model + provider + the re-auth mode the request
     // billed under (byo vs subscription) onto the metered-fact context.
     if (billing) {
@@ -2135,6 +2162,7 @@ export async function handleOutboundRequest(
       emitWebhookEvent({ kind: 'server.error', at: Date.now(), message });
       // AUDIT: record the sanitized failure message (redacted again at assembly).
       if (audit) audit.error = message;
+      if (rlog) rlog.error = message;
       writeJsonError(res, isAccountAllowanceExhaustedError(err) ? 429 : 502, message);
     } finally {
       routeMap.removeRoute(token);

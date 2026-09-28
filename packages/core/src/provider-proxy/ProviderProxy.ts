@@ -78,7 +78,8 @@ export class ProviderProxy {
         }
         routeRequest(req, res, this.routes, this.deps).catch((err) => {
           const errMsg = serializeError(err);
-          console.error('[ProviderProxy] Unhandled error:', errMsg);
+          if (this.deps.logger) this.deps.logger.error('[ProviderProxy] Unhandled error:', errMsg);
+          else console.error('[ProviderProxy] Unhandled error:', errMsg);
           // Last-resort 500: consults the Anthropic-protocol mark (set at the
           // routeRequest entry) so an Anthropic request gets the Anthropic shape.
           if (!res.headersSent) {
@@ -92,7 +93,8 @@ export class ProviderProxy {
         if (addr && typeof addr === 'object') {
           this.port = addr.port;
           this.server = server;
-          console.log(`[ProviderProxy] Listening on 127.0.0.1:${this.port}`);
+          if (this.deps.logger) this.deps.logger.info('[ProviderProxy] Listening on 127.0.0.1', { port: this.port });
+          else console.log(`[ProviderProxy] Listening on 127.0.0.1:${this.port}`);
           resolve(this.port);
         } else {
           reject(new Error('Failed to get server address'));
@@ -117,7 +119,8 @@ export class ProviderProxy {
     if (!server) return;
     return new Promise((resolve) => {
       server.close(() => {
-        console.log(`[ProviderProxy] Stopped (port=${this.port})`);
+        if (this.deps.logger) this.deps.logger.info('[ProviderProxy] Stopped', { port: this.port });
+        else console.log(`[ProviderProxy] Stopped (port=${this.port})`);
         this.server = null;
         this.port = 0;
         resolve();

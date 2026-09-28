@@ -288,6 +288,8 @@ export interface AdminApiDeps {
    * embedders ⇒ the endpoint answers 501.
    */
   readonly logFile?: string;
+  /** Request-audit store dir — powers the log-export bundle's audit summary (P1). */
+  readonly auditDir?: string;
   /** Live provider catalog (hot-reload target). */
   readonly llmConfig: ConfigFileProviderConfigSource;
   /** Named outbound-key store. */
@@ -771,7 +773,7 @@ function handleLogsExport(
     writeJsonError(res, 501, 'log export is not available in this build');
     return;
   }
-  const bundle = buildLogExportBundle(deps.logFile);
+  const bundle = buildLogExportBundle(deps.logFile, { auditDir: deps.auditDir });
   const body = Buffer.from(bundle.text, 'utf8');
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',

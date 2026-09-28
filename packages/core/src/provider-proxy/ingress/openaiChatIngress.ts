@@ -148,6 +148,8 @@ const IDENTITY_ENDPOINT_TRANSFORMER: Transformer = { name: 'identity-openai-chat
 /** The auth-mode-resolved inputs for one `executeProviderCall`. */
 interface ChatCallPlan {
   readonly auth: AuthSource;
+  /** request-logging P2: the deps the plan was built from (logger-aware egress lines). */
+  readonly deps: ProviderProxyDeps;
   /** Per-request preferred subscription account (subscription routes only). */
   readonly preferredAccountId?: string;
   readonly preferredAccountGroup?: string;
@@ -373,6 +375,7 @@ async function buildByoPlan(
   const byoUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
 
   return {
+    deps,
     auth,
     chain,
     transformerProvider,
@@ -533,6 +536,7 @@ async function buildSubscriptionPlan(
       : () => upstreamUrl;
 
   return {
+    deps,
     auth,
     preferredAccountId: route.preferredAccountId,
     preferredAccountGroup: route.preferredAccountGroup,
@@ -607,7 +611,8 @@ async function runPipeline(
       return headers;
     },
     fetchFn: (url, headers, body) => {
-      console.log(`[ProviderProxy:chat] -> ${url} model=${resolvedModel} stream=${isStream}`);
+      if (plan.deps.logger) plan.deps.logger.info('[ProviderProxy:chat] dispatch', { url, model: resolvedModel, stream: isStream });
+      else console.log(`[ProviderProxy:chat] -> ${url} model=${resolvedModel} stream=${isStream}`);
       // upstream-proxy: chat egress honors the global/provider (+ per-account for
       // a subscription) proxy. Route-activity row (account for a subscription
       // plan, provider key for BYO) — this ingress derives no content session

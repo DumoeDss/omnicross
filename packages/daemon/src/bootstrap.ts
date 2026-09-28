@@ -907,6 +907,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
       responsesHostedImageIngress,
       searchRuntime,
       searchFrontendModes,
+      // request-logging P2: proxy lifecycle/egress lines honor the file sink.
+      logger,
     });
     if (providerProxy.getDeps().openAIOperationRegistry !== openAIOperationRegistry) {
       throw new Error(
@@ -1043,6 +1045,8 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     configPath: paths.configPath,
     // The resolved ConfigurableLogger file sink — powers GET /admin/api/logs/export.
     logFile,
+    // request-logging P1: the log-export bundle appends a metadata-only audit digest.
+    auditDir,
     llmConfig,
     keyDb,
     // voucher-redemption #9: the admin `/admin/api/voucher` surface generates/

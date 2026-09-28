@@ -101,6 +101,25 @@ export interface AuditCaptureOptions {
   suppressBodies?: boolean;
 }
 
+/**
+ * Request-outcome context (request-logging P0): a per-request accumulator the
+ * handler enriches as it progresses, INDEPENDENT of the audit config — the
+ * access-log line must exist even when audit capture is disabled. Mirrors the
+ * audit context's shape so call sites can set both with the same statement.
+ */
+export interface RequestLogContext {
+  /** Outbound key id (set after auth). NEVER the key material. */
+  keyId?: string | null;
+  /** Resolved upstream model (set after route resolution). */
+  model?: string;
+  /** Upstream provider id (set after route resolution). */
+  provider?: string;
+  /** Sanitized error message (set on a relay/dispatch failure). */
+  error?: string;
+  /** Machine-readable rejection/oucome tag, e.g. 'auth-invalid' or 'ratelimit'. */
+  reason?: string;
+}
+
 /** Resolve the client IP: socket by default; a trusted `X-Forwarded-For` only when configured. */
 function resolveClientIp(req: http.IncomingMessage, trustForwardedFor: boolean): string | undefined {
   if (trustForwardedFor) {
@@ -243,6 +262,48 @@ export function beginAuditCapture(
 
   res.once('close', finalize);
   return ctx;
+}
+
+/**
+ * Request-outcome logging (request-logging P0). Registers a `res.close`
+ * listener that emits ONE structured log line per request with method, path,
+ * status, latency, keyId, provider, model, and a machine-readable reason —
+ * through the injected logger when wired, else the console. Successes log at
+ * `info`; 4xx/5xx at `warn`. INDEPENDENT of the audit config: the line exists
+ * even when audit capture is disabled, because "why was this request
+ * rejected" is exactly the question a bug-report log must answer.
+ */
+export function beginRequestLogging(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  now: number,
+  logger?: { info(message: string, meta?: unknown): void; warn(message: string, meta?: unknown): void },
+): RequestLogContext {
+  const ctx: RequestLogContext = {};
+  let finished = false;
+  const finalize = (): void => {
+    if (finished) return;
+    finished = true;
+    const meta: Record<string, unknown> = {
+      method: req.method ?? '',
+      path: (req.url ?? '').split('?')[0] ?? '',
+      status: res.statusCode,
+      latencyMs: Math.max(0, Date.now() - now),
+    };
+    if (ctx.keyId !== undefined && ctx.keyId !== null) meta.keyId = ctx.keyId;
+    if (ctx.provider) meta.provider = ctx.provider;
+    if (ctx.model) meta.model = ctx.model;
+    if (ctx.reason) meta.reason = ctx.reason;
+    if (ctx.error) meta.error = ctx.error;
+    const log = logger ?? console;
+    if (res.statusCode >= 400) log.warn('[OutboundApi] request', meta);
+    else log.info('[OutboundApi] request', meta);
+ };
+  // A mock/plain object without an event-emitter surface (some embedder tests)
+  // cannot host a listener; degrade to logging at attach time rather than throwing.
+  if (typeof res.once === 'function') res.once('close', finalize);
+  else finalize();
+ return ctx;
 }
 
 /** The accumulator the response-capture wrapper feeds. */

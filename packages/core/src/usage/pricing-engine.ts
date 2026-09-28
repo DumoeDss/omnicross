@@ -53,6 +53,7 @@ export interface PricingEngineOptions {
 
 export class PricingEngine {
   private cache: Map<string, PricingEntry> = new Map();
+  private readonly warnedFailedSources = new Set<string>();
   /**
    * Secondary index keyed by modelId alone. Used as a fallback when no exact
    * (providerId, modelId) match exists — usage may be recorded under a
@@ -247,9 +248,15 @@ export class PricingEngine {
     ];
     for (const source of sources) {
       if (source.status === 'failed') {
-        this.logger.warn(`[PricingEngine] ${source.source} pricing-source fetch failed`, {
-          error: source.error,
-        });
+        // request-logging P3: warn ONCE per source; a later success re-arms the warning.
+        if (!this.warnedFailedSources.has(source.source)) {
+          this.warnedFailedSources.add(source.source);
+          this.logger.warn(`[PricingEngine] ${source.source} pricing-source fetch failed`, {
+            error: source.error,
+          });
+        }
+      } else {
+        this.warnedFailedSources.delete(source.source);
       }
     }
     if (!litellm.ok && !openrouter.ok) {

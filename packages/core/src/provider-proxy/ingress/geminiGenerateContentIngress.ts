@@ -112,6 +112,7 @@ export function extractGeminiModelFromPath(url: string | undefined): string | un
 
 /** The auth-mode-resolved inputs for one `executeProviderCall`. */
 interface GeminiCallPlan {
+  readonly deps: ProviderProxyDeps;
   readonly auth: AuthSource;
   readonly chain: ResolvedTransformerChain;
   readonly transformerProvider: TransformerLLMProvider;
@@ -266,6 +267,7 @@ async function buildByoPlan(
   const byoUrl = buildProviderApiUrl(provider, { model: resolvedModel, stream: isStream });
 
   return {
+    deps,
     auth,
     chain,
     transformerProvider,
@@ -318,7 +320,9 @@ async function runPipeline(
       return headers;
     },
     fetchFn: (url, headers, body) => {
-      console.log(`[ProviderProxy:gemini] -> ${url} model=${resolvedModel} stream=${isStream}`);
+      // request-logging P2: route the egress line through the injected logger (file sink + level), console fallback.
+      if (plan.deps.logger) plan.deps.logger.info('[ProviderProxy:gemini] dispatch', { url, model: resolvedModel, stream: isStream });
+      else console.log(`[ProviderProxy:gemini] -> ${url} model=${resolvedModel} stream=${isStream}`);
       // upstream-proxy: BYO gemini egress honors the global/provider proxy.
       return fetchUpstream(
         url,

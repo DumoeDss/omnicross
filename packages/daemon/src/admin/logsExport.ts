@@ -21,6 +21,8 @@ import { basename } from 'node:path';
 
 import { redactAuditText } from '@omnicross/core/outbound-api';
 
+import { readAuditRecords } from '../audit/auditReader';
+
 /** Default hard ceiling on the exported bundle (oldest files drop first). */
 export const LOG_EXPORT_MAX_BYTES = 16 * 1024 * 1024;
 
@@ -56,7 +58,7 @@ function stamp(now: Date): string {
  */
 export function buildLogExportBundle(
   logFile: string,
-  options?: { now?: Date; maxBytes?: number },
+  options?: { now?: Date; maxBytes?: number; auditDir?: string },
 ): LogExportBundle {
   const now = options?.now ?? new Date();
   const maxBytes = options?.maxBytes ?? LOG_EXPORT_MAX_BYTES;
@@ -105,5 +107,45 @@ export function buildLogExportBundle(
     parts.push(`\n===== ${basename(path)} =====\n`);
     parts.push(redactAuditText(content));
   }
+  appendAuditSummary(parts, options?.auditDir, now);
   return { text: parts.join(''), filename };
+}
+
+/**
+ * Append a metadata-only digest of the most recent audit records (P1). The
+ * audit store carries exactly the per-request outcome (status/path/error) a
+ * bug report needs but daemon.log historically lacked. Bodies are NEVER read
+ * (readAuditRecords strips them), and every line passes the same redaction
+ * pass as the log sections above.
+ */
+function appendAuditSummary(parts: string[], auditDir: string | undefined, now: Date): void {
+  if (!auditDir) return;
+  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+  let records;
+  try {
+    records = readAuditRecords(auditDir, { from: now.getTime() - threeDaysMs, limit: 200 });
+  } catch {
+    parts.push('\n===== audit summary (unreadable) =====\n');
+    return;
+  }
+  if (records.length === 0) {
+    parts.push('\n===== audit summary (no records in the last 3 days) =====\n');
+    return;
+  }
+  parts.push('\n===== audit summary (last 3 days, metadata only, newest first) =====\n');
+  for (const record of records) {
+    const fields: Record<string, unknown> = {
+      ts: new Date(record.ts).toISOString(),
+      method: record.method,
+      path: record.path,
+      status: record.status,
+      latencyMs: record.latencyMs,
+    };
+    if (record.keyId) fields['keyId'] = record.keyId;
+    if (record.provider) fields['provider'] = record.provider;
+    if (record.model) fields['model'] = record.model;
+    if (record.error) fields['error'] = record.error;
+    parts.push(redactAuditText(JSON.stringify(fields)));
+    parts.push('\n');
+  }
 }

@@ -35,6 +35,7 @@ import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { WebSearchBackend } from '../ports/web-search-backend';
 import type { OpenAIOperationRegistry } from '../openai-operation/openAIOperationRegistry';
 import type { SearchFrontendModes } from '../search/frontends';
+import type { Logger } from '../ports/logger';
 import type { SearchRuntime } from '../search/runtime';
 import type { ResponsesHostedImageIngress } from './responses/responsesHostedImageIngress';
 
@@ -569,6 +570,8 @@ export interface ProviderProxyDeps {
    * defaults (`native` for both protocol frontends).
    */
   readonly searchFrontendModes?: SearchFrontendModes | null;
+  /** Optional structured logger (request-logging P2) — lifecycle + egress lines route here instead of console. */
+  readonly logger?: Logger | null;
 }
 
 /**
