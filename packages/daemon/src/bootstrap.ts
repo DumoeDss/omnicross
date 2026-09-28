@@ -1173,6 +1173,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
         keyDb,
         stateStore: integrationStateStore,
         codexAuthHelper: currentProcessCodexAuthHelper(paths.configPath, paths.masterKeyFilePath),
+        // model-name-visibility: render from the LIVE outbound segment so the
+        // Claude discovery env tracks the operator's toggle without restart.
+        modelNaming: () => outboundApiServer.liveModelNaming(),
       });
     },
     // Usage/pricing admin surface (usage-pricing child): stats queries go

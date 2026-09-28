@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Echte modelnamen tonen",
+      "description": "Modellijsten en kiezers tonen de echte upstream model-ID's in plaats van de toegewezen clientnamen. Wordt actief bij de volgende verversing van de modellijst."
+    },
+
     "title": "API-service",
     "description": "Configureer de uitgaande API-server, modelroutering per endpoint en benoemde toegangssleutels.",
     "loading": "Serverconfiguratie laden…",

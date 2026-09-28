@@ -61,6 +61,11 @@ export function renderCodexConfig(input: CodexConfigInput): string {
     `[model_providers.${CODEX_PROVIDER}]`,
     'name = "Omnicross Local Gateway"',
     `base_url = ${tomlString(`${root}/v1`)}`,
+    // model-name-visibility: Codex's command-auth runtime discovery fetches
+    // this URL and merges the response into its bundled model catalog. The
+    // endpoint serves `{ models: [] }` unless `modelNaming.realNames` is on,
+    // so the presence of this line alone changes nothing.
+    `model_catalog_url = ${tomlString(`${root}/v1/codex-model-catalog`)}`,
     'wire_api = "responses"',
     'supports_websockets = false',
     'http_headers = { "X-OpenAI-Actor-Authorization" = "omnicross" }',
@@ -76,7 +81,19 @@ export function renderCodexConfig(input: CodexConfigInput): string {
   return (base + block).replace(/\n/g, eol);
 }
 
-export function renderClaudeSettings(existing: string, gatewayBaseUrl: string, secret: string): string {
+/** Env key for Claude Code's LLM-gateway model-list discovery (see
+ *  code.claude.com/docs/en/model-config — populates the picker from the
+ *  gateway's `/v1/models`). Only injected while `modelNaming.realNames` is on:
+ *  with it off, Claude Code keeps its stock picker untouched. */
+const CLAUDE_GATEWAY_MODEL_DISCOVERY_ENV = 'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY';
+
+export function renderClaudeSettings(
+  existing: string,
+  gatewayBaseUrl: string,
+  secret: string,
+  /** model-name-visibility: enable Claude Code's gateway model discovery. */
+  gatewayModelDiscovery = false,
+): string {
   let parsed: unknown = {};
   if (existing.trim()) {
     try { parsed = JSON.parse(existing) as unknown; }
@@ -93,6 +110,7 @@ export function renderClaudeSettings(existing: string, gatewayBaseUrl: string, s
     ANTHROPIC_BASE_URL: trimTrailingSlash(gatewayBaseUrl),
     ANTHROPIC_AUTH_TOKEN: secret,
     ANTHROPIC_API_KEY: CLAUDE_API_KEY_SENTINEL,
+    ...(gatewayModelDiscovery ? { [CLAUDE_GATEWAY_MODEL_DISCOVERY_ENV]: '1' } : {}),
   };
   return JSON.stringify(settings, null, 2) + '\n';
 }
@@ -150,6 +168,14 @@ export function restoreClaudeBase(
     if (env[key] !== value) continue;
     if (Object.prototype.hasOwnProperty.call(originalEnv, key)) env[key] = originalEnv[key];
     else delete env[key];
+  }
+  // The discovery flag is a fixed sentinel (not secret-derived): restore it the
+  // same way when it still carries our injected value and the original had none.
+  if (
+    env[CLAUDE_GATEWAY_MODEL_DISCOVERY_ENV] === '1' &&
+    !Object.prototype.hasOwnProperty.call(originalEnv, CLAUDE_GATEWAY_MODEL_DISCOVERY_ENV)
+  ) {
+    delete env[CLAUDE_GATEWAY_MODEL_DISCOVERY_ENV];
   }
   const next = { ...currentRoot };
   if (Object.keys(env).length > 0 || Object.prototype.hasOwnProperty.call(originalRoot, 'env')) next.env = env;

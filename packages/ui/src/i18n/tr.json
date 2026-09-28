@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Gerçek model adlarını göster",
+      "description": "Model listeleri ve seçiciler, eşlenmiş istemci adları yerine gerçek upstream model kimliklerini gösterir. Model listesinin bir sonraki yenilenmesinde etkili olur."
+    },
+
     "title": "API Hizmeti",
     "description": "Giden API sunucusunu, endpoint bazında model yönlendirmesini ve adlandırılmış erişim anahtarlarını yapılandırın.",
     "loading": "Sunucu yapılandırması yükleniyor…",

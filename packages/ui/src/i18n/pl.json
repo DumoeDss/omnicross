@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Pokazuj rzeczywiste nazwy modeli",
+      "description": "Listy i selektory modeli pokazują rzeczywiste identyfikatory modeli nadrzędnych zamiast mapowanych nazw klienckich. Zaczyna działać przy następnym odświeżeniu listy."
+    },
+
     "title": "Usługa API",
     "description": "Skonfiguruj wychodzący serwer API, routing modeli per punkt końcowy i nazwane klucze dostępu.",
     "loading": "Ładowanie konfiguracji serwera…",

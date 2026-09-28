@@ -47,6 +47,7 @@ import type {
   GatewayBindingFallback,
   GatewayBindingTarget,
   GatewayModelMapping,
+  ModelNamingConfig,
   ModelPrefixTargets,
   ModelRef,
   OutboundApiServerConfig,
@@ -268,6 +269,18 @@ export function normalizeVoucher(
   raw: Partial<OutboundApiServerConfig> | undefined | null,
 ): VoucherConfig {
   return { enabled: raw?.voucher?.enabled === true };
+}
+
+/**
+ * Fill the client-facing model-name presentation segment
+ * (model-name-visibility) to the frozen defaults. Lenient like the other
+ * segment normalizers: anything but an explicit `true` reads as `false`
+ * (client-visible aliases — the pre-segment behavior). Never throws.
+ */
+export function normalizeModelNamingSegment(
+  raw: Partial<OutboundApiServerConfig> | undefined | null,
+): ModelNamingConfig {
+  return { realNames: raw?.modelNaming?.realNames === true };
 }
 
 /** Frozen defaults for the Anthropic-protocol segment (§10 skeleton). */
@@ -941,6 +954,7 @@ export function defaultServerConfig(): OutboundApiServerConfig {
     fingerprint: normalizeFingerprint(undefined),
     voucher: normalizeVoucher(undefined),
     anthropic: normalizeAnthropicSegment(undefined),
+    modelNaming: normalizeModelNamingSegment(undefined),
     images: normalizeImagesServerConfig(undefined),
     search: normalizeSearchServerConfig(undefined),
   };
@@ -992,6 +1006,7 @@ export function normalizeServerConfig(
     fingerprint: normalizeFingerprint(raw),
     voucher: normalizeVoucher(raw),
     anthropic: normalizeAnthropicSegment(raw),
+    modelNaming: normalizeModelNamingSegment(raw),
     images: normalizeImagesServerConfig(raw.images),
     search: normalizeSearchServerConfig(raw.search),
   };
@@ -1071,5 +1086,8 @@ export function mergeServerConfig(
     // Search is layer-replaced like Images: a PUT carrying `search` swaps the
     // whole normalized segment, omitting it keeps the current one.
     search: patch.search ?? current.search,
+    // modelNaming is always-filled (normalizeModelNamingSegment synthesizes a
+    // default); a PUT carrying it replaces the segment, else kept.
+    modelNaming: patch.modelNaming ?? current.modelNaming,
   });
 }

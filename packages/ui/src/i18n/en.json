@@ -1003,6 +1003,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Show real model names",
+      "description": "Model lists and pickers show the real upstream model ids instead of the mapped client-facing names. Takes effect on the next model-list refresh."
+    },
+
     "gatewayTitle": "Gateway",
     "gatewayDescription": "Explain and control how clients enter, route, and flow through the local service.",
     "accessDescription": "Create and manage the access keys clients use to authenticate with the gateway.",

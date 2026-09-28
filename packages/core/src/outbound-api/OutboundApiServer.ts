@@ -44,6 +44,7 @@ import type {
   ConcurrencyQueueConfig,
   EndpointRoutingConfig,
   GatewayBinding,
+  ModelNamingConfig,
   OutboundApiDeps,
   OutboundApiServerStatus,
   OutboundFormatUrls,
@@ -83,6 +84,12 @@ export interface ApplyConfigInput {
    * frontend's mode; the runtime itself is wired once through `deps`.
    */
   search?: SearchServerConfig;
+  /**
+   * Client-facing model-name presentation (model-name-visibility). Read live
+   * per request — the `GET /v1/models` lists and the Codex-native catalog
+   * route both resolve from it.
+   */
+  modelNaming?: ModelNamingConfig;
 }
 
 /** Prepared listener/config publication used by the daemon's settings transaction. */
@@ -103,6 +110,7 @@ interface OutboundRuntimeSnapshot {
   readonly voucher: VoucherConfig | undefined;
   readonly anthropic: AnthropicConfigSegment | undefined;
   readonly search: SearchServerConfig | undefined;
+  readonly modelNaming: ModelNamingConfig | undefined;
   readonly imagesEnabled: boolean;
 }
 
@@ -117,6 +125,7 @@ export class OutboundApiServer {
   private voucherConfig: VoucherConfig | undefined;
   private anthropicConfig: AnthropicConfigSegment | undefined;
   private searchConfig: SearchServerConfig | undefined;
+  private modelNamingConfig: ModelNamingConfig | undefined;
   private imagesEnabled = false;
   /** R10 `/api/hello` switch (§10 `anthropic.apiHello`, default true). */
   private apiHelloEnabled = true;
@@ -148,6 +157,15 @@ export class OutboundApiServer {
    * changes (or when toggling enabled); per-endpoint routing config is updated
    * in place (read live per request — no restart).
    */
+  /**
+   * model-name-visibility: the LIVE `modelNaming` segment (last applied config).
+   * Integration renderers read this at render time so installs, repairs, and
+   * rebinds reflect the operator's current presentation choice.
+   */
+  liveModelNaming(): ModelNamingConfig | undefined {
+    return this.modelNamingConfig;
+  }
+
   async applyConfig(input: ApplyConfigInput): Promise<void> {
     const prepared = await this.prepareConfig(input);
     try {
@@ -289,6 +307,7 @@ export class OutboundApiServer {
     this.voucherConfig = input.voucher;
     this.anthropicConfig = input.anthropic;
     this.searchConfig = input.search;
+    this.modelNamingConfig = input.modelNaming;
     this.imagesEnabled = input.imagesEnabled === true;
     this.apiHelloEnabled = input.anthropic?.apiHello !== false;
     setAnthropicPingHeartbeatMs(input.anthropic?.heartbeatIntervalMs);
@@ -306,6 +325,7 @@ export class OutboundApiServer {
       voucher: this.voucherConfig,
       anthropic: this.anthropicConfig,
       search: this.searchConfig,
+      modelNaming: this.modelNamingConfig,
       imagesEnabled: this.imagesEnabled,
     };
   }
@@ -318,6 +338,7 @@ export class OutboundApiServer {
     this.voucherConfig = snapshot.voucher;
     this.anthropicConfig = snapshot.anthropic;
     this.searchConfig = snapshot.search;
+    this.modelNamingConfig = snapshot.modelNaming;
     this.imagesEnabled = snapshot.imagesEnabled;
     this.apiHelloEnabled = snapshot.anthropic?.apiHello !== false;
     setAnthropicPingHeartbeatMs(snapshot.anthropic?.heartbeatIntervalMs);
@@ -417,6 +438,7 @@ export class OutboundApiServer {
         voucher: this.voucherConfig,
         anthropic: this.anthropicConfig,
         search: this.searchConfig,
+        modelNaming: this.modelNamingConfig,
       },
       this.rateLimiter,
       this.serialQueue,

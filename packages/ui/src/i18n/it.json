@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Mostra i nomi reali dei modelli",
+      "description": "Gli elenchi e i selettori dei modelli mostrano gli ID reali a monte invece dei nomi client mappati. Ha effetto al prossimo aggiornamento dell'elenco."
+    },
+
     "title": "Servizio API",
     "description": "Configura il server API in uscita, il routing dei modelli per endpoint e le chiavi di accesso nominate.",
     "loading": "Caricamento della configurazione del server…",

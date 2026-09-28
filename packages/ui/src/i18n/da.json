@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Vis rigtige modelnavne",
+      "description": "Modellister og vælgere viser de rigtige upstream-model-ID'er i stedet for de tilknyttede klientnavn. Træder i kraft ved næste opdatering af modellisten."
+    },
+
     "title": "API-tjeneste",
     "description": "Konfigurér den udgående API-server, modelrouting per endpoint og navngivne adgangsnøgler.",
     "loading": "Indlæser serverkonfiguration…",

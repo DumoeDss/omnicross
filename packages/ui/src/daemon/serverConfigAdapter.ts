@@ -615,6 +615,22 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       }
     },
 
+    async updateModelNamingConfig(
+      modelNaming: OutboundApiServerConfig['modelNaming'] | undefined,
+    ): Promise<MutationResult> {
+      try {
+        // model-name-visibility: send the FULL segment; the daemon normalizes
+        // it. `undefined` resets to defaults (client-visible aliases). Carries
+        // no secret; discovery surfaces read it live per request.
+        const data = await adminClient.put<ServerPutResponse>('/server', {
+          modelNaming: modelNaming ?? { realNames: false },
+        } as Partial<OutboundApiServerConfig>);
+        return applyServerPut(data);
+      } catch (err) {
+        return fail(err, 'failed to update model naming configuration');
+      }
+    },
+
     async updateVoucherConfig(
       voucher: OutboundApiServerConfig['voucher'] | undefined,
     ): Promise<MutationResult> {

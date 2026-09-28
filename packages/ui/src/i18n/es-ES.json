@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Mostrar nombres de modelo reales",
+      "description": "Las listas y selectores de modelos muestran los identificadores reales del proveedor en lugar de los nombres asignados. Surte efecto en la próxima actualización de la lista."
+    },
+
     "title": "Servicio de API",
     "description": "Configura el servidor de API saliente, el enrutamiento de modelos por endpoint y las claves de acceso nombradas.",
     "loading": "Cargando configuración del servidor…",

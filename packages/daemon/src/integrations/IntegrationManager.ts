@@ -10,6 +10,7 @@ import {
   type OutboundKeyDbRow,
   type OutboundPermission,
 } from '@omnicross/core';
+import type { ModelNamingConfig } from '@omnicross/core/outbound-api';
 
 import { currentProcessCodexAuthHelper, type CodexAuthHelperConfig } from './codexAuthHelper';
 import { atomicWrite, IntegrationStateStore } from './IntegrationStateStore';
@@ -59,6 +60,12 @@ export interface IntegrationManagerOptions {
   stateStore: IntegrationStateStore;
   codexAuthHelper?: CodexAuthHelperConfig;
   homeDir?: string;
+  /**
+   * model-name-visibility: live read of the outbound `modelNaming` segment.
+   * Read at every render so installs, repairs, and rebinds all reflect the
+   * operator's current presentation choice without a daemon restart.
+   */
+  modelNaming?: () => ModelNamingConfig | undefined;
 }
 
 interface ResolvedClientKey {
@@ -372,6 +379,44 @@ export class IntegrationManager {
     return this.getIntegrationToken(client);
   }
 
+  /**
+   * model-name-visibility: re-render the INSTALLED client files after the
+   * presentation setting changed. Only the Claude install depends on it — the
+   * Codex managed block carries `model_catalog_url` unconditionally and the
+   * GATEWAY decides what that URL serves, so a Codex install never needs a
+   * rewrite on this toggle. Pristine-only: a drifted install is skipped (its
+   * status already demands repair, and repair renders with the live setting).
+   * Returns the rewritten client ids. No-op when nothing is installed.
+   */
+  async refreshInstalledClients(): Promise<IntegrationClientId[]> {
+    const state = this.options.stateStore.load();
+    const previousState = cloneState(state);
+    const record = state.clients['claude'];
+    if (!record) return [];
+    const current = readOptional(record.configPath);
+    if (current === null || sha256(current) !== record.installedHash) return [];
+    const rows = await this.options.keyDb.outboundApiKeysList();
+    const details = await this.boundKeyDetails('claude', state, rows);
+    if (!details.usable || !details.secret) return [];
+    // Restore-first strips the previously injected discovery flag (and the
+    // previous secret values) while PRESERVING user-added env keys, then the
+    // render re-applies the segment with the live setting.
+    const base = restoreClaudeBase(
+      current,
+      record.originalContent,
+      record.gatewayBaseUrl,
+      details.secret,
+    );
+    const installed = this.renderInstalled('claude', base, details.secret);
+    if (sha256(installed) === record.installedHash) return [];
+    record.installedHash = sha256(installed);
+    record.installedAt = Date.now();
+    persistStateThenFiles(this.options.stateStore, state, previousState, [
+      { path: record.configPath, content: installed },
+    ]);
+    return ['claude'];
+  }
+
   private async ensureClientKey(
     client: IntegrationClientId,
     state: IntegrationState,
@@ -587,7 +632,12 @@ export class IntegrationManager {
 
   private renderInstalled(client: IntegrationClientId, base: string, secret: string): string {
     if (client === 'claude') {
-      return renderClaudeSettings(base, this.options.gatewayBaseUrl, secret);
+      return renderClaudeSettings(
+        base,
+        this.options.gatewayBaseUrl,
+        secret,
+        this.options.modelNaming?.()?.realNames === true,
+      );
     }
     return renderCodexConfig({
       existing: base,

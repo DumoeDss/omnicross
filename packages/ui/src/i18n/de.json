@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Echte Modellnamen anzeigen",
+      "description": "Modelllisten und Auswahlmenüs zeigen die echten Upstream-Modell-IDs statt der zugeordneten Client-Namen. Wirkt bei der nächsten Aktualisierung der Modellliste."
+    },
+
     "title": "API-Dienst",
     "description": "Konfigurieren Sie den ausgehenden API-Server, das endpunktbasierte Modell-Routing und benannte Zugriffsschlüssel.",
     "loading": "Serverkonfiguration wird geladen…",

@@ -618,6 +618,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "Tampilkan nama model asli",
+      "description": "Daftar dan pemilih model menampilkan ID model upstream yang sebenarnya, bukan nama klien yang dipetakan. Berlaku saat pembaruan daftar model berikutnya."
+    },
+
     "title": "Layanan API",
     "description": "Konfigurasikan server API keluar, routing model per endpoint, dan access key bernama.",
     "loading": "Memuat konfigurasi server…",

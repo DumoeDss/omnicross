@@ -1003,6 +1003,11 @@
     }
   },
   "apiService": {
+    "modelNaming": {
+      "label": "显示真实模型名",
+      "description": "模型列表与选择器显示上游真实模型名，而非映射后的客户端名称，下次刷新模型列表时生效。"
+    },
+
     "gatewayTitle": "网关",
     "gatewayDescription": "说明并控制客户端如何进入本地服务、经过路由并流转。",
     "accessDescription": "创建和管理客户端用于网关鉴权的访问密钥。",
