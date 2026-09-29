@@ -41,6 +41,8 @@ interface MockUpstream {
   port: number;
   lastAuthHeader: string | undefined;
   lastApiKeyHeader: string | undefined;
+  /** Raw request URL of the last hit (any path). */
+  lastUrl: string | undefined;
   /** Raw (Node-normalized lowercase) request headers of the last `/models` hit. */
   lastExtraHeaders: Record<string, unknown> | undefined;
   /** Raw (Node-normalized lowercase) request headers of the last completion hit. */
@@ -58,6 +60,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     port: 0,
     lastAuthHeader: undefined,
     lastApiKeyHeader: undefined,
+    lastUrl: undefined,
     lastExtraHeaders: undefined,
     lastCompletionHeaders: undefined,
     modelsStatus: 200,
@@ -68,6 +71,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
+      state.lastUrl = req.url;
       if (req.url && req.url.endsWith('/models')) {
         state.lastAuthHeader = req.headers['authorization'];
         state.lastExtraHeaders = req.headers;
@@ -161,6 +165,7 @@ interface ProviderRow {
   transformer?: Record<string, unknown>;
   codingPlan?: Record<string, unknown>;
   extraHeaders?: Record<string, string>;
+  formatVariants?: Partial<Record<'openai' | 'anthropic' | 'openai-response', string>>;
 }
 
 function writeConfig(configPath: string, providers: ProviderRow[]): void {
@@ -336,19 +341,60 @@ describe('POST /admin/api/providers/:id/discover-models (app-foundation D8)', ()
     expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
   });
 
-  it('resolves a $ENV key for the upstream auth, never leaking the var name', async () => {
-    process.env['OMNI_DISCOVER_TEST_KEY'] = PROVIDER_SENTINEL_KEY;
+  it('resolves a $ENV key for the upstream auth, never leaking the key or var name', async () => {
+    process.env['OMNI_TEST_MODEL_KEY'] = PROVIDER_SENTINEL_KEY;
     try {
-      await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: '$OMNI_DISCOVER_TEST_KEY' }]);
-      const r = await adminFetch('POST', '/admin/api/providers/a/discover-models');
-      expect(r.status).toBe(200);
-      expect((r.json as { models: string[] }).models).toEqual(['gpt-x', 'gpt-y']);
+      await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: '$OMNI_TEST_MODEL_KEY' }]);
+      const r = await adminFetch('POST', '/admin/api/providers/a/test', { model: 'gpt-x' });
+      expect((r.json as { ok: boolean }).ok).toBe(true);
       expect(upstream.lastAuthHeader).toBe(`Bearer ${PROVIDER_SENTINEL_KEY}`);
       expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
-      expect(r.text).not.toContain('OMNI_DISCOVER_TEST_KEY');
+      expect(r.text).not.toContain('OMNI_TEST_MODEL_KEY');
     } finally {
-      delete process.env['OMNI_DISCOVER_TEST_KEY'];
+      delete process.env['OMNI_TEST_MODEL_KEY'];
     }
+  });
+
+  it('fan-out rows probe the anthropic variant wire for claude-shaped models', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'cc',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: PROVIDER_SENTINEL_KEY,
+        formatVariants: { anthropic: `http://127.0.0.1:${upstream.port}/v1/messages` },
+      },
+    ]);
+
+    const r = await adminFetch('POST', '/admin/api/providers/cc/test', { model: 'claude-sonnet-5' });
+
+    expect(r.status).toBe(200);
+    expect((r.json as { ok: boolean }).ok).toBe(true);
+    // The probe hit the DECLARED anthropic variant URL, not the primary chat wire.
+    expect(upstream.lastUrl).toBe('/v1/messages');
+    // Anthropic wire auth: x-api-key with the resolved provider key...
+    expect(upstream.lastApiKeyHeader).toBe(PROVIDER_SENTINEL_KEY);
+    // ...and the response still never serializes the secret.
+    expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
+  });
+
+  it('fan-out rows keep the primary wire for non-claude models (e.g. deepseek/*)', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'cc',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: PROVIDER_SENTINEL_KEY,
+        formatVariants: { anthropic: `http://127.0.0.1:${upstream.port}/v1/messages` },
+      },
+    ]);
+
+    const r = await adminFetch('POST', '/admin/api/providers/cc/test', { model: 'deepseek/deepseek-v4.1-flash' });
+
+    expect(r.status).toBe(200);
+    expect((r.json as { ok: boolean }).ok).toBe(true);
+    expect(upstream.lastUrl).not.toBe('/v1/messages');
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${PROVIDER_SENTINEL_KEY}`);
   });
 
   it('anthropic probes the OpenAI-wire /models candidates; gemini stays unsupported with no call', async () => {
@@ -477,6 +523,14 @@ describe('POST /admin/api/providers/:id/test', () => {
     expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
   });
 
+  it('anthropic: sends the key via x-api-key (not the response), returns ok', async () => {
+    await bootDaemon((b) => [{ id: 'ant', apiFormat: 'anthropic', baseUrl: b, apiKey: PROVIDER_SENTINEL_KEY }]);
+    const r = await adminFetch('POST', '/admin/api/providers/ant/test', { model: 'claude-x' });
+    expect((r.json as { ok: boolean }).ok).toBe(true);
+    expect(upstream.lastApiKeyHeader).toBe(PROVIDER_SENTINEL_KEY);
+    expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
+  });
+
   it('resolves a $ENV key for the upstream auth, never leaking the key or var name', async () => {
     process.env['OMNI_TEST_MODEL_KEY'] = PROVIDER_SENTINEL_KEY;
     try {
@@ -491,12 +545,46 @@ describe('POST /admin/api/providers/:id/test', () => {
     }
   });
 
-  it('anthropic: sends the key via x-api-key (not the response), returns ok', async () => {
-    await bootDaemon((b) => [{ id: 'ant', apiFormat: 'anthropic', baseUrl: b, apiKey: PROVIDER_SENTINEL_KEY }]);
-    const r = await adminFetch('POST', '/admin/api/providers/ant/test', { model: 'claude-x' });
+  it('fan-out rows probe the anthropic variant wire for claude-shaped models', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'cc',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: PROVIDER_SENTINEL_KEY,
+        formatVariants: { anthropic: `http://127.0.0.1:${upstream.port}/v1/messages` },
+      },
+    ]);
+
+    const r = await adminFetch('POST', '/admin/api/providers/cc/test', { model: 'claude-sonnet-5' });
+
+    expect(r.status).toBe(200);
     expect((r.json as { ok: boolean }).ok).toBe(true);
+    // The probe hit the DECLARED anthropic variant URL, not the primary chat wire.
+    expect(upstream.lastUrl).toBe('/v1/messages');
+    // Anthropic wire auth: x-api-key with the resolved provider key...
     expect(upstream.lastApiKeyHeader).toBe(PROVIDER_SENTINEL_KEY);
+    // ...and the response still never serializes the secret.
     expect(r.text).not.toContain(PROVIDER_SENTINEL_KEY);
+  });
+
+  it('fan-out rows keep the primary wire for non-claude models (e.g. deepseek/*)', async () => {
+    await bootDaemon((b) => [
+      {
+        id: 'cc',
+        apiFormat: 'openai',
+        baseUrl: b,
+        apiKey: PROVIDER_SENTINEL_KEY,
+        formatVariants: { anthropic: `http://127.0.0.1:${upstream.port}/v1/messages` },
+      },
+    ]);
+
+    const r = await adminFetch('POST', '/admin/api/providers/cc/test', { model: 'deepseek/deepseek-v4.1-flash' });
+
+    expect(r.status).toBe(200);
+    expect((r.json as { ok: boolean }).ok).toBe(true);
+    expect(upstream.lastUrl).not.toBe('/v1/messages');
+    expect(upstream.lastAuthHeader).toBe(`Bearer ${PROVIDER_SENTINEL_KEY}`);
   });
 
   it('gemini: reports unsupportedFormat with no upstream call', async () => {

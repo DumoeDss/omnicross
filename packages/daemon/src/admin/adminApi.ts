@@ -1463,13 +1463,27 @@ async function handleTestModel(
   let url = row.baseUrl.replace(/\/+$/, '');
   const prompt = 'Reply with the single word: OK.';
 
+  // MODEL-AWARE WIRE (multi-format fan-out): a dual/tri-wire provider may
+  // serve SOME models only on a non-primary wire — commandcode Claude models
+  // accept ONLY the /messages shape (the chat wire 400s: must be called via
+  // /provider/v1/messages). When the row declares an anthropic variant AND
+  // the model looks Claude-shaped, probe THAT wire instead of the primary.
+  // Non-Claude models keep the primary wire verbatim (byte-identical).
+  const claudeLikeModel = /^(?:anthropic[/.]|claude[-_.])/i.test(model);
+  const anthropicVariant = row.formatVariants?.anthropic;
+  const useAnthropicWire = claudeLikeModel && !!anthropicVariant && row.apiFormat !== 'anthropic';
+  const effectiveFormat = useAnthropicWire ? 'anthropic' : row.apiFormat;
+  if (useAnthropicWire && anthropicVariant) {
+    url = anthropicVariant.replace(/\/+$/, '');
+  }
+
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   let payload: Record<string, unknown>;
-  if (row.apiFormat === 'anthropic') {
+  if (effectiveFormat === 'anthropic') {
     headers['x-api-key'] = resolvedKey;
     headers['anthropic-version'] = '2023-06-01';
     payload = { model, max_tokens: 16, messages: [{ role: 'user', content: prompt }] };
-  } else if (row.apiFormat === 'openai-response') {
+  } else if (effectiveFormat === 'openai-response') {
     // The Responses wire is NOT chat-shaped: `input`/`max_output_tokens`, and the
     // row stores a BASE (`https://api.openai.com`) rather than the full endpoint
     // the chat rows store — so the path is appended when absent. Previously this
@@ -1521,7 +1535,7 @@ async function handleTestModel(
       ok: true,
       status: response.status,
       latencyMs,
-      sample: extractSampleText(text, row.apiFormat),
+      sample: extractSampleText(text, effectiveFormat),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
