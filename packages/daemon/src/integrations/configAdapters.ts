@@ -173,6 +173,17 @@ export function renderClaudeSettings(
 }
 
 /**
+ * True when the managed provider block already carries the
+ * `model_catalog_url` line (i.e. the install postdates runtime model-list
+ * discovery). An install created by an older Omnicross renders fine but never
+ * gets the URL — Codex then never fetches our catalog, whatever the
+ * modelNaming toggle says. Detection only; repair/refresh re-renders.
+ */
+export function hasCodexRuntimeDiscovery(existing: string): boolean {
+  return /model_catalog_url\s*=/.test(existing);
+}
+
+/**
  * True when the config's ROOT carries an EXTERNAL `model_catalog_json`
  * assignment (another tool's static catalog). Codex then routes ALL model-list
  * behavior through that file and IGNORES per-provider runtime discovery — our

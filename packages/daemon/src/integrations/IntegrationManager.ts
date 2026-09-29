@@ -15,6 +15,7 @@ import type { ModelNamingConfig } from '@omnicross/core/outbound-api';
 import { currentProcessCodexAuthHelper, type CodexAuthHelperConfig } from './codexAuthHelper';
 import { atomicWrite, IntegrationStateStore } from './IntegrationStateStore';
 import {
+  hasCodexRuntimeDiscovery,
   hasExternalModelCatalog,
   renderClaudeSettings,
   renderCodexConfig,
@@ -131,13 +132,33 @@ export class IntegrationManager {
         );
       }
     }
+    // A pristine install created by an older Omnicross lacks the managed
+    // `model_catalog_url` line — Codex then never fetches our catalog and the
+    // modelNaming toggle appears dead. Offer repair instead of a bare 'none'.
+    const legacyCodexDiscovery =
+      client === 'codex' &&
+      record !== undefined &&
+      status.status === 'enabled' &&
+      (() => {
+        const current = readOptional(target);
+        return current !== null && !hasCodexRuntimeDiscovery(current);
+      })();
     if (!record) {
       return { client, configPath: target, action: 'install', canApply: true, changes, warnings };
     }
-    if (status.status === 'enabled') {
+    if (status.status === 'enabled' && !legacyCodexDiscovery) {
       return { client, configPath: target, action: 'none', canApply: true, changes: [], warnings };
     }
-    warnings.unshift('Configuration changed after installation; repair preserves unrelated current settings.');
+    if (legacyCodexDiscovery) {
+      warnings.unshift(
+        'This Codex integration predates runtime model-list discovery; repairing adds it.',
+      );
+    }
+    if (!legacyCodexDiscovery) {
+      warnings.unshift(
+        'Configuration changed after installation; repair preserves unrelated current settings.',
+      );
+    }
     if (client === 'codex' && record.credentialFile) {
       warnings.push('Repair migrates Codex away from managed auth.json and restores its original contents.');
     }
@@ -412,30 +433,70 @@ export class IntegrationManager {
   async refreshInstalledClients(): Promise<IntegrationClientId[]> {
     const state = this.options.stateStore.load();
     const previousState = cloneState(state);
-    const record = state.clients['claude'];
-    if (!record) return [];
-    const current = readOptional(record.configPath);
-    if (current === null || sha256(current) !== record.installedHash) return [];
     const rows = await this.options.keyDb.outboundApiKeysList();
-    const details = await this.boundKeyDetails('claude', state, rows);
-    if (!details.usable || !details.secret) return [];
-    // Restore-first strips the previously injected discovery flag (and the
-    // previous secret values) while PRESERVING user-added env keys, then the
-    // render re-applies the segment with the live setting.
-    const base = restoreClaudeBase(
-      current,
-      record.originalContent,
-      record.gatewayBaseUrl,
-      details.secret,
-    );
-    const installed = this.renderInstalled('claude', base, details.secret);
-    if (sha256(installed) === record.installedHash) return [];
-    record.installedHash = sha256(installed);
-    record.installedAt = Date.now();
-    persistStateThenFiles(this.options.stateStore, state, previousState, [
-      { path: record.configPath, content: installed },
-    ]);
-    return ['claude'];
+    const rewritten: IntegrationClientId[] = [];
+    const changes: FileChange[] = [];
+
+    // CLAUDE: the discovery env tracks the toggle. Restore-first strips the
+    // previously injected flag (and the previous secret values) while
+    // PRESERVING user-added env keys, then the render re-applies the segment
+    // with the live setting.
+    {
+      const record = state.clients['claude'];
+      if (record) {
+        const current = readOptional(record.configPath);
+        if (current !== null && sha256(current) === record.installedHash) {
+          const details = await this.boundKeyDetails('claude', state, rows);
+          if (details.usable && details.secret) {
+            const base = restoreClaudeBase(
+              current,
+              record.originalContent,
+              record.gatewayBaseUrl,
+              details.secret,
+            );
+            const installed = this.renderInstalled('claude', base, details.secret);
+            if (sha256(installed) !== record.installedHash) {
+              record.installedHash = sha256(installed);
+              record.installedAt = Date.now();
+              changes.push({ path: record.configPath, content: installed });
+              rewritten.push('claude');
+            }
+          }
+        }
+      }
+    }
+
+    // CODEX: re-render upgrades a PRISTINE install created by an older
+    // Omnicross — restoreCodexBase unwinds the managed block (and re-enables
+    // any externally re-added model_catalog_json), then the render re-applies
+    // it with the model_catalog_url line. Also heals an external static
+    // catalog that appeared while nobody was looking.
+    {
+      const record = state.clients['codex'];
+      if (record && !record.credentialFile) {
+        // (Legacy managed-auth.json installs carry their own repair migration;
+        // refresh skips them — their status already points at repair.)
+        const current = readOptional(record.configPath);
+        if (current !== null && sha256(current) === record.installedHash) {
+          const details = await this.boundKeyDetails('codex', state, rows);
+          if (details.usable && details.secret) {
+            const base = restoreCodexBase(current, record.originalContent);
+            const installed = this.renderInstalled('codex', base, details.secret);
+            if (sha256(installed) !== record.installedHash) {
+              record.installedHash = sha256(installed);
+              record.installedAt = Date.now();
+              changes.push({ path: record.configPath, content: installed });
+              rewritten.push('codex');
+            }
+          }
+        }
+      }
+    }
+
+    if (changes.length > 0) {
+      persistStateThenFiles(this.options.stateStore, state, previousState, changes);
+    }
+    return rewritten;
   }
 
   private async ensureClientKey(
@@ -581,6 +642,27 @@ export class IntegrationManager {
     const current = readOptional(record.configPath);
     if (current === null) return { ...shared, status: 'configuration-missing' };
     if (sha256(current) !== record.installedHash) return { ...shared, status: 'configuration-drift' };
+    // The legacy managed-auth.json migration outranks the render-era checks
+    // below: those installs also lack the newer lines, but their repair path
+    // restores auth.json first.
+    if (client === 'codex' && record.credentialFile) {
+      return {
+        ...shared,
+        status: 'configuration-drift',
+        message: 'Codex integration uses legacy managed auth.json and must be repaired.',
+      };
+    }
+    // A pristine install missing the managed model_catalog_url line predates
+    // runtime discovery (installed by an older Omnicross): routing works, the
+    // modelNaming toggle does not. Repair re-renders with the line.
+    if (client === 'codex' && !hasCodexRuntimeDiscovery(current)) {
+      return {
+        ...shared,
+        status: 'enabled',
+        message:
+          'This integration predates runtime model-list discovery; repairing the Codex integration enables it.',
+      };
+    }
     // Same external-catalog conflict as plan(). On current installs the key is
     // commented out at install, so an ACTIVE one on a pristine file means the
     // install predates that behavior — repairing re-applies it. Never blocking.
@@ -591,13 +673,6 @@ export class IntegrationManager {
         message:
           'An external model_catalog_json is active; repairing the integration comments it out so ' +
             "Codex's model list follows Omnicross.",
-      };
-    }
-    if (client === 'codex' && record.credentialFile) {
-      return {
-        ...shared,
-        status: 'configuration-drift',
-        message: 'Codex integration uses legacy managed auth.json and must be repaired.',
       };
     }
     if (!key.usable) return { ...shared, status: 'key-missing', message: key.message };
