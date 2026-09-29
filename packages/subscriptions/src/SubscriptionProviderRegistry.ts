@@ -256,6 +256,14 @@ export class SubscriptionProviderRegistry {
           modelTransformerNames: [],
           modelMapper: (sdkModel, summary, config) => {
             const scenario = resolveOpenCodeGoScenario(summary, config);
+            // Precedence: an EXPLICIT per-account modelMap entry (scenario-keyed
+            // or default) is the operator's own configuration and always wins.
+            const explicit =
+              config?.modelMap?.[scenario] ??
+              config?.modelMap?.default;
+            if (explicit) {
+              return { resolvedModel: explicit.modelId, scenario };
+            }
             // EXPLICIT-CHOICE PASSTHROUGH: an OpenCode-native model id
             // (glm-*/kimi-*/minimax-*/mimo-*/qwen*/deepseek-*) is a deliberate
             // selection — usually the OUTPUT of a gateway model mapping the
@@ -269,8 +277,6 @@ export class SubscriptionProviderRegistry {
               return { resolvedModel: sdkModel, scenario };
             }
             const entry =
-              config?.modelMap?.[scenario] ??
-              config?.modelMap?.default ??
               DEFAULT_OPENCODEGO_MODEL_MAP[scenario] ??
               DEFAULT_OPENCODEGO_MODEL_MAP.default;
             if (!entry) {
