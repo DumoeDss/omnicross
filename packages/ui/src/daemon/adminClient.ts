@@ -62,17 +62,32 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (ADMIN_TOKEN) headers['Authorization'] = `Bearer ${ADMIN_TOKEN}`;
 
-  let res: Response;
-  try {
-    res = await daemonFetch(`${DAEMON_BASE_URL}/admin/api${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (err) {
-    // Network failure (daemon down / CSP / CORS) — surface a typed error at 0.
-    throw new AdminApiError(0, err instanceof Error ? err.message : 'network error');
-  }
+ let res: Response;
+ try {
+   res = await daemonFetch(`${DAEMON_BASE_URL}/admin/api${path}`, {
+     method,
+     headers,
+     body: body === undefined ? undefined : JSON.stringify(body),
+      // Hard client-side bound: some admin calls trigger a slow upstream
+      // round-trip (model tests, discovery); the daemon enforces its own 20s
+      // bound, but if the native transport (or the upstream proxy) black-holes,
+      // the webview await would otherwise never settle and the dialog spins
+      // forever. 45s > daemon 20s bound, so the daemon's own (richer) error
+      // message normally wins; this is the last-resort escape hatch.
+      signal: AbortSignal.timeout(45_000),
+   });
+ } catch (err) {
+    // Network failure (daemon down / CSP / CORS / client-side timeout) —
+    // surface a typed error at 0. A timeout gets an explicit, actionable label
+    // (the raw abort message is just "signal timed out").
+    const timedOut = err instanceof Error && err.name === 'TimeoutError';
+    const detail = timedOut
+      ? 'request timed out (45s) — the daemon or a system proxy did not answer'
+      : err instanceof Error
+        ? err.message
+        : 'network error';
+    throw new AdminApiError(0, detail);
+ }
 
   const text = await res.text();
   let json: unknown = null;

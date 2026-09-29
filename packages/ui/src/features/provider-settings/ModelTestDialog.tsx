@@ -1,5 +1,5 @@
 import { CheckCircle, Loader2, Play, XCircle } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -48,7 +48,17 @@ export function ModelTestDialog({
     setTesting(true);
     setResult(null);
     try {
-      const r = await agent.llmConfig.testModel(providerId, modelId);
+      // Double-bounded: adminClient enforces a 45s transport timeout; this
+      // race is the UI-side guarantee that `testing` can NEVER get stuck on
+      // (a wedged native transport leaves the await pending forever → the
+      // dialog would show 正在测试 indefinitely, which users cannot dismiss
+      // with any retry). Loses only if it somehow exceeds BOTH bounds.
+      const r = await Promise.race([
+        agent.llmConfig.testModel(providerId, modelId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('test timed out (50s)')), 50_000),
+        ),
+      ]);
       if (r.unsupportedFormat) {
         setResult({
           success: false,
@@ -69,14 +79,23 @@ export function ModelTestDialog({
     }
   }, [providerId, modelId, t]);
 
-  // Auto-run on open ("click test → see the result"); reset when closed.
+  // Latest-callback ref: the auto-run effect must fire ONCE per `open`, not
+  // on every identity change of `runTest`. `t` (our useTranslation shim) is a
+  // NEW closure every render, so depending on `runTest` directly re-triggered
+  // the effect on the result-render — restarting the test and wiping the
+  // result in the same frame. The dialog could then NEVER show anything but
+  // 正在测试 (every response was immediately cleared by the next auto-run).
+  const runTestRef = useRef(runTest);
+  runTestRef.current = runTest;
   useEffect(() => {
     if (open) {
-      void runTest();
+      void runTestRef.current();
     } else {
       setResult(null);
     }
-  }, [open, runTest]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open is the ONLY
+    // intended trigger; the ref carries the latest callback without re-firing.
+  }, [open]);
 
   const durationStr = result?.durationMs != null ? (result.durationMs / 1000).toFixed(2) : null;
 
