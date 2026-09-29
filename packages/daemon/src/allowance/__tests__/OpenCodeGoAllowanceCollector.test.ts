@@ -66,9 +66,10 @@ describe('OpenCodeGoAllowanceCollector', () => {
     expect(snapshot?.windows.find((w) => w.id === 'five-hour')?.usedPercent).toBe(1);
   });
 
-  it('surfaces the monthly window ONLY when the upstream reports rate-limited on it', async () => {
-    // rate-limited: the window appears (production shape — the account fails
-    // every request with 429 GoUsageLimitError limitName=monthly).
+  it('always displays the monthly bar; advisory unless genuinely rate-limited', async () => {
+    // rate-limited (production shape — the account fails every request with
+    // 429 GoUsageLimitError limitName=monthly): the window is NOT advisory, so
+    // the scheduling policy may pause the genuinely dead account.
     const dead = new AccountAllowanceStore();
     const deadFetch: OpenCodeGoAllowanceFetch = async () =>
       new Response(JSON.stringify({
@@ -82,13 +83,14 @@ describe('OpenCodeGoAllowanceCollector', () => {
     const deadSnapshot = dead.get('opencodego', 'oc-m1', Date.now())!;
     const monthly = deadSnapshot.windows.find((w) => w.id === 'monthly');
     expect(monthly).toBeDefined();
-    // The authoritative status outranks the stale percent (→ 100), so the
-    // scheduling policy pauses the genuinely dead account.
+    // The authoritative status outranks the stale percent (→ 100).
     expect(monthly?.usedPercent).toBe(100);
     expect(monthly?.resetsAt).toBe('2026-11-01T00:00:00.000Z');
+    expect(monthly?.advisory).toBeUndefined();
 
     // NOT rate-limited (the "Use balance" fallback keeps the key serving):
-    // no monthly window — a percent-only window must not pause a usable key.
+    // the bar is still DISPLAYED (visibility), but marked advisory — the
+    // worst-window pause policy must not strand the serving key.
     const serving = new AccountAllowanceStore();
     const servingFetch: OpenCodeGoAllowanceFetch = async () =>
       new Response(JSON.stringify({
@@ -100,7 +102,10 @@ describe('OpenCodeGoAllowanceCollector', () => {
       }), { status: 200 });
     await makeCollector(serving, servingFetch).collect(makeAccount({ id: 'oc-m2' }));
     const servingSnapshot = serving.get('opencodego', 'oc-m2', Date.now())!;
-    expect(servingSnapshot.windows.find((w) => w.id === 'monthly')).toBeUndefined();
+    const servingMonthly = servingSnapshot.windows.find((w) => w.id === 'monthly');
+    expect(servingMonthly).toBeDefined();
+    expect(servingMonthly?.usedPercent).toBe(100);
+    expect(servingMonthly?.advisory).toBe(true);
     expect(servingSnapshot.windows.find((w) => w.id === 'seven-day')?.usedPercent).toBe(69);
   });
 

@@ -1163,7 +1163,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+        "monthly": "Månadsvis",
       "codexRefreshConfirmTitle": "Använd Luna för att uppdatera den här kvoten?",
       "codexRefreshConfirmDescription": "En riktig begäran skickas till gpt-5.6-luna med det här Codex-kontot för att hämta den senaste kvoten. Detta förbrukar en liten del av abonnemangskvoten. Vill du fortsätta?",
       "codexRefreshConfirmAction": "Skicka begäran och uppdatera"

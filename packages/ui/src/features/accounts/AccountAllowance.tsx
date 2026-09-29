@@ -35,9 +35,15 @@ function stateClass(state: AllowanceWindowState): string {
   }
 }
 
-function windowLabel(window: AllowanceWindow, fiveHour: string, weekly: string): string {
+function windowLabel(
+  window: AllowanceWindow,
+  fiveHour: string,
+  weekly: string,
+  monthly: string,
+): string {
   if (window.id === 'five-hour' || window.windowMinutes === 300) return fiveHour;
   if (window.id === 'seven-day' || window.windowMinutes === 10_080) return weekly;
+  if (window.id === 'monthly') return monthly;
   return window.label;
 }
 
@@ -123,6 +129,7 @@ export function AccountAllowance({
                       window,
                       t('accounts.allowance.fiveHour'),
                       t('accounts.allowance.weekly'),
+                      t('accounts.allowance.monthly'),
                     )}
                     {window.modelFamily ? ` · ${window.modelFamily}` : ''}
                   </span>

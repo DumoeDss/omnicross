@@ -1813,6 +1813,7 @@
     "allowance": {
       "title": "额度",
       "fiveHour": "5 小时限额",
+      "monthly": "月度",
       "weekly": "周限额",
       "used": "已用 {{percent}}%",
       "resetsAt": "{{time}} 重置",

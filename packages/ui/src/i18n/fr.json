@@ -1163,7 +1163,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+        "monthly": "Mensuel",
       "codexRefreshConfirmTitle": "Utiliser Luna pour actualiser ce quota ?",
       "codexRefreshConfirmDescription": "Une requête réelle sera envoyée à gpt-5.6-luna avec ce compte Codex afin de récupérer le quota le plus récent. Cela consommera une petite partie du quota de l’abonnement. Continuer ?",
       "codexRefreshConfirmAction": "Envoyer la requête et actualiser"

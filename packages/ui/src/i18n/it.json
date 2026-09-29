@@ -1163,7 +1163,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+        "monthly": "Mensile",
       "codexRefreshConfirmTitle": "Usare Luna per aggiornare questo limite?",
       "codexRefreshConfirmDescription": "Verrà inviata una richiesta reale a gpt-5.6-luna con questo account Codex per recuperare il limite più recente. Questa operazione consumerà una piccola parte della quota dell’abbonamento. Continuare?",
       "codexRefreshConfirmAction": "Invia richiesta e aggiorna"

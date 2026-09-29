@@ -1810,6 +1810,7 @@
     "allowance": {
       "title": "Allowance",
       "fiveHour": "5-hour limit",
+      "monthly": "Monthly",
       "weekly": "Weekly limit",
       "used": "{{percent}}% used",
       "resetsAt": "Resets {{time}}",

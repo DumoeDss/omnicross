@@ -1163,7 +1163,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+        "monthly": "شهري",
       "codexRefreshConfirmTitle": "هل تريد استخدام Luna لتحديث هذه الحصة؟",
       "codexRefreshConfirmDescription": "سيتم إرسال طلب حقيقي إلى gpt-5.6-luna باستخدام حساب Codex هذا لاسترداد أحدث معلومات الحصة. سيستهلك ذلك قدرًا صغيرًا من حصة الاشتراك. هل تريد المتابعة؟",
       "codexRefreshConfirmAction": "إرسال الطلب والتحديث"
