@@ -110,6 +110,34 @@ interface ModelMapConfig {
 }
 
 /**
+ * Model-id prefixes of OpenCode-NATIVE model families (glm / kimi / minimax /
+ * mimo / qwen / deepseek). No mainstream downstream client uses these as an
+ * alias, so a request carrying one is an EXPLICIT choice — typically the
+ * product of a gateway model mapping the operator configured on purpose.
+ */
+const OPENCODEGO_NATIVE_MODEL_PREFIXES: readonly string[] = [
+  'glm-',
+  'kimi-',
+  'minimax-',
+  'mimo-',
+  'qwen',
+  'deepseek-',
+];
+
+/**
+ * True when the model id belongs to an OpenCode-native family — the caller
+ * (or the operator's gateway mapping) chose it deliberately, so dispatch must
+ * send it VERBATIM instead of letting the keyword scenario router silently
+ * replace it. Client-alias families (claude-* / gpt-* / gemini-*) stay on the
+ * scenario path: those names are ambiguous with downstream client defaults,
+ * and replacing them with a plan-appropriate model is the router's job.
+ */
+export function isOpenCodeGoNativeModelId(modelId: string): boolean {
+  const normalized = modelId.toLowerCase();
+  return OPENCODEGO_NATIVE_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+/**
  * Resolve the provider HALF for a RESOLVED model id, given the user's per-account
  * config. The dispatch profile's `resolveUpstreamUrl(model, config)` receives only
  * the resolved model STRING (the scenario mapper already collapsed the entry to its

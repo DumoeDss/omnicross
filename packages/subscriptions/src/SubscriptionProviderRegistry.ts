@@ -39,6 +39,7 @@ import {
   resolveOpenCodeGoHalf,
   resolveOpenCodeGoShape,
 } from './opencodego/model-shape';
+import { isOpenCodeGoNativeModelId } from './opencodego/model-shape';
 import { resolveOpenCodeGoScenario } from './opencodego/ScenarioRouter';
 import {
   copilotBaseUrl,
@@ -255,6 +256,18 @@ export class SubscriptionProviderRegistry {
           modelTransformerNames: [],
           modelMapper: (sdkModel, summary, config) => {
             const scenario = resolveOpenCodeGoScenario(summary, config);
+            // EXPLICIT-CHOICE PASSTHROUGH: an OpenCode-native model id
+            // (glm-*/kimi-*/minimax-*/mimo-*/qwen*/deepseek-*) is a deliberate
+            // selection — usually the OUTPUT of a gateway model mapping the
+            // operator configured. Sending it verbatim is the only honest
+            // behavior; the keyword scenario router used to silently replace
+            // it (deepseek-v4-flash → complex → glm-5.1 → upstream 410 after
+            // glm-5.1 was deprecated). Client-alias families (claude-*/gpt-*)
+            // keep the scenario path. The scenario is still classified so the
+            // fallback chain and telemetry see the same request shape.
+            if (sdkModel && isOpenCodeGoNativeModelId(sdkModel)) {
+              return { resolvedModel: sdkModel, scenario };
+            }
             const entry =
               config?.modelMap?.[scenario] ??
               config?.modelMap?.default ??

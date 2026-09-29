@@ -258,6 +258,49 @@ describe('SubscriptionProviderRegistry', () => {
     expect(result.resolvedModel).toBe('minimax-m2.5');
   });
 
+  it('opencodego modelMapper passes an OpenCode-native model id through VERBATIM (no scenario override)', () => {
+    const tokens = mockTokens();
+    const accounts = new SubscriptionAccountService(tokens);
+    const registry = new SubscriptionProviderRegistry(accounts, tokens);
+    const profile = registry.getProfile('opencodego')!;
+    // A coding-agent prompt that WOULD classify as complex — the native id
+    // must still win (the gateway mapping that produced it was deliberate).
+    const complexSummary = {
+      messageCount: 40,
+      estimatedInputTokens: 90_000,
+      matchText: 'implement the refactor, debug and benchmark the build',
+    };
+    for (const modelId of ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5.2', 'kimi-k2.6', 'minimax-m2.5', 'qwen3.6-plus']) {
+      const result = profile.modelMapper!(modelId, complexSummary, undefined);
+      expect(result.resolvedModel, modelId).toBe(modelId);
+    }
+  });
+
+  it('opencodego modelMapper keeps scenario routing for client-alias families (claude-*/gpt-*)', () => {
+    const tokens = mockTokens();
+    const accounts = new SubscriptionAccountService(tokens);
+    const registry = new SubscriptionProviderRegistry(accounts, tokens);
+    const profile = registry.getProfile('opencodego')!;
+    const result = profile.modelMapper!('claude-opus-5-5', {
+      messageCount: 1,
+      estimatedInputTokens: 100,
+    }, undefined);
+    expect(result.scenario).toBe('default');
+    expect(result.resolvedModel).toBe('kimi-k2.6'); // scenario default, NOT the alias
+  });
+
+  it('opencodego modelMapper: an explicit user modelMap still wins for alias models', () => {
+    const tokens = mockTokens();
+    const accounts = new SubscriptionAccountService(tokens);
+    const registry = new SubscriptionProviderRegistry(accounts, tokens);
+    const profile = registry.getProfile('opencodego')!;
+    const result = profile.modelMapper!('claude-opus-5-5', {
+      messageCount: 1,
+      estimatedInputTokens: 100,
+    }, { authMethod: 'manual', status: 'configured', modelMap: { default: { modelId: 'glm-5.2' } } });
+    expect(result.resolvedModel).toBe('glm-5.2');
+  });
+
   it('opencodego nextFallback returns null when exhausted', () => {
     const tokens = mockTokens();
     const accounts = new SubscriptionAccountService(tokens);
