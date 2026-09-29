@@ -363,7 +363,13 @@ export class OpenAIResponseTransformer implements Transformer {
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
             function: {
-              name: (entry.name as string) || '',
+              // Namespaced calls ride the SAME flattened wire name as their
+              // declaration (see collectCodexTools) — the model only knows
+              // the flattened name, and history calls for undeclared names
+              // are rejected by strict upstreams.
+              name: (typeof entry.namespace === 'string' && entry.namespace
+                ? `${entry.namespace}__${(entry.name as string) || ''}`
+                : (entry.name as string) || ''),
               arguments: typeof entry.arguments === 'string' ? entry.arguments : '',
             },
           };
@@ -689,12 +695,17 @@ function encodeToolCallItem(
   }
 
   const namespace = codexTools?.toolNamespaces?.[name];
+  // The wire name is the FLATTENED `<namespace>__<name>`; codex expects the
+  // bare name plus the separate namespace axis on the item.
+  const bareName = namespace && name.startsWith(`${namespace}__`)
+    ? name.slice(namespace.length + 2)
+    : name;
   return {
     id: callId.startsWith('fc_') ? callId : `fc_${bareId}`,
     type: 'function_call',
     status,
     call_id: callId,
-    name,
+    name: bareName,
     ...(namespace ? { namespace } : {}),
     arguments: argumentsJson,
   };
@@ -750,12 +761,24 @@ function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclaration
         continue;
       }
 
+      // NAMESPACED FLATTENING: a flat wire (chat/anthropic) has no namespace
+      // axis, so a namespaced tool rides as `<namespace>__<name>` (codex's own
+      // flat naming convention, cf. its `mcp__server` namespace ids). The bare
+      // name MUST NOT be used: two namespaces declaring the same inner name
+      // (e.g. `search` under two MCP servers) then collide and the upstream
+      // rejects the whole request ("Tool names must be unique" — observed on
+      // the official DeepSeek chat wire). The reconstruction map keys the
+      // FLATTENED name; the decode strips the prefix back into
+      // `{name, namespace}` for codex.
+      const wireName = namespace ? `${namespace}__${name}` : name;
+      if (result.tools.some((existing) => existing.function.name === wireName)) continue;
+
       if (tool.type === 'custom') {
-        result.customToolNames.push(name);
+        result.customToolNames.push(wireName);
         result.tools.push({
           type: 'function',
           function: {
-            name,
+            name: wireName,
             description,
             parameters: CUSTOM_TOOL_PARAMETERS as unknown as UnifiedTool['function']['parameters'],
           },
@@ -764,7 +787,7 @@ function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclaration
         result.tools.push({
           type: 'function',
           function: {
-            name,
+            name: wireName,
             description,
             parameters: (tool.parameters || {}) as UnifiedTool['function']['parameters'],
           },
@@ -773,7 +796,7 @@ function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclaration
         continue;
       }
 
-      if (namespace) result.toolNamespaces[name] = namespace;
+      if (namespace) result.toolNamespaces[wireName] = namespace;
     }
   };
 

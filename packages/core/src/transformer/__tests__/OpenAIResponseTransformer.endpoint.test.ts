@@ -696,7 +696,11 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
         mockContext
       );
 
-      expect(unified.tools?.map((t) => t.function.name)).toEqual(['exec', 'wait', 'spawn_agent']);
+      // Namespaced tools FLATTEN to `<namespace>__<name>` on a flat wire —
+      // the bare name collides when two namespaces share an inner name and
+      // upstreams reject the request ("Tool names must be unique").
+      expect(unified.tools?.map((t) => t.function.name))
+        .toEqual(['exec', 'wait', 'collaboration__spawn_agent']);
 
       // A custom tool has no JSON schema of its own — it is exposed as one
       // required free-form `input` string.
@@ -706,14 +710,51 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
         properties: { input: { type: 'string' } },
         required: ['input'],
       });
-      // A namespaced tool keeps its BARE name (that is what the model calls).
-      expect(unified.tools!.find((t) => t.function.name === 'spawn_agent')!.function.parameters)
+      expect(unified.tools!.find((t) => t.function.name === 'collaboration__spawn_agent')!.function.parameters)
         .toMatchObject({ properties: { task: { type: 'string' } } });
 
-      // The protocol state the response encoder needs is threaded on `meta`.
+      // The protocol state the response encoder needs is threaded on `meta` —
+      // keyed by the FLATTENED name (the decode strips the prefix back).
       expect(unified.meta?.codexTools).toEqual({
         customToolNames: ['exec'],
-        toolNamespaces: { spawn_agent: 'collaboration' },
+        toolNamespaces: { collaboration__spawn_agent: 'collaboration' },
+      });
+    });
+
+    it('two namespaces sharing an inner tool name flatten WITHOUT colliding', async () => {
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            {
+              type: 'additional_tools',
+              role: 'developer',
+              tools: [
+                {
+                  type: 'namespace',
+                  name: 'mcp__alpha',
+                  tools: [{ type: 'function', name: 'search', description: 'a', parameters: { type: 'object' } }],
+                },
+                {
+                  type: 'namespace',
+                  name: 'mcp__beta',
+                  tools: [{ type: 'function', name: 'search', description: 'b', parameters: { type: 'object' } }],
+                },
+              ],
+            },
+            { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'go' }] },
+          ],
+        },
+        mockContext
+      );
+
+      // Two DISTINCT flat declarations — the pre-fix shape sent `search`
+      // twice and the upstream 400'd the whole request.
+      expect(unified.tools?.map((t) => t.function.name))
+        .toEqual(['mcp__alpha__search', 'mcp__beta__search']);
+      expect(unified.meta?.codexTools?.toolNamespaces).toEqual({
+        'mcp__alpha__search': 'mcp__alpha',
+        'mcp__beta__search': 'mcp__beta',
       });
     });
 

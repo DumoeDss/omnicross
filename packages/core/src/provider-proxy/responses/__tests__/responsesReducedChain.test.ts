@@ -64,7 +64,7 @@ const targets: ReducedTargetCase[] = [
           tool_calls: [{
             id: 'call_openai',
             type: 'function',
-            function: { name: 'spawn_agent', arguments: '{"task":"x"}' },
+            function: { name: 'collaboration__spawn_agent', arguments: '{"task":"x"}' },
           }],
         },
         finish_reason: 'tool_calls',
@@ -85,7 +85,7 @@ const targets: ReducedTargetCase[] = [
       content: [{
         type: 'tool_use',
         id: 'call_anthropic',
-        name: 'spawn_agent',
+        name: 'collaboration__spawn_agent',
         input: { task: 'x' },
       }],
       stop_reason: 'tool_use',
@@ -105,7 +105,7 @@ const targets: ReducedTargetCase[] = [
         content: {
           role: 'model',
           parts: [{
-            functionCall: { id: 'call_gemini', name: 'spawn_agent', args: { task: 'x' } },
+            functionCall: { id: 'call_gemini', name: 'collaboration__spawn_agent', args: { task: 'x' } },
           }],
         },
         finishReason: 'STOP',
@@ -159,8 +159,7 @@ describe('reduced Responses target chains', () => {
     });
 
     expect(upstreamBody).toBeDefined();
-    expect(findToolName(upstreamBody!)).toBe('spawn_agent');
-    expect(JSON.stringify(upstreamBody)).not.toContain('collaboration');
+    expect(findToolName(upstreamBody!)).toBe('collaboration__spawn_agent');
 
     const response = await result.response.json() as {
       output: Array<Record<string, unknown>>;
