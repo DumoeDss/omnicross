@@ -509,6 +509,31 @@ describe('POST /admin/api/providers/:id/discover-models (app-foundation D8)', ()
 // ── test-model ────────────────────────────────────────────────────────────────
 
 describe('POST /admin/api/providers/:id/test', () => {
+
+  it('an HTML upstream answer becomes the fix-the-base-URL hint, not a raw HTML dump', async () => {
+    await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: PROVIDER_SENTINEL_KEY }]);
+    // Simulate a baseUrl that points at the vendor's WEBSITE: any POST is
+    // answered with the site's HTML page (404 + text/html).
+    const server = upstream.server as Server;
+    const origListeners = server.listeners('request').slice();
+    server.removeAllListeners('request');
+    server.on('request', (_req, res) => {
+      res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end('<!DOCTYPE html><html lang="en"><body>marketing site</body></html>');
+    });
+    try {
+      const r = await adminFetch('POST', '/admin/api/providers/a/test', { model: 'gpt-x' });
+      const body = r.json as { ok: boolean; message?: string };
+      expect(body.ok).toBe(false);
+      expect(body.message).toContain('HTML page');
+      expect(body.message).toContain('completion endpoint');
+      expect(body.message).not.toContain('<!DOCTYPE');
+    } finally {
+      server.removeAllListeners('request');
+      for (const l of origListeners) server.on('request', l as never);
+    }
+  });
+
   it('openai: issues a completion with the provider key as Bearer, never leaking it', async () => {
     await bootDaemon((b) => [{ id: 'a', apiFormat: 'openai', baseUrl: b, apiKey: PROVIDER_SENTINEL_KEY }]);
     const r = await adminFetch('POST', '/admin/api/providers/a/test', { model: 'gpt-x' });

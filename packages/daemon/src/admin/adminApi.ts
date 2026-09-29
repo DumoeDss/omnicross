@@ -1529,6 +1529,17 @@ async function handleTestModel(
       } catch {
         // keep the raw slice
       }
+      // An HTML page means the request never reached an API route: the
+      // provider row's baseUrl points at the vendor's WEBSITE (root or a
+      // console path) instead of the completion endpoint. The raw HTML slice
+      // is useless in the dialog — say what to fix instead.
+      const contentType = response.headers.get('content-type') ?? '';
+      if (contentType.includes('text/html')) {
+        message =
+          'The upstream returned an HTML page — the provider base URL points at a website, ' +
+          'not the API completion endpoint. Set it to the full endpoint ' +
+          '(e.g. https://…/v1/chat/completions).';
+      }
       return writeJson(res, 200, { ok: false, status: response.status, latencyMs, message });
     }
     return writeJson(res, 200, {
