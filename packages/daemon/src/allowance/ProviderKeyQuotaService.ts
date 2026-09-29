@@ -23,7 +23,9 @@ import type { SecretBox } from '../secrets';
 
 import {
   detectProviderKeyQuotaAdapter,
-  parseClinePassUsageLimitsPayload,
+ parseClinePassUsageLimitsPayload,
+  parseCommandCodeCreditsPayload,
+  parseCommandCodeWhoamiOrgId,
   parseMiniMaxTokenPlanPayload,
   parseSyntheticQuotasPayload,
   parseUmansUsagePayload,
@@ -47,8 +49,10 @@ function parseQuotaPayload(
       return parseUmansUsagePayload(payload, now);
     case 'synthetic':
       return parseSyntheticQuotasPayload(payload, now);
-    case 'cline-pass':
-      return parseClinePassUsageLimitsPayload(payload, now);
+   case 'cline-pass':
+     return parseClinePassUsageLimitsPayload(payload, now);
+    case 'commandcode':
+      return parseCommandCodeCreditsPayload(payload, now);
   }
 }
 
@@ -194,13 +198,47 @@ export class ProviderKeyQuotaService {
     }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new Error('invalid JSON');
+   let payload: unknown;
+   try {
+     payload = await response.json();
+   } catch {
+     throw new Error('invalid JSON');
+   }
+    // Command Code is two-step: whoami resolves the org scope, then the
+    // billing/credits payload carries the actual window meters.
+    if (adapter === 'commandcode') {
+      const orgId = parseCommandCodeWhoamiOrgId(payload);
+      const creditsUrl = `${new URL(url).origin}/alpha/billing/credits${
+        orgId ? `?orgId=${encodeURIComponent(orgId)}` : ''
+      }`;
+      const creditsResponse = await this.fetchImpl(creditsUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: providerKeyQuotaAuthHeader(adapter, key),
+          Accept: 'application/json',
+          ...mergeExtraHeaders({}, row.extraHeaders),
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (creditsResponse.status === 401 || creditsResponse.status === 403) {
+        const unauthorized: ProviderKeyQuota = {
+          adapter,
+          observedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + PROVIDER_KEY_QUOTA_CACHE_MS).toISOString(),
+          windows: [],
+          errorCode: 'quota_unauthorized',
+        };
+        this.cache.set(cacheKey, unauthorized);
+        return unauthorized;
+      }
+      if (!creditsResponse.ok) throw new Error(`HTTP ${creditsResponse.status}`);
+      try {
+        payload = await creditsResponse.json();
+      } catch {
+        throw new Error('invalid JSON');
+      }
     }
-    const windows = parseQuotaPayload(adapter, payload, now);
+   const windows = parseQuotaPayload(adapter, payload, now);
     const snapshot: ProviderKeyQuota = {
       adapter,
       observedAt: new Date(now).toISOString(),

@@ -24,9 +24,16 @@
  *      `Authorization: Bearer <key>` PLUS the Cline client-identity header set
  *      (the row's `extraHeaders` — the gateway 403s without the full mirror).
  *      `limits[]` rows carry `{type: five_hour|weekly|monthly, percentUsed,
- *      resetsAt}` — pure percentage windows, no absolute meters.
- *
- * Everything here is pure; the fetch/cache lifecycle lives in
+*      resetsAt}` — pure percentage windows, no absolute meters.
+ *  - Command Code (Provider API / coding plans):
+ *      GET {origin}/alpha/whoami            → org id for org-scoped keys
+ *      GET {origin}/alpha/billing/credits   → `windowLimits.fiveHour/weekly`
+ *        absolute meters `{used, cap, resetAt(epoch-ms)}` plus the credits
+ *        pool. Both Bearer-auth (same API key as inference). The two rolling
+ *        windows pace the plan's monthly credits — extra pay-as-you-go
+ *        credits bypass them; the CLI's /usage shows exactly these two.
+*
+* Everything here is pure; the fetch/cache lifecycle lives in
  * `ProviderKeyQuotaService`. Windows reuse the subscription `AllowanceWindow`
  * DTO so the UI renders one shape.
  */
@@ -37,9 +44,10 @@ import type { AllowanceWindow } from '@omnicross/contracts/account-allowance-typ
 export type ProviderKeyQuotaAdapter =
   | 'zai'
   | 'minimax-token-plan'
-  | 'umans'
-  | 'synthetic'
-  | 'cline-pass';
+ | 'umans'
+ | 'synthetic'
+  | 'commandcode'
+ | 'cline-pass';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -114,9 +122,12 @@ export function detectProviderKeyQuotaAdapter(baseUrl: string | undefined): Prov
   ) {
     return 'minimax-token-plan';
   }
-  if (host === 'api.code.umans.ai') return 'umans';
-  if (host === 'api.synthetic.new') return 'synthetic';
-  if (host === 'api.cline.bot') return 'cline-pass';
+ if (host === 'api.code.umans.ai') return 'umans';
+ if (host === 'api.synthetic.new') return 'synthetic';
+ if (host === 'api.cline.bot') return 'cline-pass';
+  // Command Code Provider API — every wire (chat/responses/messages) rides
+  // the same plan credential; the alpha usage endpoints live on the origin.
+  if (host === 'api.commandcode.ai' && path.includes('/provider')) return 'commandcode';
   return null;
 }
 
@@ -125,8 +136,9 @@ export function providerKeyQuotaUrl(adapter: ProviderKeyQuotaAdapter, baseUrl: s
   const origin = new URL(baseUrl).origin;
   if (adapter === 'zai') return `${origin}/api/monitor/usage/quota/limit`;
   if (adapter === 'minimax-token-plan') return `${origin}/v1/token_plan/remains`;
-  if (adapter === 'umans') return `${origin}/v1/usage`;
-  if (adapter === 'cline-pass') return `${origin}/api/v1/users/me/plan/usage-limits`;
+ if (adapter === 'umans') return `${origin}/v1/usage`;
+ if (adapter === 'cline-pass') return `${origin}/api/v1/users/me/plan/usage-limits`;
+  if (adapter === 'commandcode') return `${origin}/alpha/whoami`;
   return `${origin}/v2/quotas`; // synthetic (NOT under the /openai prefix)
 }
 
@@ -474,6 +486,58 @@ export function parseClinePassUsageLimitsPayload(payload: unknown, now: number):
       scope: 'all',
       usedPercent,
       windowMinutes: config.minutes,
+      ...(resetsAt !== undefined ? { resetsAt } : {}),
+      remainingSeconds: secondsUntil(resetsAt, now),
+      state: 'fresh',
+    });
+  }
+  return windows.length > 0 ? windows : null;
+}
+
+// -- Command Code -------------------------------------------------------------
+
+/**
+ * Parse the Command Code /alpha/whoami payload (org scope only).
+ * Personal keys have no org (the credits endpoint is called unscoped);
+ * org keys MUST pass `?orgId=` or the billing endpoints 404/403.
+ */
+export function parseCommandCodeWhoamiOrgId(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  const org = isRecord(payload['org']) ? payload['org'] : undefined;
+  const id = org && typeof org['id'] === 'string' ? org['id'].trim() : '';
+  return id || undefined;
+}
+
+/**
+ * Parse the Command Code `/alpha/billing/credits` payload. `windowLimits`
+ * carries the plan's two rolling windows as ABSOLUTE credit meters
+ * (`{used, cap, resetAt}` epoch-ms); `limited:false` means a pay-as-you-go
+ * Provider-plan key: no windows apply (only plan credits are paced).
+ */
+export function parseCommandCodeCreditsPayload(payload: unknown, now: number): AllowanceWindow[] | null {
+  if (!isRecord(payload)) return null;
+  const windowLimits = isRecord(payload['windowLimits']) ? payload['windowLimits'] : undefined;
+  if (!windowLimits) return null;
+  const limited = windowLimits['limited'];
+  if (limited === false) return null;
+  const windows: AllowanceWindow[] = [];
+  const configs = [
+    ['fiveHour', 'five-hour', '5 hours', 5 * 60],
+    ['weekly', 'seven-day', '7 days', 7 * 24 * 60],
+  ] as const;
+  for (const [source, id, label, windowMinutes] of configs) {
+    const entry = isRecord(windowLimits[source]) ? windowLimits[source] : undefined;
+    if (!entry) continue;
+    const cap = finiteNumber(entry['cap']);
+    const used = finiteNumber(entry['used']);
+    if (cap === undefined || cap <= 0 || used === undefined) continue;
+    const resetsAt = isoInstant(entry['resetAt']);
+    windows.push({
+      id,
+      label,
+      scope: 'all',
+      usedPercent: Math.round(Math.min(100, (used / cap) * 100) * 10) / 10,
+      windowMinutes,
       ...(resetsAt !== undefined ? { resetsAt } : {}),
       remainingSeconds: secondsUntil(resetsAt, now),
       state: 'fresh',

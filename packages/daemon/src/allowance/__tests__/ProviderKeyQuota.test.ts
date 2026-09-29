@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { DaemonProviderConfig } from '../../config';
 import {
-  detectProviderKeyQuotaAdapter,
-  parseClinePassUsageLimitsPayload,
+ detectProviderKeyQuotaAdapter,
+  parseCommandCodeCreditsPayload,
+  parseCommandCodeWhoamiOrgId,
+ parseClinePassUsageLimitsPayload,
   parseMiniMaxTokenPlanPayload,
   parseZaiQuotaPayload,
   providerKeyQuotaAuthHeader,
@@ -297,5 +299,76 @@ describe('ProviderKeyQuotaService', () => {
     expect(headers['X-PLATFORM']).toBe(process.platform);
     expect(headers.Authorization).toBe('Bearer key-id-1.key-secret-1');
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('https://api.cline.bot/api/v1/users/me/plan/usage-limits');
+  });
+});
+
+describe('commandcode quota', () => {
+  it('detects the provider api host and builds the whoami url', () => {
+    expect(detectProviderKeyQuotaAdapter('https://api.commandcode.ai/provider/v1/chat/completions')).toBe('commandcode');
+    expect(detectProviderKeyQuotaAdapter('https://api.commandcode.ai/provider/v1/responses')).toBe('commandcode');
+    expect(detectProviderKeyQuotaAdapter('https://api.commandcode.ai/v1/chat/completions')).toBeNull();
+    expect(providerKeyQuotaUrl('commandcode', 'https://api.commandcode.ai/provider/v1/responses'))
+      .toBe('https://api.commandcode.ai/alpha/whoami');
+    expect(providerKeyQuotaAuthHeader('commandcode', 'user_1')).toBe('Bearer user_1');
+  });
+
+  it('parses windowLimits into 5h/7d percent windows with resets', () => {
+    const now = 1_800_000_000_000;
+    const windows = parseCommandCodeCreditsPayload({
+      credits: { monthlyCredits: 69.8, purchasedCredits: 0, freeCredits: 0 },
+      windowLimits: {
+        limited: true,
+        fiveHour: { used: 1.4, cap: 14, resetAt: now + 3_600_000 },
+        weekly: { used: 3.5, cap: 35, resetAt: now + 86_400_000 },
+      },
+    }, now);
+    expect(windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 10 },
+      { id: 'seven-day', usedPercent: 10 },
+    ]);
+  });
+
+  it('reports nothing for unlimited pay-as-you-go keys', () => {
+    expect(parseCommandCodeCreditsPayload({ windowLimits: { limited: false }, credits: {} }, 0)).toBeNull();
+  });
+
+  it('extracts the org id for org-scoped keys', () => {
+    expect(parseCommandCodeWhoamiOrgId({ user: { userName: 'x' } })).toBeUndefined();
+    expect(parseCommandCodeWhoamiOrgId({ org: { id: 'org_123', login: 'acme' } })).toBe('org_123');
+  });
+
+  it('service resolves whoami then scoped credits (two GETs, one snapshot)', async () => {
+    const box = { decryptMaybe: (v: string) => v };
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.endsWith('/alpha/whoami')) {
+        return Response.json({ org: { id: 'org_9', login: 'acme' } });
+      }
+      if (target.includes('/alpha/billing/credits?orgId=org_9')) {
+        return Response.json({
+          credits: { monthlyCredits: 70 },
+          windowLimits: {
+            limited: true,
+            fiveHour: { used: 7, cap: 14, resetAt: 1_800_000_000_000 },
+            weekly: { used: 35, cap: 35, resetAt: 1_800_000_000_000 },
+          },
+        });
+      }
+      return new Response('', { status: 404 });
+    });
+    const service = new ProviderKeyQuotaService(box, fetchImpl as never);
+    const row = {
+      id: 'command',
+      apiFormat: 'openai',
+      baseUrl: 'https://api.commandcode.ai/provider/v1/chat/completions',
+      apiKey: 'user_secret',
+    } as DaemonProviderConfig;
+    const quota = await service.quotaFor(row, 'command:default');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(quota?.windows).toMatchObject([
+      { id: 'five-hour', usedPercent: 50 },
+      { id: 'seven-day', usedPercent: 100 },
+    ]);
+    expect(JSON.stringify(quota)).not.toContain('user_secret');
   });
 });
