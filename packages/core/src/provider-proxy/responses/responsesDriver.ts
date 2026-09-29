@@ -115,9 +115,19 @@ export async function resolveResponsesRouteProfile(
     if (!storedProvider) {
       throw new OpenAIOperationError({ status: 502, code: 'provider_configuration_error', message: 'Configured provider was not found' });
     }
-    // MULTI-FORMAT FAN-OUT: an openai-response variant classifies as NATIVE —
-    // the request relays verbatim to that base (no reduced-profile loss).
-    const provider = providerForWire(storedProvider, 'openai-response');
+    // MULTI-FORMAT FAN-OUT — OFFICIAL ROWS ONLY: an openai-response variant on
+    // an official row classifies as NATIVE and relays verbatim to that base.
+    // A THIRD-PARTY row (commandcode &c.) advertises Responses compatibility
+    // but rejects OpenAI-exclusive tool types (namespace / web_search) and
+    // extension fields that a verbatim relay forwards untouched — observed in
+    // production as upstream 400 invalid_request_error on every codex turn.
+    // Non-official rows therefore keep their PRIMARY wire and take the REDUCED
+    // path: the translation chain degrades hosted tools (responsesProfile #63)
+    // and the URL + chain stay consistent (both derive from the stored row).
+    const official = storedProvider.isOfficial === true;
+    const provider = official
+      ? providerForWire(storedProvider, 'openai-response')
+      : storedProvider;
     const declaration = { authMode: 'byo', providerApiFormat: resolveApiFormat(provider) } as const;
     return {
       profile: classifyResponsesProfile(declaration),
