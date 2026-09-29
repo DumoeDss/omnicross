@@ -1011,6 +1011,16 @@ export type FanOutWire = 'openai' | 'anthropic' | 'openai-response';
  * variant (or the variant IS the primary) returns the row unchanged, so wires
  * without fan-out behave byte-identically.
  */
+/**
+ * True when a model id belongs to the Claude family — the family a provider's
+ * `formatVariants.anthropic` wire serves (preset contract: "Claude models ride
+ * the Anthropic variant automatically"). Mirrors the admin test-model probe's
+ * predicate so the connectivity test and the serving path agree.
+ */
+export function isClaudeFamilyModelId(modelId: string): boolean {
+  return /^(?:anthropic[/.]|claude[-_.])/i.test(modelId);
+}
+
 export function providerForWire(provider: LLMProvider, wire: FanOutWire): LLMProvider {
   const variant = provider.formatVariants?.[wire];
   if (!variant) return provider;

@@ -759,6 +759,12 @@ describe('handleOutboundRequest — auth', () => {
     // gemini row carrying the models collection; /v1beta dedup + query preserved.
     expect(directUpstreamUrl({ api_base_url: 'https://generativelanguage.googleapis.com/v1beta/models/', apiFormat: 'google' }, '/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse'))
       .toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse');
+    // DOUBLED version segment (a client whose base URL carries /v1 + the
+    // ingress path /v1/...): EVERY leading copy is stripped — one strip left
+    // `…/provider/v1/v1/messages` upstream, which multi-wire providers answer
+    // with a path-shape 400 (commandcode, production case).
+    expect(directUpstreamUrl(openaiBase('https://api.commandcode.ai/provider/v1'), '/v1/v1/messages'))
+      .toBe('https://api.commandcode.ai/provider/v1/messages');
     // Unrelated path passes through untouched (transparent proxy).
     expect(directUpstreamUrl(openaiBase('https://api.siliconflow.com/v1'), '/v1/embeddings'))
       .toBe('https://api.siliconflow.com/v1/embeddings');

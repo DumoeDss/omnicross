@@ -46,7 +46,9 @@ import {
 import { emitWebhookEvent } from '../pipeline/webhookEmit';
 import { requestLifecycleSignal } from '../pipeline/requestLifecycleSignal';
 import { getSharedAccountAllowanceStore } from '../pipeline/AccountAllowanceStore';
+import { isAnthropicMessagesRequest } from '../provider-proxy/ingress/anthropicMessagesIngress';
 import { classifyAnthropicMessagesPath } from '../provider-proxy/ingress/anthropicPathMatch';
+import { providerForWire } from '../provider-proxy/ingress/providerProxyShared';
 import { extractOpenCodeSessionHeader } from '../provider-proxy/identity/openCodeGoHeaders';
 import {
   isAnthropicProtocolResponse,
@@ -1007,7 +1009,16 @@ export function directUpstreamUrl(
   let tail = path;
   if (versionSegment) {
     if (path === versionSegment) tail = '';
-    else if (path.startsWith(`${versionSegment}/`)) tail = path.slice(versionSegment.length);
+    else {
+      // Strip EVERY leading copy of the root's version segment: a client whose
+      // base URL carries `/v1` (a common shell-env shape) makes the ingress
+      // path `/v1/v1/messages`, and a single strip left `…/v1/v1/messages`
+      // upstream — the multi-wire providers answer that with a path-shape 400.
+      let cursor = tail;
+      while (cursor.startsWith(`${versionSegment}/`)) cursor = cursor.slice(versionSegment.length);
+      if (cursor !== tail && cursor !== '') tail = cursor;
+      else if (cursor === '') tail = '';
+    }
   }
   return `${root}${tail}${query}`;
 }
@@ -1092,7 +1103,15 @@ async function relayDirectUpstream(
     );
     return;
   }
-  const url = directUpstreamUrl(provider, req.url);
+  // MULTI-FORMAT FAN-OUT on the DIRECT tier: a verbatim relay of an
+  // Anthropic-Messages request to a row that declares an anthropic variant
+  // must target THAT base — the primary wire (chat) rejects Anthropic bodies
+  // and Claude model ids outright (commandcode: "Model X must be called via
+  // /provider/v1/messages"). The relay stays verbatim; only the wire changes.
+  const directProvider = isAnthropicMessagesRequest(req.method, req.url)
+    ? providerForWire(provider, 'anthropic')
+    : provider;
+  const url = directUpstreamUrl(directProvider, req.url);
   if (!url) {
     writeJsonError(res, 503, `direct upstream provider '${providerId}' has no base URL`);
     return;

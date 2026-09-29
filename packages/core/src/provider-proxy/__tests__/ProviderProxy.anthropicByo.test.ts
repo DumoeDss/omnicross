@@ -86,6 +86,8 @@ interface MockUpstream {
   lastApiKeyHeader: string | undefined;
   lastBetaHeader: string | undefined;
   lastBody: string | undefined;
+  /** The request path upstream actually received (wire assertions). */
+  lastPath: string | undefined;
 }
 
 function startMockUpstream(): Promise<MockUpstream> {
@@ -97,6 +99,7 @@ function startMockUpstream(): Promise<MockUpstream> {
     lastApiKeyHeader: undefined,
     lastBetaHeader: undefined,
     lastBody: undefined,
+    lastPath: undefined,
   };
   const server = createServer((req, res) => {
     let body = '';
@@ -108,6 +111,7 @@ function startMockUpstream(): Promise<MockUpstream> {
       state.lastBetaHeader = req.headers['anthropic-beta'] as string | undefined;
       state.lastBody = body;
       const url = req.url ?? '';
+      state.lastPath = url;
       // SSE branch — the OpenAI-format streaming response.
       if (url.includes('/chat/completions') && body.includes('"stream":true')) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -167,6 +171,13 @@ function makeLlmConfig(upstreamBase: string): ProviderConfigSource {
     'openai-prov': makeProvider(`${upstreamBase}/v1`, 'openai'),
     'gemini-prov': makeProvider(upstreamBase, 'gemini'),
     'anthropic-prov': makeProvider(upstreamBase, 'anthropic'),
+    // MULTI-WIRE row (commandcode shape): chat primary + an anthropic variant
+    // under a DIFFERENT path, so the wire choice is observable.
+    'multiwire-prov': {
+      ...makeProvider(`${upstreamBase}/provider/v1`, 'openai'),
+      id: 'multiwire-prov',
+      formatVariants: { anthropic: `${upstreamBase}/provider/v1/messages` },
+    } as ReturnType<typeof makeProvider>,
   };
   const gemini: Transformer = new GeminiTransformer();
   const openai: Transformer = new OpenAITransformer();
@@ -333,6 +344,46 @@ describe('ProviderProxy built-in Anthropic /v1/messages BYO (no factory)', () =>
     const json = (await res.json()) as { id?: string; type?: string };
     expect(json.id).toBe(ANTHROPIC_RESPONSE.id);
     expect(json.type).toBe('message');
+  });
+
+  it('multi-wire row: a CLAUDE-family resolved model rides the anthropic VARIANT (verbatim)', async () => {
+    await startProxy();
+    const token = proxy.addRoute(route({ providerId: 'multiwire-prov', model: 'claude-opus-5-5' }));
+    const sentBody = {
+      model: 'claude-opus-5-5',
+      max_tokens: 16,
+      messages: [{ role: 'user', content: 'ping' }],
+    };
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify(sentBody),
+    });
+    expect(res.status).toBe(200);
+    expect(upstream.hits).toBe(1);
+    // The variant path — NOT the chat primary (the production 400 was exactly
+    // this wire miss: "Model must be called via /provider/v1/messages").
+    expect(upstream.lastPath).toBe('/provider/v1/messages');
+    // Verbatim: the Anthropic body is relayed unchanged.
+    expect(upstream.lastBody).toBe(JSON.stringify(sentBody));
+    expect(upstream.lastApiKeyHeader).toBe(PROVIDER_KEY);
+  });
+
+  it('multi-wire row: a NON-Claude mapped model stays on the PRIMARY chat wire (translated)', async () => {
+    await startProxy();
+    const token = proxy.addRoute(route({ providerId: 'multiwire-prov', model: 'deepseek/deepseek-v4.1-flash' }));
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ model: 'deepseek/deepseek-v4.1-flash', max_tokens: 16, messages: [{ role: 'user', content: 'ping' }] }),
+    });
+    expect(res.status).toBe(200);
+    expect(upstream.hits).toBe(1);
+    // Primary chat wire, body TRANSLATED to the chat shape.
+    expect(upstream.lastPath).toBe('/provider/v1/chat/completions');
+    const received = JSON.parse(upstream.lastBody ?? '{}') as Record<string, unknown>;
+    expect(received['model']).toBe('deepseek/deepseek-v4.1-flash');
+    expect(Array.isArray(received['messages'])).toBe(true);
   });
 
   // 7.5
