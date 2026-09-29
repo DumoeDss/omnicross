@@ -110,9 +110,14 @@ function isResponsesCreateUrl(value: string | undefined): boolean {
 //      will never see honored.
 //
 // Nested CARRIERS stay strict at the TYPE level: an unknown input-item /
-// content-part / tool / tool_choice type can carry conversation content, and
+// content-part / tool_choice type can carry conversation content, and
 // dropping one silently corrupts the history — that stays a loud, structured
-// 400. Nested FIELDS are metadata-tier: every codex ResponseItem variant
+// 400. TOOL DECLARATIONS are the deliberate exception (see
+// validateToolDeclaration): a declaration is a capability REQUEST, not
+// content, and the transform layers already skip unrepresentable ones — a
+// codex update shipping a new hosted tool degrades to an audit line instead
+// of client downtime, EXCEPT when nothing executable remains (loud 400).
+// Nested FIELDS are metadata-tier: every codex ResponseItem variant
 // carries optional bookkeeping (`id`, `status`, `phase`, passthrough blocks,
 // encrypted duplicates) for the ORIGINAL provider's dedup/state — the stateless
 // relay reads only each type's content fields, so extra fields are admitted
@@ -276,7 +281,18 @@ function validateToolDeclaration(
       validateToolDeclaration(tool, `${path}.tools[${index}]`, dropped, true));
     return;
   }
-  fail(`${path}.type`, 'is a hosted or unsupported tool type');
+  // Hosted / unknown tool DECLARATIONS (web_search, view_image, local_shell,
+  // …) degrade to audit-dropped instead of a hard 400: a declaration is a
+  // capability REQUEST, not conversation content — the transform layers
+  // (collectCodexTools) already skip what they cannot represent, so a codex
+  // update shipping a new hosted tool turns into a lost capability with an
+  // audit line, not client downtime. The one loud failure left is the
+  // ALL-tools-dropped case, checked by the caller at the array level.
+  if (typeof type === 'string' && type !== '') {
+    dropped.push(`${path}(${type})`);
+    return;
+  }
+  fail(`${path}.type`, 'must be a tool type string');
 }
 
 function validateToolChoice(value: unknown, path: string): void {
@@ -444,6 +460,15 @@ export function validateReducedResponsesRequest(
   if (body.tools !== undefined) {
     if (!Array.isArray(body.tools)) fail('$.tools', 'must be an array');
     body.tools.forEach((tool, index) => validateToolDeclaration(tool, `$.tools[${index}]`, unknownFields));
+    // Every declaration hosted/unknown ⇒ the reduced target can execute NONE
+    // of the client's tools. Serving that silently returns a model that can
+    // only answer in prose — worse than the 400 it replaces. Fail loudly.
+    const executable = body.tools.some(
+      (tool) => isRecord(tool) && (tool.type === 'function' || tool.type === 'custom'),
+    );
+    if (body.tools.length > 0 && !executable) {
+      fail('$.tools', 'contains only hosted/unsupported tool types; the reduced target could execute none of them');
+    }
   }
   if (body.tool_choice !== undefined) validateToolChoice(body.tool_choice, '$.tool_choice');
 
