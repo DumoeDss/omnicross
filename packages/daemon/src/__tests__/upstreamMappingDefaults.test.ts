@@ -108,6 +108,20 @@ describe('auto (non-force) declared-model passthrough', () => {
     expect(effectiveUpstreamModelMappings(passthrough, providers, catalog)['z-ai']).toEqual([]);
   });
 
+  it('a DISABLED model stays undeclared even while the flat models[] list still carries it', () => {
+    // Production shape (commandcode): the UI switches a model off by writing
+    // `enabled: false` into modelConfigs while `models[]` keeps every id. The
+    // old union fed those ids into the identity rows, so an exact mapping beat
+    // the operator's `*` default and the disabled model kept being served.
+    const withDisabled: DaemonProviderConfig[] = [{
+      ...providers[0],
+      models: ['glm-5.2', 'glm-5.3'],
+      modelConfigs: [{ id: 'glm-5.3', enabled: false }],
+    }];
+    const effective = effectiveUpstreamModelMappings(config, withDisabled, catalog);
+    expect(effective['z-ai']).not.toContainEqual({ source: 'glm-5.3', target: 'glm-5.3' });
+  });
+
   it('disabled modelConfigs do not count as declared', () => {
     const withConfigs: DaemonProviderConfig[] = [{
       ...providers[0],

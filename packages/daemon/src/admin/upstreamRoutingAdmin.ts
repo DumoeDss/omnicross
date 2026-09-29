@@ -58,8 +58,22 @@ function declaredUpstreamModels(
   if (target.kind === 'provider') {
     const provider = providers.find((candidate) => candidate.id === target.providerId);
     if (!provider) return [];
+    // DISABLED models are NOT declared: the UI switches a model off by writing
+    // `modelConfigs[].enabled = false` while the flat `models[]` list keeps the
+    // id. Feeding that id into the identity rows made an exact mapping beat the
+    // operator's `*` default, so a disabled model kept being served verbatim
+    // (and, for multi-wire rows, on the wrong wire). The config row is
+    // authoritative when it exists.
+    const disabled = new Set(
+      (provider.modelConfigs ?? [])
+        .filter((config) => config.enabled === false)
+        .map((config) => config.id.trim().toLocaleLowerCase())
+        .filter(Boolean),
+    );
     return [...new Set([
-      ...(provider.models ?? []).map((model) => model.trim()).filter(Boolean),
+      ...(provider.models ?? [])
+        .map((model) => model.trim())
+        .filter((model) => model !== '' && !disabled.has(model.toLocaleLowerCase())),
       ...(provider.modelConfigs ?? [])
         .filter((config) => config.enabled !== false)
         .map((config) => config.id.trim())

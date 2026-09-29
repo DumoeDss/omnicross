@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { LLMProvider } from '@omnicross/contracts/llm-config';
 
-import { providerForWire } from '../providerProxyShared';
+import { isClaudeFamilyModelId, providerForWire } from '../providerProxyShared';
 
 const row: LLMProvider = {
   id: 'deepseek',
@@ -65,4 +65,15 @@ describe('providerForWire', () => {
     expect(view.apiFormat).toBe('openai-response');
     expect(view.api_base_url).toBe('https://api.deepseek.com');
   });
+
+describe('isClaudeFamilyModelId', () => {
+  it('matches the Claude family the anthropic variant serves; foreign ids do not', () => {
+    for (const id of ['claude-opus-5-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', 'anthropic/claude-x']) {
+      expect(isClaudeFamilyModelId(id), id).toBe(true);
+    }
+    for (const id of ['deepseek/deepseek-v4.1-flash', 'gpt-6-sol', 'zai-org/GLM-5.3', 'moonshotai/Kimi-K3', 'Qwen/Qwen3.8-Max']) {
+      expect(isClaudeFamilyModelId(id), id).toBe(false);
+    }
+  });
+});
 });
