@@ -304,7 +304,9 @@ describe('validateReducedResponsesRequest', () => {
     ['truncation value', { input: 'x', truncation: 'aggressive' }, '$.truncation'],
     ['text format type', { input: 'x', text: { format: { type: 'yaml' } } }, '$.text.format.type'],
     ['text format schema shape', { input: 'x', text: { format: { type: 'json_schema', schema: 'oops' } } }, '$.text.format.schema'],
-    ['hosted tool', { input: 'x', tools: [{ type: 'web_search_preview' }] }, '$.tools[0].type'],
+    // Single hosted tool = NOTHING executable remains -> loud 400 at the
+    // array level (a coding agent with no hands must not fail silently).
+    ['hosted-only tools', { input: 'x', tools: [{ type: 'web_search_preview' }] }, '$.tools'],
     ['image file reference', { input: [{ role: 'user', content: [{ type: 'input_image', file_id: 'file_secret' }] }] }, '$.input[0].content[0].file_id'],
     ['audio part', { input: [{ role: 'user', content: [{ type: 'input_audio', audio_url: 'secret' }] }] }, '$.input[0].content[0].type'],
     ['file part', { input: [{ role: 'user', content: [{ type: 'input_file', file_id: 'file_secret' }] }] }, '$.input[0].content[0].type'],
@@ -313,8 +315,41 @@ describe('validateReducedResponsesRequest', () => {
     ['bad reasoning shape', { input: 'x', reasoning: { effort: 7 } }, '$.reasoning.effort'],
     ['invalid function namespace', { input: [{ type: 'function_call', call_id: 'call_1', name: 'f', arguments: '{}', namespace: 7 }] }, '$.input[0].namespace'],
     ['missing call id', { input: [{ type: 'function_call', name: 'f', arguments: '{}' }] }, '$.input[0].call_id'],
-    ['top-level namespace declaration', { input: 'x', tools: [{ type: 'namespace', name: 'ns', tools: [] }] }, '$.tools[0].type'],
+    // Top-level namespace (dropped by the gate) + nothing else executable.
+    ['top-level namespace declaration', { input: 'x', tools: [{ type: 'namespace', name: 'ns', tools: [] }] }, '$.tools'],
   ];
+
+  it('admits hosted/unknown tool DECLARATIONS alongside executable ones, audit-dropping them (codex-update compat)', () => {
+    const dropped = validateReducedResponsesRequest({
+      input: 'x',
+      tools: [
+        { type: 'function', name: 'shell', parameters: { type: 'object' } },
+        { type: 'web_search' },
+        { type: 'view_image' },
+        { type: 'brand_new_hosted_tool', vendor_field: 1 },
+        { type: 'custom', name: 'apply_patch' },
+      ],
+    }, chatCapabilities);
+    // The audit names carry the dropped type so operators can see the loss.
+    expect(dropped).toContain('$.tools[1](web_search)');
+    expect(dropped).toContain('$.tools[2](view_image)');
+    expect(dropped).toContain('$.tools[3](brand_new_hosted_tool)');
+    // Executable declarations are NOT in the dropped list.
+    expect(dropped).not.toContain(expect.stringMatching(/^\$.tools\[0\]/));
+    expect(dropped).not.toContain(expect.stringMatching(/^\$.tools\[4\]/));
+  });
+
+  it('a tools array of ONLY hosted declarations fails loudly with the honest reason', () => {
+    expect(() => validateReducedResponsesRequest({
+      input: 'x',
+      tools: [{ type: 'local_shell' }, { type: 'web_search' }],
+    }, chatCapabilities)).toThrow(expect.objectContaining({
+      name: 'OpenAIOperationError',
+      code: 'unsupported_capability',
+      status: 400,
+      message: expect.stringContaining('could execute none of them'),
+    }));
+  });
 
   it.each(rejected)('rejects %s with a safe structured path', (_name, body, path) => {
     expect(() => validateReducedResponsesRequest(body, chatCapabilities)).toThrow(expect.objectContaining({
