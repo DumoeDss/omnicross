@@ -231,7 +231,7 @@ export function ApiKeyPoolSection({ providerId }: ApiKeyPoolSectionProps) {
                         {/* Plan quota windows (Z.AI coding plan, MiniMax Token
                             Plan, …) — present only when the row has an adapter. */}
                         {entry.quota && entry.quota.windows.length > 0 ? (
-                          <div className="space-y-1 pt-1">
+                          <div className="grid gap-1 pt-1 sm:grid-cols-2">
                             {entry.quota.windows.map((window) => {
                               const percent = window.usedPercent === null
                                 ? null
