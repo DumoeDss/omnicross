@@ -1163,7 +1163,8 @@
       "notCaptured": "No fingerprint yet",
       "capturedAt": "Client fingerprint captured at {{time}}"
     },
-    "allowance": {
+    "allowance": {
+        "monthly": "Aylık",
       "codexRefreshConfirmTitle": "Bu kotayı yenilemek için Luna kullanılsın mı?",
       "codexRefreshConfirmDescription": "En güncel kotayı almak için bu Codex hesabıyla gpt-5.6-luna modeline gerçek bir istek gönderilecek. Bu işlem abonelik kotasının küçük bir kısmını tüketir. Devam edilsin mi?",
       "codexRefreshConfirmAction": "İstek gönder ve yenile"

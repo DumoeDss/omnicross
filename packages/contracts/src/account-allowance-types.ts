@@ -38,6 +38,14 @@ export type AllowanceWindow = {
    * 阻塞对应族模型调度). Additive — older snapshots parse unchanged.
    */
   disabled?: boolean;
+  /**
+   * Present when the window is DISPLAY-ONLY for scheduling: the operator
+   * should see the percent (e.g. OpenCodeGo's monthly bar, whose "Use
+   * balance" fallback may keep a percent-exhausted key serving), but the
+   * allowance policy must never pause/demote on it. Cleared when the window
+   * is genuinely binding (upstream `status: rate-limited`). Additive.
+   */
+  advisory?: boolean;
 };
 
 /**

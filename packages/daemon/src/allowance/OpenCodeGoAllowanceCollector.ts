@@ -5,14 +5,16 @@
  * static bearer key, mirroring the other collectors' cache contract (5-minute
  * cache, per-account in-flight merging). The payload reports three percent
  * windows; rolling(≈5h) + weekly are always surfaced. The MONTHLY window is
- * gated: the console's "Use balance" fallback can keep a monthly-exhausted
- * key SERVING, and the scheduling policy pauses on the worst reported window,
- * so a percent-only monthly window would strand usable keys (oh-my-pi reached
- * the same conclusion for its ranking scopes). It is therefore surfaced ONLY
- * when the upstream itself reports `status: "rate-limited"` — the case where
- * the key is genuinely dead (observed in production as
- * `429 GoUsageLimitError "Go usage limit exceeded", limitName: monthly`);
- * invisible-before, the account just failed every request with a bare 429.
+ * DISPLAYED whenever the payload carries it, but is marked `advisory` unless
+ * the upstream reports `status: "rate-limited"` on it: the console's "Use
+ * balance" fallback can keep a monthly-exhausted key SERVING, and the
+ * scheduling policy pauses on the worst reported window, so a percent-only
+ * monthly window must never drive scheduling (oh-my-pi reached the same
+ * conclusion for its ranking scopes). When the upstream DOES flag
+ * rate-limited (observed in production as `429 GoUsageLimitError
+ * "Go usage limit exceeded", limitName: monthly`), the window loses the
+ * advisory mark and its authoritative status (→ 100%) pauses the genuinely
+ * dead account.
  *
  * `status: "rate-limited"` is authoritative over the percent (→ 100%).
  */
@@ -81,6 +83,7 @@ function windowFromPayload(
   minutes: number,
   payload: OpenCodeGoUsageWindowPayload | undefined,
   now: number,
+  advisory = false,
 ): AllowanceWindow {
   // The window's own status outranks the percent: a rate-limited window may
   // carry a stale percent below 100.
@@ -96,6 +99,7 @@ function windowFromPayload(
     ...(resetsAt !== undefined ? { resetsAt } : {}),
     remainingSeconds: secondsUntil(resetsAt, now),
     state: usedPercent !== null || resetsAt ? 'fresh' : 'unavailable',
+    ...(advisory && !statusRateLimited ? { advisory: true } : {}),
   };
 }
 
@@ -192,11 +196,10 @@ export class OpenCodeGoAllowanceCollector {
       windows: [
         windowFromPayload('five-hour', '5 hours', 5 * 60, usage?.rolling ?? undefined, now),
         windowFromPayload('seven-day', '7 days', 7 * 24 * 60, usage?.weekly ?? undefined, now),
-        // MONTHLY, only when the upstream says the account is genuinely
-        // rate-limited on it (see the header comment for the gating rationale).
-        ...(usage?.monthly?.status === 'rate-limited'
-          ? [windowFromPayload('monthly', 'monthly', 30 * 24 * 60, usage?.monthly, now)]
-          : []),
+        // MONTHLY always DISPLAYED (advisory) while the balance fallback may
+        // still be serving; genuinely rate-limited drops the advisory mark so
+        // the scheduling policy pauses the dead account (header rationale).
+        windowFromPayload('monthly', 'monthly', 30 * 24 * 60, usage?.monthly ?? undefined, now, true),
       ],
     };
     this.store.set(snapshot);

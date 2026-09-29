@@ -83,6 +83,7 @@ function freshWorstWindow(snapshot: AccountAllowanceSnapshot, resolvedModel?: st
     : undefined;
   return snapshot.windows
     .filter((window) => window.state === 'fresh' &&
+      window.advisory !== true &&
       (typeof window.usedPercent === 'number' || window.disabled === true) &&
       (!resolvedModel || snapshot.providerId !== 'antigravity' || window.scope === 'all' || window.modelFamily === family))
     .map((window) => window.disabled === true ? { ...window, usedPercent: 100 } : window)

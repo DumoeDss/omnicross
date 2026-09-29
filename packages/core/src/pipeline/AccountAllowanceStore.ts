@@ -67,6 +67,7 @@ function cloneWindow(window: AllowanceWindow): AllowanceWindow {
     ...(window.remainingSeconds === undefined ? {} : { remainingSeconds: window.remainingSeconds }),
     state: window.state,
     ...(window.disabled === undefined ? {} : { disabled: window.disabled }),
+    ...(window.advisory === undefined ? {} : { advisory: window.advisory }),
   };
 }
 
@@ -193,6 +194,9 @@ export function normalizeAccountAllowanceSnapshot(value: unknown): AccountAllowa
       // antigravity: the disabled counter-family hard-block flag (additive;
       // absent on every other provider's windows).
       ...(window.disabled === true ? { disabled: true } : {}),
+      // display-only windows (opencodego percent-only monthly): scheduling
+      // never pauses on them (additive; absent = scheduling-relevant).
+      ...(window.advisory === true ? { advisory: true } : {}),
       state,
     });
   }
