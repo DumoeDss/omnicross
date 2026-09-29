@@ -1209,6 +1209,10 @@
       "launch": "Spustit",
       "launchTitle": "Spustit {{name}}",
       "launchDescription": "Otevře nový terminál na hostiteli daemona se spuštěným tímto CLI, směrovaným přes proxy daemona. Vyberte volitelný pracovní adresář.",
+      "autoApprove": {
+        "label": "Automaticky schvalovat příkazy",
+        "description": "Codex se spustí s --full-auto (sandbox zápisu do pracovního prostoru); Claude Code s --dangerously-skip-permissions. Vypnuto zachovává vlastní zásady schvalování každého CLI."
+      },
       "cwdLabel": "Pracovní adresář",
       "cwdPlaceholder": "/cesta/k/vašemu/projektu",
       "runningVia": "Běží · {{provider}} / {{model}}",

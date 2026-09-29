@@ -1209,6 +1209,10 @@
       "launch": "Запустить",
       "launchTitle": "Запустить {{name}}",
       "launchDescription": "Открывает новый терминал на хосте демона с этим CLI, маршрутизированным через прокси демона. Выберите необязательную рабочую директорию.",
+      "autoApprove": {
+        "label": "Автоматически одобрять команды",
+        "description": "Codex запускается с --full-auto (песочница записи в рабочей папке); Claude Code — с --dangerously-skip-permissions. Выключено — действует собственная политика одобрения каждого CLI."
+      },
       "cwdLabel": "Рабочая директория",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Выполняется · {{provider}} / {{model}}",

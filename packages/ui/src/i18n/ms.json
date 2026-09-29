@@ -1209,6 +1209,10 @@
       "launch": "Lancarkan",
       "launchTitle": "Lancarkan {{name}}",
       "launchDescription": "Membuka terminal baharu pada hos daemon yang menjalankan CLI ini, dihalakan melalui proksi daemon. Pilih direktori kerja pilihan.",
+      "autoApprove": {
+        "label": "Luluskan arahan secara automatik",
+        "description": "Codex bermula dengan --full-auto (sandbox tulis ruang kerja); Claude Code dengan --dangerously-skip-permissions. Dimatikan, setiap CLI mengekalkan polisi kelulusannya sendiri."
+      },
       "cwdLabel": "Direktori kerja",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Berjalan · {{provider}} / {{model}}",

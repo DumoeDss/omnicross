@@ -79,6 +79,7 @@ export function createCliAdapter(): AgentCliApi {
         model?: string;
         keyId?: string;
         bindingId?: string;
+        autoApprove?: boolean;
       },
     ): Promise<CliLaunchResult> {
       try {

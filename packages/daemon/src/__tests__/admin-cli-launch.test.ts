@@ -292,6 +292,32 @@ describe('Code CLI launch', () => {
     expect(runnerCalls).toHaveLength(0);
   });
 
+  it('autoApprove appends the per-CLI flag; absent keeps the CLI own policy', async () => {
+    // codex: --full-auto
+    let r = await adminFetch('POST', '/admin/api/cli/codex/launch', { autoApprove: true });
+    expect(r.status).toBe(200);
+    // claude: --dangerously-skip-permissions
+    r = await adminFetch('POST', '/admin/api/cli/claude/launch', { autoApprove: true });
+    expect(r.status).toBe(200);
+    expect(openerCalls).toHaveLength(2);
+    expect(openerCalls[0].extraArgs).toContain('--full-auto');
+    expect(openerCalls[1].extraArgs).toContain('--dangerously-skip-permissions');
+    openerCalls.length = 0;
+
+    // OFF (absent): NO approval flags ride the launch — the CLI's own
+    // approval config stays authoritative.
+    r = await adminFetch('POST', '/admin/api/cli/codex/launch', {});
+    expect(r.status).toBe(200);
+    r = await adminFetch('POST', '/admin/api/cli/claude/launch', {});
+    expect(r.status).toBe(200);
+    expect(openerCalls).toHaveLength(2);
+    for (const call of openerCalls) {
+      expect(call.extraArgs).not.toContain('--full-auto');
+      expect(call.extraArgs).not.toContain('--dangerously-skip-permissions');
+      expect(call.extraArgs).not.toContain('--dangerously-bypass-approvals-and-sandbox');
+    }
+  });
+
   it('launches claude: opens a terminal with the redirect env; token never in the response', async () => {
     const r = await adminFetch('POST', '/admin/api/cli/claude/launch', { cwd: '/tmp/work' });
     expect(r.status).toBe(200);

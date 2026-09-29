@@ -2127,6 +2127,10 @@
       "launch": "Launch",
       "launchTitle": "Launch {{name}}",
       "launchDescription": "Opens a new terminal on the daemon host running this CLI, routed through the daemon proxy. Pick an optional working directory.",
+      "autoApprove": {
+        "label": "Auto-approve commands",
+        "description": "Codex launches with --full-auto (workspace-write sandbox); Claude Code with --dangerously-skip-permissions. Off keeps each CLI's own approval policy."
+      },
       "cwdLabel": "Working directory",
       "cwdPlaceholder": "/path/to/your/project",
       "routeKeyLabel": "Routing target",

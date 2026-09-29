@@ -4,11 +4,15 @@
  * Polls `GET {go-base}/v1/usage` per OpenCodeGo account with the account's
  * static bearer key, mirroring the other collectors' cache contract (5-minute
  * cache, per-account in-flight merging). The payload reports three percent
- * windows; only rolling(≈5h) + weekly are surfaced — the MONTHLY window is
- * deliberately dropped: the console's "Use balance" fallback keeps a
- * monthly-exhausted key SERVING, and the scheduling policy pauses on the worst
- * reported window, so reporting monthly would strand usable keys (oh-my-pi
- * reached the same conclusion for its ranking scopes).
+ * windows; rolling(≈5h) + weekly are always surfaced. The MONTHLY window is
+ * gated: the console's "Use balance" fallback can keep a monthly-exhausted
+ * key SERVING, and the scheduling policy pauses on the worst reported window,
+ * so a percent-only monthly window would strand usable keys (oh-my-pi reached
+ * the same conclusion for its ranking scopes). It is therefore surfaced ONLY
+ * when the upstream itself reports `status: "rate-limited"` — the case where
+ * the key is genuinely dead (observed in production as
+ * `429 GoUsageLimitError "Go usage limit exceeded", limitName: monthly`);
+ * invisible-before, the account just failed every request with a bare 429.
  *
  * `status: "rate-limited"` is authoritative over the percent (→ 100%).
  */
@@ -50,6 +54,7 @@ interface OpenCodeGoUsagePayload {
   usage?: {
     rolling?: OpenCodeGoUsageWindowPayload | null;
     weekly?: OpenCodeGoUsageWindowPayload | null;
+    monthly?: OpenCodeGoUsageWindowPayload | null;
   } | null;
 }
 
@@ -71,7 +76,7 @@ function secondsUntil(instant: string | undefined, now: number): number | undefi
 }
 
 function windowFromPayload(
-  id: 'five-hour' | 'seven-day',
+  id: 'five-hour' | 'seven-day' | 'monthly',
   label: string,
   minutes: number,
   payload: OpenCodeGoUsageWindowPayload | undefined,
@@ -187,6 +192,11 @@ export class OpenCodeGoAllowanceCollector {
       windows: [
         windowFromPayload('five-hour', '5 hours', 5 * 60, usage?.rolling ?? undefined, now),
         windowFromPayload('seven-day', '7 days', 7 * 24 * 60, usage?.weekly ?? undefined, now),
+        // MONTHLY, only when the upstream says the account is genuinely
+        // rate-limited on it (see the header comment for the gating rationale).
+        ...(usage?.monthly?.status === 'rate-limited'
+          ? [windowFromPayload('monthly', 'monthly', 30 * 24 * 60, usage?.monthly, now)]
+          : []),
       ],
     };
     this.store.set(snapshot);

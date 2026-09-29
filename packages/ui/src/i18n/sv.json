@@ -1209,6 +1209,10 @@
       "launch": "Starta",
       "launchTitle": "Starta {{name}}",
       "launchDescription": "Öppnar en ny terminal på daemonvärden som kör detta CLI, routed via daemonproxy. Välj en valfri arbetskatalog.",
+      "autoApprove": {
+        "label": "Godkänn kommandon automatiskt",
+        "description": "Codex startar med --full-auto (sandbox med skrivrättigheter i arbetsytan); Claude Code med --dangerously-skip-permissions. Av lägger varje CLI sin egen godkännandepolicy."
+      },
       "cwdLabel": "Arbetskatalog",
       "cwdPlaceholder": "/sökväg/till/ditt/projekt",
       "runningVia": "Körs · {{provider}} / {{model}}",

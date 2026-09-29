@@ -1209,6 +1209,10 @@
       "launch": "실행",
       "launchTitle": "{{name}} 실행",
       "launchDescription": "데몬 호스트에서 새 터미널을 열고 이 CLI를 데몬 프록시를 통해 실행합니다. 선택적으로 작업 디렉토리를 지정하세요.",
+      "autoApprove": {
+        "label": "명령 자동 승인",
+        "description": "Codex는 --full-auto로(워크스페이스 쓰기 샌드박스), Claude Code는 --dangerously-skip-permissions로 시작합니다. 끄면 각 CLI 자체 승인 정책을 따릅니다."
+      },
       "cwdLabel": "작업 디렉토리",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "실행 중 · {{provider}} / {{model}}",

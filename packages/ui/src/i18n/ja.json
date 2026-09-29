@@ -1537,6 +1537,10 @@
       "launch": "起動",
       "launchTitle": "{{name}} を起動",
       "launchDescription": "デーモンホストで新しいターミナルを開き、この CLI をデーモンプロキシ経由で実行します。作業ディレクトリを任意で指定できます。",
+      "autoApprove": {
+        "label": "コマンドの自動承認",
+        "description": "Codex は --full-auto で（ワークスペース書き込みサンドボックス）、Claude Code は --dangerously-skip-permissions で起動します。オフの場合は各 CLI 自身の承認ポリシーに従います。"
+      },
       "cwdLabel": "作業ディレクトリ",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "実行中 · {{provider}} / {{model}}",

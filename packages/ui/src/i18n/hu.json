@@ -1209,6 +1209,10 @@
       "launch": "Indítás",
       "launchTitle": "{{name}} indítása",
       "launchDescription": "Új terminált nyit a daemon gazdagépén, amelyen ez a CLI fut, a daemon proxyn keresztül irányítva. Válasszon opcionális munkakönyvtárat.",
+      "autoApprove": {
+        "label": "Parancsok automatikus jóváhagyása",
+        "description": "A Codex --full-auto-val (munkaterület-író sandbox), a Claude Code --dangerously-skip-permissions jelzővel indul. Kikapcsolva mindegyik CLI saját jóváhagyási szabályzata marad érvényben."
+      },
       "cwdLabel": "Munkakönyvtár",
       "cwdPlaceholder": "/elérési/út/a/projekthez",
       "runningVia": "Fut · {{provider}} / {{model}}",

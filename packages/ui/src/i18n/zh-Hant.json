@@ -2130,6 +2130,10 @@
       "launch": "啟動",
       "launchTitle": "啟動 {{name}}",
       "launchDescription": "在 Daemon 主機上開啟新的終端機視窗執行此 CLI，並透過 Daemon 代理路由。可選填工作目錄。",
+      "autoApprove": {
+        "label": "自動核准命令",
+        "description": "Codex 以 --full-auto 啟動（工作區寫入沙箱）；Claude Code 以 --dangerously-skip-permissions 啟動。關閉時沿用各 CLI 自身的核准策略。"
+      },
       "cwdLabel": "工作目錄",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "執行中 · {{provider}} / {{model}}",

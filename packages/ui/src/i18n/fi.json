@@ -1209,6 +1209,10 @@
       "launch": "Käynnistä",
       "launchTitle": "Käynnistä {{name}}",
       "launchDescription": "Avaa uuden päätteen demonin isäntäkoneella, jossa tämä CLI on käynnissä demonivälityspalvelimen kautta. Valitse valinnainen työhakemisto.",
+      "autoApprove": {
+        "label": "Hyväksy komennot automaattisesti",
+        "description": "Codex käynnistyy --full-auto-lipulla (työtilan kirjoitushiekkalaatikko); Claude Code --dangerously-skip-permissions-lipulla. Pois päältä kukin CLI noudattaa omaa hyväksymiskäytäntöään."
+      },
       "cwdLabel": "Työhakemisto",
       "cwdPlaceholder": "/polku/projektillesi",
       "runningVia": "Käynnissä · {{provider}} / {{model}}",

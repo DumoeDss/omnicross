@@ -35,7 +35,13 @@ export interface UseCliResult {
   upgrade: (cli: string) => Promise<CliUpgradeResult>;
   launch: (
     cli: string,
-    input?: { cwd?: string; keyId?: string; providerId?: string; bindingId?: string },
+    input?: {
+      cwd?: string;
+      keyId?: string;
+      providerId?: string;
+      bindingId?: string;
+      autoApprove?: boolean;
+    },
   ) => Promise<CliLaunchResult>;
   stop: (id: string) => Promise<void>;
 }

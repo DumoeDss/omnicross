@@ -1209,6 +1209,10 @@
       "launch": "Starten",
       "launchTitle": "{{name}} starten",
       "launchDescription": "Opent een nieuwe terminal op de daemonhost waarop deze CLI wordt uitgevoerd, gerouteerd via de daemonproxy. Kies een optionele werkmap.",
+      "autoApprove": {
+        "label": "Opdrachten automatisch goedkeuren",
+        "description": "Codex start met --full-auto (sandbox voor werkruimte-schrijven); Claude Code met --dangerously-skip-permissions. Uit laat het goedkeuringsbeleid van elke CLI ongewijzigd."
+      },
       "cwdLabel": "Werkmap",
       "cwdPlaceholder": "/pad/naar/uw/project",
       "runningVia": "Actief · {{provider}} / {{model}}",

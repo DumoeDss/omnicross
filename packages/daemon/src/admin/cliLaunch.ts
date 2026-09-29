@@ -1215,6 +1215,12 @@ export async function handleCliLaunch(
   const bindingId = typeof body['bindingId'] === 'string' && body['bindingId'].trim()
     ? body['bindingId'].trim()
     : undefined;
+  // Auto-approve (opt-in per launch): stop the CLI from asking permission for
+  // command execution. Codex gets --full-auto (workspace-write sandbox +
+  // approvals only on failure — NOT the unsandboxed bypass); Claude Code gets
+  // --dangerously-skip-permissions. Absent/false keeps the CLI's own approval
+  // config untouched.
+  const autoApprove = body['autoApprove'] === true;
 
   let target: LaunchTarget | undefined;
   let keyLaunch: { keyId: string; keyName: string; bindingId?: string; bindingName?: string } | undefined;
@@ -1337,11 +1343,16 @@ export async function handleCliLaunch(
       launch.onSessionEnd();
     }
   };
+  const extraArgs = [...(launch.extraArgs ?? [])];
+  if (autoApprove) {
+    if (launchCli === 'codex') extraArgs.push('--full-auto');
+    else if (launchCli === 'claude') extraArgs.push('--dangerously-skip-permissions');
+  }
   try {
     const cleanup = opener({
       cli,
       command: meta.command,
-      extraArgs: launch.extraArgs ?? [],
+      extraArgs,
       env: launch.env,
       cwd,
       platform,
