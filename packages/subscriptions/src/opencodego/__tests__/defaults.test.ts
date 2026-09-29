@@ -1,6 +1,6 @@
 /**
  * Defaults tests for the built-in OpenCodeGo model map + fallback chain.
- * Covers the `complex` → `glm-5.1` choice, the dormant
+ * Covers the `complex` → `glm-5.2` choice, the dormant
  * `background` scenario, and every aligned fallback list.
  */
 
@@ -13,8 +13,8 @@ import {
 import { nextFallbackEntry } from '../FallbackChain';
 
 describe('DEFAULT_OPENCODEGO_MODEL_MAP', () => {
-  it('maps complex to glm-5.1 (D4 fix, was mimo-v2-pro)', () => {
-    expect(DEFAULT_OPENCODEGO_MODEL_MAP.complex.modelId).toBe('glm-5.1');
+  it('maps complex to glm-5.2 (glm-5.1 deprecated upstream; D4 fix was mimo-v2-pro)', () => {
+    expect(DEFAULT_OPENCODEGO_MODEL_MAP.complex.modelId).toBe('glm-5.2');
   });
 
   it('maps background to qwen3.5-plus with the configured temperature/maxTokens', () => {

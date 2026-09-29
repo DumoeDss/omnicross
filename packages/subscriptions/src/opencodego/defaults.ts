@@ -25,7 +25,9 @@ export const DEFAULT_OPENCODEGO_MODEL_MAP: Record<OpenCodeGoScenario, OpenCodeGo
   },
   complex: {
     // Complex tasks use the higher-capability GLM variant by default.
-    modelId: 'glm-5.1',
+    // glm-5.1 was deprecated upstream (410 "Use glm-5.2 instead") — glm-5.2 is
+    // the vendor-designated replacement.
+    modelId: 'glm-5.2',
   },
   fast: {
     modelId: 'qwen3.6-plus',
