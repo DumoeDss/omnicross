@@ -642,6 +642,43 @@ describe('IntegrationManager', () => {
     expect(status.message).toBeUndefined();
   });
 
+  it('flags a pristine pre-discovery Codex install (plan repair + status message) and refresh upgrades it', async () => {
+    const f = fixture();
+    const codexPath = join(f.home, '.codex', 'config.toml');
+    mkdirSync(join(f.home, '.codex'), { recursive: true });
+    await f.manager.install('codex');
+
+    // Simulate an install created by an OLDER Omnicross: strip the
+    // model_catalog_url line the current renderer adds, and re-anchor the
+    // installed hash so the file reads as pristine.
+    const rendered = readFileSync(codexPath, 'utf8');
+    const legacy = rendered.replace(/^\s*model_catalog_url = "[^"]+"\n/m, '');
+    writeFileSync(codexPath, legacy, 'utf8');
+    const state = f.store.load();
+    state.clients.codex!.installedHash = createHash('sha256').update(legacy, 'utf8').digest('hex');
+    f.store.save(state);
+
+    // plan() offers repair (not a bare 'none') and explains why.
+    const plan = await f.manager.plan('codex');
+    expect(plan.action).toBe('repair');
+    expect(plan.warnings.join(' ')).toMatch(/predates runtime model-list discovery/);
+
+    // status stays enabled (routing works) but says the toggle is inert.
+    const status = (await f.manager.listStatus()).find((s) => s.client === 'codex');
+    expect(status?.status).toBe('enabled');
+    expect(status?.message).toMatch(/predates runtime model-list discovery/);
+
+    // The toggle flip (refreshInstalledClients) auto-upgrades the file.
+    const rewritten = await f.manager.refreshInstalledClients();
+    expect(rewritten).toContain('codex');
+    expect(readFileSync(codexPath, 'utf8')).toContain(
+      'model_catalog_url = "http://127.0.0.1:8765/v1/codex-model-catalog"',
+    );
+    // And the flag is clean afterwards.
+    const after = (await f.manager.listStatus()).find((s) => s.client === 'codex');
+    expect(after?.message).toBeUndefined();
+  });
+
   it('revokes a freshly minted key when state persistence fails before installation', async () => {
     const f = fixture();
     vi.spyOn(f.store, 'save').mockImplementation(() => {
