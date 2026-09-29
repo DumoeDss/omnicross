@@ -38,6 +38,7 @@ describe('buildCodexModelCatalog', () => {
       'support_verbosity',
       'truncation_policy',
       'experimental_supported_tools',
+      'base_instructions',
     ]) {
       expect(model[key], `missing required field ${key}`).toBeDefined();
     }

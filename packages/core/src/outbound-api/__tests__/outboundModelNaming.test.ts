@@ -281,3 +281,20 @@ describe('GET /v1/models — realNames mode', () => {
     ]);
   });
 });
+
+describe('subscription-target realNames regression (user repro)', () => {
+  it('passthrough account-pool lists the subscription catalog in realNames mode', async () => {
+    const res = await call({
+      url: '/v1/models',
+      modelNaming: { realNames: true },
+      bindings: [binding({
+        endpoint: 'messages',
+        modelMode: 'passthrough',
+        target: { kind: 'account-pool', providerId: 'claude' },
+      })],
+    });
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body) as { data: Array<{ id: string }> };
+    expect(json.data.map((m) => m.id)).toEqual(['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5', 'claude-fable-5-1']);
+  });
+});

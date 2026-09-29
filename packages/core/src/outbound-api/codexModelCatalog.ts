@@ -79,6 +79,13 @@ export interface CodexModelInfo {
   readonly support_verbosity: boolean;
   readonly truncation_policy: { mode: 'tokens'; limit: number };
   readonly experimental_supported_tools: readonly string[];
+  /**
+   * Required by Codex >= 0.156's ModelInfo deserializer. An empty string keeps
+   * Codex's own prompt composition (the client logs a benign warning that the
+   * model has neither base_instructions nor model_messages.instructions_template
+   * and falls back to its built-in prompt).
+   */
+  readonly base_instructions: string;
   readonly context_window?: number;
   readonly default_reasoning_level?: string;
 }
@@ -123,6 +130,7 @@ export function buildCodexModelCatalog(entries: readonly RealModelEntry[]): Code
         support_verbosity: false,
         truncation_policy: TRUNCATION_POLICY,
         experimental_supported_tools: [],
+        base_instructions: '',
         ...(contextWindow !== undefined ? { context_window: contextWindow } : {}),
         ...(defaultLevel !== undefined ? { default_reasoning_level: defaultLevel } : {}),
       };
