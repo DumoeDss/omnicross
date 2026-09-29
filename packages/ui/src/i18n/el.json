@@ -1209,6 +1209,10 @@
       "launch": "Εκκίνηση",
       "launchTitle": "Εκκίνηση {{name}}",
       "launchDescription": "Ανοίγει νέο τερματικό στον κεντρικό υπολογιστή daemon εκτελώντας αυτό το CLI, δρομολογημένο μέσω του proxy daemon. Επιλέξτε προαιρετικό κατάλογο εργασίας.",
+      "autoApprove": {
+        "label": "Αυτόματη έγκριση εντολών",
+        "description": "Το Codex εκκινεί με --full-auto (sandbox εγγραφής χώρου εργασίας)· το Claude Code με --dangerously-skip-permissions. Ανενεργό, κάθε CLI κρατεί τη δική του πολιτική έγκρισης."
+      },
       "cwdLabel": "Κατάλογος εργασίας",
       "cwdPlaceholder": "/διαδρομή/προς/το/έργο/σας",
       "runningVia": "Εκτελείται · {{provider}} / {{model}}",

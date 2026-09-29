@@ -1209,6 +1209,10 @@
       "launch": "เปิด",
       "launchTitle": "เปิด {{name}}",
       "launchDescription": "เปิดเทอร์มินัลใหม่บน daemon host ที่รัน CLI นี้ route ผ่าน daemon proxy เลือก working directory เสริม",
+      "autoApprove": {
+        "label": "อนุมัติคำสั่งอัตโนมัติ",
+        "description": "Codex เริ่มด้วย --full-auto (แซนด์บ็อกซ์เขียนในพื้นที่ทำงาน) และ Claude Code ด้วย --dangerously-skip-permissions ปิดอยู่จะใช้นโยบายการอนุมัติของแต่ละ CLI"
+      },
       "cwdLabel": "Working directory",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "กำลังทำงาน · {{provider}} / {{model}}",

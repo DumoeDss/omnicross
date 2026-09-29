@@ -1209,6 +1209,10 @@
       "launch": "Start",
       "launchTitle": "Start {{name}}",
       "launchDescription": "Åbner en ny terminal på dæmonværten, der kører denne CLI, routet gennem dæmonproxyen. Vælg en valgfri arbejdsmappe.",
+      "autoApprove": {
+        "label": "Godkend kommandoer automatisk",
+        "description": "Codex starter med --full-auto (sandbox med skriveadgang i arbejdsområdet); Claude Code med --dangerously-skip-permissions. Slukket beholder hvert CLI sin egen godkendelsespolitik."
+      },
       "cwdLabel": "Arbejdsmappe",
       "cwdPlaceholder": "/sti/til/dit/projekt",
       "runningVia": "Kører · {{provider}} / {{model}}",

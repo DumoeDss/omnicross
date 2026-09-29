@@ -1209,6 +1209,10 @@
       "launch": "تشغيل",
       "launchTitle": "تشغيل {{name}}",
       "launchDescription": "يفتح طرفية جديدة على مضيف Daemon تشغّل واجهة سطر الأوامر هذه، موجَّهة عبر وكيل Daemon الوسيط. اختر دليل عمل اختياري.",
+      "autoApprove": {
+        "label": "الموافقة التلقائية على الأوامر",
+        "description": "يبدأ Codex بـ ‎--full-auto (وضع حماية الكتابة في مساحة العمل)؛ وClaude Code بـ ‎--dangerously-skip-permissions. عند الإيقاف يبقى كل CLI على سياسة الموافقة الخاصة به."
+      },
       "cwdLabel": "دليل العمل",
       "cwdPlaceholder": "/مسار/مشروعك",
       "runningVia": "يعمل · {{provider}} / {{model}}",

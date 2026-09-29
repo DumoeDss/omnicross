@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import type { CliLaunchResult, CliSession, CliStatus, CliVersionStatus, MutationResult } from '@/daemon/types';
@@ -72,6 +73,18 @@ export function CliCard({ cli, sessions, busy, onInstall, onUpgrade, version, on
   const [open, setOpen] = useState(false);
   const [cwd, setCwd] = useState('');
   const [target, setTarget] = useState('');
+  // Auto-approve persists per app (not per card): it is a workflow preference,
+  // not a property of any one CLI. localStorage keeps it across restarts
+  // without a daemon round-trip.
+  const [autoApprove, setAutoApprove] = useState(
+    () => localStorage.getItem('omnicross.cli.autoApprove') === '1',
+  );
+  const toggleAutoApprove = (checked: boolean): void => {
+    setAutoApprove(checked);
+    localStorage.setItem('omnicross.cli.autoApprove', checked ? '1' : '0');
+  };
+  // Only codex/claude have an auto-approve flag today; other CLIs hide the row.
+  const supportsAutoApprove = cli.id === 'codex' || cli.id === 'claude';
   const [launching, setLaunching] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
@@ -115,6 +128,7 @@ export function CliCard({ cli, sessions, busy, onInstall, onUpgrade, version, on
       const result = await onLaunch({
         cwd: cwd.trim() || undefined,
         ...targetLaunchInput(target),
+        ...(supportsAutoApprove && autoApprove ? { autoApprove: true } : {}),
       });
       if (result.success) {
         setOpen(false);
@@ -293,6 +307,23 @@ export function CliCard({ cli, sessions, busy, onInstall, onUpgrade, version, on
               autoComplete="off"
             />
           </div>
+          {supportsAutoApprove ? (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-surface-2/40 px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground">
+                  {t('codeCli.cli.autoApprove.label')}
+                </div>
+                <div className="text-[11px] leading-snug text-muted-foreground/80">
+                  {t('codeCli.cli.autoApprove.description')}
+                </div>
+              </div>
+              <Switch
+                checked={autoApprove}
+                onCheckedChange={toggleAutoApprove}
+                aria-label={t('codeCli.cli.autoApprove.label')}
+              />
+            </div>
+          ) : null}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="secondary" onClick={() => setOpen(false)} disabled={launching}>
               {t('common.cancel')}

@@ -1209,6 +1209,10 @@
       "launch": "Luncurkan",
       "launchTitle": "Luncurkan {{name}}",
       "launchDescription": "Membuka terminal baru di host daemon yang menjalankan CLI ini, dirutekan melalui daemon proxy. Pilih direktori kerja opsional.",
+      "autoApprove": {
+        "label": "Setujui perintah otomatis",
+        "description": "Codex mulai dengan --full-auto (sandbox tulis workspace); Claude Code dengan --dangerously-skip-permissions. Nonaktif, tiap CLI memakai kebijakan persetujuannya sendiri."
+      },
       "cwdLabel": "Direktori kerja",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Berjalan · {{provider}} / {{model}}",

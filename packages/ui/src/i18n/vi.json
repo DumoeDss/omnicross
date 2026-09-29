@@ -1209,6 +1209,10 @@
       "launch": "Khởi chạy",
       "launchTitle": "Khởi chạy {{name}}",
       "launchDescription": "Mở terminal mới trên daemon host chạy CLI này, định tuyến qua daemon proxy. Chọn thư mục làm việc tùy chọn.",
+      "autoApprove": {
+        "label": "Tự động phê duyệt lệnh",
+        "description": "Codex khởi chạy với --full-auto (sandbox ghi workspace); Claude Code với --dangerously-skip-permissions. Tắt sẽ giữ nguyên chính sách phê duyệt riêng của từng CLI."
+      },
       "cwdLabel": "Thư mục làm việc",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Đang chạy · {{provider}} / {{model}}",

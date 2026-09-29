@@ -1209,6 +1209,10 @@
       "launch": "Lancer",
       "launchTitle": "Lancer {{name}}",
       "launchDescription": "Ouvre un nouveau terminal sur l'hôte daemon exécutant ce CLI, routé via le proxy daemon. Choisissez un répertoire de travail optionnel.",
+      "autoApprove": {
+        "label": "Approuver les commandes automatiquement",
+        "description": "Codex démarre avec --full-auto (sandbox écriture espace de travail) ; Claude Code avec --dangerously-skip-permissions. Désactivé, chaque CLI garde sa propre politique d'approbation."
+      },
       "cwdLabel": "Répertoire de travail",
       "cwdPlaceholder": "/chemin/vers/votre/projet",
       "runningVia": "En cours · {{provider}} / {{model}}",

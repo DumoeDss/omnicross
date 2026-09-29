@@ -2130,6 +2130,10 @@
       "launch": "启动",
       "launchTitle": "启动 {{name}}",
       "launchDescription": "在守护进程主机上打开一个新终端运行该 CLI，并经由守护进程代理路由。可选填工作目录。",
+      "autoApprove": {
+        "label": "自动批准命令",
+        "description": "Codex 以 --full-auto 启动（工作区写入沙箱）；Claude Code 以 --dangerously-skip-permissions 启动。关闭时沿用各 CLI 自身的审批策略。"
+      },
       "cwdLabel": "工作目录",
       "cwdPlaceholder": "/path/to/your/project",
       "routeKeyLabel": "路由目标",

@@ -1209,6 +1209,10 @@
       "launch": "Lançar",
       "launchTitle": "Lançar {{name}}",
       "launchDescription": "Abre um novo terminal no host do daemon a executar este CLI, encaminhado através do proxy do daemon. Escolha um directório de trabalho opcional.",
+      "autoApprove": {
+        "label": "Aprovar comandos automaticamente",
+        "description": "O Codex inicia com --full-auto (sandbox de escrita da área de trabalho); o Claude Code com --dangerously-skip-permissions. Desativado, cada CLI mantém a própria política de aprovação."
+      },
       "cwdLabel": "Directório de trabalho",
       "cwdPlaceholder": "/caminho/para/o/seu/projecto",
       "runningVia": "Em execução · {{provider}} / {{model}}",

@@ -1209,6 +1209,10 @@
       "launch": "Starten",
       "launchTitle": "{{name}} starten",
       "launchDescription": "Öffnet ein neues Terminal auf dem Daemon-Host, das diese CLI ausführt und über den Daemon-Proxy geleitet wird. Wählen Sie ein optionales Arbeitsverzeichnis.",
+      "autoApprove": {
+        "label": "Befehle automatisch genehmigen",
+        "description": "Codex startet mit --full-auto (Workspace-Write-Sandbox); Claude Code mit --dangerously-skip-permissions. Aus belässt die eigene Genehmigungsrichtlinie jedes CLIs."
+      },
       "cwdLabel": "Arbeitsverzeichnis",
       "cwdPlaceholder": "/Pfad/zu/Ihrem/Projekt",
       "runningVia": "Läuft · {{provider}} / {{model}}",

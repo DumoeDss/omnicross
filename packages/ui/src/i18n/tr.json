@@ -1209,6 +1209,10 @@
       "launch": "Başlat",
       "launchTitle": "{{name}}'i Başlat",
       "launchDescription": "Daemon proxy'si üzerinden yönlendirilen bu CLI'ı çalıştıran daemon ana makinesinde yeni bir terminal açar. İsteğe bağlı çalışma dizini seçin.",
+      "autoApprove": {
+        "label": "Komutları otomatik onayla",
+        "description": "Codex --full-auto ile (çalışma alanı yazma korumalı alanı), Claude Code --dangerously-skip-permissions ile başlar. Kapalıyken her CLI kendi onay ilkesini korur."
+      },
       "cwdLabel": "Çalışma dizini",
       "cwdPlaceholder": "/path/to/your/project",
       "runningVia": "Çalışıyor · {{provider}} / {{model}}",

@@ -1209,6 +1209,10 @@
       "launch": "Start",
       "launchTitle": "Start {{name}}",
       "launchDescription": "Åpner en ny terminal på daemonverten som kjører dette CLI-et, rutet gjennom daemonproxyen. Velg en valgfri arbeidsmappe.",
+      "autoApprove": {
+        "label": "Godkjenn kommandoer automatisk",
+        "description": "Codex starter med --full-auto (sandbox med skrivetilgang i arbeidsområdet); Claude Code med --dangerously-skip-permissions. Av beholder hver CLI sin egen godkjenningspolicy."
+      },
       "cwdLabel": "Arbeidsmappe",
       "cwdPlaceholder": "/sti/til/prosjektet/ditt",
       "runningVia": "Kjører · {{provider}} / {{model}}",

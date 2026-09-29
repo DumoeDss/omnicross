@@ -1209,6 +1209,10 @@
       "launch": "Lansare",
       "launchTitle": "Lansare {{name}}",
       "launchDescription": "Deschide un terminal nou pe gazda daemon care rulează acest CLI, rutat prin proxy-ul daemon. Alegeți un director de lucru opțional.",
+      "autoApprove": {
+        "label": "Aprobă automat comenzile",
+        "description": "Codex pornește cu --full-auto (sandbox de scriere în spațiul de lucru); Claude Code cu --dangerously-skip-permissions. Oprit, fiecare CLI își păstrează propria politică de aprobare."
+      },
       "cwdLabel": "Director de lucru",
       "cwdPlaceholder": "/cale/catre/proiect",
       "runningVia": "Rulează · {{provider}} / {{model}}",

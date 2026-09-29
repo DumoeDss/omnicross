@@ -1209,6 +1209,10 @@
       "launch": "Uruchom",
       "launchTitle": "Uruchom {{name}}",
       "launchDescription": "Otwiera nowy terminal na hoście daemona uruchamiający to CLI, kierowane przez proxy daemona. Wybierz opcjonalny katalog roboczy.",
+      "autoApprove": {
+        "label": "Automatycznie zatwierdzaj polecenia",
+        "description": "Codex uruchamia się z --full-auto (piaskownica zapisu w obszarze roboczym); Claude Code z --dangerously-skip-permissions. Wyłączone zachowuje własne zasady zatwierdzania każdego CLI."
+      },
       "cwdLabel": "Katalog roboczy",
       "cwdPlaceholder": "/ścieżka/do/projektu",
       "runningVia": "Działa · {{provider}} / {{model}}",
