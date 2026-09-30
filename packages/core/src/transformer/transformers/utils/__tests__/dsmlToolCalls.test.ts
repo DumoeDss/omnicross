@@ -245,11 +245,31 @@ describe('salvageDsmlToolCalls — prose handling', () => {
 });
 
 describe('DsmlStreamSuppressor', () => {
-  it('emits whole lines and holds the incomplete tail back', () => {
+  it('emits whole lines and releases a plain tail immediately', () => {
     const s = new DsmlStreamSuppressor();
-    expect(s.push('first line\nsecond')).toBe('first line\n');
+    // The incomplete tail cannot become an opener (it does not begin like
+    // `<｜…`), so a healthy stream is not delayed waiting for its newline.
+    expect(s.push('first line\nsecond')).toBe('first line\nsecond');
     expect(s.capturing).toBe(false);
-    expect(s.flush()).toBe('second');
+    expect(s.flush()).toBe('');
+  });
+
+  it('holds a tail that could still become an opener', () => {
+    const s = new DsmlStreamSuppressor();
+    // '<' alone (or `<｜`, or whitespace) may still grow into the marker.
+    expect(s.push('prose\n<')).toBe('prose\n');
+    expect(s.push(M + M + 'DSML')).toBe('');
+    expect(s.capturing).toBe(false);
+    // '</｜｜DSML' can only become a CLOSER — but the opening line may be next,
+    // and once the opener line completes the capture begins either way.
+    expect(s.push(M + M + ' calls>\n')).toBe('');
+    expect(s.capturing).toBe(true);
+  });
+
+  it('releases an HTML-looking line that cannot be an opener', () => {
+    const s = new DsmlStreamSuppressor();
+    expect(s.push('<div class="x">')).toBe('<div class="x">');
+    expect(s.capturing).toBe(false);
   });
 
   it('never emits a marker that arrives split across deltas', () => {

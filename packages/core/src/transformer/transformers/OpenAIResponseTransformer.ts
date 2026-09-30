@@ -702,7 +702,7 @@ function unwrapCustomToolInput(argumentsJson: string): string {
  * one. Item ids must carry the protocol's prefix (`ctc_` / `fc_`), which is
  * synthesized from the call id since the chat wire has only that one handle.
  */
-function encodeToolCallItem(
+export function encodeToolCallItem(
   callId: string,
   name: string,
   argumentsJson: string,
@@ -746,7 +746,7 @@ function encodeToolCallItem(
 }
 
 /** What `collectCodexTools` recovers from an `additional_tools` item. */
-interface CodexToolDeclarations {
+export interface CodexToolDeclarations {
   tools: UnifiedTool[];
   /** Names declared `type:'custom'` — re-encoded as `custom_tool_call` on the way back. */
   customToolNames: string[];
@@ -773,7 +773,7 @@ interface CodexToolDeclarations {
  * Dropping this item left the upstream request with NO tools at all, so the
  * model could only ever answer in prose — codex's whole agent loop was dead.
  */
-function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclarations {
+export function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclarations {
   const result: CodexToolDeclarations = {
     tools: [],
     customToolNames: [],
@@ -838,7 +838,7 @@ function collectCodexTools(entry: Record<string, unknown>): CodexToolDeclaration
   return result;
 }
 
-function mergeCodexTools(
+export function mergeCodexTools(
   left: CodexToolDeclarations,
   right: CodexToolDeclarations,
 ): CodexToolDeclarations {

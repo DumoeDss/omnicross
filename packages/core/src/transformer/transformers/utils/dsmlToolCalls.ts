@@ -295,10 +295,21 @@ export class DsmlStreamSuppressor {
     this.pending += delta;
     const lastBreak = this.pending.lastIndexOf('\n');
     if (lastBreak === -1) {
-      if (this.pending.length <= DsmlStreamSuppressor.MAX_HELD_LINE) return '';
-      const cut = this.pending.length - DsmlStreamSuppressor.HELD_TAIL;
-      const released = this.pending.slice(0, cut);
-      this.pending = this.pending.slice(cut);
+      // A marker always OPENS its line, so a partial line whose start can no
+      // longer be an opener prefix is plain prose — release it immediately.
+      // This is what keeps a healthy stream byte-timely: only lines that begin
+      // like `<｜…` are ever held back.
+      if (canStillOpenLine(this.pending) && this.pending.length <= DsmlStreamSuppressor.MAX_HELD_LINE) {
+        return '';
+      }
+      if (this.pending.length > DsmlStreamSuppressor.MAX_HELD_LINE) {
+        const cut = this.pending.length - DsmlStreamSuppressor.HELD_TAIL;
+        const released = this.pending.slice(0, cut);
+        this.pending = this.pending.slice(cut);
+        return released;
+      }
+      const released = this.pending;
+      this.pending = '';
       return released;
     }
 
@@ -319,6 +330,18 @@ export class DsmlStreamSuppressor {
       offset += line.length + 1;
     }
 
+    // Same early release as the no-newline branch, for the partial line the
+    // split left behind: prose that cannot become an opener flows now.
+    if (
+      this.pending !== '' &&
+      !canStillOpenLine(this.pending) &&
+      this.pending.length <= DsmlStreamSuppressor.MAX_HELD_LINE
+    ) {
+      const released = this.pending;
+      this.pending = '';
+      return complete + released;
+    }
+
     return complete;
   }
 
@@ -332,6 +355,50 @@ export class DsmlStreamSuppressor {
     this.pending = '';
     return rest;
   }
+}
+
+/**
+ * Every opener spelling the model might emit — `<` or `</`, a run of 1-3
+ * vertical bars (U+FF5C or ASCII), optional space, one of the block/invoke
+ * keywords, `>`. A partial line is holdable only while it is a PREFIX of one
+ * of these; `canStillOpenLine` answers exactly that.
+ */
+const OPENER_TAG_CANDIDATES: ReadonlyArray<string> = (() => {
+  const bars: string[] = [];
+  for (const a of ['｜', '|']) {
+    bars.push(a);
+    for (const b of ['｜', '|']) {
+      bars.push(a + b);
+      for (const c of ['｜', '|']) bars.push(a + b + c);
+    }
+  }
+  const keywords = ['calls', 'tool_calls', 'function_calls', 'invoke'];
+  const tags: string[] = [];
+  for (const close of ['', '/']) {
+    for (const run1 of bars) {
+      for (const sep1 of ['', ' ', '\t']) {
+        for (const run2 of bars) {
+          for (const sep2 of ['', ' ', '\t']) {
+            for (const keyword of keywords) {
+              tags.push(`<${close}${run1}${sep1}DSML${run2}${sep2}${keyword}>`);
+            }
+          }
+        }
+      }
+    }
+  }
+  return tags;
+})();
+
+/**
+ * Can this partial line (no newline yet) still turn out to open a DSML block?
+ * All-whitespace still can (the marker follows the indent); anything else must
+ * be a strict prefix of one opener tag spelling.
+ */
+function canStillOpenLine(line: string): boolean {
+  const stripped = line.replace(/^[ \t]+/, '');
+  if (stripped === '') return true;
+  return OPENER_TAG_CANDIDATES.some((tag) => tag.startsWith(stripped));
 }
 
 // ============================================================================

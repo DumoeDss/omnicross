@@ -29,6 +29,11 @@ import { extractOpenCodeSessionHeader } from '../identity/openCodeGoHeaders';
 import type { SessionKeySource, SessionRequestHeaders } from '../matchText';
 import type { ProviderProxyDeps, RouteContext } from '../types';
 import {
+  armNativeDsmlSalvage,
+  salvageNativeResponsesJson,
+  wrapNativeResponsesSse,
+} from './nativeResponsesDsml';
+import {
   buildByoRouteActivityMeta,
   type ByoRouteActivityMeta,
   getResponsesEndpointTransformer,
@@ -607,7 +612,7 @@ async function runNative(
     },
   );
   return {
-    response,
+    response: await wrapNativeDsml(response, body),
     rawStatus: response.status,
     accountId,
     actualModel,
@@ -616,6 +621,53 @@ async function runNative(
       ? { kind: 'subscription-account', id: accountId }
       : plan.resolveCredential?.() ?? plan.credential,
   };
+}
+
+/**
+ * Apply the DeepSeek DSML salvage to a NATIVE relay response — see
+ * `nativeResponsesDsml`. A no-op (same Response object back) for every model
+ * the salvage is not armed for, so the relay stays byte-for-byte except on the
+ * exact DeepSeek-family routes that leak their tool calls as markup.
+ */
+async function wrapNativeDsml(
+  response: Response,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const declarations = armNativeDsmlSalvage(body);
+  if (!declarations) return response;
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('text/event-stream') && response.body) {
+    return new Response(wrapNativeResponsesSse(response.body, declarations), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
+  if (contentType.includes('application/json')) {
+    // Buffered rewrite: only non-streaming clients land here, and they get the
+    // whole answer in one JSON body anyway.
+    const text = await response.text();
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return new Response(text, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
+    if (data && typeof data === 'object') {
+      salvageNativeResponsesJson(data as Record<string, unknown>, declarations);
+    }
+    return new Response(JSON.stringify(data), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
+  return response;
 }
 
 async function runReduced(
