@@ -653,6 +653,52 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(unified.messages.find((m) => m.tool_call_id === 'call_x')!.content).toBe('ok');
     });
 
+    it('a NAMESPACED custom_tool_call history item rides the flattened declaration name', async () => {
+      // The declaration flattens to `functions__exec` (see the additional_tools
+      // test below); a history call under the bare name is a call to a tool the
+      // model never saw — strict upstreams reject the pair outright.
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            {
+              type: 'additional_tools',
+              role: 'developer',
+              tools: [
+                {
+                  type: 'namespace',
+                  name: 'functions',
+                  tools: [{ type: 'custom', name: 'exec', description: 'Run commands' }],
+                },
+              ],
+            },
+            {
+              type: 'custom_tool_call',
+              call_id: 'call_x',
+              name: 'exec',
+              namespace: 'functions',
+              input: 'npm test',
+            },
+            { type: 'custom_tool_call_output', call_id: 'call_x', output: 'ok' },
+          ],
+        },
+        mockContext
+      );
+
+      expect(unified.tools?.map((t) => t.function.name)).toEqual(['functions__exec']);
+      const execCall = unified.messages
+        .flatMap((m) => m.tool_calls ?? [])
+        .find((t) => t.id === 'call_x')!;
+      expect(execCall.function.name).toBe('functions__exec');
+      expect(JSON.parse(execCall.function.arguments)).toEqual({ input: 'npm test' });
+      // The remembered state keys the FLATTENED name, so a later model call of
+      // `functions__exec` decodes back to the bare `exec` + namespace axes.
+      expect(unified.meta?.codexTools).toMatchObject({
+        customToolNames: ['functions__exec'],
+        toolNamespaces: { 'functions__exec': 'functions' },
+      });
+    });
+
     it('additional_tools becomes real tools: function, namespaced, and custom', async () => {
       // codex does NOT use the top-level `tools` field. Dropping this item left
       // the upstream request with no tools at all — the agent loop was dead.
@@ -829,6 +875,44 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(item.input).toBe('const a = 1;');
       expect(item.id).toMatch(/^ctc_/);
       expect(json.output.some((o: any) => o.type === 'function_call')).toBe(false);
+    });
+
+    it('JSON: a NAMESPACED custom call strips back to bare name + namespace (exec regression)', async () => {
+      // responses lite ships EVERY built-in tool under the `functions`
+      // namespace, so the model calls `functions__exec`. Emitting the
+      // flattened wire name verbatim left codex with an unregistered
+      // `functions__exec` → registry.rs: "unsupported custom tool call" and a
+      // dead shell for the whole session.
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_abc',
+                    type: 'function',
+                    function: { name: 'functions__exec', arguments: '{"input":"npm test"}' },
+                  },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext(['functions__exec'], { 'functions__exec': 'functions' })
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'custom_tool_call');
+      expect(item, 'must be custom_tool_call, not function_call').toBeDefined();
+      expect(item.name).toBe('exec');
+      expect(item.namespace).toBe('functions');
+      expect(item.input).toBe('npm test');
     });
 
     it('JSON: a namespaced function call keeps function_call and regains its namespace', async () => {

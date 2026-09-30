@@ -315,12 +315,19 @@ export class OpenAIResponseTransformer implements Transformer {
         // `{input:…}` envelope declared by CUSTOM_TOOL_PARAMETERS. The response
         // encoder unwraps it again.
         if (itemType === 'custom_tool_call') {
-          rememberCustomCall(codexTools, entry.call_id ?? entry.id, entry.name);
+          // Namespaced custom calls ride the FLATTENED wire name, exactly like
+          // `function_call` history below — the model only knows the flattened
+          // declaration (see collectCodexTools), and a history call under a
+          // different name is rejected by strict upstreams.
+          const ns = typeof entry.namespace === 'string' ? entry.namespace : '';
+          const flatName = ns ? `${ns}__${(entry.name as string) || ''}` : (entry.name as string) || '';
+          rememberToolNamespace(codexTools, flatName, entry.namespace);
+          rememberCustomCall(codexTools, entry.call_id ?? entry.id, flatName);
           const toolCall = {
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
             function: {
-              name: (entry.name as string) || '',
+              name: flatName,
               arguments: JSON.stringify({
                 input: typeof entry.input === 'string' ? entry.input : '',
               }),
@@ -683,23 +690,29 @@ function encodeToolCallItem(
 ): Record<string, unknown> {
   const bareId = callId.replace(/^(call_|fc_|ctc_)/, '');
 
+  const namespace = codexTools?.toolNamespaces?.[name];
+  // The wire name is the FLATTENED `<namespace>__<name>`; codex expects the
+  // bare name plus the separate namespace axis on the item. This holds for the
+  // custom branch too — emitting the flattened name verbatim leaves codex with
+  // an unregistered `functions__exec` and the call dies as
+  // "unsupported custom tool call" (the `functions` namespace is how responses
+  // lite ships EVERY built-in tool, exec included).
+  const bareName = namespace && name.startsWith(`${namespace}__`)
+    ? name.slice(namespace.length + 2)
+    : name;
+
   if (codexTools?.customToolNames?.includes(name)) {
     return {
       id: `ctc_${bareId}`,
       type: 'custom_tool_call',
       status,
       call_id: callId,
-      name,
+      name: bareName,
+      ...(namespace ? { namespace } : {}),
       input: unwrapCustomToolInput(argumentsJson),
     };
   }
 
-  const namespace = codexTools?.toolNamespaces?.[name];
-  // The wire name is the FLATTENED `<namespace>__<name>`; codex expects the
-  // bare name plus the separate namespace axis on the item.
-  const bareName = namespace && name.startsWith(`${namespace}__`)
-    ? name.slice(namespace.length + 2)
-    : name;
   return {
     id: callId.startsWith('fc_') ? callId : `fc_${bareId}`,
     type: 'function_call',
