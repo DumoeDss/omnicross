@@ -23,6 +23,14 @@ import {
   resolveReasoningPlan,
 } from '../reasoning-effort';
 import { chatUsageToResponsesUsage, responsesUsageToChatUsage } from './utils/usage-mapping';
+import {
+  DsmlStreamSuppressor,
+  dsmlCallId,
+  hasDsmlMarkup,
+  isDsmlSalvageArmed,
+  salvageDsmlToolCalls,
+  warnDsmlUnarmed,
+} from './utils/dsmlToolCalls';
 import { recordDroppedField } from '../transformWarnings';
 import { buildOpenAIResponseApiUrl } from '../../completion/url-builder';
 
@@ -579,21 +587,34 @@ export class OpenAIResponseTransformer implements Transformer {
     // non-codex clients, which simply get plain `function_call` items.
     const codexTools = (context?.req as UnifiedChatRequest | undefined)?.meta?.codexTools;
 
+    // DeepSeek serializes tool calls as DSML markup and occasionally fails to
+    // parse its own block back into `tool_calls`; the raw markup then reaches
+    // codex as ordinary prose and the turn ends without running a single tool.
+    // Salvage it for DeepSeek only — every other upstream writes real structured
+    // tool calls, and reinterpreting markup there would dispatch something the
+    // model merely talked about. `OMNICROSS_DEEPSEEK_DSML_SALVAGE` switches it
+    // off (or onto every upstream); see utils/dsmlToolCalls.
+    const requestModel = (context?.req as UnifiedChatRequest | undefined)?.model;
+    const dsmlArmed = isDsmlSalvageArmed(requestModel, context?.providerName);
+
     if (contentType.includes('text/event-stream')) {
       if (!response.body) {
         throw new Error('Stream response body is null');
       }
-      return new Response(convertOpenAIStreamToResponseApi(response.body, codexTools), {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
-      });
+      return new Response(
+        convertOpenAIStreamToResponseApi(response.body, codexTools, dsmlArmed),
+        {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+          },
+        }
+      );
     }
 
     const data = await response.json();
-    return new Response(JSON.stringify(convertOpenAIJsonToResponseApi(data, codexTools)), {
+    return new Response(JSON.stringify(convertOpenAIJsonToResponseApi(data, codexTools, dsmlArmed)), {
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -1041,23 +1062,56 @@ function convertResponseApiJsonToOpenAI(data: Record<string, unknown>): Record<s
 
 function convertOpenAIJsonToResponseApi(
   data: Record<string, unknown>,
-  codexTools?: CodexToolState
+  codexTools?: CodexToolState,
+  dsmlArmed = false
 ): Record<string, unknown> {
   const choices = data.choices as Array<Record<string, unknown>> | undefined;
   const message = choices?.[0]?.message as Record<string, unknown> | undefined;
   const output: Array<Record<string, unknown>> = [];
 
   if (message) {
+    // The upstream's own model name is the most reliable DeepSeek signal — the
+    // request carried a client-facing name that upstream mapping may have
+    // rewritten, while `data.model` is what actually answered. The switch gates
+    // THIS arm too, or turning the salvage off would not turn it off.
+    const salvage = dsmlArmed || isDsmlSalvageArmed(undefined, undefined, data.model);
+    let content = message.content;
+    const toolCalls = Array.isArray(message.tool_calls)
+      ? [...(message.tool_calls as Array<Record<string, unknown>>)]
+      : [];
+
+    if (typeof content === 'string' && hasDsmlMarkup(content)) {
+      if (!salvage) {
+        // Diagnosable rather than silent: the model IS leaking markup, the
+        // salvage merely was not armed for this upstream's name.
+        warnDsmlUnarmed(data.model);
+      } else {
+        const salvaged = salvageDsmlToolCalls(content);
+        content = salvaged.cleaned;
+        // Only synthesize when the upstream decoded NOTHING. A response can carry
+        // BOTH structured tool_calls and leaked markup; re-adding those calls
+        // would dispatch every tool a second time.
+        if (toolCalls.length === 0) {
+          salvaged.calls.forEach((call, index) => {
+            toolCalls.push({
+              id: dsmlCallId(call, index),
+              type: 'function',
+              function: { name: call.name, arguments: call.arguments },
+            });
+          });
+        }
+      }
+    }
+
     const contentParts: Array<Record<string, unknown>> = [];
-    if (message.content) {
-      contentParts.push({ type: 'output_text', text: message.content });
+    if (content) {
+      contentParts.push({ type: 'output_text', text: content });
     }
     if (contentParts.length > 0) {
       output.push({ type: 'message', role: 'assistant', content: contentParts });
     }
 
-    const toolCalls = message.tool_calls as Array<Record<string, unknown>> | undefined;
-    if (toolCalls?.length) {
+    if (toolCalls.length) {
       for (const tc of toolCalls) {
         const func = tc.function as Record<string, unknown>;
         output.push(
@@ -1286,7 +1340,8 @@ function convertResponseApiStreamToOpenAI(
  */
 function convertOpenAIStreamToResponseApi(
   openaiStream: ReadableStream<Uint8Array>,
-  codexTools?: CodexToolState
+  codexTools?: CodexToolState,
+  dsmlArmed = false
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -1319,6 +1374,17 @@ function convertOpenAIStreamToResponseApi(
       // Output index 0 is the assistant `message` (text); tool calls follow at 1+.
       const toolOutputIndex = new Map<number, number>();
       let nextOutputIndex = 1;
+      // DeepSeek DSML salvage (see utils/dsmlToolCalls). The suppressor holds
+      // markup off the wire; salvaged calls land in `toolCalls` below and ride
+      // the ordinary encoder, so they need an index space that cannot collide
+      // with real upstream tool-call indices (always small and 0-based).
+      let salvageDsml = dsmlArmed;
+      const dsmlSuppressor = new DsmlStreamSuppressor();
+      let syntheticToolIndex = 10000;
+      let finalized = false;
+      // Tail of the relayed text while the salvage is UNARMED, so a leak split
+      // across deltas still trips the once-per-process diagnostic below.
+      let unarmedTail = '';
 
       const safeEnqueue = (str: string) => {
         if (!isClosed) {
@@ -1332,6 +1398,34 @@ function convertOpenAIStreamToResponseApi(
 
       const emitEvent = (event: Record<string, unknown>) => {
         safeEnqueue(`data: ${JSON.stringify(event)}\n\n`);
+      };
+
+      // Emit assistant prose, opening the text message item lazily on the first
+      // fragment. The DSML suppressor feeds this too — it withholds markup, so
+      // what it releases is prose by construction.
+      const emitAssistantText = (text: string) => {
+        if (!text) return;
+        if (!messageItemAdded) {
+          messageItemAdded = true;
+          emitEvent({
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: {
+              id: messageId,
+              type: 'message',
+              role: 'assistant',
+              status: 'in_progress',
+              content: [],
+            },
+          });
+        }
+        accumulatedContent += text;
+        emitEvent({
+          type: 'response.output_text.delta',
+          output_index: 0,
+          content_index: 0,
+          delta: text,
+        });
       };
 
       emitEvent({
@@ -1363,27 +1457,22 @@ function convertOpenAIStreamToResponseApi(
               if (!choice) continue;
 
               if (choice.delta?.content) {
-                if (!messageItemAdded) {
-                  messageItemAdded = true;
-                  emitEvent({
-                    type: 'response.output_item.added',
-                    output_index: 0,
-                    item: {
-                      id: messageId,
-                      type: 'message',
-                      role: 'assistant',
-                      status: 'in_progress',
-                      content: [],
-                    },
-                  });
+                // Arm on the upstream's self-reported model too: the request
+                // model may have been rewritten by upstream mapping before it
+                // ever reached the provider. Still gated by the switch.
+                if (!salvageDsml && isDsmlSalvageArmed(undefined, undefined, chunk.model)) {
+                  salvageDsml = true;
                 }
-                accumulatedContent += choice.delta.content;
-                emitEvent({
-                  type: 'response.output_text.delta',
-                  output_index: 0,
-                  content_index: 0,
-                  delta: choice.delta.content,
-                });
+                if (salvageDsml) {
+                  emitAssistantText(dsmlSuppressor.push(choice.delta.content));
+                } else {
+                  // Unarmed: relay the text, but surface the leak once so a
+                  // never-recovered tool call is not a mystery. The tail keeps
+                  // a marker split across deltas detectable.
+                  unarmedTail = (unarmedTail + choice.delta.content).slice(-64);
+                  if (hasDsmlMarkup(unarmedTail)) warnDsmlUnarmed(chunk.model);
+                  emitAssistantText(choice.delta.content);
+                }
               }
 
               // Reasoning reaches Unified under EITHER spelling, depending on
@@ -1451,6 +1540,33 @@ function convertOpenAIStreamToResponseApi(
               }
 
               if (choice.finish_reason) {
+                finalized = true;
+                // End of turn. Release prose the suppressor held back, then turn
+                // a captured DSML block into the calls the model meant to make:
+                // the upstream reported `stop` with an empty `tool_calls`, so
+                // without this the turn ends as a plain final answer and codex
+                // never runs the tool.
+                emitAssistantText(dsmlSuppressor.flush());
+                if (dsmlSuppressor.capturing) {
+                  const salvaged = salvageDsmlToolCalls(dsmlSuppressor.capturedText);
+                  salvaged.calls.forEach((call, index) => {
+                    const tcIndex = syntheticToolIndex++;
+                    const callId = dsmlCallId(call, index);
+                    toolCalls.set(tcIndex, {
+                      callId,
+                      name: call.name,
+                      arguments: call.arguments,
+                      isCustom: codexTools?.customToolNames?.includes(call.name) ?? false,
+                    });
+                    const outIdx = nextOutputIndex++;
+                    toolOutputIndex.set(tcIndex, outIdx);
+                    emitEvent({
+                      type: 'response.output_item.added',
+                      output_index: outIdx,
+                      item: encodeToolCallItem(callId, call.name, '', 'in_progress', codexTools),
+                    });
+                  });
+                }
                 const output: Array<Record<string, unknown>> = [];
                 if (messageItemAdded) {
                   emitEvent({
@@ -1521,6 +1637,12 @@ function convertOpenAIStreamToResponseApi(
             }
           }
         }
+
+        // A stream that ended without a finish_reason (truncated upstream) still
+        // owes the client the prose the suppressor was holding: it withholds the
+        // trailing partial line, and dropping it would eat the last words of an
+        // otherwise complete answer.
+        if (!finalized) emitAssistantText(dsmlSuppressor.flush());
       } catch (e) {
         if (!isClosed) controller.error(e);
       } finally {

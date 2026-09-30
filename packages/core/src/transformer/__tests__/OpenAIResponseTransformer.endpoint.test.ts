@@ -20,9 +20,10 @@
  * @module transformer/__tests__/OpenAIResponseTransformer.endpoint.test
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { OpenAIResponseTransformer } from '../transformers/OpenAIResponseTransformer';
+import { setDsmlSalvageMode } from '../transformers/utils/dsmlToolCalls';
 import type { TransformerContext, UnifiedChatRequest } from '../types';
 
 const mockContext: TransformerContext = {
@@ -1032,6 +1033,266 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
   // =========================================================================
   // 2.3 reasoning.effort mapping (both directions)
   // =========================================================================
+  // =========================================================================
+  // 2.7 DeepSeek DSML salvage
+  // =========================================================================
+  //
+  // DeepSeek ships tool calls as DSML markup; when its own conversion layer
+  // fails to parse the block back into `tool_calls`, the markup arrives as
+  // ordinary prose and the turn dies with no tool ever running. These tests pin
+  // the salvage AND its blast radius: nothing happens for other upstreams, and
+  // the kill switch restores the byte-for-byte relay.
+  describe('2.7 DeepSeek DSML salvage', () => {
+    const M = String.fromCharCode(0xff5c);
+    const T = (tag: string) => `<${M}${M}DSML${M}${M} ${tag}>`;
+    const C = (tag: string) => `</${M}${M}DSML${M}${M} ${tag}>`;
+
+    /** codex context whose declared tools include the custom `exec`. */
+    const codexDsmlContext = (model: string): TransformerContext =>
+      ({
+        ...mockContext,
+        providerName: 'DeepSeek',
+        req: {
+          model,
+          messages: [],
+          meta: {
+            codexTools: {
+              customToolNames: ['functions__exec'],
+              toolNamespaces: { 'functions__exec': 'functions' },
+            },
+          },
+        } as unknown as UnifiedChatRequest,
+      }) as TransformerContext;
+
+    /** The block exactly as captured from a real `deepseek-flash` turn. */
+    const dsmlExec = [
+      T('calls'),
+      T('invoke name="functions__exec"'),
+      `${T('parameter name="input" string="true"')}const x = 1;${C('parameter')}`,
+      C('invoke'),
+      C('calls'),
+    ].join('\n');
+
+    const dsmlJson = (content: string, model = 'deepseek-flash') =>
+      ccJsonResponse({
+        model,
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content, tool_calls: null },
+            finish_reason: 'stop',
+          },
+        ],
+      });
+
+    afterEach(() => setDsmlSalvageMode(undefined));
+
+    it('JSON: leaked markup becomes the custom_tool_call the model meant', async () => {
+      const out = await transformer.transformResponseIn(
+        dsmlJson(dsmlExec),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'custom_tool_call');
+      expect(item, 'the leaked exec call must come back as a custom_tool_call').toBeDefined();
+      // The flattened wire name is stripped back to the bare name + namespace
+      // axis codex registers its tool under.
+      expect(item.name).toBe('exec');
+      expect(item.namespace).toBe('functions');
+      expect(item.input).toBe('const x = 1;');
+      expect(item.id).toMatch(/^ctc_/);
+
+      // No markup may survive into the assistant text.
+      const text = json.output
+        .filter((o: any) => o.type === 'message')
+        .flatMap((o: any) => o.content)
+        .map((p: any) => p.text)
+        .join('');
+      expect(text).not.toContain('DSML');
+    });
+
+    it('JSON: prose before the block is kept as the assistant message', async () => {
+      const out = await transformer.transformResponseIn(
+        dsmlJson(`Let me run that.\n\n${dsmlExec}`),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const message = json.output.find((o: any) => o.type === 'message');
+      expect(message.content[0].text).toBe('Let me run that.');
+      expect(json.output.some((o: any) => o.type === 'custom_tool_call')).toBe(true);
+    });
+
+    it('JSON: a codex custom tool rides the {input:…} envelope end to end', async () => {
+      // The model writes the payload as a `string="true"` parameter; the chat
+      // wire wants JSON arguments, and the encoder unwraps it again.
+      const out = await transformer.transformResponseIn(
+        dsmlJson(dsmlExec),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+      const item = ((await out.json()) as Record<string, any>).output.find(
+        (o: any) => o.type === 'custom_tool_call'
+      );
+      // Verbatim — the free-form JavaScript is not re-encoded on the way through.
+      expect(item.input).toBe('const x = 1;');
+    });
+
+    it('JSON: markup is stripped but NOT re-synthesized when calls already decoded', async () => {
+      // A response can carry both structured tool_calls and leaked markup.
+      // Re-adding the markup's calls would run every tool twice.
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'deepseek-flash',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: dsmlExec,
+                tool_calls: [
+                  {
+                    id: 'call_real',
+                    type: 'function',
+                    function: { name: 'functions__exec', arguments: '{"input":"const x = 1;"}' },
+                  },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const calls = json.output.filter(
+        (o: any) => o.type === 'custom_tool_call' || o.type === 'function_call'
+      );
+      expect(calls, 'exactly one call — the decoded one, not a duplicate').toHaveLength(1);
+      expect(calls[0].call_id).toBe('call_real');
+    });
+
+    it('JSON: a non-DeepSeek upstream keeps its markup untouched', async () => {
+      const out = await transformer.transformResponseIn(
+        dsmlJson(dsmlExec, 'glm-5.3'),
+        mockContext
+      );
+      const json = (await out.json()) as Record<string, any>;
+      const text = json.output
+        .filter((o: any) => o.type === 'message')
+        .flatMap((o: any) => o.content)
+        .map((p: any) => p.text)
+        .join('');
+      // Salvage is DeepSeek-only — elsewhere the text is prose and is relayed.
+      expect(text).toContain('DSML');
+      expect(json.output.some((o: any) => o.type === 'custom_tool_call')).toBe(false);
+    });
+
+    it('JSON: the kill switch restores the untouched relay', async () => {
+      setDsmlSalvageMode('off');
+      const out = await transformer.transformResponseIn(
+        dsmlJson(dsmlExec),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+      const json = (await out.json()) as Record<string, any>;
+      const text = json.output
+        .filter((o: any) => o.type === 'message')
+        .flatMap((o: any) => o.content)
+        .map((p: any) => p.text)
+        .join('');
+      expect(text).toContain('DSML');
+      expect(json.output.some((o: any) => o.type === 'custom_tool_call')).toBe(false);
+    });
+
+    it('JSON: the `all` mode salvages an upstream whose name is not DeepSeek', async () => {
+      // The escape hatch for a DeepSeek-compatible relay that does not read as
+      // DeepSeek: diagnose the leak from the warning, apply the fix from env.
+      setDsmlSalvageMode('all');
+      const out = await transformer.transformResponseIn(
+        dsmlJson(dsmlExec, 'glm-5.3'),
+        mockContext
+      );
+      const json = (await out.json()) as Record<string, any>;
+      expect(json.output.some((o: any) => o.type === 'custom_tool_call')).toBe(false);
+      expect(json.output.some((o: any) => o.type === 'function_call')).toBe(true);
+    });
+
+    it('SSE: markup split across deltas never reaches the client as text', async () => {
+      const frame = (delta: Record<string, unknown>, finish: string | null = null) =>
+        `data: ${JSON.stringify({
+          id: '1',
+          model: 'deepseek-flash',
+          choices: [{ index: 0, delta, finish_reason: finish }],
+        })}\n\n`;
+
+      const out = await transformer.transformResponseIn(
+        sseResponse([
+          frame({ role: 'assistant', content: '' }),
+          // The opener is split mid-marker across three deltas.
+          frame({ content: 'Working on it.\n<' }),
+          frame({ content: `${M}${M}DSML${M}${M} calls>\n` }),
+          frame({ content: `${T('invoke name="functions__exec">')}\n` }),
+          frame({ content: `${T('parameter name="input" string="true"')}const x = 1;${C('parameter')}\n` }),
+          frame({ content: `${C('invoke')}\n${C('calls')}` }),
+          frame({}, 'stop'),
+        ]),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+
+      const events = (await drainSseEvents(out)) as Array<Record<string, any>>;
+
+      const streamed = events
+        .filter((e) => e.type === 'response.output_text.delta')
+        .map((e) => e.delta)
+        .join('');
+      expect(streamed, 'no markup may be streamed as prose').not.toContain('DSML');
+      // The prose is exactly what preceded the opener line — its trailing
+      // newline is part of the already-relayed text, not markup.
+      expect(streamed).toBe('Working on it.\n');
+
+      const done = events.find(
+        (e) => e.type === 'response.output_item.done' && e.item?.type === 'custom_tool_call'
+      );
+      expect(done, 'the salvaged call must be delivered').toBeDefined();
+      expect(done!.item.name).toBe('exec');
+      expect(done!.item.namespace).toBe('functions');
+      expect(done!.item.input).toBe('const x = 1;');
+    });
+
+    it('SSE: an ordinary DeepSeek answer still streams incrementally', async () => {
+      const frame = (content: string) =>
+        `data: ${JSON.stringify({
+          id: '1',
+          model: 'deepseek-flash',
+          choices: [{ index: 0, delta: { content }, finish_reason: null }],
+        })}\n\n`;
+
+      const out = await transformer.transformResponseIn(
+        sseResponse([
+          frame('Hel'),
+          frame('lo wor'),
+          frame('ld\n'),
+          frame('bye'),
+          `data: ${JSON.stringify({
+            id: '1',
+            model: 'deepseek-flash',
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          })}\n\n`,
+        ]),
+        codexDsmlContext('gpt-6.1-sol')
+      );
+
+      const events = (await drainSseEvents(out)) as Array<Record<string, any>>;
+      const streamed = events
+        .filter((e) => e.type === 'response.output_text.delta')
+        .map((e) => e.delta)
+        .join('');
+      // The trailing partial line is released at finish, losing nothing.
+      expect(streamed).toBe('Hello world\nbye');
+    });
+  });
+
   describe('2.3 reasoning.effort', () => {
     it('transformRequestOut: maps reasoning.effort into unified.reasoning', async () => {
       const unified = await transformer.transformRequestOut(
