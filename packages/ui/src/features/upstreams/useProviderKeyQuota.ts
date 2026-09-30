@@ -67,6 +67,7 @@ export function localizedQuotaWindowLabel(
   if (window.id === 'seven-day' || window.id === 'weekly' || window.windowMinutes === 10_080) {
     return t('accounts.allowance.weekly');
   }
+  if (window.id === 'monthly' || window.id === 'thirty-day') return t('accounts.allowance.monthly');
   return window.label;
 }
 

@@ -115,18 +115,30 @@ export interface AllowanceWeeklyItem {
     state: AllowanceWindowState;
     resetsAt?: string;
   };
+  /** The same account's monthly window (opencodego), when the provider reports one. */
+  monthly?: {
+    usedPercent?: number;
+    state: AllowanceWindowState;
+    resetsAt?: string;
+  };
 }
 
-/** One BYO key-quota window row in the overview account-pool card. */
-export interface KeyQuotaDisplayItem {
-  key: string;
-  providerId: string;
-  providerLabel: string;
+/** One BYO key-quota window inside a provider's overview row. */
+export interface KeyQuotaDisplayWindow {
   windowId: string;
   windowLabel: string;
   usedPercent: number | null;
   state: AllowanceWindowState;
   resetsAt?: string;
+}
+
+/** One BYO key-quota provider row in the overview account-pool card — its
+ * windows render side by side like a subscription account's. */
+export interface KeyQuotaDisplayItem {
+  key: string;
+  providerId: string;
+  providerLabel: string;
+  windows: KeyQuotaDisplayWindow[];
 }
 
 export interface OverviewModel {
@@ -161,7 +173,7 @@ export interface OverviewModel {
     sourceState: DataSourceState;
     weeklyTop: AllowanceWeeklyItem[];
     /** BYO provider-key plan quotas (z.ai coding plan, MiniMax Token Plan, …),
-     * flattened one row per window, worst-first. */
+     * one row per provider (worst-first), windows side by side. */
     keyQuotaItems: KeyQuotaDisplayItem[];
     keyQuotaSourceState: DataSourceState;
   };
@@ -348,7 +360,8 @@ function buildWeeklyTop(
   for (const snapshot of source.data) {
     const weekly = snapshot.windows.find((window) => window.id === 'seven-day' || window.windowMinutes === 10_080);
     const fiveHour = snapshot.windows.find((window) => window.id === 'five-hour' || window.windowMinutes === 300);
-    if (!weekly && !fiveHour) continue;
+    const monthly = snapshot.windows.find((window) => window.id === 'monthly');
+    if (!weekly && !fiveHour && !monthly) continue;
     const key = allowanceKey(snapshot.providerId, snapshot.accountId);
     items.push({
       providerId: snapshot.providerId,
@@ -366,12 +379,25 @@ function buildWeeklyTop(
             },
           }
         : {}),
+      ...(monthly
+        ? {
+            monthly: {
+              usedPercent: typeof monthly.usedPercent === 'number' ? Math.max(0, Math.min(100, monthly.usedPercent)) : undefined,
+              state: monthly.state,
+              resetsAt: monthly.resetsAt,
+            },
+          }
+        : {}),
     });
   }
-  // Weekly usage dominates the ranking; the five-hour window breaks ties so a
-  // session about to hit its rolling limit can still surface.
+  // The worst of weekly/monthly dominates the ranking (a monthly-exhausted
+  // opencodego account is dead-dead even with weekly headroom); the five-hour
+  // window breaks ties so a session about to hit its rolling limit can still
+  // surface.
+  const worst = (item: AllowanceWeeklyItem): number =>
+    Math.max(item.usedPercent ?? -1, item.monthly?.usedPercent ?? -1);
   items.sort((left, right) =>
-    (right.usedPercent ?? -1) - (left.usedPercent ?? -1) ||
+    worst(right) - worst(left) ||
     (right.fiveHour?.usedPercent ?? -1) - (left.fiveHour?.usedPercent ?? -1));
   return items.slice(0, limit);
 }
@@ -380,7 +406,9 @@ function metric<T>(source: OverviewSource<unknown>, value: T | undefined): Overv
   return { state: source.state, ...(source.state === 'ready' && value !== undefined ? { value } : {}) };
 }
 
-/** Flatten BYO key-quota entries one row per window, worst-first, capped. */
+/** BYO key-quota entries grouped one row per provider — a provider's windows
+ * (5h / weekly / monthly) render side by side like a subscription account's.
+ * Rows sort worst-window-first, capped; windows sort worst-first within a row. */
 function buildKeyQuotaItems(
   source: OverviewSource<OverviewKeyQuotaEntry[]>,
   limit = 4,
@@ -388,23 +416,27 @@ function buildKeyQuotaItems(
   if (source.state !== 'ready' || !source.data) return [];
   const items: KeyQuotaDisplayItem[] = [];
   for (const entry of source.data) {
-    for (const window of entry.windows) {
-      items.push({
-        key: `${entry.providerId}:${window.id}`,
-        providerId: entry.providerId,
-        providerLabel: entry.providerLabel,
-        windowId: window.id,
-        windowLabel: window.label,
-        usedPercent:
-          typeof window.usedPercent === 'number' ? Math.max(0, Math.min(100, window.usedPercent)) : null,
-        state: window.state === 'stale' || window.state === 'unavailable' || window.state === 'unsupported'
-          ? window.state
-          : 'fresh',
-        ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
-      });
-    }
+    const windows: KeyQuotaDisplayWindow[] = entry.windows.map((window) => ({
+      windowId: window.id,
+      windowLabel: window.label,
+      usedPercent:
+        typeof window.usedPercent === 'number' ? Math.max(0, Math.min(100, window.usedPercent)) : null,
+      state: window.state === 'stale' || window.state === 'unavailable' || window.state === 'unsupported'
+        ? window.state
+        : 'fresh',
+      ...(window.resetsAt ? { resetsAt: window.resetsAt } : {}),
+    }));
+    if (windows.length === 0) continue;
+    windows.sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1));
+    items.push({
+      key: entry.providerId,
+      providerId: entry.providerId,
+      providerLabel: entry.providerLabel,
+      windows,
+    });
   }
-  items.sort((left, right) => (right.usedPercent ?? -1) - (left.usedPercent ?? -1));
+  items.sort((left, right) =>
+    (right.windows[0]?.usedPercent ?? -1) - (left.windows[0]?.usedPercent ?? -1));
   return items.slice(0, limit);
 }
 

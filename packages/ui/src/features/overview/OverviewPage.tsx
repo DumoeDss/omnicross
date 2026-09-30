@@ -222,10 +222,11 @@ function WeeklyAllowanceList({
       <span className="text-xs text-muted-foreground">{heading ?? t('overview.accounts.accountQuota')}</span>
       <div className="space-y-2.5">
         {items.map((item) => (
-          // One account per row: its 5h rolling and weekly quota bars side by side.
+          // One account per row: its 5h rolling, weekly, and (opencodego)
+          // monthly quota bars side by side.
           <div key={`${item.providerId}:${item.accountId}`} className="min-w-0">
             <p className="truncate text-[11px] font-medium text-foreground" title={item.label}>{item.label}</p>
-            <div className="mt-1 grid gap-3 sm:grid-cols-2">
+            <div className={cn('mt-1 grid gap-3', item.monthly ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
               {item.fiveHour ? (
                 <AllowanceWindowBar
                   label={t('accounts.allowance.fiveHour')}
@@ -242,6 +243,15 @@ function WeeklyAllowanceList({
                 resetsAt={item.resetsAt}
                 threshold={threshold}
               />
+              {item.monthly ? (
+                <AllowanceWindowBar
+                  label={t('accounts.allowance.monthly')}
+                  usedPercent={item.monthly.usedPercent}
+                  state={item.monthly.state}
+                  resetsAt={item.monthly.resetsAt}
+                  threshold={threshold}
+                />
+              ) : null}
             </div>
           </div>
         ))}
@@ -251,7 +261,8 @@ function WeeklyAllowanceList({
 }
 
 /** BYO provider-key plan quotas (z.ai / MiniMax Token Plan / …) in the same
- * row-and-bar shape as the subscription weekly list. */
+ * row-and-bar shape as the subscription weekly list — one row per provider,
+ * its windows side by side. */
 function KeyQuotaList({ items, threshold }: { items: KeyQuotaDisplayItem[]; threshold: number }) {
   const t = useTranslation();
   if (!items.length) return null;
@@ -259,40 +270,23 @@ function KeyQuotaList({ items, threshold }: { items: KeyQuotaDisplayItem[]; thre
     <div className="grid gap-2 border-t border-border/60 py-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1.2fr)] sm:items-start sm:gap-4">
       <span className="text-xs text-muted-foreground">{t('overview.accounts.keyQuota')}</span>
       <div className="space-y-2">
-        {items.map((item) => {
-          const hasData = typeof item.usedPercent === 'number';
-          const percent = hasData ? (item.usedPercent as number) : 0;
-          const nearLimit = hasData && (item.usedPercent as number) >= threshold;
-          const label = `${item.providerLabel} · ${localizedQuotaWindowLabel({ id: item.windowId, label: item.windowLabel }, t)}`;
-          return (
-            <div key={item.key} className="min-w-0">
-              <div className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="truncate text-muted-foreground" title={label}>{label}</span>
-                <span className={cn('shrink-0 font-mono tabular-nums', nearLimit ? 'text-warning' : 'text-foreground')}>
-                  {hasData ? t('accounts.allowance.used', { percent: Math.round(item.usedPercent as number) }) : t(`accounts.allowance.state.${item.state}`)}
-                </span>
-              </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-[width]',
-                    !hasData || item.state !== 'fresh'
-                      ? 'bg-muted-foreground/50'
-                      : nearLimit
-                        ? 'bg-warning'
-                        : 'bg-primary',
-                  )}
-                  style={{ width: `${percent}%` }}
+        {items.map((item) => (
+          <div key={item.key} className="min-w-0">
+            <p className="truncate text-[11px] font-medium text-foreground" title={item.providerLabel}>{item.providerLabel}</p>
+            <div className="mt-1 grid gap-3 sm:grid-cols-2">
+              {item.windows.map((window) => (
+                <AllowanceWindowBar
+                  key={`${item.key}:${window.windowId}`}
+                  label={localizedQuotaWindowLabel({ id: window.windowId, label: window.windowLabel }, t)}
+                  usedPercent={window.usedPercent ?? undefined}
+                  state={window.state}
+                  resetsAt={window.resetsAt}
+                  threshold={threshold}
                 />
-              </div>
-              {item.resetsAt ? (
-                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                  {t('accounts.allowance.resetsAt', { time: new Date(item.resetsAt).toLocaleString() })}
-                </p>
-              ) : null}
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -928,7 +922,8 @@ export function OverviewPage({ onNavigate }: OverviewPageProps) {
           onNavigate={onNavigate}
         />
 
-        {/* Full-width account pool: each account's 5h + weekly bars share a row. */}
+        {/* Full-width account pool: each account's 5h / weekly / (opencodego)
+            monthly bars share a row; BYO key pools get one row per provider. */}
         <AccountsEvidence view={view} onNavigate={onNavigate} />
 
         {/* Per-client persistent-integration status with one-click enable/repair. */}

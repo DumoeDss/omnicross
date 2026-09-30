@@ -396,7 +396,36 @@ describe('buildOverviewModel', () => {
     expect(view.allowance.weeklyTop[1]).toMatchObject({ accountId: 'claude-1', usedPercent: 30, label: 'claude-primary' });
   });
 
-  it('flattens BYO key-quota entries one row per window, worst-first and capped', () => {
+  it('surfaces and ranks an opencodego account by its monthly window', () => {
+    const base = healthySources();
+    const view = buildOverviewModel({
+      ...base,
+      allowances: source([
+        {
+          ...baseAllowances[0],
+          providerId: 'opencodego',
+          windows: [
+            { id: 'five-hour', label: '5 hours', scope: 'all', usedPercent: 0, state: 'fresh' },
+            { id: 'seven-day', label: '7 days', scope: 'all', usedPercent: 31, state: 'fresh' },
+            { id: 'monthly', label: 'monthly', scope: 'all', usedPercent: 100, state: 'fresh' },
+          ],
+        },
+        {
+          ...baseAllowances[0],
+          accountId: 'claude-2',
+          windows: [{ id: 'seven-day', label: 'Weekly', scope: 'all', usedPercent: 88, state: 'fresh' }],
+        },
+      ]),
+    }, NOW);
+
+    // The monthly-exhausted account outranks the 88%-weekly one.
+    expect(view.allowance.weeklyTop[0]).toMatchObject({ providerId: 'opencodego', usedPercent: 31 });
+    expect(view.allowance.weeklyTop[0].monthly).toMatchObject({ usedPercent: 100, state: 'fresh' });
+    expect(view.allowance.weeklyTop[1]).toMatchObject({ accountId: 'claude-2', usedPercent: 88 });
+    expect(view.allowance.weeklyTop[1].monthly).toBeUndefined();
+  });
+
+  it('groups BYO key-quota entries one row per provider, worst-first and capped', () => {
     const view = buildOverviewModel(healthySources({
       keyQuotas: source([
         {
@@ -417,16 +446,18 @@ describe('buildOverviewModel', () => {
     }), NOW);
 
     expect(view.allowance.keyQuotaItems.map((item) => item.key)).toEqual([
-      'minimax-token-plan:five-hour',
-      'zhipu:five-hour',
-      'zhipu:seven-day',
+      'minimax-token-plan',
+      'zhipu',
     ]);
-    expect(view.allowance.keyQuotaItems[0]).toMatchObject({
-      providerLabel: 'MiniMax',
+    expect(view.allowance.keyQuotaItems[0].windows[0]).toMatchObject({
       windowId: 'five-hour',
       usedPercent: 95,
       state: 'fresh',
     });
+    expect(view.allowance.keyQuotaItems[1].windows.map((window) => window.windowId)).toEqual([
+      'five-hour',
+      'seven-day',
+    ]);
     expect(view.allowance.keyQuotaSourceState).toBe('ready');
   });
 
