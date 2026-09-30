@@ -64,7 +64,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
     createdVoucher,
     dismissCreatedVoucher,
     updateVoucherConfig,
-    updateModelNamingConfig,
     generateVoucher,
     revokeVoucher,
     accounts,
@@ -154,20 +153,6 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                       { value: 'all', label: t('apiService.upstreamDefault.all') },
                     ]}
                     aria-label={t('apiService.upstreamDefault.label')}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  label={t('apiService.modelNaming.label')}
-                  description={t('apiService.modelNaming.description')}
-                >
-                  <Switch
-                    checked={config.modelNaming?.realNames === true}
-                    disabled={busy}
-                    onCheckedChange={(checked) =>
-                      void updateModelNamingConfig({ realNames: checked })
-                    }
-                    aria-label={t('apiService.modelNaming.label')}
                   />
                 </SettingRow>
 

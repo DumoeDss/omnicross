@@ -11,7 +11,7 @@
  */
 
 import { Check, Copy, KeyRound, Link2, Loader2, RefreshCw, Rocket, Terminal } from 'lucide-react';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import { DAEMON_BASE_URL } from '@/daemon/adminClient';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
@@ -31,6 +32,7 @@ import { CliCard } from './CliCard';
 import { useCli } from './hooks/useCli';
 import { useCliIntegrations } from './hooks/useCliIntegrations';
 import { useLaunchTargets } from './hooks/useLaunchTargets';
+import { useModelNaming } from './hooks/useModelNaming';
 
 import { hasInstalledIntegration, hasRotationConflict } from './integrationStatusModel';
 import { PersistentIntegrationCard } from './PersistentIntegrationCard';
@@ -70,8 +72,16 @@ export function CodeCliPage() {
   // (Anthropic wire) each get their own provider/route/key lists.
   const codexTargets = useLaunchTargets('codex');
   const claudeTargets = useLaunchTargets('claude');
+  // model-name-visibility toggle (moved here from the gateway overview — the
+  // setting only affects INSTALLED CLI clients, so it lives with them).
+  const modelNaming = useModelNaming();
   const [manualOpen, setManualOpen] = useState(false);
   const [rotateOpen, setRotateOpen] = useState(false);
+
+  useEffect(() => {
+    void modelNaming.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRefresh = useCallback(() => {
     void Promise.all([
@@ -171,6 +181,28 @@ export function CodeCliPage() {
                 {integrations.error}
               </div>
             ) : null}
+
+            {/* Model-name visibility — affects the INSTALLED clients' model
+                lists/pickers (Claude discovery env; Codex's managed catalog
+                URL serves live). Takes effect on the next model-list refresh
+                (Codex caches its catalog for ~5 minutes). */}
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-surface-1/60 px-4 py-3 md:px-5">
+              <div className="min-w-0">
+                <label htmlFor="model-naming-real-names" className="text-sm font-medium text-foreground">
+                  {t('apiService.modelNaming.label')}
+                </label>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  {t('apiService.modelNaming.description')}
+                </p>
+              </div>
+              <Switch
+                id="model-naming-real-names"
+                checked={modelNaming.realNames === true}
+                disabled={modelNaming.busy || !modelNaming.loaded}
+                onCheckedChange={(checked) => void modelNaming.update(checked)}
+                aria-label={t('apiService.modelNaming.label')}
+              />
+            </div>
 
             {integrations.overview && !integrations.overview.gateway.running ? (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs text-destructive">
