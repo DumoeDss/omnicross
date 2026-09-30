@@ -954,7 +954,7 @@ export interface AgentCliApi {
       keyId?: string;
       /** Codex only: pin the launch to ONE downstream route (id). */
       bindingId?: string;
-      /** Launch with auto-approve (codex --full-auto, claude
+      /** Launch with auto-approve (codex --approve-for-me, claude
        *  --dangerously-skip-permissions); absent keeps the CLI's own policy. */
       autoApprove?: boolean;
     },

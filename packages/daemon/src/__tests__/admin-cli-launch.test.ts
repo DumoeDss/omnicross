@@ -293,14 +293,14 @@ describe('Code CLI launch', () => {
   });
 
   it('autoApprove appends the per-CLI flag; absent keeps the CLI own policy', async () => {
-    // codex: --full-auto
+    // codex: --approve-for-me (the --full-auto semantics; the flag itself was removed in codex >=0.159)
     let r = await adminFetch('POST', '/admin/api/cli/codex/launch', { autoApprove: true });
     expect(r.status).toBe(200);
     // claude: --dangerously-skip-permissions
     r = await adminFetch('POST', '/admin/api/cli/claude/launch', { autoApprove: true });
     expect(r.status).toBe(200);
     expect(openerCalls).toHaveLength(2);
-    expect(openerCalls[0].extraArgs).toContain('--full-auto');
+    expect(openerCalls[0].extraArgs).toContain('--approve-for-me');
     expect(openerCalls[1].extraArgs).toContain('--dangerously-skip-permissions');
     openerCalls.length = 0;
 
@@ -312,7 +312,7 @@ describe('Code CLI launch', () => {
     expect(r.status).toBe(200);
     expect(openerCalls).toHaveLength(2);
     for (const call of openerCalls) {
-      expect(call.extraArgs).not.toContain('--full-auto');
+      expect(call.extraArgs).not.toContain('--approve-for-me');
       expect(call.extraArgs).not.toContain('--dangerously-skip-permissions');
       expect(call.extraArgs).not.toContain('--dangerously-bypass-approvals-and-sandbox');
     }

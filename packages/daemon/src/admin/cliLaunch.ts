@@ -1216,8 +1216,11 @@ export async function handleCliLaunch(
     ? body['bindingId'].trim()
     : undefined;
   // Auto-approve (opt-in per launch): stop the CLI from asking permission for
-  // command execution. Codex gets --full-auto (workspace-write sandbox +
-  // approvals only on failure — NOT the unsandboxed bypass); Claude Code gets
+  // command execution. Codex gets --approve-for-me (on-request approvals +
+  // workspace-write sandbox + automatic approval review — the old --full-auto
+  // semantics; the flag was REMOVED in codex ≥0.159, and --approve-for-me has
+  // existed since 0.147, so it is the one flag every current codex accepts —
+  // NOT the unsandboxed bypass); Claude Code gets
   // --dangerously-skip-permissions. Absent/false keeps the CLI's own approval
   // config untouched.
   const autoApprove = body['autoApprove'] === true;
@@ -1345,7 +1348,7 @@ export async function handleCliLaunch(
   };
   const extraArgs = [...(launch.extraArgs ?? [])];
   if (autoApprove) {
-    if (launchCli === 'codex') extraArgs.push('--full-auto');
+    if (launchCli === 'codex') extraArgs.push('--approve-for-me');
     else if (launchCli === 'claude') extraArgs.push('--dangerously-skip-permissions');
   }
   try {
