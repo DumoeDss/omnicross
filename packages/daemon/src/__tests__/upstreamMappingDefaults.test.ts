@@ -64,14 +64,16 @@ describe('effective upstream mapping defaults', () => {
   });
 });
 
-describe('auto (non-force) declared-model passthrough', () => {
+describe('auto (explicit force:false) declared-model passthrough', () => {
   // codex sends fixed names like gpt-6-astra; the provider declares
-  // glm-5.2/glm-5.3 with a `* -> glm-5.2` fallback.
+  // glm-5.2/glm-5.3 with a `* -> glm-5.2` fallback. STRICT is the default now,
+  // so auto passthrough is exercised through the explicit opt-out.
   const config = normalizeServerConfig({
     upstreamModelMappings: { 'z-ai': [
       { source: 'claude-*', target: 'glm-5.3' },
       { source: '*', target: 'glm-5.2' },
     ] },
+    upstreamModelMappingForce: { 'z-ai': false },
   });
 
   it('auto prepends identity rows for declared models not named by stored rows', () => {
@@ -87,6 +89,7 @@ describe('auto (non-force) declared-model passthrough', () => {
   it('an explicit exact row wins over the declared-model passthrough', () => {
     const pinned = normalizeServerConfig({
       upstreamModelMappings: { 'z-ai': [{ source: 'glm-5.2', target: 'glm-5.3' }] },
+      upstreamModelMappingForce: { 'z-ai': false },
     });
     const effective = effectiveUpstreamModelMappings(pinned, providers, catalog);
     // glm-5.2 has a stored source row → NO identity row for it (the explicit
@@ -101,6 +104,20 @@ describe('auto (non-force) declared-model passthrough', () => {
     const forced = normalizeServerConfig({ ...config, upstreamModelMappingForce: { 'z-ai': true } });
     const effective = effectiveUpstreamModelMappings(forced, providers, catalog);
     expect(effective['z-ai']).toEqual(config.upstreamModelMappings!['z-ai']);
+  });
+
+  it('STRICT is the default: no force flag ⇒ no derived identity rows', () => {
+    const unflagged = normalizeServerConfig({
+      upstreamModelMappings: { 'z-ai': [
+        { source: 'claude-*', target: 'glm-5.3' },
+        { source: '*', target: 'glm-5.2' },
+      ] },
+    });
+    // Same table as `config` but without the explicit false: the stored rows
+    // serve verbatim — a declared glm-5.2 request maps through `*`, never
+    // passthrough.
+    const effective = effectiveUpstreamModelMappings(unflagged, providers, catalog);
+    expect(effective['z-ai']).toEqual(unflagged.upstreamModelMappings!['z-ai']);
   });
 
   it('empty tables stay passthrough (no identity synthesis)', () => {

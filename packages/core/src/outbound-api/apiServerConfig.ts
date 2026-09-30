@@ -927,7 +927,10 @@ export function normalizeUpstreamModelMappingForce(
   const result: Record<string, boolean> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const keyTrimmed = key.trim();
-    if (keyTrimmed !== '' && value === true) result[keyTrimmed] = true;
+    // Booleans persist verbatim: STRICT is the default (absent ⇒ strict), so an
+    // explicit `false` (the operator's auto/passthrough opt-OUT) must survive a
+    // normalize round-trip — dropping it would silently re-enable strict.
+    if (keyTrimmed !== '' && typeof value === 'boolean') result[keyTrimmed] = value;
   }
   return Object.keys(result).length > 0 ? result : undefined;
 }

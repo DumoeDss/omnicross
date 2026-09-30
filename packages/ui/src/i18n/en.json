@@ -1103,7 +1103,7 @@
         "mappingTarget": "Upstream model id",
         "mappingEffort": "Effort",
         "mappingForce": "Strict mapping",
-        "mappingForceHint": "Off (default): a requested model the upstream declares is used verbatim; only undeclared names follow the rules below (usually the * fallback row). On: map strictly by the rules below — no same-name passthrough.",
+        "mappingForceHint": "On (default): map strictly by the rules below — no same-name passthrough. Off: a requested model the upstream declares is used verbatim; only undeclared names follow the rules below (usually the * fallback row).",
         "mappingAdd": "Add a mapping row",
         "mappingHint": "With multiple rows include a * fallback row; the default / background role rows never match by name.",
         "mappingSaveFailed": "Failed to save mappings",

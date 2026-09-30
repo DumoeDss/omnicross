@@ -82,7 +82,8 @@ export function UpstreamMappingEditor({
 }) {
   const t = useTranslation();
   const [rows, setRows] = useState<MappingDraft[]>([]);
-  const [force, setForce] = useState(false);
+  // STRICT is the daemon-side default — the pre-load frame must match it.
+  const [force, setForce] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const suggestions = useUpstreamModelSuggestions(upstreamKey);
@@ -104,7 +105,7 @@ export function UpstreamMappingEditor({
           effort: row.effort,
         })),
       );
-      setForce(entry?.force === true);
+      setForce(entry?.force !== false);
     })();
     return () => {
       cancelled = true;

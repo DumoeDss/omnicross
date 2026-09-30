@@ -672,12 +672,13 @@ export interface OutboundApiServerConfig {
    */
   upstreamModelMappings?: Record<string, GatewayModelMapping[]>;
   /**
-   * UPSTREAM ROUTING MODEL: per-upstream strict-mapping flag. `true` (force)
-   * serves EXACTLY the configured rows. Absent/`false` (auto — the default)
-   * additionally passes a requested model through VERBATIM when the upstream
-   * DECLARES it (implemented as derived identity rows at assembly time; the
-   * stored table is never rewritten). Explicit exact rows always win over the
-   * derived passthrough.
+   * UPSTREAM ROUTING MODEL: per-upstream strict-mapping flag. STRICT is the
+   * DEFAULT (absent ⇒ strict): a table serves EXACTLY its configured rows —
+   * `*` always applies, no same-name passthrough. An explicit `false` opts an
+   * upstream back into AUTO: additionally passes a requested model through
+   * VERBATIM when the upstream DECLARES it (implemented as derived identity
+   * rows at assembly time; the stored table is never rewritten). Explicit
+   * exact rows always win over the derived passthrough.
    */
   upstreamModelMappingForce?: Record<string, boolean>;
   /**

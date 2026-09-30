@@ -84,14 +84,15 @@ function declaredUpstreamModels(
 }
 
 /**
- * The SERVING tables: the resolved tables, plus — for AUTO (non-force)
- * upstreams with a non-empty table — derived identity rows
+ * The SERVING tables: the resolved tables, plus — for AUTO upstreams (explicit
+ * `force: false`) with a non-empty table — derived identity rows
  * (`declared model → same name`) prepended for every declared model not
  * already named by a stored row. Effect: a requested model the upstream
  * declares is passed through VERBATIM; only undeclared names fall to the
  * configured rows (typically the `*` default). Explicit rows keep winning
  * (their sources are skipped); the stored table itself is never rewritten;
- * empty tables stay passthrough. FORCE upstreams get their rows verbatim.
+ * empty tables stay passthrough. STRICT is the DEFAULT (absent flag ⇒ the
+ * table's rows verbatim — `*` always applies, no same-name passthrough).
  */
 export function effectiveUpstreamModelMappings(
   config: OutboundApiServerConfig,
@@ -103,7 +104,7 @@ export function effectiveUpstreamModelMappings(
   const effective: Record<string, GatewayModelMapping[]> = {};
   for (const entry of catalog) {
     const rows = resolved[entry.key] ?? [];
-    if (force[entry.key] === true || rows.length === 0) {
+    if (force[entry.key] !== false || rows.length === 0) {
       effective[entry.key] = rows;
       continue;
     }

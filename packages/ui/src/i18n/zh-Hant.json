@@ -1106,7 +1106,7 @@
         "mappingTarget": "上游模型 id",
         "mappingEffort": "思考檔",
         "mappingForce": "強制映射",
-        "mappingForceHint": "關閉（預設）：客戶端請求的模型若已在上游聲明，就直接使用該模型；未聲明的名字才按規則映射（通常落到 * 兜底行）。開啟：嚴格按規則映射，不做同名直傳。",
+        "mappingForceHint": "開啓（預設）：嚴格按下方規則映射——同名模型不再直通。關閉：上游宣告過的模型直接使用該模型，未宣告的名字才按下方規則映射（通常落到 * 兜底行）。",
         "mappingAdd": "新增映射行",
         "mappingHint": "多行時需包含一行 * 作為兜底；角色行 default / background 不參與名字匹配。",
         "mappingSaveFailed": "儲存映射失敗",

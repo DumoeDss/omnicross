@@ -2725,10 +2725,11 @@ async function handleUpstreams(
         label: entry.label,
         target: entry.target,
         mappings: mappings[entry.key] ?? [],
-        // AUTO (false) = declared-model passthrough via derived identity rows;
-        // the stored table above is what the editor edits (never the derived
-        // rows — they'd be unreadable noise).
-        force: force[entry.key] === true,
+        // STRICT is the default (absent ⇒ strict): AUTO (reported false) is the
+        // explicit `force: false` opt-out with declared-model passthrough via
+        // derived identity rows; the stored table above is what the editor
+        // edits (never the derived rows — they'd be unreadable noise).
+        force: force[entry.key] !== false,
       })),
       // The derived + legacy aggregate actually being served (the UI's launch
       // target picker and route coverage read this instead of the stored
@@ -2762,11 +2763,12 @@ async function handleUpstreams(
     // recreate a table the operator deliberately cleared.
     tables[key] = rows;
     // The strict-mapping flag rides the same PUT: absent keeps the stored
-    // value (an editor that doesn't know about force can't clobber it).
+    // value (an editor that doesn't know about force can't clobber it). STRICT
+    // is the default (absent flag ⇒ strict), so an explicit `false` must be
+    // PERSISTED — deleting it would silently re-enable strict on the next read.
     const forceTable = { ...(current.upstreamModelMappingForce ?? {}) };
     if (Object.prototype.hasOwnProperty.call(body, 'force')) {
-      if (body['force'] === true) forceTable[key] = true;
-      else delete forceTable[key];
+      forceTable[key] = body['force'] === true;
     }
     const next = {
       ...current,
@@ -2775,7 +2777,7 @@ async function handleUpstreams(
     };
     await saveServerConfig(deps.settingsStore, next);
     await reapplyLiveServerConfig(deps);
-    return writeJson(res, 200, { ok: true, key, mappings: rows, force: forceTable[key] === true });
+    return writeJson(res, 200, { ok: true, key, mappings: rows, force: forceTable[key] !== false });
   }
   // P4 (D7): the one-time legacy→upstream-model conversion. The stored legacy
   // routes are NOT removed — rollback is wholesale below or per key.
