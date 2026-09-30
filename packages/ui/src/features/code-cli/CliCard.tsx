@@ -5,11 +5,9 @@
  *
  * Codex and Claude Code additionally offer a ROUTING TARGET selector in the
  * launch dialog: an upstream provider speaking the client's own wire (lease
- * launch pinned to that provider), a downstream route (the terminal
- * authenticates as an eligible gateway key and is pinned to exactly that route
- * via `x-omnicross-binding-id`), or a raw gateway key (authenticate as the key;
- * routing follows the key's bindings, so concurrent terminals can use different
- * keys → different upstreams). Unpicked = the default lease launch.
+ * launch pinned to that provider) or a raw gateway key (authenticate as the
+ * key; routing follows the key's bindings, so concurrent terminals can use
+ * different keys → different upstreams). Unpicked = the default lease launch.
  */
 
 import { ArrowUpCircle, Download, Loader2, Play, Square, Terminal } from 'lucide-react';
@@ -57,13 +55,12 @@ interface CliCardProps {
 }
 
 /** `<kind>:<id>` select value → the launch input for that target kind. */
-function targetLaunchInput(value: string): { providerId?: string; bindingId?: string; keyId?: string } {
+function targetLaunchInput(value: string): { providerId?: string; keyId?: string } {
   const separator = value.indexOf(':');
   if (separator <= 0) return {};
   const kind = value.slice(0, separator);
   const id = value.slice(separator + 1);
   if (kind === 'provider') return { providerId: id };
-  if (kind === 'route') return { bindingId: id };
   if (kind === 'key') return { keyId: id };
   return {};
 }
@@ -265,18 +262,11 @@ export function CliCard({ cli, sessions, busy, onInstall, onUpgrade, version, on
                   // Empty value = the default lease launch (no scoping).
                   { value: '', label: t('codeCli.cli.routeKeyAuto') },
                   ...(targets ?? []).map((item) => ({
-                    value:
-                      item.kind === 'provider'
-                        ? `provider:${item.providerId}`
-                        : item.kind === 'route'
-                          ? `route:${item.bindingId}`
-                          : `key:${item.keyId}`,
+                    value: item.kind === 'provider' ? `provider:${item.providerId}` : `key:${item.keyId}`,
                     label:
                       item.kind === 'provider'
                         ? `${t('codeCli.cli.targetGroupProvider')} · ${item.label}`
-                        : item.kind === 'route'
-                          ? `${t('codeCli.cli.targetGroupRoute')} · ${item.label}`
-                          : `${t('codeCli.cli.targetGroupKey')} · ${item.label}`,
+                        : `${t('codeCli.cli.targetGroupKey')} · ${item.label}`,
                   })),
                 ]}
               />
@@ -284,13 +274,11 @@ export function CliCard({ cli, sessions, busy, onInstall, onUpgrade, version, on
                 <p className="text-xs text-muted-foreground/80">
                   {targetKind === 'provider'
                     ? t('codeCli.cli.targetProviderHint', { wire: wire ?? '' })
-                    : targetKind === 'route'
-                      ? t('codeCli.cli.targetRouteHint')
-                      : t('codeCli.cli.routeKeyHint')}
+                    : t('codeCli.cli.routeKeyHint')}
                 </p>
               ) : (
-                // Always-on explainer: what the three target kinds mean, so the
-                // difference between Route and Key is visible BEFORE choosing.
+                // Always-on explainer: what the two target kinds mean, so the
+                // difference between Provider and Key is visible BEFORE choosing.
                 <p className="text-xs text-muted-foreground/80">{t('codeCli.cli.targetHelp')}</p>
               )}
             </div>
