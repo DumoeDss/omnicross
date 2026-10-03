@@ -132,29 +132,29 @@ export class IntegrationManager {
         );
       }
     }
-    // A pristine install created by an older Omnicross lacks the managed
-    // `model_catalog_url` line — Codex then never fetches our catalog and the
-    // modelNaming toggle appears dead. Offer repair instead of a bare 'none'.
-    const legacyCodexDiscovery =
+    const codexDiscoveryMismatch =
       client === 'codex' &&
       record !== undefined &&
       status.status === 'enabled' &&
       (() => {
         const current = readOptional(target);
-        return current !== null && !hasCodexRuntimeDiscovery(current);
+        return current !== null &&
+          hasCodexRuntimeDiscovery(current) !== (this.options.modelNaming?.()?.realNames === true);
       })();
     if (!record) {
       return { client, configPath: target, action: 'install', canApply: true, changes, warnings };
     }
-    if (status.status === 'enabled' && !legacyCodexDiscovery) {
+    if (status.status === 'enabled' && !codexDiscoveryMismatch) {
       return { client, configPath: target, action: 'none', canApply: true, changes: [], warnings };
     }
-    if (legacyCodexDiscovery) {
+    if (codexDiscoveryMismatch) {
       warnings.unshift(
-        'This Codex integration predates runtime model-list discovery; repairing adds it.',
+        this.options.modelNaming?.()?.realNames === true
+          ? 'This Codex integration predates runtime model-list discovery; repairing adds it.'
+          : 'This Codex integration still overrides the model catalog while real names are disabled; repairing removes the override.',
       );
     }
-    if (!legacyCodexDiscovery) {
+    if (!codexDiscoveryMismatch) {
       warnings.unshift(
         'Configuration changed after installation; repair preserves unrelated current settings.',
       );
@@ -423,10 +423,7 @@ export class IntegrationManager {
 
   /**
    * model-name-visibility: re-render the INSTALLED client files after the
-   * presentation setting changed. Only the Claude install depends on it — the
-   * Codex managed block carries `model_catalog_url` unconditionally and the
-   * GATEWAY decides what that URL serves, so a Codex install never needs a
-   * rewrite on this toggle. Pristine-only: a drifted install is skipped (its
+   * presentation setting changed. Pristine-only: a drifted install is skipped (its
    * status already demands repair, and repair renders with the live setting).
    * Returns the rewritten client ids. No-op when nothing is installed.
    */
@@ -466,11 +463,6 @@ export class IntegrationManager {
       }
     }
 
-    // CODEX: re-render upgrades a PRISTINE install created by an older
-    // Omnicross — restoreCodexBase unwinds the managed block (and re-enables
-    // any externally re-added model_catalog_json), then the render re-applies
-    // it with the model_catalog_url line. Also heals an external static
-    // catalog that appeared while nobody was looking.
     {
       const record = state.clients['codex'];
       if (record && !record.credentialFile) {
@@ -652,15 +644,15 @@ export class IntegrationManager {
         message: 'Codex integration uses legacy managed auth.json and must be repaired.',
       };
     }
-    // A pristine install missing the managed model_catalog_url line predates
-    // runtime discovery (installed by an older Omnicross): routing works, the
-    // modelNaming toggle does not. Repair re-renders with the line.
-    if (client === 'codex' && !hasCodexRuntimeDiscovery(current)) {
+    if (client === 'codex' &&
+        hasCodexRuntimeDiscovery(current) !== (this.options.modelNaming?.()?.realNames === true)) {
       return {
         ...shared,
         status: 'enabled',
         message:
-          'This integration predates runtime model-list discovery; repairing the Codex integration enables it.',
+          this.options.modelNaming?.()?.realNames === true
+            ? 'This integration predates runtime model-list discovery; repairing the Codex integration enables it.'
+            : 'This integration still overrides the model catalog while real names are disabled; repairing the Codex integration removes the override.',
       };
     }
     // Same external-catalog conflict as plan(). On current installs the key is
@@ -750,6 +742,7 @@ export class IntegrationManager {
     return renderCodexConfig({
       existing: base,
       gatewayBaseUrl: this.options.gatewayBaseUrl,
+      gatewayModelDiscovery: this.options.modelNaming?.()?.realNames === true,
       authHelper: this.codexAuthHelper,
     });
   }

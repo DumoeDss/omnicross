@@ -20,6 +20,7 @@ export const CLAUDE_API_KEY_SENTINEL = 'omnicross-gateway';
 export interface CodexConfigInput {
   existing: string;
   gatewayBaseUrl: string;
+  gatewayModelDiscovery?: boolean;
   authHelper: {
     command: string;
     args: string[];
@@ -92,11 +93,9 @@ export function renderCodexConfig(input: CodexConfigInput): string {
     `[model_providers.${CODEX_PROVIDER}]`,
     'name = "Omnicross Local Gateway"',
     `base_url = ${tomlString(`${root}/v1`)}`,
-    // model-name-visibility: Codex's command-auth runtime discovery fetches
-    // this URL and merges the response into its bundled model catalog. The
-    // endpoint serves `{ models: [] }` unless `modelNaming.realNames` is on,
-    // so the presence of this line alone changes nothing.
-    `model_catalog_url = ${tomlString(`${root}/v1/codex-model-catalog`)}`,
+    ...(input.gatewayModelDiscovery
+      ? [`model_catalog_url = ${tomlString(`${root}/v1/codex-model-catalog`)}`]
+      : []),
     'wire_api = "responses"',
     'supports_websockets = false',
     'http_headers = { "X-OpenAI-Actor-Authorization" = "omnicross" }',
@@ -172,15 +171,11 @@ export function renderClaudeSettings(
   return JSON.stringify(settings, null, 2) + '\n';
 }
 
-/**
- * True when the managed provider block already carries the
- * `model_catalog_url` line (i.e. the install postdates runtime model-list
- * discovery). An install created by an older Omnicross renders fine but never
- * gets the URL — Codex then never fetches our catalog, whatever the
- * modelNaming toggle says. Detection only; repair/refresh re-renders.
- */
 export function hasCodexRuntimeDiscovery(existing: string): boolean {
-  return /model_catalog_url\s*=/.test(existing);
+  const start = existing.indexOf(CODEX_BEGIN);
+  const end = existing.indexOf(CODEX_END, start);
+  if (start < 0 || end < 0) return false;
+  return /^\s*model_catalog_url\s*=/m.test(existing.slice(start, end));
 }
 
 /**
@@ -229,7 +224,7 @@ export function restoreCodexBase(current: string, original: string): string {
     );
     if (managedIndex >= 0) {
       if (originalAssignment) lines[managedIndex] = originalAssignment;
-      else lines.splice(managedIndex, 1);
+      else lines.splice(managedIndex, lines[managedIndex + 1] === '' ? 2 : 1);
     }
   }
   // model-name-visibility: put the external static catalog back exactly as the

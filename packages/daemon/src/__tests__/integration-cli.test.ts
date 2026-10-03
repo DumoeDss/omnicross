@@ -26,6 +26,28 @@ function paths() {
 }
 
 describe('native integration CLI commands', () => {
+  it('reads persisted model naming when installing and repairing the Codex catalog', async () => {
+    const p = paths();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    writeFileSync(p.config, JSON.stringify({ providers: [], server: { modelNaming: { realNames: true } } }), 'utf8');
+    await runIntegrations([
+      'install', 'codex', '--config', p.config,
+      '--gateway-base-url', 'http://127.0.0.1:8765',
+      '--master-key-file', p.master, '--target', p.codex,
+    ]);
+    expect(readFileSync(p.codex, 'utf8')).toMatch(/^model_catalog_url\s*=/m);
+
+    for (const realNames of [false, true]) {
+      writeFileSync(p.config, JSON.stringify({ providers: [], server: { modelNaming: { realNames } } }), 'utf8');
+      await runIntegrations(['plan', 'codex', '--config', p.config, '--master-key-file', p.master]);
+      expect(JSON.parse(String(info.mock.calls.at(-1)?.[0])).action).toBe('repair');
+      await runIntegrations(['repair', 'codex', '--config', p.config, '--master-key-file', p.master]);
+      expect(/^model_catalog_url\s*=/m.test(readFileSync(p.codex, 'utf8'))).toBe(realNames);
+      await runIntegrations(['plan', 'codex', '--config', p.config, '--master-key-file', p.master]);
+      expect(JSON.parse(String(info.mock.calls.at(-1)?.[0])).action).toBe('none');
+    }
+  });
+
   it('installs/status/removes Codex command auth and prints token only for the helper action', async () => {
     const p = paths();
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);

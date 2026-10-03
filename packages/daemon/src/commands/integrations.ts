@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { loadServerConfig } from '@omnicross/core/outbound-api';
+
 import {
   currentProcessCodexAuthHelper,
   IntegrationManager,
@@ -8,6 +10,7 @@ import {
   type IntegrationClientId,
 } from '../integrations';
 import { JsonOutboundKeyDb } from '../ports/JsonOutboundKeyDb';
+import { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsStore';
 
 import { defaultIntegrationsPath, defaultKeysPath, resolveSecretBox } from './paths';
 
@@ -31,12 +34,16 @@ export async function runIntegrations(argv: string[]): Promise<void> {
   const saved = store.load();
   const savedUrl = saved.clients.codex?.gatewayBaseUrl ?? saved.clients.claude?.gatewayBaseUrl;
   const gatewayBaseUrl = values['gateway-base-url'] ?? savedUrl ?? 'http://127.0.0.1:8765';
+  const modelNaming = action === 'token'
+    ? undefined
+    : (await loadServerConfig(new JsonApiServerSettingsStore(values.config, secretBox))).modelNaming;
   const manager = new IntegrationManager({
     configPath: resolve(values.config),
     gatewayBaseUrl,
     keyDb: new JsonOutboundKeyDb(defaultKeysPath(values.config), secretBox),
     stateStore: store,
     codexAuthHelper: currentProcessCodexAuthHelper(values.config, values['master-key-file']),
+    modelNaming: () => modelNaming,
   });
 
   if (action === 'token') {

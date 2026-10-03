@@ -515,19 +515,89 @@ describe('IntegrationManager', () => {
     }
   });
 
-  it('writes the Codex managed block with the runtime model_catalog_url (model-name-visibility)', async () => {
-    const f = fixture();
+  it('writes the Codex runtime model_catalog_url when real names are enabled', async () => {
+    const f = fixtureWithModelNaming(() => ({ realNames: true }));
     await f.manager.install('codex');
     const codexPath = join(f.home, '.codex', 'config.toml');
     const toml = readFileSync(codexPath, 'utf8');
-    // The catalog URL rides the managed provider block; the gateway decides its
-    // content (empty until modelNaming.realNames is on), so install alone is
-    // behavior-neutral for the picker.
     expect(toml).toContain('model_catalog_url = "http://127.0.0.1:8765/v1/codex-model-catalog"');
     await f.manager.remove('codex');
     // Uninstall restores the pre-install state exactly (the file never existed,
     // so remove deletes it — no catalog residue).
     expect(existsSync(codexPath)).toBe(false);
+  });
+
+  it.each([undefined, { realNames: false }])('omits the Codex catalog when model naming is %j', async (modelNaming) => {
+    const f = fixtureWithModelNaming(() => modelNaming);
+    const status = await f.manager.install('codex');
+    const codexPath = join(f.home, '.codex', 'config.toml');
+    expect(readFileSync(codexPath, 'utf8')).not.toMatch(/^\s*model_catalog_url\s*=/m);
+    expect(status.status).toBe('enabled');
+    expect(status.message).toBeUndefined();
+    expect((await f.manager.plan('codex')).action).toBe('none');
+    expect(await f.manager.refreshInstalledClients()).toEqual([]);
+  });
+
+  it('synchronizes the Codex catalog on both toggle transitions without losing other settings', async () => {
+    let realNames = false;
+    const f = fixtureWithModelNaming(() => ({ realNames }));
+    const codexPath = join(f.home, '.codex', 'config.toml');
+    mkdirSync(join(f.home, '.codex'), { recursive: true });
+    const original = 'model = "gpt-5"\r\n[tools]\r\nweb_search = true\r\n';
+    writeFileSync(codexPath, original, 'utf8');
+    await f.manager.install('codex');
+
+    for (const enabled of [true, false, true, false]) {
+      realNames = enabled;
+      expect((await f.manager.plan('codex')).action).toBe('repair');
+      expect(await f.manager.refreshInstalledClients()).toEqual(['codex']);
+      const toml = readFileSync(codexPath, 'utf8');
+      expect(/^\s*model_catalog_url\s*=/m.test(toml)).toBe(enabled);
+      expect(toml).toContain('[tools]\r\nweb_search = true\r\n');
+      expect(toml).toContain('[model_providers.omnicross.auth]');
+      expect((await f.manager.listStatus()).find((status) => status.client === 'codex')?.message).toBeUndefined();
+      expect((await f.manager.plan('codex')).action).toBe('none');
+      expect(await f.manager.refreshInstalledClients()).toEqual([]);
+    }
+
+    await f.manager.remove('codex');
+    expect(readFileSync(codexPath, 'utf8')).toBe(original);
+  });
+
+  it('removes a legacy unconditional Codex catalog while real names are disabled', async () => {
+    const f = fixtureWithModelNaming(() => ({ realNames: false }));
+    const codexPath = join(f.home, '.codex', 'config.toml');
+    await f.manager.install('codex');
+    const legacy = readFileSync(codexPath, 'utf8').replace(
+      '[model_providers.omnicross]',
+      '[model_providers.omnicross]\nmodel_catalog_url = "http://127.0.0.1:8765/v1/codex-model-catalog"',
+    );
+    writeFileSync(codexPath, legacy, 'utf8');
+    const state = f.store.load();
+    state.clients.codex!.installedHash = createHash('sha256').update(legacy, 'utf8').digest('hex');
+    f.store.save(state);
+
+    expect((await f.manager.plan('codex')).action).toBe('repair');
+    expect(await f.manager.refreshInstalledClients()).toEqual(['codex']);
+    expect(readFileSync(codexPath, 'utf8')).not.toMatch(/^\s*model_catalog_url\s*=/m);
+    expect((await f.manager.plan('codex')).action).toBe('none');
+  });
+
+  it('preserves drifted Codex settings on toggle and repairs with the live setting', async () => {
+    let realNames = true;
+    const f = fixtureWithModelNaming(() => ({ realNames }));
+    const codexPath = join(f.home, '.codex', 'config.toml');
+    await f.manager.install('codex');
+    const drifted = readFileSync(codexPath, 'utf8') + '\n[user_settings]\nkeep = true\n';
+    writeFileSync(codexPath, drifted, 'utf8');
+    realNames = false;
+
+    expect(await f.manager.refreshInstalledClients()).toEqual([]);
+    expect(readFileSync(codexPath, 'utf8')).toBe(drifted);
+    await f.manager.repair('codex');
+    const repaired = readFileSync(codexPath, 'utf8');
+    expect(repaired).not.toMatch(/^\s*model_catalog_url\s*=/m);
+    expect(repaired).toContain('[user_settings]\nkeep = true');
   });
 
   it('modelNaming off installs Claude WITHOUT the gateway-discovery env; on adds it', async () => {
@@ -573,7 +643,7 @@ describe('IntegrationManager', () => {
   });
 
   it('comments out an external model_catalog_json at install; remove restores it verbatim', async () => {
-    const f = fixture();
+    const f = fixtureWithModelNaming(() => ({ realNames: true }));
     const codexDir = join(f.home, '.codex');
     const codexPath = join(codexDir, 'config.toml');
     mkdirSync(codexDir, { recursive: true });
@@ -643,7 +713,7 @@ describe('IntegrationManager', () => {
   });
 
   it('flags a pristine pre-discovery Codex install (plan repair + status message) and refresh upgrades it', async () => {
-    const f = fixture();
+    const f = fixtureWithModelNaming(() => ({ realNames: true }));
     const codexPath = join(f.home, '.codex', 'config.toml');
     mkdirSync(join(f.home, '.codex'), { recursive: true });
     await f.manager.install('codex');
