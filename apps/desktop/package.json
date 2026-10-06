@@ -12,6 +12,6 @@
     "test:daemon-runtime-packaging": "node --test scripts/__tests__/daemon-runtime-version.test.mjs scripts/__tests__/sharp-runtime-packages.test.mjs"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.12.1"
   }
 }
