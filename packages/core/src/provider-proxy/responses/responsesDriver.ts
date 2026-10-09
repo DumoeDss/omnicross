@@ -33,7 +33,7 @@ import {
   salvageNativeResponsesJson,
   wrapNativeResponsesSse,
 } from './nativeResponsesDsml';
-import { sanitizeResponsesRequest } from './responsesInputSanitizer';
+import { normalizeCodexItemIds, sanitizeResponsesRequest } from './responsesInputSanitizer';
 import {
   buildByoRouteActivityMeta,
   type ByoRouteActivityMeta,
@@ -435,11 +435,24 @@ export async function executeResponsesUpstream(
   }
   // SINGLE EGRESS REPAIR — the one place every Responses call passes through,
   // whatever produced it (a live client, the native DSML salvage, or a session
-  // rollout recorded by an older build). See `responsesInputSanitizer` for the
-  // strict-upstream rules it enforces; it is a no-op on input those upstreams
-  // already accept. Search bodies carry opaque history for the upstream's own
-  // search route, so they are left verbatim.
-  if (operation !== 'search') sanitizeResponsesRequest(body);
+  // rollout recorded by an older build). Two upstreams were measured with
+  // DIFFERENT strictness, so each gets only the repair it actually needs —
+  // rewriting a body an upstream accepts is a gratuitous byte change, and a
+  // byte change is a prompt-cache miss (measured: an unrepaired turn keeps
+  // 97.5% of its prefix cached, so the repairs stay tail-local and
+  // deterministic):
+  //
+  // - Command Code & co. (third party): refuse a message/reasoning item inside
+  //   a tool block → `sanitizeResponsesRequest` moves it out.
+  // - ChatGPT's codex backend: tolerates that layout but REQUIRES `rs_`/`msg_`
+  //   prefixed item ids on replayed history → `normalizeCodexItemIds`.
+  //
+  // See `responsesInputSanitizer` for the measured rules. Search bodies carry
+  // opaque history for the upstream's own search route, so they stay verbatim.
+  if (operation !== 'search') {
+    if (plan.proxyProviderId === 'codex') normalizeCodexItemIds(body);
+    else sanitizeResponsesRequest(body);
+  }
 
   const originalBody = rawBody === undefined ? undefined : { text: rawBody, model: body.model };
   const run = (): Promise<ResponsesPipelineResult> =>

@@ -11,7 +11,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { sanitizeResponsesInput, sanitizeResponsesRequest } from '../responsesInputSanitizer';
+import {
+  normalizeCodexItemIds,
+  sanitizeResponsesInput,
+  sanitizeResponsesRequest,
+} from '../responsesInputSanitizer';
 
 // ---------------------------------------------------------------------------
 // Item builders matching what a live client actually sends
@@ -305,5 +309,49 @@ describe('sanitizeResponsesRequest', () => {
     const body = { model: 'm', input: 'not-an-array' };
     expect(sanitizeResponsesRequest(body)).toBe(body);
     expect(body.input).toBe('not-an-array');
+  });
+});
+
+describe('normalizeCodexItemIds — the codex backend id-prefix rule', () => {
+  // Measured 400 from the ChatGPT codex backend for a session whose rollout
+  // recorded bare-UUID ids:
+  //   Invalid 'input[15].id': '45180ff3-…'. Expected an ID that begins with 'rs'.
+  //   Invalid 'input[17].id': '2827cd3d-…'. Expected an ID that begins with 'msg'.
+  it('prefixes a reasoning id that lacks rs_', () => {
+    const body = { input: [{ type: 'reasoning', id: '45180ff3-aaaa', summary: [] }] };
+    normalizeCodexItemIds(body);
+    expect((body.input[0] as Record<string, unknown>).id).toBe('rs_45180ff3-aaaa');
+  });
+
+  it('prefixes a message id that lacks msg_', () => {
+    const body = { input: [{ type: 'message', id: '2827cd3d-bbbb', role: 'assistant', content: [] }] };
+    normalizeCodexItemIds(body);
+    expect((body.input[0] as Record<string, unknown>).id).toBe('msg_2827cd3d-bbbb');
+  });
+
+  it('leaves an already-prefixed id untouched', () => {
+    const item = { type: 'reasoning', id: 'rs_ok', summary: [] };
+    const body = { input: [item] };
+    normalizeCodexItemIds(body);
+    expect(body.input[0]).toBe(item);
+  });
+
+  it('ignores types with no known prefix and items with no id', () => {
+    const noId = { type: 'reasoning', summary: [] };
+    const other = { type: 'function_call_output', call_id: 'c1', output: 'x' };
+    const body = { input: [noId, other] };
+    normalizeCodexItemIds(body);
+    expect(body.input[0]).toBe(noId);
+    expect(body.input[1]).toBe(other);
+  });
+
+  it('is deterministic — the same history always yields the same ids (cache safety)', () => {
+    const build = () => ({ input: [{ type: 'message', id: 'zzz', role: 'assistant', content: [] }] });
+    const a = build(); const b = build();
+    normalizeCodexItemIds(a); normalizeCodexItemIds(b);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    // and idempotent
+    normalizeCodexItemIds(a);
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 });

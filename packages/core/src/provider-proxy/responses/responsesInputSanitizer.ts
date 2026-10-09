@@ -251,3 +251,50 @@ export function sanitizeResponsesRequest(body: Item): Item {
   body.input = sanitizeResponsesInput(input);
   return body;
 }
+
+// ============================================================================
+// codex-backend item-id prefixes
+// ============================================================================
+
+/**
+ * The id prefixes the ChatGPT codex backend REQUIRES on replayed history — an
+ * item whose id lacks its type's prefix is refused outright, with a message
+ * that names the position (measured 2026-10-09):
+ *
+ *   Invalid 'input[15].id': '45180ff3-…'. Expected an ID that begins with 'rs'.
+ *   Invalid 'input[17].id': '2827cd3d-…'. Expected an ID that begins with 'msg'.
+ *
+ * A session whose rollout recorded items from a THIRD-PARTY upstream keeps
+ * those raw ids forever, so every resumed turn is refused — the same class of
+ * failure as the ordering rule, from a different validator. Types without an
+ * entry here are left alone (the backend raised no complaint about them).
+ */
+const CODEX_ID_PREFIX: Record<string, string> = {
+  reasoning: 'rs_',
+  message: 'msg_',
+  function_call: 'fc_',
+  custom_tool_call: 'ctc_',
+};
+
+/**
+ * Prefix any missing codex item-id prefixes, in place on `body.input`.
+ *
+ * The original id is KEPT as the suffix (only the prefix is added) so the
+ * rewrite stays deterministic — the same history always produces the same
+ * bytes, which is what keeps a repeated/resumed turn's prompt cache warm.
+ *
+ * Returns the same object for chaining.
+ */
+export function normalizeCodexItemIds(body: Item): Item {
+  const input = body.input;
+  if (!Array.isArray(input)) return body;
+  body.input = input.map((raw) => {
+    if (!isRecord(raw)) return raw;
+    const prefix = CODEX_ID_PREFIX[typeOf(raw)];
+    if (!prefix) return raw;
+    const id = raw.id;
+    if (typeof id !== 'string' || id === '' || id.startsWith(prefix)) return raw;
+    return { ...raw, id: `${prefix}${id}` };
+  });
+  return body;
+}
