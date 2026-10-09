@@ -1,6 +1,6 @@
 {
   "name": "omnicross-desktop",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "private": true,
   "description": "Omnicross desktop shell — a Tauri v2 wrapper around the omnicross-ui frontend.",
   "type": "module",
