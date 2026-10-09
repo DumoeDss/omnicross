@@ -226,6 +226,17 @@ sequenceDiagram
 - native 中继的 DSML salvage（`nativeResponsesDsml`）把重放的 call 排在 message 的 `output_item.done` **之后**（`emit.after`）——否则 codex 记录成 `[call, msg, output]`。
 - 翻译层（`OpenAIResponseTransformer.transformRequestIn`）不为「只有 tool_use、无正文」的 assistant 回合发空的 `output_text: ''` item（Claude Code 的常态回合）。
 
+#### 上游报错时日志会带上上游的原文（2026-10-09）
+
+`[OutboundApi] request` 那行在 4xx/5xx 时多一个 `upstreamError` 字段＝**上游自己的报错正文**（截断到 2 KiB）。没有它时，"上游 400"只能靠挂 tap 代理重放请求才能诊断——而答案本来就在手里：严格网关只回 `invalid request error trace_id: …`，codex 会点名（`Invalid 'input[15].id': … Expected an ID that begins with 'rs'`）。
+
+实现在**唯一出口** `fetchUpstream`：非 2xx 时把 body 的一个副本交给 per-request sink，再由出口 API 的路由把它写进该请求的日志行（与它的 key/provider/model 同行，便于定位）。凭据交换（`redactBodies`）的 body **完全不去读**。
+
+两个实现陷阱（都已在代码里注释，改这里前先读）：
+
+- **不能用 `reader.cancel()` 做"只读前 N 字节"**：`clone()` 出来的 body 是 tee，一边 cancel、另一边还在被中继消费时 **promise 永不 settle**（实测），会把 egress 卡死。要读就读到结尾（调试 trace 也是这么做的），只截断**拿去记日志**的文本。
+- **sink 不能放在 per-request 复制的 `ProviderProxyDeps` 上**：`getResponsesAffinityStore` 用 **deps 对象的身份**做 `WeakMap` key（"一个依赖容器一个 store"）。复制 deps 会让每个请求拿到各自全新的空 store，多轮会话的 `previous_response_id` 全部 404（实测踩到）。sink 走 per-request 的 **RouteContext**（与既有的 `suppressAuditBodies` 同一缝）。**deps 容器的身份是承重的，不要复制它。**
+
 #### 合成 SSE 事件必须自成一帧（2026-10-09 实测）
 
 native 中继会在流里**插入合成事件**（DSML salvage 重放的工具调用）。上游的帧形如 `event: …` + `data: …` + 空行；转发行本身只写一个 `
@@ -307,7 +318,7 @@ flowchart LR
 | --- | --- |
 | 用了非预期的模型 | 上游映射表的 **identity 行**是否命中（模型在声明集合内）；再看该订阅的内部 mapper |
 | `must be called via ...` 类 400 | wire 选择：解析后的模型家族 vs 目标端点；路径是否出现 `v1/v1` |
-| 只有 `invalid request error trace_id: …` 的 400（commandcode 等第三方 Responses） | 见 §7.1 的两条校验规则；request 侧抓真实请求体逐条 item 重放（daemon 不回显上游 body） |
+| 只有 `invalid request error trace_id: …` 的 400（commandcode 等第三方 Responses） | 先看日志行的 `upstreamError` 字段（上游原文就在那里）；不够再按 §7.1 抓真实请求体逐条 item 重放 |
 | 配额充足却 429 | 上游**细分窗口**（如 opencodego 的 monthly）——账号页额度条；`audit` 响应体的错误码 |
 | 客户端看不到想要的模型名 | `modelNaming.realNames` 开关；`/v1/models`/Codex 目录只列按名可路由的 id |
 | 请求打到哪条路由 | 审计的 `provider`/`model`/`sessionKey` + `x-omnicross-binding-id` pin 复现 |
