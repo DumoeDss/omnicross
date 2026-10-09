@@ -226,6 +226,22 @@ sequenceDiagram
 - native 中继的 DSML salvage（`nativeResponsesDsml`）把重放的 call 排在 message 的 `output_item.done` **之后**（`emit.after`）——否则 codex 记录成 `[call, msg, output]`。
 - 翻译层（`OpenAIResponseTransformer.transformRequestIn`）不为「只有 tool_use、无正文」的 assistant 回合发空的 `output_text: ''` item（Claude Code 的常态回合）。
 
+#### 合成 SSE 事件必须自成一帧（2026-10-09 实测）
+
+native 中继会在流里**插入合成事件**（DSML salvage 重放的工具调用）。上游的帧形如 `event: …` + `data: …` + 空行；转发行本身只写一个 `
+`，靠上游紧随的空行收尾。**在中间插入合成事件时，必须先补一个空行把当前帧关掉**，否则两条 `data:` 落在同一帧里——SSE 规范会把它们用换行拼成一个 payload，客户端解析 `{…}
+{…}` 直接失败：
+
+```
+codex_api::sse::responses Failed to parse SSE event
+  error_category=Syntax error_line=2 error_column=1 payload_bytes=3273
+```
+
+**症状极具误导性**：HTTP 全是 200、daemon 日志无任何 warn、用户看到的是"没报错但任务突然中断"（流里的坏帧让客户端中止了整个回合）。它只在 salvage 真正重放调用时出现，所以是"偶发"——实测 6/6 触发的请求各含一帧坏帧。
+
+排查手法：在上游侧（把 provider 的 `baseUrl` 指到本地 tap 代理）和下游侧**同时抓 SSE 原文**，然后扫描两条连续 `data:` 行 / 单行 payload 是否可 JSON 解析。回归测试断言的是**帧结构不变式**（一帧内不得有两条 `data:`），而不只是事件顺序——顺序测试看不见这个问题。
+
+
 ### 7.2 订阅（account / pool / group）
 
 订阅目标**永远经内部 `SubscriptionDispatcher` 中转**（与路由无关，D4）：
