@@ -73,6 +73,19 @@ async function drain(stream: ReadableStream<Uint8Array>): Promise<Array<Record<s
     .map((line) => JSON.parse(line.slice(5).trim()));
 }
 
+/** The raw emitted bytes — for asserting SSE FRAMING, not just event order. */
+async function drainRaw(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+  }
+  return text;
+}
+
 describe('armNativeDsmlSalvage', () => {
   it('arms for a deepseek model and recovers the codex declarations', () => {
     const declarations = armedDeclarations();
@@ -301,6 +314,79 @@ describe('wrapNativeResponsesSse', () => {
       .map((e) => e.delta)
       .join('');
     expect(streamed).toBe('partial answer');
+  });
+
+  /**
+   * SSE FRAMING — the invariant the 2026-10-09 field report violated.
+   *
+   * Each frame ends with a blank line. `enqueueEvent` writes a self-contained
+   * `data: …\n\n`, but a rewritten or forwarded source line ends with a single
+   * `\n` and leans on the upstream's own blank separator. Emitting a
+   * synthesized event in between put TWO `data:` lines in ONE frame, and the
+   * SSE spec joins those with a newline — so codex parsed `{…}\n{…}` and
+   * aborted the turn on a syntax error at "line 2, column 1"
+   * (`Failed to parse SSE event`). Nothing surfaced to the user; the turn just
+   * stopped mid-task.
+   */
+  it('never emits two `data:` lines inside one SSE frame', async () => {
+    // The upstream frames every event as `event: …` + `data: …` + blank line.
+    const source = [
+      'event: response.output_item.added\n',
+      frame({
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'message', role: 'assistant', status: 'in_progress', content: [] },
+      }),
+      'event: response.output_text.delta\n',
+      frame({ type: 'response.output_text.delta', output_index: 0, delta: `prose\n${LEAK}` }),
+      'event: response.output_item.done\n',
+      frame({
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: {
+          type: 'message',
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: 'irrelevant' }],
+        },
+      }),
+      'event: response.completed\n',
+      frame({
+        type: 'response.completed',
+        response: {
+          id: 'r',
+          status: 'completed',
+          output: [
+            {
+              type: 'message',
+              role: 'assistant',
+              content: [{ type: 'output_text', text: 'irrelevant' }],
+            },
+          ],
+        },
+      }),
+    ].join('');
+
+    const emitted = await drainRaw(wrapNativeResponsesSse(sseStream([source]), armedDeclarations()));
+    const lines = emitted.split('\n');
+
+    const offenders: number[] = [];
+    for (let i = 0; i < lines.length - 1; i++) {
+      if (lines[i].startsWith('data:') && lines[i + 1].startsWith('data:')) offenders.push(i);
+    }
+    expect(offenders, 'the client joins consecutive data: lines into one payload').toEqual([]);
+
+    // Every frame still parses on its own, and the salvaged call arrives with
+    // the message finalizing FIRST.
+    const doneTypes: string[] = [];
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (payload === '' || payload === '[DONE]') continue;
+      const event = JSON.parse(payload) as Record<string, any>;
+      if (event.type === 'response.output_item.done') doneTypes.push(event.item.type);
+    }
+    expect(doneTypes).toEqual(['message', 'custom_tool_call']);
   });
 
   /**

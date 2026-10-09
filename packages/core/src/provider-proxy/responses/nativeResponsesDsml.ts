@@ -507,7 +507,20 @@ export function wrapNativeResponsesSse(
               for (const event of disposition.before) enqueueEvent(event);
               if (disposition.then === 'forward') enqueue(`${line}\n`);
               else enqueue(`data: ${disposition.then.json}${carriage}\n`);
-              for (const event of disposition.after ?? []) enqueueEvent(event);
+              if (disposition.after?.length) {
+                // CLOSE THE CURRENT SSE FRAME FIRST. `enqueueEvent` writes a
+                // self-contained `data: …\n\n`, but the rewritten/forwarded
+                // line above ends with a single `\n` and relies on the
+                // upstream's own blank separator (the next source line) to
+                // finish its frame. Emitting an `after` event in between put
+                // two `data:` lines in ONE frame — which the SSE spec joins
+                // with a newline, so the client tried to parse
+                // `{…}\n{…}` and aborted the turn on a syntax error at
+                // "line 2, column 1" (codex `Failed to parse SSE event`).
+                enqueue('\n');
+                for (const event of disposition.after) enqueueEvent(event);
+                continue;
+              }
             } else if (disposition.action === 'rewrite') {
               enqueue(`data: ${disposition.json}${carriage}\n`);
             } else {
