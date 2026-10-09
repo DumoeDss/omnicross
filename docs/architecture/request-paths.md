@@ -206,6 +206,18 @@ sequenceDiagram
     G-->>C: 同入口协议回写（+ usage/审计）
 ```
 
+#### 第三方 Responses 上游的两条输入校验规则（2026-10-09 实测）
+
+`api.commandcode.ai/provider/v1/responses` 这类**第三方** Responses 实现比官方严，且它对自己所有 400 只回一句 `invalid request error trace_id: …`（message 里没有任何可诊断信息）。逐条 item 重放量出来的规则：
+
+1. **工具调用块里不能夹 `message` item** —— `[call, message, output]` / `[call, user-msg, output]` → 400；`[call, call, output, output]`（并行工具）、`[message, call, output]`、`[call, output, message]` → 200。孤儿 call / 孤儿 output 也 400。
+2. **assistant 空文本 + 后面接工具块 → 400**（单独出现或后面接 user message → 200）。
+
+因此 **codex 历史的 item 顺序**和**翻译层产生的空 assistant message** 都会直接变成 400：
+
+- 客户端按 item **完成顺序**记录历史：native 中继里合成的工具调用必须在 message 的 `output_item.done` **之后**发（`nativeResponsesDsml` 的 `emit.after`），否则下一回合发回的 `[… call, assistant message, call-output …]` 撞规则 1。
+- 翻译层（`OpenAIResponseTransformer.transformRequestIn`）不要为「只有 tool_use、无正文」的 assistant 回合发空的 `output_text: ''` item（Claude Code 的常态回合就是这种），否则请求以 `[assistant '', call, output]` 结尾撞规则 2。
+
 ### 7.2 订阅（account / pool / group）
 
 订阅目标**永远经内部 `SubscriptionDispatcher` 中转**（与路由无关，D4）：
@@ -271,6 +283,7 @@ flowchart LR
 | --- | --- |
 | 用了非预期的模型 | 上游映射表的 **identity 行**是否命中（模型在声明集合内）；再看该订阅的内部 mapper |
 | `must be called via ...` 类 400 | wire 选择：解析后的模型家族 vs 目标端点；路径是否出现 `v1/v1` |
+| 只有 `invalid request error trace_id: …` 的 400（commandcode 等第三方 Responses） | 见 §7.1 的两条校验规则；request 侧抓真实请求体逐条 item 重放（daemon 不回显上游 body） |
 | 配额充足却 429 | 上游**细分窗口**（如 opencodego 的 monthly）——账号页额度条；`audit` 响应体的错误码 |
 | 客户端看不到想要的模型名 | `modelNaming.realNames` 开关；`/v1/models`/Codex 目录只列按名可路由的 id |
 | 请求打到哪条路由 | 审计的 `provider`/`model`/`sessionKey` + `x-omnicross-binding-id` pin 复现 |

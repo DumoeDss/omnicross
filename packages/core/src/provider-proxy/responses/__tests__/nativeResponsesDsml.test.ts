@@ -165,6 +165,18 @@ describe('salvageNativeResponsesJson', () => {
     expect(salvageNativeResponsesJson(data, armedDeclarations())).toBe(false);
     expect(data.output).toHaveLength(1);
   });
+
+  it('drops a part that cleans to nothing instead of leaving an empty output_text', () => {
+    const data = {
+      output: [
+        { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: LEAK }] },
+      ],
+    };
+    expect(salvageNativeResponsesJson(data, armedDeclarations())).toBe(true);
+    const message = data.output.find((o: any) => o.type === 'message');
+    expect(message.content).toEqual([]);
+    expect(data.output.some((o: any) => o.type === 'custom_tool_call')).toBe(true);
+  });
 });
 
 describe('wrapNativeResponsesSse', () => {
@@ -289,5 +301,96 @@ describe('wrapNativeResponsesSse', () => {
       .map((e) => e.delta)
       .join('');
     expect(streamed).toBe('partial answer');
+  });
+
+  /**
+   * Upstream item-order rule (Command Code, 2026-10-09): a tool call must be
+   * immediately followed by its output, and clients record items in the order
+   * they FINISH. A call replayed ahead of the message's `output_item.done`
+   * therefore came back next turn wedged between the assistant message and its
+   * own output — 400 on every following turn.
+   */
+  it('finalizes the message BEFORE the salvaged call so the client keeps call→output adjacent', async () => {
+    const source = [
+      frame({
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'message', role: 'assistant', status: 'in_progress', content: [] },
+      }),
+      frame({ type: 'response.output_text.delta', output_index: 0, delta: `prose\n${LEAK}` }),
+      frame({
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: {
+          type: 'message',
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: 'irrelevant' }],
+        },
+      }),
+      frame({
+        type: 'response.completed',
+        response: {
+          id: 'r',
+          status: 'completed',
+          output: [
+            {
+              type: 'message',
+              role: 'assistant',
+              content: [{ type: 'output_text', text: 'irrelevant' }],
+            },
+          ],
+        },
+      }),
+    ];
+
+    const events = await drain(wrapNativeResponsesSse(sseStream(source), armedDeclarations()));
+    const order = events
+      .filter((e) => e.type === 'response.output_item.done')
+      .map((e) => e.item.type);
+    expect(order).toEqual(['message', 'custom_tool_call']);
+  });
+
+  /** The same upstream rejects an `output_text` part that is empty. */
+  it('never emits an empty output_text part for a message that was pure markup', async () => {
+    const source = [
+      frame({
+        type: 'response.output_item.added',
+        output_index: 0,
+        item: { type: 'message', role: 'assistant', status: 'in_progress', content: [] },
+      }),
+      frame({ type: 'response.output_text.delta', output_index: 0, delta: LEAK }),
+      frame({
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: {
+          type: 'message',
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: LEAK }],
+        },
+      }),
+      frame({
+        type: 'response.completed',
+        response: {
+          id: 'r',
+          status: 'completed',
+          output: [
+            { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: LEAK }] },
+          ],
+        },
+      }),
+    ];
+
+    const events = await drain(wrapNativeResponsesSse(sseStream(source), armedDeclarations()));
+    const messageDone = events.find(
+      (e) => e.type === 'response.output_item.done' && e.item?.type === 'message'
+    );
+    expect(messageDone.item.content).toEqual([]);
+    const completed = events.find((e) => e.type === 'response.completed');
+    const message = completed.response.output.find((o: any) => o.type === 'message');
+    expect(message.content).toEqual([]);
+    // The turn still delivers its salvaged call.
+    expect(completed.response.output.some((o: any) => o.type === 'custom_tool_call')).toBe(true);
   });
 });

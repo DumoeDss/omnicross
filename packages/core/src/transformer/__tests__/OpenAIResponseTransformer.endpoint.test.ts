@@ -1385,6 +1385,59 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       }, { name: 'codex', baseUrl: 'https://api.openai.com', apiKey: 'k', models: [] }, mockContext);
       expect(((body as Record<string, any>).body ?? body).reasoning.effort).toBe('max');
     });
+
+    /**
+     * A tool-only assistant turn (Claude Code: thinking + `tool_use`, no prose)
+     * flattens to an empty text. Emitting it as a message item puts an
+     * `output_text: ''` part in front of the tool calls, and a strict
+     * third-party Responses upstream 400s on a request ENDING on that tool
+     * block — the 2026-10-09 Command Code field report (every turn after a
+     * tool-only assistant turn failed with `invalid_request_error`).
+     */
+    it('omits an empty assistant message instead of emitting an empty output_text part', async () => {
+      const provider = { name: 'codex', baseUrl: 'https://api.openai.com', apiKey: 'k', models: [] };
+      const build = async (messages: unknown[]) => {
+        const body = await transformer.transformRequestIn(
+          { model: 'deepseek/deepseek-v4.1-flash', messages },
+          provider,
+          mockContext,
+        );
+        return ((body as Record<string, any>).body ?? body).input as Array<Record<string, any>>;
+      };
+
+      // Tool-only assistant turn, then its result — the failing shape.
+      const toolOnly = await build([
+        { role: 'user', content: 'run it' },
+        { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'Bash', arguments: '{}' } }] },
+        { role: 'tool', content: 'ok', tool_call_id: 'call_1' },
+      ]);
+      expect(toolOnly.map((item) => item.role ?? item.type)).toEqual([
+        'user',
+        'function_call',
+        'function_call_output',
+      ]);
+      expect(JSON.stringify(toolOnly), 'no empty output_text part may reach the wire').not.toContain(
+        '"text":""',
+      );
+
+      // An assistant turn WITH prose keeps its message item, ahead of the call.
+      const withText = await build([
+        { role: 'user', content: 'run it' },
+        {
+          role: 'assistant',
+          content: 'Running it now.',
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'Bash', arguments: '{}' } }],
+        },
+        { role: 'tool', content: 'ok', tool_call_id: 'call_1' },
+      ]);
+      expect(withText.map((item) => item.role ?? item.type)).toEqual([
+        'user',
+        'assistant',
+        'function_call',
+        'function_call_output',
+      ]);
+      expect(withText[1].content).toEqual([{ type: 'output_text', text: 'Running it now.' }]);
+    });
   });
 
   // =========================================================================

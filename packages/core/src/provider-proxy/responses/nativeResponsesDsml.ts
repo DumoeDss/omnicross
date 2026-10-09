@@ -23,6 +23,25 @@
  * the declared tool by exact match, then by unique `__`-suffix, before the
  * call is encoded.
  *
+ * TWO upstream rules shape how a salvaged item is emitted (2026-10-09 field
+ * report: codex against Command Code failed with 400 `invalid_request_error`
+ * on every turn AFTER the first salvaged one). Both were measured against the
+ * live upstream by replaying one input item at a time:
+ *
+ * 1. NO MESSAGE INSIDE A TOOL BLOCK — a `message` item may not sit between a
+ *    tool call and the outputs that answer it (`[call, message, output]` and
+ *    `[call, user-message, output]` both 400; `[call, call, output, output]`,
+ *    `[message, call, output]` and `[call, output, message]` are fine). Codex
+ *    records items in the order they FINISH streaming, so a call replayed
+ *    before the message item's `output_item.done` came back next turn as
+ *    `[… call, assistant message, call-output …]` — the rejected shape. The
+ *    call is therefore replayed behind that event (`after`), which reproduces
+ *    the genuine stream's order.
+ * 2. NO EMPTY TEXT — an assistant message whose `output_text` part is `''` is
+ *    rejected when the input continues into a tool block (alone, or followed
+ *    by a user message, it passes). A turn whose entire output was markup
+ *    cleans to exactly that, so empty parts are dropped instead of emitted.
+ *
  * @module provider-proxy/responses/nativeResponsesDsml
  */
 
@@ -128,22 +147,33 @@ function salvagedCallItems(
   );
 }
 
-/** Set every `output_text` part of a message item to one text. */
+/**
+ * Set every `output_text` part of a message item to one text.
+ *
+ * An EMPTY `output_text` part is not merely useless: a strict third-party
+ * Responses upstream (Command Code) rejects the request that echoes it back
+ * with `invalid_request_error`, and a salvaged turn whose whole prose was
+ * markup leaves exactly that behind — the suppressor forwarded no text at all,
+ * so the cleaned text is `''`. Dropping the part (an empty `content` array is
+ * accepted) keeps the message item in place without carrying the empty text.
+ */
 function withMessageText(
   item: Record<string, unknown>,
   text: string,
 ): Record<string, unknown> {
   const content = Array.isArray(item.content) ? item.content : [];
-  const rewritten = content.map((part) => {
+  const rewritten: unknown[] = [];
+  for (const part of content) {
     if (
       part &&
       typeof part === 'object' &&
       (part as Record<string, unknown>).type === 'output_text'
     ) {
-      return { ...(part as Record<string, unknown>), text };
+      if (text !== '') rewritten.push({ ...(part as Record<string, unknown>), text });
+      continue;
     }
-    return part;
-  });
+    rewritten.push(part);
+  }
   return { ...item, content: rewritten };
 }
 
@@ -170,6 +200,7 @@ export function salvageNativeResponsesJson(
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
     if (record.type !== 'message' || !Array.isArray(record.content)) continue;
+    let itemSalvaged = false;
     for (const part of record.content) {
       if (!part || typeof part !== 'object') continue;
       const p = part as Record<string, unknown>;
@@ -178,7 +209,14 @@ export function salvageNativeResponsesJson(
       if (!salvaged.sawMarkup) continue;
       calls.push(...salvagedCallItems(p.text, declarations));
       p.text = salvaged.cleaned;
+      itemSalvaged = true;
       changed = true;
+    }
+    // Same rule as `withMessageText`: a part cleaning to '' must not survive.
+    if (itemSalvaged) {
+      record.content = (record.content as Array<Record<string, unknown>>).filter(
+        (part) => !(part?.type === 'output_text' && part.text === ''),
+      );
     }
   }
 
@@ -197,14 +235,25 @@ export function salvageNativeResponsesJson(
  *   streams are byte-identical through this wrapper).
  * - `drop` — swallow the event (a suppressed text delta).
  * - `rewrite` — replace the event with this serialized JSON.
- * - `emit` — send these NEW events before the original (synthesized tool-call
- *   lifecycle events ahead of a finalized message/turn item).
+ * - `emit` — send these NEW events around the original: `before` ahead of it,
+ *   `after` behind it (synthesized tool-call lifecycle events placed where the
+ *   genuine stream would have carried them).
  */
 type EventDisposition =
   | { action: 'forward' }
   | { action: 'drop' }
   | { action: 'rewrite'; json: string }
-  | { action: 'emit'; before: Array<Record<string, unknown>>; then: 'forward' | { json: string } };
+  | {
+      action: 'emit';
+      before: Array<Record<string, unknown>>;
+      then: 'forward' | { json: string };
+      /**
+       * New events emitted AFTER the original — the order the client must see
+       * them in when a synthesized item belongs BEHIND the original one. See
+       * the message-finalization branch for why the salvaged call rides here.
+       */
+      after?: Array<Record<string, unknown>>;
+    };
 
 /**
  * Wrap a native Responses SSE stream with DSML salvage.
@@ -332,6 +381,16 @@ export function wrapNativeResponsesSse(
 
     // Final message item — its content is the authoritative text codex records
     // for the turn, so it must match what was actually streamed.
+    //
+    // The salvaged call rides AFTER this event, never before it. Client item
+    // order follows the order the items FINISH on the wire, and a client that
+    // records the call first re-sends it as `[… tool-call, assistant message,
+    // tool-output …]` next turn. A strict third-party Responses upstream
+    // (Command Code: `provider/v1/responses`) rejects any `message` item wedged
+    // inside a tool block with 400 `invalid_request_error` — exactly the
+    // "every codex turn after a salvaged turn fails" field report. Letting the
+    // message finalize first reproduces the genuine stream's item order
+    // (`[… assistant message, tool-call, tool-output …]`).
     if (type === 'response.output_item.done') {
       const item = event.item as Record<string, unknown> | undefined;
       if (item?.type !== 'message') return { action: 'forward' };
@@ -348,15 +407,16 @@ export function wrapNativeResponsesSse(
           });
         }
       }
-      before.push(...replayCalls());
+      const after = replayCalls();
       const rewrittenItem = withMessageText(item, forwardedText);
-      if (JSON.stringify(rewrittenItem) === JSON.stringify(item) && before.length === 0) {
+      if (JSON.stringify(rewrittenItem) === JSON.stringify(item) && before.length === 0 && after.length === 0) {
         return { action: 'forward' };
       }
       return {
         action: 'emit',
         before,
         then: { json: JSON.stringify({ ...event, item: rewrittenItem }) },
+        after,
       };
     }
 
@@ -447,6 +507,7 @@ export function wrapNativeResponsesSse(
               for (const event of disposition.before) enqueueEvent(event);
               if (disposition.then === 'forward') enqueue(`${line}\n`);
               else enqueue(`data: ${disposition.then.json}${carriage}\n`);
+              for (const event of disposition.after ?? []) enqueueEvent(event);
             } else if (disposition.action === 'rewrite') {
               enqueue(`data: ${disposition.json}${carriage}\n`);
             } else {

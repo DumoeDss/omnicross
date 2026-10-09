@@ -145,6 +145,29 @@ export class OpenAIResponseTransformer implements Transformer {
         });
       } else {
         const text = typeof msg.content === 'string' ? msg.content : flattenContent(msg.content);
+        // An assistant turn that carried ONLY tool calls (Claude Code's usual
+        // tool-only turn: thinking + `tool_use`, no prose) flattens to an empty
+        // text. Emitting it as a message item puts an `output_text: ''` part in
+        // front of the tool calls, and a strict third-party Responses upstream
+        // rejects a request ENDING on that tool block with 400
+        // `invalid_request_error` (Command Code, 2026-10-09 field report: an
+        // input whose last items are `[assistant '', tool-call, tool-output]`
+        // 400s, while the same input without the empty message passes).
+        // There is nothing to carry, so the item is dropped; the tool calls
+        // below still go out, which is the shape a native client sends.
+        // Non-empty text (even a single space) is kept verbatim.
+        if (msg.role === 'assistant' && text === '') {
+          for (const tc of msg.tool_calls ?? []) {
+            input.push(encodeToolCallItem(
+              tc.id,
+              tc.function.name,
+              tc.function.arguments,
+              'completed',
+              codexTools,
+            ));
+          }
+          continue;
+        }
         const entry: Record<string, unknown> = {
           role: msg.role,
           content: [{ type: msg.role === 'assistant' ? 'output_text' : 'input_text', text }],
