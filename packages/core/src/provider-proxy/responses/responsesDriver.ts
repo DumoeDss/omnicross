@@ -33,6 +33,7 @@ import {
   salvageNativeResponsesJson,
   wrapNativeResponsesSse,
 } from './nativeResponsesDsml';
+import { sanitizeResponsesRequest } from './responsesInputSanitizer';
 import {
   buildByoRouteActivityMeta,
   type ByoRouteActivityMeta,
@@ -432,6 +433,14 @@ export async function executeResponsesUpstream(
       message: 'Native Codex search requires a native Responses upstream',
     });
   }
+  // SINGLE EGRESS REPAIR — the one place every Responses call passes through,
+  // whatever produced it (a live client, the native DSML salvage, or a session
+  // rollout recorded by an older build). See `responsesInputSanitizer` for the
+  // strict-upstream rules it enforces; it is a no-op on input those upstreams
+  // already accept. Search bodies carry opaque history for the upstream's own
+  // search route, so they are left verbatim.
+  if (operation !== 'search') sanitizeResponsesRequest(body);
+
   const originalBody = rawBody === undefined ? undefined : { text: rawBody, model: body.model };
   const run = (): Promise<ResponsesPipelineResult> =>
     plan.profile === 'native'

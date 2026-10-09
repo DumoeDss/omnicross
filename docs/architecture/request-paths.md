@@ -206,17 +206,21 @@ sequenceDiagram
     G-->>C: 同入口协议回写（+ usage/审计）
 ```
 
-#### 第三方 Responses 上游的两条输入校验规则（2026-10-09 实测）
+#### 第三方 Responses 上游的输入校验规则（2026-10-09 实测）
 
 `api.commandcode.ai/provider/v1/responses` 这类**第三方** Responses 实现比官方严，且它对自己所有 400 只回一句 `invalid request error trace_id: …`（message 里没有任何可诊断信息）。逐条 item 重放量出来的规则：
 
-1. **工具调用块里不能夹 `message` item** —— `[call, message, output]` / `[call, user-msg, output]` → 400；`[call, call, output, output]`（并行工具）、`[message, call, output]`、`[call, output, message]` → 200。孤儿 call / 孤儿 output 也 400。
+1. **工具调用块里不能夹非 call/output 的 item** —— 从某个 call 开始，直到该块里每个 call 都拿到自己的 output 为止，中间只允许 call 与 output：`[call, message, output]` / `[call, user-msg, output]` / `[call, reasoning, output]` → 400；块**之前**或块**之后**的 message 都合法（`[message, call, output]`、`[call, output, message]`、`[call, call, output, output]` → 200）。
 2. **assistant 空文本 + 后面接工具块 → 400**（单独出现或后面接 user message → 200）。
+3. 孤儿 call / 孤儿 output 也 400 —— 但**不能因此丢弃它们**：官方路径的 hosted-image 续轮会故意注入一条合成的 `function_call_output` 回执（上一轮的 call 不在本次 input 里），丢掉它等于毁掉那次会话。所以这是"严格上游更严的规则"，不值得为它破坏可用路由。
 
-因此 **codex 历史的 item 顺序**和**翻译层产生的空 assistant message** 都会直接变成 400：
+**通用修复在出口，不在各生产者**：`provider-proxy/responses/responsesInputSanitizer.ts` 在**唯一出口**（`executeResponsesUpstream`，search 操作除外）对每个出站 body 跑一遍 `input` 规整——把夹在工具块里的 item **搬到块之前**（即真流与官方 API 的 `[assistant message, call, output]` 顺序），并删掉完全无文本的 assistant message。它**从不丢弃 call/output**，且只在"该块后面确实有 output 补上"时才搬动（未闭合的块原样通过）。对严格上游本来就接受的输入是**零改动**，官方 API 也接受这些形态，所以无条件启用、不需要开关。
 
-- 客户端按 item **完成顺序**记录历史：native 中继里合成的工具调用必须在 message 的 `output_item.done` **之后**发（`nativeResponsesDsml` 的 `emit.after`），否则下一回合发回的 `[… call, assistant message, call-output …]` 撞规则 1。
-- 翻译层（`OpenAIResponseTransformer.transformRequestIn`）不要为「只有 tool_use、无正文」的 assistant 回合发空的 `output_text: ''` item（Claude Code 的常态回合就是这种），否则请求以 `[assistant '', call, output]` 结尾撞规则 2。
+三个生产者都会造出这些形态，其中两个**无法在源头修**：
+
+- native 中继的 DSML salvage（`nativeResponsesDsml`）可能在重放的 call 旁留下 message item；它自己那侧的顺序修复（`emit.after`）仍要保留——**客户端按 item 完成顺序记录历史**，发错顺序会把坏形态写进 session rollout。
+- 客户端忠实记录流序，于是**旧版本写下的 rollout 里那个坏顺序永久留在磁盘上**；恢复（resume）该会话时每回合都会原样重发——任何生产者侧的修复都够不着它。
+- 翻译层（`OpenAIResponseTransformer.transformRequestIn`）对「只有 tool_use、无正文」的 assistant 回合会发空的 `output_text: ''` item（Claude Code 的常态回合）。这一侧也要修，理由同上：它决定写进客户端历史里的形态。
 
 ### 7.2 订阅（account / pool / group）
 
