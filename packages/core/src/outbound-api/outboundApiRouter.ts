@@ -1188,7 +1188,15 @@ async function relayDirectUpstream(
         // Client hang-up aborts the upstream call (no egress after cancel).
         signal: requestLifecycleSignal(req, res),
       },
-      { providerId: 'byo' },
+      {
+        providerId: 'byo',
+        // This tier relays VERBATIM and never enters `routeRequest`, so it
+        // installs the sink itself — otherwise a passthrough 4xx would be the
+        // one upstream rejection with no explanation on its log line.
+        ...(rlog
+          ? { onUpstreamError: (info: { status: number; body: string }) => { rlog.upstreamError = info.body; } }
+          : {}),
+      },
     );
     if (audit) audit.provider = provider.id;
     if (rlog) rlog.provider = provider.id;
@@ -2116,9 +2124,20 @@ export async function handleOutboundRequest(
     // Anthropic-protocol GENERATION requests additionally carry the PDF
     // extraction budget (translate-path document handling). All other requests
     // mint the route unchanged.
-    const requestRoute = audit
-      ? { ...resolved.route, suppressAuditBodies: (): void => audit.suppressBodies() }
-      : resolved.route;
+    // The upstream-error sink rides the ROUTE (per request), never `proxyDeps`:
+    // the deps container's IDENTITY is load-bearing — `getResponsesAffinityStore`
+    // keys its store by it (`WeakMap<object, …>`), so handing a shallow copy to
+    // `routeRequest` gives every request its own empty store and a multi-turn
+    // session's `previous_response_id` stops resolving (404). Same seam, and same
+    // reason, as the per-request `suppressAuditBodies` callback below.
+    const requestRoute = {
+      ...resolved.route,
+      upstreamErrorSink: (info: { status: number; body: string }): void => {
+        // Only ever the upstream's own words, already truncated by the egress.
+        rlog.upstreamError = info.body;
+      },
+      ...(audit ? { suppressAuditBodies: (): void => audit.suppressBodies() } : {}),
+    };
     const token = routeMap.addRoute(
       isCountTokens
         ? {
@@ -2141,6 +2160,11 @@ export async function handleOutboundRequest(
       // re-reads the body via `req.on('data'/'end')`, so replay the buffered
       // bytes through a fresh readable that carries the request's metadata.
       const replay = makeReplayRequest(req, replayBody);
+      // PER-REQUEST deps: bind the upstream-error sink to THIS request's log
+      // context so a 4xx/5xx from upstream lands on its line as
+      // `upstreamError`, beside the key/provider/model it belongs to. The rest
+      // of `proxyDeps` is a long-lived shared snapshot, so it is copied rather
+      // than mutated (the same pattern `searchFrontendModes` uses below).
       await routeRequest(replay, res, routeMap, nativeCodexSearch
         ? {
             ...deps.proxyDeps,

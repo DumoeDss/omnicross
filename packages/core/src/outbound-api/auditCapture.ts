@@ -116,6 +116,14 @@ export interface RequestLogContext {
   provider?: string;
   /** Sanitized error message (set on a relay/dispatch failure). */
   error?: string;
+  /**
+   * What the UPSTREAM said when it refused this request: its own error body,
+   * truncated. A bare `status: 400` is not diagnosable — a strict upstream
+   * answers with only `invalid request error trace_id: …`, and a helpful one
+   * names the offending field. Set from the egress capture, so it rides the
+   * same line as this request's key/provider/model.
+   */
+  upstreamError?: string;
   /** Machine-readable rejection/oucome tag, e.g. 'auth-invalid' or 'ratelimit'. */
   reason?: string;
 }
@@ -295,6 +303,10 @@ export function beginRequestLogging(
     if (ctx.model) meta.model = ctx.model;
     if (ctx.reason) meta.reason = ctx.reason;
     if (ctx.error) meta.error = ctx.error;
+    // Only ever on a failure: the field MEANS "the upstream refused this", so a
+    // success line must never carry one even if a stale value were left on the
+    // context.
+    if (ctx.upstreamError && res.statusCode >= 400) meta.upstreamError = ctx.upstreamError;
     const log = logger ?? console;
     if (res.statusCode >= 400) log.warn('[OutboundApi] request', meta);
     else log.info('[OutboundApi] request', meta);

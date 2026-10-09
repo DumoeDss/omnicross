@@ -96,6 +96,12 @@ export interface ResponsesCallPlan {
   /** BYO-only: the internal route session id — the activity fallback session key
    *  (the same id the ApiKeyPool binds) when no content session key exists. */
   readonly byoSessionId?: string | null;
+  /**
+   * PER-REQUEST diagnostics: the upstream's own error body on a 4xx/5xx, so the
+   * caller's request-log line can carry it. Sourced from the per-request
+   * `ProviderProxyDeps.upstreamErrorSink`; absent on paths without a request log.
+   */
+  readonly onUpstreamError?: ((info: { status: number; body: string }) => void) | null;
 }
 
 export interface ResponsesPipelineResult {
@@ -282,6 +288,7 @@ async function buildByoPlan(
     },
     byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
     byoSessionId: route.sessionId ?? null,
+    onUpstreamError: route.upstreamErrorSink ?? null,
     callerOpenCodeSession,
     sessionKey,
     sessionSource,
@@ -359,6 +366,7 @@ async function buildSubscriptionPlan(
     upstreamUrl,
     proxyProviderId: profile.authStrategy.providerId,
     providerIdentity: resolved.providerIdentity,
+    onUpstreamError: route.upstreamErrorSink ?? null,
     callerClientHeaders: profile.authStrategy.providerId === 'codex'
       ? extractCodexClientHeaders(requestHeaders)
       : undefined,
@@ -628,6 +636,7 @@ async function runNative(
     {
       providerId: plan.proxyProviderId,
       accountId,
+      onUpstreamError: plan.onUpstreamError ?? undefined,
       routeActivity: buildResponsesRouteActivity(plan, accountId, actualModel, (record) => {
         activityRecordId = record.id;
       }, operation),
@@ -729,6 +738,7 @@ async function runReduced(
         {
           providerId: plan.proxyProviderId,
           accountId,
+          onUpstreamError: plan.onUpstreamError ?? undefined,
           routeActivity: buildResponsesRouteActivity(plan, accountId, actualModel, (record) => {
             activityRecordId = record.id;
           }),

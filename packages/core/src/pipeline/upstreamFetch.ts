@@ -113,6 +113,42 @@ export interface UpstreamProxyContext {
    * reach the trace file. Purely a trace concern: the proxy resolver ignores it.
    */
   redactBodies?: boolean;
+  /**
+   * DIAGNOSTICS — called with a TRUNCATED copy of an upstream error body when
+   * this call comes back 4xx/5xx. Ignores the body of a credential exchange
+   * (`redactBodies`), which must never be read at all.
+   *
+   * A bare status code is not diagnosable: a strict upstream answers a rejected
+   * request with `400 invalid_request_error trace_id: …` and nothing else,
+   * while a helpful one names the offending field (`Invalid 'input[15].id': …
+   * Expected an ID that begins with 'rs'`). Both are in the BODY, which used to
+   * be discarded — so a 400 could only be explained by installing a tap proxy
+   * and replaying the request. A sink is installed per request by the outbound
+   * router, so the captured text lands on that request's access-log line
+   * alongside its key/provider/model.
+   *
+   * Implementations must not throw; this module already guards the call.
+   */
+  onUpstreamError?: (info: { status: number; body: string }) => void;
+}
+
+/** How much of an upstream error body is KEPT for diagnostics. */
+export const UPSTREAM_ERROR_BODY_CAP = 2048;
+
+/**
+ * Read an error body from an already-cloned response and cap what is kept.
+ *
+ * Deliberately `text()` on the clone, NOT a partial read with `reader.cancel()`:
+ * a `Response.clone()` body is a TEE, and cancelling one branch while the other
+ * is still being consumed by the relay **never settles** (measured — the promise
+ * simply never resolves, which would wedge egress on every large error body).
+ * Consuming the clone to its end is what the debug trace already does for the
+ * same reason; the cap applies to the text this function RETURNS, so the log
+ * line stays small without a partial read.
+ */
+async function readErrorBody(response: Response, cap: number): Promise<string> {
+  const body = await response.text();
+  return body.length > cap ? `${body.slice(0, cap)}…` : body;
 }
 
 /**
@@ -382,11 +418,37 @@ export function fetchUpstream(
       },
     );
 
+  /**
+   * Error-body capture for the access log. Awaiting the (capped) read rather
+   * than firing it off keeps the log line deterministic: the sink's value has
+   * to be on the context BEFORE the response closes and the line is written.
+   * The read is bounded and only runs on an already-failing response, so it
+   * cannot delay a healthy call; every failure here is swallowed, because
+   * diagnostics must never break serving.
+   */
+  const doFetchWithCapture = (): Promise<Response> => {
+    const sink = ctx?.onUpstreamError;
+    const pending = doFetchWithActivity();
+    // A credential exchange's bodies are never read — not even to discard them.
+    if (!sink || ctx?.redactBodies === true) return pending;
+    return pending.then(async (response) => {
+      if (response.status >= 400) {
+        try {
+          const body = await readErrorBody(response.clone(), UPSTREAM_ERROR_BODY_CAP);
+          if (body.trim() !== '') sink({ status: response.status, body });
+        } catch {
+          /* diagnostics are best-effort */
+        }
+      }
+      return response;
+    });
+  };
+
   // Upstream-exchange trace (debugging). Only relay calls carry a `providerId`;
   // OAuth-refresh / webhook sends pass no ctx, so they are skipped (less noise).
   // Zero work when no trace path is installed. See `upstreamTrace.ts`.
   const tracePath = getUpstreamTracePath();
-  if (!tracePath || !ctx?.providerId) return doFetchWithActivity();
+  if (!tracePath || !ctx?.providerId) return doFetchWithCapture();
 
   const startedAt = Date.now();
   const method = typeof init.method === 'string' ? init.method : 'GET';
@@ -405,7 +467,7 @@ export function fetchUpstream(
   const providerId = ctx.providerId;
   const accountId = ctx.traceAccountFingerprint ?? ctx.accountId;
 
-  return doFetchWithActivity()
+  return doFetchWithCapture()
     .then((res) => {
       // Tee the stream: the relay keeps streaming `res`; the clone is buffered
       // fully (a `text/event-stream` included) and written to the trace.

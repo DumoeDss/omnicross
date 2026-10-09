@@ -181,6 +181,9 @@ export interface AnthropicCallPlan {
   /** BYO-only: the internal route session id — the activity fallback session key
    *  (the same id the ApiKeyPool binds) for key-rotation visibility. */
   readonly byoSessionId?: string | null;
+  /** PER-REQUEST diagnostics: the upstream's own 4xx/5xx body (truncated) so
+   *  this request's log line can carry it. See `ProviderProxyDeps.upstreamErrorSink`. */
+  readonly onUpstreamError?: ((info: { status: number; body: string }) => void) | null;
 }
 
 /**

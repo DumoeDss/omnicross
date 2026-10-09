@@ -25,6 +25,7 @@ import {
   fetchUpstream,
   resolveUpstreamDispatcher,
   setUpstreamProxyResolver,
+  UPSTREAM_ERROR_BODY_CAP,
 } from '../upstreamFetch';
 import {
   __resetUpstreamTraceForTests,
@@ -396,5 +397,130 @@ describe('resolveUpstreamDispatcher cache + generation', () => {
       throw new Error('boom');
     });
     expect(resolveUpstreamDispatcher({ providerId: 'claude' })).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// Upstream error-body capture (access-log diagnostics)
+// ===========================================================================
+describe('fetchUpstream — upstream error-body capture', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    __resetUpstreamProxyForTests();
+    getSharedAccountRouteActivity().clear();
+  });
+
+  afterEach(() => {
+    __resetUpstreamProxyForTests();
+    getSharedAccountRouteActivity().clear();
+    vi.unstubAllGlobals();
+  });
+
+  const stub = (response: Response): void => {
+    fetchMock = vi.fn(async () => response);
+    vi.stubGlobal('fetch', fetchMock);
+  };
+
+  it('hands a 4xx body to the sink — the whole point: a bare status is not diagnosable', async () => {
+    stub(
+      new Response(JSON.stringify({ error: { message: 'invalid request error trace_id: abc' } }), {
+        status: 400,
+      }),
+    );
+    const seen: Array<{ status: number; body: string }> = [];
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'byo',
+      onUpstreamError: (info) => seen.push(info),
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0].status).toBe(400);
+    expect(seen[0].body).toContain('trace_id: abc');
+  });
+
+  it('captures the upstream’s own words when it names the offending field', async () => {
+    stub(
+      new Response("Invalid 'input[15].id': '45180ff3'. Expected an ID that begins with 'rs'.", {
+        status: 400,
+      }),
+    );
+    const seen: string[] = [];
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'codex',
+      onUpstreamError: (info) => seen.push(info.body),
+    });
+    expect(seen[0]).toContain("Expected an ID that begins with 'rs'");
+  });
+
+  it('does nothing on a 2xx response', async () => {
+    stub(new Response('ok', { status: 200 }));
+    const seen: unknown[] = [];
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'byo',
+      onUpstreamError: (info) => seen.push(info),
+    });
+    expect(seen).toEqual([]);
+  });
+
+  it('does zero extra work when no sink is installed', async () => {
+    // A clone would be the visible sign of capture work.
+    const response = new Response('{"error":"x"}', { status: 400 });
+    const cloneSpy = vi.spyOn(response, 'clone');
+    stub(response);
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, { providerId: 'byo' });
+    expect(cloneSpy).not.toHaveBeenCalled();
+  });
+
+  it('truncates what it keeps, so a huge error page cannot flood the log', async () => {
+    stub(new Response('x'.repeat(5000), { status: 500 }));
+    const seen: string[] = [];
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'byo',
+      onUpstreamError: (info) => seen.push(info.body),
+    });
+    expect(seen[0].length).toBeLessThanOrEqual(UPSTREAM_ERROR_BODY_CAP + 1);
+    expect(seen[0].startsWith('x'.repeat(64))).toBe(true);
+  });
+
+  it('NEVER reads a credential exchange body, even to discard it', async () => {
+    stub(new Response('{"access_token":"super-secret"}', { status: 400 }));
+    const seen: unknown[] = [];
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'claude',
+      redactBodies: true,
+      onUpstreamError: (info) => seen.push(info),
+    });
+    expect(seen, 'a token must not reach the log sink').toEqual([]);
+  });
+
+  it('leaves the caller’s response body intact after capturing', async () => {
+    stub(new Response('{"error":"validation failed"}', { status: 422 }));
+    const response = await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'byo',
+      onUpstreamError: () => undefined,
+    });
+    // The relay must still be able to read the body it forwards downstream.
+    expect(await response.text()).toBe('{"error":"validation failed"}');
+  });
+
+  it('a throwing sink cannot break egress', async () => {
+    stub(new Response('{"error":"boom"}', { status: 500 }));
+    const response = await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'byo',
+      onUpstreamError: () => {
+        throw new Error('sink exploded');
+      },
+    });
+    expect(response.status).toBe(500);
+  });
+
+  it('ignores a non-2xx body that is only whitespace', async () => {
+    stub(new Response('   \n  ', { status: 400 }));
+    const seen: unknown[] = [];
+    await fetchUpstream('https://api.example.com', { method: 'POST' }, {
+      providerId: 'byo',
+      onUpstreamError: (info) => seen.push(info),
+    });
+    expect(seen).toEqual([]);
   });
 });

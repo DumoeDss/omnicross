@@ -10,7 +10,7 @@ import {
   setAuditSink,
 } from '../../pipeline/auditSink';
 import { stashAuditUsage } from '../../pipeline/auditUsageStash';
-import { beginAuditCapture } from '../auditCapture';
+import { beginAuditCapture, beginRequestLogging } from '../auditCapture';
 
 const cfg = (over: Partial<AuditConfig> = {}): AuditConfig => ({
   enabled: true,
@@ -522,5 +522,63 @@ describe('beginAuditCapture — session key + body flag (audit-store-sharding)',
     const compacted = run(true).responseBody!;
     expect(compacted).toContain('"text":"ab"');
     expect(compacted.length).toBeLessThan(stream.length);
+  });
+});
+
+// ===========================================================================
+// Request access log — the upstream error body (diagnosability)
+// ===========================================================================
+describe('beginRequestLogging — upstream error body', () => {
+  interface Line { message: string; meta: Record<string, unknown> }
+  const capture = (): { logs: Line[]; logger: { info(m: string, meta?: unknown): void; warn(m: string, meta?: unknown): void } } => {
+    const logs: Line[] = [];
+    return {
+      logs,
+      logger: {
+        info: (message, meta) => logs.push({ message, meta: (meta ?? {}) as Record<string, unknown> }),
+        warn: (message, meta) => logs.push({ message, meta: (meta ?? {}) as Record<string, unknown> }),
+      },
+    };
+  };
+
+  it('carries the upstream’s own words on a 4xx line', () => {
+    const { logs, logger } = capture();
+    const response = res();
+    const ctx = beginRequestLogging(fakeReq(), response as never, Date.now(), logger);
+    ctx.provider = 'command';
+    // What the egress capture hands the router's sink.
+    ctx.upstreamError = 'invalid request error trace_id: bd299070fe9fb70674db1c74cc244bb2';
+    response.statusCode = 400;
+    response.triggerClose();
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0].message).toBe('[OutboundApi] request');
+    expect(logs[0].meta.status).toBe(400);
+    expect(logs[0].meta.upstreamError).toContain('trace_id: bd299070fe9fb70674db1c74cc244bb2');
+  });
+
+  it('keeps a 4xx line readable even when no body arrived', () => {
+    const { logs, logger } = capture();
+    const response = res();
+    const ctx = beginRequestLogging(fakeReq(), response as never, Date.now(), logger);
+    response.statusCode = 400;
+    response.triggerClose();
+
+    expect(logs).toHaveLength(1);
+    expect('upstreamError' in logs[0].meta, 'absent ⇒ the key is omitted').toBe(false);
+    void ctx;
+  });
+
+  it('does not put the field on a success line', () => {
+    const { logs, logger } = capture();
+    const response = res();
+    const ctx = beginRequestLogging(fakeReq(), response as never, Date.now(), logger);
+    ctx.upstreamError = 'stale value that belongs to no failure';
+    response.statusCode = 200;
+    response.triggerClose();
+
+    // Present only when set — a 200 has no upstream error to report.
+    expect(logs[0].meta.status).toBe(200);
+    expect(logs[0].meta.upstreamError).toBeUndefined();
   });
 });

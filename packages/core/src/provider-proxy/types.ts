@@ -420,6 +420,15 @@ export interface RouteContext {
    * image admission invokes it before any mediated response bytes are relayed.
    */
   readonly suppressAuditBodies?: () => void;
+  /**
+   * Per-request diagnostics, stamped by the outbound router: an upstream
+   * 4xx/5xx body (truncated) reaches it so this request's access-log line can
+   * name what the upstream actually objected to. It rides the ROUTE rather
+   * than `ProviderProxyDeps` because the deps container's identity is
+   * load-bearing (the responses affinity store is keyed by it) — see the
+   * `suppressAuditBodies` sibling above for the same seam.
+   */
+  readonly upstreamErrorSink?: ((info: { status: number; body: string }) => void) | null;
   /** Safe process-local lease attribution. The route token is intentionally absent. */
   readonly routeLease?: RouteLeaseUsageAttribution;
   /** Wire format this route's ingress decodes. */

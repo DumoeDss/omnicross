@@ -470,6 +470,7 @@ export async function buildByoPlan(
     extendedContextEnabled: route.anthropicSdkHints?.extendedContext?.enabled ?? false,
     byoActivity: buildByoRouteActivityMeta(deps, providerId, route.sessionId),
     byoSessionId: route.sessionId ?? null,
+    onUpstreamError: route.upstreamErrorSink ?? null,
   };
 }
 
@@ -547,6 +548,7 @@ export async function runSameFormatFetch(
     { method: 'POST', headers, body: bodyToSend, signal: options.signal },
     {
       providerId: 'byo',
+      onUpstreamError: plan.onUpstreamError ?? undefined,
       routeActivity: {
         providerId: plan.byoActivity?.providerId ?? provider.name,
         credentialKind: 'provider-key',
