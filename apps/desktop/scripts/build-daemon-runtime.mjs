@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { pruneDaemonRuntime } from './prune-daemon-runtime.mjs';
 import {
   currentSharpRuntimeTarget,
   resolveSharpRuntimePackageNames,
@@ -113,6 +114,9 @@ const entry = join(staging, 'node_modules', '@omnicross', 'daemon', 'dist', 'cli
 if (!existsSync(entry)) throw new Error(`staging failed: ${entry} missing`);
 
 // 4. Trim weight the runtime never loads.
+// --omit=dev does not remove tests shipped inside production dependencies.
+const pruned = pruneDaemonRuntime(staging);
+console.info(`[daemon-runtime] pruned ${pruned.files} development files (${pruned.bytes} bytes)`);
 rmSync(tarballDir, { recursive: true, force: true });
 rmSync(join(staging, 'package-lock.json'), { force: true });
 

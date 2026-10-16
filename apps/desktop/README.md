@@ -58,8 +58,8 @@ mode, and produces:
   - macOS: `dmg/` + `macos/*.app`
   - Linux: `deb/`, `rpm/`, `appimage/`
 
-`bundle.targets` is `"all"` in `tauri.conf.json` — narrow it (e.g. `["nsis"]`)
-to speed up packaging. To build just the exe without installers:
+`bundle.targets` defaults to `["nsis"]` in `tauri.conf.json`; CI selects the
+targets for each platform. To build just the exe without installers:
 `npx tauri build --no-bundle`.
 
 > **Daemon runtime:** the installer **bundles both the daemon and a private Node
@@ -73,6 +73,37 @@ to speed up packaging. To build just the exe without installers:
 > in the app's resource dir → the repo checkout (dev) — and runs it with the
 > bundled node (`bundled_node` in `daemon_runtime.rs`), falling back to a PATH
 > `node` only if a build shipped without one.
+
+### Runtime content gate
+
+`npm install --omit=dev` excludes development dependencies, but production
+dependencies can still publish their own tests, fixtures and benchmarks.
+`scripts/build-daemon-runtime.mjs` therefore runs
+`scripts/prune-daemon-runtime.mjs` after installation to remove audited,
+explicit package paths. Runtime code, exports, types and licenses are retained.
+
+`scripts/verify-daemon-runtime.mjs` rejects remaining audited paths and scans
+the entire staged runtime for common test/fixture/benchmark/cache directories
+and `*.test.*` / `*.spec.*` JavaScript or TypeScript files. Unknown matches stop
+packaging and report their paths. After reviewing a new dependency or upgrade,
+add confirmed development assets to `DEVELOPMENT_ONLY_PATHS`. If a matched path
+is required at runtime, add its exact staging-relative path and reason to
+`REVIEWED_RUNTIME_PATHS`. The generic scan never deletes unknown files.
+
+Both `stage-daemon` and Tauri's `beforeBundleCommand` run the verifier. This
+covers local builds, CI and direct `tauri bundle` calls. Keep the hook enabled
+in any custom Tauri configuration. To check an already staged runtime without
+rebuilding, run from `apps/desktop`:
+
+```bash
+node scripts/daemon-runtime-version.mjs
+node scripts/verify-daemon-runtime.mjs
+```
+
+Before delivering an installer, inspect its final file list (for Windows NSIS,
+`src-tauri/target/release/nsis/x64/installer.nsi`) and record the version,
+artifact path, size and SHA256. Reusing an existing compiled executable requires
+confirming its source, dependencies and build configuration have not changed.
 
 ## Architecture notes
 

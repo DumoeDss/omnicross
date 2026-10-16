@@ -1,9 +1,9 @@
 /**
  * Release gate for the staged daemon runtime.
  *
- * Checks that the target-specific Sharp addon is present, node-pty remains
- * omitted, and the private Node binary can actually load Sharp before Tauri
- * packages the directory into an installer.
+ * Rejects unreviewed development assets, checks that the target-specific Sharp
+ * addon is present and node-pty remains omitted, and verifies the private Node
+ * binary can load Sharp before Tauri packages the directory into an installer.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -11,6 +11,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { assertPrunedDaemonRuntime } from './prune-daemon-runtime.mjs';
 import {
   currentSharpRuntimeTarget,
   resolveSharpRuntimeNativePackageNames,
@@ -19,6 +20,9 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const staging = resolve(here, '..', 'src-tauri', 'daemon-runtime');
+
+assertPrunedDaemonRuntime(staging);
+console.info('[daemon-runtime] verified no unreviewed development assets remain');
 
 function containsNativeAddon(directory) {
   if (!existsSync(directory)) return false;
