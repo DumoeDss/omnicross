@@ -16,8 +16,7 @@ export const CANDIDATE_CODEX_IMAGE_EDIT_URL = 'https://chatgpt.com/backend-api/c
 export const CANDIDATE_CODEX_IMAGE_CARRIER_MODEL = 'gpt-5.6-luna';
 /**
  * The default image-tool model. Configurable via `images.codex.imageModel`
- * (multi-provider-image-generation D3) so a newer model (`gpt-image-2-5`, …)
- * needs a config/default change only — never a wire-code change.
+ * for requests using the base model. Explicit variant IDs pass through.
  */
 export const CANDIDATE_CODEX_IMAGE_TOOL_MODEL = 'gpt-image-2';
 
@@ -25,6 +24,13 @@ export const CANDIDATE_CODEX_IMAGE_TOOL_MODEL = 'gpt-image-2';
 export interface CandidateCodexImageWireOptions {
   readonly carrierModel?: string;
   readonly imageModel?: string;
+}
+
+export function resolveCandidateCodexImageModel(
+  model: string,
+  wire: CandidateCodexImageWireOptions = {},
+): string {
+  return model === CANDIDATE_CODEX_IMAGE_TOOL_MODEL ? wire.imageModel ?? model : model;
 }
 const MAX_INPUT_IMAGE_BYTES = 50 * 1024 * 1024;
 
@@ -101,7 +107,7 @@ export async function buildCandidateCodexImageRequest(
       images: [{ image_url: await encodeInputImage(request.images[0]!, signal) }],
       prompt: request.prompt,
       background: request.background,
-      model: wire.imageModel ?? request.model,
+      model: resolveCandidateCodexImageModel(request.model, wire),
       quality: request.quality,
       size: request.size.kind === 'pixels'
         ? `${request.size.width}x${request.size.height}`
@@ -111,7 +117,7 @@ export async function buildCandidateCodexImageRequest(
   const tool: Record<string, unknown> = {
     type: 'image_generation',
     action: request.action,
-    model: wire.imageModel ?? request.model,
+    model: resolveCandidateCodexImageModel(request.model, wire),
     quality: request.quality,
     background: request.background,
     output_format: request.outputFormat,

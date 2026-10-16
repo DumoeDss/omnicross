@@ -3,6 +3,19 @@ import type {
   ImageCapabilityValues,
 } from '@omnicross/contracts/image-generation-types';
 
+import { CODEX_IMAGE_MODELS } from './imageModels';
+
+/** Translate verified upstream model IDs into the base-model override's public IDs. */
+export function applyCodexImageModelOverrideEvidence(
+  layer: ImageCapabilityEvidenceLayer,
+  imageModel?: string,
+): ImageCapabilityEvidenceLayer {
+  if (!imageModel || imageModel === 'gpt-image-2' || !layer.values?.models) return layer;
+  const models = layer.values.models.filter((model) => model !== 'gpt-image-2');
+  if (models.includes(imageModel)) models.unshift('gpt-image-2');
+  return { ...layer, values: { ...layer.values, models } };
+}
+
 /** Safe evidence request; accountId is trusted-process input and must not be logged. */
 export interface CodexImageCapabilityEvidenceRequest {
   readonly accountId: string;
@@ -29,7 +42,7 @@ export interface CodexImageCapabilityEvidenceSource {
  */
 export const CODEX_IMAGE_ADAPTER_VALUES: ImageCapabilityValues = {
   available: true,
-  models: ['gpt-image-2'],
+  models: CODEX_IMAGE_MODELS,
   generate: true,
   edit: true,
   maskEdit: false,
@@ -49,13 +62,18 @@ export const CODEX_IMAGE_ADAPTER_VALUES: ImageCapabilityValues = {
   supportsImageUrl: false,
 };
 
-export function createCodexImageAdapterEvidence(now = Date.now(), imageModel?: string): ImageCapabilityEvidenceLayer {
+export function createCodexImageAdapterEvidence(
+  now = Date.now(),
+  imageModel?: string,
+): ImageCapabilityEvidenceLayer & { readonly values: ImageCapabilityValues } {
   return {
     kind: 'adapter',
     source: 'codex-image-adapter-declaration',
     verifiedAt: now,
-    values: imageModel && imageModel !== 'gpt-image-2'
-      ? { ...CODEX_IMAGE_ADAPTER_VALUES, models: [imageModel, 'gpt-image-2'] }
+    values: imageModel && /^gpt-image-2\.5-(?:flare|sunburst)$/u.test(imageModel)
+      ? { ...CODEX_IMAGE_ADAPTER_VALUES, qualityLevels: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] }
+      : imageModel && !(CODEX_IMAGE_MODELS as readonly string[]).includes(imageModel)
+      ? { ...CODEX_IMAGE_ADAPTER_VALUES, models: [imageModel, ...CODEX_IMAGE_MODELS] }
       : CODEX_IMAGE_ADAPTER_VALUES,
   };
 }

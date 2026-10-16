@@ -286,7 +286,14 @@ class RequestScope implements ResponsesImageRequestScope {
     this.#deps = deps;
     this.#now = now;
     this.#admission = input.admission;
-    this.#runtime = input.runtime;
+    const requestedModel = input.admission.options?.model;
+    if (requestedModel !== undefined) {
+      const model = input.runtime.modelAliases?.get(requestedModel) ?? requestedModel;
+      const providerId = input.runtime.modelRoutes?.get(model)
+        ?? (model === input.runtime.imageModel ? input.runtime.providerId : undefined);
+      if (!providerId) throw new ImageGenerationError('unsupported_model', { param: 'tools.model' });
+      this.#runtime = { ...input.runtime, imageModel: model, providerId };
+    } else this.#runtime = input.runtime;
     this.#resolvedInputs = Object.freeze([...resolvedInputs]);
     this.#responseLeases = Object.freeze([...responseLeases]);
     this.#scopeController = scopeController;

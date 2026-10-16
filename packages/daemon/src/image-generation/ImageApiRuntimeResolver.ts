@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 
 import {
   ImageGenerationError,
+  imageRouteTenantId,
   type ImageApiRuntime,
   type ImageApiRuntimeResolver,
   type ImageReferenceStore,
@@ -38,9 +39,7 @@ function trustedTenantId(value: unknown): string {
 function trustedRouteTenantId(
   route: Parameters<ImageApiRuntimeResolver>[0]['route'],
 ): string {
-  if (route.apiKeyId) return trustedTenantId(route.apiKeyId);
-  const leaseId = route.routeLease?.leaseId;
-  return trustedTenantId(leaseId ? `route-lease:${leaseId}` : undefined);
+  return trustedTenantId(imageRouteTenantId(route));
 }
 
 /**

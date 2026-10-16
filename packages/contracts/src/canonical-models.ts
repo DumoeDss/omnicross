@@ -104,6 +104,12 @@ const ANTHROPIC_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const GEMINI_MODELS: Record<string, KnownModelCapabilities> = {
+  // Official model cards, checked 2026-10-17. Argon is a text-output model.
+  'gemini-4-argon': { category: 'reasoning', contextLength: 1048576, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'] },
+  'gemini-nano-banana-2.1': { category: 'chat', contextLength: 131072, maxTokens: 32768, vision: true, functionCall: false, reasoning: true, thinkingLevels: ['minimal', 'medium', 'high'] },
+  'gemini-3.1-flash-lite-image': { category: 'chat', vision: true, functionCall: false },
+  'gemini-3-pro-image': { category: 'chat', vision: true, functionCall: false },
+  'gemini-3.5-flash-lite': { category: 'chat', vision: true, functionCall: true, reasoning: true },
   'gemini-3.5-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3-flash': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 24576 } },
   'gemini-3.1-pro': { category: 'chat', contextLength: 1000000, maxTokens: 65536, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['low', 'medium', 'high'], thinkingTokenLimit: { min: 128, max: 32768 } },
@@ -216,6 +222,9 @@ const MINIMAX_MODELS: Record<string, KnownModelCapabilities> = {
 };
 
 const XIAOMI_MIMO_CANONICAL: Record<string, KnownModelCapabilities> = {
+  'mimo-v2.6-flash': { category: 'code', vision: true, functionCall: true, reasoning: true },
+  'mimo-v2.6-pro': { category: 'code', vision: true, functionCall: true, reasoning: true },
+  'mimo-v2.6-pro-ultraspeed': { category: 'code', vision: true, functionCall: true, reasoning: true },
   'mimo-v2.5': { category: 'code', contextLength: 1000000, maxTokens: 32768, vision: true, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },
   // mimo-v2.5-pro does not support vision (text + reasoning only).
   'mimo-v2.5-pro': { category: 'code', contextLength: 1000000, maxTokens: 32768, vision: false, functionCall: true, reasoning: true, thinkingLevels: ['none', 'low', 'medium', 'high'], thinkingTokenLimit: { min: 0, max: 32768 } },

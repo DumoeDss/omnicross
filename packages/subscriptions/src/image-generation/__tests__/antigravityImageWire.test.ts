@@ -34,13 +34,13 @@ const TINY_PNG_BASE64 =
 describe('buildAntigravityImageRequest', () => {
   it('generates the CCA non-stream image envelope', () => {
     const body = JSON.parse(buildAntigravityImageRequest({
-      model: 'gemini-3-pro-image-preview',
+      model: 'gemini-3-pro-image',
       prompt: 'a red square',
       project: 'proj-1',
       aspectRatio: '1:1',
     })) as Record<string, unknown>;
     expect(body.project).toBe('proj-1');
-    expect(body.model).toBe('gemini-3-pro-image-preview');
+    expect(body.model).toBe('gemini-3-pro-image');
     expect(body.userAgent).toBe('antigravity');
     expect(body.requestType).toBe('agent');
     expect(String(body.requestId)).toMatch(/^agent\/[0-9a-f-]{36}\/\d+\/[0-9a-f-]{36}\/1$/);
@@ -158,7 +158,7 @@ function generateRequest(overrides: Partial<ImageProviderRequest> = {}): ImagePr
     moderation: 'auto',
     partialImages: 0,
     stream: false,
-    model: 'gemini-3-pro-image-preview',
+    model: 'gemini-3-pro-image',
     ...overrides,
   } as ImageProviderRequest;
 }

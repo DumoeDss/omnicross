@@ -520,7 +520,7 @@ export function createNativeResponsesHostedImageIngress(
       input: ResponsesHostedImagePrepareInput,
     ): Promise<ResponsesHostedImageRequestLease | null> => {
       if (
-        input.operation !== 'create' || input.profile !== 'native' ||
+        input.operation !== 'create' ||
         (!hasImageOwnedResponsesInput(input.body) &&
           !input.previousHostedImageState?.hasImageContext &&
           !input.previousHostedImageState?.pendingReceipts.length)

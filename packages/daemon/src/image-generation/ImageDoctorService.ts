@@ -93,7 +93,7 @@ export type ImageDoctorLiveResult =
   | Readonly<{
       ok: true;
       code: 'verified';
-      model: 'gpt-image-2';
+      model: CodexImageCapabilityObservation['model'];
       quality: 'low';
       outputFormat: 'png';
       freshEvidenceEntries: number;
@@ -146,6 +146,10 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
     createCodexImageLiveVerifier({
       authStrategy: strategy,
       generationTimeoutMs: config.queue.generationTimeoutMs,
+      model: config.models[config.defaultModel] === 'codex-subscription'
+        ? config.defaultModel
+        : config.codex.imageModel,
+      wire: config.codex,
     }));
 
   const readAccount = async (providerId: 'codex' | 'antigravity') => {
@@ -318,7 +322,7 @@ export function createImageDoctorService(options: ImageDoctorServiceOptions): Im
         return Object.freeze({
           ok: true,
           code: 'verified',
-          model: 'gpt-image-2',
+          model: observation.model,
           quality: 'low',
           outputFormat: 'png',
           freshEvidenceEntries: safeCount(status.freshEntries),

@@ -18,6 +18,14 @@ function auth(): AuthStrategy {
 }
 
 describe('Codex image capability evidence', () => {
+  it('declares extended quality for the explicitly selected 2.5 model', async () => {
+    const provider = createCodexSubscriptionImageProvider({ authStrategy: auth() });
+    const lease = await provider.acquire({ requestId: 'quality', tenantId: 'tenant', model: 'gpt-image-2.5-flare',
+      signal: new AbortController().signal });
+    expect(lease.capabilities.qualityLevels).toContain('xhigh');
+    expect(lease.capabilities.qualityLevels).toContain('max');
+    await lease.release();
+  });
   it('returns unknown account/protocol evidence by default', async () => {
     const source = new UnknownCodexImageCapabilityEvidenceSource();
     const evidence = await source.resolve({
@@ -39,7 +47,7 @@ describe('Codex image capability evidence', () => {
     });
     expect(lease.capabilities).toMatchObject({
       available: true,
-      models: ['gpt-image-2'],
+      models: ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'],
       generate: true,
       edit: true,
       maxInputImages: 1,

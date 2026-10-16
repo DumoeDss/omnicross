@@ -818,6 +818,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
       generationId: 'image-runtime-1',
       config: initialImagesConfig,
       subscriptionAccounts,
+      providerSource: llmConfig,
       storage: {
         paths: imageStorageCatalog.active().resolver,
         referenceStore: initialReferenceStore,
@@ -876,6 +877,7 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     evidence: imageEvidenceManifestOwner,
   });
   const imageRuntimeConfig = paths.imageRuntimeConfig ?? createImageRuntimeConfigController({
+    providerSource: llmConfig,
     manager: imageRuntimeManager,
     subscriptionAccounts,
     storageCatalog: imageStorageCatalog,

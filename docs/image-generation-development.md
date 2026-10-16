@@ -1,22 +1,22 @@
 # Omnicross 生图功能开发文档
 
-本文说明 Omnicross 0.2.0 中图片生成、参考图编辑和 Responses 图片工具的实现。内容以当前源码为准，面向维护者、协议适配器开发者和需要排查图片链路的贡献者。
+本文说明 Omnicross 0.6.8 源码中的共享图片 Provider、参考图编辑和 Responses 图片工具。面向维护者、协议适配器开发者和需要排查图片链路的贡献者；正式依赖交付状态见[实施清单](./design/shared-image-providers-plan.md)。
 
 面向最终用户的安装、配置和调用方式见 [生图功能使用文档](./image-generation-usage.md)。
 
 ## 1. 当前能力边界
 
-Omnicross 对外提供三种图片入口，但它们最终复用同一个图片运行时、账号选择器、执行队列和订阅上游适配器。
+Omnicross 对外提供三种图片入口，复用 ImageOrchestrator 和模型路由。API 凭证与订阅认证独立装配，图片路由不继承文本请求的认证信息。
 
 | 入口 | 用途 | 当前状态 |
 | --- | --- | --- |
 | `POST /v1/images/generations` | OpenAI Images 风格文生图 | 已实现 |
-| `POST /v1/images/edits` | OpenAI Images 风格参考图编辑 | 已实现单参考图编辑 |
+| `POST /v1/images/edits` | OpenAI Images 风格参考图编辑 | 按所选模型支持多参考图及遮罩 |
 | `POST /v1/responses` + `image_generation` | Responses 托管图片工具 | 已实现生成与图片状态编排 |
 
-当前生产适配器的保守能力上限如下：
+订阅适配器的保守能力上限如下；API Provider 使用各自的模型能力：
 
-- 模型由 `images.models` 路由表决定（默认表：`gpt-image-2`、`gpt-image-2-5` → Codex 订阅；五个 gemini image 模型 → Antigravity 订阅）。
+- 模型由 `images.models` 路由表决定（默认表：`gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` → Codex 订阅；五个 gemini image 模型 → Antigravity 订阅）。
 - 单次最多输出一张图片。
 - 编辑最多接受一张参考图。
 - 参考图支持 PNG、JPEG 和 WebP，单文件最大 50 MiB。
@@ -25,6 +25,20 @@ Omnicross 对外提供三种图片入口，但它们最终复用同一个图片�
 - 实际可用的质量、尺寸、输出格式等选项还要经过适配器、账号和上游证据三层取交集，不能仅凭配置开关对外宣称支持。
 
 ## 2. 整体架构
+
+### 共享 API 与嵌入入口
+
+`@omnicross/core/image-generation` 导出 `createApiImageProvider`、`createConfiguredImageProviders` 和 `createEmbeddedImageRuntime`。协议请求、任务轮询、下载、输出校验在 `image-generation/api/`；宿主提供凭证、调度和输入资源发布端口。WaveSpeed 成功提交后仅重试结果轮询，不重发计费 POST；取消只终止本地等待，不保证已提交的上游任务停止计费。
+
+`ImagesServerConfig.providers` 以实例 ID 为键，每项保存 `protocol`、`sourceProviderId`、`enabled` 和 `modelMap`。凭证继续存放在宿主现有 Provider 安全存储中。`images.models` 将公开模型映射到实例，`modelMap` 将公开模型映射到上游 ID，`aliases` 指向公开模型；严格写入校验拒绝孤立映射，容错读取会清理它们。
+
+`createEmbeddedImageRuntime` 同时提供 Images 操作和 Responses hosted factory，可由宿主直接装配，不需要启动 daemon。`BoundedMemoryImageReferenceStore` 限制引用数量、字节和 TTL；引用由可信 API key、route lease 或宿主 imageSession 隔离，不能使用客户端 header 伪造租户。
+
+Responses 使用 `tools[].model` 选择图片路由。native Responses 和转换后的 Chat 路径均有集成测试，包括 SSE 工具索引及参数事件。不同工具的组合仍按入口能力检查，不能静默舍弃不支持的工具。
+
+Elftia 的 `omnicross-api.ts` 只转换产品请求/结果；`MediaImageProxyBridge.ts` 将桌面 resident Codex proxy 接到相同媒体配置。通用适配器在 core，桌面和 server 复用；server 当前没有 resident Codex CLI listener。作品持久化、会话历史和产品中继权限仍由 Elftia 管理。
+
+公开 API 支持不等于订阅能力。GPT Image 2.5 的 `xhigh` / `max` 需要按模型检查，订阅还需能力证据。Google Interactions 输出解析 `steps[].model_output.content`，忽略 thought 内容。MiMo 官方旧文本 ID 在有效官方地址上读取迁移并解析旧会话引用；第三方地址及 ASR/TTS ID 保持原样。
 
 ```text
 Codex 内置 image_gen ─┬─ POST /v1/images/generations ─┐
@@ -107,7 +121,7 @@ Codex 持久集成创建或绑定的 key 会同时具备 `responses` 和 `images
 
 - 上游地址：`https://chatgpt.com/backend-api/codex/responses`
 - carrier model：`gpt-5.6-luna`（可由 `images.codex.carrierModel` 覆盖）
-- 图片工具模型：`gpt-image-2`（可由 `images.codex.imageModel` 覆盖，`gpt-image-2-5` 上线只需配置变更）
+- 图片工具模型：请求经别名归一后的模型；`gpt-image-2` 可由 `images.codex.imageModel` 覆盖，显式的 `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` 保持请求值。参考图编辑使用相同的模型选择规则。
 - `tools` 中声明 `type: "image_generation"`
 - `tool_choice` 强制选择图片工具
 - 上游使用 SSE，Omnicross 收集最终 `image_generation_call.result`
@@ -247,7 +261,9 @@ Codex 自定义 provider 中的 `X-OpenAI-Actor-Authorization` 只用于满足�
 
 ## 10. 配置模型
 
-图片服务默认关闭。模型→provider 由 `models` 路由表决定（默认表钉 `gpt-image-2`、`gpt-image-2-5` → `codex-subscription`，`gemini-2.5/3.1-flash-image(-preview)` 与 `gemini-3-pro-image-preview` → `antigravity-subscription`），`defaultModel` 兜底、`aliases` 别名归一，`codex.imageModel`/`codex.carrierModel` 覆盖 Codex 私有线路模型（默认钉现常量）。旧配置的 `provider`/`modelAliases` 在读取时容忍迁移为等价路由表，不重写用户文件；管理 API 写入执行严格校验（路由目标必须是注册 provider，`defaultModel`/别名目标必须在表内）。
+图片服务默认关闭。模型→provider 由 `models` 路由表决定（默认表将 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 路由到 `codex-subscription`，将 `gemini-2.5/3.1-flash-image(-preview)` 与 `gemini-3-pro-image-preview` 路由到 `antigravity-subscription`），`defaultModel` 兜底、`aliases` 别名归一。`codex.imageModel` 覆盖基础型号的请求，`codex.carrierModel` 控制载体模型。含旧 `gpt-image-2-5` 占位路由的配置读取时补入两个 2.5 型号，保留已有自定义路由。旧配置的 `provider`/`modelAliases` 在读取时容忍迁移为等价路由表，不重写用户文件；管理 API 写入执行严格校验（路由目标必须是注册 provider，`defaultModel`/别名目标必须在表内）。
+
+Codex 实时验证使用默认 Codex 模型与当前载体配置，依次完成生成和编辑后才记录实际型号。证据清单兼容原有 Image 2 记录，接受两个 2.5 型号；每账号保留最近一次验证，不将某型号的成功扩展为其他型号的能力。新增型号具有离线协议测试覆盖，尚未在真实订阅上验证。
 
 完整配置由 [`imagesServerConfig.ts`](../packages/core/src/outbound-api/imagesServerConfig.ts) 定义并验证，主要分段包括：
 

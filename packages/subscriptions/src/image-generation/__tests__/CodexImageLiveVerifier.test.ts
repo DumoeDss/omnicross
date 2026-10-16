@@ -69,6 +69,26 @@ afterEach(() => {
 });
 
 describe('CodexImageLiveVerifier', () => {
+  it('records the actual override model and uses the configured carrier for account selection', async () => {
+    const strategy = auth();
+    const bodies: Array<Record<string, unknown>> = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({
+        output: [{ type: 'image_generation_call', status: 'completed', result: VALID_PNG }],
+      }));
+    }));
+    const verifier = createCodexImageLiveVerifier({
+      authStrategy: strategy,
+      wire: { imageModel: 'gpt-image-2.5-flare', carrierModel: 'custom-carrier' },
+    });
+    const result = await verifier.verify({ signal: new AbortController().signal });
+    expect(result.model).toBe('gpt-image-2.5-flare');
+    expect(bodies[0]).toMatchObject({ model: 'custom-carrier', tools: [{ model: result.model }] });
+    expect(bodies[1]).toMatchObject({ model: result.model });
+    expect(strategy.applyHeaders.mock.calls[0]?.[1]?.resolvedModel).toBe('custom-carrier');
+  });
+
   it('honors strict versus pool fallback for an unavailable preferred binding', async () => {
     const applyHeaders = vi.fn(async (
       headers: Record<string, string>,
@@ -111,7 +131,8 @@ describe('CodexImageLiveVerifier', () => {
       .toEqual(['strict', 'pool']);
   });
 
-  it('verifies a reference edit with the generated artifact before returning evidence', async () => {
+  it.each(['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'])(
+    'verifies generation and edit with %s before returning model-specific evidence', async (model) => {
     const requests: Array<{ url: string; headers: Headers; body: Record<string, unknown> }> = [];
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       requests.push({
@@ -127,20 +148,23 @@ describe('CodexImageLiveVerifier', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const verifier = createCodexImageLiveVerifier({ authStrategy: auth() });
+    const verifier = createCodexImageLiveVerifier({
+      authStrategy: auth(), model, wire: { imageModel: 'gpt-image-2' },
+    });
     await expect(verifier.verify({ signal: new AbortController().signal }))
-      .resolves.toMatchObject({ accountId: RAW_ACCOUNT_ID, model: 'gpt-image-2' });
+      .resolves.toMatchObject({ accountId: RAW_ACCOUNT_ID, model });
 
     expect(requests.map((item) => item.url)).toEqual([
       'https://chatgpt.com/backend-api/codex/responses',
       'https://chatgpt.com/backend-api/codex/images/edits',
     ]);
     expect(requests[1]?.headers.get('accept')).toBe('application/json');
+    expect(requests[0]?.body).toMatchObject({ tools: [{ model }] });
     expect(requests[1]?.body).toEqual({
       images: [{ image_url: `data:image/png;base64,${VALID_PNG}` }],
       prompt: 'A single solid black square.',
       background: 'opaque',
-      model: 'gpt-image-2',
+      model,
       quality: 'low',
       size: 'auto',
     });

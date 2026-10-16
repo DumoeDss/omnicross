@@ -17,6 +17,8 @@ const OPTION_KEYS = new Set([
   'n',
   'quality',
   'size',
+  'aspect_ratio',
+  'resolution',
   'background',
   'output_format',
   'output_compression',
@@ -82,7 +84,7 @@ function enumValue<T extends string>(
   return item as T;
 }
 
-function parseSize(value: unknown, multipart: boolean): ImageSize {
+function parseSize(value: unknown, multipart: boolean, maxPixels: number, gpt: boolean): ImageSize {
   if (value === undefined || scalar(value, multipart) === 'auto') return { kind: 'auto' };
   const item = scalar(value, multipart);
   if (typeof item !== 'string') invalid('size');
@@ -95,14 +97,11 @@ function parseSize(value: unknown, multipart: boolean): ImageSize {
   const short = Math.min(width, height);
   if (
     !Number.isSafeInteger(pixels) ||
-    width % 16 !== 0 ||
-    height % 16 !== 0 ||
     width <= 0 ||
     height <= 0 ||
-    long > 3840 ||
-    long / short > 3 ||
-    pixels < 655_360 ||
-    pixels > 8_294_400
+    long > 8192 || pixels > maxPixels ||
+    (gpt && (width % 16 !== 0 || height % 16 !== 0 || long > 3840 ||
+      long / short > 3 || pixels < 655_360 || pixels > 8_294_400))
   ) invalid('size');
   return { kind: 'pixels', width, height };
 }
@@ -130,8 +129,12 @@ export function normalizeImageOptions(
   }
   const model = runtime.modelAliases.get(requestedModel) ?? requestedModel;
   const n = integer(record.n, 1, 'n', 1, 10, multipart);
-  const quality = enumValue<ImageQuality>(record.quality, 'auto', ['auto', 'low', 'medium', 'high'], 'quality', multipart);
-  const size = parseSize(record.size, multipart);
+  const quality = enumValue<ImageQuality>(record.quality, 'auto', ['auto', 'low', 'medium', 'high', 'xhigh', 'max'], 'quality', multipart);
+  const size = parseSize(record.size, multipart, runtime.limits.maxPixels, model.startsWith('gpt-image'));
+  const aspectRatio = record.aspect_ratio === undefined ? undefined : scalar(record.aspect_ratio, multipart);
+  const resolution = record.resolution === undefined ? undefined : scalar(record.resolution, multipart);
+  if (aspectRatio !== undefined && (typeof aspectRatio !== 'string' || !/^\d{1,2}:\d{1,2}$/u.test(aspectRatio))) invalid('aspect_ratio');
+  if (resolution !== undefined && (typeof resolution !== 'string' || !['512', '1K', '2K', '4K'].includes(resolution))) invalid('resolution');
   const background = enumValue<ImageBackground>(record.background, 'auto', ['auto', 'opaque', 'transparent'], 'background', multipart);
   const outputFormat = enumValue<ImageOutputFormat>(record.output_format, 'png', ['png', 'jpeg', 'webp'], 'output_format', multipart);
   const outputCompression = record.output_compression === undefined
@@ -163,6 +166,8 @@ export function normalizeImageOptions(
     n,
     quality,
     size,
+    ...(typeof aspectRatio === 'string' ? { aspectRatio } : {}),
+    ...(typeof resolution === 'string' ? { resolution } : {}),
     background,
     outputFormat,
     ...(outputCompression !== undefined ? { outputCompression } : {}),

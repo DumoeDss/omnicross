@@ -26,7 +26,7 @@ function ProviderCard({ row }: { row: ProviderCardModel }) {
           ) : null}
           <Badge variant={row.available ? 'success' : 'secondary'}>
             {row.available
-              ? t('images.providers.healthy')
+              ? t(row.apiProvider ? 'images.track.configured' : 'images.providers.healthy')
               : t('images.providers.unhealthy')}
           </Badge>
         </span>
@@ -39,7 +39,7 @@ function ProviderCard({ row }: { row: ProviderCardModel }) {
           {row.available
             ? (row.evidenceAgeSeconds !== undefined
                 ? t('images.providers.evidence', { age: row.evidenceAgeSeconds })
-                : t('images.providers.noEvidence'))
+                : t(row.apiProvider ? 'images.api.verificationHint' : 'images.providers.noEvidence'))
             : (row.reason ?? t('images.track.unknown'))}
         </span>
       </div>

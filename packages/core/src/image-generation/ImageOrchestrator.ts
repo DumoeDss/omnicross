@@ -120,6 +120,8 @@ function assertRequestSupported(request: ImageProviderRequest, capabilities: Ima
     unsupported('background');
   }
   if (request.size.kind === 'pixels' && !capabilities.flexibleSizes) unsupported('size');
+  if (request.aspectRatio !== undefined && !capabilities.aspectRatios?.includes(request.aspectRatio)) unsupported('aspect_ratio');
+  if (request.resolution !== undefined && !capabilities.resolutions?.includes(request.resolution)) unsupported('resolution');
   if (request.stream && !capabilities.streaming) unsupported('stream');
   if (!Number.isInteger(request.partialImages) || request.partialImages < 0) {
     throw new ImageGenerationError('invalid_image_request', { param: 'partial_images' });
@@ -364,7 +366,7 @@ export class ImageOrchestrator {
 
     try {
       if (context.signal.aborted) throw cancellationError(context.signal.reason);
-      lease = await this.#registry.require(options.providerId).acquire(context);
+      lease = await this.#registry.require(options.providerId).acquire({ ...context, model: request.model });
       if (context.signal.aborted) throw cancellationError(context.signal.reason);
       assertRequestSupported(request, lease.capabilities);
       if (options.requireResponsesTool === true && lease.capabilities.responsesTool !== true) {
@@ -500,6 +502,7 @@ export class ImageOrchestrator {
               type: 'completed',
               images,
               ...(event.usage !== undefined ? { usage: event.usage } : {}),
+              ...(typeof event.providerMessage === 'string' ? { providerMessage: event.providerMessage.slice(0, 32_000) } : {}),
             };
             providerTerminal = true;
             break;

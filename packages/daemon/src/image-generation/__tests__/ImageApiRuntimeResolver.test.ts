@@ -68,8 +68,9 @@ describe('trusted Images API runtime resolver', () => {
     });
     expect(runtime).not.toHaveProperty('preferredAccountGroup');
     expect(runtime.modelAliases.get('latest')).toBe('gpt-image-2');
-    expect(runtime.modelRoutes.get('gemini-3-pro-image-preview')).toBe('antigravity-subscription');
-    expect(runtime.modelRoutes.get('gpt-image-2-5')).toBe('codex-subscription');
+    expect(runtime.modelRoutes.get('gemini-3-pro-image')).toBe('antigravity-subscription');
+    expect(runtime.modelRoutes.get('gpt-image-2.5-flare')).toBe('codex-subscription');
+    expect(runtime.modelRoutes.get('gpt-image-2.5-sunburst')).toBe('codex-subscription');
     expect(runtime.remoteResolver).toBeUndefined();
     const serialized = JSON.stringify(runtime);
     expect(serialized).not.toContain('RAW_INBOUND_BEARER_SENTINEL');

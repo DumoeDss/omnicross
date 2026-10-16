@@ -24,6 +24,8 @@
  * @module outbound-api/routeResolver
  */
 
+import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
+
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import type { AuthApplyHints } from '../pipeline/SubscriptionAuthStrategy';
 import type {
@@ -335,7 +337,7 @@ export async function resolveRoute(args: {
   const route: RouteContext = {
     sessionId,
     targetProviderFormat,
-    model: modelId,
+    model: resolveOfficialModelRoute(provider, modelId)?.actualModelId ?? modelId,
     ingressFormat,
     authMode: 'byo',
     providerId,

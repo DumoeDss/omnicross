@@ -146,6 +146,7 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       const json = (await out.json()) as Record<string, any>;
 
       expect(json.object).toBe('response');
+      expect(json.id).toMatch(/^resp_[A-Za-z0-9_-]+$/);
       expect(json.status).toBe('completed');
       expect(json.model).toBe('gpt-5-codex');
       expect(Array.isArray(json.output)).toBe(true);

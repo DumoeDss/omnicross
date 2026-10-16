@@ -1,12 +1,12 @@
 # Omnicross 生图功能使用文档
 
-本文说明如何在 Omnicross 0.2.0 中启用图片服务，并分别使用 Codex 内置 `image_gen` 工具和 imagegen skill 的 CLI 回退脚本。
+本文以 Omnicross 0.6.8 源码为准，说明 API 图片 Provider、订阅图片服务以及 Codex 内置 `image_gen` 工具的接入。0.6.8 的发布和 Elftia 正式依赖升级仍需完成，源码验证不代表安装包已经更新。
 
 实现细节见 [生图功能开发文档](./image-generation-development.md)。
 
 ## 1. 两种使用模式
 
-两种模式最终都访问 Omnicross 的同一套 Images API 和同一个 Codex 订阅上游，但客户端接入方式不同。
+两种模式访问同一套 Images API；图片模型路由决定使用 API Provider 还是订阅 Provider。Codex 的文本模型和图片模型分别配置。
 
 | 模式 | 适用场景 | Codex 可见性 header | 所需凭证 |
 | --- | --- | --- | --- |
@@ -19,10 +19,10 @@
 
 开始前确认：
 
-1. 已安装包含图片编辑支持的 Omnicross 0.2.0 构建。
+1. 使用包含共享图片 Provider 的当前源码构建，或包含该功能的正式版本。
 2. 安装或升级后已经完全退出并重新启动 Omnicross。
 3. 当前运行的是安装包内的新 daemon，而不是升级前仍驻留的旧进程。
-4. 已登录至少一个可用的 Codex 订阅账号。
+4. 配置一个 API 图片 Provider，或登录具备相应图片能力的订阅账号。
 5. Outbound API 服务正在运行，默认 loopback 地址为 `http://127.0.0.1:8765`。
 6. Omnicross 的“图像生成”服务已开启。
 7. 客户端使用的 Omnicross key 具有所需权限。
@@ -33,6 +33,20 @@
 - Codex 持久接入或 `/v1/responses` 图片工具：需要 `responses` 和 `images`。
 
 ## 3. 推荐配置：使用 Omnicross 持久接入
+
+### API 图片 Provider 与独立路由
+
+在“图像”页面的 API Provider 区域添加实例，选择协议和凭证来源；凭证表单可以新建或修改接口地址，编辑时密钥留空会保留原值。多个实例可以使用同一协议，但分别引用不同凭证来源。支持 OpenAI Images、Gemini、Gemini Interactions、Vertex、xAI、OpenRouter 和 WaveSpeed。
+
+为实例添加公开模型名和上游模型映射，再选择默认图片模型；别名编辑器可以为公开模型设置简短名称。修改图片路由不影响文本路由。禁用实例或凭证来源后，该来源不能生成图片；删除实例会清理相关路由和别名，并重新选择有效默认值。
+
+例如：公开模型 `illustration` → 实例 `studio-images` → `gpt-image-2.5-sunburst`。Images API 请求的 `model` 填 `illustration`；Responses 请求的顶层 `model` 仍填文本模型，图片工具填 `{"type":"image_generation","model":"illustration"}`。
+
+GPT Image 2.5 的模型 ID 为 `gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`，新增 `xhigh`、`max` 质量档位；旧 GPT Image 2 不接受这两个档位。Nano Banana 2.1 使用 `gemini-nano-banana-2.1`，通过 Interactions 接口生成和编辑图片，支持 1K/2K/4K；Gemini 4 Argon 是文本输出模型，不是生图模型。
+
+API Provider 的“已配置”表示接口与凭证已提供，不代表真实生图已经验证。订阅的可用能力仍取决于账号和能力证据，公开 API 模型目录不能证明订阅账号拥有调用权限。实际验证会访问上游，可能消耗额度。
+
+Codex 工具入口的可见性还依赖所用 Codex 版本及启动配置；自动化代理测试通过不等于已经在用户的 Codex 会话中完成真实生图。
 
 安装版推荐通过 UI 生成配置，不要手工复制安装目录里的 daemon 路径。
 
@@ -386,7 +400,8 @@ Images 服务的模型→provider 路由由配置段 `images.models` 决定，�
 | 模型 | provider | 说明 |
 | --- | --- | --- |
 | `gpt-image-2` | Codex 订阅 | 默认模型 |
-| `gpt-image-2-5` | Codex 订阅 | 新模型就绪后零代码切换 |
+| `gpt-image-2.5-flare` | Codex 订阅 | Image 2.5 Flare |
+| `gpt-image-2.5-sunburst` | Codex 订阅 | Image 2.5 Sunburst |
 | `gemini-2.5-flash-image(-preview)` | Antigravity 订阅 | NanoBanana |
 | `gemini-3.1-flash-image(-preview)` | Antigravity 订阅 | NanoBanana |
 | `gemini-3-pro-image-preview` | Antigravity 订阅 | NanoBanana |
@@ -395,7 +410,11 @@ Images 服务的模型→provider 路由由配置段 `images.models` 决定，�
 
 ### 10.2 Codex 线路模型覆盖
 
-`images.codex.imageModel` / `carrierModel` 可覆盖 Codex 私有线路的图像模型与载体模型（默认 `gpt-image-2` / `gpt-5.6-luna`）。独立 Images 页面提供两个覆盖输入、默认模型下拉与路由表只读展示，清空输入即恢复默认。能力证据的模型维度跟随配置值记录。
+`images.codex.imageModel` 可覆盖使用 `gpt-image-2` 的请求；显式请求 `gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst` 时按所选型号发送，不受该覆盖值影响。`carrierModel` 控制包装图像工具的载体模型，默认 `gpt-5.6-luna`。独立 Images 页面提供两个覆盖输入、默认模型下拉与路由表只读展示，清空输入即恢复默认。含旧 `gpt-image-2-5` 占位路由的配置在读取时补入两个新型号；自定义路由表可通过 `images.models` 添加它们。
+
+例如，调用 `/v1/images/generations` 或 `/v1/images/edits` 时设置 `model: "gpt-image-2.5-flare"`，或将 `images.defaultModel` 设为 `gpt-image-2.5-sunburst` 后省略请求中的 `model`。这两个型号沿用当前适配器的单图生成、单参考图编辑及 PNG/JPEG/WebP 输出边界；未据型号名称推断更大的参考图数量、透明背景或公共流式输出能力。
+
+实时验证会测试当前默认的 Codex 图像模型；默认路由到其他 provider 时，测试 `images.codex.imageModel`。验证结果按实际发出的型号记录，旧模型的成功证据不会扩展为两个新型号的权限证明。当前证据存储保留每账号最近一次验证；切换型号后需要重新验证。两个 2.5 型号已覆盖离线请求与响应测试，真实账号可用性仍须通过上游验证。
 
 ### 10.3 会话内嵌图（v1）
 

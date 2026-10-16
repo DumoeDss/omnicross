@@ -90,6 +90,12 @@ function subscriptionProfile(
 afterEach(() => setSubscriptionRegistryForOutbound(null));
 
 describe('RouteLeaseTargetResolver provider preflight', () => {
+  it('accepts a saved retired official MiMo ref against the refreshed model catalog', async () => {
+    const source = configSource([provider({ api_base_url: 'https://api.xiaomimimo.com/v1', models: ['mimo-v2.6-flash'] })]);
+    const resolver = new RouteLeaseTargetResolver(source);
+    expect(await resolver.resolve(request({ kind: 'provider', providerId: 'provider-a' }, { model: 'mimo-v2.5' })))
+      .toMatchObject({ model: 'mimo-v2.6-flash', providerId: 'provider-a' });
+  });
   it('freezes an explicit provider key with strict fallback and never consults another provider', async () => {
     const source = configSource([
       provider(),

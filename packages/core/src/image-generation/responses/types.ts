@@ -23,6 +23,7 @@ export interface ResponsesImageInspectionInput {
 }
 
 export interface ResponsesImageNormalizedOptions {
+  readonly model?: string;
   readonly action: ResponsesImageAction;
   readonly quality: ImageQuality;
   readonly size: ImageSize;
@@ -143,6 +144,8 @@ export interface ResponsesImageTrustedRuntime {
   readonly requestId: string;
   readonly providerId: string;
   readonly imageModel: string;
+  readonly modelRoutes?: ReadonlyMap<string, string>;
+  readonly modelAliases?: ReadonlyMap<string, string>;
   readonly referenceTtlMs: number;
   readonly maxOutputBytes: number;
   readonly maxTotalOutputBytes: number;

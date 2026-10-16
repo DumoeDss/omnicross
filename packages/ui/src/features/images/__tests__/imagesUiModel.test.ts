@@ -46,7 +46,8 @@ describe('Images routing-table and Codex override helpers', () => {
     defaultModel: 'gpt-image-2',
     models: {
       'gpt-image-2': 'codex-subscription',
-      'gpt-image-2-5': 'codex-subscription',
+      'gpt-image-2.5-flare': 'codex-subscription',
+      'gpt-image-2.5-sunburst': 'codex-subscription',
       'gemini-3-pro-image-preview': 'antigravity-subscription',
     },
     codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
@@ -56,21 +57,26 @@ describe('Images routing-table and Codex override helpers', () => {
     expect(imageRouteEntries(ROUTED).map((entry) => entry.model)).toEqual([
       'gpt-image-2',
       'gemini-3-pro-image-preview',
-      'gpt-image-2-5',
+      'gpt-image-2.5-flare',
+      'gpt-image-2.5-sunburst',
     ]);
     expect(imageRouteEntries(ROUTED)[1].provider).toBe('antigravity-subscription');
   });
 
   it('restores the pinned wire defaults when overrides are blanked', () => {
     const overridden = applyImageCodexOverrides(ROUTED, {
-      imageModel: 'gpt-image-2-5',
+      imageModel: 'gpt-image-2.5-flare',
       carrierModel: 'gpt-6-orion',
     });
-    expect(overridden.codex).toEqual({ imageModel: 'gpt-image-2-5', carrierModel: 'gpt-6-orion' });
+    expect(overridden.codex).toEqual({ imageModel: 'gpt-image-2.5-flare', carrierModel: 'gpt-6-orion' });
     expect(applyImageCodexOverrides(overridden, { imageModel: '  ' }).codex.imageModel)
       .toBe(UI_DEFAULT_CODEX_IMAGE_MODEL);
     expect(applyImageCodexOverrides(overridden, { carrierModel: '' }).codex.carrierModel)
       .toBe(UI_DEFAULT_CODEX_CARRIER_MODEL);
+    expect(applyImageCodexOverrides(overridden, { carrierModel: 'another-carrier' }).codex.imageModel)
+      .toBe('gpt-image-2.5-flare');
+    expect(applyImageCodexOverrides(overridden, { imageModel: 'gpt-image-2.5-sunburst' }).codex.carrierModel)
+      .toBe('gpt-6-orion');
     // Untouched segments ride along.
     expect(overridden.models).toBe(ROUTED.models);
   });

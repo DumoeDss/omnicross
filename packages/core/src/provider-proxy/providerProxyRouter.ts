@@ -22,6 +22,8 @@
 
 import type http from 'node:http';
 
+import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
+
 import { handleCodexSearchRequest, isCodexSearchRequest } from '../outbound-api/searchRoute';
 import { DEFAULT_SEARCH_FRONTEND_MODES } from '../search/frontends';
 
@@ -109,7 +111,7 @@ export async function routeRequest(
   // 1. Token auth (code-enforced isolation — no fallback on miss/expired).
   //    `Authorization: Bearer <token>` OR `x-goog-api-key: <token>` (gemini-CLI).
   const token = resolveRouteToken(req);
-  const route = routes.lookup(token);
+  let route = routes.lookup(token);
   if (!route) {
     writeError(res, 401, 'Invalid or expired route token');
     return;
@@ -166,6 +168,11 @@ export async function routeRequest(
       writeOpenAIOperationError(res, unsupportedOpenAIOperation(openAIOperation));
     }
     return;
+  }
+
+  if (route.authMode === 'byo' && route.providerId) {
+    const migrated = resolveOfficialModelRoute(await deps.llmConfig.getProvider(route.providerId), route.model);
+    if (migrated) route = { ...route, model: migrated.actualModelId };
   }
 
   if (isAnthropicMessagesRequest(method, url)) {

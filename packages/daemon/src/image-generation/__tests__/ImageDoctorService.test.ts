@@ -184,10 +184,11 @@ describe('ImageDoctorService', () => {
     expect(JSON.stringify(snapshot)).not.toContain('PRIVATE_PATH_SENTINEL');
   });
 
-  it('performs exactly one live verification and persists only after strict success', async () => {
+  it.each(['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const)(
+    'reports the actual %s model after successful live verification', async (model) => {
     const observation = {
       accountId: 'RAW_ACCOUNT_SENTINEL',
-      model: 'gpt-image-2' as const,
+      model,
       request: {
         action: 'generate' as const,
         n: 1 as const,
@@ -206,13 +207,14 @@ describe('ImageDoctorService', () => {
 
     const poolConfig = {
       ...images(true),
+      defaultModel: model,
       account: { id: 'preferred-account', fallback: 'pool' as const },
     };
     const result = await service.verifyLive(poolConfig, new AbortController().signal);
     expect(result).toEqual({
       ok: true,
       code: 'verified',
-      model: 'gpt-image-2',
+      model,
       quality: 'low',
       outputFormat: 'png',
       freshEvidenceEntries: 1,

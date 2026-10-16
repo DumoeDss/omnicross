@@ -255,7 +255,8 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     await lease.release();
   });
 
-  it('bootstraps the first real generation through the Codex image bridge', async () => {
+  it.each(['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'])(
+    'bootstraps %s through the Codex image bridge', async (model) => {
     let capturedHeaders = new Headers();
     let capturedBody: Record<string, unknown> = {};
     const sse = [
@@ -285,14 +286,16 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
       });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const provider = createCodexSubscriptionImageProvider({ authStrategy: makeAuth(), now: () => 1_000 });
+    const provider = createCodexSubscriptionImageProvider({
+      authStrategy: makeAuth(), now: () => 1_000, wire: { imageModel: 'gpt-image-2' },
+    });
     const lease = await provider.acquire(context());
     expect(lease.capabilities).toMatchObject({
       available: true,
-      models: ['gpt-image-2'],
+      models: ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'],
       generate: true,
     });
-    const events = await collectEvents(lease.start(request).events);
+    const events = await collectEvents(lease.start({ ...request, model }).events);
     expect(events.map((event) => event.type)).toEqual(['accepted', 'completed']);
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(capturedHeaders.get('accept')).toBe('text/event-stream');
@@ -316,7 +319,7 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
       tools: [{
         type: 'image_generation',
         action: 'generate',
-        model: 'gpt-image-2',
+        model,
         quality: 'auto',
         background: 'auto',
         output_format: 'png',
@@ -325,7 +328,8 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     await lease.release();
   });
 
-  it('edits one reference image through the subscription image bridge', async () => {
+  it.each(['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'])(
+    'edits one reference with %s through the subscription image bridge', async (model) => {
     const reference = new InMemoryImageAsset(Buffer.from(VALID_PNG, 'base64'), {
       mimeType: 'image/png',
       width: 2,
@@ -333,10 +337,11 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     });
     const editRequest: NormalizedImageEditRequest<typeof reference> = {
       ...request,
+      model,
       action: 'edit',
       images: [reference],
     };
-    const editSupported = { ...supported, edit: true, maxInputImages: 1 };
+    const editSupported = { ...supported, models: [model], edit: true, maxInputImages: 1 };
     const editEvidence = evidenceFor(editSupported);
     let capturedUrl = '';
     let capturedHeaders = new Headers();
@@ -355,6 +360,7 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
       authStrategy: makeAuth(),
       evidenceSource: editEvidence,
       now: () => 1_000,
+      wire: { imageModel: 'gpt-image-2' },
     });
     const lease = await provider.acquire(context());
     expect(lease.capabilities).toMatchObject({ edit: true, maxInputImages: 1 });
@@ -367,7 +373,7 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
       images: [{ image_url: `data:image/png;base64,${VALID_PNG}` }],
       prompt: 'SECRET_PROMPT_SENTINEL',
       background: 'auto',
-      model: 'gpt-image-2',
+      model,
       quality: 'auto',
       size: 'auto',
     });
@@ -552,17 +558,19 @@ describe('CodexSubscriptionImageProvider negative paths', () => {
     const fetchMock = vi.fn(async () => new Response('{"error":{"code":"auth"}}', { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
     const auth = makeAuth({ refresh: true });
-    const result = await eventsFor(auth);
+    const result = await eventsFor(auth, { wire: { carrierModel: 'custom-carrier' } });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(auth.onUnauthorized).toHaveBeenCalledOnce();
     expect(auth.applyHeaders).toHaveBeenCalledTimes(2);
     expect(auth.applyHeaders.mock.calls[0]?.[1]).toMatchObject({
       preferredAccountGroup: 'configured-group',
       boundAccountFallbackPolicy: 'pool',
+      resolvedModel: 'custom-carrier',
     });
     expect(auth.applyHeaders.mock.calls[1]?.[1]).toMatchObject({
       preferredAccountId: RAW_ACCOUNT_ID_SENTINEL,
       boundAccountFallbackPolicy: 'pool',
+      resolvedModel: 'custom-carrier',
     });
     expect(terminalCode(result.events)).toBe('upstream_auth_required');
     expect(terminalError(result.events)?.retrySafety).toBe('before_acceptance');

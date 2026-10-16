@@ -169,6 +169,15 @@ describe('Responses encoder (top_p mapped; stop/top_k/metadata audited)', () => 
 });
 
 describe('Gemini builder (conditional generationConfig)', () => {
+  it('omits sampling controls for Gemini 4 while retaining output limits', () => {
+    const body = buildGeminiRequestBody({
+      ...decode({ top_p: 0.5, top_k: 40, max_tokens: 4096 }),
+      model: 'gemini-4-argon',
+    });
+    expect(body.generationConfig).toMatchObject({ maxOutputTokens: 4096 });
+    expect(body.generationConfig).not.toHaveProperty('topP');
+    expect(body.generationConfig).not.toHaveProperty('topK');
+  });
   it('maps stop→stopSequences, top_p→topP, top_k→topK', () => {
     const body = buildGeminiRequestBody(decode({
       stop_sequences: ['END'],

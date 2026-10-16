@@ -40,6 +40,7 @@ export type {
   SearchCapability,
 } from './types';
 export { API_MODE_IDS } from './types';
+export { refreshOfficialTextModels, resolveOfficialModelRoute, resolveRetiredOfficialModel } from './model-updates';
 
 // Re-export the derived maps + seed-id const (verbatim public API).
 export {

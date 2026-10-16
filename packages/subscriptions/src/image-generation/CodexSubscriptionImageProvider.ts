@@ -21,8 +21,8 @@ import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
 import type { AuthStrategy } from '../auth';
 import {
+  applyCodexImageModelOverrideEvidence,
   createCodexImageAdapterEvidence,
-  CODEX_IMAGE_ADAPTER_VALUES,
   type CodexImageCapabilityEvidence,
   type CodexImageCapabilityEvidenceSource,
   UnknownCodexImageCapabilityEvidenceSource,
@@ -35,6 +35,7 @@ import {
   candidateCodexImageUrl,
   CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
   CANDIDATE_CODEX_IMAGE_URL,
+  resolveCandidateCodexImageModel,
   type CandidateCodexImageWireOptions,
 } from './privateWireRequest';
 import {
@@ -95,7 +96,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
     try {
       await this.#auth.applyHeaders(headers, {
         upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
-        resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
+        resolvedModel: this.#wire.carrierModel ?? CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
         sessionKey: context.sessionKey,
         preferredAccountId: context.preferredAccountId,
         preferredAccountGroup: context.preferredAccountGroup,
@@ -138,10 +139,12 @@ class CodexSubscriptionImageProvider implements ImageProvider {
       selectedAccountId = undefined;
       throw new ImageGenerationError('request_cancelled', { cause: context.signal.reason });
     }
+    const adapter = createCodexImageAdapterEvidence(this.#now(),
+      resolveCandidateCodexImageModel(context.model ?? 'gpt-image-2', this.#wire));
     const resolvedCapabilities = resolveImageCapabilities({
-      adapter: createCodexImageAdapterEvidence(this.#now(), this.#wire.imageModel),
-      account: evidence.account,
-      upstream: evidence.upstream,
+      adapter,
+      account: applyCodexImageModelOverrideEvidence(evidence.account, this.#wire.imageModel),
+      upstream: applyCodexImageModelOverrideEvidence(evidence.upstream, this.#wire.imageModel),
     }, this.#now());
     // The image bridge is a known local protocol. Unknown persisted entitlement
     // means "try the real account", not "reject before contacting upstream".
@@ -152,7 +155,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
     const capabilities: ImageCapabilities = resolvedCapabilities.available
       ? resolvedCapabilities
       : bootstrapEligible ? Object.freeze({
-          ...CODEX_IMAGE_ADAPTER_VALUES,
+          ...adapter.values,
           resolvedAt: this.#now(),
         }) : resolvedCapabilities;
 
@@ -294,7 +297,7 @@ class CodexSubscriptionImageProvider implements ImageProvider {
           applyCandidateCodexImageHeaders(refreshedHeaders);
           await self.#auth.applyHeaders(refreshedHeaders, {
             upstreamUrl,
-            resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
+            resolvedModel: self.#wire.carrierModel ?? CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
             sessionKey: context.sessionKey,
             preferredAccountId: accountId,
             boundAccountFallbackPolicy: context.boundAccountFallbackPolicy,

@@ -26,7 +26,7 @@ export type SensitiveOpaqueImageReference = string & {
 };
 
 export type ImageOutputFormat = 'png' | 'jpeg' | 'webp';
-export type ImageQuality = 'auto' | 'low' | 'medium' | 'high';
+export type ImageQuality = 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type ImageBackground = 'auto' | 'opaque' | 'transparent';
 export type ImageModeration = 'auto' | 'low';
 export type ImageAction = 'generate' | 'edit';
@@ -51,6 +51,9 @@ export interface ImageRequestOptions {
   readonly n: number;
   readonly quality: ImageQuality;
   readonly size: ImageSize;
+  /** Native image-model dimensions, independent of a fixed pixel size. */
+  readonly aspectRatio?: string;
+  readonly resolution?: string;
   readonly background: ImageBackground;
   readonly outputFormat: ImageOutputFormat;
   readonly outputCompression?: number;
@@ -177,6 +180,7 @@ export type ImageProviderCompletedEvent<
   readonly type: 'completed';
   readonly images: readonly ImageProviderOutput<TArtifact>[];
   readonly usage?: ImageUsage;
+  readonly providerMessage?: string;
   /** Added by trusted retention, not by a private provider wire. */
   readonly references?: readonly ImageReferenceMetadata[];
 };
@@ -209,6 +213,8 @@ export interface ImageCapabilityValues {
   readonly maxPartialImages: number;
   readonly transparentBackground: boolean;
   readonly flexibleSizes: boolean;
+  readonly aspectRatios?: readonly string[];
+  readonly resolutions?: readonly string[];
   readonly outputFormats: readonly ImageOutputFormat[];
   readonly qualityLevels: readonly ImageQuality[];
   readonly moderationModes: readonly ImageModeration[];

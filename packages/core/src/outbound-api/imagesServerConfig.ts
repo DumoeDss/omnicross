@@ -9,6 +9,7 @@ import {
   type ImageProviderId,
 } from './types';
 import type { ImagesServerConfig } from './types';
+import { normalizeImageApiProviders, validateImageApiProviders } from './imageApiProviderConfig';
 
 /** The default Codex private-wire models (pinned to the shipped wire constants). */
 export const DEFAULT_CODEX_IMAGE_MODEL = 'gpt-image-2';
@@ -43,8 +44,8 @@ export const IMAGE_SERVER_HARD_CEILINGS = Object.freeze({
     maxHeaderPairs: 256,
     maxFieldNameBytes: 1024,
     maxFieldValueBytes: MIB,
-    maxPixels: 8_294_400,
-    maxRawBytes: 8_294_400 * 4,
+    maxPixels: 67_108_864,
+    maxRawBytes: 67_108_864 * 4,
     maxOutputBytes: 50 * MIB,
     maxTotalOutputBytes: 500 * MIB,
     maxSpoolBytes: 700 * MIB,
@@ -72,6 +73,7 @@ export const IMAGE_SERVER_HARD_CEILINGS = Object.freeze({
 /** Migration-safe default: configured off, finite everywhere, and remote-disabled. */
 export const DEFAULT_IMAGES_SERVER_CONFIG: Readonly<ImagesServerConfig> = Object.freeze({
   enabled: false,
+  providers: Object.freeze({}),
   models: Object.freeze({ ...DEFAULT_IMAGE_MODEL_ROUTES }),
   defaultModel: 'gpt-image-2',
   aliases: Object.freeze({}),
@@ -114,6 +116,12 @@ const LIMIT_KEYS = Object.keys(DEFAULT_IMAGE_API_LIMITS) as Array<keyof ImageApi
 type MutableImageApiLimits = { -readonly [K in keyof ImageApiLimits]: ImageApiLimits[K] };
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+/** Official Google shutdown replacements; applied only to built-in subscription routes. */
+export const RETIRED_GOOGLE_IMAGE_MODELS: Readonly<Record<string, string>> = Object.freeze({
+  'gemini-2.5-flash-image-preview': 'gemini-nano-banana-2.1',
+  'gemini-3.1-flash-image-preview': 'gemini-nano-banana-2.1',
+  'gemini-3-pro-image-preview': 'gemini-3-pro-image',
+});
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -156,19 +164,26 @@ function normalizedAliases(value: unknown, routedModels: ReadonlySet<string>): R
  * to the pinned default routes.
  */
 function normalizedRoutes(raw: Record<string, unknown>): Record<string, ImageProviderId> {
-  const registered = new Set<string>(IMAGE_PROVIDER_IDS);
+  const registered = new Set<string>([...IMAGE_PROVIDER_IDS, ...Object.keys(normalizeImageApiProviders(raw['providers']))]);
   const routes: Record<string, ImageProviderId> = {};
   const modelsRaw = record(raw['models']);
   if (modelsRaw) {
     for (const [model, provider] of Object.entries(modelsRaw)) {
       if (SAFE_OBJECT_KEYS.has(model) || !MODEL_ID.test(model)) continue;
       if (typeof provider !== 'string' || !registered.has(provider)) continue;
-      routes[model] = provider as ImageProviderId;
+      const replacement = provider === 'antigravity-subscription' ? RETIRED_GOOGLE_IMAGE_MODELS[model] : undefined;
+      routes[replacement ?? model] = provider as ImageProviderId;
     }
   }
   const legacyProvider = raw['provider'];
   const legacyValid = legacyProvider === 'codex-subscription' || legacyProvider === undefined;
   if (!legacyValid) return { ...DEFAULT_IMAGE_MODEL_ROUTES };
+  // Upgrade the former shipped placeholder table without changing custom routes.
+  if (routes['gpt-image-2-5'] === 'codex-subscription') {
+    for (const model of ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst']) {
+      if (!Object.hasOwn(routes, model)) routes[model] = 'codex-subscription';
+    }
+  }
   if (Object.keys(routes).length > 0) return routes;
   // Legacy shape (or empty): the legacy default model + alias targets all ride
   // the single legacy provider (codex); anything else falls to the pinned table.
@@ -353,11 +368,26 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
   }
 
   const models = normalizedRoutes(raw);
-  const defaultModel = typeof raw['defaultModel'] === 'string' && MODEL_ID.test(raw['defaultModel'])
-    && (raw['provider'] !== undefined || Object.keys(models).includes(raw['defaultModel']))
-    ? raw['defaultModel']
-    : DEFAULT_IMAGES_SERVER_CONFIG.defaultModel;
-  const aliases = normalizedAliases(raw['aliases'] ?? raw['modelAliases'], new Set(Object.keys(models)));
+  const rawDefault = typeof raw['defaultModel'] === 'string' ? raw['defaultModel'] : undefined;
+  const migratedDefault = rawDefault && record(raw['models'])?.[rawDefault] === 'antigravity-subscription'
+    ? RETIRED_GOOGLE_IMAGE_MODELS[rawDefault] ?? rawDefault : rawDefault;
+  const defaultModel = migratedDefault && MODEL_ID.test(migratedDefault)
+    && (raw['provider'] !== undefined || Object.keys(models).includes(migratedDefault))
+    ? migratedDefault
+    : Object.keys(models)[0] ?? DEFAULT_IMAGES_SERVER_CONFIG.defaultModel;
+  const rawAliases = record(raw['aliases'] ?? raw['modelAliases']) ?? {};
+  const migratedAliases = Object.fromEntries(Object.entries(rawAliases).map(([alias, target]) => [alias,
+    typeof target === 'string' && record(raw['models'])?.[target] === 'antigravity-subscription'
+      ? RETIRED_GOOGLE_IMAGE_MODELS[target] ?? target : target]));
+  const aliases = normalizedAliases(migratedAliases, new Set(Object.keys(models)));
+  const providers = normalizeImageApiProviders(raw['providers']);
+  for (const [id, provider] of Object.entries(providers)) {
+    if (provider.modelMap) {
+      providers[id] = { ...provider, modelMap: Object.fromEntries(
+        Object.entries(provider.modelMap).filter(([model]) => models[model] === id),
+      ) };
+    }
+  }
 
   const codexRaw = record(raw['codex']) ?? {};
   const codex = {
@@ -371,6 +401,7 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
 
   return {
     enabled: raw['enabled'] === true,
+    providers,
     models,
     defaultModel,
     aliases,
@@ -390,7 +421,7 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
 }
 
 const TOP_LEVEL_KEYS = [
-  'enabled', 'models', 'defaultModel', 'aliases', 'codex', 'account', 'queue',
+  'enabled', 'providers', 'models', 'defaultModel', 'aliases', 'codex', 'account', 'queue',
   'temporary', 'limits', 'references', 'remote', 'evidenceTtlMs',
 ] as const;
 const ACCOUNT_KEYS = ['id', 'group', 'fallback'] as const;
@@ -448,6 +479,8 @@ export function validateImagesServerConfig(value: unknown): string[] {
   rejectUnknown(raw, TOP_LEVEL_KEYS, 'images', errors);
 
   if (typeof raw['enabled'] !== 'boolean') errors.push('images.enabled must be a boolean');
+  errors.push(...validateImageApiProviders(raw['providers']));
+  const registeredProviders = new Set([...IMAGE_PROVIDER_IDS, ...Object.keys(normalizeImageApiProviders(raw['providers']))]);
 
   const models = requireRecord(raw['models'], 'images.models', errors);
   let modelKeys = new Set<string>();
@@ -461,8 +494,13 @@ export function validateImagesServerConfig(value: unknown): string[] {
         continue;
       }
       modelKeys.add(model);
-      if (!(IMAGE_PROVIDER_IDS as readonly string[]).includes(provider as string)) {
-        errors.push(`images.models.${model} must target one of: ${IMAGE_PROVIDER_IDS.join(', ')}`);
+      if (typeof provider !== 'string' || !registeredProviders.has(provider)) {
+        errors.push(`images.models.${model} must target a registered image provider`);
+      }
+    }
+    for (const [providerId, provider] of Object.entries(normalizeImageApiProviders(raw['providers']))) {
+      for (const model of Object.keys(provider.modelMap ?? {})) {
+        if (models[model] !== providerId) errors.push(`images.providers.${providerId}.modelMap.${model} must belong to that provider route`);
       }
     }
   }

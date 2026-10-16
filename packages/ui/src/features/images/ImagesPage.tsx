@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTranslation } from '@/shared/state/LocaleContext';
 
 import { ImagesSection } from './ImagesSection';
+import { ImageApiProvidersPanel } from './ImageApiProvidersPanel';
 import { ProviderStatusCards } from './ProviderStatusCards';
 import { VerifyLivePanel } from './VerifyLivePanel';
 import { useImagesSettings } from './hooks/useImagesSettings';
@@ -71,12 +72,13 @@ export function ImagesPage() {
           ) : (
             <>
               <ProviderStatusCards capability={capability} />
-              <VerifyLivePanel
+              <ImageApiProvidersPanel config={config} busy={busy} onUpdate={updateImagesConfig} />
+              {config.models[config.defaultModel] === 'codex-subscription' ? <VerifyLivePanel
                 antigravityRouted={antigravityRouted}
                 busy={busy}
                 onVerify={verifyImagesLive}
                 onVerified={refresh}
-              />
+              /> : null}
               <ImagesSection
                 config={config}
                 capability={capability}

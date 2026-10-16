@@ -466,10 +466,18 @@ export interface ImageApiLimits {
  * Registered image providers (mirror of core's `ImageProviderId`; the UI
  * package cannot import workspace packages — keep in sync).
  */
-export type ImageProviderId = 'codex-subscription' | 'antigravity-subscription';
+export type ImageProviderId = string;
+export type ImageApiProtocol = 'openai-images' | 'gemini' | 'gemini-interactions' | 'vertex' | 'xai' | 'openrouter' | 'wavespeed';
+export interface ImageApiProviderConfig {
+  protocol: ImageApiProtocol;
+  sourceProviderId: string;
+  enabled?: boolean;
+  modelMap?: Record<string, string>;
+}
 
 export interface ImagesServerConfig {
   enabled: boolean;
+  providers?: Record<string, ImageApiProviderConfig>;
   /** Model→provider routing table (targets are registered image providers). */
   models: Record<string, ImageProviderId>;
   defaultModel: string;

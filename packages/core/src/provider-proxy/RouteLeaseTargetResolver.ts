@@ -1,3 +1,5 @@
+import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
+
 import type { ProviderConfigSource } from '../ports/provider-config-source';
 import { gatewayBindingToEndpointConfig } from '../outbound-api/gatewayBindingResolver';
 import { resolveRoute } from '../outbound-api/routeResolver';
@@ -110,7 +112,8 @@ export class RouteLeaseTargetResolver implements RouteLeaseTargetResolverPort {
     const provider = await this.llmConfig.getProvider(target.providerId);
     if (!provider) throw new RouteLeaseError('upstream_not_found', 'provider was not found');
     if (provider.enabled === false) throw new RouteLeaseError('upstream_unavailable', 'provider is disabled');
-    if (!providerSupportsModel(provider, request.model)) {
+    const model = resolveOfficialModelRoute(provider, request.model)?.actualModelId ?? request.model;
+    if (!providerSupportsModel(provider, model)) {
       throw new RouteLeaseError('model_not_configured', 'model is not configured for the provider');
     }
 

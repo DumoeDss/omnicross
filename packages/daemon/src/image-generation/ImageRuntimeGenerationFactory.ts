@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import {
   createImageApiContributions,
+  createConfiguredImageProviders,
   createResponsesImageGenerationContribution,
   ImageGenerationError,
   ImageOrchestrator,
@@ -22,6 +23,7 @@ import {
   type ImageExecutionScheduler,
   type SubscriptionAccountService,
 } from '@omnicross/subscriptions';
+import type { ProviderConfigSource } from '@omnicross/core/ports/provider-config-source';
 
 import { FileCodexImageCapabilityEvidenceSource } from './FileCodexImageCapabilityEvidenceSource';
 import {
@@ -77,6 +79,7 @@ export interface ImageRuntimeGenerationFactoryOptions {
   readonly generationId: string;
   readonly config: ImagesServerConfig;
   readonly subscriptionAccounts: Pick<SubscriptionAccountService, 'getStrategy'>;
+  readonly providerSource?: Pick<ProviderConfigSource, 'getProvider'>;
   readonly storage: ImageRuntimeGenerationSharedStorage;
   readonly provenRemoteResolver?: RemoteImageAssetResolver;
   readonly observability?: ImageRuntimeMetadataObservability;
@@ -113,6 +116,9 @@ export type ProductionImageRuntimeGeneration = PreparedImageRuntimeGeneration & 
 function snapshotConfig(config: ImagesServerConfig): ImagesServerConfig {
   return {
     ...config,
+    ...(config.providers ? { providers: Object.fromEntries(Object.entries(config.providers).map(([id, value]) => [id, {
+      ...value, ...(value.modelMap ? { modelMap: { ...value.modelMap } } : {}),
+    }])) } : {}),
     models: { ...config.models },
     aliases: { ...config.aliases },
     codex: { ...config.codex },
@@ -158,6 +164,10 @@ export function createImageRuntimeGeneration(
   }
 
   const routedProviders = [...new Set(Object.values(config.models))];
+  const apiProviders = config.providers ?? {};
+  if (routedProviders.some((id) => Object.prototype.hasOwnProperty.call(apiProviders, id)) && !options.providerSource) {
+    throw new TypeError('API image providers require a provider configuration source');
+  }
   const codexStrategy = routedProviders.includes('codex-subscription')
     ? options.subscriptionAccounts.getStrategy('codex')
     : undefined;
@@ -223,7 +233,7 @@ export function createImageRuntimeGeneration(
           referenceStore: options.storage.referenceStore,
           stateStore: options.storage.stateStore,
         })]
-      : routedProviders.map((providerId) => providerId === 'codex-subscription'
+      : [...routedProviders.filter((id) => !Object.prototype.hasOwnProperty.call(apiProviders, id)).map((providerId) => providerId === 'codex-subscription'
         ? createCodexSubscriptionImageProvider({
             authStrategy: codexStrategy!,
             evidenceSource: generationEvidenceSource,
@@ -240,8 +250,17 @@ export function createImageRuntimeGeneration(
             executionScheduler: scheduler,
             generationTimeoutMs: config.queue.generationTimeoutMs,
             now: options.now,
-          }));
-    if (providers.length === 1 && providers[0]!.id !== 'codex-subscription') {
+          })),
+        ...(options.providerSource ? createConfiguredImageProviders({
+          providers: apiProviders, modelRoutes: config.models, providerSource: options.providerSource,
+          timeoutMs: config.queue.generationTimeoutMs, maxOutputBytes: config.limits.maxOutputBytes,
+          maxTotalOutputBytes: config.limits.maxTotalOutputBytes, maxPixels: config.limits.maxPixels,
+          acquireExecution: (sourceProviderId) => async (context, signal) => scheduler!.acquire({
+            tenantId: context.tenantId, accountKey: scheduler!.deriveAccountKey(`image-api:${sourceProviderId}`), signal,
+          }),
+        }) : []),
+      ];
+    if (options.testOnlySyntheticVerifiedProvider && providers[0]?.id !== 'codex-subscription') {
       throw new TypeError('synthetic verified image provider id must match configured provider');
     }
     const providerRegistry = new ImageProviderRegistry(providers);
@@ -273,6 +292,8 @@ export function createImageRuntimeGeneration(
       const capabilities = await orchestrator.getCapabilities(providerId, {
         requestId: `${options.generationId}:capability-inspection`,
         tenantId: apiKeyId,
+        model: providerId === defaultProviderId ? config.defaultModel
+          : Object.entries(config.models).find(([, target]) => target === providerId)?.[0],
         signal: new AbortController().signal,
         sessionKey: `outbound:images:${apiKeyId}`,
         ...(config.account.id ? { preferredAccountId: config.account.id } : {}),
@@ -395,6 +416,8 @@ export function createImageRuntimeGeneration(
       hostedRuntime: Object.freeze({
         providerId: defaultProviderId,
         imageModel: config.defaultModel,
+        modelRoutes: new Map(Object.entries(config.models)),
+        modelAliases: new Map(Object.entries(config.aliases)),
         referenceTtlMs: config.references.ttlMs,
         maxOutputBytes: config.limits.maxOutputBytes,
         maxTotalOutputBytes: config.limits.maxTotalOutputBytes,

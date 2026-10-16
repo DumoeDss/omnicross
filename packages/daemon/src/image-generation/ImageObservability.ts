@@ -27,7 +27,7 @@ type SafeModel = 'gpt-image-2' | 'unknown' | 'other';
 type SafeErrorCode = ImageGenerationErrorCode | 'none' | 'other';
 type SafeCountOption = 'unknown' | '0' | '1' | '2-4' | '5+';
 type SafeBooleanOption = boolean | 'unknown';
-type SafeQuality = 'auto' | 'low' | 'medium' | 'high' | 'unknown' | 'other';
+type SafeQuality = 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'unknown' | 'other';
 type SafeBackground = 'auto' | 'opaque' | 'transparent' | 'unknown' | 'other';
 type SafeOutputFormat = 'png' | 'jpeg' | 'webp' | 'unknown' | 'other';
 
@@ -305,7 +305,7 @@ export class ImageObservability {
       provider: safeProvider(record.providerId),
       model: safeModel(record.model),
       action: endpoint === 'images.edit' ? 'edit' : 'generate',
-      quality: enumOption(record.options?.quality, ['auto', 'low', 'medium', 'high'] as const),
+      quality: enumOption(record.options?.quality, ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] as const),
       background: enumOption(record.options?.background, ['auto', 'opaque', 'transparent'] as const),
       outputFormat: enumOption(record.options?.outputFormat, ['png', 'jpeg', 'webp'] as const),
       streaming: booleanOption(record.options?.stream),
@@ -357,7 +357,7 @@ export class ImageObservability {
       provider: safeProvider(record.providerId),
       model: safeModel(record.model),
       action: record.action === 'generate' || record.action === 'edit' ? record.action : 'other',
-      quality: enumOption(record.quality, ['auto', 'low', 'medium', 'high'] as const),
+      quality: enumOption(record.quality, ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] as const),
       background: enumOption(record.background, ['auto', 'opaque', 'transparent'] as const),
       outputFormat: enumOption(record.outputFormat, ['png', 'jpeg', 'webp'] as const),
       streaming: booleanOption(record.streaming),

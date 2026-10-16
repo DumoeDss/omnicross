@@ -289,8 +289,11 @@ export function buildRequestBody(
   if (request.stop !== undefined && request.stop.length > 0) {
     generationConfig.stopSequences = request.stop;
   }
-  if (request.top_p !== undefined) generationConfig.topP = request.top_p;
-  if (request.top_k !== undefined) generationConfig.topK = request.top_k;
+  // Gemini 4 manages sampling internally; these fields are ignored upstream.
+  if (!/(?:^|\/)gemini-4(?:-|$)/i.test(request.model)) {
+    if (request.top_p !== undefined) generationConfig.topP = request.top_p;
+    if (request.top_k !== undefined) generationConfig.topK = request.top_k;
+  }
   if (request.metadata_user_id !== undefined) {
     recordDroppedField(request, 'metadata_user_id', 'gemini');
   }

@@ -415,6 +415,8 @@ export interface RouteContext {
   readonly apiKeyId?: string;
   /** Explicit hosted-image authority projected from the verified `images` permission. */
   readonly hostedImageGenerationAllowed?: boolean;
+  /** Host-minted authority attached to an authenticated embedded CLI route. */
+  readonly imageSession?: { readonly tenantId: string; readonly allowed: boolean };
   /**
    * Per-request, one-way audit seam supplied by the outbound router. Hosted
    * image admission invokes it before any mediated response bytes are relayed.

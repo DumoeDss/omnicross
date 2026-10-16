@@ -27,6 +27,7 @@ import type {
   GlobalModelParameters,
   LLMProvider,
 } from '@omnicross/contracts/llm-config';
+import { refreshOfficialTextModels, resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
 import {
   type ProviderConfigSource,
   registerBuiltinTransformers,
@@ -131,7 +132,7 @@ export class ConfigFileProviderConfigSource implements ProviderConfigSource {
   async getProvider(id: string): Promise<LLMProvider | null> {
     const row = this.providers.get(id);
     if (!row) return null;
-    return toLLMProvider(row);
+    return refreshOfficialTextModels(toLLMProvider(row));
   }
 
   getTransformerService(): TransformerService | undefined {
@@ -180,8 +181,8 @@ export class ConfigFileProviderConfigSource implements ProviderConfigSource {
 
   // ── STUBS (never hit on the BYO single-key path) ────────────────────────────
 
-  async resolveRoutedModel(): Promise<null> {
-    return null;
+  async resolveRoutedModel(providerId: string, modelId: string) {
+    return resolveOfficialModelRoute(await this.getProvider(providerId), modelId);
   }
 
   async resolveEffectiveModels(): Promise<{ background?: string; vision?: string }> {
@@ -256,7 +257,7 @@ function toLLMProvider(row: DaemonProviderConfig): LLMProvider {
       thinkingLevels: config.thinkingLevels,
       thinkingTokenLimit: config.thinkingTokenLimit,
     })),
-    enabled: true,
+    enabled: row.enabled !== false,
     transformer,
     // app-parity-2 child 3: POPULATE the coding-plan endpoint onto the core
     // `LLMProvider` (structurally identical to the contracts `CodingPlanConfig`).

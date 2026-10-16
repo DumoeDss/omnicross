@@ -21,6 +21,7 @@ import type {
   ImageQuality,
 } from '@omnicross/contracts/image-generation-types';
 import { IMAGE_SERVER_HARD_CEILINGS } from '@omnicross/core/outbound-api';
+import { isCodexImageModel } from '@omnicross/subscriptions';
 import type {
   CodexImageCapabilityEvidence,
   CodexImageCapabilityEvidenceRequest,
@@ -87,7 +88,7 @@ interface PersistedTestedRequest {
 interface PersistedEvidenceEntry {
   readonly accountKey: string;
   readonly provider: 'codex-subscription';
-  readonly model: 'gpt-image-2';
+  readonly model: CodexImageCapabilityObservation['model'];
   readonly tested: PersistedTestedRequest;
   readonly responseFields?: CodexImageCapabilityObservedResponseFields;
   readonly sourceVersion: typeof SOURCE_VERSION;
@@ -119,7 +120,7 @@ function validTestedRequest(value: unknown): value is PersistedTestedRequest {
   ])) return false;
   const compression = row.outputCompression;
   return row.action === 'generate' && row.n === 1 &&
-    ['auto', 'low', 'medium', 'high'].includes(row.quality as string) &&
+    ['auto', 'low', 'medium', 'high', 'xhigh', 'max'].includes(row.quality as string) &&
     typeof row.size === 'string' && SIZE.test(row.size) &&
     ['auto', 'opaque', 'transparent'].includes(row.background as string) &&
     ['png', 'jpeg', 'webp'].includes(row.outputFormat as string) &&
@@ -151,7 +152,7 @@ function validEntry(value: unknown): value is PersistedEvidenceEntry {
     'verifiedAt', 'expiresAt',
   ]) &&
     typeof row.accountKey === 'string' && ACCOUNT_KEY.test(row.accountKey) &&
-    row.provider === 'codex-subscription' && row.model === 'gpt-image-2' &&
+    row.provider === 'codex-subscription' && isCodexImageModel(row.model) &&
     validTestedRequest(row.tested) && validResponseFields(row.responseFields) &&
     row.sourceVersion === SOURCE_VERSION &&
     safeTimestamp(row.verifiedAt) && safeTimestamp(row.expiresAt) &&
@@ -167,7 +168,7 @@ function validateObservation(value: unknown): asserts value is CodexImageCapabil
   const row = value as Record<string, unknown>;
   if (!exactKeys(row, ['accountId', 'model', 'request', 'responseFields']) ||
     typeof row.accountId !== 'string' || !row.accountId.trim() || row.accountId.length > 512 ||
-    row.model !== 'gpt-image-2' || !validTestedRequest(row.request) ||
+    !isCodexImageModel(row.model) || !validTestedRequest(row.request) ||
     !validResponseFields(row.responseFields)) {
     throw new TypeError('Codex image capability observation is invalid');
   }

@@ -6,12 +6,23 @@ import type {
 
 import type { ImageAsset } from './ports';
 
-export type ImageProviderRequest = NormalizedImageRequest<ImageAsset>;
+export interface ImageConversationTurn {
+  readonly role: 'user' | 'assistant';
+  readonly text?: string;
+  readonly images?: readonly ImageAsset[];
+}
+
+export type ImageProviderRequest = NormalizedImageRequest<ImageAsset> & {
+  readonly history?: readonly ImageConversationTurn[];
+  readonly onlyImage?: boolean;
+};
 
 export interface ImageProviderContext {
   readonly requestId: string;
   readonly tenantId: string;
   readonly signal: AbortSignal;
+  /** Present for execution so leases can resolve model-specific capabilities. */
+  readonly model?: string;
   readonly sessionKey?: string;
   readonly preferredAccountId?: string;
   readonly preferredAccountGroup?: string;

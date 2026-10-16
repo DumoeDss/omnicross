@@ -45,7 +45,7 @@ function config(enabled = true): ImagesServerConfig {
     ...DEFAULT_IMAGES_SERVER_CONFIG,
     enabled,
     aliases: { latest: 'gpt-image-2' },
-    models: { 'gpt-image-2': 'codex-subscription', 'gemini-3-pro-image-preview': 'antigravity-subscription' },
+    models: { 'gpt-image-2': 'codex-subscription', 'gemini-3-pro-image': 'antigravity-subscription' },
     account: { group: 'configured-group', fallback: 'pool' },
     queue: { ...DEFAULT_IMAGES_SERVER_CONFIG.queue },
     temporary: { ...DEFAULT_IMAGES_SERVER_CONFIG.temporary },
@@ -124,6 +124,33 @@ function handlerContext(apiKeyId: string): OpenAIOperationHandlerContext {
 }
 
 describe('production image runtime generation factory', () => {
+  it('starts API-only generations without subscription auth and inspects the selected model', async () => {
+    const sharedStorage = storage(sandbox());
+    const getStrategy = vi.fn(() => null);
+    const apiConfig: ImagesServerConfig = {
+      ...config(), defaultModel: 'banana-lite', aliases: { favorite: 'banana-lite' },
+      models: { banana: 'studio', 'banana-lite': 'studio' },
+      providers: { studio: { protocol: 'gemini', sourceProviderId: 'google-key', modelMap: {
+        banana: 'gemini-nano-banana-2.1', 'banana-lite': 'gemini-3.1-flash-lite-image',
+      } } },
+    };
+    const generation = createImageRuntimeGeneration({
+      generationId: 'api-only', config: apiConfig, subscriptionAccounts: { getStrategy },
+      providerSource: { getProvider: vi.fn(async () => ({ id: 'google-key', name: 'Google',
+        api_base_url: 'https://generativelanguage.googleapis.com', api_key: 'test-key', models: [], enabled: true })) },
+      storage: sharedStorage, privateHmacKey: Buffer.alloc(32, 21),
+    });
+    expect(getStrategy).not.toHaveBeenCalled();
+    expect(generation.components?.providerRegistry.list().map((provider) => provider.id)).toEqual(['studio']);
+    expect(await generation.inspectCapability?.('trusted-key')).toMatchObject({
+      providerId: 'studio', model: 'banana-lite', available: true,
+      capabilities: { resolutions: ['1K'] },
+    });
+    const runtime = await generation.components!.runtimeResolver.resolve(handlerContext('trusted-key'));
+    expect(runtime.modelAliases.get('favorite')).toBe('banana-lite');
+    expect(runtime.modelRoutes.get('banana-lite')).toBe('studio');
+    await generation.dispose();
+  });
   it('composes one provider/orchestrator and shared mounted stores for HTTP and hosted use', async () => {
     const sharedStorage = storage(sandbox());
     const auth = authStrategy();
@@ -149,6 +176,8 @@ describe('production image runtime generation factory', () => {
     expect(generation.hostedRuntime).toEqual({
       providerId: 'codex-subscription',
       imageModel: 'gpt-image-2',
+      modelRoutes: new Map(Object.entries(config().models)),
+      modelAliases: new Map(Object.entries(config().aliases)),
       referenceTtlMs: config().references.ttlMs,
       maxOutputBytes: config().limits.maxOutputBytes,
       maxTotalOutputBytes: config().limits.maxTotalOutputBytes,
@@ -241,7 +270,7 @@ describe('production image runtime generation factory', () => {
       available: true,
       providerId: 'codex-subscription',
       model: 'gpt-image-2',
-      routedModels: ['gpt-image-2', 'gemini-3-pro-image-preview'],
+      routedModels: ['gpt-image-2', 'gemini-3-pro-image'],
       providers: [
         {
           providerId: 'codex-subscription',
@@ -252,7 +281,7 @@ describe('production image runtime generation factory', () => {
         {
           providerId: 'antigravity-subscription',
           available: true,
-          models: ['gemini-3-pro-image-preview'],
+          models: ['gemini-3-pro-image'],
         },
       ],
     });

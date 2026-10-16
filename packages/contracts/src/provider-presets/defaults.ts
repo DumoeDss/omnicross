@@ -90,9 +90,9 @@ export const PROVIDER_MODEL_MAPPINGS: Record<string, ProviderModelMapping> = {
   },
   'xiaomi-mimo': {
     // xiaomi-mimo API expects lowercase ids — see the Xiaomi preset model list.
-    primary: 'mimo-v2.5-pro',
-    background: 'mimo-v2-flash',
-    vision: 'mimo-v2-omni',
+    primary: 'mimo-v2.6-pro',
+    background: 'mimo-v2.6-flash',
+    vision: 'mimo-v2.6-flash',
   },
   // International providers
   openai: {

@@ -54,6 +54,23 @@ afterEach(() => {
 });
 
 describe('FileCodexImageCapabilityEvidenceSource', () => {
+  it.each(['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const)(
+    'persists %s without turning it into evidence for another model', async (model) => {
+      const { paths } = environment();
+      const options = { paths, ttlMs: 100, hmacSalt: Buffer.alloc(32, 2), now: () => 100 };
+      const source = new FileCodexImageCapabilityEvidenceSource(options);
+      await source.recordSuccessfulVerification({ ...observation(), model });
+      source.dispose();
+      const restarted = new FileCodexImageCapabilityEvidenceSource(options);
+      const evidence = await restarted.resolve({
+        accountId: observation().accountId, signal: new AbortController().signal,
+      });
+      expect(evidence.account.values?.models).toEqual([model]);
+      expect(evidence.upstream.values?.models).toEqual([model]);
+      restarted.dispose();
+    },
+  );
+
   it('retains an independent first short-doctor row for a long resident and restart', async () => {
     const { paths } = environment();
     const salt = Buffer.alloc(32, 2);

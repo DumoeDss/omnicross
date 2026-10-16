@@ -29,6 +29,8 @@
  * @module @omnicross/cli-launcher/proxy-env/codex-proxy-env
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type { ProviderConfigSource, UsageRecorderImport } from '@omnicross/core';
 import { resolveProviderEndpoint } from '@omnicross/core/completion';
 import type { ApiKeyPoolService } from '@omnicross/core/completion/ApiKeyPoolService';
@@ -209,6 +211,7 @@ export async function buildCodexLaunchConfig(
     authMode,
     providerId: inputs.providerId,
     subscriptionProfile: inputs.subscriptionProfile ?? null,
+    imageSession: { tenantId: `codex-session:${randomUUID()}`, allowed: true },
   };
 
   const proxy = getProviderProxy();

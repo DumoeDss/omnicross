@@ -11,6 +11,7 @@ export interface ProviderCardModel {
   providerId: string;
   label: string;
   available: boolean;
+  apiProvider: boolean;
   /** Safe reason when unavailable; null when available. */
   reason: string | null;
   /** This provider's route keys affirmed by its own fresh evidence. */
@@ -36,15 +37,16 @@ export function providerCardRows(
     })
     .map((row: ImagesProviderStatusRow) => ({
       providerId: row.providerId,
-      label: isAntigravity(row.providerId) ? 'Antigravity' : 'Codex',
+      label: isAntigravity(row.providerId) ? 'Antigravity' : row.providerId === 'codex-subscription' ? 'Codex' : row.providerId,
       available: row.available === true,
+      apiProvider: !['codex-subscription', 'antigravity-subscription'].includes(row.providerId),
       reason: row.available ? null : row.reason,
       models: [...row.models],
       // The antigravity provider's v1 evidence is bootstrap-eligible by design
       // (entitlement-unknown + protocol-unverified → one real attempt). An
       // available row without evidence age is labeled as awaiting its first
       // real request — never reported as verified.
-      unverified: row.available === true && row.evidence === null && isAntigravity(row.providerId),
+      unverified: row.available === true && row.evidence === null && row.providerId !== 'codex-subscription',
       evidenceAgeSeconds: row.evidence
         ? Math.max(0, Math.floor(row.evidence.ageMs / 1000))
         : undefined,

@@ -13,6 +13,7 @@
 import type http from 'node:http';
 
 import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
+import { imageRouteTenantId, routeAllowsHostedImages } from '../../image-generation/imageRouteIdentity';
 
 import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
@@ -295,7 +296,7 @@ export async function handleResponsesOperation(
   if (operation === 'compact' && resolved.profile !== 'native') {
     throw unsupportedResponsesCapability('$', 'requires a native Responses provider');
   }
-  if (operation === 'create' && resolved.profile === 'reduced') {
+  if (operation === 'create' && resolved.profile === 'reduced' && !hasResponsesHostedImageWork(responsesBody)) {
     // Unknown top-level fields are ADMITTED and audit-dropped (field NAMES
     // only) — a codex/CLI update adding a request field degrades to an ignored
     // knob instead of a hard 400. The denied set (server-state references,
@@ -349,15 +350,12 @@ export async function handleResponsesOperation(
     responsesBody,
     previousHostedImageState,
   );
-  if (hasHostedImageWork && route.hostedImageGenerationAllowed !== true) {
+  if (hasHostedImageWork && !routeAllowsHostedImages(route)) {
     throw new OpenAIOperationError({
       status: 403,
       code: 'insufficient_permissions',
       message: 'The API key is not allowed to execute image generation',
     });
-  }
-  if (hasHostedImageWork && resolved.profile !== 'native') {
-    throw unsupportedResponsesCapability('$.tools', 'requires a native Responses provider');
   }
   const hostedImageIngress = deps.responsesHostedImageIngress;
   if (hasHostedImageWork && !hostedImageIngress) {
@@ -367,7 +365,7 @@ export async function handleResponsesOperation(
       message: 'Hosted image generation is unavailable',
     });
   }
-  if (hasHostedImageWork && !route.apiKeyId) {
+  if (hasHostedImageWork && !imageRouteTenantId(route)) {
     throw new OpenAIOperationError({
       status: 403,
       code: 'insufficient_permissions',
@@ -432,7 +430,7 @@ export async function handleResponsesOperation(
       profile: resolved.profile,
       operation,
       hostedImageGenerationAllowed: true,
-      tenantId: route.apiKeyId,
+      tenantId: imageRouteTenantId(route),
       sessionKey: derivedSession.key,
       ...(previousResponseId ? { authorizedPreviousResponseId: previousResponseId } : {}),
       ...(previousHostedImageState ? { previousHostedImageState } : {}),
@@ -449,6 +447,11 @@ export async function handleResponsesOperation(
   }
   let providerResponse: ResponsesPipelineResult;
   try {
+    if (hostedImageRequest && resolved.profile === 'reduced') {
+      for (const field of validateReducedResponsesRequest(hostedImageRequest.upstreamBody, resolved.capabilities)) {
+        countDroppedField(field, 'openai-responses');
+      }
+    }
     if (hostedImageRequest) {
       // The outbound audit hook may already hold the parsed Responses request.
       // Admission is the irreversible privacy boundary: discard that body and

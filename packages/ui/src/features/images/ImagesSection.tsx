@@ -23,6 +23,7 @@ import type {
   SubscriptionAccountSanitized,
 } from '@/daemon/types';
 import { useTranslation } from '@/shared/state/LocaleContext';
+import { moveImageRoute } from './imageProviderConfigModel';
 
 interface ImagesSectionProps {
   config: ImagesServerConfig | undefined;
@@ -53,7 +54,8 @@ export const UI_DEFAULT_CODEX_CARRIER_MODEL = 'gpt-5.6-luna';
 const IMAGE_PROVIDERS: readonly ImageProviderId[] = ['codex-subscription', 'antigravity-subscription'];
 
 export function imageProviderLabel(provider: ImageProviderId): string {
-  return provider === 'antigravity-subscription' ? 'Antigravity' : 'Codex';
+  return provider === 'antigravity-subscription' ? 'Antigravity'
+    : provider === 'codex-subscription' ? 'Codex' : provider;
 }
 
 /** Route-table rows for the read-only display (default model first, then alphabetical). */
@@ -77,8 +79,12 @@ export function applyImageCodexOverrides(
   return {
     ...config,
     codex: {
-      imageModel: overrides.imageModel?.trim() || UI_DEFAULT_CODEX_IMAGE_MODEL,
-      carrierModel: overrides.carrierModel?.trim() || UI_DEFAULT_CODEX_CARRIER_MODEL,
+      imageModel: overrides.imageModel === undefined
+        ? config.codex.imageModel
+        : overrides.imageModel.trim() || UI_DEFAULT_CODEX_IMAGE_MODEL,
+      carrierModel: overrides.carrierModel === undefined
+        ? config.codex.carrierModel
+        : overrides.carrierModel.trim() || UI_DEFAULT_CODEX_CARRIER_MODEL,
     },
   };
 }
@@ -184,6 +190,7 @@ export function ImagesSection({
   onUpdate,
 }: ImagesSectionProps) {
   const t = useTranslation();
+  const update = (next: ImagesServerConfig) => { void onUpdate(next).catch(() => undefined); };
   if (!config) {
     return (
       <section className="rounded-xl border border-dashed border-border/70 p-4">
@@ -229,7 +236,7 @@ export function ImagesSection({
         <Switch
           checked={config.enabled}
           disabled={busy}
-          onCheckedChange={(enabled) => void onUpdate({ ...config, enabled })}
+          onCheckedChange={(enabled) => update({ ...config, enabled })}
           aria-label={t('images.enable')}
         />
       </div>
@@ -248,7 +255,7 @@ export function ImagesSection({
             value={config.defaultModel}
             options={Object.keys(config.models ?? {}).map((model) => ({ value: model, label: model }))}
             disabled={busy}
-            onChange={(model) => void onUpdate({ ...config, defaultModel: model })}
+            onChange={(model) => update({ ...config, defaultModel: model })}
           />
         </label>
         <label className="space-y-1.5 text-xs">
@@ -259,7 +266,7 @@ export function ImagesSection({
             value={imageAccountSelection(config)}
             options={accountOptions}
             disabled={busy}
-            onChange={(selection) => void onUpdate(applyImageAccountSelection(config, selection))}
+            onChange={(selection) => update(applyImageAccountSelection(config, selection))}
           />
         </label>
         <label className="space-y-1.5 text-xs">
@@ -273,7 +280,7 @@ export function ImagesSection({
               { value: 'pool', label: t('images.account.poolFallback') },
             ]}
             disabled={busy}
-            onChange={(fallback) => void onUpdate({
+            onChange={(fallback) => update({
               ...config,
               account: { ...config.account, fallback: fallback as 'strict' | 'pool' },
             })}
@@ -295,9 +302,10 @@ export function ImagesSection({
                   {model === config.defaultModel ? (
                     <Badge variant="outline">{t('images.routes.defaultBadge')}</Badge>
                   ) : null}
-                  <Badge variant={provider === 'antigravity-subscription' ? 'secondary' : 'success'}>
-                    {imageProviderLabel(provider)}
-                  </Badge>
+                  <Select size="sm" value={provider} disabled={busy}
+                    aria-label={`${t('images.routes.title')}: ${model}`}
+                    options={[...IMAGE_PROVIDERS, ...Object.keys(config.providers ?? {})].map((value) => ({ value, label: imageProviderLabel(value) }))}
+                    onChange={(value) => update(moveImageRoute(config, model, value))} />
                 </span>
               </li>
             ))}
@@ -317,7 +325,7 @@ export function ImagesSection({
                 value={config.codex?.imageModel ?? ''}
                 placeholder={UI_DEFAULT_CODEX_IMAGE_MODEL}
                 disabled={busy}
-                onChange={(e) => void onUpdate(applyImageCodexOverrides(config, { imageModel: e.target.value }))}
+                onChange={(e) => update(applyImageCodexOverrides(config, { imageModel: e.target.value }))}
                 aria-label={t('images.codex.imageModel')}
               />
             </label>
@@ -328,7 +336,7 @@ export function ImagesSection({
                 value={config.codex?.carrierModel ?? ''}
                 placeholder={UI_DEFAULT_CODEX_CARRIER_MODEL}
                 disabled={busy}
-                onChange={(e) => void onUpdate(applyImageCodexOverrides(config, { carrierModel: e.target.value }))}
+                onChange={(e) => update(applyImageCodexOverrides(config, { carrierModel: e.target.value }))}
                 aria-label={t('images.codex.carrierModel')}
               />
             </label>

@@ -15,6 +15,7 @@ import type {
 
 const IMAGE_DECLARATION_KEYS = new Set([
   'type',
+  'model',
   'action',
   'size',
   'quality',
@@ -146,7 +147,7 @@ function parseDeclaration(value: Record<string, unknown>, stream: boolean): Resp
   const options = normalizeImageOptions(
     {
       prompt: 'responses image selection',
-      model: NORMALIZATION_RUNTIME.defaultModel,
+      model: value.model ?? NORMALIZATION_RUNTIME.defaultModel,
       n: 1,
       moderation: 'auto',
       stream,
@@ -164,6 +165,7 @@ function parseDeclaration(value: Record<string, unknown>, stream: boolean): Resp
   );
   return Object.freeze({
     action: action as ResponsesImageAction,
+    ...(value.model !== undefined ? { model: options.model } : {}),
     quality: options.quality,
     size: options.size,
     background: options.background,

@@ -3,7 +3,15 @@ export * from './errors';
 export * from './ImageOrchestrator';
 export * from './ImageProvider';
 export * from './ImageProviderRegistry';
+export * from './imageRouteIdentity';
+export * from './createEmbeddedImageRuntime';
+export * from './BoundedMemoryImageReferenceStore';
 export * from './ports';
+export * from './api/types';
+export { createApiImageProvider, apiImageCapabilities } from './api/ApiImageProvider';
+export { createConfiguredImageProviders, type ConfiguredImageProvidersOptions } from './api/configuredProviders';
+export { createApiImageAsset, decodeImageBase64, downloadApiImage } from './api/transport';
+export { waveSpeedDimensionMode } from './api/protocols';
 export { createImageApiContributions } from './openai-images/contributions';
 export { createSafeRemoteImageResolver } from './openai-images/safeRemoteImageResolver';
 export {

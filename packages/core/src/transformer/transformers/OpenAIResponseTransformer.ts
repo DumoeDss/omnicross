@@ -1153,7 +1153,9 @@ function convertOpenAIJsonToResponseApi(
   const usage = data.usage as Record<string, number> | undefined;
 
   return {
-    id: data.id || `resp_${Date.now()}`,
+    id: typeof data.id === 'string' && /^resp_[A-Za-z0-9_-]{1,240}$/u.test(data.id)
+      ? data.id
+      : `resp_${crypto.randomUUID().replaceAll('-', '')}`,
     object: 'response',
     status: 'completed',
     model: data.model || 'unknown',
@@ -1377,14 +1379,15 @@ function convertOpenAIStreamToResponseApi(
       let accumulatedContent = '';
       let model = 'unknown';
       const responseId = `resp_${Date.now()}`;
-      // The assistant text message occupies output index 0 (tool calls follow at
-      // 1+). Codex builds its message item from `response.output_item.added` and
+      // Assign indexes when items first appear so tool-only streams have no
+      // empty text slot. Codex builds its message item from `response.output_item.added` and
       // finalizes it on `response.output_item.done`; without that lifecycle the
       // text deltas arrive but nothing renders (`last_agent_message` null). Emit
       // the item lazily on the first content delta and close it at finish,
       // mirroring the real Responses streaming wire format.
       const messageId = `msg_${Date.now()}`;
       let messageItemAdded = false;
+      let messageOutputIndex: number | undefined;
       // Accumulate tool calls (keyed by OpenAI tool_call index) so the terminal
       // `response.completed` carries them as `function_call` output items, and
       // stream them as `function_call_arguments.delta` events — mirroring codex's
@@ -1394,9 +1397,8 @@ function convertOpenAIStreamToResponseApi(
         number,
         { callId: string; name: string; arguments: string; isCustom: boolean }
       >();
-      // Output index 0 is the assistant `message` (text); tool calls follow at 1+.
       const toolOutputIndex = new Map<number, number>();
-      let nextOutputIndex = 1;
+      let nextOutputIndex = 0;
       // DeepSeek DSML salvage (see utils/dsmlToolCalls). The suppressor holds
       // markup off the wire; salvaged calls land in `toolCalls` below and ride
       // the ordinary encoder, so they need an index space that cannot collide
@@ -1430,9 +1432,10 @@ function convertOpenAIStreamToResponseApi(
         if (!text) return;
         if (!messageItemAdded) {
           messageItemAdded = true;
+          messageOutputIndex = nextOutputIndex++;
           emitEvent({
             type: 'response.output_item.added',
-            output_index: 0,
+            output_index: messageOutputIndex,
             item: {
               id: messageId,
               type: 'message',
@@ -1445,7 +1448,7 @@ function convertOpenAIStreamToResponseApi(
         accumulatedContent += text;
         emitEvent({
           type: 'response.output_text.delta',
-          output_index: 0,
+          output_index: messageOutputIndex,
           content_index: 0,
           delta: text,
         });
@@ -1554,6 +1557,7 @@ function convertOpenAIStreamToResponseApi(
                     if (!entry.isCustom) {
                       emitEvent({
                         type: 'response.function_call_arguments.delta',
+                        item_id: encodeToolCallItem(entry.callId, entry.name, '', 'in_progress', codexTools).id,
                         output_index: toolOutputIndex.get(tcIndex),
                         delta: argsFragment,
                       });
@@ -1594,7 +1598,7 @@ function convertOpenAIStreamToResponseApi(
                 if (messageItemAdded) {
                   emitEvent({
                     type: 'response.output_text.done',
-                    output_index: 0,
+                    output_index: messageOutputIndex,
                     content_index: 0,
                     text: accumulatedContent,
                   });
@@ -1607,10 +1611,10 @@ function convertOpenAIStreamToResponseApi(
                   };
                   emitEvent({
                     type: 'response.output_item.done',
-                    output_index: 0,
+                    output_index: messageOutputIndex,
                     item: messageItem,
                   });
-                  output.push(messageItem);
+                  output[messageOutputIndex!] = messageItem;
                 }
                 for (const [tcIndex, entry] of toolCalls) {
                   const outIdx = toolOutputIndex.get(tcIndex);
@@ -1636,7 +1640,7 @@ function convertOpenAIStreamToResponseApi(
                       input: item.input,
                     });
                   }
-                  output.push(item);
+                  output[outIdx!] = item;
                   // The streamed `added` event carried status in_progress; mark done.
                   emitEvent({
                     type: 'response.output_item.done',

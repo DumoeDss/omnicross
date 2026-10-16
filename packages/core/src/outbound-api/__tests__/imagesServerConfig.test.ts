@@ -13,6 +13,50 @@ function validImagesConfig(): Record<string, unknown> {
 }
 
 describe('Images server config normalization', () => {
+  it('drops orphan model mappings so tolerant reads can be saved again', () => {
+    const config = normalizeImagesServerConfig({ providers: {
+      api: { protocol: 'openai-images', sourceProviderId: 'stored', modelMap: { current: 'gpt-image-2.5-flare', removed: 'gpt-image-2' } },
+    }, models: { current: 'api' }, defaultModel: 'current' });
+    expect(config.providers.api.modelMap).toEqual({ current: 'gpt-image-2.5-flare' });
+    expect(validateImagesServerConfig(config)).toEqual([]);
+  });
+  it('round-trips an API-only instance without leaking credentials into image config', () => {
+    const input = { ...validImagesConfig(), providers: { api: { protocol: 'openrouter', sourceProviderId: 'stored-provider',
+      modelMap: { banana: 'google/gemini-nano-banana-2.1' } } }, models: { banana: 'api' }, defaultModel: 'banana' };
+    expect(validateImagesServerConfig(input)).toEqual([]);
+    expect(normalizeImagesServerConfig(input)).toMatchObject({ providers: input.providers, models: input.models, defaultModel: 'banana' });
+    expect(validateImagesServerConfig({ ...input, providers: { api: { ...input.providers.api, apiKey: 'forbidden' } } }).join('\n'))
+      .toContain('apiKey is not supported');
+  });
+
+  it('migrates retired subscription routes, default and aliases while preserving custom API ids', () => {
+    const migrated = normalizeImagesServerConfig({ models: { 'gemini-3-pro-image-preview': 'antigravity-subscription' },
+      defaultModel: 'gemini-3-pro-image-preview', aliases: { favorite: 'gemini-3-pro-image-preview' } });
+    expect(migrated.models).toEqual({ 'gemini-3-pro-image': 'antigravity-subscription' });
+    expect(migrated.defaultModel).toBe('gemini-3-pro-image');
+    expect(migrated.aliases).toEqual({ favorite: 'gemini-3-pro-image' });
+    const custom = normalizeImagesServerConfig({ providers: { api: { protocol: 'gemini', sourceProviderId: 'source' } },
+      models: { 'gemini-3-pro-image-preview': 'api' } });
+    expect(custom.models).toEqual({ 'gemini-3-pro-image-preview': 'api' });
+  });
+
+  it('routes both Image 2.5 variants and upgrades the former shipped table', () => {
+    const defaults = normalizeImagesServerConfig(undefined);
+    expect(defaults.models['gpt-image-2.5-flare']).toBe('codex-subscription');
+    expect(defaults.models['gpt-image-2.5-sunburst']).toBe('codex-subscription');
+    expect(defaults.models).not.toHaveProperty('gpt-image-2-5');
+    const upgraded = normalizeImagesServerConfig({
+      models: { 'gpt-image-2-5': 'codex-subscription', custom: 'antigravity-subscription' },
+    });
+    expect(upgraded.models).toMatchObject({
+      'gpt-image-2.5-flare': 'codex-subscription',
+      'gpt-image-2.5-sunburst': 'codex-subscription',
+      custom: 'antigravity-subscription',
+    });
+    expect(normalizeImagesServerConfig({ models: { custom: 'codex-subscription' } }).models)
+      .toEqual({ custom: 'codex-subscription' });
+  });
+
   it('keeps a missing legacy segment disabled with finite frozen defaults', () => {
     const normalized = normalizeServerConfig({
       enabled: true,
@@ -51,7 +95,7 @@ describe('Images server config normalization', () => {
     // An unrecognized legacy provider falls to the pinned default routing table.
     expect(normalized.models).toEqual(DEFAULT_IMAGES_SERVER_CONFIG.models);
     expect(normalized.models['gpt-image-2']).toBe('codex-subscription');
-    expect(normalized.models['gemini-3-pro-image-preview']).toBe('antigravity-subscription');
+    expect(normalized.models['gemini-3-pro-image']).toBe('antigravity-subscription');
     expect(normalized.codex).toEqual({ imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' });
     expect(normalized.account).toEqual({ id: 'account', fallback: 'strict' });
     expect(normalized.queue.maxQueuedJobs).toBe(DEFAULT_IMAGES_SERVER_CONFIG.queue.maxQueuedJobs);
@@ -107,7 +151,7 @@ describe('strict Images server config validation', () => {
 
     const badRoute = validImagesConfig();
     (badRoute['models'] as Record<string, unknown>)['mystery-model'] = 'not-a-provider';
-    expect(validateImagesServerConfig(badRoute).join('\n')).toMatch(/must target one of/);
+    expect(validateImagesServerConfig(badRoute).join('\n')).toMatch(/must target a registered image provider/);
 
     const badDefault = validImagesConfig();
     badDefault['defaultModel'] = 'unrouted-model';

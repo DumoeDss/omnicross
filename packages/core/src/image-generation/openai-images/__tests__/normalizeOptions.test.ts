@@ -15,6 +15,9 @@ const runtime: ImageApiRuntime = {
 };
 
 describe('normalizeGenerateRequest', () => {
+  it.each(['xhigh', 'max'])('accepts %s quality before model capability checks', (quality) => {
+    expect(normalizeGenerateRequest({ prompt: 'draw', quality }, runtime).quality).toBe(quality);
+  });
   it('normalizes defaults, aliases, dimensions, and only a trusted user fingerprint', () => {
     expect(normalizeGenerateRequest({
       prompt: 'draw',

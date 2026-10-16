@@ -147,8 +147,8 @@ function llmConfig(
       models: ['gpt-native'],
       enabled: true,
     })),
-    resolveTransformerChain: vi.fn(),
-    getMainTransformer: vi.fn(),
+    resolveTransformerChain: vi.fn(async () => ({ providerTransformers: [], modelTransformers: [] })),
+    getMainTransformer: vi.fn(async () => null),
     getTransformerService: vi.fn(() => ({ getTransformer: vi.fn() })),
   } as unknown as ProviderConfigSource;
 }
@@ -263,6 +263,25 @@ describe('Native Responses hosted image production JSON integration', () => {
       req.on('end', () => {
         const body = JSON.parse(raw) as Record<string, unknown>;
         upstreamBodies.push(body);
+        if (options.apiFormat === 'openai') {
+          if (body.stream === true) {
+            res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+            const chunks = [
+              { delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call_converted_image', type: 'function', function: { name: SELECTOR_NAME, arguments: '' } }] }, finish_reason: null },
+              { delta: { tool_calls: [{ index: 0, function: { arguments: '{"prompt":"converted image prompt"}' } }] }, finish_reason: null },
+              { delta: {}, finish_reason: 'tool_calls' },
+            ];
+            for (const choice of chunks) res.write(`data: ${JSON.stringify({ id: 'chatcmpl_image', object: 'chat.completion.chunk', model: 'gpt-native', choices: [{ index: 0, ...choice }] })}\n\n`);
+            res.end('data: [DONE]\n\n');
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ id: 'chatcmpl_image', object: 'chat.completion', model: 'gpt-native',
+            choices: [{ index: 0, finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
+              tool_calls: [{ id: 'call_converted_image', type: 'function', function: { name: SELECTOR_NAME, arguments: '{"prompt":"converted image prompt"}' } }] } }],
+            usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } }));
+          return;
+        }
         const selector = Array.isArray(body.tools)
           ? body.tools.find((tool) => (
               !!tool && typeof tool === 'object' &&
@@ -772,7 +791,7 @@ describe('Native Responses hosted image production JSON integration', () => {
     expect(upstreamBodies).toHaveLength(0);
   });
 
-  it('rejects image work on a reduced profile before runtime or upstream execution', async () => {
+  it('executes image selection through a converted Chat provider', async () => {
     const harness = runtimeHarness();
     const { proxyPort, token, upstreamBodies } = await setup({
       factory: harness.factory,
@@ -785,12 +804,30 @@ describe('Native Responses hosted image production JSON integration', () => {
       tool_choice: { type: 'image_generation' },
     });
 
-    expect(response.status).toBe(400);
-    expect(await response.text()).toContain('unsupported_capability');
-    expect(upstreamBodies).toHaveLength(0);
-    expect(harness.factory.acquire).not.toHaveBeenCalled();
-    expect(harness.runtime.inspectRequest).not.toHaveBeenCalled();
-    expect(harness.executeSelectedCall).not.toHaveBeenCalled();
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(await response.json()).toMatchObject({ output: [{ type: 'image_generation_call', result: IMAGE_RESULT }] });
+    expect(upstreamBodies).toHaveLength(1);
+    expect(upstreamBodies[0]).not.toHaveProperty('input');
+    expect(harness.factory.acquire).toHaveBeenCalledOnce();
+    expect(harness.executeSelectedCall).toHaveBeenCalledOnce();
+  });
+
+  it('streams hosted image completion through a converted Chat provider', async () => {
+    const harness = runtimeHarness();
+    const { proxyPort, token, upstreamBodies } = await setup({ factory: harness.factory, apiFormat: 'openai' });
+    const response = await request(proxyPort, token, {
+      model: 'client-model', input: 'draw through chat streaming', stream: true,
+      tools: [{ type: 'image_generation', model: 'gpt-image-2.5-flare' }],
+      tool_choice: { type: 'image_generation' },
+    });
+    expect(response.status).toBe(200);
+    const events = parseSseEvents(await response.text());
+    const completed = events.find((event) => event.type === 'response.completed');
+    expect(completed, JSON.stringify(events)).toMatchObject({ response: { output: [{ type: 'image_generation_call', result: IMAGE_RESULT }] } });
+    expect(JSON.stringify(events)).not.toContain(SELECTOR_NAME);
+    expect(upstreamBodies).toHaveLength(1);
+    expect(harness.executeSelectedCall).toHaveBeenCalledOnce();
+    expect(harness.commit).toHaveBeenCalledOnce();
   });
 
   it('enforces the projected Images permission before selector, runtime, or provider work', async () => {

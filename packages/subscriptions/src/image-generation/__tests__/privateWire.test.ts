@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { NormalizedImageGenerateRequest } from '@omnicross/contracts/image-generation-types';
 import { ImageGenerationError } from '@omnicross/core/image-generation';
 
-import { createCodexImageAdapterEvidence } from '../capabilityEvidence';
+import { applyCodexImageModelOverrideEvidence, createCodexImageAdapterEvidence } from '../capabilityEvidence';
 import {
   buildCandidateCodexImageRequest,
   CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
@@ -210,7 +210,7 @@ describe('private candidate wire parsers', () => {
 // ---------------------------------------------------------------------------
 // Wire options (task 3.3): configurable carrier/tool models — defaults pin the
 // shipped constants; `images.codex.{carrierModel,imageModel}` overrides ride the
-// same builder (gpt-image-2-5 needs a config change only).
+// same builder; explicit Image 2.5 variants retain their requested model.
 // ---------------------------------------------------------------------------
 
 const generateRequest: NormalizedImageGenerateRequest = {
@@ -220,6 +220,18 @@ const generateRequest: NormalizedImageGenerateRequest = {
 };
 
 describe('candidate codex image wire options', () => {
+  it('only advertises the base-model override when its actual target is evidenced', () => {
+    const layer = {
+      kind: 'account' as const, source: 'verified-test', values: { models: ['gpt-image-2'] },
+    };
+    expect(applyCodexImageModelOverrideEvidence(layer, 'gpt-image-2.5-flare').values?.models)
+      .toEqual([]);
+    const verifiedVariant = { ...layer, values: { models: ['gpt-image-2.5-flare'] } };
+    expect(applyCodexImageModelOverrideEvidence(verifiedVariant, 'gpt-image-2.5-flare').values?.models)
+      .toEqual(['gpt-image-2', 'gpt-image-2.5-flare']);
+    expect(layer.values.models).toEqual(['gpt-image-2']);
+  });
+
   it('defaults pin the shipped carrier and tool models (byte-level)', async () => {
     const body = JSON.parse(await buildCandidateCodexImageRequest(generateRequest)) as {
       model: string;
@@ -234,28 +246,40 @@ describe('candidate codex image wire options', () => {
     const body = JSON.parse(
       await buildCandidateCodexImageRequest(generateRequest, undefined, {
         carrierModel: 'gpt-6-orion',
-        imageModel: 'gpt-image-2-5',
+        imageModel: 'gpt-image-2.5-flare',
       }),
     ) as {
       model: string;
       tools: Array<{ model: string }>;
     };
     expect(body.model).toBe('gpt-6-orion');
-    expect(body.tools[0].model).toBe('gpt-image-2-5');
+    expect(body.tools[0].model).toBe('gpt-image-2.5-flare');
   });
+
+  it.each(['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'])(
+    'preserves explicit %s despite the configured base-model override', async (model) => {
+      const body = JSON.parse(await buildCandidateCodexImageRequest(
+        { ...generateRequest, model }, undefined, { imageModel: 'gpt-image-2' },
+      ));
+      expect(body.tools[0].model).toBe(model);
+    },
+  );
 
   it('evidence model dimension follows the configured imageModel', () => {
     const pinned = createCodexImageAdapterEvidence(1_000);
     expect(pinned.source).toBe('codex-image-adapter-declaration');
     expect(pinned.verifiedAt).toBe(1_000);
-    expect(pinned.values.models).toEqual(['gpt-image-2']);
+    const models = ['gpt-image-2', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'];
+    expect(pinned.values.models).toEqual(models);
 
-    const configured = createCodexImageAdapterEvidence(1_000, 'gpt-image-2-5');
+    const configured = createCodexImageAdapterEvidence(1_000, 'custom-image-model');
     // The configured model is advertised; the pinned default stays reachable.
-    expect(configured.values.models).toEqual(['gpt-image-2-5', 'gpt-image-2']);
+    expect(configured.values.models).toEqual(['custom-image-model', ...models]);
 
     // Re-declaring the default model must not duplicate the entry.
     const same = createCodexImageAdapterEvidence(1_000, 'gpt-image-2');
-    expect(same.values.models).toEqual(['gpt-image-2']);
+    expect(same.values.models).toEqual(models);
+    expect(createCodexImageAdapterEvidence(1_000, 'gpt-image-2.5-flare').values.models)
+      .toEqual(models);
   });
 });

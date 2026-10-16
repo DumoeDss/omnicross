@@ -92,8 +92,8 @@ export interface SearchServerConfig {
   };
 }
 
-/** Registered image providers (the routing table's legal target values). */
-export type ImageProviderId = 'codex-subscription' | 'antigravity-subscription';
+/** Built-in subscription identities or configured API-provider instance ids. */
+export type ImageProviderId = string;
 
 export const IMAGE_PROVIDER_IDS: readonly ImageProviderId[] = [
   'codex-subscription',
@@ -102,23 +102,24 @@ export const IMAGE_PROVIDER_IDS: readonly ImageProviderId[] = [
 
 /**
  * The pinned default model→provider routing table (multi-provider-image-
- * generation D1). Codex keeps both live image models; the canonical antigravity
+ * generation D1). Codex routes Image 2 and both Image 2.5 variants; the canonical antigravity
  * NanoBanana models ride the antigravity identity (gemini-cli is out of scope
  * for images by the 2026-09-08 decision). The table lists ROUTED models only —
  * effective availability is still the per-provider capability intersection.
  */
 export const DEFAULT_IMAGE_MODEL_ROUTES: Readonly<Record<string, ImageProviderId>> = Object.freeze({
   'gpt-image-2': 'codex-subscription',
-  'gpt-image-2-5': 'codex-subscription',
+  'gpt-image-2.5-flare': 'codex-subscription',
+  'gpt-image-2.5-sunburst': 'codex-subscription',
   'gemini-2.5-flash-image': 'antigravity-subscription',
-  'gemini-2.5-flash-image-preview': 'antigravity-subscription',
+  'gemini-nano-banana-2.1': 'antigravity-subscription',
+  'gemini-3.1-flash-lite-image': 'antigravity-subscription',
   'gemini-3.1-flash-image': 'antigravity-subscription',
-  'gemini-3.1-flash-image-preview': 'antigravity-subscription',
-  'gemini-3-pro-image-preview': 'antigravity-subscription',
+  'gemini-3-pro-image': 'antigravity-subscription',
 });
 
 export interface ImagesCodexAdapterConfig {
-  /** The image tool's model id on the Codex private wire (default `gpt-image-2`). */
+  /** Override for requests using `gpt-image-2`; explicit variant IDs pass through. */
   imageModel: string;
   /** The Responses carrier model wrapping the image tool (default `gpt-5.6-luna`). */
   carrierModel: string;
@@ -126,7 +127,9 @@ export interface ImagesCodexAdapterConfig {
 
 export interface ImagesServerConfig {
   enabled: boolean;
-  /** Model→provider routing. Legal targets are exactly `IMAGE_PROVIDER_IDS`. */
+  /** Configured API instances reference the existing credential/provider store. */
+  providers?: Record<string, import('../image-generation/api/types').ImageApiProviderConfig>;
+  /** Model→provider routing, targeting a built-in or a configured instance. */
   models: Record<string, ImageProviderId>;
   defaultModel: string;
   /** Display aliases → routed model ids (targets must exist in `models`). */

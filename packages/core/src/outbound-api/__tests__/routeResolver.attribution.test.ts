@@ -55,6 +55,14 @@ afterEach(() => {
 });
 
 describe('resolveRoute — apiKeyId attribution', () => {
+  it('updates a saved official MiMo route without changing a third-party model ID', async () => {
+    for (const baseUrl of ['https://api.xiaomimimo.com/v1', 'https://proxy.example/v1']) {
+      const source = { getProvider: async () => ({ id: 'mimo', api_key: 'key', api_base_url: baseUrl, models: ['mimo-v2.6-flash'], enabled: true }) } as unknown as ProviderConfigSource;
+      const result = await resolveRoute({ config: messages({ sonnet: 'mimo,mimo-v2.5' }),
+        ingressFormat: 'anthropic-messages', llmConfig: source, requestedModel: 'claude-sonnet-4-8' });
+      expect(result).toMatchObject({ ok: true, route: { model: baseUrl.includes('xiaomimimo') ? 'mimo-v2.6-flash' : 'mimo-v2.5' } });
+    }
+  });
   it('BYO route stamps apiKeyId on the route AND the anthropic hints', async () => {
     const result = await resolveRoute({
       config: messages(MSG_MAP),

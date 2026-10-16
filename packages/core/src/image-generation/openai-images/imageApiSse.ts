@@ -120,7 +120,7 @@ export async function writeImageApiSse(options: {
   readonly metadata: {
     readonly background: 'auto' | 'opaque' | 'transparent';
     readonly outputFormat: 'png' | 'jpeg' | 'webp';
-    readonly quality: 'auto' | 'low' | 'medium' | 'high';
+    readonly quality: 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     readonly size: string;
   };
   readonly scope: ImageRequestResourceScope;

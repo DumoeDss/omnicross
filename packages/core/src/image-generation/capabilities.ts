@@ -80,7 +80,7 @@ function intersectStrings(
   const allowed = key === 'outputFormats'
     ? new Set(['png', 'jpeg', 'webp'])
     : key === 'qualityLevels'
-      ? new Set(['auto', 'low', 'medium', 'high'])
+      ? new Set(['auto', 'low', 'medium', 'high', 'xhigh', 'max'])
       : key === 'moderationModes'
         ? new Set(['auto', 'low'])
         : undefined;

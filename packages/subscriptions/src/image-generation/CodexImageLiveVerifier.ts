@@ -16,6 +16,7 @@ import {
 import { fetchUpstream } from '@omnicross/core/pipeline/upstreamFetch';
 
 import type { AuthStrategy } from '../auth';
+import { isCodexImageModel, type CodexImageModel } from './imageModels';
 import { mapCandidateCodexImageFailure } from './privateWireErrors';
 import {
   applyCandidateCodexImageActionHeaders,
@@ -24,6 +25,8 @@ import {
   candidateCodexImageUrl,
   CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
   CANDIDATE_CODEX_IMAGE_URL,
+  resolveCandidateCodexImageModel,
+  type CandidateCodexImageWireOptions,
 } from './privateWireRequest';
 import {
   disposeCandidateCodexImageResponse,
@@ -55,7 +58,7 @@ export interface CodexImageCapabilityObservedResponseFields {
 export interface CodexImageCapabilityObservation {
   /** Sensitive transient identity. Persist only after a local keyed HMAC. */
   readonly accountId: string;
-  readonly model: 'gpt-image-2';
+  readonly model: CodexImageModel;
   readonly request: CodexImageCapabilityTestedRequest;
   readonly responseFields?: CodexImageCapabilityObservedResponseFields;
 }
@@ -71,6 +74,8 @@ export interface CodexImageLiveVerificationRequest {
 export interface CodexImageLiveVerifierOptions {
   readonly authStrategy: AuthStrategy;
   readonly generationTimeoutMs?: number;
+  readonly model?: string;
+  readonly wire?: CandidateCodexImageWireOptions;
 }
 
 export interface CodexImageLiveVerifier {
@@ -98,6 +103,7 @@ function traceAccountFingerprint(accountId: string): string {
 function observation(
   accountId: string,
   parsed: ParsedCandidateCodexImageResponse,
+  model: CodexImageModel,
 ): CodexImageCapabilityObservation {
   const responseFields: CodexImageCapabilityObservedResponseFields = {
     ...(parsed.usage ? { usage: true } : {}),
@@ -105,7 +111,7 @@ function observation(
   };
   return Object.freeze({
     accountId,
-    model: 'gpt-image-2',
+    model,
     request: Object.freeze({
       action: 'generate',
       n: 1,
@@ -126,6 +132,8 @@ function observation(
 class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
   readonly #auth: AuthStrategy;
   readonly #generationTimeoutMs: number;
+  readonly #model: string;
+  readonly #wire: CandidateCodexImageWireOptions;
 
   constructor(options: CodexImageLiveVerifierOptions) {
     if (!Number.isSafeInteger(options.generationTimeoutMs ?? 180_000) ||
@@ -134,6 +142,8 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
     }
     this.#auth = options.authStrategy;
     this.#generationTimeoutMs = options.generationTimeoutMs ?? 180_000;
+    this.#model = options.model ?? TESTED_REQUEST.model;
+    this.#wire = { ...options.wire };
   }
 
   async verify(request: CodexImageLiveVerificationRequest): Promise<CodexImageCapabilityObservation> {
@@ -143,6 +153,9 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
     if (this.#auth.providerId !== 'codex') {
       throw new ImageGenerationError('upstream_auth_required');
     }
+    const model = resolveCandidateCodexImageModel(this.#model, this.#wire);
+    if (!isCodexImageModel(model)) throw new ImageGenerationError('unsupported_model');
+    const testedRequest = { ...TESTED_REQUEST, model };
 
     const controller = new AbortController();
     const onCallerAbort = () => controller.abort(request.signal.reason);
@@ -159,7 +172,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
     try {
       await this.#auth.applyHeaders(headers, {
         upstreamUrl: CANDIDATE_CODEX_IMAGE_URL,
-        resolvedModel: CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
+        resolvedModel: this.#wire.carrierModel ?? CANDIDATE_CODEX_IMAGE_CARRIER_MODEL,
         sessionKey: request.sessionKey,
         preferredAccountId: request.preferredAccountId,
         preferredAccountGroup: request.preferredAccountGroup,
@@ -175,7 +188,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
         {
           method: 'POST',
           headers: { ...headers },
-          body: await buildCandidateCodexImageRequest(TESTED_REQUEST, controller.signal),
+          body: await buildCandidateCodexImageRequest(testedRequest, controller.signal, this.#wire),
           signal: controller.signal,
         },
         {
@@ -191,7 +204,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
       if (controller.signal.aborted) throw controller.signal.reason;
 
       const editRequest: NormalizedImageEditRequest<ImageAsset> = {
-        ...TESTED_REQUEST,
+        ...testedRequest,
         action: 'edit',
         images: [parsed.images[0]!],
       };
@@ -202,7 +215,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
         {
           method: 'POST',
           headers: editHeaders,
-          body: await buildCandidateCodexImageRequest(editRequest, controller.signal),
+          body: await buildCandidateCodexImageRequest(editRequest, controller.signal, this.#wire),
           signal: controller.signal,
         },
         {
@@ -216,7 +229,7 @@ class DefaultCodexImageLiveVerifier implements CodexImageLiveVerifier {
       if (!editResponse.ok) throw mapCandidateCodexImageFailure(editResponse, editResponseBody);
       parsedEdit = await parseCandidateCodexImageResponse(editResponseBody, 1, 'png');
       if (controller.signal.aborted) throw controller.signal.reason;
-      return observation(accountId, parsed);
+      return observation(accountId, parsed, model);
     } catch (cause) {
       if (controller.signal.aborted) {
         throw controller.signal.reason instanceof ImageGenerationError

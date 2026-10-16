@@ -50,8 +50,8 @@ export const DEFAULT_IMAGE_API_LIMITS: ImageApiLimits = Object.freeze({
   maxHeaderPairs: 64,
   maxFieldNameBytes: 128,
   maxFieldValueBytes: 32 * 1024,
-  maxPixels: 8_294_400,
-  maxRawBytes: 8_294_400 * 4,
+  maxPixels: 16_777_216,
+  maxRawBytes: 16_777_216 * 4,
   maxOutputBytes: 50 * 1024 * 1024,
   maxTotalOutputBytes: 100 * 1024 * 1024,
   maxSpoolBytes: 140 * 1024 * 1024,
@@ -74,8 +74,8 @@ export function assertFiniteImageApiLimits(limits: ImageApiLimits): void {
   if (limits.maxFiles > 17) {
     throw new TypeError('Image API file count exceeds sixteen images plus one mask.');
   }
-  if (limits.maxPixels > 8_294_400) {
-    throw new TypeError('Image API pixel limit exceeds the GPT Image hard ceiling.');
+  if (limits.maxPixels > 67_108_864) {
+    throw new TypeError('Image API pixel limit exceeds the raster resource ceiling.');
   }
   if (limits.maxTotalInputBytes < limits.maxFileBytes) {
     throw new TypeError('Image API aggregate input limit must cover one file.');

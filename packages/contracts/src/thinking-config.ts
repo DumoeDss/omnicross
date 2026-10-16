@@ -121,6 +121,7 @@ export const THINKING_TOKEN_MAP = LEGACY_THINKING_TOKEN_LIMITS;
 
 /** Reasoning-model recognition patterns. */
 export const REASONING_MODEL_PATTERNS: RegExp[] = [
+  /gemini-4(?:[.-]|$)/i,
   /^o[134](-mini|-preview|-pro)?$/i,
   /^gpt-5(\.\d)?(-pro|-codex|-codex-max)?/i,
   /claude.*3[.-]?5.*sonnet|claude.*sonnet.*3[.-]?5|claude-sonnet-4|claude-opus-4|claude-(haiku|sonnet|opus)-4[.-]?5/i,
@@ -136,6 +137,7 @@ export const REASONING_MODEL_PATTERNS: RegExp[] = [
 
 /** Patterns for models that cannot fully disable thinking. */
 export const CANNOT_DISABLE_THINKING_PATTERNS: RegExp[] = [
+  /gemini-4(?:[.-]|$)/i,
   /gemini.*3.*pro/i,
   /gemini.*2\.5.*pro/i,
   /^o1-pro$/i,

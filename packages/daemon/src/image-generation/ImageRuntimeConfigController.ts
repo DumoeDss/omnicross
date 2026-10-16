@@ -1,6 +1,7 @@
 import type { RemoteImageAssetResolver } from '@omnicross/core/image-generation';
 import type { ImagesServerConfig } from '@omnicross/core/outbound-api';
 import type { SubscriptionAccountService } from '@omnicross/subscriptions';
+import type { ProviderConfigSource } from '@omnicross/core/ports/provider-config-source';
 
 import type { PreparedServerConfigChange } from '../admin/serverConfigTransaction';
 import type {
@@ -29,6 +30,7 @@ import type { DaemonImageActiveScopeRegistry } from './imageTemporaryResources';
 export interface ImageRuntimeConfigControllerOptions {
   readonly manager: ImageRuntimeManager;
   readonly subscriptionAccounts: Pick<SubscriptionAccountService, 'getStrategy'>;
+  readonly providerSource?: Pick<ProviderConfigSource, 'getProvider'>;
   readonly storageCatalog: ImageStorageMountCatalog;
   readonly referenceStore: MountedImageReferenceStore;
   readonly stateStore: MountedResponsesImageStateStore;
@@ -105,6 +107,7 @@ export function createImageRuntimeConfigController(
           generationId: `image-runtime-${nextGenerationNumber++}`,
           config,
           subscriptionAccounts: options.subscriptionAccounts,
+          providerSource: options.providerSource,
           storage: {
             paths: mount.backend.resolver,
             referenceStore,

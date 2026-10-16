@@ -90,6 +90,7 @@ export type {
   CodexImageCapabilityEvidenceSource,
 } from './image-generation/capabilityEvidence';
 export { createCodexImageLiveVerifier } from './image-generation/CodexImageLiveVerifier';
+export { isCodexImageModel } from './image-generation/imageModels';
 export type {
   CodexImageCapabilityObservation,
   CodexImageCapabilityObservedResponseFields,

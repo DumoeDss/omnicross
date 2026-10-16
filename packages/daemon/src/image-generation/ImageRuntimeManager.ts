@@ -55,6 +55,8 @@ export interface HostedImageRuntimeGenerationLease {
 export interface HostedImageRuntimePolicy {
   readonly providerId: string;
   readonly imageModel: string;
+  readonly modelRoutes?: ReadonlyMap<string, string>;
+  readonly modelAliases?: ReadonlyMap<string, string>;
   readonly referenceTtlMs: number;
   readonly maxOutputBytes: number;
   readonly maxTotalOutputBytes: number;
@@ -458,9 +460,14 @@ export class ImageRuntimeManager {
         ) {
           throw new ImageGenerationError('invalid_image_request');
         }
+        const requestedImageModel = input.admission.options?.model;
+        const resolvedImageModel = requestedImageModel === undefined ? hostedRuntime.imageModel
+          : hostedRuntime.modelAliases?.get(requestedImageModel) ?? requestedImageModel;
+        const resolvedImageProvider = hostedRuntime.modelRoutes?.get(resolvedImageModel)
+          ?? (resolvedImageModel === hostedRuntime.imageModel ? hostedRuntime.providerId : undefined);
         const selectedCodexAccount =
           input.mainProviderId === 'codex' &&
-          hostedRuntime.providerId === 'codex-subscription' &&
+          resolvedImageProvider === 'codex-subscription' &&
           input.selectedMainAccountId !== undefined
             ? input.selectedMainAccountId
             : undefined;
@@ -469,6 +476,8 @@ export class ImageRuntimeManager {
           requestId: input.requestId,
           providerId: hostedRuntime.providerId,
           imageModel: hostedRuntime.imageModel,
+          modelRoutes: hostedRuntime.modelRoutes,
+          modelAliases: hostedRuntime.modelAliases,
           referenceTtlMs: hostedRuntime.referenceTtlMs,
           maxOutputBytes: hostedRuntime.maxOutputBytes,
           maxTotalOutputBytes: hostedRuntime.maxTotalOutputBytes,
