@@ -298,3 +298,24 @@ export function normalizeCodexItemIds(body: Item): Item {
   });
   return body;
 }
+
+/**
+ * Codex's streaming auto-compaction request replays hosted search history but
+ * omits tool declarations. The subscription backend then emits a 200 SSE error
+ * (`response protection is unavailable`) instead of completing the response.
+ * Measured 2026-10-17: declaring web_search restores replay, even with tool
+ * choice none. Keep every history item and disable tool execution: this repair
+ * applies only when the caller declared no tools to execute in the first place.
+ */
+export function ensureCodexSearchReplayTools(body: Item): Item {
+  if (!Array.isArray(body.input)) return body;
+  if (body.tools !== undefined && (!Array.isArray(body.tools) || body.tools.length > 0)) return body;
+  if (body.tool_choice !== undefined && body.tool_choice !== 'auto' && body.tool_choice !== 'none') return body;
+  if (body.input.some((item) => isRecord(item) && item.type === 'additional_tools' &&
+    Array.isArray(item.tools) && item.tools.length > 0)) return body;
+  if (!body.input.some((item) => isRecord(item) && item.type === 'web_search_call')) return body;
+
+  body.tools = [{ type: 'web_search' }];
+  body.tool_choice = 'none';
+  return body;
+}

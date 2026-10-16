@@ -46,6 +46,7 @@ describe('native Responses create/compact integration', () => {
     const compactOutput = [
       { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'earlier' }], future_message: { x: 1 } },
       { type: 'reasoning', id: 'rs_1', summary: [{ type: 'summary_text', text: 'opaque reasoning' }], encrypted_content: 'enc-secret' },
+      { type: 'web_search_call', id: 'ws_previous', status: 'completed', action: { type: 'search', query: 'earlier search' } },
       { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'lookup', arguments: '{"q":1}', status: 'completed' },
       { type: 'future_item', id: 'future_1', payload: { nested: true } },
       { type: 'compaction', id: 'cmp_1', encrypted_content: 'opaque-window', future_compaction: 7 },
@@ -137,6 +138,8 @@ describe('native Responses create/compact integration', () => {
     expect(requests[1].body).toMatchObject({
       model: 'mapped-native-model',
       store: false,
+      tools: [{ type: 'web_search' }],
+      tool_choice: 'none',
       context_management: [{ type: 'compaction', compact_threshold: 1000 }],
       future_create_field: { untouched: true },
     });

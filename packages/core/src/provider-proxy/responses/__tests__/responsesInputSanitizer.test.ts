@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ensureCodexSearchReplayTools,
   normalizeCodexItemIds,
   sanitizeResponsesInput,
   sanitizeResponsesRequest,
@@ -353,5 +354,41 @@ describe('normalizeCodexItemIds — the codex backend id-prefix rule', () => {
     // and idempotent
     normalizeCodexItemIds(a);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('ensureCodexSearchReplayTools — tool-free auto-compaction with search history', () => {
+  const search = { type: 'web_search_call', id: 'ws_old', status: 'completed', action: { type: 'search', query: 'old query' } };
+
+  it('declares replayed search without allowing a new search or changing history', () => {
+    const input = [U(), search, R(), A('Findings from the previous search')];
+    const body: Record<string, unknown> = { input, tool_choice: 'auto' };
+    ensureCodexSearchReplayTools(body);
+    expect(body.input).toBe(input);
+    expect(body).toMatchObject({ tools: [{ type: 'web_search' }], tool_choice: 'none' });
+    const once = JSON.stringify(body);
+    ensureCodexSearchReplayTools(body);
+    expect(JSON.stringify(body)).toBe(once);
+  });
+
+  it.each([undefined, 'none'])('supports empty tools with tool_choice %s', (choice) => {
+    const body: Record<string, unknown> = { input: [search], tools: [], tool_choice: choice };
+    ensureCodexSearchReplayTools(body);
+    expect(body.tools).toEqual([{ type: 'web_search' }]);
+    expect(body.tool_choice).toBe('none');
+  });
+
+  it.each([
+    { input: [U()] },
+    { input: 'plain text' },
+    { input: [search], tools: [{ type: 'function', name: 'run' }] },
+    { input: [{ type: 'additional_tools', tools: [{ type: 'function', name: 'run' }] }, search] },
+    { input: [search], tools: [{ type: 'web_search_preview' }] },
+    { input: [search], tool_choice: 'required' },
+    { input: [search], tool_choice: { type: 'function', name: 'run' } },
+  ])('preserves ordinary requests and existing tool policies: %j', (original) => {
+    const body = structuredClone(original);
+    ensureCodexSearchReplayTools(body);
+    expect(body).toEqual(original);
   });
 });

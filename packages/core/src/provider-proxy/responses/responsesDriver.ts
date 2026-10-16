@@ -33,7 +33,11 @@ import {
   salvageNativeResponsesJson,
   wrapNativeResponsesSse,
 } from './nativeResponsesDsml';
-import { normalizeCodexItemIds, sanitizeResponsesRequest } from './responsesInputSanitizer';
+import {
+  ensureCodexSearchReplayTools,
+  normalizeCodexItemIds,
+  sanitizeResponsesRequest,
+} from './responsesInputSanitizer';
 import {
   buildByoRouteActivityMeta,
   type ByoRouteActivityMeta,
@@ -458,8 +462,10 @@ export async function executeResponsesUpstream(
   // See `responsesInputSanitizer` for the measured rules. Search bodies carry
   // opaque history for the upstream's own search route, so they stay verbatim.
   if (operation !== 'search') {
-    if (plan.proxyProviderId === 'codex') normalizeCodexItemIds(body);
-    else sanitizeResponsesRequest(body);
+    if (plan.proxyProviderId === 'codex') {
+      normalizeCodexItemIds(body);
+      if (operation === 'create') ensureCodexSearchReplayTools(body);
+    } else sanitizeResponsesRequest(body);
   }
 
   const originalBody = rawBody === undefined ? undefined : { text: rawBody, model: body.model };
