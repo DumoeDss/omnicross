@@ -499,10 +499,10 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
           </div>
           {activeTab === 'resources' ? (
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setAddAccountOpen(true)}>
+              <Button size="sm" variant="outline" data-tour="add-account" onClick={() => setAddAccountOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addAccount')}
               </Button>
-              <Button size="sm" onClick={() => setAddProviderOpen(true)}>
+              <Button size="sm" data-tour="add-provider" onClick={() => setAddProviderOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addProvider')}
               </Button>
             </div>

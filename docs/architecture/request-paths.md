@@ -128,7 +128,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     N0["客户端模型名<br/>claude-opus-5-5 / gpt-6-sol"] --> L1
-    L1["① 上游映射表<br/>exact 行 > identity 行 > 通配 *"] --> L2
+    L1["① 上游映射表<br/>exact 行 > identity 行 > 模式通配 > *"] --> L2
     L2["② 角色/家族投影<br/>gemini default/background<br/>Claude 家族模式"] --> L3
     L3["③ 订阅内部 mapper<br/>如 opencodego 场景路由"] --> L4
     L4["④ wire 形态分类<br/>formatVariants / model-shape"] --> N1["上游模型名 + 端点"]
@@ -137,7 +137,7 @@ flowchart LR
 ### ① 上游映射表（`server.upstreamModelMappings[<上游键>]`）
 
 - 键 = `providerId`（BYO）或 `sub:<providerId>`（订阅）。
-- 行 = `{ source, target, effort? }`；`source` 支持 exact 与 `*`（**exact 恒优先于通配**）。
+- 行 = `{ source, target, effort? }`；`source` 支持 exact 与 `*`。同一张表按 **exact → 含固定字符的通配规则（同级按行顺序）→ 单独的 `*` 兜底** 匹配。
 - **identity 行**：上游"声明"的模型（BYO = 启用的 `modelConfigs` ∪ `models` 减去被禁用的；订阅 = 目录）会自动派生 `模型 → 同名` 行——**声明过的模型 verbatim 直发**，只有未声明的名字落到 `*` 行。这解释了"我配了 `* → X` 为什么没生效"：目标模型在声明集合内，identity 行赢了。
 - **禁用模型**：UI 关闭模型写的是 `modelConfigs[].enabled=false`；派生的声明集合**会排除它**（`declaredUpstreamModels`），于是请求回落到 `*` 行。
 - 显式空表 `[]` = 透传（不派生 identity 行）；`upstreamModelMappingForce` 可按上游强制只用存储行。

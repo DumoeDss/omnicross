@@ -12,6 +12,7 @@ import { ImagesPage } from '@/features/images';
 import { OverviewPage } from '@/features/overview';
 import { RouteActivityPage } from '@/features/route-activity/RouteActivityPage';
 import { SearchPage } from '@/features/search';
+import { TourOverlay, useTour } from '@/features/tour';
 import { OtherProvidersPage } from '@/features/provider-settings/OtherProvidersPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
 import { UpstreamsPage } from '@/features/upstreams';
@@ -40,6 +41,7 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
 
 export default function App() {
   const [route, navigate] = useHashRoute();
+  const tour = useTour({ route, navigate });
 
   // Tray → "Export logs": the Rust tray item emits `tray-export-logs` (after
   // revealing the window); the export itself runs through the same daemon
@@ -56,12 +58,13 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground md:flex-row">
-      <NavRail route={route} onNavigate={navigate} />
+      <NavRail route={route} onNavigate={navigate} onStartTour={() => tour.start(0)} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DaemonStatusBanner />
         <UpdateStatusBanner />
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{renderPage(route, navigate)}</main>
       </div>
+      <TourOverlay tour={tour} />
     </div>
   );
 }

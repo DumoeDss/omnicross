@@ -144,7 +144,7 @@ export function CodeCliPage() {
           {/* Persistent native config — normal `codex` / `claude` commands keep
               using Omnicross. FIRST on the page: enabling an integration is the
               one action a new user comes here for; session migration is rarer. */}
-          <section className="space-y-4">
+          <section className="space-y-4" data-tour="persistent-integrations">
             <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-surface-1/60 p-4 md:flex-row md:items-center md:justify-between md:p-5">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft/30">

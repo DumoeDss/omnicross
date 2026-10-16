@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({ sources: {} as OverviewSources, throughput: {}
 vi.mock('../useOverviewData', () => ({ useOverviewData: () => ({ sources: state.sources, refreshing: false, refresh: vi.fn() }) }));
 vi.mock('../useLiveThroughput', () => ({ THROUGHPUT_POLL_MS: 5000, useLiveThroughput: () => ({ source: { state: 'ready', data: state.throughput }, refresh: vi.fn() }) }));
 vi.mock('../../code-cli/hooks/useCliIntegrations', () => ({ useCliIntegrations: () => ({
-  overview: { integrations: [{ client: 'codex', status: 'configuration-drift' }, { client: 'claude', status: 'not-installed' }] },
+  overview: { integrations: [{ client: 'codex', status: 'configuration-drift' }, { client: 'claude', status: 'not-installed' }], gateway: { running: true } },
   loading: false, busyTarget: null, error: null,
 } as UseCliIntegrationsResult) }));
 vi.mock('@/shared/state/LocaleContext', () => ({ useTranslation: () => (key: string) => key }));

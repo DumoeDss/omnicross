@@ -65,7 +65,7 @@ export interface ResolvedGatewayModelMapping {
   effort?: GatewayModelMapping['effort'];
 }
 
-/** Resolve the first exact/wildcard mapping row in declaration order. */
+/** Resolve exact names, then patterned wildcards, then a catch-all wildcard. */
 export function resolveGatewayModelMappingRow(
   mappings: readonly GatewayModelMapping[] | undefined,
   requestedModel: string | undefined,
@@ -78,15 +78,26 @@ export function resolveGatewayModelMappingRow(
   if (exact && nonBlank(exact.target)) {
     return { target: exact.target.trim(), effort: exact.effort };
   }
-  const wildcard = (mappings ?? []).find(
-    (mapping) => nonBlank(mapping.source) && mapping.source.includes('*') && wildcardMatches(mapping.source.trim(), wanted),
+  const patternedWildcard = (mappings ?? []).find(
+    (mapping) => nonBlank(mapping.source) &&
+      mapping.source.includes('*') &&
+      mapping.source.trim().replace(/\*/gu, '') !== '' &&
+      wildcardMatches(mapping.source.trim(), wanted),
   );
-  return wildcard && nonBlank(wildcard.target)
-    ? { target: wildcard.target.trim(), effort: wildcard.effort }
+  if (patternedWildcard) {
+    return nonBlank(patternedWildcard.target)
+      ? { target: patternedWildcard.target.trim(), effort: patternedWildcard.effort }
+      : undefined;
+  }
+  const catchAll = (mappings ?? []).find(
+    (mapping) => nonBlank(mapping.source) && /^\*+$/u.test(mapping.source.trim()),
+  );
+  return catchAll && nonBlank(catchAll.target)
+    ? { target: catchAll.target.trim(), effort: catchAll.effort }
     : undefined;
 }
 
-/** Resolve the first exact/wildcard mapping's target in declaration order. */
+/** Resolve the winning mapping's target; declaration order breaks ties within a tier. */
 export function resolveGatewayModelMapping(
   mappings: readonly GatewayModelMapping[] | undefined,
   requestedModel: string | undefined,

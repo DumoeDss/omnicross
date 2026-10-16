@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, Cable, CircleEllipsis, Globe, Image as ImageIcon, KeyRound, Menu, Route, Search, ServerCog, Settings } from 'lucide-react';
+import { Activity, BarChart3, Boxes, Cable, CircleEllipsis, CircleHelp, Globe, Image as ImageIcon, KeyRound, Menu, Route, Search, ServerCog, Settings } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { DAEMON_BASE_URL } from '@/daemon/adminClient';
@@ -33,12 +33,12 @@ function itemIsActive(item: NavItemDef, route: AppRoute): boolean {
   return activeTab === item.tab;
 }
 
-interface NavRailProps { route: AppRoute; onNavigate: (route: AppRoute) => void }
+interface NavRailProps { route: AppRoute; onNavigate: (route: AppRoute) => void; onStartTour?: () => void }
 
 const allNavItems = NAV_GROUPS.flatMap((group) => group.items);
 const mobilePrimaryItems = allNavItems.filter((item) => MOBILE_PRIMARY_KEYS.includes(item.key));
 
-export function NavRail({ route, onNavigate }: NavRailProps) {
+export function NavRail({ route, onNavigate, onStartTour }: NavRailProps) {
   const t = useTranslation();
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const mobileMoreActive = !mobilePrimaryItems.some((item) => itemIsActive(item, route));
@@ -95,7 +95,18 @@ export function NavRail({ route, onNavigate }: NavRailProps) {
           ))}
         </nav>
 
-        <div className="border-t border-border/60 p-3">
+        <div className="flex items-center gap-2 border-t border-border/60 p-3">
+          {onStartTour ? (
+            <button
+              type="button"
+              onClick={onStartTour}
+              aria-label={t('tour.reopen')}
+              title={t('tour.reopen')}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
           <p className="truncate font-mono text-[10px] text-muted-foreground/70" title={DAEMON_BASE_URL}>{DAEMON_BASE_URL}</p>
         </div>
       </aside>
@@ -192,6 +203,23 @@ export function NavRail({ route, onNavigate }: NavRailProps) {
                 </div>
               </div>
             ))}
+            {onStartTour ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMoreOpen(false);
+                  onStartTour();
+                }}
+                aria-label={t('tour.reopen')}
+                className={cn(
+                  'flex min-w-0 min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                )}
+              >
+                <CircleHelp className="h-4 w-4 shrink-0" strokeWidth={1.5} aria-hidden="true" />
+                <span className="min-w-0 truncate">{t('nav.tour')}</span>
+              </button>
+            ) : null}
           </nav>
         </DialogContent>
       </Dialog>

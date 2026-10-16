@@ -3,9 +3,10 @@
  * legacy downstream-route form (`DownstreamRoutesWorkspace`) and the upstream
  * routing model's per-upstream mapping dialog (`UpstreamMappingEditor`).
  *
- * Rows are client model name → upstream model id, exact names before `*`
- * wildcards, plus the `default` / `background` role rows (gemini). Wide
- * columned grid + datalist suggestions + a checkbox-gated effort pin; this is
+ * Rows are client model name → upstream model id, exact names before patterned
+ * wildcards before the lone `*` fallback, plus the `default` / `background`
+ * role rows (gemini). Wide columned grid + datalist suggestions + a
+ * checkbox-gated effort pin; this is
  * the original route-editor design, kept as the one mapping editor.
  */
 

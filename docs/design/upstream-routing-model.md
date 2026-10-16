@@ -78,7 +78,7 @@ upstreamModelMappings?: Record<string, GatewayModelMapping[]>
 ```
 
 - 行结构与今日路由 `modelMappings` 完全一致：`{ source, target, effort? }`，
-  source 支持精确名与 `*` 通配（精确优先于通配），target 为裸模型 id；
+  source 支持精确名与 `*` 通配（精确名 → 含固定字符的通配规则 → 单独的 `*` 兜底；同级按行顺序），target 为裸模型 id；
 - 角色键（D6）：`source: 'default' | 'background'` 两行特殊行，派生时抽出，
   投影为 gemini 端点的 default/background 模型，不参与名字匹配；
 - 校验（写入端，admin API）：多条映射且无 `*` → 报错；source 空白/重复 → 报错。

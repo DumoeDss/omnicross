@@ -136,6 +136,7 @@ export function ApiServicePage({ activeTab: controlledTab, onNavigate }: ApiServ
                     disabled={busy}
                     onCheckedChange={(checked) => void setEnabled(checked)}
                     aria-label={t('apiService.enable.label')}
+                    data-tour="gateway-enable"
                   />
                 </SettingRow>
 

@@ -157,14 +157,24 @@ describe('gateway binding resolution', () => {
     expect(result).toEqual({ source: 'none' });
   });
 
-  it('resolves exact mappings before ordered wildcard mappings', () => {
+  it('resolves exact names before patterned wildcards, then the catch-all', () => {
     const mappings = [
       { source: '*', target: 'fallback-model' },
       { source: 'claude-sonnet-*', target: 'glm-4.7' },
       { source: 'claude-sonnet-4-5', target: 'glm-exact' },
     ];
     expect(resolveGatewayModelMapping(mappings, 'claude-sonnet-4-5')).toBe('glm-exact');
-    expect(resolveGatewayModelMapping(mappings, 'claude-sonnet-4-6')).toBe('fallback-model');
+    expect(resolveGatewayModelMapping(mappings, 'claude-sonnet-4-6')).toBe('glm-4.7');
+    expect(resolveGatewayModelMapping(mappings, 'claude-opus-4-6')).toBe('fallback-model');
+  });
+
+  it('keeps declaration order among patterned wildcards', () => {
+    const mappings = [
+      { source: '*', target: 'fallback-model' },
+      { source: 'claude-*', target: 'first-pattern' },
+      { source: 'claude-sonnet-*', target: 'second-pattern' },
+    ];
+    expect(resolveGatewayModelMapping(mappings, 'claude-sonnet-4-6')).toBe('first-pattern');
   });
 
   it('projects a generic wildcard mapping through the selected upstream', () => {
@@ -230,8 +240,9 @@ describe('gateway binding resolution', () => {
     expect(passthrough.reasoningEffort).toBeUndefined();
   });
 
-  it('resolves the winning mapping row with its effort in exact-before-wildcard order', () => {
+  it('resolves the winning mapping row and effort in three-tier order', () => {
     const mappings = [
+      { source: '*', target: 'fallback-model', effort: 'low' as const },
       { source: 'gpt-5.6-sol-*', target: 'gpt-5.6-sol', effort: 'medium' as const },
       { source: 'gpt-5.6-sol-xhigh', target: 'gpt-5.6-sol', effort: 'xhigh' as const },
     ];
@@ -243,7 +254,10 @@ describe('gateway binding resolution', () => {
       target: 'gpt-5.6-sol',
       effort: 'medium',
     });
-    expect(resolveGatewayModelMappingRow(mappings, 'other-model')).toBeUndefined();
+    expect(resolveGatewayModelMappingRow(mappings, 'other-model')).toEqual({
+      target: 'fallback-model',
+      effort: 'low',
+    });
   });
 });
 

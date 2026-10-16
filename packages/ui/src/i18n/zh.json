@@ -527,6 +527,7 @@
     "description": "Jev 决策引擎等非对话工具的密钥存储与配置。"
   },
   "nav": {
+    "tour": "新手指引",
     "otherProviders": "其他",
     "primary": "主导航",
     "overview": "总览",
@@ -849,7 +850,7 @@
       },
       "modelModeHint": {
         "passthrough": "客户端传入什么模型名，上游就收到什么模型名。",
-        "mapped": "优先匹配精确模型名，再按顺序匹配 * 通配符，并改写为上游模型名。"
+        "mapped": "优先匹配精确模型名，再按顺序匹配带固定字符的通配规则，最后匹配单独的 *，并改写为上游模型名。"
       },
       "failureTitle": "失败处理",
       "failureDescription": "控制路由优先级和无法服务时的后续行为。",
@@ -1134,7 +1135,7 @@
         "emptyCatalog": "没有可用上游 —— 先在上游与路由页添加提供商或订阅账号。",
         "mappingEdit": "模型映射",
         "mappingTitle": "编辑 {{name}} 的模型映射",
-        "mappingDesc": "codex 等客户端会发送固定的模型名（如 gpt-6-astra）。这里把这些名字改道：命中「下游请求模型」的请求，改用对应的「上游模型」。精确名优先于 * 通配；default / background 为角色行（Gemini 后台模型）；留空 = 透传（原名直发上游）。",
+        "mappingDesc": "codex 等客户端会发送固定的模型名（如 gpt-6-astra）。这里把这些名字改道：命中「下游请求模型」的请求，改用对应的「上游模型」。精确名优先，claude-sonnet-* 等规则其次，单独的 * 最后兜底；default / background 为角色行（Gemini 后台模型）；留空 = 透传（原名直发上游）。",
         "mappingEmpty": "暂无映射 —— 客户端模型名将原样透传给该上游。",
         "mappingSource": "客户端模型名（如 claude-*）",
         "mappingTarget": "上游模型 id",
@@ -2530,5 +2531,43 @@
     "probeSupported": "支持（{{latency}}ms）",
     "probeUnsupported": "不支持返回 logprobs",
     "upstreamNote": "评估请求会使用所选提供商已存的密钥直接发往其上游；请先探测确认该模型支持 top_logprobs。"
+  },
+  "tour": {
+    "counter": "{{current}} / {{total}}",
+    "prev": "上一步",
+    "next": "下一步",
+    "skip": "跳过引导",
+    "finish": "完成",
+    "reopen": "重看新手指引",
+    "steps": {
+      "welcome": {
+        "title": "欢迎使用 omnicross",
+        "body": "omnicross 是跑在你电脑上的 AI 网关：客户端带着访问密钥进来，网关实时转换协议后发给上游，于是任意工具都能用任意模型。这条引导带你完成三件事——添加上游、接入 Codex / Claude Code、认识访问密钥。随时可以按 Esc 退出，之后从侧边栏的 ? 图标重新打开。"
+      },
+      "addProvider": {
+        "title": "添加上游 · Provider",
+        "body": "点「添加提供商」，从预设目录选一个服务（OpenAI、DeepSeek、OpenRouter……）或手动填写，再粘贴 API Key、配好模型。添加第一个 Provider 时会自动生成默认模型映射和一把 omnicross 访问密钥，开箱即用。已经添加过的话，直接跳过这步。"
+      },
+      "addAccount": {
+        "title": "添加上游 · 订阅账号",
+        "body": "点「添加账号」可以用订阅登录代替 API Key：Claude、Codex（ChatGPT）、Gemini 等 8 种订阅，支持浏览器 OAuth、设备码授权或导入已有 CLI 的登录凭据。这步可选，没有订阅就跳过。"
+      },
+      "gateway": {
+        "title": "启用网关",
+        "body": "打开「启用对外服务器」这个开关，本机 http://127.0.0.1:8765 就是所有客户端的接入点（8766 是控制面板自己的管理端口，不要混用）。"
+      },
+      "integrate": {
+        "title": "一键接入 Codex / Claude Code",
+        "body": "给 Codex 或 Claude Code 点「预览并启用」：omnicross 会把配置和托管密钥写进 CLI 自己的配置文件，之后终端里直接敲 codex / claude 就自动走网关，不用设环境变量。如果你手动改过配置导致「配置已变更」，点「修复」即可恢复托管。"
+      },
+      "accessKeys": {
+        "title": "访问密钥",
+        "body": "添加第一个 Provider 时已经自动创建了名为 omnicross 的密钥，一键接入用的就是它。要给其他应用或 SDK 用，在这里手动「创建密钥」——只需填个名字；明文密钥只在创建时显示一次，请立即复制保存。每把密钥都能单独绑定上游、设并发与成本上限、限流和模型黑白名单。"
+      },
+      "finish": {
+        "title": "引导完成",
+        "body": "回到「总览」页看快速开始清单——发出第一个请求后它会自动消失。想进一步玩跨协议路由、模型映射和密钥池，见仓库 README 的「快速上手」。"
+      }
+    }
   }
 }

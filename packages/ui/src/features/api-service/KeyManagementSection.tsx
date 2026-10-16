@@ -275,7 +275,7 @@ export function KeyManagementSection({
 
       {createdKey ? <CreatedKeyReveal created={createdKey} onDismiss={onDismissCreated} /> : null}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour="key-create">
         <Input
           density="compact"
           value={name}

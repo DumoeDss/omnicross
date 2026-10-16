@@ -527,6 +527,7 @@
     "description": "Jev 決策引擎等非對話工具的金鑰儲存與設定。"
   },
   "nav": {
+    "tour": "新手導覽",
     "otherProviders": "其他",
     "primary": "主導覽",
     "overview": "總覽",
@@ -790,7 +791,7 @@
       },
       "modelModeHint": {
         "passthrough": "客戶端傳入什麼模型名稱，上游就收到什麼模型名稱。",
-        "mapped": "優先比對精確模型名稱，再依序比對 * 萬用字元，並改寫為上游模型名稱。"
+        "mapped": "優先比對精確模型名稱，再依序比對帶固定字元的萬用規則，最後比對單獨的 *，並改寫為上游模型名稱。"
       },
       "failureTitle": "失敗處理",
       "failureDescription": "控制路由優先順序與無法服務時的後續行為。",
@@ -1134,7 +1135,7 @@
         "emptyCatalog": "沒有可用上游 —— 請先在上游與路由頁新增提供商或訂閱帳號。",
         "mappingEdit": "模型映射",
         "mappingTitle": "編輯 {{name}} 的模型映射",
-        "mappingDesc": "codex 等客戶端會發送固定的模型名（如 gpt-6-astra）。這裡把這些名字改道：命中「下游請求模型」的請求，改用對應的「上游模型」。精確名優先於 * 萬用；default / background 為角色行（Gemini 背景模型）；留空 = 透傳（原名直發上游）。",
+        "mappingDesc": "codex 等客戶端會發送固定的模型名（如 gpt-6-astra）。這裡把這些名字改道：命中「下游請求模型」的請求，改用對應的「上游模型」。精確名優先，claude-sonnet-* 等規則其次，單獨的 * 最後兜底；default / background 為角色行（Gemini 背景模型）；留空 = 透傳（原名直發上游）。",
         "mappingEmpty": "暫無映射 —— 用戶端模型名將原樣透傳給該上游。",
         "mappingSource": "用戶端模型名（如 claude-*）",
         "mappingTarget": "上游模型 id",
@@ -2530,5 +2531,43 @@
     "probeSupported": "支援（{{latency}}ms）",
     "probeUnsupported": "不支援回傳 logprobs",
     "upstreamNote": "評估請求會使用所選提供商已存的金鑰直接送往其上游；請先探測確認該模型支援 top_logprobs。"
+  },
+  "tour": {
+    "counter": "{{current}} / {{total}}",
+    "prev": "上一步",
+    "next": "下一步",
+    "skip": "略過導覽",
+    "finish": "完成",
+    "reopen": "重看新手導覽",
+    "steps": {
+      "welcome": {
+        "title": "歡迎使用 omnicross",
+        "body": "omnicross 是跑在你電腦上的 AI 閘道：客戶端帶著存取金鑰進來，閘道即時轉換協定後送往上游，於是任何工具都能用任何模型。這份導覽帶你完成三件事——新增上游、接入 Codex / Claude Code、認識存取金鑰。隨時可以按 Esc 退出，之後從側邊欄的 ? 圖示重新開啟。"
+      },
+      "addProvider": {
+        "title": "新增上游 · Provider",
+        "body": "點「新增提供商」，從預設目錄選一個服務（OpenAI、DeepSeek、OpenRouter……）或手動填寫，再貼上 API Key、配好模型。新增第一個 Provider 時會自動產生預設模型映射和一把 omnicross 存取金鑰，開箱即用。已經新增過的話，直接跳過這步。"
+      },
+      "addAccount": {
+        "title": "新增上游 · 訂閱帳號",
+        "body": "點「新增帳號」可以用訂閱登入代替 API Key：Claude、Codex（ChatGPT）、Gemini 等 8 種訂閱，支援瀏覽器 OAuth、裝置碼授權或匯入既有 CLI 的登入憑證。這步可選，沒有訂閱就跳過。"
+      },
+      "gateway": {
+        "title": "啟用閘道",
+        "body": "打開「啟用對外伺服器」這個開關，本機 http://127.0.0.1:8765 就是所有客戶端的接入點（8766 是控制面板自己的管理連接埠，不要混用）。"
+      },
+      "integrate": {
+        "title": "一鍵接入 Codex / Claude Code",
+        "body": "給 Codex 或 Claude Code 點「預覽並啟用」：omnicross 會把設定和託管金鑰寫進 CLI 自己的設定檔，之後終端機裡直接敲 codex / claude 就自動走閘道，不用設環境變數。如果你手動改過設定導致「設定已變更」，點「修復」即可恢復託管。"
+      },
+      "accessKeys": {
+        "title": "存取金鑰",
+        "body": "新增第一個 Provider 時已經自動建立了名為 omnicross 的金鑰，一鍵接入用的就是它。要給其他應用或 SDK 用，在這裡手動「建立金鑰」——只需填個名字；明文金鑰只在建立時顯示一次，請立即複製保存。每把金鑰都能單獨綁定上游、設並發與成本上限、限流和模型黑白名單。"
+      },
+      "finish": {
+        "title": "導覽完成",
+        "body": "回到「總覽」頁看快速開始清單——發出第一個請求後它會自動消失。想進一步玩跨協定路由、模型映射和金鑰池，見倉庫 README 的「快速上手」。"
+      }
+    }
   }
 }

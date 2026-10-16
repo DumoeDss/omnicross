@@ -527,6 +527,7 @@
     "description": "Decision engines and non-chat tools — keys stored here for external use."
   },
   "nav": {
+    "tour": "Beginner's guide",
     "otherProviders": "Other",
     "subtitle": "Control Panel",
     "primary": "Primary navigation",
@@ -849,7 +850,7 @@
       },
       "modelModeHint": {
         "passthrough": "The upstream receives exactly the model name the client sends.",
-        "mapped": "Match exact names first, then * wildcards in order, and rewrite to the upstream model name."
+        "mapped": "Match exact names first, then patterned wildcards in order, and finally a lone *; rewrite to the upstream model name."
       },
       "failureTitle": "Failure behavior",
       "failureDescription": "Control route priority and what happens when it cannot serve a request.",
@@ -1131,7 +1132,7 @@
         "emptyCatalog": "No upstreams available — add a provider or subscription on the Upstreams page first.",
         "mappingEdit": "Model mappings",
         "mappingTitle": "Edit model mappings for {{name}}",
-        "mappingDesc": "Clients like codex send fixed model names (e.g. gpt-6-astra). This table reroutes them: a request matching a downstream model name uses its upstream model instead. Exact names beat * wildcards; default / background are role rows (Gemini background model); empty = passthrough.",
+        "mappingDesc": "Clients like codex send fixed model names (e.g. gpt-6-astra). This table reroutes them: a request matching a downstream model name uses its upstream model instead. Exact names win, patterned wildcards like claude-sonnet-* come next, and a lone * is the fallback; default / background are role rows (Gemini background model); empty = passthrough.",
         "mappingEmpty": "No mappings — the client's model id is forwarded verbatim.",
         "mappingSource": "Client model name (e.g. claude-*)",
         "mappingTarget": "Upstream model id",
@@ -2524,5 +2525,43 @@
     "probeSupported": "Supported ({{latency}}ms)",
     "probeUnsupported": "Does not return logprobs",
     "upstreamNote": "Evaluations are sent to the selected provider’s upstream with its stored key — probe first to confirm the model serves top_logprobs."
+  },
+  "tour": {
+    "counter": "{{current}} / {{total}}",
+    "prev": "Previous",
+    "next": "Next",
+    "skip": "Skip tour",
+    "finish": "Done",
+    "reopen": "Replay the beginner tour",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to omnicross",
+        "body": "omnicross is an AI gateway that runs on your machine: clients come in with an access key, the gateway translates protocols on the fly, and any tool can drive any model. This tour covers three things — adding an upstream, wiring up Codex / Claude Code, and access keys. Press Esc to leave anytime; the ? icon in the sidebar reopens the tour."
+      },
+      "addProvider": {
+        "title": "Add an upstream · Provider",
+        "body": "Click “Add provider”, pick a service from the preset catalog (OpenAI, DeepSeek, OpenRouter…) or fill one in manually, then paste your API key and configure models. Adding the first provider also provisions a default model mapping and an omnicross access key, so it works out of the box. Already added one? Skip this step."
+      },
+      "addAccount": {
+        "title": "Add an upstream · Subscription account",
+        "body": "Click “Add account” to sign in with a subscription instead of an API key: Claude, Codex (ChatGPT), Gemini and more — via browser OAuth, device code, or by importing an existing CLI login. Optional; skip if you have none."
+      },
+      "gateway": {
+        "title": "Enable the gateway",
+        "body": "Flip on “Enable external server”: http://127.0.0.1:8765 becomes the single entry point for all clients (8766 is the dashboard's own admin port — don't mix them up)."
+      },
+      "integrate": {
+        "title": "One-click Codex / Claude Code setup",
+        "body": "Hit “Review & enable” for Codex or Claude Code: omnicross writes the config and a managed key into the CLI's own config file, so typing codex / claude in a terminal goes through the gateway with no environment variables. If you edited that config by hand and see “configuration drift”, hit Repair to hand control back."
+      },
+      "accessKeys": {
+        "title": "Access keys",
+        "body": "A key named omnicross was created automatically with your first provider — one-click integration uses it. For other apps and SDKs, create keys manually here; a name is all it takes. The plaintext is shown exactly once at creation, so copy it right away. Each key can bind its own upstreams and carry concurrency/cost caps, rate limits, and model allowlists."
+      },
+      "finish": {
+        "title": "That's it",
+        "body": "Head back to Overview for the quick-start checklist — it disappears on its own once the first request flows. For cross-protocol routing, model mapping, and key pools, see the README's quick-start section."
+      }
+    }
   }
 }
