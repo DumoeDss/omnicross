@@ -213,6 +213,7 @@ Responses 的 `tools: [{ type: 'image_generation' }]` 由主模型选择调用�
 - Elftia 本次修改文件 ESLint 无错误；扩大的目录扫描有 7 个现存警告。格式检查通过。两仓 461 个修改/未跟踪文本文件严格 UTF-8、JSON、替换字符、新增 BOM 与禁止引用检查无异常；`git diff --check` 通过。
 - 已读取本机 Codex 版本：0.163.0；未启动真实生成会话验证工具可见性。没有可用浏览器执行桌面视觉验收。
 - 版本一致性检查和 6 项 release-version 测试通过。六个 0.6.8 npm 包已在系统临时目录 `omnicross-images-release-f78c9a8f03ec4e92913a670525473114` 打包，未发布。
+- 提交前合入远端更新后，发现旧模型迁移会在 Responses 请求体校验前读取 Provider。已将迁移移到校验之后，补充退役模型的无效请求回归；Responses compact、输入净化、图片生产链路及路由相关 5 个文件、91 项测试通过。
 
 ### 交付依赖
 
@@ -220,7 +221,7 @@ Omnicross 已用仓库版本脚本准备为 **0.6.8**，包含新的公共图片
 
 正式交付需按顺序发布 0.6.8 的 contracts/core/subscriptions/cli-launcher/ui/daemon，再将 Elftia 根包、各宿主/运行包清单、版本校验脚本和 lockfile 同步到已发布的精确版本，并运行正式依赖检查。不得伪造未发布包的 lockfile integrity，也不将本地源码别名留作生产依赖。
 
-发布与重装共享依赖需要本次会话明确授权，依据 Elftia `CLAUDE.md` 的任务边界。当前仅准备可审查代码、版本和本地构建；没有提交、推送、发布或重装共享依赖。
+发布与重装共享依赖需要本次会话明确授权，依据 Elftia `CLAUDE.md` 的任务边界。用户已明确授权 Git 提交与推送；本次按该范围交付，不包含 npm 发布或重装共享依赖。
 
 ### 2026-10-17 补充：Google 模型目录
 

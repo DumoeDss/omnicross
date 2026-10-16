@@ -170,18 +170,6 @@ export async function routeRequest(
     return;
   }
 
-  if (route.authMode === 'byo' && route.providerId) {
-    const migrated = resolveOfficialModelRoute(await deps.llmConfig.getProvider(route.providerId), route.model);
-    if (migrated) route = { ...route, model: migrated.actualModelId };
-  }
-
-  if (isAnthropicMessagesRequest(method, url)) {
-    // Delegation path: the host's per-request handler reads the body
-    // itself, so pass `req` straight through (do NOT pre-read it here).
-    await handleAnthropicMessagesRequest(req, res, route, deps);
-    return;
-  }
-
   if (openAIOperation?.id === 'responses.create') {
     const abortScope = createResponsesAbortScope({ request: req, response: res });
     try {
@@ -214,6 +202,18 @@ export async function routeRequest(
     } finally {
       abortScope.dispose();
     }
+    return;
+  }
+
+  if (route.authMode === 'byo' && route.providerId) {
+    const migrated = resolveOfficialModelRoute(await deps.llmConfig.getProvider(route.providerId), route.model);
+    if (migrated) route = { ...route, model: migrated.actualModelId };
+  }
+
+  if (isAnthropicMessagesRequest(method, url)) {
+    // Delegation path: the host's per-request handler reads the body
+    // itself, so pass `req` straight through (do NOT pre-read it here).
+    await handleAnthropicMessagesRequest(req, res, route, deps);
     return;
   }
 

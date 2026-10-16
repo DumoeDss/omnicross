@@ -235,10 +235,11 @@ describe('native Responses create/compact integration', () => {
   });
 
   it.each([
-    ['null', 'null'],
-    ['primitive', '7'],
-    ['array', '[]'],
-  ])('rejects a native create %s body before profile, auth, or upstream work', async (_name, rawBody) => {
+    ['null', 'null', 'gpt-native'],
+    ['primitive', '7', 'gpt-native'],
+    ['array', '[]', 'gpt-native'],
+    ['null with a retired model', 'null', 'mimo-v2.5'],
+  ])('rejects a native create %s body before profile, auth, or upstream work', async (_name, rawBody, model) => {
     const llmConfig = makeLlmConfig();
     const getProvider = vi.mocked(llmConfig.getProvider);
     proxy = new ProviderProxy({ llmConfig });
@@ -246,7 +247,7 @@ describe('native Responses create/compact integration', () => {
     const token = proxy.addRoute({
       sessionId: 'native-invalid-body',
       targetProviderFormat: 'openai-responses',
-      model: 'gpt-native',
+      model,
       ingressFormat: 'openai-responses',
       authMode: 'byo',
       providerId: 'native-provider',

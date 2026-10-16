@@ -12,6 +12,7 @@
 
 import type http from 'node:http';
 
+import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
 import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
 import { imageRouteTenantId, routeAllowsHostedImages } from '../../image-generation/imageRouteIdentity';
 
@@ -284,6 +285,10 @@ export async function handleResponsesOperation(
   operation: ResponsesOperationKind,
   affinityStore: ResponsesAffinityStore = getResponsesAffinityStore(deps),
 ): Promise<void> {
+  if (route.authMode === 'byo' && route.providerId) {
+    const migrated = resolveOfficialModelRoute(await deps.llmConfig.getProvider(route.providerId), route.model);
+    if (migrated) route = { ...route, model: migrated.actualModelId };
+  }
   const isStream = responsesBody.stream === true;
   const derivedSession = deriveGatewaySessionKey(responsesBody, requestHeaders, {
     endpoint: 'responses',
