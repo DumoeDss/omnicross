@@ -4,7 +4,7 @@ import { ImageGenerationError, serializeImageGenerationError } from '../errors';
 import type { ImageProvider, ImageProviderContext, ImageProviderRequest } from '../ImageProvider';
 import type { ImageAsset } from '../ports';
 
-import { buildApiImageRequest, parseApiImageResponse, waveSpeedDimensionMode } from './protocols';
+import { buildApiImageRequest, parseApiImageResponse, waveSpeedModelProfile } from './protocols';
 import { abortableDelay, apiUrl, createApiImageAsset, decodeImageBase64, downloadApiImage, object, responseJson } from './transport';
 import type { ApiImageProviderOptions, ImageApiCredentials } from './types';
 
@@ -16,29 +16,32 @@ export function apiImageCapabilities(options: ApiImageProviderOptions, available
   const catalogModel = options.protocol === 'openrouter' ? upstream.replace(/^google\//u, '') : upstream;
   const imagen = nativeGoogle && upstream.startsWith('imagen-');
   const openai = options.protocol === 'openai-images';
-  const wave = options.protocol === 'wavespeed' ? waveSpeedDimensionMode(upstream) : undefined;
-  const waveEdit = options.protocol === 'wavespeed' && upstream === 'wavespeed-ai/z-image/turbo' && Boolean(options.publishInput);
+  const profile = options.protocol === 'wavespeed' ? waveSpeedModelProfile(upstream) : undefined;
+  const waveEdit = Boolean(profile?.editRoute && options.publishInput);
   const edit = !imagen && (openai || nativeGoogle || options.protocol === 'openrouter' || waveEdit);
   return {
     available, ...(!available ? { reason: 'account_unverified' as const } : {}),
     models: Object.keys(options.models), generate: true, edit, maskEdit: openai,
-    maxInputImages: edit ? (openai ? 16 : waveEdit ? 1 : 14) : 0,
+    maxInputImages: edit ? (openai ? 16 : profile?.maxEditImages ?? 14) : 0,
     maxOutputImages: imagen ? 4 : 10,
     // The job emits accepted/final events; no partial preview is advertised.
     streaming: true, maxPartialImages: 0,
     transparentBackground: openai,
-    flexibleSizes: openai || wave === 'pixels',
-    ...(!openai && (wave === undefined || wave === 'aspect-resolution') ? { aspectRatios: options.protocol === 'xai'
+    flexibleSizes: openai || profile?.dimensions === 'pixels',
+    ...(!openai && (profile === undefined || profile.dimensions === 'aspect-resolution') ? { aspectRatios: options.protocol === 'xai'
       ? ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '2:1', '1:2']
       : imagen ? ['1:1', '3:4', '4:3', '9:16', '16:9']
       : catalogModel === 'gemini-nano-banana-2.1' || catalogModel === 'gemini-3.1-flash-image'
-        ? [...RATIOS, '1:4', '4:1', '1:8', '8:1'] : RATIOS } : {}),
-    ...(!imagen && (nativeGoogle || options.protocol === 'openrouter' || wave === 'aspect-resolution')
+        ? [...RATIOS, '1:4', '4:1', '1:8', '8:1']
+      : profile?.aspectRatios ? [...profile.aspectRatios] : RATIOS } : {}),
+    ...(!imagen && (nativeGoogle || options.protocol === 'openrouter' || profile?.dimensions === 'aspect-resolution')
       ? { resolutions: catalogModel.startsWith('gemini-2.5') || catalogModel === 'gemini-3.1-flash-lite-image' ? ['1K']
-        : catalogModel === 'gemini-3.1-flash-image' || upstream === 'google/nano-banana-2/text-to-image' ? ['512', '1K', '2K', '4K'] : ['1K', '2K', '4K'] } : {}),
-    outputFormats: ['png', 'jpeg', 'webp'],
+        : catalogModel === 'gemini-3.1-flash-image' ? ['512', '1K', '2K', '4K']
+      : profile?.resolutions ? profile.resolutions.map((value) => value.toUpperCase()) : ['1K', '2K', '4K'] } : {}),
+    outputFormats: profile?.outputFormats ? [...profile.outputFormats] : ['png', 'jpeg', 'webp'],
     qualityLevels: openai ? /^gpt-image-2\.5-(?:flare|sunburst)$/u.test(upstream)
-      ? ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] : ['auto', 'low', 'medium', 'high'] : ['auto'],
+      ? ['auto', 'low', 'medium', 'high', 'xhigh', 'max'] : ['auto', 'low', 'medium', 'high']
+      : profile?.quality ? ['auto', ...profile.quality] : ['auto'],
     moderationModes: openai ? ['auto', 'low'] : ['auto'],
     outputCompression: openai ? { supported: true, formats: ['jpeg', 'webp'], min: 0, max: 100 } : { supported: false },
     responsesTool: true, multiTurnEdit: edit, supportsFileId: false, supportsImageUrl: false,

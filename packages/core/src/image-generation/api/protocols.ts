@@ -25,11 +25,114 @@ export interface ApiImageResponse {
   readonly usage?: ImageUsage;
 }
 
+/** Wire-verified WaveSpeed route facts; every entry is sourced from the upstream model docs. */
+export interface WaveSpeedModelProfile {
+  readonly dimensions: 'aspect-resolution' | 'pixels' | 'none';
+  /** Upstream route used for edit requests; omitted when the route has no edit endpoint. */
+  readonly editRoute?: string;
+  readonly editField: 'image' | 'images';
+  readonly maxEditImages: number;
+  readonly aspectRatios?: readonly string[];
+  /** Lowercase wire values; capabilities advertise the uppercased forms. */
+  readonly resolutions?: readonly string[];
+  /** Non-auto quality tiers accepted upstream. */
+  readonly quality?: readonly ('low' | 'medium' | 'high' | 'xhigh' | 'max')[];
+  readonly outputFormats?: readonly ('png' | 'jpeg' | 'webp')[];
+}
+
+const WAVE_RATIOS_10 = ['1:1', '3:2', '2:3', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const;
+const WAVE_RATIOS_15 = [...WAVE_RATIOS_10, '1:2', '2:1', '1:3', '3:1', '9:21'] as const;
+const WAVE_RATIOS_14 = [...WAVE_RATIOS_10, '1:4', '4:1', '1:8', '8:1'] as const;
+
+const WAVE_SPEED_PROFILES: Readonly<Record<string, WaveSpeedModelProfile>> = {
+  'openai/gpt-image-2.5-flare/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'openai/gpt-image-2.5-flare/edit',
+    editField: 'images', maxEditImages: 16,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k', '4k'],
+    quality: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  'openai/gpt-image-2.5-sunburst/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'openai/gpt-image-2.5-sunburst/edit',
+    editField: 'images', maxEditImages: 16,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k', '4k'],
+    quality: ['low', 'medium', 'high', 'xhigh', 'max'],
+  },
+  'openai/gpt-image-2/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'openai/gpt-image-2/edit',
+    editField: 'images', maxEditImages: 16,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k', '4k'],
+    quality: ['low', 'medium', 'high'],
+  },
+  'openai/gpt-image-1.5/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'google/nano-banana-2.1/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'google/nano-banana-2.1/edit',
+    editField: 'images', maxEditImages: 14,
+    aspectRatios: WAVE_RATIOS_14, resolutions: ['1k', '2k', '4k'],
+    outputFormats: ['png', 'jpeg'],
+  },
+  'google/nano-banana-2/text-to-image': {
+    dimensions: 'aspect-resolution', editField: 'images', maxEditImages: 14,
+    aspectRatios: WAVE_RATIOS_14, resolutions: ['0.5k', '1k', '2k', '4k'],
+    outputFormats: ['png', 'jpeg'],
+  },
+  'google/nano-banana-pro/text-to-image': {
+    dimensions: 'aspect-resolution', editField: 'images', maxEditImages: 14,
+    aspectRatios: WAVE_RATIOS_10, resolutions: ['1k', '2k', '4k'],
+    outputFormats: ['png', 'jpeg'],
+  },
+  'google/gemini-3-pro-image/text-to-image': {
+    dimensions: 'aspect-resolution', editField: 'images', maxEditImages: 14,
+    aspectRatios: WAVE_RATIOS_10, resolutions: ['1k', '2k', '4k'],
+    outputFormats: ['png', 'jpeg'],
+  },
+  'bytedance/seedream-v5.0-pro': {
+    dimensions: 'aspect-resolution', editRoute: 'bytedance/seedream-v5.0-pro/edit',
+    editField: 'images', maxEditImages: 10,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '1.5k', '2k'],
+  },
+  'bytedance/seedream-v5.0-flash': {
+    dimensions: 'aspect-resolution', editRoute: 'bytedance/seedream-v5.0-flash/edit',
+    editField: 'images', maxEditImages: 10,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '1.5k', '2k'],
+  },
+  'bytedance/seedream-v4.5': {
+    dimensions: 'pixels', editRoute: 'bytedance/seedream-v4.5/edit',
+    editField: 'images', maxEditImages: 10,
+  },
+  'wavespeed-ai/flux-3-klein-image-base/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'wavespeed-ai/flux-3-klein-image-base/edit',
+    editField: 'images', maxEditImages: 3,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k'],
+  },
+  'wavespeed-ai/flux-2-klein-9b/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'wavespeed-ai/qwen-image-2.0/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'wavespeed-ai/qwen-image/text-to-image-2512': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'alibaba/qwen-image-3.0/text-to-image': {
+    dimensions: 'aspect-resolution', editRoute: 'alibaba/qwen-image-3.0/edit',
+    editField: 'images', maxEditImages: 3,
+    aspectRatios: WAVE_RATIOS_15, resolutions: ['1k', '2k'],
+  },
+  'alibaba/wan-2.7/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'alibaba/wan-2.6/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'alibaba/wan-2.5/text-to-image': { dimensions: 'pixels', editField: 'image', maxEditImages: 1 },
+  'wavespeed-ai/z-image/turbo': {
+    dimensions: 'pixels', editRoute: 'wavespeed-ai/z-image/turbo',
+    editField: 'image', maxEditImages: 1,
+    outputFormats: ['jpeg', 'png', 'webp'],
+  },
+};
+
+const WAVE_PIXELS_FALLBACK = /^(?:bytedance\/seedream-|wavespeed-ai\/(?:qwen-image|flux-2-klein-|z-image\/)|alibaba\/wan-)/u;
+
+export function waveSpeedModelProfile(model: string): WaveSpeedModelProfile {
+  return WAVE_SPEED_PROFILES[model] ?? {
+    dimensions: WAVE_PIXELS_FALLBACK.test(model) ? 'pixels' : 'none',
+    editField: 'image', maxEditImages: 1,
+  };
+}
+
 export function waveSpeedDimensionMode(model: string): 'aspect-resolution' | 'pixels' | 'none' {
-  if (['openai/gpt-image-2/text-to-image', 'google/nano-banana-2/text-to-image',
-    'google/nano-banana-pro/text-to-image', 'google/gemini-3-pro-image/text-to-image'].includes(model)) return 'aspect-resolution';
-  if (/^(?:bytedance\/seedream-|wavespeed-ai\/(?:qwen-image|flux-2-klein-|z-image\/)|alibaba\/wan-)/u.test(model) || model === 'openai/gpt-image-1.5/text-to-image') return 'pixels';
-  return 'none';
+  return waveSpeedModelProfile(model).dimensions;
 }
 
 async function inline(asset: ImageAsset, signal: AbortSignal): Promise<{ data: string; mimeType: string }> {
@@ -160,17 +263,26 @@ export async function buildApiImageRequest(
       } };
     }
   } else {
-    url = apiUrl(credentials.baseUrl.replace(/\/api\/v3\/?$/u, ''), model.split('/').map(encodeURIComponent).join('/'), 'api/v3');
+    const profile = waveSpeedModelProfile(model);
+    const route = request.action === 'edit' ? profile.editRoute ?? model : model;
+    url = apiUrl(credentials.baseUrl.replace(/\/api\/v3\/?$/u, ''), route.split('/').map(encodeURIComponent).join('/'), 'api/v3');
     body = { prompt: request.prompt };
-    if (waveSpeedDimensionMode(model) === 'aspect-resolution') {
+    if (profile.dimensions === 'aspect-resolution') {
       if (request.aspectRatio) body.aspect_ratio = request.aspectRatio;
       if (request.resolution) body.resolution = request.resolution === '512' ? '0.5k' : request.resolution.toLowerCase();
-    } else if (waveSpeedDimensionMode(model) === 'pixels' && request.size.kind === 'pixels') body.size = `${request.size.width}x${request.size.height}`;
+      if (request.quality !== 'auto' && profile.quality?.includes(request.quality)) body.quality = request.quality;
+    } else if (profile.dimensions === 'pixels' && request.size.kind === 'pixels') body.size = `${request.size.width}x${request.size.height}`;
     if (request.action === 'edit') {
-      if (!publishInput || request.images.length !== 1) throw new ImageGenerationError('unsupported_capability', { param: 'images' });
-      const published = await publishInput(request.images[0]!, signal);
-      if (!/^https?:\/\//u.test(published)) throw new ImageGenerationError('invalid_image_request', { param: 'images' });
-      body.image = published;
+      if (!publishInput) throw new ImageGenerationError('unsupported_capability', { param: 'images' });
+      const published: string[] = [];
+      for (const image of request.images) {
+        const value = await publishInput(image, signal);
+        published.push(value);
+      }
+      if (profile.editField === 'image') {
+        if (published.length !== 1) throw new ImageGenerationError('unsupported_capability', { param: 'images' });
+        body.image = published[0];
+      } else body.images = published;
     }
   }
   return { url, init: { method: 'POST', headers: auth, body: JSON.stringify(body), signal, redirect: 'error' } };

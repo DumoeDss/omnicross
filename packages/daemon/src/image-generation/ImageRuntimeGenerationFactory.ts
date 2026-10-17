@@ -80,6 +80,8 @@ export interface ImageRuntimeGenerationFactoryOptions {
   readonly config: ImagesServerConfig;
   readonly subscriptionAccounts: Pick<SubscriptionAccountService, 'getStrategy'>;
   readonly providerSource?: Pick<ProviderConfigSource, 'getProvider'>;
+  /** Host-owned publication for APIs that accept public input URLs only. */
+  readonly publishInput?: import('@omnicross/core/image-generation').ApiImageProviderOptions['publishInput'];
   readonly storage: ImageRuntimeGenerationSharedStorage;
   readonly provenRemoteResolver?: RemoteImageAssetResolver;
   readonly observability?: ImageRuntimeMetadataObservability;
@@ -255,6 +257,7 @@ export function createImageRuntimeGeneration(
           providers: apiProviders, modelRoutes: config.models, providerSource: options.providerSource,
           timeoutMs: config.queue.generationTimeoutMs, maxOutputBytes: config.limits.maxOutputBytes,
           maxTotalOutputBytes: config.limits.maxTotalOutputBytes, maxPixels: config.limits.maxPixels,
+          publishInput: options.publishInput,
           acquireExecution: (sourceProviderId) => async (context, signal) => scheduler!.acquire({
             tenantId: context.tenantId, accountKey: scheduler!.deriveAccountKey(`image-api:${sourceProviderId}`), signal,
           }),

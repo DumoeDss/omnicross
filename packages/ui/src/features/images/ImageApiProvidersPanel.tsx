@@ -20,7 +20,7 @@ const EXAMPLES: Record<ImageApiProtocol, string> = {
   'gemini-interactions': 'gemini-nano-banana-2.1',
   vertex: 'gemini-3-pro-image', xai: 'grok-imagine-image',
   openrouter: 'nano-banana = google/gemini-nano-banana-2.1',
-  wavespeed: 'z-image = wavespeed-ai/z-image/turbo',
+  wavespeed: 'gpt-image-2.5-sunburst = openai/gpt-image-2.5-sunburst/text-to-image\nz-image = wavespeed-ai/z-image/turbo',
 };
 
 export function ImageApiProvidersPanel({ config, busy, onUpdate }: {

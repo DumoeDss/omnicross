@@ -103,6 +103,46 @@ describe('API image providers', () => {
     expect(polls).toBe(2);
   });
 
+  it('routes WaveSpeed GPT Image 2.5 edits to the dedicated edit endpoint with an image array', async () => {
+    const bytes = await png();
+    const fetch = vi.fn(async () => Response.json({ data: { id: 'job-e', status: 'completed', outputs: ['https://cdn.example/e.png'] } }));
+    const image = await createApiImageAsset(bytes, { maxBytes: 1024 * 1024, maxPixels: 1024 });
+    const second = await createApiImageAsset(bytes, { maxBytes: 1024 * 1024, maxPixels: 1024 });
+    const invocation = await buildApiImageRequest('wavespeed', credentials, 'openai/gpt-image-2.5-sunburst/text-to-image',
+      { ...request, action: 'edit', images: [image, second], aspectRatio: '16:9', resolution: '2K', quality: 'xhigh' },
+      new AbortController().signal, async (asset) => asset === image ? 'https://pub.example/a.png' : 'https://pub.example/b.png');
+    expect(invocation.url).toBe('https://images.example/v1/api/v3/openai/gpt-image-2.5-sunburst/edit');
+    const body = JSON.parse(String(invocation.init.body));
+    expect(body.images).toEqual(['https://pub.example/a.png', 'https://pub.example/b.png']);
+    expect(body.aspect_ratio).toBe('16:9');
+    expect(body.resolution).toBe('2k');
+    expect(body.quality).toBe('xhigh');
+  });
+
+  it('advertises per-model WaveSpeed capabilities for Nano Banana 2.1', () => {
+    const opts = { ...options(vi.fn(), 'wavespeed'), models: { 'public-nb21': 'google/nano-banana-2.1/text-to-image' },
+      publishInput: async () => 'https://pub.example/x.png' };
+    const caps = apiImageCapabilities(opts, true, 'public-nb21');
+    expect(caps.edit).toBe(true);
+    expect(caps.maxInputImages).toBe(14);
+    expect(caps.aspectRatios).toContain('8:1');
+    expect(caps.resolutions).toEqual(['1K', '2K', '4K']);
+    expect(caps.qualityLevels).toEqual(['auto']);
+    expect(caps.outputFormats).toEqual(['png', 'jpeg']);
+  });
+
+  it('keeps single-image WaveSpeed edits on the z-image body shape', async () => {
+    const bytes = await png();
+    const image = await createApiImageAsset(bytes, { maxBytes: 1024 * 1024, maxPixels: 1024 });
+    const invocation = await buildApiImageRequest('wavespeed', credentials, 'wavespeed-ai/z-image/turbo',
+      { ...request, action: 'edit', images: [image], size: { kind: 'pixels', width: 1024, height: 1024 } },
+      new AbortController().signal, async () => 'https://pub.example/z.png');
+    expect(invocation.url).toBe('https://images.example/v1/api/v3/wavespeed-ai/z-image/turbo');
+    const body = JSON.parse(String(invocation.init.body));
+    expect(body.image).toBe('https://pub.example/z.png');
+    expect(body.images).toBeUndefined();
+  });
+
   it('rejects invalid raster output and masks upstream error bodies', async () => {
     const fetch = vi.fn(async () => Response.json({ data: [{ b64_json: Buffer.from('<svg/>').toString('base64') }] }));
     expect((await collect(options(fetch))).at(-1)).toMatchObject({ type: 'failed', error: { code: 'unsupported_image_type' } });
