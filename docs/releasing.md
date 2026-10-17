@@ -12,6 +12,7 @@ From a clean release branch, choose the next stable version and run:
 npm run release:prepare -- 0.1.15
 npm run release:check -- 0.1.15
 npm run test:release-contract
+npm run audit:codex-sessions
 ```
 
 `release:prepare` updates these sources together while preserving their existing
@@ -22,6 +23,17 @@ line endings:
 - internal `@omnicross/*` dependency minimums;
 - `package-lock.json` workspace entries;
 - the Tauri application version.
+
+`audit:codex-sessions` replays the maintainer's OWN recent codex session
+history (`~/.codex/sessions`, last 7 days by default) through the
+reduced-Responses admission gate. It is the check that catches a codex CLI
+upgrade recording request shapes the relay would 400 on BEFORE those shapes
+reach users — the unit suite cannot see them, because they are real-world
+recordings. On a machine with no codex sessions it is a no-op pass; on CI it
+therefore adds no signal, which is why it gates the maintainer's release
+sequence rather than the workflow. A failure names the exact JSON path of the
+rejected shape; fix the gate before tagging, the same way a `release:check`
+failure is treated.
 
 Review and commit the resulting diff, then create and push the matching tag:
 
