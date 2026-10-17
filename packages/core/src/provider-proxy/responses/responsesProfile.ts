@@ -187,7 +187,7 @@ function assertString(value: unknown, path: string): asserts value is string {
   if (typeof value !== 'string') fail(path, 'must be a string');
 }
 
-function validateTextPart(value: unknown, path: string): void {
+function validateTextPart(value: unknown, path: string, dropped: string[]): void {
   if (!isRecord(value)) fail(path, 'must be a text content part');
   const type = value.type;
   // Inline images (codex's view_image results / pasted screenshots) ARE
@@ -206,16 +206,21 @@ function validateTextPart(value: unknown, path: string): void {
   if (typeof type !== 'string' || !TEXT_PART_TYPES.has(type)) {
     fail(`${path}.type`, 'is not a supported text content part');
   }
-  assertOnlyFields(value, new Set(['type', 'text']), path);
+  // Output-part bookkeeping (annotations, logprobs) is metadata-tier — the
+  // ORIGINAL provider's citation/logprob record, meaningless on a reduced
+  // target wire and dropped by the transformer's text-part reader (it reads
+  // only .text). codex records them on every assistant message in a rollout,
+  // so refusing them 400s a resumed session instead of dropping metadata.
+  collectDroppableExtras(value, new Set(['type', 'text']), path, dropped);
   assertString(value.text, `${path}.text`);
 }
 
-function validateTextContent(value: unknown, path: string): void {
+function validateTextContent(value: unknown, path: string, dropped: string[]): void {
   if (typeof value === 'string') return;
   if (!Array.isArray(value) || value.length === 0) {
     fail(path, 'must be text or a non-empty array of text parts');
   }
-  value.forEach((part, index) => validateTextPart(part, `${path}[${index}]`));
+  value.forEach((part, index) => validateTextPart(part, `${path}[${index}]`, dropped));
 }
 
 const MESSAGE_FIELDS = new Set(['type', 'role', 'content']);
@@ -338,7 +343,15 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
     if (typeof value.role !== 'string' || !MESSAGE_ROLES.has(value.role)) {
       fail(`${path}.role`, 'is not a supported message role');
     }
-    validateTextContent(value.content, `${path}.content`);
+    // An EMPTY content array is recorded by codex on a final_answer message
+    // that streamed no text; it carries no conversation content, and the
+    // transformer already drops a contentless message. Admit it (dropping a
+    // named audit line) instead of 400-ing a resumed session.
+    if (Array.isArray(value.content) && value.content.length === 0) {
+      dropped.push(`${path}.content[]`);
+      return;
+    }
+    validateTextContent(value.content, `${path}.content`, dropped);
     return;
   }
   // Admitted and then SKIPPED by the transformer (SKIPPED_INPUT_ITEM_TYPES):
@@ -367,7 +380,7 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
   if (type === 'function_call_output' || type === 'custom_tool_call_output') {
     collectDroppableExtras(value, OUTPUT_FIELDS, path, dropped);
     assertString(value.call_id, `${path}.call_id`);
-    validateTextContent(value.output, `${path}.output`);
+    validateTextContent(value.output, `${path}.output`, dropped);
     return;
   }
   if (type === 'additional_tools') {
@@ -375,6 +388,18 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
     if (!Array.isArray(value.tools)) fail(`${path}.tools`, 'must be an array');
     value.tools.forEach((tool, index) =>
       validateToolDeclaration(tool, `${path}.tools[${index}]`, dropped, true));
+    return;
+  }
+  // Hosted-search CALL HISTORY (web_search_call) recorded in a rollout by a
+  // NATIVE turn: the item documents a tool call the ORIGINAL provider's
+  // server executed — the reduced target has neither its state nor results.
+  // Unlike a live declaration this is replayed HISTORY, not a capability
+  // request, so it cannot be honored and cannot corrupt content either: the
+  // transformer treats an unknown item type as a message and skips it (no
+  // role → nothing emitted). Admit it with a named audit line; a resumed
+  // session keeps working with the search context summarized in text.
+  if (type === 'web_search_call') {
+    dropped.push(`${path}(web_search_call)`);
     return;
   }
   fail(`${path}.type`, 'is an opaque or unsupported input item type');

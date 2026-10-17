@@ -154,6 +154,52 @@ describe('validateReducedResponsesRequest', () => {
     }, chatCapabilities)).toEqual(['reasoning.context']);
   });
 
+  it('admits replayed assistant output parts with annotations/logprobs bookkeeping', () => {
+    // Real rollout shape (951 occurrences in the 2026-10-17 audit): codex
+    // records annotations+logprobs on EVERY assistant output_text part. They
+    // are the ORIGINAL provider's citation/logprob metadata — the transformer
+    // reads only .text — so a resumed session must not 400 on them.
+    expect(validateReducedResponsesRequest({
+      input: [{ type: 'message', role: 'assistant', status: 'completed', content: [
+        { type: 'output_text', text: 'answer', annotations: [], logprobs: [] },
+      ] }],
+    }, chatCapabilities)).toEqual([
+      '$.input[0].status',
+      '$.input[0].content[0].annotations',
+      '$.input[0].content[0].logprobs',
+    ]);
+  });
+
+  it('admits a final_answer message with empty content (no text streamed)', () => {
+    // Real rollout shape (44 occurrences): a commentary/final_answer message
+    // whose content is []. Carries nothing; the transformer drops a
+    // contentless message anyway.
+    expect(validateReducedResponsesRequest({
+      input: [
+        { type: 'message', role: 'user', content: 'hi' },
+        { type: 'message', role: 'assistant', phase: 'final_answer', content: [] },
+      ],
+    }, chatCapabilities)).toEqual([
+      '$.input[1].phase',
+      '$.input[1].content[]',
+    ]);
+  });
+
+  it('admits replayed web_search_call history items with a named audit line', () => {
+    // Real rollout shape (13 occurrences): a native turn's hosted-search call
+    // replayed as history. The reduced target has no server-side search
+    // state; the transformer skips the item (no role → nothing emitted), so
+    // admission degrades to a lost-capability audit line, not a 400.
+    expect(validateReducedResponsesRequest({
+      input: [
+        { type: 'web_search_call', id: 'ws_1', status: 'completed', action: { type: 'search', query: 'q' } },
+        { type: 'message', role: 'user', content: 'summarize' },
+      ],
+    }, chatCapabilities)).toEqual([
+      '$.input[0](web_search_call)',
+    ]);
+  });
+
   it('admits the full codex Responses-Lite item surface (bookkeeping = droppable)', () => {
     // Everything codex 0.155.x puts on items when use_responses_lite is on:
     // deterministic dedup ids on prefix items, status/phase bookkeeping,

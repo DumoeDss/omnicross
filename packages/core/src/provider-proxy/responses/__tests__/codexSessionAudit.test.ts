@@ -105,7 +105,7 @@ function stubLongStrings(value: unknown): unknown {
 }
 
 describe.skipIf(process.env.AUDIT_CODEX_SESSIONS !== '1')('codex session audit', () => {
-  it('every real-world rollout item shape passes the reduced gate', () => {
+  it('every real-world rollout item shape passes the reduced gate', { timeout: 120_000 }, () => {
     const caps = resolveReducedResponsesCapabilities({ authMode: 'byo', providerApiFormat: API_FORMAT });
     const files = listJsonlFiles(SESSIONS_ROOT, Date.now() - DAYS * 24 * 3600 * 1000);
     const shapes = new Map<string, { count: number; example: Record<string, unknown>; file: string }>();
