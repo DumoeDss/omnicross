@@ -1019,6 +1019,10 @@
       "description": "Model routing, provider health, and the Images endpoints in one place.",
       "loading": "Loading Images configuration…"
     },
+    "tabs": {
+      "accounts": "Accounts & providers",
+      "advanced": "Advanced settings"
+    },
     "providers": {
       "bootstrap": "bootstrap (unverified)",
       "healthy": "Available",

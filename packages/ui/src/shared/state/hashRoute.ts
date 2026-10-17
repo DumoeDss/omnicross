@@ -21,6 +21,7 @@ export type PageId =
 export type AccountRouteFilters = Partial<AccountFilters>;
 export type UpstreamKind = 'account' | 'account-group' | 'account-pool' | 'provider';
 export type UpstreamsTab = 'resources' | 'routes';
+export type ImagesTab = 'accounts' | 'advanced';
 
 export interface AppRoute {
   page: PageId;
@@ -34,6 +35,7 @@ export interface AppRoute {
   upstreamGroup?: string;
   upstreamQuery?: string;
   upstreamTab?: UpstreamsTab;
+  imagesTab?: ImagesTab;
   downstreamId?: string;
 }
 
@@ -140,6 +142,7 @@ export const LEGACY_PAGE_REDIRECTS: Readonly<Record<string, AppRoute>> = {
 const UPSTREAM_KINDS = new Set<UpstreamKind>(['account', 'account-group', 'account-pool', 'provider']);
 const UPSTREAM_FILTERS = new Set<UpstreamKind | 'all'>(['all', ...UPSTREAM_KINDS]);
 const UPSTREAM_TABS = new Set<UpstreamsTab>(['resources', 'routes']);
+const IMAGES_TABS = new Set<ImagesTab>(['accounts', 'advanced']);
 
 const MAX_ROUTE_TEXT_LENGTH = 512;
 
@@ -273,6 +276,12 @@ export function parseHashRoute(hash: string): AppRoute {
   if (page === 'settings' && SETTINGS_TABS.has(rawTab as SettingsTabId)) {
     return { page, tab: rawTab as SettingsTabId };
   }
+  if (page === 'images' && rawTab && IMAGES_TABS.has(rawTab as ImagesTab)) {
+    const tab = rawTab as ImagesTab;
+    // The accounts workspace is the page's default view — it needs no
+    // redundant hash suffix (same normalization as api-service overview).
+    return tab === 'accounts' ? { page } : { page, imagesTab: tab };
+  }
   if (page !== 'upstreams') return { page };
 
   const params = parseQuery(rawQuery);
@@ -375,6 +384,12 @@ export function routeToHash(route: AppRoute): string {
     const legacy = route.tab ? LEGACY_SETTINGS_TAB_REDIRECTS[route.tab] : undefined;
     const tab = legacy?.tab ?? (SETTINGS_TABS.has(route.tab as SettingsTabId) ? route.tab : undefined);
     return `#/settings${tab && tab !== 'general' ? `/${tab}` : ''}`;
+  }
+  if (page === 'images') {
+    const tab = route.imagesTab && IMAGES_TABS.has(route.imagesTab) && route.imagesTab !== 'accounts'
+      ? route.imagesTab
+      : undefined;
+    return `#/images${tab ? `/${tab}` : ''}`;
   }
   if (page !== 'upstreams') return `#/${page}`;
 

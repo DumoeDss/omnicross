@@ -31,7 +31,7 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
     case 'integrations': return <CodeCliPage />;
     case 'chatgpt-web': return <ChatGptWebPage />;
     case 'search': return <SearchPage />;
-    case 'images': return <ImagesPage />;
+    case 'images': return <ImagesPage imagesTab={route.imagesTab} onTabChange={(imagesTab) => navigate({ page: 'images', imagesTab })} />;
     case 'other-providers': return <OtherProvidersPage />;
     case 'usage-stats': return <UsageStatsPage />;
     case 'settings': return <SettingsPage activeTab={(route.tab as SettingsTabId | undefined) ?? 'general'} onTabChange={(tab) => navigate({ page: 'settings', tab })} />;

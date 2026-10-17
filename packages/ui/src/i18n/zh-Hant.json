@@ -1019,6 +1019,10 @@
       "description": "模型路由、provider 健康與 Images 端點，集中一處。",
       "loading": "正在載入圖像設定…"
     },
+    "tabs": {
+      "accounts": "帳號與 Provider",
+      "advanced": "進階設定"
+    },
     "providers": {
       "bootstrap": "引導中（未驗證）",
       "healthy": "可用",

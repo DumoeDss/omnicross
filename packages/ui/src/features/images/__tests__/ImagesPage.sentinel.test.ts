@@ -3,7 +3,52 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/shared/state/LocaleContext', () => ({
-  useTranslation: () => (key: string) => key,
+  useTranslation: () => (key: string, params?: Record<string, unknown>) => {
+    if (params && 'count' in params) return key + ':' + String(params.count);
+    return key;
+  },
+}));
+
+vi.mock('@/features/upstreams/useProviderKeyQuota', () => ({
+  useProviderKeyQuotaSummaries: () => new Map(),
+}));
+
+vi.mock('@/features/upstreams/AddAccountDialog', () => ({
+  AddAccountDialog: () => null,
+}));
+
+vi.mock('@/features/upstreams/AccountResourceDetails', () => ({
+  AccountResourceDetails: () => null,
+}));
+
+vi.mock('@/features/provider-settings/ProviderSettings', () => ({
+  ProviderSettings: () => null,
+}));
+
+vi.mock('@/features/accounts/hooks/useAccounts', () => ({
+  useAccounts: () => ({
+    loading: false,
+    data: {
+      accounts: [],
+      providerAccounts: {
+        claude: [],
+        codex: [],
+        gemini: [],
+        opencodego: [],
+        kimi: [],
+        grok: [],
+        copilot: [],
+        antigravity: [],
+      },
+    },
+    busy: false,
+    error: null,
+    allowances: [],
+  }),
+}));
+
+vi.mock('@/shared/state/settingsStore', () => ({
+  useLlmProvidersData: () => ({ providers: [], loading: false, error: null, refresh: async () => undefined, updateProvider: async () => undefined }),
 }));
 
 vi.mock('../hooks/useImagesSettings', () => ({
@@ -77,20 +122,35 @@ import type { ImagesServerConfig } from '@/daemon/types';
 import { ImagesPage } from '../ImagesPage';
 
 describe('ImagesPage rendering (images-settings-tab)', () => {
-  it('renders per-provider cards, the verify panel, and the migrated section without secrets', () => {
+  it('renders the accounts/provider workspace tabs by default with no secrets', () => {
     const markup = renderToStaticMarkup(React.createElement(ImagesPage));
-    // Per-provider cards (one per routed provider) and the verify panel.
-    expect(markup).toContain('image-provider-codex-subscription');
-    expect(markup).toContain('image-provider-antigravity-subscription');
-    expect(markup).toContain('image-verify-panel');
-    // The migrated section's route table rides the page.
-    expect(markup).toContain('image-route-table');
-    // The honest bootstrap label for the evidence-less antigravity row.
-    expect(markup).toContain('images.providers.bootstrap');
+    // The tab strip mirrors the settings-page tablist pattern.
+    expect(markup).toContain('data-images-tab="accounts"');
+    expect(markup).toContain('data-images-tab="advanced"');
+    // The account/provider workspace is the default view; the advanced
+    // panels stay out of the default markup until their tab is opened.
+    expect(markup).not.toContain('image-provider-codex-subscription');
+    expect(markup).not.toContain('image-verify-panel');
+    expect(markup).not.toContain('image-route-table');
     // No secret-ish sentinels anywhere in the page markup.
     for (const sentinel of ['RAW_ACCOUNT_ID_SENTINEL', 'BASE64_SENTINEL', 'PRIVATE_PATH_SENTINEL']) {
       expect(markup).not.toContain(sentinel);
     }
+  });
+
+  it('keeps the advanced configuration panels on the advanced tab', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ImagesPage, { imagesTab: 'advanced' }),
+    );
+    // Per-provider cards (one per routed provider) and the verify panel ride
+    // the advanced tab now.
+    expect(markup).toContain('image-provider-codex-subscription');
+    expect(markup).toContain('image-provider-antigravity-subscription');
+    expect(markup).toContain('image-verify-panel');
+    // The migrated section's route table rides the advanced tab.
+    expect(markup).toContain('image-route-table');
+    // The honest bootstrap label for the evidence-less antigravity row.
+    expect(markup).toContain('images.providers.bootstrap');
   });
 
   it('types compile against the routing-table config shape', () => {
