@@ -11,6 +11,7 @@ mod log_export;
 mod stderr_drain;
 mod ui_settings;
 mod update_manager;
+mod webview_recovery;
 
 use std::process::Command;
 use std::sync::Arc;
@@ -24,6 +25,7 @@ use update_manager::{
     check_for_updates, download_update, install_update, new_desktop_manager, update_status,
     CheckPolicy, DesktopUpdateManager, UPDATE_STATUS_EVENT,
 };
+use webview_recovery::{webview_recovery_heartbeat, RecoveryState};
 
 /// Ensure loopback hosts bypass any system/env HTTP proxy. The daemon is a
 /// loopback-only service (127.0.0.1:8766); a global `HTTP(S)_PROXY` (e.g. Clash
@@ -93,6 +95,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(DaemonRuntime::new())
         .manage(UiSettingsState::default())
+        .manage(RecoveryState::default())
         .invoke_handler(tauri::generate_handler![
             daemon_status,
             daemon_stderr_tail,
@@ -104,7 +107,8 @@ pub fn run() {
             check_for_updates,
             download_update,
             install_update,
-            open_external_url
+            open_external_url,
+            webview_recovery_heartbeat
         ])
         .on_window_event(|window, event| {
             // close_to_tray: hide instead of exiting when the user closes the
@@ -119,6 +123,9 @@ pub fn run() {
                 if hide {
                     api.prevent_close();
                     let _ = window.hide();
+                } else {
+                    // An intentional close must never race the browser-exit monitor.
+                    webview_recovery::stop(window.app_handle());
                 }
             }
         })
@@ -145,6 +152,7 @@ pub fn run() {
             if let Err(err) = setup_tray(&handle, &settings.language) {
                 eprintln!("[tray] failed to create system tray: {err}");
             }
+            webview_recovery::install(&handle);
             if !settings.start_minimized {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
@@ -172,9 +180,17 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while running omnicross-app")
         .run(|app, event| {
+            if let RunEvent::ExitRequested { code, ref api, .. } = event {
+                if webview_recovery::prevent_exit(app, code) {
+                    // Replacing the last window must not stop the daemon or event loop.
+                    api.prevent_exit();
+                    return;
+                }
+            }
             // Tree-kill a daemon WE spawned on every clean exit path. Adopted
             // daemons (spawned == false) are left running — shutdown() no-ops.
             if let RunEvent::Exit | RunEvent::ExitRequested { .. } = event {
+                webview_recovery::stop(app);
                 app.state::<DaemonRuntime>().shutdown();
                 if let Some(manager) = app.try_state::<DesktopUpdateManager>() {
                     manager.clear_pending();

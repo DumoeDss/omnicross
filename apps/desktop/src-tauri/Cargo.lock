@@ -2292,6 +2292,8 @@ dependencies = [
  "tauri-plugin-http",
  "tauri-plugin-updater",
  "tokio",
+ "webview2-com",
+ "windows",
  "windows-sys 0.60.2",
 ]
 

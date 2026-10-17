@@ -113,3 +113,47 @@ The WebView's CSP `connect-src` allowlists the daemon origin
 
 If you only need the UI without a native window, you don't need this project at
 all: run `omnicross ui` (daemon-served at `/ui`) or `npm run dev -w @omnicross/ui`.
+
+### Windows page recovery
+
+The native shell monitors WebView2 process failures. A failed or unresponsive
+main renderer is reloaded; a browser-process exit recreates the main window,
+preserving its position, size, and visible/minimized state. Recovery leaves the
+daemon running. WebView2 handles GPU-process restarts itself.
+
+A native supervisor also probes JavaScript every five seconds while the window
+is visible. Thirty seconds without a reply triggers a reload, then a window
+rebuild if the reload does not restore the heartbeat. Hidden/minimized windows
+and long pauses such as system sleep get a fresh heartbeat grace period.
+
+At most three recoveries are attempted within five minutes. Reaching that limit
+stops automatic recovery for the session and shows a native message with the
+browser fallback (`http://127.0.0.1:8766/ui/`). Restarting the app enables recovery
+again. Diagnostics are written to `logs/webview-recovery.log` in the app data
+directory (bounded to approximately 128 KiB). System-wide DWM or display-driver
+failures may still require recovery outside the app.
+
+Run policy tests with `cargo test --lib --manifest-path apps/desktop/src-tauri/Cargo.toml`.
+On a Windows desktop, the isolated native fault-injection test also kills its own
+WebView2 browser and renderer and checks that their heartbeats recover:
+`cargo test --lib --features custom-protocol --manifest-path apps/desktop/src-tauri/Cargo.toml native_browser_and_renderer_crashes_recover -- --ignored --nocapture`.
+It uses a separate WebView profile and never manages the normal daemon.
+
+If a Windows library-test executable exits before running tests with
+`0xc0000139`, it needs the Common Controls v6 activation manifest (the packaged
+app already gets its manifest from Tauri). Build the test with `--no-run`, save
+the following XML to a temporary `.manifest` file, and embed it in the generated
+test executable using the Windows SDK's
+`mt.exe -manifest <manifest-file> "-outputresource:<test-executable>;#1"`.
+Then run that executable directly with the desired test arguments.
+
+```xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <dependency><dependentAssembly>
+    <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls"
+      version="6.0.0.0" processorArchitecture="*"
+      publicKeyToken="6595b64144ccf1df" language="*" />
+  </dependentAssembly></dependency>
+</assembly>
+```
