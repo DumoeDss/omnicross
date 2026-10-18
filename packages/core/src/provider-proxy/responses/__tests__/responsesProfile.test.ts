@@ -200,6 +200,17 @@ describe('validateReducedResponsesRequest', () => {
     ]);
   });
 
+  it('admits local thread-delivery receipts while still rejecting unpaired tool results', () => {
+    const receipt = { type: 'function_call_output', id: 'fco_local', namespace: 'codex_tui',
+      name: 'send_message_to_thread', output: 'delivered' };
+    expect(validateReducedResponsesRequest({ input: [receipt] }, chatCapabilities))
+      .toEqual(['$.input[0](codex_tui.send_message_to_thread)']);
+    for (const item of [{ ...receipt, namespace: 'functions' }, { ...receipt, name: 'exec' },
+      { ...receipt, call_id: null }, { ...receipt, output: {} }]) {
+      expect(() => validateReducedResponsesRequest({ input: [item] }, chatCapabilities)).toThrow('call_id');
+    }
+  });
+
   it('admits the full codex Responses-Lite item surface (bookkeeping = droppable)', () => {
     // Everything codex 0.155.x puts on items when use_responses_lite is on:
     // deterministic dedup ids on prefix items, status/phase bookkeeping,

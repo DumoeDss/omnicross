@@ -33,6 +33,7 @@ import {
 } from './utils/dsmlToolCalls';
 import { recordDroppedField } from '../transformWarnings';
 import { buildOpenAIResponseApiUrl } from '../../completion/url-builder';
+import { isCodexThreadDeliveryReceipt } from './utils/responsesBookkeeping';
 
 // ============================================================================
 // Response API Types
@@ -319,7 +320,7 @@ export class OpenAIResponseTransformer implements Transformer {
         const entry = item as Record<string, unknown>;
         const itemType = typeof entry.type === 'string' ? entry.type : undefined;
 
-        if (itemType && SKIPPED_INPUT_ITEM_TYPES.has(itemType)) continue;
+        if ((itemType && SKIPPED_INPUT_ITEM_TYPES.has(itemType)) || isCodexThreadDeliveryReceipt(entry)) continue;
 
         // codex's tool declarations. Merged into `result.tools` below; the item
         // itself carries `role:'developer'` with no content and must not become

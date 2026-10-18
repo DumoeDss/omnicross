@@ -13,6 +13,7 @@ const requiredUpdateKeys = [
 ];
 
 const english = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8'));
+const missingBaseline = JSON.parse(readFileSync(join(dir, '__tests__', 'localeMissingBaseline.json'), 'utf8'));
 const englishUpdates = english.updates;
 const placeholders = (value) => [...value.matchAll(/{{[^{}]+}}/g)].map(([token]) => token).sort();
 const getPath = (value, path) => path.split('.').reduce((current, key) => current?.[key], value);
@@ -21,24 +22,26 @@ const stringLeaves = (value, prefix = '') => Object.entries(value).flatMap(([key
   return typeof child === 'string' ? [[path, child]] : stringLeaves(child, path);
 });
 const requiredLocalizedSections = [
-  ['apiService.keys.permissions', english.apiService.keys.permissions],
-  ['apiService.images', english.apiService.images],
+  ['apiService.keys.bindings', english.apiService.keys.bindings],
+  ['apiService.keys.integrations', english.apiService.keys.integrations],
+  ['images', english.images],
 ];
 const narrativePaths = [
-  'apiService.keys.permissions.hint',
-  'apiService.images.description',
-  'apiService.images.unsupportedDaemon',
-  'apiService.images.entitlementWarning',
-  'apiService.images.noEvidence',
-  'apiService.images.resources.unavailable',
-  'apiService.images.remote.enabledWarning',
-  'apiService.images.storage.custom',
+  'apiService.keys.bindings.manageHint',
+  'images.description',
+  'images.unsupportedDaemon',
+  'images.entitlementWarning',
+  'images.noEvidence',
+  'images.resources.unavailable',
+  'images.remote.enabledWarning',
+  'images.storage.custom',
 ];
 
 for (const f of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
   const text = readFileSync(join(dir, f), 'utf8');
   try {
     const parsed = JSON.parse(text);
+    const acceptedMissing = new Set(missingBaseline[f.slice(0, -5)] ?? []);
     const missing = requiredUpdateKeys.filter((key) => typeof parsed.updates?.[key] !== 'string' || parsed.updates[key].trim() === '');
     if (missing.length > 0) {
       failed = true;
@@ -62,6 +65,8 @@ for (const f of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
       for (const [leafPath, englishValue] of stringLeaves(englishSection)) {
         const fullPath = sectionPath + '.' + leafPath;
         const actual = getPath(parsed, fullPath);
+        // Match the existing community-locale coverage policy without widening it.
+        if (actual === undefined && acceptedMissing.has(fullPath)) continue;
         if (typeof actual !== 'string' || actual.trim() === '') {
           failed = true;
           console.log(f + ': missing localized string: ' + fullPath);

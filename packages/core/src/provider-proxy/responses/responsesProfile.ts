@@ -1,6 +1,7 @@
 import type { ApiFormat } from '@omnicross/contracts/llm-config';
 
 import { OpenAIOperationError } from '../../openai-operation';
+import { isCodexThreadDeliveryReceipt } from '../../transformer/transformers/utils/responsesBookkeeping';
 
 export type ResponsesProfile = 'native' | 'reduced';
 
@@ -378,6 +379,10 @@ function validateInputItem(value: unknown, path: string, dropped: string[]): voi
     return;
   }
   if (type === 'function_call_output' || type === 'custom_tool_call_output') {
+    if (isCodexThreadDeliveryReceipt(value)) {
+      dropped.push(`${path}(codex_tui.send_message_to_thread)`);
+      return;
+    }
     collectDroppableExtras(value, OUTPUT_FIELDS, path, dropped);
     assertString(value.call_id, `${path}.call_id`);
     validateTextContent(value.output, `${path}.output`, dropped);

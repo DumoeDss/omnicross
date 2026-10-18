@@ -603,6 +603,7 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
             { type: 'additional_tools', role: 'developer', tools: [{ type: 'custom', name: 'exec' }] },
             { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'gAAAA…' },
             { type: 'agent_message', author: '/root/sub', content: [{ type: 'input_text', text: 'done' }] },
+            { type: 'function_call_output', id: 'fco_local', namespace: 'codex_tui', name: 'send_message_to_thread', output: 'delivered' },
             { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'go on' }] },
           ],
         },
