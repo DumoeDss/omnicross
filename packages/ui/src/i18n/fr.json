@@ -531,6 +531,11 @@
     "search": "Recherche"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Les identifiants enregistrés sont introuvables. Modifiez le fournisseur d’images.",
+      "replaceRoutes": "Acheminer ces modèles vers ce fournisseur d’images : {{models}}",
+      "removeDescription": "Supprimer ce fournisseur d’images et ses routes de modèles. Les identifiants partagés sont conservés."
+    },
     "title": "Génération d’images",
     "description": "Contrôlez les points de terminaison Images, désactivés par défaut, et consultez leur état d’exécution fondé sur des preuves.",
     "unsupportedDaemon": "Ce démon n’expose pas encore la configuration Images.",

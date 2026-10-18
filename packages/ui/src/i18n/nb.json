@@ -531,6 +531,11 @@
     "search": "Søk"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Lagrede påloggingsopplysninger mangler. Rediger bildeleverandøren.",
+      "replaceRoutes": "Send disse modellene til denne bildeleverandøren: {{models}}",
+      "removeDescription": "Fjern denne bildeleverandøren og modellrutene. Delte påloggingsopplysninger beholdes."
+    },
     "title": "Bildegenerering",
     "description": "Administrer Images-endepunktene, som er deaktivert som standard, og se den evidensbaserte kjøretidsstatusen.",
     "unsupportedDaemon": "Denne daemonen tilbyr ennå ikke Images-konfigurasjon.",

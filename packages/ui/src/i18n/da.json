@@ -531,6 +531,11 @@
     "search": "Søgning"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Gemte legitimationsoplysninger mangler. Rediger billedudbyderen.",
+      "replaceRoutes": "Send disse modeller til denne billedudbyder: {{models}}",
+      "removeDescription": "Fjern billedudbyderen og dens modelruter. Delte legitimationsoplysninger bevares."
+    },
     "title": "Billedgenerering",
     "description": "Administrer de som standard deaktiverede Images-slutpunkter, og se deres evidensbaserede kørselsstatus.",
     "unsupportedDaemon": "Denne daemon tilbyder endnu ikke Images-konfiguration.",

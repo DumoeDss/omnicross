@@ -531,6 +531,11 @@
     "search": "Zoeken"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Opgeslagen inloggegevens ontbreken. Bewerk de afbeeldingsprovider.",
+      "replaceRoutes": "Deze modellen naar deze afbeeldingsprovider routeren: {{models}}",
+      "removeDescription": "Deze afbeeldingsprovider en de modelroutes verwijderen. Gedeelde inloggegevens blijven behouden."
+    },
     "title": "Afbeeldingen genereren",
     "description": "Beheer de standaard uitgeschakelde Images-eindpunten en bekijk hun door bewijs ondersteunde runtimestatus.",
     "unsupportedDaemon": "Deze daemon biedt nog geen Images-configuratie.",

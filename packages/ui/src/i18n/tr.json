@@ -531,6 +531,11 @@
     "search": "Arama"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Kayıtlı kimlik bilgileri eksik. Görsel sağlayıcısını düzenleyin.",
+      "replaceRoutes": "Bu modelleri bu görsel sağlayıcısına yönlendir: {{models}}",
+      "removeDescription": "Bu görsel sağlayıcısını ve model rotalarını kaldırın. Paylaşılan kimlik bilgileri korunur."
+    },
     "title": "Görsel oluşturma",
     "description": "Varsayılan olarak kapalı Images uç noktalarını yönetin ve kanıta dayalı çalışma zamanı durumlarını inceleyin.",
     "unsupportedDaemon": "Bu daemon henüz Images yapılandırmasını sunmuyor.",

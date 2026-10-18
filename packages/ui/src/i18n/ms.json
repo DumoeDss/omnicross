@@ -531,6 +531,11 @@
     "search": "Carian"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Bukti kelayakan tersimpan tiada. Edit penyedia imej.",
+      "replaceRoutes": "Halakan model ini kepada penyedia imej ini: {{models}}",
+      "removeDescription": "Alih keluar penyedia imej ini dan laluan modelnya. Bukti kelayakan bersama dikekalkan."
+    },
     "title": "Penjanaan imej",
     "description": "Kawal titik akhir Images yang dimatikan secara lalai dan semak status masa jalan yang disokong bukti.",
     "unsupportedDaemon": "Daemon ini belum menyediakan konfigurasi Images.",

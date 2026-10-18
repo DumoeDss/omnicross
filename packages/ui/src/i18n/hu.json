@@ -531,6 +531,11 @@
     "search": "Keresés"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Hiányoznak a mentett hitelesítő adatok. Szerkessze a képszolgáltatót.",
+      "replaceRoutes": "Ezen modellek irányítása ehhez a képszolgáltatóhoz: {{models}}",
+      "removeDescription": "A képszolgáltató és modellútvonalainak eltávolítása. A megosztott hitelesítő adatok megmaradnak."
+    },
     "title": "Képgenerálás",
     "description": "Kezelje az alapértelmezetten kikapcsolt Images-végpontokat, és tekintse meg a bizonyítékokkal alátámasztott futásidejű állapotukat.",
     "unsupportedDaemon": "Ez a daemon még nem biztosít Images-konfigurációt.",

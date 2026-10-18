@@ -531,6 +531,11 @@
     "search": "Ricerca"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Le credenziali salvate non sono disponibili. Modifica il fornitore di immagini.",
+      "replaceRoutes": "Instrada questi modelli verso questo fornitore di immagini: {{models}}",
+      "removeDescription": "Rimuovi questo fornitore di immagini e le sue rotte dei modelli. Le credenziali condivise vengono conservate."
+    },
     "title": "Generazione di immagini",
     "description": "Controlla gli endpoint Immagini, disattivati per impostazione predefinita, e verifica il loro stato di runtime supportato da evidenze.",
     "unsupportedDaemon": "Questo daemon non espone ancora la configurazione Immagini.",

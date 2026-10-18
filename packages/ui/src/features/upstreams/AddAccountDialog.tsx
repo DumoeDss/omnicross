@@ -19,13 +19,16 @@ interface AddAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accountsApi: ReturnType<typeof useAccounts>;
+  /** Limit the picker when embedded in a capability-specific workspace. */
+  providerIds?: readonly SubscriptionProviderId[];
 }
 
-export function AddAccountDialog({ open, onOpenChange, accountsApi }: AddAccountDialogProps) {
+export function AddAccountDialog({ open, onOpenChange, accountsApi, providerIds }: AddAccountDialogProps) {
   const t = useTranslation();
   const [providerId, setProviderId] = useState<SubscriptionProviderId | null>(null);
+  const entries = accountsApi.data.accounts.filter((entry) => !providerIds || providerIds.includes(entry.providerId));
   const selectedEntry = providerId
-    ? accountsApi.data.accounts.find((entry) => entry.providerId === providerId)
+    ? entries.find((entry) => entry.providerId === providerId)
     : undefined;
 
   const close = () => {
@@ -70,7 +73,7 @@ export function AddAccountDialog({ open, onOpenChange, accountsApi }: AddAccount
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {accountsApi.data.accounts.map((entry) => {
+            {entries.map((entry) => {
               const count = accountsApi.data.providerAccounts[entry.providerId]?.length ?? 0;
               return (
                 <button

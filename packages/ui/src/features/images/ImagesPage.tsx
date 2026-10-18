@@ -1,18 +1,6 @@
-/**
- * ImagesPage — the standalone top-level home for image-generation settings
- * (images-settings-tab, design D1). A true sibling of the Search page, NOT a
- * section inside the API Service page: image generation is a first-class
- * daemon capability with its own product surface.
- *
- * Rebuilt to mirror the UpstreamsPage account/provider workspace: a two-tab
- * layout with an account/provider resource tree (sharing the SAME useAccounts
- * data source as the Upstreams page, so a Codex sign-in on one page is
- * immediately visible here), plus an advanced-settings tab that keeps the
- * original configuration panels.
- */
+/** Image instances and subscription accounts share the model-service layout. */
 
 import {
-  Boxes,
   ChevronRight,
   Image as ImageIcon,
   Layers3,
@@ -25,13 +13,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -41,15 +22,17 @@ import {
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { AccountResourceDetails } from '@/features/upstreams/AccountResourceDetails';
 import { AddAccountDialog } from '@/features/upstreams/AddAccountDialog';
-import { ProviderSettings } from '@/features/provider-settings/ProviderSettings';
-import type { SubscriptionProviderId } from '@/daemon/types';
+import type { ImageApiProviderConfig, SubscriptionProviderId } from '@/daemon/types';
+import type { LLMProvider } from '@shared/llm-config';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import { useLlmProvidersData } from '@/shared/state/settingsStore';
 import { useProviderKeyQuotaSummaries, type KeyQuotaSummaryWindow } from '@/features/upstreams/useProviderKeyQuota';
 import { cn } from '@/shared/utils/utils';
 
 import { ImagesSection } from './ImagesSection';
-import { ImageApiProvidersPanel } from './ImageApiProvidersPanel';
+import { ImageAliasesForm } from './ImageAliasesForm';
+import { ImageProviderDetails } from './ImageProviderDetails';
+import { ImageProviderDialog } from './ImageProviderDialog';
 import { ProviderStatusCards } from './ProviderStatusCards';
 import { VerifyLivePanel } from './VerifyLivePanel';
 import { useImagesSettings } from './hooks/useImagesSettings';
@@ -62,13 +45,13 @@ interface ImagesPageProps {
 }
 
 /** Subscription pools whose accounts can serve image generation. */
-const IMAGE_ACCOUNT_PROVIDERS = new Set<SubscriptionProviderId>(['codex', 'antigravity']);
+const IMAGE_ACCOUNT_PROVIDERS = ['codex', 'antigravity'] as const;
 
 type ImageResource =
   | { kind: 'account'; key: string; label: string; providerId: SubscriptionProviderId; account: ManagedAccountRow }
   | { kind: 'account-group'; key: string; label: string; providerId: SubscriptionProviderId; group: string; accounts: ManagedAccountRow[] }
   | { kind: 'account-pool'; key: string; label: string; providerId: SubscriptionProviderId; accounts: ManagedAccountRow[] }
-  | { kind: 'provider'; key: string; label: string; providerId: string };
+  | { kind: 'provider'; key: string; label: string; providerId: string; provider: ImageApiProviderConfig; source?: LLMProvider };
 
 interface AccountGroupBranch {
   resource: Extract<ImageResource, { kind: 'account-group' }>;
@@ -95,7 +78,7 @@ function resourceSearchText(resource: ImageResource): string {
 }
 
 function resourceIsEnabled(resource: ImageResource): boolean {
-  if (resource.kind === 'provider') return true;
+  if (resource.kind === 'provider') return resource.provider.enabled !== false && resource.source?.enabled !== false;
   if (resource.kind === 'account') return resource.account.enabled !== false;
   return resource.accounts.some((account) => account.enabled !== false);
 }
@@ -108,7 +91,6 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
     config,
     capability,
     status,
-    accounts: imageAccounts,
     busy,
     error,
     updateImagesConfig,
@@ -181,12 +163,16 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
         accounts: members,
       });
     }
-    for (const provider of providersApi.providers) {
+    // Shared storage supplies credentials only; it does not define image resources.
+    for (const [id, provider] of Object.entries(config?.providers ?? {})) {
+      const source = providersApi.providers.find((value) => value.id === provider.sourceProviderId);
       rows.push({
         kind: 'provider',
-        key: resourceKey.provider(provider.id),
-        label: provider.name || provider.id,
-        providerId: provider.id,
+        key: resourceKey.provider(id),
+        label: source?.name || id,
+        providerId: id,
+        provider,
+        source,
       });
     }
     const kindOrder: Record<ImageResource['kind'], number> = {
@@ -197,7 +183,7 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
     };
     return rows.sort((left, right) => kindOrder[left.kind] - kindOrder[right.kind]
       || left.label.localeCompare(right.label));
-  }, [imageAccountRows, providersApi.providers, t]);
+  }, [config?.providers, imageAccountRows, providersApi.providers, t]);
 
   const accountTree = useMemo<AccountPoolBranch[]>(() => {
     const pools: Array<Extract<ImageResource, { kind: 'account-pool' }>> = [];
@@ -223,7 +209,7 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
   }, [resources]);
 
   const keyQuotaSummaries = useProviderKeyQuotaSummaries(
-    useMemo(() => providersApi.providers.map((provider) => provider.id), [providersApi.providers]),
+    useMemo(() => [...new Set(Object.values(config?.providers ?? {}).map((provider) => provider.sourceProviderId))], [config?.providers]),
   );
 
   const [query, setQuery] = useState('');
@@ -322,13 +308,8 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
 
   const advancedContent = config ? (
     <div className="mx-auto max-w-5xl space-y-5 px-6 py-5">
-      {error ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
       <ProviderStatusCards capability={capability} />
-      <ImageApiProvidersPanel config={config} busy={busy} onUpdate={updateImagesConfig} />
+      <ImageAliasesForm config={config} busy={busy} onUpdate={updateImagesConfig} />
       {config.models[config.defaultModel] === 'codex-subscription' ? <VerifyLivePanel
         antigravityRouted={antigravityRouted}
         busy={busy}
@@ -339,18 +320,13 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
         config={config}
         capability={capability}
         status={status}
-        accounts={imageAccounts.providerAccounts.codex ?? []}
+        accounts={accountsApi.data.providerAccounts.codex ?? []}
         busy={busy}
         onUpdate={updateImagesConfig}
       />
     </div>
   ) : (
     <div className="mx-auto max-w-5xl px-6 py-5">
-      {error ? (
-        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
       <section className="rounded-xl border border-dashed border-border/70 p-4">
         <p className="text-sm font-semibold text-foreground">{t('images.page.title')}</p>
         <p className="mt-1 text-xs text-muted-foreground">{loading ? t('images.page.loading') : t('images.unsupportedDaemon')}</p>
@@ -375,7 +351,7 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
               <Button size="sm" variant="outline" onClick={() => setAddAccountOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addAccount')}
               </Button>
-              <Button size="sm" onClick={() => setAddProviderOpen(true)}>
+              <Button size="sm" disabled={!config || loading} onClick={() => setAddProviderOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />{t('upstreams.addProvider')}
               </Button>
             </div>
@@ -405,6 +381,12 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
           })}
         </div>
       </header>
+
+      {accountsApi.error || providersApi.error || error ? (
+        <p role="alert" className="border-b border-destructive/30 bg-destructive/10 px-6 py-2 text-xs text-destructive">
+          {accountsApi.error || providersApi.error || error}
+        </p>
+      ) : null}
 
       {activeTab === 'advanced' ? (
         <ScrollArea className="flex-1">
@@ -504,14 +486,14 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
                       key={provider.key}
                       resource={provider}
                       selected={selectedResource?.key === provider.key}
-                      quotaWindows={keyQuotaSummaries.get(provider.providerId)}
+                      quotaWindows={keyQuotaSummaries.get(provider.provider.sourceProviderId)}
                       onClick={() => selectResource(provider)}
                     />
                   ))}
                 </div>
 
                 {!visibleAccountTree.length && !visibleProviders.length ? (
-                  <div className="px-4 py-10 text-center text-sm text-muted-foreground">{t('upstreams.empty')}</div>
+                  <div className="px-4 py-10 text-center text-sm text-muted-foreground">{t(loading || accountsApi.loading || providersApi.loading ? 'images.page.loading' : 'images.api.empty')}</div>
                 ) : null}
               </div>
             </ScrollArea>
@@ -520,23 +502,16 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-surface-0/30">
             {!selectedResource ? (
               <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-                {t('upstreams.empty')}
+                {t(loading || accountsApi.loading || providersApi.loading ? 'images.page.loading' : 'images.api.empty')}
               </div>
             ) : selectedResource.kind === 'provider' ? (
-              <div className="flex h-full min-h-0 flex-col">
-                <div className="min-h-0 flex-1">
-                  <ProviderSettings
-                    embedded
-                    selectedProviderId={selectedResource.providerId}
-                    onSelectedProviderChange={(providerId) => {
-                      const next = resources.find(
-                        (resource) => resource.kind === 'provider' && resource.providerId === providerId,
-                      );
-                      if (next) selectResource(next);
-                    }}
-                  />
+              <ScrollArea className="h-full">
+                <div className="p-5 md:p-6">
+                  {config ? <ImageProviderDetails key={selectedResource.providerId} id={selectedResource.providerId}
+                    config={config} sources={providersApi.providers} busy={busy} onUpdate={updateImagesConfig}
+                    onCredentialsChanged={providersApi.refresh} onRemoved={() => setSelectedKey(null)} /> : null}
                 </div>
-              </div>
+              </ScrollArea>
             ) : (
               <ScrollArea className="h-full">
                 <div className="space-y-5 p-5 md:p-6">
@@ -571,23 +546,11 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
         </div>
       )}
 
-      <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} />
-      <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
-        <DialogContent className="flex h-[88vh] !w-[min(94vw,72rem)] !max-w-6xl flex-col overflow-hidden p-0">
-          <DialogHeader className="border-b border-border/70 px-6 py-4">
-            <DialogTitle>{t('upstreams.addProvider')}</DialogTitle>
-            <DialogDescription>{t('upstreams.addProviderDescription')}</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1">
-            <ProviderSettings
-              embedded
-              mode="create"
-              onProviderCreated={() => setAddProviderOpen(false)}
-              onRequestClose={() => setAddProviderOpen(false)}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} accountsApi={accountsApi} providerIds={IMAGE_ACCOUNT_PROVIDERS} />
+      {addProviderOpen && config ? <ImageProviderDialog config={config} sources={providersApi.providers} busy={busy}
+        onUpdate={updateImagesConfig} onCredentialsChanged={providersApi.refresh}
+        onSaved={(id) => { setSelectedKey(resourceKey.provider(id)); setAddProviderOpen(false); }}
+        onClose={() => setAddProviderOpen(false)} /> : null}
 
     </div>
   );
@@ -605,12 +568,16 @@ function ImageResourceRow({ resource, selected, expanded, quotaWindows, onClick 
     ? UserRound
     : resource.kind === 'account-group'
       ? UsersRound
-      : resource.kind === 'account-pool' ? Layers3 : Boxes;
+      : resource.kind === 'account-pool' ? Layers3 : ImageIcon;
   const status = resource.kind === 'account'
     ? t(`accounts.management.schedulingState.${accountSchedulingState(resource.account)}`)
     : resource.kind === 'account-group' || resource.kind === 'account-pool'
       ? t('upstreams.memberCount', { count: resource.accounts.length })
-      : t('upstreams.status.ready');
+      : resource.provider.enabled === false || resource.source?.enabled === false
+        ? t('upstreams.status.disabled')
+        : !resource.source || resource.source.hasKey === false
+          ? t('upstreams.status.needsKey')
+          : resource.provider.protocol;
   return (
     <button
       type="button"

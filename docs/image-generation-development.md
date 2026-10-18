@@ -32,6 +32,8 @@ Omnicross 对外提供三种图片入口，复用 ImageOrchestrator 和模型路
 
 `ImagesServerConfig.providers` 以实例 ID 为键，每项保存 `protocol`、`sourceProviderId`、`enabled` 和 `modelMap`。凭证继续存放在宿主现有 Provider 安全存储中。`images.models` 将公开模型映射到实例，`modelMap` 将公开模型映射到上游 ID，`aliases` 指向公开模型；严格写入校验拒绝孤立映射，容错读取会清理它们。
 
+桌面图像页以 `images.providers` 构建资源列表，仅从共享 Provider 存储读取关联凭证的名称、启用状态与配额；共享存储中的 LLM 行不会自动出现在图像列表中。`imageProviderTemplates.ts` 定义图像协议模板，`ImageProviderDialog`、`ImageProviderForm` 与 `ImageProviderDetails` 分别负责添加、配置与详情。新建凭证仍使用共享安全存储，重试配置写入时复用已创建的凭证 ID。已有模型路由只有在表单明确确认后才能被替换，旧实例的映射会同步清理。账号列表及高级设置的账号选择统一使用 `useAccounts`，添加账号时限定 Codex、Antigravity；模型服务的默认添加账号入口不受此限制。
+
 `createEmbeddedImageRuntime` 同时提供 Images 操作和 Responses hosted factory，可由宿主直接装配，不需要启动 daemon。`BoundedMemoryImageReferenceStore` 限制引用数量、字节和 TTL；引用由可信 API key、route lease 或宿主 imageSession 隔离，不能使用客户端 header 伪造租户。
 
 Responses 使用 `tools[].model` 选择图片路由。native Responses 和转换后的 Chat 路径均有集成测试，包括 SSE 工具索引及参数事件。不同工具的组合仍按入口能力检查，不能静默舍弃不支持的工具。

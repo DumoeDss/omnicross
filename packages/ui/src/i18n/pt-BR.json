@@ -531,6 +531,11 @@
     "search": "Pesquisa"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "As credenciais salvas não foram encontradas. Edite o provedor de imagens.",
+      "replaceRoutes": "Direcionar estes modelos para este provedor de imagens: {{models}}",
+      "removeDescription": "Remover este provedor de imagens e suas rotas de modelos. As credenciais compartilhadas serão mantidas."
+    },
     "title": "Geração de imagens",
     "description": "Controle os endpoints de Imagens, desativados por padrão, e verifique o estado de execução respaldado por evidências.",
     "unsupportedDaemon": "Este daemon ainda não disponibiliza a configuração de Imagens.",

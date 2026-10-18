@@ -531,6 +531,11 @@
     "search": "Wyszukiwanie"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Brak zapisanych danych logowania. Edytuj dostawcę obrazów.",
+      "replaceRoutes": "Kieruj te modele do tego dostawcy obrazów: {{models}}",
+      "removeDescription": "Usuń tego dostawcę obrazów i jego trasy modeli. Współdzielone dane logowania zostaną zachowane."
+    },
     "title": "Generowanie obrazów",
     "description": "Zarządzaj domyślnie wyłączonymi punktami końcowymi Images i sprawdzaj ich stan działania potwierdzony dowodami.",
     "unsupportedDaemon": "Ten daemon nie udostępnia jeszcze konfiguracji Images.",

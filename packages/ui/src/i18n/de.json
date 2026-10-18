@@ -531,6 +531,11 @@
     "search": "Suche"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Gespeicherte Zugangsdaten fehlen. Bearbeite den Bildanbieter.",
+      "replaceRoutes": "Diese Modelle an diesen Bildanbieter leiten: {{models}}",
+      "removeDescription": "Diesen Bildanbieter und seine Modellrouten entfernen. Gemeinsame Zugangsdaten bleiben erhalten."
+    },
     "title": "Bilderzeugung",
     "description": "Steuern Sie die standardmäßig deaktivierten Images-Endpunkte und prüfen Sie ihren durch Nachweise belegten Laufzeitstatus.",
     "unsupportedDaemon": "Dieser Daemon stellt noch keine Images-Konfiguration bereit.",

@@ -531,6 +531,11 @@
     "search": "Hledání"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Uložené přihlašovací údaje chybí. Upravte poskytovatele obrázků.",
+      "replaceRoutes": "Směrovat tyto modely k tomuto poskytovateli obrázků: {{models}}",
+      "removeDescription": "Odebrat poskytovatele obrázků a jeho trasy modelů. Sdílené přihlašovací údaje zůstanou zachovány."
+    },
     "title": "Generování obrázků",
     "description": "Spravujte ve výchozím stavu vypnuté koncové body Images a sledujte jejich běhový stav podložený důkazy.",
     "unsupportedDaemon": "Tento daemon zatím neposkytuje konfiguraci Images.",

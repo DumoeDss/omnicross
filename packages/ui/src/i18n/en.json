@@ -917,13 +917,18 @@
     }
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Saved credentials are missing. Edit this image provider to select or create credentials.",
+      "replaceRoutes": "Route these models to this image provider: {{models}}",
+      "removeDescription": "Remove this image provider and its model routes. Shared credentials are kept."
+    },
     "api": {
       "title": "Image API providers",
       "description": "Route images independently from the text provider used by Codex or other clients.",
       "add": "Add provider",
       "edit": "Edit",
       "remove": "Remove",
-      "empty": "Add an image API, or use the subscription providers below.",
+      "empty": "Add an image provider or sign in to an image-capable subscription account.",
       "instanceId": "Instance ID",
       "protocol": "API protocol",
       "source": "Credentials",
@@ -931,7 +936,7 @@
       "newCredentials": "New credentials",
       "editCredentials": "Edit credentials",
       "models": "Models and upstream mapping",
-      "modelsHint": "One model per line. Use public-model = upstream/model when the API uses a different ID. Models already routed elsewhere must be reassigned in Model routing first.",
+      "modelsHint": "One model per line. Use public-model = upstream/model when the API uses a different ID. Confirm any route changes before saving.",
       "save": "Save",
       "cancel": "Cancel",
       "verificationHint": "Saving validates configuration without generating an image. API access and model availability are confirmed by a real request; it may incur charges.",

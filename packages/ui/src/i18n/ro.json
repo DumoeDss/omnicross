@@ -531,6 +531,11 @@
     "search": "Căutare"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Datele de autentificare salvate lipsesc. Editați furnizorul de imagini.",
+      "replaceRoutes": "Direcționați aceste modele către acest furnizor de imagini: {{models}}",
+      "removeDescription": "Eliminați acest furnizor de imagini și rutele modelelor sale. Datele de autentificare partajate sunt păstrate."
+    },
     "title": "Generare de imagini",
     "description": "Controlați endpointurile Images, dezactivate implicit, și consultați starea lor de execuție susținută de dovezi.",
     "unsupportedDaemon": "Acest daemon nu oferă încă configurarea Images.",

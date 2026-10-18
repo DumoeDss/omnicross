@@ -5,6 +5,7 @@ const RESERVED = new Set(['codex-subscription', 'antigravity-subscription', '__p
 
 export function saveImageInstance(
   config: ImagesServerConfig, id: string, instance: ImageApiProviderConfig, text: string,
+  options: { replaceExistingRoutes?: boolean } = {},
 ): ImagesServerConfig {
   if (!ID.test(id) || RESERVED.has(id) || !instance.sourceProviderId) throw new Error('images.api.invalidInstance');
   const modelMap: Record<string, string> = {};
@@ -15,10 +16,14 @@ export function saveImageInstance(
     if (!ID.test(model) || RESERVED.has(model) || !upstream || upstream.length > 256 || /[\u0000-\u001f\u007f]/u.test(upstream) || Object.prototype.hasOwnProperty.call(modelMap, model)) {
       throw new Error('images.api.invalidModels');
     }
-    if (config.models[model] && config.models[model] !== id) throw new Error('images.api.routeConflict');
+    if (config.models[model] && config.models[model] !== id && !options.replaceExistingRoutes) throw new Error('images.api.routeConflict');
     modelMap[model] = upstream;
   }
   if (!Object.keys(modelMap).length) throw new Error('images.api.invalidModels');
+  // Reassign only after validation and explicit consent, retaining unrelated routes.
+  for (const model of Object.keys(modelMap)) {
+    if (config.models[model] && config.models[model] !== id) config = moveImageRoute(config, model, id);
+  }
   const models = Object.fromEntries(Object.entries(config.models).filter(([, provider]) => provider !== id));
   for (const model of Object.keys(modelMap)) models[model] = id;
   return {

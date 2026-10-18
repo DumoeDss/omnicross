@@ -531,6 +531,11 @@
     "search": "Tìm kiếm"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Không tìm thấy thông tin xác thực đã lưu. Chỉnh sửa nhà cung cấp hình ảnh.",
+      "replaceRoutes": "Định tuyến các mô hình này đến nhà cung cấp hình ảnh này: {{models}}",
+      "removeDescription": "Xóa nhà cung cấp hình ảnh này và các tuyến mô hình của nó. Thông tin xác thực dùng chung được giữ lại."
+    },
     "title": "Tạo hình ảnh",
     "description": "Kiểm soát các điểm cuối Images mặc định bị tắt và xem trạng thái thời gian chạy được chứng minh bằng bằng chứng.",
     "unsupportedDaemon": "Daemon này chưa cung cấp cấu hình Images.",

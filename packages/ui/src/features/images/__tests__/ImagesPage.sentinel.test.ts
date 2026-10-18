@@ -14,7 +14,7 @@ vi.mock('@/features/upstreams/useProviderKeyQuota', () => ({
 }));
 
 vi.mock('@/features/upstreams/AddAccountDialog', () => ({
-  AddAccountDialog: () => null,
+  AddAccountDialog: ({ providerIds }: { providerIds?: string[] }) => React.createElement('div', { 'data-account-providers': providerIds?.join(',') }),
 }));
 
 vi.mock('@/features/upstreams/AccountResourceDetails', () => ({
@@ -32,7 +32,7 @@ vi.mock('@/features/accounts/hooks/useAccounts', () => ({
       accounts: [],
       providerAccounts: {
         claude: [],
-        codex: [],
+        codex: [{ id: 'shared-codex', label: 'Synced Codex', status: 'authorized', enabled: true }],
         gemini: [],
         opencodego: [],
         kimi: [],
@@ -48,7 +48,10 @@ vi.mock('@/features/accounts/hooks/useAccounts', () => ({
 }));
 
 vi.mock('@/shared/state/settingsStore', () => ({
-  useLlmProvidersData: () => ({ providers: [], loading: false, error: null, refresh: async () => undefined, updateProvider: async () => undefined }),
+  useLlmProvidersData: () => ({ providers: [
+    { id: 'chat-only', name: 'CHAT_PROVIDER_MUST_NOT_APPEAR', models: ['text-model'] },
+    { id: 'image-key', name: 'Image studio credentials', models: [] },
+  ], loading: false, error: null, refresh: async () => undefined, updateProvider: async () => undefined }),
 }));
 
 vi.mock('../hooks/useImagesSettings', () => ({
@@ -62,6 +65,7 @@ vi.mock('../hooks/useImagesSettings', () => ({
       },
       defaultModel: 'gpt-image-2',
       aliases: {},
+      providers: { studio: { protocol: 'openai-images', sourceProviderId: 'image-key', enabled: false } },
       codex: { imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' },
       account: { fallback: 'strict' },
       references: { storageRootConfigured: true },
@@ -151,6 +155,16 @@ describe('ImagesPage rendering (images-settings-tab)', () => {
     expect(markup).toContain('image-route-table');
     // The honest bootstrap label for the evidence-less antigravity row.
     expect(markup).toContain('images.providers.bootstrap');
+  });
+
+  it('shows only configured image instances and synced image accounts, including disabled instances', () => {
+    const markup = renderToStaticMarkup(React.createElement(ImagesPage));
+    expect(markup).toContain('Image studio credentials');
+    expect(markup).toContain('Synced Codex');
+    expect(markup).toContain('upstreams.status.disabled');
+    expect(markup).toContain('data-account-providers="codex,antigravity"');
+    expect(markup).not.toContain('CHAT_PROVIDER_MUST_NOT_APPEAR');
+    expect(markup).not.toContain('text-model');
   });
 
   it('types compile against the routing-table config shape', () => {

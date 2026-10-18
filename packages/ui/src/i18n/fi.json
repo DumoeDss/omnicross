@@ -531,6 +531,11 @@
     "search": "Haku"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Tallennetut tunnistetiedot puuttuvat. Muokkaa kuvapalveluntarjoajaa.",
+      "replaceRoutes": "Reititä nämä mallit tälle kuvapalveluntarjoajalle: {{models}}",
+      "removeDescription": "Poista tämä kuvapalveluntarjoaja ja sen mallireitit. Jaetut tunnistetiedot säilytetään."
+    },
     "title": "Kuvien luonti",
     "description": "Hallitse oletuksena poistettuja Images-päätepisteitä ja tarkastele niiden näyttöön perustuvaa ajoaikaista tilaa.",
     "unsupportedDaemon": "Tämä daemon ei vielä tarjoa Images-määritystä.",

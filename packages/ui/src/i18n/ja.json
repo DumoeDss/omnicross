@@ -667,6 +667,11 @@
     }
   },
   "images": {
+    "provider": {
+      "missingCredentials": "保存済みの認証情報がありません。画像プロバイダーを編集して認証情報を選択または作成してください。",
+      "replaceRoutes": "これらのモデルをこの画像プロバイダーに切り替える：{{models}}",
+      "removeDescription": "この画像プロバイダーとモデルルートを削除します。共有の認証情報は保持されます。"
+    },
     "title": "画像生成",
     "description": "既定で無効な Images エンドポイントを管理し、証拠に基づくランタイム状態を確認します。",
     "unsupportedDaemon": "このデーモンはまだ Images 設定を公開していません。",

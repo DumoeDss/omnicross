@@ -531,6 +531,11 @@
     "search": "Búsqueda"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Faltan las credenciales guardadas. Edita el proveedor de imágenes.",
+      "replaceRoutes": "Dirigir estos modelos a este proveedor de imágenes: {{models}}",
+      "removeDescription": "Eliminar este proveedor de imágenes y sus rutas de modelos. Se conservan las credenciales compartidas."
+    },
     "title": "Generación de imágenes",
     "description": "Controla los endpoints de Imágenes, desactivados de forma predeterminada, y revisa su estado operativo respaldado por evidencia.",
     "unsupportedDaemon": "Este daemon todavía no ofrece la configuración de Imágenes.",

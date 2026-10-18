@@ -531,6 +531,11 @@
     "search": "Pencarian"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Kredensial tersimpan tidak ditemukan. Edit penyedia gambar.",
+      "replaceRoutes": "Arahkan model ini ke penyedia gambar ini: {{models}}",
+      "removeDescription": "Hapus penyedia gambar ini dan rute modelnya. Kredensial bersama tetap disimpan."
+    },
     "title": "Pembuatan gambar",
     "description": "Kelola endpoint Images yang secara default dinonaktifkan dan periksa status runtime yang didukung bukti.",
     "unsupportedDaemon": "Daemon ini belum menyediakan konfigurasi Images.",

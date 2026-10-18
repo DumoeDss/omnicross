@@ -531,6 +531,11 @@
     "search": "Sök"
   },
   "images": {
+    "provider": {
+      "missingCredentials": "Sparade inloggningsuppgifter saknas. Redigera bildleverantören.",
+      "replaceRoutes": "Skicka dessa modeller till denna bildleverantör: {{models}}",
+      "removeDescription": "Ta bort denna bildleverantör och dess modellrutter. Delade inloggningsuppgifter behålls."
+    },
     "title": "Bildgenerering",
     "description": "Styr Images-slutpunkterna, som är inaktiverade som standard, och granska deras evidensbaserade körningsstatus.",
     "unsupportedDaemon": "Den här daemonen erbjuder ännu ingen Images-konfiguration.",
