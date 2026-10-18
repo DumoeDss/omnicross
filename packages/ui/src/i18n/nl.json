@@ -531,6 +531,28 @@
     "search": "Zoeken"
   },
   "images": {
+    "models": {
+      "title": "Modellen",
+      "fetch": "Modellen ophalen",
+      "template": "Sjabloonmodellen gebruiken",
+      "add": "Model toevoegen",
+      "upstream": "Model van de aanbieder",
+      "request": "Modelnaam in de aanvraag",
+      "hint": "Haal modellen op, gebruik het sjabloon of voeg handmatig toe. Namen worden standaard ongewijzigd doorgegeven; pas ze alleen aan voor een benodigde koppeling.",
+      "afterCreate": "Sla eerst de aanbieder op en beheer daarna modellen en koppelingen in de details.",
+      "empty": "Haal modellen op, gebruik het sjabloon of voeg een model toe bij de aanbiederdetails.",
+      "fetchFailed": "Afbeeldingsmodellen konden niet worden opgehaald.",
+      "noImages": "Geen afbeeldingsmodellen gevonden. Gebruik het sjabloon of voeg handmatig een model toe."
+    },
+    "routing": {
+      "title": "Codex-afbeeldingstool",
+      "description": "Kies de afbeeldingsbron onafhankelijk van het tekstmodel van Codex. Omnicross regelt de aanbieder en de koppeling van modelnamen.",
+      "provider": "Afbeeldingsaanbieder",
+      "model": "Standaard afbeeldingsmodel",
+      "codexSubscription": "Codex-abonnement",
+      "antigravitySubscription": "Antigravity-abonnement",
+      "mappingHint": "Koppel de afbeeldingsmodellen die Codex aanvraagt aan modellen van de aanbieder. Gelijke namen worden ongewijzigd doorgegeven; andere gebruiken het gekozen standaardmodel en kunnen afzonderlijk worden aangepast."
+    },
     "provider": {
       "missingCredentials": "Opgeslagen inloggegevens ontbreken. Bewerk de afbeeldingsprovider.",
       "replaceRoutes": "Deze modellen naar deze afbeeldingsprovider routeren: {{models}}",

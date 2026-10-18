@@ -531,6 +531,28 @@
     "search": "Carian"
   },
   "images": {
+    "models": {
+      "title": "Model",
+      "fetch": "Dapatkan senarai model",
+      "template": "Gunakan model templat",
+      "add": "Tambah model",
+      "upstream": "Model penyedia",
+      "request": "Nama model permintaan",
+      "hint": "Dapatkan senarai model, gunakan templat atau tambah secara manual. Nama dihantar terus secara lalai; ubah hanya apabila pemetaan diperlukan.",
+      "afterCreate": "Simpan penyedia dahulu, kemudian urus model dan pemetaan dalam butirannya.",
+      "empty": "Dapatkan model, gunakan templat atau tambah model dalam butiran penyedia.",
+      "fetchFailed": "Tidak dapat mendapatkan model imej.",
+      "noImages": "Tiada model imej ditemui. Gunakan templat atau tambah secara manual."
+    },
+    "routing": {
+      "title": "Alat imej Codex",
+      "description": "Pilih sumber imej secara berasingan daripada model teks Codex. Omnicross mengurus penyedia dan pemetaan nama model.",
+      "provider": "Penyedia imej",
+      "model": "Model imej lalai",
+      "codexSubscription": "Langganan Codex",
+      "antigravitySubscription": "Langganan Antigravity",
+      "mappingHint": "Petakan model imej yang diminta oleh Codex kepada model penyedia. Nama yang sama dihantar terus; nama lain menggunakan model lalai yang dipilih dan boleh dilaraskan satu per satu."
+    },
     "provider": {
       "missingCredentials": "Bukti kelayakan tersimpan tiada. Edit penyedia imej.",
       "replaceRoutes": "Halakan model ini kepada penyedia imej ini: {{models}}",

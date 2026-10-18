@@ -531,6 +531,28 @@
     "search": "Søk"
   },
   "images": {
+    "models": {
+      "title": "Modeller",
+      "fetch": "Hent modeller",
+      "template": "Bruk malens modeller",
+      "add": "Legg til modell",
+      "upstream": "Leverandørens modell",
+      "request": "Modellnavn i forespørselen",
+      "hint": "Hent modeller, bruk malen eller legg til manuelt. Navn sendes uendret som standard; endre dem bare ved behov for tilordning.",
+      "afterCreate": "Lagre leverandøren først, og administrer deretter modeller og tilordninger i detaljene.",
+      "empty": "Hent modeller, bruk malen eller legg til en modell i leverandørdetaljene.",
+      "fetchFailed": "Kunne ikke hente bildemodeller.",
+      "noImages": "Ingen bildemodeller funnet. Bruk malen eller legg til en modell manuelt."
+    },
+    "routing": {
+      "title": "Codex-bildeverktøy",
+      "description": "Velg bildekilden uavhengig av tekstmodellen i Codex. Omnicross håndterer leverandøren og tilordning av modellnavn.",
+      "provider": "Bildeleverandør",
+      "model": "Standard bildemodell",
+      "codexSubscription": "Codex-abonnement",
+      "antigravitySubscription": "Antigravity-abonnement",
+      "mappingHint": "Tilordne bildemodellene Codex ber om til leverandørens modeller. Like navn sendes uendret; andre bruker den valgte standardmodellen og kan justeres hver for seg."
+    },
     "provider": {
       "missingCredentials": "Lagrede påloggingsopplysninger mangler. Rediger bildeleverandøren.",
       "replaceRoutes": "Send disse modellene til denne bildeleverandøren: {{models}}",

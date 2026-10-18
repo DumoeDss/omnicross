@@ -472,6 +472,8 @@ export interface ImageApiProviderConfig {
   protocol: ImageApiProtocol;
   sourceProviderId: string;
   enabled?: boolean;
+  models?: string[];
+  modelAliases?: Record<string, string>;
   modelMap?: Record<string, string>;
 }
 

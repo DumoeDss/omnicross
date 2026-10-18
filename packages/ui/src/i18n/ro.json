@@ -531,6 +531,28 @@
     "search": "Căutare"
   },
   "images": {
+    "models": {
+      "title": "Modele",
+      "fetch": "Obține modelele",
+      "template": "Folosește modelele șablonului",
+      "add": "Adaugă model",
+      "upstream": "Modelul furnizorului",
+      "request": "Numele modelului din cerere",
+      "hint": "Obține modelele, folosește șablonul sau adaugă-le manual. Numele sunt transmise implicit neschimbate; modifică-le doar când este necesară o asociere.",
+      "afterCreate": "Salvează întâi furnizorul, apoi gestionează modelele și asocierile în detaliile acestuia.",
+      "empty": "Obține modelele, folosește șablonul sau adaugă un model în detaliile furnizorului.",
+      "fetchFailed": "Modelele de imagini nu au putut fi obținute.",
+      "noImages": "Nu au fost găsite modele de imagini. Folosește șablonul sau adaugă unul manual."
+    },
+    "routing": {
+      "title": "Instrumentul de imagini Codex",
+      "description": "Alege sursa imaginilor independent de modelul de text Codex. Omnicross gestionează furnizorul și asocierea numelor de modele.",
+      "provider": "Furnizor de imagini",
+      "model": "Model de imagini implicit",
+      "codexSubscription": "Abonament Codex",
+      "antigravitySubscription": "Abonament Antigravity",
+      "mappingHint": "Asociază modelele de imagini cerute de Codex cu modelele furnizorului. Numele identice sunt transmise neschimbate, celelalte folosesc modelul implicit ales și pot fi ajustate individual."
+    },
     "provider": {
       "missingCredentials": "Datele de autentificare salvate lipsesc. Editați furnizorul de imagini.",
       "replaceRoutes": "Direcționați aceste modele către acest furnizor de imagini: {{models}}",

@@ -10,6 +10,7 @@ import type { LLMProvider } from '@shared/llm-config';
 
 import { ImageCredentialForm } from './ImageCredentialForm';
 import { ImageProviderForm } from './ImageProviderForm';
+import { ImageProviderModels } from './ImageProviderModels';
 import { removeImageInstance } from './imageProviderConfigModel';
 import { IMAGE_PROVIDER_TEMPLATES } from './imageProviderTemplates';
 
@@ -30,7 +31,6 @@ export function ImageProviderDetails({ id, config, sources, busy, onUpdate, onCr
   const provider = config.providers![id]!;
   const source = sources.find((value) => value.id === provider.sourceProviderId);
   const template = IMAGE_PROVIDER_TEMPLATES.find((value) => value.protocol === provider.protocol)!;
-  const models = Object.entries(config.models).filter(([, target]) => target === id).map(([model]) => model);
   async function remove() {
     try {
       setError(null);
@@ -63,13 +63,7 @@ export function ImageProviderDetails({ id, config, sources, busy, onUpdate, onCr
             <p className="text-sm">{source?.name || t('images.provider.missingCredentials')}</p>
             {editingCredentials && source ? <ImageCredentialForm source={source} onCancel={() => setEditingCredentials(false)} onSaved={async () => { await onCredentialsChanged(); setEditingCredentials(false); }} /> : null}
           </div>
-          <div className="rounded-xl border border-border/70 bg-surface-1/50 p-4">
-            <h3 className="text-sm font-semibold">{t('images.api.models')}</h3>
-            <ul className="mt-3 divide-y divide-border/60">
-              {models.map((model) => <li key={model} className="flex flex-wrap justify-between gap-2 py-2 text-xs"><code className="break-all">{model}</code><span className="break-all text-muted-foreground">{provider.modelMap?.[model] ?? model}</span></li>)}
-            </ul>
-          </div>
-          <p className="text-xs text-muted-foreground">{t('images.api.verificationHint')}</p>
+          <ImageProviderModels key={JSON.stringify([provider, config.models])} id={id} config={config} busy={busy} onUpdate={onUpdate} />
         </>
       )}
       {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}

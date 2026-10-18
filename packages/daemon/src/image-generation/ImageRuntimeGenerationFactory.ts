@@ -119,7 +119,9 @@ function snapshotConfig(config: ImagesServerConfig): ImagesServerConfig {
   return {
     ...config,
     ...(config.providers ? { providers: Object.fromEntries(Object.entries(config.providers).map(([id, value]) => [id, {
-      ...value, ...(value.modelMap ? { modelMap: { ...value.modelMap } } : {}),
+      ...value, ...(value.models ? { models: [...value.models] } : {}),
+      ...(value.modelAliases ? { modelAliases: { ...value.modelAliases } } : {}),
+      ...(value.modelMap ? { modelMap: { ...value.modelMap } } : {}),
     }])) } : {}),
     models: { ...config.models },
     aliases: { ...config.aliases },

@@ -531,6 +531,28 @@
     "search": "Arama"
   },
   "images": {
+    "models": {
+      "title": "Modeller",
+      "fetch": "Model listesini getir",
+      "template": "Şablon modellerini kullan",
+      "add": "Model ekle",
+      "upstream": "Sağlayıcı modeli",
+      "request": "İstekteki model adı",
+      "hint": "Modelleri getirin, şablonu kullanın veya elle ekleyin. Adlar varsayılan olarak değiştirilmeden iletilir; yalnızca eşleme gerektiğinde değiştirin.",
+      "afterCreate": "Önce sağlayıcıyı kaydedin, ardından ayrıntılarında modelleri ve eşlemeleri yönetin.",
+      "empty": "Sağlayıcı ayrıntılarında modelleri getirin, şablonu kullanın veya model ekleyin.",
+      "fetchFailed": "Görsel modelleri getirilemedi.",
+      "noImages": "Görsel modeli bulunamadı. Şablonu kullanın veya elle ekleyin."
+    },
+    "routing": {
+      "title": "Codex görsel aracı",
+      "description": "Görsel kaynağını Codex metin modelinden bağımsız seçin. Sağlayıcıyı ve model adı eşlemelerini Omnicross yönetir.",
+      "provider": "Görsel sağlayıcısı",
+      "model": "Varsayılan görsel modeli",
+      "codexSubscription": "Codex aboneliği",
+      "antigravitySubscription": "Antigravity aboneliği",
+      "mappingHint": "Codex'in istediği görsel modellerini sağlayıcının modelleriyle eşleyin. Aynı adlar değiştirilmeden iletilir; diğerleri seçilen varsayılan modeli kullanır ve ayrı ayrı ayarlanabilir."
+    },
     "provider": {
       "missingCredentials": "Kayıtlı kimlik bilgileri eksik. Görsel sağlayıcısını düzenleyin.",
       "replaceRoutes": "Bu modelleri bu görsel sağlayıcısına yönlendir: {{models}}",

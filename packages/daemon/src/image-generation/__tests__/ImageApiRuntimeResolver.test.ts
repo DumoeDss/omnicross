@@ -60,7 +60,7 @@ describe('trusted Images API runtime resolver', () => {
     expect(runtime).toMatchObject({
       tenantId: 'trusted-key-id',
       providerId: 'codex-subscription',
-      defaultModel: 'gpt-image-2',
+      defaultModel: 'gpt-image-2.5-sunburst',
       preferredAccountId: 'configured-account',
       boundAccountFallbackPolicy: 'pool',
       referenceStore,

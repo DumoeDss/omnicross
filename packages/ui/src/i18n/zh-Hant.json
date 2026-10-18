@@ -917,6 +917,28 @@
     }
   },
   "images": {
+    "models": {
+      "title": "模型",
+      "fetch": "取得模型清單",
+      "template": "使用範本模型",
+      "add": "新增模型",
+      "upstream": "上游模型",
+      "request": "請求模型名稱",
+      "hint": "取得模型清單、使用範本或手動新增模型。請求模型名稱預設直接傳遞，只在需要映射時修改。",
+      "afterCreate": "先儲存提供商，再於提供商詳細資料中管理模型清單及按需設定映射。",
+      "empty": "請先於提供商詳細資料中取得模型清單、使用範本或新增模型。",
+      "fetchFailed": "無法取得圖像模型清單。",
+      "noImages": "未找到圖像模型，請使用範本或手動新增圖像模型。"
+    },
+    "routing": {
+      "title": "Codex 圖像工具",
+      "description": "為 Codex 圖像工具選擇獨立的生圖來源。文字模型維持原有設定，圖像提供商與模型映射由 Omnicross 處理。",
+      "provider": "圖像提供商",
+      "model": "預設生圖模型",
+      "codexSubscription": "Codex 訂閱",
+      "antigravitySubscription": "Antigravity 訂閱",
+      "mappingHint": "將 Codex 請求的圖像模型對應至此提供商的模型。同名模型預設直接傳遞，名稱不同時使用所選預設模型，也可以逐項調整。"
+    },
     "provider": {
       "missingCredentials": "已儲存的憑證不存在，請編輯此圖像供應商以選擇或新增憑證。",
       "replaceRoutes": "將這些模型切換到此圖像供應商：{{models}}",
@@ -959,7 +981,7 @@
     "title": "圖像生成",
     "description": "管理圖片路由，查看目前 Provider 的能力與執行狀態。",
     "unsupportedDaemon": "目前守護程序尚未提供 Images 設定。",
-    "enable": "啟用 Images 端點",
+    "enable": "啟用 Codex 圖像工具",
     "entitlementWarning": "API 能力來自協定設定，存取權限由真實請求確認。訂閱權限取決於所選帳號與新鮮的能力證據。",
     "track": {
       "configured": "已設定",
@@ -1021,7 +1043,7 @@
     },
     "page": {
       "title": "圖像生成",
-      "description": "模型路由、provider 健康與 Images 端點，集中一處。",
+      "description": "管理圖像提供商，為 Codex 選擇獨立的生圖來源。",
       "loading": "正在載入圖像設定…"
     },
     "tabs": {

@@ -531,6 +531,28 @@
     "search": "검색"
   },
   "images": {
+    "models": {
+      "title": "모델",
+      "fetch": "모델 목록 가져오기",
+      "template": "템플릿 모델 사용",
+      "add": "모델 추가",
+      "upstream": "업스트림 모델",
+      "request": "요청 모델 이름",
+      "hint": "목록을 가져오거나 템플릿을 사용하거나 모델을 직접 추가하세요. 기본적으로 모델 이름을 그대로 전달하며 필요한 경우에만 매핑을 변경합니다.",
+      "afterCreate": "먼저 공급자를 저장한 다음 공급자 세부 정보에서 모델 목록과 매핑을 관리하세요.",
+      "empty": "공급자 세부 정보에서 모델 목록을 가져오거나 템플릿을 사용하거나 모델을 추가하세요.",
+      "fetchFailed": "이미지 모델 목록을 가져오지 못했습니다.",
+      "noImages": "이미지 모델을 찾지 못했습니다. 템플릿을 사용하거나 직접 추가하세요."
+    },
+    "routing": {
+      "title": "Codex 이미지 도구",
+      "description": "Codex 텍스트 모델과 별개로 이미지 생성 소스를 선택하세요. Omnicross가 공급자 선택과 모델 이름 매핑을 처리합니다.",
+      "provider": "이미지 공급자",
+      "model": "기본 이미지 모델",
+      "codexSubscription": "Codex 구독",
+      "antigravitySubscription": "Antigravity 구독",
+      "mappingHint": "Codex가 요청하는 이미지 모델을 공급자의 모델에 매핑하세요. 같은 이름은 그대로 전달하고 다른 이름은 선택한 기본 모델을 사용하며 각 항목을 조정할 수 있습니다."
+    },
     "provider": {
       "missingCredentials": "저장된 인증 정보가 없습니다. 이미지 공급자를 편집하세요.",
       "replaceRoutes": "다음 모델을 이 이미지 공급자로 라우팅: {{models}}",

@@ -531,6 +531,28 @@
     "search": "Hledání"
   },
   "images": {
+    "models": {
+      "title": "Modely",
+      "fetch": "Načíst modely",
+      "template": "Použít modely šablony",
+      "add": "Přidat model",
+      "upstream": "Model poskytovatele",
+      "request": "Název modelu v požadavku",
+      "hint": "Načtěte modely, použijte šablonu nebo je přidejte ručně. Názvy se standardně předávají beze změny; upravte je jen při potřebě mapování.",
+      "afterCreate": "Nejprve uložte poskytovatele, potom spravujte modely a mapování v jeho podrobnostech.",
+      "empty": "Načtěte modely, použijte šablonu nebo přidejte model v podrobnostech poskytovatele.",
+      "fetchFailed": "Modely obrázků se nepodařilo načíst.",
+      "noImages": "Nebyly nalezeny modely obrázků. Použijte šablonu nebo model přidejte ručně."
+    },
+    "routing": {
+      "title": "Obrázkový nástroj Codex",
+      "description": "Zvolte zdroj obrázků nezávisle na textovém modelu Codex. Poskytovatele a mapování názvů zajišťuje Omnicross.",
+      "provider": "Poskytovatel obrázků",
+      "model": "Výchozí model obrázků",
+      "codexSubscription": "Předplatné Codex",
+      "antigravitySubscription": "Předplatné Antigravity",
+      "mappingHint": "Mapujte obrázkové modely požadované Codexem na modely poskytovatele. Shodné názvy se předají beze změny, ostatní použijí vybraný výchozí model; každé mapování lze upravit."
+    },
     "provider": {
       "missingCredentials": "Uložené přihlašovací údaje chybí. Upravte poskytovatele obrázků.",
       "replaceRoutes": "Směrovat tyto modely k tomuto poskytovateli obrázků: {{models}}",

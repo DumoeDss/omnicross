@@ -63,6 +63,15 @@ function resolve(tree: Json, key: string): unknown {
 }
 
 describe('Images i18n (images-settings-tab)', () => {
+  it('defines provider model management and Codex routing copy in all locales', () => {
+    for (const file of readdirSync(LOCALE_DIR).filter((name) => name.endsWith('.json'))) {
+      const images = loadLocale(file).images as Json;
+      for (const key of ['models.title', 'models.fetch', 'models.template', 'models.request', 'models.afterCreate',
+        'models.noImages', 'routing.title', 'routing.description', 'routing.provider', 'routing.model', 'routing.mappingHint']) {
+        expect(resolve(images, key), `${file} ${key}`).toEqual(expect.any(String));
+      }
+    }
+  });
   it('defines every images key non-empty in all 31 locales', () => {
     const files = readdirSync(LOCALE_DIR).filter((name) => name.endsWith('.json'));
     expect(files.length).toBe(31);

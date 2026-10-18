@@ -531,6 +531,28 @@
     "search": "Søgning"
   },
   "images": {
+    "models": {
+      "title": "Modeller",
+      "fetch": "Hent modeller",
+      "template": "Brug skabelonens modeller",
+      "add": "Tilføj model",
+      "upstream": "Udbyderens model",
+      "request": "Modelnavn i anmodningen",
+      "hint": "Hent modeller, brug skabelonen eller tilføj manuelt. Navne videresendes som standard uændret; ret dem kun ved behov for mapping.",
+      "afterCreate": "Gem først udbyderen, og administrer derefter modeller og mapping i udbyderens detaljer.",
+      "empty": "Hent modeller, brug skabelonen eller tilføj en model i udbyderens detaljer.",
+      "fetchFailed": "Billedmodeller kunne ikke hentes.",
+      "noImages": "Ingen billedmodeller fundet. Brug skabelonen eller tilføj en model manuelt."
+    },
+    "routing": {
+      "title": "Codex-billedværktøj",
+      "description": "Vælg billedkilden uafhængigt af Codex' tekstmodel. Omnicross håndterer udbydervalg og mapping af modelnavne.",
+      "provider": "Billedudbyder",
+      "model": "Standardmodel til billeder",
+      "codexSubscription": "Codex-abonnement",
+      "antigravitySubscription": "Antigravity-abonnement",
+      "mappingHint": "Knyt de billedmodeller, Codex anmoder om, til udbyderens modeller. Ens navne videresendes; andre bruger den valgte standardmodel og kan tilpasses enkeltvis."
+    },
     "provider": {
       "missingCredentials": "Gemte legitimationsoplysninger mangler. Rediger billedudbyderen.",
       "replaceRoutes": "Send disse modeller til denne billedudbyder: {{models}}",

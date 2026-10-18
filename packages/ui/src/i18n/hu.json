@@ -531,6 +531,28 @@
     "search": "Keresés"
   },
   "images": {
+    "models": {
+      "title": "Modellek",
+      "fetch": "Modellek lekérése",
+      "template": "Sablonmodelljeinek használata",
+      "add": "Modell hozzáadása",
+      "upstream": "Szolgáltatói modell",
+      "request": "Kérésben használt modellnév",
+      "hint": "Kérje le a modelleket, használjon sablont vagy adja hozzá kézzel. A nevek alapértelmezetten változatlanul mennek tovább; csak szükséges megfeleltetés esetén módosítsa őket.",
+      "afterCreate": "Először mentse a szolgáltatót, majd kezelje a modelleket és megfeleltetéseket annak adatlapján.",
+      "empty": "Kérje le a modelleket, használjon sablont vagy adjon hozzá modellt a szolgáltató adatlapján.",
+      "fetchFailed": "Nem sikerült lekérni a képmodelleket.",
+      "noImages": "Nem találhatók képmodellek. Használjon sablont vagy adjon hozzá kézzel."
+    },
+    "routing": {
+      "title": "Codex képeszköz",
+      "description": "A képforrást a Codex szövegmodelljétől függetlenül választhatja ki. A szolgáltatót és a modellnevek megfeleltetését az Omnicross kezeli.",
+      "provider": "Képszolgáltató",
+      "model": "Alapértelmezett képmodell",
+      "codexSubscription": "Codex-előfizetés",
+      "antigravitySubscription": "Antigravity-előfizetés",
+      "mappingHint": "Rendelje a Codex által kért képmodelleket a szolgáltató modelljeihez. Azonos nevek változatlanul mennek tovább, a többi a kiválasztott alapértelmezett modellt használja; mindegyik külön módosítható."
+    },
     "provider": {
       "missingCredentials": "Hiányoznak a mentett hitelesítő adatok. Szerkessze a képszolgáltatót.",
       "replaceRoutes": "Ezen modellek irányítása ehhez a képszolgáltatóhoz: {{models}}",

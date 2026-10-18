@@ -11,8 +11,8 @@ import {
 import type { ImagesServerConfig } from './types';
 import { normalizeImageApiProviders, validateImageApiProviders } from './imageApiProviderConfig';
 
-/** The default Codex private-wire models (pinned to the shipped wire constants). */
-export const DEFAULT_CODEX_IMAGE_MODEL = 'gpt-image-2';
+/** Default models used by the configured Codex subscription adapter. */
+export const DEFAULT_CODEX_IMAGE_MODEL = 'gpt-image-2.5-sunburst';
 export const DEFAULT_CODEX_CARRIER_MODEL = 'gpt-5.6-luna';
 
 const MIB = 1024 * 1024;
@@ -75,7 +75,7 @@ export const DEFAULT_IMAGES_SERVER_CONFIG: Readonly<ImagesServerConfig> = Object
   enabled: false,
   providers: Object.freeze({}),
   models: Object.freeze({ ...DEFAULT_IMAGE_MODEL_ROUTES }),
-  defaultModel: 'gpt-image-2',
+  defaultModel: DEFAULT_CODEX_IMAGE_MODEL,
   aliases: Object.freeze({}),
   codex: Object.freeze({
     imageModel: DEFAULT_CODEX_IMAGE_MODEL,
@@ -114,7 +114,7 @@ export const DEFAULT_IMAGES_SERVER_CONFIG: Readonly<ImagesServerConfig> = Object
 
 const LIMIT_KEYS = Object.keys(DEFAULT_IMAGE_API_LIMITS) as Array<keyof ImageApiLimits>;
 type MutableImageApiLimits = { -readonly [K in keyof ImageApiLimits]: ImageApiLimits[K] };
-const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const SAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 /** Official Google shutdown replacements; applied only to built-in subscription routes. */
 export const RETIRED_GOOGLE_IMAGE_MODELS: Readonly<Record<string, string>> = Object.freeze({
@@ -189,7 +189,7 @@ function normalizedRoutes(raw: Record<string, unknown>): Record<string, ImagePro
   // the single legacy provider (codex); anything else falls to the pinned table.
   const defaultModel = typeof raw['defaultModel'] === 'string' && MODEL_ID.test(raw['defaultModel'])
     ? raw['defaultModel']
-    : 'gpt-image-2';
+    : DEFAULT_CODEX_IMAGE_MODEL;
   const migrated: Record<string, ImageProviderId> = { [defaultModel]: 'codex-subscription' };
   const legacyAliases = record(raw['modelAliases']);
   if (legacyAliases) {
@@ -369,12 +369,18 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
 
   const models = normalizedRoutes(raw);
   const rawDefault = typeof raw['defaultModel'] === 'string' ? raw['defaultModel'] : undefined;
+  const codexRaw = record(raw['codex']) ?? {};
+  const upgradeCodexDefault = rawDefault === 'gpt-image-2' && models[rawDefault] === 'codex-subscription'
+    && (codexRaw['imageModel'] === undefined || codexRaw['imageModel'] === 'gpt-image-2')
+    && (!models[DEFAULT_CODEX_IMAGE_MODEL] || models[DEFAULT_CODEX_IMAGE_MODEL] === 'codex-subscription');
+  if (upgradeCodexDefault) models[DEFAULT_CODEX_IMAGE_MODEL] = 'codex-subscription';
   const migratedDefault = rawDefault && record(raw['models'])?.[rawDefault] === 'antigravity-subscription'
-    ? RETIRED_GOOGLE_IMAGE_MODELS[rawDefault] ?? rawDefault : rawDefault;
+    ? RETIRED_GOOGLE_IMAGE_MODELS[rawDefault] ?? rawDefault : upgradeCodexDefault ? DEFAULT_CODEX_IMAGE_MODEL : rawDefault;
   const defaultModel = migratedDefault && MODEL_ID.test(migratedDefault)
     && (raw['provider'] !== undefined || Object.keys(models).includes(migratedDefault))
     ? migratedDefault
-    : Object.keys(models)[0] ?? DEFAULT_IMAGES_SERVER_CONFIG.defaultModel;
+    : models[DEFAULT_IMAGES_SERVER_CONFIG.defaultModel] ? DEFAULT_IMAGES_SERVER_CONFIG.defaultModel
+      : Object.keys(models)[0] ?? DEFAULT_IMAGES_SERVER_CONFIG.defaultModel;
   const rawAliases = record(raw['aliases'] ?? raw['modelAliases']) ?? {};
   const migratedAliases = Object.fromEntries(Object.entries(rawAliases).map(([alias, target]) => [alias,
     typeof target === 'string' && record(raw['models'])?.[target] === 'antigravity-subscription'
@@ -389,9 +395,8 @@ export function normalizeImagesServerConfig(value: unknown): ImagesServerConfig 
     }
   }
 
-  const codexRaw = record(raw['codex']) ?? {};
   const codex = {
-    imageModel: typeof codexRaw['imageModel'] === 'string' && MODEL_ID.test(codexRaw['imageModel'])
+    imageModel: !upgradeCodexDefault && typeof codexRaw['imageModel'] === 'string' && MODEL_ID.test(codexRaw['imageModel'])
       ? codexRaw['imageModel']
       : DEFAULT_IMAGES_SERVER_CONFIG.codex.imageModel,
     carrierModel: typeof codexRaw['carrierModel'] === 'string' && MODEL_ID.test(codexRaw['carrierModel'])

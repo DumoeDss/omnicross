@@ -14,6 +14,10 @@ export interface ImageApiProviderConfig {
   readonly protocol: ImageApiProtocol;
   readonly sourceProviderId: string;
   readonly enabled?: boolean;
+  /** Upstream model catalog, independent of public model routes. */
+  readonly models?: readonly string[];
+  /** Optional request names in this provider's catalog, independent of active routes. */
+  readonly modelAliases?: Readonly<Record<string, string>>;
   /** Public route id to upstream model id; omitted entries use the public id. */
   readonly modelMap?: Readonly<Record<string, string>>;
 }

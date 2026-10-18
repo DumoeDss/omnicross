@@ -13,6 +13,33 @@ function validImagesConfig(): Record<string, unknown> {
 }
 
 describe('Images server config normalization', () => {
+  it('stores a template catalog before any routes exist and round-trips namespaced passthrough routes', () => {
+    const provider = { protocol: 'wavespeed' as const, sourceProviderId: 'wave-key', models: ['openai/gpt-image-2.5-sunburst/text-to-image'] };
+    const added = { ...validImagesConfig(), providers: { wave: provider } };
+    expect(validateImagesServerConfig(added)).toEqual([]);
+    expect(normalizeImagesServerConfig(added).providers.wave).toEqual(provider);
+    const aliased = { ...added, providers: { wave: { ...provider, modelAliases: { 'gpt-image-2': provider.models[0] } } } };
+    expect(validateImagesServerConfig(aliased)).toEqual([]);
+    expect(normalizeImagesServerConfig(aliased).providers.wave.modelAliases).toEqual(aliased.providers.wave.modelAliases);
+    const model = provider.models[0]!;
+    const routed = { ...added, models: { [model]: 'wave' }, defaultModel: model };
+    expect(validateImagesServerConfig(routed)).toEqual([]);
+    expect(normalizeImagesServerConfig(routed)).toMatchObject({ models: routed.models, defaultModel: model });
+    const longModel = 'vendor/' + 'x'.repeat(160);
+    expect(validateImagesServerConfig({ ...added, providers: { wave: { ...provider, models: [longModel] } } })).toEqual([]);
+    expect(validateImagesServerConfig({ ...added, providers: { wave: { ...provider, models: ['__proto__'] } } }).join(' ')).toContain('valid model ids');
+  });
+  it('uses Image 2.5 by default and migrates only the untouched subscription default', () => {
+    expect(normalizeImagesServerConfig(undefined).defaultModel).toBe('gpt-image-2.5-sunburst');
+    const legacy = normalizeImagesServerConfig({ models: { 'gpt-image-2': 'codex-subscription' }, defaultModel: 'gpt-image-2',
+      codex: { imageModel: 'gpt-image-2', carrierModel: 'custom-carrier' } });
+    expect(legacy.defaultModel).toBe('gpt-image-2.5-sunburst');
+    expect(legacy.codex).toEqual({ imageModel: 'gpt-image-2.5-sunburst', carrierModel: 'custom-carrier' });
+    const custom = normalizeImagesServerConfig({ providers: { api: { protocol: 'openai-images', sourceProviderId: 'key' } },
+      models: { 'gpt-image-2': 'api' }, defaultModel: 'gpt-image-2' });
+    expect(custom.defaultModel).toBe('gpt-image-2');
+    expect(normalizeImagesServerConfig({ models: { 'gpt-image-2': 'codex-subscription' }, defaultModel: 'gpt-image-2', codex: { imageModel: 'gpt-image-2.5-flare' } }).defaultModel).toBe('gpt-image-2');
+  });
   it('drops orphan model mappings so tolerant reads can be saved again', () => {
     const config = normalizeImagesServerConfig({ providers: {
       api: { protocol: 'openai-images', sourceProviderId: 'stored', modelMap: { current: 'gpt-image-2.5-flare', removed: 'gpt-image-2' } },
@@ -66,7 +93,7 @@ describe('Images server config normalization', () => {
     });
     expect(normalized.images).toEqual(DEFAULT_IMAGES_SERVER_CONFIG);
     expect(normalized.images?.enabled).toBe(false);
-    expect(normalized.images?.defaultModel).toBe('gpt-image-2');
+    expect(normalized.images?.defaultModel).toBe('gpt-image-2.5-sunburst');
     expect(normalized.images?.queue).toMatchObject({
       maxConcurrentJobsPerAccount: 1,
       maxQueuedJobs: 20,
@@ -96,7 +123,7 @@ describe('Images server config normalization', () => {
     expect(normalized.models).toEqual(DEFAULT_IMAGES_SERVER_CONFIG.models);
     expect(normalized.models['gpt-image-2']).toBe('codex-subscription');
     expect(normalized.models['gemini-3-pro-image']).toBe('antigravity-subscription');
-    expect(normalized.codex).toEqual({ imageModel: 'gpt-image-2', carrierModel: 'gpt-5.6-luna' });
+    expect(normalized.codex).toEqual({ imageModel: 'gpt-image-2.5-sunburst', carrierModel: 'gpt-5.6-luna' });
     expect(normalized.account).toEqual({ id: 'account', fallback: 'strict' });
     expect(normalized.queue.maxQueuedJobs).toBe(DEFAULT_IMAGES_SERVER_CONFIG.queue.maxQueuedJobs);
     expect(normalized.queue.generationTimeoutMs)
@@ -122,7 +149,7 @@ describe('Images server config normalization', () => {
     images['enabled'] = true;
     const merged = mergeServerConfig(current, { images: images as never });
     expect(merged.images?.enabled).toBe(true);
-    expect(merged.images?.defaultModel).toBe('gpt-image-2');
+    expect(merged.images?.defaultModel).toBe('gpt-image-2.5-sunburst');
   });
 
   it('migrates the persisted 0.2.0 JSON limit used before Codex JSON edits', () => {

@@ -142,19 +142,16 @@ describe('ImagesPage rendering (images-settings-tab)', () => {
     }
   });
 
-  it('keeps the advanced configuration panels on the advanced tab', () => {
+  it('focuses advanced settings on Codex image provider selection and hides runtime diagnostics', () => {
     const markup = renderToStaticMarkup(
       React.createElement(ImagesPage, { imagesTab: 'advanced' }),
     );
-    // Per-provider cards (one per routed provider) and the verify panel ride
-    // the advanced tab now.
-    expect(markup).toContain('image-provider-codex-subscription');
-    expect(markup).toContain('image-provider-antigravity-subscription');
-    expect(markup).toContain('image-verify-panel');
-    // The migrated section's route table rides the advanced tab.
-    expect(markup).toContain('image-route-table');
-    // The honest bootstrap label for the evidence-less antigravity row.
-    expect(markup).toContain('images.providers.bootstrap');
+    expect(markup).toContain('codex-image-routing');
+    expect(markup).toContain('images.routing.provider');
+    expect(markup).not.toContain('image-verify-panel');
+    expect(markup).not.toContain('image-route-table');
+    expect(markup).not.toContain('images.resources.title');
+    expect(markup).not.toContain('images.codex.carrierModel');
   });
 
   it('shows only configured image instances and synced image accounts, including disabled instances', () => {

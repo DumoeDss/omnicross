@@ -9,10 +9,9 @@ import { agent } from '@/shared/agent';
 import { useTranslation } from '@/shared/state/LocaleContext';
 import type { LLMProvider } from '@shared/llm-config';
 
-import { saveImageInstance } from './imageProviderConfigModel';
+import { imageProviderModels, saveImageProvider } from './imageProviderConfigModel';
 import {
   IMAGE_PROVIDER_TEMPLATES,
-  imageProviderModelsText,
   nextImageProviderId,
   type ImageProviderTemplate,
 } from './imageProviderTemplates';
@@ -35,21 +34,17 @@ export function ImageProviderForm({ config, sources, template, existingId, busy,
   const existing = existingId ? config.providers?.[existingId] : undefined;
   const [id, setId] = useState(existingId ?? nextImageProviderId(config, template));
   const [protocol, setProtocol] = useState<ImageApiProtocol>(existing?.protocol ?? template.protocol);
-  const [models, setModels] = useState(existingId ? imageProviderModelsText(config, existingId) : template.models);
   const [enabled, setEnabled] = useState(existing?.enabled !== false);
   const [credentialMode, setCredentialMode] = useState(existing ? 'saved' : 'new');
   const [sourceId, setSourceId] = useState(existing?.sourceProviderId ?? '');
   const [name, setName] = useState(template.name);
   const [baseUrl, setBaseUrl] = useState(template.baseUrl);
   const [key, setKey] = useState('');
-  const [replaceRoutes, setReplaceRoutes] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A config failure must not create another credential row on retry.
   const createdSource = useRef<{ id: string; name: string; baseUrl: string } | null>(null);
   const disabled = busy || saving;
-  const conflicts = models.split(/\r?\n/u).map((line) => line.split('=')[0]!.trim())
-    .filter((model) => config.models[model] && config.models[model] !== id.trim());
 
   async function save() {
     setError(null);
@@ -59,9 +54,12 @@ export function ImageProviderForm({ config, sources, template, existingId, busy,
       if (!existingId && Object.prototype.hasOwnProperty.call(config.providers ?? {}, instanceId)) {
         throw new Error('images.api.duplicateInstance');
       }
-      const instance = { protocol, sourceProviderId: credentialMode === 'new' ? 'pending' : sourceId, enabled };
-      // Validate all routing fields before writing credentials.
-      let next = saveImageInstance(config, instanceId, instance, models, { replaceExistingRoutes: replaceRoutes });
+      const selectedTemplate = IMAGE_PROVIDER_TEMPLATES.find((value) => value.protocol === protocol) ?? template;
+      const instance = { ...existing, protocol, sourceProviderId: credentialMode === 'new' ? 'pending' : sourceId, enabled,
+        models: existing ? imageProviderModels(config, existingId!) : [...(protocol === template.protocol ? template : selectedTemplate).models],
+        ...(existing && !existing.modelAliases ? { modelAliases: Object.fromEntries(Object.entries(existing.modelMap ?? {}).filter(([model, upstream]) => model !== upstream)) } : {}),
+      };
+      let next = saveImageProvider(config, instanceId, instance);
       if (credentialMode === 'new') {
         let url: URL;
         try { url = new URL(baseUrl.trim()); } catch { throw new Error('images.api.invalidUrl'); }
@@ -137,22 +135,11 @@ export function ImageProviderForm({ config, sources, template, existingId, busy,
           ]} onChange={setSourceId} /></div>
         )}
       </div>
-      <label className="block space-y-1.5 text-xs">{t('images.api.models')}
-        <textarea aria-label={t('images.api.models')} className="min-h-28 w-full rounded-md border border-border bg-surface-0 p-2 font-mono text-xs"
-          value={models} disabled={disabled} placeholder={template.models} onChange={(event) => { setModels(event.target.value); setReplaceRoutes(false); }} />
-        <span className="block text-muted-foreground">{t('images.api.modelsHint')}</span>
-      </label>
-      {conflicts.length ? (
-        <label className="flex items-start gap-2 rounded-lg border border-warning/40 p-3 text-xs">
-          <input type="checkbox" className="mt-0.5 accent-primary" checked={replaceRoutes} disabled={disabled} onChange={(event) => setReplaceRoutes(event.target.checked)} />
-          <span>{t('images.provider.replaceRoutes', { models: [...new Set(conflicts)].join(', ') })}</span>
-        </label>
-      ) : null}
       <label className="flex items-center gap-2 text-xs"><Switch checked={enabled} disabled={disabled} onCheckedChange={setEnabled} />{t('images.track.on')}</label>
-      <p className="text-xs text-muted-foreground">{t('images.api.verificationHint')}</p>
+      <p className="text-xs text-muted-foreground">{t('images.models.afterCreate')}</p>
       {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={disabled || !id.trim() || !models.trim() || (conflicts.length > 0 && !replaceRoutes)
+        <Button type="submit" size="sm" disabled={disabled || !id.trim()
           || (credentialMode === 'new' ? !name.trim() || !baseUrl.trim() || (!key.trim() && !createdSource.current) : !sourceId)}>{t('images.api.save')}</Button>
         <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={onCancel}>{t('images.api.cancel')}</Button>
       </div>

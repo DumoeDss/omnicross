@@ -1,93 +1,20 @@
-import {
-  ArrowRight,
-  CloudOff,
-  Gauge,
-  HardDrive,
-  Image,
-  Route,
-  ShieldAlert,
-  ShieldCheck,
-  SlidersHorizontal,
-} from 'lucide-react';
-import React from 'react';
+import { ArrowRight, Image, Route } from 'lucide-react';
+import React, { useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Select, type SelectOption } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type {
-  ImageProviderId,
-  ImagesCapabilityStatus,
-  ImagesServerConfig,
-  OutboundApiServerStatus,
-  SubscriptionAccountSanitized,
-} from '@/daemon/types';
+import type { ImagesServerConfig, SubscriptionAccountSanitized } from '@/daemon/types';
 import { useTranslation } from '@/shared/state/LocaleContext';
-import { moveImageRoute } from './imageProviderConfigModel';
+import type { LLMProvider } from '@shared/llm-config';
 
-interface ImagesSectionProps {
-  config: ImagesServerConfig | undefined;
-  capability: ImagesCapabilityStatus | null;
-  status: OutboundApiServerStatus | null;
-  accounts: SubscriptionAccountSanitized[];
-  busy: boolean;
-  onUpdate: (config: ImagesServerConfig) => Promise<void>;
-}
-
-const FEATURE_KEYS = [
-  'generate',
-  'edit',
-  'maskEdit',
-  'streaming',
-  'transparentBackground',
-  'responsesTool',
-] as const;
-
-/**
- * Mirror of core's pinned Codex wire defaults (the UI package cannot import
- * workspace packages). Clearing an override input restores these.
- */
-export const UI_DEFAULT_CODEX_IMAGE_MODEL = 'gpt-image-2';
-export const UI_DEFAULT_CODEX_CARRIER_MODEL = 'gpt-5.6-luna';
-
-/** Provider ids the route table is allowed to name (display order). */
-const IMAGE_PROVIDERS: readonly ImageProviderId[] = ['codex-subscription', 'antigravity-subscription'];
-
-export function imageProviderLabel(provider: ImageProviderId): string {
-  return provider === 'antigravity-subscription' ? 'Antigravity'
-    : provider === 'codex-subscription' ? 'Codex' : provider;
-}
-
-/** Route-table rows for the read-only display (default model first, then alphabetical). */
-export function imageRouteEntries(
-  config: ImagesServerConfig,
-): Array<{ model: string; provider: ImageProviderId }> {
-  return Object.entries(config.models ?? {})
-    .map(([model, provider]) => ({ model, provider }))
-    .sort((a, b) => {
-      if (a.model === config.defaultModel) return -1;
-      if (b.model === config.defaultModel) return 1;
-      return a.model.localeCompare(b.model);
-    });
-}
-
-/** Codex override inputs: blank/whitespace restores the pinned wire default. */
-export function applyImageCodexOverrides(
-  config: ImagesServerConfig,
-  overrides: { imageModel?: string; carrierModel?: string },
-): ImagesServerConfig {
-  return {
-    ...config,
-    codex: {
-      imageModel: overrides.imageModel === undefined
-        ? config.codex.imageModel
-        : overrides.imageModel.trim() || UI_DEFAULT_CODEX_IMAGE_MODEL,
-      carrierModel: overrides.carrierModel === undefined
-        ? config.codex.carrierModel
-        : overrides.carrierModel.trim() || UI_DEFAULT_CODEX_CARRIER_MODEL,
-    },
-  };
-}
+import {
+  CODEX_IMAGE_MODELS,
+  DEFAULT_CODEX_IMAGE_MODEL,
+  configureCodexImageRoute,
+  imageProviderModels,
+  preferredImageModel,
+} from './imageProviderConfigModel';
 
 export function imageAccountSelection(config: ImagesServerConfig): string {
   if (config.account.id) return `account:${config.account.id}`;
@@ -95,10 +22,7 @@ export function imageAccountSelection(config: ImagesServerConfig): string {
   return 'pool';
 }
 
-export function applyImageAccountSelection(
-  config: ImagesServerConfig,
-  selection: string,
-): ImagesServerConfig {
+export function applyImageAccountSelection(config: ImagesServerConfig, selection: string): ImagesServerConfig {
   const account = selection.startsWith('account:')
     ? { id: selection.slice('account:'.length), fallback: config.account.fallback }
     : selection.startsWith('group:')
@@ -107,335 +31,115 @@ export function applyImageAccountSelection(
   return { ...config, account };
 }
 
-export function formatImageBytes(bytes: number): string {
-  const safe = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
-  if (safe < 1024) return `${Math.floor(safe)} B`;
-  if (safe < 1024 * 1024) return `${(safe / 1024).toFixed(1)} KiB`;
-  return `${(safe / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-function Utilization({ label, used, max }: { label: string; used: number; max: number }) {
-  const percent = max > 0 ? Math.min(100, Math.max(0, (used / max) * 100)) : 0;
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium text-foreground">{used} / {max}</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
-        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function StatusTrack({
-  configured,
-  capability,
-}: {
-  configured: boolean;
-  capability: ImagesCapabilityStatus | null;
+export function ImagesSection({ config, accounts, antigravityAccounts = [], sources = [], busy, onUpdate }: {
+  config: ImagesServerConfig;
+  accounts: SubscriptionAccountSanitized[];
+  antigravityAccounts?: SubscriptionAccountSanitized[];
+  sources?: LLMProvider[];
+  busy: boolean;
+  onUpdate: (config: ImagesServerConfig) => Promise<void>;
 }) {
   const t = useTranslation();
-  const effective = capability?.effective.available === true;
-  const reason = capability?.effective.reason;
-  return (
-    <div className="grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]">
-      <div className="rounded-lg border border-border/70 bg-surface-0 px-3 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {t('images.track.configured')}
-        </p>
-        <div className="mt-2 flex items-center gap-2">
-          {configured
-            ? <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-            : <ShieldAlert className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
-          <span className="text-sm font-semibold text-foreground">
-            {configured ? t('images.track.on') : t('images.track.off')}
-          </span>
-        </div>
-      </div>
-      <div className="hidden items-center text-muted-foreground sm:flex" aria-hidden="true">
-        <ArrowRight className="h-4 w-4" />
-      </div>
-      <div className="rounded-lg border border-border/70 bg-surface-0 px-3 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {t('images.track.effective')}
-        </p>
-        <div className="mt-2 flex items-center gap-2">
-          {effective
-            ? <ShieldCheck className="h-4 w-4 text-success" aria-hidden="true" />
-            : <ShieldAlert className="h-4 w-4 text-warning" aria-hidden="true" />}
-          <span className="text-sm font-semibold text-foreground">
-            {effective
-              ? t('images.track.available')
-              : t('images.track.unavailable')}
-          </span>
-        </div>
-        {!effective ? (
-          <p className="mt-1 truncate text-[11px] text-muted-foreground" title={reason ?? undefined}>
-            {reason ?? t('images.track.unknown')}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
+  const initialProvider = config.models[config.defaultModel] ?? 'codex-subscription';
+  const initialModel = initialProvider === 'codex-subscription' ? config.codex.imageModel
+    : config.providers?.[initialProvider]?.modelMap?.[config.defaultModel] ?? config.defaultModel;
+  const [enabled, setEnabled] = useState(config.enabled);
+  const [providerId, setProviderId] = useState(initialProvider);
+  const [model, setModel] = useState(initialModel);
+  const [selection, setSelection] = useState(imageAccountSelection(config));
+  const [fallback, setFallback] = useState(config.account.fallback);
+  const [mappings, setMappings] = useState<Record<string, string>>(() => Object.fromEntries(CODEX_IMAGE_MODELS.map((requested) => [requested,
+    config.providers?.[initialProvider]?.modelMap?.[requested] ?? config.providers?.[initialProvider]?.modelAliases?.[requested] ?? config.aliases[requested]
+      ?? preferredImageModel(imageProviderModels(config, initialProvider), requested, initialModel),
+  ])));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const disabled = busy || saving;
 
-export function ImagesSection({
-  config,
-  capability,
-  status,
-  accounts,
-  busy,
-  onUpdate,
-}: ImagesSectionProps) {
-  const t = useTranslation();
-  const update = (next: ImagesServerConfig) => { void onUpdate(next).catch(() => undefined); };
-  if (!config) {
-    return (
-      <section className="rounded-xl border border-dashed border-border/70 p-4">
-        <p className="text-sm font-semibold text-foreground">{t('images.title')}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t('images.unsupportedDaemon')}</p>
-      </section>
-    );
+  function modelsFor(id: string): string[] {
+    if (id === 'codex-subscription') return [...CODEX_IMAGE_MODELS];
+    const models = imageProviderModels(config, id);
+    return id === 'antigravity-subscription'
+      ? [...new Set([...models, 'gemini-nano-banana-2.1', 'gemini-3-pro-image'])] : models;
   }
-
-  const groups = [...new Set(accounts.map((account) => account.group).filter(Boolean))];
+  const availableModels = modelsFor(providerId);
+  const modelOptions = [...new Set([...availableModels, ...(model ? [model] : [])])].map((value) => ({ value, label: value }));
+  const providerOptions: SelectOption[] = [
+    { value: 'codex-subscription', label: t('images.routing.codexSubscription') },
+    { value: 'antigravity-subscription', label: t('images.routing.antigravitySubscription') },
+    ...Object.entries(config.providers ?? {}).map(([id, instance]) => {
+      const source = sources.find((entry) => entry.id === instance.sourceProviderId);
+      return { value: id, label: source?.name || id, disabled: instance.enabled === false || source?.enabled === false };
+    }),
+  ];
+  const providerLabel = providerOptions.find((entry) => entry.value === providerId)?.label;
+  const subscription = providerId === 'codex-subscription' || providerId === 'antigravity-subscription';
+  const providerAccounts = providerId === 'antigravity-subscription' ? antigravityAccounts : accounts;
+  const groups = [...new Set(providerAccounts.map((account) => account.group).filter(Boolean))];
   const accountOptions: SelectOption[] = [
     { value: 'pool', label: t('images.account.pool') },
-    ...groups.map((group) => ({
-      value: `group:${group}`,
-      label: t('images.account.group', { group }),
-    })),
-    ...accounts.map((account, index) => ({
-      value: `account:${account.id}`,
-      label: account.label || t('images.account.account', { number: index + 1 }),
-      disabled: !account.enabled || !account.schedulable,
-    })),
+    ...groups.map((group) => ({ value: `group:${group}`, label: t('images.account.group', { group }) })),
+    ...providerAccounts.map((account, index) => ({ value: `account:${account.id}`,
+      label: account.label || t('images.account.account', { number: index + 1 }), disabled: !account.enabled || !account.schedulable })),
   ];
-  const resources = capability?.runtime.resources ?? status?.imageRuntime?.resources;
-  const features = capability?.effective.features;
-  const endpoints = capability?.endpoints ?? status?.images ?? null;
-  const evidence = capability?.effective.evidence;
 
+  function changeProvider(id: string) {
+    const models = modelsFor(id);
+    const preferred = config.providers?.[id]?.modelAliases?.[DEFAULT_CODEX_IMAGE_MODEL] ?? preferredImageModel(models);
+    setProviderId(id); setModel(preferred); setSelection('pool');
+    setMappings(Object.fromEntries(CODEX_IMAGE_MODELS.map((requested) => [requested, config.providers?.[id]?.modelAliases?.[requested] ?? preferredImageModel(models, requested, preferred)])));
+  }
+  async function save() {
+    setSaving(true); setError(null);
+    try {
+      let next = configureCodexImageRoute(config, providerId, model, mappings);
+      next = { ...next, enabled };
+      if (subscription) next = applyImageAccountSelection({ ...next, account: { ...next.account, fallback } }, selection);
+      await onUpdate(next);
+    } catch (err) { setError(err instanceof Error ? t(err.message) : String(err)); }
+    finally { setSaving(false); }
+  }
   return (
-    <section className="rounded-xl border border-border/70 bg-surface-1/50 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="space-y-5 rounded-xl border border-border/70 bg-surface-1/50 p-5" data-testid="codex-image-routing">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <Image className="h-4 w-4 text-primary" aria-hidden="true" />
-          </span>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">{t('images.title')}</h3>
-              <Badge variant="outline">{config.defaultModel}</Badge>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{t('images.description')}</p>
-          </div>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"><Image className="h-4 w-4 text-primary" aria-hidden="true" /></span>
+          <div><h3 className="text-sm font-semibold">{t('images.routing.title')}</h3><p className="mt-1 text-xs text-muted-foreground">{t('images.routing.description')}</p></div>
         </div>
-        <Switch
-          checked={config.enabled}
-          disabled={busy}
-          onCheckedChange={(enabled) => update({ ...config, enabled })}
-          aria-label={t('images.enable')}
-        />
+        <Switch checked={enabled} disabled={disabled} onCheckedChange={setEnabled} aria-label={t('images.enable')} />
       </div>
-
-      <div className="mt-4">
-        <StatusTrack configured={config.enabled} capability={capability} />
-        <p className="mt-2 text-[11px] text-muted-foreground">{t('images.entitlementWarning')}</p>
-      </div>
-
-      <div className="mt-4 grid gap-3 border-t border-border/60 pt-4 sm:grid-cols-2">
-        <label className="space-y-1.5 text-xs">
-          <span className="font-medium text-foreground">{t('images.defaultModel')}</span>
-          <Select
-            className="w-full"
-            size="sm"
-            value={config.defaultModel}
-            options={Object.keys(config.models ?? {}).map((model) => ({ value: model, label: model }))}
-            disabled={busy}
-            onChange={(model) => update({ ...config, defaultModel: model })}
-          />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label htmlFor="codex-image-provider" className="space-y-1.5 text-xs"><span className="font-medium">{t('images.routing.provider')}</span>
+          <Select id="codex-image-provider" value={providerId} options={providerOptions} disabled={disabled} onChange={changeProvider} />
         </label>
-        <label className="space-y-1.5 text-xs">
-          <span className="font-medium text-foreground">{t('images.account.label')}</span>
-          <Select
-            className="w-full"
-            size="sm"
-            value={imageAccountSelection(config)}
-            options={accountOptions}
-            disabled={busy}
-            onChange={(selection) => update(applyImageAccountSelection(config, selection))}
-          />
-        </label>
-        <label className="space-y-1.5 text-xs">
-          <span className="font-medium text-foreground">{t('images.account.fallback')}</span>
-          <Select
-            className="w-full"
-            size="sm"
-            value={config.account.fallback}
-            options={[
-              { value: 'strict', label: t('images.account.strict') },
-              { value: 'pool', label: t('images.account.poolFallback') },
-            ]}
-            disabled={busy}
-            onChange={(fallback) => update({
-              ...config,
-              account: { ...config.account, fallback: fallback as 'strict' | 'pool' },
-            })}
-          />
+        <label htmlFor="codex-image-model" className="space-y-1.5 text-xs"><span className="font-medium">{t('images.routing.model')}</span>
+          <Select id="codex-image-model" value={model} options={modelOptions} disabled={disabled || !modelOptions.length} onChange={(value) => {
+            setModel(value); setMappings(Object.fromEntries(CODEX_IMAGE_MODELS.map((requested) => [requested, value])));
+          }} />
         </label>
       </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-border/60 bg-surface-0/70 p-3">
-          <div className="flex items-center gap-2">
-            <Route className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h4 className="text-xs font-semibold text-foreground">{t('images.routes.title')}</h4>
-          </div>
-          <ul className="mt-3 space-y-1.5" data-testid="image-route-table">
-            {imageRouteEntries(config).map(({ model, provider }) => (
-              <li key={model} className="flex items-center justify-between gap-2 text-[11px]">
-                <code className="truncate rounded bg-surface-2/60 px-1.5 py-0.5">{model}</code>
-                <span className="flex shrink-0 items-center gap-1.5">
-                  {model === config.defaultModel ? (
-                    <Badge variant="outline">{t('images.routes.defaultBadge')}</Badge>
-                  ) : null}
-                  <Select size="sm" value={provider} disabled={busy}
-                    aria-label={`${t('images.routes.title')}: ${model}`}
-                    options={[...IMAGE_PROVIDERS, ...Object.keys(config.providers ?? {})].map((value) => ({ value, label: imageProviderLabel(value) }))}
-                    onChange={(value) => update(moveImageRoute(config, model, value))} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-lg border border-border/60 bg-surface-0/70 p-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h4 className="text-xs font-semibold text-foreground">{t('images.codex.title')}</h4>
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5 text-xs">
-              <span className="font-medium text-foreground">{t('images.codex.imageModel')}</span>
-              <Input
-                className="w-full"
-                value={config.codex?.imageModel ?? ''}
-                placeholder={UI_DEFAULT_CODEX_IMAGE_MODEL}
-                disabled={busy}
-                onChange={(e) => update(applyImageCodexOverrides(config, { imageModel: e.target.value }))}
-                aria-label={t('images.codex.imageModel')}
-              />
-            </label>
-            <label className="space-y-1.5 text-xs">
-              <span className="font-medium text-foreground">{t('images.codex.carrierModel')}</span>
-              <Input
-                className="w-full"
-                value={config.codex?.carrierModel ?? ''}
-                placeholder={UI_DEFAULT_CODEX_CARRIER_MODEL}
-                disabled={busy}
-                onChange={(e) => update(applyImageCodexOverrides(config, { carrierModel: e.target.value }))}
-                aria-label={t('images.codex.carrierModel')}
-              />
-            </label>
-          </div>
-          <p className="mt-3 text-[10px] text-muted-foreground">
-            {t('images.codex.hint')}
-          </p>
-        </div>
+      {!availableModels.length ? <p className="text-xs text-muted-foreground">{t('images.models.empty')}</p> : null}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-0/80 px-3 py-3 text-xs" data-testid="codex-image-route-preview">
+        <Route className="h-4 w-4 text-primary" aria-hidden="true" /><span>Codex</span><ArrowRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" /><span>{providerLabel}</span><ArrowRight className="h-3 w-3 text-muted-foreground" aria-hidden="true" /><code className="break-all">{model || DEFAULT_CODEX_IMAGE_MODEL}</code>
       </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-border/60 bg-surface-0/70 p-3">
-          <div className="flex items-center gap-2">
-            <Gauge className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h4 className="text-xs font-semibold text-foreground">{t('images.features.title')}</h4>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {FEATURE_KEYS.map((feature) => (
-              <div key={feature} className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="text-muted-foreground">{t(`images.features.${feature}`)}</span>
-                <Badge variant={features?.[feature] ? 'success' : 'secondary'}>
-                  {features?.[feature]
-                    ? t('images.features.supported')
-                    : t('images.features.unsupported')}
-                </Badge>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[10px] text-muted-foreground">
-            {evidence
-              ? t('images.evidence', { age: Math.floor(evidence.ageMs / 1000) })
-              : t('images.noEvidence')}
-          </p>
+      {providerId !== 'codex-subscription' ? <div className="space-y-3" data-testid="codex-image-model-mapping">
+        <p className="text-xs text-muted-foreground">{t('images.routing.mappingHint')}</p>
+        <div className="grid gap-2">
+          {CODEX_IMAGE_MODELS.map((requested) => <label key={requested} htmlFor={`image-mapping-${requested}`} className="grid items-center gap-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)]">
+            <code>{requested}</code><ArrowRight className="hidden h-3 w-3 text-muted-foreground sm:block" aria-hidden="true" />
+            <Select id={`image-mapping-${requested}`} value={mappings[requested] ?? model} options={modelOptions} disabled={disabled || !modelOptions.length} onChange={(value) => {
+              setMappings({ ...mappings, [requested]: value });
+              if (requested === DEFAULT_CODEX_IMAGE_MODEL) setModel(value);
+            }} />
+          </label>)}
         </div>
-
-        <div className="rounded-lg border border-border/60 bg-surface-0/70 p-3">
-          <div className="flex items-center gap-2">
-            <HardDrive className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h4 className="text-xs font-semibold text-foreground">{t('images.resources.title')}</h4>
-          </div>
-          {resources ? (
-            <div className="mt-3 space-y-3">
-              <Utilization
-                label={t('images.resources.queue')}
-                used={resources.queue.activeJobs + resources.queue.waitingJobs}
-                max={resources.queue.maxQueuedJobs + resources.queue.maxConcurrentJobsPerAccount}
-              />
-              <Utilization
-                label={t('images.resources.temporary')}
-                used={resources.temporary.totalBytes}
-                max={resources.temporary.maxTotalBytes}
-              />
-              <Utilization
-                label={t('images.resources.references')}
-                used={resources.storage.referenceBytes}
-                max={resources.storage.maxReferenceBytes}
-              />
-              <p className="text-[10px] text-muted-foreground">
-                {t('images.resources.bytes', {
-                  temporary: formatImageBytes(resources.temporary.totalBytes),
-                  references: formatImageBytes(resources.storage.referenceBytes),
-                })}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-3 text-xs text-muted-foreground">{t('images.resources.unavailable')}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <div className="flex items-start gap-2 rounded-lg border border-border/60 px-3 py-2 text-xs">
-          <CloudOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="text-muted-foreground">
-            {config.remote.enabled
-              ? t('images.remote.enabledWarning')
-              : t('images.remote.disabled')}
-          </span>
-        </div>
-        <div className="flex items-start gap-2 rounded-lg border border-border/60 px-3 py-2 text-xs">
-          <HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="text-muted-foreground">
-            {config.references.storageRootConfigured
-              ? t('images.storage.custom')
-              : t('images.storage.privateDefault')}
-          </span>
-        </div>
-      </div>
-
-      {endpoints ? (
-        <div className="mt-4 grid gap-1.5 border-t border-border/60 pt-3 text-[11px] sm:grid-cols-2">
-          <code className="truncate rounded bg-surface-2/60 px-2 py-1.5" title={endpoints.generations}>
-            {endpoints.generations}
-          </code>
-          <code className="truncate rounded bg-surface-2/60 px-2 py-1.5" title={endpoints.edits}>
-            {endpoints.edits}
-          </code>
-        </div>
-      ) : null}
+      </div> : null}
+      {subscription ? <div className="grid gap-4 border-t border-border/60 pt-4 sm:grid-cols-2">
+        <label className="space-y-1.5 text-xs"><span>{t('images.account.label')}</span><Select aria-label={t('images.account.label')} value={selection} options={accountOptions} disabled={disabled} onChange={setSelection} /></label>
+        <label className="space-y-1.5 text-xs"><span>{t('images.account.fallback')}</span><Select value={fallback} options={[{ value: 'strict', label: t('images.account.strict') }, { value: 'pool', label: t('images.account.poolFallback') }]} disabled={disabled} onChange={(value) => setFallback(value as 'strict' | 'pool')} /></label>
+      </div> : null}
+      {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
+      <Button type="button" size="sm" disabled={disabled || !model} onClick={() => void save()}>{t('images.api.save')}</Button>
     </section>
   );
 }

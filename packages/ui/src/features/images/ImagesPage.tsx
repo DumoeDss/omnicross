@@ -30,11 +30,8 @@ import { useProviderKeyQuotaSummaries, type KeyQuotaSummaryWindow } from '@/feat
 import { cn } from '@/shared/utils/utils';
 
 import { ImagesSection } from './ImagesSection';
-import { ImageAliasesForm } from './ImageAliasesForm';
 import { ImageProviderDetails } from './ImageProviderDetails';
 import { ImageProviderDialog } from './ImageProviderDialog';
-import { ProviderStatusCards } from './ProviderStatusCards';
-import { VerifyLivePanel } from './VerifyLivePanel';
 import { useImagesSettings } from './hooks/useImagesSettings';
 
 export type ImagesTab = 'accounts' | 'advanced';
@@ -89,12 +86,9 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
   const {
     loading,
     config,
-    capability,
-    status,
     busy,
     error,
     updateImagesConfig,
-    verifyImagesLive,
     refresh,
   } = useImagesSettings();
 
@@ -303,24 +297,14 @@ export function ImagesPage({ imagesTab, onTabChange }: ImagesPageProps) {
 
   const filterForcesExpanded = Boolean(query.trim());
 
-  const antigravityRouted = Object.values(config?.models ?? {})
-    .some((provider) => provider === 'antigravity-subscription');
-
   const advancedContent = config ? (
-    <div className="mx-auto max-w-5xl space-y-5 px-6 py-5">
-      <ProviderStatusCards capability={capability} />
-      <ImageAliasesForm config={config} busy={busy} onUpdate={updateImagesConfig} />
-      {config.models[config.defaultModel] === 'codex-subscription' ? <VerifyLivePanel
-        antigravityRouted={antigravityRouted}
-        busy={busy}
-        onVerify={verifyImagesLive}
-        onVerified={refresh}
-      /> : null}
+    <div className="mx-auto max-w-3xl px-6 py-5">
       <ImagesSection
+        key={JSON.stringify(config)}
         config={config}
-        capability={capability}
-        status={status}
         accounts={accountsApi.data.providerAccounts.codex ?? []}
+        antigravityAccounts={accountsApi.data.providerAccounts.antigravity ?? []}
+        sources={providersApi.providers}
         busy={busy}
         onUpdate={updateImagesConfig}
       />

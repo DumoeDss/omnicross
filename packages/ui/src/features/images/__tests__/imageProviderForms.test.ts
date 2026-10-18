@@ -11,10 +11,12 @@ import type { UseAccountsResult } from '@/features/accounts/hooks/useAccounts';
 import { ImageProviderForm } from '../ImageProviderForm';
 import { ImageProviderDialog } from '../ImageProviderDialog';
 import { ImageProviderDetails } from '../ImageProviderDetails';
+import { ImageProviderModels } from '../ImageProviderModels';
+import { ImagesSection } from '../ImagesSection';
 import { IMAGE_PROVIDER_TEMPLATES } from '../imageProviderTemplates';
 import { ImageCredentialForm } from '../ImageCredentialForm';
 
-const mocks = vi.hoisted(() => ({ getProviders: vi.fn(), updateProvider: vi.fn(), addProvider: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getProviders: vi.fn(), updateProvider: vi.fn(), addProvider: vi.fn(), discoverModels: vi.fn() }));
 vi.mock('@/shared/agent', () => ({ agent: { llmConfig: mocks } }));
 vi.mock('@/shared/state/LocaleContext', () => ({ useTranslation: () => (key: string) => key }));
 
@@ -61,19 +63,20 @@ describe('image provider forms', () => {
     await click('images.api.selectSource');
     await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="image-credential-source"] button')!.click(); });
     await click('Image credentials');
-    await change(container.querySelector('textarea')!, 'sunburst = gpt-image-2.5-sunburst');
+    expect(container.querySelector('textarea')).toBeNull();
+    expect(container.textContent).not.toContain('images.models.request');
     await click('images.api.save');
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Reload failed');
-    expect(container.querySelector('textarea')).not.toBeNull();
+    expect(container.querySelector('[data-testid="image-provider-form"]')).not.toBeNull();
     await click('images.api.save');
     expect(onUpdate.mock.calls[1][0]).toMatchObject({
-      defaultModel: 'gpt-image-2', models: { sunburst: 'studio-images' },
-      providers: { 'studio-images': { sourceProviderId: 'image-key', protocol: 'openai-images', modelMap: { sunburst: 'gpt-image-2.5-sunburst' } } },
+      defaultModel: 'gpt-image-2', models: config.models,
+      providers: { 'studio-images': { sourceProviderId: 'image-key', protocol: 'openai-images', models: ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] } },
     });
     expect(onUpdate).toHaveBeenCalledTimes(2);
   });
 
-  it('uses image templates and saves credentials plus image routing, without duplicating credentials on retry', async () => {
+  it('uses image templates and saves credentials without taking over routes or duplicating credentials on retry', async () => {
     const onUpdate = vi.fn().mockRejectedValueOnce(new Error('Config failed')).mockResolvedValue(undefined);
     const onSaved = vi.fn();
     mocks.addProvider.mockResolvedValue({ success: true, provider: { id: 'created-image-key' } });
@@ -96,22 +99,56 @@ describe('image provider forms', () => {
     expect(mocks.addProvider).toHaveBeenCalledTimes(1);
     expect(mocks.addProvider.mock.calls[0][0]).toMatchObject({ category: 'other', models: [] });
     expect(onUpdate.mock.calls[1][0]).toMatchObject({ providers: { 'openai-images': { protocol: 'openai-images', sourceProviderId: 'created-image-key' } },
-      models: { 'gpt-image-2.5-flare': 'openai-images', 'gpt-image-2.5-sunburst': 'openai-images', 'gpt-image-2': 'codex-subscription' } });
+      models: { 'gpt-image-2': 'codex-subscription' } });
+    expect(onUpdate.mock.calls[1][0].providers['openai-images'].modelMap).toBeUndefined();
     expect(onSaved).toHaveBeenCalledWith('openai-images');
   });
 
-  it('requires explicit consent before replacing subscription model routes', async () => {
+  it('stores overlapping provider models without taking ownership of subscription routes', async () => {
     const onUpdate = vi.fn();
-    mocks.addProvider.mockResolvedValue({ success: true, provider: { id: 'image-key' } });
-    await act(async () => root.render(React.createElement(ImageProviderForm, { config, sources: [],
-      template: { ...IMAGE_PROVIDER_TEMPLATES[0]!, models: 'gpt-image-2' }, busy: false,
-      onUpdate, onCredentialsChanged: vi.fn(), onSaved: vi.fn(), onCancel: vi.fn() })));
-    await change(container.querySelector('input[type="password"]')!, 'test-key');
-    expect(button('images.api.save').disabled).toBe(true);
+    const imageConfig = { ...config, providers: { studio: { protocol: 'openai-images', sourceProviderId: 'image-key', models: ['gpt-image-2'] } } } as ImagesServerConfig;
+    await act(async () => root.render(React.createElement(ImageProviderModels, { id: 'studio', config: imageConfig, busy: false, onUpdate })));
+    expect(button('images.api.save').disabled).toBe(false);
     expect(mocks.addProvider).not.toHaveBeenCalled();
-    await act(async () => { container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); });
     await click('images.api.save');
-    expect(onUpdate.mock.calls[0][0].models['gpt-image-2']).toBe('openai-images');
+    expect(onUpdate.mock.calls[0][0].models).toEqual(config.models);
+    expect(onUpdate.mock.calls[0][0].providers.studio.models).toEqual(['gpt-image-2']);
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  it('fetches image models after creation, retains drafts on error, and defaults to passing model ids through', async () => {
+    const imageConfig = { ...config, providers: { studio: { protocol: 'openrouter', sourceProviderId: 'image-key', models: [] } } } as ImagesServerConfig;
+    const onUpdate = vi.fn().mockRejectedValueOnce(new Error('Config failed')).mockResolvedValue(undefined);
+    mocks.discoverModels.mockResolvedValueOnce({ success: false, models: [], error: 'No access' })
+      .mockResolvedValueOnce({ success: true, models: [{ id: 'deepseek-chat' }, { id: 'google/gemini-nano-banana-2.1' }] });
+    await act(async () => root.render(React.createElement(ImageProviderModels, { id: 'studio', config: imageConfig, busy: false, onUpdate })));
+    await click('images.models.fetch');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('No access');
+    await click('images.models.fetch');
+    expect(mocks.discoverModels).toHaveBeenLastCalledWith('image-key', { forceRefresh: true });
+    expect(container.querySelector('input[aria-label="images.models.request 1"]')?.getAttribute('value')).toBe('google/gemini-nano-banana-2.1');
+    expect(container.textContent).not.toContain('deepseek-chat');
+    await click('images.api.save');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Config failed');
+    await click('images.api.save');
+    expect(onUpdate.mock.calls[1][0].providers.studio.models).toEqual(['google/gemini-nano-banana-2.1']);
+    expect(onUpdate.mock.calls[1][0].providers.studio.modelAliases).toEqual({});
+    expect(onUpdate.mock.calls[1][0].models).toEqual(config.models);
+  });
+
+  it('selects an independent image provider for Codex and maps GPT names to NanoBanana', async () => {
+    const imageConfig = { ...config, enabled: true, codex: { imageModel: 'gpt-image-2.5-sunburst', carrierModel: 'gpt-5.6-luna' },
+      account: { fallback: 'strict' }, providers: { wave: { protocol: 'wavespeed', sourceProviderId: 'image-key', models: ['google/nano-banana-2.1/text-to-image'] } } } as ImagesServerConfig;
+    const onUpdate = vi.fn();
+    await act(async () => root.render(React.createElement(ImagesSection, { config: imageConfig, accounts: [], sources: await mocks.getProviders(), busy: false, onUpdate })));
+    await act(async () => { document.getElementById('codex-image-provider')!.click(); });
+    await click('Image credentials');
+    expect(container.querySelector('[data-testid="codex-image-model-mapping"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('images.account.label');
+    await click('images.api.save');
+    expect(onUpdate.mock.calls[0][0]).toMatchObject({ defaultModel: 'gpt-image-2.5-sunburst', models: { 'gpt-image-2': 'wave', 'gpt-image-2.5-flare': 'wave', 'gpt-image-2.5-sunburst': 'wave' },
+      providers: { wave: { modelMap: { 'gpt-image-2': 'google/nano-banana-2.1/text-to-image', 'gpt-image-2.5-sunburst': 'google/nano-banana-2.1/text-to-image' } } } });
+    expect(onUpdate.mock.calls[0][0].codex).toEqual(imageConfig.codex);
   });
 
   it('edits and removes image instances without deleting shared credentials', async () => {
@@ -121,15 +158,18 @@ describe('image provider forms', () => {
     const onRemoved = vi.fn();
     await act(async () => root.render(React.createElement(ImageProviderDetails, { id: 'studio', config: imageConfig,
       sources: await mocks.getProviders(), busy: false, onUpdate, onRemoved, onCredentialsChanged: vi.fn() })));
-    expect(container.textContent).toContain('upstream/image');
-    await click('images.api.edit');
-    await change(container.querySelector('textarea')!, 'art = upstream/new-image');
+    expect(container.querySelector('input[aria-label="images.models.upstream 1"]')?.getAttribute('value')).toBe('upstream/image');
+    await change(container.querySelector('input[aria-label="images.models.upstream 1"]')!, 'upstream/new-image');
     await click('images.api.save');
     expect(onUpdate.mock.calls[0][0].providers.studio.modelMap).toEqual({ art: 'upstream/new-image' });
+    await click('images.api.edit');
+    expect(container.querySelector('textarea')).toBeNull();
+    await click('images.api.save');
+    expect(onUpdate.mock.calls[1][0].providers.studio.modelMap).toEqual({ art: 'upstream/image' });
     expect(mocks.updateProvider).not.toHaveBeenCalled();
     await click('images.api.remove');
     await act(async () => { document.querySelector<HTMLButtonElement>('[data-testid="dialog-confirm-ok-btn"]')!.click(); });
-    expect(onUpdate.mock.calls[1][0]).toMatchObject({ providers: {}, models: { 'gpt-image-2': 'codex-subscription' }, aliases: {} });
+    expect(onUpdate.mock.calls[2][0]).toMatchObject({ providers: {}, models: { 'gpt-image-2': 'codex-subscription' }, aliases: {} });
     expect(onRemoved).toHaveBeenCalled();
   });
 

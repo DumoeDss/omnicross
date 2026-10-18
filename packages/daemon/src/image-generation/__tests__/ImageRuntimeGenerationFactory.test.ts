@@ -44,6 +44,8 @@ function config(enabled = true): ImagesServerConfig {
   return {
     ...DEFAULT_IMAGES_SERVER_CONFIG,
     enabled,
+    defaultModel: 'gpt-image-2',
+    codex: { ...DEFAULT_IMAGES_SERVER_CONFIG.codex, imageModel: 'gpt-image-2' },
     aliases: { latest: 'gpt-image-2' },
     models: { 'gpt-image-2': 'codex-subscription', 'gemini-3-pro-image': 'antigravity-subscription' },
     account: { group: 'configured-group', fallback: 'pool' },

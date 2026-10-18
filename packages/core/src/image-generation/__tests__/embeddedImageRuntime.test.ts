@@ -13,6 +13,40 @@ const runtimes: ReturnType<typeof createEmbeddedImageRuntime>[] = [];
 afterEach(() => { for (const runtime of runtimes.splice(0)) runtime.dispose(); });
 
 describe('embedded image runtime', () => {
+  it.each([
+    ['wavespeed', 'openai/gpt-image-2.5-sunburst/text-to-image'],
+    ['wavespeed', 'google/nano-banana-2.1/text-to-image'],
+    ['gemini', 'gemini-nano-banana-2.1'],
+  ] as const)('keeps a Codex image tool opaque to a DeepSeek text route using %s / %s', async (protocol, upstreamModel) => {
+    const image = await sharp({ create: { width: 16, height: 16, channels: 4, background: '#ff0000' } }).png().toBuffer();
+    const fetch = vi.fn(async () => Response.json(protocol === 'wavespeed'
+      ? { data: { id: 'job', status: 'completed', outputs: ['https://cdn.example/result.png'] } }
+      : { steps: [{ type: 'model_output', content: [{ type: 'image', data: image.toString('base64') }] }] }));
+    const routes = { 'gpt-image-2': 'image-api', 'gpt-image-2.5-sunburst': 'image-api' };
+    const provider = createApiImageProvider({ id: 'image-api', protocol,
+      models: Object.fromEntries(Object.keys(routes).map((model) => [model, upstreamModel])),
+      resolveCredentials: async () => ({ baseUrl: 'https://image-api.example', apiKey: 'IMAGE_ONLY_KEY' }),
+      downloadOutput: async () => image, fetch,
+    });
+    const runtime = createEmbeddedImageRuntime({ providers: [provider], modelRoutes: routes, defaultModel: 'gpt-image-2.5-sunburst' });
+    runtimes.push(runtime);
+    const lease = await runtime.hostedFactory.acquire();
+    try {
+      const admission = lease.inspectRequest({ model: 'deepseek-chat', tools: [{ type: 'image_generation', model: 'gpt-image-2' }] });
+      const scope = await lease.openRequest({ admission, tenantId: 'tenant', requestId: 'request', sessionKey: 'session',
+        mainProviderId: 'deepseek', signal: new AbortController().signal });
+      const events = [];
+      for await (const event of scope.executeSelectedCall({ prompt: 'draw a dot' }, { reserveOutputIndex: () => 0, nextSequenceNumber: () => 0 })) events.push(event);
+      expect(events.at(-1)).toMatchObject({ kind: 'completed', item: { type: 'image_generation_call' } });
+      const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+      if (protocol === 'wavespeed') expect(url).toBe(`https://image-api.example/api/v3/${upstreamModel}`);
+      else expect(JSON.parse(String(init.body)).model).toBe(upstreamModel);
+      expect(JSON.stringify(events)).not.toContain(upstreamModel);
+      expect(JSON.stringify(events)).not.toContain('IMAGE_ONLY_KEY');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally { await lease.release(); }
+  });
+
   it('routes tools[].model aliases independently of the text/default image model', async () => {
     const fetchDefault = vi.fn();
     const image = await sharp({ create: { width: 16, height: 16, channels: 4, background: '#ff0000' } }).png().toBuffer();

@@ -54,7 +54,7 @@ export function ImageProviderDialog({ config, sources, busy, onUpdate, onCredent
                   className="rounded-lg border border-border bg-surface-1/50 p-4 text-left transition-colors hover:border-primary/50 hover:bg-surface-2/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <span className="flex items-center gap-2 text-sm font-medium"><ImagePlus className="h-4 w-4 text-primary" aria-hidden="true" />{value.name}</span>
                   <span className="mt-1 block text-xs text-muted-foreground">{value.protocol}</span>
-                  <span className="mt-2 block break-words text-xs text-muted-foreground">{value.models.split('\n').map((line) => line.split(' = ').pop()).join(', ')}</span>
+                  <span className="mt-2 block break-words text-xs text-muted-foreground">{value.models.join(', ')}</span>
                 </button>
               ))}
             </div>

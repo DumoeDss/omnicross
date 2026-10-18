@@ -4,6 +4,14 @@
 
 面向最终用户的安装、配置和调用方式见 [生图功能使用文档](./image-generation-usage.md)。
 
+## 图像配置与 Codex 路由
+
+Provider 连接、模型目录和执行路由分开保存。`images.providers[id].models` 保存上游模型目录，目录内的可选请求名映射保存在 `modelAliases`，允许多个 Provider 声明同名模型。添加连接或保存目录不会接管其他 Provider 的路由。详情中的模型列表可来自模板、OpenAI 兼容的模型发现接口或手动输入，默认请求名等于上游模型名。在高级设置选定 Codex 生图来源后，才写入 `images.models` 和实际执行使用的 `modelMap`。公开模型名允许包含命名空间分隔符 `/`，Provider 实例 ID 仍使用独立的严格标识符规则。
+
+高级设置只负责 Codex 图像工具的来源和模型映射。API Provider 使用原有公开 GPT 图像路由加 `modelMap` 将请求转换为上游模型；Antigravity 订阅通过别名转换到原生 Gemini 模型；Codex 订阅使用原生 GPT 图像路由。文本模型、图像凭证和图像执行相互独立，Responses 图片结果不携带实际后端模型或凭证。
+
+默认生图模型和订阅适配器默认值为 `gpt-image-2.5-sunburst`。读取旧配置时，只升级仍使用原始 GPT Image 2 订阅默认值的配置；已有 API 路由和自定义订阅模型保留。
+
 ## 1. 当前能力边界
 
 Omnicross 对外提供三种图片入口，复用 ImageOrchestrator 和模型路由。API 凭证与订阅认证独立装配，图片路由不继承文本请求的认证信息。

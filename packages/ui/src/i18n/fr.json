@@ -531,6 +531,28 @@
     "search": "Recherche"
   },
   "images": {
+    "models": {
+      "title": "Modèles",
+      "fetch": "Récupérer les modèles",
+      "template": "Utiliser les modèles du préréglage",
+      "add": "Ajouter un modèle",
+      "upstream": "Modèle du fournisseur",
+      "request": "Nom du modèle demandé",
+      "hint": "Récupérez les modèles, utilisez le préréglage ou ajoutez-les manuellement. Les noms sont transmis tels quels par défaut ; modifiez-les uniquement si une correspondance est nécessaire.",
+      "afterCreate": "Enregistrez d’abord le fournisseur, puis gérez ses modèles et correspondances dans ses détails.",
+      "empty": "Récupérez les modèles, utilisez le préréglage ou ajoutez un modèle dans les détails du fournisseur.",
+      "fetchFailed": "Impossible de récupérer les modèles d’image.",
+      "noImages": "Aucun modèle d’image trouvé. Utilisez le préréglage ou ajoutez-en un manuellement."
+    },
+    "routing": {
+      "title": "Outil d’image de Codex",
+      "description": "Choisissez la source des images indépendamment du modèle de texte de Codex. Omnicross gère le fournisseur et les correspondances de modèles.",
+      "provider": "Fournisseur d’images",
+      "model": "Modèle d’image par défaut",
+      "codexSubscription": "Abonnement Codex",
+      "antigravitySubscription": "Abonnement Antigravity",
+      "mappingHint": "Associez les modèles d’image demandés par Codex à ceux du fournisseur. Les noms identiques sont transmis tels quels ; les autres utilisent le modèle par défaut choisi et peuvent être ajustés individuellement."
+    },
     "provider": {
       "missingCredentials": "Les identifiants enregistrés sont introuvables. Modifiez le fournisseur d’images.",
       "replaceRoutes": "Acheminer ces modèles vers ce fournisseur d’images : {{models}}",

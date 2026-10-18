@@ -597,7 +597,7 @@ describe('admin Images config', () => {
       configured: {
         enabled: true,
         provider: 'codex-subscription',
-        model: 'gpt-image-2',
+        model: 'gpt-image-2.5-sunburst',
         remoteUrlsEnabled: false,
       },
       effective: {

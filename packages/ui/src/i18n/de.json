@@ -531,6 +531,28 @@
     "search": "Suche"
   },
   "images": {
+    "models": {
+      "title": "Modelle",
+      "fetch": "Modelle abrufen",
+      "template": "Vorlagenmodelle verwenden",
+      "add": "Modell hinzufügen",
+      "upstream": "Modell des Anbieters",
+      "request": "Modellname der Anfrage",
+      "hint": "Modelle abrufen, eine Vorlage verwenden oder manuell hinzufügen. Namen werden standardmäßig unverändert weitergegeben; nur bei Bedarf zuordnen.",
+      "afterCreate": "Zuerst den Anbieter speichern, danach Modelle und Zuordnungen in seinen Details verwalten.",
+      "empty": "In den Anbieterdetails Modelle abrufen, eine Vorlage verwenden oder ein Modell hinzufügen.",
+      "fetchFailed": "Bildmodelle konnten nicht abgerufen werden.",
+      "noImages": "Keine Bildmodelle gefunden. Vorlage verwenden oder ein Modell manuell hinzufügen."
+    },
+    "routing": {
+      "title": "Codex-Bildwerkzeug",
+      "description": "Die Bildquelle wird unabhängig vom Textmodell in Codex gewählt. Omnicross übernimmt Anbieterwahl und Modellzuordnung.",
+      "provider": "Bildanbieter",
+      "model": "Standard-Bildmodell",
+      "codexSubscription": "Codex-Abonnement",
+      "antigravitySubscription": "Antigravity-Abonnement",
+      "mappingHint": "Die von Codex angefragten Bildmodelle den Anbietermodellen zuordnen. Gleiche Namen werden unverändert weitergegeben, andere verwenden das gewählte Standardmodell; jede Zuordnung lässt sich anpassen."
+    },
     "provider": {
       "missingCredentials": "Gespeicherte Zugangsdaten fehlen. Bearbeite den Bildanbieter.",
       "replaceRoutes": "Diese Modelle an diesen Bildanbieter leiten: {{models}}",

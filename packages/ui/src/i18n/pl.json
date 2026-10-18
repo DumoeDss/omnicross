@@ -531,6 +531,28 @@
     "search": "Wyszukiwanie"
   },
   "images": {
+    "models": {
+      "title": "Modele",
+      "fetch": "Pobierz modele",
+      "template": "Użyj modeli szablonu",
+      "add": "Dodaj model",
+      "upstream": "Model dostawcy",
+      "request": "Nazwa modelu w żądaniu",
+      "hint": "Pobierz modele, użyj szablonu lub dodaj je ręcznie. Nazwy są domyślnie przekazywane bez zmian; zmieniaj je tylko, gdy potrzebne jest mapowanie.",
+      "afterCreate": "Najpierw zapisz dostawcę, a potem zarządzaj modelami i mapowaniami w jego szczegółach.",
+      "empty": "Pobierz modele, użyj szablonu lub dodaj model w szczegółach dostawcy.",
+      "fetchFailed": "Nie udało się pobrać modeli obrazów.",
+      "noImages": "Nie znaleziono modeli obrazów. Użyj szablonu lub dodaj model ręcznie."
+    },
+    "routing": {
+      "title": "Narzędzie obrazów Codex",
+      "description": "Wybierz źródło obrazów niezależnie od modelu tekstowego Codex. Omnicross obsługuje dostawcę i mapowanie nazw modeli.",
+      "provider": "Dostawca obrazów",
+      "model": "Domyślny model obrazów",
+      "codexSubscription": "Subskrypcja Codex",
+      "antigravitySubscription": "Subskrypcja Antigravity",
+      "mappingHint": "Przypisz modele obrazów żądane przez Codex do modeli dostawcy. Zgodne nazwy są przekazywane bez zmian, pozostałe używają wybranego modelu domyślnego; każde mapowanie można dostosować."
+    },
     "provider": {
       "missingCredentials": "Brak zapisanych danych logowania. Edytuj dostawcę obrazów.",
       "replaceRoutes": "Kieruj te modele do tego dostawcy obrazów: {{models}}",

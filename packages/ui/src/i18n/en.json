@@ -917,6 +917,28 @@
     }
   },
   "images": {
+    "models": {
+      "title": "Models",
+      "fetch": "Fetch models",
+      "template": "Use template models",
+      "add": "Add model",
+      "upstream": "Upstream model",
+      "request": "Request model",
+      "hint": "Fetch a model list, use the template, or add models manually. Request names pass through by default; change a request name only when you need a mapping.",
+      "afterCreate": "Save the provider first, then manage its models and optional mappings in the provider details.",
+      "empty": "Fetch models, use the template, or add a model in the provider details.",
+      "fetchFailed": "Could not fetch image models.",
+      "noImages": "No image models were found. Use the template or add an image model manually."
+    },
+    "routing": {
+      "title": "Codex image tool",
+      "description": "Choose the image provider independently of Codex’s text model. Codex keeps using its image tool while Omnicross selects the provider and translates model names.",
+      "provider": "Image provider",
+      "model": "Default image model",
+      "codexSubscription": "Codex subscription",
+      "antigravitySubscription": "Antigravity subscription",
+      "mappingHint": "Map the image model requested by Codex to a model from this provider. Matching model names pass through; other names use the selected default."
+    },
     "provider": {
       "missingCredentials": "Saved credentials are missing. Edit this image provider to select or create credentials.",
       "replaceRoutes": "Route these models to this image provider: {{models}}",
@@ -959,7 +981,7 @@
     "title": "Image generation",
     "description": "Configure image routes and inspect the active provider's capabilities.",
     "unsupportedDaemon": "This daemon does not expose Images configuration yet.",
-    "enable": "Enable Images endpoints",
+    "enable": "Enable Codex image tool",
     "entitlementWarning": "API capabilities describe the configured protocol; real requests confirm access. Subscription access depends on the selected account and fresh capability evidence.",
     "track": {
       "configured": "Configured",
@@ -1021,7 +1043,7 @@
     },
     "page": {
       "title": "Image generation",
-      "description": "Model routing, provider health, and the Images endpoints in one place.",
+      "description": "Manage image providers and choose the image backend used by Codex.",
       "loading": "Loading Images configuration…"
     },
     "tabs": {

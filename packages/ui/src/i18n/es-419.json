@@ -531,6 +531,28 @@
     "search": "Búsqueda"
   },
   "images": {
+    "models": {
+      "title": "Modelos",
+      "fetch": "Obtener modelos",
+      "template": "Usar modelos de la plantilla",
+      "add": "Añadir modelo",
+      "upstream": "Modelo del proveedor",
+      "request": "Nombre del modelo solicitado",
+      "hint": "Obtén modelos, usa la plantilla o añádelos manualmente. Los nombres se transmiten sin cambios por defecto; modifícalos solo si necesitas un mapeo.",
+      "afterCreate": "Guarda primero el proveedor y después gestiona sus modelos y mapeos en los detalles.",
+      "empty": "Obtén modelos, usa la plantilla o añade un modelo en los detalles del proveedor.",
+      "fetchFailed": "No se pudieron obtener los modelos de imagen.",
+      "noImages": "No se encontraron modelos de imagen. Usa la plantilla o añade uno manualmente."
+    },
+    "routing": {
+      "title": "Herramienta de imagen de Codex",
+      "description": "Elige el origen de las imágenes independientemente del modelo de texto de Codex. Omnicross gestiona el proveedor y el mapeo de modelos.",
+      "provider": "Proveedor de imágenes",
+      "model": "Modelo de imagen predeterminado",
+      "codexSubscription": "Suscripción de Codex",
+      "antigravitySubscription": "Suscripción de Antigravity",
+      "mappingHint": "Asigna los modelos de imagen solicitados por Codex a los del proveedor. Los nombres coincidentes se transmiten sin cambios; los demás usan el modelo predeterminado elegido y pueden ajustarse individualmente."
+    },
     "provider": {
       "missingCredentials": "Faltan las credenciales guardadas. Edita el proveedor de imágenes.",
       "replaceRoutes": "Dirigir estos modelos a este proveedor de imágenes: {{models}}",

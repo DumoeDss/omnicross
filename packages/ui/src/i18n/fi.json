@@ -531,6 +531,28 @@
     "search": "Haku"
   },
   "images": {
+    "models": {
+      "title": "Mallit",
+      "fetch": "Hae mallit",
+      "template": "Käytä mallipohjan malleja",
+      "add": "Lisää malli",
+      "upstream": "Palveluntarjoajan malli",
+      "request": "Pyynnön mallinimi",
+      "hint": "Hae mallit, käytä mallipohjaa tai lisää käsin. Nimet välitetään oletuksena sellaisinaan; muuta niitä vain tarvittavaa vastaavuutta varten.",
+      "afterCreate": "Tallenna ensin palveluntarjoaja ja hallitse sitten malleja ja vastaavuuksia sen tiedoissa.",
+      "empty": "Hae mallit, käytä mallipohjaa tai lisää malli palveluntarjoajan tiedoissa.",
+      "fetchFailed": "Kuvamalleja ei voitu hakea.",
+      "noImages": "Kuvamalleja ei löytynyt. Käytä mallipohjaa tai lisää malli käsin."
+    },
+    "routing": {
+      "title": "Codexin kuvatyökalu",
+      "description": "Valitse kuvalähde Codexin tekstimallista riippumatta. Omnicross valitsee palveluntarjoajan ja muuntaa mallinimet.",
+      "provider": "Kuvapalveluntarjoaja",
+      "model": "Oletuskuvamalli",
+      "codexSubscription": "Codex-tilaus",
+      "antigravitySubscription": "Antigravity-tilaus",
+      "mappingHint": "Yhdistä Codexin pyytämät kuvamallit palveluntarjoajan malleihin. Samat nimet välitetään sellaisinaan, muut käyttävät valittua oletusmallia; jokaista vastaavuutta voi muuttaa."
+    },
     "provider": {
       "missingCredentials": "Tallennetut tunnistetiedot puuttuvat. Muokkaa kuvapalveluntarjoajaa.",
       "replaceRoutes": "Reititä nämä mallit tälle kuvapalveluntarjoajalle: {{models}}",

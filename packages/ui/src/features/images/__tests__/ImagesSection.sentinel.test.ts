@@ -14,7 +14,7 @@ import type {
 import { ImagesSection } from '../ImagesSection';
 
 describe('ImagesSection sensitive DTO rendering', () => {
-  it('renders safe account labels and storage policy without raw ids or paths', () => {
+  it('renders safe subscription account labels without diagnostics, raw ids or paths', () => {
     const config = {
       enabled: true,
       models: {
@@ -49,8 +49,6 @@ describe('ImagesSection sensitive DTO rendering', () => {
     const markup = renderToStaticMarkup(
       React.createElement(ImagesSection, {
         config,
-        capability: null,
-        status: null,
         accounts,
         busy: false,
         onUpdate: async () => undefined,
@@ -58,7 +56,8 @@ describe('ImagesSection sensitive DTO rendering', () => {
     );
 
     expect(markup).toContain('Studio account');
-    expect(markup).toContain('images.storage.custom');
+    expect(markup).toContain('images.routing.codexSubscription');
+    expect(markup).not.toContain('images.storage.custom');
     for (const sentinel of [
       'RAW_ACCOUNT_ID_SENTINEL',
       'PRIVATE_PATH_SENTINEL',

@@ -531,6 +531,28 @@
     "search": "Tìm kiếm"
   },
   "images": {
+    "models": {
+      "title": "Mô hình",
+      "fetch": "Lấy danh sách mô hình",
+      "template": "Dùng mô hình từ mẫu",
+      "add": "Thêm mô hình",
+      "upstream": "Mô hình của nhà cung cấp",
+      "request": "Tên mô hình trong yêu cầu",
+      "hint": "Lấy danh sách, dùng mẫu hoặc thêm thủ công. Mặc định tên được chuyển tiếp nguyên vẹn; chỉ đổi khi cần ánh xạ.",
+      "afterCreate": "Lưu nhà cung cấp trước, sau đó quản lý mô hình và ánh xạ trong trang chi tiết.",
+      "empty": "Lấy danh sách, dùng mẫu hoặc thêm mô hình trong trang chi tiết nhà cung cấp.",
+      "fetchFailed": "Không thể lấy danh sách mô hình ảnh.",
+      "noImages": "Không tìm thấy mô hình ảnh. Hãy dùng mẫu hoặc thêm thủ công."
+    },
+    "routing": {
+      "title": "Công cụ ảnh của Codex",
+      "description": "Chọn nguồn tạo ảnh độc lập với mô hình văn bản của Codex. Omnicross xử lý nhà cung cấp và ánh xạ tên mô hình.",
+      "provider": "Nhà cung cấp ảnh",
+      "model": "Mô hình ảnh mặc định",
+      "codexSubscription": "Gói đăng ký Codex",
+      "antigravitySubscription": "Gói đăng ký Antigravity",
+      "mappingHint": "Ánh xạ mô hình ảnh Codex yêu cầu sang mô hình của nhà cung cấp. Tên trùng khớp được chuyển tiếp nguyên vẹn, tên khác dùng mô hình mặc định đã chọn và có thể chỉnh từng mục."
+    },
     "provider": {
       "missingCredentials": "Không tìm thấy thông tin xác thực đã lưu. Chỉnh sửa nhà cung cấp hình ảnh.",
       "replaceRoutes": "Định tuyến các mô hình này đến nhà cung cấp hình ảnh này: {{models}}",
