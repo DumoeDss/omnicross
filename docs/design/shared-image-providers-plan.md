@@ -1,6 +1,6 @@
 # 共享图片 Provider 实施计划
 
-更新日期：2026-10-17。状态：主要代码与自动化集成已实现；0.6.8 发布、Elftia 正式依赖升级、桌面视觉验收和真实 Codex/上游验收待完成。
+更新日期：2026-10-18。状态：Omnicross 0.6.8 已正式发布，三平台安装包、六个 npm 包和更新清单已验证；Elftia 正式依赖升级、桌面视觉验收和真实 Codex/上游验收待完成。
 
 本文记录 Omnicross 与 Elftia 共享图片能力的范围、设计约束和验收要求。实施时逐项维护清单；未完成的项目不能因某一条调用链已经可用而视为完成。
 
@@ -227,11 +227,18 @@ Responses 的 `tools: [{ type: 'image_generation' }]` 由主模型选择调用�
 
 ### 交付依赖
 
-Omnicross 已用仓库版本脚本准备为 **0.6.8**，包含新的公共图片导出；0.6.7 已经发布，不能用同版本承载本次新导出。Elftia 当前生产锁定 **0.6.4**，标准构建尚不能消费这些新导出。
+Omnicross 已正式发布 **0.6.8**，包含新的公共图片导出。Elftia 在本计划上次依赖检查时生产锁定 **0.6.4**，正式依赖升级和构建验证仍需单独完成。
 
-正式交付需按顺序发布 0.6.8 的 contracts/core/subscriptions/cli-launcher/ui/daemon，再将 Elftia 根包、各宿主/运行包清单、版本校验脚本和 lockfile 同步到已发布的精确版本，并运行正式依赖检查。不得伪造未发布包的 lockfile integrity，也不将本地源码别名留作生产依赖。
+contracts/core/subscriptions/cli-launcher/ui/daemon 的 0.6.8 已按依赖顺序发布。后续需将 Elftia 根包、各宿主/运行包清单、版本校验脚本和 lockfile 同步到已发布的精确版本，并运行正式依赖检查。不得伪造未发布包的 lockfile integrity，也不将本地源码别名留作生产依赖。
 
-发布与重装共享依赖需要本次会话明确授权，依据 Elftia `CLAUDE.md` 的任务边界。用户已明确授权 Git 提交与推送；本次按该范围交付，不包含 npm 发布或重装共享依赖。
+2026-10-18，用户明确授权提交、推送和发布新版，本次已完成 Omnicross 的 GitHub Release 与 npm 发布。Elftia 共享依赖重装未在本次发布中执行。
+
+### 2026-10-18 发布记录
+
+- [v0.6.8 正式版本](https://github.com/DumoeDss/omnicross/releases/tag/v0.6.8)，发布源码提交为 `2be73c521c07d047b718274f7241b65967ed5fd8`。
+- [发布流水线](https://github.com/DumoeDss/omnicross/actions/runs/39119045864) 的三平台构建、六包发布和更新清单任务全部成功；官方 npm Registry 中六个包均为 0.6.8，来源提交一致。
+- 三平台更新包通过签名验证与最终内容清单检查；Windows 解包运行时通过 Node、Sharp 和 daemon CLI 加载检查。公开自动更新地址已返回经过验证的 0.6.8 清单。
+- 安装包路径、大小、SHA256、执行的检查和验收限制见 [发布验证记录](https://github.com/DumoeDss/omnicross/releases/download/v0.6.8/release-verification-v0.6.8.md)；真实付费生图及跨平台交互安装验收仍未执行。
 
 ### 2026-10-17 补充：Google 模型目录
 

@@ -1,6 +1,6 @@
 # Omnicross 生图功能使用文档
 
-本文以 Omnicross 0.6.8 源码为准，说明 API 图片 Provider、订阅图片服务以及 Codex 内置 `image_gen` 工具的接入。0.6.8 的发布和 Elftia 正式依赖升级仍需完成，源码验证不代表安装包已经更新。
+本文适用于已发布的 [Omnicross 0.6.8](https://github.com/DumoeDss/omnicross/releases/tag/v0.6.8)，说明 API 图片 Provider、订阅图片服务以及 Codex 内置 `image_gen` 工具的接入。三平台安装包与六个 npm 包均已发布；Elftia 正式依赖升级和宿主验收仍需单独完成。
 
 实现细节见 [生图功能开发文档](./image-generation-development.md)。
 
