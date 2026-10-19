@@ -8,7 +8,7 @@
  *     destroyed rather than compacted.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -165,6 +165,41 @@ describe('UsagePruneSweeper', () => {
     on.start(); // idempotent
     on.dispose();
     on.dispose();
+  });
+
+  it('pruneNow() reports days retired AND bytes freed (shard + raw sidecar)', async () => {
+    const key = seedDay(1);
+    const rawLine = '{"id":"x","rawUsage":"' + 'r'.repeat(200) + '"}\n';
+    writeFileSync(join(usageDir, usageRawShardName(key)), rawLine, 'utf8');
+    const shardBytes = statSync(join(usageDir, usageShardName(key))).size;
+    const rawBytes = statSync(join(usageDir, usageRawShardName(key))).size;
+
+    const sweeper = new UsagePruneSweeper(usageDir, rollups, logger, { retentionDays: 7 }, 60_000, now);
+    const result = await sweeper.pruneNow();
+    expect(result.removedDays).toBe(1);
+    expect(result.freedBytes).toBe(shardBytes + rawBytes);
+  });
+
+  it('retires an expired ORPHAN raw sidecar (shard already gone) on the same TTL', async () => {
+    const key = '2026-06-01';
+    // No shard, no rollup — only the forensic sidecar this day left behind.
+    writeFileSync(join(usageDir, usageRawShardName(key)), '{"id":"x","rawUsage":"{}"}\n', 'utf8');
+
+    const sweeper = new UsagePruneSweeper(usageDir, rollups, logger, { retentionDays: 7 }, 60_000, now);
+    const result = await sweeper.pruneNow();
+    expect(result.removedDays).toBe(1);
+    expect(result.freedBytes).toBeGreaterThan(0);
+    expect(existsSync(join(usageDir, usageRawShardName(key)))).toBe(false);
+    // Raw is forensic-only: no rollup had to exist for it to be retired.
+    expect(existsSync(join(usageDir, usageRollupName(key)))).toBe(false);
+  });
+
+  it('configuredRetentionDays reflects the live window', () => {
+    const sweeper = new UsagePruneSweeper(usageDir, rollups, logger, { retentionDays: 14 }, 60_000, now);
+    expect(sweeper.configuredRetentionDays).toBe(14);
+    sweeper.configure({ retentionDays: 0 });
+    expect(sweeper.configuredRetentionDays).toBe(0);
+    expect(sweeper.enabled).toBe(false);
   });
 
   it('configure() re-arms the window on a live instance', async () => {

@@ -439,6 +439,36 @@ export interface AuditStats {
   complete: boolean;
 }
 
+/**
+ * On-disk footprint of the sharded usage store (`GET /admin/api/usage-store`),
+ * split by retention class. `rawBytes` (forensic `rawUsage` sidecars) is usually
+ * the dominant term.
+ */
+export interface UsageStoreStats {
+  totalBytes: number;
+  shardBytes: number;
+  rawBytes: number;
+  rollupBytes: number;
+  /** Days with at least one file on disk (a pruned day still counts via its rollup). */
+  days: number;
+  oldestDay?: string;
+  newestDay?: string;
+}
+
+/** `GET/PUT /admin/api/usage-store` — live retention window + footprint. */
+export interface UsageStoreInfo {
+  /** Retention window in days; `0` ⇒ keep everything. */
+  retentionDays: number;
+  stats: UsageStoreStats;
+}
+
+/** `POST /admin/api/usage-store/prune` — what one manual pass reclaimed. */
+export interface UsagePruneResult {
+  /** Days whose detail (shard and/or raw sidecar) was retired. */
+  removedDays: number;
+  freedBytes: number;
+}
+
 export interface ImageApiLimits {
   maxJsonBytes: number;
   maxMultipartBytes: number;

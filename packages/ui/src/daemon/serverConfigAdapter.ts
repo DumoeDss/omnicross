@@ -54,6 +54,8 @@ import type {
   SearchQueryResult,
   SearchServerConfig,
   SearchTestResult,
+  UsagePruneResult,
+  UsageStoreInfo,
   VoucherCreated,
   VoucherInfo,
 } from './types-server';
@@ -513,6 +515,33 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
       } catch {
         return { days: 0, shards: 0, savedBytes: 0 };
       }
+    },
+
+    async getUsageStore(): Promise<UsageStoreInfo | null> {
+      try {
+        return await adminClient.get<UsageStoreInfo>('/usage-store');
+      } catch {
+        return null;
+      }
+    },
+
+    async updateUsageRetention(retentionDays: number): Promise<MutationResult> {
+      try {
+        await adminClient.put<UsageStoreInfo>('/usage-store', { retentionDays });
+        return { success: true };
+      } catch (err) {
+        return fail(err, 'failed to update usage retention');
+      }
+    },
+
+    async pruneUsageStore(): Promise<UsagePruneResult> {
+      // No catch → zeros fallback: "cleaned 0 days" must mean the pass really
+      // ran and found nothing, never that the request failed.
+      const data = await adminClient.post<Partial<UsagePruneResult>>('/usage-store/prune');
+      return {
+        removedDays: data.removedDays ?? 0,
+        freedBytes: data.freedBytes ?? 0,
+      };
     },
 
     async queryAudit(query: {

@@ -97,7 +97,13 @@ import { resetCliSessions, type CommandRunner, type PathProbe, type TerminalOpen
 import { OAuthSessionStore } from './admin/oauthSessions';
 import { awaitLoopbackCode } from './commands/loopbackCallback';
 import { AntigravityLoopbackFn, AntigravityOAuthSessionStore } from './admin/accountsAntigravityOAuth';
-import { type DaemonConfig, resolveAdminConfig, setSecretBox } from './config';
+import {
+  type DaemonConfig,
+  loadConfig,
+  resolveAdminConfig,
+  saveConfigAtomically,
+  setSecretBox,
+} from './config';
 import { AutoDisableStore } from './pool/autoDisableStore';
 import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/loadPoolKeys';
 import { ProviderKeyQuotaService } from './allowance/ProviderKeyQuotaService';
@@ -167,6 +173,8 @@ import {
   DEFAULT_USAGE_RETENTION_DAYS,
   UsagePruneSweeper,
 } from './usage/UsagePruneSweeper';
+import { readUsageStoreStats } from './usage/usageStoreStats';
+import type { UsageStoreAdmin } from './admin/usageStoreApi';
 import { readAuditBody } from './audit/auditBodyReader';
 import { compactAllClosedAuditDays } from './audit/auditDictionary';
 import { readAuditRecords } from './audit/auditReader';
@@ -729,6 +737,42 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     defaultUsageEventsPath(paths.configPath),
     async (providerId, model) => (await pricingEngine.getEntry(providerId, model)) !== null,
   );
+  // Usage retention. Shares the store's OWN rollup store so a pruned day is
+  // invalidated in the same cache the queries read from. Armed by `start.ts`.
+  const usagePruneSweeper = new UsagePruneSweeper(
+    usageEventStore.shardDir,
+    usageEventStore.rollupStore,
+    logger,
+    config.usage ?? { retentionDays: DEFAULT_USAGE_RETENTION_DAYS },
+  );
+  // Settings → Data "usage storage" admin surface: the live window + on-disk
+  // footprint, plus the manual pass. Persisting rewrites ONLY the top-level
+  // `usage` segment — `loadConfig`/`saveConfigAtomically` round-trip every other
+  // field (providers, server, encrypted secrets) unchanged — then hot-applies it
+  // to the live sweeper so no restart is needed.
+  const usageStoreAdmin: UsageStoreAdmin = {
+    async getInfo() {
+      return {
+        retentionDays: usagePruneSweeper.configuredRetentionDays,
+        stats: await readUsageStoreStats(usageEventStore.shardDir),
+      };
+    },
+    async setRetentionDays(days) {
+      const cfg = loadConfig(paths.configPath);
+      cfg.usage = { retentionDays: days };
+      saveConfigAtomically(paths.configPath, cfg);
+      usagePruneSweeper.configure(cfg.usage);
+      // `start()` is idempotent; switching 0 → N arms an already-constructed but
+      // never-started sweeper, and N → 0 stops the timer.
+      if (days > 0) usagePruneSweeper.start();
+      else usagePruneSweeper.dispose();
+      return {
+        retentionDays: usagePruneSweeper.configuredRetentionDays,
+        stats: await readUsageStoreStats(usageEventStore.shardDir),
+      };
+    },
+    pruneNow: () => usagePruneSweeper.pruneNow(),
+  };
   // Per-key spend tracker (outbound-key-policy) — lazily seeds each key's
   // daily/weekly/total spend from the jsonl store (once per key), then stays hot
   // via the recorder's `onRecord` hook. `totalUsd` survives a restart by
@@ -1234,6 +1278,9 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     auditBodyReader: (query) => readAuditBody(auditDir, query),
     // audit-store-sharding D8: the manual counterpart to the daily pass.
     auditCompactor: () => compactAllClosedAuditDays(auditDir),
+    // usage-store-admin: the Settings → Data card's retention window + live
+    // footprint, and the manual retention pass (sizes/day keys only, no rows).
+    usageStore: usageStoreAdmin,
     // billing-event-stream: the AUTHED `GET /admin/api/billing-status` returns the
     // secret-free total/delivered/pending counts of the durable ledger.
     billingStatusReader: () => readBillingStatus(billingDir),
@@ -1263,14 +1310,6 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   const auditPruneSweeper = new AuditPruneSweeper(auditDir, logger, DEFAULT_AUDIT_CONFIG);
   setAuditRuntime(auditWriter, auditPruneSweeper);
 
-  // Usage retention. Shares the store's OWN rollup store so a pruned day is
-  // invalidated in the same cache the queries read from. Armed by `start.ts`.
-  const usagePruneSweeper = new UsagePruneSweeper(
-    usageEventStore.shardDir,
-    usageEventStore.rollupStore,
-    logger,
-    config.usage ?? { retentionDays: DEFAULT_USAGE_RETENTION_DAYS },
-  );
   const migrateUsageStore = async (): Promise<UsageMigrationResult> => {
     const result = await migrateLegacyUsageEvents({
       eventsPath: usageEventStore.legacyEventsPath,

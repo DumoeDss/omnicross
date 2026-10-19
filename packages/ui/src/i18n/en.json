@@ -2319,6 +2319,37 @@
       "pricing": "Model pricing",
       "about": "About"
     },
+    "usageStorage": {
+      "title": "Usage data storage",
+      "description": "Request-level usage detail lives on this machine. Detail past the retention window is deleted automatically; daily aggregates are kept forever so lifetime stats and per-key spend limits stay correct.",
+      "size": {
+        "total": "Current size",
+        "detail": "Event rows",
+        "raw": "Raw payloads (forensic)",
+        "rollup": "Daily aggregates",
+        "coverage": "{{days}} days on disk ({{oldest}} – {{newest}})",
+        "empty": "No usage data on disk yet.",
+        "refreshing": "Reading usage storage…"
+      },
+      "retention": {
+        "label": "Retention (days)",
+        "description": "Event rows and raw payload sidecars older than this are deleted; 0 keeps everything. Daily aggregates are never pruned. Automatic cleanup runs hourly after a change is saved."
+      },
+      "invalid": "Retention must be a whole number of days (0 or more).",
+      "save": "Save retention",
+      "saved": "Retention saved and applied.",
+      "saveFailed": "Failed to save retention.",
+      "refresh": "Refresh",
+      "prune": {
+        "label": "Clean now",
+        "description": "Runs the retention pass immediately using the SAVED window. Daily aggregates are untouched.",
+        "result": "Cleaned {{days}} day(s), freed {{freed}}.",
+        "failed": "Cleanup failed.",
+        "requiresSave": "Save the retention setting before cleaning.",
+        "keepForever": "Retention is 0 (keep everything) — nothing will be deleted."
+      },
+      "loadError": "Could not read usage storage information."
+    },
     "about": {
       "tagline": "A universal LLM serving core — route, transform, and proxy any provider behind one set of APIs.",
       "version": "Version",

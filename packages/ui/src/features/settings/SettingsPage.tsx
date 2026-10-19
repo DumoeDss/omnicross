@@ -28,6 +28,7 @@ import { NetworkSettingsSection } from './NetworkSettingsSection';
 import { KeyViewingPasswordSection } from './KeyViewingPasswordSection';
 import { normalizeSettingsTab, SETTINGS_TABS, type SettingsTabId } from './settingsTabModel';
 import { SettingsTabs } from './SettingsTabs';
+import { UsageStorageSection } from './UsageStorageSection';
 
 function currentLang(): Language {
   const lang = i18n.language ?? 'en';
@@ -72,6 +73,11 @@ function OperationalSettingsPanel({ tab }: { tab: OperationalTab }) {
       content = (
         <div className="space-y-5">
           <DataMigrationSection />
+          <UsageStorageSection
+            getInfo={service.getUsageStore}
+            onUpdateRetention={service.updateUsageRetention}
+            onPrune={service.pruneUsageStore}
+          />
           <AuditSection
             config={service.config}
             busy={service.busy}

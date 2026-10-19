@@ -32,6 +32,8 @@ import type {
   OutboundApiServerStatus,
   OutboundKeyPolicyPatch,
   OutboundQueueStatus,
+  UsagePruneResult,
+  UsageStoreInfo,
   VoucherCreated,
   VoucherGenerateInput,
   VoucherInfo,
@@ -95,6 +97,10 @@ export interface UseApiServiceResult {
     limit?: number;
   }) => Promise<AuditRecord[]>;
   compactAudit: () => Promise<{ days: number; shards: number; savedBytes: number }>;
+  /** Usage-store retention window + on-disk footprint (Settings → Data). */
+  getUsageStore: () => Promise<UsageStoreInfo | null>;
+  updateUsageRetention: (retentionDays: number) => Promise<MutationResult>;
+  pruneUsageStore: () => Promise<UsagePruneResult>;
   updateBillingConfig: (billing: OutboundApiServerConfig['billing'] | undefined) => Promise<void>;
   queryBillingStatus: () => Promise<BillingDeliveryStatus>;
   updateFingerprintConfig: (
@@ -432,6 +438,16 @@ export function useApiService(): UseApiServiceResult {
   // does not go through `runWrite` either.
   const compactAudit = useCallback(() => agent.apiService.compactAudit(), []);
 
+  // Usage-store reads/prunes mutate no server config — the card renders their
+  // outcome inline, so none of the three goes through `runWrite` (which would
+  // refetch config/status and route the failure into the page-level banner).
+  const getUsageStore = useCallback(() => agent.apiService.getUsageStore(), []);
+  const updateUsageRetention = useCallback(
+    (retentionDays: number) => agent.apiService.updateUsageRetention(retentionDays),
+    [],
+  );
+  const pruneUsageStore = useCallback(() => agent.apiService.pruneUsageStore(), []);
+
   const updateBillingConfig = useCallback(
     async (billing: OutboundApiServerConfig['billing'] | undefined) => {
       await runWrite(() => agent.apiService.updateBillingConfig(billing));
@@ -530,6 +546,9 @@ export function useApiService(): UseApiServiceResult {
     updateAuditConfig,
     queryAudit,
     compactAudit,
+    getUsageStore,
+    updateUsageRetention,
+    pruneUsageStore,
     updateBillingConfig,
     queryBillingStatus,
     updateFingerprintConfig,

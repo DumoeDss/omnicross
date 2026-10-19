@@ -48,11 +48,17 @@ import {
   handleAuditStatsQuery,
 } from './auditQueryApi';
 import { type BillingStatusReader, handleBillingStatus } from './billingStatusApi';
+import {
+  type UsageStoreAdmin,
+  handleUsageStoreGet,
+  handleUsageStorePrune,
+  handleUsageStorePut,
+} from './usageStoreApi';
 import { handleWebhookTest } from './webhookTestApi';
 import { handleRouteLeaseApi } from './routeLeaseApi';
 import { handleCodexSessionApi } from './codexSessionApi';
 import type { CodexSessionManager } from './codexSessionManager';
-import { type AdminApiDeps, handleAdminApi } from './adminApi';
+import { type AdminApiDeps, handleAdminApi, writeJsonError } from './adminApi';
 import { handleUiStatic, resolveUiDist } from './uiStatic';
 import { DAEMON_VERSION } from './version';
 
@@ -102,6 +108,12 @@ export interface AdminServerDeps extends AdminApiDeps {
   auditBodyReader?: AuditBodyReader;
   /** Runs cross-session body compaction on demand (audit-store-sharding D8). */
   auditCompactor?: AuditCompactor;
+  /**
+   * OPTIONAL usage-store admin surface (usage-store-admin): retention window,
+   * on-disk footprint, and the manual retention pass. Absent ⇒ the routes 501
+   * (light embedders/tests that never wire the usage store stay unchanged).
+   */
+  usageStore?: UsageStoreAdmin;
   /**
    * OPTIONAL billing delivery-status reader (billing-event-stream, design D5).
    * When wired (bootstrap → the ledger dir), the AUTHED `GET /admin/api/billing-status`
@@ -283,6 +295,27 @@ export class AdminServer {
     // AUTHED manual compaction trigger (audit-store-sharding, design D8).
     if (path === '/admin/api/audit/compact' && req.method === 'POST') {
       handleAuditCompact(res, this.deps.auditCompactor);
+      return;
+    }
+
+    // AUTHED usage-store admin (usage-store-admin) — the Settings → Data card's
+    // retention window + footprint, plus the manual retention pass. Sizes and
+    // day keys only; never a row. Routed HERE (not through `adminApi.ts`, at its
+    // line cap) so it honors the auth gate above.
+    if (path === '/admin/api/usage-store') {
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        await handleUsageStoreGet(res, this.deps.usageStore);
+        return;
+      }
+      if (req.method === 'PUT') {
+        await handleUsageStorePut(req, res, this.deps.usageStore);
+        return;
+      }
+      writeJsonError(res, 405, `method ${req.method} not allowed on usage-store`);
+      return;
+    }
+    if (path === '/admin/api/usage-store/prune' && req.method === 'POST') {
+      await handleUsageStorePrune(res, this.deps.usageStore);
       return;
     }
 

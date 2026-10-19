@@ -2330,6 +2330,37 @@
       "pricing": "模型价格",
       "about": "关于"
     },
+    "usageStorage": {
+      "title": "用量数据存储",
+      "description": "请求级用量明细保存在本机。超过保留天数的明细会被自动删除；按日聚合统计永久保留，历史用量与每个 key 的消费上限不受影响。",
+      "size": {
+        "total": "当前占用",
+        "detail": "事件明细",
+        "raw": "原始报文（取证）",
+        "rollup": "按日聚合",
+        "coverage": "磁盘上有 {{days}} 天数据（{{oldest}} 至 {{newest}}）",
+        "empty": "磁盘上还没有用量数据。",
+        "refreshing": "正在读取用量存储…"
+      },
+      "retention": {
+        "label": "保留天数",
+        "description": "超过该天数的事件明细与原始报文将被删除；0 表示永久保留。按日聚合永不清理。保存后每小时自动清理一次。"
+      },
+      "invalid": "保留天数必须是非负整数。",
+      "save": "保存保留设置",
+      "saved": "保留设置已保存并生效。",
+      "saveFailed": "保存保留设置失败。",
+      "refresh": "刷新",
+      "prune": {
+        "label": "立即清理",
+        "description": "按已保存的保留天数立即执行一次清理。按日聚合不受影响。",
+        "result": "已清理 {{days}} 天，释放 {{freed}}。",
+        "failed": "清理失败。",
+        "requiresSave": "请先保存保留天数再清理。",
+        "keepForever": "保留天数为 0（永久保留），不会删除任何数据。"
+      },
+      "loadError": "无法读取用量存储信息。"
+    },
     "about": {
       "tagline": "通用 LLM 服务核心——在同一组 API 之后路由、转换并代理任意提供商。",
       "version": "版本",

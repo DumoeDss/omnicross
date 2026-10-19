@@ -57,6 +57,8 @@ import type {
   UpstreamCatalogResult,
   SearchServerConfig,
   SearchTestResult,
+  UsagePruneResult,
+  UsageStoreInfo,
   VoucherCreated,
   VoucherInfo,
   VoucherType,
@@ -474,6 +476,22 @@ export interface AgentApiServiceApi {
    * audit-store-sharding). Closed days only; a day is compacted at most once.
    */
   compactAudit(): Promise<{ days: number; shards: number; savedBytes: number }>;
+  /**
+   * Read the usage store's retention window + on-disk footprint
+   * (`GET /admin/api/usage-store`). Secret-free; `null` when the daemon predates
+   * the endpoint or the read fails.
+   */
+  getUsageStore(): Promise<UsageStoreInfo | null>;
+  /**
+   * Persist the usage retention window (`PUT /admin/api/usage-store`). `0` keeps
+   * everything; per-day rollups are never pruned. Applied live — no restart.
+   */
+  updateUsageRetention(retentionDays: number): Promise<MutationResult>;
+  /**
+   * Run one usage retention pass now (`POST /admin/api/usage-store/prune`).
+   * Bounded by the SAVED window — it cannot delete a day retention keeps.
+   */
+  pruneUsageStore(): Promise<UsagePruneResult>;
   queryAudit(query: {
     keyId?: string;
     from?: number;

@@ -38,6 +38,9 @@ export const USAGE_SHARD_RE = /^usage-(\d{4})-(\d{2})-(\d{2})\.jsonl$/;
 /** Matches a day rollup sidecar, capturing Y/M/D. */
 export const USAGE_ROLLUP_RE = /^usage-(\d{4})-(\d{2})-(\d{2})\.rollup\.json$/;
 
+/** Matches a day's RAW-payload sidecar, capturing Y/M/D. */
+export const USAGE_RAW_RE = /^usage-(\d{4})-(\d{2})-(\d{2})\.raw\.jsonl$/;
+
 /** Scratch directory the one-shot migration builds into before committing. */
 export const USAGE_MIGRATING_DIR = '.migrating';
 
@@ -126,6 +129,8 @@ export interface UsageDayEntry {
   dayKey: string;
   hasShard: boolean;
   hasRollup: boolean;
+  /** The forensic `rawUsage` sidecar — same retention class as the shard. */
+  hasRaw: boolean;
 }
 
 /**
@@ -144,7 +149,7 @@ export async function listUsageDays(usageDir: string): Promise<UsageDayEntry[]> 
   const entry = (dayKey: string): UsageDayEntry => {
     let e = byKey.get(dayKey);
     if (!e) {
-      e = { dayKey, hasShard: false, hasRollup: false };
+      e = { dayKey, hasShard: false, hasRollup: false, hasRaw: false };
       byKey.set(dayKey, e);
     }
     return e;
@@ -160,6 +165,12 @@ export async function listUsageDays(usageDir: string): Promise<UsageDayEntry[]> 
     if (rollup) {
       const key = `${rollup[1]}-${rollup[2]}-${rollup[3]}`;
       if (!Number.isNaN(dayKeyStartTs(key))) entry(key).hasRollup = true;
+      continue;
+    }
+    const raw = USAGE_RAW_RE.exec(name);
+    if (raw) {
+      const key = `${raw[1]}-${raw[2]}-${raw[3]}`;
+      if (!Number.isNaN(dayKeyStartTs(key))) entry(key).hasRaw = true;
     }
   }
   return Array.from(byKey.values()).sort((a, b) => (a.dayKey < b.dayKey ? -1 : 1));

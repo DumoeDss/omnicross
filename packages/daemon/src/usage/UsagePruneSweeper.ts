@@ -23,7 +23,7 @@
  * @module @omnicross/daemon/usage/UsagePruneSweeper
  */
 
-import { unlink } from 'node:fs/promises';
+import { stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { Logger } from '@omnicross/core';
@@ -45,6 +45,14 @@ export interface UsageRetentionConfig {
   retentionDays?: number;
 }
 
+/** Outcome of one prune pass — what the admin "clean now" surface reports. */
+export interface UsagePruneResult {
+  /** Days whose detail (shard and/or raw sidecar) was retired by this pass. */
+  removedDays: number;
+  /** Bytes reclaimed by this pass. */
+  freedBytes: number;
+}
+
 export class UsagePruneSweeper {
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweeping = false;
@@ -62,6 +70,11 @@ export class UsagePruneSweeper {
   /** Whether raw rows are pruned at all. */
   get enabled(): boolean {
     return (this.config.retentionDays ?? 0) > 0;
+  }
+
+  /** The live retention window (`0` ⇒ keep everything). */
+  get configuredRetentionDays(): number {
+    return this.config.retentionDays ?? 0;
   }
 
   /** Re-apply config to the live instance (boot + admin PUT hot-reload). */
@@ -96,17 +109,44 @@ export class UsagePruneSweeper {
    * removed.
    */
   async sweep(): Promise<number> {
-    if (!this.enabled || this.sweeping) return 0;
+    return (await this.runSweep()).removedDays;
+  }
+
+  /**
+   * Run one prune pass NOW and report what it reclaimed — the admin "clean now"
+   * surface (`POST /admin/api/usage-store/prune`). The same pass the hourly
+   * sweep runs, so it can never delete more than the configured window allows
+   * (with retention `0` it deletes nothing). Never throws.
+   */
+  async pruneNow(): Promise<UsagePruneResult> {
+    return this.runSweep();
+  }
+
+  private async runSweep(): Promise<UsagePruneResult> {
+    const result: UsagePruneResult = { removedDays: 0, freedBytes: 0 };
+    if (!this.enabled || this.sweeping) return result;
     this.sweeping = true;
     try {
       const retentionDays = this.config.retentionDays ?? DEFAULT_USAGE_RETENTION_DAYS;
       // A day dated strictly before this is expired (`retentionDays:1` keeps today).
       const cutoff = this.todayMidnight() - (retentionDays - 1) * DAY_MS;
-      let removed = 0;
       for (const entry of await listUsageDays(this.usageDir)) {
-        if (!entry.hasShard) continue;
         const startTs = dayKeyStartTs(entry.dayKey);
         if (Number.isNaN(startTs) || startTs >= cutoff) continue;
+
+        // No shard but a raw sidecar: a day whose detail was pruned before the
+        // sidecar split (or by a manual shard-only delete). Raw is forensic-only
+        // — never aggregated, no rollup needed — so it follows the SAME TTL and
+        // is retired here instead of lingering invisible to the shard-driven pass.
+        if (!entry.hasShard) {
+          if (!entry.hasRaw) continue;
+          const raw = await this.removeFile(usageRawShardName(entry.dayKey));
+          if (raw.removed) {
+            result.removedDays += 1;
+            result.freedBytes += raw.bytes;
+          }
+          continue;
+        }
 
         // Build-or-verify the aggregate FIRST. No rollup ⇒ no delete, ever.
         let rollup;
@@ -126,38 +166,57 @@ export class UsagePruneSweeper {
           continue;
         }
 
-        try {
-          await unlink(join(this.usageDir, usageShardName(entry.dayKey)));
-          removed += 1;
-        } catch (error) {
+        const shard = await this.removeFile(usageShardName(entry.dayKey));
+        if (!shard.removed) {
           this.logger.warn('[usage] retention: could not remove expired shard', {
             day: entry.dayKey,
-            error: error instanceof Error ? error.message : String(error),
           });
           continue;
         }
+        result.removedDays += 1;
+        result.freedBytes += shard.bytes;
         // The day's raw sidecar (usage-raw) is the same retention class as the
         // shard — forensic payload, never aggregated — so it goes with it. A
         // missing sidecar (days written before the split) is not an error.
-        await unlink(join(this.usageDir, usageRawShardName(entry.dayKey))).catch(() => {});
+        const raw = await this.removeFile(usageRawShardName(entry.dayKey));
+        result.freedBytes += raw.bytes;
         // The rollup just became the sole authority for this day; drop the memo
         // so the next read re-resolves it against a now-absent shard.
         this.rollups.invalidate(entry.dayKey);
       }
-      if (removed > 0) {
+      if (result.removedDays > 0) {
         this.logger.info('[usage] retention: pruned raw shards (rollups retained)', {
-          removed,
+          removed: result.removedDays,
+          freedBytes: result.freedBytes,
           retentionDays,
         });
       }
-      return removed;
+      return result;
     } catch (error) {
       this.logger.warn('[usage] retention sweep failed', {
         error: error instanceof Error ? error.message : String(error),
       });
-      return 0;
+      return result;
     } finally {
       this.sweeping = false;
+    }
+  }
+
+  /** Unlink one store file, reporting whether it was actually removed + its size. */
+  private async removeFile(name: string): Promise<{ removed: boolean; bytes: number }> {
+    const path = join(this.usageDir, name);
+    let bytes = 0;
+    try {
+      bytes = (await stat(path)).size;
+    } catch {
+      // Absent already — the unlink below is still attempted so a concurrent
+      // writer's freshly-created file is the one reported.
+    }
+    try {
+      await unlink(path);
+      return { removed: true, bytes };
+    } catch {
+      return { removed: false, bytes: 0 };
     }
   }
 
