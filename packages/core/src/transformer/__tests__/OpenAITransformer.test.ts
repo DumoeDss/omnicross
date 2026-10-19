@@ -246,6 +246,55 @@ describe('OpenAITransformer — content normalization', () => {
   });
 });
 
+describe('OpenAITransformer — structured-output fallback', () => {
+  const schema = {
+    type: 'object',
+    properties: { step: { type: 'string' } },
+    required: ['step'],
+  };
+  const jsonSchemaFormat = {
+    type: 'json_schema',
+    json_schema: { name: 'codex_output_schema', strict: true, schema },
+  };
+
+  it('downgrades json_schema to json_object on a DeepSeek provider and keeps the schema in the prompt', async () => {
+    // DeepSeek answers 400 "This response_format type is unavailable now" for
+    // json_schema (v4-flash and v4-pro, measured 2026-10-20). Forwarding it
+    // killed codex's `exec --output-schema` and TUI recap turns outright.
+    const out = await encode(req({ response_format: jsonSchemaFormat } as Partial<UnifiedChatRequest>));
+    expect(out.response_format).toEqual({ type: 'json_object' });
+
+    const messages = out.messages as Array<Record<string, unknown>>;
+    expect(messages[0]?.role).toBe('system');
+    expect(String(messages[0]?.content)).toContain('JSON Schema');
+    expect(String(messages[0]?.content)).toContain('"step"');
+    // The original turn is intact behind the inserted instruction.
+    expect(messages[1]).toMatchObject({ role: 'user', content: 'hi' });
+  });
+
+  it('leaves json_schema untouched for a provider that supports strict schemas', async () => {
+    const openai = {
+      name: 'OpenAI',
+      baseUrl: 'https://api.openai.com/v1/chat/completions',
+    } as unknown as LLMProvider;
+    const out = await new OpenAITransformer().transformRequestIn(
+      req({ response_format: jsonSchemaFormat } as Partial<UnifiedChatRequest>),
+      openai,
+      ctx,
+    );
+    expect(out.response_format).toEqual(jsonSchemaFormat);
+    expect((out.messages as Array<Record<string, unknown>>)[0]?.role).toBe('user');
+  });
+
+  it('leaves an existing json_object format untouched', async () => {
+    const out = await encode(
+      req({ response_format: { type: 'json_object' } } as Partial<UnifiedChatRequest>),
+    );
+    expect(out.response_format).toEqual({ type: 'json_object' });
+    expect((out.messages as Array<Record<string, unknown>>)[0]?.role).toBe('user');
+  });
+});
+
 describe('OpenAITransformer — response direction', () => {
   it('is identity: reasoning_content stays the Unified spelling on this path', async () => {
     // On the /v1/chat/completions ingress the client wire IS Unified and there is

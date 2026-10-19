@@ -58,6 +58,10 @@ import type {
 } from '../types';
 import { extractReasoningIntent, resolveReasoningPlan } from '../reasoning-effort';
 import { recordDroppedField } from '../transformWarnings';
+import {
+  downgradeJsonSchemaBody,
+  isJsonObjectOnlyProvider,
+} from './utils/structuredOutput';
 
 /** Message-level keys that must never reach an OpenAI chat upstream. */
 const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking'] as const;
@@ -175,6 +179,17 @@ export class OpenAITransformer implements Transformer {
       out.reasoning_effort = reasoningPlan.effort;
     } else if (request.reasoning) {
       delete out.reasoning_effort;
+    }
+
+    // Structured-output fallback: DeepSeek's chat wire answers 400 "This
+    // response_format type is unavailable now" for `json_schema` and supports
+    // only `json_object`. Forwarding it untouched killed codex's structured
+    // turns (`exec --output-schema`, TUI recap, guardian review) outright.
+    // The schema is folded into a system instruction so the model still knows
+    // the shape; the runtime fallback in the Responses driver covers unknown
+    // upstreams the same way after one rejected round trip.
+    if (isJsonObjectOnlyProvider(provider)) {
+      downgradeJsonSchemaBody(out);
     }
 
     return out;

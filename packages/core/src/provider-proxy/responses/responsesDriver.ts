@@ -46,6 +46,12 @@ import {
   providerForWire,
   resolvePoolBoundKey,
 } from '../ingress/providerProxyShared';
+import {
+  downgradeJsonSchemaBody,
+  isJsonSchemaUnsupported,
+  isResponseFormatRejection,
+  markJsonSchemaUnsupported,
+} from '../../transformer/transformers/utils/structuredOutput';
 import { markCodexUsageLimitExhaustion } from '../ingress/codexUsageLimitDetection';
 
 import type { ResponsesAffinityEntry, ResponsesCredentialIdentity } from './responsesAffinity';
@@ -738,9 +744,22 @@ async function runReduced(
       return headers;
     },
     fetchFn: async (url, headers, requestBody) => {
+      // STRUCTURED-OUTPUT FALLBACK: a provider that rejects
+      // `response_format.type = 'json_schema'` (DeepSeek: 400 "This
+      // response_format type is unavailable now") would otherwise kill the
+      // whole turn — codex's structured requests (`exec --output-schema`, TUI
+      // recap, guardian review) all carry one. The chat body is rewritten to
+      // `json_object` with the schema folded into a system instruction, and
+      // the exchange retried ONCE; the provider+model is remembered so later
+      // turns skip the doomed first attempt. Known json_object-only providers
+      // are downgraded by the chat encoder before this point, so this path
+      // only pays a round trip for an upstream nobody has classified yet.
+      const wireBody = requestBody as Record<string, unknown>;
+      const formatKey = `${plan.providerIdentity}|${actualModel}`;
+      if (isJsonSchemaUnsupported(formatKey)) downgradeJsonSchemaBody(wireBody);
       const send = (target: string) => fetchUpstream(
         target,
-        { method: 'POST', headers, body: JSON.stringify(requestBody), signal },
+        { method: 'POST', headers, body: JSON.stringify(wireBody), signal },
         {
           providerId: plan.proxyProviderId,
           accountId,
@@ -750,9 +769,24 @@ async function runReduced(
           }),
         },
       );
-      const upstream = plan.proxyProviderId === 'antigravity'
-        ? await fetchWithAntigravityFailover(url, send, signal)
-        : await send(url);
+      const attempt = () => plan.proxyProviderId === 'antigravity'
+        ? fetchWithAntigravityFailover(url, send, signal)
+        : send(url);
+      let upstream = await attempt();
+      if (upstream.status === 400) {
+        // Read the rejection from a CLONE so the original body still reaches
+        // the client if the fallback does not apply.
+        const errorText = await upstream.clone().text().catch(() => '');
+        if (
+          isResponseFormatRejection(upstream.status, errorText) &&
+          downgradeJsonSchemaBody(wireBody)
+        ) {
+          markJsonSchemaUnsupported(formatKey);
+          await upstream.body?.cancel().catch(() => undefined);
+          throwIfResponsesAborted(signal);
+          upstream = await attempt();
+        }
+      }
       rawStatus = upstream.status;
       return upstream;
     },
