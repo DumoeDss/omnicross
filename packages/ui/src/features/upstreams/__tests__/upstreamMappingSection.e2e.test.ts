@@ -120,10 +120,14 @@ describe('UpstreamMappingSection end-to-end against a temp daemon', () => {
     // The persisted mapping survives on disk through the real daemon.
     const { readFileSync } = await import('node:fs');
     expect(readFileSync(join(tmp, 'config.json'), 'utf8')).toContain('upstreamModelMappings');
-    // The section's count line replaces the passthrough note.
+    // The expanded section lists the saved rows READ-ONLY — viewing a mapping
+    // must not require reopening the edit dialog. The passthrough note is gone.
     const text = document.body.textContent ?? '';
-    expect(text).toContain('upstreams.mappings.count');
     expect(text).not.toContain('upstreams.mappings.passthrough');
+    const preview = document.querySelector('[data-testid="upstream-mapping-preview"]');
+    expect(preview, 'mapping preview list is missing').toBeTruthy();
+    expect(preview!.textContent ?? '').toContain('claude-*');
+    expect(preview!.textContent ?? '').toContain('glm-4.7');
     // reopen the editor — rows must come back
     const edit2 = [...document.querySelectorAll('button')].find((b) => b.textContent === 'upstreams.mappings.edit')!;
     await act(async () => { edit2.dispatchEvent(new MouseEvent('click', { bubbles: true })); });

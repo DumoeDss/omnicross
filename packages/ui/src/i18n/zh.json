@@ -939,6 +939,8 @@
       "count": "{{count}} 条映射",
       "passthrough": "透传（未配置映射）",
       "edit": "编辑",
+      "effort": "强度：{{level}}",
+      "autoHint": "自动模式：上游已声明的模型原样透传，只有未声明的模型才走这些映射。",
       "sectionTitle": "模型映射",
       "sectionDescription": "客户端模型名 → 该上游的模型 id；表为空 = 直通（客户端的模型名原样转发）。"
     }

@@ -1,38 +1,54 @@
 /**
- * useUpstreamMappingInfo — one upstream's mapping-table row count, fetched
- * from the admin catalog on demand. Powers the per-resource "model mappings"
- * affordances (provider detail page, subscription-pool detail) so an operator
- * can see at a glance whether an upstream is passthrough (0 rows) or mapped.
+ * useUpstreamMappingInfo — one upstream's mapping table, fetched from the admin
+ * catalog on demand. Powers the per-resource "model mappings" affordance
+ * (provider detail page, subscription-pool detail): the expanded section shows
+ * the actual rows READ-ONLY, so checking what a model maps to never requires
+ * opening the editor dialog.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 
+import type { UpstreamCatalogEntry } from '@/daemon/types';
 import { agent } from '@/shared/agent';
+
+/** One wire mapping row (client model → upstream model, optional effort pin). */
+export type UpstreamMappingRow = UpstreamCatalogEntry['mappings'][number];
 
 export interface UpstreamMappingInfo {
   /** Mapping rows on the upstream's table; `null` while loading / unknown. */
+  mappings: UpstreamMappingRow[] | null;
+  /** Row count (`null` while loading) — kept as the compact badge value. */
   count: number | null;
+  /** Strict-mapping flag; `null` while loading / unknown. */
+  force: boolean | null;
   /** Re-read the catalog (e.g. after the editor dialog saved). */
   refresh: () => void;
 }
 
 export function useUpstreamMappingInfo(upstreamKey: string | null): UpstreamMappingInfo {
-  const [count, setCount] = useState<number | null>(null);
+  const [mappings, setMappings] = useState<UpstreamMappingRow[] | null>(null);
+  const [force, setForce] = useState<boolean | null>(null);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     if (!upstreamKey) {
-      setCount(null);
+      setMappings(null);
+      setForce(null);
       return;
     }
     let cancelled = false;
-    setCount(null);
+    setMappings(null);
+    setForce(null);
     void agent.apiService.listUpstreams().then((result) => {
       if (cancelled) return;
       const entry = result.upstreams.find((item) => item.key === upstreamKey);
-      setCount(entry ? entry.mappings.length : 0);
+      setMappings(entry?.mappings ?? []);
+      setForce(entry?.force !== false);
     }).catch(() => {
-      if (!cancelled) setCount(null);
+      if (!cancelled) {
+        setMappings(null);
+        setForce(null);
+      }
     });
     return () => {
       cancelled = true;
@@ -43,5 +59,5 @@ export function useUpstreamMappingInfo(upstreamKey: string | null): UpstreamMapp
     setNonce((current) => current + 1);
   }, []);
 
-  return { count, refresh };
+  return { mappings, count: mappings ? mappings.length : null, force, refresh };
 }

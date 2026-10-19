@@ -939,6 +939,8 @@
       "count": "{{count}} mapping(s)",
       "passthrough": "Passthrough (no mappings)",
       "edit": "Edit",
+      "effort": "Effort: {{level}}",
+      "autoHint": "Auto mode: models the upstream declares pass through verbatim; only undeclared names use these rows.",
       "sectionTitle": "Model mappings",
       "sectionDescription": "Client model name → this upstream's model id; an empty table passes the client's model id through verbatim."
     }
