@@ -54,6 +54,7 @@ import {
 import {
   collectCodexTools,
   encodeToolCallItem,
+  resolveDeclaredWireName,
   type CodexToolDeclarations,
 } from '../../transformer/transformers/OpenAIResponseTransformer';
 
@@ -108,26 +109,18 @@ function mergeDeclarations(target: CodexToolDeclarations, extra: CodexToolDeclar
   Object.assign(target.toolNamespaces, extra.toolNamespaces);
 }
 
-/** All declared flattened names — for `__`-suffix name resolution. */
-function declaredNames(declarations: CodexToolDeclarations): string[] {
-  return [
-    ...new Set([...declarations.customToolNames, ...Object.keys(declarations.toolNamespaces)]),
-  ];
-}
-
 /**
  * Resolve a name the model wrote to the declared flattened name it means.
  *
  * The upstream may have rebuilt declarations (dropping our `functions__`
  * prefix), so `exec` must find `functions__exec`. A bare inner name mapping to
  * MORE than one declaration is ambiguous and stays unresolved — encoding it
- * as-is at least fails loudly instead of dispatching the wrong tool.
+ * as-is at least fails loudly instead of dispatching the wrong tool. The
+ * resolution itself lives in the transformer (shared with the reduced
+ * encoder, which faces the same model behaviour).
  */
 export function resolveDeclaredName(name: string, declarations: CodexToolDeclarations): string {
-  const declared = declaredNames(declarations);
-  if (declared.includes(name)) return name;
-  const suffixMatches = declared.filter((entry) => entry.endsWith(`__${name}`));
-  return suffixMatches.length === 1 ? suffixMatches[0] : name;
+  return resolveDeclaredWireName(name, declarations);
 }
 
 /** Salvage the calls a DSML block encodes, as completed output items. */

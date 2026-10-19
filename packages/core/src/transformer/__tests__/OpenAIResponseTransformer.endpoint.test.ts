@@ -702,6 +702,36 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       });
     });
 
+    it('a NAMESPACE-LESS history call is matched back to its flattened declaration', async () => {
+      // A bare `exec` history item (an earlier upstream dropped the namespace)
+      // must not replay as an undeclared tool: the catalog resolves it to
+      // `functions__exec`.
+      const unified = await transformer.transformRequestOut(
+        {
+          model: 'gpt-5-codex',
+          input: [
+            {
+              type: 'additional_tools',
+              role: 'developer',
+              tools: [
+                {
+                  type: 'namespace',
+                  name: 'functions',
+                  tools: [{ type: 'custom', name: 'exec', description: 'Run commands' }],
+                },
+              ],
+            },
+            { type: 'function_call', call_id: 'call_a', name: 'exec', arguments: '{"input":"1"}' },
+            { type: 'function_call_output', call_id: 'call_a', output: 'ok' },
+          ],
+        },
+        mockContext
+      );
+
+      const call = unified.messages.flatMap((m) => m.tool_calls ?? []).find((t) => t.id === 'call_a')!;
+      expect(call.function.name).toBe('functions__exec');
+    });
+
     it('additional_tools becomes real tools: function, namespaced, and custom', async () => {
       // codex does NOT use the top-level `tools` field. Dropping this item left
       // the upstream request with no tools at all — the agent loop was dead.
@@ -945,6 +975,149 @@ describe('OpenAIResponseTransformer — endpoint direction', () => {
       expect(item.namespace).toBe('collaboration');
       expect(item.arguments).toBe('{"task":"x"}');
       expect(item.id).toMatch(/^fc_/);
+    });
+
+    it('JSON: a BARE custom name binds to its unique flattened declaration (DeepSeek exec regression)', async () => {
+      // DeepSeek answers `exec` even though the catalog declared
+      // `functions__exec` — its model reads the bare name from codex's own
+      // instructions and ignores the flattened wire name. Left unresolved the
+      // call reaches codex as an unregistered function_call and the registry
+      // kills the turn with "invoked with incompatible payload" — the shell is
+      // dead for the whole session with no tool output at all.
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_abc',
+                    type: 'function',
+                    function: { name: 'exec', arguments: '{"input":"Get-ChildItem"}' },
+                  },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext(['functions__exec'], { 'functions__exec': 'functions' })
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'custom_tool_call');
+      expect(item, 'a bare custom name must still come back as custom_tool_call').toBeDefined();
+      expect(item.name).toBe('exec');
+      expect(item.namespace).toBe('functions');
+      expect(item.input).toBe('Get-ChildItem');
+      expect(json.output.some((o: any) => o.type === 'function_call')).toBe(false);
+    });
+
+    it('JSON: a BARE function name regains its namespace too (cua js regression)', async () => {
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_js', type: 'function', function: { name: 'js', arguments: '{"code":"1"}' } }],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext([], { 'mcp__cua_repl__js': 'mcp__cua_repl' })
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'function_call');
+      expect(item.name).toBe('js');
+      expect(item.namespace).toBe('mcp__cua_repl');
+    });
+
+    it('JSON: an AMBIGUOUS bare name is left untouched (never guess a namespace)', async () => {
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [{ id: 'call_s', type: 'function', function: { name: 'search', arguments: '{}' } }],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext([], { 'server_a__search': 'server_a', 'server_b__search': 'server_b' })
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'function_call');
+      expect(item.name).toBe('search');
+      expect(item.namespace).toBeUndefined();
+    });
+
+    it('JSON: a custom payload under a single non-`input` key still unwraps', async () => {
+      // DeepSeek sometimes labels the free-form payload `code`; with exactly
+      // one string value the intent is unambiguous.
+      const out = await transformer.transformResponseIn(
+        ccJsonResponse({
+          model: 'gpt-5-codex',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  { id: 'call_abc', type: 'function', function: { name: 'functions__exec', arguments: '{"code":"1 + 1"}' } },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        }),
+        codexContext(['functions__exec'], { 'functions__exec': 'functions' })
+      );
+      const json = (await out.json()) as Record<string, any>;
+
+      const item = json.output.find((o: any) => o.type === 'custom_tool_call');
+      expect(item.input).toBe('1 + 1');
+    });
+
+    it('SSE: a BARE custom name still opens a custom_tool_call (DeepSeek stream)', async () => {
+      const out = await transformer.transformResponseIn(
+        sseResponse([
+          'data: {"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_ds","function":{"name":"exec","arguments":"{\\"input\\":\\"1 + 1\\"}"}}]},"finish_reason":null}]}\n\n',
+          'data: {"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+          'data: [DONE]\n\n',
+        ]),
+        codexContext(['functions__exec'], { 'functions__exec': 'functions' })
+      );
+
+      const events = (await drainSseEvents(out)) as Array<Record<string, any>>;
+      const added = events.find(
+        (e) => e.type === 'response.output_item.added' && e.item?.type === 'custom_tool_call'
+      );
+      expect(added, 'bare exec must open a custom_tool_call, not a function_call').toBeDefined();
+      expect(added!.item.name).toBe('exec');
+      expect(added!.item.namespace).toBe('functions');
+
+      const done = events.find(
+        (e) => e.type === 'response.output_item.done' && e.item?.type === 'custom_tool_call'
+      );
+      expect(done!.item.input).toBe('1 + 1');
+      expect(events.some((e) => e.type === 'response.function_call_arguments.delta')).toBe(false);
     });
 
     it('SSE: a custom tool streams added → input delta+done → item.done', async () => {

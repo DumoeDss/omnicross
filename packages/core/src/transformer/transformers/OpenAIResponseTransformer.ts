@@ -297,8 +297,18 @@ export class OpenAIResponseTransformer implements Transformer {
     const req = request as ResponseApiRequest;
     const messages: UnifiedMessage[] = [];
     // codex ships its tool declarations inside an `additional_tools` INPUT item
-    // rather than the top-level `tools` field; collected as we walk the input.
+    // rather than the top-level `tools` field. The catalog is collected in a
+    // PRE-PASS so every history tool call can be checked against it — codex's
+    // world-state catalog is normally the first input item, but a resumed
+    // transcript must not depend on that ordering. The main walk below merges
+    // the same items again (idempotent: names dedup, sets union).
     let codexTools = collectCodexTools({ tools: req.tools });
+    for (const item of req.input ?? []) {
+      const entry = item as Record<string, unknown>;
+      if (entry && entry.type === 'additional_tools') {
+        codexTools = mergeCodexTools(codexTools, collectCodexTools(entry));
+      }
+    }
     context.responsesSourceFormat = this.name;
     if (typeof req.reasoning?.summary === 'string') {
       context.responsesReasoningSummary = req.reasoning.summary;
@@ -350,9 +360,16 @@ export class OpenAIResponseTransformer implements Transformer {
           // Namespaced custom calls ride the FLATTENED wire name, exactly like
           // `function_call` history below — the model only knows the flattened
           // declaration (see collectCodexTools), and a history call under a
-          // different name is rejected by strict upstreams.
-          const ns = typeof entry.namespace === 'string' ? entry.namespace : '';
-          const flatName = ns ? `${ns}__${(entry.name as string) || ''}` : (entry.name as string) || '';
+          // different name is rejected by strict upstreams. An item WITHOUT a
+          // namespace is matched against the catalog instead (a resumed
+          // transcript may hold calls recorded before the namespace was
+          // restored).
+          const rawName = (entry.name as string) || '';
+          const wireName = resolveDeclaredWireName(rawName, codexTools);
+          const ns = typeof entry.namespace === 'string'
+            ? entry.namespace
+            : (codexTools.toolNamespaces[wireName] ?? '');
+          const flatName = ns && !wireName.startsWith(`${ns}__`) ? `${ns}__${wireName}` : wireName;
           rememberToolNamespace(codexTools, flatName, entry.namespace);
           rememberCustomCall(codexTools, entry.call_id ?? entry.id, flatName);
           const toolCall = {
@@ -398,17 +415,22 @@ export class OpenAIResponseTransformer implements Transformer {
         // encode grouping); otherwise start a fresh assistant message.
         if (itemType === 'function_call') {
           rememberToolNamespace(codexTools, entry.name, entry.namespace);
+          // Namespaced calls ride the SAME flattened wire name as their
+          // declaration (see collectCodexTools) — the model only knows
+          // the flattened name, and history calls for undeclared names
+          // are rejected by strict upstreams. A bare history name (one the
+          // upstream dropped the namespace from) is matched against the
+          // catalog so replays don't send an undeclared tool name.
+          const rawName = (entry.name as string) || '';
+          const wireName = resolveDeclaredWireName(rawName, codexTools);
+          const ns = typeof entry.namespace === 'string' && entry.namespace
+            ? entry.namespace
+            : (codexTools.toolNamespaces[wireName] ?? '');
           const toolCall = {
             id: ((entry.call_id ?? entry.id) as string) || '',
             type: 'function' as const,
             function: {
-              // Namespaced calls ride the SAME flattened wire name as their
-              // declaration (see collectCodexTools) — the model only knows
-              // the flattened name, and history calls for undeclared names
-              // are rejected by strict upstreams.
-              name: (typeof entry.namespace === 'string' && entry.namespace
-                ? `${entry.namespace}__${(entry.name as string) || ''}`
-                : (entry.name as string) || ''),
+              name: ns && !wireName.startsWith(`${ns}__`) ? `${ns}__${wireName}` : wireName,
               arguments: typeof entry.arguments === 'string' ? entry.arguments : '',
             },
           };
@@ -707,13 +729,63 @@ type ResponsesCodexToolState = NonNullable<CodexToolState> & {
 function unwrapCustomToolInput(argumentsJson: string): string {
   try {
     const parsed = JSON.parse(argumentsJson) as Record<string, unknown>;
-    if (parsed && typeof parsed === 'object' && typeof parsed.input === 'string') {
-      return parsed.input;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      if (typeof parsed.input === 'string') {
+        return parsed.input;
+      }
+      // A model that ignored the declared `input` property may still package
+      // the free-form payload as ONE string under another key (DeepSeek emits
+      // `{"code":"…"}` for `exec` under some prompts). A single string value
+      // is unambiguous about which text the tool meant; anything else stays
+      // JSON so nothing is silently reinterpreted.
+      const values = Object.values(parsed);
+      if (values.length === 1 && typeof values[0] === 'string') {
+        return values[0];
+      }
     }
   } catch {
     /* not valid JSON — fall through to the raw text */
   }
   return argumentsJson;
+}
+
+/**
+ * Resolve a tool-call name from the upstream back to the FLATTENED declared
+ * wire name codex's catalog registered.
+ *
+ * The declaration side flattens `<namespace>__<name>` (see collectCodexTools),
+ * but not every model honours it: DeepSeek picks the bare member name (`exec`)
+ * whenever the surrounding instructions call the tool that way, even though the
+ * declared name is `functions__exec`. That mismatch is fatal — the call comes
+ * back as an unregistered `function_call`, and codex's registry aborts the turn
+ * ("invoked with incompatible payload") before the tool ever runs.
+ *
+ * Exact matches win. Otherwise a bare name binds to the UNIQUE declared wire
+ * name ending in `__<name>`; with two candidates in different namespaces there
+ * is no safe guess, so the name is left untouched.
+ */
+export function resolveDeclaredWireName(name: string, codexTools: CodexToolState): string {
+  if (!name || !codexTools) return name;
+  const declared = new Set<string>(codexTools.customToolNames ?? []);
+  for (const wireName of Object.keys(codexTools.toolNamespaces ?? {})) {
+    declared.add(wireName);
+  }
+  if (declared.has(name)) return name;
+
+  const suffix = `__${name}`;
+  let match: string | undefined;
+  for (const wireName of declared) {
+    if (!wireName.endsWith(suffix)) continue;
+    if (match !== undefined) return name; // ambiguous across namespaces
+    match = wireName;
+  }
+  return match ?? name;
+}
+
+/** Whether this upstream tool-call name belongs to a codex `custom` tool. */
+export function isCustomToolCallName(name: string, codexTools: CodexToolState): boolean {
+  if (!codexTools?.customToolNames?.length) return false;
+  return codexTools.customToolNames.includes(resolveDeclaredWireName(name, codexTools));
 }
 
 /**
@@ -734,19 +806,23 @@ export function encodeToolCallItem(
   codexTools: CodexToolState,
 ): Record<string, unknown> {
   const bareId = callId.replace(/^(call_|fc_|ctc_)/, '');
+  // A provider may answer with the bare member name; look it up as the
+  // flattened name its declaration actually registered (see
+  // resolveDeclaredWireName — DeepSeek's `exec` for `functions__exec`).
+  const wireName = resolveDeclaredWireName(name, codexTools);
 
-  const namespace = codexTools?.toolNamespaces?.[name];
+  const namespace = codexTools?.toolNamespaces?.[wireName];
   // The wire name is the FLATTENED `<namespace>__<name>`; codex expects the
   // bare name plus the separate namespace axis on the item. This holds for the
   // custom branch too — emitting the flattened name verbatim leaves codex with
   // an unregistered `functions__exec` and the call dies as
   // "unsupported custom tool call" (the `functions` namespace is how responses
   // lite ships EVERY built-in tool, exec included).
-  const bareName = namespace && name.startsWith(`${namespace}__`)
-    ? name.slice(namespace.length + 2)
-    : name;
+  const bareName = namespace && wireName.startsWith(`${namespace}__`)
+    ? wireName.slice(namespace.length + 2)
+    : wireName;
 
-  if (codexTools?.customToolNames?.includes(name)) {
+  if (codexTools?.customToolNames?.includes(wireName)) {
     return {
       id: `ctc_${bareId}`,
       type: 'custom_tool_call',
@@ -1534,7 +1610,7 @@ function convertOpenAIStreamToResponseApi(
                       callId,
                       name,
                       arguments: '',
-                      isCustom: codexTools?.customToolNames?.includes(name) ?? false,
+                      isCustom: isCustomToolCallName(name, codexTools),
                     };
                     toolCalls.set(tcIndex, entry);
                     const outIdx = nextOutputIndex++;
@@ -1584,7 +1660,7 @@ function convertOpenAIStreamToResponseApi(
                       callId,
                       name: call.name,
                       arguments: call.arguments,
-                      isCustom: codexTools?.customToolNames?.includes(call.name) ?? false,
+                      isCustom: isCustomToolCallName(call.name, codexTools),
                     });
                     const outIdx = nextOutputIndex++;
                     toolOutputIndex.set(tcIndex, outIdx);
