@@ -12,6 +12,18 @@ Provider 连接、模型目录和执行路由分开保存。`images.providers[id
 
 默认生图模型和订阅适配器默认值为 `gpt-image-2.5-sunburst`。读取旧配置时，只升级仍使用原始 GPT Image 2 订阅默认值的配置；已有 API 路由和自定义订阅模型保留。
 
+### 关闭图像工具后的原生透传
+
+Codex 内置的 `image_gen` 工具在本地执行：模型调用后由 Codex 自己向 `<当前 provider base>/images/generations`（编辑走 `/images/edits`）发请求；Omnicross 作为 provider 时这些请求会到达网关。因此 `images.enabled = false` **不能**简单返回 501/422——那会切断上游本来就支持的生图能力。
+
+关闭时按 key 绑定的上游分流（`packages/core/src/outbound-api/nativeImagePassthrough.ts`）：
+
+- **Codex 订阅**（account / account-group / account-pool）：原样转发到 `https://chatgpt.com/backend-api/codex/images/generations`（编辑为 `/images/edits`），复用订阅 OAuth 策略（账号选择、刷新、健康度）并补 Codex CLI 标识头。这正是 Codex 直连时会走的端点。
+- **OpenAI 官方 provider**（base 主机为 `api.openai.com`）：原样转发到该 base 的 `/images/...`，使用该行自己的 API key。其他第三方 provider 和订阅不猜——保留结构化的 `unsupported_capability` 应答。
+- **Responses 托管 `image_generation` 工具**：图像运行时关闭且路由为 native 的 codex 订阅 / OpenAI 官方时，请求体不再被本地 mediator 拦截，`tools` 原样到达上游自行执行；其余路由仍返回 422。
+
+Codex 实际走的是前者（`/v1/images/generations`），托管工具路径主要面向直接调用 Responses API 的客户端。
+
 ## 1. 当前能力边界
 
 Omnicross 对外提供三种图片入口，复用 ImageOrchestrator 和模型路由。API 凭证与订阅认证独立装配，图片路由不继承文本请求的认证信息。

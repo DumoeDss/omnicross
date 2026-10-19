@@ -76,6 +76,10 @@ import {
   resolveGatewayModelMappingRow,
 } from './gatewayBindingResolver';
 import { buildCodexModelCatalog, EMPTY_CODEX_MODEL_CATALOG, type RealModelEntry } from './codexModelCatalog';
+import {
+  resolveNativeImagePassthrough,
+  type NativeImageAction,
+} from './nativeImagePassthrough';
 import { injectMappingEffortDefault } from './mappingEffortInjection';
 import { isKindMappedEndpoint } from './kindDetection';
 import { verifyKey, type VerifiedKey } from './outboundApiKeyAuth';
@@ -1239,6 +1243,110 @@ async function relayDirectUpstream(
   }
 }
 
+/**
+ * Native image fallback for a DISABLED Omnicross image runtime.
+ *
+ * Resolves the key's bound upstream (the Responses binding — the same axis the
+ * text traffic takes) and, when that upstream natively speaks the images wire
+ * (codex subscription / official OpenAI), relays the request VERBATIM with the
+ * upstream's own credential. Returns `true` when the request was relayed; the
+ * caller keeps its structured "unsupported" answer otherwise.
+ *
+ * Codex's built-in `image_gen` tool executes locally and POSTs to
+ * `<provider>/images/generations`, so with the Omnicross image feature off this
+ * is the ONLY path that keeps a codex-subscription user's image generation
+ * working — the exact behavior the feature switch must not remove.
+ */
+async function resolveImagePassthroughForRequest(args: {
+  req: http.IncomingMessage;
+  res: http.ServerResponse;
+  deps: OutboundApiDeps;
+  verified: VerifiedKey;
+  config: OutboundRequestConfig;
+  pinnedBindingId: string | undefined;
+  action: NativeImageAction;
+  audit: AuditCaptureContext | null;
+  rlog?: RequestLogContext;
+}): Promise<boolean> {
+  const { req, res, deps, verified, config, pinnedBindingId, action, audit, rlog } = args;
+  const binding = candidateGatewayBindings(config.bindings, verified.id, 'responses', pinnedBindingId)[0];
+  const target = binding?.target ?? verified.boundUpstream;
+  if (!target) return false;
+
+  // The body is read ONCE here: the images operations never reached their own
+  // reader (the runtime declined), so the stream is still fresh.
+  const rawBody = await readBody(req);
+  let model = '';
+  try {
+    const parsed = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
+    if (typeof parsed.model === 'string') model = parsed.model;
+  } catch {
+    /* not JSON — relay the bytes as-is */
+  }
+  if (audit) audit.setRequestBody(rawBody);
+
+  const endpointConfig = binding
+    ? gatewayBindingToEndpointConfig(binding, model || undefined)
+    : { endpoint: 'responses' as const, useSubscription: target.kind !== 'provider' };
+  const plan = await resolveNativeImagePassthrough({
+    target,
+    endpointConfig,
+    llmConfig: deps.llmConfig,
+    action,
+    model: model || 'gpt-image-2',
+    sessionKey: `outbound:images:${verified.id}`,
+    clientHeaders: req.headers,
+  });
+  if (!plan) return false;
+
+  try {
+    const upstream = await fetchUpstream(
+      plan.url,
+      {
+        method: 'POST',
+        headers: plan.headers,
+        body: rawBody,
+        signal: requestLifecycleSignal(req, res),
+      },
+      {
+        providerId: plan.providerId,
+        ...(rlog
+          ? { onUpstreamError: (info: { status: number; body: string }) => { rlog.upstreamError = info.body; } }
+          : {}),
+      },
+    );
+    if (audit) audit.provider = plan.providerId;
+    if (rlog) rlog.provider = plan.providerId;
+
+    const responseHeaders: Record<string, string> = {};
+    const contentType = upstream.headers.get('content-type');
+    if (contentType) responseHeaders['Content-Type'] = contentType;
+    res.writeHead(upstream.status, responseHeaders);
+    if (!upstream.body) {
+      res.end();
+      return true;
+    }
+    const bodyStream = Readable.fromWeb(
+      upstream.body as unknown as import('node:stream/web').ReadableStream<Uint8Array>,
+    );
+    bodyStream.on('error', () => {
+      res.destroy();
+    });
+    bodyStream.pipe(res);
+    await new Promise<void>((resolve) => {
+      res.once('close', resolve);
+    });
+    return true;
+  } catch (err) {
+    const message = serializeError(err);
+    if (audit) audit.error = message;
+    if (rlog) rlog.error = message;
+    if (!res.headersSent) writeJsonError(res, 502, message);
+    else res.destroy();
+    return true;
+  }
+}
+
 /** Serve the models visible to this key in the OpenAI `GET /v1/models` shape. */
 async function writeModelsList(
   res: http.ServerResponse,
@@ -1581,20 +1689,38 @@ export async function handleOutboundRequest(
       return;
     }
     const registry = deps.proxyDeps.openAIOperationRegistry;
-    if (!registry) {
+    let handled = false;
+    if (registry) {
+      stripPresentedAuthHeaders(req);
+      handled = await registry.dispatch({
+        operation: imageOperation,
+        request: req,
+        response: res,
+        route: trustedImageRoute(verified.id),
+        deps: deps.proxyDeps,
+      });
+    }
+    if (!handled) {
+      // The Omnicross image runtime is not serving (the feature switch is off
+      // or no runtime is registered). That must not kill an upstream that
+      // speaks images NATIVELY — codex's own `image_gen` tool calls
+      // `<provider>/images/generations` and lands here. Relay verbatim to a
+      // codex-subscription account or the official OpenAI API; every other
+      // target keeps the structured "not available" answer.
+      const passthrough = await resolveImagePassthroughForRequest({
+        req,
+        res,
+        deps,
+        verified,
+        config,
+        pinnedBindingId,
+        action: imageOperation.id === 'images.edit' ? 'edit' : 'generate',
+        audit,
+        rlog,
+      });
+      if (passthrough) return;
       writeOpenAIOperationError(res, unsupportedOpenAIOperation(imageOperation));
       return;
-    }
-    stripPresentedAuthHeaders(req);
-    const handled = await registry.dispatch({
-      operation: imageOperation,
-      request: req,
-      response: res,
-      route: trustedImageRoute(verified.id),
-      deps: deps.proxyDeps,
-    });
-    if (!handled) {
-      writeOpenAIOperationError(res, unsupportedOpenAIOperation(imageOperation));
     }
     return;
   }

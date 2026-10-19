@@ -516,6 +516,9 @@ export function createNativeResponsesHostedImageIngress(
     (() => `hosted-image-${randomUUID()}`);
 
   return Object.freeze({
+    // The pinned runtime's own availability (the daemon binds this to the
+    // image runtime manager). A fake without it reads as available.
+    isAvailable: (): boolean => runtimeFactory.isEnabled?.() ?? true,
     prepare: async (
       input: ResponsesHostedImagePrepareInput,
     ): Promise<ResponsesHostedImageRequestLease | null> => {

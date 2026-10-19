@@ -81,6 +81,8 @@ export interface HostedImageOpenRequestInput {
 /** Dormant integration seam for a later Native Responses owner. */
 export interface HostedImageContributionFactory {
   acquire(): Promise<HostedImageRuntimeGenerationLease>;
+  /** Whether the pinned runtime can execute now (the feature switch is on). */
+  isEnabled(): boolean;
 }
 
 /** Bind a stable factory to one app-session runtime manager without acquiring. */
@@ -89,6 +91,7 @@ export function createHostedImageContributionFactory(
 ): HostedImageContributionFactory {
   return Object.freeze({
     acquire: (): Promise<HostedImageRuntimeGenerationLease> => manager.acquireHosted(),
+    isEnabled: (): boolean => manager.status().current.enabled,
   });
 }
 

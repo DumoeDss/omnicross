@@ -8,7 +8,7 @@
 import { EventEmitter } from 'node:events';
 import type http from 'node:http';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
 import { legacyEndpointsToBindings } from '../apiServerConfig';
@@ -25,6 +25,7 @@ import {
 } from '../outboundApiRouter';
 import { OutboundConcurrencyGate } from '../outboundConcurrencyGate';
 import { OutboundRateLimiter } from '../outboundRateLimiter';
+import { setSubscriptionRegistryForOutbound } from '../subscriptionRegistryPort';
 import type { GatewayBinding, OutboundApiDeps, OutboundKeyDb, OutboundKeyDbRow } from '../types';
 import { UserMessageSerialQueue } from '../userMessageSerialQueue';
 
@@ -1502,5 +1503,159 @@ describe('handleOutboundRequest — mapping effort default (model-mapping-effort
     );
     expect(body['model']).toBe('gpt-5.6-sol');
     expect(body['reasoning_effort']).toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// Images runtime OFF — native passthrough
+// ===========================================================================
+//
+// Codex's built-in `image_gen` tool executes locally and POSTs
+// `<provider>/images/generations`, landing on this gateway. With the Omnicross
+// image runtime disabled those requests must still reach an upstream that
+// natively speaks images (codex subscription / official OpenAI); every other
+// target keeps the structured unsupported answer.
+describe('images runtime off — native image passthrough', () => {
+  const codexProfile = () => ({
+    providerId: 'codex',
+    displayName: 'Codex (ChatGPT OAuth)',
+    mode: 'transformer' as const,
+    authStrategy: {
+      kind: 'oauth-bearer' as const,
+      providerId: 'codex',
+      async applyHeaders(headers: Record<string, string>) {
+        headers['Authorization'] = 'Bearer codex-oauth';
+      },
+      async onUnauthorized() {
+        return false;
+      },
+      async describeStatus() {
+        return { providerId: 'codex', ok: true };
+      },
+    },
+    resolveUpstreamUrl: () => 'https://chatgpt.com/backend-api/codex/responses',
+    providerTransformerNames: ['openai-response'],
+    modelTransformerNames: [],
+  });
+
+  const imagesBinding = (target: GatewayBinding['target']): GatewayBinding => ({
+    id: 'img-upstream',
+    name: 'img upstream',
+    enabled: true,
+    keyScope: 'selected',
+    apiKeyIds: [enabledRow.id],
+    endpoint: 'responses',
+    target,
+    priority: 100,
+    fallback: 'fail',
+    modelMode: 'passthrough',
+  });
+
+  const imageRow: OutboundKeyDbRow = {
+    ...enabledRow,
+    allowedEndpoints: ['responses', 'images'],
+  };
+
+  async function postImages(
+    binding: GatewayBinding,
+    llmProvider: Parameters<typeof makeDeps>[0]['llmProvider'] = null,
+  ): Promise<{ res: MockRes; fetchMock: ReturnType<typeof vi.fn> }> {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ created: 1, data: [{ b64_json: 'AAAA' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const deps = makeDeps({
+      db: makeDb(() => imageRow),
+      routeMap: new ProviderProxyRouteMap(),
+      llmProvider,
+    });
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any', 'content-type': 'application/json' },
+      url: '/v1/images/generations',
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-image-2', prompt: 'a red cube' }),
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      { endpoints: [], bindings: [binding] },
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+    return { res, fetchMock };
+  }
+
+  afterEach(() => {
+    setSubscriptionRegistryForOutbound(null);
+    vi.unstubAllGlobals();
+  });
+
+  it('relays to the Codex subscription images wire with OAuth and Codex markers', async () => {
+    setSubscriptionRegistryForOutbound({
+      getProfile: (id) => (id === 'codex' ? (codexProfile() as never) : null),
+    });
+    const { res, fetchMock } = await postImages(
+      imagesBinding({ kind: 'account-pool', providerId: 'codex' }),
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ created: 1, data: [{ b64_json: 'AAAA' }] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://chatgpt.com/backend-api/codex/images/generations');
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer codex-oauth');
+    expect(headers.originator).toBe('codex_cli_rs');
+    // The client body is relayed verbatim.
+    expect(JSON.parse(String(init.body))).toEqual({ model: 'gpt-image-2', prompt: 'a red cube' });
+  });
+
+  it('relays to the official OpenAI images API with the provider key', async () => {
+    const { res, fetchMock } = await postImages(
+      imagesBinding({ kind: 'provider', providerId: 'openai' }),
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        apiFormat: 'openai',
+        api_base_url: 'https://api.openai.com/v1',
+        api_key: 'sk-official',
+        models: ['gpt-6-astra'],
+        enabled: true,
+      },
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.openai.com/v1/images/generations');
+    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer sk-official');
+  });
+
+  it('keeps the structured unsupported answer for a third-party upstream', async () => {
+    setSubscriptionRegistryForOutbound({
+      getProfile: (id) => (id === 'codex' ? (codexProfile() as never) : null),
+    });
+    const { res, fetchMock } = await postImages(
+      imagesBinding({ kind: 'provider', providerId: 'deepseek' }),
+      {
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiFormat: 'openai',
+        api_base_url: 'https://api.deepseek.com/v1/chat/completions',
+        api_key: 'sk-ds',
+        models: ['deepseek-v4-flash'],
+        enabled: true,
+      },
+    );
+
+    expect(res.statusCode).toBe(501);
+    expect(res.body).toContain('unsupported_capability');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

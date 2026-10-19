@@ -58,7 +58,7 @@ export { isSubscriptionProviderId } from './subscriptionSupport';
  * route-level hint fields, so the wrapper injects them at that stable seam.
  * With no binding it returns the original profile by identity.
  */
-function bindDelegatedSubscriptionProfile(
+export function bindDelegatedSubscriptionProfile(
   profile: SubscriptionDispatchProfile,
   config: EndpointRoutingConfig,
 ): SubscriptionDispatchProfile {

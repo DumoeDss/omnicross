@@ -36,6 +36,13 @@ export interface ResponsesHostedImageRuntimeLease {
 /** Dormant until an admitted Responses request explicitly acquires it. */
 export interface ResponsesHostedImageRuntimeFactory {
   acquire(): Promise<ResponsesHostedImageRuntimeLease>;
+  /**
+   * Whether the pinned image runtime can execute RIGHT NOW (the feature switch
+   * is on and a generation is published). Lets the ingress distinguish "images
+   * are turned off" — where a natively capable upstream must be left alone —
+   * from an actual execution failure. Optional for fakes predating it.
+   */
+  isEnabled?(): boolean;
 }
 
 export interface ResponsesHostedImagePrepareInput {
@@ -72,6 +79,13 @@ export interface ResponsesHostedImageIngress {
   prepare(
     input: ResponsesHostedImagePrepareInput,
   ): Promise<ResponsesHostedImageRequestLease | null>;
+  /**
+   * `false` when the local image runtime is DISABLED (feature switch off). The
+   * ingress then leaves a natively capable upstream (codex subscription /
+   * official OpenAI) untouched instead of failing the request. Absent ⇒ treat
+   * as available (older wiring / test doubles).
+   */
+  isAvailable?(): boolean;
 }
 
 function record(value: unknown): value is Record<string, unknown> {

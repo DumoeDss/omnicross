@@ -15,6 +15,7 @@ import type http from 'node:http';
 import { resolveOfficialModelRoute } from '@omnicross/contracts/provider-presets';
 import type { UsageCacheKeySource } from '@omnicross/contracts/usage-stats-types';
 import { imageRouteTenantId, routeAllowsHostedImages } from '../../image-generation/imageRouteIdentity';
+import { isOfficialOpenAIImageUpstream } from '../../image-generation/nativeImageTargets';
 
 import { isAccountAllowanceExhaustedError } from '../../pipeline/AccountAllowanceScheduling';
 import { isBoundAccountSelectionError } from '../../pipeline/BoundAccountSelectionError';
@@ -55,6 +56,8 @@ import {
   buildResponsesCallPlan as buildSharedResponsesCallPlan,
   executeResponsesUpstream,
   resolveResponsesRouteProfile,
+  type ResponsesCallPlan,
+  type ResolvedResponsesRouteProfile,
   type ResponsesPipelineResult,
   type ResponsesOperationKind,
 } from '../responses/responsesDriver';
@@ -79,6 +82,24 @@ import {
   unsupportedResponsesCapability,
   validateReducedResponsesRequest,
 } from '../responses/responsesProfile';
+
+/**
+ * Whether the RESOLVED route's upstream executes hosted `image_generation`
+ * itself, so a DISABLED local image runtime must leave the request untouched.
+ *
+ * Only a NATIVE profile qualifies: that is the byte-verbatim relay, where the
+ * `image_generation` tool declaration reaches an upstream that understands it.
+ * A reduced route would have to translate the tool away — there is nothing to
+ * pass through, so the structured "unavailable" error stands.
+ */
+function responsesRouteServesImagesNatively(
+  resolved: ResolvedResponsesRouteProfile,
+  plan: ResponsesCallPlan,
+): boolean {
+  if (plan.profile !== 'native' || resolved.profile !== 'native') return false;
+  if (plan.proxyProviderId === 'codex') return true;
+  return isOfficialOpenAIImageUpstream(resolved.provider);
+}
 
 /**
  * SSE `response.failed` `error.code` values that mean the Codex/OpenAI backend
@@ -351,18 +372,28 @@ export async function handleResponsesOperation(
     ? ensureCodexPromptCacheKey(responsesBody, plan.proxyProviderId, derivedSession)
     : { cacheKeySource: 'none' as const, cacheKeyInjected: false };
   const previousHostedImageState = affinity?.hostedImage;
-  const hasHostedImageWork = operation === 'create' && hasResponsesHostedImageWork(
+  const requestedHostedImageWork = operation === 'create' && hasResponsesHostedImageWork(
     responsesBody,
     previousHostedImageState,
   );
-  if (hasHostedImageWork && !routeAllowsHostedImages(route)) {
+  const hostedImageIngress = deps.responsesHostedImageIngress;
+  // FEATURE-OFF ≠ FAILURE for natively capable upstreams: when the local image
+  // runtime is switched off, a codex-subscription or official-OpenAI upstream
+  // still executes `image_generation` itself — the request must reach it
+  // verbatim instead of being answered 422. Every other target keeps the
+  // structured "unavailable" error (its upstream cannot speak the wire).
+  const hostedImageRuntimeAvailable = hostedImageIngress?.isAvailable?.() ?? true;
+  const hostedImagePassesThrough = requestedHostedImageWork &&
+    !hostedImageRuntimeAvailable &&
+    responsesRouteServesImagesNatively(resolved, plan);
+  const hasHostedImageWork = requestedHostedImageWork && !hostedImagePassesThrough;
+  if (requestedHostedImageWork && !hostedImagePassesThrough && !routeAllowsHostedImages(route)) {
     throw new OpenAIOperationError({
       status: 403,
       code: 'insufficient_permissions',
       message: 'The API key is not allowed to execute image generation',
     });
   }
-  const hostedImageIngress = deps.responsesHostedImageIngress;
   if (hasHostedImageWork && !hostedImageIngress) {
     throw new OpenAIOperationError({
       status: 422,

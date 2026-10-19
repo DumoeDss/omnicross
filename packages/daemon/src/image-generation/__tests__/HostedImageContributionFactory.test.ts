@@ -65,7 +65,8 @@ describe('HostedImageContributionFactory', () => {
     const acquire = vi.spyOn(manager, 'acquireHosted');
 
     const factory = createHostedImageContributionFactory(manager);
-    expect(factory).toEqual({ acquire: expect.any(Function) });
+    expect(factory).toEqual({ acquire: expect.any(Function), isEnabled: expect.any(Function) });
+    expect(factory.isEnabled()).toBe(true);
     expect(acquire).not.toHaveBeenCalled();
     expect(hosted.inspectRequest).not.toHaveBeenCalled();
     expect(hosted.createRequestScope).not.toHaveBeenCalled();
