@@ -4,7 +4,7 @@
     "description": "Ce mot de passe est demandé pour chaque affichage, copie ou export d’identifiants. Les clés sont masquées après 30 secondes ou à la perte de focus. Aucun PIN système requis.",
     "verify": "Vérifier",
     "currentPassword": "Mot de passe actuel",
-    "newPassword": "Nouveau mot de passe (8–128 caractères)",
+    "newPassword": "Nouveau mot de passe (4–8 caractères)",
     "confirmPassword": "Confirmer le nouveau mot de passe",
     "enabled": "Protection activée",
     "disabled": "Protection désactivée",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Mot de passe incorrect.",
   "view-password-locked": "Trop de tentatives. Réessayez dans 60 secondes.",
   "view-password-unavailable": "Stockage du mot de passe indisponible. L’accès reste bloqué.",
-  "view-password-length": "Utilisez 8 à 128 caractères.",
+  "view-password-length": "Utilisez 4 à 8 caractères.",
   "view-password-reset-confirm": "Confirmez d’abord l’effacement des identifiants.",
   "view-password-cancelled": "Annulé.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plan de codage"
       },
-      "categoryOther": "Autres"
+      "categoryOther": "Modèles de décision"
     },
     "alerts": {
       "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce fournisseur ?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "La découverte de modèles n'est pas encore prise en charge pour ce format de fournisseur. Ajoutez les modèles manuellement."
   },
   "otherProviders": {
-    "title": "Autres fournisseurs",
+    "title": "Modèles de décision",
     "description": "Stockage de clés et configuration pour outils non-chat comme Jev."
   },
   "nav": {
-    "otherProviders": "Autres",
+    "otherProviders": "Modèles de décision",
     "group": {
-      "providers": "Fournisseurs"
+      "providers": "Services de modèles"
     },
     "subtitle": "Panneau de contrôle",
     "providers": "Fournisseurs",
@@ -554,8 +554,8 @@
     "usageStats": "Utilisation",
     "pricing": "Tarifs",
     "dashboard": "Dashboard",
-    "images": "Images",
-    "search": "Recherche"
+    "images": "Modèles d'images",
+    "search": "Services de recherche"
   },
   "images": {
     "models": {

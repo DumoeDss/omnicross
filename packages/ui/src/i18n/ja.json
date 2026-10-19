@@ -4,7 +4,7 @@
     "description": "保存済みキーの表示・コピー・認証情報のエクスポートごとに、このアプリのパスワードを確認します。30 秒後またはウィンドウから離れるとキーを隠します。システム PIN は不要です。",
     "verify": "確認",
     "currentPassword": "現在の表示パスワード",
-    "newPassword": "新しい表示パスワード（8～128 文字）",
+    "newPassword": "新しい表示パスワード（4～8 文字）",
     "confirmPassword": "新しいパスワードを再入力",
     "enabled": "保護は有効です",
     "disabled": "保護は無効です",
@@ -23,7 +23,7 @@
   "view-password-invalid": "表示パスワードが違います。",
   "view-password-locked": "試行回数が多すぎます。60 秒後に再試行してください。",
   "view-password-unavailable": "パスワードストレージを利用できません。アクセスはブロックされています。",
-  "view-password-length": "8～128 文字で入力してください。",
+  "view-password-length": "4～8 文字で入力してください。",
   "view-password-reset-confirm": "先に保存済み認証情報の消去を確認してください。",
   "view-password-cancelled": "キャンセルしました。",
   "providerSettings": {
@@ -447,7 +447,7 @@
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
       },
-      "categoryOther": "その他"
+      "categoryOther": "決定モデル"
     },
     "alerts": {
       "deleteConfirm": "このプロバイダーを削除してもよいですか？"
@@ -545,21 +545,21 @@
     "discoveryUnsupportedFormat": "このプロバイダー形式ではモデルの自動検出がサポートされていません。モデルを手動で追加してください。"
   },
   "otherProviders": {
-    "title": "その他のプロバイダー",
+    "title": "決定モデル",
     "description": "Jev などの非チャットツール向けのキー保管と設定。"
   },
   "nav": {
-    "otherProviders": "その他",
+    "otherProviders": "決定モデル",
     "subtitle": "コントロールパネル",
     "primary": "メインナビゲーション",
     "more": "その他",
     "overview": "概要",
     "gateway": "ゲートウェイ",
-    "upstreams": "モデルサービス",
+    "upstreams": "大規模言語モデル",
     "integrations": "連携",
     "group": {
       "run": "運用",
-      "providers": "プロバイダー",
+      "providers": "モデルサービス",
       "configure": "設定",
       "system": "システム"
     },
@@ -571,8 +571,8 @@
     "usageStats": "使用状況",
     "pricing": "料金",
     "dashboard": "ダッシュボード",
-    "images": "画像",
-    "search": "検索"
+    "images": "画像モデル",
+    "search": "検索サービス"
   },
   "overview": {
     "accounts": {
@@ -610,7 +610,7 @@
     }
   },
   "upstreams": {
-    "title": "モデルサービス",
+    "title": "大規模言語モデル",
     "addAccount": "アカウントを追加",
     "addProvider": "プロバイダーを追加",
     "addProviderDescription": "プロバイダーを作成し、モデルとキープールを設定します。",

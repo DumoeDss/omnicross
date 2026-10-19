@@ -4,7 +4,7 @@
     "description": "A senha do aplicativo é verificada a cada exibição, cópia ou exportação de credenciais. As chaves são ocultadas após 30 segundos ou ao perder o foco. Não exige PIN do sistema.",
     "verify": "Verificar",
     "currentPassword": "Senha atual de visualização",
-    "newPassword": "Nova senha (8–128 caracteres)",
+    "newPassword": "Nova senha (4–8 caracteres)",
     "confirmPassword": "Confirmar nova senha",
     "enabled": "Proteção ativada",
     "disabled": "Proteção desativada",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Senha incorreta.",
   "view-password-locked": "Muitas tentativas. Tente novamente após 60 segundos.",
   "view-password-unavailable": "O armazenamento da senha está indisponível. O acesso permanece bloqueado.",
-  "view-password-length": "Use de 8 a 128 caracteres.",
+  "view-password-length": "Use de 4 a 8 caracteres.",
   "view-password-reset-confirm": "Confirme primeiro a exclusão das credenciais salvas.",
   "view-password-cancelled": "Cancelado.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plano de codificação"
       },
-      "categoryOther": "Outros"
+      "categoryOther": "Modelos de decisão"
     },
     "alerts": {
       "deleteConfirm": "Tem certeza que deseja excluir este provedor?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "A descoberta de modelos ainda não é suportada para este formato de provedor. Adicione os modelos manualmente."
   },
   "otherProviders": {
-    "title": "Outros provedores",
+    "title": "Modelos de decisão",
     "description": "Armazenamento de chaves e configuração para ferramentas sem chat, como a Jev."
   },
   "nav": {
-    "otherProviders": "Outros",
+    "otherProviders": "Modelos de decisão",
     "group": {
-      "providers": "Provedores"
+      "providers": "Serviços de modelos"
     },
     "subtitle": "Painel de controle",
     "providers": "Provedores",
@@ -554,8 +554,8 @@
     "usageStats": "Uso",
     "pricing": "Preços",
     "dashboard": "Dashboard",
-    "images": "Imagens",
-    "search": "Pesquisa"
+    "images": "Modelos de imagem",
+    "search": "Serviços de pesquisa"
   },
   "images": {
     "models": {

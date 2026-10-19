@@ -4,7 +4,7 @@
     "description": "Heslo aplikace se ověřuje při každém zobrazení, kopírování nebo exportu přihlašovacích údajů. Klíče se skryjí po 30 sekundách nebo ztrátě zaměření. Systémový PIN není potřeba.",
     "verify": "Ověřit",
     "currentPassword": "Aktuální heslo pro zobrazení",
-    "newPassword": "Nové heslo (8–128 znaků)",
+    "newPassword": "Nové heslo (4–8 znaků)",
     "confirmPassword": "Potvrdit nové heslo",
     "enabled": "Ochrana zapnuta",
     "disabled": "Ochrana vypnuta",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Nesprávné heslo.",
   "view-password-locked": "Příliš mnoho pokusů. Zkuste to za 60 sekund.",
   "view-password-unavailable": "Úložiště hesla není dostupné. Přístup zůstává blokován.",
-  "view-password-length": "Použijte 8–128 znaků.",
+  "view-password-length": "Použijte 4–8 znaků.",
   "view-password-reset-confirm": "Nejprve potvrďte smazání uložených přihlašovacích údajů.",
   "view-password-cancelled": "Zrušeno.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plán kódování"
       },
-      "categoryOther": "Jiné"
+      "categoryOther": "Modely rozhodování"
     },
     "alerts": {
       "deleteConfirm": "Opravdu chcete smazat tohoto poskytovatele?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Zjišťování modelů pro tento formát poskytovatele zatím není podporováno. Přidejte modely ručně."
   },
   "otherProviders": {
-    "title": "Ostatní poskytovatelé",
+    "title": "Modely rozhodování",
     "description": "Ukládání klíčů a nastavení pro nechatovací nástroje jako Jev."
   },
   "nav": {
-    "otherProviders": "Ostatní",
+    "otherProviders": "Modely rozhodování",
     "group": {
-      "providers": "Poskytovatelé"
+      "providers": "Modelové služby"
     },
     "subtitle": "Ovládací panel",
     "providers": "Poskytovatelé",
@@ -554,8 +554,8 @@
     "usageStats": "Využití",
     "pricing": "Ceník",
     "dashboard": "Dashboard",
-    "images": "Obrázky",
-    "search": "Hledání"
+    "images": "Modely obrázků",
+    "search": "Vyhledávací služby"
   },
   "images": {
     "models": {

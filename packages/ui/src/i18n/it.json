@@ -4,7 +4,7 @@
     "description": "Questa password viene verificata per ogni visualizzazione, copia o esportazione delle credenziali. Le chiavi si nascondono dopo 30 secondi o alla perdita del focus. Nessun PIN di sistema richiesto.",
     "verify": "Verifica",
     "currentPassword": "Password attuale",
-    "newPassword": "Nuova password (8–128 caratteri)",
+    "newPassword": "Nuova password (4–8 caratteri)",
     "confirmPassword": "Conferma la nuova password",
     "enabled": "Protezione attiva",
     "disabled": "Protezione disattivata",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Password errata.",
   "view-password-locked": "Troppi tentativi. Riprova tra 60 secondi.",
   "view-password-unavailable": "Archivio password non disponibile. L’accesso resta bloccato.",
-  "view-password-length": "Usa da 8 a 128 caratteri.",
+  "view-password-length": "Usa da 4 a 8 caratteri.",
   "view-password-reset-confirm": "Conferma prima la cancellazione delle credenziali salvate.",
   "view-password-cancelled": "Annullato.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Piano di codifica"
       },
-      "categoryOther": "Altro"
+      "categoryOther": "Modelli decisionali"
     },
     "alerts": {
       "deleteConfirm": "Sei sicuro di voler eliminare questo provider?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "La scoperta dei modelli non è ancora supportata per questo formato di provider. Aggiungi i modelli manualmente."
   },
   "otherProviders": {
-    "title": "Altri provider",
+    "title": "Modelli decisionali",
     "description": "Archivio chiavi e configurazione per strumenti non chat come Jev."
   },
   "nav": {
-    "otherProviders": "Altro",
+    "otherProviders": "Modelli decisionali",
     "group": {
-      "providers": "Provider"
+      "providers": "Servizi modello"
     },
     "subtitle": "Pannello di controllo",
     "providers": "Provider",
@@ -554,8 +554,8 @@
     "usageStats": "Utilizzo",
     "pricing": "Prezzi",
     "dashboard": "Dashboard",
-    "images": "Immagini",
-    "search": "Ricerca"
+    "images": "Modelli di immagini",
+    "search": "Servizi di ricerca"
   },
   "images": {
     "models": {

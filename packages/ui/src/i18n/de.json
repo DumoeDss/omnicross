@@ -4,7 +4,7 @@
     "description": "Dieses App-Passwort wird bei jeder Schlüsselanzeige, Kopie und jedem Zugangsdatenexport geprüft. Schlüssel werden nach 30 Sekunden oder bei Fokusverlust verborgen. Keine System-PIN erforderlich.",
     "verify": "Prüfen",
     "currentPassword": "Aktuelles Anzeigepasswort",
-    "newPassword": "Neues Anzeigepasswort (8–128 Zeichen)",
+    "newPassword": "Neues Anzeigepasswort (4–8 Zeichen)",
     "confirmPassword": "Neues Passwort bestätigen",
     "enabled": "Schutz aktiviert",
     "disabled": "Schutz deaktiviert",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Falsches Anzeigepasswort.",
   "view-password-locked": "Zu viele Versuche. Nach 60 Sekunden erneut versuchen.",
   "view-password-unavailable": "Passwortspeicher nicht verfügbar. Zugriff bleibt gesperrt.",
-  "view-password-length": "8–128 Zeichen verwenden.",
+  "view-password-length": "4–8 Zeichen verwenden.",
   "view-password-reset-confirm": "Zuerst das Löschen der gespeicherten Zugangsdaten bestätigen.",
   "view-password-cancelled": "Abgebrochen.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
       },
-      "categoryOther": "Weitere"
+      "categoryOther": "Entscheidungsmodelle"
     },
     "alerts": {
       "deleteConfirm": "Möchten Sie diesen Anbieter wirklich löschen?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Die Modellerkennung wird für dieses Anbieterformat noch nicht unterstützt. Fügen Sie Modelle manuell hinzu."
   },
   "otherProviders": {
-    "title": "Weitere Anbieter",
+    "title": "Entscheidungsmodelle",
     "description": "Schlüsselspeicher und Konfiguration für Nicht-Chat-Tools wie Jev."
   },
   "nav": {
-    "otherProviders": "Sonstige",
+    "otherProviders": "Entscheidungsmodelle",
     "group": {
-      "providers": "Anbieter"
+      "providers": "Modelldienste"
     },
     "subtitle": "Systemsteuerung",
     "providers": "Anbieter",
@@ -554,8 +554,8 @@
     "usageStats": "Nutzung",
     "pricing": "Preise",
     "dashboard": "Dashboard",
-    "images": "Bilder",
-    "search": "Suche"
+    "images": "Bildmodelle",
+    "search": "Suchdienste"
   },
   "images": {
     "models": {

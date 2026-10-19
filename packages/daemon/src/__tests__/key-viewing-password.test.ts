@@ -19,6 +19,20 @@ afterEach(() => {
 });
 
 describe('viewing password', () => {
+  it('sets a 4–8 character password on the first protected read and continues it', async () => {
+    const service = fixture();
+    const read = vi.fn(async () => 'fixture-secret');
+    await expect(service.read(undefined, read)).rejects.toThrow('view-password-not-set');
+    expect(read).not.toHaveBeenCalled();
+    await expect(service.read('abc', read)).rejects.toThrow('view-password-length');
+    await expect(service.read('123456789', read)).rejects.toThrow('view-password-length');
+    expect(await service.read('view', read)).toBe('fixture-secret');
+    expect(read).toHaveBeenCalledOnce();
+    expect(await service.status()).toEqual({ enabled: true });
+    await expect(service.read(undefined, read)).rejects.toThrow('view-password-required');
+    expect(await service.read('view', read)).toBe('fixture-secret');
+  });
+
   it('clears all portable server credentials without mutating the original config', () => {
     const original = { providers: [{ id: 'fixture', apiKey: 'fixture-main', apiKeys: [{ apiKey: 'fixture-pool' }],
       extraHeaders: { 'X-Custom-Token': 'fixture-header' }, codingPlan: { apiKey: 'fixture-plan' }, apiModes: [{ apiKey: 'fixture-mode' }] }],
@@ -35,33 +49,33 @@ describe('viewing password', () => {
   it('persists only a salted verifier and verifies every read/change/disable', async () => {
     const service = fixture();
     expect(await service.status()).toEqual({ enabled: false });
-    await expect(service.change(undefined, 'short')).rejects.toThrow('view-password-length');
-    await service.change(undefined, 'viewing-password');
-    expect(readFileSync(service.path, 'utf8')).not.toContain('viewing-password');
+    await expect(service.change(undefined, 'abc')).rejects.toThrow('view-password-length');
+    await service.change(undefined, 'view');
+    expect(readFileSync(service.path, 'utf8')).not.toContain('view');
     const reloaded = new KeyViewingPassword(service.path.replace('.key-viewing.json', ''));
     const read = vi.fn(async () => 'fixture-secret');
     await expect(reloaded.read(undefined, read)).rejects.toThrow('view-password-required');
     await expect(reloaded.read('wrong', read)).rejects.toThrow('view-password-invalid');
     expect(read).not.toHaveBeenCalled();
-    expect(await reloaded.read('viewing-password', read)).toBe('fixture-secret');
+    expect(await reloaded.read('view', read)).toBe('fixture-secret');
     await expect(service.read(undefined, read)).rejects.toThrow('view-password-required');
     await expect(service.change('wrong', null)).rejects.toThrow('view-password-invalid');
-    await service.change('viewing-password', 'replacement-password');
-    await expect(service.read('viewing-password', read)).rejects.toThrow('view-password-invalid');
-    await service.change('replacement-password', null);
+    await service.change('view', 'repl');
+    await expect(service.read('view', read)).rejects.toThrow('view-password-invalid');
+    await service.change('repl', null);
     expect(await reloaded.status()).toEqual({ enabled: false });
   });
 
   it('persists cooldown across instances and fails closed on corrupt storage', async () => {
     const service = fixture();
-    await service.change(undefined, 'viewing-password');
+    await service.change(undefined, 'view');
     for (let count = 0; count < 4; count++) await expect(service.read('bad', async () => true)).rejects.toThrow('view-password-invalid');
     await expect(service.read('bad', async () => true)).rejects.toThrow('view-password-locked');
     const second = new KeyViewingPassword(service.path.replace('.key-viewing.json', ''));
-    await expect(second.read('viewing-password', async () => true)).rejects.toThrow('view-password-locked');
+    await expect(second.read('view', async () => true)).rejects.toThrow('view-password-locked');
     const now = Date.now();
     vi.spyOn(Date, 'now').mockReturnValue(now + 61_000);
-    expect(await second.read('viewing-password', async () => true)).toBe(true);
+    expect(await second.read('view', async () => true)).toBe(true);
     writeFileSync(service.path, '{broken', 'utf8');
     await expect(second.status()).rejects.toThrow('view-password-unavailable');
     await expect(second.change(undefined, null)).rejects.toThrow('view-password-unavailable');
@@ -72,21 +86,21 @@ describe('viewing password', () => {
 
   it('serializes verification and read against rotation and preserves the verifier if recovery fails', async () => {
     const service = fixture();
-    await service.change(undefined, 'viewing-password');
+    await service.change(undefined, 'view');
     let release!: () => void;
     let entered!: () => void;
     const started = new Promise<void>((resolve) => { entered = resolve; });
     const held = new Promise<void>((resolve) => { release = resolve; });
-    const read = service.read('viewing-password', async () => { entered(); await held; return true; });
+    const read = service.read('view', async () => { entered(); await held; return true; });
     await started;
     let rotated = false;
-    const rotation = service.change('viewing-password', 'replacement-password').then(() => { rotated = true; });
+    const rotation = service.change('view', 'repl').then(() => { rotated = true; });
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(rotated).toBe(false);
     release(); await read; await rotation;
     const before = readFileSync(service.path, 'utf8');
-    await expect(service.reset('third-password', async () => { throw new Error('fixture failure'); })).rejects.toThrow('fixture failure');
+    await expect(service.reset('thrd', async () => { throw new Error('fixture failure'); })).rejects.toThrow('fixture failure');
     expect(readFileSync(service.path, 'utf8')).toBe(before);
-    expect(await service.read('replacement-password', async () => true)).toBe(true);
+    expect(await service.read('repl', async () => true)).toBe(true);
   });
 });

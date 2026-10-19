@@ -4,7 +4,7 @@
     "description": "ต้องยืนยันรหัสผ่านของแอปทุกครั้งที่ดู คัดลอกคีย์ที่บันทึกไว้ หรือส่งออกข้อมูลรับรอง คีย์จะถูกซ่อนหลัง 30 วินาทีหรือเมื่อหน้าต่างเสียโฟกัส ไม่ต้องใช้ PIN ของระบบ",
     "verify": "ยืนยัน",
     "currentPassword": "รหัสผ่านสำหรับดูคีย์ปัจจุบัน",
-    "newPassword": "รหัสผ่านใหม่ (8–128 ตัวอักษร)",
+    "newPassword": "รหัสผ่านใหม่ (4–8 ตัวอักษร)",
     "confirmPassword": "ยืนยันรหัสผ่านใหม่",
     "enabled": "เปิดการป้องกันแล้ว",
     "disabled": "ปิดการป้องกันอยู่",
@@ -23,7 +23,7 @@
   "view-password-invalid": "รหัสผ่านไม่ถูกต้อง",
   "view-password-locked": "พยายามมากเกินไป ลองอีกครั้งหลัง 60 วินาที",
   "view-password-unavailable": "ที่เก็บรหัสผ่านไม่พร้อมใช้งาน การเข้าถึงยังคงถูกบล็อก",
-  "view-password-length": "ใช้ 8–128 ตัวอักษร",
+  "view-password-length": "ใช้ 4–8 ตัวอักษร",
   "view-password-reset-confirm": "ยืนยันการล้างข้อมูลรับรองที่บันทึกไว้ก่อน",
   "view-password-cancelled": "ยกเลิกแล้ว",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
       },
-      "categoryOther": "อื่น ๆ"
+      "categoryOther": "โมเดลการตัดสินใจ"
     },
     "alerts": {
       "deleteConfirm": "คุณแน่ใจหรือไม่ว่าต้องการลบผู้ให้บริการนี้?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "ยังไม่รองรับการค้นพบโมเดลสำหรับรูปแบบผู้ให้บริการนี้ กรุณาเพิ่มโมเดลด้วยตนเอง"
   },
   "otherProviders": {
-    "title": "ผู้ให้บริการอื่น ๆ",
+    "title": "โมเดลการตัดสินใจ",
     "description": "จัดเก็บคีย์และการตั้งค่าสำหรับเครื่องมือที่ไม่ใช่แชท เช่น Jev"
   },
   "nav": {
-    "otherProviders": "อื่น ๆ",
+    "otherProviders": "โมเดลการตัดสินใจ",
     "group": {
-      "providers": "ผู้ให้บริการ"
+      "providers": "บริการโมเดล"
     },
     "subtitle": "แผงควบคุม",
     "providers": "ผู้ให้บริการ",
@@ -554,8 +554,8 @@
     "usageStats": "การใช้งาน",
     "pricing": "ราคา",
     "dashboard": "Dashboard",
-    "images": "รูปภาพ",
-    "search": "ค้นหา"
+    "images": "โมเดลรูปภาพ",
+    "search": "บริการค้นหา"
   },
   "images": {
     "models": {

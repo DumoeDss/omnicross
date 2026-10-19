@@ -1,0 +1,30 @@
+{
+  "id": "openrouter-decisions",
+  "presetId": "openrouter-decisions",
+  "name": "OpenRouter Decisions",
+  "category": "other",
+  "apiFormat": "openai",
+  "api_base_url": "https://openrouter.ai/api/v1",
+  "models": [
+    "typesafe/jev-1.14",
+    "typesafe/jev-1.13",
+    "openai/gpt-6-luna-decisions",
+    "perplexity/pplx-decider-v1.1-27b",
+    "nace-ai/drex-v2.0",
+    "nace-ai/drex-v1.5",
+    "cloudflare/clef",
+    "cloudflare/clef-flash",
+    "inception/mercury-decide",
+    "liquid/d1",
+    "microsoft/microsoft-decision-1"
+  ],
+  "logjev": { "kind": "jev" },
+  "description": "OpenRouter Decisions 决策模型：预置 Decisions 榜单常用模型（Jev、GPT-6 Luna Decisions、Drex、Clef 等），默认走 OpenRouter 原生 Decisions 接口，也可切换 chat 模式读取 top_logprobs。客户端使用网关 /v1/systemone 和 Omnicross 访问密钥。",
+  "icon": "openrouter",
+  "website": "https://openrouter.ai/rankings/decisions",
+  "docsUrl": "https://github.com/DumoeDss/omnicross/blob/main/docs/logjev.md",
+  "isSystem": true,
+  "features": [
+    "decision-engine"
+  ]
+}

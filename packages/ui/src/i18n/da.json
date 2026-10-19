@@ -4,7 +4,7 @@
     "description": "Appens adgangskode kontrolleres ved hver visning, kopiering eller eksport af legitimationsoplysninger. Nøgler skjules efter 30 sekunder eller ved tab af fokus. Ingen system-PIN kræves.",
     "verify": "Bekræft",
     "currentPassword": "Nuværende visningsadgangskode",
-    "newPassword": "Ny adgangskode (8–128 tegn)",
+    "newPassword": "Ny adgangskode (4–8 tegn)",
     "confirmPassword": "Bekræft ny adgangskode",
     "enabled": "Beskyttelse slået til",
     "disabled": "Beskyttelse slået fra",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Forkert adgangskode.",
   "view-password-locked": "For mange forsøg. Prøv igen efter 60 sekunder.",
   "view-password-unavailable": "Adgangskodelageret er utilgængeligt. Adgang er fortsat blokeret.",
-  "view-password-length": "Brug 8–128 tegn.",
+  "view-password-length": "Brug 4–8 tegn.",
   "view-password-reset-confirm": "Bekræft først rydning af gemte legitimationsoplysninger.",
   "view-password-cancelled": "Annulleret.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Kodningsplan"
       },
-      "categoryOther": "Andre"
+      "categoryOther": "Beslutningsmodeller"
     },
     "alerts": {
       "deleteConfirm": "Er du sikker på, at du vil slette denne udbyder?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Modelregistrering understøttes endnu ikke for dette udbydervformat. Tilføj modeller manuelt."
   },
   "otherProviders": {
-    "title": "Andre udbydere",
+    "title": "Beslutningsmodeller",
     "description": "Nøglelagring og konfiguration til ikke-chatværktøjer som Jev."
   },
   "nav": {
-    "otherProviders": "Andre",
+    "otherProviders": "Beslutningsmodeller",
     "group": {
-      "providers": "Udbydere"
+      "providers": "Modelltjenester"
     },
     "subtitle": "Kontrolpanel",
     "providers": "Udbydere",
@@ -554,8 +554,8 @@
     "usageStats": "Forbrug",
     "pricing": "Priser",
     "dashboard": "Dashboard",
-    "images": "Billeder",
-    "search": "Søgning"
+    "images": "Billedmodeller",
+    "search": "Søgetjenester"
   },
   "images": {
     "models": {

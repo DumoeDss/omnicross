@@ -4,7 +4,7 @@
     "description": "تُطلب كلمة مرور التطبيق عند كل عرض أو نسخ لمفتاح محفوظ أو تصدير لبيانات الاعتماد. تُخفى المفاتيح بعد 30 ثانية أو عند مغادرة النافذة. لا يلزم PIN النظام.",
     "verify": "تحقق",
     "currentPassword": "كلمة مرور العرض الحالية",
-    "newPassword": "كلمة مرور جديدة (8–128 حرفًا)",
+    "newPassword": "كلمة مرور جديدة (4–8 حرفًا)",
     "confirmPassword": "تأكيد كلمة المرور الجديدة",
     "enabled": "الحماية مفعلة",
     "disabled": "الحماية معطلة",
@@ -23,7 +23,7 @@
   "view-password-invalid": "كلمة مرور العرض غير صحيحة.",
   "view-password-locked": "محاولات كثيرة جدًا. أعد المحاولة بعد 60 ثانية.",
   "view-password-unavailable": "تخزين كلمة المرور غير متاح. يظل الوصول محظورًا.",
-  "view-password-length": "استخدم من 8 إلى 128 حرفًا.",
+  "view-password-length": "استخدم من 4 إلى 8 حرفًا.",
   "view-password-reset-confirm": "أكد مسح بيانات الاعتماد المحفوظة أولًا.",
   "view-password-cancelled": "تم الإلغاء.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "خطة البرمجة"
       },
-      "categoryOther": "أخرى"
+      "categoryOther": "نماذج القرار"
     },
     "alerts": {
       "deleteConfirm": "هل أنت متأكد من حذف هذا الموفر؟"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "اكتشاف النماذج غير مدعوم لتنسيق هذا الموفر بعد. أضف النماذج يدويًا."
   },
   "otherProviders": {
-    "title": "مزودون آخرون",
+    "title": "نماذج القرار",
     "description": "تخزين المفاتيح وإعدادات الأدوات غير المحادثة مثل Jev."
   },
   "nav": {
-    "otherProviders": "أخرى",
+    "otherProviders": "نماذج القرار",
     "group": {
-      "providers": "المزودون"
+      "providers": "خدمات النماذج"
     },
     "subtitle": "لوحة التحكم",
     "providers": "الموفرون",
@@ -554,8 +554,8 @@
     "usageStats": "الاستخدام",
     "pricing": "الأسعار",
     "dashboard": "Dashboard",
-    "images": "الصور",
-    "search": "البحث"
+    "images": "نماذج الصور",
+    "search": "خدمات البحث"
   },
   "images": {
     "models": {

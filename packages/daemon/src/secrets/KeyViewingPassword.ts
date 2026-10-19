@@ -64,7 +64,7 @@ export class KeyViewingPassword {
   }
 
   private validateNew(password: unknown): asserts password is string {
-    if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    if (typeof password !== 'string' || password.length < 4 || password.length > 8) {
       throw new KeyViewingError(400, 'view-password-length');
     }
   }
@@ -97,7 +97,22 @@ export class KeyViewingPassword {
   }
 
   read<T>(password: unknown, operation: () => Promise<T>): Promise<T> {
-    return this.exclusive(async () => { await this.verify(password); return operation(); });
+    return this.exclusive(async () => {
+      const record = this.load();
+      if (!record) {
+        if (password === undefined || password === '') {
+          throw new KeyViewingError(403, 'view-password-not-set');
+        }
+        this.validateNew(password);
+        // First reveal doubles as setup. Installing before the operation means
+        // future reads always require verification, including if this read
+        // later fails (for example, the selected provider disappeared).
+        await this.install(password);
+        return operation();
+      }
+      await this.verify(password);
+      return operation();
+    });
   }
 
   change(current: unknown, next: unknown): Promise<void> {

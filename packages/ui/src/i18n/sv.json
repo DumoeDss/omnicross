@@ -4,7 +4,7 @@
     "description": "Appens lösenord kontrolleras vid varje visning, kopiering eller export av inloggningsuppgifter. Nycklar döljs efter 30 sekunder eller när fönstret tappar fokus. Ingen system-PIN krävs.",
     "verify": "Verifiera",
     "currentPassword": "Nuvarande visningslösenord",
-    "newPassword": "Nytt lösenord (8–128 tecken)",
+    "newPassword": "Nytt lösenord (4–8 tecken)",
     "confirmPassword": "Bekräfta nytt lösenord",
     "enabled": "Skydd aktiverat",
     "disabled": "Skydd inaktiverat",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Felaktigt lösenord.",
   "view-password-locked": "För många försök. Försök igen om 60 sekunder.",
   "view-password-unavailable": "Lösenordslagringen är otillgänglig. Åtkomst är fortfarande blockerad.",
-  "view-password-length": "Använd 8–128 tecken.",
+  "view-password-length": "Använd 4–8 tecken.",
   "view-password-reset-confirm": "Bekräfta först radering av sparade inloggningsuppgifter.",
   "view-password-cancelled": "Avbrutet.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Kodningsplan"
       },
-      "categoryOther": "Övriga"
+      "categoryOther": "Beslutsmodeller"
     },
     "alerts": {
       "deleteConfirm": "Är du säker på att du vill ta bort den här leverantören?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Modellupptäckning stöds inte ännu för det här leverantörformatet. Lägg till modeller manuellt."
   },
   "otherProviders": {
-    "title": "Övriga leverantörer",
+    "title": "Beslutsmodeller",
     "description": "Nyckellagring och konfiguration för icke-chattverktyg som Jev."
   },
   "nav": {
-    "otherProviders": "Övrigt",
+    "otherProviders": "Beslutsmodeller",
     "group": {
-      "providers": "Leverantörer"
+      "providers": "Modelltjänster"
     },
     "subtitle": "Kontrollpanel",
     "providers": "Leverantörer",
@@ -554,8 +554,8 @@
     "usageStats": "Användning",
     "pricing": "Priser",
     "dashboard": "Dashboard",
-    "images": "Bilder",
-    "search": "Sök"
+    "images": "Bildmodeller",
+    "search": "Söktjänster"
   },
   "images": {
     "models": {

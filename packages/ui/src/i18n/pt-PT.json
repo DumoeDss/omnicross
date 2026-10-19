@@ -4,7 +4,7 @@
     "description": "A palavra-passe da aplicação é verificada em cada visualização, cópia ou exportação de credenciais. As chaves são ocultadas após 30 segundos ou ao perder o foco. Não exige PIN do sistema.",
     "verify": "Verificar",
     "currentPassword": "Palavra-passe de visualização atual",
-    "newPassword": "Nova palavra-passe (8–128 carateres)",
+    "newPassword": "Nova palavra-passe (4–8 carateres)",
     "confirmPassword": "Confirmar nova palavra-passe",
     "enabled": "Proteção ativada",
     "disabled": "Proteção desativada",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Palavra-passe incorreta.",
   "view-password-locked": "Demasiadas tentativas. Tente novamente após 60 segundos.",
   "view-password-unavailable": "O armazenamento da palavra-passe está indisponível. O acesso continua bloqueado.",
-  "view-password-length": "Use 8–128 carateres.",
+  "view-password-length": "Use 4–8 carateres.",
   "view-password-reset-confirm": "Confirme primeiro a eliminação das credenciais guardadas.",
   "view-password-cancelled": "Cancelado.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plano de programação"
       },
-      "categoryOther": "Outros"
+      "categoryOther": "Modelos de decisão"
     },
     "alerts": {
       "deleteConfirm": "Tem a certeza de que pretende eliminar este fornecedor?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "A descoberta de modelos ainda não é suportada para este formato de fornecedor. Adicione modelos manualmente."
   },
   "otherProviders": {
-    "title": "Outros fornecedores",
+    "title": "Modelos de decisão",
     "description": "Armazenamento de chaves e configuração para ferramentas sem chat, como a Jev."
   },
   "nav": {
-    "otherProviders": "Outros",
+    "otherProviders": "Modelos de decisão",
     "group": {
-      "providers": "Fornecedores"
+      "providers": "Serviços de modelos"
     },
     "subtitle": "Painel de controlo",
     "providers": "Fornecedores",
@@ -554,8 +554,8 @@
     "usageStats": "Uso",
     "pricing": "Preços",
     "dashboard": "Dashboard",
-    "images": "Imagens",
-    "search": "Pesquisa"
+    "images": "Modelos de imagem",
+    "search": "Serviços de pesquisa"
   },
   "images": {
     "models": {

@@ -4,7 +4,7 @@
     "description": "Parola aplicației este verificată la fiecare vizualizare, copiere sau export de acreditări. Cheile se ascund după 30 de secunde sau la pierderea focalizării. Nu necesită PIN de sistem.",
     "verify": "Verifică",
     "currentPassword": "Parola actuală de vizualizare",
-    "newPassword": "Parolă nouă (8–128 caractere)",
+    "newPassword": "Parolă nouă (4–8 caractere)",
     "confirmPassword": "Confirmă parola nouă",
     "enabled": "Protecție activată",
     "disabled": "Protecție dezactivată",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Parolă incorectă.",
   "view-password-locked": "Prea multe încercări. Încearcă din nou după 60 de secunde.",
   "view-password-unavailable": "Stocarea parolei nu este disponibilă. Accesul rămâne blocat.",
-  "view-password-length": "Folosește 8–128 caractere.",
+  "view-password-length": "Folosește 4–8 caractere.",
   "view-password-reset-confirm": "Confirmă mai întâi ștergerea acreditărilor salvate.",
   "view-password-cancelled": "Anulat.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plan programare"
       },
-      "categoryOther": "Altele"
+      "categoryOther": "Modele de decizie"
     },
     "alerts": {
       "deleteConfirm": "Sigur doriți să ștergeți acest furnizor?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Descoperirea modelelor nu este suportată pentru acest format de furnizor. Adăugați modele manual."
   },
   "otherProviders": {
-    "title": "Alți furnizori",
+    "title": "Modele de decizie",
     "description": "Stocarea cheilor și configurarea pentru instrumente non-chat precum Jev."
   },
   "nav": {
-    "otherProviders": "Altele",
+    "otherProviders": "Modele de decizie",
     "group": {
-      "providers": "Furnizori"
+      "providers": "Servicii de modele"
     },
     "subtitle": "Panou de control",
     "providers": "Furnizori",
@@ -554,8 +554,8 @@
     "usageStats": "Utilizare",
     "pricing": "Prețuri",
     "dashboard": "Dashboard",
-    "images": "Imagini",
-    "search": "Căutare"
+    "images": "Modele de imagini",
+    "search": "Servicii de căutare"
   },
   "images": {
     "models": {

@@ -4,7 +4,7 @@
     "description": "Kata laluan aplikasi disahkan setiap kali melihat, menyalin kunci tersimpan atau mengeksport kelayakan. Kunci disembunyikan selepas 30 saat atau apabila tetingkap hilang fokus. PIN sistem tidak diperlukan.",
     "verify": "Sahkan",
     "currentPassword": "Kata laluan paparan semasa",
-    "newPassword": "Kata laluan baharu (8–128 aksara)",
+    "newPassword": "Kata laluan baharu (4–8 aksara)",
     "confirmPassword": "Sahkan kata laluan baharu",
     "enabled": "Perlindungan diaktifkan",
     "disabled": "Perlindungan dinyahaktifkan",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Kata laluan salah.",
   "view-password-locked": "Terlalu banyak percubaan. Cuba lagi selepas 60 saat.",
   "view-password-unavailable": "Storan kata laluan tidak tersedia. Akses kekal disekat.",
-  "view-password-length": "Gunakan 8–128 aksara.",
+  "view-password-length": "Gunakan 4–8 aksara.",
   "view-password-reset-confirm": "Sahkan pemadaman kelayakan tersimpan dahulu.",
   "view-password-cancelled": "Dibatalkan.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Pelan Pengekodan"
       },
-      "categoryOther": "Lain-lain"
+      "categoryOther": "Model Keputusan"
     },
     "alerts": {
       "deleteConfirm": "Adakah anda pasti ingin memadam penyedia ini?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Penemuan model belum disokong untuk format penyedia ini. Tambah model secara manual."
   },
   "otherProviders": {
-    "title": "Penyedia lain",
+    "title": "Model Keputusan",
     "description": "Storan kunci dan konfigurasi untuk alat bukan sembang seperti Jev."
   },
   "nav": {
-    "otherProviders": "Lain-lain",
+    "otherProviders": "Model Keputusan",
     "group": {
-      "providers": "Penyedia"
+      "providers": "Perkhidmatan Model"
     },
     "subtitle": "Panel Kawalan",
     "providers": "Penyedia",
@@ -554,8 +554,8 @@
     "usageStats": "Penggunaan",
     "pricing": "Harga",
     "dashboard": "Dashboard",
-    "images": "Imej",
-    "search": "Carian"
+    "images": "Model Imej",
+    "search": "Perkhidmatan Carian"
   },
   "images": {
     "models": {

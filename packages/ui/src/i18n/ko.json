@@ -4,7 +4,7 @@
     "description": "저장된 키 보기·복사 및 자격 증명 내보내기마다 앱 비밀번호를 확인합니다. 30초 후 또는 창이 포커스를 잃으면 키를 숨깁니다. 시스템 PIN은 필요 없습니다.",
     "verify": "확인",
     "currentPassword": "현재 보기 비밀번호",
-    "newPassword": "새 보기 비밀번호(8~128자)",
+    "newPassword": "새 보기 비밀번호(4~8자)",
     "confirmPassword": "새 비밀번호 확인",
     "enabled": "보호 켜짐",
     "disabled": "보호 꺼짐",
@@ -23,7 +23,7 @@
   "view-password-invalid": "보기 비밀번호가 올바르지 않습니다.",
   "view-password-locked": "시도 횟수가 너무 많습니다. 60초 후 다시 시도하세요.",
   "view-password-unavailable": "비밀번호 저장소를 사용할 수 없어 접근이 차단됩니다.",
-  "view-password-length": "8~128자를 사용하세요.",
+  "view-password-length": "4~8자를 사용하세요.",
   "view-password-reset-confirm": "저장된 자격 증명 삭제를 먼저 확인하세요.",
   "view-password-cancelled": "취소되었습니다.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
       },
-      "categoryOther": "기타"
+      "categoryOther": "의사결정 모델"
     },
     "alerts": {
       "deleteConfirm": "이 프로바이더를 삭제하시겠습니까?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "이 프로바이더 형식은 모델 자동 검색을 지원하지 않습니다. 모델을 직접 추가하세요."
   },
   "otherProviders": {
-    "title": "기타 공급자",
+    "title": "의사결정 모델",
     "description": "Jev 등 비채팅 도구를 위한 키 저장 및 설정."
   },
   "nav": {
-    "otherProviders": "기타",
+    "otherProviders": "의사결정 모델",
     "group": {
-      "providers": "공급자"
+      "providers": "모델 서비스"
     },
     "subtitle": "제어판",
     "providers": "프로바이더",
@@ -554,8 +554,8 @@
     "usageStats": "사용량",
     "pricing": "가격",
     "dashboard": "Dashboard",
-    "images": "이미지",
-    "search": "검색"
+    "images": "이미지 모델",
+    "search": "검색 서비스"
   },
   "images": {
     "models": {

@@ -29,7 +29,7 @@ export function KeyViewingPasswordSection() {
     if (busy || enabled === null) return;
     setBusy(true); setError(''); setSaved(false);
     try {
-      if (!disable && (password.length < 8 || password.length > 128)) throw new Error('view-password-length');
+      if (!disable && (password.length < 4 || password.length > 8)) throw new Error('view-password-length');
       if (!disable && password !== confirm) throw new Error('keyViewing.mismatch');
       if (recover && !clearConfirmed) throw new Error('view-password-reset-confirm');
       if (recover) {
@@ -55,11 +55,11 @@ export function KeyViewingPasswordSection() {
           onChange={(event) => setCurrent(event.target.value)} />
       </label> : null}
       <label className="block space-y-1 text-xs">{t('keyViewing.newPassword')}
-        <Input type="password" autoComplete="new-password" value={password} maxLength={128} disabled={busy}
+        <Input type="password" autoComplete="new-password" value={password} maxLength={8} disabled={busy}
           onChange={(event) => setPassword(event.target.value)} />
       </label>
       <label className="block space-y-1 text-xs">{t('keyViewing.confirmPassword')}
-        <Input type="password" autoComplete="new-password" value={confirm} maxLength={128} disabled={busy}
+        <Input type="password" autoComplete="new-password" value={confirm} maxLength={8} disabled={busy}
           onChange={(event) => setConfirm(event.target.value)} />
       </label>
       {recover ? <div className="space-y-2 rounded-md border border-destructive/50 p-3">
@@ -70,7 +70,7 @@ export function KeyViewingPasswordSection() {
       {error ? <p role="alert" className="text-xs text-destructive">{t(error)}</p> : null}
       {saved ? <p role="status" className="text-xs">{t('keyViewing.saved')}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" size="sm" disabled={busy || enabled === null || password.length < 8 || password !== confirm || (enabled && !recover && !current) || (recover && !clearConfirmed)}>
+        <Button type="submit" size="sm" disabled={busy || enabled === null || password.length < 4 || password.length > 8 || password !== confirm || (enabled && !recover && !current) || (recover && !clearConfirmed)}>
           {t(recover ? 'keyViewing.reset' : enabled ? 'keyViewing.change' : 'keyViewing.setup')}
         </Button>
         {enabled && !recover ? <Button type="button" size="sm" variant="outline" disabled={busy || !current} onClick={() => void save(true)}>{t('keyViewing.disable')}</Button> : null}

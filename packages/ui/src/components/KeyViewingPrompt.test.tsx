@@ -23,6 +23,37 @@ async function enter(password: string) {
   await act(async () => Simulate.change(document.querySelector('input')!, { target: { value: password } } as never));
   await act(async () => Simulate.submit(document.querySelector('form')!));
 }
+async function enterSetup(password: string, confirmation = password) {
+  const inputs = document.querySelectorAll('input');
+  await act(async () => Simulate.change(inputs[0], { target: { value: password } } as never));
+  await act(async () => Simulate.change(inputs[1], { target: { value: confirmation } } as never));
+  await act(async () => Simulate.submit(document.querySelector('form')!));
+}
+
+it('sets a 4–8 character password on first reveal and continues that action', async () => {
+  mocks.get.mockResolvedValue({ enabled: false });
+  let action!: Promise<unknown>;
+  await act(async () => { action = protectedPost('/providers/a/reveal-key'); });
+  expect(document.querySelectorAll('input')).toHaveLength(2);
+  expect((document.querySelector('input') as HTMLInputElement).maxLength).toBe(8);
+  await enterSetup('view');
+  expect(await action).toEqual({ apiKey: 'fixture-secret' });
+  expect(mocks.post).toHaveBeenCalledWith('/providers/a/reveal-key', { viewingPassword: 'view' });
+});
+
+it('validates first-time password length and confirmation before the backend call', async () => {
+  mocks.get.mockResolvedValue({ enabled: false });
+  let action!: Promise<unknown>;
+  await act(async () => { action = protectedPost('/providers/a/reveal-key'); });
+  await enterSetup('abc');
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe('view-password-length');
+  await enterSetup('view', 'diff');
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe('keyViewing.mismatch');
+  expect(mocks.post).not.toHaveBeenCalled();
+  const rejected = expect(action).rejects.toThrow('view-password-cancelled');
+  await act(async () => { cancelViewingRequest(); });
+  await rejected;
+});
 
 it('prompts for each operation, retries errors and does not persist a password', async () => {
   let action!: Promise<unknown>;

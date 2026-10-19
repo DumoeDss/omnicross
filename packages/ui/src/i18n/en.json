@@ -4,7 +4,7 @@
     "description": "Enter this app password for each saved-key reveal, copy or credential export. Keys hide after 30 seconds or when the window loses focus. No system PIN is required.",
     "verify": "Verify",
     "currentPassword": "Current viewing password",
-    "newPassword": "New viewing password (8–128 characters)",
+    "newPassword": "New viewing password (4–8 characters)",
     "confirmPassword": "Confirm new password",
     "enabled": "Protection enabled",
     "disabled": "Protection disabled",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Incorrect viewing password.",
   "view-password-locked": "Too many attempts. Try again after 60 seconds.",
   "view-password-unavailable": "Viewing-password storage is unavailable. Access remains blocked.",
-  "view-password-length": "Use 8–128 characters.",
+  "view-password-length": "Use 4–8 characters.",
   "view-password-reset-confirm": "Confirm clearing saved credentials first.",
   "view-password-cancelled": "Cancelled.",
   "providerSettings": {
@@ -451,7 +451,7 @@
         "mcp": "MCP",
         "codingPlan": "Coding Plan"
       },
-      "categoryOther": "Other"
+      "categoryOther": "Decision Models"
     },
     "alerts": {
       "deleteConfirm": "Are you sure you want to delete this provider?"
@@ -550,12 +550,12 @@
     "discoveryUnsupportedFormat": "Model discovery is not supported for this provider format yet. Add models manually."
   },
   "otherProviders": {
-    "title": "Other Providers",
+    "title": "Decision Models",
     "description": "Decision engines and non-chat tools — keys stored here for external use."
   },
   "nav": {
     "tour": "Beginner's guide",
-    "otherProviders": "Other",
+    "otherProviders": "Decision Models",
     "subtitle": "Control Panel",
     "primary": "Primary navigation",
     "more": "More",
@@ -563,12 +563,12 @@
     "gateway": "Gateway",
     "accessKeys": "Access keys",
     "routeActivity": "Routing activity",
-    "upstreams": "Model Services",
+    "upstreams": "LLMs",
     "integrations": "Integrations",
     "chatgptWeb": "ChatGPT Web",
     "group": {
       "run": "Run",
-      "providers": "Providers",
+      "providers": "Model Services",
       "configure": "Configure",
       "system": "System"
     },
@@ -580,8 +580,8 @@
     "usageStats": "Usage",
     "pricing": "Pricing",
     "dashboard": "Dashboard",
-    "images": "Images",
-    "search": "Search"
+    "images": "Image Models",
+    "search": "Search Services"
   },
   "routeActivity": {
     "title": "Routing activity",
@@ -755,7 +755,7 @@
     }
   },
   "upstreams": {
-    "title": "Model Services",
+    "title": "LLMs",
     "addAccount": "Add account",
     "addProvider": "Add provider",
     "addProviderDescription": "Create a provider and configure its connection; a model list is optional.",

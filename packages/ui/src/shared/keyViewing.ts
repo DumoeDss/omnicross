@@ -1,6 +1,7 @@
 import { adminClient } from '@/daemon/adminClient';
 
 export interface ViewingRequest {
+  mode: 'set' | 'verify';
   run: (password: string) => Promise<unknown>;
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
@@ -28,19 +29,15 @@ export function completeViewingRequest(request: ViewingRequest, value: unknown):
   listeners.forEach((listener) => listener());
 }
 
-/** One prompt and backend verification per action; passwords never enter storage. */
+/** One prompt and backend verification (or first-time setup) per action. */
 export async function protectedPost<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
   cancelViewingRequest();
   const started = generation;
   const status = await adminClient.get<{ enabled: boolean }>('/key-viewing-password');
   if (started !== generation) throw new Error('view-password-cancelled');
-  if (!status.enabled) {
-    const result = await adminClient.post<T>(path, body);
-    if (started !== generation) throw new Error('view-password-cancelled');
-    return result;
-  }
   return new Promise<T>((resolve, reject) => {
     pending = {
+      mode: status.enabled ? 'verify' : 'set',
       run: (viewingPassword) => adminClient.post<T>(path, { ...body, viewingPassword }),
       resolve: (value) => resolve(value as T), reject,
     };

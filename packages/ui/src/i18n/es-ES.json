@@ -4,7 +4,7 @@
     "description": "Se verifica esta contraseña en cada consulta, copia o exportación de credenciales. Las claves se ocultan a los 30 segundos o al perder el foco. No requiere PIN del sistema.",
     "verify": "Verificar",
     "currentPassword": "Contraseña actual de consulta",
-    "newPassword": "Nueva contraseña (8–128 caracteres)",
+    "newPassword": "Nueva contraseña (4–8 caracteres)",
     "confirmPassword": "Confirmar la nueva contraseña",
     "enabled": "Protección activada",
     "disabled": "Protección desactivada",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Contraseña incorrecta.",
   "view-password-locked": "Demasiados intentos. Vuelve a intentarlo en 60 segundos.",
   "view-password-unavailable": "El almacén de contraseñas no está disponible. El acceso sigue bloqueado.",
-  "view-password-length": "Usa entre 8 y 128 caracteres.",
+  "view-password-length": "Usa entre 4 y 8 caracteres.",
   "view-password-reset-confirm": "Confirma primero el borrado de las credenciales guardadas.",
   "view-password-cancelled": "Cancelado.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plan de codificación"
       },
-      "categoryOther": "Otros"
+      "categoryOther": "Modelos de decisión"
     },
     "alerts": {
       "deleteConfirm": "¿Estás seguro de que quieres eliminar este proveedor?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "El descubrimiento de modelos aún no está disponible para este formato de proveedor. Añade los modelos manualmente."
   },
   "otherProviders": {
-    "title": "Otros proveedores",
+    "title": "Modelos de decisión",
     "description": "Almacenamiento de claves y configuración para herramientas no conversacionales como Jev."
   },
   "nav": {
-    "otherProviders": "Otros",
+    "otherProviders": "Modelos de decisión",
     "group": {
-      "providers": "Proveedores"
+      "providers": "Servicios de modelos"
     },
     "subtitle": "Panel de control",
     "providers": "Proveedores",
@@ -554,8 +554,8 @@
     "usageStats": "Uso",
     "pricing": "Precios",
     "dashboard": "Dashboard",
-    "images": "Imágenes",
-    "search": "Búsqueda"
+    "images": "Modelos de imagen",
+    "search": "Servicios de búsqueda"
   },
   "images": {
     "models": {

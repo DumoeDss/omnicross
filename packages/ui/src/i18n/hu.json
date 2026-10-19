@@ -4,7 +4,7 @@
     "description": "Az alkalmazás jelszót kér minden kulcsmegtekintéshez, másoláshoz és hitelesítőadat-exporthoz. A kulcsok 30 másodperc után vagy fókuszvesztéskor elrejtődnek. Rendszer-PIN nem szükséges.",
     "verify": "Ellenőrzés",
     "currentPassword": "Jelenlegi megtekintési jelszó",
-    "newPassword": "Új jelszó (8–128 karakter)",
+    "newPassword": "Új jelszó (4–8 karakter)",
     "confirmPassword": "Új jelszó megerősítése",
     "enabled": "Védelem bekapcsolva",
     "disabled": "Védelem kikapcsolva",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Helytelen jelszó.",
   "view-password-locked": "Túl sok próbálkozás. Próbálja újra 60 másodperc múlva.",
   "view-password-unavailable": "A jelszótároló nem érhető el. A hozzáférés továbbra is tiltott.",
-  "view-password-length": "Használjon 8–128 karaktert.",
+  "view-password-length": "Használjon 4–8 karaktert.",
   "view-password-reset-confirm": "Előbb erősítse meg a mentett hitelesítő adatok törlését.",
   "view-password-cancelled": "Megszakítva.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Kódolási terv"
       },
-      "categoryOther": "Egyéb"
+      "categoryOther": "Döntési modellek"
     },
     "alerts": {
       "deleteConfirm": "Biztosan törli ezt a szolgáltatót?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "A modellfelderítés ehhez a szolgáltatói formátumhoz még nem támogatott. Adja hozzá a modelleket manuálisan."
   },
   "otherProviders": {
-    "title": "Egyéb szolgáltatók",
+    "title": "Döntési modellek",
     "description": "Kulcstárolás és beállítás nem csevegő eszközökhöz, például Jev."
   },
   "nav": {
-    "otherProviders": "Egyéb",
+    "otherProviders": "Döntési modellek",
     "group": {
-      "providers": "Szolgáltatók"
+      "providers": "Modelszolgáltatások"
     },
     "subtitle": "Vezérlőpult",
     "providers": "Szolgáltatók",
@@ -554,8 +554,8 @@
     "usageStats": "Használat",
     "pricing": "Árak",
     "dashboard": "Dashboard",
-    "images": "Képek",
-    "search": "Keresés"
+    "images": "Képmodellek",
+    "search": "Keresőszolgáltatások"
   },
   "images": {
     "models": {

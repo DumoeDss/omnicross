@@ -4,7 +4,7 @@
     "description": "Hasło aplikacji jest sprawdzane przy każdym podglądzie, kopiowaniu lub eksporcie poświadczeń. Klucze są ukrywane po 30 sekundach lub utracie fokusu. Systemowy PIN nie jest wymagany.",
     "verify": "Zweryfikuj",
     "currentPassword": "Obecne hasło podglądu",
-    "newPassword": "Nowe hasło (8–128 znaków)",
+    "newPassword": "Nowe hasło (4–8 znaków)",
     "confirmPassword": "Potwierdź nowe hasło",
     "enabled": "Ochrona włączona",
     "disabled": "Ochrona wyłączona",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Nieprawidłowe hasło.",
   "view-password-locked": "Zbyt wiele prób. Spróbuj ponownie za 60 sekund.",
   "view-password-unavailable": "Magazyn haseł jest niedostępny. Dostęp pozostaje zablokowany.",
-  "view-password-length": "Użyj 8–128 znaków.",
+  "view-password-length": "Użyj 4–8 znaków.",
   "view-password-reset-confirm": "Najpierw potwierdź usunięcie zapisanych poświadczeń.",
   "view-password-cancelled": "Anulowano.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Plan kodowania"
       },
-      "categoryOther": "Inne"
+      "categoryOther": "Modele decyzyjne"
     },
     "alerts": {
       "deleteConfirm": "Czy na pewno chcesz usunąć tego dostawcę?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Wykrywanie modeli nie jest jeszcze obsługiwane dla tego formatu dostawcy. Dodaj modele ręcznie."
   },
   "otherProviders": {
-    "title": "Inni dostawcy",
+    "title": "Modele decyzyjne",
     "description": "Przechowywanie kluczy i konfiguracja narzędzi bez czatu, np. Jev."
   },
   "nav": {
-    "otherProviders": "Inne",
+    "otherProviders": "Modele decyzyjne",
     "group": {
-      "providers": "Dostawcy"
+      "providers": "Usługi modeli"
     },
     "subtitle": "Panel sterowania",
     "providers": "Dostawcy",
@@ -554,8 +554,8 @@
     "usageStats": "Użycie",
     "pricing": "Cennik",
     "dashboard": "Dashboard",
-    "images": "Obrazy",
-    "search": "Wyszukiwanie"
+    "images": "Modele obrazu",
+    "search": "Usługi wyszukiwania"
   },
   "images": {
     "models": {

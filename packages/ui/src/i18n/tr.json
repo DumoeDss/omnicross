@@ -4,7 +4,7 @@
     "description": "Kayıtlı anahtarı her görüntüleme, kopyalama veya kimlik bilgisi dışa aktarma işleminde uygulama parolası doğrulanır. Anahtarlar 30 saniye sonra veya pencere odak kaybedince gizlenir. Sistem PIN’i gerekmez.",
     "verify": "Doğrula",
     "currentPassword": "Geçerli görüntüleme parolası",
-    "newPassword": "Yeni parola (8–128 karakter)",
+    "newPassword": "Yeni parola (4–8 karakter)",
     "confirmPassword": "Yeni parolayı onayla",
     "enabled": "Koruma etkin",
     "disabled": "Koruma devre dışı",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Yanlış parola.",
   "view-password-locked": "Çok fazla deneme. 60 saniye sonra tekrar deneyin.",
   "view-password-unavailable": "Parola deposu kullanılamıyor. Erişim engelli kalır.",
-  "view-password-length": "8–128 karakter kullanın.",
+  "view-password-length": "4–8 karakter kullanın.",
   "view-password-reset-confirm": "Önce kayıtlı kimlik bilgilerinin silinmesini onaylayın.",
   "view-password-cancelled": "İptal edildi.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Kodlama Planı"
       },
-      "categoryOther": "Diğer"
+      "categoryOther": "Karar modelleri"
     },
     "alerts": {
       "deleteConfirm": "Bu sağlayıcıyı silmek istediğinizden emin misiniz?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Bu sağlayıcı formatı için model keşfi henüz desteklenmiyor. Modelleri manuel olarak ekleyin."
   },
   "otherProviders": {
-    "title": "Diğer sağlayıcılar",
+    "title": "Karar modelleri",
     "description": "Jev gibi sohbet dışı araçlar için anahtar depolama ve yapılandırma."
   },
   "nav": {
-    "otherProviders": "Diğer",
+    "otherProviders": "Karar modelleri",
     "group": {
-      "providers": "Sağlayıcılar"
+      "providers": "Model hizmetleri"
     },
     "subtitle": "Kontrol Paneli",
     "providers": "Sağlayıcılar",
@@ -554,8 +554,8 @@
     "usageStats": "Kullanım",
     "pricing": "Fiyatlar",
     "dashboard": "Dashboard",
-    "images": "Görseller",
-    "search": "Arama"
+    "images": "Görsel modelleri",
+    "search": "Arama hizmetleri"
   },
   "images": {
     "models": {

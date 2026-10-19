@@ -10,9 +10,15 @@ export function KeyViewingPrompt() {
   const request = useSyncExternalStore(viewingRequests.subscribe, viewingRequests.get);
   const t = useTranslation();
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setPassword(''); setError(''); setBusy(false); }, [request]);
+  useEffect(() => {
+    setPassword('');
+    setConfirmation('');
+    setError('');
+    setBusy(false);
+  }, [request]);
   useEffect(() => {
     const hidden = () => { if (document.hidden) cancelViewingRequest(); };
     window.addEventListener('blur', cancelViewingRequest);
@@ -28,6 +34,16 @@ export function KeyViewingPrompt() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!request || busy) return;
+    if (request.mode === 'set') {
+      if (password.length < 4 || password.length > 8) {
+        setError(t('view-password-length'));
+        return;
+      }
+      if (password !== confirmation) {
+        setError(t('keyViewing.mismatch'));
+        return;
+      }
+    }
     const current = request;
     setBusy(true); setError('');
     const value = password;
@@ -39,15 +55,36 @@ export function KeyViewingPrompt() {
   }
   return <Dialog open={Boolean(request)} onOpenChange={(open) => { if (!open) cancelViewingRequest(); }}>
     <DialogContent>
-      <DialogTitle>{t('keyViewing.title')}</DialogTitle>
+      <DialogTitle>{t(request?.mode === 'set' ? 'keyViewing.setup' : 'keyViewing.title')}</DialogTitle>
       <DialogDescription>{t('keyViewing.description')}</DialogDescription>
       <form className="space-y-3" onSubmit={(event) => void submit(event)}>
-        <Input type="password" autoComplete="current-password" aria-label={t('keyViewing.currentPassword')}
-          value={password} onChange={(event) => setPassword(event.target.value)} maxLength={128} disabled={busy} autoFocus />
+        <Input
+          type="password"
+          autoComplete={request?.mode === 'set' ? 'new-password' : 'current-password'}
+          aria-label={t(request?.mode === 'set' ? 'keyViewing.newPassword' : 'keyViewing.currentPassword')}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          maxLength={request?.mode === 'set' ? 8 : 128}
+          disabled={busy}
+          autoFocus
+        />
+        {request?.mode === 'set' ? (
+          <Input
+            type="password"
+            autoComplete="new-password"
+            aria-label={t('keyViewing.confirmPassword')}
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+            maxLength={8}
+            disabled={busy}
+          />
+        ) : null}
         {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={cancelViewingRequest}>{t('common.cancel')}</Button>
-          <Button type="submit" disabled={busy || !password}>{t('keyViewing.verify')}</Button>
+          <Button type="submit" disabled={busy || !password}>
+            {t(request?.mode === 'set' ? 'keyViewing.setup' : 'keyViewing.verify')}
+          </Button>
         </div>
       </form>
     </DialogContent>

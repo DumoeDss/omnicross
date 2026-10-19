@@ -4,7 +4,7 @@
     "description": "Dit appwachtwoord wordt bij elke weergave, kopie of export van inloggegevens gecontroleerd. Sleutels worden na 30 seconden of bij focusverlies verborgen. Geen systeempincode nodig.",
     "verify": "Verifiëren",
     "currentPassword": "Huidig weergavewachtwoord",
-    "newPassword": "Nieuw wachtwoord (8–128 tekens)",
+    "newPassword": "Nieuw wachtwoord (4–8 tekens)",
     "confirmPassword": "Nieuw wachtwoord bevestigen",
     "enabled": "Beveiliging ingeschakeld",
     "disabled": "Beveiliging uitgeschakeld",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Onjuist wachtwoord.",
   "view-password-locked": "Te veel pogingen. Probeer het na 60 seconden opnieuw.",
   "view-password-unavailable": "Wachtwoordopslag is niet beschikbaar. Toegang blijft geblokkeerd.",
-  "view-password-length": "Gebruik 8–128 tekens.",
+  "view-password-length": "Gebruik 4–8 tekens.",
   "view-password-reset-confirm": "Bevestig eerst het wissen van opgeslagen inloggegevens.",
   "view-password-cancelled": "Geannuleerd.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Codeerplan"
       },
-      "categoryOther": "Overige"
+      "categoryOther": "Beslismodellen"
     },
     "alerts": {
       "deleteConfirm": "Weet u zeker dat u deze provider wilt verwijderen?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Modeldetectie wordt nog niet ondersteund voor dit providerformaat. Voeg modellen handmatig toe."
   },
   "otherProviders": {
-    "title": "Overige providers",
+    "title": "Beslismodellen",
     "description": "Sleutelopslag en configuratie voor niet-chattools zoals Jev."
   },
   "nav": {
-    "otherProviders": "Overige",
+    "otherProviders": "Beslismodellen",
     "group": {
-      "providers": "Providers"
+      "providers": "Modeldiensten"
     },
     "subtitle": "Configuratiescherm",
     "providers": "Providers",
@@ -554,8 +554,8 @@
     "usageStats": "Gebruik",
     "pricing": "Prijzen",
     "dashboard": "Dashboard",
-    "images": "Afbeeldingen",
-    "search": "Zoeken"
+    "images": "Afbeeldingsmodellen",
+    "search": "Zoekdiensten"
   },
   "images": {
     "models": {

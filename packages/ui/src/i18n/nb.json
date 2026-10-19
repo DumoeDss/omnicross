@@ -4,7 +4,7 @@
     "description": "App-passordet kontrolleres for hver visning, kopiering eller eksport av legitimasjon. Nøkler skjules etter 30 sekunder eller når vinduet mister fokus. Ingen system-PIN kreves.",
     "verify": "Bekreft",
     "currentPassword": "Gjeldende visningspassord",
-    "newPassword": "Nytt passord (8–128 tegn)",
+    "newPassword": "Nytt passord (4–8 tegn)",
     "confirmPassword": "Bekreft nytt passord",
     "enabled": "Beskyttelse aktivert",
     "disabled": "Beskyttelse deaktivert",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Feil passord.",
   "view-password-locked": "For mange forsøk. Prøv igjen etter 60 sekunder.",
   "view-password-unavailable": "Passordlageret er utilgjengelig. Tilgang er fortsatt blokkert.",
-  "view-password-length": "Bruk 8–128 tegn.",
+  "view-password-length": "Bruk 4–8 tegn.",
   "view-password-reset-confirm": "Bekreft først sletting av lagret legitimasjon.",
   "view-password-cancelled": "Avbrutt.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Kodingsplan"
       },
-      "categoryOther": "Annet"
+      "categoryOther": "Beslutningsmodeller"
     },
     "alerts": {
       "deleteConfirm": "Er du sikker på at du vil slette denne leverandøren?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Modelloppdagelse støttes ikke ennå for dette leverandørformatet. Legg til modeller manuelt."
   },
   "otherProviders": {
-    "title": "Andre leverandører",
+    "title": "Beslutningsmodeller",
     "description": "Nøkkellagring og oppsett for ikke-chat-verktøy som Jev."
   },
   "nav": {
-    "otherProviders": "Annet",
+    "otherProviders": "Beslutningsmodeller",
     "group": {
-      "providers": "Leverandører"
+      "providers": "Modelltjenester"
     },
     "subtitle": "Kontrollpanel",
     "providers": "Leverandører",
@@ -554,8 +554,8 @@
     "usageStats": "Bruk",
     "pricing": "Priser",
     "dashboard": "Dashboard",
-    "images": "Bilder",
-    "search": "Søk"
+    "images": "Bildemodeller",
+    "search": "Søketjenester"
   },
   "images": {
     "models": {

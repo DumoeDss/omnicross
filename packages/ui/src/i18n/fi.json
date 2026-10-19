@@ -4,7 +4,7 @@
     "description": "Sovelluksen salasana tarkistetaan jokaista tallennetun avaimen katselua, kopiointia ja tunnistetietojen vientiä varten. Avaimet piilotetaan 30 sekunnin jälkeen tai ikkunasta poistuttaessa. Järjestelmän PIN-koodia ei tarvita.",
     "verify": "Vahvista",
     "currentPassword": "Nykyinen katselusalasana",
-    "newPassword": "Uusi salasana (8–128 merkkiä)",
+    "newPassword": "Uusi salasana (4–8 merkkiä)",
     "confirmPassword": "Vahvista uusi salasana",
     "enabled": "Suojaus käytössä",
     "disabled": "Suojaus pois käytöstä",
@@ -23,7 +23,7 @@
   "view-password-invalid": "Väärä salasana.",
   "view-password-locked": "Liian monta yritystä. Yritä uudelleen 60 sekunnin kuluttua.",
   "view-password-unavailable": "Salasanan tallennustila ei ole käytettävissä. Pääsy pysyy estettynä.",
-  "view-password-length": "Käytä 8–128 merkkiä.",
+  "view-password-length": "Käytä 4–8 merkkiä.",
   "view-password-reset-confirm": "Vahvista ensin tallennettujen tunnistetietojen poistaminen.",
   "view-password-cancelled": "Peruutettu.",
   "providerSettings": {
@@ -441,7 +441,7 @@
         "mcp": "MCP",
         "codingPlan": "Koodaussuunnitelma"
       },
-      "categoryOther": "Muut"
+      "categoryOther": "Päätösmallit"
     },
     "alerts": {
       "deleteConfirm": "Haluatko varmasti poistaa tämän palveluntarjoajan?"
@@ -537,13 +537,13 @@
     "discoveryUnsupportedFormat": "Mallien etsintä ei vielä tue tätä palveluntarjoajamuotoa. Lisää mallit manuaalisesti."
   },
   "otherProviders": {
-    "title": "Muut tarjoajat",
+    "title": "Päätösmallit",
     "description": "Avainten tallennus ja asetukset ei-keskustelutyökaluille, kuten Jev."
   },
   "nav": {
-    "otherProviders": "Muut",
+    "otherProviders": "Päätösmallit",
     "group": {
-      "providers": "Tarjoajat"
+      "providers": "Mallipalvelut"
     },
     "subtitle": "Ohjauspaneeli",
     "providers": "Palveluntarjoajat",
@@ -554,8 +554,8 @@
     "usageStats": "Käyttö",
     "pricing": "Hinnat",
     "dashboard": "Dashboard",
-    "images": "Kuvat",
-    "search": "Haku"
+    "images": "Kuvamallit",
+    "search": "Hakupalvelut"
   },
   "images": {
     "models": {
