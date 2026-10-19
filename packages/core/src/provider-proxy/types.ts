@@ -543,6 +543,15 @@ export interface ProviderProxyDeps {
    * create ingresses. Optional so existing embedders stay source-compatible.
    */
   readonly openAIOperationRegistry?: OpenAIOperationRegistry | null;
+  /**
+   * Whether the host's image runtime can execute right now (the feature switch
+   * is on). The outbound router consults this BEFORE dispatching the Images
+   * operations: the registered contributions stay installed while disabled and
+   * answer 501 themselves, which must not shadow the native passthrough that
+   * keeps codex-subscription / official-OpenAI image requests working. Absent ⇒
+   * treated as enabled (older wiring / test doubles).
+   */
+  readonly imageRuntimeEnabled?: (() => boolean) | null;
   /** Optional Native Responses hosted-image mediator composed by the daemon. */
   readonly responsesHostedImageIngress?: ResponsesHostedImageIngress | null;
   /**

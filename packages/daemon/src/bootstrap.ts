@@ -958,6 +958,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
       usageRecorder,
       openAIOperationRegistry,
       responsesHostedImageIngress,
+      // The image-runtime switch — read LIVE per request so the outbound router
+      // can keep native codex/OpenAI image traffic flowing while it is off
+      // (the registered contributions stay installed and would answer 501).
+      imageRuntimeEnabled: () => imageRuntimeManager.status().current.enabled,
       searchRuntime,
       searchFrontendModes,
       // request-logging P2: proxy lifecycle/egress lines honor the file sink.

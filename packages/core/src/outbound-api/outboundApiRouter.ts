@@ -1688,9 +1688,14 @@ export async function handleOutboundRequest(
       writeJsonError(res, 403, 'API key is not allowed to access this endpoint');
       return;
     }
+    // The registered image contributions stay installed while the runtime is
+    // DISABLED (they answer 501 themselves), so availability is consulted
+    // BEFORE dispatch — otherwise the runtime's own refusal would win over the
+    // native passthrough below.
+    const imageRuntimeEnabled = deps.proxyDeps.imageRuntimeEnabled?.() ?? true;
     const registry = deps.proxyDeps.openAIOperationRegistry;
     let handled = false;
-    if (registry) {
+    if (imageRuntimeEnabled && registry) {
       stripPresentedAuthHeaders(req);
       handled = await registry.dispatch({
         operation: imageOperation,

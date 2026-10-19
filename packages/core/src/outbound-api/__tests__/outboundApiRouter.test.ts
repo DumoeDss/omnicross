@@ -10,6 +10,7 @@ import type http from 'node:http';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { OpenAIOperationRegistry } from '../../openai-operation';
 import { ProviderProxyRouteMap } from '../../provider-proxy/providerProxyRouteMap';
 import { legacyEndpointsToBindings } from '../apiServerConfig';
 import {
@@ -1657,5 +1658,50 @@ describe('images runtime off — native image passthrough', () => {
     expect(res.statusCode).toBe(501);
     expect(res.body).toContain('unsupported_capability');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('bypasses a DISABLED runtime handler and relays instead (the daemon wiring)', async () => {
+    // The registered image contributions stay installed while the runtime is
+    // switched off and answer 501 themselves; the availability probe must win.
+    setSubscriptionRegistryForOutbound({
+      getProfile: (id) => (id === 'codex' ? (codexProfile() as never) : null),
+    });
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ created: 1, data: [{ b64_json: 'AAAA' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const registry = new OpenAIOperationRegistry();
+    registry.register('images.generate', async (context) => {
+      context.response.writeHead(501, { 'content-type': 'application/json' });
+      context.response.end('{"disabled":true}');
+    });
+    const deps = makeDeps({ db: makeDb(() => imageRow), routeMap: new ProviderProxyRouteMap() });
+    (deps.proxyDeps as { openAIOperationRegistry?: OpenAIOperationRegistry }).openAIOperationRegistry = registry;
+    (deps.proxyDeps as { imageRuntimeEnabled?: () => boolean }).imageRuntimeEnabled = () => false;
+
+    const req = new MockReq({
+      headers: { authorization: 'Bearer any', 'content-type': 'application/json' },
+      url: '/v1/images/generations',
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-image-2', prompt: 'a red cube' }),
+    });
+    const res = new MockRes();
+    req.start();
+    await handleOutboundRequest(
+      req as unknown as http.IncomingMessage,
+      res as unknown as http.ServerResponse,
+      deps,
+      { endpoints: [], bindings: [imagesBinding({ kind: 'account-pool', providerId: 'codex' })] },
+      new OutboundRateLimiter(),
+      new UserMessageSerialQueue(),
+      new OutboundConcurrencyGate(),
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://chatgpt.com/backend-api/codex/images/generations');
   });
 });
