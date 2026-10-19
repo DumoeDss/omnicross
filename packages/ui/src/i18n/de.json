@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI-Websuche-API; Schlüssel erforderlich."
+      },
+      "deepseek": {
+        "description": "Offizielle DeepSeek-Such- und Seitenabruf-API; ein Schlüssel ist erforderlich oder der Schlüssel eines DeepSeek-Anbieters wird wiederverwendet."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Durch Speichern eines Eintrags aktivieren – Jina kann ohne Schlüssel laufen.",
       "searxng": "Erfordert die Konfiguration eines API-Hosts.",
       "zhipu": "Erfordert die Konfiguration eines API-Schlüssels.",
-      "zai": "Erfordert die Konfiguration eines API-Schlüssels."
+      "zai": "Erfordert die Konfiguration eines API-Schlüssels.",
+      "deepseek": "Geben Sie einen Schlüssel ein, verwenden Sie den Schlüssel eines DeepSeek-Anbieters wieder, oder konfigurieren Sie einen unter Anbieter."
     },
     "field": {
       "apiKey": "API-Schlüssel",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic-Auth-Benutzer",
       "basicAuthPassword": "Basic-Auth-Passwort",
       "basicAuthPasswordPlaceholder": "Leer lässt das gespeicherte Passwort",
-      "basicAuthPasswordConfigured": "· Passwort konfiguriert"
+      "basicAuthPasswordConfigured": "· Passwort konfiguriert",
+      "reuseProviderKey": "Offiziellen DeepSeek-Schlüssel aus den Anbietereinstellungen wiederverwenden (ein unten eingegebener Schlüssel hat Vorrang)"
+    },
+    "reuseProviderKey": {
+      "available": "In den Anbietereinstellungen wurde ein DeepSeek-Schlüssel gefunden; er wird wiederverwendet.",
+      "missing": "In den Anbietereinstellungen wurde kein DeepSeek-Schlüssel gefunden; geben Sie hier einen ein oder fügen Sie zuerst einen DeepSeek-Anbieter hinzu."
     },
     "action": {
       "test": "Testen",

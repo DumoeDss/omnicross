@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI:n verkkohaku-API; vaatii avaimen."
+      },
+      "deepseek": {
+        "description": "DeepSeekin virallinen haku- ja sivunouto-API; vaatii avaimen tai DeepSeek-tarjoajan avaimen uudelleenkäytön."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Ota käyttöön tallentamalla merkintä — Jina toimii ilman avainta.",
       "searxng": "Vaatii API-isännän määrittämisen.",
       "zhipu": "Vaatii API-avaimen määrittämisen.",
-      "zai": "Vaatii API-avaimen määrittämisen."
+      "zai": "Vaatii API-avaimen määrittämisen.",
+      "deepseek": "Syötä avain, käytä uudelleen DeepSeek-tarjoajan avainta tai määritä sellainen Tarjoajat-asetuksissa."
     },
     "field": {
       "apiKey": "API-avain",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic-tunnus",
       "basicAuthPassword": "Basic-salasana",
       "basicAuthPasswordPlaceholder": "Tyhjä säilyttää tallennetun salasanan",
-      "basicAuthPasswordConfigured": "· salasana määritetty"
+      "basicAuthPasswordConfigured": "· salasana määritetty",
+      "reuseProviderKey": "Käytä uudelleen virallista DeepSeek-avainta tarjoaja-asetuksista (alla syötetty avain on ensisijainen)"
+    },
+    "reuseProviderKey": {
+      "available": "Tarjoaja-asetuksista löytyi DeepSeek-avain, ja sitä käytetään uudelleen.",
+      "missing": "Tarjoaja-asetuksista ei löytynyt DeepSeek-avainta; syötä se tähän tai lisää ensin DeepSeek-tarjoaja."
     },
     "action": {
       "test": "Testaa",

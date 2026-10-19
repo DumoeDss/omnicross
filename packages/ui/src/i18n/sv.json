@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI webbsöknings-API; nyckel krävs."
+      },
+      "deepseek": {
+        "description": "DeepSeeks officiella sök- och sidhämtnings-API; en nyckel krävs, eller återanvänd nyckeln från en DeepSeek-leverantör."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Aktivera genom att spara en post — Jina kan köras utan nyckel.",
       "searxng": "Kräver att en API-värd konfigureras.",
       "zhipu": "Kräver att en API-nyckel konfigureras.",
-      "zai": "Kräver att en API-nyckel konfigureras."
+      "zai": "Kräver att en API-nyckel konfigureras.",
+      "deepseek": "Ange en nyckel, återanvänd en DeepSeek-leverantörsnyckel eller konfigurera en under Leverantörer."
     },
     "field": {
       "apiKey": "API-nyckel",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic-auth-användare",
       "basicAuthPassword": "Basic-auth-lösenord",
       "basicAuthPasswordPlaceholder": "Tomt behåller det lagrade lösenordet",
-      "basicAuthPasswordConfigured": "· lösenord konfigurerat"
+      "basicAuthPasswordConfigured": "· lösenord konfigurerat",
+      "reuseProviderKey": "Återanvänd den officiella DeepSeek-nyckeln från leverantörsinställningarna (en nyckel som skrivs in nedan har företräde)"
+    },
+    "reuseProviderKey": {
+      "available": "En DeepSeek-nyckel hittades i leverantörsinställningarna och kommer att återanvändas.",
+      "missing": "Ingen DeepSeek-nyckel hittades i leverantörsinställningarna; ange en här eller lägg till en DeepSeek-leverantör först."
     },
     "action": {
       "test": "Testa",

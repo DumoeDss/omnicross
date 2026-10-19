@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "API di ricerca web Z.AI; richiede chiave."
+      },
+      "deepseek": {
+        "description": "API ufficiale di ricerca e recupero pagine di DeepSeek; è richiesta una chiave oppure riutilizza quella di un provider DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Attiva salvando una voce — Jina può funzionare senza chiave.",
       "searxng": "Richiede la configurazione di un host API.",
       "zhipu": "Richiede la configurazione di una chiave API.",
-      "zai": "Richiede la configurazione di una chiave API."
+      "zai": "Richiede la configurazione di una chiave API.",
+      "deepseek": "Inserisci una chiave, riutilizza la chiave di un provider DeepSeek o configurane una in Provider."
     },
     "field": {
       "apiKey": "Chiave API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Utente Basic",
       "basicAuthPassword": "Password Basic",
       "basicAuthPasswordPlaceholder": "Vuoto mantiene la password memorizzata",
-      "basicAuthPasswordConfigured": "· password configurata"
+      "basicAuthPasswordConfigured": "· password configurata",
+      "reuseProviderKey": "Riutilizza la chiave ufficiale DeepSeek dalle impostazioni Provider (una chiave inserita sotto ha la precedenza)"
+    },
+    "reuseProviderKey": {
+      "available": "È stata trovata una chiave DeepSeek nelle impostazioni Provider e verrà riutilizzata.",
+      "missing": "Nessuna chiave DeepSeek trovata nelle impostazioni Provider; inseriscine una qui o aggiungi prima un provider DeepSeek."
     },
     "action": {
       "test": "Prova",

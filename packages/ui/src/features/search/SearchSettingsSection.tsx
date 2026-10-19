@@ -3,9 +3,12 @@
  * (search-settings-tab, design D2/D3; moved from api-service/SearchSection).
  *
  * Edits the masked `server.search` segment end-to-end: the three per-frontend
- * modes, the five keyed provider cards (write-only secrets — blank keeps the
+ * modes, the six keyed provider cards (write-only secrets — blank keeps the
  * stored value, `null` clears the optional ones, entry removal clears required
- * ones), the default policy, and the egress allowlist. Save PUTs the WHOLE
+ * ones), the default policy, and the egress allowlist. DeepSeek additionally
+ * offers key REUSE: an entry with no key borrows the official key from a
+ * configured DeepSeek provider row, so the same credential is never stored
+ * twice. Save PUTs the WHOLE
  * segment (layer-replaced; the adapter rebuilds from the last loaded masked
  * config and the daemon preserves omitted/blanked stored secrets).
  *
@@ -176,6 +179,7 @@ export function SearchSettingsSection({ config, diagnostics, busy, onUpdate, onQ
             entry={entry}
             draft={draft.providers[entry.id]}
             diagnosticsStatus={rowFor(entry.id)?.status}
+            reuseKeyAvailable={entry.reusesProviderKey ? diagnostics?.keyReuse?.deepseek : undefined}
             disabled={disabled}
             onPatch={(patch) => patchProvider(entry.id, patch)}
             onQuery={onQuery}
@@ -255,6 +259,7 @@ function ProviderCard({
   entry,
   draft,
   diagnosticsStatus,
+  reuseKeyAvailable,
   disabled,
   onPatch,
   onQuery,
@@ -262,6 +267,8 @@ function ProviderCard({
   entry: SearchProviderCatalogEntry;
   draft: SearchProviderDraft | undefined;
   diagnosticsStatus: string | undefined;
+  /** Whether a provider-catalog key exists to reuse (undefined = unknown). */
+  reuseKeyAvailable: boolean | undefined;
   disabled: boolean;
   onPatch: (patch: Partial<SearchProviderDraft>) => void;
   onQuery: (providerId: string, query: string) => Promise<SearchQueryOutcome>;
@@ -304,11 +311,19 @@ function ProviderCard({
 
   const provider = draft!;
   const configured = draftProviderConfigured(entry, provider);
-  const status = configured ? (diagnosticsStatus ?? 'ready') : 'unconfigured';
+  // Reuse-only entry (no stored/typed key) whose catalog key is known to be
+  // absent: it will be SAVED as an enabled-but-keyless provider, so calling it
+  // Ready would promise something the live probe is about to refute.
+  const typedKey = provider.apiKeyInput.trim().length > 0;
+  const reuseOnly = entry.reusesProviderKey && provider.reuseLlmProviderKey &&
+    !provider.hasStoredApiKey && !typedKey;
+  const status = !configured || (reuseOnly && reuseKeyAvailable === false)
+    ? 'unconfigured'
+    : (diagnosticsStatus ?? 'ready');
   const statusKey = `search.status.${status}`;
   // The unconfigured state names the missing FIELD (the doctor's reason carries
   // it when diagnostics exist; the catalog knows it otherwise).
-  const missingReason = !configured
+  const missingReason = status === 'unconfigured'
     ? t(`search.unconfiguredReason.${entry.i18nSlug}`)
     : undefined;
 
@@ -365,12 +380,40 @@ function ProviderCard({
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
+            {entry.reusesProviderKey ? (
+              <div className="space-y-1 sm:col-span-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={provider.reuseLlmProviderKey}
+                    disabled={disabled}
+                    onChange={(e) => onPatch({ reuseLlmProviderKey: e.target.checked })}
+                    aria-label={t('search.field.reuseProviderKey')}
+                  />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {t('search.field.reuseProviderKey')}
+                  </span>
+                </label>
+                {reuseKeyAvailable === true ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('search.reuseProviderKey.available')}
+                  </p>
+                ) : reuseKeyAvailable === false && provider.reuseLlmProviderKey ? (
+                  // Only warn once the operator has actually asked to reuse: an
+                  // untouched card must not look broken on a fresh install.
+                  <p className="text-[11px] text-warning">
+                    {t('search.reuseProviderKey.missing')}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             {entry.requiresApiKey || entry.keyOptional ? (
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">
                   <KeyRound className="mr-1 inline h-3 w-3" aria-hidden="true" />
                   {t('search.field.apiKey')}
-                  {provider.persistedConfigured ? (
+                  {provider.hasStoredApiKey ? (
                     provider.clearApiKey
                       ? <span className="ml-1 text-warning">{t('search.action.clearKeyPending')}</span>
                       : provider.apiKeyInput.length === 0
@@ -382,14 +425,14 @@ function ProviderCard({
                   value={provider.apiKeyInput}
                   disabled={disabled}
                   placeholder={
-                    provider.persistedConfigured
+                    provider.hasStoredApiKey
                       ? t('search.field.apiKeyPlaceholder')
                       : t('search.field.apiKeyNew')
                   }
                   onChange={(e) => onPatch({ apiKeyInput: e.target.value, clearApiKey: false })}
                   aria-label={t('search.field.apiKey')}
                 />
-                {entry.keyOptional && provider.persistedConfigured && provider.apiKeyInput.length === 0 ? (
+                {entry.keyOptional && provider.hasStoredApiKey && provider.apiKeyInput.length === 0 ? (
                   <button
                     type="button"
                     className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"

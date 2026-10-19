@@ -33,6 +33,7 @@ const ALL_CONFIGS: SearchApiProviderConfigs = {
   searxng: { apiHost: 'https://searx.example.test' },
   zhipu: { apiKey: 'zhipu-key' },
   'z.ai': { apiKey: 'zai-key' },
+  deepseek: { apiKey: 'deepseek-key' },
 };
 
 function jsonFetch(body: string, status = 200): SearchApiFetch {
@@ -70,13 +71,14 @@ describe('apiSearchContributions — gating', () => {
     expect(apiSearchContributions({})).toEqual([]);
   });
 
-  it('registers all five ids when all five are configured, in baseline order', () => {
+  it('registers all six ids when all six are configured, in contract order', () => {
     expect(apiSearchContributions(ALL_CONFIGS).map((contribution) => contribution.id)).toEqual([
       'tavily',
       'jina',
       'searxng',
       'zhipu',
       'z.ai',
+      'deepseek',
     ]);
   });
 
@@ -100,6 +102,7 @@ describe('apiSearchContributions — declared capabilities', () => {
     ['searxng', false, false],
     ['zhipu', true, false],
     ['z.ai', true, false],
+    ['deepseek', true, true],
   ])('%s declares requiresApiKey=%s supportsUrlRead=%s', (id, requiresApiKey, supportsUrlRead) => {
     const { capabilities, provider } = byId(contributions, id);
     expect(capabilities.requiresApiKey).toBe(requiresApiKey);
@@ -109,14 +112,18 @@ describe('apiSearchContributions — declared capabilities', () => {
   });
 
   it('declares cancellation everywhere and region/language/timeRange nowhere', () => {
-    for (const { capabilities } of contributions) {
+    for (const { id, capabilities } of contributions) {
       expect(capabilities.supportsCancellation).toBe(true);
       expect(capabilities.supportsRegion).toBe(false);
       expect(capabilities.supportsLanguage).toBe(false);
       expect(capabilities.supportsTimeRange).toBe(false);
-      // None of these APIs documents an upper bound; 5 and 10 are DEFAULTS, and
-      // declaring a default as a cap would be a false capability.
-      expect(capabilities.maxResults).toBeUndefined();
+      // Only DeepSeek documents an upper bound (count 1..50). Everywhere else
+      // 5 and 10 are DEFAULTS, and declaring one as a cap would be false.
+      if (id === 'deepseek') {
+        expect(capabilities.maxResults).toBe(50);
+      } else {
+        expect(capabilities.maxResults).toBeUndefined();
+      }
     }
   });
 });
@@ -245,6 +252,7 @@ describe('End to end through the 阶段3 runtime', () => {
       'searxng',
       'zhipu',
       'z.ai',
+      'deepseek',
     ]);
     for (const descriptor of descriptors) {
       expect(descriptor.kind).toBe('api');
@@ -281,11 +289,104 @@ describe('readUrl wiring', () => {
     }
   });
 
+  it('reads through DeepSeek /tools/fetch with its own key', async () => {
+    const seen: Array<{ url: string; headers: Record<string, string>; body: unknown }> = [];
+    const contributions = apiSearchContributions(ALL_CONFIGS, {
+      fetchImpl: (url, init) => {
+        seen.push({
+          url,
+          headers: init.headers as Record<string, string>,
+          body: JSON.parse(init.body as string) as unknown,
+        });
+        return Promise.resolve(
+          new Response('{"title":"Example","content":"# Example\\n\\nBody"}', {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      },
+    });
+
+    const result = await byId(contributions, 'deepseek').provider.readUrl!(
+      'https://example.test/article',
+    );
+
+    expect(result).toEqual({
+      url: 'https://example.test/article',
+      title: 'Example',
+      content: '# Example\n\nBody',
+    });
+    expect(seen[0].url).toBe('https://api.deepseek.com/v1/tools/fetch');
+    expect(seen[0].headers.Authorization).toBe('Bearer deepseek-key');
+    expect(seen[0].body).toEqual({ url: 'https://example.test/article' });
+  });
+
   it('is available the moment the provider exists — no setter to forget', () => {
     // Elftia wired the reader through a later `setApiKey` call, so the declared
     // capability was only true after configuration ran. Here it is constructor
     // state, which is what makes `supportsUrlRead: true` honest.
     expect(typeof new JinaSearchProvider({ apiKey: 'k' }).readUrl).toBe('function');
+    expect(typeof byId(apiSearchContributions({ deepseek: {} }), 'deepseek').provider.readUrl)
+      .toBe('function');
+  });
+});
+
+describe('DeepSeek key reuse', () => {
+  it('borrows the catalog key when the entry carries none', async () => {
+    const seen: Array<Record<string, string>> = [];
+    const contributions = apiSearchContributions(
+      { deepseek: {} },
+      {
+        resolveDeepseekApiKey: () => 'catalog-deepseek-key',
+        fetchImpl: (_url, init) => {
+          seen.push(init.headers as Record<string, string>);
+          return Promise.resolve(
+            new Response('{"results":[]}', {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+          );
+        },
+      },
+    );
+
+    await expect(byId(contributions, 'deepseek').provider.search(QUERY)).resolves.toEqual([]);
+    expect(seen[0].Authorization).toBe('Bearer catalog-deepseek-key');
+  });
+
+  it('prefers a key configured on the search entry over the resolver', async () => {
+    let authorization = '';
+    const contributions = apiSearchContributions(
+      { deepseek: { apiKey: 'own-key' } },
+      {
+        resolveDeepseekApiKey: () => 'catalog-deepseek-key',
+        fetchImpl: (_url, init) => {
+          authorization = (init.headers as Record<string, string>).Authorization;
+          return Promise.resolve(new Response('{"results":[]}'));
+        },
+      },
+    );
+
+    await byId(contributions, 'deepseek').provider.search(QUERY);
+    expect(authorization).toBe('Bearer own-key');
+  });
+
+  it('fails config_missing before any network IO when neither source has a key', async () => {
+    let called = false;
+    const contributions = apiSearchContributions(
+      { deepseek: {} },
+      {
+        fetchImpl: () => {
+          called = true;
+          return Promise.resolve(new Response('{"results":[]}'));
+        },
+      },
+    );
+
+    const error = await failureOf(byId(contributions, 'deepseek').provider.search(QUERY));
+    expect(error.code).toBe('config_missing');
+    expect(error.retryable).toBe(false);
+    expect(called).toBe(false);
   });
 });
 
@@ -380,6 +481,7 @@ describe('Leak gate — a configured credential never reaches an error or a shap
           },
           zhipu: { apiKey: PLANTED_KEY },
           'z.ai': { apiKey: `${PLANTED_KEY},second-${PLANTED_KEY}` },
+          deepseek: { apiKey: PLANTED_KEY },
         },
         { fetchImpl },
       );

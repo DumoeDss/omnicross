@@ -1211,6 +1211,9 @@
       },
       "zai": {
         "description": "Z.AI のウェブ検索 API。キーが必要です。"
+      },
+      "deepseek": {
+        "description": "DeepSeek 公式の検索・ページ取得 API。キーが必要です。または DeepSeek プロバイダーのキーを再利用できます。"
       }
     },
     "keyless": {
@@ -1229,7 +1232,8 @@
       "jina": "エントリを保存すると有効になります——Jina はキーなしで動作可能です。",
       "searxng": "API ホストの設定が必要です。",
       "zhipu": "API キーの設定が必要です。",
-      "zai": "API キーの設定が必要です。"
+      "zai": "API キーの設定が必要です。",
+      "deepseek": "キーを入力するか、DeepSeek プロバイダーのキーを再利用するか、プロバイダー設定で構成してください。"
     },
     "field": {
       "apiKey": "API キー",
@@ -1242,7 +1246,12 @@
       "basicAuthUsername": "Basic 認証ユーザー",
       "basicAuthPassword": "Basic 認証パスワード",
       "basicAuthPasswordPlaceholder": "空欄なら保存済みパスワードを保持",
-      "basicAuthPasswordConfigured": "· パスワード設定済み"
+      "basicAuthPasswordConfigured": "· パスワード設定済み",
+      "reuseProviderKey": "プロバイダー設定の DeepSeek 公式キーを再利用する（下に入力したキーが優先されます）"
+    },
+    "reuseProviderKey": {
+      "available": "プロバイダー設定で DeepSeek キーが見つかりました。再利用します。",
+      "missing": "プロバイダー設定に DeepSeek キーが見つかりません。ここに入力するか、先に DeepSeek プロバイダーを追加してください。"
     },
     "action": {
       "test": "テスト",

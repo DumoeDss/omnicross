@@ -104,7 +104,8 @@ export type KnownSearchProviderId =
   | 'jina'
   | 'searxng'
   | 'zhipu'
-  | 'z.ai';
+  | 'z.ai'
+  | 'deepseek';
 
 /**
  * A provider identifier — open by construction.
@@ -124,6 +125,7 @@ const KNOWN_SEARCH_PROVIDER_IDS: ReadonlySet<string> = new Set<KnownSearchProvid
   'searxng',
   'zhipu',
   'z.ai',
+  'deepseek',
 ]);
 
 /**

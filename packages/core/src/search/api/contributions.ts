@@ -5,6 +5,9 @@
  * are stated, never derived from an id's spelling, and each adapter's
  * capabilities are explicit down to the options it does NOT honor.
  *
+ * Five adapters under six ids: `tavily`, `jina`, `searxng`, `zhipu`, `z.ai`
+ * and `deepseek`.
+ *
  * The gating rule is the important one: a provider absent from `configs`
  * produces NO contribution. It is unconfigured, not broken. A runtime that
  * registered a keyless Tavily would advertise a capability it cannot honor and
@@ -27,6 +30,11 @@ import type {
 import type { Dispatcher } from 'undici';
 
 import type { SearchEgressPolicy } from '../egress';
+import {
+  DEEPSEEK_MAX_RESULTS_LIMIT,
+  DeepseekSearchProvider,
+  DEEPSEEK_PROVIDER_ID,
+} from './DeepseekSearchProvider';
 import { JinaSearchProvider, JINA_PROVIDER_ID } from './JinaSearchProvider';
 import { SearxngSearchProvider, SEARXNG_PROVIDER_ID } from './SearxngSearchProvider';
 import { TavilySearchProvider, TAVILY_PROVIDER_ID } from './TavilySearchProvider';
@@ -37,10 +45,11 @@ import { ZhipuSearchProvider, ZAI_PROVIDER_ID, ZHIPU_PROVIDER_ID } from './Zhipu
 /**
  * The capability fields every API adapter shares.
  *
- * `maxResults` is deliberately UNSET across all four. The contract defines it
- * as an upper bound the provider imposes, and none of these APIs documents one
- * — Zhipu's 10 and everyone else's 5 are DEFAULTS, applied when the caller asks
- * for nothing. Declaring a default as a cap would be a false capability.
+ * `maxResults` is deliberately UNSET here. The contract defines it as an upper
+ * bound the provider imposes, and these APIs document none — Zhipu's 10 and
+ * everyone else's 5 are DEFAULTS, applied when the caller asks for nothing.
+ * Declaring a default as a cap would be a false capability. DeepSeek is the one
+ * adapter with a REAL documented bound (50) and adds it on top of these.
  */
 const SHARED_API_CAPABILITIES = {
   supportsRegion: false,
@@ -79,6 +88,21 @@ export const ZHIPU_CAPABILITIES: Readonly<SearchProviderCapabilities> = Object.f
   supportsUrlRead: false,
 });
 
+/**
+ * DeepSeek: key required (own or reused from an LLM provider row), and the one
+ * other adapter besides Jina that can read a URL.
+ *
+ * `maxResults: 50` is a documented API cap, not a default: `/tools/search`
+ * rejects `count` outside 1..50. Declaring it is honest in a way declaring 5
+ * would not be.
+ */
+export const DEEPSEEK_CAPABILITIES: Readonly<SearchProviderCapabilities> = Object.freeze({
+  ...SHARED_API_CAPABILITIES,
+  requiresApiKey: true,
+  supportsUrlRead: true,
+  maxResults: DEEPSEEK_MAX_RESULTS_LIMIT,
+});
+
 /** Knobs for {@link apiSearchContributions}. */
 export interface ApiSearchContributionOptions {
   /**
@@ -93,6 +117,13 @@ export interface ApiSearchContributionOptions {
    * daemon's `fetchUpstream` resolver). Only meaningful without `fetchImpl`.
    */
   resolveProxyDispatcher?: (url: string) => Dispatcher | undefined;
+  /**
+   * Official DeepSeek key from the LLM provider catalog, consulted when the
+   * `deepseek` entry carries none. Evaluated per request, so `$ENV` references
+   * and provider edits are observed without a rebuild. Absent ⇒ a keyless
+   * `deepseek` entry fails `config_missing` before any network IO.
+   */
+  resolveDeepseekApiKey?: () => string | undefined;
 }
 
 /**
@@ -102,9 +133,9 @@ export interface ApiSearchContributionOptions {
  * dispatcher cache are shared too.
  *
  * The returned order mirrors Elftia's registry registration order
- * (`tavily, jina, searxng, zhipu, z.ai`), which is what the registry preserves
- * — but note that the ORDER PROVIDERS ARE TRIED is the orchestrator's policy,
- * not this list.
+ * (`tavily, jina, searxng, zhipu, z.ai`) with the later-added `deepseek`
+ * appended, which is what the registry preserves — but note that the ORDER
+ * PROVIDERS ARE TRIED is the orchestrator's policy, not this list.
  */
 export function apiSearchContributions(
   configs: SearchApiProviderConfigs,
@@ -166,6 +197,20 @@ export function apiSearchContributions(
       kind: 'api',
       provider: new ZhipuSearchProvider(ZAI_PROVIDER_ID, configs['z.ai'], transport),
       capabilities: { ...ZHIPU_CAPABILITIES },
+    });
+  }
+
+  if (configs.deepseek) {
+    contributions.push({
+      id: DEEPSEEK_PROVIDER_ID,
+      source: 'builtin',
+      kind: 'api',
+      provider: new DeepseekSearchProvider(
+        configs.deepseek,
+        transport,
+        options.resolveDeepseekApiKey,
+      ),
+      capabilities: { ...DEEPSEEK_CAPABILITIES },
     });
   }
 

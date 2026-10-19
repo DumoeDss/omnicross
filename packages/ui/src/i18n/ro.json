@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "API de căutare web Z.AI; necesită cheie."
+      },
+      "deepseek": {
+        "description": "API oficial de căutare și preluare pagini DeepSeek; este necesară o cheie sau reutilizarea cheii unui furnizor DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Activați salvând o intrare — Jina poate rula fără cheie.",
       "searxng": "Necesită configurarea unei gazde API.",
       "zhipu": "Necesită configurarea unei chei API.",
-      "zai": "Necesită configurarea unei chei API."
+      "zai": "Necesită configurarea unei chei API.",
+      "deepseek": "Introduceți o cheie, reutilizați cheia unui furnizor DeepSeek sau configurați una în Furnizori."
     },
     "field": {
       "apiKey": "Cheie API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Utilizator Basic",
       "basicAuthPassword": "Parolă Basic",
       "basicAuthPasswordPlaceholder": "Gol păstrează parola salvată",
-      "basicAuthPasswordConfigured": "· parolă configurată"
+      "basicAuthPasswordConfigured": "· parolă configurată",
+      "reuseProviderKey": "Reutilizează cheia oficială DeepSeek din setările furnizorului (o cheie introdusă mai jos are prioritate)"
+    },
+    "reuseProviderKey": {
+      "available": "A fost găsită o cheie DeepSeek în setările furnizorului și va fi reutilizată.",
+      "missing": "Nu a fost găsită nicio cheie DeepSeek în setările furnizorului; introduceți una aici sau adăugați mai întâi un furnizor DeepSeek."
     },
     "action": {
       "test": "Testează",

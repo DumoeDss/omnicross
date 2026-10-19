@@ -79,6 +79,15 @@ describe('normalizeSearchServerConfig', () => {
     expect(normalizeSearchApiProviderConfigs({ jina: {} }).jina).toEqual({});
   });
 
+  it('keeps a keyless deepseek entry, because a blank key means "reuse the provider key"', () => {
+    expect(normalizeSearchApiProviderConfigs({ deepseek: {} }).deepseek).toEqual({});
+    expect(
+      normalizeSearchApiProviderConfigs({
+        deepseek: { apiHost: 'https://relay.example.test', apiKey: '  ' },
+      }).deepseek,
+    ).toEqual({ apiHost: 'https://relay.example.test' });
+  });
+
   it('falls back per-member on a malformed mode rather than discarding the section', () => {
     const config = normalizeSearchServerConfig({
       modes: { codex: 'managed', responses: 'nonsense' },
@@ -104,6 +113,15 @@ describe('validateSearchServerConfig', () => {
       providers: { tavily: { apiKey: TAVILY_KEY } },
       egress: { allowedPrivateHosts: ['searx.internal.corp'] },
       policy: { fallbackEnabled: true, maxAttempts: 3 },
+    })).toEqual([]);
+  });
+
+  it('accepts a keyless deepseek entry — resolution happens in assembly, not validation', () => {
+    expect(validateSearchServerConfig({
+      providers: { deepseek: {} },
+    })).toEqual([]);
+    expect(validateSearchServerConfig({
+      providers: { deepseek: { apiHost: 'https://api.deepseek.com' } },
     })).toEqual([]);
   });
 

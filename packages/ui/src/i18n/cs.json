@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Webové vyhledávací API Z.AI; vyžaduje klíč."
+      },
+      "deepseek": {
+        "description": "Oficiální API pro vyhledávání a načítání stránek DeepSeek; vyžaduje klíč nebo opětovné použití klíče od poskytovatele DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Aktivujte uložením záznamu — Jina umí běžet bez klíče.",
       "searxng": "Vyžaduje nastavení API hostitele.",
       "zhipu": "Vyžaduje nastavení API klíče.",
-      "zai": "Vyžaduje nastavení API klíče."
+      "zai": "Vyžaduje nastavení API klíče.",
+      "deepseek": "Zadejte klíč, použijte klíč poskytovatele DeepSeek nebo jej nejprve nastavte v nastavení poskytovatelů."
     },
     "field": {
       "apiKey": "API klíč",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Uživatel Basic",
       "basicAuthPassword": "Heslo Basic",
       "basicAuthPasswordPlaceholder": "Prázdné ponechá uložené heslo",
-      "basicAuthPasswordConfigured": "· heslo nastaveno"
+      "basicAuthPasswordConfigured": "· heslo nastaveno",
+      "reuseProviderKey": "Použít oficiální klíč DeepSeek z nastavení poskytovatele (níže zadaný klíč má přednost)"
+    },
+    "reuseProviderKey": {
+      "available": "V nastavení poskytovatele byl nalezen klíč DeepSeek a bude znovu použit.",
+      "missing": "V nastavení poskytovatele nebyl nalezen klíč DeepSeek; zadejte jej zde nebo nejprve přidejte poskytovatele DeepSeek."
     },
     "action": {
       "test": "Test",

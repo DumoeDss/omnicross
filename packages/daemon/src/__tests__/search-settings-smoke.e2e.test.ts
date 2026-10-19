@@ -134,7 +134,7 @@ describe('search settings end-to-end smoke (task 6.2)', () => {
     // after boot); the unconfigured rows name the API providers the persisted
     // config omits (searxng IS persisted, so it has no row until restart).
     expect(diagnostics.rows.map((row) => row.providerId).sort()).toEqual([
-      'http-bing', 'http-duckduckgo', 'jina', 'z.ai', 'zhipu',
+      'deepseek', 'http-bing', 'http-duckduckgo', 'jina', 'z.ai', 'zhipu',
     ]);
     // The REAL model comparison names the pending-restart providers → the
     // banner renders them.

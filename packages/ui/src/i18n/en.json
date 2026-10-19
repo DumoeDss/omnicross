@@ -1530,6 +1530,9 @@
       },
       "zai": {
         "description": "Z.AI web search API; key required."
+      },
+      "deepseek": {
+        "description": "DeepSeek official search and page-fetch API; a key is required, or reuse the key from a DeepSeek provider."
       }
     },
     "keyless": {
@@ -1548,7 +1551,8 @@
       "jina": "Enable by saving an entry — Jina can run without a key.",
       "searxng": "Requires an API host to be configured.",
       "zhipu": "Requires an API key to be configured.",
-      "zai": "Requires an API key to be configured."
+      "zai": "Requires an API key to be configured.",
+      "deepseek": "Enter a key, reuse a DeepSeek provider key, or configure one under Providers."
     },
     "field": {
       "apiKey": "API key",
@@ -1561,7 +1565,12 @@
       "basicAuthUsername": "Basic-auth user",
       "basicAuthPassword": "Basic-auth password",
       "basicAuthPasswordPlaceholder": "Blank keeps the stored password",
-      "basicAuthPasswordConfigured": "· password configured"
+      "basicAuthPasswordConfigured": "· password configured",
+      "reuseProviderKey": "Reuse the official DeepSeek key from Provider settings (a typed key below takes precedence)"
+    },
+    "reuseProviderKey": {
+      "available": "A DeepSeek key was found in Provider settings and will be reused.",
+      "missing": "No DeepSeek key was found in Provider settings; enter one here or add a DeepSeek provider first."
     },
     "action": {
       "test": "Test",

@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI websøgnings-API; nøgle kræves."
+      },
+      "deepseek": {
+        "description": "DeepSeeks officielle search- og sidehentnings-API; der kræves en nøgle, eller genbrug nøglen fra en DeepSeek-udbyder."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Aktivér ved at gemme en post — Jina kan køre uden nøgle.",
       "searxng": "Kræver konfiguration af en API-vært.",
       "zhipu": "Kræver konfiguration af en API-nøgle.",
-      "zai": "Kræver konfiguration af en API-nøgle."
+      "zai": "Kræver konfiguration af en API-nøgle.",
+      "deepseek": "Indtast en nøgle, genbrug en DeepSeek-udbydernøgle, eller konfigurer en under Udbyderindstillinger."
     },
     "field": {
       "apiKey": "API-nøgle",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic-auth-bruger",
       "basicAuthPassword": "Basic-auth-adgangskode",
       "basicAuthPasswordPlaceholder": "Tomt bevarer den gemte adgangskode",
-      "basicAuthPasswordConfigured": "· adgangskode konfigureret"
+      "basicAuthPasswordConfigured": "· adgangskode konfigureret",
+      "reuseProviderKey": "Genbrug den officielle DeepSeek-nøgle fra Udbyderindstillinger (en indtastet nøgle nedenfor har forrang)"
+    },
+    "reuseProviderKey": {
+      "available": "Der blev fundet en DeepSeek-nøgle i Udbyderindstillinger, og den vil blive genbrugt.",
+      "missing": "Der blev ikke fundet nogen DeepSeek-nøgle i Udbyderindstillinger; indtast en her, eller tilføj først en DeepSeek-udbyder."
     },
     "action": {
       "test": "Test",

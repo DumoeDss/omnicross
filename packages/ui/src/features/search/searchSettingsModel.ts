@@ -4,7 +4,7 @@
  *
  * Three jobs, all no-React and table-testable:
  *
- * 1. The CLOSED provider catalog — exactly the seven built-in ids, with display
+ * 1. The CLOSED provider catalog — exactly the eight built-in ids, with display
  *    metadata. No `local-*`, no grok/claude/exa/bocha: those are Elftia-host
  *    concepts or declared-but-dead ids, and the section must not advertise
  *    them.
@@ -48,6 +48,12 @@ export interface SearchProviderCatalogEntry {
   supportsHostOverride: boolean;
   /** Whether the Basic-auth pair applies (searxng only). */
   usesBasicAuth: boolean;
+  /**
+   * Whether an empty key may mean "reuse the official key from an LLM provider
+   * row" (DeepSeek only). Turns on the card's reuse checkbox and lets an entry
+   * be enabled without typing a secret.
+   */
+  reusesProviderKey: boolean;
 }
 
 const HTTP_ENTRY: Omit<SearchProviderCatalogEntry, 'id' | 'i18nSlug' | 'name' | 'website'> = {
@@ -57,32 +63,36 @@ const HTTP_ENTRY: Omit<SearchProviderCatalogEntry, 'id' | 'i18nSlug' | 'name' | 
   requiresHost: false,
   supportsHostOverride: false,
   usesBasicAuth: false,
+  reusesProviderKey: false,
 };
 
-const KEYED_ENTRY: Omit<SearchProviderCatalogEntry, 'id' | 'i18nSlug' | 'name' | 'website' | 'keyOptional' | 'requiresHost' | 'usesBasicAuth'> = {
+const KEYED_ENTRY: Omit<SearchProviderCatalogEntry, 'id' | 'i18nSlug' | 'name' | 'website' | 'keyOptional' | 'requiresHost' | 'usesBasicAuth' | 'reusesProviderKey'> = {
   kind: 'api',
   requiresApiKey: true,
   supportsHostOverride: true,
 };
 
 /**
- * The complete catalog — EXACTLY the seven Phase-1 built-ins. `http-bing` and
+ * The complete catalog — EXACTLY the eight built-ins. `http-bing` and
  * `http-duckduckgo` are keyless and always available (no config fields, no
- * fake enable toggle); the five keyed ids configure-by-entry.
+ * fake enable toggle); the six keyed ids configure-by-entry. DeepSeek is the
+ * one whose key may be left blank, in which case the official key from a
+ * DeepSeek provider row is reused.
  */
 export const SEARCH_PROVIDER_CATALOG: readonly SearchProviderCatalogEntry[] = Object.freeze([
   Object.freeze({ id: 'http-bing', i18nSlug: 'httpBing', name: 'Bing (HTTP)', website: 'https://www.bing.com', ...HTTP_ENTRY }),
   Object.freeze({ id: 'http-duckduckgo', i18nSlug: 'httpDuckduckgo', name: 'DuckDuckGo (HTTP)', website: 'https://duckduckgo.com', ...HTTP_ENTRY }),
-  Object.freeze({ id: 'tavily', i18nSlug: 'tavily', name: 'Tavily', website: 'https://tavily.com', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false }),
-  Object.freeze({ id: 'jina', i18nSlug: 'jina', name: 'Jina', website: 'https://jina.ai', ...KEYED_ENTRY, keyOptional: true, requiresHost: false, usesBasicAuth: false }),
-  Object.freeze({ id: 'searxng', i18nSlug: 'searxng', name: 'SearXNG', website: 'https://docs.searxng.org', kind: 'api', requiresApiKey: false, keyOptional: false, requiresHost: true, supportsHostOverride: false, usesBasicAuth: true }),
-  Object.freeze({ id: 'zhipu', i18nSlug: 'zhipu', name: 'Zhipu', website: 'https://open.bigmodel.cn', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false }),
-  Object.freeze({ id: 'z.ai', i18nSlug: 'zai', name: 'Z.AI', website: 'https://z.ai', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false }),
+  Object.freeze({ id: 'tavily', i18nSlug: 'tavily', name: 'Tavily', website: 'https://tavily.com', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
+  Object.freeze({ id: 'jina', i18nSlug: 'jina', name: 'Jina', website: 'https://jina.ai', ...KEYED_ENTRY, keyOptional: true, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
+  Object.freeze({ id: 'searxng', i18nSlug: 'searxng', name: 'SearXNG', website: 'https://docs.searxng.org', kind: 'api', requiresApiKey: false, keyOptional: false, requiresHost: true, supportsHostOverride: false, usesBasicAuth: true, reusesProviderKey: false }),
+  Object.freeze({ id: 'zhipu', i18nSlug: 'zhipu', name: 'Zhipu', website: 'https://open.bigmodel.cn', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
+  Object.freeze({ id: 'z.ai', i18nSlug: 'zai', name: 'Z.AI', website: 'https://z.ai', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: false }),
+  Object.freeze({ id: 'deepseek', i18nSlug: 'deepseek', name: 'DeepSeek', website: 'https://api-docs.deepseek.com', ...KEYED_ENTRY, keyOptional: false, requiresHost: false, usesBasicAuth: false, reusesProviderKey: true }),
 ]);
 
 const CATALOG_IDS: ReadonlySet<string> = new Set(SEARCH_PROVIDER_CATALOG.map((entry) => entry.id));
 
-/** Whether an id is one of the seven built-ins (guards unknown ids at the edges). */
+/** Whether an id is one of the eight built-ins (guards unknown ids at the edges). */
 export function isCatalogProviderId(id: string): boolean {
   return CATALOG_IDS.has(id);
 }
@@ -98,6 +108,17 @@ export interface SearchProviderDraft {
   apiKeyInput: string;
   /** Explicit clear of an OPTIONAL key → payload `null`. Required keys clear by entry removal. */
   clearApiKey: boolean;
+  /**
+   * The persisted entry already carries an API key (masked read only reveals
+   * presence). Distinct from `persistedConfigured`, which is true even for a
+   * DeepSeek entry that exists solely to reuse a provider key.
+   */
+  hasStoredApiKey: boolean;
+  /**
+   * Reuse the official DeepSeek key from an LLM provider row. Only meaningful
+   * for `reusesProviderKey` entries; a typed key still wins at runtime.
+   */
+  reuseLlmProviderKey: boolean;
   /** Optional `apiHost` override (or the REQUIRED host for searxng). */
   apiHost: string;
   /** Basic-auth username (searxng only; non-secret). */
@@ -133,6 +154,8 @@ function emptyProviderDraft(persistedConfigured: boolean): SearchProviderDraft {
   return {
     apiKeyInput: '',
     clearApiKey: false,
+    hasStoredApiKey: false,
+    reuseLlmProviderKey: false,
     apiHost: '',
     basicAuthUsername: '',
     basicAuthPasswordInput: '',
@@ -152,6 +175,10 @@ export function createSearchSettingsDraft(masked: SearchServerConfig | undefined
     if (stored) {
       draft.apiHost = stored.apiHost ?? '';
       draft.basicAuthUsername = (stored as { basicAuthUsername?: string }).basicAuthUsername ?? '';
+      draft.hasStoredApiKey = (stored as { apiKeyConfigured?: boolean }).apiKeyConfigured === true;
+      // A persisted entry with NO key exists precisely because it reuses the
+      // provider-catalog key — seed the switch so the card reads honestly.
+      draft.reuseLlmProviderKey = entry.reusesProviderKey && !draft.hasStoredApiKey;
     }
     providers[entry.id] = draft;
   }
@@ -303,8 +330,15 @@ export function draftProviderConfigured(entry: SearchProviderCatalogEntry, draft
   if (entry.kind !== 'api') return true; // the http pair is always available
   if (draft.removed) return false;
   if (entry.requiresHost) return isUsableHostString(draft.apiHost.trim());
-  return draft.persistedConfigured || draft.apiKeyInput.trim().length > 0 ||
-    (entry.keyOptional && isUsableHostString(draft.apiHost.trim()));
+  const typedKey = draft.apiKeyInput.trim().length > 0;
+  const storedKey = draft.hasStoredApiKey && !draft.clearApiKey;
+  if (entry.keyOptional) {
+    // Jina's persisted keyless entry is itself the enablement — a host alone
+    // also enables it, as before.
+    return draft.persistedConfigured || typedKey || isUsableHostString(draft.apiHost.trim());
+  }
+  // DeepSeek may be enabled WITHOUT a typed secret by reusing a provider key.
+  return storedKey || typedKey || (entry.reusesProviderKey && draft.reuseLlmProviderKey);
 }
 
 /** Status a card should badge with, given the diagnostics row (if any). */

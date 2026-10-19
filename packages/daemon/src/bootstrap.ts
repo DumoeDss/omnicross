@@ -103,6 +103,7 @@ import { createPoolKeysLoader, setSecretBox as setPoolSecretBox } from './pool/l
 import { ProviderKeyQuotaService } from './allowance/ProviderKeyQuotaService';
 import { resolveEnvKey } from './pool/resolveEnvKey';
 import { buildSearchRuntime } from './search/SearchAssembly';
+import { deepseekLlmProviderApiKey } from './search/deepseekKeyReuse';
 import {
   defaultAuditDir,
   defaultBillingDir,
@@ -760,7 +761,13 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
   )) {
     logger.warn('[search] ignoring invalid config: ' + issue);
   }
-  const searchRuntime = buildSearchRuntime(initialSearchConfig, { logger });
+  const searchRuntime = buildSearchRuntime(initialSearchConfig, {
+    logger,
+    // DeepSeek's search/fetch tools bill to the same official key as its chat
+    // models, so a `deepseek` search entry without its own key borrows the
+    // catalog's. Resolved through the LIVE (hot-reloaded) rows per request.
+    resolveDeepseekApiKey: () => deepseekLlmProviderApiKey(llmConfig.listProviderRows()),
+  });
   const searchFrontendModes = initialSearchConfig.modes;
   const imageObservability = new ImageObservability();
   const imageRuntimeObservability = Object.freeze({
@@ -1069,7 +1076,15 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // search-settings-ui D3: the daemon's ONE search runtime + its
     // bootstrap-captured modes, for `GET /admin/api/search/diagnostics` and
     // `POST /admin/api/search/test` (501 when a light embedder omits it).
-    searchStatus: { runtime: searchRuntime, modes: searchFrontendModes },
+    searchStatus: {
+      runtime: searchRuntime,
+      modes: searchFrontendModes,
+      // Live rows for the admin probe's DeepSeek key reuse and for the
+      // secret-free "a reusable key exists" hint in diagnostics. A provider
+      // added after boot works here immediately, without waiting for the
+      // search-runtime restart the mode/provider section otherwise needs.
+      listLlmProviderRows: () => llmConfig.listProviderRows(),
+    },
     accountAllowanceService,
     allowanceRefreshScheduler: claudeAllowanceRefreshScheduler,
     accountProbeService: accountHealthProbeScheduler,

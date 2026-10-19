@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI-webzoek-API; sleutel vereist."
+      },
+      "deepseek": {
+        "description": "Officiële DeepSeek zoek- en paginaophaal-API; een sleutel is vereist, of hergebruik de sleutel van een DeepSeek-provider."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Activeer door een item op te slaan — Jina kan zonder sleutel draaien.",
       "searxng": "Vereist configuratie van een API-host.",
       "zhipu": "Vereist configuratie van een API-sleutel.",
-      "zai": "Vereist configuratie van een API-sleutel."
+      "zai": "Vereist configuratie van een API-sleutel.",
+      "deepseek": "Voer een sleutel in, hergebruik een DeepSeek-providerseutel of configureer er een onder Providers."
     },
     "field": {
       "apiKey": "API-sleutel",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic-auth-gebruiker",
       "basicAuthPassword": "Basic-auth-wachtwoord",
       "basicAuthPasswordPlaceholder": "Leeg houdt het opgeslagen wachtwoord",
-      "basicAuthPasswordConfigured": "· wachtwoord geconfigureerd"
+      "basicAuthPasswordConfigured": "· wachtwoord geconfigureerd",
+      "reuseProviderKey": "Hergebruik de officiële DeepSeek-sleutel uit Providerinstellingen (een hieronder ingevoerde sleutel heeft voorrang)"
+    },
+    "reuseProviderKey": {
+      "available": "Er is een DeepSeek-sleutel gevonden in Providerinstellingen en deze wordt hergebruikt.",
+      "missing": "Er is geen DeepSeek-sleutel gevonden in Providerinstellingen; voer er hier een in of voeg eerst een DeepSeek-provider toe."
     },
     "action": {
       "test": "Testen",

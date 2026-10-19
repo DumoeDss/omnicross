@@ -51,7 +51,7 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
     expect(buildSearchDoctorSnapshot().every((row) => row.status === undefined)).toBe(true);
   });
 
-  it('lists all five API providers as unconfigured when nothing is configured', () => {
+  it('lists all six API providers as unconfigured when nothing is configured', () => {
     const rows = buildSearchDoctorSnapshot(builtinHttpSearchContributions(), {});
     const apiRows = rows.filter((row) => row.kind === 'api');
 
@@ -61,6 +61,7 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
       'searxng',
       'zhipu',
       'z.ai',
+      'deepseek',
     ]);
     for (const row of apiRows) {
       expect(row.status).toBe('unconfigured');
@@ -96,6 +97,7 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
       'searxng',
       'zhipu',
       'z.ai',
+      'deepseek',
     ]);
   });
 
@@ -107,6 +109,8 @@ describe('buildSearchDoctorSnapshot — unconfigured API rows', () => {
     expect(byId('tavily').capabilities.requiresApiKey).toBe(true);
     expect(byId('jina').capabilities.supportsUrlRead).toBe(true);
     expect(byId('searxng').capabilities.requiresApiKey).toBe(false);
+    expect(byId('deepseek').capabilities.supportsUrlRead).toBe(true);
+    expect(byId('deepseek').capabilities.maxResults).toBe(50);
   });
 });
 
@@ -126,6 +130,8 @@ describe('readSearchApiConfigFromEnv — the diagnostic-only convenience', () =>
       OMNICROSS_SEARCH_ZHIPU_API_KEY: 'zk',
       // A dot is not valid in an environment variable name.
       OMNICROSS_SEARCH_Z_AI_API_KEY: 'zaik',
+      OMNICROSS_SEARCH_DEEPSEEK_API_KEY: 'dk',
+      OMNICROSS_SEARCH_DEEPSEEK_API_HOST: 'https://api.deepseek.example.test',
     });
 
     expect(configs).toEqual({
@@ -138,7 +144,14 @@ describe('readSearchApiConfigFromEnv — the diagnostic-only convenience', () =>
       },
       zhipu: { apiKey: 'zk' },
       'z.ai': { apiKey: 'zaik' },
+      deepseek: { apiKey: 'dk', apiHost: 'https://api.deepseek.example.test' },
     });
+  });
+
+  it('enables DeepSeek from a host alone, for the catalog-key reuse case', () => {
+    expect(
+      readSearchApiConfigFromEnv({ OMNICROSS_SEARCH_DEEPSEEK_API_HOST: 'https://api.deepseek.com' }),
+    ).toEqual({ deepseek: { apiHost: 'https://api.deepseek.com' } });
   });
 
   it('treats empty and whitespace-only values as absent', () => {
@@ -209,7 +222,7 @@ describe('runSearchDoctor output hygiene', () => {
     const { output, code } = await captureInfo(() => runSearchDoctor(false, {}));
 
     expect(code).toBe(0);
-    for (const id of ['tavily', 'jina', 'searxng', 'zhipu', 'z.ai']) {
+    for (const id of ['tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek']) {
       expect(output).toContain(id);
     }
     expect(output).toContain('unconfigured');

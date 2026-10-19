@@ -2,8 +2,8 @@
  * Shared vocabulary for the API search slice (plan 阶段4).
  *
  * Config shapes, the transport seams, and the failure-stage vocabulary, in one
- * place so the four adapters, the shared transport, the contributions factory
- * and the doctor can agree on names without importing each other.
+ * place so the adapters, the shared transport, the contributions factory and
+ * the doctor can agree on names without importing each other.
  *
  * The config shapes stay CORE-LOCAL rather than moving into
  * `@omnicross/contracts`: their only consumers are in this package until
@@ -80,6 +80,22 @@ export interface ZhipuProviderConfig {
 }
 
 /**
+ * DeepSeek: search AND fetch (`/tools/search`, `/tools/fetch`).
+ *
+ * The key is OPTIONAL at the config layer on purpose: a DeepSeek provider row in
+ * the LLM catalog already holds the official key, and the assembly passes a
+ * resolver that reuses it when this entry names none. A blank key therefore
+ * means "reuse the provider key", not "run keyless" — DeepSeek has no keyless
+ * mode, and the provider raises `config_missing` when neither source yields one.
+ */
+export interface DeepseekProviderConfig {
+  /** API key. Comma-separated values rotate round-robin. Omit to reuse a provider key. */
+  apiKey?: string;
+  /** Override for `https://api.deepseek.com`; normalized onto `/v1/tools/*`. */
+  apiHost?: string;
+}
+
+/**
  * Per-provider configuration, keyed by provider id.
  *
  * A provider absent from this object is UNCONFIGURED, not broken: it produces
@@ -92,6 +108,7 @@ export interface SearchApiProviderConfigs {
   searxng?: SearxngProviderConfig;
   zhipu?: ZhipuProviderConfig;
   'z.ai'?: ZhipuProviderConfig;
+  deepseek?: DeepseekProviderConfig;
 }
 
 /**

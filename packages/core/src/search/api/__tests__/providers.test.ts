@@ -1,5 +1,6 @@
 /**
- * Wire-contract and failure-behavior tests for the four ported API adapters.
+ * Wire-contract and failure-behavior tests for the ported API adapters and the
+ * later-added DeepSeek adapter.
  *
  * The request-construction assertions are the port's proof of fidelity: method,
  * URL, headers and body are compared against the hash-verified Elftia
@@ -16,6 +17,11 @@ import { fileURLToPath } from 'node:url';
 import { isSearchProviderError, type SearchProviderError } from '@omnicross/contracts/search-types';
 import { describe, expect, it } from 'vitest';
 
+import {
+  DEEPSEEK_DEFAULT_HOST,
+  DeepseekSearchProvider,
+  normalizeDeepseekApiUrl,
+} from '../DeepseekSearchProvider';
 import { JinaReaderClient } from '../JinaReaderClient';
 import { JinaSearchProvider, JINA_DEFAULT_HOST } from '../JinaSearchProvider';
 import { SearxngSearchProvider } from '../SearxngSearchProvider';
@@ -88,6 +94,8 @@ const buildSearxng = (transport?: Transport): SearxngSearchProvider =>
   new SearxngSearchProvider({ apiHost: 'https://searx.example.test' }, transport);
 const buildZhipu = (transport?: Transport): ZhipuSearchProvider =>
   new ZhipuSearchProvider(ZHIPU_PROVIDER_ID, { apiKey: 'k' }, transport);
+const buildDeepseek = (transport?: Transport): DeepseekSearchProvider =>
+  new DeepseekSearchProvider({ apiKey: 'k' }, transport);
 
 /** A fetch that never settles until its signal aborts. */
 const hangingFetch: SearchApiFetch = (_url, init) =>
@@ -586,5 +594,102 @@ describe('Jina reader client', () => {
       }),
     );
     expect(timedOut.code).toBe('timeout');
+  });
+});
+
+describe('DeepSeek — request construction', () => {
+  it('POSTs /v1/tools/search with a Bearer key and the documented body', async () => {
+    const { calls, fetchImpl } = harness(() => jsonResponse('{"results":[]}'));
+    const provider = new DeepseekSearchProvider(
+      { apiKey: 'ds-test-key' },
+      createSearchApiTransport({ fetch: fetchImpl }),
+    );
+
+    await provider.search(QUERY, { maxResults: 7 });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${DEEPSEEK_DEFAULT_HOST}/v1/tools/search`);
+    expect(calls[0].init.method).toBe('POST');
+    expect(headersOf(calls[0])).toEqual({
+      Authorization: 'Bearer ds-test-key',
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    });
+    expect(bodyOf(calls[0])).toEqual({
+      query: QUERY,
+      count: 7,
+      // Off unless the caller asked for page bodies.
+      need_content: false,
+    });
+  });
+
+  it('requests page content only when fetchPageContent is set, and clamps count to 50', async () => {
+    const { calls, fetchImpl } = harness(() => jsonResponse('{"results":[]}'));
+    const provider = new DeepseekSearchProvider({ apiKey: 'k' }, createSearchApiTransport({ fetch: fetchImpl }));
+
+    await provider.search(QUERY, { maxResults: 500, fetchPageContent: true });
+    expect(bodyOf(calls[0])).toEqual({ query: QUERY, count: 50, need_content: true });
+
+    await provider.search(QUERY, { maxResults: 0 });
+    expect(bodyOf(calls[1]).count).toBe(5); // `0` means default, as in the other adapters.
+  });
+
+  it('normalizes host overrides onto the tool endpoints', () => {
+    expect(normalizeDeepseekApiUrl('https://api.deepseek.com', 'search'))
+      .toBe('https://api.deepseek.com/v1/tools/search');
+    expect(normalizeDeepseekApiUrl('https://api.deepseek.com/', 'fetch'))
+      .toBe('https://api.deepseek.com/v1/tools/fetch');
+    expect(normalizeDeepseekApiUrl('https://api.deepseek.com/v1', 'search'))
+      .toBe('https://api.deepseek.com/v1/tools/search');
+    expect(normalizeDeepseekApiUrl('https://api.deepseek.com/v1/tools', 'fetch'))
+      .toBe('https://api.deepseek.com/v1/tools/fetch');
+    expect(normalizeDeepseekApiUrl('https://relay.example.test/v1/tools/search', 'fetch'))
+      .toBe('https://relay.example.test/v1/tools/fetch');
+  });
+});
+
+describe('DeepSeek — response mapping', () => {
+  it('maps title/url/content and slices to the caller bound', async () => {
+    const { fetchImpl } = harness(() =>
+      jsonResponse(
+        JSON.stringify({
+          results: [
+            { title: 'One', url: 'https://example.test/1', content: 'full body', summary: 'long', snippet: 'short' },
+            { title: 'Two', url: 'https://example.test/2', content: '', summary: 'long summary', snippet: 'short' },
+            { title: 'Three', url: 'https://example.test/3', content: '', summary: '', snippet: 'short summary' },
+          ],
+        }),
+      ),
+    );
+    const provider = new DeepseekSearchProvider({ apiKey: 'k' }, createSearchApiTransport({ fetch: fetchImpl }));
+
+    const results = await provider.search(QUERY, { maxResults: 2 });
+    expect(results).toEqual([
+      // content wins; summary is the documented longer fallback.
+      { title: 'One', url: 'https://example.test/1', content: 'full body' },
+      { title: 'Two', url: 'https://example.test/2', content: 'long summary' },
+    ]);
+
+    const all = await provider.search(QUERY, { maxResults: 3 });
+    expect(all[2].content).toBe('short summary');
+  });
+
+  it('raises parse_failed rather than inventing an empty success when results is absent', async () => {
+    const { fetchImpl } = harness(() => jsonResponse('{"data":[]}'));
+    const provider = new DeepseekSearchProvider({ apiKey: 'k' }, createSearchApiTransport({ fetch: fetchImpl }));
+    const error = await failureOf(provider.search(QUERY));
+    expect(error.code).toBe('parse_failed');
+  });
+
+  it('reads a URL through /v1/tools/fetch and omits absent fields', async () => {
+    const { calls, fetchImpl } = harness(() =>
+      jsonResponse('{"title":"","content":"# Body"}'),
+    );
+    const provider = new DeepseekSearchProvider({ apiKey: 'k' }, createSearchApiTransport({ fetch: fetchImpl }));
+
+    const result = await provider.readUrl('https://example.test/article');
+    expect(calls[0].url).toBe(`${DEEPSEEK_DEFAULT_HOST}/v1/tools/fetch`);
+    expect(bodyOf(calls[0])).toEqual({ url: 'https://example.test/article' });
+    expect(result).toEqual({ url: 'https://example.test/article', content: '# Body' });
   });
 });

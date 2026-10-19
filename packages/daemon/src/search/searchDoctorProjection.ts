@@ -27,6 +27,7 @@ import type {
   SearchTransportKind,
 } from '@omnicross/contracts/search-types';
 import {
+  DEEPSEEK_CAPABILITIES,
   JINA_CAPABILITIES,
   SEARXNG_CAPABILITIES,
   TAVILY_CAPABILITIES,
@@ -106,6 +107,15 @@ const API_DOCTOR_PROVIDERS: ReadonlyArray<{
     capabilities: ZHIPU_CAPABILITIES,
     configured: (configs) => configs['z.ai'] !== undefined,
     missingReason: 'no API key configured',
+  },
+  {
+    id: 'deepseek',
+    capabilities: DEEPSEEK_CAPABILITIES,
+    configured: (configs) => configs.deepseek !== undefined,
+    // The entry alone enables it; whether a key exists comes from the LLM
+    // catalog, which this pure snapshot cannot see. A missing key surfaces on
+    // the live probe as `config_missing`, not as a fabricated unconfigured row.
+    missingReason: 'not configured (a key can be reused from a DeepSeek provider row)',
   },
 ];
 

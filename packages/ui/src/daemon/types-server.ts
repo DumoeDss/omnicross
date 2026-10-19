@@ -562,6 +562,18 @@ export interface ZhipuProviderConfig {
   apiKeyConfigured?: boolean;
   apiHost?: string;
 }
+/**
+ * DeepSeek: search + fetch. The key is optional because an empty entry means
+ * "reuse the official key from a DeepSeek provider row"; when a key is typed,
+ * the admin read reports it only as a marker.
+ */
+export interface DeepseekProviderConfig {
+  /** Write-only on PUT (string sets, blank/omitted keeps); never in a read. */
+  apiKey?: string | null;
+  /** Admin-read marker; strip before writing. */
+  apiKeyConfigured?: boolean;
+  apiHost?: string;
+}
 
 /**
  * The masked admin view of `server.search.providers`. The daemon NEVER sends
@@ -575,6 +587,7 @@ export interface SearchApiProviderConfigs {
   searxng?: SearxngProviderConfig;
   zhipu?: ZhipuProviderConfig;
   'z.ai'?: ZhipuProviderConfig;
+  deepseek?: DeepseekProviderConfig;
 }
 
 /**
@@ -620,6 +633,11 @@ export interface SearchDiagnosticsSnapshot {
   /** Effective modes: codex from the live config, the rest as bootstrapped. */
   modes: SearchFrontendModes;
   applySemantics: { codex: 'immediate'; rest: 'restart' };
+  /**
+   * Secret-free presence markers for credentials a search provider can borrow
+   * from the LLM catalog. Omitted by daemons that cannot inspect the catalog.
+   */
+  keyReuse?: { deepseek: boolean };
 }
 
 /** The sanitized error shape a test diagnostic may carry (never a secret). */

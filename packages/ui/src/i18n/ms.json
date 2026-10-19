@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "API carian web Z.AI; kunci diperlukan."
+      },
+      "deepseek": {
+        "description": "API carian dan pengambilan halaman rasmi DeepSeek; kunci diperlukan, atau guna semula kunci daripada penyedia DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Aktifkan dengan menyimpan entri — Jina boleh berjalan tanpa kunci.",
       "searxng": "Memerlukan hos API dikonfigurasi.",
       "zhipu": "Memerlukan kunci API dikonfigurasi.",
-      "zai": "Memerlukan kunci API dikonfigurasi."
+      "zai": "Memerlukan kunci API dikonfigurasi.",
+      "deepseek": "Masukkan kunci, guna semula kunci penyedia DeepSeek, atau konfigurasikannya dalam Penyedia."
     },
     "field": {
       "apiKey": "Kunci API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Pengguna Basic",
       "basicAuthPassword": "Kata laluan Basic",
       "basicAuthPasswordPlaceholder": "Kosong mengekalkan kata laluan tersimpan",
-      "basicAuthPasswordConfigured": "· kata laluan dikonfigurasi"
+      "basicAuthPasswordConfigured": "· kata laluan dikonfigurasi",
+      "reuseProviderKey": "Guna semula kunci rasmi DeepSeek daripada tetapan Penyedia (kunci yang ditaip di bawah diutamakan)"
+    },
+    "reuseProviderKey": {
+      "available": "Kunci DeepSeek ditemui dalam tetapan Penyedia dan akan digunakan semula.",
+      "missing": "Tiada kunci DeepSeek ditemui dalam tetapan Penyedia; masukkan di sini atau tambah penyedia DeepSeek dahulu."
     },
     "action": {
       "test": "Uji",

@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI webkereső API; kulcs szükséges."
+      },
+      "deepseek": {
+        "description": "Hivatalos DeepSeek kereső és oldalbetöltő API; kulcs szükséges, vagy egy DeepSeek-szolgáltató kulcsának újrafelhasználása."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Bejegyzés mentésével engedélyezhető — a Jina kulcs nélkül is működik.",
       "searxng": "API-állomás beállítását igényli.",
       "zhipu": "API-kulcs beállítását igényli.",
-      "zai": "API-kulcs beállítását igényli."
+      "zai": "API-kulcs beállítását igényli.",
+      "deepseek": "Adjon meg egy kulcsot, használja újra egy DeepSeek-szolgáltató kulcsát, vagy állítson be egyet a Szolgáltatók alatt."
     },
     "field": {
       "apiKey": "API-kulcs",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic hitelesítő felhasználó",
       "basicAuthPassword": "Basic hitelesítő jelszó",
       "basicAuthPasswordPlaceholder": "Üresen hagyva megőrzi a tárolt jelszót",
-      "basicAuthPasswordConfigured": "· jelszó beállítva"
+      "basicAuthPasswordConfigured": "· jelszó beállítva",
+      "reuseProviderKey": "A hivatalos DeepSeek-kulcs újrafelhasználása a szolgáltató beállításaiból (az alább beírt kulcs élvez elsőbbséget)"
+    },
+    "reuseProviderKey": {
+      "available": "A szolgáltató beállításaiban található egy DeepSeek-kulcs, amely újra fel lesz használva.",
+      "missing": "A szolgáltató beállításaiban nem található DeepSeek-kulcs; adjon meg egyet itt, vagy előbb adjon hozzá DeepSeek-szolgáltatót."
     },
     "action": {
       "test": "Teszt",

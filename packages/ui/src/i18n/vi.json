@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "API tìm kiếm web Z.AI; cần khóa."
+      },
+      "deepseek": {
+        "description": "API tìm kiếm và tải trang chính thức của DeepSeek; cần khóa hoặc dùng lại khóa từ nhà cung cấp DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Bật bằng cách lưu một mục — Jina có thể chạy không cần khóa.",
       "searxng": "Yêu cầu cấu hình máy chủ API.",
       "zhipu": "Yêu cầu cấu hình khóa API.",
-      "zai": "Yêu cầu cấu hình khóa API."
+      "zai": "Yêu cầu cấu hình khóa API.",
+      "deepseek": "Nhập khóa, dùng lại khóa của nhà cung cấp DeepSeek hoặc định cấu hình trong Nhà cung cấp."
     },
     "field": {
       "apiKey": "Khóa API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Người dùng Basic",
       "basicAuthPassword": "Mật khẩu Basic",
       "basicAuthPasswordPlaceholder": "Để trống giữ mật khẩu đã lưu",
-      "basicAuthPasswordConfigured": "· đã cấu hình mật khẩu"
+      "basicAuthPasswordConfigured": "· đã cấu hình mật khẩu",
+      "reuseProviderKey": "Dùng lại khóa DeepSeek chính thức từ cài đặt nhà cung cấp (khóa nhập bên dưới được ưu tiên)"
+    },
+    "reuseProviderKey": {
+      "available": "Đã tìm thấy khóa DeepSeek trong cài đặt nhà cung cấp và sẽ được dùng lại.",
+      "missing": "Không tìm thấy khóa DeepSeek trong cài đặt nhà cung cấp; hãy nhập tại đây hoặc thêm nhà cung cấp DeepSeek trước."
     },
     "action": {
       "test": "Kiểm tra",

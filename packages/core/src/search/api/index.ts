@@ -1,11 +1,11 @@
 /**
  * `@omnicross/core/search/api` — the reliable API search providers (plan 阶段4).
  *
- * Four adapters under five ids (`tavily`, `jina`, `searxng`, `zhipu`, `z.ai`)
- * implementing `SearchProvider` from `@omnicross/contracts/search-types`, on
- * one shared undici transport that owns egress validation, redirect walking,
- * taxonomy error mapping and secret redaction. Pure Node: no Elftia, no
- * Electron, no host runtime.
+ * Five adapters under six ids (`tavily`, `jina`, `searxng`, `zhipu`, `z.ai`,
+ * `deepseek`) implementing `SearchProvider` from
+ * `@omnicross/contracts/search-types`, on one shared undici transport that owns
+ * egress validation, redirect walking, taxonomy error mapping and secret
+ * redaction. Pure Node: no Elftia, no Electron, no host runtime.
  *
  * Deliberately absent, with reasons:
  *
@@ -23,12 +23,22 @@
 
 export {
   apiSearchContributions,
+  DEEPSEEK_CAPABILITIES,
   JINA_CAPABILITIES,
   SEARXNG_CAPABILITIES,
   TAVILY_CAPABILITIES,
   ZHIPU_CAPABILITIES,
   type ApiSearchContributionOptions,
 } from './contributions';
+export {
+  DEEPSEEK_DEFAULT_HOST,
+  DEEPSEEK_DEFAULT_MAX_RESULTS,
+  DEEPSEEK_MAX_RESULTS_LIMIT,
+  DEEPSEEK_PROVIDER_ID,
+  DeepseekSearchProvider,
+  normalizeDeepseekApiUrl,
+  type DeepseekApiKeyResolver,
+} from './DeepseekSearchProvider';
 export { JinaReaderClient, JINA_READER_HOST } from './JinaReaderClient';
 export {
   JinaSearchProvider,
@@ -66,6 +76,7 @@ export {
 } from './transport';
 export { SEARCH_API_TRANSPORT_ID } from './types';
 export type {
+  DeepseekProviderConfig,
   JinaProviderConfig,
   SearchApiFetch,
   SearchApiProviderConfigs,

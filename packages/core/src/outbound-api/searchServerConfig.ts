@@ -16,6 +16,7 @@
  */
 
 import type {
+  DeepseekProviderConfig,
   JinaProviderConfig,
   SearchApiProviderConfigs,
   SearxngProviderConfig,
@@ -121,6 +122,17 @@ function zhipuConfig(value: unknown): ZhipuProviderConfig | undefined {
   return { apiKey, ...(apiHost ? { apiHost } : {}) };
 }
 
+function deepseekConfig(value: unknown): DeepseekProviderConfig | undefined {
+  // An entry with neither key nor host is STILL meaningful: it says "enable
+  // DeepSeek and reuse the official key from an LLM provider row". Requiring a
+  // key here would reject exactly the reuse case the provider exists for.
+  const raw = record(value);
+  if (!raw) return undefined;
+  const apiKey = configString(raw['apiKey']);
+  const apiHost = configString(raw['apiHost']);
+  return { ...(apiKey ? { apiKey } : {}), ...(apiHost ? { apiHost } : {}) };
+}
+
 /** Tolerant read: unusable members are DROPPED, which leaves them unconfigured. */
 export function normalizeSearchApiProviderConfigs(value: unknown): SearchApiProviderConfigs {
   const raw = record(value) ?? {};
@@ -135,6 +147,8 @@ export function normalizeSearchApiProviderConfigs(value: unknown): SearchApiProv
   if (zhipu) configs.zhipu = zhipu;
   const zai = zhipuConfig(raw['z.ai']);
   if (zai) configs['z.ai'] = zai;
+  const deepseek = deepseekConfig(raw['deepseek']);
+  if (deepseek) configs.deepseek = deepseek;
   return configs;
 }
 
@@ -173,16 +187,23 @@ export function normalizeSearchServerConfig(value: unknown): SearchServerConfig 
 }
 
 const PROVIDER_KEYS: ReadonlySet<string> = new Set([
-  'tavily', 'jina', 'searxng', 'zhipu', 'z.ai',
+  'tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek',
 ]);
 
-/** The setting whose absence makes a provider entry unusable. `jina` has none. */
+/**
+ * The setting whose absence makes a provider entry unusable.
+ *
+ * `jina` has none because it runs keyless. `deepseek` has none because a blank
+ * key means "reuse the official key from an LLM provider row" — resolving that
+ * is the assembly's job, and a config-level validator cannot see the catalog.
+ */
 const PROVIDER_REQUIRED_FIELD: Readonly<Record<string, string | undefined>> = Object.freeze({
   tavily: 'apiKey',
   jina: undefined,
   searxng: 'apiHost',
   zhipu: 'apiKey',
   'z.ai': 'apiKey',
+  deepseek: undefined,
 });
 
 function validateProviders(value: unknown, path: string): string[] {

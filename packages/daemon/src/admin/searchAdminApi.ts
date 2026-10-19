@@ -49,7 +49,12 @@ import type {
   SearchProviderId,
 } from '@omnicross/contracts/search-types';
 
+import type { DaemonProviderConfig } from '../config';
 import type { JsonApiServerSettingsStore } from '../ports/JsonApiServerSettingsStore';
+import {
+  deepseekLlmProviderApiKey,
+  hasReusableDeepseekKey,
+} from '../search/deepseekKeyReuse';
 import {
   buildSearchDoctorSnapshot,
   classifyLiveSearchOutcome,
@@ -66,7 +71,7 @@ import {
 const KEYLESS_HTTP_PROVIDER_IDS: ReadonlySet<string> = new Set(['http-bing', 'http-duckduckgo']);
 /** Every API provider id the persisted config may name. */
 const API_PROVIDER_IDS: ReadonlySet<string> = new Set([
-  'tavily', 'jina', 'searxng', 'zhipu', 'z.ai',
+  'tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek',
 ]);
 
 /**
@@ -82,6 +87,13 @@ export interface SearchAdminRuntimeStatus {
   readonly modes: SearchFrontendModes;
   /** TEST SEAM: fetch primitive for the live-test probe. Absent ⇒ real transport. */
   readonly testFetch?: (url: string, init: RequestInit) => Promise<Response>;
+  /**
+   * Live LLM-provider rows (decrypted, in memory — never serialized). Powers
+   * (a) DeepSeek search key reuse for the `/test` and `/query` probes, and
+   * (b) the secret-free `keyReuse` presence marker in diagnostics. Absent on
+   * light embedders ⇒ a keyless `deepseek` entry has nothing to borrow.
+   */
+  readonly listLlmProviderRows?: () => readonly DaemonProviderConfig[];
 }
 
 /** The subset of admin deps the search surface needs. */
@@ -100,6 +112,12 @@ export interface SearchDiagnosticsSnapshot {
   modes: SearchFrontendModes;
   /** Which edits apply when. Honest by construction, not by inference. */
   applySemantics: { codex: 'immediate'; rest: 'restart' };
+  /**
+   * Presence (never values!) of credentials a search provider can borrow from
+   * the LLM catalog. Omitted when the daemon cannot inspect the catalog, so an
+   * older/light embedder never makes the UI claim a key exists.
+   */
+  keyReuse?: { deepseek: boolean };
 }
 
 /** `POST /admin/api/search/test` response body. */
@@ -281,6 +299,9 @@ async function handleSearchDiagnostics(
       anthropic: status.modes.anthropic,
     },
     applySemantics: { codex: 'immediate', rest: 'restart' },
+    ...(status.listLlmProviderRows
+      ? { keyReuse: { deepseek: hasReusableDeepseekKey(status.listLlmProviderRows()) } }
+      : {}),
   };
   return writeJson(res, 200, { diagnostics: snapshot });
 }
@@ -296,17 +317,26 @@ async function handleSearchDiagnostics(
 function persistedSearchContributions(
   search: NonNullable<Awaited<ReturnType<typeof loadServerConfig>>['search']>,
   fetchImpl: ((url: string, init: RequestInit) => Promise<Response>) | undefined,
+  status: SearchAdminRuntimeStatus,
 ): SearchProviderContribution[] {
+  // The keyless `deepseek` entry borrows the catalog's official key — the same
+  // live rows the LLM routes use, so a just-added provider key is testable
+  // immediately (design D3's rationale, extended to reused credentials).
+  const resolveDeepseekApiKey = status.listLlmProviderRows
+    ? () => deepseekLlmProviderApiKey(status.listLlmProviderRows!())
+    : undefined;
+  const reuse = resolveDeepseekApiKey ? { resolveDeepseekApiKey } : {};
+
   if (fetchImpl) {
     const egressPolicy = searchEgressPolicyFrom(search);
     return [
       ...builtinHttpSearchContributions(
         createSearchHttpTransport({ fetch: fetchImpl, egressPolicy }),
       ),
-      ...apiSearchContributions(search.providers, { egressPolicy, fetchImpl }),
+      ...apiSearchContributions(search.providers, { egressPolicy, fetchImpl, ...reuse }),
     ];
   }
-  return searchContributionsFrom(search);
+  return searchContributionsFrom(search, reuse);
 }
 
 /** `POST /admin/api/search/test { providerId }` — one fixed-query live check. */
@@ -342,7 +372,7 @@ async function handleSearchTest(
   const fetchImpl = status.testFetch;
   // Same construction the doctor probes with: the builtin http pair plus the
   // configured API providers. The ONLY provider exercised is the requested one.
-  const contributions = persistedSearchContributions(search, fetchImpl);
+  const contributions = persistedSearchContributions(search, fetchImpl, status);
   const contribution = contributions.find((c) => c.id === (providerId as SearchProviderId));
   if (!contribution) {
     // Unreachable for validated ids, but a refusal beats a fabrication if the
@@ -421,7 +451,7 @@ async function handleSearchQuery(
 
   const fetchImpl = status.testFetch;
   const runtime = createSearchRuntime({
-    contributions: persistedSearchContributions(search, fetchImpl),
+    contributions: persistedSearchContributions(search, fetchImpl, status),
     policy: {
       ...searchPolicyFrom(search),
       // The panel always walks: it answers "does a search WORK for this

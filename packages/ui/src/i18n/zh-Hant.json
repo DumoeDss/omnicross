@@ -1533,6 +1533,9 @@
       },
       "zai": {
         "description": "Z.AI 網頁搜尋 API；需要金鑰。"
+      },
+      "deepseek": {
+        "description": "DeepSeek 官方搜尋與網頁讀取 API；需要金鑰，也可重用 DeepSeek 供應方中的金鑰。"
       }
     },
     "keyless": {
@@ -1551,7 +1554,8 @@
       "jina": "儲存條目即可啟用——Jina 可免金鑰運行。",
       "searxng": "需要設定 API 主機。",
       "zhipu": "需要設定 API 金鑰。",
-      "zai": "需要設定 API 金鑰。"
+      "zai": "需要設定 API 金鑰。",
+      "deepseek": "請填寫金鑰、重用 DeepSeek 供應方金鑰，或先在供應方設定中設定。"
     },
     "field": {
       "apiKey": "API 金鑰",
@@ -1564,7 +1568,12 @@
       "basicAuthUsername": "Basic 驗證使用者名稱",
       "basicAuthPassword": "Basic 驗證密碼",
       "basicAuthPasswordPlaceholder": "留空保留已存密碼",
-      "basicAuthPasswordConfigured": "· 已設定密碼"
+      "basicAuthPasswordConfigured": "· 已設定密碼",
+      "reuseProviderKey": "重用供應方設定中的 DeepSeek 官方金鑰（下方填寫的金鑰優先）"
+    },
+    "reuseProviderKey": {
+      "available": "已在供應方設定中找到 DeepSeek 金鑰，將自動重用。",
+      "missing": "供應方設定中未找到 DeepSeek 金鑰；請在此填寫，或先新增 DeepSeek 供應方。"
     },
     "action": {
       "test": "測試",

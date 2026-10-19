@@ -56,9 +56,22 @@ describe('contribution assembly', () => {
       providers: { tavily: { apiKey: TAVILY_KEY } },
     }));
 
-    for (const absent of ['jina', 'searxng', 'z.ai', 'grok', 'claude', 'exa', 'bocha']) {
+    for (const absent of ['jina', 'searxng', 'z.ai', 'deepseek', 'grok', 'claude', 'exa', 'bocha']) {
       expect(contributions.some((entry) => entry.id === absent), absent).toBe(false);
     }
+  });
+
+  it('registers a keyless deepseek entry and hands it the catalog key resolver', () => {
+    const contributions = searchContributionsFrom(
+      config({ providers: { deepseek: {} } }),
+      { resolveDeepseekApiKey: () => 'sk-catalog-fixture' },
+    );
+
+    const deepseek = contributions.find((entry) => entry.id === 'deepseek');
+    expect(deepseek).toBeDefined();
+    expect(deepseek?.capabilities.requiresApiKey).toBe(true);
+    expect(deepseek?.capabilities.supportsUrlRead).toBe(true);
+    expect(deepseek?.capabilities.maxResults).toBe(50);
   });
 
   it('projects the egress allowlist and the policy knobs verbatim', () => {

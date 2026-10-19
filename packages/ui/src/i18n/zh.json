@@ -1533,6 +1533,9 @@
       },
       "zai": {
         "description": "Z.AI 网页搜索 API；需要密钥。"
+      },
+      "deepseek": {
+        "description": "DeepSeek 官方搜索与网页读取 API；需要密钥，也可复用 DeepSeek 服务商中的密钥。"
       }
     },
     "keyless": {
@@ -1551,7 +1554,8 @@
       "jina": "保存条目即可启用——Jina 可免密钥运行。",
       "searxng": "需要配置 API 主机。",
       "zhipu": "需要配置 API 密钥。",
-      "zai": "需要配置 API 密钥。"
+      "zai": "需要配置 API 密钥。",
+      "deepseek": "请填写密钥、复用 DeepSeek 服务商密钥，或先在服务商设置中配置。"
     },
     "field": {
       "apiKey": "API 密钥",
@@ -1564,7 +1568,12 @@
       "basicAuthUsername": "Basic 认证用户名",
       "basicAuthPassword": "Basic 认证密码",
       "basicAuthPasswordPlaceholder": "留空保留已存密码",
-      "basicAuthPasswordConfigured": "· 已配置密码"
+      "basicAuthPasswordConfigured": "· 已配置密码",
+      "reuseProviderKey": "复用服务商设置中的 DeepSeek 官方密钥（下方填写的密钥优先）"
+    },
+    "reuseProviderKey": {
+      "available": "已在服务商设置中找到 DeepSeek 密钥，将自动复用。",
+      "missing": "服务商设置中未找到 DeepSeek 密钥；请在此填写，或先添加 DeepSeek 服务商。"
     },
     "action": {
       "test": "测试",

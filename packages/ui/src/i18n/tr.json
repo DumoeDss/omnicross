@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "Z.AI web arama API'si; anahtar gerekir."
+      },
+      "deepseek": {
+        "description": "DeepSeek resmi arama ve sayfa getirme API'si; bir anahtar gerekir veya bir DeepSeek sağlayıcısının anahtarı yeniden kullanılabilir."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Bir kayıt kaydederek etkinleştirin — Jina anahtarsız çalışabilir.",
       "searxng": "Bir API ana bilgisayarının yapılandırılmasını gerektirir.",
       "zhipu": "Bir API anahtarının yapılandırılmasını gerektirir.",
-      "zai": "Bir API anahtarının yapılandırılmasını gerektirir."
+      "zai": "Bir API anahtarının yapılandırılmasını gerektirir.",
+      "deepseek": "Bir anahtar girin, bir DeepSeek sağlayıcı anahtarını yeniden kullanın veya Sağlayıcılar altında yapılandırın."
     },
     "field": {
       "apiKey": "API anahtarı",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Basic auth kullanıcısı",
       "basicAuthPassword": "Basic auth parolası",
       "basicAuthPasswordPlaceholder": "Boş bırakılırsa kayıtlı parola korunur",
-      "basicAuthPasswordConfigured": "· parola yapılandırıldı"
+      "basicAuthPasswordConfigured": "· parola yapılandırıldı",
+      "reuseProviderKey": "Sağlayıcı ayarlarındaki resmi DeepSeek anahtarını yeniden kullan (aşağıya girilen anahtar önceliklidir)"
+    },
+    "reuseProviderKey": {
+      "available": "Sağlayıcı ayarlarında bir DeepSeek anahtarı bulundu ve yeniden kullanılacak.",
+      "missing": "Sağlayıcı ayarlarında DeepSeek anahtarı bulunamadı; buraya girin veya önce bir DeepSeek sağlayıcısı ekleyin."
     },
     "action": {
       "test": "Sına",

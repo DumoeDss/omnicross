@@ -22,8 +22,8 @@ function maskedRead(overrides: Partial<SearchServerConfig> = {}): SearchServerCo
   };
 }
 
-describe('the provider catalog is closed at the seven built-ins', () => {
-  it('lists exactly the seven Phase-1 ids in display order', () => {
+describe('the provider catalog is closed at the eight built-ins', () => {
+  it('lists exactly the eight built-in ids in display order', () => {
     expect(SEARCH_PROVIDER_CATALOG.map((entry) => entry.id)).toEqual([
       'http-bing',
       'http-duckduckgo',
@@ -32,6 +32,7 @@ describe('the provider catalog is closed at the seven built-ins', () => {
       'searxng',
       'zhipu',
       'z.ai',
+      'deepseek',
     ]);
   });
 
@@ -73,7 +74,7 @@ describe('createSearchSettingsDraft', () => {
   it('tolerates an absent section (pre-Phase-1 daemon) with defaults', () => {
     const draft = createSearchSettingsDraft(undefined);
     expect(draft.modes).toEqual({ codex: 'off', responses: 'native', anthropic: 'native' });
-    expect(Object.keys(draft.providers)).toEqual(['tavily', 'jina', 'searxng', 'zhipu', 'z.ai']);
+    expect(Object.keys(draft.providers)).toEqual(['tavily', 'jina', 'searxng', 'zhipu', 'z.ai', 'deepseek']);
     expect(draft.policy.fallbackEnabled).toBe(true);
   });
 });
@@ -155,6 +156,46 @@ describe('searchDraftToPayload', () => {
     const draft = createSearchSettingsDraft(maskedRead());
     const payload = searchDraftToPayload({ ...draft, providers: { ...draft.providers, jina: { ...draft.providers.jina!, persistedConfigured: true } } });
     expect(payload.providers.jina).toEqual({});
+  });
+
+  it('enables DeepSeek by reuse without a typed key — and removes it when unchecked', () => {
+    const draft = createSearchSettingsDraft(maskedRead());
+    draft.providers.deepseek!.reuseLlmProviderKey = true;
+    expect(searchDraftToPayload(draft).providers.deepseek).toEqual({});
+
+    draft.providers.deepseek!.reuseLlmProviderKey = false;
+    // Unchecked + no key = the entry is not sent (and a saved one is removed).
+    expect(searchDraftToPayload(draft).providers.deepseek).toBeUndefined();
+  });
+
+  it('seeds reuse for a persisted keyless deepseek entry and survives a no-op save', () => {
+    const draft = createSearchSettingsDraft(maskedRead({
+      providers: { deepseek: { apiKeyConfigured: false } },
+    }));
+    expect(draft.providers.deepseek?.persistedConfigured).toBe(true);
+    expect(draft.providers.deepseek?.hasStoredApiKey).toBe(false);
+    expect(draft.providers.deepseek?.reuseLlmProviderKey).toBe(true);
+    expect(searchDraftToPayload(draft).providers.deepseek).toEqual({});
+  });
+
+  it('does not seed reuse for a persisted deepseek entry that already has a key', () => {
+    const draft = createSearchSettingsDraft(maskedRead({
+      providers: { deepseek: { apiKeyConfigured: true } },
+    }));
+    expect(draft.providers.deepseek?.hasStoredApiKey).toBe(true);
+    expect(draft.providers.deepseek?.reuseLlmProviderKey).toBe(false);
+    expect(searchDraftToPayload(draft).providers.deepseek).toEqual({});
+  });
+
+  it('lets a typed DeepSeek key override the reuse flag', () => {
+    const draft = createSearchSettingsDraft(maskedRead());
+    draft.providers.deepseek!.reuseLlmProviderKey = true;
+    draft.providers.deepseek!.apiKeyInput = 'sk-own';
+    draft.providers.deepseek!.apiHost = 'https://api.deepseek.com';
+    expect(searchDraftToPayload(draft).providers.deepseek).toEqual({
+      apiHost: 'https://api.deepseek.com',
+      apiKey: 'sk-own',
+    });
   });
 
   it('omits EVERY provider entry on an untouched fresh draft — a no-op save enables nothing and never 400s', () => {

@@ -44,6 +44,13 @@ export interface SearchAssemblyOptions {
    * unset so the builtin HTTP pair plus the configured API providers are used.
    */
   readonly contributions?: SearchProviderContribution[];
+  /**
+   * The official DeepSeek key from the LLM provider catalog, for a `deepseek`
+   * search entry that carries none. Evaluated PER REQUEST (not captured), so a
+   * provider row added or edited through the admin API is observed without a
+   * search-runtime rebuild — and so is its `$ENV` reference.
+   */
+  readonly resolveDeepseekApiKey?: () => string | undefined;
 }
 
 /** The egress policy the configured allowlist produces. */
@@ -100,6 +107,7 @@ export function resolveSearchUpstreamProxyConfig(
  */
 export function searchContributionsFrom(
   config: SearchServerConfig,
+  options: Pick<SearchAssemblyOptions, 'resolveDeepseekApiKey'> = {},
 ): SearchProviderContribution[] {
   return [
     ...builtinHttpSearchContributions(
@@ -111,6 +119,9 @@ export function searchContributionsFrom(
     ...apiSearchContributions(config.providers, {
       egressPolicy: searchEgressPolicyFrom(config),
       resolveProxyDispatcher: resolveSearchUpstreamDispatcher,
+      ...(options.resolveDeepseekApiKey
+        ? { resolveDeepseekApiKey: options.resolveDeepseekApiKey }
+        : {}),
     }),
   ];
 }
@@ -128,7 +139,7 @@ export function buildSearchRuntime(
 ): SearchRuntime {
   const logger = options.logger ?? null;
   return createSearchRuntime({
-    contributions: options.contributions ?? searchContributionsFrom(config),
+    contributions: options.contributions ?? searchContributionsFrom(config, options),
     policy: searchPolicyFrom(config),
     ...(logger
       ? {

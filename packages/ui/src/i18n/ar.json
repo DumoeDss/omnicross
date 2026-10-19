@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "واجهة بحث الويب من Z.AI؛ يتطلب مفتاحًا."
+      },
+      "deepseek": {
+        "description": "واجهة البحث وجلب الصفحات الرسمية من DeepSeek؛ يلزم مفتاح، أو أعد استخدام مفتاح من مزوّد DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "فعّله بحفظ إدخال — يمكن لـ Jina العمل بدون مفتاح.",
       "searxng": "يلزم إعداد مضيف API.",
       "zhipu": "يلزم إعداد مفتاح API.",
-      "zai": "يلزم إعداد مفتاح API."
+      "zai": "يلزم إعداد مفتاح API.",
+      "deepseek": "أدخل مفتاحًا، أو أعد استخدام مفتاح مزوّد DeepSeek، أو أعدّ واحدًا في إعدادات المزوّدين."
     },
     "field": {
       "apiKey": "مفتاح API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "مستخدم المصادقة الأساسية",
       "basicAuthPassword": "كلمة مرور المصادقة الأساسية",
       "basicAuthPasswordPlaceholder": "تركها فارغة يُبقي كلمة المرور المخزّنة",
-      "basicAuthPasswordConfigured": "· كلمة المرور مُعدة"
+      "basicAuthPasswordConfigured": "· كلمة المرور مُعدة",
+      "reuseProviderKey": "إعادة استخدام مفتاح DeepSeek الرسمي من إعدادات المزوّد (المفتاح المكتوب أدناه له الأولوية)"
+    },
+    "reuseProviderKey": {
+      "available": "تم العثور على مفتاح DeepSeek في إعدادات المزوّد وسيُعاد استخدامه.",
+      "missing": "لم يُعثر على مفتاح DeepSeek في إعدادات المزوّد؛ أدخل مفتاحًا هنا أو أضف مزوّد DeepSeek أولًا."
     },
     "action": {
       "test": "اختبار",

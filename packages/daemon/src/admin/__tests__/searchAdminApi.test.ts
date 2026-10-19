@@ -108,6 +108,34 @@ describe('GET /admin/api/search/diagnostics', () => {
     expect(JSON.stringify(out.json())).not.toContain(KEY_SENTINEL);
   });
 
+  it('reports DeepSeek key-reuse presence as a boolean, never the key', async () => {
+    const runtime = buildSearchRuntime({
+      modes: modes(),
+      providers: {},
+      egress: { allowedPrivateHosts: [] },
+      policy: { fallbackEnabled: true },
+    });
+    const out = response();
+    await handleAdminApi(searchRequest('GET'), out.res, '/admin/api/search/diagnostics', {
+      settingsStore: storeStub({ search: PERSISTED as OutboundApiServerConfig['search'] }),
+      searchStatus: {
+        runtime,
+        modes: modes(),
+        listLlmProviderRows: () => [{
+          id: 'deepseek',
+          apiFormat: 'openai' as const,
+          baseUrl: 'https://api.deepseek.com/v1/chat/completions',
+          apiKey: KEY_SENTINEL,
+        }],
+      },
+    } as unknown as AdminApiDeps);
+
+    expect(out.status()).toBe(200);
+    const diagnostics = (out.json() as { diagnostics: { keyReuse?: { deepseek: boolean } } }).diagnostics;
+    expect(diagnostics.keyReuse).toEqual({ deepseek: true });
+    expect(JSON.stringify(diagnostics)).not.toContain(KEY_SENTINEL);
+  });
+
   it('returns 501 (not a fabricated snapshot) when the dep is absent', async () => {
     const out = response();
     await handleAdminApi(searchRequest('GET'), out.res, '/admin/api/search/diagnostics', {
@@ -176,6 +204,52 @@ describe('POST /admin/api/search/test', () => {
     expect(serialized).not.toContain('result.example.test');
     expect(serialized).not.toContain('SNIPPET_SENTINEL');
     expect(serialized).not.toContain(KEY_SENTINEL);
+  });
+
+  it('probes a keyless deepseek entry with the official key from the LLM catalog', async () => {
+    const calls: Array<{ url: string; authorization: string | undefined }> = [];
+    const testFetch = vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({
+        url,
+        authorization: (init.headers as Record<string, string> | undefined)?.Authorization,
+      });
+      return jsonResponse(200, { results: [{ title: 'T', url: 'https://r.example.test', content: 'C' }] });
+    });
+    const persisted = {
+      modes: modes(),
+      providers: { deepseek: {} },
+      egress: { allowedPrivateHosts: [] },
+      policy: { fallbackEnabled: true },
+    };
+    const runtime = buildSearchRuntime(persisted);
+    const out = response();
+    await handleAdminApi(
+      searchRequest('POST', { providerId: 'deepseek' }),
+      out.res,
+      '/admin/api/search/test',
+      {
+        settingsStore: storeStub({ search: persisted as OutboundApiServerConfig['search'] }),
+        searchStatus: {
+          runtime,
+          modes: modes(),
+          testFetch,
+          listLlmProviderRows: () => [{
+            id: 'deepseek',
+            apiFormat: 'openai' as const,
+            baseUrl: 'https://api.deepseek.com/v1/chat/completions',
+            apiKey: KEY_SENTINEL,
+          }],
+        },
+      } as unknown as AdminApiDeps,
+    );
+
+    expect(out.status()).toBe(200);
+    const result = (out.json() as { result: { diagnostic: { status: string }; resultCount: number } }).result;
+    expect(result.diagnostic.status).toBe('healthy');
+    expect(calls[0].url).toBe('https://api.deepseek.com/v1/tools/search');
+    expect(calls[0].authorization).toBe(`Bearer ${KEY_SENTINEL}`);
+    // The probe used the credential; the DTO never carries it.
+    expect(JSON.stringify(out.json())).not.toContain(KEY_SENTINEL);
   });
 
   it('refuses an unconfigured provider with a structured error and performs no upstream request', async () => {

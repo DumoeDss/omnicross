@@ -56,6 +56,7 @@ const ENTRY_POINTS = {
     'JinaReaderClient',
     'SearxngSearchProvider',
     'ZhipuSearchProvider',
+    'DeepseekSearchProvider',
     'createSearchApiTransport',
     'ApiKeyRotator',
   ],

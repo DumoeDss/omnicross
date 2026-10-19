@@ -43,7 +43,8 @@ import {
 } from '@omnicross/core/search';
 
 import { buildDaemon, type Daemon, type DaemonPaths } from '../bootstrap';
-import { loadConfig } from '../config';
+import { loadConfig, type DaemonProviderConfig } from '../config';
+import { deepseekLlmProviderApiKey } from '../search/deepseekKeyReuse';
 import type {
   ImageDoctorLocalSnapshot,
   ImageDoctorService,
@@ -410,6 +411,18 @@ export function readSearchApiConfigFromEnv(
     configs['z.ai'] = { apiKey: zaiKey, ...optionalHost(read('Z_AI_API_HOST')) };
   }
 
+  // DeepSeek is the one keyed provider a host may also enable without a key:
+  // in the daemon it then reuses the official key from an LLM provider row, and
+  // the doctor's config path passes those rows through the same resolver.
+  const deepseekKey = read('DEEPSEEK_API_KEY');
+  const deepseekHost = read('DEEPSEEK_API_HOST');
+  if (deepseekKey || deepseekHost) {
+    configs.deepseek = {
+      ...(deepseekKey ? { apiKey: deepseekKey } : {}),
+      ...optionalHost(deepseekHost),
+    };
+  }
+
   return configs;
 }
 
@@ -443,6 +456,8 @@ export function resolveSearchApiConfigs(
   if (zhipu) resolved.zhipu = zhipu;
   const zai = configured?.['z.ai'] ?? fromEnv['z.ai'];
   if (zai) resolved['z.ai'] = zai;
+  const deepseek = configured?.deepseek ?? fromEnv.deepseek;
+  if (deepseek) resolved.deepseek = deepseek;
   return resolved;
 }
 
@@ -486,6 +501,12 @@ export interface SearchDoctorSource {
    * actually run rather than a look-alike rebuilt here.
    */
   readonly runtime?: SearchRuntime;
+  /**
+   * The daemon's LLM provider rows, for the same DeepSeek key reuse the live
+   * runtime performs. Only the live-probe contributions need them; offline
+   * rows come from `runtime.listProviders()`.
+   */
+  readonly providerRows?: readonly DaemonProviderConfig[];
 }
 
 /**
@@ -516,7 +537,12 @@ export async function runSearchDoctor(
   // orchestrates.
   const contributions = [
     ...builtinHttpSearchContributions(),
-    ...apiSearchContributions(apiConfigs, { ...(egressPolicy ? { egressPolicy } : {}) }),
+    ...apiSearchContributions(apiConfigs, {
+      ...(egressPolicy ? { egressPolicy } : {}),
+      ...(source.providerRows
+        ? { resolveDeepseekApiKey: () => deepseekLlmProviderApiKey(source.providerRows!) }
+        : {}),
+    }),
   ];
   const declarations: ReadonlyArray<SearchProviderDeclaration> =
     source.runtime?.listProviders() ?? contributions;
@@ -691,6 +717,9 @@ export async function runDoctor(argv: string[], fetchImpl: typeof fetch = fetch)
       return await runSearchDoctor(values.live === true, process.env, {
         ...(serverConfig.search ? { config: serverConfig.search } : {}),
         runtime: daemon.searchRuntime,
+        // The LIVE, DECRYPTED rows — not the outer `loadConfig` result, which
+        // may still hold `enc:` envelopes (the box is injected by buildDaemon).
+        providerRows: daemon.llmConfig.listProviderRows(),
       });
     }
 

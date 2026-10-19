@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "API ค้นหาเว็บของ Z.AI ต้องใช้คีย์"
+      },
+      "deepseek": {
+        "description": "API ค้นหาและดึงหน้าเว็บอย่างเป็นทางการของ DeepSeek ต้องใช้คีย์ หรือใช้คีย์จากผู้ให้บริการ DeepSeek ซ้ำ"
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "เปิดใช้ได้ด้วยการบันทึกรายการ — Jina ทำงานโดยไม่มีคีย์ได้",
       "searxng": "ต้องตั้งค่าโฮสต์ API ก่อน",
       "zhipu": "ต้องตั้งค่าคีย์ API ก่อน",
-      "zai": "ต้องตั้งค่าคีย์ API ก่อน"
+      "zai": "ต้องตั้งค่าคีย์ API ก่อน",
+      "deepseek": "กรอกคีย์ ใช้คีย์ของผู้ให้บริการ DeepSeek ซ้ำ หรือตั้งค่าในหน้าผู้ให้บริการ"
     },
     "field": {
       "apiKey": "คีย์ API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "ผู้ใช้ Basic auth",
       "basicAuthPassword": "รหัสผ่าน Basic auth",
       "basicAuthPasswordPlaceholder": "เว้นว่างไว้เพื่อใช้รหัสผ่านที่บันทึกแล้ว",
-      "basicAuthPasswordConfigured": "· ตั้งค่ารหัสผ่านแล้ว"
+      "basicAuthPasswordConfigured": "· ตั้งค่ารหัสผ่านแล้ว",
+      "reuseProviderKey": "ใช้คีย์ DeepSeek อย่างเป็นทางการจากตั้งค่าผู้ให้บริการซ้ำ (คีย์ที่กรอกด้านล่างมีลำดับความสำคัญกว่า)"
+    },
+    "reuseProviderKey": {
+      "available": "พบคีย์ DeepSeek ในตั้งค่าผู้ให้บริการ และจะถูกนำมาใช้ซ้ำ",
+      "missing": "ไม่พบคีย์ DeepSeek ในตั้งค่าผู้ให้บริการ กรอกที่นี่ หรือเพิ่มผู้ให้บริการ DeepSeek ก่อน"
     },
     "action": {
       "test": "ทดสอบ",

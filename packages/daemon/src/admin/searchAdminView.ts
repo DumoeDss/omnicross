@@ -48,7 +48,9 @@ export type SearchServerConfigView = Omit<SearchServerConfig, 'providers'> & {
 };
 
 /** Provider entries whose shape carries an API key. */
-const API_KEY_PROVIDERS: ReadonlySet<string> = new Set(['tavily', 'jina', 'zhipu', 'z.ai']);
+const API_KEY_PROVIDERS: ReadonlySet<string> = new Set([
+  'tavily', 'jina', 'zhipu', 'z.ai', 'deepseek',
+]);
 /** Provider entries whose shape carries a Basic-auth password. */
 const BASIC_AUTH_PROVIDERS: ReadonlySet<string> = new Set(['searxng']);
 

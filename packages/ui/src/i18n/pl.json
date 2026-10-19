@@ -891,6 +891,9 @@
       },
       "zai": {
         "description": "API wyszukiwania Z.AI; wymaga klucza."
+      },
+      "deepseek": {
+        "description": "Oficjalne API wyszukiwania i pobierania stron DeepSeek; wymagany jest klucz lub ponowne użycie klucza dostawcy DeepSeek."
       }
     },
     "keyless": {
@@ -909,7 +912,8 @@
       "jina": "Aktywuj, zapisując wpis — Jina może działać bez klucza.",
       "searxng": "Wymaga skonfigurowania hosta API.",
       "zhipu": "Wymaga skonfigurowania klucza API.",
-      "zai": "Wymaga skonfigurowania klucza API."
+      "zai": "Wymaga skonfigurowania klucza API.",
+      "deepseek": "Wprowadź klucz, użyj ponownie klucza dostawcy DeepSeek lub skonfiguruj go w Ustawieniach dostawców."
     },
     "field": {
       "apiKey": "Klucz API",
@@ -922,7 +926,12 @@
       "basicAuthUsername": "Użytkownik Basic",
       "basicAuthPassword": "Hasło Basic",
       "basicAuthPasswordPlaceholder": "Puste zachowuje zapisane hasło",
-      "basicAuthPasswordConfigured": "· hasło skonfigurowane"
+      "basicAuthPasswordConfigured": "· hasło skonfigurowane",
+      "reuseProviderKey": "Użyj ponownie oficjalnego klucza DeepSeek z ustawień dostawcy (klucz wpisany poniżej ma pierwszeństwo)"
+    },
+    "reuseProviderKey": {
+      "available": "Znaleziono klucz DeepSeek w ustawieniach dostawcy i zostanie on ponownie użyty.",
+      "missing": "Nie znaleziono klucza DeepSeek w ustawieniach dostawcy; wprowadź go tutaj lub najpierw dodaj dostawcę DeepSeek."
     },
     "action": {
       "test": "Testuj",

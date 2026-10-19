@@ -75,8 +75,8 @@ describe('SearchSettingsSection sensitive DTO rendering', () => {
       }),
     );
 
-    // The closed seven-id catalog renders, with no dead/local ids.
-    for (const name of ['Bing (HTTP)', 'DuckDuckGo (HTTP)', 'Tavily', 'Jina', 'SearXNG', 'Zhipu', 'Z.AI']) {
+    // The closed eight-id catalog renders, with no dead/local ids.
+    for (const name of ['Bing (HTTP)', 'DuckDuckGo (HTTP)', 'Tavily', 'Jina', 'SearXNG', 'Zhipu', 'Z.AI', 'DeepSeek']) {
       expect(markup).toContain(name);
     }
     expect(markup).not.toContain('grok');

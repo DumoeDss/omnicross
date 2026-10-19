@@ -99,6 +99,19 @@ export class ConfigFileProviderConfigSource implements ProviderConfigSource {
     return this.providers.get(providerId);
   }
 
+  /**
+   * The whole live (post-reload) provider catalog, in config order.
+   *
+   * Deliberately NOT one of the ten `ProviderConfigSource` port methods: this is
+   * a daemon-local read for features that scan the catalog rather than resolve
+   * one id (DeepSeek search key reuse, admin diagnostics presence markers).
+   * Rows carry DECRYPTED keys in memory; callers must treat them accordingly and
+   * never serialize one.
+   */
+  listProviderRows(): DaemonProviderConfig[] {
+    return [...this.providers.values()];
+  }
+
   /** Await the built-in transformer registration (tests await this before dispatch). */
   async ready(): Promise<void> {
     await registerBuiltinTransformers(this.transformerService);
