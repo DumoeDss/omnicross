@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 
 import { DaemonStatusBanner } from '@/components/DaemonStatusBanner';
+import { KeyViewingPrompt } from '@/components/KeyViewingPrompt';
+import { cancelViewingRequest } from '@/shared/keyViewing';
 import { UpdateStatusBanner } from '@/components/UpdateStatusBanner';
 import { NavRail } from '@/components/nav/NavRail';
 import { ApiServicePage } from '@/features/api-service';
@@ -21,6 +23,7 @@ import { UsageStatsPage } from '@/features/usage-stats';
 import { exportDaemonLogs } from '@/shared/logExport';
 import { useHashRoute, type AppRoute, type RouteNavigate } from '@/shared/state/hashRoute';
 import { isDesktop } from '@/shared/tauri/uiSettings';
+import { listenKeyViewingFocus } from '@/shared/tauri/keyViewingFocus';
 
 function renderPage(route: AppRoute, navigate: RouteNavigate) {
   switch (route.page) {
@@ -42,6 +45,11 @@ function renderPage(route: AppRoute, navigate: RouteNavigate) {
 export default function App() {
   const [route, navigate] = useHashRoute();
   const tour = useTour({ route, navigate });
+  useEffect(() => { cancelViewingRequest(); }, [route]);
+  useEffect(() => {
+    const stop = listenKeyViewingFocus().catch(() => () => {});
+    return () => { void stop.then((unlisten) => unlisten()); };
+  }, []);
 
   // Tray → "Export logs": the Rust tray item emits `tray-export-logs` (after
   // revealing the window); the export itself runs through the same daemon
@@ -65,6 +73,7 @@ export default function App() {
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">{renderPage(route, navigate)}</main>
       </div>
       <TourOverlay tour={tour} />
+      <KeyViewingPrompt />
     </div>
   );
 }

@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Parolă pentru vizualizarea cheilor",
+    "description": "Parola aplicației este verificată la fiecare vizualizare, copiere sau export de acreditări. Cheile se ascund după 30 de secunde sau la pierderea focalizării. Nu necesită PIN de sistem.",
+    "verify": "Verifică",
+    "currentPassword": "Parola actuală de vizualizare",
+    "newPassword": "Parolă nouă (8–128 caractere)",
+    "confirmPassword": "Confirmă parola nouă",
+    "enabled": "Protecție activată",
+    "disabled": "Protecție dezactivată",
+    "setup": "Setează parola",
+    "change": "Schimbă parola",
+    "disable": "Dezactivează protecția",
+    "forgot": "Ai uitat parola?",
+    "reset": "Șterge acreditările și resetează",
+    "resetWarning": "Recuperarea șterge definitiv cheile furnizorilor, grupurilor, modurilor API și planurilor, autentificările abonamentelor, cheile clienților, antetele personalizate, cheile de căutare, parolele proxy și secretele Webhook/facturare. Setările rămân; introdu din nou acreditările.",
+    "confirmClear": "Înțeleg și confirm ștergerea acestor acreditări.",
+    "saved": "Parola a fost actualizată.",
+    "mismatch": "Parolele nu coincid.",
+    "copyFailed": "Cheia nu a putut fi copiată."
+  },
+  "view-password-required": "Introdu parola de vizualizare.",
+  "view-password-invalid": "Parolă incorectă.",
+  "view-password-locked": "Prea multe încercări. Încearcă din nou după 60 de secunde.",
+  "view-password-unavailable": "Stocarea parolei nu este disponibilă. Accesul rămâne blocat.",
+  "view-password-length": "Folosește 8–128 caractere.",
+  "view-password-reset-confirm": "Confirmă mai întâi ștergerea acreditărilor salvate.",
+  "view-password-cancelled": "Anulat.",
   "providerSettings": {
     "loading": "Se încarcă configurația LLM...",
     "reset": {

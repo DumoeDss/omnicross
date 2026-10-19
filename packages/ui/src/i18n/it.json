@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Password per visualizzare le chiavi",
+    "description": "Questa password viene verificata per ogni visualizzazione, copia o esportazione delle credenziali. Le chiavi si nascondono dopo 30 secondi o alla perdita del focus. Nessun PIN di sistema richiesto.",
+    "verify": "Verifica",
+    "currentPassword": "Password attuale",
+    "newPassword": "Nuova password (8–128 caratteri)",
+    "confirmPassword": "Conferma la nuova password",
+    "enabled": "Protezione attiva",
+    "disabled": "Protezione disattivata",
+    "setup": "Imposta password",
+    "change": "Cambia password",
+    "disable": "Disattiva protezione",
+    "forgot": "Password dimenticata?",
+    "reset": "Cancella credenziali e reimposta",
+    "resetWarning": "Il ripristino elimina definitivamente chiavi di provider, pool, modalità API e piani, accessi agli abbonamenti, chiavi client, intestazioni personalizzate, chiavi di ricerca, password proxy e segreti Webhook/fatturazione. Le impostazioni restano; occorre reinserire le credenziali.",
+    "confirmClear": "Comprendo e confermo la cancellazione di queste credenziali.",
+    "saved": "Password aggiornata.",
+    "mismatch": "Le password non coincidono.",
+    "copyFailed": "Impossibile copiare la chiave."
+  },
+  "view-password-required": "Inserisci la password di visualizzazione.",
+  "view-password-invalid": "Password errata.",
+  "view-password-locked": "Troppi tentativi. Riprova tra 60 secondi.",
+  "view-password-unavailable": "Archivio password non disponibile. L’accesso resta bloccato.",
+  "view-password-length": "Usa da 8 a 128 caratteri.",
+  "view-password-reset-confirm": "Conferma prima la cancellazione delle credenziali salvate.",
+  "view-password-cancelled": "Annullato.",
   "providerSettings": {
     "loading": "Caricamento della configurazione LLM...",
     "reset": {

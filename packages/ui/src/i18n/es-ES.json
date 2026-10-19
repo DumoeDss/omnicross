@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Contraseña para ver claves",
+    "description": "Se verifica esta contraseña en cada consulta, copia o exportación de credenciales. Las claves se ocultan a los 30 segundos o al perder el foco. No requiere PIN del sistema.",
+    "verify": "Verificar",
+    "currentPassword": "Contraseña actual de consulta",
+    "newPassword": "Nueva contraseña (8–128 caracteres)",
+    "confirmPassword": "Confirmar la nueva contraseña",
+    "enabled": "Protección activada",
+    "disabled": "Protección desactivada",
+    "setup": "Establecer contraseña",
+    "change": "Cambiar contraseña",
+    "disable": "Desactivar protección",
+    "forgot": "¿Olvidaste la contraseña?",
+    "reset": "Borrar credenciales y restablecer",
+    "resetWarning": "La recuperación borra permanentemente las claves de proveedores, grupos, modos API y planes, los inicios de sesión de suscripciones, claves de cliente, cabeceras personalizadas, claves de búsqueda, contraseñas proxy y secretos Webhook/facturación. La configuración se conserva; habrá que introducir las credenciales de nuevo.",
+    "confirmClear": "Entiendo y confirmo el borrado de estas credenciales.",
+    "saved": "Contraseña actualizada.",
+    "mismatch": "Las contraseñas no coinciden.",
+    "copyFailed": "No se pudo copiar la clave."
+  },
+  "view-password-required": "Introduce la contraseña de consulta.",
+  "view-password-invalid": "Contraseña incorrecta.",
+  "view-password-locked": "Demasiados intentos. Vuelve a intentarlo en 60 segundos.",
+  "view-password-unavailable": "El almacén de contraseñas no está disponible. El acceso sigue bloqueado.",
+  "view-password-length": "Usa entre 8 y 128 caracteres.",
+  "view-password-reset-confirm": "Confirma primero el borrado de las credenciales guardadas.",
+  "view-password-cancelled": "Cancelado.",
   "providerSettings": {
     "loading": "Cargando configuración de LLM...",
     "reset": {

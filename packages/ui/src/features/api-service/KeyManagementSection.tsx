@@ -13,7 +13,7 @@
  */
 
 import { ArrowDown, ArrowUp, Settings2, Check, Copy, Eye, KeyRound, Link2, Network, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -170,17 +170,18 @@ function CreatedKeyReveal({
  * key). The value is held only in memory until dismissed; copy reuses the
  * created-key i18n strings for consistency.
  */
-function KeyReveal({ value, onDismiss }: { value: string; onDismiss: () => void }) {
+function KeyReveal({ value, onDismiss, onCopy }: { value: string; onDismiss: () => void; onCopy: () => Promise<boolean> }) {
   const t = useTranslation();
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    void navigator.clipboard?.writeText(value).then(() => {
-      setCopied(true);
+    void onCopy().then((ok) => {
+      setCopied(ok);
       window.setTimeout(() => setCopied(false), 1500);
     });
   };
   return (
-    <div className="mt-2 space-y-1.5 rounded-md border border-primary/50 bg-primary-soft/20 p-2.5" role="status">
+    <div className="mt-2 space-y-1.5 rounded-md border border-primary/50 bg-primary-soft/20 p-2.5" role="status"
+      onCopy={(event) => { event.preventDefault(); copy(); }} onCut={(event) => event.preventDefault()}>
       <p className="text-xs text-muted-foreground">{t('apiService.keys.revealHint')}</p>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded bg-surface-2/70 px-2 py-1 text-xs text-foreground">{value}</code>
@@ -243,6 +244,32 @@ export function KeyManagementSection({
     | { id: string; status: 'loading' | 'ok' | 'error'; value?: string; message?: string }
     | null
   >(null);
+  const revealGeneration = useRef(0);
+  useEffect(() => {
+    const hide = () => { revealGeneration.current += 1; setReveal(null); onDismissCreated(); };
+    const hidden = () => { if (document.hidden) hide(); };
+    window.addEventListener('blur', hide);
+    window.addEventListener('key-viewing-hide', hide);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      revealGeneration.current += 1;
+      window.removeEventListener('blur', hide);
+      window.removeEventListener('key-viewing-hide', hide);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, [onDismissCreated]);
+  useEffect(() => {
+    if (reveal?.status !== 'ok' && !createdKey) return;
+    const timer = window.setTimeout(() => {
+      revealGeneration.current += 1; setReveal(null); onDismissCreated();
+    }, 30_000);
+    return () => window.clearTimeout(timer);
+  }, [reveal, createdKey, onDismissCreated]);
+  useEffect(() => {
+    if (reveal && !keys.some((key) => key.id === reveal.id && !key.revoked)) {
+      revealGeneration.current += 1; setReveal(null);
+    }
+  }, [keys, reveal]);
 
   // The list renders LIVE keys only: a soft-deleted (revoked) key stays in the
   // daemon's data for spend history but must not appear in the UI.
@@ -256,12 +283,14 @@ export function KeyManagementSection({
   };
 
   const handleReveal = async (k: OutboundApiKeyInfo) => {
+    const generation = ++revealGeneration.current;
     setReveal({ id: k.id, status: 'loading' });
     const result = await onReveal(k.id);
+    if (generation !== revealGeneration.current) return;
     if (result.success && result.key) {
       setReveal({ id: k.id, status: 'ok', value: result.key });
     } else {
-      setReveal({ id: k.id, status: 'error', message: result.message ?? t('apiService.keys.revealError') });
+      setReveal({ id: k.id, status: 'error', message: result.message ? t(result.message) : t('apiService.keys.revealError') });
     }
   };
 
@@ -424,7 +453,14 @@ export function KeyManagementSection({
               ) : null}
               {reveal?.id === k.id ? (
                 reveal.status === 'ok' && reveal.value ? (
-                  <KeyReveal value={reveal.value} onDismiss={() => setReveal(null)} />
+                  <KeyReveal value={reveal.value} onDismiss={() => { revealGeneration.current += 1; setReveal(null); }}
+                    onCopy={async () => {
+                      const generation = revealGeneration.current;
+                      const result = await onReveal(k.id);
+                      if (generation !== revealGeneration.current || !result.success || !result.key) return false;
+                      try { await navigator.clipboard?.writeText(result.key); return true; }
+                      catch { return false; }
+                    }} />
                 ) : reveal.status === 'error' ? (
                   <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
                     {reveal.message}

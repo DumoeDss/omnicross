@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Hasło podglądu kluczy",
+    "description": "Hasło aplikacji jest sprawdzane przy każdym podglądzie, kopiowaniu lub eksporcie poświadczeń. Klucze są ukrywane po 30 sekundach lub utracie fokusu. Systemowy PIN nie jest wymagany.",
+    "verify": "Zweryfikuj",
+    "currentPassword": "Obecne hasło podglądu",
+    "newPassword": "Nowe hasło (8–128 znaków)",
+    "confirmPassword": "Potwierdź nowe hasło",
+    "enabled": "Ochrona włączona",
+    "disabled": "Ochrona wyłączona",
+    "setup": "Ustaw hasło",
+    "change": "Zmień hasło",
+    "disable": "Wyłącz ochronę",
+    "forgot": "Nie pamiętasz hasła?",
+    "reset": "Usuń poświadczenia i zresetuj",
+    "resetWarning": "Odzyskiwanie trwale usuwa klucze dostawców, pul, trybów API i planów, logowania subskrypcji, klucze klientów, własne nagłówki, klucze wyszukiwania, hasła proxy i sekrety Webhook/rozliczeń. Ustawienia pozostają; poświadczenia trzeba wprowadzić ponownie.",
+    "confirmClear": "Rozumiem i potwierdzam usunięcie tych poświadczeń.",
+    "saved": "Hasło zaktualizowane.",
+    "mismatch": "Hasła nie są zgodne.",
+    "copyFailed": "Nie udało się skopiować klucza."
+  },
+  "view-password-required": "Wprowadź hasło podglądu.",
+  "view-password-invalid": "Nieprawidłowe hasło.",
+  "view-password-locked": "Zbyt wiele prób. Spróbuj ponownie za 60 sekund.",
+  "view-password-unavailable": "Magazyn haseł jest niedostępny. Dostęp pozostaje zablokowany.",
+  "view-password-length": "Użyj 8–128 znaków.",
+  "view-password-reset-confirm": "Najpierw potwierdź usunięcie zapisanych poświadczeń.",
+  "view-password-cancelled": "Anulowano.",
   "providerSettings": {
     "loading": "Ładowanie konfiguracji LLM...",
     "reset": {

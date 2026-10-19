@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Mot de passe de consultation des clés",
+    "description": "Ce mot de passe est demandé pour chaque affichage, copie ou export d’identifiants. Les clés sont masquées après 30 secondes ou à la perte de focus. Aucun PIN système requis.",
+    "verify": "Vérifier",
+    "currentPassword": "Mot de passe actuel",
+    "newPassword": "Nouveau mot de passe (8–128 caractères)",
+    "confirmPassword": "Confirmer le nouveau mot de passe",
+    "enabled": "Protection activée",
+    "disabled": "Protection désactivée",
+    "setup": "Définir le mot de passe",
+    "change": "Modifier le mot de passe",
+    "disable": "Désactiver la protection",
+    "forgot": "Mot de passe oublié ?",
+    "reset": "Effacer les identifiants et réinitialiser",
+    "resetWarning": "La récupération efface définitivement les clés des fournisseurs, pools, modes API et forfaits, les connexions d’abonnement, les clés client, les en-têtes personnalisés, les clés de recherche, les mots de passe proxy et les secrets Webhook/facturation. Les réglages restent ; ressaisissez les identifiants ensuite.",
+    "confirmClear": "Je comprends et confirme l’effacement de ces identifiants.",
+    "saved": "Mot de passe mis à jour.",
+    "mismatch": "Les mots de passe ne correspondent pas.",
+    "copyFailed": "Impossible de copier la clé."
+  },
+  "view-password-required": "Saisissez le mot de passe de consultation.",
+  "view-password-invalid": "Mot de passe incorrect.",
+  "view-password-locked": "Trop de tentatives. Réessayez dans 60 secondes.",
+  "view-password-unavailable": "Stockage du mot de passe indisponible. L’accès reste bloqué.",
+  "view-password-length": "Utilisez 8 à 128 caractères.",
+  "view-password-reset-confirm": "Confirmez d’abord l’effacement des identifiants.",
+  "view-password-cancelled": "Annulé.",
   "providerSettings": {
     "loading": "Chargement de la configuration LLM...",
     "reset": {

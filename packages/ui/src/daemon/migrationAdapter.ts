@@ -15,6 +15,7 @@
  */
 
 import { adminClient } from './adminClient';
+import { protectedPost } from '@/shared/keyViewing';
 import type {
   AgentMigrationApi,
   ExportPackResponse,
@@ -28,7 +29,7 @@ export function createMigrationAdapter(): AgentMigrationApi {
   return {
     async exportPack(passphrase: string): Promise<ExportPackResult> {
       try {
-        const data = await adminClient.post<ExportPackResponse>('/export', { passphrase });
+        const data = await protectedPost<ExportPackResponse>('/export', { passphrase });
         return { success: true, pack: data.pack, version: data.version };
       } catch (err) {
         return { success: false, message: err instanceof Error ? err.message : 'export failed' };

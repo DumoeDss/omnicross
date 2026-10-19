@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Avainten katselusalasana",
+    "description": "Sovelluksen salasana tarkistetaan jokaista tallennetun avaimen katselua, kopiointia ja tunnistetietojen vientiä varten. Avaimet piilotetaan 30 sekunnin jälkeen tai ikkunasta poistuttaessa. Järjestelmän PIN-koodia ei tarvita.",
+    "verify": "Vahvista",
+    "currentPassword": "Nykyinen katselusalasana",
+    "newPassword": "Uusi salasana (8–128 merkkiä)",
+    "confirmPassword": "Vahvista uusi salasana",
+    "enabled": "Suojaus käytössä",
+    "disabled": "Suojaus pois käytöstä",
+    "setup": "Aseta salasana",
+    "change": "Vaihda salasana",
+    "disable": "Poista suojaus käytöstä",
+    "forgot": "Unohditko salasanan?",
+    "reset": "Poista tunnistetiedot ja nollaa",
+    "resetWarning": "Palautus poistaa pysyvästi palveluntarjoajien, poolien, API-tilojen ja sopimusten avaimet, tilauskirjautumiset, asiakasavaimet, omat otsakkeet, hakuavaimet, välityspalvelinten salasanat sekä Webhook- ja laskutussalaisuudet. Asetukset säilyvät; syötä tunnistetiedot uudelleen.",
+    "confirmClear": "Ymmärrän ja vahvistan näiden tunnistetietojen poistamisen.",
+    "saved": "Salasana päivitetty.",
+    "mismatch": "Salasanat eivät täsmää.",
+    "copyFailed": "Avainta ei voitu kopioida."
+  },
+  "view-password-required": "Anna katselusalasana.",
+  "view-password-invalid": "Väärä salasana.",
+  "view-password-locked": "Liian monta yritystä. Yritä uudelleen 60 sekunnin kuluttua.",
+  "view-password-unavailable": "Salasanan tallennustila ei ole käytettävissä. Pääsy pysyy estettynä.",
+  "view-password-length": "Käytä 8–128 merkkiä.",
+  "view-password-reset-confirm": "Vahvista ensin tallennettujen tunnistetietojen poistaminen.",
+  "view-password-cancelled": "Peruutettu.",
   "providerSettings": {
     "loading": "Ladataan LLM-asetuksia...",
     "reset": {

@@ -32,6 +32,7 @@ import type {
 } from '@shared/llm-config';
 
 import { adminClient, AdminApiError } from './adminClient';
+import { protectedPost } from '@/shared/keyViewing';
 import type {
   AgentLLMConfigApi,
   DaemonDiscoverResponse,
@@ -281,7 +282,7 @@ export function createLlmConfigAdapter(unsupportedDiscoveryMessage: string): Age
 
     async revealProviderKey(id: string): Promise<{ success: boolean; apiKey?: string; message?: string }> {
       try {
-        const data = await adminClient.get<{ apiKey: string }>(
+        const data = await protectedPost<{ apiKey: string }>(
           `/providers/${encodeURIComponent(id)}/reveal-key`,
         );
         return { success: true, apiKey: data.apiKey ?? '' };

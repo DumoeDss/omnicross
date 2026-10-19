@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Wachtwoord voor sleutelweergave",
+    "description": "Dit appwachtwoord wordt bij elke weergave, kopie of export van inloggegevens gecontroleerd. Sleutels worden na 30 seconden of bij focusverlies verborgen. Geen systeempincode nodig.",
+    "verify": "Verifiëren",
+    "currentPassword": "Huidig weergavewachtwoord",
+    "newPassword": "Nieuw wachtwoord (8–128 tekens)",
+    "confirmPassword": "Nieuw wachtwoord bevestigen",
+    "enabled": "Beveiliging ingeschakeld",
+    "disabled": "Beveiliging uitgeschakeld",
+    "setup": "Wachtwoord instellen",
+    "change": "Wachtwoord wijzigen",
+    "disable": "Beveiliging uitschakelen",
+    "forgot": "Wachtwoord vergeten?",
+    "reset": "Inloggegevens wissen en resetten",
+    "resetWarning": "Herstel verwijdert definitief provider-, pool-, API-modus- en abonnementssleutels, abonnementslogins, clientsleutels, aangepaste headers, zoeksleutels, proxywachtwoorden en Webhook-/factureringsgeheimen. Instellingen blijven behouden; voer de inloggegevens opnieuw in.",
+    "confirmClear": "Ik begrijp en bevestig het wissen van deze inloggegevens.",
+    "saved": "Wachtwoord bijgewerkt.",
+    "mismatch": "De wachtwoorden komen niet overeen.",
+    "copyFailed": "Kan de sleutel niet kopiëren."
+  },
+  "view-password-required": "Voer het weergavewachtwoord in.",
+  "view-password-invalid": "Onjuist wachtwoord.",
+  "view-password-locked": "Te veel pogingen. Probeer het na 60 seconden opnieuw.",
+  "view-password-unavailable": "Wachtwoordopslag is niet beschikbaar. Toegang blijft geblokkeerd.",
+  "view-password-length": "Gebruik 8–128 tekens.",
+  "view-password-reset-confirm": "Bevestig eerst het wissen van opgeslagen inloggegevens.",
+  "view-password-cancelled": "Geannuleerd.",
   "providerSettings": {
     "loading": "LLM-configuratie laden...",
     "reset": {

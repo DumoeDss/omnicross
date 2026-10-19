@@ -1,5 +1,7 @@
 # omnicross
 
+Key viewing protection is available in **Settings → Security**. Set an app-managed password to authenticate each saved-key reveal, copy and credential export. See [key viewing password](docs/key-viewing-password.md) for recovery scope and API details.
+
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/) [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/) [![npm: @omnicross/core](https://img.shields.io/badge/npm-%40omnicross%2Fcore-cb3837.svg?logo=npm)](https://www.npmjs.com/package/@omnicross/core)

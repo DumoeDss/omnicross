@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Lösenord för nyckelvisning",
+    "description": "Appens lösenord kontrolleras vid varje visning, kopiering eller export av inloggningsuppgifter. Nycklar döljs efter 30 sekunder eller när fönstret tappar fokus. Ingen system-PIN krävs.",
+    "verify": "Verifiera",
+    "currentPassword": "Nuvarande visningslösenord",
+    "newPassword": "Nytt lösenord (8–128 tecken)",
+    "confirmPassword": "Bekräfta nytt lösenord",
+    "enabled": "Skydd aktiverat",
+    "disabled": "Skydd inaktiverat",
+    "setup": "Ange lösenord",
+    "change": "Ändra lösenord",
+    "disable": "Inaktivera skydd",
+    "forgot": "Glömt lösenord?",
+    "reset": "Radera inloggningsuppgifter och återställ",
+    "resetWarning": "Återställning raderar permanent leverantörs-, pool-, API-läges- och abonnemangsnycklar, abonnemangsinloggningar, klientnycklar, egna sidhuvuden, söknycklar, proxylösenord och Webhook-/faktureringshemligheter. Inställningar behålls; ange inloggningsuppgifterna igen.",
+    "confirmClear": "Jag förstår och bekräftar raderingen av dessa uppgifter.",
+    "saved": "Lösenordet har uppdaterats.",
+    "mismatch": "Lösenorden stämmer inte överens.",
+    "copyFailed": "Det gick inte att kopiera nyckeln."
+  },
+  "view-password-required": "Ange visningslösenordet.",
+  "view-password-invalid": "Felaktigt lösenord.",
+  "view-password-locked": "För många försök. Försök igen om 60 sekunder.",
+  "view-password-unavailable": "Lösenordslagringen är otillgänglig. Åtkomst är fortfarande blockerad.",
+  "view-password-length": "Använd 8–128 tecken.",
+  "view-password-reset-confirm": "Bekräfta först radering av sparade inloggningsuppgifter.",
+  "view-password-cancelled": "Avbrutet.",
   "providerSettings": {
     "loading": "Läser in LLM-konfiguration...",
     "reset": {

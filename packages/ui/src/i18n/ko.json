@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "키 보기 비밀번호",
+    "description": "저장된 키 보기·복사 및 자격 증명 내보내기마다 앱 비밀번호를 확인합니다. 30초 후 또는 창이 포커스를 잃으면 키를 숨깁니다. 시스템 PIN은 필요 없습니다.",
+    "verify": "확인",
+    "currentPassword": "현재 보기 비밀번호",
+    "newPassword": "새 보기 비밀번호(8~128자)",
+    "confirmPassword": "새 비밀번호 확인",
+    "enabled": "보호 켜짐",
+    "disabled": "보호 꺼짐",
+    "setup": "비밀번호 설정",
+    "change": "비밀번호 변경",
+    "disable": "보호 끄기",
+    "forgot": "비밀번호를 잊으셨나요?",
+    "reset": "자격 증명 삭제 후 재설정",
+    "resetWarning": "복구 시 공급자·풀·API 모드·요금제 키, 구독 로그인, 클라이언트 접근 키, 사용자 지정 헤더, 검색 키, 프록시 비밀번호, Webhook·결제 비밀 값이 영구 삭제됩니다. 설정은 유지되며 자격 증명을 다시 입력해야 합니다.",
+    "confirmClear": "위 자격 증명 삭제를 이해하고 확인합니다.",
+    "saved": "보기 비밀번호가 업데이트되었습니다.",
+    "mismatch": "비밀번호가 일치하지 않습니다.",
+    "copyFailed": "키를 복사하지 못했습니다."
+  },
+  "view-password-required": "보기 비밀번호를 입력하세요.",
+  "view-password-invalid": "보기 비밀번호가 올바르지 않습니다.",
+  "view-password-locked": "시도 횟수가 너무 많습니다. 60초 후 다시 시도하세요.",
+  "view-password-unavailable": "비밀번호 저장소를 사용할 수 없어 접근이 차단됩니다.",
+  "view-password-length": "8~128자를 사용하세요.",
+  "view-password-reset-confirm": "저장된 자격 증명 삭제를 먼저 확인하세요.",
+  "view-password-cancelled": "취소되었습니다.",
   "providerSettings": {
     "loading": "LLM 설정을 불러오는 중...",
     "reset": {

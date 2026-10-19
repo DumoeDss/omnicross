@@ -8,6 +8,9 @@ coverage/
 *.tsbuildinfo
 scripts/updater-signature-verifier/target/
 omnicross.dev.config.json
+# Local viewing-password verifier and interrupted atomic-write files.
+*.key-viewing.json
+.*.key-viewing.json.*.tmp
 # Daemon runtime state written next to the config file (so a repo-root dev
 # config drops these here) — generated, refreshed on every pricing sync.
 pricing.json

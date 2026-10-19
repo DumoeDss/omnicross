@@ -21,6 +21,7 @@
  */
 
 import { adminClient } from './adminClient';
+import { protectedPost } from '@/shared/keyViewing';
 import type {
   AccountAllowanceSchedulingStatus,
   AllowanceSchedulingConfig,
@@ -209,7 +210,7 @@ export function createApiServiceAdapter(): AgentApiServiceApi {
 
     async revealKey(id: string): Promise<{ success: boolean; key?: string; message?: string }> {
       try {
-        const data = await adminClient.get<{ key: string }>(
+        const data = await protectedPost<{ key: string }>(
           `/keys/${encodeURIComponent(id)}/reveal`,
         );
         return { success: true, key: data.key ?? '' };

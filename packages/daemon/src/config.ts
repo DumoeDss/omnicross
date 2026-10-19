@@ -24,6 +24,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { atomicReplaceUtf8 } from './ports/atomicFile';
 
 import type { LoggingConfig } from '@omnicross/contracts/health-logging-types';
 import { parseLogJevSettings, type LogJevSettings } from '@omnicross/contracts/logjev';
@@ -992,4 +993,10 @@ export function loadConfig(path: string): DaemonConfig {
 export function saveConfig(path: string, cfg: DaemonConfig): void {
   const toWrite = secretBox ? encryptConfigSecrets(cfg, secretBox) : cfg;
   writeFileSync(path, JSON.stringify(toWrite, null, 2) + '\n', 'utf8');
+}
+
+/** Recovery must preserve the previous document if replacing it fails. */
+export function saveConfigAtomically(path: string, cfg: DaemonConfig): void {
+  const toWrite = secretBox ? encryptConfigSecrets(cfg, secretBox) : cfg;
+  atomicReplaceUtf8(path, JSON.stringify(toWrite, null, 2) + '\n');
 }

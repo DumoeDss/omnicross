@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Kata sandi untuk melihat kunci",
+    "description": "Kata sandi aplikasi diperiksa setiap kali melihat, menyalin kunci tersimpan, atau mengekspor kredensial. Kunci disembunyikan setelah 30 detik atau saat jendela kehilangan fokus. Tidak perlu PIN sistem.",
+    "verify": "Verifikasi",
+    "currentPassword": "Kata sandi saat ini",
+    "newPassword": "Kata sandi baru (8–128 karakter)",
+    "confirmPassword": "Konfirmasi kata sandi baru",
+    "enabled": "Perlindungan aktif",
+    "disabled": "Perlindungan nonaktif",
+    "setup": "Atur kata sandi",
+    "change": "Ubah kata sandi",
+    "disable": "Nonaktifkan perlindungan",
+    "forgot": "Lupa kata sandi?",
+    "reset": "Hapus kredensial dan atur ulang",
+    "resetWarning": "Pemulihan menghapus permanen kunci penyedia, kumpulan, mode API dan paket, login langganan, kunci klien, header khusus, kunci pencarian, kata sandi proksi, serta rahasia Webhook/penagihan. Pengaturan tetap ada; masukkan kembali kredensial setelahnya.",
+    "confirmClear": "Saya memahami dan mengonfirmasi penghapusan kredensial ini.",
+    "saved": "Kata sandi diperbarui.",
+    "mismatch": "Kata sandi tidak cocok.",
+    "copyFailed": "Tidak dapat menyalin kunci."
+  },
+  "view-password-required": "Masukkan kata sandi untuk melihat kunci.",
+  "view-password-invalid": "Kata sandi salah.",
+  "view-password-locked": "Terlalu banyak percobaan. Coba lagi setelah 60 detik.",
+  "view-password-unavailable": "Penyimpanan kata sandi tidak tersedia. Akses tetap diblokir.",
+  "view-password-length": "Gunakan 8–128 karakter.",
+  "view-password-reset-confirm": "Konfirmasi penghapusan kredensial tersimpan terlebih dahulu.",
+  "view-password-cancelled": "Dibatalkan.",
   "providerSettings": {
     "loading": "Memuat konfigurasi LLM...",
     "reset": {

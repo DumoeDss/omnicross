@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Heslo pro zobrazení klíčů",
+    "description": "Heslo aplikace se ověřuje při každém zobrazení, kopírování nebo exportu přihlašovacích údajů. Klíče se skryjí po 30 sekundách nebo ztrátě zaměření. Systémový PIN není potřeba.",
+    "verify": "Ověřit",
+    "currentPassword": "Aktuální heslo pro zobrazení",
+    "newPassword": "Nové heslo (8–128 znaků)",
+    "confirmPassword": "Potvrdit nové heslo",
+    "enabled": "Ochrana zapnuta",
+    "disabled": "Ochrana vypnuta",
+    "setup": "Nastavit heslo",
+    "change": "Změnit heslo",
+    "disable": "Vypnout ochranu",
+    "forgot": "Zapomenuté heslo?",
+    "reset": "Smazat přihlašovací údaje a obnovit",
+    "resetWarning": "Obnova trvale smaže klíče poskytovatelů, fondů, režimů API a tarifů, přihlášení předplatných, klientské klíče, vlastní hlavičky, vyhledávací klíče, hesla proxy a tajné údaje Webhook/fakturace. Nastavení zůstane; přihlašovací údaje zadejte znovu.",
+    "confirmClear": "Rozumím a potvrzuji smazání těchto údajů.",
+    "saved": "Heslo bylo aktualizováno.",
+    "mismatch": "Hesla se neshodují.",
+    "copyFailed": "Klíč se nepodařilo zkopírovat."
+  },
+  "view-password-required": "Zadejte heslo pro zobrazení.",
+  "view-password-invalid": "Nesprávné heslo.",
+  "view-password-locked": "Příliš mnoho pokusů. Zkuste to za 60 sekund.",
+  "view-password-unavailable": "Úložiště hesla není dostupné. Přístup zůstává blokován.",
+  "view-password-length": "Použijte 8–128 znaků.",
+  "view-password-reset-confirm": "Nejprve potvrďte smazání uložených přihlašovacích údajů.",
+  "view-password-cancelled": "Zrušeno.",
   "providerSettings": {
     "loading": "Načítání konfigurace LLM...",
     "reset": {

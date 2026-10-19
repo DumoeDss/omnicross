@@ -124,6 +124,8 @@ export function ProviderSettings({
     handleDeleteProvider,
     handleResetProvider,
     revealApiKey,
+    copyApiKey,
+    isStoredKeyRevealed,
     missingKeyCount,
     handleRemoveModel,
     handleAddModelEntry,
@@ -257,6 +259,7 @@ export function ProviderSettings({
               />
             ) : (
               <ProviderDetails
+                key={selectedProvider?.id}
                 selectedProvider={selectedProvider}
                 visibleModelGroups={visibleModelGroups}
                 inlineName={inlineName}
@@ -280,6 +283,9 @@ export function ProviderSettings({
                 setEditingModel={setEditingModel}
                 onInlineUpdate={handleInlineUpdate}
                 onRevealApiKey={revealApiKey}
+                onCopyApiKey={copyApiKey}
+                isStoredKeyRevealed={isStoredKeyRevealed}
+                apiKeyError={formError}
                 // Embedded workbench (upstreams provider detail) renders its own
                 // UpstreamMappingSection above this view — skip the duplicate.
                 hideMappingSection={embedded}

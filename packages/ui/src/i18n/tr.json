@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Anahtar görüntüleme parolası",
+    "description": "Kayıtlı anahtarı her görüntüleme, kopyalama veya kimlik bilgisi dışa aktarma işleminde uygulama parolası doğrulanır. Anahtarlar 30 saniye sonra veya pencere odak kaybedince gizlenir. Sistem PIN’i gerekmez.",
+    "verify": "Doğrula",
+    "currentPassword": "Geçerli görüntüleme parolası",
+    "newPassword": "Yeni parola (8–128 karakter)",
+    "confirmPassword": "Yeni parolayı onayla",
+    "enabled": "Koruma etkin",
+    "disabled": "Koruma devre dışı",
+    "setup": "Parola belirle",
+    "change": "Parolayı değiştir",
+    "disable": "Korumayı kapat",
+    "forgot": "Parolayı mı unuttunuz?",
+    "reset": "Kimlik bilgilerini sil ve sıfırla",
+    "resetWarning": "Kurtarma; sağlayıcı, havuz, API modu ve plan anahtarlarını, abonelik oturumlarını, istemci anahtarlarını, özel başlıkları, arama anahtarlarını, proxy parolalarını ve Webhook/faturalandırma sırlarını kalıcı olarak siler. Ayarlar korunur; kimlik bilgilerini yeniden girmeniz gerekir.",
+    "confirmClear": "Bu kimlik bilgilerinin silinmesini anlıyor ve onaylıyorum.",
+    "saved": "Parola güncellendi.",
+    "mismatch": "Parolalar eşleşmiyor.",
+    "copyFailed": "Anahtar kopyalanamadı."
+  },
+  "view-password-required": "Görüntüleme parolasını girin.",
+  "view-password-invalid": "Yanlış parola.",
+  "view-password-locked": "Çok fazla deneme. 60 saniye sonra tekrar deneyin.",
+  "view-password-unavailable": "Parola deposu kullanılamıyor. Erişim engelli kalır.",
+  "view-password-length": "8–128 karakter kullanın.",
+  "view-password-reset-confirm": "Önce kayıtlı kimlik bilgilerinin silinmesini onaylayın.",
+  "view-password-cancelled": "İptal edildi.",
   "providerSettings": {
     "loading": "LLM yapılandırması yükleniyor...",
     "reset": {

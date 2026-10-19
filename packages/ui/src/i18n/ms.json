@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Kata laluan paparan kunci",
+    "description": "Kata laluan aplikasi disahkan setiap kali melihat, menyalin kunci tersimpan atau mengeksport kelayakan. Kunci disembunyikan selepas 30 saat atau apabila tetingkap hilang fokus. PIN sistem tidak diperlukan.",
+    "verify": "Sahkan",
+    "currentPassword": "Kata laluan paparan semasa",
+    "newPassword": "Kata laluan baharu (8–128 aksara)",
+    "confirmPassword": "Sahkan kata laluan baharu",
+    "enabled": "Perlindungan diaktifkan",
+    "disabled": "Perlindungan dinyahaktifkan",
+    "setup": "Tetapkan kata laluan",
+    "change": "Tukar kata laluan",
+    "disable": "Nyahaktifkan perlindungan",
+    "forgot": "Terlupa kata laluan?",
+    "reset": "Padam kelayakan dan tetapkan semula",
+    "resetWarning": "Pemulihan memadam secara kekal kunci penyedia, kumpulan, mod API dan pelan, log masuk langganan, kunci klien, pengepala tersuai, kunci carian, kata laluan proksi dan rahsia Webhook/pengebilan. Tetapan kekal; masukkan semula kelayakan selepas itu.",
+    "confirmClear": "Saya faham dan mengesahkan pemadaman kelayakan ini.",
+    "saved": "Kata laluan dikemas kini.",
+    "mismatch": "Kata laluan tidak sepadan.",
+    "copyFailed": "Tidak dapat menyalin kunci."
+  },
+  "view-password-required": "Masukkan kata laluan paparan.",
+  "view-password-invalid": "Kata laluan salah.",
+  "view-password-locked": "Terlalu banyak percubaan. Cuba lagi selepas 60 saat.",
+  "view-password-unavailable": "Storan kata laluan tidak tersedia. Akses kekal disekat.",
+  "view-password-length": "Gunakan 8–128 aksara.",
+  "view-password-reset-confirm": "Sahkan pemadaman kelayakan tersimpan dahulu.",
+  "view-password-cancelled": "Dibatalkan.",
   "providerSettings": {
     "loading": "Memuatkan konfigurasi LLM...",
     "reset": {

@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "金鑰檢視密碼",
+    "description": "每次檢視、複製已儲存的金鑰或匯出憑證時，都需驗證此應用程式密碼。金鑰會在 30 秒後或視窗失焦時隱藏，無需系統 PIN。",
+    "verify": "驗證",
+    "currentPassword": "目前檢視密碼",
+    "newPassword": "新檢視密碼（8–128 個字元）",
+    "confirmPassword": "確認新密碼",
+    "enabled": "已啟用保護",
+    "disabled": "未啟用保護",
+    "setup": "設定密碼",
+    "change": "變更密碼",
+    "disable": "停用保護",
+    "forgot": "忘記密碼？",
+    "reset": "清除憑證並重設",
+    "resetWarning": "復原將永久清除供應商金鑰、金鑰池、API 模式與方案金鑰、訂閱登入憑證、用戶端存取金鑰、自訂標頭、搜尋金鑰、代理密碼及 Webhook／計費金鑰。設定保留，之後需重新輸入憑證。",
+    "confirmClear": "我已了解並確認清除上述憑證。",
+    "saved": "檢視密碼已更新。",
+    "mismatch": "兩次輸入的密碼不一致。",
+    "copyFailed": "複製金鑰失敗。"
+  },
+  "view-password-required": "請輸入檢視密碼。",
+  "view-password-invalid": "檢視密碼錯誤。",
+  "view-password-locked": "嘗試次數過多，請在 60 秒後重試。",
+  "view-password-unavailable": "檢視密碼儲存空間無法使用，存取仍受保護。",
+  "view-password-length": "請使用 8–128 個字元。",
+  "view-password-reset-confirm": "請先確認清除已儲存的憑證。",
+  "view-password-cancelled": "已取消。",
   "providerSettings": {
     "loading": "正在載入 LLM 設定...",
     "reset": {

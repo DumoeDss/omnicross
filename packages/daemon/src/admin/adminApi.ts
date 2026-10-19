@@ -16,6 +16,9 @@
  */
 
 import http from 'node:http';
+import { resolve } from 'node:path';
+import { KeyViewingError, KeyViewingPassword } from '../secrets/KeyViewingPassword';
+import { clearConfigCredentials } from '../secrets/clearConfigCredentials';
 
 import {
   createNamedKey,
@@ -92,6 +95,7 @@ import {
   loadConfig,
   migrateFormatAxis,
   saveConfig,
+  saveConfigAtomically,
   validateExtraHeaders,
   validateFormatVariants,
   validateThinkingLevels,
@@ -279,6 +283,8 @@ export interface AdminImagesStatusReader {
 
 /** The live daemon handles the management API operates over. */
 export interface AdminApiDeps {
+  /** Destructive recovery: clear subscription credentials and revoke/erase stored client keys. */
+  readonly clearStoredCredentials?: () => Promise<void>;
   /** Path to the daemon's `config.json` (provider catalog + `server` field). */
   readonly configPath: string;
   /**
@@ -687,10 +693,76 @@ export async function handleAdminApi(
   deps: AdminApiDeps,
 ): Promise<void> {
   const method = (req.method ?? 'GET').toUpperCase();
+  const protectedGet = path.endsWith('/reveal-key') || path.endsWith('/reveal');
+  const [resource, , action] = path.slice('/admin/api/'.length).split('/');
+  const probe = resource === 'providers' && (action === 'discover-models' || action === 'test' || path.endsWith('/logjev-probe'));
+  if (!protectedGet && (method === 'GET' || !credentialResources.has(resource) || probe)) {
+    return dispatchAdminApi(req, res, path, deps);
+  }
+  // A request waiting for its body must not retain a pre-recovery config and
+  // write old credentials back after reset. Serialize credential writes with reset
+  // and protected reads, separately from the verifier's own operation queue.
+  const key = deps.configPath ? resolve(deps.configPath) : deps;
+  const previous = adminWrites.get(key);
+  const result = previous ? previous.then(() => dispatchAdminApi(req, res, path, deps)) : dispatchAdminApi(req, res, path, deps);
+  const settled = result.catch(() => undefined);
+  adminWrites.set(key, settled);
+  void settled.then(() => { if (adminWrites.get(key) === settled) adminWrites.delete(key); });
+  return result;
+}
+
+const adminWrites = new Map<string | AdminApiDeps, Promise<unknown>>();
+const credentialResources = new Set(['key-viewing-password', 'providers', 'keys', 'upstreams',
+  'server', 'images', 'search', 'accounts', 'integrations', 'import', 'export']);
+
+async function dispatchAdminApi(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  path: string,
+  deps: AdminApiDeps,
+): Promise<void> {
+  const method = (req.method ?? 'GET').toUpperCase();
   const sub = path.slice('/admin/api/'.length);
   const [resource, ...rest] = sub.split('/').filter((s) => s.length > 0);
 
   try {
+    if (resource === 'key-viewing-password') {
+      const viewing = new KeyViewingPassword(deps.configPath);
+      res.setHeader('Cache-Control', 'no-store');
+      if (method === 'GET' && rest.length === 0) return writeJson(res, 200, await viewing.status());
+      if (method === 'PUT' && rest.length === 0) {
+        const body = await readJsonBody(req);
+        await viewing.change(body.currentPassword, body.newPassword);
+        return writeJson(res, 200, { ok: true });
+      }
+      if (method === 'POST' && rest.length === 1 && rest[0] === 'reset') {
+        const body = await readJsonBody(req);
+        if (body.confirmClearCredentials !== true) return writeJsonError(res, 400, 'view-password-reset-confirm');
+        if (!deps.clearStoredCredentials) return writeJsonError(res, 503, 'view-password-unavailable');
+        await viewing.reset(body.newPassword, async () => {
+          await deps.clearStoredCredentials!();
+          const config = clearConfigCredentials(loadConfig(deps.configPath));
+          saveConfigAtomically(deps.configPath, config);
+          deps.llmConfig.reload(config);
+          await reapplyLiveServerConfig(deps);
+        });
+        return writeJson(res, 200, { ok: true });
+      }
+      return writeJsonError(res, 405, 'method not allowed on key-viewing-password');
+    }
+    const providerReveal = resource === 'providers' && rest.length === 2 && rest[1] === 'reveal-key';
+    const clientReveal = resource === 'keys' && rest.length === 2 && rest[1] === 'reveal';
+    if (providerReveal || clientReveal) {
+      const viewing = new KeyViewingPassword(deps.configPath);
+      res.setHeader('Cache-Control', 'no-store');
+      if (method !== 'GET' && method !== 'POST') return writeJsonError(res, 405, 'method not allowed on reveal');
+      // Legacy GET remains usable only while protection is disabled. Passwords
+      // are accepted exclusively in a POST body, never URLs or reusable headers.
+      const body = method === 'POST' ? await readJsonBody(req) : {};
+      return await viewing.read(body.viewingPassword, async () => providerReveal
+        ? handleProviders(req, res, 'GET', rest, deps)
+        : handleKeys(req, res, 'GET', rest, deps));
+    }
     switch (resource) {
       case 'providers':
         return await handleProviders(req, res, method, rest, deps);
@@ -744,6 +816,7 @@ export async function handleAdminApi(
         return writeJsonError(res, 404, `unknown admin resource '${resource}'`);
     }
   } catch (err) {
+    if (err instanceof KeyViewingError) return writeJsonError(res, err.status, err.message);
     writeJsonError(res, 500, err instanceof Error ? err.message : String(err));
   }
 }
@@ -875,7 +948,9 @@ async function handleMigrationExport(
 ): Promise<void> {
   if (method !== 'POST') return writeJsonError(res, 405, `method ${method} not allowed on export`);
   const body = await readJsonBody(req);
-  const result = await handleExport(body, migrationDeps(deps));
+  res.setHeader('Cache-Control', 'no-store');
+  const result = await new KeyViewingPassword(deps.configPath).read(body.viewingPassword,
+    () => handleExport(body, migrationDeps(deps)));
   return writeJson(res, result.status, result.body);
 }
 

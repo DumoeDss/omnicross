@@ -59,6 +59,9 @@ interface ProviderDetailsProps {
   onInlineUpdate: (field: string, value: string) => Promise<void>;
   /** Fetch + show the stored API key (the daemon holds it reversibly). */
   onRevealApiKey?: () => Promise<void>;
+  onCopyApiKey?: () => Promise<void>;
+  isStoredKeyRevealed?: boolean;
+  apiKeyError?: string | null;
   /** Hide the embedded model-mapping section: the HOSTING workbench (the
    *  upstreams page's provider detail) renders its own UpstreamMappingSection
    *  above this view — showing both is a duplicate. Standalone views (the
@@ -106,6 +109,9 @@ export function ProviderDetails({
   setInlineMaxConcurrency,
   onInlineUpdate,
   onRevealApiKey,
+  onCopyApiKey,
+  isStoredKeyRevealed,
+  apiKeyError,
   hideMappingSection = false,
   onSelectApiMode,
   onToggleProvider,
@@ -285,12 +291,11 @@ export function ProviderDetails({
         <RevealableInput
           revealed={showApiKey}
           onRevealedChange={(revealed) => {
-            setShowApiKey(revealed);
             // Revealing a stored-but-unshown key: fetch the real (decrypted) value
             // and drop it into the field. Only when the user hasn't typed a new one.
             if (revealed && selectedProvider.hasKey && inlineApiKey.trim().length === 0) {
               void onRevealApiKey?.();
-            }
+            } else setShowApiKey(revealed);
           }}
           // No placeholder for a stored key — the masked dots (below) ARE the
           // "key is set" indicator. The placeholder is only for an unset key.
@@ -304,6 +309,12 @@ export function ProviderDetails({
               : inlineApiKey
           }
           onChange={(e) => setInlineApiKey(e.target.value)}
+          onCopy={(event) => {
+            if (!selectedProvider.hasKey || (inlineApiKey.length > 0 && !isStoredKeyRevealed)) return;
+            event.preventDefault();
+            void onCopyApiKey?.();
+          }}
+          onCut={(event) => { if (isStoredKeyRevealed) event.preventDefault(); }}
           onFocus={() => setApiKeyFocused(true)}
           onBlur={() => {
             setApiKeyFocused(false);
@@ -318,11 +329,12 @@ export function ProviderDetails({
             }
           }}
         />
+        {apiKeyError ? <p role="alert" className="text-xs text-destructive">{apiKeyError}</p> : null}
       </FormField>
       ) : null}
 
       {/* API Key Pool */}
-      {!usesLogJevUpstream ? <ApiKeyPoolSection providerId={selectedProvider.id} /> : null}
+      {!usesLogJevUpstream ? <ApiKeyPoolSection key={selectedProvider.id} providerId={selectedProvider.id} /> : null}
 
       {/* API mode switcher — only renders when provider declares >= 2 modes */}
       {(() => {

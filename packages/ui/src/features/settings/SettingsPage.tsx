@@ -25,6 +25,7 @@ import { checkForUpdates, downloadUpdate, installUpdate } from '@/shared/tauri/u
 import { AboutSection } from './AboutSection';
 import { AllowanceSchedulingSection } from './AllowanceSchedulingSection';
 import { NetworkSettingsSection } from './NetworkSettingsSection';
+import { KeyViewingPasswordSection } from './KeyViewingPasswordSection';
 import { normalizeSettingsTab, SETTINGS_TABS, type SettingsTabId } from './settingsTabModel';
 import { SettingsTabs } from './SettingsTabs';
 
@@ -64,6 +65,7 @@ function OperationalSettingsPanel({ tab }: { tab: OperationalTab }) {
             <p className="mt-1 text-xs text-muted-foreground">{t('settings.security.description')}</p>
           </section>
           <FingerprintSection config={service.config} busy={service.busy} onUpdate={service.updateFingerprintConfig} />
+          <KeyViewingPasswordSection />
         </div>
       );
     } else if (tab === 'data') {

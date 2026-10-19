@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Adgangskode til visning af nøgler",
+    "description": "Appens adgangskode kontrolleres ved hver visning, kopiering eller eksport af legitimationsoplysninger. Nøgler skjules efter 30 sekunder eller ved tab af fokus. Ingen system-PIN kræves.",
+    "verify": "Bekræft",
+    "currentPassword": "Nuværende visningsadgangskode",
+    "newPassword": "Ny adgangskode (8–128 tegn)",
+    "confirmPassword": "Bekræft ny adgangskode",
+    "enabled": "Beskyttelse slået til",
+    "disabled": "Beskyttelse slået fra",
+    "setup": "Angiv adgangskode",
+    "change": "Skift adgangskode",
+    "disable": "Slå beskyttelse fra",
+    "forgot": "Glemt adgangskode?",
+    "reset": "Ryd legitimationsoplysninger og nulstil",
+    "resetWarning": "Gendannelse sletter permanent udbyder-, pulje-, API-tilstands- og abonnementsnøgler, abonnementslogin, klientnøgler, egne headere, søgenøgler, proxyadgangskoder og Webhook-/faktureringshemmeligheder. Indstillinger bevares; indtast legitimationsoplysninger igen.",
+    "confirmClear": "Jeg forstår og bekræfter rydningen af disse oplysninger.",
+    "saved": "Adgangskoden er opdateret.",
+    "mismatch": "Adgangskoderne er ikke ens.",
+    "copyFailed": "Nøglen kunne ikke kopieres."
+  },
+  "view-password-required": "Indtast visningsadgangskoden.",
+  "view-password-invalid": "Forkert adgangskode.",
+  "view-password-locked": "For mange forsøg. Prøv igen efter 60 sekunder.",
+  "view-password-unavailable": "Adgangskodelageret er utilgængeligt. Adgang er fortsat blokeret.",
+  "view-password-length": "Brug 8–128 tegn.",
+  "view-password-reset-confirm": "Bekræft først rydning af gemte legitimationsoplysninger.",
+  "view-password-cancelled": "Annulleret.",
   "providerSettings": {
     "loading": "Indlæser LLM-konfiguration...",
     "reset": {

@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Key viewing password",
+    "description": "Enter this app password for each saved-key reveal, copy or credential export. Keys hide after 30 seconds or when the window loses focus. No system PIN is required.",
+    "verify": "Verify",
+    "currentPassword": "Current viewing password",
+    "newPassword": "New viewing password (8–128 characters)",
+    "confirmPassword": "Confirm new password",
+    "enabled": "Protection enabled",
+    "disabled": "Protection disabled",
+    "setup": "Set password",
+    "change": "Change password",
+    "disable": "Disable protection",
+    "forgot": "Forgot password?",
+    "reset": "Clear credentials and reset",
+    "resetWarning": "Recovery permanently clears provider keys, pools, API modes, coding-plan keys, subscription logins, client access keys, custom headers, search keys, proxy passwords and webhook/billing secrets. Configurations remain; re-enter credentials afterward.",
+    "confirmClear": "I understand and confirm clearing these credentials.",
+    "saved": "Viewing password updated.",
+    "mismatch": "The passwords do not match.",
+    "copyFailed": "Could not copy the key."
+  },
+  "view-password-required": "Enter the viewing password.",
+  "view-password-invalid": "Incorrect viewing password.",
+  "view-password-locked": "Too many attempts. Try again after 60 seconds.",
+  "view-password-unavailable": "Viewing-password storage is unavailable. Access remains blocked.",
+  "view-password-length": "Use 8–128 characters.",
+  "view-password-reset-confirm": "Confirm clearing saved credentials first.",
+  "view-password-cancelled": "Cancelled.",
   "providerSettings": {
     "loading": "Loading LLM configuration...",
     "reset": {

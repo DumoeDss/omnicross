@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Kulcsmegtekintési jelszó",
+    "description": "Az alkalmazás jelszót kér minden kulcsmegtekintéshez, másoláshoz és hitelesítőadat-exporthoz. A kulcsok 30 másodperc után vagy fókuszvesztéskor elrejtődnek. Rendszer-PIN nem szükséges.",
+    "verify": "Ellenőrzés",
+    "currentPassword": "Jelenlegi megtekintési jelszó",
+    "newPassword": "Új jelszó (8–128 karakter)",
+    "confirmPassword": "Új jelszó megerősítése",
+    "enabled": "Védelem bekapcsolva",
+    "disabled": "Védelem kikapcsolva",
+    "setup": "Jelszó beállítása",
+    "change": "Jelszó módosítása",
+    "disable": "Védelem kikapcsolása",
+    "forgot": "Elfelejtett jelszó?",
+    "reset": "Hitelesítő adatok törlése és visszaállítás",
+    "resetWarning": "A helyreállítás végleg törli a szolgáltatói, készlet-, API-mód- és csomagkulcsokat, előfizetéses bejelentkezéseket, klienskulcsokat, egyéni fejléceket, keresőkulcsokat, proxyjelszavakat és Webhook-/számlázási titkokat. A beállítások megmaradnak; a hitelesítő adatokat újra meg kell adni.",
+    "confirmClear": "Megértettem és megerősítem az adatok törlését.",
+    "saved": "A jelszó frissítve.",
+    "mismatch": "A jelszavak nem egyeznek.",
+    "copyFailed": "A kulcs másolása sikertelen."
+  },
+  "view-password-required": "Adja meg a megtekintési jelszót.",
+  "view-password-invalid": "Helytelen jelszó.",
+  "view-password-locked": "Túl sok próbálkozás. Próbálja újra 60 másodperc múlva.",
+  "view-password-unavailable": "A jelszótároló nem érhető el. A hozzáférés továbbra is tiltott.",
+  "view-password-length": "Használjon 8–128 karaktert.",
+  "view-password-reset-confirm": "Előbb erősítse meg a mentett hitelesítő adatok törlését.",
+  "view-password-cancelled": "Megszakítva.",
   "providerSettings": {
     "loading": "LLM konfiguráció betöltése...",
     "reset": {

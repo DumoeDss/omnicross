@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Mật khẩu xem khóa",
+    "description": "Mật khẩu ứng dụng được xác minh mỗi lần xem, sao chép khóa đã lưu hoặc xuất thông tin xác thực. Khóa bị ẩn sau 30 giây hoặc khi cửa sổ mất tiêu điểm. Không cần PIN hệ thống.",
+    "verify": "Xác minh",
+    "currentPassword": "Mật khẩu xem hiện tại",
+    "newPassword": "Mật khẩu mới (8–128 ký tự)",
+    "confirmPassword": "Xác nhận mật khẩu mới",
+    "enabled": "Đã bật bảo vệ",
+    "disabled": "Đã tắt bảo vệ",
+    "setup": "Đặt mật khẩu",
+    "change": "Đổi mật khẩu",
+    "disable": "Tắt bảo vệ",
+    "forgot": "Quên mật khẩu?",
+    "reset": "Xóa thông tin xác thực và đặt lại",
+    "resetWarning": "Khôi phục sẽ xóa vĩnh viễn khóa nhà cung cấp, nhóm khóa, chế độ API và gói, đăng nhập thuê bao, khóa máy khách, tiêu đề tùy chỉnh, khóa tìm kiếm, mật khẩu proxy và bí mật Webhook/thanh toán. Cấu hình được giữ; bạn cần nhập lại thông tin xác thực.",
+    "confirmClear": "Tôi hiểu và xác nhận xóa các thông tin xác thực này.",
+    "saved": "Đã cập nhật mật khẩu.",
+    "mismatch": "Mật khẩu không khớp.",
+    "copyFailed": "Không thể sao chép khóa."
+  },
+  "view-password-required": "Nhập mật khẩu xem khóa.",
+  "view-password-invalid": "Mật khẩu không đúng.",
+  "view-password-locked": "Quá nhiều lần thử. Hãy thử lại sau 60 giây.",
+  "view-password-unavailable": "Kho mật khẩu không khả dụng. Quyền truy cập vẫn bị chặn.",
+  "view-password-length": "Dùng 8–128 ký tự.",
+  "view-password-reset-confirm": "Trước tiên hãy xác nhận xóa thông tin xác thực đã lưu.",
+  "view-password-cancelled": "Đã hủy.",
   "providerSettings": {
     "loading": "Đang tải cấu hình LLM...",
     "reset": {

@@ -103,6 +103,13 @@ export class JsonOutboundKeyDb implements OutboundKeyDb {
     return this.secretBox.decrypt(row.keySecret);
   }
 
+  /** Forgotten viewing password: revoke access and erase reversible material, preserving history. */
+  async clearSavedKeySecrets(): Promise<void> {
+    this.writeRows(this.readRows().map((row) => ({
+      ...row, keySecret: undefined, enabled: false, revokedAt: row.revokedAt ?? Date.now(),
+    })));
+  }
+
   async outboundApiKeysDelete(id: string): Promise<boolean> {
     const rows = this.readRows();
     const idx = rows.findIndex((r) => r.id === id);

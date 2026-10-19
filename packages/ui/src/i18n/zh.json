@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "密钥查看密码",
+    "description": "每次查看、复制已保存的密钥或导出凭证时，都需验证此应用密码。密钥在 30 秒后或窗口失焦时隐藏，无需系统 PIN。",
+    "verify": "验证",
+    "currentPassword": "当前查看密码",
+    "newPassword": "新查看密码（8–128 个字符）",
+    "confirmPassword": "确认新密码",
+    "enabled": "已开启保护",
+    "disabled": "未开启保护",
+    "setup": "设置密码",
+    "change": "修改密码",
+    "disable": "关闭保护",
+    "forgot": "忘记密码？",
+    "reset": "清除凭证并重设",
+    "resetWarning": "恢复将永久清除供应商密钥、密钥池、API 模式与套餐密钥、订阅登录凭证、客户端访问密钥、自定义请求头、搜索密钥、代理密码及 Webhook／计费密钥。配置保留，之后需重新填写凭证。",
+    "confirmClear": "我已了解并确认清除上述凭证。",
+    "saved": "查看密码已更新。",
+    "mismatch": "两次输入的密码不一致。",
+    "copyFailed": "复制密钥失败。"
+  },
+  "view-password-required": "请输入查看密码。",
+  "view-password-invalid": "查看密码错误。",
+  "view-password-locked": "尝试次数过多，请在 60 秒后重试。",
+  "view-password-unavailable": "查看密码存储不可用，访问仍受保护。",
+  "view-password-length": "请使用 8–128 个字符。",
+  "view-password-reset-confirm": "请先确认清除已保存的凭证。",
+  "view-password-cancelled": "已取消。",
   "providerSettings": {
     "loading": "正在加载 LLM 配置...",
     "reset": {

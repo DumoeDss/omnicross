@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Passord for nøkkelvisning",
+    "description": "App-passordet kontrolleres for hver visning, kopiering eller eksport av legitimasjon. Nøkler skjules etter 30 sekunder eller når vinduet mister fokus. Ingen system-PIN kreves.",
+    "verify": "Bekreft",
+    "currentPassword": "Gjeldende visningspassord",
+    "newPassword": "Nytt passord (8–128 tegn)",
+    "confirmPassword": "Bekreft nytt passord",
+    "enabled": "Beskyttelse aktivert",
+    "disabled": "Beskyttelse deaktivert",
+    "setup": "Angi passord",
+    "change": "Endre passord",
+    "disable": "Deaktiver beskyttelse",
+    "forgot": "Glemt passord?",
+    "reset": "Slett legitimasjon og tilbakestill",
+    "resetWarning": "Gjenoppretting sletter leverandør-, gruppe-, API-modus- og abonnementsnøkler, abonnementspålogginger, klientnøkler, egne headere, søkenøkler, proxy-passord og Webhook-/faktureringshemmeligheter permanent. Innstillinger beholdes; legg inn legitimasjonen på nytt.",
+    "confirmClear": "Jeg forstår og bekrefter slettingen av denne legitimasjonen.",
+    "saved": "Passordet er oppdatert.",
+    "mismatch": "Passordene er ikke like.",
+    "copyFailed": "Kunne ikke kopiere nøkkelen."
+  },
+  "view-password-required": "Skriv inn visningspassordet.",
+  "view-password-invalid": "Feil passord.",
+  "view-password-locked": "For mange forsøk. Prøv igjen etter 60 sekunder.",
+  "view-password-unavailable": "Passordlageret er utilgjengelig. Tilgang er fortsatt blokkert.",
+  "view-password-length": "Bruk 8–128 tegn.",
+  "view-password-reset-confirm": "Bekreft først sletting av lagret legitimasjon.",
+  "view-password-cancelled": "Avbrutt.",
   "providerSettings": {
     "loading": "Laster LLM-konfigurasjon...",
     "reset": {

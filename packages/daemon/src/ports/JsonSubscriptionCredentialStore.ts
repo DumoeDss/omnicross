@@ -179,8 +179,10 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
    * through `coalesce`, so overlapping callers share ONE upstream round-trip.
    */
   private readonly inFlightRefreshes = new Map<string, Promise<boolean>>();
+  private clearingCredentials = false;
 
   private coalesce(key: string, task: () => Promise<boolean>): Promise<boolean> {
+    if (this.clearingCredentials) return Promise.resolve(false);
     const existing = this.inFlightRefreshes.get(key);
     if (existing) return existing;
     const run = task().finally(() => this.inFlightRefreshes.delete(key));
@@ -1067,6 +1069,15 @@ export class JsonSubscriptionCredentialStore implements SubscriptionCredentialSt
     // Remove the provider's accounts + active id + top-level mirror (D3).
     accountMulti.clearProvider(current, providerId);
     this.persist({ ...current, updatedAt: new Date().toISOString() });
+  }
+
+  /** Recovery waits for refresh write-backs so they cannot restore old credentials. */
+  async clearAllCredentials(): Promise<void> {
+    this.clearingCredentials = true;
+    try {
+      await Promise.allSettled([...this.inFlightRefreshes.values()]);
+      this.persist({ updatedAt: new Date().toISOString() });
+    } finally { this.clearingCredentials = false; }
   }
 
   /** Write the merged config to disk as pretty JSON (mkdir parent if needed).

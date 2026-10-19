@@ -72,6 +72,20 @@ async function readBack(): Promise<AccountTokensConfig> {
 }
 
 describe('refreshClaudeToken', () => {
+  it('recovery waits for an in-flight refresh and prevents stale credentials from returning', async () => {
+    seed({ claude: { authMethod: 'oauth', status: 'authorized', accessToken: 'fixture-old', refreshToken: 'fixture-refresh' }, updatedAt: '' });
+    let finish!: (value: Response) => void;
+    const fetchImpl = vi.fn(() => new Promise<Response>((resolve) => { finish = resolve; }));
+    const store = new JsonSubscriptionCredentialStore(tokensPath, box, fetchImpl, () => null);
+    const refresh = store.refreshClaudeToken();
+    const recovery = store.clearAllCredentials();
+    expect(await store.refreshClaudeToken()).toBe(false);
+    finish(new Response(JSON.stringify({ access_token: 'fixture-new', refresh_token: 'fixture-next', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } }));
+    await refresh; await recovery;
+    expect(await store.getFullConfig()).toEqual({ updatedAt: expect.any(String) });
+    expect(await store.refreshClaudeToken()).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
   it('success → updates access+refresh+expiresAt+status, encrypted at rest', async () => {
     seed({
       claude: { authMethod: 'oauth', status: 'authorized', accessToken: 'old-at', refreshToken: 'rt-1' },

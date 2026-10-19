@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Senha para visualizar chaves",
+    "description": "A senha do aplicativo é verificada a cada exibição, cópia ou exportação de credenciais. As chaves são ocultadas após 30 segundos ou ao perder o foco. Não exige PIN do sistema.",
+    "verify": "Verificar",
+    "currentPassword": "Senha atual de visualização",
+    "newPassword": "Nova senha (8–128 caracteres)",
+    "confirmPassword": "Confirmar nova senha",
+    "enabled": "Proteção ativada",
+    "disabled": "Proteção desativada",
+    "setup": "Definir senha",
+    "change": "Alterar senha",
+    "disable": "Desativar proteção",
+    "forgot": "Esqueceu a senha?",
+    "reset": "Apagar credenciais e redefinir",
+    "resetWarning": "A recuperação apaga permanentemente chaves de provedores, grupos, modos API e planos, logins de assinaturas, chaves de clientes, cabeçalhos personalizados, chaves de pesquisa, senhas de proxy e segredos de Webhook/faturamento. As configurações permanecem; digite as credenciais novamente.",
+    "confirmClear": "Entendo e confirmo a exclusão dessas credenciais.",
+    "saved": "Senha atualizada.",
+    "mismatch": "As senhas não coincidem.",
+    "copyFailed": "Não foi possível copiar a chave."
+  },
+  "view-password-required": "Digite a senha de visualização.",
+  "view-password-invalid": "Senha incorreta.",
+  "view-password-locked": "Muitas tentativas. Tente novamente após 60 segundos.",
+  "view-password-unavailable": "O armazenamento da senha está indisponível. O acesso permanece bloqueado.",
+  "view-password-length": "Use de 8 a 128 caracteres.",
+  "view-password-reset-confirm": "Confirme primeiro a exclusão das credenciais salvas.",
+  "view-password-cancelled": "Cancelado.",
   "providerSettings": {
     "loading": "Carregando configuração do LLM...",
     "reset": {

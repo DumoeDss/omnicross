@@ -1093,6 +1093,10 @@ export function buildDaemon(config: DaemonConfig, paths: DaemonPaths): Daemon {
     // on the `SubscriptionCredentialStore` port). The admin API sees ONLY these two
     // mutators through the `SubscriptionTokenWriter` shape, never a token read.
     subscriptionTokenWriter: credentialStore,
+    clearStoredCredentials: async () => {
+      await credentialStore.clearAllCredentials();
+      await keyDb.clearSavedKeySecrets();
+    },
     // Read-only pool-health view (key-pool design D7): the admin API reads
     // `getKeyHealth` (cooldown) + the in-memory auto-disable store; the key
     // values themselves NEVER leave (masked via `maskProviderApiKey`).

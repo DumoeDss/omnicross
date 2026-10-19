@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "キー表示パスワード",
+    "description": "保存済みキーの表示・コピー・認証情報のエクスポートごとに、このアプリのパスワードを確認します。30 秒後またはウィンドウから離れるとキーを隠します。システム PIN は不要です。",
+    "verify": "確認",
+    "currentPassword": "現在の表示パスワード",
+    "newPassword": "新しい表示パスワード（8～128 文字）",
+    "confirmPassword": "新しいパスワードを再入力",
+    "enabled": "保護は有効です",
+    "disabled": "保護は無効です",
+    "setup": "パスワードを設定",
+    "change": "パスワードを変更",
+    "disable": "保護を無効化",
+    "forgot": "パスワードを忘れた場合",
+    "reset": "認証情報を消去して再設定",
+    "resetWarning": "復旧すると、プロバイダー・プール・API モード・プランのキー、サブスクリプションのログイン情報、クライアントキー、カスタムヘッダー、検索キー、プロキシパスワード、Webhook・課金シークレットを完全に消去します。設定は残りますが、認証情報の再入力が必要です。",
+    "confirmClear": "これらの認証情報の消去を理解し、確認します。",
+    "saved": "表示パスワードを更新しました。",
+    "mismatch": "パスワードが一致しません。",
+    "copyFailed": "キーをコピーできませんでした。"
+  },
+  "view-password-required": "表示パスワードを入力してください。",
+  "view-password-invalid": "表示パスワードが違います。",
+  "view-password-locked": "試行回数が多すぎます。60 秒後に再試行してください。",
+  "view-password-unavailable": "パスワードストレージを利用できません。アクセスはブロックされています。",
+  "view-password-length": "8～128 文字で入力してください。",
+  "view-password-reset-confirm": "先に保存済み認証情報の消去を確認してください。",
+  "view-password-cancelled": "キャンセルしました。",
   "providerSettings": {
     "loading": "LLM 設定を読み込み中...",
     "reset": {

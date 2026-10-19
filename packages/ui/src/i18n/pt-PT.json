@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Palavra-passe para ver chaves",
+    "description": "A palavra-passe da aplicação é verificada em cada visualização, cópia ou exportação de credenciais. As chaves são ocultadas após 30 segundos ou ao perder o foco. Não exige PIN do sistema.",
+    "verify": "Verificar",
+    "currentPassword": "Palavra-passe de visualização atual",
+    "newPassword": "Nova palavra-passe (8–128 carateres)",
+    "confirmPassword": "Confirmar nova palavra-passe",
+    "enabled": "Proteção ativada",
+    "disabled": "Proteção desativada",
+    "setup": "Definir palavra-passe",
+    "change": "Alterar palavra-passe",
+    "disable": "Desativar proteção",
+    "forgot": "Esqueceu-se da palavra-passe?",
+    "reset": "Apagar credenciais e repor",
+    "resetWarning": "A recuperação apaga permanentemente chaves de fornecedores, grupos, modos API e planos, inícios de sessão de subscrições, chaves de clientes, cabeçalhos personalizados, chaves de pesquisa, palavras-passe de proxy e segredos de Webhook/faturação. As definições mantêm-se; introduza novamente as credenciais.",
+    "confirmClear": "Compreendo e confirmo a eliminação destas credenciais.",
+    "saved": "Palavra-passe atualizada.",
+    "mismatch": "As palavras-passe não coincidem.",
+    "copyFailed": "Não foi possível copiar a chave."
+  },
+  "view-password-required": "Introduza a palavra-passe de visualização.",
+  "view-password-invalid": "Palavra-passe incorreta.",
+  "view-password-locked": "Demasiadas tentativas. Tente novamente após 60 segundos.",
+  "view-password-unavailable": "O armazenamento da palavra-passe está indisponível. O acesso continua bloqueado.",
+  "view-password-length": "Use 8–128 carateres.",
+  "view-password-reset-confirm": "Confirme primeiro a eliminação das credenciais guardadas.",
+  "view-password-cancelled": "Cancelado.",
   "providerSettings": {
     "loading": "A carregar configuração LLM...",
     "reset": {

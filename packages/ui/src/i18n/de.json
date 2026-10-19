@@ -1,4 +1,31 @@
 {
+  "keyViewing": {
+    "title": "Passwort zum Anzeigen von Schlüsseln",
+    "description": "Dieses App-Passwort wird bei jeder Schlüsselanzeige, Kopie und jedem Zugangsdatenexport geprüft. Schlüssel werden nach 30 Sekunden oder bei Fokusverlust verborgen. Keine System-PIN erforderlich.",
+    "verify": "Prüfen",
+    "currentPassword": "Aktuelles Anzeigepasswort",
+    "newPassword": "Neues Anzeigepasswort (8–128 Zeichen)",
+    "confirmPassword": "Neues Passwort bestätigen",
+    "enabled": "Schutz aktiviert",
+    "disabled": "Schutz deaktiviert",
+    "setup": "Passwort festlegen",
+    "change": "Passwort ändern",
+    "disable": "Schutz deaktivieren",
+    "forgot": "Passwort vergessen?",
+    "reset": "Zugangsdaten löschen und zurücksetzen",
+    "resetWarning": "Die Wiederherstellung löscht dauerhaft Anbieter-, Pool-, API-Modus- und Tarifschlüssel, Abonnementanmeldungen, Client-Zugangsschlüssel, eigene Header, Suchschlüssel, Proxy-Passwörter und Webhook-/Abrechnungsgeheimnisse. Einstellungen bleiben erhalten; Zugangsdaten müssen neu eingegeben werden.",
+    "confirmClear": "Ich verstehe und bestätige das Löschen dieser Zugangsdaten.",
+    "saved": "Anzeigepasswort aktualisiert.",
+    "mismatch": "Die Passwörter stimmen nicht überein.",
+    "copyFailed": "Schlüssel konnte nicht kopiert werden."
+  },
+  "view-password-required": "Anzeigepasswort eingeben.",
+  "view-password-invalid": "Falsches Anzeigepasswort.",
+  "view-password-locked": "Zu viele Versuche. Nach 60 Sekunden erneut versuchen.",
+  "view-password-unavailable": "Passwortspeicher nicht verfügbar. Zugriff bleibt gesperrt.",
+  "view-password-length": "8–128 Zeichen verwenden.",
+  "view-password-reset-confirm": "Zuerst das Löschen der gespeicherten Zugangsdaten bestätigen.",
+  "view-password-cancelled": "Abgebrochen.",
   "providerSettings": {
     "loading": "LLM-Konfiguration wird geladen...",
     "reset": {

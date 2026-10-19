@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { cancelViewingRequest } from '@/shared/keyViewing';
 
 import type { LogJevSettings } from '@omnicross/contracts/logjev';
 
@@ -41,14 +42,50 @@ export function useProviderForm(
   // ── Form state ──────────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<ProviderFormData>(emptyFormData);
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiKey, setKeyVisible] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
   // ── Inline edit state ───────────────────────────────────────────
   const [inlineName, setInlineName] = useState('');
   const [inlineModelsEndpoint, setInlineModelsEndpoint] = useState('');
-  const [inlineApiKey, setInlineApiKey] = useState('');
+  const [inlineApiKey, setKeyValue] = useState('');
+  const revealedValue = useRef<string | null>(null);
+  const viewGeneration = useRef(0);
+  const setInlineApiKey = (value: string) => {
+    viewGeneration.current += 1;
+    revealedValue.current = null;
+    setKeyValue(value);
+  };
+  const hideStoredKey = useCallback(() => {
+    viewGeneration.current += 1;
+    if (revealedValue.current !== null) setKeyValue('');
+    revealedValue.current = null;
+    setKeyVisible(false);
+  }, []);
+  const setShowApiKey = (value: boolean | ((previous: boolean) => boolean)) => {
+    const visible = typeof value === 'function' ? value(showApiKey) : value;
+    if (!visible) hideStoredKey();
+    else setKeyVisible(true);
+  };
+  useEffect(() => {
+    const hide = () => { hideStoredKey(); cancelViewingRequest(); };
+    const hidden = () => { if (document.hidden) hide(); };
+    window.addEventListener('blur', hide);
+    window.addEventListener('key-viewing-hide', hide);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      window.removeEventListener('blur', hide);
+      window.removeEventListener('key-viewing-hide', hide);
+      document.removeEventListener('visibilitychange', hidden);
+      viewGeneration.current += 1;
+    };
+  }, [hideStoredKey]);
+  useEffect(() => {
+    if (!showApiKey) return;
+    const timer = window.setTimeout(hideStoredKey, 30_000);
+    return () => window.clearTimeout(timer);
+  }, [showApiKey, hideStoredKey]);
   const [inlineApiUrl, setInlineApiUrl] = useState('');
   const [inlineMaxConcurrency, setInlineMaxConcurrency] = useState('');
 
@@ -57,9 +94,15 @@ export function useProviderForm(
   }, [updateProviderInCache]);
 
   // ── Sync inline fields when selected provider changes ──
-  const [prevSelectedId, setPrevSelectedId] = useState(selectedProvider?.id);
-  if (prevSelectedId !== selectedProvider?.id) {
-    setPrevSelectedId(selectedProvider?.id);
+  const selectionScope = `${selectedProvider?.id ?? ''}:${selectedProvider?.selectedApiModeId ?? ''}`;
+  const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
+  if (prevSelectedId !== selectionScope) {
+    setPrevSelectedId(selectionScope);
+    hideStoredKey();
+    setKeyValue('');
+    setFormData(emptyFormData);
+    setIsEditing(false);
+    setFormError(null);
     if (selectedProvider) {
       // provider-storage-secrets: the key is NEVER echoed to the renderer, so
       // seed the inline key field EMPTY (a masked "key is set" state shows when
@@ -71,6 +114,7 @@ export function useProviderForm(
       setInlineMaxConcurrency(selectedProvider.maxConcurrency != null ? String(selectedProvider.maxConcurrency) : '');
     }
   }
+  useEffect(() => { cancelViewingRequest(); }, [selectionScope]);
 
   // ── Handlers ────────────────────────────────────────────────────
   const handleSelectProvider = (providerId: string) => {
@@ -154,6 +198,7 @@ export function useProviderForm(
     provider: LLMProvider,
     opts: { apiKey?: string; enabled?: boolean; logjev?: LogJevSettings },
   ): Promise<boolean> => {
+    const generation = viewGeneration.current;
     try {
       const result = await agent.llmConfig.addFromPreset?.({
         presetId: provider.presetId ?? provider.id,
@@ -165,8 +210,10 @@ export function useProviderForm(
         setFormError(result.message ?? t('providerSettings.errors.saveFailed'));
         return false;
       }
-      setSelectedProviderId(result?.provider?.id ?? provider.id);
-      setFormError(null);
+      if (generation === viewGeneration.current) {
+        setSelectedProviderId(result?.provider?.id ?? provider.id);
+        setFormError(null);
+      }
       await refreshProviders();
       return true;
     } catch (error) {
@@ -263,6 +310,7 @@ export function useProviderForm(
       if (materialized) {
         setIsEditing(false);
         setIsAddingNew(false);
+        setFormData(emptyFormData);
       }
       return;
     }
@@ -341,6 +389,8 @@ export function useProviderForm(
       }
       setIsEditing(false);
       setIsAddingNew(false);
+      setFormData(emptyFormData);
+      setShowApiKey(false);
       await refreshProviders();
       // AFTER the refresh so the owner (a modal create flow) tears down against
       // a list that already contains the new provider.
@@ -354,6 +404,8 @@ export function useProviderForm(
   const handleCancelEdit = () => {
     setIsEditing(false);
     setIsAddingNew(false);
+    setFormData(emptyFormData);
+    setShowApiKey(false);
     setFormError(null);
     if (providers.length > 0 && !selectedProviderId) {
       setSelectedProviderId(providers[0].id);
@@ -362,12 +414,16 @@ export function useProviderForm(
 
   const handleInlineUpdate = async (field: string, value: string) => {
     if (!selectedProviderId || !selectedProvider) return;
+    if (field === 'api_key' && value === revealedValue.current) return;
+    const generation = viewGeneration.current;
     // A synthesized preset row is not a real provider yet — materialize it on
     // the first key entry (id/url/format are the preset's; only the key is the
     // user's). Other inline fields are disabled for preset rows.
     if (selectedProvider.__preset) {
       if (field === 'api_key' && value.trim().length > 0) {
-        await materializePreset(selectedProvider, { apiKey: value });
+        if (await materializePreset(selectedProvider, { apiKey: value }) && generation === viewGeneration.current) {
+          setInlineApiKey(''); setShowApiKey(false);
+        }
       }
       return;
     }
@@ -395,7 +451,12 @@ export function useProviderForm(
         console.error('Failed to update provider:', result.message);
         return;
       }
-      updateProviderState({ ...selectedProvider, [field]: parsedValue } as LLMProvider);
+      updateProviderState({ ...selectedProvider,
+        ...(field === 'api_key' ? { api_key: '', hasKey: true } : { [field]: parsedValue }),
+      } as LLMProvider);
+      if (field === 'api_key' && generation === viewGeneration.current) {
+        setInlineApiKey(''); setShowApiKey(false);
+      }
       await refreshProviders();
     } catch (error) {
       console.error('Error updating provider:', error);
@@ -443,6 +504,9 @@ export function useProviderForm(
     if (!modes || modes.length === 0) return false;
     const next = modes.find(m => m.id === modeId);
     if (!next) return false;
+    hideStoredKey();
+    setInlineApiKey('');
+    const generation = viewGeneration.current;
 
     // The daemon requires apiFormat + baseUrl on every PUT, so always include them
     // (mirrors toggleProvider). On a normal switch the baseUrl adopts the mode's URL
@@ -470,8 +534,7 @@ export function useProviderForm(
       //      triggers a false-positive "you customized URL" dialog on the
       //      next switch click.
       if (!opts?.keepCustomizations) {
-        setInlineApiUrl(next.baseUrl);
-        if (next.apiKey) setInlineApiKey(next.apiKey);
+        if (generation === viewGeneration.current) setInlineApiUrl(next.baseUrl);
       }
       // Update the in-memory provider cache so the Switch and dependent UI
       // reflect the new mode immediately, without waiting for refreshProviders.
@@ -482,7 +545,6 @@ export function useProviderForm(
           ? {}
           : {
               api_base_url: next.baseUrl,
-              ...(next.apiKey ? { api_key: next.apiKey } : {}),
             }),
       } as LLMProvider);
       await refreshProviders();
@@ -493,24 +555,34 @@ export function useProviderForm(
     }
   };
 
-  /**
-   * Reveal (fetch + show) the provider's stored API key. The BYO key is held
-   * reversibly by the daemon, so this asks for the decrypted value and drops it
-   * into the inline field. The cache's `api_key` is updated to the revealed value
-   * so the blur-commit guard treats it as unchanged (no redundant re-write) until
-   * the user actually edits it.
-   */
+  /** Revealed secrets stay local and never enter the provider cache. */
   const revealApiKey = async (): Promise<void> => {
     if (!selectedProviderId || !selectedProvider) return;
+    const generation = ++viewGeneration.current;
     try {
       const result = await agent.llmConfig.revealProviderKey?.(selectedProviderId);
+      if (generation !== viewGeneration.current) return;
       if (result?.success && typeof result.apiKey === 'string' && result.apiKey.length > 0) {
-        setInlineApiKey(result.apiKey);
-        updateProviderState({ ...selectedProvider, api_key: result.apiKey } as LLMProvider);
+        revealedValue.current = result.apiKey;
+        setKeyValue(result.apiKey);
+        setKeyVisible(true);
+        setFormError(null);
+      } else {
+        hideStoredKey();
+        if (result?.message && result.message !== 'view-password-cancelled') setFormError(t(result.message));
       }
-    } catch (error) {
-      console.error('Error revealing provider key:', error);
+    } catch {
+      if (generation === viewGeneration.current) hideStoredKey();
     }
+  };
+
+  const copyApiKey = async (): Promise<void> => {
+    if (!selectedProviderId) return;
+    const generation = viewGeneration.current;
+    const result = await agent.llmConfig.revealProviderKey?.(selectedProviderId);
+    if (generation !== viewGeneration.current || !result?.success || !result.apiKey) return;
+    try { await navigator.clipboard?.writeText(result.apiKey); }
+    catch { setFormError(t('keyViewing.copyFailed')); }
   };
 
   const handleReorderProviders = async (orderedIds: string[]) => {
@@ -527,6 +599,7 @@ export function useProviderForm(
 
   const handleToggleProvider = async (enabled: boolean) => {
     if (!selectedProviderId || !selectedProvider) return;
+    const generation = viewGeneration.current;
     // Toggling a synthesized preset row materializes it (carrying any key the
     // user already typed inline); afterwards the normal toggle path applies.
     if (selectedProvider.__preset) {
@@ -542,7 +615,7 @@ export function useProviderForm(
     // the input's blur — so the onBlur key-commit may not have fired yet. An
     // empty field leaves the stored key untouched; a `$VAR` ref is sent verbatim.
     const pendingKey = inlineApiKey.trim();
-    const keyPending = pendingKey.length > 0 && pendingKey !== (selectedProvider.api_key || '');
+    const keyPending = pendingKey.length > 0 && pendingKey !== revealedValue.current && pendingKey !== (selectedProvider.api_key || '');
     try {
       if (keyPending) {
         const result = await agent.llmConfig.updateProvider({
@@ -556,7 +629,7 @@ export function useProviderForm(
         }
         // The key is now stored (and never echoed back); drop the raw value from
         // the field so it flips to the masked "key is set" state.
-        setInlineApiKey('');
+        if (generation === viewGeneration.current) { setInlineApiKey(''); setShowApiKey(false); }
       } else {
         await agent.llmConfig.toggleProvider(selectedProviderId, enabled);
       }
@@ -662,5 +735,7 @@ export function useProviderForm(
     handleDeleteProvider,
     handleResetProvider,
     revealApiKey,
+    copyApiKey,
+    isStoredKeyRevealed: revealedValue.current !== null,
   };
 }
