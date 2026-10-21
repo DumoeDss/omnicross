@@ -429,6 +429,33 @@ describe('buildRequestBody (unified → Gemini request) tool handling', () => {
     });
   });
 
+  it.each([
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+  ])('encodes numeric budgets and disablement for %s', (model) => {
+    const enabled = buildRequestBody(baseRequest({
+      model,
+      reasoning: { effort: 'high', enabled: true },
+    }));
+    expect(enabled.generationConfig?.thinkingConfig).toEqual({
+      includeThoughts: true,
+      thinkingBudget: 19660,
+    });
+
+    for (const budget of [0, 8192]) {
+      const unified = transformRequestOut({
+        model,
+        contents: [],
+        generationConfig: { thinkingConfig: { thinkingBudget: budget } },
+      });
+      const roundTrip = buildRequestBody(unified, undefined, true);
+      expect(roundTrip.generationConfig?.thinkingConfig).toEqual({
+        includeThoughts: budget > 0,
+        thinkingBudget: budget,
+      });
+    }
+  });
+
   it('uses legacy limits, clamps explicit budgets, and computes a default', () => {
     const provider = {
       modelConfigs: [{

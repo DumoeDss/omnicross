@@ -292,17 +292,22 @@ export function resolveReasoningPlan(
 
   const capabilities = resolveTargetModelCapabilities(input.model, input.provider);
   const nativeEffort = normalizedIntent.effort;
+  // Gemini 2.x effort presets still require numeric thinkingBudget on the
+  // native wire; their presence does not imply support for thinkingLevel.
+  const usesNativeLevels = !!capabilities.thinkingLevels?.length && (
+    input.target !== 'gemini' || !/^gemini-2(?:[.-]|$)/.test(canonicalModelId(input.model))
+  );
 
   if (nativeEffort === 'none') {
     if (
       input.target === 'gemini' &&
-      capabilities.thinkingLevels?.length &&
-      capabilities.thinkingLevels.includes('none')
+      usesNativeLevels &&
+      capabilities.thinkingLevels?.includes('none')
     ) {
       return { kind: 'level', effort: 'none', enabled: false };
     }
 
-    if (input.target === 'gemini' && !capabilities.thinkingLevels?.length) {
+    if (input.target === 'gemini' && !usesNativeLevels) {
       const limits = resolveTokenLimit(input.model, input.provider, input.target)?.limits;
       if (limits?.min === 0) {
         return { kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 };
@@ -328,7 +333,7 @@ export function resolveReasoningPlan(
     return { kind: 'level', effort, enabled: true };
   }
 
-  if (capabilities.thinkingLevels?.length) {
+  if (usesNativeLevels) {
     return { kind: 'level', effort, enabled: true };
   }
 

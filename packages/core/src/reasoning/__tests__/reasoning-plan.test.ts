@@ -101,6 +101,71 @@ describe('resolveReasoningPlan discrete effort', () => {
 });
 
 describe('resolveReasoningPlan token budgets', () => {
+  it.each([
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'models/gemini-2.5-flash',
+    'google/gemini-2.5-flash-lite:beta',
+    'gemini-2.5-flash-preview-05-20',
+  ])('uses numeric Gemini budgets for %s despite effort presets', (model) => {
+    expect(resolveReasoningPlan({
+      intent: enabled('high'),
+      model,
+      target: 'gemini',
+    })).toEqual({ kind: 'budget', effort: 'high', enabled: true, budgetTokens: 19660 });
+
+    expect(resolveReasoningPlan({
+      intent: { ...enabled('high'), max_tokens: 8192 },
+      model,
+      target: 'gemini',
+      requestMaxTokens: 4096,
+    })).toMatchObject({ kind: 'budget', budgetTokens: 4096 });
+
+    expect(resolveReasoningPlan({
+      intent: { effort: 'none', enabled: false },
+      model,
+      target: 'gemini',
+    })).toEqual({ kind: 'budget', effort: 'none', enabled: false, budgetTokens: 0 });
+  });
+
+  it('honors Gemini 2.5 provider limits and keeps OpenAI-compatible efforts discrete', () => {
+    const model = 'gemini-2.5-flash';
+    const provider = {
+      modelConfigs: [{ id: model, thinkingTokenLimit: { min: 100, max: 1000 } }],
+    };
+    expect(resolveReasoningPlan({
+      intent: enabled('medium'),
+      model,
+      provider,
+      target: 'gemini',
+    })).toEqual({ kind: 'budget', effort: 'medium', enabled: true, budgetTokens: 550 });
+    expect(resolveReasoningPlan({
+      intent: enabled('high'),
+      model,
+      target: 'openai-chat',
+    })).toEqual({ kind: 'level', effort: 'high', enabled: true });
+    expect(resolveReasoningPlan({
+      intent: { effort: 'none', enabled: false },
+      model: 'gemini-2.5-pro',
+      target: 'gemini',
+    })).toEqual({ kind: 'off' });
+  });
+
+  it.each([
+    ['gemini-3-flash', 'high'],
+    ['gemini-3.1-pro', 'high'],
+    ['gemini-4-argon', 'low'],
+    ['gemini-4-argon', 'medium'],
+    ['gemini-4-argon', 'high'],
+    ['models/gemini-4-argon', 'high'],
+  ] as const)('keeps %s on native %s thinking levels', (model, effort) => {
+    expect(resolveReasoningPlan({
+      intent: { ...enabled(effort), max_tokens: 8192 },
+      model,
+      target: 'gemini',
+    })).toEqual({ kind: 'level', effort, enabled: true });
+  });
+
   it('uses provider then canonical token limits before compatibility fallbacks', () => {
     expect(resolveReasoningTokenLimit('gpt-5.6', undefined, 'gemini')).toEqual({
       min: 0,

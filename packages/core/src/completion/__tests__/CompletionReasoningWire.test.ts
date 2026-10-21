@@ -355,10 +355,27 @@ describe('Completion budget reasoning wire bodies', () => {
     ]);
   });
 
-  it('encodes Gemini direct/stream × enabled/disabled equivalently', async () => {
-    const gemini = provider('google', 'gemini-3-flash');
-    const enabledOptions = options('gemini-3-flash', 'xhigh');
-    const disabledOptions = options('gemini-3-flash', 'none');
+  it.each([
+    ['gemini-2.5-flash',
+      { includeThoughts: true, thinkingBudget: 19660 },
+      { includeThoughts: false, thinkingBudget: 0 }],
+    ['gemini-2.5-flash-lite',
+      { includeThoughts: true, thinkingBudget: 19660 },
+      { includeThoughts: false, thinkingBudget: 0 }],
+    ['gemini-3-flash',
+      { includeThoughts: true, thinkingLevel: 'high' },
+      { includeThoughts: false, thinkingLevel: 'none' }],
+    ['gemini-4-argon',
+      { includeThoughts: true, thinkingLevel: 'high' },
+      undefined],
+  ] as const)('encodes %s direct/stream × enabled/disabled equivalently', async (
+    model,
+    enabledConfig,
+    disabledConfig,
+  ) => {
+    const gemini = provider('google', model);
+    const enabledOptions = options(model, 'xhigh');
+    const disabledOptions = options(model, 'none');
 
     await callGeminiCompletion(gemini, 'key', enabledOptions, logger);
     await callGeminiCompletion(gemini, 'key', disabledOptions, logger);
@@ -379,11 +396,12 @@ describe('Completion budget reasoning wire bodies', () => {
       logger,
     );
 
+    expect(bodies).toHaveLength(4);
     expect(bodies.map((body) => body.generationConfig.thinkingConfig)).toEqual([
-      { includeThoughts: true, thinkingLevel: 'high' },
-      { includeThoughts: false, thinkingLevel: 'none' },
-      { includeThoughts: true, thinkingLevel: 'high' },
-      { includeThoughts: false, thinkingLevel: 'none' },
+      enabledConfig,
+      disabledConfig,
+      enabledConfig,
+      disabledConfig,
     ]);
   });
 });
