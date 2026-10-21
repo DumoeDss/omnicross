@@ -291,9 +291,9 @@ export function ProviderDetails({
         <RevealableInput
           revealed={showApiKey}
           onRevealedChange={(revealed) => {
-            // Revealing a stored-but-unshown key: fetch the real (decrypted) value
-            // and drop it into the field. Only when the user hasn't typed a new one.
-            if (revealed && selectedProvider.hasKey && inlineApiKey.trim().length === 0) {
+            // Let the protected backend read decide whether a key exists, even
+            // when hasKey is stale or missing. Typed replacements stay local.
+            if (revealed && inlineApiKey.trim().length === 0) {
               void onRevealApiKey?.();
             } else setShowApiKey(revealed);
           }}
@@ -310,7 +310,7 @@ export function ProviderDetails({
           }
           onChange={(e) => setInlineApiKey(e.target.value)}
           onCopy={(event) => {
-            if (!selectedProvider.hasKey || (inlineApiKey.length > 0 && !isStoredKeyRevealed)) return;
+            if (!isStoredKeyRevealed && (!selectedProvider.hasKey || inlineApiKey.length > 0)) return;
             event.preventDefault();
             void onCopyApiKey?.();
           }}

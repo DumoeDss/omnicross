@@ -30,7 +30,7 @@ function Harness({ selected }: { selected: LLMProvider | null }) {
 }
 async function select(selected: LLMProvider | null) { await act(async () => root.render(<Harness selected={selected} />)); }
 beforeEach(() => {
-  vi.clearAllMocks(); vi.useFakeTimers();
+  vi.resetAllMocks(); vi.useFakeTimers();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
   mocks.revealProviderKey.mockResolvedValue({ success: true, apiKey: 'fixture-secret' });
@@ -40,6 +40,51 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); });
 
 describe('provider key isolation', () => {
+  it.each([false, undefined])('protects eye-button reveals when hasKey is %s', async (hasKey) => {
+    let finish!: (value: unknown) => void;
+    mocks.revealProviderKey.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    await select({ ...providers[0], hasKey });
+
+    await act(async () => Simulate.click(container.querySelector('button[aria-label="Show"]')!));
+    expect(mocks.revealProviderKey).toHaveBeenCalledWith(providers[0].id);
+    expect(form.inlineApiKey).toBe('');
+    expect(form.showApiKey).toBe(false);
+
+    await act(async () => finish({ success: true, apiKey: 'fixture-secret' }));
+    expect(form.inlineApiKey).toBe('fixture-secret');
+    expect(form.showApiKey).toBe(true);
+    expect(mocks.updateProvider).not.toHaveBeenCalled();
+    expect(updateCache).not.toHaveBeenCalled();
+
+    const input = container.querySelector<HTMLInputElement>('input[value="fixture-secret"]')!;
+    const preventDefault = vi.fn();
+    await act(async () => Simulate.copy(input, { preventDefault }));
+    expect(preventDefault).toHaveBeenCalled();
+    expect(mocks.revealProviderKey).toHaveBeenCalledTimes(2);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('fixture-secret');
+
+    await act(async () => Simulate.click(container.querySelector('button[aria-label="Hide"]')!));
+    mocks.revealProviderKey.mockResolvedValueOnce({ success: false, message: 'view-password-cancelled' });
+    await act(async () => Simulate.click(container.querySelector('button[aria-label="Show"]')!));
+    expect(mocks.revealProviderKey).toHaveBeenCalledTimes(3);
+    expect(form.inlineApiKey).toBe('');
+    expect(form.showApiKey).toBe(false);
+  });
+
+  it('toggles a newly typed key locally without fetching the stored key', async () => {
+    await select({ ...providers[0], hasKey: false });
+    await act(async () => form.setInlineApiKey('draft-key'));
+
+    await act(async () => Simulate.click(container.querySelector('button[aria-label="Show"]')!));
+    expect(form.inlineApiKey).toBe('draft-key');
+    expect(form.showApiKey).toBe(true);
+    expect(mocks.revealProviderKey).not.toHaveBeenCalled();
+
+    await act(async () => Simulate.click(container.querySelector('button[aria-label="Hide"]')!));
+    expect(form.inlineApiKey).toBe('draft-key');
+    expect(form.showApiKey).toBe(false);
+  });
+
   it('clears drafts, visibility and edit state on provider and API-mode changes', async () => {
     await select(providers[0]);
     await act(async () => { form.setInlineApiKey('draft-key'); form.setShowApiKey(true); form.handleEditProvider(); form.setShowApiKey(true); });
