@@ -4,7 +4,7 @@ Omnicross exposes one reusable decision client in `@omnicross/core/logjev` and a
 
 ## Configure a provider
 
-In **Model Services → Decision Models**, choose **LogJev** for an OpenAI-compatible model that returns `top_logprobs`, **Jev (TypeSafe)** for the native API, **Jev (OpenRouter)** to use OpenRouter's Jev models (`typesafe/jev-*` via the native Decisions endpoint), or **OpenRouter Decisions** for the curated OpenRouter Decisions leaderboard models (`typesafe/jev-*`, `openai/gpt-6-luna-decisions`, `nace-ai/drex-*` and friends).
+In **Model Services → Decision Models**, choose **LogJev** for an OpenAI-compatible model that returns `top_logprobs`, **Jev (TypeSafe)** for the native API, or **OpenRouter Decisions** for OpenRouter's native Decisions endpoint and curated decision models (`typesafe/jev-*`, `openai/gpt-6-luna-decisions`, `nace-ai/drex-*` and friends). Decision services appear only on this page, outside the LLM provider list and chat-route targets.
 
 The LogJev editor is SELECTOR-shaped: instead of re-entering a key/URL, pick an already-configured provider from 模型服务 (Model Services) plus one of its models — the daemon resolves that row's credentials at call time. An **OpenCodeGo account pool** is selectable too (its zen half serves the OpenAI chat wire; the ACTIVE account's key is used and its model list is fetched live). The **probe** button sends one minimal completion with the reader's exact logprobs parameters and warns when the selected provider+model does not return `top_logprobs`. Rows that carry their own URL/key/models (legacy) keep working; the provider editor also exposes the decision backend, full/minimal prompt mode, top-k and additional nonsecret model options. Other locales currently use English fallback labels for these new fields.
 
@@ -87,6 +87,6 @@ Keep one client per configured provider so its queue bounds concurrent evaluatio
 
 ## Compatibility and references
 
-Existing `open-jev` provider IDs, keys and `/v1/systemone` clients remain valid. Without explicit settings, legacy OpenRouter rows select native mode only for Jev model names; ordinary LLMs use chat mode. Legacy `jev` rows retain native mode. Disabled rows are never selected.
+The former **LogJev (OpenRouter)** / **Jev (OpenRouter)** preset (`logjev-openrouter`) has been replaced by **OpenRouter Decisions** and is no longer offered in the catalog. Existing configured `logjev-openrouter` and `open-jev` provider IDs, keys and `/v1/systemone` clients remain valid and stay manageable on the Decision Models page. Without explicit settings, legacy OpenRouter rows select native mode only for Jev model names; ordinary LLMs use chat mode. Legacy `jev` rows retain native mode. Disabled rows are never selected.
 
 Prompt and probability logic derives from the user's [LogJev implementation](https://github.com/DumoeDss/logjev). Native concepts: [TypeSafe's building guide](https://docs.typesafe.ai/concepts/how-to-build-with-system-one). The logprob emulation is a compatibility bridge, not a claim to reproduce native Jev quality or latency.

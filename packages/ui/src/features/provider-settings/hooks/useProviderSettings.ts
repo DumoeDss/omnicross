@@ -127,7 +127,7 @@ export function useProviderSettings(options: UseProviderSettingsOptions = {}) {
     // filtered on equal terms with materialized providers.
     return options.categoryFilter === 'other'
       ? merged.filter((provider) => provider.category === 'other')
-      : merged;
+      : merged.filter((provider) => provider.category !== 'other');
   }, [realProviders, presets, options.categoryFilter]);
 
   const [searchTerm, setSearchTerm] = useState('');

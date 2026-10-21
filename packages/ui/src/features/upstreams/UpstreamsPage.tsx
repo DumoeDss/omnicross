@@ -249,6 +249,8 @@ export function UpstreamsPage({ route, onNavigate }: UpstreamsPageProps) {
       });
     }
     for (const provider of providersApi.providers) {
+      // Decision services have their own page and cannot be chat-route targets.
+      if (provider.category === 'other') continue;
       rows.push({
         kind: 'provider',
         key: resourceKey.provider(provider.id),
