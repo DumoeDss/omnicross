@@ -62,6 +62,13 @@ import {
   downgradeJsonSchemaBody,
   isJsonObjectOnlyProvider,
 } from './utils/structuredOutput';
+import {
+  applyReasoningReplay,
+  isReasoningReplayLearned,
+  isReasoningReplayProvider,
+  reasoningReplayKey,
+  type ReasoningReplayEntry,
+} from './utils/reasoningReplay';
 
 /** Message-level keys that must never reach an OpenAI chat upstream. */
 const FOREIGN_MESSAGE_KEYS = ['cache_control', 'thinking'] as const;
@@ -121,7 +128,7 @@ export class OpenAITransformer implements Transformer {
   async transformRequestIn(
     request: UnifiedChatRequest,
     provider: LLMProvider,
-    _context: TransformerContext,
+    context: TransformerContext,
   ): Promise<Record<string, unknown>> {
     const source = request as unknown as Record<string, unknown>;
     const out: Record<string, unknown> = {};
@@ -179,6 +186,30 @@ export class OpenAITransformer implements Transformer {
       out.reasoning_effort = reasoningPlan.effort;
     } else if (request.reasoning) {
       delete out.reasoning_effort;
+    }
+
+    // Reasoning replay: DeepSeek v4 thinking mode rejects a request whose
+    // thinking-turn assistant history lacks `reasoning_content` (400 "The
+    // `reasoning_content` in the thinking mode must be passed back"). The
+    // Responses ingress stashes the client's replayed `reasoning` items on the
+    // shared context keyed by assistant-message index. Replay them only for
+    // upstreams that demand it — for everyone else the field is at best noise
+    // and at worst a rejection (classic deepseek-reasoner FORBIDS it in
+    // input). Statically classified providers replay when this request engages
+    // thinking (the demand is thinking-mode-scoped); a provider LEARNED from a
+    // live rejection replays unconditionally — the 400 proved the demand, and
+    // gating again would keep paying it on non-thinking turns.
+    const reasoningReplay = context.responsesReasoningReplay as
+      | ReasoningReplayEntry[]
+      | undefined;
+    if (reasoningReplay?.length) {
+      const replayLearned = isReasoningReplayLearned(reasoningReplayKey(provider));
+      const replayStatic =
+        isReasoningReplayProvider(provider, request.model) &&
+        out.reasoning_effort !== undefined;
+      if (replayLearned || replayStatic) {
+        applyReasoningReplay(out, reasoningReplay);
+      }
     }
 
     // Structured-output fallback: DeepSeek's chat wire answers 400 "This

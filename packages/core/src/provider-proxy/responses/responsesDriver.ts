@@ -52,6 +52,13 @@ import {
   isResponseFormatRejection,
   markJsonSchemaUnsupported,
 } from '../../transformer/transformers/utils/structuredOutput';
+import {
+  isReasoningContentForbidden,
+  isReasoningReplayRejection,
+  markReasoningReplayRequired,
+  reasoningReplayKey,
+  stripReasoningReplay,
+} from '../../transformer/transformers/utils/reasoningReplay';
 import { markCodexUsageLimitExhaustion } from '../ingress/codexUsageLimitDetection';
 
 import type { ResponsesAffinityEntry, ResponsesCredentialIdentity } from './responsesAffinity';
@@ -777,7 +784,30 @@ async function runReduced(
         // Read the rejection from a CLONE so the original body still reaches
         // the client if the fallback does not apply.
         const errorText = await upstream.clone().text().catch(() => '');
+        // REASONING-REPLAY LEARNING: DeepSeek v4 thinking mode 400s with "The
+        // `reasoning_content` in the thinking mode must be passed back to the
+        // API." The chat encoder replays it proactively for classified
+        // providers; for an unclassified one, remember the endpoint so the
+        // NEXT request injects (the reasoning text rides the ingress
+        // transformer context and is out of reach here, so — unlike the
+        // json_schema fallback below — this cannot rewrite-and-retry in
+        // place).
+        if (isReasoningReplayRejection(upstream.status, errorText)) {
+          markReasoningReplayRequired(reasoningReplayKey(plan.transformerProvider));
+        }
+        // REASONING-REPLAY STRIP: the mirror rejection — an upstream that
+        // FORBIDS `reasoning_content` in input (classic deepseek-reasoner).
+        // A mis-classified or provider-key-poisoned route (the learned key is
+        // endpoint-scoped, not model-scoped) would otherwise hard-fail every
+        // turn; strip the field and retry ONCE.
         if (
+          isReasoningContentForbidden(upstream.status, errorText) &&
+          stripReasoningReplay(wireBody)
+        ) {
+          await upstream.body?.cancel().catch(() => undefined);
+          throwIfResponsesAborted(signal);
+          upstream = await attempt();
+        } else if (
           isResponseFormatRejection(upstream.status, errorText) &&
           downgradeJsonSchemaBody(wireBody)
         ) {

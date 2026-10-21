@@ -34,6 +34,7 @@ import {
 import { recordDroppedField } from '../transformWarnings';
 import { buildOpenAIResponseApiUrl } from '../../completion/url-builder';
 import { isCodexThreadDeliveryReceipt } from './utils/responsesBookkeeping';
+import type { ReasoningReplayEntry } from './utils/reasoningReplay';
 
 // ============================================================================
 // Response API Types
@@ -314,6 +315,24 @@ export class OpenAIResponseTransformer implements Transformer {
       context.responsesReasoningSummary = req.reasoning.summary;
     }
 
+    // Reasoning replay capture. A `reasoning` input item is codex handing back
+    // the thinking of a PRIOR assistant turn (its `summary` parts — under this
+    // proxy that summary IS the upstream's full `reasoning_content`, see the
+    // streaming encoder below). The item maps to no message of its own; its
+    // text is attached to the assistant turn that FOLLOWS it and recorded on
+    // the context (by unified-message index) for the chat encoder, which
+    // replays it as `reasoning_content` only for upstreams that demand it —
+    // DeepSeek v4 thinking mode 400s without it (utils/reasoningReplay).
+    let pendingReasoningText = '';
+    const attachPendingReasoning = () => {
+      if (!pendingReasoningText) return;
+      ((context.responsesReasoningReplay as ReasoningReplayEntry[] | undefined) ??= []).push({
+        messageIndex: messages.length - 1,
+        text: pendingReasoningText,
+      });
+      pendingReasoningText = '';
+    };
+
     // The public Responses API carries the system prompt in `instructions`
     // (codex instead sends it as a `developer` message item); newer clients
     // spell it `prompt`. Dropping it lost the caller's entire system prompt
@@ -331,6 +350,27 @@ export class OpenAIResponseTransformer implements Transformer {
         const itemType = typeof entry.type === 'string' ? entry.type : undefined;
 
         if ((itemType && SKIPPED_INPUT_ITEM_TYPES.has(itemType)) || isCodexThreadDeliveryReceipt(entry)) continue;
+
+        // A replayed reasoning item: no message of its own — stash the summary
+        // text for the assistant turn that follows (see attachPendingReasoning).
+        // `encrypted_content` (OpenAI-only opaque replay) is unusable here and
+        // deliberately ignored.
+        if (itemType === 'reasoning') {
+          const summary = Array.isArray(entry.summary) ? entry.summary : [];
+          let text = '';
+          for (const part of summary) {
+            const partText = (part as Record<string, unknown> | undefined)?.text;
+            if (typeof partText === 'string' && partText) {
+              text = text ? `${text}\n${partText}` : partText;
+            }
+          }
+          if (text) {
+            pendingReasoningText = pendingReasoningText
+              ? `${pendingReasoningText}\n${text}`
+              : text;
+          }
+          continue;
+        }
 
         // codex's tool declarations. Merged into `result.tools` below; the item
         // itself carries `role:'developer'` with no content and must not become
@@ -387,6 +427,7 @@ export class OpenAIResponseTransformer implements Transformer {
             (last.tool_calls ??= []).push(toolCall);
           } else {
             messages.push({ role: 'assistant', content: null, tool_calls: [toolCall] });
+            attachPendingReasoning();
           }
           continue;
         }
@@ -439,6 +480,7 @@ export class OpenAIResponseTransformer implements Transformer {
             (last.tool_calls ??= []).push(toolCall);
           } else {
             messages.push({ role: 'assistant', content: null, tool_calls: [toolCall] });
+            attachPendingReasoning();
           }
           continue;
         }
@@ -463,6 +505,7 @@ export class OpenAIResponseTransformer implements Transformer {
           const content = responsesContentToUnified(entry.content);
           if (content === undefined) continue;
           messages.push({ role, content });
+          if (role === 'assistant') attachPendingReasoning();
         }
       }
     }
@@ -682,14 +725,18 @@ const TEXT_PART_TYPES = new Set(['text', 'input_text', 'output_text', 'summary_t
 /**
  * Responses `input` item types with no OpenAI-chat equivalent — dropped on decode.
  *
- * - `reasoning` — provider-internal, and `encrypted_content` under `store:false`.
  * - `agent_message` — codex multi-agent inbound message; no chat role fits it.
+ *
+ * `reasoning` is NOT skipped: its `summary_text` parts are stashed on the
+ * transformer context (see `responsesReasoningReplay`) so a chat upstream that
+ * demands `reasoning_content` passback — DeepSeek v4 thinking mode — can be
+ * served; see `utils/reasoningReplay`. The item itself still becomes no message.
  *
  * `additional_tools`, `custom_tool_call` and `custom_tool_call_output` are NOT
  * dropped: see `collectCodexTools` and the custom-tool branches in
  * `transformRequestOut`.
  */
-const SKIPPED_INPUT_ITEM_TYPES = new Set(['reasoning', 'agent_message']);
+const SKIPPED_INPUT_ITEM_TYPES = new Set(['agent_message']);
 
 /**
  * Parameter schema a codex `custom` tool is exposed with.
@@ -1207,6 +1254,17 @@ function convertOpenAIJsonToResponseApi(
     if (content) {
       contentParts.push({ type: 'output_text', text: content });
     }
+    // A thinking upstream answers with `reasoning_content`; surface it as a
+    // `reasoning` output item (first, as on the real wire) so Responses clients
+    // retain it — codex replays it next turn, which chat upstreams that demand
+    // `reasoning_content` passback need (utils/reasoningReplay).
+    const reasoningContent = message.reasoning_content;
+    if (typeof reasoningContent === 'string' && reasoningContent.length > 0) {
+      output.push({
+        type: 'reasoning',
+        summary: [{ type: 'summary_text', text: reasoningContent }],
+      });
+    }
     if (contentParts.length > 0) {
       output.push({ type: 'message', role: 'assistant', content: contentParts });
     }
@@ -1484,6 +1542,19 @@ function convertOpenAIStreamToResponseApi(
       const dsmlSuppressor = new DsmlStreamSuppressor();
       let syntheticToolIndex = 10000;
       let finalized = false;
+      // Reasoning item lifecycle. A chat upstream's `reasoning_content` must be
+      // framed as a `reasoning` OUTPUT ITEM (added → summary part → deltas →
+      // done); bare `response.reasoning_summary_text.delta` events belong to no
+      // item, so codex silently DROPPED them — the reasoning never reached the
+      // rollout and could not be replayed on the next turn, which thinking
+      // upstreams that demand `reasoning_content` passback need
+      // (utils/reasoningReplay). Opened lazily on the first reasoning delta,
+      // closed on the first non-reasoning output or at finish.
+      let reasoningItemAdded = false;
+      let reasoningItemClosed = false;
+      let reasoningItemId = '';
+      let reasoningOutputIndex: number | undefined;
+      let reasoningText = '';
       // Tail of the relayed text while the salvage is UNARMED, so a leak split
       // across deltas still trips the once-per-process diagnostic below.
       let unarmedTail = '';
@@ -1502,11 +1573,41 @@ function convertOpenAIStreamToResponseApi(
         safeEnqueue(`data: ${JSON.stringify(event)}\n\n`);
       };
 
+      const closeReasoningItem = () => {
+        if (!reasoningItemAdded || reasoningItemClosed) return;
+        reasoningItemClosed = true;
+        emitEvent({
+          type: 'response.reasoning_summary_text.done',
+          item_id: reasoningItemId,
+          output_index: reasoningOutputIndex,
+          summary_index: 0,
+          text: reasoningText,
+        });
+        emitEvent({
+          type: 'response.reasoning_summary_part.done',
+          item_id: reasoningItemId,
+          output_index: reasoningOutputIndex,
+          summary_index: 0,
+          part: { type: 'summary_text', text: reasoningText },
+        });
+        emitEvent({
+          type: 'response.output_item.done',
+          output_index: reasoningOutputIndex,
+          item: {
+            id: reasoningItemId,
+            type: 'reasoning',
+            summary: reasoningText ? [{ type: 'summary_text', text: reasoningText }] : [],
+            status: 'completed',
+          },
+        });
+      };
+
       // Emit assistant prose, opening the text message item lazily on the first
       // fragment. The DSML suppressor feeds this too — it withholds markup, so
       // what it releases is prose by construction.
       const emitAssistantText = (text: string) => {
         if (!text) return;
+        closeReasoningItem();
         if (!messageItemAdded) {
           messageItemAdded = true;
           messageOutputIndex = nextOutputIndex++;
@@ -1591,8 +1692,34 @@ function convertOpenAIStreamToResponseApi(
                 choice.delta?.thinking?.content ??
                 (choice.delta as { reasoning_content?: string } | undefined)?.reasoning_content;
               if (reasoningDelta) {
+                if (!reasoningItemAdded) {
+                  reasoningItemAdded = true;
+                  reasoningItemId = `rs_${Date.now()}`;
+                  reasoningOutputIndex = nextOutputIndex++;
+                  emitEvent({
+                    type: 'response.output_item.added',
+                    output_index: reasoningOutputIndex,
+                    item: {
+                      id: reasoningItemId,
+                      type: 'reasoning',
+                      summary: [],
+                      status: 'in_progress',
+                    },
+                  });
+                  emitEvent({
+                    type: 'response.reasoning_summary_part.added',
+                    item_id: reasoningItemId,
+                    output_index: reasoningOutputIndex,
+                    summary_index: 0,
+                    part: { type: 'summary_text', text: '' },
+                  });
+                }
+                reasoningText += reasoningDelta;
                 emitEvent({
                   type: 'response.reasoning_summary_text.delta',
+                  item_id: reasoningItemId,
+                  output_index: reasoningOutputIndex,
+                  summary_index: 0,
                   delta: reasoningDelta,
                 });
               }
@@ -1613,6 +1740,7 @@ function convertOpenAIStreamToResponseApi(
                       isCustom: isCustomToolCallName(name, codexTools),
                     };
                     toolCalls.set(tcIndex, entry);
+                    closeReasoningItem();
                     const outIdx = nextOutputIndex++;
                     toolOutputIndex.set(tcIndex, outIdx);
                     // A codex `custom` tool opens a `custom_tool_call` item, a
@@ -1672,6 +1800,17 @@ function convertOpenAIStreamToResponseApi(
                   });
                 }
                 const output: Array<Record<string, unknown>> = [];
+                // A reasoning-only close (no prose/tool followed) still owes the
+                // client the item's done events; otherwise closeReasoningItem
+                // already ran on the first non-reasoning output.
+                closeReasoningItem();
+                if (reasoningItemAdded && reasoningOutputIndex !== undefined) {
+                  output[reasoningOutputIndex] = {
+                    id: reasoningItemId,
+                    type: 'reasoning',
+                    summary: reasoningText ? [{ type: 'summary_text', text: reasoningText }] : [],
+                  };
+                }
                 if (messageItemAdded) {
                   emitEvent({
                     type: 'response.output_text.done',

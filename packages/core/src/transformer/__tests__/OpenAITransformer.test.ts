@@ -21,6 +21,11 @@ import { describe, expect, it } from 'vitest';
 
 import { OpenAITransformer } from '../transformers/OpenAITransformer';
 import type { LLMProvider, TransformerContext, UnifiedChatRequest } from '../types';
+import {
+  markReasoningReplayRequired,
+  reasoningReplayKey,
+  resetReasoningReplayStateForTests,
+} from '../transformers/utils/reasoningReplay';
 
 const provider = { name: 'deepseek', baseUrl: 'https://api.deepseek.com' } as unknown as LLMProvider;
 const ctx = { providerName: 'deepseek' } as unknown as TransformerContext;
@@ -315,5 +320,92 @@ describe('OpenAITransformer — registration contract', () => {
   it('names the openai format axis slot', () => {
     expect(OpenAITransformer.TransformerName).toBe('openai');
     expect(new OpenAITransformer().name).toBe('openai');
+  });
+});
+
+describe('OpenAITransformer — reasoning replay from a Responses client', () => {
+  // The Reduced-chain companion to the thinking round trip above: codex replays
+  // its `reasoning` items, the Responses ingress stashes them on the shared
+  // context, and the chat encoder writes them back as `reasoning_content` for
+  // upstreams that demand it (DeepSeek v4 thinking mode) — and nobody else.
+  const deepseekProvider = {
+    name: 'deepseek',
+    baseUrl: 'https://api.deepseek.com',
+  } as unknown as LLMProvider;
+  const zaiProvider = { name: 'z-ai', baseUrl: 'https://api.z.ai' } as unknown as LLMProvider;
+
+  function replayContext(
+    entries: Array<{ messageIndex: number; text: string }>,
+  ): TransformerContext {
+    return { responsesReasoningReplay: entries } as TransformerContext;
+  }
+
+  const history: Array<Record<string, unknown>> = [
+    { role: 'user', content: 'list files' },
+    { role: 'assistant', content: null, tool_calls: [] },
+    { role: 'tool', content: 'a.txt', tool_call_id: 'call_1' },
+    { role: 'assistant', content: 'done' },
+  ];
+  const replay = [
+    { messageIndex: 1, text: 'thinking A' },
+    { messageIndex: 3, text: 'thinking B' },
+  ];
+
+  it('replays reasoning_content for a thinking request on DeepSeek v4', async () => {
+    const out = await new OpenAITransformer().transformRequestIn(
+      req({ model: 'deepseek-flash', messages: history as never, reasoning: { effort: 'high', enabled: true } }),
+      deepseekProvider,
+      replayContext(replay),
+    );
+    const messages = out.messages as Array<Record<string, unknown>>;
+    expect(out.reasoning_effort).toBeDefined();
+    expect(messages[1]?.reasoning_content).toBe('thinking A');
+    expect(messages[3]?.reasoning_content).toBe('thinking B');
+    expect(messages[0]?.reasoning_content).toBeUndefined();
+    expect(messages[2]?.reasoning_content).toBeUndefined();
+  });
+
+  it('stays silent when the request does not engage thinking', async () => {
+    const out = await new OpenAITransformer().transformRequestIn(
+      req({ model: 'deepseek-flash', messages: history as never }),
+      deepseekProvider,
+      replayContext(replay),
+    );
+    expect(out.reasoning_effort).toBeUndefined();
+    for (const message of out.messages as Array<Record<string, unknown>>) {
+      expect(message.reasoning_content).toBeUndefined();
+    }
+  });
+
+  it('stays silent for legacy deepseek-reasoner and for other providers', async () => {
+    for (const [provider, model] of [
+      [deepseekProvider, 'deepseek-reasoner'],
+      [zaiProvider, 'glm-5.3'],
+    ] as const) {
+      const out = await new OpenAITransformer().transformRequestIn(
+        req({ model, messages: history as never, reasoning: { effort: 'high', enabled: true } }),
+        provider,
+        replayContext(replay),
+      );
+      for (const message of out.messages as Array<Record<string, unknown>>) {
+        expect(message.reasoning_content).toBeUndefined();
+      }
+    }
+  });
+
+  it('replays unconditionally once the provider is learned from a live rejection', async () => {
+    try {
+      markReasoningReplayRequired(reasoningReplayKey(zaiProvider));
+      // No reasoning intent at all — the observed 400 proved the demand.
+      const out = await new OpenAITransformer().transformRequestIn(
+        req({ model: 'glm-5.3', messages: history as never }),
+        zaiProvider,
+        replayContext(replay),
+      );
+      const messages = out.messages as Array<Record<string, unknown>>;
+      expect(messages[1]?.reasoning_content).toBe('thinking A');
+    } finally {
+      resetReasoningReplayStateForTests();
+    }
   });
 });
