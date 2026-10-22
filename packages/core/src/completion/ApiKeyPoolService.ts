@@ -2,19 +2,13 @@
  * ApiKeyPoolService - Multi-API-key load balancing with session affinity
  *
  * Manages a pool of API keys per provider, selecting keys via weighted
- * round-robin and maintaining session-level key affinity to preserve
- * prompt cache across requests within the same session.
+ * round-robin and maintaining provider+session key affinity to preserve
+ * prompt cache when a conversation switches providers and returns.
  */
 
 import type { ApiKeyEntry } from '@omnicross/contracts/llm-config';
 
 import type { Logger } from '../ports/logger';
-
-/** Key binding for a session */
-interface SessionBinding {
-  keyId: string;
-  providerId: string;
-}
 
 /** Cooldown state for a key */
 interface KeyCooldown {
@@ -71,8 +65,8 @@ const AUTH_FAILURE_CODES = new Set([401, 403]);
 const RATE_LIMIT_CODES = new Set([429, 529]);
 
 export class ApiKeyPoolService {
-  /** Session 鈫?key binding (session affinity) */
-  private sessionBindings = new Map<string, SessionBinding>();
+  /** Session -> provider -> key ID; switching providers preserves prior bindings. */
+  private sessionBindings = new Map<string, Map<string, string>>();
 
   /** Provider 鈫?round-robin index */
   private rrIndex = new Map<string, number>();
@@ -80,8 +74,8 @@ export class ApiKeyPoolService {
   /** Provider 鈫?cached key list */
   private keyCache = new Map<string, ApiKeyEntry[]>();
 
-  /** Key ID 鈫?cooldown state */
-  private cooldowns = new Map<string, KeyCooldown>();
+  /** Provider -> key ID -> cooldown state. */
+  private cooldowns = new Map<string, Map<string, KeyCooldown>>();
 
   /** Cleanup interval handle */
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -103,52 +97,44 @@ export class ApiKeyPoolService {
   }
 
   /**
-   * Get the API key for a session. Implements session affinity.
-   *
-   * First call for a session binds it to a key via weighted round-robin.
-   * Subsequent calls return the same key (preserves prompt cache).
-   *
-   * @returns Resolved API key string, or empty string if no keys available
-   */
-  /**
-   * Read which key id is currently bound to the given session, if any.
-   * Returns null when the session has not yet been bound (first call hasn't
-   * happened) or when the binding is for a different provider.
+   * Read which key id is currently bound to this provider+session pair.
+   * Returns null when this pair has not yet been bound.
    *
    * Used by the usage-recorder attribution path: after `getKeyForSession`
    * completes the caller looks up the keyId so the recorded usage
    * row can attribute spend to a specific pool key.
    */
   getKeyIdForSession(providerId: string, sessionId: string): string | null {
-    const binding = this.sessionBindings.get(sessionId);
-    if (!binding) return null;
-    if (binding.providerId !== providerId) return null;
-    return binding.keyId;
+    return this.sessionBindings.get(sessionId)?.get(providerId) ?? null;
   }
 
+  /**
+   * Bind each provider+session pair on first use via weighted round-robin.
+   * Later requests reuse its key, even after calls to other providers.
+   * Returns an empty string if no keys are available.
+   */
   async getKeyForSession(providerId: string, sessionId: string): Promise<string> {
-    // Check existing binding
-    const binding = this.sessionBindings.get(sessionId);
-    if (binding && binding.providerId === providerId) {
-      const keys = await this.getAvailableKeys(providerId);
-      const boundKey = keys.find(k => k.id === binding.keyId);
+    const keys = await this.getAvailableKeys(providerId);
+    // Read after loading keys so concurrent first requests reuse the first binding.
+    const keyId = this.getKeyIdForSession(providerId, sessionId);
+    if (keyId) {
+      const boundKey = keys.find(k => k.id === keyId);
       if (boundKey) {
         return this.resolveKey(boundKey.apiKey);
       }
       // Key was disabled/deleted/in cooldown — re-bind below
       this.logger.info('Session key no longer available, re-binding', {
         sessionId,
-        keyId: binding.keyId,
+        keyId,
         providerId,
       });
     }
 
     // Select key via weighted round-robin
-    const keys = await this.getAvailableKeys(providerId);
     if (keys.length === 0) return '';
 
     const selected = this.selectWeightedRoundRobin(providerId, keys);
-    this.sessionBindings.set(sessionId, { keyId: selected.id, providerId });
+    this.bindSession(providerId, sessionId, selected.id);
 
     this.logger.debug('Session bound to API key', {
       sessionId,
@@ -169,7 +155,7 @@ export class ApiKeyPoolService {
     const keys = await this.getAvailableKeys(providerId);
     const selected = keys.find((key) => key.id === keyId);
     if (!selected) return '';
-    if (sessionId) this.sessionBindings.set(sessionId, { keyId: selected.id, providerId });
+    if (sessionId != null) this.bindSession(providerId, sessionId, selected.id);
     return this.resolveKey(selected.apiKey);
   }
 
@@ -206,15 +192,15 @@ export class ApiKeyPoolService {
 
     if (!isRateLimit && !isAuthFailure) return null;
 
-    const binding = this.sessionBindings.get(sessionId);
-    if (!binding) return null;
+    const keyId = this.getKeyIdForSession(providerId, sessionId);
+    if (!keyId) return null;
 
     if (isAuthFailure) {
       // Permanent failure — disable the key in DB so it won't be used again
-      await this.handleAuthFailure(binding.keyId, providerId, statusCode);
+      await this.handleAuthFailure(keyId, providerId, statusCode);
     } else {
       // Transient failure — cooldown with exponential backoff
-      this.applyCooldown(binding.keyId, providerId, statusCode);
+      this.applyCooldown(keyId, providerId, statusCode);
     }
 
     // Try to find another key
@@ -225,7 +211,7 @@ export class ApiKeyPoolService {
     }
 
     const newKey = this.selectWeightedRoundRobin(providerId, keys);
-    this.sessionBindings.set(sessionId, { keyId: newKey.id, providerId });
+    this.bindSession(providerId, sessionId, newKey.id);
 
     this.logger.info('Session re-bound to new API key', {
       sessionId,
@@ -237,18 +223,18 @@ export class ApiKeyPoolService {
   }
 
   /**
-   * Report a successful request — resets cooldown counter for the session's key.
+   * Report success for this provider+session pair, resetting only its key's cooldown.
    */
-  reportSuccess(sessionId: string): void {
-    const binding = this.sessionBindings.get(sessionId);
-    if (!binding) return;
-    if (this.cooldowns.has(binding.keyId)) {
-      this.cooldowns.delete(binding.keyId);
-    }
+  reportSuccess(providerId: string, sessionId: string): void {
+    const keyId = this.getKeyIdForSession(providerId, sessionId);
+    if (!keyId) return;
+    const cooldowns = this.cooldowns.get(providerId);
+    cooldowns?.delete(keyId);
+    if (cooldowns?.size === 0) this.cooldowns.delete(providerId);
   }
 
   /**
-   * Release session binding (call when session ends or is deleted).
+   * Release all provider bindings for a session (call when it ends or is deleted).
    */
   releaseSession(sessionId: string): void {
     this.sessionBindings.delete(sessionId);
@@ -305,7 +291,7 @@ export class ApiKeyPoolService {
     const now = Date.now();
     const coolingUntil = all
       .filter((key) => key.enabled)
-      .map((key) => this.cooldowns.get(key.id)?.until ?? 0)
+      .map((key) => this.cooldowns.get(providerId)?.get(key.id)?.until ?? 0)
       .filter((until) => until > now);
     if (coolingUntil.length > 0) {
       const earliest = Math.min(...coolingUntil);
@@ -330,7 +316,7 @@ export class ApiKeyPoolService {
     const now = Date.now();
     const health: KeyHealthMap = {};
     for (const key of keys) {
-      const cd = this.cooldowns.get(key.id);
+      const cd = this.cooldowns.get(providerId)?.get(key.id);
       if (cd && cd.until > now) {
         health[key.id] = {
           until: cd.until,
@@ -352,12 +338,22 @@ export class ApiKeyPoolService {
     }
     this.sessionBindings.clear();
     this.keyCache.clear();
+    this.rrIndex.clear();
     this.cooldowns.clear();
   }
 
   // ==========================================================================
   // Private methods
   // ==========================================================================
+
+  private bindSession(providerId: string, sessionId: string, keyId: string): void {
+    let bindings = this.sessionBindings.get(sessionId);
+    if (!bindings) {
+      bindings = new Map();
+      this.sessionBindings.set(sessionId, bindings);
+    }
+    bindings.set(providerId, keyId);
+  }
 
   /**
    * Handle auth failure (401/403): disable the key in DB permanently.
@@ -393,13 +389,18 @@ export class ApiKeyPoolService {
    * Apply cooldown with exponential backoff for rate-limit errors (429/529).
    */
   private applyCooldown(keyId: string, providerId: string, statusCode: number): void {
-    const current = this.cooldowns.get(keyId);
+    let cooldowns = this.cooldowns.get(providerId);
+    if (!cooldowns) {
+      cooldowns = new Map();
+      this.cooldowns.set(providerId, cooldowns);
+    }
+    const current = cooldowns.get(keyId);
     const errors = (current?.errors ?? 0) + 1;
     const cooldownMs = Math.min(
       this.DEFAULT_COOLDOWN_MS * Math.pow(this.COOLDOWN_MULTIPLIER, errors - 1),
       this.MAX_COOLDOWN_MS,
     );
-    this.cooldowns.set(keyId, {
+    cooldowns.set(keyId, {
       until: Date.now() + cooldownMs,
       errors,
       lastStatus: statusCode,
@@ -433,7 +434,7 @@ export class ApiKeyPoolService {
     const now = Date.now();
     return all.filter(k => {
       if (!k.enabled) return false;
-      const cd = this.cooldowns.get(k.id);
+      const cd = this.cooldowns.get(providerId)?.get(k.id);
       if (cd && cd.until > now) return false;
       return true;
     });
@@ -472,10 +473,11 @@ export class ApiKeyPoolService {
    */
   private cleanupExpiredCooldowns(): void {
     const now = Date.now();
-    for (const [keyId, cd] of this.cooldowns) {
-      if (cd.until <= now) {
-        this.cooldowns.delete(keyId);
+    for (const [providerId, cooldowns] of this.cooldowns) {
+      for (const [keyId, cd] of cooldowns) {
+        if (cd.until <= now) cooldowns.delete(keyId);
       }
+      if (cooldowns.size === 0) this.cooldowns.delete(providerId);
     }
   }
 }
